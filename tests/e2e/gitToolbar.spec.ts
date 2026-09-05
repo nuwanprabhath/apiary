@@ -22,7 +22,7 @@ test('shows the current branch and lets you copy it', async () => {
 
 test('pull and push succeed against a real remote and refresh the branch button', async () => {
   const remote = h.repoRoot + '-remote.git'
-  execFileSync('git', ['init', '-q', '--bare', remote])
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', remote])
   execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: h.repoRoot })
 
   await h.page.getByTestId('toolbar-push').click()

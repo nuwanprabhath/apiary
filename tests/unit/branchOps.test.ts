@@ -38,7 +38,7 @@ describe('status', () => {
 
   it('reports ahead/behind against a real upstream', async () => {
     const remote = mkdtempSync(join(tmpdir(), 'apiary-branchops-remote-'))
-    git(remote, 'init', '-q', '--bare')
+    git(remote, 'init', '-q', '--bare', '-b', 'main')
     git(repo, 'remote', 'add', 'origin', remote)
     git(repo, 'push', '-q', '-u', 'origin', 'main')
     commit(repo, 'a.txt', 'local-only commit') // makes local 1 ahead
@@ -74,7 +74,7 @@ describe('listRefs', () => {
     git(repo, 'branch', 'feature/x')
     git(repo, 'tag', 'v1.0.0')
     const remote = mkdtempSync(join(tmpdir(), 'apiary-branchops-remote2-'))
-    git(remote, 'init', '-q', '--bare')
+    git(remote, 'init', '-q', '--bare', '-b', 'main')
     git(repo, 'remote', 'add', 'origin', remote)
     git(repo, 'push', '-q', 'origin', 'main')
 
@@ -119,7 +119,7 @@ describe('checkoutBranch / createBranch', () => {
 describe('checkoutRemote / checkoutDetached', () => {
   it('creates a local tracking branch from a remote ref', async () => {
     const remote = mkdtempSync(join(tmpdir(), 'apiary-branchops-remote3-'))
-    git(remote, 'init', '-q', '--bare')
+    git(remote, 'init', '-q', '--bare', '-b', 'main')
     git(repo, 'remote', 'add', 'origin', remote)
     git(repo, 'push', '-q', 'origin', 'main')
     git(repo, 'checkout', '-q', '-b', 'throwaway')
@@ -141,7 +141,7 @@ describe('checkoutRemote / checkoutDetached', () => {
 describe('pull / push', () => {
   it('pulls new commits from the upstream', async () => {
     const remote = mkdtempSync(join(tmpdir(), 'apiary-branchops-remote4-'))
-    git(remote, 'init', '-q', '--bare')
+    git(remote, 'init', '-q', '--bare', '-b', 'main')
     git(repo, 'remote', 'add', 'origin', remote)
     git(repo, 'push', '-q', '-u', 'origin', 'main')
 
@@ -160,7 +160,7 @@ describe('pull / push', () => {
 
   it('pushes and auto-sets upstream when none exists yet', async () => {
     const remote = mkdtempSync(join(tmpdir(), 'apiary-branchops-remote5-'))
-    git(remote, 'init', '-q', '--bare')
+    git(remote, 'init', '-q', '--bare', '-b', 'main')
     git(repo, 'remote', 'add', 'origin', remote)
 
     await push(repo)
@@ -174,7 +174,7 @@ describe('pull / push', () => {
 
   it('surfaces the real CONFLICT text (from stdout) on a conflicting pull, not the harmless stderr fetch-progress line', async () => {
     const remote = mkdtempSync(join(tmpdir(), 'apiary-branchops-remote6-'))
-    git(remote, 'init', '-q', '--bare')
+    git(remote, 'init', '-q', '--bare', '-b', 'main')
     git(repo, 'remote', 'add', 'origin', remote)
     git(repo, 'push', '-q', '-u', 'origin', 'main')
     // Force an actual merge attempt (not git's "divergent branches, pick a strategy" refusal) so
