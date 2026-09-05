@@ -1,8 +1,14 @@
 # Builds installable artifacts and attaches them to a GitHub Release whenever a `v*` tag is
-# pushed. Each OS/arch builds natively on its own runner rather than cross-compiling — the
-# macOS x64 leg in particular exists specifically to sidestep the `distutils`/node-gyp
-# cross-compile gap documented in the README's Packaging section (native compilation on a real
-# x64 runner never hits that toolchain issue in the first place).
+# pushed. Each OS/arch builds natively on its own runner rather than cross-compiling.
+#
+# No macOS x64 leg: GitHub has been winding down Intel Mac (macos-13) hosted runners, and on
+# the v1.0.0 release run that job sat queued for 10+ minutes without a runner ever picking it
+# up, while the other two legs started within seconds — not worth carrying a leg that may not
+# reliably run. Intel Mac users are covered by the README's build-from-source path instead
+# (`npm run dist:mac:x64`), which the Packaging section already documents can hit a
+# `distutils`/node-gyp cross-compile gap on an arm64 dev machine specifically — not an issue
+# here, since a real x64 runner (were one available) would compile natively, but it's the same
+# reason that local path is opt-in rather than the default `npm run dist`.
 #
 # Deliberately narrower than local `npm test`: this runs `vitest` and typecheck only, not
 # Playwright's E2E suite, which needs a virtual display on Linux and a real `claude` binary on
@@ -25,9 +31,6 @@ jobs:
         include:
           - os: macos-14 # Apple Silicon — native arm64 build
             script: dist:mac:arm64
-            artifacts: release/*.dmg
-          - os: macos-13 # Intel — native x64 build, see the note above
-            script: dist:mac:x64
             artifacts: release/*.dmg
           - os: ubuntu-24.04
             script: dist:linux
