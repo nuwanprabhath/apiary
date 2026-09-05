@@ -1,11 +1,13 @@
 appId: dev.apiary.app
 productName: Apiary
 # electron-builder auto-publishes to GitHub Releases on its own whenever it detects a git tag
-# checked out (regardless of whether this file declares a `publish:` target at all) and then
-# fails outright without a GH_TOKEN it has no way to know is intentionally absent — the actual
-# upload is handled by a separate step in .github/workflows/release.yml instead, so this must be
-# `never` or every one of that workflow's three matrix legs fails right after packaging.
-publish: never
+# checked out, and fails outright without a GH_TOKEN it has no way to know is intentionally
+# absent — the actual upload is handled by a separate step in .github/workflows/release.yml
+# instead. Disabling this is done via the `--publish never` CLI flag every invocation below
+# passes, NOT a `publish: never` key here: this version of electron-builder resolves a
+# config-file `publish: never` by trying to load it as a *provider named* "never" (i.e. a
+# package called `electron-publisher-never`), which doesn't exist, rather than treating it as
+# the special disable sentinel the CLI flag maps to.
 directories:
   output: release
   buildResources: build

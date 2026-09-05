@@ -49,7 +49,10 @@ writeFileSync(cfgPath, JSON.stringify(config));
 
 let result;
 try {
-  result = spawnSync('npx', ['electron-builder', '--config', cfgPath], { stdio: 'inherit' });
+  // --publish never: electron-builder auto-publishes to GitHub Releases on its own whenever a
+  // git tag is checked out, and fails without a GH_TOKEN — see the comment in
+  // electron-builder.yml for why this is a CLI flag rather than a `publish: never` config key.
+  result = spawnSync('npx', ['electron-builder', '--config', cfgPath, '--publish', 'never'], { stdio: 'inherit' });
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

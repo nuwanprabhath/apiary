@@ -28,8 +28,8 @@
     "dist": "npm run rebuild:electron && npm run build && node scripts/dist.mjs",
     "dist:mac:arm64": "npm run rebuild:electron && npm run build && node scripts/dist.mjs arm64",
     "dist:mac:x64": "npm run rebuild:electron && npm run build && node scripts/dist.mjs x64",
-    "dist:mac:all": "npm run rebuild:electron && npm run build && electron-builder --config electron-builder.yml --mac --arm64 --x64",
-    "dist:linux": "npm run rebuild:electron && npm run build && electron-builder --config electron-builder.yml --linux"
+    "dist:mac:all": "npm run rebuild:electron && npm run build && electron-builder --config electron-builder.yml --mac --arm64 --x64 --publish never",
+    "dist:linux": "npm run rebuild:electron && npm run build && electron-builder --config electron-builder.yml --linux --publish never"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
