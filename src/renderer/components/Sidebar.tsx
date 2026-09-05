@@ -38,6 +38,7 @@ export function Sidebar({
 }: Props): JSX.Element {
   const [query, setQuery] = useState('')
   const { tree, loading, reload } = useTree(query)
+  const [refreshing, setRefreshing] = useState(false)
 
   const isEmpty = useMemo(() => !loading && tree.length === 0, [loading, tree])
 
@@ -61,10 +62,17 @@ export function Sidebar({
         <button
           className="icon-button"
           data-testid="sidebar-refresh"
-          onClick={() => { void window.apiary.refresh().then(reload).catch(() => reload()) }}
+          disabled={refreshing}
+          onClick={() => {
+            setRefreshing(true)
+            void window.apiary.refresh()
+              .then(reload)
+              .catch(() => reload())
+              .finally(() => setRefreshing(false))
+          }}
           title="Refresh"
         >
-          Refresh
+          {refreshing ? <span className="spinner" aria-hidden="true">⟳</span> : 'Refresh'}
         </button>
       </div>
 

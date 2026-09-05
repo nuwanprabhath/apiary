@@ -1,4 +1,4 @@
-import { ipcMain, type BrowserWindow } from 'electron'
+import { ipcMain, clipboard, type BrowserWindow } from 'electron'
 import { watch } from 'chokidar'
 import { projectsDir } from './config'
 import { CHANNELS } from '@shared/api'
@@ -46,8 +46,10 @@ export function registerIpc(
     await service.removeSession(id)
     send(CHANNELS.treeChanged)
   })
-  ipcMain.handle(CHANNELS.openShell, (_e, id: string) => service.openShell(id))
-  ipcMain.handle(CHANNELS.openShellForPty, (_e, id: string) => service.openShellForPty(id))
+  ipcMain.handle(CHANNELS.openShell, (_e, id: string, tabId: string) => service.openShell(id, tabId))
+  ipcMain.handle(CHANNELS.openShellForPty, (_e, id: string, tabId: string) =>
+    service.openShellForPty(id, tabId),
+  )
   ipcMain.handle(CHANNELS.newSessionInProject, (_e, path: string) =>
     service.newSessionInProject(path),
   )
@@ -60,6 +62,45 @@ export function registerIpc(
     saveSettings(settingsFile, merged)
     service.setClaudeBin(merged.claudeBin)
   })
+
+  ipcMain.handle(CHANNELS.gitStatus, (_e, key: string, isPtyId: boolean) =>
+    service.gitStatus(key, isPtyId),
+  )
+  ipcMain.handle(CHANNELS.gitListRefs, (_e, key: string, isPtyId: boolean) =>
+    service.gitListRefs(key, isPtyId),
+  )
+  ipcMain.handle(CHANNELS.gitCheckoutBranch, async (_e, key: string, isPtyId: boolean, name: string) => {
+    await service.gitCheckoutBranch(key, isPtyId, name)
+    // `tree()` reads the `branch` column, which only `refresh()` (via `resolveProject`) writes —
+    // without this, the sidebar keeps showing the pre-checkout branch until something else
+    // happens to trigger a full refresh.
+    await service.refresh()
+    send(CHANNELS.treeChanged)
+  })
+  ipcMain.handle(
+    CHANNELS.gitCheckoutRemote,
+    async (_e, key: string, isPtyId: boolean, remoteRef: string, localName: string) => {
+      await service.gitCheckoutRemote(key, isPtyId, remoteRef, localName)
+      await service.refresh()
+      send(CHANNELS.treeChanged)
+    },
+  )
+  ipcMain.handle(CHANNELS.gitCheckoutDetached, async (_e, key: string, isPtyId: boolean, ref: string) => {
+    await service.gitCheckoutDetached(key, isPtyId, ref)
+    await service.refresh()
+    send(CHANNELS.treeChanged)
+  })
+  ipcMain.handle(
+    CHANNELS.gitCreateBranch,
+    async (_e, key: string, isPtyId: boolean, name: string, from?: string) => {
+      await service.gitCreateBranch(key, isPtyId, name, from)
+      await service.refresh()
+      send(CHANNELS.treeChanged)
+    },
+  )
+  ipcMain.handle(CHANNELS.gitPull, (_e, key: string, isPtyId: boolean) => service.gitPull(key, isPtyId))
+  ipcMain.handle(CHANNELS.gitPush, (_e, key: string, isPtyId: boolean) => service.gitPush(key, isPtyId))
+  ipcMain.handle(CHANNELS.copyToClipboard, (_e, text: string) => { clipboard.writeText(text) })
 
   ipcMain.on(CHANNELS.ptyWrite, (_e, id: string, data: string) => service.pty.write(id, data))
   ipcMain.on(CHANNELS.ptyResize, (_e, id: string, cols: number, rows: number) =>

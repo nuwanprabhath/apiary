@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, mkdirSync, realpathSync, symlinkSync, existsSync } from 'node:fs'
+import {
+  mkdtempSync,
+  rmSync,
+  mkdirSync,
+  realpathSync,
+  symlinkSync,
+  existsSync,
+  writeFileSync,
+} from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { AppService } from '../../src/main/appService'
@@ -26,6 +35,21 @@ afterEach(async () => {
 })
 
 const projects = () => join(home, '.claude', 'projects')
+
+function git(cwd: string, ...args: string[]): string {
+  return execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim()
+}
+
+function makeGitWorkdir(): string {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-work-git-')))
+  git(dir, 'init', '-q', '-b', 'main')
+  git(dir, 'config', 'user.email', 'test@example.com')
+  git(dir, 'config', 'user.name', 'Test')
+  writeFileSync(join(dir, 'README.md'), 'hi')
+  git(dir, 'add', '.')
+  git(dir, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'init')
+  return dir
+}
 
 describe('AppService', () => {
   it('discovers sessions but shows an empty tree before import', async () => {
@@ -143,12 +167,12 @@ describe('AppService', () => {
     await service.importSessions(['33333333-3333-3333-3333-333333333333'], [])
 
     const info = await service.newSessionInProject(workdir)
-    await service.openShellForPty(info.ptyId)
-    expect(service.pty.has(`shell:${info.ptyId}`)).toBe(true)
+    await service.openShellForPty(info.ptyId, '1')
+    expect(service.pty.has(`shell:${info.ptyId}:1`)).toBe(true)
   })
 
   it('refuses to open a shell for an unknown pty id', async () => {
-    await expect(service.openShellForPty('new:does-not-exist')).rejects.toThrow(/unknown session/i)
+    await expect(service.openShellForPty('new:does-not-exist', '1')).rejects.toThrow(/unknown session/i)
   })
 
   it('renames a session, and the rename survives a rescan', async () => {
@@ -412,5 +436,82 @@ describe('AppService', () => {
     } finally {
       await recoveringService.dispose()
     }
+  })
+})
+
+describe('git operations', () => {
+  it('resolves a session id to its cwd for gitStatus, and rejects an unknown session', async () => {
+    const gitDir = makeGitWorkdir()
+    makeSession(projects(), '-gitw', {
+      sessionId: '66666666-6666-6666-6666-666666666666', cwd: gitDir, title: 'Git session',
+    })
+    await service.refresh()
+    await service.importSessions(['66666666-6666-6666-6666-666666666666'], [])
+
+    const s = await service.gitStatus('66666666-6666-6666-6666-666666666666', false)
+    expect(s.branch).toBe('main')
+
+    await expect(service.gitStatus('does-not-exist', false)).rejects.toThrow(/unknown session/i)
+    rmSync(gitDir, { recursive: true, force: true })
+  })
+
+  it('resolves a pty id to its cwd for gitStatus (the new-session path)', async () => {
+    const gitDir = makeGitWorkdir()
+    const info = await service.newSessionInFolder(gitDir)
+    const s = await service.gitStatus(info.ptyId, true)
+    expect(s.branch).toBe('main')
+    rmSync(gitDir, { recursive: true, force: true })
+  })
+
+  it('creates and checks out a branch by session id', async () => {
+    const gitDir = makeGitWorkdir()
+    makeSession(projects(), '-gitw2', {
+      sessionId: '77777777-7777-7777-7777-777777777777', cwd: gitDir, title: 'Git session 2',
+    })
+    await service.refresh()
+    await service.importSessions(['77777777-7777-7777-7777-777777777777'], [])
+
+    await service.gitCreateBranch('77777777-7777-7777-7777-777777777777', false, 'feature/y')
+    const s = await service.gitStatus('77777777-7777-7777-7777-777777777777', false)
+    expect(s.branch).toBe('feature/y')
+    rmSync(gitDir, { recursive: true, force: true })
+  })
+
+  it('reflects the new branch in tree() after a checkout, once refresh() is called (the pattern the gitCheckoutBranch IPC handler uses)', async () => {
+    const gitDir = makeGitWorkdir()
+    const sessionId = '88888888-8888-8888-8888-888888888888'
+    makeSession(projects(), '-gitw3', { sessionId, cwd: gitDir, title: 'Git session 3' })
+    await service.refresh()
+    await service.importSessions([sessionId], [])
+
+    const before = await service.tree('')
+    expect(before[0]?.branch).toBe('main')
+
+    git(gitDir, 'branch', 'feature/z')
+    await service.gitCheckoutBranch(sessionId, false, 'feature/z')
+    // Mirrors what the ipc.ts handler now does: refresh() after the checkout, before the caller
+    // re-fetches the tree — without it, tree() keeps reporting the pre-checkout branch because
+    // the `branch` column is only ever written by refresh() (via resolveProject), not by
+    // gitCheckoutBranch itself.
+    await service.refresh()
+
+    const after = await service.tree('')
+    expect(after[0]?.branch).toBe('feature/z')
+    rmSync(gitDir, { recursive: true, force: true })
+  })
+})
+
+describe('multi-tab shells', () => {
+  it('spawns distinct ptys for two tabs of the same session', async () => {
+    makeSession(projects(), '-w', {
+      sessionId: '11111111-1111-1111-1111-111111111111', cwd: workdir, title: 'Fix CSV export',
+    })
+    await service.refresh()
+    await service.importSessions(['11111111-1111-1111-1111-111111111111'], [])
+
+    await service.openShell('11111111-1111-1111-1111-111111111111', '1')
+    await service.openShell('11111111-1111-1111-1111-111111111111', '2')
+    expect(service.pty.has('shell:11111111-1111-1111-1111-111111111111:1')).toBe(true)
+    expect(service.pty.has('shell:11111111-1111-1111-1111-111111111111:2')).toBe(true)
   })
 })

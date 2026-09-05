@@ -1,4 +1,11 @@
-import type { ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo } from './types'
+import type {
+  ProjectNode,
+  ResumeConflict,
+  TranscriptPage,
+  NewSessionInfo,
+  GitStatus,
+  GitRefs,
+} from './types'
 
 export interface DiscoveredSession {
   sessionId: string
@@ -32,6 +39,15 @@ export const CHANNELS = {
   settingsGet: 'apiary:settings-get',
   settingsSet: 'apiary:settings-set',
   openSettingsDialog: 'apiary:open-settings-dialog',
+  gitStatus: 'apiary:git-status',
+  gitListRefs: 'apiary:git-list-refs',
+  gitCheckoutBranch: 'apiary:git-checkout-branch',
+  gitCheckoutRemote: 'apiary:git-checkout-remote',
+  gitCheckoutDetached: 'apiary:git-checkout-detached',
+  gitCreateBranch: 'apiary:git-create-branch',
+  gitPull: 'apiary:git-pull',
+  gitPush: 'apiary:git-push',
+  copyToClipboard: 'apiary:copy-to-clipboard',
 } as const
 
 export interface ApiaryApi {
@@ -46,9 +62,9 @@ export interface ApiaryApi {
   renameSession(sessionId: string, title: string): Promise<void>
   /** Removes a session from view (never touches the JSONL on disk). Rejects while it is live. */
   removeSession(sessionId: string): Promise<void>
-  openShell(sessionId: string): Promise<void>
+  openShell(sessionId: string, tabId: string): Promise<void>
   /** Same as `openShell`, but for a new session's pty before it has a real session id yet. */
-  openShellForPty(ptyId: string): Promise<void>
+  openShellForPty(ptyId: string, tabId: string): Promise<void>
   /**
    * Starts a brand-new session in a project the store already knows about. `path` is the
    * project's stable identity (`ProjectNode.path`) — the main process validates it against a
@@ -67,6 +83,15 @@ export interface ApiaryApi {
   settingsGet(): Promise<{ claudeBin: string | null }>
   settingsSet(settings: { claudeBin: string | null }): Promise<void>
   onOpenSettingsDialog(cb: () => void): () => void
+  gitStatus(key: string, isPtyId: boolean): Promise<GitStatus>
+  gitListRefs(key: string, isPtyId: boolean): Promise<GitRefs>
+  gitCheckoutBranch(key: string, isPtyId: boolean, name: string): Promise<void>
+  gitCheckoutRemote(key: string, isPtyId: boolean, remoteRef: string, localName: string): Promise<void>
+  gitCheckoutDetached(key: string, isPtyId: boolean, ref: string): Promise<void>
+  gitCreateBranch(key: string, isPtyId: boolean, name: string, from?: string): Promise<void>
+  gitPull(key: string, isPtyId: boolean): Promise<void>
+  gitPush(key: string, isPtyId: boolean): Promise<void>
+  copyToClipboard(text: string): Promise<void>
 }
 
 declare global {

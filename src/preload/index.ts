@@ -20,8 +20,8 @@ const api: ApiaryApi = {
   resume: (id, fork) => ipcRenderer.invoke(CHANNELS.resume, id, fork),
   renameSession: (id, title) => ipcRenderer.invoke(CHANNELS.renameSession, id, title),
   removeSession: (id) => ipcRenderer.invoke(CHANNELS.removeSession, id),
-  openShell: (id) => ipcRenderer.invoke(CHANNELS.openShell, id),
-  openShellForPty: (id) => ipcRenderer.invoke(CHANNELS.openShellForPty, id),
+  openShell: (id, tabId) => ipcRenderer.invoke(CHANNELS.openShell, id, tabId),
+  openShellForPty: (id, tabId) => ipcRenderer.invoke(CHANNELS.openShellForPty, id, tabId),
   newSessionInProject: (path) => ipcRenderer.invoke(CHANNELS.newSessionInProject, path),
   onNewSessionStarted: (cb) => subscribe(CHANNELS.newSessionStarted, cb),
   ptyWrite: (id, data) => ipcRenderer.send(CHANNELS.ptyWrite, id, data),
@@ -34,6 +34,19 @@ const api: ApiaryApi = {
   settingsGet: () => ipcRenderer.invoke(CHANNELS.settingsGet),
   settingsSet: (settings) => ipcRenderer.invoke(CHANNELS.settingsSet, settings),
   onOpenSettingsDialog: (cb) => subscribe(CHANNELS.openSettingsDialog, cb),
+  gitStatus: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitStatus, key, isPtyId),
+  gitListRefs: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitListRefs, key, isPtyId),
+  gitCheckoutBranch: (key, isPtyId, name) =>
+    ipcRenderer.invoke(CHANNELS.gitCheckoutBranch, key, isPtyId, name),
+  gitCheckoutRemote: (key, isPtyId, remoteRef, localName) =>
+    ipcRenderer.invoke(CHANNELS.gitCheckoutRemote, key, isPtyId, remoteRef, localName),
+  gitCheckoutDetached: (key, isPtyId, ref) =>
+    ipcRenderer.invoke(CHANNELS.gitCheckoutDetached, key, isPtyId, ref),
+  gitCreateBranch: (key, isPtyId, name, from) =>
+    ipcRenderer.invoke(CHANNELS.gitCreateBranch, key, isPtyId, name, from),
+  gitPull: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitPull, key, isPtyId),
+  gitPush: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitPush, key, isPtyId),
+  copyToClipboard: (text) => ipcRenderer.invoke(CHANNELS.copyToClipboard, text),
 }
 
 contextBridge.exposeInMainWorld('apiary', api)

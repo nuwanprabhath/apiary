@@ -22,6 +22,29 @@ export interface ProjectInfo {
   exists: boolean
 }
 
+export interface GitStatus {
+  branch: string | null
+  ahead: number
+  behind: number
+  hasUpstream: boolean
+}
+
+/** One row in the branch switcher's branch/remote/tag lists. */
+export interface GitRefEntry {
+  name: string
+  relativeDate: string
+  author: string
+  shortSha: string
+  subject: string
+}
+
+export interface GitRefs {
+  current: string | null
+  local: GitRefEntry[]
+  remote: GitRefEntry[]
+  tags: GitRefEntry[]
+}
+
 export interface SessionNode {
   kind: 'session'
   sessionId: string

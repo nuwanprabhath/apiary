@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { NewSessionInfo, ProjectNode, ResumeConflict, SessionNode } from '@shared/types'
+import type { GitStatus, NewSessionInfo, ProjectNode, ResumeConflict, SessionNode } from '@shared/types'
 import { Sidebar } from './components/Sidebar'
+import { Toolbar, type ToolbarButtonSpec } from './components/Toolbar'
+import { BranchIcon, ArrowDownIcon, ArrowUpIcon, CopyIcon, PlusIcon, ListIcon } from './components/icons'
 import { EditableSessionTitle } from './components/EditableSessionTitle'
 import { Transcript } from './components/Transcript'
 import { TerminalView } from './components/TerminalView'
+import { TerminalListPanel } from './components/TerminalListPanel'
 import { ResumeBar } from './components/ResumeBar'
 import { ConflictDialog } from './components/ConflictDialog'
 import { DeleteSessionDialog } from './components/DeleteSessionDialog'
 import { ImportDialog } from './components/ImportDialog'
 import { SettingsDialog } from './components/SettingsDialog'
+import { BranchSwitcher } from './components/BranchSwitcher'
 import { loadUiState, saveUiState, type UiState } from './state/uiState'
 
 const MIN_SIDEBAR_WIDTH = 200
@@ -73,6 +77,8 @@ interface PendingSession extends NewSessionInfo {
   titleOverride: string | null
 }
 
+interface TerminalTab { id: string; name: string }
+
 export function App(): JSX.Element {
   const [ui, setUi] = useState<UiState>(() => loadUiState())
   const [selected, setSelected] = useState<SessionNode | null>(null)
@@ -93,7 +99,12 @@ export function App(): JSX.Element {
   // the background (bookkeeping only) until they resolve into a real session or their pty exits.
   const [visiblePendingId, setVisiblePendingId] = useState<string | null>(null)
   const [shellOpen, setShellOpen] = useState(false)
-  const [shells, setShells] = useState<Set<string>>(new Set())
+  const [shellTabs, setShellTabs] = useState<Map<string, TerminalTab[]>>(new Map())
+  const [activeTabId, setActiveTabId] = useState<Map<string, string>>(new Map())
+  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
+  const [gitBusy, setGitBusy] = useState<'pull' | 'push' | null>(null)
+  const [tabListOpen, setTabListOpen] = useState(false)
+  const [branchSwitcherOpen, setBranchSwitcherOpen] = useState(false)
   const [conflict, setConflict] = useState<ResumeConflict | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<SessionNode | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -374,14 +385,14 @@ export function App(): JSX.Element {
     selected === null && visiblePendingId !== null ? pending.get(visiblePendingId) ?? null : null
 
   // A shell can be opened alongside either a resumed session or a still-pending new session —
-  // `shellKey` is whichever one is currently showing, used both as the `shells`/bottom-pane
-  // bookkeeping key and as the suffix of the `shell:<key>` pty id. Pending sessions have no real
-  // session id yet, so they're keyed by pty id instead; the two id spaces never collide (session
-  // ids are bare UUIDs, pty ids for a new session are `new:<uuid>`). Once a pending session
-  // reconciles into a real one, `ptyOverrides` — the same map `activePtyId` below consults for
-  // the main terminal — is consulted here too, so a shell opened during the pending phase keeps
-  // being addressed by its original `shell:<ptyId>` id instead of orphaning it in favour of a
-  // second shell freshly spawned under `shell:<sessionId>`.
+  // `shellKey` is whichever one is currently showing, used both as the `shellTabs`/`activeTabId`
+  // bookkeeping key and as the middle segment of each tab's `shell:<key>:<tabId>` pty id. Pending
+  // sessions have no real session id yet, so they're keyed by pty id instead; the two id spaces
+  // never collide (session ids are bare UUIDs, pty ids for a new session are `new:<uuid>`). Once
+  // a pending session reconciles into a real one, `ptyOverrides` — the same map `activePtyId`
+  // below consults for the main terminal — is consulted here too, so a shell opened during the
+  // pending phase keeps being addressed by its original `shell:<ptyId>:<tabId>` ids instead of
+  // orphaning them in favour of a second shell freshly spawned under `shell:<sessionId>:<tabId>`.
   const shellKey =
     visiblePending !== null
       ? visiblePending.ptyId
@@ -398,24 +409,102 @@ export function App(): JSX.Element {
   const shellKeyIsPtyId =
     visiblePending !== null || (selected !== null && ptyOverrides.has(selected.sessionId))
 
+  const loadGitStatus = useCallback(() => {
+    if (shellKey === null) { setGitStatus(null); return }
+    void window.apiary.gitStatus(shellKey, shellKeyIsPtyId).then(setGitStatus).catch(() => setGitStatus(null))
+  }, [shellKey, shellKeyIsPtyId])
+
+  useEffect(() => { loadGitStatus() }, [loadGitStatus])
+
   const toggleShell = useCallback(async () => {
     if (shellKey === null) return
     if (shellOpen) { setShellOpen(false); return }
-    if (!shells.has(shellKey)) {
+    if (!shellTabs.has(shellKey)) {
       try {
-        if (shellKeyIsPtyId) {
-          await window.apiary.openShellForPty(shellKey)
-        } else {
-          await window.apiary.openShell(shellKey)
-        }
-        setShells((prev) => new Set([...prev, shellKey]))
+        if (shellKeyIsPtyId) await window.apiary.openShellForPty(shellKey, '1')
+        else await window.apiary.openShell(shellKey, '1')
+        setShellTabs((prev) => new Map(prev).set(shellKey, [{ id: '1', name: 'Terminal 1' }]))
+        setActiveTabId((prev) => new Map(prev).set(shellKey, '1'))
       } catch (e) {
         setError((e as Error).message)
         return
       }
     }
     setShellOpen(true)
-  }, [shellKey, shellKeyIsPtyId, shellOpen, shells])
+  }, [shellKey, shellKeyIsPtyId, shellOpen, shellTabs])
+
+  const currentTabs = shellKey !== null ? shellTabs.get(shellKey) ?? [] : []
+  const activeTab = currentTabs.find((t) => t.id === activeTabId.get(shellKey ?? '')) ?? currentTabs[0] ?? null
+
+  const addTerminalTab = useCallback(async () => {
+    if (shellKey === null) return
+    const existing = shellTabs.get(shellKey) ?? []
+    // Numeric ids increment forever within a session's lifetime rather than reusing a freed
+    // number, so a just-deleted tab's pty id can never collide with a new tab's. The display
+    // name is derived from this same id (rather than `existing.length`) so it can't duplicate a
+    // still-open tab's name after an earlier tab has been deleted.
+    const maxId = existing.reduce((m, t) => Math.max(m, Number(t.id)), 0)
+    const newId = String(maxId + 1)
+    try {
+      if (shellKeyIsPtyId) await window.apiary.openShellForPty(shellKey, newId)
+      else await window.apiary.openShell(shellKey, newId)
+      setShellTabs((prev) => new Map(prev).set(shellKey, [...existing, { id: newId, name: `Terminal ${newId}` }]))
+      setActiveTabId((prev) => new Map(prev).set(shellKey, newId))
+      setShellOpen(true)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }, [shellKey, shellKeyIsPtyId, shellTabs])
+
+  const renameTerminalTab = useCallback((tabId: string, name: string) => {
+    if (shellKey === null) return
+    setShellTabs((prev) => {
+      const list = prev.get(shellKey) ?? []
+      const next = new Map(prev)
+      next.set(shellKey, list.map((t) => (t.id === tabId ? { ...t, name } : t)))
+      return next
+    })
+  }, [shellKey])
+
+  const switchTerminalTab = useCallback((tabId: string) => {
+    if (shellKey === null) return
+    setActiveTabId((prev) => new Map(prev).set(shellKey, tabId))
+  }, [shellKey])
+
+  const deleteTerminalTab = useCallback((tabId: string) => {
+    if (shellKey === null) return
+    window.apiary.ptyKill(`shell:${shellKey}:${tabId}`)
+    const list = (shellTabs.get(shellKey) ?? []).filter((t) => t.id !== tabId)
+    setShellTabs((prev) => {
+      const next = new Map(prev)
+      if (list.length === 0) next.delete(shellKey)
+      else next.set(shellKey, list)
+      return next
+    })
+    setActiveTabId((prev) => {
+      if (prev.get(shellKey) !== tabId) return prev
+      const next = new Map(prev)
+      if (list.length === 0) next.delete(shellKey)
+      else next.set(shellKey, list[0].id)
+      return next
+    })
+    if (list.length === 0) setShellOpen(false)
+  }, [shellKey, shellTabs])
+
+  const runGitAction = useCallback(async (kind: 'pull' | 'push') => {
+    if (shellKey === null) return
+    setGitBusy(kind)
+    try {
+      if (kind === 'pull') await window.apiary.gitPull(shellKey, shellKeyIsPtyId)
+      else await window.apiary.gitPush(shellKey, shellKeyIsPtyId)
+      setError(null)
+      loadGitStatus()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setGitBusy(null)
+    }
+  }, [shellKey, shellKeyIsPtyId, loadGitStatus])
 
   // The pty id backing the terminal pane, and whether that pane should be mounted at all. Both
   // the pending branch and the resumed-session branch below render this same TerminalView at the
@@ -525,12 +614,106 @@ export function App(): JSX.Element {
 
             {shellKey !== null && (
               <div className="bottom-pane" style={{ height: shellOpen ? ui.bottomHeight : 32 }}>
-                <button className="shell-toggle" data-testid="shell-toggle" onClick={() => { void toggleShell() }}>
-                  {shellOpen ? 'Hide shell' : 'Show shell'}
-                </button>
-                {shellOpen && shells.has(shellKey) && (
-                  <TerminalView ptyId={'shell:' + shellKey} testId="terminal-shell" />
-                )}
+                <Toolbar
+                  left={[
+                    {
+                      id: 'shell-toggle',
+                      icon: <span aria-hidden="true">▾</span>,
+                      label: shellOpen ? 'Hide shell' : 'Show shell',
+                      title: shellOpen ? 'Hide shell' : 'Show shell',
+                      testId: 'shell-toggle',
+                      onClick: () => { void toggleShell() },
+                    },
+                    ...(gitStatus !== null
+                      ? ([
+                          {
+                            id: 'git-branch',
+                            icon: <BranchIcon />,
+                            label:
+                              gitStatus.branch === null
+                                ? 'HEAD (detached)'
+                                : gitStatus.branch +
+                                  (gitStatus.hasUpstream && (gitStatus.behind > 0 || gitStatus.ahead > 0)
+                                    ? ` (${gitStatus.behind > 0 ? '↓' + String(gitStatus.behind) : ''}${gitStatus.ahead > 0 ? '↑' + String(gitStatus.ahead) : ''})`
+                                    : ''),
+                            title: 'Switch or create branch',
+                            testId: 'toolbar-branch-button',
+                            active: branchSwitcherOpen,
+                            onClick: () => setBranchSwitcherOpen(true),
+                          },
+                          {
+                            id: 'git-pull',
+                            icon: <ArrowDownIcon className={gitBusy === 'pull' ? 'spinner' : undefined} />,
+                            title: 'Pull',
+                            testId: 'toolbar-pull',
+                            disabled: gitBusy !== null,
+                            onClick: () => { void runGitAction('pull') },
+                          },
+                          {
+                            id: 'git-push',
+                            icon: <ArrowUpIcon className={gitBusy === 'push' ? 'spinner' : undefined} />,
+                            title: 'Push',
+                            testId: 'toolbar-push',
+                            disabled: gitBusy !== null,
+                            onClick: () => { void runGitAction('push') },
+                          },
+                          {
+                            id: 'git-copy',
+                            icon: <CopyIcon />,
+                            title: 'Copy branch name',
+                            testId: 'toolbar-copy',
+                            disabled: gitStatus.branch === null,
+                            onClick: () => {
+                              if (gitStatus.branch !== null) void window.apiary.copyToClipboard(gitStatus.branch)
+                            },
+                          },
+                        ] as ToolbarButtonSpec[])
+                      : []),
+                  ]}
+                  right={[
+                    {
+                      id: 'terminal-add',
+                      icon: <PlusIcon />,
+                      title: 'New terminal',
+                      testId: 'terminal-add',
+                      onClick: () => { void addTerminalTab() },
+                    },
+                    {
+                      id: 'terminal-list-toggle',
+                      icon: <ListIcon />,
+                      title: 'Toggle terminal list',
+                      testId: 'terminal-list-toggle',
+                      active: tabListOpen,
+                      onClick: () => setTabListOpen((v) => !v),
+                    },
+                  ]}
+                />
+                <div className="terminal-panel-row">
+                  {/* Every open tab's TerminalView stays mounted, hidden rather than removed, for
+                   *  as long as its tab exists — the same pattern used above for the transcript/
+                   *  terminal-session panes. A fresh xterm instance always starts with empty
+                   *  scrollback (the pty itself keeps running in the background regardless — see
+                   *  TerminalView's own unmount comment), so switching tabs by conditionally
+                   *  rendering only the active one would silently wipe every other tab's history
+                   *  the moment you switched away and back. */}
+                  {shellOpen && currentTabs.map((tab) => (
+                    <div key={tab.id} hidden={tab.id !== activeTab?.id} className="terminal-tab-view">
+                      <TerminalView
+                        ptyId={`shell:${String(shellKey)}:${tab.id}`}
+                        testId={tab.id === activeTab?.id ? 'terminal-shell' : `terminal-shell-${tab.id}`}
+                      />
+                    </div>
+                  ))}
+                  {shellOpen && tabListOpen && (
+                    <TerminalListPanel
+                      tabs={currentTabs}
+                      activeId={activeTab?.id ?? null}
+                      onSwitch={switchTerminalTab}
+                      onRename={renameTerminalTab}
+                      onDelete={deleteTerminalTab}
+                    />
+                  )}
+                </div>
               </div>
             )}
           </>
@@ -562,6 +745,16 @@ export function App(): JSX.Element {
       )}
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+
+      {branchSwitcherOpen && shellKey !== null && (
+        <BranchSwitcher
+          shellKey={shellKey}
+          isPtyId={shellKeyIsPtyId}
+          onClose={() => setBranchSwitcherOpen(false)}
+          onCheckedOut={loadGitStatus}
+          onError={setError}
+        />
+      )}
     </div>
   )
 }

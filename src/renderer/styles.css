@@ -67,6 +67,33 @@ body.resizing-active { user-select: none; }
   border-radius: 6px;
   cursor: pointer;
   padding: 0 8px;
+  transition: background-color 0.1s, color 0.1s;
+}
+
+.icon-button:hover {
+  background: var(--selected);
+  color: var(--text);
+}
+
+.icon-button:active {
+  background: var(--border);
+}
+
+.icon-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Refresh button's own icon spins for as long as the refresh it triggered is still in
+ * flight — otherwise a click has zero visual feedback, since the fetch usually resolves
+ * fast enough that nothing else on screen visibly changes. */
+.icon-button .spinner {
+  display: inline-block;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .tree { list-style: none; margin: 0; padding: 0; }
@@ -409,7 +436,36 @@ body.resizing-active { user-select: none; }
 .bottom-resizer:hover, .bottom-resizer:active { background: var(--accent); }
 
 .bottom-pane { border-top: 1px solid var(--border); display: flex; flex-direction: column; flex: none; }
-.shell-toggle { background: var(--bg-panel); border: 0; border-bottom: 1px solid var(--border); color: var(--muted); text-align: left; padding: 6px 16px; cursor: pointer; font: inherit; }
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 4px 6px;
+  gap: 4px;
+}
+.toolbar-group { display: flex; align-items: center; gap: 4px; }
+.toolbar-group-right { margin-left: auto; }
+
+.toolbar-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 3px 6px;
+  font: inherit;
+}
+.toolbar-button svg { width: 14px; height: 14px; flex: none; }
+.toolbar-button:hover { background: var(--selected); color: var(--text); }
+.toolbar-button:active { background: var(--border); }
+.toolbar-button:disabled { cursor: default; opacity: 0.5; }
+.toolbar-button[data-active="true"] { background: var(--selected); color: var(--text); border-color: var(--border); }
+.toolbar-button .spinner { animation: spin 0.6s linear infinite; }
 
 .error-banner { margin: 0; padding: 8px 16px; background: #3a2422; color: var(--danger); }
 
@@ -472,3 +528,102 @@ body.resizing-active { user-select: none; }
 }
 ::-webkit-scrollbar-thumb:hover { background-color: rgba(100, 100, 100, 0.7); }
 ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+
+.branch-switcher-list { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto; }
+.branch-switcher-section-label { padding: 6px 4px 2px; font-size: 11px; text-transform: uppercase; color: var(--muted); }
+.branch-switcher-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+.branch-switcher-row:hover { background: var(--selected); }
+.branch-switcher-row-meta { color: var(--muted); font-size: 11px; }
+.branch-switcher-action {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+.branch-switcher-action:hover { background: var(--selected); }
+
+.terminal-panel-row { display: flex; flex: 1; min-height: 0; }
+
+/* Every open tab gets its own persistent wrapper (see the comment in App.tsx on why they all
+ * stay mounted) — sized like the single TerminalView that used to sit directly in this row, so
+ * swapping which one is visible doesn't reflow the row. `[hidden]` needs an explicit override
+ * here for the same reason `.pane-fill[hidden]` needs one: a flex child's own `display: flex`
+ * (inherited from .terminal-host inside it, in this case indirectly) can otherwise out-rank the
+ * browser's default `[hidden] { display: none }` UA rule. */
+.terminal-tab-view { flex: 1; min-height: 0; min-width: 0; }
+.terminal-tab-view[hidden] { display: none; }
+.terminal-list-panel {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  width: 180px;
+  flex: none;
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  background: var(--bg-panel);
+}
+.terminal-tab-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 2px;
+}
+.terminal-tab-row[data-active="true"] { background: var(--selected); }
+.terminal-tab-label {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.terminal-tab-rename-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 3px 5px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.terminal-tab-delete {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  opacity: 0;
+}
+.terminal-tab-row:hover .terminal-tab-delete, .terminal-tab-row:focus-within .terminal-tab-delete { opacity: 1; }
+.terminal-tab-delete:hover { background: var(--border); color: var(--danger); }

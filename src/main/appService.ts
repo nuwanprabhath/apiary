@@ -10,9 +10,10 @@ import { indexTranscript, readTranscriptPage } from './transcript/transcriptRead
 import { detectLiveSessions } from './live/liveSessionDetector'
 import { PtyManager } from './pty/ptyManager'
 import { buildResumeCommand, buildNewSessionCommand } from './pty/resumeCommand'
+import * as branchOps from './git/branchOps'
 import type { ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo } from '@shared/types'
 import type { StoredSession } from './store/sessionStore'
-import type { SessionMeta } from '@shared/types'
+import type { SessionMeta, GitStatus, GitRefs } from '@shared/types'
 
 export interface AppServiceOptions {
   configRoot: string
@@ -211,29 +212,64 @@ export class AppService {
     })
   }
 
-  /** Spawns a plain interactive shell in the session's cwd, keyed `shell:<id>`. */
-  async openShell(sessionId: string): Promise<void> {
-    const session = this.requireSession(sessionId)
-    const cwd = session.cwd
-    if (!cwd || !existsSync(cwd)) {
-      throw new Error(`The folder for this session no longer exists: ${cwd ?? 'unknown'}`)
-    }
-    this.pty.spawn({ id: `shell:${sessionId}`, cwd, command: 'exec "$SHELL" -l' })
+  /**
+   * Resolves a session id or (when `isPtyId`) a still-pending session's pty id to its real,
+   * existing cwd — the one trust boundary every cwd-carrying IPC call (shells, and now git
+   * operations) goes through, so the renderer never gets to hand in a raw filesystem path.
+   */
+  private resolveShellCwd(key: string, isPtyId: boolean): string {
+    const cwd = isPtyId ? this.pty.getCwd(key) : this.requireSession(key).cwd
+    if (!cwd) throw new Error(`Unknown session: ${key}`)
+    if (!existsSync(cwd)) throw new Error(`The folder for this session no longer exists: ${cwd}`)
+    return cwd
+  }
+
+  /** Spawns a plain interactive shell in the session's cwd, keyed `shell:<id>:<tabId>` — more
+   *  than one tab can exist per session; each is addressed by its own tabId. */
+  async openShell(sessionId: string, tabId: string): Promise<void> {
+    const cwd = this.resolveShellCwd(sessionId, false)
+    this.pty.spawn({ id: `shell:${sessionId}:${tabId}`, cwd, command: 'exec "$SHELL" -l' })
   }
 
   /**
-   * Spawns a plain interactive shell alongside a not-yet-resolved new session's pty, keyed
-   * `shell:<ptyId>`. `ptyId` never carries the cwd itself across IPC — it is looked up from the
-   * already-running pty `PtyManager` spawned it with, the same trust boundary `openShell` keeps
-   * for a stored session's cwd (no raw filesystem path is ever accepted from the renderer).
+   * Same as `openShell`, but for a new session's pty before it has a real session id yet, keyed
+   * `shell:<ptyId>:<tabId>`.
    */
-  async openShellForPty(ptyId: string): Promise<void> {
-    const cwd = this.pty.getCwd(ptyId)
-    if (!cwd) throw new Error(`Unknown session: ${ptyId}`)
-    if (!existsSync(cwd)) {
-      throw new Error(`The folder for this session no longer exists: ${cwd}`)
-    }
-    this.pty.spawn({ id: `shell:${ptyId}`, cwd, command: 'exec "$SHELL" -l' })
+  async openShellForPty(ptyId: string, tabId: string): Promise<void> {
+    const cwd = this.resolveShellCwd(ptyId, true)
+    this.pty.spawn({ id: `shell:${ptyId}:${tabId}`, cwd, command: 'exec "$SHELL" -l' })
+  }
+
+  async gitStatus(key: string, isPtyId: boolean): Promise<GitStatus> {
+    return branchOps.status(this.resolveShellCwd(key, isPtyId))
+  }
+
+  async gitListRefs(key: string, isPtyId: boolean): Promise<GitRefs> {
+    return branchOps.listRefs(this.resolveShellCwd(key, isPtyId))
+  }
+
+  async gitCheckoutBranch(key: string, isPtyId: boolean, name: string): Promise<void> {
+    await branchOps.checkoutBranch(this.resolveShellCwd(key, isPtyId), name)
+  }
+
+  async gitCheckoutRemote(key: string, isPtyId: boolean, remoteRef: string, localName: string): Promise<void> {
+    await branchOps.checkoutRemote(this.resolveShellCwd(key, isPtyId), remoteRef, localName)
+  }
+
+  async gitCheckoutDetached(key: string, isPtyId: boolean, ref: string): Promise<void> {
+    await branchOps.checkoutDetached(this.resolveShellCwd(key, isPtyId), ref)
+  }
+
+  async gitCreateBranch(key: string, isPtyId: boolean, name: string, from?: string): Promise<void> {
+    await branchOps.createBranch(this.resolveShellCwd(key, isPtyId), name, from)
+  }
+
+  async gitPull(key: string, isPtyId: boolean): Promise<void> {
+    await branchOps.pull(this.resolveShellCwd(key, isPtyId))
+  }
+
+  async gitPush(key: string, isPtyId: boolean): Promise<void> {
+    await branchOps.push(this.resolveShellCwd(key, isPtyId))
   }
 
   /**
