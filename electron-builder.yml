@@ -1,0 +1,32 @@
+appId: dev.apiary.app
+productName: Apiary
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+  # Packaged so the runtime can set the window icon from inside the asar (Linux/Windows —
+  # macOS takes its icon from the bundle). See createWindow() in src/main/index.ts.
+  - build/icon.png
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**"
+  - "**/node_modules/node-pty/**"
+afterPack: build/afterPack.cjs
+mac:
+  category: public.app-category.developer-tools
+  icon: build/icon.icns
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+linux:
+  category: Development
+  icon: build/icons
+  maintainer: Nuwan Munasinghe <nuwanprabhath@gmail.com>
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]

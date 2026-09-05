@@ -1,0 +1,59 @@
+{
+  "name": "apiary",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",
+  "author": "Nuwan Munasinghe <nuwanprabhath@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nuwanprabhath/apiary.git"
+  },
+  "main": "./out/main/index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "postinstall": "node scripts/fix-node-pty-permissions.mjs",
+    "rebuild:electron": "electron-rebuild -f -w better-sqlite3,node-pty",
+    "rebuild:node": "npm rebuild better-sqlite3 node-pty",
+    "start": "npm run rebuild:electron && electron-vite dev",
+    "build": "electron-vite build",
+    "icons": "node scripts/generate-icon.mjs",
+    "test": "npm run rebuild:node && vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "npm run rebuild:electron && npm run build && playwright test",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "dist": "npm run rebuild:electron && npm run build && node scripts/dist.mjs",
+    "dist:mac:arm64": "npm run rebuild:electron && npm run build && node scripts/dist.mjs arm64",
+    "dist:mac:x64": "npm run rebuild:electron && npm run build && node scripts/dist.mjs x64",
+    "dist:mac:all": "npm run rebuild:electron && npm run build && electron-builder --config electron-builder.yml --mac --arm64 --x64",
+    "dist:linux": "npm run rebuild:electron && npm run build && electron-builder --config electron-builder.yml --linux"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "better-sqlite3": "^11.5.0",
+    "chokidar": "^4.0.1",
+    "dompurify": "^3.4.14",
+    "marked": "^15.0.12",
+    "node-pty": "^1.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.0",
+    "@playwright/test": "^1.62.1",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "electron": "^38.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "js-yaml": "^4.3.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

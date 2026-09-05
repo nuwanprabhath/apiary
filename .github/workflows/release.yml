@@ -1,0 +1,62 @@
+# Builds installable artifacts and attaches them to a GitHub Release whenever a `v*` tag is
+# pushed. Each OS/arch builds natively on its own runner rather than cross-compiling — the
+# macOS x64 leg in particular exists specifically to sidestep the `distutils`/node-gyp
+# cross-compile gap documented in the README's Packaging section (native compilation on a real
+# x64 runner never hits that toolchain issue in the first place).
+#
+# Deliberately narrower than local `npm test`: this runs `vitest` and typecheck only, not
+# Playwright's E2E suite, which needs a virtual display on Linux and a real `claude` binary on
+# PATH that a CI runner won't have. E2E stays a local/manual gate before tagging a release.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14 # Apple Silicon — native arm64 build
+            script: dist:mac:arm64
+            artifacts: release/*.dmg
+          - os: macos-13 # Intel — native x64 build, see the note above
+            script: dist:mac:x64
+            artifacts: release/*.dmg
+          - os: ubuntu-24.04
+            script: dist:linux
+            artifacts: |
+              release/*.AppImage
+              release/*.deb
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      - run: npm run ${{ matrix.script }}
+
+      # Appends to the same release across all three matrix legs (softprops/action-gh-release
+      # creates the release from the pushed tag on its first run and adds assets on each
+      # subsequent one), so the finished release ends up with all platforms' artifacts together.
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifacts }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

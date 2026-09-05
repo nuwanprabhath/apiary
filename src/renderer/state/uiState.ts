@@ -1,0 +1,39 @@
+export interface UiState {
+  /**
+   * Paths of folders the user has deliberately collapsed. Anything NOT in this list is open,
+   * including a folder that has never been seen before — so a newly discovered folder opens by
+   * default, and a folder the user closed stays closed across remounts and restarts, without
+   * needing any separate "have we seen this path before" bookkeeping.
+   */
+  collapsed: string[]
+  selectedSessionId: string | null
+  sidebarWidth: number
+  bottomHeight: number
+}
+
+const KEY = 'apiary.ui'
+
+export const DEFAULT_UI_STATE: UiState = {
+  collapsed: [],
+  selectedSessionId: null,
+  sidebarWidth: 320,
+  bottomHeight: 200,
+}
+
+export function loadUiState(): UiState {
+  try {
+    const raw = localStorage.getItem(KEY)
+    if (!raw) return DEFAULT_UI_STATE
+    return { ...DEFAULT_UI_STATE, ...(JSON.parse(raw) as Partial<UiState>) }
+  } catch {
+    return DEFAULT_UI_STATE
+  }
+}
+
+export function saveUiState(state: UiState): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state))
+  } catch {
+    // Storage can be unavailable; the app works fine without persistence.
+  }
+}
