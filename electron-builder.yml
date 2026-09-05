@@ -1,5 +1,11 @@
 appId: dev.apiary.app
 productName: Apiary
+# electron-builder auto-publishes to GitHub Releases on its own whenever it detects a git tag
+# checked out (regardless of whether this file declares a `publish:` target at all) and then
+# fails outright without a GH_TOKEN it has no way to know is intentionally absent — the actual
+# upload is handled by a separate step in .github/workflows/release.yml instead, so this must be
+# `never` or every one of that workflow's three matrix legs fails right after packaging.
+publish: never
 directories:
   output: release
   buildResources: build
