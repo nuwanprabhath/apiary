@@ -52,6 +52,33 @@ export function ListIcon({ className }: IconProps): JSX.Element {
   )
 }
 
+/** Two curved arrows chasing each other into a circle — the refresh button's icon, which spins
+ *  in place (via the shared `.spinner` class) rather than the button swapping its whole label
+ *  out for a bare glyph, which used to change the button's width mid-click. */
+export function RefreshIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path
+        d="M13 8A5 5 0 1 1 11.4 4.3M13 8V4.5M13 8H9.5"
+        stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/** A pencil, for the "rename" action on a terminal tab. */
+export function PencilIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path
+        d="M10.5 2.5 13.5 5.5 5 14H2V11L10.5 2.5Z"
+        stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"
+      />
+      <path d="M9 4 12 7" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  )
+}
+
 export function TrashIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

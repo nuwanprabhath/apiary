@@ -94,3 +94,45 @@ test('the shell pane stays pinned to the bottom instead of scrolling the layout 
     expect(Math.abs(viewport.height - (pane.y + pane.height))).toBeLessThan(4)
   }
 })
+
+test('switching to a tab that never had a shell open spawns one automatically, not just an empty pane', async () => {
+  // Regression: `shellOpen` lives at the column level, not per tab. Opening the shell for one
+  // session and then switching to a different one (that has never had a shell of its own) used
+  // to leave the pane rendering nothing at all — the pane was genuinely open, but no terminal
+  // existed yet for the newly active tab, and nothing spawned one without an explicit
+  // Hide-shell-then-Show-shell round trip.
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('shell-toggle').click()
+  await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
+
+  await sidebarSession(h.page, 'Add worktree switcher').click()
+  // Same column, same still-open pane, a session that has never had a shell — a terminal must
+  // appear on its own, without touching the shell toggle at all.
+  await expect(h.page.getByTestId('terminal-shell')).toBeVisible({ timeout: 10000 })
+  await expect(h.page.getByTestId('shell-toggle')).toHaveAttribute('title', 'Hide shell')
+})
+
+test('the bottom pane shrinks to fit a short window instead of overflowing off the bottom', async () => {
+  // Regression: .bottom-pane used to be a rigid (`flex: none`) fixed-height box. On a window too
+  // short to fit the tab bar, header and the shell pane's full requested height, the pane simply
+  // ran past the bottom of the column, and `.session-column`'s `overflow: hidden` clipped
+  // whatever fell off the edge — the last line or two of a terminal, or the tail of a dropdown.
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('shell-toggle').click()
+  await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
+
+  await h.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].setSize(1000, 420)
+  })
+  await h.page.waitForTimeout(300)
+
+  const viewportHeight = await h.page.evaluate(() => window.innerHeight)
+  const pane = await h.page.locator('.bottom-pane').boundingBox()
+  expect(pane).not.toBeNull()
+  if (pane !== null) {
+    // The pane's bottom edge must land at (or above) the window's own bottom edge — never past it.
+    expect(pane.y + pane.height).toBeLessThanOrEqual(viewportHeight + 1)
+  }
+  // The toolbar (and its Hide/Show shell button) must still be reachable even when squeezed.
+  await expect(h.page.getByTestId('shell-toggle')).toBeVisible()
+})

@@ -156,6 +156,19 @@ body.resizing-active { user-select: none; }
   animation: spin 0.6s linear infinite;
 }
 
+/*
+ * A fixed-width, icon-plus-label button, so triggering it never resizes it. The icon used to be
+ * swapped out entirely for a bare spinner glyph while a refresh was in flight, which visibly
+ * shrank the whole button (a single character is much narrower than "Refresh") — jarring, and
+ * easy to misread as the button itself having disappeared. The icon now just spins in place.
+ */
+.sidebar-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.sidebar-refresh svg { width: 13px; height: 13px; flex: none; }
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -605,7 +618,25 @@ body.resizing-active { user-select: none; }
 }
 .bottom-resizer:hover, .bottom-resizer:active { background: var(--accent); }
 
-.bottom-pane { border-top: 1px solid var(--border); display: flex; flex-direction: column; flex: none; }
+/*
+ * flex: 0 1 auto (not the earlier `flex: none`) lets this pane give ground when the window is
+ * too short to fit it at its full requested height: since its flex-basis (the inline `height`
+ * style, up to MAX_BOTTOM_HEIGHT) is what the shrink algorithm weighs, nearly all of any
+ * shrinkage lands here rather than on .centre-pane (whose basis is 0 and therefore has almost no
+ * weight to shrink by), down to `min-height`. Before this it was `flex: none` — rigid — so a
+ * short window (or a bottomHeight persisted from a taller one) simply overflowed the column, and
+ * `.session-column`'s `overflow: hidden` silently clipped whatever ran past the bottom edge: the
+ * last rows of a terminal, or the tail of the terminal list. See sessionTabs.spec.ts's
+ * "does not overflow off the bottom of a short window" for the regression this guards.
+ */
+.bottom-pane {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 32px;
+  overflow: hidden;
+}
 .toolbar {
   display: flex;
   align-items: center;
@@ -792,17 +823,19 @@ body.resizing-active { user-select: none; }
   outline: none;
   box-shadow: 0 0 0 1px var(--accent);
 }
-.terminal-tab-delete {
+.terminal-tab-action {
   flex: none;
+  display: none;
   border: 0;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 6px;
-  opacity: 0;
 }
-.terminal-tab-row:hover .terminal-tab-delete, .terminal-tab-row:focus-within .terminal-tab-delete { opacity: 1; }
+.terminal-tab-row:hover .terminal-tab-action, .terminal-tab-row:focus-within .terminal-tab-action { display: flex; align-items: center; justify-content: center; }
+.terminal-tab-action svg { width: 12px; height: 12px; display: block; }
+.terminal-tab-rename:hover { background: var(--border); color: var(--text); }
 .terminal-tab-delete:hover { background: var(--border); color: var(--danger); }
 
 /* The row's own label — everything except the collapse chevron. It carries the pointer cursor

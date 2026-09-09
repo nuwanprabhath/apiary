@@ -4,6 +4,33 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-09-09
+
+### Fixed
+
+- The shell pane no longer overflows off the bottom of a short window. It used to be a rigid,
+  fixed-height box (`flex: none`); on a window too short to fit it at its full requested height,
+  the excess silently ran past the bottom edge and got clipped there — the last line or two of a
+  terminal, or the tail of the open-terminals list. The pane now shrinks to fit, down to a floor
+  that always keeps its own toolbar reachable.
+- Switching to a session tab that has never had its own shell — while the shell pane is already
+  open from a different tab in the same column — now spawns one automatically instead of leaving
+  the pane rendering nothing. `shellOpen` lives at the column level, not per tab, so this used to
+  require a Hide-shell/Show-shell round trip to notice the pane was actually open.
+- The sidebar's Refresh button no longer visibly shrinks while it spins. It used to swap its whole
+  "Refresh" label out for a bare spinner glyph, which changed the button's width; the label now
+  stays put and only the icon inside it spins.
+
+### Added
+
+- A rename button next to the trash button on hover, for every terminal in a session's shell —
+  with several terminals open there was previously no discoverable way to tell them apart or clean
+  them up beyond double-clicking a label to rename it, or a hard-to-notice trash icon.
+- A screenshot of the app in the README, above Features — three sessions open side by side, each
+  with its own shell, alongside the sidebar's pinned and grouped sessions. Regenerate it with
+  `npm run screenshot` (`scripts/screenshot.spec.ts`), whenever a change is significant enough
+  that the README's picture should catch up.
+
 ## [1.3.0] - 2026-09-09
 
 ### Added

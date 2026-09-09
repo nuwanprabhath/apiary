@@ -47,18 +47,47 @@ test('renames a terminal tab', async () => {
   await expect(h.page.getByTestId('terminal-tab-label')).toHaveText('Build watcher')
 })
 
+test('a rename button and a delete button both appear on hovering a terminal row', async () => {
+  // With several terminals open there was previously no discoverable way to manage them beyond
+  // double-clicking the label (to rename) or a trash icon easy to miss — both actions now have a
+  // dedicated, hover-revealed button.
+  await h.page.getByTestId('terminal-add').click()
+  await expect(h.page.getByTestId('terminal-tab-row')).toHaveCount(2)
+
+  const row = h.page.getByTestId('terminal-tab-row').first()
+  await expect(row.getByTestId('terminal-tab-rename')).toBeHidden()
+  await expect(row.getByTestId('terminal-tab-delete')).toBeHidden()
+
+  await row.hover()
+  await expect(row.getByTestId('terminal-tab-rename')).toBeVisible()
+  await expect(row.getByTestId('terminal-tab-delete')).toBeVisible()
+
+  await row.getByTestId('terminal-tab-rename').click()
+  await h.page.getByTestId('terminal-tab-rename-input').fill('Dev server')
+  await h.page.getByTestId('terminal-tab-rename-input').press('Enter')
+  await expect(row.getByTestId('terminal-tab-label')).toHaveText('Dev server')
+
+  await row.hover()
+  await row.getByTestId('terminal-tab-delete').click()
+  await expect(h.page.getByTestId('terminal-tab-row')).toHaveCount(1)
+})
+
 test('deletes a terminal tab, switching to a remaining one', async () => {
   await h.page.getByTestId('terminal-add').click()
   await expect(h.page.getByTestId('terminal-tab-row')).toHaveCount(2)
 
-  await h.page.getByTestId('terminal-tab-row').last().getByTestId('terminal-tab-delete').click()
+  const last = h.page.getByTestId('terminal-tab-row').last()
+  await last.hover()
+  await last.getByTestId('terminal-tab-delete').click()
   await expect(h.page.getByTestId('terminal-tab-row')).toHaveCount(1)
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
 })
 
 test('deleting the last terminal collapses the pane back to Show shell', async () => {
   await h.page.getByTestId('terminal-list-toggle').click()
-  await h.page.getByTestId('terminal-tab-row').getByTestId('terminal-tab-delete').click()
+  const row = h.page.getByTestId('terminal-tab-row')
+  await row.hover()
+  await row.getByTestId('terminal-tab-delete').click()
   await expect(h.page.getByTestId('shell-toggle')).toContainText('Show shell')
   await expect(h.page.getByTestId('terminal-shell')).toHaveCount(0)
 })

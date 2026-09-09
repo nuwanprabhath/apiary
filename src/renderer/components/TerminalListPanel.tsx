@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TrashIcon } from './icons'
+import { PencilIcon, TrashIcon } from './icons'
 
 interface Tab { id: string; name: string }
 
@@ -11,8 +11,9 @@ interface Props {
   onDelete: (tabId: string) => void
 }
 
-/** The side panel listing every open terminal for the current session — click switches,
- *  double-click the label renames in place, the trash icon deletes. */
+/** The side panel listing every open terminal for the current session — click switches; a rename
+ *  and a trash button appear on hover (double-clicking the label also renames, for muscle
+ *  memory), so with several terminals open there's always a visible way to tidy them up. */
 export function TerminalListPanel({ tabs, activeId, onSwitch, onRename, onDelete }: Props): JSX.Element {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -55,8 +56,21 @@ export function TerminalListPanel({ tabs, activeId, onSwitch, onRename, onDelete
               {tab.name}
             </button>
           )}
+          {editingId !== tab.id && (
+            // A dedicated button, not just the label's double-click: with many terminals open and
+            // no other way to tell, double-click-to-rename is easy to never discover at all.
+            <button
+              className="terminal-tab-action terminal-tab-rename"
+              data-testid="terminal-tab-rename"
+              title="Rename terminal"
+              aria-label={`Rename ${tab.name}`}
+              onClick={() => { setDraft(tab.name); setEditingId(tab.id) }}
+            >
+              <PencilIcon />
+            </button>
+          )}
           <button
-            className="terminal-tab-delete"
+            className="terminal-tab-action terminal-tab-delete"
             data-testid="terminal-tab-delete"
             title="Close terminal"
             aria-label="Close terminal"

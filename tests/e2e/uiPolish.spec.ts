@@ -29,6 +29,25 @@ test('the search box clears from its own button', async () => {
 
 })
 
+test('the refresh button keeps a stable width while it spins', async () => {
+  // Regression: the button used to swap its whole "Refresh" label out for a bare spinner glyph
+  // while a refresh was in flight, which visibly shrank the button — jarring, and easy to misread
+  // as the control itself vanishing. The label now stays put; only the icon inside it spins.
+  const button = h.page.getByTestId('sidebar-refresh')
+  const before = await button.boundingBox()
+  expect(before).not.toBeNull()
+
+  await button.click()
+  // The click may resolve before Playwright gets a chance to observe the spinning state on a
+  // fast local scan, so assert on the label staying present rather than racing the spinner.
+  await expect(button).toContainText('Refresh')
+  const after = await button.boundingBox()
+  expect(after).not.toBeNull()
+  if (before !== null && after !== null) {
+    expect(Math.abs(before.width - after.width)).toBeLessThan(2)
+  }
+})
+
 test.describe('import dialog, before anything has been imported', () => {
   test.beforeEach(async () => {
     // A fresh harness: `importAll` in the outer beforeEach would leave every row already

@@ -7,6 +7,8 @@ Apiary reads the session files Claude Code already writes to `~/.claude/projects
 worktrees under their parent repository, and lets you read any conversation or
 resume it in an embedded terminal in the correct working directory.
 
+![Apiary: a searchable sidebar with pinned and grouped sessions on the left, three sessions open side by side, each with its own shell running underneath it](docs/screenshot.png)
+
 ## Features
 
 - **Grouped, searchable sidebar** — every session grouped by the folder it started
@@ -80,7 +82,16 @@ as long as the build requirements below are met.
     npm start          # run the app
     npm test           # unit and integration tests
     npm run test:e2e   # Playwright tests against the built renderer
+    npm run screenshot # regenerate docs/screenshot.png (the README image above)
     npm run typecheck
+
+`npm run screenshot` launches the real app against a representative fixture (three
+project folders, a git worktree, a few sessions with human-sounding titles), opens
+three of them side by side with a shell running under each, and overwrites
+`docs/screenshot.png` — see `scripts/screenshot.spec.ts`. It's a Playwright script,
+not a test (it asserts nothing, and lives outside `tests/e2e` so `npm run test:e2e`
+never runs it); run it by hand whenever a change is significant enough that the
+README's picture of the app should catch up.
 
 `better-sqlite3` and `node-pty` are native modules, and Electron's Node ABI is
 not the same as your system Node's, so the same `node_modules` can't serve

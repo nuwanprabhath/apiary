@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GitStatus, SessionNode } from '@shared/types'
 import type { Column, OpenTab } from '../state/columns'
 import { findTab } from '../state/columns'
@@ -144,25 +144,59 @@ export function SessionColumn(props: Props): JSX.Element {
     else await window.apiary.openShell(shellKey, id)
   }, [shellKey, shellKeyIsPtyId])
 
+  // Guards `ensureShellFor` against firing twice for the same key before its first spawn has
+  // committed to `shellTabs` — a ref (not state) because the check must be synchronous, and
+  // because two columns showing the *same* split session share one `shellTabs` entry, so a
+  // second column's own render could otherwise race a spawn already in flight from the first.
+  const spawningRef = useRef<Set<string>>(new Set())
+
+  /**
+   * Spawns a first terminal for `key` if it has none *live*. Shared by the "Show shell" button
+   * and the auto-open effect below, so a session that already has a shell never gets a second
+   * spawned out from under it, and a session whose shell was exited (`exit` at the prompt, its
+   * dead tab pruned by App's pty-exit handler) reliably gets a fresh one either way.
+   */
+  const ensureShellFor = useCallback(async (key: string): Promise<void> => {
+    if ((shellTabs.get(key) ?? []).length > 0) return
+    if (spawningRef.current.has(key)) return
+    spawningRef.current.add(key)
+    try {
+      await spawnTerminal('1')
+      setShellTabs((prev) => new Map(prev).set(key, [{ id: '1', name: 'Terminal 1' }]))
+      setActiveTerminal((prev) => new Map(prev).set(key, '1'))
+    } finally {
+      spawningRef.current.delete(key)
+    }
+  }, [shellTabs, spawnTerminal, setShellTabs, setActiveTerminal])
+
   const toggleShell = useCallback(async () => {
     if (shellKey === null) return
     if (shellOpen) { setShellOpen(false); return }
-    // Spawn a first terminal only when this session has none *live*. A session whose shell was
-    // exited (`exit` at the prompt) has its dead tabs pruned by App's pty-exit handler, so this
-    // sees an empty list and starts a fresh one, rather than reopening onto a terminal whose
-    // process is gone — which is what used to make "Show shell" look like it did nothing.
-    if ((shellTabs.get(shellKey) ?? []).length === 0) {
-      try {
-        await spawnTerminal('1')
-        setShellTabs((prev) => new Map(prev).set(shellKey, [{ id: '1', name: 'Terminal 1' }]))
-        setActiveTerminal((prev) => new Map(prev).set(shellKey, '1'))
-      } catch (e) {
-        notifyError(e, 'Could not open a shell')
-        return
-      }
+    try {
+      await ensureShellFor(shellKey)
+    } catch (e) {
+      notifyError(e, 'Could not open a shell')
+      return
     }
     setShellOpen(true)
-  }, [shellKey, shellOpen, shellTabs, spawnTerminal, setShellTabs, setActiveTerminal, notifyError])
+  }, [shellKey, shellOpen, ensureShellFor, notifyError])
+
+  /**
+   * Auto-opens a shell for a tab that switches into view while the pane is already open but that
+   * tab itself has never had one. `shellOpen` lives at the column level, not per tab — switching
+   * to a session you have never shown the shell for used to leave the pane rendering nothing at
+   * all (no terminal exists for that key yet, and nothing spawns one without a click), which read
+   * as "Show shell did nothing" even though the pane genuinely was open. See
+   * sessionTabs.spec.ts's "switching to a tab that never had a shell open" for the regression.
+   *
+   * Restricted to the focused column: two columns can show the same split session and would
+   * otherwise both race to spawn its first terminal the moment either one opens its shell.
+   */
+  useEffect(() => {
+    if (!isActive || !shellOpen || shellKey === null) return
+    if ((shellTabs.get(shellKey) ?? []).length > 0) return
+    void ensureShellFor(shellKey).catch((e: unknown) => { notifyError(e, 'Could not open a shell') })
+  }, [isActive, shellOpen, shellKey, shellTabs, ensureShellFor, notifyError])
 
   const addTerminalTab = useCallback(async () => {
     if (shellKey === null) return

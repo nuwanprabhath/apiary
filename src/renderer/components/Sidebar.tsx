@@ -3,7 +3,7 @@ import type { ProjectNode, SessionNode } from '@shared/types'
 import { useTree } from '../state/useTree'
 import { SessionTree } from './SessionTree'
 import { SessionRow } from './SessionRow'
-import { CloseIcon } from './icons'
+import { CloseIcon, RefreshIcon } from './icons'
 
 /** Every session anywhere in the tree, flattened, so pinned ids can be resolved back to rows. */
 function flattenSessions(nodes: ProjectNode[], into = new Map<string, SessionNode>()): Map<string, SessionNode> {
@@ -108,8 +108,9 @@ export function Sidebar({
           )}
         </div>
         <button
-          className="icon-button"
+          className="icon-button sidebar-refresh"
           data-testid="sidebar-refresh"
+          data-refreshing={refreshing}
           disabled={refreshing}
           onClick={() => {
             setRefreshing(true)
@@ -120,7 +121,10 @@ export function Sidebar({
           }}
           title="Refresh"
         >
-          {refreshing ? <span className="spinner" aria-hidden="true">⟳</span> : 'Refresh'}
+          {/* The icon spins in place while a refresh is in flight; the label never leaves, so the
+           *  button's own width stays put instead of visibly collapsing to a bare glyph. */}
+          <RefreshIcon className={refreshing ? 'spinner' : undefined} />
+          <span>Refresh</span>
         </button>
       </div>
 
