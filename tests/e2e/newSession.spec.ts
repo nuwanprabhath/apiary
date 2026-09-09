@@ -216,15 +216,16 @@ test('starting a second new session before the first resolves does not orphan th
     timeout: 20000,
   })
 
-  // ...while the first (work-a) is still tracked, not silently dropped: it is listed as a
-  // reachable pending session in the sidebar rather than having vanished with no visible tab.
-  const pendingItems = h.page.getByTestId('pending-session-item')
-  await expect(pendingItems).toHaveCount(1)
-  await expect(pendingItems.first()).toContainText('work-a')
+  // ...while the first (work-a) is still tracked, not silently dropped: it has a tab of its own.
+  // (Before sessions were tabbed, only one could be on screen at a time and the other had to be
+  // parked in a sidebar list to stay reachable; now both are simply open.)
+  const tabs = h.page.getByTestId('session-tab')
+  await expect(tabs).toHaveCount(2)
+  await expect(tabs.first()).toContainText('work-a')
 
   // Switching back to it proves its pty is still alive and reachable — not orphaned — by typing
   // into it directly and reading real output back, the same technique used above for work-b.
-  await pendingItems.first().click()
+  await tabs.first().getByTestId('session-tab-label').click()
   await expect(h.page.locator('.session-cwd')).toHaveText(h.workdir)
   await h.page.getByTestId('terminal-session').click({ force: true })
   await expect(h.page.getByTestId('terminal-session')).toContainText('$', { timeout: 20000 })
@@ -235,8 +236,8 @@ test('starting a second new session before the first resolves does not orphan th
 
   // And work-b, which we navigated away from, is still there too (not orphaned by the switch
   // back to work-a either) — proving both survive concurrently.
-  await expect(h.page.getByTestId('pending-session-item')).toHaveCount(1)
-  await expect(h.page.getByTestId('pending-session-item').first()).toContainText('work-b')
+  await expect(h.page.getByTestId('session-tab')).toHaveCount(2)
+  await expect(h.page.getByTestId('session-tab').last()).toContainText('work-b')
 })
 
 // Finding 2 (Important): reconciliation used to render the pending terminal and the

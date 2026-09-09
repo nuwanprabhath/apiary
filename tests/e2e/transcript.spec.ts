@@ -5,6 +5,7 @@ import {
   interceptTranscriptPaging,
   releaseHeldTranscriptPaging,
   type Harness,
+  sidebarSession,
 } from './helpers'
 import { makeSession } from '../fixtures/makeSession'
 
@@ -13,7 +14,7 @@ test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
-  await h.page.getByText('Fix CSV export bug').click()
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
 })
 test.afterEach(async () => { await h.close() })
 
@@ -33,7 +34,7 @@ test('marks user and assistant messages distinctly', async () => {
 
 test('switching sessions replaces the transcript', async () => {
   await expect(h.page.getByTestId('message').first()).toContainText('the export is empty')
-  await h.page.getByText('Add worktree switcher').click()
+  await sidebarSession(h.page, 'Add worktree switcher').click()
   await expect(h.page.getByTestId('session-title')).toHaveText('Add worktree switcher')
   await expect(h.page.getByTestId('transcript')).toBeVisible()
 })
@@ -79,7 +80,7 @@ test.describe('paging a long session', () => {
     })
     await importAll(h.page)
     await h.page.getByTestId('sidebar-refresh').click()
-    await h.page.getByText('Long paging session').click()
+    await sidebarSession(h.page, 'Long paging session').click()
     await expect(h.page.getByTestId('session-title')).toHaveText('Long paging session')
     await expect(h.page.getByTestId('message').first()).toBeVisible()
   })
@@ -156,7 +157,7 @@ test.describe('paging responses across a session round trip', () => {
     await interceptTranscriptPaging(h.app, { kind: 'hold' })
 
     // First visit to the long session (A). Initial load passes through normally.
-    await h.page.getByText('Long paging session').click()
+    await sidebarSession(h.page, 'Long paging session').click()
     await expect(h.page.getByTestId('session-title')).toHaveText('Long paging session')
     await expect(h.page.getByTestId('message')).toHaveCount(200)
 
@@ -166,12 +167,12 @@ test.describe('paging responses across a session round trip', () => {
     await expect(h.page.getByTestId('load-earlier')).toBeDisabled()
 
     // Switch to session B. Its own initial load passes through the intercept untouched.
-    await h.page.getByText('Add worktree switcher').click()
+    await sidebarSession(h.page, 'Add worktree switcher').click()
     await expect(h.page.getByTestId('session-title')).toHaveText('Add worktree switcher')
 
     // Switch back to A *before* the held response resolves: a second, fresh visit to the same
     // session id. The effect resets messages/cursor and reloads the initial 200-message page.
-    await h.page.getByText('Long paging session').click()
+    await sidebarSession(h.page, 'Long paging session').click()
     await expect(h.page.getByTestId('session-title')).toHaveText('Long paging session')
     await expect(h.page.getByTestId('message')).toHaveCount(200)
 
@@ -205,7 +206,7 @@ test.describe('paging responses across a session round trip', () => {
   test('a rejected paging fetch surfaces an error and does not permanently wedge paging', async () => {
     await interceptTranscriptPaging(h.app, { kind: 'reject', message: 'simulated paging failure' })
 
-    await h.page.getByText('Long paging session').click()
+    await sidebarSession(h.page, 'Long paging session').click()
     await expect(h.page.getByTestId('message')).toHaveCount(200)
 
     await h.page.getByTestId('load-earlier').click()
@@ -219,9 +220,9 @@ test.describe('paging responses across a session round trip', () => {
     // rejected request, or if it leaked across the session switch, "Load earlier" would come
     // back stuck disabled and unusable forever for this session.
     await interceptTranscriptPaging(h.app, { kind: 'passthrough' })
-    await h.page.getByText('Add worktree switcher').click()
+    await sidebarSession(h.page, 'Add worktree switcher').click()
     await expect(h.page.getByTestId('session-title')).toHaveText('Add worktree switcher')
-    await h.page.getByText('Long paging session').click()
+    await sidebarSession(h.page, 'Long paging session').click()
     await expect(h.page.getByTestId('session-title')).toHaveText('Long paging session')
     await expect(h.page.getByTestId('message')).toHaveCount(200)
 
@@ -283,8 +284,8 @@ test.describe('markdown rendering', () => {
     }).toBe(true)
     await importAll(h.page)
     await h.page.getByTestId('sidebar-refresh').click()
-    await expect(h.page.getByText('Markdown message')).toBeVisible()
-    await h.page.getByText('Markdown message').click()
+    await expect(sidebarSession(h.page, 'Markdown message')).toBeVisible()
+    await sidebarSession(h.page, 'Markdown message').click()
   })
 
   // Regression test: MessageRow used to render a text block as a plain <p> with the raw
@@ -336,8 +337,8 @@ test.describe('tool block chevron', () => {
     }).toBe(true)
     await importAll(h.page)
     await h.page.getByTestId('sidebar-refresh').click()
-    await expect(h.page.getByText('Tool block session')).toBeVisible()
-    await h.page.getByText('Tool block session').click()
+    await expect(sidebarSession(h.page, 'Tool block session')).toBeVisible()
+    await sidebarSession(h.page, 'Tool block session').click()
   })
 
   // Regression test: the chevron used to be the row's last flex child with no spacer of its

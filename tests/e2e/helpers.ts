@@ -1,4 +1,4 @@
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { _electron as electron, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 import { mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
@@ -317,4 +317,30 @@ export async function countPtyResizeCalls(app: ElectronApplication): Promise<voi
 /** Reads the count installed by `countPtyResizeCalls`. */
 export async function ptyResizeCallCount(app: ElectronApplication): Promise<number> {
   return app.evaluate(() => (globalThis as Record<string, unknown>).__apiaryPtyResizeCalls as number ?? 0)
+}
+
+/**
+ * A session row in the sidebar, by title.
+ *
+ * Scoped to the sidebar deliberately: once a session is open it also appears in its column's tab
+ * strip, so a bare `getByText(title)` matches twice and trips Playwright's strict mode. Anything
+ * that means "the row in the list" — clicking one open, or asserting the list's contents — wants
+ * this rather than a page-wide text match.
+ */
+export function sidebarSession(page: Page, title: string): Locator {
+  return page.locator('.sidebar').getByText(title, { exact: true })
+}
+
+/**
+ * One of a session row's hover-revealed buttons (pin, split, remove), ready to click.
+ *
+ * The buttons are `display: none` until the row is hovered — they and the session's age take
+ * turns occupying the same strip at the end of the row — so a bare `.click()` on one fails its
+ * actionability check before Playwright ever moves the mouse there. Hovering the row first is
+ * what a person does too, so this is the honest way to reach them rather than a workaround.
+ */
+export async function rowAction(row: Locator, testId: string): Promise<Locator> {
+  const wrap = row.locator('xpath=ancestor-or-self::div[contains(@class,"session-row-wrap")]')
+  await wrap.hover()
+  return wrap.getByTestId(testId)
 }

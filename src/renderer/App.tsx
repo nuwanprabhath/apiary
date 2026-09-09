@@ -1,24 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { GitStatus, NewSessionInfo, ProjectNode, ResumeConflict, SessionNode } from '@shared/types'
+import type { NewSessionInfo, ProjectNode, ResumeConflict, SessionNode } from '@shared/types'
 import { Sidebar } from './components/Sidebar'
-import { Toolbar, type ToolbarButtonSpec } from './components/Toolbar'
-import { BranchIcon, ArrowDownIcon, ArrowUpIcon, CopyIcon, PlusIcon, ListIcon } from './components/icons'
-import { EditableSessionTitle } from './components/EditableSessionTitle'
-import { Transcript } from './components/Transcript'
-import { TerminalView } from './components/TerminalView'
-import { TerminalListPanel } from './components/TerminalListPanel'
-import { ResumeBar } from './components/ResumeBar'
+import { SessionColumn, type TerminalTab } from './components/SessionColumn'
 import { ConflictDialog } from './components/ConflictDialog'
 import { DeleteSessionDialog } from './components/DeleteSessionDialog'
 import { ImportDialog } from './components/ImportDialog'
 import { SettingsDialog } from './components/SettingsDialog'
-import { BranchSwitcher } from './components/BranchSwitcher'
+import {
+  newColumn, openTab, closeTab, setTabView, rekeyTab,
+  type Column,
+} from './state/columns'
 import { loadUiState, saveUiState, type UiState } from './state/uiState'
+import { useNotifications } from './state/notifications'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { describeError } from './errors'
 
 const MIN_SIDEBAR_WIDTH = 200
 const MAX_SIDEBAR_WIDTH = 600
 
-// Floor keeps the toggle bar plus a few rows of terminal usable; ceiling leaves the transcript
+// Floor keeps the toolbar plus a few rows of terminal usable; ceiling leaves the transcript
 // area above it readable rather than squeezed to a sliver.
 const MIN_BOTTOM_HEIGHT = 120
 const MAX_BOTTOM_HEIGHT = 560
@@ -77,70 +77,95 @@ interface PendingSession extends NewSessionInfo {
   titleOverride: string | null
 }
 
-interface TerminalTab { id: string; name: string }
-
 export function App(): JSX.Element {
+  const { notify, notifyError } = useNotifications()
   const [ui, setUi] = useState<UiState>(() => loadUiState())
-  const [selected, setSelected] = useState<SessionNode | null>(null)
-  const [view, setView] = useState<'transcript' | 'terminal'>('transcript')
+  /**
+   * Open sessions, arranged as VS Code-style editor groups: one column per group, each with its
+   * own tab strip and its own shell. Splitting a session from the sidebar appends a column; there
+   * is always at least one, even when empty, so there is somewhere for the next click to land.
+   */
+  const [columns, setColumns] = useState<Column[]>(() => [newColumn()])
+  const [activeColumnId, setActiveColumnId] = useState<string | null>(null)
+  /**
+   * The `SessionNode` behind every open tab, kept fresh from the tree so a tab's title and live
+   * state track the session rather than freezing at whatever it was when it was opened. Tabs hold
+   * only ids; this is where the rows themselves live.
+   */
+  const [openSessions, setOpenSessions] = useState<Map<string, SessionNode>>(new Map())
   const [resumed, setResumed] = useState<Set<string>>(new Set())
   // Sessions started via newSessionInProject()/newSessionInFolder() whose pty id differs from
-  // the session's own id (a "new:<uuid>" id, minted before the session had one). Consulted by
-  // TerminalView's ptyId prop so the terminal that was actually spawned keeps being addressed
+  // the session's own id (a "new:<uuid>" id, minted before the session had one). Consulted when
+  // addressing that session's terminals so the pty that was actually spawned keeps being used
   // once the real SessionNode appears, instead of a second pty being spawned under the id.
   // Also doubles as the cross-tick "already claimed" record the reconciler below consults so two
   // pending sessions in the same folder can never be folded into the same discovered SessionNode.
   const [ptyOverrides, setPtyOverrides] = useState<Map<string, string>>(new Map())
   // Every new-session pty currently awaiting its first JSONL, keyed by pty id (not a single
-  // value) so more than one can be in flight — see PendingSession above and Finding 1.
+  // value) so more than one can be in flight — see PendingSession above.
   const [pending, setPending] = useState<Map<string, PendingSession>>(new Map())
-  // Which pending pty (if any) is the one shown in the main pane while nothing is selected. Only
-  // the most-recently-started pending session is ever displayed; older ones keep reconciling in
-  // the background (bookkeeping only) until they resolve into a real session or their pty exits.
-  const [visiblePendingId, setVisiblePendingId] = useState<string | null>(null)
-  const [shellOpen, setShellOpen] = useState(false)
+  /**
+   * Shell terminals per session, keyed the way `SessionColumn` keys them. Deliberately global
+   * rather than per column: two columns showing the same session must share one set of terminals,
+   * or they would each spawn `shell:<key>:1` and silently kill each other's shell.
+   */
   const [shellTabs, setShellTabs] = useState<Map<string, TerminalTab[]>>(new Map())
-  const [activeTabId, setActiveTabId] = useState<Map<string, string>>(new Map())
-  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
-  const [gitBusy, setGitBusy] = useState<'pull' | 'push' | null>(null)
-  const [tabListOpen, setTabListOpen] = useState(false)
-  const [branchSwitcherOpen, setBranchSwitcherOpen] = useState(false)
+  const [activeTerminal, setActiveTerminal] = useState<Map<string, string>>(new Map())
   const [conflict, setConflict] = useState<ResumeConflict | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<SessionNode | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [treeNonce, setTreeNonce] = useState(0)
   const [resizing, setResizing] = useState(false)
   const [resizingBottom, setResizingBottom] = useState(false)
 
-  // Mirrors `selected` for the pending-session watcher below, which needs to know synchronously
-  // whether the user is still looking at "nothing selected" (i.e. still on the pending terminal)
-  // without taking a stale closure over `selected` from the render that scheduled the effect.
-  const selectedRef = useRef<SessionNode | null>(null)
-  useEffect(() => { selectedRef.current = selected }, [selected])
+  const activeColumn = columns.find((c) => c.id === activeColumnId) ?? columns[0]
+  const activeKey = activeColumn?.activeKey ?? null
 
-  // Mirrors `visiblePendingId` for the same reason — the reconciliation effect below needs the
-  // current value, not the one captured when its closure was created.
-  const visiblePendingRef = useRef<string | null>(null)
-  useEffect(() => { visiblePendingRef.current = visiblePendingId }, [visiblePendingId])
+  /** Opens a session in the focused column, or in a brand-new column beside it when splitting. */
+  const openSessionTab = useCallback((session: SessionNode, split: boolean) => {
+    setOpenSessions((prev) => new Map(prev).set(session.sessionId, session))
+    if (split) {
+      const column = newColumn([{ key: session.sessionId, view: 'transcript' }])
+      setColumns((prev) => [...prev, column])
+      setActiveColumnId(column.id)
+      return
+    }
+    setColumns((prev) => {
+      const targetId = prev.some((c) => c.id === activeColumnId) ? activeColumnId : prev[0]?.id
+      return prev.map((c) => (c.id === targetId ? openTab(c, session.sessionId) : c))
+    })
+  }, [activeColumnId])
+
+  /** Closes a tab, dropping the column with it — unless it is the last one, which stays as an
+   *  empty placeholder so the layout never collapses to nothing. */
+  const closeSessionTab = useCallback((columnId: string, key: string) => {
+    setColumns((prev) => {
+      const next = prev.map((c) => (c.id === columnId ? closeTab(c, key) : c))
+      const kept = next.filter((c) => c.tabs.length > 0)
+      return kept.length > 0 ? kept : [next[0] ?? newColumn()]
+    })
+  }, [])
 
   useEffect(() => { saveUiState(ui) }, [ui])
   useEffect(() => window.apiary.onOpenImportDialog(() => setImportOpen(true)), [])
   useEffect(() => window.apiary.onOpenSettingsDialog(() => setSettingsOpen(true)), [])
 
-  // Registers a freshly-started new session as pending and makes it the visible one — shared by
-  // both entry points (the sidebar "+" button and the File menu item below).
+  // Registers a freshly-started new session as pending and opens it as a tab — shared by both
+  // entry points (the sidebar "+" button and the File menu item below). The tab is keyed by pty
+  // id until the watcher finds the session's real id, at which point the reconciler below rekeys
+  // it in place.
   const addPending = useCallback((info: NewSessionInfo, nodes: ProjectNode[]) => {
-    setSelected(null)
     setPending((prev) => {
       const next = new Map(prev)
       next.set(info.ptyId, { ...info, knownSessionIds: collectSessionIds(nodes), titleOverride: null })
       return next
     })
-    setVisiblePendingId(info.ptyId)
-    setError(null)
-  }, [])
+    setColumns((prev) => {
+      const targetId = prev.some((c) => c.id === activeColumnId) ? activeColumnId : prev[0]?.id
+      return prev.map((c) => (c.id === targetId ? openTab(c, info.ptyId) : c))
+    })
+  }, [activeColumnId])
 
   // `File > New Session in Folder...` picks its folder via a native dialog in the main process
   // (never from the renderer) and pushes the result here once the pty is already running.
@@ -160,7 +185,34 @@ export function App(): JSX.Element {
       next.delete(id)
       return next
     })
-    setVisiblePendingId((prev) => (prev === id ? null : prev))
+    setColumns((prev) => prev.map((c) => closeTab(c, id)))
+
+    /**
+     * A shell terminal whose process is gone must stop being listed. Typing `exit` at a shell
+     * prompt kills that pty, but the tab used to stay behind pointing at it — so reopening the
+     * pane showed a terminal that could never print anything again, which read as "Show shell
+     * did nothing". Dropping the dead tab means the next open spawns a fresh shell instead.
+     *
+     * The greedy first group is deliberate: a shell key can itself contain a colon (a pending
+     * session's key is `new:<uuid>`), so only the last segment is the terminal id.
+     */
+    const shell = /^shell:(.+):([^:]+)$/.exec(id)
+    if (shell === null) return
+    const [, key, terminalId] = shell
+    setShellTabs((prev) => {
+      const list = (prev.get(key) ?? []).filter((t) => t.id !== terminalId)
+      if (list.length === (prev.get(key) ?? []).length) return prev
+      const next = new Map(prev)
+      if (list.length === 0) next.delete(key)
+      else next.set(key, list)
+      return next
+    })
+    setActiveTerminal((prev) => {
+      if (prev.get(key) !== terminalId) return prev
+      const next = new Map(prev)
+      next.delete(key)
+      return next
+    })
   }), [])
 
   // Once a "new session" pty is running (either entry point), watch for the SessionNode Claude's
@@ -206,20 +258,23 @@ export function App(): JSX.Element {
           // until the resulting `treeChanged` push round-trips back.
           const resolved = info.titleOverride !== null ? { ...found, title: info.titleOverride } : found
           if (info.titleOverride !== null) {
-            void window.apiary.renameSession(found.sessionId, info.titleOverride).catch((e: Error) => {
-              setError(e.message)
+            void window.apiary.renameSession(found.sessionId, info.titleOverride).catch((e: unknown) => {
+              notifyError(e, 'Could not rename the session')
             })
           }
           // Only take over the current view if the user is still looking at this pending
           // session's terminal — a user who already navigated elsewhere (or is looking at a
           // different pending session) is left alone; the bookkeeping above still ensures
           // selecting the new session later reuses this pty rather than spawning a second one.
-          if (selectedRef.current === null && ptyId === visiblePendingRef.current) {
-            setSelected(resolved)
-            setView('terminal')
-            setUi((prevUi) => ({ ...prevUi, selectedSessionId: found.sessionId }))
-          }
-          if (ptyId === visiblePendingRef.current) setVisiblePendingId(null)
+          // The tab that was showing this pending session becomes a tab for the real session, in
+          // place: same column, same position, still on the live terminal it was already watching.
+          // Rekeying works wherever that tab is, including in a column the user isn't looking at,
+          // so a session that resolves in the background no longer needs the "is this the visible
+          // one?" bookkeeping a single-pane layout needed.
+          setOpenSessions((prevOpen) => new Map(prevOpen).set(found.sessionId, resolved))
+          setColumns((prevCols) => prevCols.map((c) =>
+            setTabView(rekeyTab(c, ptyId, found.sessionId), found.sessionId, 'terminal'),
+          ))
           setPending((prev) => {
             const next = new Map(prev)
             next.delete(ptyId)
@@ -231,7 +286,7 @@ export function App(): JSX.Element {
     check()
     const off = window.apiary.onTreeChanged(check)
     return () => { cancelled = true; off() }
-  }, [pending, ptyOverrides])
+  }, [pending, ptyOverrides, notifyError])
 
   // Restore the previously selected session on launch, once, from the id persisted last time.
   // If it no longer exists in the freshly loaded tree, fall back to no selection.
@@ -247,18 +302,29 @@ export function App(): JSX.Element {
       .then((nodes) => {
         if (cancelled) return
         const found = findSessionById(nodes, id)
-        if (found) {
-          setSelected(found)
-          setView('transcript')
-        }
+        if (found) openSessionTab(found, false)
       })
-      .catch(() => {
-        // Restoring selection is best-effort; a failed lookup just leaves nothing selected.
+      .catch((e: unknown) => {
+        // Restoring the previous selection is best-effort — the app is perfectly usable with
+        // nothing selected — so this is a warning rather than an error, and it says so instead
+        // of leaving the user to wonder why the session they had open didn't come back.
+        notifyError(e, 'Could not reopen the last session')
       })
     return () => { cancelled = true }
     // Intentionally runs once on mount only, against the id loaded at startup.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /**
+   * Remembers which session is in front, so the next launch can reopen it (the restore effect
+   * above consumes this). Deliberately never writes `null`: a pending tab has no session id worth
+   * persisting, and blanking it while the app happens to have no tabs open would throw away the
+   * restore target before the asynchronous restore has had a chance to use it.
+   */
+  useEffect(() => {
+    if (activeKey === null || pending.has(activeKey)) return
+    setUi((prev) => (prev.selectedSessionId === activeKey ? prev : { ...prev, selectedSessionId: activeKey }))
+  }, [activeKey, pending])
 
   // Dragging the sidebar resizer updates ui.sidebarWidth live; it is persisted by the
   // saveUiState effect above like any other ui change, so it survives a relaunch. The
@@ -318,6 +384,26 @@ export function App(): JSX.Element {
     })
   }, [])
 
+  /**
+   * Pins (or unpins) a session. Newly pinned ids go to the front, so the pinned section reads
+   * most-recent-first rather than in whatever order the tree happened to hand them over.
+   */
+  const togglePin = useCallback((session: SessionNode) => {
+    setUi((prev) => ({
+      ...prev,
+      pinned: prev.pinned.includes(session.sessionId)
+        ? prev.pinned.filter((id) => id !== session.sessionId)
+        : [session.sessionId, ...prev.pinned],
+    }))
+  }, [])
+
+  /** Drops an id from the pinned list, used when the session behind it is removed from view. */
+  const unpin = useCallback((sessionId: string) => {
+    setUi((prev) => (prev.pinned.includes(sessionId)
+      ? { ...prev, pinned: prev.pinned.filter((id) => id !== sessionId) }
+      : prev))
+  }, [])
+
   const setCollapsed = useCallback((next: Set<string>) => {
     setUi((prev) => {
       const list = [...next].sort()
@@ -327,13 +413,43 @@ export function App(): JSX.Element {
   }, [])
 
   const onSelect = useCallback((session: SessionNode) => {
-    setSelected(session)
-    setView('transcript')
-    setUi((prev) => ({ ...prev, selectedSessionId: session.sessionId }))
-  }, [])
+    openSessionTab(session, false)
+  }, [openSessionTab])
 
-  // The sidebar "+" button. `path` is a project's stable identity (ProjectNode.path); the main
-  // process re-validates it against a stored project row before spawning anything with it.
+  /** The sidebar's split button: same session, but in a column of its own beside the current one. */
+  const onSplitSession = useCallback((session: SessionNode) => {
+    openSessionTab(session, true)
+  }, [openSessionTab])
+
+  /**
+   * Keeps the rows behind the open tabs current. Titles change (Claude writes one asynchronously,
+   * and the user can rename), and a session goes live or stops being live — a tab holding a frozen
+   * copy from the moment it was opened would show stale text and a stale resume state.
+   */
+  useEffect(() => window.apiary.onTreeChanged(() => {
+    void window.apiary.tree('').then((nodes) => {
+      setOpenSessions((prev) => {
+        if (prev.size === 0) return prev
+        let changed = false
+        const next = new Map(prev)
+        for (const [id, current] of prev) {
+          const fresh = findSessionById(nodes, id)
+          if (fresh === null) continue
+          if (
+            fresh.title !== current.title ||
+            fresh.isLive !== current.isLive ||
+            fresh.cwd !== current.cwd ||
+            fresh.cwdExists !== current.cwdExists
+          ) {
+            next.set(id, fresh)
+            changed = true
+          }
+        }
+        return changed ? next : prev
+      })
+    })
+  }), [])
+
   const onNewSession = useCallback(async (path: string) => {
     try {
       const [info, nodes] = await Promise.all([
@@ -342,20 +458,19 @@ export function App(): JSX.Element {
       ])
       addPending(info, nodes)
     } catch (e) {
-      setError((e as Error).message)
+      notifyError(e, 'Could not start a new session')
     }
-  }, [addPending])
+  }, [addPending, notifyError])
 
   const startResume = useCallback(async (session: SessionNode, fork: boolean) => {
     try {
       await window.apiary.resume(session.sessionId, fork)
       setResumed((prev) => new Set([...prev, session.sessionId]))
-      setView('terminal')
-      setError(null)
+      setColumns((prev) => prev.map((c) => setTabView(c, session.sessionId, 'terminal')))
     } catch (e) {
-      setError((e as Error).message)
+      notifyError(e, 'Could not resume this session')
     }
-  }, [])
+  }, [notifyError])
 
   const confirmDelete = useCallback(async () => {
     if (deleteTarget === null) return
@@ -363,162 +478,48 @@ export function App(): JSX.Element {
     setDeleteTarget(null)
     try {
       await window.apiary.removeSession(target.sessionId)
-      // Deleting the currently-selected session leaves nothing sensible to show — clear the
-      // selection rather than leaving a stale header pointed at a session no longer in the tree.
-      setSelected((prev) => (prev !== null && prev.sessionId === target.sessionId ? null : prev))
+      // A session that is no longer in the tree has nothing left to show, so close every tab
+      // pointing at it rather than leaving a stale header behind in some column.
+      setColumns((prev) => {
+        const next = prev.map((c) => closeTab(c, target.sessionId))
+        const kept = next.filter((c) => c.tabs.length > 0)
+        return kept.length > 0 ? kept : [next[0] ?? newColumn()]
+      })
+      setOpenSessions((prev) => {
+        if (!prev.has(target.sessionId)) return prev
+        const next = new Map(prev)
+        next.delete(target.sessionId)
+        return next
+      })
+      unpin(target.sessionId)
     } catch (e) {
-      setError((e as Error).message)
+      notifyError(e, 'Could not remove this session')
     }
-  }, [deleteTarget])
+  }, [deleteTarget, notifyError, unpin])
 
-  const onResume = useCallback(async () => {
-    if (selected === null) return
-    if (resumed.has(selected.sessionId)) { setView('terminal'); return }
-    const existing = await window.apiary.checkConflict(selected.sessionId)
-    if (existing !== null) { setConflict(existing); return }
-    await startResume(selected, false)
-  }, [selected, resumed, startResume])
+  /** The session a resume/conflict decision is currently about — set when the ResumeBar asks. */
+  const [resumeTarget, setResumeTarget] = useState<SessionNode | null>(null)
 
-  // The pending session currently shown in the main pane, if any — null once a real session is
-  // selected, even if other pending sessions are still resolving in the background.
-  const visiblePending =
-    selected === null && visiblePendingId !== null ? pending.get(visiblePendingId) ?? null : null
-
-  // A shell can be opened alongside either a resumed session or a still-pending new session —
-  // `shellKey` is whichever one is currently showing, used both as the `shellTabs`/`activeTabId`
-  // bookkeeping key and as the middle segment of each tab's `shell:<key>:<tabId>` pty id. Pending
-  // sessions have no real session id yet, so they're keyed by pty id instead; the two id spaces
-  // never collide (session ids are bare UUIDs, pty ids for a new session are `new:<uuid>`). Once
-  // a pending session reconciles into a real one, `ptyOverrides` — the same map `activePtyId`
-  // below consults for the main terminal — is consulted here too, so a shell opened during the
-  // pending phase keeps being addressed by its original `shell:<ptyId>:<tabId>` ids instead of
-  // orphaning them in favour of a second shell freshly spawned under `shell:<sessionId>:<tabId>`.
-  const shellKey =
-    visiblePending !== null
-      ? visiblePending.ptyId
-      : selected !== null
-        ? ptyOverrides.get(selected.sessionId) ?? selected.sessionId
-        : null
-
-  // Whether the running claude process behind the current selection is actually keyed by
-  // `shellKey` itself in the main process, or was spawned as a "new session" pty and is only
-  // *addressed* as `shellKey` here via `ptyOverrides` (see the comment on `shellKey` above). The
-  // former is a real session id `openShell` can look up in the store; the latter is a pty id only
-  // `PtyManager` knows about, so it must go through `openShellForPty` instead — calling `openShell`
-  // with a pty id would fail the store lookup that call relies on for its cwd.
-  const shellKeyIsPtyId =
-    visiblePending !== null || (selected !== null && ptyOverrides.has(selected.sessionId))
-
-  const loadGitStatus = useCallback(() => {
-    if (shellKey === null) { setGitStatus(null); return }
-    void window.apiary.gitStatus(shellKey, shellKeyIsPtyId).then(setGitStatus).catch(() => setGitStatus(null))
-  }, [shellKey, shellKeyIsPtyId])
-
-  useEffect(() => { loadGitStatus() }, [loadGitStatus])
-
-  const toggleShell = useCallback(async () => {
-    if (shellKey === null) return
-    if (shellOpen) { setShellOpen(false); return }
-    if (!shellTabs.has(shellKey)) {
-      try {
-        if (shellKeyIsPtyId) await window.apiary.openShellForPty(shellKey, '1')
-        else await window.apiary.openShell(shellKey, '1')
-        setShellTabs((prev) => new Map(prev).set(shellKey, [{ id: '1', name: 'Terminal 1' }]))
-        setActiveTabId((prev) => new Map(prev).set(shellKey, '1'))
-      } catch (e) {
-        setError((e as Error).message)
-        return
-      }
+  const onResume = useCallback(async (session: SessionNode) => {
+    if (resumed.has(session.sessionId)) {
+      setColumns((prev) => prev.map((c) => setTabView(c, session.sessionId, 'terminal')))
+      return
     }
-    setShellOpen(true)
-  }, [shellKey, shellKeyIsPtyId, shellOpen, shellTabs])
+    const existing = await window.apiary.checkConflict(session.sessionId)
+    if (existing !== null) { setResumeTarget(session); setConflict(existing); return }
+    await startResume(session, false)
+  }, [resumed, startResume])
 
-  const currentTabs = shellKey !== null ? shellTabs.get(shellKey) ?? [] : []
-  const activeTab = currentTabs.find((t) => t.id === activeTabId.get(shellKey ?? '')) ?? currentTabs[0] ?? null
+  /** Every session id currently open in some column, so the sidebar can list only the pending
+   *  sessions that aren't already reachable as a tab. */
+  const openKeys = new Set(columns.flatMap((c) => c.tabs.map((t) => t.key)))
 
-  const addTerminalTab = useCallback(async () => {
-    if (shellKey === null) return
-    const existing = shellTabs.get(shellKey) ?? []
-    // Numeric ids increment forever within a session's lifetime rather than reusing a freed
-    // number, so a just-deleted tab's pty id can never collide with a new tab's. The display
-    // name is derived from this same id (rather than `existing.length`) so it can't duplicate a
-    // still-open tab's name after an earlier tab has been deleted.
-    const maxId = existing.reduce((m, t) => Math.max(m, Number(t.id)), 0)
-    const newId = String(maxId + 1)
-    try {
-      if (shellKeyIsPtyId) await window.apiary.openShellForPty(shellKey, newId)
-      else await window.apiary.openShell(shellKey, newId)
-      setShellTabs((prev) => new Map(prev).set(shellKey, [...existing, { id: newId, name: `Terminal ${newId}` }]))
-      setActiveTabId((prev) => new Map(prev).set(shellKey, newId))
-      setShellOpen(true)
-    } catch (e) {
-      setError((e as Error).message)
-    }
-  }, [shellKey, shellKeyIsPtyId, shellTabs])
-
-  const renameTerminalTab = useCallback((tabId: string, name: string) => {
-    if (shellKey === null) return
-    setShellTabs((prev) => {
-      const list = prev.get(shellKey) ?? []
-      const next = new Map(prev)
-      next.set(shellKey, list.map((t) => (t.id === tabId ? { ...t, name } : t)))
-      return next
-    })
-  }, [shellKey])
-
-  const switchTerminalTab = useCallback((tabId: string) => {
-    if (shellKey === null) return
-    setActiveTabId((prev) => new Map(prev).set(shellKey, tabId))
-  }, [shellKey])
-
-  const deleteTerminalTab = useCallback((tabId: string) => {
-    if (shellKey === null) return
-    window.apiary.ptyKill(`shell:${shellKey}:${tabId}`)
-    const list = (shellTabs.get(shellKey) ?? []).filter((t) => t.id !== tabId)
-    setShellTabs((prev) => {
-      const next = new Map(prev)
-      if (list.length === 0) next.delete(shellKey)
-      else next.set(shellKey, list)
-      return next
-    })
-    setActiveTabId((prev) => {
-      if (prev.get(shellKey) !== tabId) return prev
-      const next = new Map(prev)
-      if (list.length === 0) next.delete(shellKey)
-      else next.set(shellKey, list[0].id)
-      return next
-    })
-    if (list.length === 0) setShellOpen(false)
-  }, [shellKey, shellTabs])
-
-  const runGitAction = useCallback(async (kind: 'pull' | 'push') => {
-    if (shellKey === null) return
-    setGitBusy(kind)
-    try {
-      if (kind === 'pull') await window.apiary.gitPull(shellKey, shellKeyIsPtyId)
-      else await window.apiary.gitPush(shellKey, shellKeyIsPtyId)
-      setError(null)
-      loadGitStatus()
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setGitBusy(null)
-    }
-  }, [shellKey, shellKeyIsPtyId, loadGitStatus])
-
-  // The pty id backing the terminal pane, and whether that pane should be mounted at all. Both
-  // the pending branch and the resumed-session branch below render this same TerminalView at the
-  // same position in the tree (only its `hidden` state and — across the pending-to-resolved
-  // transition — its props change), so React never unmounts/remounts it and scrollback survives
-  // reconciliation. See Finding 2.
-  const activePtyId =
-    visiblePending !== null
-      ? visiblePending.ptyId
-      : selected !== null
-        ? ptyOverrides.get(selected.sessionId) ?? selected.sessionId
-        : null
-  const showTerminalPane =
-    visiblePending !== null || (selected !== null && resumed.has(selected.sessionId))
+  const pendingTabInfo = new Map(
+    [...pending.values()].map((info) => [
+      info.ptyId,
+      { ptyId: info.ptyId, cwd: info.cwd, label: info.titleOverride ?? info.label },
+    ]),
+  )
 
   return (
     <div
@@ -527,16 +528,26 @@ export function App(): JSX.Element {
     >
       <Sidebar
         key={treeNonce}
-        selectedId={selected?.sessionId ?? null}
+        selectedId={activeKey}
         onSelect={onSelect}
+        onSplitSession={onSplitSession}
         collapsed={new Set(ui.collapsed)}
         onCollapsedChange={setCollapsed}
         onNewSession={(path) => { void onNewSession(path) }}
         onDeleteSession={setDeleteTarget}
+        pinned={ui.pinned}
+        onTogglePin={togglePin}
+        pinnedCollapsed={ui.pinnedCollapsed}
+        onPinnedCollapsedChange={(next) => setUi((prev) => ({ ...prev, pinnedCollapsed: next }))}
         pending={[...pending.values()]
-          .filter((p) => p.ptyId !== visiblePendingId)
+          .filter((p) => !openKeys.has(p.ptyId))
           .map((p) => ({ ptyId: p.ptyId, label: p.titleOverride ?? p.label, cwd: p.cwd }))}
-        onSelectPending={(ptyId) => { setSelected(null); setVisiblePendingId(ptyId) }}
+        onSelectPending={(ptyId) => {
+          setColumns((prev) => {
+            const targetId = prev.some((c) => c.id === activeColumnId) ? activeColumnId : prev[0]?.id
+            return prev.map((c) => (c.id === targetId ? openTab(c, ptyId) : c))
+          })
+        }}
       />
 
       <div
@@ -546,186 +557,63 @@ export function App(): JSX.Element {
       />
 
       <main className="content" data-testid="content">
-        {visiblePending === null && selected === null ? (
-          <p className="empty" data-testid="content-empty">
-            Select a session to view its transcript.
-          </p>
-        ) : (
-          <>
-            <header className="session-header">
-              <h1 data-testid="session-title" className="session-title-heading">
-                {visiblePending !== null ? (
-                  <>
-                    New session &middot;{' '}
-                    <EditableSessionTitle
-                      key={visiblePending.ptyId}
-                      title={visiblePending.titleOverride ?? visiblePending.label}
-                      onRename={(title) => setPendingTitle(visiblePending.ptyId, title)}
-                    />
-                  </>
-                ) : selected !== null ? (
-                  <EditableSessionTitle
-                    key={selected.sessionId}
-                    title={selected.title}
-                    onRename={(title) => {
-                      setSelected((prev) => (prev === null ? prev : { ...prev, title }))
-                      void window.apiary.renameSession(selected.sessionId, title).catch((e: Error) => {
-                        setError(e.message)
-                      })
-                    }}
-                  />
-                ) : null}
-              </h1>
-              <p className="session-cwd">{visiblePending !== null ? visiblePending.cwd : selected?.cwd}</p>
-            </header>
-
-            {visiblePending === null && selected !== null && (
-              <ResumeBar
-                session={selected}
-                view={view}
-                hasTerminal={resumed.has(selected.sessionId)}
-                onView={setView}
-                onResume={() => { void onResume() }}
-              />
-            )}
-
-            {error !== null && <p className="error-banner" data-testid="error-banner">{error}</p>}
-
-            <div className="centre-pane">
-              {visiblePending === null && selected !== null && (
-                <div hidden={view !== 'transcript'} className="pane-fill">
-                  <Transcript session={selected} />
-                </div>
-              )}
-              {showTerminalPane && activePtyId !== null && (
-                <div hidden={visiblePending === null && view !== 'terminal'} className="pane-fill">
-                  <TerminalView ptyId={activePtyId} testId="terminal-session" />
-                </div>
-              )}
-            </div>
-
-            {shellKey !== null && shellOpen && (
-              <div
-                className="bottom-resizer"
-                data-testid="bottom-resizer"
-                onMouseDown={(e) => { e.preventDefault(); setResizingBottom(true) }}
-              />
-            )}
-
-            {shellKey !== null && (
-              <div className="bottom-pane" style={{ height: shellOpen ? ui.bottomHeight : 32 }}>
-                <Toolbar
-                  left={[
-                    {
-                      id: 'shell-toggle',
-                      icon: <span aria-hidden="true">▾</span>,
-                      label: shellOpen ? 'Hide shell' : 'Show shell',
-                      title: shellOpen ? 'Hide shell' : 'Show shell',
-                      testId: 'shell-toggle',
-                      onClick: () => { void toggleShell() },
-                    },
-                    ...(gitStatus !== null
-                      ? ([
-                          {
-                            id: 'git-branch',
-                            icon: <BranchIcon />,
-                            label:
-                              gitStatus.branch === null
-                                ? 'HEAD (detached)'
-                                : gitStatus.branch +
-                                  (gitStatus.hasUpstream && (gitStatus.behind > 0 || gitStatus.ahead > 0)
-                                    ? ` (${gitStatus.behind > 0 ? '↓' + String(gitStatus.behind) : ''}${gitStatus.ahead > 0 ? '↑' + String(gitStatus.ahead) : ''})`
-                                    : ''),
-                            title: 'Switch or create branch',
-                            testId: 'toolbar-branch-button',
-                            active: branchSwitcherOpen,
-                            onClick: () => setBranchSwitcherOpen(true),
-                          },
-                          {
-                            id: 'git-pull',
-                            icon: <ArrowDownIcon className={gitBusy === 'pull' ? 'spinner' : undefined} />,
-                            title: 'Pull',
-                            testId: 'toolbar-pull',
-                            disabled: gitBusy !== null,
-                            onClick: () => { void runGitAction('pull') },
-                          },
-                          {
-                            id: 'git-push',
-                            icon: <ArrowUpIcon className={gitBusy === 'push' ? 'spinner' : undefined} />,
-                            title: 'Push',
-                            testId: 'toolbar-push',
-                            disabled: gitBusy !== null,
-                            onClick: () => { void runGitAction('push') },
-                          },
-                          {
-                            id: 'git-copy',
-                            icon: <CopyIcon />,
-                            title: 'Copy branch name',
-                            testId: 'toolbar-copy',
-                            disabled: gitStatus.branch === null,
-                            onClick: () => {
-                              if (gitStatus.branch !== null) void window.apiary.copyToClipboard(gitStatus.branch)
-                            },
-                          },
-                        ] as ToolbarButtonSpec[])
-                      : []),
-                  ]}
-                  right={[
-                    {
-                      id: 'terminal-add',
-                      icon: <PlusIcon />,
-                      title: 'New terminal',
-                      testId: 'terminal-add',
-                      onClick: () => { void addTerminalTab() },
-                    },
-                    {
-                      id: 'terminal-list-toggle',
-                      icon: <ListIcon />,
-                      title: 'Toggle terminal list',
-                      testId: 'terminal-list-toggle',
-                      active: tabListOpen,
-                      onClick: () => setTabListOpen((v) => !v),
-                    },
-                  ]}
-                />
-                <div className="terminal-panel-row">
-                  {/* Every open tab's TerminalView stays mounted, hidden rather than removed, for
-                   *  as long as its tab exists — the same pattern used above for the transcript/
-                   *  terminal-session panes. A fresh xterm instance always starts with empty
-                   *  scrollback (the pty itself keeps running in the background regardless — see
-                   *  TerminalView's own unmount comment), so switching tabs by conditionally
-                   *  rendering only the active one would silently wipe every other tab's history
-                   *  the moment you switched away and back. */}
-                  {shellOpen && currentTabs.map((tab) => (
-                    <div key={tab.id} hidden={tab.id !== activeTab?.id} className="terminal-tab-view">
-                      <TerminalView
-                        ptyId={`shell:${String(shellKey)}:${tab.id}`}
-                        testId={tab.id === activeTab?.id ? 'terminal-shell' : `terminal-shell-${tab.id}`}
-                      />
-                    </div>
-                  ))}
-                  {shellOpen && tabListOpen && (
-                    <TerminalListPanel
-                      tabs={currentTabs}
-                      activeId={activeTab?.id ?? null}
-                      onSwitch={switchTerminalTab}
-                      onRename={renameTerminalTab}
-                      onDelete={deleteTerminalTab}
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-          </>
-        )}
+        {columns.map((column) => (
+          // Per column, not just once around the whole app: a column whose session renders badly
+          // (a transcript with something unexpected in it, say) should fail inside its own pane
+          // and leave the sidebar and the other columns working, rather than blanking the window.
+          <ErrorBoundary
+            key={column.id}
+            label="This session"
+            onError={(thrown, componentStack) => {
+              const { message, detail } = describeError(thrown)
+              notify({
+                kind: 'error',
+                message: `This session could not be displayed: ${message}`,
+                detail: [detail, componentStack].filter((t) => t !== null && t !== '').join('\n'),
+              })
+            }}
+          >
+          <SessionColumn
+            column={column}
+            sessions={openSessions}
+            pending={pendingTabInfo}
+            resumed={resumed}
+            ptyOverrides={ptyOverrides}
+            shellTabs={shellTabs}
+            setShellTabs={setShellTabs}
+            activeTerminal={activeTerminal}
+            setActiveTerminal={setActiveTerminal}
+            bottomHeight={ui.bottomHeight}
+            onStartBottomResize={() => setResizingBottom(true)}
+            isActive={column.id === activeColumn?.id}
+            onFocus={() => setActiveColumnId(column.id)}
+            onActivateTab={(key) => {
+              setActiveColumnId(column.id)
+              setColumns((prev) => prev.map((c) => (c.id === column.id ? openTab(c, key) : c)))
+            }}
+            onCloseTab={(key) => closeSessionTab(column.id, key)}
+            onSetView={(key, view) => {
+              setColumns((prev) => prev.map((c) => (c.id === column.id ? setTabView(c, key, view) : c)))
+            }}
+            onResume={(session) => { void onResume(session) }}
+            onRenameSession={(session, title) => {
+              setOpenSessions((prev) => new Map(prev).set(session.sessionId, { ...session, title }))
+              void window.apiary.renameSession(session.sessionId, title).catch((e: unknown) => {
+                notifyError(e, 'Could not rename the session')
+              })
+            }}
+            onRenamePending={setPendingTitle}
+          />
+          </ErrorBoundary>
+        ))}
       </main>
 
-      {conflict !== null && selected !== null && (
+      {conflict !== null && resumeTarget !== null && (
         <ConflictDialog
           conflict={conflict}
-          onCancel={() => setConflict(null)}
-          onFork={() => { setConflict(null); void startResume(selected, true) }}
-          onOpenAnyway={() => { setConflict(null); void startResume(selected, false) }}
+          onCancel={() => { setConflict(null); setResumeTarget(null) }}
+          onFork={() => { setConflict(null); setResumeTarget(null); void startResume(resumeTarget, true) }}
+          onOpenAnyway={() => { setConflict(null); setResumeTarget(null); void startResume(resumeTarget, false) }}
         />
       )}
 
@@ -745,16 +633,6 @@ export function App(): JSX.Element {
       )}
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
-
-      {branchSwitcherOpen && shellKey !== null && (
-        <BranchSwitcher
-          shellKey={shellKey}
-          isPtyId={shellKeyIsPtyId}
-          onClose={() => setBranchSwitcherOpen(false)}
-          onCheckedOut={loadGitStatus}
-          onError={setError}
-        />
-      )}
     </div>
   )
 }

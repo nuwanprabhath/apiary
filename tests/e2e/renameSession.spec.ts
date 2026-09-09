@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { launchApiary, importAll, relaunchApiary, type Harness } from './helpers'
+import { launchApiary, importAll, relaunchApiary, type Harness, sidebarSession } from './helpers'
 
 let h: Harness
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
-  await h.page.getByText('Fix CSV export bug').click()
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
 })
 test.afterEach(async () => { await h.close() })
 
@@ -59,7 +59,7 @@ test('opening the rename editor on a different session starts from that session\
   // rename. This exercises that path deliberately: open A's editor, leave it untouched, then
   // switch to B.
   await h.page.getByTestId('session-title-edit').click()
-  await h.page.getByText('Add worktree switcher').click()
+  await sidebarSession(h.page, 'Add worktree switcher').click()
   await expect(h.page.getByTestId('session-title')).toHaveText('Add worktree switcher')
 
   // B's own editor must start from B's title, not whatever was last open for A (the `key`ed
@@ -69,7 +69,7 @@ test('opening the rename editor on a different session starts from that session\
   await h.page.getByTestId('session-title-input').press('Escape')
 
   // And switching back, A's own title is untouched by any of the above.
-  await h.page.getByText('Fix CSV export bug').click()
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
   await expect(h.page.getByTestId('session-title')).toHaveText('Fix CSV export bug')
   await expect(h.page.getByTestId('session-title-input')).toHaveCount(0)
 })

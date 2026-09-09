@@ -1,15 +1,47 @@
 import { useEffect, useRef } from 'react'
-import { Terminal } from '@xterm/xterm'
+import { Terminal, type ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 
 interface Props {
   ptyId: string
   testId: string
+  /**
+   * Whether this terminal is the one currently on screen. Terminals are hidden rather than
+   * unmounted when you switch away from them (that is what preserves their scrollback), so
+   * "became visible" is a prop change here, not a mount — see the scroll effect below.
+   */
+  visible?: boolean
 }
 
-export function TerminalView({ ptyId, testId }: Props): JSX.Element {
+/**
+ * xterm paints from a JS palette rather than from CSS, so it cannot pick up the stylesheet's
+ * design tokens by itself. Reading them off the document at mount keeps the terminal inside the
+ * same theming contract as the rest of the UI — see the token block at the top of styles.css —
+ * so a future theme recolours the terminal without needing a second palette defined over here.
+ */
+function themeFromTokens(): ITheme {
+  const css = getComputedStyle(document.documentElement)
+  // Fall back to the token block's own current values: getPropertyValue returns '' for an
+  // unknown property, and handing xterm an empty string paints an invisible terminal.
+  const token = (name: string, fallback: string): string => {
+    const value = css.getPropertyValue(name).trim()
+    return value !== '' ? value : fallback
+  }
+  return {
+    background: token('--bg-terminal', '#151618'),
+    foreground: token('--text', '#e6e6e6'),
+    cursor: token('--text', '#e6e6e6'),
+    selectionBackground: token('--selected', '#2f3238'),
+  }
+}
+
+export function TerminalView({ ptyId, testId, visible = true }: Props): JSX.Element {
   const host = useRef<HTMLDivElement | null>(null)
+  // The live xterm instance, exposed to effects outside the mount effect that owns it (the
+  // scroll-on-show effect below). Cleared on teardown so a late callback can't touch a disposed
+  // terminal.
+  const termRef = useRef<Terminal | null>(null)
 
   useEffect(() => {
     if (host.current === null) return
@@ -18,9 +50,10 @@ export function TerminalView({ ptyId, testId }: Props): JSX.Element {
       fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
       fontSize: 12,
       cursorBlink: true,
-      theme: { background: '#151618', foreground: '#e6e6e6' },
+      theme: themeFromTokens(),
       convertEol: true,
     })
+    termRef.current = term
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(host.current)
@@ -77,10 +110,32 @@ export function TerminalView({ ptyId, testId }: Props): JSX.Element {
       offData()
       offExit()
       disposeInput.dispose()
+      termRef.current = null
       term.dispose()
       // The PTY deliberately keeps running so the session survives a tab switch.
     }
   }, [ptyId])
+
+  /**
+   * Snap to the bottom whenever this terminal becomes the visible one.
+   *
+   * A backgrounded terminal keeps running and keeps emitting output, but xterm only follows new
+   * output while its viewport is already parked at the bottom. A long-running process (a dev
+   * server, say) that printed while you were looking at another tab therefore leaves the viewport
+   * stranded wherever it was, so switching back shows a frozen mid-scroll view rather than what
+   * the process is doing now.
+   *
+   * Deliberately keyed on `visible` rather than done from the ResizeObserver: a resize also fires
+   * when the window changes size, and yanking someone to the bottom because they dragged the
+   * window edge — while they were reading further up — would be its own bug. The rAF lets the
+   * newly-shown pane lay out (and the observer's fit run) first; scrolling a zero-height viewport
+   * silently does nothing.
+   */
+  useEffect(() => {
+    if (!visible) return
+    const id = requestAnimationFrame(() => { termRef.current?.scrollToBottom() })
+    return () => cancelAnimationFrame(id)
+  }, [visible])
 
   return <div className="terminal-host" data-testid={testId} ref={host} />
 }

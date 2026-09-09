@@ -25,6 +25,20 @@ export function ImportDialog({ onClose, onImported }: Props): JSX.Element {
   const [autoProjects, setAutoProjects] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
+  /* Folder paths the user has collapsed. Absent = expanded, so a folder that appears later (or
+   * after the search filter changes) starts open, with no separate "seen before" bookkeeping —
+   * the sidebar tracks its own collapsed folders the same way. Ticking a collapsed folder's
+   * checkbox still selects everything inside it; collapsing only hides rows. */
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  const toggleCollapsed = (path: string): void => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
 
   useEffect(() => {
     void window.apiary.discovered().then(setRows)
@@ -92,19 +106,43 @@ export function ImportDialog({ onClose, onImported }: Props): JSX.Element {
               selectable.length > 0 && selectable.every((s) => picked.has(s.sessionId))
             return (
               <section key={path} data-testid="import-group">
-                <label className="import-group-head">
-                  <input
-                    type="checkbox"
-                    data-testid="import-group-checkbox"
-                    checked={allPicked}
-                    disabled={selectable.length === 0}
-                    onChange={(e) => toggleGroup(path, sessions, e.target.checked)}
-                  />
-                  <span className="project-label">{path}</span>
-                  <span className="muted">{sessions.length}</span>
-                </label>
+                {/* The chevron is a sibling of the label rather than inside it: a <label> forwards
+                 *  every click within it to its own control, so a nested collapse button would
+                 *  toggle the folder's checkbox on the way past. Same reason the sidebar's row
+                 *  buttons sit beside their row rather than inside it. */}
+                <div className="import-group-head">
+                  <button
+                    className="import-group-toggle"
+                    data-testid="import-group-toggle"
+                    aria-expanded={!collapsed.has(path)}
+                    title={collapsed.has(path) ? 'Expand folder' : 'Collapse folder'}
+                    onClick={() => toggleCollapsed(path)}
+                  >
+                    <svg
+                      className="chevron"
+                      data-expanded={!collapsed.has(path)}
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                  <label className="import-group-label">
+                    <input
+                      type="checkbox"
+                      data-testid="import-group-checkbox"
+                      checked={allPicked}
+                      disabled={selectable.length === 0}
+                      onChange={(e) => toggleGroup(path, sessions, e.target.checked)}
+                    />
+                    <span className="project-label">{path}</span>
+                    <span className="muted">{sessions.length}</span>
+                  </label>
+                </div>
 
-                {sessions.map((s) => (
+                {!collapsed.has(path) && sessions.map((s) => (
                   <label key={s.sessionId} className="import-row">
                     <input
                       type="checkbox"

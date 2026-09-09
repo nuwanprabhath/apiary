@@ -59,3 +59,39 @@ export function TrashIcon({ className }: IconProps): JSX.Element {
     </svg>
   )
 }
+
+export function CloseIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** VS Code's "split editor" glyph: a pane divided down the middle. */
+export function SplitIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="2.5" y="3.5" width="11" height="9" rx="1.2" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M8 3.5v9" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  )
+}
+
+/**
+ * A pushpin seen from the side, the same glyph filled or outlined depending on state — an
+ * outline reads as "pin this", the filled one as "this is pinned, click to unpin", without
+ * needing two different shapes the eye has to learn.
+ */
+export function PinIcon({ className, filled = false }: IconProps & { filled?: boolean }): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path
+        d="M9.6 1.9 14.1 6.4l-1.7.4a2 2 0 0 0-1 .6l-1.9 2.1a2 2 0 0 0-.5 1.6l.2 1.2-4.9-4.9 1.2.2a2 2 0 0 0 1.6-.5l2.1-1.9a2 2 0 0 0 .6-1l.4-1.7Z"
+        stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"
+        fill={filled ? 'currentColor' : 'none'}
+      />
+      <path d="M5.6 10.4 2.3 13.7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
+}

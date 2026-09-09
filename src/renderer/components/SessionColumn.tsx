@@ -1,0 +1,479 @@
+import { useCallback, useEffect, useState } from 'react'
+import type { GitStatus, SessionNode } from '@shared/types'
+import type { Column, OpenTab } from '../state/columns'
+import { findTab } from '../state/columns'
+import { SessionTabBar, type SessionTabView } from './SessionTabBar'
+import { EditableSessionTitle } from './EditableSessionTitle'
+import { Transcript } from './Transcript'
+import { TerminalView } from './TerminalView'
+import { TerminalListPanel } from './TerminalListPanel'
+import { ResumeBar } from './ResumeBar'
+import { Toolbar, type ToolbarButtonSpec } from './Toolbar'
+import { BranchSwitcher } from './BranchSwitcher'
+import { BranchIcon, ArrowDownIcon, ArrowUpIcon, CopyIcon, PlusIcon, ListIcon } from './icons'
+import { useNotifications } from '../state/notifications'
+
+/** A shell terminal inside one session's shell pane. */
+export interface TerminalTab { id: string; name: string }
+
+/** Everything a pending (not yet resolved) new session needs to render as a tab. */
+export interface PendingTabInfo { ptyId: string; cwd: string; label: string }
+
+interface Props {
+  column: Column
+  /** Real sessions for this column's tabs, by tab key. Pending tabs are absent here. */
+  sessions: Map<string, SessionNode>
+  /** Pending new sessions by pty id — a tab whose key is in here has no session row yet. */
+  pending: Map<string, PendingTabInfo>
+  /** Session ids with a live `claude` pty behind them. */
+  resumed: Set<string>
+  /** sessionId -> the `new:<uuid>` pty the session was originally started under. */
+  ptyOverrides: Map<string, string>
+  shellTabs: Map<string, TerminalTab[]>
+  setShellTabs: React.Dispatch<React.SetStateAction<Map<string, TerminalTab[]>>>
+  activeTerminal: Map<string, string>
+  setActiveTerminal: React.Dispatch<React.SetStateAction<Map<string, string>>>
+  bottomHeight: number
+  onStartBottomResize: () => void
+  isActive: boolean
+  onFocus: () => void
+  onActivateTab: (key: string) => void
+  onCloseTab: (key: string) => void
+  onSetView: (key: string, view: OpenTab['view']) => void
+  onResume: (session: SessionNode) => void
+  onRenameSession: (session: SessionNode, title: string) => void
+  onRenamePending: (ptyId: string, title: string) => void
+}
+
+/**
+ * One editor group: a strip of open session tabs, the active session's transcript or live
+ * terminal, and that session's own shell pane underneath. Several of these sit side by side when
+ * the user splits (see state/columns.ts), each with its own shell — so a split gives you a second
+ * session *and* a second set of terminals, which is what "split the shell along with the session"
+ * asks for.
+ */
+export function SessionColumn(props: Props): JSX.Element {
+  const {
+    column, sessions, pending, resumed, ptyOverrides, shellTabs, setShellTabs,
+    activeTerminal, setActiveTerminal, bottomHeight, onStartBottomResize, isActive, onFocus,
+    onActivateTab, onCloseTab, onSetView, onResume, onRenameSession, onRenamePending,
+  } = props
+
+  // Failures raised in here go to the app-wide notification stack rather than an in-pane banner:
+  // a message that only exists inside one column is easy to miss (and impossible to see at all
+  // once you have switched to another column), and every kind of failure now reads the same way
+  // wherever it came from.
+  const { notify, notifyError } = useNotifications()
+
+  const [shellOpen, setShellOpen] = useState(false)
+  const [tabListOpen, setTabListOpen] = useState(false)
+  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
+  const [gitBusy, setGitBusy] = useState<'pull' | 'push' | null>(null)
+  const [branchSwitcherOpen, setBranchSwitcherOpen] = useState(false)
+
+  const activeKey = column.activeKey
+  const activeTab = activeKey !== null ? findTab(column, activeKey) : null
+  const activeSession = activeKey !== null ? sessions.get(activeKey) ?? null : null
+  const activePending = activeKey !== null ? pending.get(activeKey) ?? null : null
+
+  /**
+   * The id every pty for a tab hangs off: the session id normally, but the original `new:<uuid>`
+   * pty id for a session that was started from "+" — a session started that way is only ever
+   * *addressed* by its session id, while the main process still knows it by the pty it was spawned
+   * under, so `ptyOverrides` keeps both the claude terminal and `shell:<key>:<n>` ids stable
+   * across the moment the session resolves. Pending tabs are keyed by their pty id directly.
+   */
+  const keyFor = useCallback(
+    (tabKey: string): string => (pending.has(tabKey) ? tabKey : ptyOverrides.get(tabKey) ?? tabKey),
+    [pending, ptyOverrides],
+  )
+  /** Whether `keyFor` produced a pty id rather than a stored session id — the two take different
+   *  main-process calls, since only a session id can be looked up in the store for its cwd. */
+  const isPtyKey = useCallback(
+    (tabKey: string): boolean => pending.has(tabKey) || ptyOverrides.has(tabKey),
+    [pending, ptyOverrides],
+  )
+
+  const shellKey = activeKey !== null ? keyFor(activeKey) : null
+  const shellKeyIsPtyId = activeKey !== null && isPtyKey(activeKey)
+
+  const loadGitStatus = useCallback(() => {
+    if (shellKey === null) { setGitStatus(null); return }
+    void window.apiary.gitStatus(shellKey, shellKeyIsPtyId).then(setGitStatus).catch(() => setGitStatus(null))
+  }, [shellKey, shellKeyIsPtyId])
+
+  useEffect(() => { loadGitStatus() }, [loadGitStatus])
+
+  /**
+   * Re-read the branch on a timer, because the most common way to change branch in this app is to
+   * type `git checkout` into the very terminal sitting below this toolbar — and nothing about that
+   * is observable from here, so without polling the label goes stale and quietly lies.
+   *
+   * This is not the background *fetching* the packaging notes rule out: every call is a local
+   * `git rev-parse` against an already-known directory, no network. Polls are skipped entirely
+   * while the window is unfocused, so an app left open in the background costs nothing, and a
+   * focus listener catches up the moment you come back.
+   */
+  useEffect(() => {
+    if (shellKey === null) return
+    const tick = (): void => { if (document.hasFocus()) loadGitStatus() }
+    const timer = setInterval(tick, 5000)
+    window.addEventListener('focus', loadGitStatus)
+    return () => { clearInterval(timer); window.removeEventListener('focus', loadGitStatus) }
+  }, [shellKey, loadGitStatus])
+
+  const terminalsFor = useCallback(
+    (tabKey: string): TerminalTab[] => shellTabs.get(keyFor(tabKey)) ?? [],
+    [shellTabs, keyFor],
+  )
+  const activeTerminalFor = useCallback(
+    (tabKey: string): string | null => {
+      const list = terminalsFor(tabKey)
+      const wanted = activeTerminal.get(keyFor(tabKey))
+      return list.find((t) => t.id === wanted)?.id ?? list[0]?.id ?? null
+    },
+    [terminalsFor, activeTerminal, keyFor],
+  )
+
+  const currentTerminals = activeKey !== null ? terminalsFor(activeKey) : []
+  const currentTerminalId = activeKey !== null ? activeTerminalFor(activeKey) : null
+
+  const spawnTerminal = useCallback(async (id: string): Promise<void> => {
+    if (shellKey === null) return
+    if (shellKeyIsPtyId) await window.apiary.openShellForPty(shellKey, id)
+    else await window.apiary.openShell(shellKey, id)
+  }, [shellKey, shellKeyIsPtyId])
+
+  const toggleShell = useCallback(async () => {
+    if (shellKey === null) return
+    if (shellOpen) { setShellOpen(false); return }
+    // Spawn a first terminal only when this session has none *live*. A session whose shell was
+    // exited (`exit` at the prompt) has its dead tabs pruned by App's pty-exit handler, so this
+    // sees an empty list and starts a fresh one, rather than reopening onto a terminal whose
+    // process is gone — which is what used to make "Show shell" look like it did nothing.
+    if ((shellTabs.get(shellKey) ?? []).length === 0) {
+      try {
+        await spawnTerminal('1')
+        setShellTabs((prev) => new Map(prev).set(shellKey, [{ id: '1', name: 'Terminal 1' }]))
+        setActiveTerminal((prev) => new Map(prev).set(shellKey, '1'))
+      } catch (e) {
+        notifyError(e, 'Could not open a shell')
+        return
+      }
+    }
+    setShellOpen(true)
+  }, [shellKey, shellOpen, shellTabs, spawnTerminal, setShellTabs, setActiveTerminal, notifyError])
+
+  const addTerminalTab = useCallback(async () => {
+    if (shellKey === null) return
+    const existing = shellTabs.get(shellKey) ?? []
+    // Ids climb forever within a session rather than reusing a freed number, so a just-deleted
+    // tab's pty id can never collide with a new one's; the name follows the id for the same reason.
+    const maxId = existing.reduce((m, t) => Math.max(m, Number(t.id)), 0)
+    const newId = String(maxId + 1)
+    try {
+      await spawnTerminal(newId)
+      setShellTabs((prev) => new Map(prev).set(shellKey, [...existing, { id: newId, name: `Terminal ${newId}` }]))
+      setActiveTerminal((prev) => new Map(prev).set(shellKey, newId))
+      setShellOpen(true)
+      // Reveal the list too: a new terminal is otherwise indistinguishable from the one already on
+      // screen, so the click reads as having done nothing at all.
+      setTabListOpen(true)
+    } catch (e) {
+      notifyError(e, 'Could not open a new terminal')
+    }
+  }, [shellKey, shellTabs, spawnTerminal, setShellTabs, setActiveTerminal, notifyError])
+
+  const renameTerminalTab = useCallback((tabId: string, name: string) => {
+    if (shellKey === null) return
+    setShellTabs((prev) => {
+      const list = prev.get(shellKey) ?? []
+      return new Map(prev).set(shellKey, list.map((t) => (t.id === tabId ? { ...t, name } : t)))
+    })
+  }, [shellKey, setShellTabs])
+
+  const switchTerminalTab = useCallback((tabId: string) => {
+    if (shellKey === null) return
+    setActiveTerminal((prev) => new Map(prev).set(shellKey, tabId))
+  }, [shellKey, setActiveTerminal])
+
+  const deleteTerminalTab = useCallback((tabId: string) => {
+    if (shellKey === null) return
+    window.apiary.ptyKill(`shell:${shellKey}:${tabId}`)
+    const list = (shellTabs.get(shellKey) ?? []).filter((t) => t.id !== tabId)
+    setShellTabs((prev) => {
+      const next = new Map(prev)
+      if (list.length === 0) next.delete(shellKey)
+      else next.set(shellKey, list)
+      return next
+    })
+    setActiveTerminal((prev) => {
+      if (prev.get(shellKey) !== tabId) return prev
+      const next = new Map(prev)
+      if (list.length === 0) next.delete(shellKey)
+      else next.set(shellKey, list[0].id)
+      return next
+    })
+    if (list.length === 0) setShellOpen(false)
+  }, [shellKey, shellTabs, setShellTabs, setActiveTerminal])
+
+  const runGitAction = useCallback(async (kind: 'pull' | 'push') => {
+    if (shellKey === null) return
+    setGitBusy(kind)
+    try {
+      if (kind === 'pull') await window.apiary.gitPull(shellKey, shellKeyIsPtyId)
+      else await window.apiary.gitPush(shellKey, shellKeyIsPtyId)
+      // Both commands are silent when they succeed, which reads identically to nothing having
+      // happened — the same confusion the Refresh button had before it grew a spinner.
+      notify({ kind: 'success', message: kind === 'pull' ? 'Pulled from upstream.' : 'Pushed to upstream.' })
+      loadGitStatus()
+    } catch (e) {
+      notifyError(e, kind === 'pull' ? 'Pull failed' : 'Push failed')
+    } finally {
+      setGitBusy(null)
+    }
+  }, [shellKey, shellKeyIsPtyId, loadGitStatus, notify, notifyError])
+
+  const tabViews: SessionTabView[] = column.tabs.map((tab) => {
+    const p = pending.get(tab.key)
+    if (p !== undefined) return { key: tab.key, label: p.label, isPending: true }
+    return { key: tab.key, label: sessions.get(tab.key)?.title ?? tab.key, isPending: false }
+  })
+
+  /** A pending session has no transcript to show, so its tab is always the live terminal. */
+  const viewOf = (tab: OpenTab): OpenTab['view'] => (pending.has(tab.key) ? 'terminal' : tab.view)
+  const showTerminalFor = (tab: OpenTab): boolean =>
+    pending.has(tab.key) || resumed.has(tab.key)
+
+  const activeView = activeTab !== null ? viewOf(activeTab) : 'transcript'
+
+  return (
+    <section
+      className="session-column"
+      data-testid="session-column"
+      data-active={isActive}
+      onFocusCapture={onFocus}
+      onMouseDownCapture={onFocus}
+    >
+      <SessionTabBar
+        tabs={tabViews}
+        activeKey={activeKey}
+        onActivate={onActivateTab}
+        onClose={onCloseTab}
+      />
+
+      {activeKey === null ? (
+        <p className="empty" data-testid="content-empty">
+          Select a session to view its transcript.
+        </p>
+      ) : (
+        <>
+          <header className="session-header">
+            <h1 data-testid="session-title" className="session-title-heading">
+              {activePending !== null ? (
+                <>
+                  New session &middot;{' '}
+                  <EditableSessionTitle
+                    key={activePending.ptyId}
+                    title={activePending.label}
+                    onRename={(title) => onRenamePending(activePending.ptyId, title)}
+                  />
+                </>
+              ) : activeSession !== null ? (
+                <EditableSessionTitle
+                  key={activeSession.sessionId}
+                  title={activeSession.title}
+                  onRename={(title) => onRenameSession(activeSession, title)}
+                />
+              ) : null}
+            </h1>
+            <p className="session-cwd">{activePending !== null ? activePending.cwd : activeSession?.cwd}</p>
+          </header>
+
+          {activePending === null && activeSession !== null && (
+            <ResumeBar
+              session={activeSession}
+              view={activeView}
+              hasTerminal={resumed.has(activeSession.sessionId)}
+              onView={(v) => onSetView(activeSession.sessionId, v)}
+              onResume={() => onResume(activeSession)}
+            />
+          )}
+
+          <div className="centre-pane">
+            {/* Only the active tab's transcript is mounted: it refetches and jumps to the newest
+             *  message on mount anyway, so keeping the others alive would buy nothing and would
+             *  multiply the live-update refetches by the number of open tabs. */}
+            {activePending === null && activeSession !== null && (
+              <div hidden={activeView !== 'transcript'} className="pane-fill">
+                <Transcript session={activeSession} />
+              </div>
+            )}
+            {/* Every tab's claude terminal stays mounted, hidden, so switching tabs (or columns)
+             *  never discards its scrollback — a fresh xterm starts empty and nothing replays a
+             *  running pty's earlier output into it. */}
+            {column.tabs.filter(showTerminalFor).map((tab) => {
+              const visible = tab.key === activeKey && viewOf(tab) === 'terminal'
+              return (
+                // Keyed by the pty id, not the tab key: when a pending session resolves, its tab
+                // is rekeyed from the pty id to the real session id, and keying off that would
+                // make React tear this subtree down and build a new one — remounting xterm and
+                // discarding everything printed during the pending phase. The pty id doesn't move.
+                <div key={keyFor(tab.key)} hidden={!visible} className="pane-fill">
+                  <TerminalView
+                    ptyId={keyFor(tab.key)}
+                    testId={visible ? 'terminal-session' : `terminal-session-${tab.key}`}
+                    visible={visible}
+                  />
+                </div>
+              )
+            })}
+          </div>
+
+          {shellOpen && (
+            <div
+              className="bottom-resizer"
+              data-testid="bottom-resizer"
+              onMouseDown={(e) => { e.preventDefault(); onStartBottomResize() }}
+            />
+          )}
+
+          <div className="bottom-pane" style={{ height: shellOpen ? bottomHeight : 32 }}>
+            <Toolbar
+              left={[
+                {
+                  id: 'shell-toggle',
+                  // Rotates like every other chevron in the app instead of always pointing down,
+                  // so the button states which way it will move the pane.
+                  icon: (
+                    <svg
+                      className="chevron"
+                      data-expanded={shellOpen}
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ),
+                  label: shellOpen ? 'Hide shell' : 'Show shell',
+                  title: shellOpen ? 'Hide shell' : 'Show shell',
+                  testId: 'shell-toggle',
+                  onClick: () => { void toggleShell() },
+                },
+                ...(gitStatus !== null
+                  ? ([
+                      {
+                        id: 'git-branch',
+                        icon: <BranchIcon />,
+                        label:
+                          gitStatus.branch === null
+                            ? 'HEAD (detached)'
+                            : gitStatus.branch +
+                              (gitStatus.hasUpstream && (gitStatus.behind > 0 || gitStatus.ahead > 0)
+                                ? ` (${gitStatus.behind > 0 ? '↓' + String(gitStatus.behind) : ''}${gitStatus.ahead > 0 ? '↑' + String(gitStatus.ahead) : ''})`
+                                : ''),
+                        title: 'Switch or create branch',
+                        testId: 'toolbar-branch-button',
+                        active: branchSwitcherOpen,
+                        onClick: () => setBranchSwitcherOpen(true),
+                      },
+                      {
+                        id: 'git-pull',
+                        icon: <ArrowDownIcon className={gitBusy === 'pull' ? 'spinner' : undefined} />,
+                        title: 'Pull',
+                        testId: 'toolbar-pull',
+                        disabled: gitBusy !== null,
+                        onClick: () => { void runGitAction('pull') },
+                      },
+                      {
+                        id: 'git-push',
+                        icon: <ArrowUpIcon className={gitBusy === 'push' ? 'spinner' : undefined} />,
+                        title: 'Push',
+                        testId: 'toolbar-push',
+                        disabled: gitBusy !== null,
+                        onClick: () => { void runGitAction('push') },
+                      },
+                      {
+                        id: 'git-copy',
+                        icon: <CopyIcon />,
+                        title: 'Copy branch name',
+                        testId: 'toolbar-copy',
+                        disabled: gitStatus.branch === null,
+                        onClick: () => {
+                          if (gitStatus.branch !== null) void window.apiary.copyToClipboard(gitStatus.branch)
+                        },
+                      },
+                    ] as ToolbarButtonSpec[])
+                  : []),
+              ]}
+              right={[
+                {
+                  id: 'terminal-add',
+                  icon: <PlusIcon />,
+                  title: 'New terminal',
+                  testId: 'terminal-add',
+                  onClick: () => { void addTerminalTab() },
+                },
+                {
+                  id: 'terminal-list-toggle',
+                  icon: <ListIcon />,
+                  title: 'Toggle terminal list',
+                  testId: 'terminal-list-toggle',
+                  active: tabListOpen,
+                  onClick: () => setTabListOpen((v) => !v),
+                },
+              ]}
+            />
+            <div className="terminal-panel-row">
+              {/* As with the claude terminals above, every open tab's shell terminals stay mounted
+               *  so their scrollback survives switching session — a dev server you left running in
+               *  one session is still showing its log when you come back to it. */}
+              {column.tabs.flatMap((tab) => {
+                const key = keyFor(tab.key)
+                const shownTerminal = activeTerminalFor(tab.key)
+                return terminalsFor(tab.key).map((terminal) => {
+                  // Note `shellOpen` is part of *visibility*, not of whether this is rendered at
+                  // all: collapsing the pane used to unmount every terminal in it, so hiding and
+                  // reshowing the shell threw away the scrollback of anything running in it. A
+                  // hidden terminal has no box for FitAddon to measure, so it never resizes its
+                  // pty while collapsed either — the process is left completely undisturbed.
+                  const visible = shellOpen && tab.key === activeKey && terminal.id === shownTerminal
+                  return (
+                    <div key={`${key}:${terminal.id}`} hidden={!visible} className="terminal-tab-view">
+                      <TerminalView
+                        ptyId={`shell:${key}:${terminal.id}`}
+                        testId={visible ? 'terminal-shell' : `terminal-shell-${tab.key}-${terminal.id}`}
+                        visible={visible}
+                      />
+                    </div>
+                  )
+                })
+              })}
+              {shellOpen && tabListOpen && (
+                <TerminalListPanel
+                  tabs={currentTerminals}
+                  activeId={currentTerminalId}
+                  onSwitch={switchTerminalTab}
+                  onRename={renameTerminalTab}
+                  onDelete={deleteTerminalTab}
+                />
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {branchSwitcherOpen && shellKey !== null && (
+        <BranchSwitcher
+          shellKey={shellKey}
+          isPtyId={shellKeyIsPtyId}
+          onClose={() => setBranchSwitcherOpen(false)}
+          onCheckedOut={loadGitStatus}
+          onError={(message) => notify({ kind: 'error', message })}
+        />
+      )}
+    </section>
+  )
+}

@@ -18,14 +18,28 @@ resume it in an embedded terminal in the correct working directory.
 - **Read any transcript** — full conversation history, rendered as markdown
   (headings, code blocks, lists), with tool calls/results collapsed into
   expandable blocks and subagent (sidechain) messages hidden by default.
+- **Work on several sessions at once** — sessions open as tabs, and any session can
+  be split into a column of its own beside the current one (as many columns as you
+  like), so two or three conversations can be watched side by side.
 - **Resume in an embedded terminal** — reopens a session with `claude --resume`
   in its correct working directory, right inside the app; warns (with the option
   to fork instead) if that session is already running elsewhere.
 - **Start brand-new sessions** — a "+" on any folder spawns a fresh `claude`
   session there directly from the sidebar, no separate terminal needed.
+- **A git toolbar per session** — current branch with ahead/behind counts, a VS
+  Code-style branch switcher, pull, push, and copy-branch-name, all scoped to that
+  session's own working directory.
 - **A plain shell alongside any session** — open an ordinary interactive shell in
   the same working directory as the session you're looking at, resizable and
   independent of the session's own terminal.
+- **Pin the sessions you live in** — a pin button on any session row lifts it into
+  a Pinned section at the top of the sidebar (collapsible, like a folder), so the
+  two or three you actually work in aren't buried among months of history. A row's
+  age gives way to its buttons on hover, so nothing has to compete for width.
+- **Failures say what happened** — anything that goes wrong, from a missing
+  transcript file to a failed push, appears as a notification with the message in
+  plain words and the raw error behind a "Details" toggle. A crash in one session's
+  pane is caught and shown in place rather than blanking the window.
 - **Rename sessions** — give a session a title of your own; it persists and
   survives Claude's own title-generation catching up later.
 - **Remove sessions from view** — hide a session you don't need without ever
@@ -38,76 +52,21 @@ resume it in an embedded terminal in the correct working directory.
 ## Install
 
 There's no signed installer yet, so the reliable way to get Apiary onto a
-machine is to hand the prompt below to an AI coding agent with shell access
-(Claude Code, Cursor, etc.). It's written to be idempotent — running it again
-later checks the installed version against the latest release and does
-nothing if you're already up to date, or updates in place if you're not.
+machine is to hand an AI coding agent with shell access (Claude Code, Cursor,
+etc.) the install prompt:
 
-If a GitHub release exists for your platform it downloads the prebuilt
-artifact; otherwise (or if none has been published yet) it builds from
-source instead, which always works as long as the build requirements below
-are met.
+**[docs/install-prompt.md](docs/install-prompt.md)** — open it and use the
+file view's own copy button, then paste the whole thing into your agent.
 
-> Paste everything between the lines into your agent:
->
-> ---
->
-> Install or update the "Apiary" desktop app from
-> https://github.com/nuwanprabhath/apiary for me. Follow these steps in
-> order, and stop to tell me if any step fails:
->
-> 1. Detect this machine's OS and CPU architecture (macOS arm64, macOS x64,
->    or Linux x64) — Apiary doesn't support anything else yet.
-> 2. Find the currently installed version, if any:
->    - macOS: if `/Applications/Apiary.app` exists, read
->      `CFBundleShortVersionString` from its `Info.plist` (e.g.
->      `/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString"
->      /Applications/Apiary.app/Contents/Info.plist`).
->    - Linux: run `apiary --version` if it's on `PATH`, or
->      `dpkg -s apiary 2>/dev/null | grep Version` if it was installed via
->      `.deb`.
->    - If none of those find anything, treat the installed version as "none".
-> 3. Fetch `https://api.github.com/repos/nuwanprabhath/apiary/releases/latest`.
->    If that 404s (no release published yet), skip straight to the
->    build-from-source path in step 5 — there's nothing to compare against or
->    download.
-> 4. If a release was found, compare its tag (strip a leading `v`) against
->    the installed version from step 2. If they already match, tell me
->    Apiary is already up to date and stop — don't reinstall or rebuild
->    anything.
-> 5. Otherwise, install the new version, either by downloading a release or
->    by building from source:
->    - **Prebuilt artifact** (when step 3 found a release with an asset for
->      this OS/arch — a `.dmg` for macOS, `.deb` or `.AppImage` for Linux):
->      download it, then:
->      - macOS: mount it (`hdiutil attach the.dmg`), copy `Apiary.app` into
->        `/Applications` (replacing any existing copy), unmount the image,
->        then run `xattr -cr /Applications/Apiary.app` — the app isn't
->        code-signed or notarized yet, so without this Gatekeeper refuses to
->        open it at all.
->      - Linux `.deb`: `sudo apt install ./<file>.deb` (pulls in any missing
->        dependencies automatically).
->      - Linux `.AppImage`: `chmod +x` it and move it to
->        `~/Applications/Apiary.AppImage` (creating that folder if it
->        doesn't exist yet), replacing any existing copy.
->    - **Build from source** (used automatically when there's no release
->      yet, or if no asset matches this OS/arch): clone
->      `https://github.com/nuwanprabhath/apiary` into `~/src/apiary` (or, if
->      that folder already exists, `git -C ~/src/apiary pull` instead of
->      cloning again), run `npm install`, then run whichever packaging
->      script matches this OS/arch — `npm run dist:mac:arm64`,
->      `npm run dist:mac:x64`, or `npm run dist:linux` — and install the
->      artifact it produces under `release/` the same way as the prebuilt
->      path above.
-> 6. Re-check the installed version and tell me what's installed now.
->
-> This needs Node.js 22+ on my machine either way, and — only for the
-> build-from-source path — Xcode Command Line Tools on macOS or
-> `build-essential`/Python 3 on Linux. Apiary itself needs `claude` on
-> `PATH` to actually resume sessions, but that isn't required just to
-> install the app.
->
-> ---
+It's kept as a file of its own, containing nothing but the prompt, precisely so
+that copying it is one button rather than a careful drag across part of a page.
+
+The prompt is written to be idempotent — running it again later checks the
+installed version against the latest release and does nothing if you're
+already up to date, or updates in place if you're not. If a GitHub release
+exists for your platform it downloads the prebuilt artifact; otherwise (or if
+none has been published yet) it builds from source instead, which always works
+as long as the build requirements below are met.
 
 ## Requirements
 
@@ -223,6 +182,16 @@ section of `electron-builder.yml` has actually been exercised on Linux, not
 just configured. Installing and launching the result on a real Linux
 desktop (as opposed to just the CI runner successfully packaging it) has
 not been separately confirmed.
+
+**AppImage sandboxing on Ubuntu 24.04+.** The `.deb` ships a custom
+`afterInstall` script (`build/linux-after-install.sh`) that always sets the
+SUID bit on `chrome-sandbox`, so it works out of the box even where
+unprivileged user namespaces are restricted (Ubuntu 24.04's
+`kernel.apparmor_restrict_unprivileged_userns=1`). The AppImage can't use
+that fix — AppImages are mounted `nosuid`, so a SUID sandbox helper never
+works there regardless of permissions. On an affected system the AppImage
+will abort on launch with a `SUID sandbox helper binary ... not configured
+correctly` error; run it with `--no-sandbox`, or install the `.deb` instead.
 
 ## How it works
 

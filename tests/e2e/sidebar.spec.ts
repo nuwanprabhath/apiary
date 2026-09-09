@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Locator } from '@playwright/test'
-import { launchApiary, importAll, relaunchApiary, type Harness } from './helpers'
+import { launchApiary, importAll, relaunchApiary, type Harness, sidebarSession } from './helpers'
 
 let h: Harness
 test.beforeEach(async () => { h = await launchApiary() })
@@ -68,7 +68,7 @@ test('filters sessions by title as you type', async () => {
 
   await h.page.getByTestId('search-input').fill('csv')
   await expect(h.page.getByTestId('session-item')).toHaveCount(1)
-  await expect(h.page.getByText('Fix CSV export bug')).toBeVisible()
+  await expect(sidebarSession(h.page, 'Fix CSV export bug')).toBeVisible()
 
   await h.page.getByTestId('search-input').fill('')
   await expect(h.page.getByTestId('session-item')).toHaveCount(4)
@@ -86,16 +86,16 @@ test('collapsing a folder hides only that folder (and its nested worktree), not 
   // sessions untouched).
   await h.page.getByTestId('project-toggle').first().click()
   await expect(h.page.getByTestId('session-item')).toHaveCount(2)
-  await expect(h.page.getByText('Fix CSV export bug')).toBeVisible()
-  await expect(h.page.getByText('Add worktree switcher')).toBeVisible()
-  await expect(h.page.getByText('Repo root session')).toHaveCount(0)
-  await expect(h.page.getByText('Worktree session')).toHaveCount(0)
+  await expect(sidebarSession(h.page, 'Fix CSV export bug')).toBeVisible()
+  await expect(sidebarSession(h.page, 'Add worktree switcher')).toBeVisible()
+  await expect(sidebarSession(h.page, 'Repo root session')).toHaveCount(0)
+  await expect(sidebarSession(h.page, 'Worktree session')).toHaveCount(0)
 })
 
 test('selecting a session marks it selected and shows its header', async () => {
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
-  await h.page.getByText('Fix CSV export bug').click()
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
   await expect(h.page.getByTestId('session-item').filter({ hasText: 'Fix CSV export bug' }))
     .toHaveAttribute('data-selected', 'true')
   await expect(h.page.getByTestId('session-title')).toHaveText('Fix CSV export bug')
@@ -117,15 +117,15 @@ test('a folder collapsed by the user stays collapsed after a relaunch (Finding 1
   // A stale re-expand bug would put every session back; the fix keeps repo-c collapsed while
   // everything else (including any folder discovered fresh on this relaunch) opens by default.
   await expect(h.page.getByTestId('session-item')).toHaveCount(2)
-  await expect(h.page.getByText('Fix CSV export bug')).toBeVisible()
-  await expect(h.page.getByText('Add worktree switcher')).toBeVisible()
-  await expect(h.page.getByText('Repo root session')).toHaveCount(0)
+  await expect(sidebarSession(h.page, 'Fix CSV export bug')).toBeVisible()
+  await expect(sidebarSession(h.page, 'Add worktree switcher')).toBeVisible()
+  await expect(sidebarSession(h.page, 'Repo root session')).toHaveCount(0)
 })
 
 test('the selected session is restored after a relaunch (Finding 1b)', async () => {
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
-  await h.page.getByText('Fix CSV export bug').click()
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
   await expect(h.page.getByTestId('session-title')).toHaveText('Fix CSV export bug')
 
   await relaunchApiary(h)

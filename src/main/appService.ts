@@ -160,6 +160,17 @@ export class AppService {
 
   async transcript(sessionId: string, beforeIndex?: number): Promise<TranscriptPage> {
     const session = this.requireSession(sessionId)
+    // Claude's own session files can be deleted out from under Apiary — most often by removing
+    // the git worktree the session ran in, which takes its whole `~/.claude/projects/<slug>`
+    // directory with it. Saying so in one sentence is far more use than the raw
+    // `ENOENT: no such file or directory, stat '/…'` this would otherwise reject with.
+    if (!existsSync(session.filePath)) {
+      throw new Error(
+        `This session's transcript file is no longer on disk: ${session.filePath}. ` +
+        'It was most likely deleted along with the folder it ran in. ' +
+        'Remove the session from the sidebar to stop it being listed.',
+      )
+    }
     const page = await readTranscriptPage(session.filePath, { beforeIndex })
     if (session.messageCount === null) {
       const { messageCount } = await indexTranscript(session.filePath)

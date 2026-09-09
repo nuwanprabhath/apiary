@@ -1,13 +1,13 @@
 import { test, expect } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { launchApiary, importAll, type Harness } from './helpers'
+import { launchApiary, importAll, type Harness, sidebarSession } from './helpers'
 
 let h: Harness
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
-  await h.page.getByText('Repo root session').click()
+  await sidebarSession(h.page, 'Repo root session').click()
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
 })
@@ -25,11 +25,15 @@ test('pull and push succeed against a real remote and refresh the branch button'
   execFileSync('git', ['init', '-q', '--bare', '-b', 'main', remote])
   execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: h.repoRoot })
 
+  // Both commands are silent on success at the git level, so the toolbar says so instead —
+  // and the absence of an error notification is what proves nothing went wrong.
   await h.page.getByTestId('toolbar-push').click()
-  await expect(h.page.getByTestId('error-banner')).toHaveCount(0)
+  await expect(h.page.getByTestId('notification').filter({ hasText: 'Pushed to upstream.' })).toBeVisible()
+  await expect(h.page.locator('[data-testid="notification"][data-kind="error"]')).toHaveCount(0)
 
   await h.page.getByTestId('toolbar-pull').click()
-  await expect(h.page.getByTestId('error-banner')).toHaveCount(0)
+  await expect(h.page.getByTestId('notification').filter({ hasText: 'Pulled from upstream.' })).toBeVisible()
+  await expect(h.page.locator('[data-testid="notification"][data-kind="error"]')).toHaveCount(0)
 })
 
 test('switches branch via the branch switcher', async () => {
@@ -88,8 +92,8 @@ test('checks out a tag detached', async () => {
 test('shows a visible error inside the branch switcher on a failed checkout, and keeps it open', async () => {
   // h.worktreeDir already has feature/wt checked out — trying to check it out again from the
   // repoRoot session must fail with git's "already used by worktree" error, visibly, without
-  // silently closing the modal (see Finding 3: the modal-backdrop otherwise hides App.tsx's
-  // error-banner behind it).
+  // silently closing the modal (see Finding 3: the modal-backdrop otherwise hid the app's own
+  // error reporting behind it).
   await h.page.getByTestId('toolbar-branch-button').click()
   await expect(h.page.getByTestId('branch-switcher')).toBeVisible()
   await h.page.getByTestId('branch-switcher-search').fill('feature/wt')

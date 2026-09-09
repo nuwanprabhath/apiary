@@ -8,6 +8,7 @@ import {
   countPtyResizeCalls,
   ptyResizeCallCount,
   type Harness,
+  sidebarSession,
 } from './helpers'
 
 let h: Harness
@@ -15,7 +16,7 @@ test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
-  await h.page.getByText('Fix CSV export bug').click()
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
 })
 test.afterEach(async () => { await h.close() })
 
@@ -73,7 +74,7 @@ test('warns before resuming a session that is already running', async () => {
   h = await launchApiary({ fakeLiveSessionId: '11111111-1111-1111-1111-111111111111' })
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
-  await h.page.getByText('Fix CSV export bug').click()
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
 
   await h.page.getByTestId('resume-button').click()
   await expect(h.page.getByTestId('conflict-dialog')).toBeVisible()
@@ -89,7 +90,7 @@ test('disables resume when the working directory is gone', async () => {
   h = await launchApiary({ withMissingCwd: true })
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
-  await h.page.getByText('Orphaned worktree session').click()
+  await sidebarSession(h.page, 'Orphaned worktree session').click()
 
   await expect(h.page.getByTestId('resume-button')).toBeDisabled()
   await expect(h.page.getByTestId('resume-button')).toHaveAttribute('data-cwd-exists', 'false')

@@ -6,6 +6,15 @@ export interface UiState {
    * needing any separate "have we seen this path before" bookkeeping.
    */
   collapsed: string[]
+  /**
+   * Session ids the user has pinned, newest first, shown in their own section above the tree.
+   * Ids of sessions that have since been removed are harmless: the sidebar renders only the ones
+   * it can still find in the tree, so a stale id costs nothing and comes back if the session is
+   * ever re-imported.
+   */
+  pinned: string[]
+  /** Whether the pinned section itself is collapsed. */
+  pinnedCollapsed: boolean
   selectedSessionId: string | null
   sidebarWidth: number
   bottomHeight: number
@@ -15,6 +24,8 @@ const KEY = 'apiary.ui'
 
 export const DEFAULT_UI_STATE: UiState = {
   collapsed: [],
+  pinned: [],
+  pinnedCollapsed: false,
   selectedSessionId: null,
   sidebarWidth: 320,
   bottomHeight: 200,

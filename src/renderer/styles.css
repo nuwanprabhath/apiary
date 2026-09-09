@@ -1,12 +1,51 @@
+/*
+ * Design tokens.
+ *
+ * Every colour used anywhere in this stylesheet resolves through one of these — there are no
+ * literal colour values in the rules below, deliberately. That makes a future theme feature a
+ * matter of redefining this one block against a selector (e.g. `:root[data-theme="light"] { … }`)
+ * and toggling an attribute on <html>, without editing a single rule. Keep it that way: if you
+ * need a new colour, add a token here rather than inlining a hex value at the point of use.
+ *
+ * The terminal is included in that promise: xterm.js is canvas/DOM-rendered from a JS palette
+ * rather than CSS, so `TerminalView.tsx` reads these same custom properties off the document at
+ * mount and hands them to xterm. A theme therefore recolours the terminal too, for free.
+ */
 :root {
+  /* Surfaces, from furthest back to furthest forward. */
   --bg: #1b1c1e;
   --bg-panel: #212327;
+  --bg-terminal: #151618;
+  --bg-overlay: rgba(0, 0, 0, 0.55);
+
+  /* Lines and type. */
   --border: #33363b;
   --text: #e6e6e6;
   --muted: #9aa0a6;
+
+  /* Accent, and the ink that stays legible on top of a filled accent surface. */
   --accent: #d9a441;
+  --accent-contrast: #1b1c1e;
+
+  /* Interaction states. --selected marks a persistent selection, --hover a transient one. */
   --selected: #2f3238;
+  --hover: rgba(90, 93, 94, 0.31);
+
+  /* Status. --danger-soft is the tint behind a destructive control on hover; --danger-bg the
+   * fill behind a whole error banner. */
   --danger: #e0736d;
+  --danger-soft: rgba(224, 115, 109, 0.18);
+  --danger-bg: #3a2422;
+  --success: #58c06e;
+  --warning: #e3b341;
+  --info: #6cb6ff;
+
+  /* Lift for anything that floats over the rest of the app (notifications, popovers). */
+  --shadow-overlay: 0 8px 28px rgba(0, 0, 0, 0.45);
+
+  --scrollbar-thumb: rgba(121, 121, 121, 0.4);
+  --scrollbar-thumb-hover: rgba(100, 100, 100, 0.7);
+
   font-family: -apple-system, "Segoe UI", Ubuntu, sans-serif;
   font-size: 13px;
 }
@@ -59,6 +98,31 @@ body.resizing-active { user-select: none; }
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
+
+/* Wrapper that lets the clear button overlay the right-hand end of the field. The field keeps
+ * `flex: 1` behaviour by having the wrapper carry it instead. */
+.search-field { position: relative; display: flex; flex: 1; min-width: 0; }
+.search-field .search { width: 100%; padding-right: 26px; }
+
+.search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.search-clear:hover, .search-clear:focus-visible { background: var(--hover); color: var(--text); }
+.search-clear svg { width: 12px; height: 12px; display: block; }
 
 .icon-button {
   border: 1px solid var(--border);
@@ -143,7 +207,7 @@ body.resizing-active { user-select: none; }
 }
 .new-session-button:hover,
 .new-session-button:focus-visible {
-  background: rgba(90, 93, 94, 0.31);
+  background: var(--hover);
   color: var(--text);
 }
 .new-session-button svg { width: 16px; height: 16px; display: block; }
@@ -180,22 +244,25 @@ body.resizing-active { user-select: none; }
   background: var(--selected);
 }
 .session-row-wrap .session-row { width: auto; flex: 1; min-width: 0; }
+/* The age gives up its place to the row's buttons the moment the row is hovered — see .row-action. */
+.session-row-wrap:hover .session-time,
+.session-row-wrap:focus-within .session-time { display: none; }
 /* The wrapper already carries the hover/selected highlight; the row itself shouldn't double it. */
 .session-row-wrap .session-row:hover,
 .session-row-wrap .session-row[data-selected="true"] { background: none; }
 
-.session-row-wrap:hover .delete-session-button,
-.delete-session-button:focus-visible {
-  opacity: 1;
-}
-
-.delete-session-button {
+/*
+ * The three row buttons (pin, split, remove) share one shape and one reveal rule; only the
+ * remove button's hover colour differs. They are `display: none` until the row is hovered or
+ * something inside it has focus — not merely transparent — so that they and the session's age
+ * take turns occupying the same strip at the right-hand end of the row rather than each
+ * permanently reserving width from the title.
+ */
+.row-action {
   flex: none;
-  opacity: 0;
+  display: none;
   width: 22px;
   height: 22px;
-  margin-right: 6px;
-  display: flex;
   align-items: center;
   justify-content: center;
   border: 0;
@@ -205,22 +272,125 @@ body.resizing-active { user-select: none; }
   cursor: pointer;
   padding: 0;
 }
+.session-row-wrap:hover .row-action,
+.session-row-wrap:focus-within .row-action {
+  display: flex;
+}
+.row-action:hover,
+.row-action:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+.row-action svg { width: 14px; height: 14px; display: block; }
+.delete-session-button { margin-right: 6px; }
 .delete-session-button:hover,
 .delete-session-button:focus-visible {
-  background: rgba(224, 115, 109, 0.18);
+  background: var(--danger-soft);
   color: var(--danger);
 }
-.delete-session-button svg { width: 14px; height: 14px; display: block; }
+/* A pinned row keeps its pin showing at all times — the icon is the state, so hiding it until
+ * hover would leave nothing on screen to say the row is pinned. */
+.session-row-wrap[data-pinned="true"] .pin-session-button {
+  display: flex;
+  color: var(--accent);
+}
 
 .session-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-time { color: var(--muted); font-size: 11px; }
 .missing { color: var(--danger); font-size: 11px; }
 
-.live-dot { width: 7px; height: 7px; border-radius: 50%; background: #58c06e; flex: none; }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex: none; }
 
 .pending-list { list-style: none; margin: 0; padding: 0 0 6px; border-bottom: 1px solid var(--border); }
 
-.content { overflow: auto; min-height: 0; display: flex; flex-direction: column; }
+/*
+ * The editor area is a row of columns, and it never scrolls itself: `overflow: hidden` pins the
+ * shell pane to the bottom of the window the way VS Code's panel is pinned, so opening a terminal
+ * can't push the layout down and start scrolling the whole app. Everything that legitimately
+ * overflows — the transcript, each terminal — scrolls inside its own box instead.
+ */
+.content { overflow: hidden; min-height: 0; display: flex; flex-direction: row; }
+
+/* One editor group. Columns share the width evenly and each owns its full vertical stack:
+ * tab strip, session, then that session's shell. */
+.session-column {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.session-column + .session-column { border-left: 1px solid var(--border); }
+
+.session-tab-bar {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  gap: 1px;
+  min-height: 32px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+/* A horizontal scrollbar across a 32px strip eats most of the tab; the strip still scrolls, it
+ * just does it without reserving visible track. */
+.session-tab-bar::-webkit-scrollbar { height: 0; }
+
+.session-tab {
+  display: flex;
+  align-items: center;
+  flex: none;
+  max-width: 220px;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  /* The active tab is marked with an accent rule along the top, like VS Code's, rather than by
+   * colour alone — the surrounding chrome is already several shades of the same grey. */
+  border-top: 2px solid transparent;
+}
+.session-tab:hover { background: var(--selected); }
+.session-tab[data-active="true"] {
+  background: var(--bg);
+  border-top-color: var(--accent);
+}
+
+.session-tab-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  padding: 4px 4px 4px 10px;
+}
+.session-tab[data-active="true"] .session-tab-label { color: var(--text); }
+.session-tab-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.session-tab-close {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+}
+.session-tab:hover .session-tab-close,
+.session-tab[data-active="true"] .session-tab-close,
+.session-tab-close:focus-visible { opacity: 1; }
+.session-tab-close:hover { background: var(--hover); color: var(--text); }
+.session-tab-close svg { width: 12px; height: 12px; display: block; }
 .session-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
 .session-header h1 { font-size: 16px; margin: 0 0 4px; display: flex; align-items: center; gap: 6px; }
 .session-cwd { color: var(--muted); margin: 0; font-size: 12px; }
@@ -246,7 +416,7 @@ body.resizing-active { user-select: none; }
 }
 .title-edit-button:hover,
 .title-edit-button:focus-visible {
-  background: rgba(90, 93, 94, 0.31);
+  background: var(--hover);
   color: var(--text);
 }
 .title-edit-button svg { width: 14px; height: 14px; display: block; }
@@ -377,7 +547,7 @@ body.resizing-active { user-select: none; }
 .resume-bar button { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--bg-panel); color: var(--text); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; }
 .resume-bar button[data-active="true"] { background: var(--selected); border-color: var(--accent); }
 .resume-bar button:disabled { opacity: 0.45; cursor: not-allowed; }
-.resume-bar .primary { background: var(--accent); border-color: var(--accent); color: #1b1c1e; font-weight: 600; }
+.resume-bar .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); font-weight: 600; }
 .spacer { flex: 1; }
 
 /*
@@ -411,7 +581,7 @@ body.resizing-active { user-select: none; }
  * No padding here, deliberately — see the comment on `.terminal-host .xterm` below for why
  * padding belongs on that inner element instead.
  */
-.terminal-host { flex: 1; min-height: 0; background: #151618; overflow: hidden; }
+.terminal-host { flex: 1; min-height: 0; background: var(--bg-terminal); overflow: hidden; }
 
 /*
  * Breathing room from the pane's edges belongs on the element FitAddon actually measures
@@ -467,16 +637,16 @@ body.resizing-active { user-select: none; }
 .toolbar-button[data-active="true"] { background: var(--selected); color: var(--text); border-color: var(--border); }
 .toolbar-button .spinner { animation: spin 0.6s linear infinite; }
 
-.error-banner { margin: 0; padding: 8px 16px; background: #3a2422; color: var(--danger); }
+.error-banner { margin: 0; padding: 8px 16px; background: var(--danger-bg); color: var(--danger); }
 
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); display: grid; place-items: center; }
+.modal-backdrop { position: fixed; inset: 0; background: var(--bg-overlay); display: grid; place-items: center; }
 .modal { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; max-width: 460px; }
 .modal h2 { margin: 0 0 10px; font-size: 15px; }
 .modal p { line-height: 1.55; margin: 0 0 10px; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
 .modal-actions button { border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 6px; padding: 5px 12px; cursor: pointer; font: inherit; }
-.modal-actions .primary { background: var(--accent); border-color: var(--accent); color: #1b1c1e; font-weight: 600; }
-.modal-actions .danger { background: var(--danger); border-color: var(--danger); color: #1b1c1e; font-weight: 600; }
+.modal-actions .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); font-weight: 600; }
+.modal-actions .danger { background: var(--danger); border-color: var(--danger); color: var(--accent-contrast); font-weight: 600; }
 
 .modal.wide { width: 620px; max-width: 90vw; }
 .modal .search { width: 100%; margin-bottom: 10px; }
@@ -485,13 +655,12 @@ body.resizing-active { user-select: none; }
 
 .import-group-head {
   display: flex;
-  gap: 8px;
+  gap: 4px;
   align-items: center;
-  padding: 7px 10px;
+  padding: 7px 10px 7px 4px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   font-weight: 600;
-  cursor: pointer;
   position: sticky;
   top: 0;
 }
@@ -521,12 +690,12 @@ body.resizing-active { user-select: none; }
 ::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(121, 121, 121, 0.4);
+  background-color: var(--scrollbar-thumb);
   border-radius: 0;
   border: 3px solid transparent;
   background-clip: padding-box;
 }
-::-webkit-scrollbar-thumb:hover { background-color: rgba(100, 100, 100, 0.7); }
+::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
 ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
 
 .branch-switcher-list { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto; }
@@ -615,6 +784,14 @@ body.resizing-active { user-select: none; }
   color: var(--text);
   font: inherit;
 }
+/* Same doubled-border problem `.search:focus` above documents, and the same fix: this input is
+ * autofocused the moment it appears, so without owning the focus style it renders its own accent
+ * border *plus* Chromium's default focus ring, which follows the OS accent colour and reads as a
+ * stray white/orange outline around the field. */
+.terminal-tab-rename-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent);
+}
 .terminal-tab-delete {
   flex: none;
   border: 0;
@@ -627,3 +804,216 @@ body.resizing-active { user-select: none; }
 }
 .terminal-tab-row:hover .terminal-tab-delete, .terminal-tab-row:focus-within .terminal-tab-delete { opacity: 1; }
 .terminal-tab-delete:hover { background: var(--border); color: var(--danger); }
+
+/* The row's own label — everything except the collapse chevron. It carries the pointer cursor
+ * and the flex growth the head used to own directly, so ticking anywhere along the row still
+ * hits the folder checkbox. */
+.import-group-label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.import-group-toggle {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.import-group-toggle:hover, .import-group-toggle:focus-visible { background: var(--hover); color: var(--text); }
+
+/*
+ * Pinned section: a flat list of the sessions the user promoted, above the folder tree. Its
+ * header is the same twisty-plus-label shape a project row uses, so collapsing it feels like
+ * collapsing a folder rather than like a separate mechanism.
+ */
+.pinned-section { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px; }
+.pinned-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  text-align: left;
+  padding: 5px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pinned-header:hover { color: var(--text); }
+.pinned-label { font-weight: 600; }
+.pinned-count {
+  margin-left: auto;
+  margin-right: 6px;
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--selected);
+  border-radius: 8px;
+  padding: 1px 6px;
+  letter-spacing: 0;
+}
+
+/*
+ * Notifications. One stack, bottom-right, above everything including modal backdrops — a failure
+ * raised while a dialog is open still has to be readable, and the dialog is what the user is
+ * looking at. Each card carries its kind in a coloured left edge and a matching glyph, so the two
+ * agree and neither colour nor shape has to carry the meaning alone.
+ */
+.notification-stack {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.notification {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 10px 10px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--muted);
+  border-radius: 8px;
+  box-shadow: var(--shadow-overlay);
+  animation: notification-in 140ms ease-out;
+}
+@keyframes notification-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.notification[data-kind="error"] { border-left-color: var(--danger); }
+.notification[data-kind="warning"] { border-left-color: var(--warning); }
+.notification[data-kind="info"] { border-left-color: var(--info); }
+.notification[data-kind="success"] { border-left-color: var(--success); }
+
+.notification-icon { flex: none; display: block; margin-top: 1px; }
+.notification-icon svg { width: 16px; height: 16px; display: block; }
+.notification[data-kind="error"] .notification-icon { color: var(--danger); }
+.notification[data-kind="warning"] .notification-icon { color: var(--warning); }
+.notification[data-kind="info"] .notification-icon { color: var(--info); }
+.notification[data-kind="success"] .notification-icon { color: var(--success); }
+
+.notification-body { flex: 1; min-width: 0; }
+.notification-message { margin: 0; line-height: 1.45; overflow-wrap: anywhere; }
+.notification-detail {
+  margin: 6px 0 0;
+  padding: 8px;
+  max-height: 180px;
+  overflow: auto;
+  background: var(--bg);
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.notification-actions { display: flex; gap: 6px; margin-top: 8px; }
+.notification-action {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+.notification-action:hover { background: var(--selected); }
+.notification-close {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+.notification-close:hover { background: var(--hover); color: var(--text); }
+.notification-close svg { width: 14px; height: 14px; display: block; }
+
+/*
+ * What an error boundary renders in place of whatever crashed. Deliberately a normal-looking
+ * pane rather than a scary wall of text: the message first, the stack folded away behind a
+ * disclosure, and two ways forward — re-render this subtree, or reload the window.
+ */
+.crash-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.crash-title { margin: 0; font-size: 15px; font-weight: 600; }
+.crash-message {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.crash-detail { color: var(--muted); max-width: 100%; }
+.crash-detail summary { cursor: pointer; font-size: 12px; }
+.crash-detail pre {
+  margin: 8px 0 0;
+  padding: 10px;
+  max-height: 260px;
+  overflow: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.crash-actions { display: flex; gap: 8px; margin-top: 4px; }
+.crash-actions button {
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font: inherit;
+}
+.crash-actions .primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+/* The transcript pane's own failure state, reusing the crash pane's message/detail styling. */
+.transcript-error { padding: 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }

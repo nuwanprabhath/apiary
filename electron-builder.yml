@@ -38,3 +38,9 @@ linux:
       arch: [x64]
     - target: deb
       arch: [x64]
+deb:
+  # Custom postinst script that always sets the SUID bit on chrome-sandbox
+  # instead of electron-builder's conditional stock logic, which misdetects
+  # unprivileged-userns support on Ubuntu 24.04 and leaves the sandbox
+  # helper unusable at runtime. See build/linux-after-install.sh for details.
+  afterInstall: build/linux-after-install.sh

@@ -1,14 +1,31 @@
 /**
  * Regenerates the Apiary app icon from its parametric source.
  *
- * Writes `build/icon.svg` (the master), then rasterises everything electron-builder and the
- * runtime need:
+ * There are two generated masters, sharing the same honeycomb artwork but with different
+ * backgrounds:
+ *   build/icon.svg       transparent corners, artwork fills the canvas — used everywhere except
+ *                         the packaged macOS app (dev Dock icon via app.dock.setIcon, Linux
+ *                         packaging, and the generic electron-builder fallback).
+ *   build/icon-mac.svg   opaque white square, artwork scaled down and centred — used only to
+ *                         build build/icon.icns.
+ *
+ * Why macOS needs a different one: macOS 26 (Tahoe) force-masks every packaged app's icon onto
+ * its own rounded tile shape, regardless of what shape the icon itself draws. `icon.svg`'s
+ * artwork is a hexagon with transparent corners, so once the OS masks it, those corners get
+ * filled with a default grey plate instead of showing through — the icon looks like it has a
+ * grey background in the Dock/Finder. Filling the whole canvas edge-to-edge with white means
+ * there is no transparent corner left for the OS to backfill, so the mask just clips a white
+ * square into its tile and the honeycomb rides on top of it. This only affects the *packaged*
+ * app: in dev mode `app.dock.setIcon()` sets the Dock image at runtime and bypasses the mask
+ * entirely, which is why `npm start`'s icon already looks correct today.
+ *
+ * From `icon.svg`/`icon-mac.svg`, rasterises everything electron-builder and the runtime need:
  *   build/icon.png      1024px, the source electron-builder falls back to for any platform
- *   build/icon.icns     macOS bundle icon (needs `iconutil`, so macOS only — skipped elsewhere)
+ *   build/icon.icns     macOS bundle icon, built from icon-mac.svg (needs `iconutil`, macOS only)
  *   build/icons/*.png   per-size PNGs, which is the form electron-builder wants for Linux
  *
- * Rasterising needs `rsvg-convert` (brew install librsvg / apt install librsvg2-bin). The SVG
- * itself is written regardless, so a machine without it still gets an up-to-date master.
+ * Rasterising needs `rsvg-convert` (brew install librsvg / apt install librsvg2-bin). The SVGs
+ * themselves are written regardless, so a machine without it still gets up-to-date masters.
  *
  * Run with: npm run icons
  */
@@ -44,6 +61,13 @@ const SPOKE_LEN = 38
  */
 const EDGE_W = 2.5
 
+/**
+ * The macOS mask rounds off the tile's corners and the Dock scales icons down further still, so
+ * the full-bleed variant shrinks the artwork to this fraction of the canvas (centred) to keep it
+ * clear of both effects — roughly the middle 80%.
+ */
+const MAC_SCALE = 0.8
+
 /** Flat-top hexagon (flat edge across the top): vertices at 0, 60, ... 300 degrees. */
 function hexPath(cx, cy, r) {
   const pts = []
@@ -76,12 +100,12 @@ function spokes(cx, cy, len) {
   })
 }
 
-function buildSvg() {
+/** The honeycomb artwork (rim hexagon, comb rosette, centre spokes) — shared by both variants. */
+function artwork() {
   const cells = rosette(CX, CY, CELL_R).map(([x, y]) => hexPath(x, y, CELL_R))
   const rays = spokes(CX, CY, SPOKE_LEN)
 
-  return `<svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">
-  <defs>
+  return `<defs>
     <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="${COMB}" />
       <stop offset="1" stop-color="${SPOKE}" />
@@ -103,6 +127,24 @@ function buildSvg() {
   </g>
   <g fill="none" stroke="${SPOKE}" stroke-width="${SPOKE_W}" stroke-linecap="round">
     ${rays.map((d) => `<path d="${d}" />`).join('\n    ')}
+  </g>`
+}
+
+/** Transparent-corner variant: the artwork alone, filling the canvas. Used everywhere but macOS. */
+function buildSvg() {
+  return `<svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">
+  ${artwork()}
+</svg>`
+}
+
+/** Full-bleed white variant for macOS: opaque background, artwork scaled down and centred. */
+function buildMacSvg() {
+  // Scale the artwork as a group about the canvas centre, so every constant above stays untouched.
+  const t = `translate(${CX} ${CY}) scale(${MAC_SCALE}) translate(${-CX} ${-CY})`
+  return `<svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="${SIZE}" height="${SIZE}" fill="${WHITE}" />
+  <g transform="${t}">
+    ${artwork()}
   </g>
 </svg>`
 }
@@ -112,6 +154,10 @@ mkdirSync(BUILD, { recursive: true })
 const svgPath = join(BUILD, 'icon.svg')
 writeFileSync(svgPath, buildSvg())
 console.log('wrote build/icon.svg')
+
+const macSvgPath = join(BUILD, 'icon-mac.svg')
+writeFileSync(macSvgPath, buildMacSvg())
+console.log('wrote build/icon-mac.svg')
 
 function have(bin) {
   try {
@@ -123,12 +169,12 @@ function have(bin) {
 }
 
 if (!have('rsvg-convert')) {
-  console.warn('rsvg-convert not found — wrote the SVG only. Install librsvg to rasterise.')
+  console.warn('rsvg-convert not found — wrote the SVGs only. Install librsvg to rasterise.')
   process.exit(0)
 }
 
-const png = (size, out) =>
-  execFileSync('rsvg-convert', ['-w', String(size), '-h', String(size), svgPath, '-o', out])
+const png = (size, out, src = svgPath) =>
+  execFileSync('rsvg-convert', ['-w', String(size), '-h', String(size), src, '-o', out])
 
 png(1024, join(BUILD, 'icon.png'))
 console.log('wrote build/icon.png (1024)')
@@ -153,7 +199,7 @@ if (process.platform === 'darwin' && have('iconutil')) {
     [256, 'icon_256x256.png'], [512, 'icon_256x256@2x.png'],
     [512, 'icon_512x512.png'], [1024, 'icon_512x512@2x.png'],
   ]
-  for (const [size, name] of faces) png(size, join(iconset, name))
+  for (const [size, name] of faces) png(size, join(iconset, name), macSvgPath)
   execFileSync('iconutil', ['-c', 'icns', iconset, '-o', join(BUILD, 'icon.icns')])
   rmSync(iconset, { recursive: true, force: true })
   console.log('wrote build/icon.icns')

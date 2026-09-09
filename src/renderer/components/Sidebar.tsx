@@ -1,7 +1,18 @@
 import { useMemo, useState } from 'react'
-import type { SessionNode } from '@shared/types'
+import type { ProjectNode, SessionNode } from '@shared/types'
 import { useTree } from '../state/useTree'
 import { SessionTree } from './SessionTree'
+import { SessionRow } from './SessionRow'
+import { CloseIcon } from './icons'
+
+/** Every session anywhere in the tree, flattened, so pinned ids can be resolved back to rows. */
+function flattenSessions(nodes: ProjectNode[], into = new Map<string, SessionNode>()): Map<string, SessionNode> {
+  for (const node of nodes) {
+    for (const s of node.sessions) into.set(s.sessionId, s)
+    flattenSessions(node.children, into)
+  }
+  return into
+}
 
 /** A new-session pty still awaiting its first JSONL — see `PendingSession` in App.tsx. Listed so
  *  a pending session other than the one currently shown can still be reached and switched back to,
@@ -24,6 +35,14 @@ interface Props {
   onNewSession: (path: string) => void
   /** Asks to remove a session from view. */
   onDeleteSession: (session: SessionNode) => void
+  /** Opens a session in a column of its own beside the current one. */
+  onSplitSession: (session: SessionNode) => void
+  /** Session ids the user has pinned, most recently pinned first. */
+  pinned: string[]
+  onTogglePin: (session: SessionNode) => void
+  /** Whether the pinned section is collapsed — persisted, like the folder collapse state. */
+  pinnedCollapsed: boolean
+  onPinnedCollapsedChange: (next: boolean) => void
   /** New-session ptys not yet resolved into a real SessionNode, excluding whichever one (if any)
    * is already the one shown in the main pane — so this lists only the ones a click would
    * actually switch to. */
@@ -34,6 +53,7 @@ interface Props {
 
 export function Sidebar({
   selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onDeleteSession,
+  onSplitSession, pinned, onTogglePin, pinnedCollapsed, onPinnedCollapsedChange,
   pending, onSelectPending,
 }: Props): JSX.Element {
   const [query, setQuery] = useState('')
@@ -41,6 +61,18 @@ export function Sidebar({
   const [refreshing, setRefreshing] = useState(false)
 
   const isEmpty = useMemo(() => !loading && tree.length === 0, [loading, tree])
+
+  /**
+   * Pinned rows, in the order they were pinned rather than the order the tree happens to hold
+   * them. Resolved against the *filtered* tree, so a search narrows the pinned section too —
+   * a pinned session that doesn't match what you typed would otherwise be the one row on screen
+   * that ignores the search box.
+   */
+  const pinnedSet = useMemo(() => new Set(pinned), [pinned])
+  const pinnedSessions = useMemo(() => {
+    const byId = flattenSessions(tree)
+    return pinned.map((id) => byId.get(id)).filter((s): s is SessionNode => s !== undefined)
+  }, [tree, pinned])
 
   const toggle = (path: string): void => {
     const next = new Set(collapsed)
@@ -52,13 +84,29 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <input
-          className="search"
-          data-testid="search-input"
-          placeholder="Search sessions"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        {/* The clear button sits inside the field rather than beside it, so the row keeps the
+         *  two-control shape it already had (field + Refresh) instead of gaining a third
+         *  element that steals width from the field on a narrow sidebar. */}
+        <div className="search-field">
+          <input
+            className="search"
+            data-testid="search-input"
+            placeholder="Search sessions"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query !== '' && (
+            <button
+              className="search-clear"
+              data-testid="search-clear"
+              title="Clear search"
+              aria-label="Clear search"
+              onClick={() => setQuery('')}
+            >
+              <CloseIcon />
+            </button>
+          )}
+        </div>
         <button
           className="icon-button"
           data-testid="sidebar-refresh"
@@ -92,6 +140,42 @@ export function Sidebar({
         <p className="empty" data-testid="sidebar-no-matches">No sessions match that search.</p>
       )}
 
+      {pinnedSessions.length > 0 && (
+        <section className="pinned-section" data-testid="pinned-section">
+          <button
+            className="pinned-header"
+            data-testid="pinned-toggle"
+            aria-expanded={!pinnedCollapsed}
+            onClick={() => onPinnedCollapsedChange(!pinnedCollapsed)}
+          >
+            <svg
+              className="chevron"
+              data-expanded={!pinnedCollapsed}
+              viewBox="0 0 16 16"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="pinned-label">Pinned</span>
+            <span className="pinned-count">{pinnedSessions.length}</span>
+          </button>
+          {!pinnedCollapsed && pinnedSessions.map((s) => (
+            <SessionRow
+              key={s.sessionId}
+              session={s}
+              selected={s.sessionId === selectedId}
+              pinned
+              onSelect={onSelect}
+              onSplit={onSplitSession}
+              onDelete={onDeleteSession}
+              onTogglePin={onTogglePin}
+            />
+          ))}
+        </section>
+      )}
+
       {pending.length > 0 && (
         <ul className="pending-list" data-testid="pending-list">
           {pending.map((p) => (
@@ -119,6 +203,9 @@ export function Sidebar({
           onSelect={onSelect}
           onNewSession={onNewSession}
           onDeleteSession={onDeleteSession}
+          onSplitSession={onSplitSession}
+          pinned={pinnedSet}
+          onTogglePin={onTogglePin}
         />
       )}
     </aside>

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { launchApiary, type Harness } from './helpers'
+import { launchApiary, type Harness, sidebarSession } from './helpers'
 
 /** The menu lives in the main process, so trigger the same channel it sends. */
 async function openImportDialog(harness: Harness): Promise<void> {
@@ -18,7 +18,8 @@ test.describe('default fixture (one session per group)', () => {
     await openImportDialog(h)
     await expect(h.page.getByTestId('import-group')).toHaveCount(4)
     await expect(h.page.getByTestId('import-session-checkbox')).toHaveCount(4)
-    await expect(h.page.getByText('Fix CSV export bug')).toBeVisible()
+    // This one is the row inside the dialog, not the sidebar behind it.
+    await expect(h.page.getByTestId('import-dialog').getByText('Fix CSV export bug')).toBeVisible()
   })
 
   test('imports only the ticked sessions', async () => {
@@ -143,8 +144,8 @@ test.describe('folder with two sessions', () => {
     await expect(h.page.getByTestId('import-dialog')).toHaveCount(0)
 
     // Both of work-a's sessions actually made it through the import, not just one of them.
-    await expect(h.page.getByText('Fix CSV export bug')).toBeVisible()
-    await expect(h.page.getByText('Second session in work-a')).toBeVisible()
+    await expect(sidebarSession(h.page, 'Fix CSV export bug')).toBeVisible()
+    await expect(sidebarSession(h.page, 'Second session in work-a')).toBeVisible()
     await expect(h.page.getByTestId('session-item')).toHaveCount(2)
   })
 })
