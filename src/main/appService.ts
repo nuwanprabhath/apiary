@@ -271,6 +271,7 @@ export class AppService {
       id: sessionId,
       cwd,
       command: buildResumeCommand(sessionId, { fork, claudeBin: this.options.claudeBin }),
+      tui: true,
     })
   }
 
@@ -382,6 +383,7 @@ export class AppService {
       id: ptyId,
       cwd,
       command: buildNewSessionCommand({ claudeBin: this.options.claudeBin }),
+      tui: true,
     })
     return { ptyId, cwd, label: basename(cwd) || cwd }
   }
@@ -474,17 +476,25 @@ export class AppService {
    * multi-line message submits at its first newline, sending a fragment and leaving the rest to be
    * interpreted as new prompts. The trailing carriage return is the actual "send".
    *
-   * That return is deliberately written on its own tick rather than appended to the same write as
-   * the paste: sent in the same chunk, Claude Code's own TUI still shows the text land in its input
-   * box but doesn't treat the return as "submit" — it needs a beat to finish processing the paste
-   * before an Enter after it registers, otherwise you have to press Enter again by hand. A plain
-   * shell doesn't care either way, which is why this only showed up against the real `claude` TUI.
+   * Both waits are load-bearing, and both were found by measuring a real `claude` rather than
+   * reasoning about it:
+   *
+   * - Before the paste, because sending a message resumes a stopped session first, and the pty
+   *   exists a good second before `claude` is listening. Written into that gap, the message is
+   *   swallowed by the terminal's line discipline instead (see `whenQuiet`) — it appears in the
+   *   input box, unsent, with its return turned into a newline, and needs an Enter by hand.
+   * - Before the return, because it only counts as "submit" once the TUI has taken the paste in.
+   *   Measured at ~20ms on an idle session but ~90ms on a busy one, so a fixed delay is a guess;
+   *   waiting for the TUI to stop drawing is the thing that was actually being guessed at.
    */
-  sendPrompt(ptyId: string, text: string): void {
+  async sendPrompt(ptyId: string, text: string): Promise<void> {
     if (!this.pty.has(ptyId)) throw new Error('This session is not running.')
     const normalised = text.replace(/\r\n/g, '\n').replace(/\s+$/, '')
     if (normalised === '') return
+    await this.pty.whenQuiet(ptyId, { quietMs: 250, capMs: 20_000 })
+    const before = this.pty.outputCount(ptyId)
     this.pty.write(ptyId, PASTE_START + normalised + PASTE_END)
-    setTimeout(() => this.pty.write(ptyId, '\r'), 50)
+    await this.pty.whenQuiet(ptyId, { quietMs: 150, capMs: 1500, after: before })
+    this.pty.write(ptyId, '\r')
   }
 }

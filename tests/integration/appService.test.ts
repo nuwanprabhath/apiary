@@ -7,6 +7,7 @@ import {
   symlinkSync,
   existsSync,
   writeFileSync,
+  readFileSync,
 } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
@@ -622,7 +623,7 @@ describe('composer: images and prompt delivery', () => {
 
     const chunks: string[] = []
     service.pty.onData((id, data) => { if (id === ptyId) chunks.push(data) })
-    service.sendPrompt(ptyId, 'echo APIARY_LINE_ONE\necho APIARY_LINE_TWO')
+    await service.sendPrompt(ptyId, 'echo APIARY_LINE_ONE\necho APIARY_LINE_TWO')
 
     // A real shell, receiving a real bracketed paste: both lines arrive, and the trailing return
     // is what runs them. If the paste markers were missing, the first newline would submit on its
@@ -634,7 +635,47 @@ describe('composer: images and prompt delivery', () => {
     }, { timeout: 15000 })
   })
 
-  it('refuses to send to a session that is not running', () => {
-    expect(() => service.sendPrompt('shell:nope:1', 'hello')).toThrow(/not running/i)
+  it('refuses to send to a session that is not running', async () => {
+    await expect(service.sendPrompt('shell:nope:1', 'hello')).rejects.toThrow(/not running/i)
   })
+
+  it('waits for a slow-starting TUI, so the prompt is not eaten by the line discipline', async () => {
+    // The bug this covers: sending a message resumes a stopped session first, and the pty exists a
+    // good second before `claude` is listening. Written into that gap, the prompt is handled by the
+    // terminal's line discipline instead of the program — which buffers it and, fatally, translates
+    // the submitting carriage return into a newline (ICRNL). The message then appears in the input
+    // box and just sits there, needing an Enter by hand. Reproduced against the real `claude` before
+    // this was fixed; this stand-in is that behaviour without the API calls: quiet and in canonical
+    // mode at first, then taking the screen and switching to raw mode the way a full-screen program
+    // does, recording what it is actually handed.
+    const received = join(home, 'tui-received.log')
+    const fakeTui = join(home, 'fake-tui.cjs')
+    writeFileSync(fakeTui, `
+      const fs = require('fs')
+      setTimeout(() => {
+        process.stdin.setRawMode(true)
+        process.stdout.write('\\u001b[?1049h')
+        process.stdin.on('data', (d) => fs.appendFileSync(${JSON.stringify(received)}, d.toString('binary')))
+      }, 600)
+      setTimeout(() => process.exit(0), 10000)
+    `)
+
+    service.pty.spawn({
+      id: 'tui-probe',
+      cwd: workdir,
+      command: `exec ${JSON.stringify(process.execPath)} ${JSON.stringify(fakeTui)}`,
+      tui: true,
+    })
+    await service.sendPrompt('tui-probe', 'line one\nline two')
+
+    await vi.waitFor(() => {
+      const seen = readFileSync(received, 'latin1')
+      // The paste arrived whole, as a paste...
+      expect(seen).toContain('\x1b[200~line one\nline two\x1b[201~')
+      // ...and the send is a carriage return. A newline here means it was written before the
+      // program was listening and the line discipline rewrote it — the original bug exactly.
+      expect(seen.endsWith('\r')).toBe(true)
+    }, { timeout: 5000 })
+    service.pty.kill('tui-probe')
+  }, 15000)
 })

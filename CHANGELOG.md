@@ -4,6 +4,29 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.2] - 2026-09-11
+
+### Fixed
+
+- **A message sent from the chat box could arrive unsent, needing a second Enter by hand** — with
+  any images in it left as a raw path rather than picked up as attachments. Sending to a stopped
+  session resumes it first, and the pty exists a good second before `claude` is listening; the
+  message was written straight into that gap. What handles it there is not the program but the
+  terminal's line discipline, which is still in canonical mode: it buffers the input by line and
+  translates the carriage return that submits into a plain newline (ICRNL). The message then
+  surfaced in the input box once Claude started, sitting there, its send having become a line
+  break — and, never having been seen as a paste, with its image paths never recognised.
+
+  Delivery now waits for the program to take the screen (which is also when it puts the terminal
+  into raw mode) and for its output to settle, before writing anything. The return that submits
+  likewise waits for the paste to be taken in rather than following a fixed delay — measured at
+  ~20ms on an idle session but ~90ms on a busy one, so the previous fixed 50ms was a guess that
+  happened to hold only when the session was idle.
+
+  Covered by a test that runs a stand-in for a slow-starting full-screen program and asserts the
+  prompt arrives whole and its return arrives as a return; verified separately against the real
+  `claude`, where the old code fails this and the new code passes.
+
 ## [1.7.1] - 2026-09-10
 
 ### Added
@@ -58,7 +81,8 @@ All notable changes to Apiary are documented here. Format follows
   written in the same tick as the bracketed paste it follows; Claude Code's own TUI would show the
   text land in its input box but not treat that immediate return as "submit", requiring a second,
   manual Enter to actually send. The return is now written on its own tick after a short beat, which
-  gives the TUI time to finish processing the paste first.
+  gives the TUI time to finish processing the paste first. (Superseded by 1.7.2: this was a real
+  ordering constraint but not the cause of the reported problem, and it did not fix it.)
 - **A dialog opened from one column is no longer painted through by the next column** — the
   "transparent" merge-branch popup. `.modal-backdrop` carried no `z-index`, and a modal is
   rendered inside whichever column opened it, so the columns to its right (which contain

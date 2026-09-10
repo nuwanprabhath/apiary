@@ -9,6 +9,12 @@ export interface SpawnOptions {
   command: string
   cols?: number
   rows?: number
+  /**
+   * Whether the child is a full-screen program that reads keys itself (Claude Code), as opposed to
+   * a plain shell. Such a program is only safe to type into once it has actually started: see
+   * `whenQuiet()`.
+   */
+  tui?: boolean
 }
 
 type DataHandler = (id: string, data: string) => void
@@ -29,10 +35,24 @@ type ExitHandler = (id: string, exitCode: number) => void
  */
 const PTY_KILL_TIMEOUT_MS = 1500
 
+/**
+ * Switching to the alternate screen buffer. A full-screen program emits this as it takes over the
+ * terminal, which is also the point at which it has put the tty into raw mode — so it doubles as
+ * the signal that input written now will reach the program as keystrokes rather than being
+ * mangled by the line discipline first. See `whenQuiet()`.
+ */
+const ALT_SCREEN = '\x1b[?1049h'
+
 export class PtyManager {
   private processes = new Map<string, pty.IPty>()
   private lastSize = new Map<string, { cols: number; rows: number }>()
   private cwds = new Map<string, string>()
+  /** Per-pty: whether a full-screen child is expected, and whether it has actually started. */
+  private expectTui = new Map<string, boolean>()
+  private tuiStarted = new Map<string, boolean>()
+  /** Per-pty output activity, so a caller can wait for the child to finish reacting to input. */
+  private lastDataAt = new Map<string, number>()
+  private outputCounts = new Map<string, number>()
   private dataHandlers: DataHandler[] = []
   private exitHandlers: ExitHandler[] = []
 
@@ -64,6 +84,9 @@ export class PtyManager {
     })
 
     child.onData((data) => {
+      this.lastDataAt.set(opts.id, Date.now())
+      this.outputCounts.set(opts.id, (this.outputCounts.get(opts.id) ?? 0) + 1)
+      if (data.includes(ALT_SCREEN)) this.tuiStarted.set(opts.id, true)
       for (const h of this.dataHandlers) h(opts.id, data)
     })
     child.onExit(({ exitCode }) => {
@@ -74,6 +97,53 @@ export class PtyManager {
     this.processes.set(opts.id, child)
     this.lastSize.set(opts.id, { cols: opts.cols ?? 80, rows: opts.rows ?? 24 })
     this.cwds.set(opts.id, opts.cwd)
+    this.expectTui.set(opts.id, opts.tui ?? false)
+    this.tuiStarted.set(opts.id, false)
+    this.lastDataAt.set(opts.id, Date.now())
+    this.outputCounts.set(opts.id, 0)
+  }
+
+  /**
+   * How many chunks of output this pty has produced. Only useful as a before/after comparison:
+   * pass it to `whenQuiet` as `after` to wait for the child to react to something you wrote,
+   * rather than mistaking the quiet that preceded your write for the quiet that follows it.
+   */
+  outputCount(id: string): number {
+    return this.outputCounts.get(id) ?? 0
+  }
+
+  /**
+   * Resolves once the pty looks ready to be written to.
+   *
+   * Writing to a pty is not the same as a program receiving what you wrote. Until a full-screen
+   * program starts and puts the tty into raw mode, the terminal's line discipline is still in
+   * canonical mode, where it buffers input by line and — the part that actually bit us —
+   * translates carriage return to newline (ICRNL). A prompt delivered in that window arrives after
+   * the program starts, but as text it never sees as a paste and with its submitting return turned
+   * into a plain newline: it lands in the input box and just sits there.
+   *
+   * So for a `tui` pty this waits for the child to take the screen, and in every case waits for its
+   * output to go quiet, meaning it has finished drawing and is listening. `capMs` bounds both: a
+   * child that never gets there is written to anyway, which is no worse than not waiting at all.
+   */
+  whenQuiet(
+    id: string,
+    { quietMs, capMs, after }: { quietMs: number; capMs: number; after?: number },
+  ): Promise<void> {
+    return new Promise((resolve) => {
+      const deadline = Date.now() + capMs
+      const needsTui = this.expectTui.get(id) === true
+      const tick = (): void => {
+        if (!this.processes.has(id)) return resolve()
+        const started = !needsTui || this.tuiStarted.get(id) === true
+        const reacted = after === undefined || this.outputCount(id) > after
+        const quietFor = Date.now() - (this.lastDataAt.get(id) ?? 0)
+        if (started && reacted && quietFor >= quietMs) return resolve()
+        if (Date.now() >= deadline) return resolve()
+        setTimeout(tick, 25)
+      }
+      tick()
+    })
   }
 
   write(id: string, data: string): void {
