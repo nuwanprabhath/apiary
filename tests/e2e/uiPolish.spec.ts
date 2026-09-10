@@ -112,3 +112,57 @@ test('the transcript follows the session live and opens at the newest message', 
   )
   expect(atBottom).toBe(true)
 })
+
+test('the transcript catches up to the newest message when you switch back to it', async () => {
+  // Item 15: while the live terminal is in front the transcript stays mounted and keeps merging in
+  // new messages, but a hidden element cannot be scrolled — `scrollTop` on a `display: none` box
+  // is a no-op. The deferred scroll used to be consumed and discarded there, so coming back to the
+  // transcript landed you on the oldest message instead of what the session had just said.
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await expect(h.page.getByTestId('transcript')).toBeVisible()
+
+  // Enough turns that the transcript genuinely scrolls, or "at the bottom" means nothing.
+  const dir = join(h.projectsRoot, '-work-a')
+  const file = readdirSync(dir).find((f) => f.endsWith('.jsonl'))
+  expect(file).toBeDefined()
+  const line = (i: number): string => JSON.stringify({
+    sessionId: '11111111-1111-1111-1111-111111111111',
+    cwd: h.workdir,
+    gitBranch: 'main',
+    isSidechain: false,
+    version: '2.1.246',
+    type: 'assistant',
+    uuid: `bulk-${String(i)}`,
+    timestamp: '2026-09-02T10:00:00.000Z',
+    message: { role: 'assistant', content: [{ type: 'text', text: `bulk message ${String(i)} ${'x'.repeat(200)}` }] },
+  })
+  appendFileSync(join(dir, String(file)), Array.from({ length: 40 }, (_, i) => line(i)).join('\n') + '\n')
+  await expect(h.page.getByTestId('transcript')).toContainText('bulk message 39', { timeout: 20000 })
+
+  // Switch to the live terminal, so the transcript is mounted but hidden...
+  await h.page.getByTestId('resume-button').click()
+  await expect(h.page.getByTestId('terminal-session')).toBeVisible()
+
+  // ...and a further turn lands while you are not looking at it.
+  appendFileSync(join(dir, String(file)), JSON.stringify({
+    sessionId: '11111111-1111-1111-1111-111111111111',
+    cwd: h.workdir,
+    gitBranch: 'main',
+    isSidechain: false,
+    version: '2.1.246',
+    type: 'assistant',
+    uuid: 'arrived-while-hidden',
+    timestamp: '2026-09-02T10:05:00.000Z',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'ARRIVED_WHILE_ON_THE_TERMINAL' }] },
+  }) + '\n')
+  await h.page.waitForTimeout(3000)
+
+  await h.page.getByTestId('view-transcript').click()
+  await expect(h.page.getByTestId('transcript')).toBeVisible()
+
+  // It is there, and it is what you are looking at — not something you have to scroll to find.
+  await expect(h.page.getByTestId('transcript')).toContainText('ARRIVED_WHILE_ON_THE_TERMINAL', { timeout: 20000 })
+  await expect.poll(async () => h.page.getByTestId('transcript').evaluate(
+    (el) => el.scrollHeight - el.scrollTop - el.clientHeight <= 64,
+  )).toBe(true)
+})

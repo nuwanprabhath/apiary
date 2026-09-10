@@ -121,3 +121,18 @@ export async function push(cwd: string): Promise<void> {
     throw e
   }
 }
+
+/** Merges a ref (branch, tag or commit) into HEAD with `--no-edit`.
+ *
+ *  A conflict deliberately leaves the tree mid-merge rather than running `merge --abort`: the
+ *  shell sitting directly below this toolbar is where the conflict gets resolved, and rolling the
+ *  merge back would throw away the one state from which that is possible. The thrown error
+ *  carries git's own "CONFLICT (content): ..." text, which arrives on stdout — see `git()`. */
+export async function merge(cwd: string, ref: string): Promise<void> {
+  await git(cwd, ['merge', '--no-edit', ref])
+}
+
+/** Fetches from all remotes and prunes stale remote-tracking refs. */
+export async function fetch(cwd: string): Promise<void> {
+  await git(cwd, ['fetch', '--prune'])
+}

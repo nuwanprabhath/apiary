@@ -283,6 +283,14 @@ export class AppService {
     await branchOps.push(this.resolveShellCwd(key, isPtyId))
   }
 
+  async gitMerge(key: string, isPtyId: boolean, ref: string): Promise<void> {
+    await branchOps.merge(this.resolveShellCwd(key, isPtyId), ref)
+  }
+
+  async gitFetch(key: string, isPtyId: boolean): Promise<void> {
+    await branchOps.fetch(this.resolveShellCwd(key, isPtyId))
+  }
+
   /**
    * Starts a brand-new (non-`--resume`) session in a project the store already knows about.
    * `path` comes from the renderer, so it is validated against a stored project row rather than

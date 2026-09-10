@@ -114,3 +114,55 @@ test('hiding and reshowing the shell keeps what was running in it on screen', as
   // still the same process with the same history when the pane comes back.
   await expect(h.page.getByTestId('terminal-shell')).toContainText('APIARY_SURVIVES_HIDE')
 })
+
+test('the terminal never renders taller than the space it has, at any pane size', async () => {
+  // The recurring "bottom of the terminal is cut off". `.terminal-tab-view` was a plain block, so
+  // `.terminal-host`'s `flex: 1` was inert and its height fell back to `auto` — i.e. to xterm's own
+  // content. FitAddon measures that host to decide how many rows fit, so the measurement was
+  // self-referential: it reported the size the terminal already was rather than the size available
+  // to it, the row count never came down, and the overflow was clipped by the pane. Measured at the
+  // time: a 352px host inside a 167px row, its last ~11 rows rendered below the window.
+  const geometry = async (): Promise<{ host: number; row: number; overshoot: number }> =>
+    h.page.evaluate(() => {
+      const host = document.querySelector('[data-testid="terminal-shell"]') as HTMLElement
+      const row = document.querySelector('.terminal-panel-row') as HTMLElement
+      const h1 = host.getBoundingClientRect()
+      const r1 = row.getBoundingClientRect()
+      return {
+        host: Math.round(h1.height),
+        row: Math.round(r1.height),
+        overshoot: Math.round(h1.bottom - r1.bottom),
+      }
+    })
+
+  const initial = await geometry()
+  expect(initial.host).toBeLessThanOrEqual(initial.row + 1)
+  expect(initial.overshoot).toBeLessThanOrEqual(1)
+
+  // And it keeps up when the space it has shrinks, rather than holding on to its old height.
+  await h.page.evaluate(() => {
+    const pane = document.querySelector('.bottom-pane') as HTMLElement
+    pane.style.height = '120px'
+  })
+  await h.page.waitForTimeout(400)
+
+  const shrunk = await geometry()
+  expect(shrunk.row).toBeLessThan(initial.row)
+  expect(shrunk.host).toBeLessThanOrEqual(shrunk.row + 1)
+  expect(shrunk.overshoot).toBeLessThanOrEqual(1)
+})
+
+test('a long branch name ellipsizes instead of growing the toolbar into the terminal', async () => {
+  const toolbarHeight = async (): Promise<number> =>
+    h.page.locator('.toolbar').first().evaluate((el) => Math.round(el.getBoundingClientRect().height))
+  const before = await toolbarHeight()
+
+  // Three columns makes each one narrow — the case where the branch label used to wrap over three
+  // lines, and every line it grew was a line taken from the terminal below it.
+  await h.page.getByTestId('session-tab-split').click()
+  await h.page.getByTestId('session-tab-split').first().click()
+  await expect(h.page.getByTestId('session-column')).toHaveCount(3)
+  await h.page.waitForTimeout(300)
+
+  expect(await toolbarHeight()).toBe(before)
+})

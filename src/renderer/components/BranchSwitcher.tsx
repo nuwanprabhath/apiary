@@ -7,6 +7,17 @@ interface Props {
   onClose: () => void
   onCheckedOut: () => void
   onError: (message: string) => void
+  /**
+   * What picking a ref from the list does. 'checkout' is the branch switcher proper; 'merge'
+   * reuses the very same searchable list of branches, remotes and tags to choose what to merge
+   * *into* the current branch, rather than building a second, near-identical picker for it.
+   */
+  mode?: 'checkout' | 'merge'
+  /** Current branch name, only used to say what a merge would be merging into. */
+  currentBranch?: string | null
+  /** Opens straight into naming a new branch, for the menu's "Create Branch..." command, rather
+   *  than making the user find that action inside the list first. */
+  startAt?: 'list' | 'name'
 }
 
 type Step =
@@ -19,11 +30,14 @@ function matches(entry: GitRefEntry, query: string): boolean {
   return query === '' || entry.name.toLowerCase().includes(query)
 }
 
-export function BranchSwitcher({ shellKey, isPtyId, onClose, onCheckedOut, onError }: Props): JSX.Element {
+export function BranchSwitcher({
+  shellKey, isPtyId, onClose, onCheckedOut, onError, mode = 'checkout', currentBranch = null,
+  startAt = 'list',
+}: Props): JSX.Element {
   const [refs, setRefs] = useState<GitRefs | null>(null)
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
-  const [step, setStep] = useState<Step>({ kind: 'list' })
+  const [step, setStep] = useState<Step>(startAt === 'name' ? { kind: 'name' } : { kind: 'list' })
   const [nameDraft, setNameDraft] = useState('')
   // Shown inside this modal itself — the modal's own backdrop (position:fixed, full-viewport,
   // 55% black wash) fully covers App.tsx's error-banner behind it, so a failed
@@ -41,6 +55,26 @@ export function BranchSwitcher({ shellKey, isPtyId, onClose, onCheckedOut, onErr
     // Runs once on open — intentionally not re-fetching on every keystroke of `query`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /**
+   * Escape dismisses the whole popup, from any step — the way a VS Code quick-pick does, and the
+   * way anyone who has ever used one expects. Bound on the document rather than the modal's own
+   * element because focus starts in the search input and moves between the list's buttons as you
+   * arrow around; a handler on any single one of those would miss the others.
+   *
+   * `keydown`, not `keyup`: a key held down while the popup opens would otherwise close it again
+   * on release. Deliberately closes outright rather than stepping back to the list from a
+   * sub-step, so Escape means one thing here no matter where you are in it.
+   */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      onClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('keydown', onKeyDown) }
+  }, [onClose])
 
   const q = query.trim().toLowerCase()
   const filtered = useMemo(() => {
@@ -95,6 +129,32 @@ export function BranchSwitcher({ shellKey, isPtyId, onClose, onCheckedOut, onErr
     }
   }
 
+  const mergeRef = async (ref: string): Promise<void> => {
+    setErrorMessage(null)
+    setBusy(true)
+    try {
+      await window.apiary.gitMerge(shellKey, isPtyId, ref)
+      onCheckedOut()
+      onClose()
+    } catch (e) {
+      // A conflicting merge leaves the tree mid-merge on purpose (see branchOps.merge), so the
+      // popup stays open with git's own CONFLICT text in it rather than closing over a repo the
+      // user now has to notice is halfway through something.
+      reportError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** What a click on a ref row does, given which job this picker is currently doing. */
+  const pickRef = (name: string, kind: 'local' | 'remote' | 'tag'): void => {
+    if (mode === 'merge') { void mergeRef(name); return }
+    if (step.kind === 'pick-base') { setNameDraft(''); setStep({ kind: 'name', from: name }); return }
+    if (step.kind === 'pick-detached' || kind === 'tag') { void checkoutDetached(name); return }
+    if (kind === 'remote') { void checkoutRemote(name); return }
+    void checkout(name)
+  }
+
   const createBranch = async (from?: string): Promise<void> => {
     const name = nameDraft.trim()
     if (name === '') return
@@ -139,6 +199,12 @@ export function BranchSwitcher({ shellKey, isPtyId, onClose, onCheckedOut, onErr
   }
 
   const pickingBase = step.kind === 'pick-base' || step.kind === 'pick-detached'
+  // In merge mode the create/detached actions are meaningless — this list is only being used to
+  // answer "merge what?".
+  const showActions = !pickingBase && mode === 'checkout'
+  const placeholder = mode === 'merge'
+    ? `Select a branch to merge into ${currentBranch ?? 'HEAD'}`
+    : pickingBase ? 'Select a ref to branch from' : 'Select a branch or tag to checkout'
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -149,14 +215,14 @@ export function BranchSwitcher({ shellKey, isPtyId, onClose, onCheckedOut, onErr
         <input
           className="search"
           data-testid="branch-switcher-search"
-          placeholder={pickingBase ? 'Select a ref to branch from' : 'Select a branch or tag to checkout'}
+          placeholder={placeholder}
           autoFocus
           value={query}
           onChange={(e) => { setQuery(e.target.value); setErrorMessage(null) }}
         />
 
         <ul className="branch-switcher-list">
-          {!pickingBase && (
+          {showActions && (
             <>
               <li>
                 <button className="branch-switcher-action" data-testid="branch-switcher-create" onClick={() => { setErrorMessage(null); setNameDraft(''); setStep({ kind: 'name' }) }}>
@@ -182,26 +248,15 @@ export function BranchSwitcher({ shellKey, isPtyId, onClose, onCheckedOut, onErr
             <>
               <BranchSection
                 title="branches" testId="branch-switcher-branch-row" rows={filtered.local} busy={busy}
-                onPick={(r) => {
-                  if (step.kind === 'pick-base') { setNameDraft(''); setStep({ kind: 'name', from: r.name }) }
-                  else if (step.kind === 'pick-detached') void checkoutDetached(r.name)
-                  else void checkout(r.name)
-                }}
+                onPick={(r) => pickRef(r.name, 'local')}
               />
               <BranchSection
                 title="remote branches" testId="branch-switcher-remote-row" rows={filtered.remote} busy={busy}
-                onPick={(r) => {
-                  if (step.kind === 'pick-base') { setNameDraft(''); setStep({ kind: 'name', from: r.name }) }
-                  else if (step.kind === 'pick-detached') void checkoutDetached(r.name)
-                  else void checkoutRemote(r.name)
-                }}
+                onPick={(r) => pickRef(r.name, 'remote')}
               />
               <BranchSection
                 title="tags" testId="branch-switcher-tag-row" rows={filtered.tags} busy={busy}
-                onPick={(r) => {
-                  if (step.kind === 'pick-base') { setNameDraft(''); setStep({ kind: 'name', from: r.name }) }
-                  else void checkoutDetached(r.name)
-                }}
+                onPick={(r) => pickRef(r.name, 'tag')}
               />
             </>
           )}

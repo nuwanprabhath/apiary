@@ -1,4 +1,4 @@
-import { CloseIcon } from './icons'
+import { CloseIcon, SplitIcon } from './icons'
 
 export interface SessionTabView {
   key: string
@@ -13,6 +13,8 @@ interface Props {
   activeKey: string | null
   onActivate: (key: string) => void
   onClose: (key: string) => void
+  /** Splits the active tab into a column of its own, the way VS Code's editor-title split does. */
+  onSplitActive: () => void
 }
 
 /**
@@ -22,9 +24,10 @@ interface Props {
  * The close button is a sibling of the tab button rather than nested inside it: a <button> cannot
  * contain another interactive element, the same constraint the sidebar rows work around.
  */
-export function SessionTabBar({ tabs, activeKey, onActivate, onClose }: Props): JSX.Element {
+export function SessionTabBar({ tabs, activeKey, onActivate, onClose, onSplitActive }: Props): JSX.Element {
   return (
     <div className="session-tab-bar" data-testid="session-tab-bar" role="tablist">
+      <div className="session-tab-strip">
       {tabs.map((tab) => (
         <div
           key={tab.key}
@@ -54,6 +57,22 @@ export function SessionTabBar({ tabs, activeKey, onActivate, onClose }: Props): 
           </button>
         </div>
       ))}
+      </div>
+
+      {/* Pinned to the right of the strip, where VS Code keeps its own split action — reaching a
+       *  session that is already open in this column shouldn't mean going back to the sidebar to
+       *  find its row again just to use the split button there. */}
+      {activeKey !== null && (
+        <button
+          className="session-tab-split"
+          data-testid="session-tab-split"
+          title="Split this session into a new column"
+          aria-label="Split this session into a new column"
+          onClick={onSplitActive}
+        >
+          <SplitIcon />
+        </button>
+      )}
     </div>
   )
 }

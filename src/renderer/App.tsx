@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import type { NewSessionInfo, ProjectNode, ResumeConflict, SessionNode } from '@shared/types'
 import { Sidebar } from './components/Sidebar'
 import { SessionColumn, type TerminalTab } from './components/SessionColumn'
@@ -22,6 +22,10 @@ const MAX_SIDEBAR_WIDTH = 600
 // area above it readable rather than squeezed to a sliver.
 const MIN_BOTTOM_HEIGHT = 120
 const MAX_BOTTOM_HEIGHT = 560
+
+// Narrow enough that three or four columns still fit on a laptop screen, wide enough that a
+// session's header and toolbar are still readable rather than a stack of ellipses.
+const MIN_COLUMN_WIDTH = 220
 
 function findSessionById(nodes: ProjectNode[], id: string): SessionNode | null {
   for (const node of nodes) {
@@ -118,6 +122,20 @@ export function App(): JSX.Element {
   const [treeNonce, setTreeNonce] = useState(0)
   const [resizing, setResizing] = useState(false)
   const [resizingBottom, setResizingBottom] = useState(false)
+  /**
+   * Relative widths of the open columns, as flex-grow weights keyed by column id.
+   *
+   * Weights rather than pixel widths, deliberately: a column is `flex: 1` by default, so anything
+   * absent from this map keeps sharing the space evenly, and a window resize redistributes the
+   * columns in the proportions the user dragged them to instead of leaving fixed pixel columns
+   * with a gap (or an overflow) beside them. Not persisted — columns themselves only exist for as
+   * long as the split does.
+   */
+  const [columnWeights, setColumnWeights] = useState<Map<string, number>>(new Map())
+  /** The divider currently being dragged: the two columns it sits between, and where it started. */
+  const [columnDrag, setColumnDrag] = useState<
+    { leftId: string; rightId: string; startX: number; leftWidth: number; rightWidth: number } | null
+  >(null)
 
   const activeColumn = columns.find((c) => c.id === activeColumnId) ?? columns[0]
   const activeKey = activeColumn?.activeKey ?? null
@@ -372,6 +390,65 @@ export function App(): JSX.Element {
     }
   }, [resizingBottom])
 
+  /**
+   * Dragging a divider between two columns. Only the pair either side of the divider changes —
+   * every other column keeps the weight it had, so dragging one boundary doesn't quietly reflow
+   * the whole row. The pair's combined weight is preserved and redistributed in proportion to
+   * their new pixel widths, which is what keeps the arithmetic stable across repeated drags.
+   */
+  useEffect(() => {
+    if (columnDrag === null) return
+    document.body.classList.add('resizing-active')
+    const { leftId, rightId, startX, leftWidth, rightWidth } = columnDrag
+    const onMove = (e: MouseEvent): void => {
+      const pairWidth = leftWidth + rightWidth
+      const delta = Math.max(
+        MIN_COLUMN_WIDTH - leftWidth,
+        Math.min(rightWidth - MIN_COLUMN_WIDTH, e.clientX - startX),
+      )
+      setColumnWeights((prev) => {
+        const pairWeight = (prev.get(leftId) ?? 1) + (prev.get(rightId) ?? 1)
+        const leftShare = (leftWidth + delta) / pairWidth
+        const next = new Map(prev)
+        next.set(leftId, pairWeight * leftShare)
+        next.set(rightId, pairWeight * (1 - leftShare))
+        return next
+      })
+    }
+    const onUp = (): void => setColumnDrag(null)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      document.body.classList.remove('resizing-active')
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [columnDrag])
+
+  /** Starts a divider drag, measuring both columns as they are right now. */
+  const startColumnDrag = useCallback((leftId: string, rightId: string, startX: number) => {
+    const widthOf = (id: string): number =>
+      document.querySelector(`[data-column-id="${id}"]`)?.getBoundingClientRect().width ?? 0
+    setColumnDrag({
+      leftId, rightId, startX, leftWidth: widthOf(leftId), rightWidth: widthOf(rightId),
+    })
+  }, [])
+
+  /**
+   * The tab bar's split button: the active session moves into a column of its own beside the
+   * current one, keeping whichever view (transcript or terminal) it was already on. It stays open
+   * in the original column too, matching both VS Code's split and the sidebar's own split button.
+   */
+  const splitActiveTab = useCallback((key: string) => {
+    const created = newColumn()
+    setColumns((prev) => {
+      const tab = prev.flatMap((c) => c.tabs).find((t) => t.key === key)
+      if (tab === undefined) return prev
+      return [...prev, { ...created, tabs: [{ ...tab }], activeKey: key }]
+    })
+    setActiveColumnId(created.id)
+  }, [])
+
   // Records a rename typed in before this pending session had a real id yet — held in-memory
   // (see PendingSession.titleOverride) until the reconciliation effect above can apply it.
   const setPendingTitle = useCallback((ptyId: string, title: string) => {
@@ -557,12 +634,22 @@ export function App(): JSX.Element {
       />
 
       <main className="content" data-testid="content">
-        {columns.map((column) => (
-          // Per column, not just once around the whole app: a column whose session renders badly
-          // (a transcript with something unexpected in it, say) should fail inside its own pane
-          // and leave the sidebar and the other columns working, rather than blanking the window.
+        {columns.map((column, index) => (
+          <Fragment key={column.id}>
+          {index > 0 && (
+            <div
+              className="column-resizer"
+              data-testid="column-resizer"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                startColumnDrag(columns[index - 1].id, column.id, e.clientX)
+              }}
+            />
+          )}
+          {/* Per column, not just once around the whole app: a column whose session renders badly
+            * (a transcript with something unexpected in it, say) should fail inside its own pane
+            * and leave the sidebar and the other columns working, rather than blanking the window. */}
           <ErrorBoundary
-            key={column.id}
             label="This session"
             onError={(thrown, componentStack) => {
               const { message, detail } = describeError(thrown)
@@ -603,8 +690,11 @@ export function App(): JSX.Element {
               })
             }}
             onRenamePending={setPendingTitle}
+            onSplitActive={splitActiveTab}
+            weight={columnWeights.get(column.id) ?? 1}
           />
           </ErrorBoundary>
+          </Fragment>
         ))}
       </main>
 

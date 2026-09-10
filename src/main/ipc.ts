@@ -100,6 +100,20 @@ export function registerIpc(
   )
   ipcMain.handle(CHANNELS.gitPull, (_e, key: string, isPtyId: boolean) => service.gitPull(key, isPtyId))
   ipcMain.handle(CHANNELS.gitPush, (_e, key: string, isPtyId: boolean) => service.gitPush(key, isPtyId))
+  ipcMain.handle(CHANNELS.gitMerge, async (_e, key: string, isPtyId: boolean, ref: string) => {
+    await service.gitMerge(key, isPtyId, ref)
+    // Merge changes which commits are on the branch and affects ahead/behind counts, so refresh
+    // and signal the tree view to update the displayed branch state — same reason as checkoutBranch.
+    await service.refresh()
+    send(CHANNELS.treeChanged)
+  })
+  ipcMain.handle(CHANNELS.gitFetch, async (_e, key: string, isPtyId: boolean) => {
+    await service.gitFetch(key, isPtyId)
+    // Fetch changes ahead/behind counts (by updating remote-tracking refs), so refresh
+    // and signal the tree view to update the displayed status.
+    await service.refresh()
+    send(CHANNELS.treeChanged)
+  })
   ipcMain.handle(CHANNELS.copyToClipboard, (_e, text: string) => { clipboard.writeText(text) })
 
   ipcMain.on(CHANNELS.ptyWrite, (_e, id: string, data: string) => service.pty.write(id, data))

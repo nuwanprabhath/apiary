@@ -10,7 +10,8 @@ import { TerminalListPanel } from './TerminalListPanel'
 import { ResumeBar } from './ResumeBar'
 import { Toolbar, type ToolbarButtonSpec } from './Toolbar'
 import { BranchSwitcher } from './BranchSwitcher'
-import { BranchIcon, ArrowDownIcon, ArrowUpIcon, CopyIcon, PlusIcon, ListIcon } from './icons'
+import { BranchIcon, ArrowDownIcon, ArrowUpIcon, CopyIcon, PlusIcon, ListIcon, EllipsisIcon } from './icons'
+import { GitMenu, type GitMenuItem } from './GitMenu'
 import { useNotifications } from '../state/notifications'
 
 /** A shell terminal inside one session's shell pane. */
@@ -43,6 +44,10 @@ interface Props {
   onResume: (session: SessionNode) => void
   onRenameSession: (session: SessionNode, title: string) => void
   onRenamePending: (ptyId: string, title: string) => void
+  /** Splits this column's active session into a column of its own beside it. */
+  onSplitActive: (key: string) => void
+  /** flex-grow weight, set by dragging the dividers between columns (see App.tsx). */
+  weight: number
 }
 
 /**
@@ -57,6 +62,7 @@ export function SessionColumn(props: Props): JSX.Element {
     column, sessions, pending, resumed, ptyOverrides, shellTabs, setShellTabs,
     activeTerminal, setActiveTerminal, bottomHeight, onStartBottomResize, isActive, onFocus,
     onActivateTab, onCloseTab, onSetView, onResume, onRenameSession, onRenamePending,
+    onSplitActive, weight,
   } = props
 
   // Failures raised in here go to the app-wide notification stack rather than an in-pane banner:
@@ -68,8 +74,11 @@ export function SessionColumn(props: Props): JSX.Element {
   const [shellOpen, setShellOpen] = useState(false)
   const [tabListOpen, setTabListOpen] = useState(false)
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
-  const [gitBusy, setGitBusy] = useState<'pull' | 'push' | null>(null)
-  const [branchSwitcherOpen, setBranchSwitcherOpen] = useState(false)
+  const [gitBusy, setGitBusy] = useState<'pull' | 'push' | 'fetch' | null>(null)
+  // The branch picker serves two jobs: choosing a branch to check out, and choosing one to merge
+  // in. Null when closed, so one piece of state carries both "is it open" and "what for".
+  const [branchPicker, setBranchPicker] = useState<'checkout' | 'merge' | 'create' | null>(null)
+  const [gitMenuOpen, setGitMenuOpen] = useState(false)
 
   const activeKey = column.activeKey
   const activeTab = activeKey !== null ? findTab(column, activeKey) : null
@@ -149,6 +158,8 @@ export function SessionColumn(props: Props): JSX.Element {
   // because two columns showing the *same* split session share one `shellTabs` entry, so a
   // second column's own render could otherwise race a spawn already in flight from the first.
   const spawningRef = useRef<Set<string>>(new Set())
+  /** The box the "..." menu opens upward from — see the positioning note in GitMenu. */
+  const toolbarRef = useRef<HTMLDivElement | null>(null)
 
   /**
    * Spawns a first terminal for `key` if it has none *live*. Shared by the "Show shell" button
@@ -251,22 +262,58 @@ export function SessionColumn(props: Props): JSX.Element {
     if (list.length === 0) setShellOpen(false)
   }, [shellKey, shellTabs, setShellTabs, setActiveTerminal])
 
-  const runGitAction = useCallback(async (kind: 'pull' | 'push') => {
+  const runGitAction = useCallback(async (kind: 'pull' | 'push' | 'fetch') => {
     if (shellKey === null) return
     setGitBusy(kind)
     try {
       if (kind === 'pull') await window.apiary.gitPull(shellKey, shellKeyIsPtyId)
+      else if (kind === 'fetch') await window.apiary.gitFetch(shellKey, shellKeyIsPtyId)
       else await window.apiary.gitPush(shellKey, shellKeyIsPtyId)
       // Both commands are silent when they succeed, which reads identically to nothing having
       // happened — the same confusion the Refresh button had before it grew a spinner.
-      notify({ kind: 'success', message: kind === 'pull' ? 'Pulled from upstream.' : 'Pushed to upstream.' })
+      notify({
+        kind: 'success',
+        message: kind === 'pull' ? 'Pulled from upstream.'
+          : kind === 'push' ? 'Pushed to upstream.'
+          : 'Fetched from remote.',
+      })
       loadGitStatus()
     } catch (e) {
-      notifyError(e, kind === 'pull' ? 'Pull failed' : 'Push failed')
+      notifyError(e, kind === 'pull' ? 'Pull failed' : kind === 'push' ? 'Push failed' : 'Fetch failed')
     } finally {
       setGitBusy(null)
     }
   }, [shellKey, shellKeyIsPtyId, loadGitStatus, notify, notifyError])
+
+  /**
+   * The "..." menu's commands, grouped the way VS Code groups its own: the everyday remote
+   * operations first, then everything branch-shaped behind one submenu, then the odds and ends.
+   * Kept as data rather than markup so adding a command later is one more entry here.
+   */
+  const gitMenuItems: GitMenuItem[] = [
+    { id: 'pull', label: 'Pull', disabled: gitBusy !== null, run: () => { void runGitAction('pull') } },
+    { id: 'push', label: 'Push', disabled: gitBusy !== null, run: () => { void runGitAction('push') } },
+    { id: 'fetch', label: 'Fetch', disabled: gitBusy !== null, run: () => { void runGitAction('fetch') } },
+    {
+      id: 'branch',
+      label: 'Branch',
+      separatorBefore: true,
+      submenu: [
+        { id: 'branch-checkout', label: 'Checkout to...', run: () => setBranchPicker('checkout') },
+        { id: 'branch-create', label: 'Create Branch...', run: () => setBranchPicker('create') },
+        { id: 'branch-merge', label: 'Merge Branch...', run: () => setBranchPicker('merge') },
+      ],
+    },
+    {
+      id: 'copy-branch',
+      label: 'Copy Branch Name',
+      separatorBefore: true,
+      disabled: gitStatus?.branch == null,
+      run: () => {
+        if (gitStatus?.branch != null) void window.apiary.copyToClipboard(gitStatus.branch)
+      },
+    },
+  ]
 
   const tabViews: SessionTabView[] = column.tabs.map((tab) => {
     const p = pending.get(tab.key)
@@ -285,6 +332,8 @@ export function SessionColumn(props: Props): JSX.Element {
     <section
       className="session-column"
       data-testid="session-column"
+      data-column-id={column.id}
+      style={{ flexGrow: weight }}
       data-active={isActive}
       onFocusCapture={onFocus}
       onMouseDownCapture={onFocus}
@@ -294,6 +343,7 @@ export function SessionColumn(props: Props): JSX.Element {
         activeKey={activeKey}
         onActivate={onActivateTab}
         onClose={onCloseTab}
+        onSplitActive={() => { if (activeKey !== null) onSplitActive(activeKey) }}
       />
 
       {activeKey === null ? (
@@ -340,7 +390,7 @@ export function SessionColumn(props: Props): JSX.Element {
              *  multiply the live-update refetches by the number of open tabs. */}
             {activePending === null && activeSession !== null && (
               <div hidden={activeView !== 'transcript'} className="pane-fill">
-                <Transcript session={activeSession} />
+                <Transcript session={activeSession} visible={activeView === 'transcript'} />
               </div>
             )}
             {/* Every tab's claude terminal stays mounted, hidden, so switching tabs (or columns)
@@ -373,6 +423,7 @@ export function SessionColumn(props: Props): JSX.Element {
           )}
 
           <div className="bottom-pane" style={{ height: shellOpen ? bottomHeight : 32 }}>
+            <div className="toolbar-anchor" ref={toolbarRef}>
             <Toolbar
               left={[
                 {
@@ -410,8 +461,8 @@ export function SessionColumn(props: Props): JSX.Element {
                                 : ''),
                         title: 'Switch or create branch',
                         testId: 'toolbar-branch-button',
-                        active: branchSwitcherOpen,
-                        onClick: () => setBranchSwitcherOpen(true),
+                        active: branchPicker !== null,
+                        onClick: () => setBranchPicker('checkout'),
                       },
                       {
                         id: 'git-pull',
@@ -439,6 +490,14 @@ export function SessionColumn(props: Props): JSX.Element {
                           if (gitStatus.branch !== null) void window.apiary.copyToClipboard(gitStatus.branch)
                         },
                       },
+                      {
+                        id: 'git-more',
+                        icon: <EllipsisIcon />,
+                        title: 'More git commands',
+                        testId: 'toolbar-git-menu',
+                        active: gitMenuOpen,
+                        onClick: () => setGitMenuOpen((v) => !v),
+                      },
                     ] as ToolbarButtonSpec[])
                   : []),
               ]}
@@ -460,6 +519,14 @@ export function SessionColumn(props: Props): JSX.Element {
                 },
               ]}
             />
+            </div>
+            {gitMenuOpen && (
+              <GitMenu
+                items={gitMenuItems}
+                anchorRef={toolbarRef}
+                onClose={() => setGitMenuOpen(false)}
+              />
+            )}
             <div className="terminal-panel-row">
               {/* As with the claude terminals above, every open tab's shell terminals stay mounted
                *  so their scrollback survives switching session — a dev server you left running in
@@ -499,11 +566,14 @@ export function SessionColumn(props: Props): JSX.Element {
         </>
       )}
 
-      {branchSwitcherOpen && shellKey !== null && (
+      {branchPicker !== null && shellKey !== null && (
         <BranchSwitcher
           shellKey={shellKey}
           isPtyId={shellKeyIsPtyId}
-          onClose={() => setBranchSwitcherOpen(false)}
+          mode={branchPicker === 'merge' ? 'merge' : 'checkout'}
+          startAt={branchPicker === 'create' ? 'name' : 'list'}
+          currentBranch={gitStatus?.branch ?? null}
+          onClose={() => setBranchPicker(null)}
           onCheckedOut={loadGitStatus}
           onError={(message) => notify({ kind: 'error', message })}
         />

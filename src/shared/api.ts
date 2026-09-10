@@ -47,6 +47,8 @@ export const CHANNELS = {
   gitCreateBranch: 'apiary:git-create-branch',
   gitPull: 'apiary:git-pull',
   gitPush: 'apiary:git-push',
+  gitMerge: 'apiary:git-merge',
+  gitFetch: 'apiary:git-fetch',
   copyToClipboard: 'apiary:copy-to-clipboard',
 } as const
 
@@ -91,6 +93,8 @@ export interface ApiaryApi {
   gitCreateBranch(key: string, isPtyId: boolean, name: string, from?: string): Promise<void>
   gitPull(key: string, isPtyId: boolean): Promise<void>
   gitPush(key: string, isPtyId: boolean): Promise<void>
+  gitMerge(key: string, isPtyId: boolean, ref: string): Promise<void>
+  gitFetch(key: string, isPtyId: boolean): Promise<void>
   copyToClipboard(text: string): Promise<void>
 }
 

@@ -334,22 +334,62 @@ body.resizing-active { user-select: none; }
   flex-direction: column;
   overflow: hidden;
 }
-.session-column + .session-column { border-left: 1px solid var(--border); }
+/*
+ * The grab strip between two columns. Its own border is what separates the columns now — the
+ * columns themselves no longer draw one, or the two would sit side by side as a double rule.
+ * Wider on hover the way the sidebar's resizer is, so a 4px target is findable without making a
+ * permanent 8px gutter between every pair of columns.
+ */
+.column-resizer {
+  flex: none;
+  width: 5px;
+  cursor: col-resize;
+  background: var(--border);
+  transition: background-color 0.1s;
+}
+.column-resizer:hover, .column-resizer:active { background: var(--accent); }
 
+/* The split action stays pinned to the right while the tabs themselves scroll, so it can't be
+ * scrolled out of reach the way it would be as just another item in the scrolling strip. */
 .session-tab-bar {
   display: flex;
   flex: none;
   align-items: stretch;
-  gap: 1px;
   min-height: 32px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.session-tab-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
 }
 /* A horizontal scrollbar across a 32px strip eats most of the tab; the strip still scrolls, it
- * just does it without reserving visible track. */
-.session-tab-bar::-webkit-scrollbar { height: 0; }
+ * just does it without reserving visible track (and, since the arrow buttons below would show up
+ * on it too, without those either). */
+.session-tab-strip::-webkit-scrollbar { height: 0; }
+
+.session-tab-split {
+  flex: none;
+  width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+.session-tab-split:hover, .session-tab-split:focus-visible { background: var(--selected); color: var(--text); }
+.session-tab-split svg { width: 15px; height: 15px; display: block; }
+
 
 .session-tab {
   display: flex;
@@ -637,6 +677,13 @@ body.resizing-active { user-select: none; }
   min-height: 32px;
   overflow: hidden;
 }
+/*
+ * Exactly one row tall, always. Nothing here wraps: in a narrow column (three splits, say) a long
+ * branch name used to wrap its label across three lines, and since the pane's height is fixed,
+ * every line the toolbar grew was a line taken from the terminal underneath it — the pane's
+ * usable height changing out from under the terminal as a branch label loaded. The left group is
+ * allowed to shrink (`min-width: 0`) so the branch label ellipsizes instead.
+ */
 .toolbar {
   display: flex;
   align-items: center;
@@ -645,9 +692,11 @@ body.resizing-active { user-select: none; }
   border-bottom: 1px solid var(--border);
   padding: 4px 6px;
   gap: 4px;
+  flex: none;
 }
-.toolbar-group { display: flex; align-items: center; gap: 4px; }
-.toolbar-group-right { margin-left: auto; }
+.toolbar-group { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.toolbar-group-right { margin-left: auto; flex: none; }
+.toolbar-button-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .toolbar-button {
   display: flex;
@@ -662,6 +711,7 @@ body.resizing-active { user-select: none; }
   font: inherit;
 }
 .toolbar-button svg { width: 14px; height: 14px; flex: none; }
+.toolbar-button { white-space: nowrap; min-width: 0; }
 .toolbar-button:hover { background: var(--selected); color: var(--text); }
 .toolbar-button:active { background: var(--border); }
 .toolbar-button:disabled { cursor: default; opacity: 0.5; }
@@ -727,7 +777,44 @@ body.resizing-active { user-select: none; }
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
-::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+/*
+ * Scrollbar arrow buttons at both ends of every track.
+ *
+ * Chromium hides these by default, and this stylesheet used to hide them explicitly. Without them
+ * a scrollbar can only be dragged or paged — there is no way to nudge a list by a single line,
+ * which is exactly what you want when the row you are after is one line out of view.
+ *
+ * The glyphs are the one deliberate exception to this file's no-literal-colours rule, and there is
+ * no way around it: a scrollbar button can only carry an arrow as a background image, background
+ * images cannot read CSS custom properties, and the `-webkit-mask-image` trick that would have
+ * kept the colour in a token silently renders nothing on these pseudo-elements (verified — the
+ * buttons simply do not appear). A theme that changes --muted must regenerate these four data
+ * URIs to match; they are plain, human-readable SVG for exactly that reason.
+ *
+ * Each end declares its one button explicitly rather than relying on a blanket rule: Chromium
+ * only creates a button for a selector that actually gives it a size, and a `display: none` base
+ * rule suppresses them all no matter what a more specific rule says afterwards.
+ */
+::-webkit-scrollbar-button:vertical:decrement,
+::-webkit-scrollbar-button:vertical:increment,
+::-webkit-scrollbar-button:horizontal:decrement,
+::-webkit-scrollbar-button:horizontal:increment {
+  display: block;
+  height: 12px;
+  width: 12px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 9px 9px;
+}
+::-webkit-scrollbar-button:vertical:decrement { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M4%2010l4-4%204%204%22%20fill%3D%22none%22%20stroke%3D%22%25239aa0a6%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
+::-webkit-scrollbar-button:vertical:increment { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M4%206l4%204-4%204%22%20fill%3D%22none%22%20stroke%3D%22%25239aa0a6%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
+::-webkit-scrollbar-button:horizontal:decrement { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M10%204l-4%204%204%204%22%20fill%3D%22none%22%20stroke%3D%22%25239aa0a6%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
+::-webkit-scrollbar-button:horizontal:increment { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M6%204l4%204-4%204%22%20fill%3D%22none%22%20stroke%3D%22%25239aa0a6%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
+/* The double-button corners Chromium can add at the far end of a track: never wanted. */
+::-webkit-scrollbar-button:vertical:start:increment,
+::-webkit-scrollbar-button:vertical:end:decrement,
+::-webkit-scrollbar-button:horizontal:start:increment,
+::-webkit-scrollbar-button:horizontal:end:decrement { display: none; }
 
 .branch-switcher-list { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto; }
 .branch-switcher-section-label { padding: 6px 4px 2px; font-size: 11px; text-transform: uppercase; color: var(--muted); }
@@ -770,7 +857,19 @@ body.resizing-active { user-select: none; }
  * here for the same reason `.pane-fill[hidden]` needs one: a flex child's own `display: flex`
  * (inherited from .terminal-host inside it, in this case indirectly) can otherwise out-rank the
  * browser's default `[hidden] { display: none }` UA rule. */
-.terminal-tab-view { flex: 1; min-height: 0; min-width: 0; }
+/*
+ * display: flex is load-bearing, not cosmetic. Without it this box is a plain block, so
+ * `.terminal-host`'s own `flex: 1` is inert and its height falls back to `auto` — i.e. to
+ * whatever xterm's content happens to be. FitAddon measures the host to decide how many rows
+ * fit, so an auto-height host makes that measurement self-referential: it reports the size the
+ * terminal already is rather than the size available to it, the proposed row count never comes
+ * down, and the terminal simply overflows its row and gets clipped by `.bottom-pane`'s
+ * `overflow: hidden`. Measured before this fix: a 352px-tall host inside a 167px row, its last
+ * ~11 rows rendered below the bottom of the window — the recurring "bottom of the terminal is
+ * cut off". Giving the host a definite height from the layout is what makes the fit honest.
+ * See multiTerminal.spec.ts's "never renders taller than the space it has".
+ */
+.terminal-tab-view { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .terminal-tab-view[hidden] { display: none; }
 .terminal-list-panel {
   list-style: none;
@@ -1050,3 +1149,50 @@ body.resizing-active { user-select: none; }
 
 /* The transcript pane's own failure state, reusing the crash pane's message/detail styling. */
 .transcript-error { padding: 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+
+/* Wraps the shell pane's toolbar so the "..." menu has something to measure itself against. */
+.toolbar-anchor { flex: none; }
+
+/*
+ * The toolbar's "..." menu. Fixed rather than absolute: it opens upward out of the shell pane,
+ * which clips its own contents, so a positioned-within-the-pane menu would be cut off at the
+ * pane's top edge. GitMenu.tsx sets left/bottom from the toolbar's measured box.
+ */
+.git-menu-root { position: fixed; z-index: 60; }
+.git-menu {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  min-width: 190px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-overlay);
+}
+.git-menu-item-wrap { position: relative; }
+.git-menu-item-wrap[data-separator="true"] {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.git-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font: inherit;
+}
+.git-menu-item:hover:not(:disabled), .git-menu-item:focus-visible { background: var(--selected); }
+.git-menu-item:disabled { color: var(--muted); cursor: default; }
+.git-menu-label { flex: 1; }
+.git-menu-arrow { width: 14px; height: 14px; flex: none; color: var(--muted); }
+
+/* A submenu hangs off its parent row, opening to the right and aligned with it. */
+.git-submenu { position: absolute; left: 100%; top: -5px; margin-left: 2px; }

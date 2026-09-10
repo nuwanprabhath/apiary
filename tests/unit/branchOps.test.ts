@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
   status, listRefs, checkoutBranch, checkoutRemote, checkoutDetached, createBranch, pull, push,
+  merge, fetch,
 } from '../../src/main/git/branchOps'
 
 let repo: string
@@ -197,6 +198,90 @@ describe('pull / push', () => {
     git(repo, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'conflicting change from repo')
 
     await expect(pull(repo)).rejects.toThrow(/conflict/i)
+
+    rmSync(remote, { recursive: true, force: true })
+    rmSync(other, { recursive: true, force: true })
+  })
+})
+
+describe('merge', () => {
+  it('fast-forwards a clean merge from another branch', async () => {
+    git(repo, 'branch', 'feature')
+    commit(repo, 'feature.txt', 'work on feature')
+    const featureSha = git(repo, 'rev-parse', 'HEAD').trim()
+
+    await checkoutBranch(repo, 'main')
+    await merge(repo, 'feature')
+
+    // After merging feature into main, main should point to the same commit as feature
+    const mainSha = git(repo, 'rev-parse', 'HEAD').trim()
+    expect(mainSha).toBe(featureSha)
+    expect(git(repo, 'log', '--oneline')).toContain('work on feature')
+  })
+
+  it('throws with CONFLICT text on a conflicting merge, and leaves the repo mid-merge', async () => {
+    const remote = mkdtempSync(join(tmpdir(), 'apiary-branchops-merge-remote-'))
+    git(remote, 'init', '-q', '--bare', '-b', 'main')
+    git(repo, 'remote', 'add', 'origin', remote)
+    git(repo, 'push', '-q', '-u', 'origin', 'main')
+
+    // Create a conflicting branch in another clone
+    const other = mkdtempSync(join(tmpdir(), 'apiary-branchops-merge-other-'))
+    git(tmpdir(), 'clone', '-q', remote, other)
+    git(other, 'config', 'user.email', 'test@example.com')
+    git(other, 'config', 'user.name', 'Test')
+    writeFileSync(join(other, 'README.md'), 'change from other')
+    git(other, 'add', '.')
+    git(other, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'conflicting commit from other')
+    git(other, 'push', '-q')
+
+    // Create a conflicting change in repo
+    git(repo, 'fetch', '-q')
+    git(repo, 'branch', 'feature')
+    await checkoutBranch(repo, 'feature')
+    writeFileSync(join(repo, 'README.md'), 'change from feature')
+    git(repo, 'add', '.')
+    git(repo, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'conflicting commit from feature')
+
+    // Try to merge the remote change — should fail with CONFLICT in the error
+    await expect(merge(repo, 'origin/main')).rejects.toThrow(/conflict/i)
+
+    // Verify the repo is left mid-merge (MERGE_HEAD exists), not auto-aborted
+    try {
+      const mergeHead = git(repo, 'rev-parse', 'MERGE_HEAD')
+      expect(mergeHead).toMatch(/^[0-9a-f]+/)
+    } catch {
+      expect.fail('Repository should be mid-merge, but MERGE_HEAD does not exist')
+    }
+
+    rmSync(remote, { recursive: true, force: true })
+    rmSync(other, { recursive: true, force: true })
+  })
+})
+
+describe('fetch', () => {
+  it('fetches new commits from a remote and updates remote-tracking refs', async () => {
+    const remote = mkdtempSync(join(tmpdir(), 'apiary-branchops-fetch-remote-'))
+    git(remote, 'init', '-q', '--bare', '-b', 'main')
+    git(repo, 'remote', 'add', 'origin', remote)
+    git(repo, 'push', '-q', '-u', 'origin', 'main')
+
+    // Create a new commit in another clone and push it
+    const other = mkdtempSync(join(tmpdir(), 'apiary-branchops-fetch-other-'))
+    git(tmpdir(), 'clone', '-q', remote, other)
+    git(other, 'config', 'user.email', 'test@example.com')
+    git(other, 'config', 'user.name', 'Test')
+    commit(other, 'new-file.txt', 'new commit in other')
+    git(other, 'push', '-q')
+
+    // Fetch from the remote in repo — should pick up the new commit
+    await fetch(repo)
+
+    // Verify the remote-tracking branch now points to the new commit
+    const originMainSha = git(repo, 'rev-parse', 'origin/main').trim()
+    const otherHeadSha = git(other, 'rev-parse', 'HEAD').trim()
+    expect(originMainSha).toBe(otherHeadSha)
+    expect(git(repo, 'log', 'origin/main', '--oneline')).toContain('new commit in other')
 
     rmSync(remote, { recursive: true, force: true })
     rmSync(other, { recursive: true, force: true })

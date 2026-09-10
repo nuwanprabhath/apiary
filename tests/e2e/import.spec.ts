@@ -149,3 +149,82 @@ test.describe('folder with two sessions', () => {
     await expect(h.page.getByTestId('session-item')).toHaveCount(2)
   })
 })
+
+test.describe('folder checkbox state', () => {
+  let h: Harness
+  test.beforeEach(async () => { h = await launchApiary() })
+  test.afterEach(async () => { await h.close() })
+
+  test('a folder whose every session is already imported shows as checked, not unchecked', async () => {
+    // The header used to count only the sessions ticked in *this* visit, so a folder that was
+    // fully imported on a previous one came back with an unchecked box — which reads as "none of
+    // this folder is in", when in fact all of it is.
+    await openImportDialog(h)
+    const group = h.page.getByTestId('import-group').filter({ hasText: h.workdir })
+    await group.getByTestId('import-group-checkbox').check()
+    await h.page.getByTestId('import-confirm').click()
+    await expect(h.page.getByTestId('session-item')).toHaveCount(1)
+
+    await openImportDialog(h)
+    const again = h.page.getByTestId('import-group').filter({ hasText: h.workdir })
+    await expect(again.getByTestId('import-group-checkbox')).toBeChecked()
+    // Still disabled — there is nothing left in it to change — but it now says so honestly.
+    await expect(again.getByTestId('import-group-checkbox')).toBeDisabled()
+  })
+
+  test('ticking every session in a folder one by one checks the folder itself', async () => {
+    await h.close()
+    h = await launchApiary({
+      extraSessions: [
+        { slug: '-work-a', sessionId: '77777777-7777-7777-7777-777777777777', title: 'Second in work-a' },
+      ],
+    })
+    await openImportDialog(h)
+    const group = h.page.getByTestId('import-group').filter({ hasText: h.workdir })
+    const boxes = group.getByTestId('import-session-checkbox')
+    await expect(boxes).toHaveCount(2)
+
+    const groupBox = group.getByTestId('import-group-checkbox')
+    await expect(groupBox).not.toBeChecked()
+
+    await boxes.nth(0).check()
+    // One of two: neither in nor out, and the box says so rather than claiming either.
+    await expect(groupBox).not.toBeChecked()
+    expect(await groupBox.evaluate((el: HTMLInputElement) => el.indeterminate)).toBe(true)
+
+    await boxes.nth(1).check()
+    await expect(groupBox).toBeChecked()
+    expect(await groupBox.evaluate((el: HTMLInputElement) => el.indeterminate)).toBe(false)
+  })
+
+  test('the scrollbar has arrow buttons that step by a line, not a page', async () => {
+    // Without them a long list can only be dragged or paged — there is no way to nudge it when the
+    // row you want is a single line out of view.
+    await h.close()
+    h = await launchApiary({
+      extraSessions: Array.from({ length: 25 }, (_, i) => ({
+        slug: `-bulk-${String(i)}`,
+        sessionId: `aaaaaaaa-0000-0000-0000-${String(i).padStart(12, '0')}`,
+        title: `Bulk fixture session ${String(i)}`,
+      })),
+    })
+    await openImportDialog(h)
+
+    const list = h.page.locator('.import-list')
+    await list.evaluate((el) => { el.scrollTop = 300 })
+    const box = (await list.boundingBox())!
+    const before = await list.evaluate((el) => el.scrollTop)
+    expect(before).toBe(300)
+
+    // The up arrow sits in the scrollbar gutter at the very top of the element.
+    await h.page.mouse.click(box.x + box.width - 6, box.y + 6)
+    await expect.poll(async () => list.evaluate((el) => el.scrollTop)).toBeLessThan(before)
+    const afterUp = await list.evaluate((el) => el.scrollTop)
+    // A step, not a page: paging would have travelled the list's whole visible height.
+    expect(before - afterUp).toBeLessThan(box.height / 2)
+
+    // ...and the down arrow at the bottom steps back the other way.
+    await h.page.mouse.click(box.x + box.width - 6, box.y + box.height - 6)
+    await expect.poll(async () => list.evaluate((el) => el.scrollTop)).toBeGreaterThan(afterUp)
+  })
+})

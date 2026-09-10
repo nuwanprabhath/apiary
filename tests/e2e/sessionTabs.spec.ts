@@ -136,3 +136,64 @@ test('the bottom pane shrinks to fit a short window instead of overflowing off t
   // The toolbar (and its Hide/Show shell button) must still be reachable even when squeezed.
   await expect(h.page.getByTestId('shell-toggle')).toBeVisible()
 })
+
+test('the tab bar splits the session it is already showing, without going back to the sidebar', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await expect(h.page.getByTestId('session-column')).toHaveCount(1)
+  // No divider to drag while there is only one column.
+  await expect(h.page.getByTestId('column-resizer')).toHaveCount(0)
+
+  await h.page.getByTestId('session-tab-split').click()
+
+  await expect(h.page.getByTestId('session-column')).toHaveCount(2)
+  await expect(h.page.getByTestId('column-resizer')).toHaveCount(1)
+  // Open in both, the way VS Code's split leaves the editor in the group it came from.
+  const columns = h.page.getByTestId('session-column')
+  await expect(columns.first()).toContainText('Fix CSV export bug')
+  await expect(columns.last()).toContainText('Fix CSV export bug')
+})
+
+test('dragging the divider between two columns changes their widths', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('session-tab-split').click()
+  await expect(h.page.getByTestId('session-column')).toHaveCount(2)
+
+  const widths = async (): Promise<number[]> =>
+    h.page.getByTestId('session-column').evaluateAll(
+      (els) => els.map((el) => Math.round(el.getBoundingClientRect().width)),
+    )
+
+  const [leftBefore, rightBefore] = await widths()
+  // A split starts even, which is what makes the drag below measurable.
+  expect(Math.abs(leftBefore - rightBefore)).toBeLessThan(8)
+
+  const handle = (await h.page.getByTestId('column-resizer').boundingBox())!
+  await h.page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+  await h.page.mouse.down()
+  await h.page.mouse.move(handle.x + handle.width / 2 + 200, handle.y + handle.height / 2, { steps: 10 })
+  await h.page.mouse.up()
+
+  const [leftAfter, rightAfter] = await widths()
+  expect(leftAfter).toBeGreaterThan(leftBefore + 150)
+  expect(rightAfter).toBeLessThan(rightBefore - 150)
+  // The pair keeps the row's full width between them; dragging one boundary must not leave a gap.
+  expect(Math.abs((leftAfter + rightAfter) - (leftBefore + rightBefore))).toBeLessThan(8)
+})
+
+test('a column cannot be dragged narrower than its floor', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('session-tab-split').click()
+  const handle = (await h.page.getByTestId('column-resizer').boundingBox())!
+
+  // Drag far past the left edge of the window: the left column stops at its minimum instead of
+  // collapsing to nothing (or going negative and taking the layout with it).
+  await h.page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+  await h.page.mouse.down()
+  await h.page.mouse.move(5, handle.y + handle.height / 2, { steps: 10 })
+  await h.page.mouse.up()
+
+  const [left] = await h.page.getByTestId('session-column').evaluateAll(
+    (els) => els.map((el) => Math.round(el.getBoundingClientRect().width)),
+  )
+  expect(left).toBeGreaterThanOrEqual(200)
+})

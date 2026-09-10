@@ -51,7 +51,17 @@ function mergeLatestPage(
   return [...existing, ...incoming]
 }
 
-export function Transcript({ session }: { session: SessionNode }): JSX.Element {
+interface TranscriptProps {
+  session: SessionNode
+  /**
+   * Whether this transcript is the pane currently on screen. It stays mounted while the session's
+   * live terminal is in front (that is what keeps it following along), but a hidden element has no
+   * layout, so anything that needs to *scroll* it has to wait until it is shown again.
+   */
+  visible?: boolean
+}
+
+export function Transcript({ session, visible = true }: TranscriptProps): JSX.Element {
   const [messages, setMessages] = useState<TranscriptMessage[]>([])
   const [cursor, setCursor] = useState<number | null>(null)
   const [skipped, setSkipped] = useState(0)
@@ -139,6 +149,12 @@ export function Transcript({ session }: { session: SessionNode }): JSX.Element {
   // the bottom right after the user asked to see *earlier* content.
   useLayoutEffect(() => {
     if (!forceScrollRef.current) return
+    // Stay armed while hidden rather than consuming the flag here. A display:none element has no
+    // scrollHeight and ignores scrollTop, so running now would silently do nothing *and* throw
+    // away the instruction — which is exactly how watching a session run in the terminal and then
+    // switching to its transcript used to land you at the oldest message instead of the newest.
+    // The visibility effect below performs the deferred scroll instead.
+    if (!visible) return
     forceScrollRef.current = false
     const el = containerRef.current
     if (el === null) return
@@ -146,7 +162,31 @@ export function Transcript({ session }: { session: SessionNode }): JSX.Element {
     // We just landed exactly at the bottom, so the user counts as "stuck" again for the next
     // live update.
     stickToBottomRef.current = true
-  }, [messages])
+  }, [messages, visible])
+
+  /**
+   * Catches the transcript up the moment it comes back on screen.
+   *
+   * While the live terminal is in front this component keeps running — it still receives every
+   * `onTreeChanged` and merges in new messages — so the content is already current. What it cannot
+   * do while hidden is move its own scroll position. Switching back therefore has to re-run the
+   * scroll that was deferred above, so you land on what the session has just said rather than on
+   * wherever the view happened to be parked when you left it.
+   *
+   * Only when the reader was following the tail: someone who deliberately scrolled up to read
+   * history, then glanced at the terminal, should come back to the same place they left.
+   */
+  useEffect(() => {
+    if (!visible) return
+    if (!stickToBottomRef.current && !forceScrollRef.current) return
+    const id = requestAnimationFrame(() => {
+      forceScrollRef.current = false
+      const el = containerRef.current
+      if (el === null) return
+      el.scrollTop = el.scrollHeight
+    })
+    return () => cancelAnimationFrame(id)
+  }, [visible])
 
   // Tracks whether the user is currently at (or very near) the bottom, so a live refresh knows
   // whether it's allowed to auto-scroll. Read live-refresh's comment for how this is used.
@@ -227,7 +267,7 @@ export function Transcript({ session }: { session: SessionNode }): JSX.Element {
       })
   }, [cursor, session.sessionId])
 
-  const visible = showSidechain ? messages : messages.filter((m) => !m.isSidechain)
+  const visibleMessages = showSidechain ? messages : messages.filter((m) => !m.isSidechain)
 
   if (error !== null) {
     // Shown in place rather than as a notification: the pane has nothing else to display, and a
@@ -287,11 +327,11 @@ export function Transcript({ session }: { session: SessionNode }): JSX.Element {
 
       {loading && <p className="empty">Loading transcript...</p>}
 
-      {visible.map((m, i) => (
+      {visibleMessages.map((m, i) => (
         <MessageRow key={m.uuid.length > 0 ? m.uuid : String(i)} message={m} />
       ))}
 
-      {!loading && visible.length === 0 && (
+      {!loading && visibleMessages.length === 0 && (
         <p className="empty" data-testid="transcript-empty">This session has no messages yet.</p>
       )}
     </div>

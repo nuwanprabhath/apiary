@@ -46,6 +46,8 @@ const api: ApiaryApi = {
     ipcRenderer.invoke(CHANNELS.gitCreateBranch, key, isPtyId, name, from),
   gitPull: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitPull, key, isPtyId),
   gitPush: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitPush, key, isPtyId),
+  gitMerge: (key, isPtyId, ref) => ipcRenderer.invoke(CHANNELS.gitMerge, key, isPtyId, ref),
+  gitFetch: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitFetch, key, isPtyId),
   copyToClipboard: (text) => ipcRenderer.invoke(CHANNELS.copyToClipboard, text),
 }
 

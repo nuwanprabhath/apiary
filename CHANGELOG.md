@@ -4,6 +4,48 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-09-10
+
+### Added
+
+- A "..." menu on the shell pane's toolbar, grouping the git commands the way VS Code groups its
+  own instead of spreading them across the toolbar as ever more icons: Pull, Push, Fetch, then a
+  **Branch** submenu (Checkout to..., Create Branch..., **Merge Branch...**), then Copy Branch Name.
+- **Merge a branch you pick** into the current one, from Branch → Merge Branch. It reuses the same
+  searchable list of branches, remotes and tags the branch switcher already had. A conflicting
+  merge reports git's own CONFLICT text and deliberately leaves the tree mid-merge — the shell
+  directly below the toolbar is where you resolve it, and aborting would throw away the one state
+  from which that is possible.
+- A split button on the tab bar, so a session already open in a column can be split into a column
+  of its own without going back to the sidebar to find its row.
+- Draggable dividers between session columns. Widths are kept as proportions, so resizing the
+  window redistributes the columns as you left them rather than leaving a fixed column with a gap
+  beside it; a column cannot be dragged below a usable minimum.
+- Scrollbars have arrow buttons at both ends again. Without them a list could only be dragged or
+  paged, with no way to nudge it when the row you want is one line out of view.
+
+### Fixed
+
+- **The bottom of a terminal is no longer cut off** — the real cause this time, found by measuring
+  rather than guessing. `.terminal-tab-view` was a plain block, so the terminal host's `flex: 1`
+  was inert and its height fell back to `auto`, i.e. to xterm's own content. FitAddon measures that
+  host to decide how many rows fit, which made the measurement self-referential: it reported the
+  size the terminal already was instead of the size available to it, so the row count never came
+  down and the excess was clipped. Measured before the fix: a 352px-tall terminal inside a 167px
+  row, its last ~11 rows rendered below the bottom of the window, and no reaction at all when the
+  pane was made smaller.
+- A long branch name no longer wraps the shell toolbar over two or three lines in a narrow column,
+  taking that height from the terminal underneath it. The toolbar is one row tall, always, and the
+  branch label ellipsizes.
+- The transcript catches up to the newest message when you switch back to it from the live session.
+  It was already following along while hidden, but a hidden element cannot be scrolled — the
+  deferred scroll was consumed and discarded there, so switching back landed you on the oldest
+  message rather than on what the session had just said.
+- A folder in the import dialog whose every session is already imported now shows as checked
+  rather than unchecked, and a partly-selected folder shows the tri-state dash instead of claiming
+  to be one or the other.
+- Escape closes the branch switcher, from any of its steps.
+
 ## [1.4.0] - 2026-09-09
 
 ### Fixed

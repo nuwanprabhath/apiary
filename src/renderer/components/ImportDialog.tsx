@@ -102,8 +102,15 @@ export function ImportDialog({ onClose, onImported }: Props): JSX.Element {
         <div className="import-list">
           {[...groups.entries()].map(([path, sessions]) => {
             const selectable = sessions.filter((s) => !s.imported)
-            const allPicked =
-              selectable.length > 0 && selectable.every((s) => picked.has(s.sessionId))
+            // "In" means the session will be in the sidebar once this dialog is confirmed —
+            // whether it was already imported on a previous visit or has just been ticked here.
+            // Counting only the freshly-ticked ones is what used to leave a folder whose every
+            // session was already imported showing an *unchecked* header, which reads as "none of
+            // this folder is imported" when in fact all of it is.
+            const isIn = (s: DiscoveredSession): boolean => s.imported || picked.has(s.sessionId)
+            const allPicked = sessions.length > 0 && sessions.every(isIn)
+            // Some but not all: the header shows the tri-state dash rather than claiming either.
+            const somePicked = !allPicked && sessions.some(isIn)
             return (
               <section key={path} data-testid="import-group">
                 {/* The chevron is a sibling of the label rather than inside it: a <label> forwards
@@ -134,6 +141,9 @@ export function ImportDialog({ onClose, onImported }: Props): JSX.Element {
                       type="checkbox"
                       data-testid="import-group-checkbox"
                       checked={allPicked}
+                      // `indeterminate` is a DOM property with no HTML attribute behind it, so it
+                      // can only be set through the element itself, not through JSX.
+                      ref={(el) => { if (el !== null) el.indeterminate = somePicked }}
                       disabled={selectable.length === 0}
                       onChange={(e) => toggleGroup(path, sessions, e.target.checked)}
                     />

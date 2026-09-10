@@ -66,6 +66,17 @@ export function RefreshIcon({ className }: IconProps): JSX.Element {
   )
 }
 
+/** The horizontal ellipsis VS Code uses for an overflow menu of further commands. */
+export function EllipsisIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="3.5" cy="8" r="1.2" fill="currentColor" />
+      <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+      <circle cx="12.5" cy="8" r="1.2" fill="currentColor" />
+    </svg>
+  )
+}
+
 /** A pencil, for the "rename" action on a terminal tab. */
 export function PencilIcon({ className }: IconProps): JSX.Element {
   return (
