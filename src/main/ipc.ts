@@ -1,8 +1,9 @@
 import { ipcMain, clipboard, type BrowserWindow } from 'electron'
 import { watch } from 'chokidar'
 import { projectsDir } from './config'
-import { CHANNELS } from '@shared/api'
+import { CHANNELS, type AppSettingsPayload } from '@shared/api'
 import type { AppService } from './appService'
+import type { AppSettings } from './settings'
 import { loadSettings, saveSettings } from './settings'
 
 export function registerIpc(
@@ -10,6 +11,7 @@ export function registerIpc(
   getWindow: () => BrowserWindow | null,
   configRoot: string,
   settingsFile: string,
+  onAutoImportIntervalChange?: (intervalMinutes: number | null) => void,
 ): () => void {
   const send = (channel: string, ...args: unknown[]): void => {
     getWindow()?.webContents.send(channel, ...args)
@@ -53,14 +55,31 @@ export function registerIpc(
   ipcMain.handle(CHANNELS.newSessionInProject, (_e, path: string) =>
     service.newSessionInProject(path),
   )
-  ipcMain.handle(CHANNELS.settingsGet, () => ({
-    claudeBin: loadSettings(settingsFile).claudeBin,
-  }))
-  ipcMain.handle(CHANNELS.settingsSet, (_e, next: { claudeBin: string | null }) => {
+  ipcMain.handle(CHANNELS.settingsGet, (): AppSettingsPayload => {
+    const settings = loadSettings(settingsFile)
+    return {
+      claudeBin: settings.claudeBin,
+      autoImportAll: settings.autoImportAll,
+      autoImportIntervalMinutes: settings.autoImportIntervalMinutes,
+    }
+  })
+  ipcMain.handle(CHANNELS.settingsSet, async (_e, next: AppSettingsPayload) => {
     const current = loadSettings(settingsFile)
-    const merged = { ...current, claudeBin: next.claudeBin }
+    const merged: AppSettings = {
+      ...current,
+      claudeBin: next.claudeBin,
+      autoImportAll: next.autoImportAll,
+      autoImportIntervalMinutes: next.autoImportIntervalMinutes,
+    }
     saveSettings(settingsFile, merged)
     service.setClaudeBin(merged.claudeBin)
+    service.setAutoImportAll(merged.autoImportAll)
+    onAutoImportIntervalChange?.(merged.autoImportIntervalMinutes)
+    // If autoImportAll was just switched ON, import everything right away.
+    if (merged.autoImportAll && !current.autoImportAll) {
+      await service.importAllDiscovered()
+      send(CHANNELS.treeChanged)
+    }
   })
 
   ipcMain.handle(CHANNELS.gitStatus, (_e, key: string, isPtyId: boolean) =>
@@ -115,6 +134,13 @@ export function registerIpc(
     send(CHANNELS.treeChanged)
   })
   ipcMain.handle(CHANNELS.copyToClipboard, (_e, text: string) => { clipboard.writeText(text) })
+  ipcMain.handle(CHANNELS.saveImage, (_e, base64: string, mediaType: string) =>
+    service.saveImage(base64, mediaType),
+  )
+  ipcMain.handle(CHANNELS.readImage, (_e, path: string) => service.readImage(path))
+  ipcMain.handle(CHANNELS.sendPrompt, (_e, ptyId: string, text: string) => {
+    service.sendPrompt(ptyId, text)
+  })
 
   ipcMain.on(CHANNELS.ptyWrite, (_e, id: string, data: string) => service.pty.write(id, data))
   ipcMain.on(CHANNELS.ptyResize, (_e, id: string, cols: number, rows: number) =>

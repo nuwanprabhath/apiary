@@ -18,6 +18,8 @@ export interface UiState {
   selectedSessionId: string | null
   sidebarWidth: number
   bottomHeight: number
+  /** Width of the import dialog, which is draggable because session titles get long. */
+  importDialogWidth: number
 }
 
 const KEY = 'apiary.ui'
@@ -29,6 +31,7 @@ export const DEFAULT_UI_STATE: UiState = {
   selectedSessionId: null,
   sidebarWidth: 320,
   bottomHeight: 200,
+  importDialogWidth: 620,
 }
 
 export function loadUiState(): UiState {

@@ -4,6 +4,71 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.1] - 2026-09-10
+
+### Added
+
+- **Chat with Claude from the transcript.** A message box sits under the conversation, so replying
+  no longer means switching to the raw terminal. It is not a second conversation: what you type is
+  delivered into the very same `claude --resume` process the Session tab shows, as a bracketed
+  paste followed by a return — so a multi-line message arrives whole instead of submitting at its
+  first newline, and the session's own transcript stays the single record of what was said.
+  Sending to a session that isn't running resumes it first.
+- **Paste images into the chat box** — or drop them in. Each becomes a thumbnail you can click to
+  see full size, and can be removed before sending. Images are written to Apiary's own data
+  directory (never into your repository), and the message carries their paths, which is how Claude
+  gets to read them.
+- **Images render in the transcript too**, past and present: the reader used to discard image
+  blocks entirely, so a conversation that included a screenshot showed a gap where it had been.
+  Images sent from the chat box are shown back as pictures rather than as the bare path.
+- A model picker beside the send button, which types Claude Code's own `/model` command into the
+  session.
+- **A real settings page.** Two panes — a section list and the section's contents — driven by one
+  array, so a new group of settings is an entry in that array rather than another switch appended
+  to a growing list. Sessions and General to start with.
+- **Automatically import all sessions** (Settings > Sessions). Every discovered session is imported
+  without being picked by hand: on startup, and on every rescan — which means the Refresh button
+  and the file watcher both honour it, not just one of them. The import dialog says so rather than
+  presenting an empty choice.
+- **Check for new sessions periodically** (Settings > Sessions), with an interval you set. Apiary
+  already notices session files as they change; this is for the rest — a session started in a
+  terminal outside the app now appears on its own. Off by default, because each scan shells out to
+  git once per project.
+- The import dialog can be dragged wider from either edge, and remembers the width. Session titles
+  and folder paths both run long, and a fixed-width dialog ellipsized exactly the part you opened
+  it to read.
+- Hovering a session in the import dialog shows its full title and when it was last active.
+- A single checkbox selects every session listed. It follows the search box, so it can never
+  quietly select rows you had filtered out of view.
+- Escape closes the import dialog and the settings dialog, as it already did the branch picker.
+
+### Changed
+
+- **The e2e suite now runs off-screen by default**, so a run no longer takes the machine over for
+  minutes at a time. The window is simply never shown; the renderer still lays out and responds
+  exactly as before, because Playwright drives it through the debugging protocol either way.
+  Background throttling is disabled for hidden windows, since a throttled window stops servicing
+  the animation frames the terminal and transcript rely on. Set `APIARY_HEADED=1` to watch a run —
+  worth doing when a failure is easier to see than to read. `npm run screenshot` always runs
+  visible, since a picture of the app is its entire output.
+
+### Fixed
+
+- **Sending from the chat box needed Enter twice.** The trailing return that submits a message was
+  written in the same tick as the bracketed paste it follows; Claude Code's own TUI would show the
+  text land in its input box but not treat that immediate return as "submit", requiring a second,
+  manual Enter to actually send. The return is now written on its own tick after a short beat, which
+  gives the TUI time to finish processing the paste first.
+- **A dialog opened from one column is no longer painted through by the next column** — the
+  "transparent" merge-branch popup. `.modal-backdrop` carried no `z-index`, and a modal is
+  rendered inside whichever column opened it, so the columns to its right (which contain
+  positioned boxes of their own) painted straight over it.
+- **No more empty column left stranded beside the real ones.** Closing a tab could empty a column
+  without removing it, depending on which of several routes did the closing — the one behind a
+  pending session's process exiting did not. Every column update now goes through one place that
+  drops an emptied column unless it is the last one, so it cannot be forgotten again.
+- A column can no longer be dragged, or squeezed, down to an unusable sliver.
+
 ## [1.5.0] - 2026-09-10
 
 ### Added

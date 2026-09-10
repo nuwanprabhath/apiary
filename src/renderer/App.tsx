@@ -27,6 +27,23 @@ const MAX_BOTTOM_HEIGHT = 560
 // session's header and toolbar are still readable rather than a stack of ellipses.
 const MIN_COLUMN_WIDTH = 220
 
+/**
+ * The one invariant every column update goes through: a column with no tabs left in it is dropped,
+ * unless it is the only one — in which case it stays as the empty placeholder that gives the next
+ * click somewhere to land.
+ *
+ * Applied here, centrally, rather than at each call site. Several different things close a tab
+ * (the close button, removing a session, a pending session's pty exiting before it ever resolved)
+ * and each one used to be individually responsible for remembering this; the ones that forgot left
+ * a blank column sitting beside the real ones, which is what "an empty side section appeared"
+ * looks like. Now it cannot be forgotten, because there is only one place to forget it.
+ */
+function pruneColumns(columns: Column[]): Column[] {
+  const kept = columns.filter((c) => c.tabs.length > 0)
+  if (kept.length === columns.length) return columns
+  return kept.length > 0 ? kept : [columns[0] ?? newColumn()]
+}
+
 function findSessionById(nodes: ProjectNode[], id: string): SessionNode | null {
   for (const node of nodes) {
     const hit = node.sessions.find((s) => s.sessionId === id)
@@ -89,7 +106,13 @@ export function App(): JSX.Element {
    * own tab strip and its own shell. Splitting a session from the sidebar appends a column; there
    * is always at least one, even when empty, so there is somewhere for the next click to land.
    */
-  const [columns, setColumns] = useState<Column[]>(() => [newColumn()])
+  const [columnsRaw, setColumnsRaw] = useState<Column[]>(() => [newColumn()])
+  const columns = columnsRaw
+  /** Every column update goes through `pruneColumns` — see the note on it above. */
+  const setColumns = useCallback(
+    (update: (prev: Column[]) => Column[]) => { setColumnsRaw((prev) => pruneColumns(update(prev))) },
+    [],
+  )
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null)
   /**
    * The `SessionNode` behind every open tab, kept fresh from the tree so a tab's title and live
@@ -153,17 +176,13 @@ export function App(): JSX.Element {
       const targetId = prev.some((c) => c.id === activeColumnId) ? activeColumnId : prev[0]?.id
       return prev.map((c) => (c.id === targetId ? openTab(c, session.sessionId) : c))
     })
-  }, [activeColumnId])
+  }, [activeColumnId, setColumns])
 
   /** Closes a tab, dropping the column with it — unless it is the last one, which stays as an
    *  empty placeholder so the layout never collapses to nothing. */
   const closeSessionTab = useCallback((columnId: string, key: string) => {
-    setColumns((prev) => {
-      const next = prev.map((c) => (c.id === columnId ? closeTab(c, key) : c))
-      const kept = next.filter((c) => c.tabs.length > 0)
-      return kept.length > 0 ? kept : [next[0] ?? newColumn()]
-    })
-  }, [])
+    setColumns((prev) => prev.map((c) => (c.id === columnId ? closeTab(c, key) : c)))
+  }, [setColumns])
 
   useEffect(() => { saveUiState(ui) }, [ui])
   useEffect(() => window.apiary.onOpenImportDialog(() => setImportOpen(true)), [])
@@ -557,11 +576,7 @@ export function App(): JSX.Element {
       await window.apiary.removeSession(target.sessionId)
       // A session that is no longer in the tree has nothing left to show, so close every tab
       // pointing at it rather than leaving a stale header behind in some column.
-      setColumns((prev) => {
-        const next = prev.map((c) => closeTab(c, target.sessionId))
-        const kept = next.filter((c) => c.tabs.length > 0)
-        return kept.length > 0 ? kept : [next[0] ?? newColumn()]
-      })
+      setColumns((prev) => prev.map((c) => closeTab(c, target.sessionId)))
       setOpenSessions((prev) => {
         if (!prev.has(target.sessionId)) return prev
         const next = new Map(prev)
@@ -585,7 +600,27 @@ export function App(): JSX.Element {
     const existing = await window.apiary.checkConflict(session.sessionId)
     if (existing !== null) { setResumeTarget(session); setConflict(existing); return }
     await startResume(session, false)
-  }, [resumed, startResume])
+  }, [resumed, startResume, setColumns])
+
+  /**
+   * Resume for the composer: resolves only once there is a process to type into.
+   *
+   * Distinct from `onResume` above, which is free to hand off to the conflict dialog and return
+   * having started nothing. A composer that sent as soon as *that* resolved would be typing into a
+   * session the user has not yet agreed to open. Here a conflict is a refusal, stated as one.
+   */
+  const resumeAndWait = useCallback(async (session: SessionNode) => {
+    if (resumed.has(session.sessionId)) return
+    const existing = await window.apiary.checkConflict(session.sessionId)
+    if (existing !== null) {
+      setResumeTarget(session)
+      setConflict(existing)
+      throw new Error('This session is already running elsewhere — choose how to open it first.')
+    }
+    await window.apiary.resume(session.sessionId, false)
+    setResumed((prev) => new Set([...prev, session.sessionId]))
+    setColumns((prev) => prev.map((c) => setTabView(c, session.sessionId, 'terminal')))
+  }, [resumed, setColumns])
 
   /** Every session id currently open in some column, so the sidebar can list only the pending
    *  sessions that aren't already reachable as a tab. */
@@ -683,6 +718,7 @@ export function App(): JSX.Element {
               setColumns((prev) => prev.map((c) => (c.id === column.id ? setTabView(c, key, view) : c)))
             }}
             onResume={(session) => { void onResume(session) }}
+            onResumeAsync={resumeAndWait}
             onRenameSession={(session, title) => {
               setOpenSessions((prev) => new Map(prev).set(session.sessionId, { ...session, title }))
               void window.apiary.renameSession(session.sessionId, title).catch((e: unknown) => {
@@ -719,6 +755,8 @@ export function App(): JSX.Element {
         <ImportDialog
           onClose={() => setImportOpen(false)}
           onImported={() => setTreeNonce((n) => n + 1)}
+          width={ui.importDialogWidth}
+          onWidthChange={(next) => setUi((prev) => ({ ...prev, importDialogWidth: next }))}
         />
       )}
 

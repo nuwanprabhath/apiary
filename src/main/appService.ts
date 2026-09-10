@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
-import { basename } from 'node:path'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { basename, dirname, extname, join, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { projectsDir } from './config'
 import { scanProjects } from './scanner/sessionScanner'
@@ -20,7 +21,32 @@ export interface AppServiceOptions {
   dbPath: string
   detectLive?: () => Promise<Map<string, number>>
   claudeBin?: string
+  autoImportAll?: boolean
+  /** Where images pasted into the composer are written. Defaults beside the database. */
+  imagesDir?: string
 }
+
+/**
+ * Extensions for the image types worth accepting from a clipboard. The map is also the allow-list:
+ * a media type absent from it is refused rather than written to disk under a guessed extension.
+ */
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+}
+
+/** Refuse anything larger. A clipboard image this big is a mistake, and the path is sent to a CLI. */
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024
+
+/**
+ * Terminal bracketed-paste markers. Sending a multi-line prompt as a *paste* rather than as
+ * keystrokes is what stops the receiving TUI treating the first newline as "submit" and firing off
+ * a half-written message — the same mechanism a terminal uses when you paste into it by hand.
+ */
+const PASTE_START = '\x1b[200~'
+const PASTE_END = '\x1b[201~'
 
 export class AppService {
   readonly pty = new PtyManager()
@@ -30,10 +56,12 @@ export class AppService {
   private refreshPromise: Promise<void> | null = null
   private pendingRefresh = false
   private disposed = false
+  private autoImportAll = false
 
   constructor(options: AppServiceOptions) {
     this.options = options
     this.store = new SessionStore(options.dbPath)
+    this.autoImportAll = options.autoImportAll ?? false
   }
 
   /**
@@ -127,6 +155,12 @@ export class AppService {
     }
 
     this.live = await (this.options.detectLive ?? detectLiveSessions)()
+    // Inside the refresh itself, rather than at each of its callers: the Refresh button, the file
+    // watcher and the periodic rescan all arrive here, and a setting called "import everything
+    // automatically" that only held for some of those routes would be the worst kind of half-true.
+    if (this.autoImportAll) {
+      await this.importAllDiscovered()
+    }
   }
 
   async tree(query = ''): Promise<ProjectNode[]> {
@@ -141,6 +175,23 @@ export class AppService {
 
   async discovered(): Promise<StoredSession[]> {
     return this.store.allSessions()
+  }
+
+  /**
+   * Marks every discovered, not-yet-imported session as imported; returns how many that was.
+   *
+   * Deliberately does not touch the per-project auto-import flag `importSessions` sets. That flag
+   * is a standing instruction about one folder, chosen in the import dialog; this is a global
+   * switch that can be turned off again, and writing per-folder flags from here would leave those
+   * folders importing forever afterwards with nothing in the UI explaining why.
+   */
+  async importAllDiscovered(): Promise<number> {
+    const sessions = this.store.allSessions()
+    const toImport = sessions.filter((s) => !s.imported).map((s) => s.sessionId)
+    if (toImport.length > 0) {
+      this.store.setImported(toImport, true)
+    }
+    return toImport.length
   }
 
   /**
@@ -357,5 +408,83 @@ export class AppService {
 
   setClaudeBin(path: string | null): void {
     this.options = { ...this.options, claudeBin: path ?? undefined }
+  }
+
+  setAutoImportAll(enabled: boolean): void {
+    this.autoImportAll = enabled
+  }
+
+  /** Where pasted images live. Beside the database, so it travels with the rest of the app's data. */
+  private imagesDir(): string {
+    return this.options.imagesDir ?? join(dirname(this.options.dbPath), 'pasted-images')
+  }
+
+  /**
+   * Writes an image pasted into the composer to disk and returns its absolute path.
+   *
+   * On disk rather than inlined into the message because the path is what actually reaches Claude:
+   * it reads the file itself. Kept in Apiary's own data directory rather than the session's working
+   * directory so that pasting a screenshot never leaves untracked files in someone's repository.
+   */
+  async saveImage(base64: string, mediaType: string): Promise<string> {
+    const extension = IMAGE_EXTENSIONS[mediaType]
+    if (extension === undefined) throw new Error(`Unsupported image type: ${mediaType}`)
+    const bytes = Buffer.from(base64, 'base64')
+    if (bytes.byteLength === 0) throw new Error('That image was empty.')
+    if (bytes.byteLength > MAX_IMAGE_BYTES) {
+      throw new Error(`That image is ${String(Math.round(bytes.byteLength / 1024 / 1024))}MB; the limit is 20MB.`)
+    }
+    const dir = this.imagesDir()
+    await mkdir(dir, { recursive: true })
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const path = join(dir, `${stamp}-${randomUUID().slice(0, 8)}${extension}`)
+    await writeFile(path, bytes)
+    return path
+  }
+
+  /**
+   * Reads one previously-saved image back as a data URL, for the thumbnails and the lightbox.
+   *
+   * Confined to the images directory, deliberately: the renderer supplies this path (it reads them
+   * out of transcript text), and an unconstrained "read this file as a data URL" call handed to the
+   * renderer would be a way to exfiltrate any file the app can see. Paths are resolved before the
+   * check so `..` cannot climb out.
+   */
+  async readImage(path: string): Promise<{ dataUrl: string } | null> {
+    const dir = resolve(this.imagesDir())
+    const full = resolve(path)
+    if (full !== dir && !full.startsWith(dir + sep)) return null
+    const mediaType = Object.entries(IMAGE_EXTENSIONS)
+      .find(([, ext]) => ext === extname(full).toLowerCase())?.[0]
+    if (mediaType === undefined) return null
+    try {
+      const bytes = await readFile(full)
+      return { dataUrl: `data:${mediaType};base64,${bytes.toString('base64')}` }
+    } catch {
+      // A pasted image the user has since deleted is not an error worth interrupting them over —
+      // the thumbnail simply doesn't render.
+      return null
+    }
+  }
+
+  /**
+   * Delivers a composed prompt to a session's running `claude` process.
+   *
+   * Wrapped in bracketed-paste markers so the whole thing arrives as one paste: without them a
+   * multi-line message submits at its first newline, sending a fragment and leaving the rest to be
+   * interpreted as new prompts. The trailing carriage return is the actual "send".
+   *
+   * That return is deliberately written on its own tick rather than appended to the same write as
+   * the paste: sent in the same chunk, Claude Code's own TUI still shows the text land in its input
+   * box but doesn't treat the return as "submit" — it needs a beat to finish processing the paste
+   * before an Enter after it registers, otherwise you have to press Enter again by hand. A plain
+   * shell doesn't care either way, which is why this only showed up against the real `claude` TUI.
+   */
+  sendPrompt(ptyId: string, text: string): void {
+    if (!this.pty.has(ptyId)) throw new Error('This session is not running.')
+    const normalised = text.replace(/\r\n/g, '\n').replace(/\s+$/, '')
+    if (normalised === '') return
+    this.pty.write(ptyId, PASTE_START + normalised + PASTE_END)
+    setTimeout(() => this.pty.write(ptyId, '\r'), 50)
   }
 }

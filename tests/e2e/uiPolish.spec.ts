@@ -18,8 +18,11 @@ test('the search box clears from its own button', async () => {
   await expect(h.page.getByTestId('search-clear')).toHaveCount(0)
 
   await search.fill('worktree')
+  // Filtering is a round trip to the main process, not a local array filter, so the list is
+  // briefly empty on the way to being narrowed — counting it the instant `fill` resolves catches
+  // that gap. Poll for the narrowed list instead of assuming it has already arrived.
+  await expect.poll(async () => h.page.getByTestId('session-item').count()).toBeGreaterThan(0)
   const filtered = await h.page.getByTestId('session-item').count()
-  expect(filtered).toBeGreaterThan(0)
   expect(filtered).toBeLessThan(4)
 
   await h.page.getByTestId('search-clear').click()

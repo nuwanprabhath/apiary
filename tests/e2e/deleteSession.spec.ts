@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { launchApiary, importAll, type Harness, sidebarSession, rowAction } from './helpers'
+import { launchApiary, importAll, type Harness, sidebarSession, clickRowAction } from './helpers'
 
 let h: Harness
 test.beforeEach(async () => {
@@ -14,7 +14,7 @@ test('deleting a session removes it from the sidebar but leaves it importable ag
 
   const row = h.page.getByTestId('session-item').filter({ hasText: 'Fix CSV export bug' })
   await row.hover()
-  await (await rowAction(row, 'delete-session-button')).click()
+  await clickRowAction(row, 'delete-session-button')
 
   await expect(h.page.getByTestId('delete-session-dialog')).toBeVisible()
   await expect(h.page.getByTestId('delete-session-dialog')).toContainText('Fix CSV export bug')
@@ -39,7 +39,7 @@ test('deleting a session removes it from the sidebar but leaves it importable ag
 test('cancelling the delete confirmation leaves the session untouched', async () => {
   const row = h.page.getByTestId('session-item').filter({ hasText: 'Fix CSV export bug' })
   await row.hover()
-  await (await rowAction(row, 'delete-session-button')).click()
+  await clickRowAction(row, 'delete-session-button')
   await h.page.getByTestId('delete-session-cancel').click()
 
   await expect(h.page.getByTestId('delete-session-dialog')).toHaveCount(0)
@@ -52,7 +52,7 @@ test('deleting the currently-selected session clears the selection', async () =>
 
   const row = h.page.getByTestId('session-item').filter({ hasText: 'Fix CSV export bug' })
   await row.hover()
-  await (await rowAction(row, 'delete-session-button')).click()
+  await clickRowAction(row, 'delete-session-button')
   await h.page.getByTestId('delete-session-confirm').click()
 
   await expect(h.page.getByTestId('content-empty')).toBeVisible()
@@ -61,7 +61,7 @@ test('deleting the currently-selected session clears the selection', async () =>
 test('the delete button does not select the session it belongs to', async () => {
   const row = h.page.getByTestId('session-item').filter({ hasText: 'Fix CSV export bug' })
   await row.hover()
-  await (await rowAction(row, 'delete-session-button')).click()
+  await clickRowAction(row, 'delete-session-button')
   // The confirmation dialog opened (proving the click landed), but the session behind it must
   // not have also been selected as a side effect of the click bubbling.
   await expect(h.page.getByTestId('delete-session-dialog')).toBeVisible()

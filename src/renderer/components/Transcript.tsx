@@ -59,9 +59,11 @@ interface TranscriptProps {
    * layout, so anything that needs to *scroll* it has to wait until it is shown again.
    */
   visible?: boolean
+  /** Opens an image full size. Owned by the column, so the composer's images use the same one. */
+  onOpenImage: (src: string) => void
 }
 
-export function Transcript({ session, visible = true }: TranscriptProps): JSX.Element {
+export function Transcript({ session, visible = true, onOpenImage }: TranscriptProps): JSX.Element {
   const [messages, setMessages] = useState<TranscriptMessage[]>([])
   const [cursor, setCursor] = useState<number | null>(null)
   const [skipped, setSkipped] = useState(0)
@@ -328,7 +330,11 @@ export function Transcript({ session, visible = true }: TranscriptProps): JSX.El
       {loading && <p className="empty">Loading transcript...</p>}
 
       {visibleMessages.map((m, i) => (
-        <MessageRow key={m.uuid.length > 0 ? m.uuid : String(i)} message={m} />
+        <MessageRow
+          key={m.uuid.length > 0 ? m.uuid : String(i)}
+          message={m}
+          onOpenImage={onOpenImage}
+        />
       ))}
 
       {!loading && visibleMessages.length === 0 && (

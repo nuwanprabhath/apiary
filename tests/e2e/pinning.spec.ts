@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { launchApiary, importAll, relaunchApiary, rowAction, sidebarSession, type Harness } from './helpers'
+import { launchApiary, importAll, relaunchApiary, clickRowAction, sidebarSession, type Harness } from './helpers'
 
 let h: Harness
 test.beforeEach(async () => {
@@ -19,7 +19,7 @@ test('pinning lifts a session to the top and unpinning puts it back', async () =
   // Nothing pinned: no section at all, rather than an empty header taking up room.
   await expect(h.page.getByTestId('pinned-section')).toHaveCount(0)
 
-  await (await rowAction(row(h, 'Worktree session'), 'pin-session-button')).click()
+  await clickRowAction(row(h, 'Worktree session'), 'pin-session-button')
 
   const section = h.page.getByTestId('pinned-section')
   await expect(section).toBeVisible()
@@ -32,14 +32,14 @@ test('pinning lifts a session to the top and unpinning puts it back', async () =
   await expect(sidebarSession(h.page, 'Worktree session')).toHaveCount(1)
 
   // The same button unpins, and the row goes back where it came from.
-  await (await rowAction(section.locator('.session-row-wrap'), 'pin-session-button')).click()
+  await clickRowAction(section.locator('.session-row-wrap'), 'pin-session-button')
   await expect(h.page.getByTestId('pinned-section')).toHaveCount(0)
   await expect(h.page.getByTestId('session-item')).toHaveCount(4)
 })
 
 test('the pinned section collapses, and both the pins and the collapse survive a relaunch', async () => {
-  await (await rowAction(row(h, 'Worktree session'), 'pin-session-button')).click()
-  await (await rowAction(row(h, 'Fix CSV export bug'), 'pin-session-button')).click()
+  await clickRowAction(row(h, 'Worktree session'), 'pin-session-button')
+  await clickRowAction(row(h, 'Fix CSV export bug'), 'pin-session-button')
 
   const section = h.page.getByTestId('pinned-section')
   await expect(section.getByTestId('session-item')).toHaveCount(2)
@@ -60,7 +60,7 @@ test('the pinned section collapses, and both the pins and the collapse survive a
 })
 
 test('a pinned session opens like any other, and searching narrows the pinned list too', async () => {
-  await (await rowAction(row(h, 'Worktree session'), 'pin-session-button')).click()
+  await clickRowAction(row(h, 'Worktree session'), 'pin-session-button')
   await h.page.getByTestId('pinned-section').getByTestId('session-item').click()
   await expect(h.page.getByTestId('session-title')).toContainText('Worktree session')
 
@@ -89,10 +89,10 @@ test("a row's age gives way to its buttons on hover", async () => {
 })
 
 test('removing a pinned session drops it from the pinned list as well as the tree', async () => {
-  await (await rowAction(row(h, 'Worktree session'), 'pin-session-button')).click()
+  await clickRowAction(row(h, 'Worktree session'), 'pin-session-button')
   await expect(h.page.getByTestId('pinned-section')).toBeVisible()
 
-  await (await rowAction(h.page.getByTestId('pinned-section').locator('.session-row-wrap'), 'delete-session-button')).click()
+  await clickRowAction(h.page.getByTestId('pinned-section').locator('.session-row-wrap'), 'delete-session-button')
   await h.page.getByTestId('delete-session-confirm').click()
 
   await expect(h.page.getByTestId('pinned-section')).toHaveCount(0)

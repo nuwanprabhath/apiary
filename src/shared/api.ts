@@ -15,6 +15,14 @@ export interface DiscoveredSession {
   imported: boolean
 }
 
+export interface AppSettingsPayload {
+  claudeBin: string | null
+  /** Import every discovered session automatically, instead of picking them by hand. */
+  autoImportAll: boolean
+  /** Minutes between automatic rescans, or null when periodic scanning is off. */
+  autoImportIntervalMinutes: number | null
+}
+
 export const CHANNELS = {
   refresh: 'apiary:refresh',
   tree: 'apiary:tree',
@@ -50,6 +58,9 @@ export const CHANNELS = {
   gitMerge: 'apiary:git-merge',
   gitFetch: 'apiary:git-fetch',
   copyToClipboard: 'apiary:copy-to-clipboard',
+  saveImage: 'apiary:save-image',
+  readImage: 'apiary:read-image',
+  sendPrompt: 'apiary:send-prompt',
 } as const
 
 export interface ApiaryApi {
@@ -82,8 +93,8 @@ export interface ApiaryApi {
   onPtyExit(cb: (id: string, exitCode: number) => void): () => void
   onTreeChanged(cb: () => void): () => void
   onOpenImportDialog(cb: () => void): () => void
-  settingsGet(): Promise<{ claudeBin: string | null }>
-  settingsSet(settings: { claudeBin: string | null }): Promise<void>
+  settingsGet(): Promise<AppSettingsPayload>
+  settingsSet(settings: AppSettingsPayload): Promise<void>
   onOpenSettingsDialog(cb: () => void): () => void
   gitStatus(key: string, isPtyId: boolean): Promise<GitStatus>
   gitListRefs(key: string, isPtyId: boolean): Promise<GitRefs>
@@ -96,6 +107,12 @@ export interface ApiaryApi {
   gitMerge(key: string, isPtyId: boolean, ref: string): Promise<void>
   gitFetch(key: string, isPtyId: boolean): Promise<void>
   copyToClipboard(text: string): Promise<void>
+  /** Writes a pasted image to Apiary's own data directory; resolves to its absolute path. */
+  saveImage(base64: string, mediaType: string): Promise<string>
+  /** Reads one of those images back as a data URL, or null if it is gone or out of bounds. */
+  readImage(path: string): Promise<{ dataUrl: string } | null>
+  /** Types a composed prompt into a session's running `claude` process and submits it. */
+  sendPrompt(ptyId: string, text: string): Promise<void>
 }
 
 declare global {

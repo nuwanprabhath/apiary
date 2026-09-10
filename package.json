@@ -1,6 +1,6 @@
 {
   "name": "apiary",
-  "version": "1.5.0",
+  "version": "1.7.1",
   "private": true,
   "type": "module",
   "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",

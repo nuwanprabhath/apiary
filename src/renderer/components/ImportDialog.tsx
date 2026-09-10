@@ -1,9 +1,28 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DiscoveredSession } from '@shared/api'
+
+const MIN_DIALOG_WIDTH = 420
+const MAX_DIALOG_WIDTH = 1500
 
 interface Props {
   onClose: () => void
   onImported: () => void
+  /** Persisted dialog width — session titles run long, so this one is draggable. */
+  width: number
+  onWidthChange: (next: number) => void
+}
+
+/**
+ * What the hover tooltip says about a row: its full title (the visible one is ellipsized to fit)
+ * and how long ago it was last touched, in both the relative form you actually think in and the
+ * absolute one you need when comparing two of them.
+ */
+function describeSession(s: DiscoveredSession): string {
+  if (s.lastActiveAtMs === null) return s.title
+  const when = new Date(s.lastActiveAtMs)
+  const days = Math.floor((Date.now() - s.lastActiveAtMs) / 86400000)
+  const ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${String(days)} days ago`
+  return `${s.title}\n\nLast active ${ago} — ${when.toLocaleString()}`
 }
 
 function groupByProject(rows: DiscoveredSession[]): Map<string, DiscoveredSession[]> {
@@ -19,7 +38,7 @@ function groupByProject(rows: DiscoveredSession[]): Map<string, DiscoveredSessio
   return groups
 }
 
-export function ImportDialog({ onClose, onImported }: Props): JSX.Element {
+export function ImportDialog({ onClose, onImported, width, onWidthChange }: Props): JSX.Element {
   const [rows, setRows] = useState<DiscoveredSession[]>([])
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [autoProjects, setAutoProjects] = useState<Set<string>>(new Set())
@@ -43,6 +62,55 @@ export function ImportDialog({ onClose, onImported }: Props): JSX.Element {
   useEffect(() => {
     void window.apiary.discovered().then(setRows)
   }, [])
+
+  /**
+   * Whether the "import everything automatically" setting is on. When it is, this dialog has
+   * nothing left to decide — everything is already imported, or is about to be — so it says so
+   * rather than presenting a list of ticked, disabled rows with no explanation for why.
+   */
+  const [autoImportAll, setAutoImportAll] = useState(false)
+  useEffect(() => {
+    void window.apiary.settingsGet().then((s) => setAutoImportAll(s.autoImportAll))
+  }, [])
+
+  /** Escape dismisses the dialog, the same way it dismisses the branch picker and the git menu. */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      onClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('keydown', onKeyDown) }
+  }, [onClose])
+
+  /**
+   * Dragging either edge widens the dialog. The dialog is centred, so a drag has to move the width
+   * by twice the pointer's travel for the edge under the cursor to actually keep up with it —
+   * otherwise the edge slides away at half speed and the drag feels broken.
+   */
+  const [dragFrom, setDragFrom] = useState<{ x: number; width: number; side: 1 | -1 } | null>(null)
+  useEffect(() => {
+    if (dragFrom === null) return
+    document.body.classList.add('resizing-active')
+    const onMove = (e: MouseEvent): void => {
+      const next = dragFrom.width + (e.clientX - dragFrom.x) * 2 * dragFrom.side
+      onWidthChange(Math.round(Math.max(MIN_DIALOG_WIDTH, Math.min(MAX_DIALOG_WIDTH, next))))
+    }
+    const onUp = (): void => setDragFrom(null)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      document.body.classList.remove('resizing-active')
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [dragFrom, onWidthChange])
+
+  const startDrag = useCallback((side: 1 | -1) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    setDragFrom({ x: e.clientX, width, side })
+  }, [width])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -76,6 +144,23 @@ export function ImportDialog({ onClose, onImported }: Props): JSX.Element {
     setAutoProjects(nextAuto)
   }
 
+  /**
+   * Every session the dialog is currently showing that isn't already imported. Scoped to the
+   * filtered list on purpose: with a search term typed in, "select all" means all of *these*,
+   * which is the only reading that isn't a nasty surprise.
+   */
+  const allSelectable = useMemo(() => filtered.filter((r) => !r.imported), [filtered])
+  const allSelected = allSelectable.length > 0 && allSelectable.every((r) => picked.has(r.sessionId))
+
+  const toggleAll = (on: boolean): void => {
+    const next = new Set(picked)
+    for (const r of allSelectable) {
+      if (on) next.add(r.sessionId)
+      else next.delete(r.sessionId)
+    }
+    setPicked(next)
+  }
+
   const confirm = async (): Promise<void> => {
     setBusy(true)
     try {
@@ -89,7 +174,15 @@ export function ImportDialog({ onClose, onImported }: Props): JSX.Element {
 
   return (
     <div className="modal-backdrop">
-      <div className="modal wide" data-testid="import-dialog" role="dialog" aria-modal="true">
+      <div
+        className="modal wide import-dialog"
+        data-testid="import-dialog"
+        role="dialog"
+        aria-modal="true"
+        style={{ width }}
+      >
+        <div className="dialog-resizer dialog-resizer-left" data-testid="import-resizer-left" onMouseDown={startDrag(-1)} />
+        <div className="dialog-resizer dialog-resizer-right" data-testid="import-resizer-right" onMouseDown={startDrag(1)} />
         <h2>Import Claude Sessions</h2>
         <input
           className="search"
@@ -98,6 +191,27 @@ export function ImportDialog({ onClose, onImported }: Props): JSX.Element {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+
+        {autoImportAll && (
+          <p className="import-auto-notice" data-testid="import-auto-notice">
+            Every session is being imported automatically (Settings &gt; Sessions), so there is
+            nothing to choose here. Turn that off to pick sessions by hand again.
+          </p>
+        )}
+
+        <label className="import-select-all">
+          <input
+            type="checkbox"
+            data-testid="import-select-all"
+            checked={allSelected}
+            disabled={allSelectable.length === 0}
+            onChange={(e) => toggleAll(e.target.checked)}
+          />
+          <span>
+            Select every session listed
+            {allSelectable.length > 0 && <span className="muted"> ({allSelectable.length} not yet imported)</span>}
+          </span>
+        </label>
 
         <div className="import-list">
           {[...groups.entries()].map(([path, sessions]) => {
@@ -153,7 +267,7 @@ export function ImportDialog({ onClose, onImported }: Props): JSX.Element {
                 </div>
 
                 {!collapsed.has(path) && sessions.map((s) => (
-                  <label key={s.sessionId} className="import-row">
+                  <label key={s.sessionId} className="import-row" title={describeSession(s)}>
                     <input
                       type="checkbox"
                       data-testid="import-session-checkbox"

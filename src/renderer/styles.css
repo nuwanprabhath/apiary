@@ -328,7 +328,10 @@ body.resizing-active { user-select: none; }
  * tab strip, session, then that session's shell. */
 .session-column {
   flex: 1;
-  min-width: 0;
+  /* Never squeezed to a sliver, however the dividers were dragged or however many columns are
+   * open — below this a column shows nothing usable, and it is better for the row to overflow
+   * (it scrolls nowhere, but each column stays legible) than for one to collapse to a stripe. */
+  min-width: 180px;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -720,7 +723,22 @@ body.resizing-active { user-select: none; }
 
 .error-banner { margin: 0; padding: 8px 16px; background: var(--danger-bg); color: var(--danger); }
 
-.modal-backdrop { position: fixed; inset: 0; background: var(--bg-overlay); display: grid; place-items: center; }
+/*
+ * z-index is load-bearing. A modal is rendered inside whichever session column opened it, and each
+ * column contains positioned boxes of its own (.centre-pane, .pane-fill). Without a stacking order
+ * of its own, a backdrop opened from column 1 painted *below* everything in columns 2 and 3 — the
+ * next column's transcript showing straight through the dialog, which reads as the dialog being
+ * translucent. Above the git menu (60), below the notification stack (100): a failure raised while
+ * a dialog is open still has to be readable over it.
+ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--bg-overlay);
+  display: grid;
+  place-items: center;
+}
 .modal { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; max-width: 460px; }
 .modal h2 { margin: 0 0 10px; font-size: 15px; }
 .modal p { line-height: 1.55; margin: 0 0 10px; }
@@ -1196,3 +1214,247 @@ body.resizing-active { user-select: none; }
 
 /* A submenu hangs off its parent row, opening to the right and aligned with it. */
 .git-submenu { position: absolute; left: 100%; top: -5px; margin-left: 2px; }
+
+/*
+ * A dialog you can widen by dragging either edge. The strips sit just inside the dialog's own
+ * border rather than outside it, so they never overlap the backdrop (where a mousedown would be
+ * read as "dismiss") and never fight the rounded corners.
+ */
+.import-dialog { position: relative; }
+.dialog-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+.dialog-resizer-left { left: 0; }
+.dialog-resizer-right { right: 0; }
+.dialog-resizer:hover { background: var(--accent); opacity: 0.5; }
+
+/* A width set by dragging must win over `.modal.wide`'s own fixed width. */
+.modal.wide.import-dialog { max-width: 95vw; }
+
+.import-select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px 10px;
+  cursor: pointer;
+}
+
+/*
+ * The settings page. A nav column plus a pane, rather than one long scroll: the whole point is
+ * that this grows, and a list of unrelated switches with no structure stops being navigable at
+ * about the fourth one. SECTIONS in SettingsDialog.tsx drives both halves, so a new section is
+ * one array entry and a branch — never a new layout.
+ */
+.settings-dialog { width: 720px; max-width: 92vw; }
+.settings-body {
+  display: flex;
+  gap: 16px;
+  min-height: 320px;
+  max-height: 60vh;
+}
+.settings-nav {
+  flex: none;
+  width: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid var(--border);
+  padding-right: 8px;
+}
+.settings-nav-item {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+.settings-nav-item:hover { background: var(--selected); color: var(--text); }
+.settings-nav-item[data-active="true"] { background: var(--selected); color: var(--text); font-weight: 600; }
+
+.settings-pane { flex: 1; min-width: 0; overflow-y: auto; padding-right: 4px; }
+.settings-blurb { margin: 0 0 14px; color: var(--muted); line-height: 1.5; }
+
+.settings-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+.settings-row:first-of-type { border-top: 0; }
+.settings-row > span { display: flex; flex-direction: column; gap: 4px; }
+.settings-row-stacked { flex-direction: column; cursor: default; }
+.settings-row-indent { padding-left: 26px; border-top: 0; padding-top: 0; cursor: default; flex-direction: column; gap: 8px; }
+.settings-help { color: var(--muted); line-height: 1.5; font-size: 12px; }
+
+.settings-inline { display: flex; align-items: center; gap: 8px; }
+.settings-number { width: 80px; }
+.settings-presets { display: flex; gap: 6px; }
+.settings-preset {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+.settings-preset:hover { color: var(--text); background: var(--selected); }
+.settings-preset[data-active="true"] { border-color: var(--accent); color: var(--text); }
+
+/* Shown in place of "pick some sessions" when the app is already importing all of them. */
+.import-auto-notice {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/*
+ * The chat box under the transcript. `flex: none` and outside the transcript's own scroll box, so
+ * it stays put while the conversation scrolls behind it — the transcript is the thing you read,
+ * this is the thing you type into, and it should never scroll away mid-sentence.
+ */
+.composer {
+  flex: none;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  padding: 8px 10px 10px;
+}
+
+.composer-attachments { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
+.composer-attachment { position: relative; }
+.composer-attachment-preview {
+  display: block;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  cursor: zoom-in;
+  overflow: hidden;
+}
+.composer-attachment-preview img { display: block; width: 64px; height: 64px; object-fit: cover; }
+.composer-attachment-preview:hover { border-color: var(--accent); }
+.composer-attachment-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-panel);
+  color: var(--muted);
+  cursor: pointer;
+}
+.composer-attachment-remove:hover { color: var(--danger); border-color: var(--danger); }
+.composer-attachment-remove svg { width: 10px; height: 10px; display: block; }
+
+.composer-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 58px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+  line-height: 1.5;
+}
+.composer-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.composer-input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.composer-actions { display: flex; align-items: center; gap: 10px; padding-top: 8px; }
+.composer-model { display: flex; align-items: center; gap: 6px; }
+.composer-model select {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 12px;
+}
+.composer-hint { margin-left: auto; font-size: 12px; }
+.composer-send {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 5px 14px;
+  cursor: pointer;
+  font: inherit;
+}
+.composer-send:disabled { opacity: 0.5; cursor: default; }
+
+/* An image path we could not turn into a picture, shown as the line it actually was. */
+.composer-path-fallback {
+  margin: 4px 0;
+  color: var(--muted);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* A thumbnail anywhere in a message. Sized so several sit on one line without dominating it. */
+.image-thumb {
+  display: inline-block;
+  padding: 0;
+  margin: 4px 6px 4px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  cursor: zoom-in;
+  overflow: hidden;
+  vertical-align: top;
+}
+.image-thumb img { display: block; max-width: 220px; max-height: 160px; }
+.image-thumb:hover { border-color: var(--accent); }
+
+/* Above every other overlay, including modals: it is opened *from* them. */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(0, 0, 0, 0.85);
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  cursor: zoom-out;
+}
+.lightbox-image { max-width: 100%; max-height: 100%; object-fit: contain; cursor: default; }
+.lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  color: var(--text);
+  cursor: pointer;
+}
+.lightbox-close:hover { background: var(--selected); }
+.lightbox-close svg { width: 16px; height: 16px; display: block; }

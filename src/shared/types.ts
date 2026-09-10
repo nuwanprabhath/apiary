@@ -74,6 +74,8 @@ export type TranscriptBlock =
   | { type: 'thinking'; text: string }
   | { type: 'tool_use'; id: string; name: string; input: unknown }
   | { type: 'tool_result'; toolUseId: string; content: string; isError: boolean }
+  /** An image recorded in the session itself, carried as a data URL ready to render. */
+  | { type: 'image'; dataUrl: string }
 
 export interface TranscriptMessage {
   uuid: string

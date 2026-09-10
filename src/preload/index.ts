@@ -49,6 +49,9 @@ const api: ApiaryApi = {
   gitMerge: (key, isPtyId, ref) => ipcRenderer.invoke(CHANNELS.gitMerge, key, isPtyId, ref),
   gitFetch: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitFetch, key, isPtyId),
   copyToClipboard: (text) => ipcRenderer.invoke(CHANNELS.copyToClipboard, text),
+  saveImage: (base64, mediaType) => ipcRenderer.invoke(CHANNELS.saveImage, base64, mediaType),
+  readImage: (path) => ipcRenderer.invoke(CHANNELS.readImage, path),
+  sendPrompt: (ptyId, text) => ipcRenderer.invoke(CHANNELS.sendPrompt, ptyId, text),
 }
 
 contextBridge.exposeInMainWorld('apiary', api)

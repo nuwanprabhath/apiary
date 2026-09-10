@@ -93,6 +93,18 @@ function mapBlocks(role: 'user' | 'assistant', content: unknown): TranscriptBloc
           input: b.input,
         })
         break
+      case 'image': {
+        // Claude records a pasted image the way the API carries one: base64 plus its media type.
+        // Turning it into a data URL here keeps that shape out of the renderer, which only ever
+        // needs something it can put in a src attribute. Anything else (a URL source, a shape from
+        // a future version) is skipped rather than guessed at.
+        const source = (b as { source?: { type?: string; media_type?: string; data?: string } }).source
+        if (source?.type === 'base64' && typeof source.data === 'string' && source.data !== '') {
+          const mediaType = typeof source.media_type === 'string' ? source.media_type : 'image/png'
+          blocks.push({ type: 'image', dataUrl: `data:${mediaType};base64,${source.data}` })
+        }
+        break
+      }
       case 'tool_result':
         blocks.push({
           type: 'tool_result',

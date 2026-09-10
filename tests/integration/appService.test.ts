@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   mkdtempSync,
   rmSync,
@@ -10,7 +10,7 @@ import {
 } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { AppService } from '../../src/main/appService'
 import { makeSession } from '../fixtures/makeSession'
 
@@ -513,5 +513,128 @@ describe('multi-tab shells', () => {
     await service.openShell('11111111-1111-1111-1111-111111111111', '2')
     expect(service.pty.has('shell:11111111-1111-1111-1111-111111111111:1')).toBe(true)
     expect(service.pty.has('shell:11111111-1111-1111-1111-111111111111:2')).toBe(true)
+  })
+})
+
+describe('auto-import all', () => {
+  it('importAllDiscovered marks all unimported sessions as imported and returns count', async () => {
+    makeSession(projects(), '-w', {
+      sessionId: '11111111-1111-1111-1111-111111111111', cwd: workdir, title: 'First',
+    })
+    makeSession(projects(), '-w', {
+      sessionId: '22222222-2222-2222-2222-222222222222', cwd: workdir, title: 'Second',
+    })
+    await service.refresh()
+
+    // Neither session is imported yet.
+    let discovered = await service.discovered()
+    expect(discovered.filter((s) => !s.imported)).toHaveLength(2)
+    expect(discovered.filter((s) => s.imported)).toHaveLength(0)
+
+    // importAllDiscovered marks all unimported sessions as imported.
+    const count = await service.importAllDiscovered()
+    expect(count).toBe(2)
+
+    discovered = await service.discovered()
+    expect(discovered.filter((s) => s.imported)).toHaveLength(2)
+
+    // Calling it again returns 0 since everything is already imported.
+    const secondCount = await service.importAllDiscovered()
+    expect(secondCount).toBe(0)
+  })
+
+  it('refresh with autoImportAll enabled imports newly discovered sessions', async () => {
+    // Create service with autoImportAll enabled.
+    const autoService = new AppService({
+      configRoot: join(home, '.claude'),
+      dbPath: join(home, 'apiary-auto.db'),
+      autoImportAll: true,
+      detectLive: async () => new Map(),
+    })
+    try {
+      makeSession(projects(), '-w', {
+        sessionId: '33333333-3333-3333-3333-333333333333', cwd: workdir, title: 'Auto-imported 1',
+      })
+      await autoService.refresh()
+
+      // After refresh, the session should be automatically imported since autoImportAll is on.
+      let tree = await autoService.tree()
+      expect(tree).toHaveLength(1)
+      expect(tree[0].sessions[0].title).toBe('Auto-imported 1')
+
+      // New session discovered after the first refresh should also be auto-imported.
+      makeSession(projects(), '-w2', {
+        sessionId: '44444444-4444-4444-4444-444444444444', cwd: workdir, title: 'Auto-imported 2',
+      })
+      await autoService.refresh()
+
+      tree = await autoService.tree()
+      expect(tree[0].sessions.map((s) => s.title).sort()).toEqual([
+        'Auto-imported 1',
+        'Auto-imported 2',
+      ])
+    } finally {
+      await autoService.dispose()
+    }
+  })
+})
+
+describe('composer: images and prompt delivery', () => {
+  const tinyPng =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
+  it('saves a pasted image and reads it back as a data URL', async () => {
+    const path = await service.saveImage(tinyPng, 'image/png')
+    expect(path.endsWith('.png')).toBe(true)
+    expect(existsSync(path)).toBe(true)
+
+    const read = await service.readImage(path)
+    expect(read?.dataUrl.startsWith('data:image/png;base64,')).toBe(true)
+    // Round-trips byte for byte: the thumbnail is the image that was pasted, not a re-encoding.
+    expect(read?.dataUrl.split(',')[1]).toBe(tinyPng)
+  })
+
+  it('refuses an image type it has no extension for, rather than guessing one', async () => {
+    await expect(service.saveImage(tinyPng, 'image/svg+xml')).rejects.toThrow(/Unsupported image type/)
+  })
+
+  it('will not read a file outside its own images directory', async () => {
+    // The renderer supplies these paths, so this is a trust boundary, not a tidiness rule: an
+    // unconstrained "read any file as a data URL" would be a way to exfiltrate anything the app
+    // can see. `..` must not climb out of it either.
+    const outside = join(home, 'secret.png')
+    writeFileSync(outside, Buffer.from(tinyPng, 'base64'))
+    expect(await service.readImage(outside)).toBeNull()
+
+    const inside = await service.saveImage(tinyPng, 'image/png')
+    const climbing = join(dirname(inside), '..', '..', 'secret.png')
+    expect(await service.readImage(climbing)).toBeNull()
+  })
+
+  it('delivers a multi-line prompt as one paste, so it is not submitted a line at a time', async () => {
+    makeSession(projects(), '-w', {
+      sessionId: '11111111-1111-1111-1111-111111111111', cwd: workdir, title: 'Fix CSV export',
+    })
+    await service.refresh()
+    await service.importSessions(['11111111-1111-1111-1111-111111111111'], [])
+    await service.openShell('11111111-1111-1111-1111-111111111111', '1')
+    const ptyId = 'shell:11111111-1111-1111-1111-111111111111:1'
+
+    const chunks: string[] = []
+    service.pty.onData((id, data) => { if (id === ptyId) chunks.push(data) })
+    service.sendPrompt(ptyId, 'echo APIARY_LINE_ONE\necho APIARY_LINE_TWO')
+
+    // A real shell, receiving a real bracketed paste: both lines arrive, and the trailing return
+    // is what runs them. If the paste markers were missing, the first newline would submit on its
+    // own and the second line would be typed at a fresh prompt instead.
+    await vi.waitFor(() => {
+      const seen = chunks.join('')
+      expect(seen).toContain('APIARY_LINE_ONE')
+      expect(seen).toContain('APIARY_LINE_TWO')
+    }, { timeout: 15000 })
+  })
+
+  it('refuses to send to a session that is not running', () => {
+    expect(() => service.sendPrompt('shell:nope:1', 'hello')).toThrow(/not running/i)
   })
 })

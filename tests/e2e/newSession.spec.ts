@@ -25,6 +25,8 @@ async function useFakeClaudeShell(h: Harness): Promise<void> {
   await h.app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
   })
+  // Settings open on the Sessions section; the claude binary lives under General.
+  await h.page.getByTestId('settings-nav-general').click()
   await h.page.getByTestId('claude-bin-input').fill(script)
   await h.page.getByTestId('settings-save').click()
   await expect(h.page.getByTestId('settings-dialog')).toHaveCount(0)

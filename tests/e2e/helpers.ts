@@ -1,4 +1,4 @@
-import { _electron as electron, type ElectronApplication, type Locator, type Page } from '@playwright/test'
+import { _electron as electron, expect, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 import { mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
@@ -21,6 +21,17 @@ export interface Harness {
   /** A `git worktree add` checkout of repoRoot, nested under it in the tree. */
   worktreeDir: string
   close(): Promise<void>
+}
+
+/**
+ * Test runs keep the app's window off-screen unless asked not to.
+ *
+ * The suite takes minutes, and a run that flashes windows and steals focus the whole time makes
+ * the machine unusable while it happens. Set `APIARY_HEADED=1` to watch a run — which is worth
+ * doing when a test fails in a way that is easier to see than to read.
+ */
+function headlessEnv(): Record<string, string> {
+  return process.env.APIARY_HEADED === '1' ? {} : { APIARY_HEADLESS: '1' }
 }
 
 function git(cwd: string, ...args: string[]): void {
@@ -144,6 +155,7 @@ export async function launchApiary(
       APIARY_CONFIG_ROOT: home,
       APIARY_DB_PATH: join(home, 'apiary.db'),
       APIARY_FAKE_LIVE: opts.fakeLiveSessionId ?? '',
+      ...headlessEnv(),
     },
   })
   const page = await app.firstWindow()
@@ -174,6 +186,19 @@ export async function launchApiary(
  * in place; `h.close()` still works afterwards and cleans up the one shared `home` directory.
  */
 export async function relaunchApiary(h: Harness): Promise<void> {
+  // Wait for the renderer to stop writing UI state before killing it. The state a relaunch is
+  // meant to restore (selected session, sidebar width, pins) is written by an effect that runs
+  // *after* the render the test just waited for — so "the title is on screen" does not yet mean
+  // "the selection has been recorded". The app flushes localStorage to disk on quit (see the
+  // before-quit handler in main/index.ts), which handles the disk side; this handles the JS side,
+  // by waiting until two consecutive reads agree that nothing more is being written.
+  let previous: string | null = null
+  for (let i = 0; i < 20; i++) {
+    const current = await h.page.evaluate(() => localStorage.getItem('apiary.ui'))
+    if (i > 0 && current === previous) break
+    previous = current
+    await h.page.waitForTimeout(100)
+  }
   await h.app.close()
   const app = await electron.launch({
     args: [`--user-data-dir=${join(h.home, 'userdata')}`, '.'],
@@ -182,6 +207,7 @@ export async function relaunchApiary(h: Harness): Promise<void> {
       APIARY_CONFIG_ROOT: h.home,
       APIARY_DB_PATH: join(h.home, 'apiary.db'),
       APIARY_FAKE_LIVE: '',
+      ...headlessEnv(),
     },
   })
   const page = await app.firstWindow()
@@ -332,15 +358,23 @@ export function sidebarSession(page: Page, title: string): Locator {
 }
 
 /**
- * One of a session row's hover-revealed buttons (pin, split, remove), ready to click.
+ * Clicks one of a session row's hover-revealed buttons (pin, split, remove).
  *
  * The buttons are `display: none` until the row is hovered — they and the session's age take
- * turns occupying the same strip at the end of the row — so a bare `.click()` on one fails its
- * actionability check before Playwright ever moves the mouse there. Hovering the row first is
- * what a person does too, so this is the honest way to reach them rather than a workaround.
+ * turns occupying the same strip at the end of the row — so a bare `.click()` fails its
+ * actionability check before Playwright ever moves the mouse there. Hovering first is what a
+ * person does too, so that is the honest way to reach them rather than a workaround.
+ *
+ * The hover and the click are retried *together*, because they are not independent: anything that
+ * re-renders the sidebar between the two (a tree refresh, or the state change from the previous
+ * click) can replace the row's DOM and take the hover with it, at which point the button is
+ * `display: none` again and the pending click times out waiting for a node that will never become
+ * visible. Retrying only the click cannot fix that — the hover has to happen again too.
  */
-export async function rowAction(row: Locator, testId: string): Promise<Locator> {
+export async function clickRowAction(row: Locator, testId: string): Promise<void> {
   const wrap = row.locator('xpath=ancestor-or-self::div[contains(@class,"session-row-wrap")]')
-  await wrap.hover()
-  return wrap.getByTestId(testId)
+  await expect(async () => {
+    await wrap.hover({ timeout: 2000 })
+    await wrap.getByTestId(testId).click({ timeout: 2000 })
+  }).toPass({ timeout: 20000 })
 }

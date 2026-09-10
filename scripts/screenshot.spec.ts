@@ -1,6 +1,6 @@
 import { test } from '@playwright/test'
 import { join } from 'node:path'
-import { launchApiary, importAll, rowAction, sidebarSession, type Harness } from '../tests/e2e/helpers'
+import { launchApiary, importAll, clickRowAction, sidebarSession, type Harness } from '../tests/e2e/helpers'
 
 /**
  * Not a test — a one-off Playwright script that launches the real app against a representative
@@ -14,6 +14,9 @@ import { launchApiary, importAll, rowAction, sidebarSession, type Harness } from
  */
 test('capture the README screenshot', async () => {
   test.setTimeout(60000)
+  // The test suite runs the app off-screen so it doesn't take the machine over for minutes at a
+  // time; this one is the exception, because a picture of the app is the entire output.
+  process.env.APIARY_HEADED = '1'
   // The default fixture (see helpers.ts) is exactly what a README picture wants: three distinct
   // project folders, one of them a git repo with a real nested worktree, four sessions with
   // human-sounding titles — a believable slice of a real dev's history rather than contrived
@@ -33,14 +36,14 @@ test('capture the README screenshot', async () => {
 
   // Pin the session you'd actually be checking on, to show the Pinned section doing its job.
   const pinRow = h.page.locator('.session-row-wrap').filter({ hasText: 'Repo root session' })
-  await (await rowAction(pinRow, 'pin-session-button')).click()
+  await clickRowAction(pinRow, 'pin-session-button')
 
   // Three sessions, three columns — search on the left, several conversations open side by side,
   // each with its own shell running underneath it.
   await sidebarSession(h.page, 'Repo root session').click()
   for (const title of ['Add worktree switcher', 'Worktree session']) {
     const target = h.page.locator('.session-row-wrap').filter({ hasText: title })
-    await (await rowAction(target, 'split-session-button')).click()
+    await clickRowAction(target, 'split-session-button')
   }
 
   const columns = h.page.getByTestId('session-column')

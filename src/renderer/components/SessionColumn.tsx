@@ -10,6 +10,8 @@ import { TerminalListPanel } from './TerminalListPanel'
 import { ResumeBar } from './ResumeBar'
 import { Toolbar, type ToolbarButtonSpec } from './Toolbar'
 import { BranchSwitcher } from './BranchSwitcher'
+import { Composer } from './Composer'
+import { ImageLightbox } from './ImageLightbox'
 import { BranchIcon, ArrowDownIcon, ArrowUpIcon, CopyIcon, PlusIcon, ListIcon, EllipsisIcon } from './icons'
 import { GitMenu, type GitMenuItem } from './GitMenu'
 import { useNotifications } from '../state/notifications'
@@ -42,6 +44,8 @@ interface Props {
   onCloseTab: (key: string) => void
   onSetView: (key: string, view: OpenTab['view']) => void
   onResume: (session: SessionNode) => void
+  /** Resumes and resolves once the pty exists, so the composer can send straight afterwards. */
+  onResumeAsync: (session: SessionNode) => Promise<void>
   onRenameSession: (session: SessionNode, title: string) => void
   onRenamePending: (ptyId: string, title: string) => void
   /** Splits this column's active session into a column of its own beside it. */
@@ -61,7 +65,7 @@ export function SessionColumn(props: Props): JSX.Element {
   const {
     column, sessions, pending, resumed, ptyOverrides, shellTabs, setShellTabs,
     activeTerminal, setActiveTerminal, bottomHeight, onStartBottomResize, isActive, onFocus,
-    onActivateTab, onCloseTab, onSetView, onResume, onRenameSession, onRenamePending,
+    onActivateTab, onCloseTab, onSetView, onResume, onResumeAsync, onRenameSession, onRenamePending,
     onSplitActive, weight,
   } = props
 
@@ -79,6 +83,8 @@ export function SessionColumn(props: Props): JSX.Element {
   // in. Null when closed, so one piece of state carries both "is it open" and "what for".
   const [branchPicker, setBranchPicker] = useState<'checkout' | 'merge' | 'create' | null>(null)
   const [gitMenuOpen, setGitMenuOpen] = useState(false)
+  /** The image being shown full size, from either the transcript or the composer. */
+  const [lightbox, setLightbox] = useState<string | null>(null)
 
   const activeKey = column.activeKey
   const activeTab = activeKey !== null ? findTab(column, activeKey) : null
@@ -390,7 +396,22 @@ export function SessionColumn(props: Props): JSX.Element {
              *  multiply the live-update refetches by the number of open tabs. */}
             {activePending === null && activeSession !== null && (
               <div hidden={activeView !== 'transcript'} className="pane-fill">
-                <Transcript session={activeSession} visible={activeView === 'transcript'} />
+                <Transcript
+                  session={activeSession}
+                  visible={activeView === 'transcript'}
+                  onOpenImage={setLightbox}
+                />
+                {/* The chat box belongs to the transcript rather than the terminal: this is the
+                  * reading view, and being able to reply without switching to the raw terminal is
+                  * the whole point. What it types still goes to that terminal. */}
+                <Composer
+                  session={activeSession}
+                  ptyId={keyFor(activeSession.sessionId)}
+                  running={resumed.has(activeSession.sessionId)}
+                  onResume={() => onResumeAsync(activeSession)}
+                  onShowSession={() => onSetView(activeSession.sessionId, 'terminal')}
+                  onOpenImage={setLightbox}
+                />
               </div>
             )}
             {/* Every tab's claude terminal stays mounted, hidden, so switching tabs (or columns)
@@ -565,6 +586,8 @@ export function SessionColumn(props: Props): JSX.Element {
           </div>
         </>
       )}
+
+      {lightbox !== null && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
 
       {branchPicker !== null && shellKey !== null && (
         <BranchSwitcher

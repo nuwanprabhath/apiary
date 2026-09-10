@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { launchApiary, type Harness, sidebarSession } from './helpers'
+import { launchApiary, relaunchApiary, type Harness, sidebarSession } from './helpers'
 
 /** The menu lives in the main process, so trigger the same channel it sends. */
 async function openImportDialog(harness: Harness): Promise<void> {
@@ -226,5 +226,73 @@ test.describe('folder checkbox state', () => {
     // ...and the down arrow at the bottom steps back the other way.
     await h.page.mouse.click(box.x + box.width - 6, box.y + box.height - 6)
     await expect.poll(async () => list.evaluate((el) => el.scrollTop)).toBeGreaterThan(afterUp)
+  })
+})
+
+test.describe('dialog behaviour', () => {
+  let h: Harness
+  test.beforeEach(async () => { h = await launchApiary() })
+  test.afterEach(async () => { await h.close() })
+
+  test('Escape closes the import dialog', async () => {
+    await openImportDialog(h)
+    await h.page.keyboard.press('Escape')
+    await expect(h.page.getByTestId('import-dialog')).toHaveCount(0)
+  })
+
+  test('the dialog can be dragged wider, and the width sticks across a relaunch', async () => {
+    // Session titles and folder paths both run long; a fixed-width dialog ellipsizes exactly the
+    // part you opened it to read.
+    await openImportDialog(h)
+    const dialog = h.page.getByTestId('import-dialog')
+    const before = (await dialog.boundingBox())!
+
+    const handle = (await h.page.getByTestId('import-resizer-right').boundingBox())!
+    await h.page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+    await h.page.mouse.down()
+    await h.page.mouse.move(handle.x + handle.width / 2 + 120, handle.y + handle.height / 2, { steps: 10 })
+    await h.page.mouse.up()
+
+    const after = (await dialog.boundingBox())!
+    expect(after.width).toBeGreaterThan(before.width + 100)
+
+    await h.page.getByTestId('import-cancel').click()
+    await relaunchApiary(h)
+    await openImportDialog(h)
+    const reopened = (await h.page.getByTestId('import-dialog').boundingBox())!
+    expect(Math.abs(reopened.width - after.width)).toBeLessThan(4)
+  })
+
+  test('one checkbox selects every session listed', async () => {
+    await openImportDialog(h)
+    await expect(h.page.getByTestId('import-count')).toContainText('0 selected')
+
+    await h.page.getByTestId('import-select-all').check()
+    await expect(h.page.getByTestId('import-count')).toContainText('4 selected')
+    await expect(h.page.getByTestId('import-session-checkbox').nth(0)).toBeChecked()
+    await expect(h.page.getByTestId('import-session-checkbox').nth(3)).toBeChecked()
+
+    // Unticking it puts everything back, rather than leaving a half-selected mess behind.
+    await h.page.getByTestId('import-select-all').uncheck()
+    await expect(h.page.getByTestId('import-count')).toContainText('0 selected')
+  })
+
+  test('select-all follows the search, so it never quietly picks rows you filtered out', async () => {
+    await openImportDialog(h)
+    await h.page.getByTestId('import-search').fill('csv')
+    await expect(h.page.getByTestId('import-session-checkbox')).toHaveCount(1)
+
+    await h.page.getByTestId('import-select-all').check()
+    await expect(h.page.getByTestId('import-count')).toContainText('1 selected')
+  })
+
+  test('hovering a session shows its full name and how old it is', async () => {
+    await openImportDialog(h)
+    // The visible label is ellipsized to fit; the tooltip is where the whole thing lives, along
+    // with the one other fact you need to tell two similar sessions apart.
+    const row = h.page.locator('.import-row').filter({ hasText: 'Fix CSV export bug' })
+    const tip = await row.getAttribute('title')
+    expect(tip).toContain('Fix CSV export bug')
+    expect(tip).toMatch(/Last active/i)
   })
 })

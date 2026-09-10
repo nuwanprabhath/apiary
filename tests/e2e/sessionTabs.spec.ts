@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { launchApiary, importAll, sidebarSession, type Harness, rowAction } from './helpers'
+import { launchApiary, importAll, sidebarSession, type Harness, clickRowAction } from './helpers'
 
 let h: Harness
 test.beforeEach(async () => {
@@ -52,7 +52,7 @@ test('the split button opens the session in a second column, with its own shell'
   // The split button is a sibling of the row button, not a child of it (a <button> can't nest
   // another), so filter the wrapper rather than the row.
   const splitRow = h.page.locator('.session-row-wrap').filter({ hasText: 'Add worktree switcher' })
-  await (await rowAction(splitRow, 'split-session-button')).click()
+  await clickRowAction(splitRow, 'split-session-button')
 
   await expect(h.page.getByTestId('session-column')).toHaveCount(2)
   // One tab in each column, not two in one.
@@ -71,7 +71,7 @@ test('splitting again keeps adding columns — there is no cap', async () => {
   await sidebarSession(h.page, 'Fix CSV export bug').click()
   for (const title of ['Add worktree switcher', 'Repo root session']) {
     const target = h.page.locator('.session-row-wrap').filter({ hasText: title })
-    await (await rowAction(target, 'split-session-button')).click()
+    await clickRowAction(target, 'split-session-button')
   }
   await expect(h.page.getByTestId('session-column')).toHaveCount(3)
 })
@@ -196,4 +196,63 @@ test('a column cannot be dragged narrower than its floor', async () => {
     (els) => els.map((el) => Math.round(el.getBoundingClientRect().width)),
   )
   expect(left).toBeGreaterThanOrEqual(200)
+})
+
+test('a dialog opened from one column is not painted through by the next column', async () => {
+  // Regression: `.modal-backdrop` carried no z-index. A modal is rendered inside whichever column
+  // opened it, and later sibling columns contain positioned boxes of their own — so a dialog
+  // opened from column 1 was painted over by column 2's transcript, which reads as the dialog
+  // being translucent.
+  await sidebarSession(h.page, 'Repo root session').click()
+  await h.page.getByTestId('session-tab-split').click()
+  await expect(h.page.getByTestId('session-column')).toHaveCount(2)
+
+  await h.page.getByTestId('session-column').first().getByTestId('shell-toggle').click()
+  await expect(h.page.getByTestId('terminal-shell').first()).toBeVisible()
+  await h.page.getByTestId('toolbar-branch-button').first().click()
+  await expect(h.page.getByTestId('branch-switcher')).toBeVisible()
+
+  // Whatever is actually painted over the dialog's own area must belong to the dialog. Sampled
+  // near its right-hand edge, which is the part that overlaps the column to the right.
+  const owned = await h.page.evaluate(() => {
+    const el = document.querySelector('[data-testid="branch-switcher"]') as HTMLElement
+    const r = el.getBoundingClientRect()
+    return [0.25, 0.5, 0.75].map((f) => {
+      const hit = document.elementFromPoint(r.right - 20, r.top + r.height * f)
+      return el.contains(hit)
+    })
+  })
+  expect(owned).toEqual([true, true, true])
+})
+
+test('closing tabs never leaves an empty column stranded beside a full one', async () => {
+  // The invariant behind "an empty side section appeared": a column with no tabs is dropped
+  // unless it is the only one left, whichever route emptied it.
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await sidebarSession(h.page, 'Add worktree switcher').click()
+  // Each split adds a split button, so always act on the column that split last — the focused one.
+  await h.page.getByTestId('session-tab-split').last().click()
+  await sidebarSession(h.page, 'Repo root session').click()
+  await h.page.getByTestId('session-tab-split').last().click()
+  await expect(h.page.getByTestId('session-column')).toHaveCount(3)
+
+  const emptyColumns = async (): Promise<number> =>
+    h.page.getByTestId('session-column').evaluateAll(
+      (els) => els.filter((el) => el.querySelectorAll('[data-testid="session-tab"]').length === 0).length,
+    )
+
+  // Close tabs one at a time from every position, checking after each that no column has been
+  // left behind without any.
+  while (await h.page.getByTestId('session-tab-close').count() > 1) {
+    const columns = await h.page.getByTestId('session-column').count()
+    await h.page.getByTestId('session-tab-close').first().click()
+    expect(await emptyColumns()).toBe(0)
+    expect(await h.page.getByTestId('session-column').count()).toBeLessThanOrEqual(columns)
+  }
+
+  // The very last one may leave a single empty column — that is the placeholder the next click
+  // needs somewhere to land in, and it says so rather than being blank.
+  await h.page.getByTestId('session-tab-close').first().click()
+  await expect(h.page.getByTestId('session-column')).toHaveCount(1)
+  await expect(h.page.getByTestId('content-empty')).toBeVisible()
 })

@@ -23,6 +23,11 @@ resume it in an embedded terminal in the correct working directory.
 - **Work on several sessions at once** — sessions open as tabs, and any session can
   be split into a column of its own beside the current one (as many columns as you
   like), so two or three conversations can be watched side by side.
+- **Chat from the transcript** — a message box under the conversation, so you can reply without
+  switching to the raw terminal. Paste or drop images straight into it: each one gets a thumbnail
+  you can click to see full size, and images already in a session's history render the same way.
+  It isn't a second conversation — what you type is delivered into the very same `claude --resume`
+  process, so the session's own transcript stays the single record.
 - **Resume in an embedded terminal** — reopens a session with `claude --resume`
   in its correct working directory, right inside the app; warns (with the option
   to fork instead) if that session is already running elsewhere.
@@ -81,7 +86,7 @@ as long as the build requirements below are met.
     npm install
     npm start          # run the app
     npm test           # unit and integration tests
-    npm run test:e2e   # Playwright tests against the built renderer
+    npm run test:e2e   # Playwright tests against the built renderer (off-screen; APIARY_HEADED=1 to watch)
     npm run screenshot # regenerate docs/screenshot.png (the README image above)
     npm run typecheck
 
