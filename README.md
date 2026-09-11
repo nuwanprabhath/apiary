@@ -7,7 +7,7 @@ Apiary reads the session files Claude Code already writes to `~/.claude/projects
 worktrees under their parent repository, and lets you read any conversation or
 resume it in an embedded terminal in the correct working directory.
 
-![Apiary: a searchable sidebar with pinned and grouped sessions on the left, three sessions open side by side, each with its own shell running underneath it](docs/screenshot.png)
+![Apiary: a searchable sidebar with pinned and grouped sessions on the left, three sessions open side by side — the middle one a live Claude Code session, the others showing their transcripts — each with its own shell running underneath it](docs/screenshot.png)
 
 ## Features
 
@@ -92,11 +92,15 @@ as long as the build requirements below are met.
 
 `npm run screenshot` launches the real app against a representative fixture (three
 project folders, a git worktree, a few sessions with human-sounding titles), opens
-three of them side by side with a shell running under each, and overwrites
-`docs/screenshot.png` — see `scripts/screenshot.spec.ts`. It's a Playwright script,
-not a test (it asserts nothing, and lives outside `tests/e2e` so `npm run test:e2e`
-never runs it); run it by hand whenever a change is significant enough that the
-README's picture of the app should catch up.
+three of them side by side with a shell running under each, and resumes one so the
+picture shows a live session rather than only transcripts, before overwriting
+`docs/screenshot.png` — see `scripts/screenshot.spec.ts`. The resumed session runs
+`scripts/fixtures/fake-claude.sh`, a stand-in that prints a fixed, believable Claude
+Code session: the real CLI needs an API key and a network and would render something
+different every run, neither of which belongs in a committed image. It's a Playwright
+script, not a test (it asserts nothing, and lives outside `tests/e2e` so
+`npm run test:e2e` never runs it); run it by hand whenever a change is significant
+enough that the README's picture of the app should catch up.
 
 `better-sqlite3` and `node-pty` are native modules, and Electron's Node ABI is
 not the same as your system Node's, so the same `node_modules` can't serve

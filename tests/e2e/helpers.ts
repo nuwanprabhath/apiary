@@ -20,6 +20,8 @@ export interface Harness {
   repoRoot: string
   /** A `git worktree add` checkout of repoRoot, nested under it in the tree. */
   worktreeDir: string
+  /** Opens a second app window through the real File > New Window menu item. */
+  newWindow(): Promise<Page>
   close(): Promise<void>
 }
 
@@ -185,6 +187,21 @@ export async function launchApiary(
     workdirB,
     repoRoot,
     worktreeDir,
+    async newWindow() {
+      // Driven through the actual menu item rather than by constructing a BrowserWindow here, so
+      // the test exercises the path a user takes — including whatever the app does on the way.
+      await app.evaluate(({ Menu }) => {
+        const menu = Menu.getApplicationMenu()
+        const item = menu?.items
+          .flatMap((i) => i.submenu?.items ?? [])
+          .find((i) => i.label === 'New Window')
+        if (item === undefined) throw new Error('File > New Window is missing from the menu')
+        item.click()
+      })
+      const opened = await app.waitForEvent('window')
+      await opened.waitForLoadState('domcontentloaded')
+      return opened
+    },
     async close() {
       await app.close()
       rmSync(home, { recursive: true, force: true })

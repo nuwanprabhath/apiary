@@ -10,6 +10,8 @@ import { buildTree, filterTree } from './tree/buildTree'
 import { indexTranscript, readTranscriptPage } from './transcript/transcriptReader'
 import { detectLiveSessions } from './live/liveSessionDetector'
 import { PtyManager } from './pty/ptyManager'
+import { SearchIndex } from './search/searchIndex'
+import { runIndexPass, type IndexableSession } from './search/indexer'
 import { buildResumeCommand, buildNewSessionCommand } from './pty/resumeCommand'
 import * as branchOps from './git/branchOps'
 import type { ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo } from '@shared/types'
@@ -24,6 +26,16 @@ export interface AppServiceOptions {
   autoImportAll?: boolean
   /** Where images pasted into the composer are written. Defaults beside the database. */
   imagesDir?: string
+  /** Where the full-text search index lives. Defaults beside the database. */
+  searchDbPath?: string
+  /** Whether search also looks inside conversations. */
+  searchChatContent?: boolean
+  /**
+   * Called after an index pass that actually changed something. Indexing runs behind whatever the
+   * user is doing, so a search typed while it was still running would otherwise sit on results
+   * that were incomplete at the moment they were fetched, with nothing to prompt a re-query.
+   */
+  onIndexUpdated?: () => void
 }
 
 /**
@@ -57,11 +69,20 @@ export class AppService {
   private pendingRefresh = false
   private disposed = false
   private autoImportAll = false
+  /**
+   * The full-text index, created on first use. Lazy because it is only worth the file handle and
+   * the schema when content search is actually on, and it can be switched off in Settings.
+   */
+  private searchIndex: SearchIndex | null = null
+  private searchChatContent = true
+  /** Set while a pass is running, so refreshes cannot stack passes on top of each other. */
+  private indexing = false
 
   constructor(options: AppServiceOptions) {
     this.options = options
     this.store = new SessionStore(options.dbPath)
     this.autoImportAll = options.autoImportAll ?? false
+    this.searchChatContent = options.searchChatContent ?? true
   }
 
   /**
@@ -161,6 +182,8 @@ export class AppService {
     if (this.autoImportAll) {
       await this.importAllDiscovered()
     }
+    // Deliberately not awaited: see updateSearchIndex.
+    void this.updateSearchIndex()
   }
 
   async tree(query = ''): Promise<ProjectNode[]> {
@@ -170,7 +193,71 @@ export class AppService {
       new Set(this.live.keys()),
       (path) => existsSync(path),
     )
-    return filterTree(full, query)
+    // Title matching happens in the tree itself; the index contributes the sessions whose
+    // *contents* match, which are then kept by the same filter. Searching content is additive —
+    // it can only widen what a query finds, never hide something the title already matched.
+    const byContent = query.trim() === '' ? new Set<string>() : new Set(this.searchSessions(query))
+    return filterTree(full, query, byContent)
+  }
+
+  /** Session ids whose conversation matches, or none when content search is off. */
+  searchSessions(query: string): string[] {
+    if (!this.searchChatContent) return []
+    try {
+      return this.index().search(query).map((hit) => hit.sessionId)
+    } catch {
+      // Search is an enhancement to the sidebar, never a reason for it to fail to load.
+      return []
+    }
+  }
+
+  /** The index, opened on first use. */
+  private index(): SearchIndex {
+    this.searchIndex ??= new SearchIndex(
+      this.options.searchDbPath ?? join(dirname(this.options.dbPath), 'search.db'),
+    )
+    return this.searchIndex
+  }
+
+  setSearchChatContent(enabled: boolean): void {
+    this.searchChatContent = enabled
+  }
+
+  /** Wipes the index so the next pass rebuilds it — the "Rebuild index" action in Settings. */
+  async rebuildSearchIndex(): Promise<void> {
+    if (!this.searchChatContent) return
+    this.index().clear()
+    await this.updateSearchIndex()
+  }
+
+  /** How many sessions are indexed, for Settings to show that the index exists and is populated. */
+  searchIndexCount(): number {
+    return this.searchChatContent ? this.index().count() : 0
+  }
+
+  /**
+   * Brings the index up to date for every imported session.
+   *
+   * Never awaited by `refresh()`: indexing is a background chore, and a rescan that waited for it
+   * would make the Refresh button as slow as the slowest thing in the index. The `indexing` guard
+   * means overlapping refreshes queue no work rather than racing each other over the same files.
+   */
+  async updateSearchIndex(): Promise<void> {
+    if (!this.searchChatContent || this.indexing || this.disposed) return
+    this.indexing = true
+    try {
+      const sessions: IndexableSession[] = this.store
+        .visibleSessions()
+        .map((s) => ({ sessionId: s.sessionId, file: s.filePath }))
+      const result = await runIndexPass(
+        this.index(), sessions, () => this.disposed || !this.searchChatContent,
+      )
+      if (result.indexed > 0 && !this.disposed) this.options.onIndexUpdated?.()
+    } catch {
+      // A failed pass leaves the index as it was; the next refresh tries again.
+    } finally {
+      this.indexing = false
+    }
   }
 
   async discovered(): Promise<StoredSession[]> {
@@ -406,6 +493,10 @@ export class AppService {
       await this.refreshPromise.catch(() => {})
     }
     this.store.close()
+    // `disposed` already tells a running index pass to stop between files, so this waits on
+    // nothing: the worst case is one file's read finishing against a handle about to close.
+    this.searchIndex?.close()
+    this.searchIndex = null
   }
 
   setClaudeBin(path: string | null): void {

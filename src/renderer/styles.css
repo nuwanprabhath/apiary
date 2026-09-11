@@ -1221,34 +1221,6 @@ body.resizing-active { user-select: none; }
 .git-submenu { position: absolute; left: 100%; top: -5px; margin-left: 2px; }
 
 /* Right-click context menu for the terminal, styled to match git-menu. */
-.terminal-context-menu-root { position: fixed; z-index: 60; }
-.terminal-context-menu {
-  list-style: none;
-  margin: 0;
-  padding: 4px;
-  min-width: 140px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: var(--shadow-overlay);
-}
-.terminal-context-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-  padding: 5px 8px;
-  border-radius: 5px;
-  cursor: pointer;
-  font: inherit;
-}
-.terminal-context-menu-item:hover:not(:disabled), .terminal-context-menu-item:focus-visible { background: var(--selected); }
-.terminal-context-menu-item:disabled { color: var(--muted); cursor: default; }
-
 /*
  * A dialog you can widen by dragging either edge. The strips sit just inside the dialog's own
  * border rather than outside it, so they never overlap the backdrop (where a mousedown would be
@@ -1493,9 +1465,9 @@ body.resizing-active { user-select: none; }
 .lightbox-close:hover { background: var(--selected); }
 .lightbox-close svg { width: 16px; height: 16px; display: block; }
 
-/* Right-click menu on a session tab. Fixed to the viewport at the cursor, so it is not clipped by
-   the tab strip's own horizontal overflow; shares the git menu's look, being the same kind of thing. */
-.tab-menu {
+/* The shared right-click menu (tab strip, terminal, sidebar). Fixed to the viewport at the cursor,
+   so it is never clipped by the overflow of whatever opened it; shares the git menu's look. */
+.context-menu {
   position: fixed;
   z-index: 60;
   padding: 4px;
@@ -1505,7 +1477,7 @@ body.resizing-active { user-select: none; }
   border-radius: 8px;
   box-shadow: var(--shadow-overlay);
 }
-.tab-menu-item {
+.context-menu-item {
   display: block;
   width: 100%;
   border: 0;
@@ -1517,10 +1489,44 @@ body.resizing-active { user-select: none; }
   cursor: pointer;
   font: inherit;
 }
-.tab-menu-item:hover, .tab-menu-item:focus-visible { background: var(--hover); }
+.context-menu-item:hover:not(:disabled), .context-menu-item:focus-visible { background: var(--hover); }
+.context-menu-item:disabled { color: var(--muted); cursor: default; }
+.context-menu-item[data-separator="true"] {
+  margin-top: 4px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 5px 5px;
+}
 
 /* Dragging a tab to reorder it: the tab being carried fades, and the one it would land on shows an
    insertion edge. A border would shift the strip's layout as it appears, so the marker is an inset
    shadow, which takes up no space. */
 .session-tab[data-dragging="true"] { opacity: 0.4; }
 .session-tab[data-drop-target="true"] { box-shadow: inset 2px 0 0 0 var(--accent); }
+
+/* A user-made heading in the sidebar, holding folders filed under it. Sits a step above the folder
+   rows it contains — it is the user's own organisation, not part of the filesystem's. */
+.folder-group { margin-bottom: 2px; }
+.folder-group-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 4px 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.folder-group-header:hover { color: var(--text); }
+.folder-group-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-group-rename { margin: 2px 8px; width: calc(100% - 16px); }
+/* Shown only while a group is empty, since the drop target would otherwise be invisible. */
+.folder-group-empty { margin: 0 0 4px 22px; font-size: 12px; }
+/* A folder being dragged over the heading of the group it would join. */
+.folder-group-header-wrap { border-radius: 6px; }
+.folder-group-header-wrap:hover { background: var(--hover); }

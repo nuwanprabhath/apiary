@@ -290,7 +290,7 @@ test('right-clicking a tab offers to pin the session, which lifts it into the pi
 
   await h.page.getByTestId('session-tab').first().click({ button: 'right' })
   await expect(h.page.getByTestId('tab-menu')).toBeVisible()
-  await h.page.getByTestId('tab-menu-pin').click()
+  await h.page.getByTestId('context-menu-pin').click()
 
   const section = h.page.getByTestId('pinned-section')
   await expect(section).toBeVisible()
@@ -298,5 +298,5 @@ test('right-clicking a tab offers to pin the session, which lifts it into the pi
 
   // And the menu says so the second time round, rather than offering to pin it again.
   await h.page.getByTestId('session-tab').first().click({ button: 'right' })
-  await expect(h.page.getByTestId('tab-menu-pin')).toHaveText('Unpin from sidebar')
+  await expect(h.page.getByTestId('context-menu-pin')).toHaveText('Unpin from sidebar')
 })

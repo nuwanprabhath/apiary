@@ -3,6 +3,10 @@ import type { ProjectNode, SessionNode } from '@shared/types'
 import { useTree } from '../state/useTree'
 import { SessionTree } from './SessionTree'
 import { SessionRow } from './SessionRow'
+import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import {
+  groupFolders, moveFolder, moveGroup, deleteGroup, newGroupId, type GroupState,
+} from '../state/groups'
 import { CloseIcon, RefreshIcon } from './icons'
 
 /** Every session anywhere in the tree, flattened, so pinned ids can be resolved back to rows. */
@@ -55,6 +59,11 @@ interface Props {
    * re-rendering with a selection does not yank the list around while you are scrolling it by hand.
    */
   revealId: string | null
+  /** The user's own arrangement of the top level: named groups, assignments, and folder order. */
+  groupState: GroupState
+  onGroupStateChange: (next: GroupState) => void
+  /** Reorders the pinned section by dropping one pinned session onto another. */
+  onReorderPinned: (id: string, beforeId: string) => void
 }
 
 /**
@@ -76,7 +85,7 @@ function pathsToSession(nodes: ProjectNode[], id: string, trail: string[] = []):
 export function Sidebar({
   selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onDeleteSession,
   onSplitSession, pinned, onTogglePin, pinnedCollapsed, onPinnedCollapsedChange,
-  pending, onSelectPending, revealId,
+  pending, onSelectPending, revealId, groupState, onGroupStateChange, onReorderPinned,
 }: Props): JSX.Element {
   const [query, setQuery] = useState('')
   const { tree, loading, reload } = useTree(query)
@@ -132,6 +141,127 @@ export function Sidebar({
     if (next.has(path)) next.delete(path)
     else next.add(path)
     onCollapsedChange(next)
+  }
+
+  /**
+   * The top level, as the user arranged it: their groups first, then everything ungrouped.
+   *
+   * Searching deliberately bypasses the arrangement — while a query is on, the tree is already a
+   * filtered subset, and hiding matches inside collapsed groups would defeat the point of typing.
+   */
+  const searching = query.trim() !== ''
+  const arranged = useMemo(
+    () => groupFolders(tree, (n) => n.path, groupState.groups, groupState.assignments, groupState.folderOrder),
+    [tree, groupState],
+  )
+  const groupsCollapsed = useMemo(() => new Set(groupState.collapsed), [groupState.collapsed])
+
+  /** Which menu is open, if any: a right-click on a folder, or on a group's header. */
+  const [menu, setMenu] = useState<{ kind: 'folder' | 'group'; id: string; x: number; y: number } | null>(null)
+  /** A group whose name is being edited in place, instead of through a modal. */
+  const [renamingGroup, setRenamingGroup] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
+
+  const patchGroups = (next: Partial<GroupState>): void => {
+    onGroupStateChange({ ...groupState, ...next })
+  }
+
+  const assignFolder = (path: string, groupId: string | null): void => {
+    const assignments = { ...groupState.assignments }
+    if (groupId === null) delete assignments[path]
+    else assignments[path] = groupId
+    patchGroups({ assignments })
+  }
+
+  const startNewGroup = (withFolder: string): void => {
+    const group = { id: newGroupId(), name: 'New group' }
+    onGroupStateChange({
+      ...groupState,
+      groups: [...groupState.groups, group],
+      assignments: { ...groupState.assignments, [withFolder]: group.id },
+    })
+    // Straight into rename, so naming it is the same gesture as making it rather than a second one.
+    setRenamingGroup(group.id)
+    setRenameDraft('New group')
+  }
+
+  const commitRename = (id: string): void => {
+    const name = renameDraft.trim()
+    setRenamingGroup(null)
+    if (name === '') return
+    patchGroups({ groups: groupState.groups.map((g) => (g.id === id ? { ...g, name } : g)) })
+  }
+
+  const menuItems = (): ContextMenuItem[] => {
+    if (menu === null) return []
+    if (menu.kind === 'folder') {
+      const current = groupState.assignments[menu.id]
+      return [
+        { id: 'new-group', label: 'New group from this folder…', run: () => startNewGroup(menu.id) },
+        ...groupState.groups
+          .filter((g) => g.id !== current)
+          .map((g) => ({ id: `move-${g.id}`, label: `Add to “${g.name}”`, run: () => assignFolder(menu.id, g.id) })),
+        {
+          id: 'remove-from-group',
+          label: 'Remove from group',
+          disabled: current === undefined,
+          separator: true,
+          run: () => assignFolder(menu.id, null),
+        },
+      ]
+    }
+    const index = groupState.groups.findIndex((g) => g.id === menu.id)
+    return [
+      {
+        id: 'rename-group',
+        label: 'Rename group…',
+        run: () => {
+          setRenamingGroup(menu.id)
+          setRenameDraft(groupState.groups[index]?.name ?? '')
+        },
+      },
+      { id: 'group-up', label: 'Move group up', disabled: index <= 0, run: () => patchGroups({ groups: moveGroup(groupState.groups, menu.id, -1) }) },
+      {
+        id: 'group-down',
+        label: 'Move group down',
+        disabled: index === -1 || index >= groupState.groups.length - 1,
+        run: () => patchGroups({ groups: moveGroup(groupState.groups, menu.id, 1) }),
+      },
+      {
+        id: 'delete-group',
+        label: 'Delete group',
+        separator: true,
+        // The folders inside come back out as ungrouped: deleting a heading must never look like
+        // deleting the things filed under it.
+        run: () => {
+          const next = deleteGroup(groupState.groups, groupState.assignments, menu.id)
+          patchGroups({ groups: next.groups, assignments: next.assignments })
+        },
+      },
+    ]
+  }
+
+  const reorderFolder = (path: string, beforePath: string): void => {
+    patchGroups({ folderOrder: moveFolder(groupState.folderOrder, tree.map((n) => n.path), path, beforePath) })
+    // Dropping a folder onto one inside a group files it there too, which is the other half of
+    // what dragging it means — otherwise it would reorder into a group it does not belong to.
+    const target = groupState.assignments[beforePath]
+    if (target !== groupState.assignments[path]) assignFolder(path, target ?? null)
+  }
+
+  /** The tree props every level shares, so the grouped and ungrouped renders cannot drift apart. */
+  const treeProps = {
+    collapsed,
+    onToggle: toggle,
+    selectedId,
+    onSelect,
+    onNewSession,
+    onDeleteSession,
+    onSplitSession,
+    pinned: pinnedSet,
+    onTogglePin,
+    onReorderFolder: reorderFolder,
+    onFolderMenu: (path: string, x: number, y: number) => setMenu({ kind: 'folder', id: path, x, y }),
   }
 
   return (
@@ -219,16 +349,35 @@ export function Sidebar({
             <span className="pinned-count">{pinnedSessions.length}</span>
           </button>
           {!pinnedCollapsed && pinnedSessions.map((s) => (
-            <SessionRow
+            <div
               key={s.sessionId}
-              session={s}
-              selected={s.sessionId === selectedId}
-              pinned
-              onSelect={onSelect}
-              onSplit={onSplitSession}
-              onDelete={onDeleteSession}
-              onTogglePin={onTogglePin}
-            />
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = 'move'
+                e.dataTransfer.setData('application/x-apiary-pinned', s.sessionId)
+              }}
+              onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes('application/x-apiary-pinned')) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+              }}
+              onDrop={(e) => {
+                const dragged = e.dataTransfer.getData('application/x-apiary-pinned')
+                if (dragged === '' || dragged === s.sessionId) return
+                e.preventDefault()
+                onReorderPinned(dragged, s.sessionId)
+              }}
+            >
+              <SessionRow
+                session={s}
+                selected={s.sessionId === selectedId}
+                pinned
+                onSelect={onSelect}
+                onSplit={onSplitSession}
+                onDelete={onDeleteSession}
+                onTogglePin={onTogglePin}
+              />
+            </div>
           ))}
         </section>
       )}
@@ -251,20 +400,87 @@ export function Sidebar({
         </ul>
       )}
 
-      {tree.length > 0 && (
-        <SessionTree
-          nodes={tree}
-          collapsed={collapsed}
-          onToggle={toggle}
-          selectedId={selectedId}
-          onSelect={onSelect}
-          onNewSession={onNewSession}
-          onDeleteSession={onDeleteSession}
-          onSplitSession={onSplitSession}
-          pinned={pinnedSet}
-          onTogglePin={onTogglePin}
-        />
+      {tree.length > 0 && searching && <SessionTree nodes={tree} {...treeProps} />}
+
+      {tree.length > 0 && !searching && (
+        <>
+          {arranged.groups.map(({ group, folders }) => {
+            const open = !groupsCollapsed.has(group.id)
+            return (
+              <section className="folder-group" data-testid="folder-group" key={group.id}>
+                <div
+                  className="folder-group-header-wrap"
+                  data-group-id={group.id}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    setMenu({ kind: 'group', id: group.id, x: e.clientX, y: e.clientY })
+                  }}
+                  onDragOver={(e) => {
+                    if (!e.dataTransfer.types.includes('application/x-apiary-folder')) return
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                  }}
+                  onDrop={(e) => {
+                    // Dropping onto the heading files a folder into the group — the gesture for
+                    // an empty group, which has no folder of its own to drop onto.
+                    const dragged = e.dataTransfer.getData('application/x-apiary-folder')
+                    if (dragged === '') return
+                    e.preventDefault()
+                    assignFolder(dragged, group.id)
+                  }}
+                >
+                  {renamingGroup === group.id ? (
+                    <input
+                      className="search folder-group-rename"
+                      data-testid="folder-group-rename"
+                      autoFocus
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onBlur={() => commitRename(group.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitRename(group.id)
+                        if (e.key === 'Escape') setRenamingGroup(null)
+                      }}
+                    />
+                  ) : (
+                    <button
+                      className="folder-group-header"
+                      data-testid="folder-group-toggle"
+                      aria-expanded={open}
+                      onClick={() => patchGroups({
+                        collapsed: open
+                          ? [...groupState.collapsed, group.id]
+                          : groupState.collapsed.filter((id) => id !== group.id),
+                      })}
+                    >
+                      <svg className="chevron" data-expanded={open} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span className="folder-group-label">{group.name}</span>
+                      <span className="pinned-count">{folders.length}</span>
+                    </button>
+                  )}
+                </div>
+                {open && folders.length > 0 && <SessionTree nodes={folders} {...treeProps} />}
+                {open && folders.length === 0 && (
+                  <p className="folder-group-empty muted" data-testid="folder-group-empty">
+                    Drag a folder here.
+                  </p>
+                )}
+              </section>
+            )
+          })}
+
+          {arranged.ungrouped.length > 0 && <SessionTree nodes={arranged.ungrouped} {...treeProps} />}
+        </>
       )}
+
+      <ContextMenu
+        items={menuItems()}
+        position={menu === null ? null : { x: menu.x, y: menu.y }}
+        onClose={() => setMenu(null)}
+        testId="sidebar-menu"
+      />
     </aside>
   )
 }

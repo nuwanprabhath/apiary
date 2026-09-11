@@ -98,3 +98,21 @@ test('removing a pinned session drops it from the pinned list as well as the tre
   await expect(h.page.getByTestId('pinned-section')).toHaveCount(0)
   await expect(h.page.getByTestId('session-item')).toHaveCount(3)
 })
+
+test('pinned sessions can be dragged into the order you want them in, and stay there', async () => {
+  await clickRowAction(row(h, 'Fix CSV export bug'), 'pin-session-button')
+  await clickRowAction(row(h, 'Add worktree switcher'), 'pin-session-button')
+
+  const section = h.page.getByTestId('pinned-section')
+  const titles = section.locator('[data-testid="session-item"] .session-title')
+  // Newest pin goes to the top, so this starts as the reverse of the order they were pinned in.
+  await expect(titles).toHaveText(['Add worktree switcher', 'Fix CSV export bug'])
+
+  const rows = section.locator('[data-testid="session-item"]')
+  await rows.last().dragTo(rows.first())
+  await expect(titles).toHaveText(['Fix CSV export bug', 'Add worktree switcher'])
+
+  await relaunchApiary(h)
+  await expect(h.page.getByTestId('pinned-section').locator('[data-testid="session-item"] .session-title'))
+    .toHaveText(['Fix CSV export bug', 'Add worktree switcher'])
+})

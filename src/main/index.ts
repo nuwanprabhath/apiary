@@ -14,6 +14,17 @@ const dirname = fileURLToPath(new URL('.', import.meta.url))
 let service: AppService | null = null
 let disposeIpc: (() => void) | null = null
 let mainWindow: BrowserWindow | null = null
+/**
+ * How many windows have ever been opened this run, which is what gives each one its identity.
+ *
+ * Windows share one main process — and therefore one set of sessions, terminals and settings — but
+ * not one layout: which tabs and columns a window has open is its own. The renderer keys its
+ * persisted layout on this number (see uiState.ts), so a second window is a second workspace over
+ * the same sessions rather than a duplicate that fights the first over the same stored state.
+ * Numbers are not reused, so closing window 2 and opening another gives a fresh workspace rather
+ * than inheriting a dead one's arrangement.
+ */
+let windowsOpened = 0
 let settingsFile = ''
 let autoImportTimer: NodeJS.Timeout | null = null
 
@@ -66,11 +77,28 @@ function setDevDockIcon(): void {
 const headless = process.env.APIARY_HEADLESS === '1'
 
 function createWindow(): void {
+  windowsOpened += 1
+  const windowNumber = windowsOpened
+  const isFirst = windowNumber === 1
+
   const saved = loadSettings(settingsFile).windowBounds
-  const bounds =
+  const restored =
     saved && boundsAreOnScreen(saved, screen.getAllDisplays().map((d) => d.workArea))
       ? saved
       : { width: 1400, height: 900 }
+  // Only the first window restores its saved position. A second window opening exactly on top of
+  // the first looks like nothing happened, so it cascades instead — the convention every
+  // multi-window app uses, and the reason `windowNumber` is not reset.
+  const offset = isFirst ? 0 : ((windowNumber - 1) % 5) * 30
+  const bounds = isFirst
+    ? restored
+    : {
+      width: restored.width,
+      height: restored.height,
+      ...('x' in restored && 'y' in restored
+        ? { x: restored.x + offset, y: restored.y + offset }
+        : {}),
+    }
 
   const win = new BrowserWindow({
     ...bounds,
@@ -103,23 +131,39 @@ function createWindow(): void {
     },
   })
   mainWindow = win
-  win.on('closed', () => { mainWindow = null })
+  // The menu and native dialogs act on whichever window is in front, so this follows focus rather
+  // than staying pinned to the first window opened.
+  win.on('focus', () => { mainWindow = win })
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = BrowserWindow.getAllWindows()[0] ?? null
+  })
 
   // Deliberately never shown in headless mode: `show: false` above is the initial state, and this
   // is the line that would undo it.
   if (!headless) win.on('ready-to-show', () => win.show())
 
-  const persistBounds = (): void => {
-    const current = loadSettings(settingsFile)
-    saveSettings(settingsFile, { ...current, windowBounds: win.getNormalBounds() })
+  // Only the first window's geometry is remembered: with several open there is no single "the
+  // window" to restore, and letting each one write would mean the last window moved silently
+  // decides where the app opens next time.
+  if (isFirst) {
+    const persistBounds = (): void => {
+      const current = loadSettings(settingsFile)
+      saveSettings(settingsFile, { ...current, windowBounds: win.getNormalBounds() })
+    }
+    win.on('resized', persistBounds)
+    win.on('moved', persistBounds)
   }
-  win.on('resized', persistBounds)
-  win.on('moved', persistBounds)
 
+  // The window's number reaches the renderer through the URL rather than the preload bridge: it is
+  // needed before anything else to pick which stored layout to load, and a query string is
+  // available synchronously at first render.
+  const query = { w: String(windowNumber) }
   if (process.env.ELECTRON_RENDERER_URL) {
-    void win.loadURL(process.env.ELECTRON_RENDERER_URL)
+    const url = new URL(process.env.ELECTRON_RENDERER_URL)
+    url.searchParams.set('w', query.w)
+    void win.loadURL(url.toString())
   } else {
-    void win.loadFile(join(dirname, '../renderer/index.html'))
+    void win.loadFile(join(dirname, '../renderer/index.html'), { query })
   }
 }
 
@@ -156,6 +200,12 @@ void app.whenReady().then(async () => {
     dbPath,
     claudeBin: settings.claudeBin ?? undefined,
     autoImportAll: settings.autoImportAll,
+    searchChatContent: settings.searchChatContent,
+    onIndexUpdated: () => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send(CHANNELS.treeChanged)
+      }
+    },
     detectLive: fakeLive !== undefined && fakeLive !== ''
       ? async () => new Map([[fakeLive, 4242]])
       : undefined,
@@ -178,6 +228,7 @@ void app.whenReady().then(async () => {
       },
       () => mainWindow?.webContents.send(CHANNELS.openSettingsDialog),
       () => { void onNewSessionInFolder() },
+      () => createWindow(),
     ),
   )
   app.on('activate', () => {

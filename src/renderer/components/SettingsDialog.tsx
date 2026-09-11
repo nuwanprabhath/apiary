@@ -32,6 +32,21 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
   // new setting is a new key rather than another piece of local state to remember to save.
   const [draft, setDraft] = useState<AppSettingsPayload | null>(null)
   const [saving, setSaving] = useState(false)
+  /** How many sessions are indexed, and whether a rebuild is running — the Search section's state. */
+  const [indexed, setIndexed] = useState<number | null>(null)
+  const [rebuilding, setRebuilding] = useState(false)
+
+  const loadIndexStatus = (): void => {
+    void window.apiary.searchStatus()
+      .then((s) => setIndexed(s.indexed))
+      .catch(() => setIndexed(null))
+  }
+  useEffect(loadIndexStatus, [])
+  // Indexing runs in the background, so the number this dialog opened with goes stale while it is
+  // on screen — showing "0 sessions indexed" indefinitely, on a page whose whole job is to say
+  // whether the index exists. The main process announces a finished pass the same way it announces
+  // a rescan, so re-read on that.
+  useEffect(() => window.apiary.onTreeChanged(loadIndexStatus), [])
 
   useEffect(() => {
     void window.apiary.settingsGet().then(setDraft)
@@ -183,6 +198,30 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
                     </span>
                   </span>
                 </label>
+
+                <div className="settings-row settings-row-indent">
+                  <span className="settings-help" data-testid="search-index-status">
+                    {indexed === null
+                      ? 'The index is not available.'
+                      : `${String(indexed)} ${indexed === 1 ? 'session' : 'sessions'} indexed.`}
+                    {' '}Apiary keeps this up to date on its own, reading only what has changed.
+                    Rebuild it if results ever look stale.
+                  </span>
+                  <button
+                    data-testid="search-rebuild"
+                    disabled={rebuilding || draft.searchChatContent === false}
+                    onClick={() => {
+                      setRebuilding(true)
+                      void window.apiary.searchRebuild()
+                        .catch(() => {
+                          // Nothing to recover: the old index is still in place either way.
+                        })
+                        .finally(() => { setRebuilding(false); loadIndexStatus() })
+                    }}
+                  >
+                    {rebuilding ? 'Rebuilding…' : 'Rebuild index'}
+                  </button>
+                </div>
               </>
             ) : section === 'sidebar' ? (
               <>

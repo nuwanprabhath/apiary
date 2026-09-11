@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Terminal, type ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
-import { TerminalContextMenu, type TerminalContextMenuItem } from './TerminalContextMenu'
+import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 
 interface Props {
   ptyId: string
@@ -186,7 +186,7 @@ export function TerminalView({ ptyId, testId, visible = true }: Props): JSX.Elem
   // Read when the menu opens (that is the render this state change causes), so "Copy" reflects the
   // selection as it is at that moment rather than whatever it was at the last unrelated render.
   const hasSelection = (termRef.current?.getSelection() ?? '') !== ''
-  const contextMenuItems: TerminalContextMenuItem[] = [
+  const contextMenuItems: ContextMenuItem[] = [
     {
       id: 'copy',
       label: 'Copy',
@@ -212,7 +212,7 @@ export function TerminalView({ ptyId, testId, visible = true }: Props): JSX.Elem
     },
     {
       id: 'select-all',
-      label: 'Select All',
+      label: 'Select all',
       run: () => {
         termRef.current?.selectAll()
       },
@@ -239,7 +239,8 @@ export function TerminalView({ ptyId, testId, visible = true }: Props): JSX.Elem
         ref={host}
         onContextMenu={handleContextMenu}
       />
-      <TerminalContextMenu
+      <ContextMenu
+        testId="terminal-menu"
         items={contextMenuItems}
         position={contextMenuPosition}
         onClose={() => setContextMenuPosition(null)}

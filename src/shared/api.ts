@@ -62,6 +62,8 @@ export const CHANNELS = {
   gitMerge: 'apiary:git-merge',
   gitFetch: 'apiary:git-fetch',
   copyToClipboard: 'apiary:copy-to-clipboard',
+  searchRebuild: 'apiary:search-rebuild',
+  searchStatus: 'apiary:search-status',
   saveImage: 'apiary:save-image',
   readImage: 'apiary:read-image',
   sendPrompt: 'apiary:send-prompt',
@@ -111,6 +113,10 @@ export interface ApiaryApi {
   gitMerge(key: string, isPtyId: boolean, ref: string): Promise<void>
   gitFetch(key: string, isPtyId: boolean): Promise<void>
   copyToClipboard(text: string): Promise<void>
+  /** Wipes and rebuilds the conversation index; resolves when the pass has finished. */
+  searchRebuild(): Promise<void>
+  /** How many sessions are currently indexed. */
+  searchStatus(): Promise<{ indexed: number }>
   /** Writes a pasted image to Apiary's own data directory; resolves to its absolute path. */
   saveImage(base64: string, mediaType: string): Promise<string>
   /** Reads one of those images back as a data URL, or null if it is gone or out of bounds. */

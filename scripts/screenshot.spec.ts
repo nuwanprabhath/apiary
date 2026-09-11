@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { join } from 'node:path'
 import { launchApiary, importAll, clickRowAction, sidebarSession, type Harness } from '../tests/e2e/helpers'
 
@@ -38,6 +38,19 @@ test('capture the README screenshot', async () => {
   const pinRow = h.page.locator('.session-row-wrap').filter({ hasText: 'Repo root session' })
   await clickRowAction(pinRow, 'pin-session-button')
 
+  // Point the app at a stand-in `claude` before resuming anything, so a pane can show a session
+  // actually running. The real CLI needs an API key and a network, and would render something
+  // different on every run — none of which belongs in a committed picture. This goes through the
+  // app's own Settings rather than a fixture file, because that is the path that also tells the
+  // running service about it.
+  await h.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+  })
+  await h.page.getByTestId('settings-nav-general').click()
+  await h.page.getByTestId('claude-bin-input').fill(join(process.cwd(), 'scripts', 'fixtures', 'fake-claude.sh'))
+  await h.page.getByTestId('settings-save').click()
+  await h.page.getByTestId('settings-dialog').waitFor({ state: 'detached' })
+
   // Three sessions, three columns — search on the left, several conversations open side by side,
   // each with its own shell running underneath it.
   await sidebarSession(h.page, 'Repo root session').click()
@@ -48,6 +61,16 @@ test('capture the README screenshot', async () => {
 
   const columns = h.page.getByTestId('session-column')
   const columnCount = await columns.count()
+
+  // Resume the middle session, so the picture shows what the app is actually for: a live Claude
+  // Code session running inside it. The others stay on their transcripts, which is the other half
+  // of what it does — reading history and working in it, side by side. The middle one rather than
+  // the first because the first is the fixture's "already running elsewhere" session, and
+  // resuming that one deliberately asks before doing anything.
+  const live = columns.nth(1)
+  await live.getByTestId('resume-button').click()
+  await expect(live.getByTestId('terminal-session')).toContainText('Claude Code', { timeout: 20000 })
+
   for (let i = 0; i < columnCount; i++) {
     await columns.nth(i).getByTestId('shell-toggle').click()
   }

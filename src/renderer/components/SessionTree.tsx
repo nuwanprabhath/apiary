@@ -18,12 +18,20 @@ interface Props {
    *  here, so the same row is never listed twice. */
   pinned: Set<string>
   onTogglePin: (session: SessionNode) => void
+  /**
+   * Drag-to-reorder and the right-click menu, both of which apply to top-level folders only:
+   * nesting under a repository is the filesystem's arrangement (a worktree belongs to its parent),
+   * not the user's, so only the outermost level is theirs to rearrange and file into groups.
+   */
+  onReorderFolder?: (path: string, beforePath: string) => void
+  onFolderMenu?: (path: string, x: number, y: number) => void
 }
 
 export function SessionTree({
   nodes, depth = 0, collapsed, onToggle, selectedId, onSelect, onNewSession, onDeleteSession,
-  onSplitSession, pinned, onTogglePin,
+  onSplitSession, pinned, onTogglePin, onReorderFolder, onFolderMenu,
 }: Props): JSX.Element {
+  const rearrangeable = depth === 0 && onReorderFolder !== undefined
   return (
     <ul className="tree" style={{ paddingLeft: depth === 0 ? 0 : 14 }}>
       {nodes.map((node) => {
@@ -35,7 +43,35 @@ export function SessionTree({
         const unpinned = node.sessions.filter((s) => !pinned.has(s.sessionId))
         return (
           <li key={node.path} data-testid="project-group">
-            <div className="project-row-wrap">
+            <div
+              className="project-row-wrap"
+              data-folder-path={node.path}
+              draggable={rearrangeable}
+              onDragStart={(e) => {
+                if (!rearrangeable) return
+                e.dataTransfer.effectAllowed = 'move'
+                e.dataTransfer.setData('application/x-apiary-folder', node.path)
+              }}
+              onDragOver={(e) => {
+                // Only react to a folder drag: without the type check this would also swallow a
+                // tab being dragged across the window.
+                if (!rearrangeable || !e.dataTransfer.types.includes('application/x-apiary-folder')) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+              }}
+              onDrop={(e) => {
+                if (!rearrangeable) return
+                const dragged = e.dataTransfer.getData('application/x-apiary-folder')
+                if (dragged === '' || dragged === node.path) return
+                e.preventDefault()
+                onReorderFolder(dragged, node.path)
+              }}
+              onContextMenu={(e) => {
+                if (depth !== 0 || onFolderMenu === undefined) return
+                e.preventDefault()
+                onFolderMenu(node.path, e.clientX, e.clientY)
+              }}
+            >
               <button
                 className="project-row"
                 data-testid="project-toggle"

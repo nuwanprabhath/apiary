@@ -1,4 +1,4 @@
-import { ipcMain, clipboard, type BrowserWindow } from 'electron'
+import { ipcMain, clipboard, BrowserWindow } from 'electron'
 import { watch } from 'chokidar'
 import { projectsDir } from './config'
 import { CHANNELS, type AppSettingsPayload } from '@shared/api'
@@ -13,8 +13,19 @@ export function registerIpc(
   settingsFile: string,
   onAutoImportIntervalChange?: (intervalMinutes: number | null) => void,
 ): () => void {
+  /**
+   * Broadcasts to every window, not just the focused one.
+   *
+   * With more than one window open, terminal output and tree changes belong to whichever windows
+   * are showing that session — which is not necessarily the one in front, and can be several at
+   * once. Sending to a single window would leave a background window's terminal frozen until it
+   * was clicked. Destroyed windows are skipped rather than filtered: a window can close between
+   * this list being taken and the send landing.
+   */
   const send = (channel: string, ...args: unknown[]): void => {
-    getWindow()?.webContents.send(channel, ...args)
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send(channel, ...args)
+    }
   }
 
   ipcMain.handle(CHANNELS.refresh, () => service.refresh())
@@ -78,6 +89,10 @@ export function registerIpc(
     saveSettings(settingsFile, merged)
     service.setClaudeBin(merged.claudeBin)
     service.setAutoImportAll(merged.autoImportAll)
+    service.setSearchChatContent(merged.searchChatContent)
+    // Switching content search on should not mean waiting until the next rescan to be able to use
+    // it, so the first pass starts now; it is a background chore either way.
+    if (merged.searchChatContent) void service.updateSearchIndex()
     onAutoImportIntervalChange?.(merged.autoImportIntervalMinutes)
     // If autoImportAll was just switched ON, import everything right away.
     if (merged.autoImportAll && !current.autoImportAll) {
@@ -138,6 +153,8 @@ export function registerIpc(
     send(CHANNELS.treeChanged)
   })
   ipcMain.handle(CHANNELS.copyToClipboard, (_e, text: string) => { clipboard.writeText(text) })
+  ipcMain.handle(CHANNELS.searchRebuild, async () => { await service.rebuildSearchIndex() })
+  ipcMain.handle(CHANNELS.searchStatus, () => ({ indexed: service.searchIndexCount() }))
   ipcMain.handle(CHANNELS.saveImage, (_e, base64: string, mediaType: string) =>
     service.saveImage(base64, mediaType),
   )

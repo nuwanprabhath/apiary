@@ -11,6 +11,7 @@ import {
   type Column,
 } from './state/columns'
 import { loadUiState, saveUiState, type UiState } from './state/uiState'
+import { moveBefore, type GroupState } from './state/groups'
 import { useNotifications } from './state/notifications'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { describeError } from './errors'
@@ -668,6 +669,23 @@ export function App(): JSX.Element {
         key={treeNonce}
         selectedId={activeKey}
         revealId={revealActiveInSidebar ? activeKey : null}
+        groupState={{
+          groups: ui.groups,
+          assignments: ui.groupAssignments,
+          collapsed: ui.groupsCollapsed,
+          folderOrder: ui.folderOrder,
+        }}
+        onGroupStateChange={(next: GroupState) => setUi((prev) => ({
+          ...prev,
+          groups: next.groups,
+          groupAssignments: next.assignments,
+          groupsCollapsed: next.collapsed,
+          folderOrder: next.folderOrder,
+        }))}
+        onReorderPinned={(id, beforeId) => setUi((prev) => ({
+          ...prev,
+          pinned: moveBefore(prev.pinned, id, beforeId),
+        }))}
         onSelect={onSelect}
         onSplitSession={onSplitSession}
         collapsed={new Set(ui.collapsed)}

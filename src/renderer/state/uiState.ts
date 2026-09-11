@@ -1,8 +1,6 @@
-/** One user-made heading in the sidebar. `id` is stable; `name` is what is shown and renamed. */
-export interface SessionGroup {
-  id: string
-  name: string
-}
+import type { SessionGroup } from './groups'
+
+export type { SessionGroup }
 
 export interface UiState {
   /**
@@ -44,7 +42,25 @@ export interface UiState {
   importDialogWidth: number
 }
 
-const KEY = 'apiary.ui'
+/**
+ * Where this window's layout is stored.
+ *
+ * Windows share one origin, and therefore one localStorage — so without this, a second window
+ * would save its tabs and columns over the first window's the moment either changed. The window
+ * number comes from the URL (set in main/index.ts) because it is needed at the very first render,
+ * before any IPC round trip could answer. The first window keeps the original, unsuffixed key, so
+ * an existing layout is not lost the day this arrived.
+ */
+function stateKey(): string {
+  try {
+    const w = new URLSearchParams(window.location.search).get('w')
+    return w === null || w === '1' ? 'apiary.ui' : `apiary.ui.${w}`
+  } catch {
+    return 'apiary.ui'
+  }
+}
+
+const KEY = stateKey()
 
 export const DEFAULT_UI_STATE: UiState = {
   collapsed: [],

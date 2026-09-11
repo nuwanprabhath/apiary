@@ -5,6 +5,7 @@ export function buildMenu(
   onRefresh: () => void,
   onSettings: () => void,
   onNewSessionInFolder: () => void,
+  onNewWindow: () => void,
 ): Menu {
   const isMac = process.platform === 'darwin'
 
@@ -17,6 +18,14 @@ export function buildMenu(
     {
       label: 'File',
       submenu: [
+        {
+          // A second workspace over the same sessions: the windows share one set of terminals and
+          // one store, but each keeps its own tabs and columns.
+          label: 'New Window',
+          accelerator: 'CmdOrCtrl+N',
+          click: onNewWindow,
+        },
+        { type: 'separator' },
         {
           label: 'Import Claude Sessions...',
           accelerator: 'CmdOrCtrl+I',

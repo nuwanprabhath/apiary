@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { CloseIcon, SplitIcon } from './icons'
+import { ContextMenu } from './ContextMenu'
 
 export interface SessionTabView {
   key: string
@@ -38,23 +39,6 @@ export function SessionTabBar(
   const [dragKey, setDragKey] = useState<string | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const [menu, setMenu] = useState<{ key: string; x: number; y: number } | null>(null)
-  const menuRef = useRef<HTMLDivElement | null>(null)
-
-  // Dismiss the menu the way every context menu is expected to: Escape, or a click anywhere that
-  // isn't inside it. Bound while open only, so the app is not listening for this the rest of the time.
-  useEffect(() => {
-    if (menu === null) return
-    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') setMenu(null) }
-    const onDown = (e: MouseEvent): void => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenu(null)
-    }
-    window.addEventListener('keydown', onKey)
-    window.addEventListener('mousedown', onDown)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      window.removeEventListener('mousedown', onDown)
-    }
-  }, [menu])
 
   const endDrag = (): void => { setDragKey(null); setDropIndex(null) }
 
@@ -135,34 +119,19 @@ export function SessionTabBar(
         </button>
       )}
 
-      {menu !== null && (
-        <div
-          ref={menuRef}
-          className="tab-menu"
-          data-testid="tab-menu"
-          role="menu"
-          // Positioned against the viewport at the cursor, like any context menu. `position: fixed`
-          // in the stylesheet is what keeps it out of the tab strip's own overflow clipping.
-          style={{ left: menu.x, top: menu.y }}
-        >
-          <button
-            className="tab-menu-item"
-            data-testid="tab-menu-pin"
-            role="menuitem"
-            onClick={() => { onTogglePin(menu.key); setMenu(null) }}
-          >
-            {pinnedKeys.has(menu.key) ? 'Unpin from sidebar' : 'Pin to sidebar'}
-          </button>
-          <button
-            className="tab-menu-item"
-            data-testid="tab-menu-close"
-            role="menuitem"
-            onClick={() => { onClose(menu.key); setMenu(null) }}
-          >
-            Close
-          </button>
-        </div>
-      )}
+      <ContextMenu
+        testId="tab-menu"
+        position={menu === null ? null : { x: menu.x, y: menu.y }}
+        onClose={() => setMenu(null)}
+        items={menu === null ? [] : [
+          {
+            id: 'pin',
+            label: pinnedKeys.has(menu.key) ? 'Unpin from sidebar' : 'Pin to sidebar',
+            run: () => onTogglePin(menu.key),
+          },
+          { id: 'close', label: 'Close', separator: true, run: () => onClose(menu.key) },
+        ]}
+      />
     </div>
   )
 }

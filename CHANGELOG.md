@@ -4,6 +4,58 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] - 2026-09-11
+
+### Added
+
+- **Search inside conversations**, not just titles. Typing in the sidebar's search box now matches
+  what was actually said in a session — a merge request like `!1257`, a ticket like `#2902`, a
+  branch name, a phrase you half remember. Tokenisation is the whole trick: punctuation is split
+  on rather than kept, so `!1257` and `1257` find the same session, and `2260-remove-prefill`
+  matches whole *and* by any word in it. Keeping `-` as a word character would have made that one
+  indivisible token that `prefill` could never find. The index lives in a database of its own —
+  it is derived data, rebuildable from the JSONL at any time — and is kept up to date
+  incrementally, skipping unchanged files without opening them, yielding to the event loop between
+  files so it stays out of the way. Settings > Search turns it off, says how much is indexed, and
+  can rebuild it.
+- **Top-level groups in the sidebar**, so months of folders can be filed away instead of scrolled
+  past. Right-click a folder for "New group from this folder…", then rename, reorder or delete the
+  group from its own menu; drag other folders onto it to file them too. Deleting a group frees the
+  folders under it rather than taking them with it. Modelled on the simple-worktrees VS Code
+  extension, since that is the interaction people already know.
+- **Drag to rearrange**: top-level folders, pinned sessions, and the session tabs in a column all
+  reorder by dragging, and stay as you left them across restarts. A folder Apiary has not seen
+  before sorts to the bottom rather than into the middle of an arrangement made on purpose.
+- **Several windows.** File > New Window opens another workspace over the same sessions. They
+  share one store and one set of terminals — the same session in two windows is one process, not
+  two — but each window keeps its own tabs and columns, so a second window is not a copy of the
+  first. Terminal output is delivered to every window rather than only the focused one, so a
+  background window is never left frozen.
+- **Copy and paste in the terminal.** Ctrl+C copies the selection when there is one and still
+  interrupts when there is not — the single most important key in a terminal keeps working.
+  Ctrl+Shift+C always copies, Ctrl+Shift+V (Cmd+V on macOS) pastes, and right-click gives
+  Copy/Paste/Select all/Clear. This runs through xterm's own key hook, the only place a key can be
+  swallowed before it reaches the process.
+- **Right-click a tab** to pin that session to the sidebar, or close it.
+- **Arrow keys move between shells** in the shell list, switching as they go.
+- **The sidebar follows what you are looking at**: switching to a tab opens the folders above that
+  session and scrolls to it, so you can see where in months of history it lives. Settings >
+  Sidebar turns it off. It only ever scrolls when the session changes, so it cannot fight you
+  while you are scrolling by hand.
+
+### Changed
+
+- Clicking a session that is already open focuses it where it is, instead of opening a second copy
+  of the same conversation in the current column — which was indistinguishable from a split.
+- The README screenshot now shows a live Claude Code session in one pane alongside transcripts in
+  the others, rather than three transcripts. `npm run screenshot` resumes a session against a
+  stand-in `claude` that prints a fixed, believable session, so the picture stays deterministic and
+  needs no API key.
+- The three separate right-click menus (tab strip, terminal, sidebar) are now one component.
+- e2e launches strip `ELECTRON_RUN_AS_NODE`. Anything that runs Electron's binary as a plain Node
+  interpreter sets it, and it is inherited by every launch afterwards — which made the whole suite
+  fail with "Process failed to launch", an error that looks nothing like its cause.
+
 ## [1.7.2] - 2026-09-11
 
 ### Fixed
