@@ -901,7 +901,6 @@ body.resizing-active { user-select: none; }
   outline: none;
 }
 /* When the list receives focus, a visible indicator appears. */
-.terminal-list-panel:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .terminal-tab-row {
   display: flex;
   align-items: center;
@@ -910,8 +909,13 @@ body.resizing-active { user-select: none; }
   padding: 2px;
 }
 .terminal-tab-row[data-active="true"] { background: var(--selected); }
-/* Keyboard focus indicator: a subtle ring around the row when navigated via arrow keys. */
-.terminal-tab-row[data-keyboard-focused="true"] { outline: 1px solid var(--accent); outline-offset: -1px; }
+/* Keyboard focus: an accent bar down the leading edge, not a box.
+   A full outline around the row reads as an editable field — which is exactly what a row here
+   becomes when renamed — so arrowing onto a terminal looked like it had started renaming it. */
+.terminal-tab-row[data-keyboard-focused="true"] {
+  box-shadow: inset 2px 0 0 0 var(--accent);
+  background: var(--hover);
+}
 .terminal-tab-label {
   flex: 1;
   min-width: 0;
@@ -1502,11 +1506,14 @@ body.resizing-active { user-select: none; }
    insertion edge. A border would shift the strip's layout as it appears, so the marker is an inset
    shadow, which takes up no space. */
 .session-tab[data-dragging="true"] { opacity: 0.4; }
-.session-tab[data-drop-target="true"] { box-shadow: inset 2px 0 0 0 var(--accent); }
+.session-tab[data-drop-before="true"] { box-shadow: inset 2px 0 0 0 var(--accent); }
+.session-tab[data-drop-after="true"] { box-shadow: inset -2px 0 0 0 var(--accent); }
 
 /* A user-made heading in the sidebar, holding folders filed under it. Sits a step above the folder
    rows it contains — it is the user's own organisation, not part of the filesystem's. */
-.folder-group { margin-bottom: 2px; }
+.folder-group { margin-bottom: 2px; border-radius: 6px; }
+/* The whole group lights up as a folder is dragged over it, since the whole group is the target. */
+.folder-group[data-drop-into="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
 .folder-group-header {
   display: flex;
   align-items: center;

@@ -10,6 +10,15 @@ export interface SessionTabView {
   isPending: boolean
 }
 
+/**
+ * Where the tab at `index` sits once `dragKey` is lifted out of the list — the coordinate the drop
+ * indicator and `moveTab` both work in.
+ */
+function indexInRest(tabs: SessionTabView[], dragKey: string, index: number): number {
+  const from = tabs.findIndex((t) => t.key === dragKey)
+  return from !== -1 && from < index ? index - 1 : index
+}
+
 interface Props {
   tabs: SessionTabView[]
   activeKey: string | null
@@ -35,12 +44,27 @@ interface Props {
 export function SessionTabBar(
   { tabs, activeKey, onActivate, onClose, onSplitActive, onReorder, pinnedKeys, onTogglePin }: Props,
 ): JSX.Element {
-  /** The tab being dragged, and the position it would land in, for the drop indicator. */
+  /**
+   * The tab being dragged, and where it would land: an index into the strip *without* the dragged
+   * tab, so 0 means "first". Tracking the insertion point rather than the tab being hovered is what
+   * makes the ends reachable — dropping on the left half of the first tab means before it, which is
+   * otherwise a position no drop target corresponds to.
+   */
   const [dragKey, setDragKey] = useState<string | null>(null)
-  const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const [dropAt, setDropAt] = useState<number | null>(null)
+
+  /** Where a drop on this tab would insert, given which half of it the pointer is over. */
+  const insertionFor = (e: { currentTarget: HTMLElement; clientX: number }, index: number): number => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const after = e.clientX > rect.left + rect.width / 2
+    const from = tabs.findIndex((t) => t.key === dragKey)
+    // Index within the list the dragged tab has been lifted out of.
+    const base = from !== -1 && from < index ? index - 1 : index
+    return after ? base + 1 : base
+  }
   const [menu, setMenu] = useState<{ key: string; x: number; y: number } | null>(null)
 
-  const endDrag = (): void => { setDragKey(null); setDropIndex(null) }
+  const endDrag = (): void => { setDragKey(null); setDropAt(null) }
 
   return (
     <div className="session-tab-bar" data-testid="session-tab-bar" role="tablist">
@@ -52,7 +76,12 @@ export function SessionTabBar(
           data-testid="session-tab"
           data-active={tab.key === activeKey}
           data-dragging={tab.key === dragKey}
-          data-drop-target={dropIndex === index && dragKey !== null && dragKey !== tab.key}
+          data-drop-before={dragKey !== null && dropAt === indexInRest(tabs, dragKey, index)}
+          data-drop-after={
+            dragKey !== null
+            && index === tabs.length - 1
+            && dropAt === indexInRest(tabs, dragKey, index) + 1
+          }
           draggable
           onDragStart={(e) => {
             setDragKey(tab.key)
@@ -64,14 +93,12 @@ export function SessionTabBar(
             if (dragKey === null) return
             e.preventDefault() // Without this the drop never fires.
             e.dataTransfer.dropEffect = 'move'
-            setDropIndex(index)
+            setDropAt(insertionFor(e, index))
           }}
           onDrop={(e) => {
             e.preventDefault()
             const key = dragKey ?? e.dataTransfer.getData('text/plain')
-            // Dropping onto the tab at `index` means landing where it sits, from either side —
-            // see the note on moveTab for why that one index is right in both directions.
-            if (key && key !== tab.key) onReorder(key, index)
+            if (key !== '') onReorder(key, insertionFor(e, index))
             endDrag()
           }}
           onDragEnd={endDrag}

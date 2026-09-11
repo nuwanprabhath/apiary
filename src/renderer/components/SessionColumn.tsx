@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GitStatus, SessionNode } from '@shared/types'
 import type { Column, OpenTab } from '../state/columns'
 import { findTab } from '../state/columns'
+import { moveBefore } from '../state/groups'
 import { SessionTabBar, type SessionTabView } from './SessionTabBar'
 import { EditableSessionTitle } from './EditableSessionTitle'
 import { Transcript } from './Transcript'
@@ -169,7 +170,13 @@ export function SessionColumn(props: Props): JSX.Element {
   // because two columns showing the *same* split session share one `shellTabs` entry, so a
   // second column's own render could otherwise race a spawn already in flight from the first.
   const spawningRef = useRef<Set<string>>(new Set())
-  /** The box the "..." menu opens upward from — see the positioning note in GitMenu. */
+  /**
+   * The "..." button itself is what the git menu opens from — not the toolbar around it, which
+   * starts at the far left of the pane and so put the menu at the opposite end from the button
+   * that opened it.
+   */
+  const gitMenuButtonRef = useRef<HTMLButtonElement>(null)
+  /** The box the terminal list opens upward from — see the positioning note in GitMenu. */
   const toolbarRef = useRef<HTMLDivElement | null>(null)
 
   /**
@@ -245,6 +252,18 @@ export function SessionColumn(props: Props): JSX.Element {
     setShellTabs((prev) => {
       const list = prev.get(shellKey) ?? []
       return new Map(prev).set(shellKey, list.map((t) => (t.id === tabId ? { ...t, name } : t)))
+    })
+  }, [shellKey, setShellTabs])
+
+  /** Drag-to-reorder within the terminal list, matching the tab strip and the sidebar. */
+  const reorderTerminalTab = useCallback((tabId: string, beforeId: string) => {
+    if (shellKey === null) return
+    setShellTabs((prev) => {
+      const list = prev.get(shellKey) ?? []
+      const order = moveBefore(list.map((t) => t.id), tabId, beforeId)
+      const byId = new Map(list.map((t) => [t.id, t]))
+      const next = order.map((id) => byId.get(id)).filter((t): t is TerminalTab => t !== undefined)
+      return new Map(prev).set(shellKey, next)
     })
   }, [shellKey, setShellTabs])
 
@@ -521,6 +540,7 @@ export function SessionColumn(props: Props): JSX.Element {
                       },
                       {
                         id: 'git-more',
+                        buttonRef: gitMenuButtonRef,
                         icon: <EllipsisIcon />,
                         title: 'More git commands',
                         testId: 'toolbar-git-menu',
@@ -552,7 +572,7 @@ export function SessionColumn(props: Props): JSX.Element {
             {gitMenuOpen && (
               <GitMenu
                 items={gitMenuItems}
-                anchorRef={toolbarRef}
+                anchorRef={gitMenuButtonRef}
                 onClose={() => setGitMenuOpen(false)}
               />
             )}
@@ -588,6 +608,7 @@ export function SessionColumn(props: Props): JSX.Element {
                   onSwitch={switchTerminalTab}
                   onRename={renameTerminalTab}
                   onDelete={deleteTerminalTab}
+                  onReorder={reorderTerminalTab}
                 />
               )}
             </div>

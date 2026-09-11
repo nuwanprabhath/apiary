@@ -100,6 +100,14 @@ export function moveBefore(ids: string[], id: string, beforeId: string): string[
   return [...rest.slice(0, at), id, ...rest.slice(at)]
 }
 
+/** Moves a group to sit where the one it was dropped on was. */
+export function moveGroupBefore(groups: SessionGroup[], id: string, beforeId: string): SessionGroup[] {
+  const order = moveBefore(groups.map((g) => g.id), id, beforeId)
+  return order
+    .map((gid) => groups.find((g) => g.id === gid))
+    .filter((g): g is SessionGroup => g !== undefined)
+}
+
 /** Moves a group one place up or down in the display order. */
 export function moveGroup(groups: SessionGroup[], id: string, delta: -1 | 1): SessionGroup[] {
   const from = groups.findIndex((g) => g.id === id)

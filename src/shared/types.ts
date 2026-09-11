@@ -50,6 +50,8 @@ export interface SessionNode {
   sessionId: string
   title: string
   cwd: string
+  /** Branch recorded in the session's JSONL, shown in the row's tooltip. */
+  gitBranch: string | null
   lastActiveAtMs: number | null
   messageCount: number | null
   isLive: boolean

@@ -4,6 +4,37 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.1] - 2026-09-11
+
+### Added
+
+- A `CLAUDE.md` for whoever works on this next: the native-module ABI trap and what its failures
+  look like, the `ELECTRON_RUN_AS_NODE` error that looks nothing like its cause, why prompt delivery
+  waits for the TUI, why the search tokeniser splits on punctuation, and the two bugs that were
+  "fixed" from plausible explanations before anyone measured.
+- Hovering a session in the sidebar shows where it ran, its branch, and when it was last active —
+  everything the row itself has no width for.
+- Terminals in the shell list reorder by dragging, like everything else in the app.
+- A repository's worktrees reorder within their folder, not just the top-level folders.
+- Groups reorder by dragging one heading onto another, as well as from the menu.
+
+### Fixed
+
+- **Dragging a tab to the first position did nothing.** Drops landed *on* a tab, so "before the
+  first one" was a position no target corresponded to. Dropping now inserts before or after
+  depending on which half of a tab you are over, which is what makes both ends reachable.
+- **A folder could not be dropped into an empty group.** Only the heading accepted the drop, and an
+  empty group is a heading plus a line of placeholder text — so the case that needs dragging most
+  had the least to aim at. The whole group is the target now, and highlights as you drag over it.
+- **The git menu opened at the opposite end of the pane from the button that opened it.** It was
+  anchored to the whole toolbar, whose left edge is the far left of the pane, rather than to the
+  "..." button. It is now clamped to stay on screen from either end.
+- **Arrowing onto a terminal in the shell list looked like it had started renaming it** — the focus
+  style was a full box outline, which is exactly what a row becomes when renamed. It is an accent
+  bar down the leading edge now.
+- The README screenshot's session pane no longer wraps mid-sentence or runs its rules past the
+  edge of the column.
+
 ## [1.8.0] - 2026-09-11
 
 ### Added

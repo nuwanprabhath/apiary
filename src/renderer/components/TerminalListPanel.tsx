@@ -9,6 +9,8 @@ interface Props {
   onSwitch: (tabId: string) => void
   onRename: (tabId: string, name: string) => void
   onDelete: (tabId: string) => void
+  /** Moves a terminal to sit where the one it was dropped on was. */
+  onReorder: (tabId: string, beforeId: string) => void
 }
 
 /** The side panel listing every open terminal for the current session — click switches; a rename
@@ -16,7 +18,9 @@ interface Props {
  *  memory), so with several terminals open there's always a visible way to tidy them up.
  *  Arrow keys navigate the list when focused: ArrowDown moves to the next shell, ArrowUp to the
  *  previous, and switching shells as you navigate (roving-focus listbox pattern). */
-export function TerminalListPanel({ tabs, activeId, onSwitch, onRename, onDelete }: Props): JSX.Element {
+export function TerminalListPanel(
+  { tabs, activeId, onSwitch, onRename, onDelete, onReorder }: Props,
+): JSX.Element {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   /** Which terminal has keyboard focus. Starts at the active terminal; arrow keys move it. */
@@ -86,6 +90,24 @@ export function TerminalListPanel({ tabs, activeId, onSwitch, onRename, onDelete
           data-keyboard-focused={tab.id === focusedId}
           role="option"
           aria-selected={tab.id === activeId}
+          // Not draggable while being renamed: the input inside needs its own text selection and
+          // caret, both of which a drag would hijack.
+          draggable={editingId !== tab.id}
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move'
+            e.dataTransfer.setData('application/x-apiary-terminal', tab.id)
+          }}
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes('application/x-apiary-terminal')) return
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'move'
+          }}
+          onDrop={(e) => {
+            const dragged = e.dataTransfer.getData('application/x-apiary-terminal')
+            if (dragged === '' || dragged === tab.id) return
+            e.preventDefault()
+            onReorder(dragged, tab.id)
+          }}
         >
           {editingId === tab.id ? (
             <input

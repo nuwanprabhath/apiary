@@ -5,7 +5,8 @@ import { SessionTree } from './SessionTree'
 import { SessionRow } from './SessionRow'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import {
-  groupFolders, moveFolder, moveGroup, deleteGroup, newGroupId, type GroupState,
+  groupFolders, orderFolders, moveFolder, moveGroup, moveGroupBefore, deleteGroup, newGroupId,
+  type GroupState,
 } from '../state/groups'
 import { CloseIcon, RefreshIcon } from './icons'
 
@@ -72,6 +73,11 @@ interface Props {
  * Revealing a session means nothing while the folder holding it is collapsed — the row does not
  * exist to scroll to. These are the folders that have to be opened for it to.
  */
+/** Every folder path in the tree, at every depth — the full list ordering is resolved against. */
+function allFolderPaths(nodes: ProjectNode[]): string[] {
+  return nodes.flatMap((n) => [n.path, ...allFolderPaths(n.children)])
+}
+
 function pathsToSession(nodes: ProjectNode[], id: string, trail: string[] = []): string[] | null {
   for (const node of nodes) {
     const here = [...trail, node.path]
@@ -158,6 +164,8 @@ export function Sidebar({
 
   /** Which menu is open, if any: a right-click on a folder, or on a group's header. */
   const [menu, setMenu] = useState<{ kind: 'folder' | 'group'; id: string; x: number; y: number } | null>(null)
+  /** The group a folder is currently being dragged over, so the whole section can light up. */
+  const [dropIntoGroup, setDropIntoGroup] = useState<string | null>(null)
   /** A group whose name is being edited in place, instead of through a modal. */
   const [renamingGroup, setRenamingGroup] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
@@ -242,9 +250,14 @@ export function Sidebar({
   }
 
   const reorderFolder = (path: string, beforePath: string): void => {
-    patchGroups({ folderOrder: moveFolder(groupState.folderOrder, tree.map((n) => n.path), path, beforePath) })
-    // Dropping a folder onto one inside a group files it there too, which is the other half of
-    // what dragging it means — otherwise it would reorder into a group it does not belong to.
+    patchGroups({
+      folderOrder: moveFolder(groupState.folderOrder, allFolderPaths(tree), path, beforePath),
+    })
+    // Dropping a top-level folder onto another files it into that one's group too, which is the
+    // other half of what dragging it means. Nested folders (a repository's worktrees) are not in
+    // groups at all, so this only applies where both are top level.
+    const topLevel = new Set(tree.map((n) => n.path))
+    if (!topLevel.has(path) || !topLevel.has(beforePath)) return
     const target = groupState.assignments[beforePath]
     if (target !== groupState.assignments[path]) assignFolder(path, target ?? null)
   }
@@ -262,6 +275,7 @@ export function Sidebar({
     onTogglePin,
     onReorderFolder: reorderFolder,
     onFolderMenu: (path: string, x: number, y: number) => setMenu({ kind: 'folder', id: path, x, y }),
+    orderFolders: (nodes: ProjectNode[]) => orderFolders(nodes, (n) => n.path, groupState.folderOrder),
   }
 
   return (
@@ -407,26 +421,61 @@ export function Sidebar({
           {arranged.groups.map(({ group, folders }) => {
             const open = !groupsCollapsed.has(group.id)
             return (
-              <section className="folder-group" data-testid="folder-group" key={group.id}>
+              <section
+                className="folder-group"
+                data-testid="folder-group"
+                key={group.id}
+                data-drop-into={dropIntoGroup === group.id}
+                // The drop target is the whole section, not just its heading: an empty group is
+                // a heading and a line of placeholder text, and aiming at the heading alone meant
+                // the one case that needs dragging most — filing the first folder into a new,
+                // empty group — had almost nothing to aim at.
+                onDragOver={(e) => {
+                  if (!e.dataTransfer.types.includes('application/x-apiary-folder')) return
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  setDropIntoGroup(group.id)
+                }}
+                onDragLeave={(e) => {
+                  // Only when the pointer has left the section itself, not merely moved onto a
+                  // row inside it, which fires dragleave for the child on the way past.
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                    setDropIntoGroup((current) => (current === group.id ? null : current))
+                  }
+                }}
+                onDrop={(e) => {
+                  setDropIntoGroup(null)
+                  const dragged = e.dataTransfer.getData('application/x-apiary-folder')
+                  if (dragged === '') return
+                  e.preventDefault()
+                  assignFolder(dragged, group.id)
+                }}
+              >
                 <div
                   className="folder-group-header-wrap"
                   data-group-id={group.id}
-                  onContextMenu={(e) => {
-                    e.preventDefault()
-                    setMenu({ kind: 'group', id: group.id, x: e.clientX, y: e.clientY })
+                  // Groups reorder by dragging their headings, the same gesture as everything else
+                  // in this sidebar; the menu keeps Move up/down for keyboard and precision.
+                  draggable={renamingGroup !== group.id}
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = 'move'
+                    e.dataTransfer.setData('application/x-apiary-group', group.id)
                   }}
                   onDragOver={(e) => {
-                    if (!e.dataTransfer.types.includes('application/x-apiary-folder')) return
+                    if (!e.dataTransfer.types.includes('application/x-apiary-group')) return
                     e.preventDefault()
                     e.dataTransfer.dropEffect = 'move'
                   }}
                   onDrop={(e) => {
-                    // Dropping onto the heading files a folder into the group — the gesture for
-                    // an empty group, which has no folder of its own to drop onto.
-                    const dragged = e.dataTransfer.getData('application/x-apiary-folder')
-                    if (dragged === '') return
+                    const dragged = e.dataTransfer.getData('application/x-apiary-group')
+                    if (dragged === '' || dragged === group.id) return
                     e.preventDefault()
-                    assignFolder(dragged, group.id)
+                    e.stopPropagation() // Not also a folder drop into this group.
+                    patchGroups({ groups: moveGroupBefore(groupState.groups, dragged, group.id) })
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    setMenu({ kind: 'group', id: group.id, x: e.clientX, y: e.clientY })
                   }}
                 >
                   {renamingGroup === group.id ? (

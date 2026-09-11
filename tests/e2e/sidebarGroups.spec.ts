@@ -12,7 +12,7 @@ test.afterEach(async () => { await h.close() })
 /** A top-level folder row, addressed by the label on its own toggle. */
 function folder(page: Page, label: string): Locator {
   return page.locator(
-    `div.project-row-wrap:has(> button[data-testid="project-toggle"] .project-label:text-is("${label}"))`,
+    `div.project-row-wrap[data-depth="0"]:has(> button[data-testid="project-toggle"] .project-label:text-is("${label}"))`,
   )
 }
 
@@ -24,8 +24,10 @@ function folder(page: Page, label: string): Locator {
  * `undefined` instead of failing where the problem is.
  */
 async function folderOrder(page: Page): Promise<string[]> {
+  // Top level only: a repository's worktrees are nested folders, which are reorderable but are
+  // not the thing groups are made of, so including them here would make every caller wrong.
   const labels = page.locator(
-    'li[data-testid="project-group"] > div > button[data-testid="project-toggle"] .project-label',
+    'div.project-row-wrap[data-depth="0"] > button[data-testid="project-toggle"] .project-label',
   )
   await expect(labels.first()).toBeVisible()
   return labels.allInnerTexts()
@@ -115,3 +117,55 @@ test('a group can be renamed from its own menu', async () => {
   await expect(h.page.getByTestId('folder-group-toggle')).toContainText('Archive')
 })
 
+
+test('a folder can be dropped into a group that is still empty', async () => {
+  // The reported bug: an empty group is a heading and a line of placeholder text, and only the
+  // heading accepted a drop — so filing the *first* folder into a new group, the case that needs
+  // dragging most, had almost nothing to aim at.
+  const names = await folderOrder(h.page)
+  const [first, second] = names
+
+  await folder(h.page, first).click({ button: 'right' })
+  await h.page.getByTestId('context-menu-new-group').click()
+  await h.page.getByTestId('folder-group-rename').fill('Unwanted')
+  await h.page.getByTestId('folder-group-rename').press('Enter')
+
+  // Empty it again, so the group on screen is the empty case.
+  await folder(h.page, first).click({ button: 'right' })
+  await h.page.getByTestId('context-menu-remove-from-group').click()
+  const group = h.page.getByTestId('folder-group')
+  await expect(group.getByTestId('folder-group-empty')).toBeVisible()
+
+  await folder(h.page, second).dragTo(group)
+  await expect(group.locator(`.project-label:text-is("${second}")`)).toBeVisible()
+  await expect(group.getByTestId('folder-group-empty')).toHaveCount(0)
+})
+
+test('groups reorder by dragging one heading onto another', async () => {
+  const names = await folderOrder(h.page)
+
+  for (const [folderName, groupName] of [[names[0], 'First'], [names[1], 'Second']]) {
+    await folder(h.page, folderName).click({ button: 'right' })
+    await h.page.getByTestId('context-menu-new-group').click()
+    await h.page.getByTestId('folder-group-rename').fill(groupName)
+    await h.page.getByTestId('folder-group-rename').press('Enter')
+  }
+
+  const headings = h.page.getByTestId('folder-group-toggle')
+  await expect(headings).toHaveText([/First/, /Second/])
+
+  await headings.last().dragTo(headings.first())
+  await expect(headings).toHaveText([/Second/, /First/])
+
+  await relaunchApiary(h)
+  await expect(h.page.getByTestId('folder-group-toggle')).toHaveText([/Second/, /First/])
+})
+
+test('a session row says where it ran, on what branch, and when it was last active', async () => {
+  const row = h.page.getByTestId('session-item').filter({ hasText: 'Worktree session' })
+  const tooltip = await row.getAttribute('title')
+  expect(tooltip).toContain('Worktree session')
+  expect(tooltip).toContain('repo-c-wt')
+  expect(tooltip).toContain('branch: feature/wt')
+  expect(tooltip).toContain('last active:')
+})

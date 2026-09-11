@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 
 export interface ToolbarButtonSpec {
   id: string
@@ -10,6 +10,8 @@ export interface ToolbarButtonSpec {
   onClick: () => void
   active?: boolean
   disabled?: boolean
+  /** Set when something opens from this button and needs its box to position against. */
+  buttonRef?: RefObject<HTMLButtonElement>
 }
 
 interface Props {
@@ -37,6 +39,7 @@ export function Toolbar({ left, right }: Props): JSX.Element {
 function ToolbarButton(spec: ToolbarButtonSpec): JSX.Element {
   return (
     <button
+      ref={spec.buttonRef}
       className="toolbar-button"
       data-testid={spec.testId}
       data-active={spec.active ?? false}

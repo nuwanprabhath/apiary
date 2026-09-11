@@ -19,22 +19,27 @@ interface Props {
   pinned: Set<string>
   onTogglePin: (session: SessionNode) => void
   /**
-   * Drag-to-reorder and the right-click menu, both of which apply to top-level folders only:
-   * nesting under a repository is the filesystem's arrangement (a worktree belongs to its parent),
-   * not the user's, so only the outermost level is theirs to rearrange and file into groups.
+   * Drag-to-reorder, at every level. The worktrees under a repository are as much a list with an
+   * order worth having as the top-level folders are — 1.0.11 before 1.0.12, or the other way
+   * round, is the user's call. Ordering is stored by absolute path, which is unique across the
+   * whole tree, so one list serves every level without them interfering.
    */
   onReorderFolder?: (path: string, beforePath: string) => void
+  /** Filing into groups stays a top-level idea: a worktree belongs to its repository, not a group. */
   onFolderMenu?: (path: string, x: number, y: number) => void
+  /** Orders a level's folders by the user's arrangement. */
+  orderFolders?: (nodes: ProjectNode[]) => ProjectNode[]
 }
 
 export function SessionTree({
   nodes, depth = 0, collapsed, onToggle, selectedId, onSelect, onNewSession, onDeleteSession,
-  onSplitSession, pinned, onTogglePin, onReorderFolder, onFolderMenu,
+  onSplitSession, pinned, onTogglePin, onReorderFolder, onFolderMenu, orderFolders,
 }: Props): JSX.Element {
-  const rearrangeable = depth === 0 && onReorderFolder !== undefined
+  const rearrangeable = onReorderFolder !== undefined
+  const ordered = orderFolders === undefined ? nodes : orderFolders(nodes)
   return (
     <ul className="tree" style={{ paddingLeft: depth === 0 ? 0 : 14 }}>
-      {nodes.map((node) => {
+      {ordered.map((node) => {
         const isOpen = !collapsed.has(node.path)
         const childProjects = node.children
         // A folder whose every session is pinned still shows its header: it keeps its "+" button,
@@ -46,6 +51,10 @@ export function SessionTree({
             <div
               className="project-row-wrap"
               data-folder-path={node.path}
+              // Depth is explicit because it decides what a folder can do: only the outermost
+              // level can be filed into a group, and a CSS selector cannot tell the levels apart
+              // without encoding the nesting of the markup into every query that asks.
+              data-depth={depth}
               draggable={rearrangeable}
               onDragStart={(e) => {
                 if (!rearrangeable) return
@@ -134,6 +143,8 @@ export function SessionTree({
                     onSplitSession={onSplitSession}
                     pinned={pinned}
                     onTogglePin={onTogglePin}
+                    onReorderFolder={onReorderFolder}
+                    orderFolders={orderFolders}
                   />
                 )}
               </>

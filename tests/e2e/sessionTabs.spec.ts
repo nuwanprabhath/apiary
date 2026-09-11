@@ -300,3 +300,17 @@ test('right-clicking a tab offers to pin the session, which lifts it into the pi
   await h.page.getByTestId('session-tab').first().click({ button: 'right' })
   await expect(h.page.getByTestId('context-menu-pin')).toHaveText('Unpin from sidebar')
 })
+
+test('a tab dropped on the left edge of the first tab lands in first position', async () => {
+  // The reported bug: dropping always landed *on* a tab, so "before the first one" was a position
+  // no target corresponded to and dragging to the front appeared to do nothing.
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await sidebarSession(h.page, 'Add worktree switcher').click()
+  const tabs = h.page.getByTestId('session-tab')
+  await expect(tabs.first()).toContainText('Fix CSV export bug')
+
+  await tabs.last().dragTo(tabs.first(), { targetPosition: { x: 4, y: 10 } })
+
+  await expect(tabs.first()).toContainText('Add worktree switcher')
+  await expect(tabs).toHaveCount(2)
+})

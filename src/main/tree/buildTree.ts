@@ -14,6 +14,7 @@ function toSessionNode(
     sessionId: s.sessionId,
     title: s.title ?? s.firstPrompt ?? s.sessionId,
     cwd,
+    gitBranch: s.gitBranch,
     lastActiveAtMs: s.lastActiveAtMs,
     messageCount: s.messageCount,
     isLive: liveIds.has(s.sessionId),

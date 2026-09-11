@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 /** One command in the menu. A `submenu` opens a second panel beside this one instead of running. */
 export interface GitMenuItem {
@@ -45,8 +45,23 @@ export function GitMenu({ items, onClose, anchorRef }: Props): JSX.Element {
   useEffect(() => {
     const rect = anchorRef.current?.getBoundingClientRect()
     if (rect === undefined) return
-    setPosition({ left: rect.left + 6, bottom: window.innerHeight - rect.top + 4 })
+    setPosition({ left: rect.left, bottom: window.innerHeight - rect.top + 4 })
   }, [anchorRef])
+
+  /**
+   * Keeps the menu on screen once it has a width.
+   *
+   * It opens from a button that can sit at either end of the toolbar, so aligning its left edge to
+   * the button would run it off the right of the window whenever the button is over there. Width
+   * is only knowable after a render, which is why this is a second, corrective pass rather than
+   * part of the measurement above.
+   */
+  useLayoutEffect(() => {
+    if (position === null || rootRef.current === null) return
+    const width = rootRef.current.getBoundingClientRect().width
+    const clamped = Math.max(8, Math.min(position.left, window.innerWidth - width - 8))
+    if (clamped !== position.left) setPosition({ ...position, left: clamped })
+  }, [position])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {

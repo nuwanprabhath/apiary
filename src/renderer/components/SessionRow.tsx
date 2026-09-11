@@ -2,6 +2,14 @@ import type { SessionNode } from '@shared/types'
 import { PinIcon, SplitIcon, TrashIcon } from './icons'
 
 /** Days since a session was last touched, in the compact form the sidebar has room for. */
+/** An absolute timestamp for the tooltip — "8d" is for the row, where space is the constraint. */
+function fullTime(ms: number): string {
+  return new Date(ms).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
 export function relativeTime(ms: number | null): string {
   if (ms === null) return ''
   const days = Math.floor((Date.now() - ms) / 86400000)
@@ -42,7 +50,15 @@ export function SessionRow({
         data-selected={selected}
         data-live={session.isLive}
         onClick={() => onSelect(session)}
-        title={session.cwd}
+        // Everything needed to tell two similarly-named sessions apart, which the row itself has
+        // no width for: where it ran, on what branch, and when it was last touched. The title is
+        // repeated because the row ellipsizes it long before the tooltip would.
+        title={[
+          session.title,
+          session.cwd,
+          session.gitBranch === null ? null : `branch: ${session.gitBranch}`,
+          session.lastActiveAtMs === null ? null : `last active: ${fullTime(session.lastActiveAtMs)}`,
+        ].filter((line): line is string => line !== null).join('\n')}
       >
         {session.isLive && <span className="live-dot" aria-label="running" />}
         <span className="session-title">{session.title}</span>
