@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { PencilIcon, TrashIcon } from './icons'
 
 interface Tab { id: string; name: string }
@@ -13,10 +13,15 @@ interface Props {
 
 /** The side panel listing every open terminal for the current session — click switches; a rename
  *  and a trash button appear on hover (double-clicking the label also renames, for muscle
- *  memory), so with several terminals open there's always a visible way to tidy them up. */
+ *  memory), so with several terminals open there's always a visible way to tidy them up.
+ *  Arrow keys navigate the list when focused: ArrowDown moves to the next shell, ArrowUp to the
+ *  previous, and switching shells as you navigate (roving-focus listbox pattern). */
 export function TerminalListPanel({ tabs, activeId, onSwitch, onRename, onDelete }: Props): JSX.Element {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  /** Which terminal has keyboard focus. Starts at the active terminal; arrow keys move it. */
+  const [focusedId, setFocusedId] = useState<string | null>(null)
+  const listRef = useRef<HTMLUListElement | null>(null)
 
   const commit = (tabId: string): void => {
     const trimmed = draft.trim()
@@ -24,14 +29,63 @@ export function TerminalListPanel({ tabs, activeId, onSwitch, onRename, onDelete
     if (trimmed !== '') onRename(tabId, trimmed)
   }
 
+  const handleListKeyDown = (e: React.KeyboardEvent<HTMLUListElement>): void => {
+    if (editingId !== null) return // Don't navigate while renaming
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+
+      // Find the index of the currently focused item (or the active one if nothing is focused yet)
+      const current = focusedId ?? activeId
+      const currentIdx = current !== null ? tabs.findIndex(t => t.id === current) : -1
+
+      let nextIdx = currentIdx
+      if (e.key === 'ArrowDown') {
+        nextIdx = Math.min(currentIdx + 1, tabs.length - 1)
+      } else {
+        nextIdx = Math.max(currentIdx - 1, 0)
+      }
+
+      const nextId = tabs[nextIdx]?.id
+      if (nextId) {
+        setFocusedId(nextId)
+        onSwitch(nextId)
+      }
+    }
+  }
+
+  const handleItemClick = (tabId: string): void => {
+    setFocusedId(tabId)
+    onSwitch(tabId)
+  }
+
+  const handleListFocus = (): void => {
+    // Initialize keyboard focus to the active terminal if nothing is focused yet
+    if (focusedId === null && activeId !== null) {
+      setFocusedId(activeId)
+    }
+  }
+
   return (
-    <ul className="terminal-list-panel" data-testid="terminal-list-panel">
+    <ul
+      ref={listRef}
+      className="terminal-list-panel"
+      data-testid="terminal-list-panel"
+      role="listbox"
+      aria-label="Open terminals"
+      tabIndex={0}
+      onKeyDown={handleListKeyDown}
+      onFocus={handleListFocus}
+    >
       {tabs.map((tab) => (
         <li
           key={tab.id}
           className="terminal-tab-row"
           data-testid="terminal-tab-row"
           data-active={tab.id === activeId}
+          data-keyboard-focused={tab.id === focusedId}
+          role="option"
+          aria-selected={tab.id === activeId}
         >
           {editingId === tab.id ? (
             <input
@@ -50,7 +104,7 @@ export function TerminalListPanel({ tabs, activeId, onSwitch, onRename, onDelete
             <button
               className="terminal-tab-label"
               data-testid="terminal-tab-label"
-              onClick={() => onSwitch(tab.id)}
+              onClick={() => handleItemClick(tab.id)}
               onDoubleClick={() => { setDraft(tab.name); setEditingId(tab.id) }}
             >
               {tab.name}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectNode, SessionNode } from '@shared/types'
 import { useTree } from '../state/useTree'
 import { SessionTree } from './SessionTree'
@@ -49,16 +49,69 @@ interface Props {
   pending: PendingSessionSummary[]
   /** Switches the main pane to a pending session's terminal. */
   onSelectPending: (ptyId: string) => void
+  /**
+   * A session to scroll into view, set when its tab is activated (Settings > Sidebar). Changing
+   * this is the whole signal: it is deliberately not the same as `selectedId`, so that merely
+   * re-rendering with a selection does not yank the list around while you are scrolling it by hand.
+   */
+  revealId: string | null
+}
+
+/**
+ * The chain of folder paths leading to a session, outermost first.
+ *
+ * Revealing a session means nothing while the folder holding it is collapsed — the row does not
+ * exist to scroll to. These are the folders that have to be opened for it to.
+ */
+function pathsToSession(nodes: ProjectNode[], id: string, trail: string[] = []): string[] | null {
+  for (const node of nodes) {
+    const here = [...trail, node.path]
+    if (node.sessions.some((s) => s.sessionId === id)) return here
+    const deeper = pathsToSession(node.children, id, here)
+    if (deeper) return deeper
+  }
+  return null
 }
 
 export function Sidebar({
   selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onDeleteSession,
   onSplitSession, pinned, onTogglePin, pinnedCollapsed, onPinnedCollapsedChange,
-  pending, onSelectPending,
+  pending, onSelectPending, revealId,
 }: Props): JSX.Element {
   const [query, setQuery] = useState('')
   const { tree, loading, reload } = useTree(query)
   const [refreshing, setRefreshing] = useState(false)
+  const listRef = useRef<HTMLDivElement | null>(null)
+
+  /**
+   * Scrolls a revealed session's row into view, opening the folders above it first.
+   *
+   * Re-runs on tree and collapse changes as well as on `revealId`, because the row usually is not
+   * rendered at the moment the reveal is asked for: the tree arrives asynchronously, and a folder
+   * may need opening before the row exists at all. Each pass does the next thing it can and lets
+   * the resulting render bring it back.
+   *
+   * `scrolledTo` is what stops it fighting the user: once a session has been scrolled to, later
+   * renders leave the list alone, so a tree refresh while you are scrolling by hand does not yank
+   * you back. `block: 'nearest'` likewise leaves an already-visible row exactly where it is.
+   */
+  const scrolledTo = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    if (revealId === null || scrolledTo.current === revealId) return
+
+    const chain = pathsToSession(tree, revealId)
+    if (chain !== null && chain.some((path) => collapsed.has(path))) {
+      const next = new Set(collapsed)
+      for (const path of chain) next.delete(path)
+      onCollapsedChange(next)
+      return
+    }
+
+    const row = listRef.current?.querySelector(`[data-session-id="${CSS.escape(revealId)}"]`)
+    if (!row) return
+    row.scrollIntoView({ block: 'nearest' })
+    scrolledTo.current = revealId
+  }, [revealId, tree, collapsed, onCollapsedChange])
 
   const isEmpty = useMemo(() => !loading && tree.length === 0, [loading, tree])
 
@@ -82,7 +135,7 @@ export function Sidebar({
   }
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" ref={listRef}>
       <div className="sidebar-header">
         {/* The clear button sits inside the field rather than beside it, so the row keeps the
          *  two-control shape it already had (field + Refresh) instead of gaining a third

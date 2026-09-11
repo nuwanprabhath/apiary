@@ -21,12 +21,16 @@ describe('settings', () => {
       claudeBin: '/opt/claude',
       autoImportAll: true,
       autoImportIntervalMinutes: 30,
+      revealActiveInSidebar: false,
+      searchChatContent: false,
       windowBounds: bounds,
     })
     expect(loadSettings(file())).toEqual({
       claudeBin: '/opt/claude',
       autoImportAll: true,
       autoImportIntervalMinutes: 30,
+      revealActiveInSidebar: false,
+      searchChatContent: false,
       windowBounds: bounds,
     })
   })
@@ -42,6 +46,8 @@ describe('settings', () => {
       claudeBin: '/opt/claude',
       autoImportAll: false,
       autoImportIntervalMinutes: null,
+      revealActiveInSidebar: true,
+      searchChatContent: true,
       windowBounds: null,
     })
   })

@@ -61,6 +61,8 @@ export function registerIpc(
       claudeBin: settings.claudeBin,
       autoImportAll: settings.autoImportAll,
       autoImportIntervalMinutes: settings.autoImportIntervalMinutes,
+      revealActiveInSidebar: settings.revealActiveInSidebar,
+      searchChatContent: settings.searchChatContent,
     }
   })
   ipcMain.handle(CHANNELS.settingsSet, async (_e, next: AppSettingsPayload) => {
@@ -70,6 +72,8 @@ export function registerIpc(
       claudeBin: next.claudeBin,
       autoImportAll: next.autoImportAll,
       autoImportIntervalMinutes: next.autoImportIntervalMinutes,
+      revealActiveInSidebar: next.revealActiveInSidebar,
+      searchChatContent: next.searchChatContent,
     }
     saveSettings(settingsFile, merged)
     service.setClaudeBin(merged.claudeBin)

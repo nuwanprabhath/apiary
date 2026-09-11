@@ -898,7 +898,10 @@ body.resizing-active { user-select: none; }
   border-left: 1px solid var(--border);
   overflow-y: auto;
   background: var(--bg-panel);
+  outline: none;
 }
+/* When the list receives focus, a visible indicator appears. */
+.terminal-list-panel:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .terminal-tab-row {
   display: flex;
   align-items: center;
@@ -907,6 +910,8 @@ body.resizing-active { user-select: none; }
   padding: 2px;
 }
 .terminal-tab-row[data-active="true"] { background: var(--selected); }
+/* Keyboard focus indicator: a subtle ring around the row when navigated via arrow keys. */
+.terminal-tab-row[data-keyboard-focused="true"] { outline: 1px solid var(--accent); outline-offset: -1px; }
 .terminal-tab-label {
   flex: 1;
   min-width: 0;
@@ -1215,6 +1220,35 @@ body.resizing-active { user-select: none; }
 /* A submenu hangs off its parent row, opening to the right and aligned with it. */
 .git-submenu { position: absolute; left: 100%; top: -5px; margin-left: 2px; }
 
+/* Right-click context menu for the terminal, styled to match git-menu. */
+.terminal-context-menu-root { position: fixed; z-index: 60; }
+.terminal-context-menu {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  min-width: 140px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-overlay);
+}
+.terminal-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font: inherit;
+}
+.terminal-context-menu-item:hover:not(:disabled), .terminal-context-menu-item:focus-visible { background: var(--selected); }
+.terminal-context-menu-item:disabled { color: var(--muted); cursor: default; }
+
 /*
  * A dialog you can widen by dragging either edge. The strips sit just inside the dialog's own
  * border rather than outside it, so they never overlap the backdrop (where a mousedown would be
@@ -1458,3 +1492,35 @@ body.resizing-active { user-select: none; }
 }
 .lightbox-close:hover { background: var(--selected); }
 .lightbox-close svg { width: 16px; height: 16px; display: block; }
+
+/* Right-click menu on a session tab. Fixed to the viewport at the cursor, so it is not clipped by
+   the tab strip's own horizontal overflow; shares the git menu's look, being the same kind of thing. */
+.tab-menu {
+  position: fixed;
+  z-index: 60;
+  padding: 4px;
+  min-width: 170px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-overlay);
+}
+.tab-menu-item {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font: inherit;
+}
+.tab-menu-item:hover, .tab-menu-item:focus-visible { background: var(--hover); }
+
+/* Dragging a tab to reorder it: the tab being carried fades, and the one it would land on shows an
+   insertion edge. A border would shift the strip's layout as it appears, so the marker is an inset
+   shadow, which takes up no space. */
+.session-tab[data-dragging="true"] { opacity: 0.4; }
+.session-tab[data-drop-target="true"] { box-shadow: inset 2px 0 0 0 var(--accent); }

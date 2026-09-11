@@ -15,8 +15,13 @@ interface Section {
 
 const SECTIONS: Section[] = [
   { id: 'sessions', label: 'Sessions', blurb: 'How sessions get into Apiary, and how often it looks for new ones.' },
+  { id: 'search', label: 'Search', blurb: 'What the search box looks at when you type in it.' },
+  { id: 'sidebar', label: 'Sidebar', blurb: 'How the session list behaves while you work.' },
   { id: 'general', label: 'General', blurb: 'Where Apiary finds the tools it runs.' },
 ]
+
+/** The blurb for the section on screen, by id rather than by position in the array. */
+const blurbOf = (id: string): string => SECTIONS.find((s) => s.id === id)?.blurb ?? ''
 
 /** The interval presets, plus the option to type a number. Minutes throughout. */
 const INTERVAL_PRESETS = [1, 5, 15, 30, 60]
@@ -87,7 +92,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
               <p className="empty">Loading settings…</p>
             ) : section === 'sessions' ? (
               <>
-                <p className="settings-blurb">{SECTIONS[0].blurb}</p>
+                <p className="settings-blurb">{blurbOf('sessions')}</p>
 
                 <label className="settings-row">
                   <input
@@ -157,9 +162,52 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
                   </div>
                 )}
               </>
+            ) : section === 'search' ? (
+              <>
+                <p className="settings-blurb">{blurbOf('search')}</p>
+
+                <label className="settings-row">
+                  <input
+                    type="checkbox"
+                    data-testid="setting-search-chat-content"
+                    checked={draft.searchChatContent}
+                    onChange={(e) => patch({ searchChatContent: e.target.checked })}
+                  />
+                  <span>
+                    <strong>Search inside conversations</strong>
+                    <span className="settings-help">
+                      Matches what was actually said in a session — ticket and merge-request
+                      numbers, branch names, pipeline ids, any phrase you remember — not just the
+                      session title. Turning this off falls back to titles alone and stops Apiary
+                      keeping the index up to date.
+                    </span>
+                  </span>
+                </label>
+              </>
+            ) : section === 'sidebar' ? (
+              <>
+                <p className="settings-blurb">{blurbOf('sidebar')}</p>
+
+                <label className="settings-row">
+                  <input
+                    type="checkbox"
+                    data-testid="setting-reveal-active"
+                    checked={draft.revealActiveInSidebar}
+                    onChange={(e) => patch({ revealActiveInSidebar: e.target.checked })}
+                  />
+                  <span>
+                    <strong>Reveal the open session in the sidebar</strong>
+                    <span className="settings-help">
+                      Switching to a tab scrolls the sidebar to that session and highlights it, so
+                      you can see where in months of history the thing you are looking at lives.
+                      Turn this off to leave the sidebar exactly where you left it.
+                    </span>
+                  </span>
+                </label>
+              </>
             ) : (
               <>
-                <p className="settings-blurb">{SECTIONS[1].blurb}</p>
+                <p className="settings-blurb">{blurbOf('general')}</p>
                 <label className="settings-row settings-row-stacked">
                   <strong>Path to the claude binary</strong>
                   <input

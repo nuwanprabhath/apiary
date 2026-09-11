@@ -1,3 +1,9 @@
+/** One user-made heading in the sidebar. `id` is stable; `name` is what is shown and renamed. */
+export interface SessionGroup {
+  id: string
+  name: string
+}
+
 export interface UiState {
   /**
    * Paths of folders the user has deliberately collapsed. Anything NOT in this list is open,
@@ -15,6 +21,22 @@ export interface UiState {
   pinned: string[]
   /** Whether the pinned section itself is collapsed. */
   pinnedCollapsed: boolean
+  /**
+   * Top-level folder groups, in display order — the user's own headings for the sidebar, so months
+   * of folders can be filed away rather than scrolled past. Modelled on the simple-worktrees VS
+   * Code extension: a flat, ordered list of named groups, with folders assigned to them by path.
+   */
+  groups: SessionGroup[]
+  /** Project path → group id. A path with no entry (or a stale one) is simply ungrouped. */
+  groupAssignments: Record<string, string>
+  /** Ids of groups the user has collapsed; like `collapsed`, absence means open. */
+  groupsCollapsed: string[]
+  /**
+   * Project paths in the order the user dragged them into, outermost level only. Paths missing
+   * from this list sort after the ones in it, so a newly discovered folder appears at the bottom
+   * rather than silently jumping into the middle of an arrangement someone made deliberately.
+   */
+  folderOrder: string[]
   selectedSessionId: string | null
   sidebarWidth: number
   bottomHeight: number
@@ -26,6 +48,10 @@ const KEY = 'apiary.ui'
 
 export const DEFAULT_UI_STATE: UiState = {
   collapsed: [],
+  groups: [],
+  groupAssignments: {},
+  groupsCollapsed: [],
+  folderOrder: [],
   pinned: [],
   pinnedCollapsed: false,
   selectedSessionId: null,

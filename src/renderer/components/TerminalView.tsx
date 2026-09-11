@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Terminal, type ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import { TerminalContextMenu, type TerminalContextMenuItem } from './TerminalContextMenu'
 
 interface Props {
   ptyId: string
@@ -42,6 +43,9 @@ export function TerminalView({ ptyId, testId, visible = true }: Props): JSX.Elem
   // scroll-on-show effect below). Cleared on teardown so a late callback can't touch a disposed
   // terminal.
   const termRef = useRef<Terminal | null>(null)
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(
+    null,
+  )
 
   useEffect(() => {
     if (host.current === null) return
@@ -77,6 +81,48 @@ export function TerminalView({ ptyId, testId, visible = true }: Props): JSX.Elem
       if (id === ptyId) term.write(`\r\n[process exited with code ${String(code)}]\r\n`)
     })
     const disposeInput = term.onData((data) => window.apiary.ptyWrite(ptyId, data))
+
+    /**
+     * Copy/paste, via xterm's own hook rather than a DOM listener.
+     *
+     * This has to run *before* xterm processes the key and be able to swallow it: a listener on the
+     * host element fires after xterm has already written to the pty, so calling preventDefault
+     * there would copy the selection and still send SIGINT. Returning false here is what stops the
+     * key reaching the terminal at all.
+     *
+     * Ctrl+C only copies when something is selected — with no selection it must still interrupt
+     * whatever is running, which is the single most important key in a terminal. Ctrl+Shift+C
+     * always copies (the Linux convention), and paste is Ctrl+Shift+V, or Cmd+V on macOS, since a
+     * bare Ctrl+V is a control character a terminal is entitled to receive.
+     */
+    const isMac = navigator.userAgent.includes('Mac')
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown') return true
+      if (!e.ctrlKey && !e.metaKey) return true
+      const key = e.key.toLowerCase()
+
+      if (key === 'c' && (e.shiftKey || term.hasSelection())) {
+        const selection = term.getSelection()
+        if (selection !== '') {
+          void window.apiary.copyToClipboard(selection).catch(() => {
+            // Nothing useful to say if the clipboard refuses; the selection is still on screen.
+          })
+          term.clearSelection()
+        }
+        return false
+      }
+
+      if (key === 'v' && (e.shiftKey || (isMac && e.metaKey))) {
+        void navigator.clipboard.readText()
+          .then((text) => { if (text !== '') window.apiary.ptyWrite(ptyId, text) })
+          .catch(() => {
+            // Clipboard read can be refused; better to do nothing than to interrupt the session.
+          })
+        return false
+      }
+
+      return true
+    })
 
     // Coalesce bursts of ResizeObserver callbacks (e.g. a drag of the bottom-pane resizer fires
     // many in one frame) into a single measurement per animation frame, and only actually fit
@@ -137,5 +183,67 @@ export function TerminalView({ ptyId, testId, visible = true }: Props): JSX.Elem
     return () => cancelAnimationFrame(id)
   }, [visible])
 
-  return <div className="terminal-host" data-testid={testId} ref={host} />
+  // Read when the menu opens (that is the render this state change causes), so "Copy" reflects the
+  // selection as it is at that moment rather than whatever it was at the last unrelated render.
+  const hasSelection = (termRef.current?.getSelection() ?? '') !== ''
+  const contextMenuItems: TerminalContextMenuItem[] = [
+    {
+      id: 'copy',
+      label: 'Copy',
+      disabled: !hasSelection,
+      run: () => {
+        const selection = termRef.current?.getSelection()
+        if (selection) {
+          window.apiary.copyToClipboard(selection)
+          termRef.current?.clearSelection()
+        }
+      },
+    },
+    {
+      id: 'paste',
+      label: 'Paste',
+      run: () => {
+        navigator.clipboard.readText().then((text) => {
+          window.apiary.ptyWrite(ptyId, text)
+        }).catch((err) => {
+          console.error('Failed to read clipboard:', err)
+        })
+      },
+    },
+    {
+      id: 'select-all',
+      label: 'Select All',
+      run: () => {
+        termRef.current?.selectAll()
+      },
+    },
+    {
+      id: 'clear',
+      label: 'Clear',
+      run: () => {
+        termRef.current?.clear()
+      },
+    },
+  ]
+
+  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>): void => {
+    e.preventDefault()
+    setContextMenuPosition({ x: e.clientX, y: e.clientY })
+  }
+
+  return (
+    <>
+      <div
+        className="terminal-host"
+        data-testid={testId}
+        ref={host}
+        onContextMenu={handleContextMenu}
+      />
+      <TerminalContextMenu
+        items={contextMenuItems}
+        position={contextMenuPosition}
+        onClose={() => setContextMenuPosition(null)}
+      />
+    </>
+  )
 }

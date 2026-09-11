@@ -50,6 +50,11 @@ interface Props {
   onRenamePending: (ptyId: string, title: string) => void
   /** Splits this column's active session into a column of its own beside it. */
   onSplitActive: (key: string) => void
+  /** Moves a tab within this column's strip, after a drag. */
+  onReorderTab: (key: string, toIndex: number) => void
+  /** Session ids in the sidebar's Pinned section, so the tab menu offers the right verb. */
+  pinnedKeys: Set<string>
+  onTogglePin: (key: string) => void
   /** flex-grow weight, set by dragging the dividers between columns (see App.tsx). */
   weight: number
 }
@@ -66,7 +71,7 @@ export function SessionColumn(props: Props): JSX.Element {
     column, sessions, pending, resumed, ptyOverrides, shellTabs, setShellTabs,
     activeTerminal, setActiveTerminal, bottomHeight, onStartBottomResize, isActive, onFocus,
     onActivateTab, onCloseTab, onSetView, onResume, onResumeAsync, onRenameSession, onRenamePending,
-    onSplitActive, weight,
+    onSplitActive, onReorderTab, pinnedKeys, onTogglePin, weight,
   } = props
 
   // Failures raised in here go to the app-wide notification stack rather than an in-pane banner:
@@ -350,6 +355,9 @@ export function SessionColumn(props: Props): JSX.Element {
         onActivate={onActivateTab}
         onClose={onCloseTab}
         onSplitActive={() => { if (activeKey !== null) onSplitActive(activeKey) }}
+        onReorder={onReorderTab}
+        pinnedKeys={pinnedKeys}
+        onTogglePin={onTogglePin}
       />
 
       {activeKey === null ? (

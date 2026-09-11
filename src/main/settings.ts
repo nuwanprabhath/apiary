@@ -15,6 +15,17 @@ export interface AppSettings {
   autoImportAll: boolean
   /** Minutes between automatic rescans, or null when periodic scanning is off. */
   autoImportIntervalMinutes: number | null
+  /**
+   * Whether activating a tab scrolls the sidebar to that session and highlights it. On by default:
+   * with months of history in the tree, finding the row for the session you are looking at is
+   * otherwise a hunt. Off for anyone who would rather the sidebar stayed where they left it.
+   */
+  revealActiveInSidebar: boolean
+  /**
+   * Whether the search box also matches the *contents* of conversations, not just their titles.
+   * On by default; turning it off falls back to title-only search and stops the indexer running.
+   */
+  searchChatContent: boolean
   windowBounds: WindowBounds | null
 }
 
@@ -22,6 +33,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   claudeBin: null,
   autoImportAll: false,
   autoImportIntervalMinutes: null,
+  revealActiveInSidebar: true,
+  searchChatContent: true,
   windowBounds: null,
 }
 

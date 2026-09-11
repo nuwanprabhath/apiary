@@ -7,7 +7,7 @@ import { DeleteSessionDialog } from './components/DeleteSessionDialog'
 import { ImportDialog } from './components/ImportDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import {
-  newColumn, openTab, closeTab, setTabView, rekeyTab,
+  newColumn, openTab, closeTab, setTabView, rekeyTab, moveTab, findColumnWithTab,
   type Column,
 } from './state/columns'
 import { loadUiState, saveUiState, type UiState } from './state/uiState'
@@ -142,6 +142,19 @@ export function App(): JSX.Element {
   const [deleteTarget, setDeleteTarget] = useState<SessionNode | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  /**
+   * Settings the renderer itself acts on. Re-read when the settings dialog closes rather than
+   * subscribed to: these change only when someone changes them, and only from that one dialog.
+   */
+  const [revealActiveInSidebar, setRevealActiveInSidebar] = useState(true)
+  const loadUiSettings = useCallback(() => {
+    void window.apiary.settingsGet()
+      .then((s) => setRevealActiveInSidebar(s.revealActiveInSidebar))
+      .catch(() => {
+        // Defaults are already in place; a settings read failing is not worth interrupting anyone.
+      })
+  }, [])
+  useEffect(() => { loadUiSettings() }, [loadUiSettings])
   const [treeNonce, setTreeNonce] = useState(0)
   const [resizing, setResizing] = useState(false)
   const [resizingBottom, setResizingBottom] = useState(false)
@@ -161,9 +174,17 @@ export function App(): JSX.Element {
   >(null)
 
   const activeColumn = columns.find((c) => c.id === activeColumnId) ?? columns[0]
+  /** Pinned ids as a set, for the tab menu's Pin/Unpin wording. */
+  const pinnedKeys = new Set(ui.pinned)
   const activeKey = activeColumn?.activeKey ?? null
 
-  /** Opens a session in the focused column, or in a brand-new column beside it when splitting. */
+  /**
+   * Opens a session in the focused column, or in a brand-new column beside it when splitting.
+   *
+   * A session already open somewhere is focused where it is rather than opened again: the second
+   * copy would be the same conversation and the same underlying process, so it reads as a split
+   * that cannot be told apart from the first. Splitting is the way to ask for it twice deliberately.
+   */
   const openSessionTab = useCallback((session: SessionNode, split: boolean) => {
     setOpenSessions((prev) => new Map(prev).set(session.sessionId, session))
     if (split) {
@@ -173,6 +194,11 @@ export function App(): JSX.Element {
       return
     }
     setColumns((prev) => {
+      const existing = findColumnWithTab(prev, session.sessionId)
+      if (existing) {
+        setActiveColumnId(existing.id)
+        return prev.map((c) => (c.id === existing.id ? openTab(c, session.sessionId) : c))
+      }
       const targetId = prev.some((c) => c.id === activeColumnId) ? activeColumnId : prev[0]?.id
       return prev.map((c) => (c.id === targetId ? openTab(c, session.sessionId) : c))
     })
@@ -641,6 +667,7 @@ export function App(): JSX.Element {
       <Sidebar
         key={treeNonce}
         selectedId={activeKey}
+        revealId={revealActiveInSidebar ? activeKey : null}
         onSelect={onSelect}
         onSplitSession={onSplitSession}
         collapsed={new Set(ui.collapsed)}
@@ -727,6 +754,16 @@ export function App(): JSX.Element {
             }}
             onRenamePending={setPendingTitle}
             onSplitActive={splitActiveTab}
+            onReorderTab={(key, toIndex) => {
+              setColumns((prev) => prev.map((c) => (c.id === column.id ? moveTab(c, key, toIndex) : c)))
+            }}
+            pinnedKeys={pinnedKeys}
+            onTogglePin={(key) => {
+              // A pending tab has no session row to pin yet, so the menu simply does nothing for
+              // it rather than pinning an id that will be replaced the moment it resolves.
+              const session = openSessions.get(key)
+              if (session) togglePin(session)
+            }}
             weight={columnWeights.get(column.id) ?? 1}
           />
           </ErrorBoundary>
@@ -760,7 +797,9 @@ export function App(): JSX.Element {
         />
       )}
 
-      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsDialog onClose={() => { setSettingsOpen(false); loadUiSettings() }} />
+      )}
     </div>
   )
 }

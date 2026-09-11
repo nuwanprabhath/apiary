@@ -35,6 +35,33 @@ export function findTab(column: Column, key: string): OpenTab | null {
   return column.tabs.find((t) => t.key === key) ?? null
 }
 
+/**
+ * The column already showing `key`, if any.
+ *
+ * Clicking a session in the sidebar should go to where it already is rather than opening a second
+ * copy of it: the same conversation in two columns is never what was meant, and the duplicate
+ * shares the one underlying session, so it looks like a split that cannot be told apart.
+ */
+export function findColumnWithTab(columns: Column[], key: string): Column | null {
+  return columns.find((c) => findTab(c, key) !== null) ?? null
+}
+
+/**
+ * Moves a tab to `toIndex` within its column, for drag-to-reorder.
+ *
+ * The index is taken against the list *without* the dragged tab in it, which is what a drop
+ * position means: dropping on the tab currently at index 2 should land at index 2 whichever side
+ * the tab came from, rather than one place off when dragging rightwards.
+ */
+export function moveTab(column: Column, key: string, toIndex: number): Column {
+  const from = column.tabs.findIndex((t) => t.key === key)
+  if (from === -1) return column
+  const rest = column.tabs.filter((t) => t.key !== key)
+  const clamped = Math.max(0, Math.min(toIndex, rest.length))
+  const tab = column.tabs[from]
+  return { ...column, tabs: [...rest.slice(0, clamped), tab, ...rest.slice(clamped)] }
+}
+
 /** Adds `key` to the column if it isn't already there, and makes it active either way. */
 export function openTab(column: Column, key: string): Column {
   if (findTab(column, key) !== null) return { ...column, activeKey: key }

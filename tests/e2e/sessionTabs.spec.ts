@@ -256,3 +256,47 @@ test('closing tabs never leaves an empty column stranded beside a full one', asy
   await expect(h.page.getByTestId('session-column')).toHaveCount(1)
   await expect(h.page.getByTestId('content-empty')).toBeVisible()
 })
+
+test('a session already open in another column is focused there, not opened a second time', async () => {
+  // Split puts the second session in a column of its own, so the two live in different columns.
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('session-tab-split').click()
+  await expect(h.page.getByTestId('session-tab-bar')).toHaveCount(2)
+
+  await sidebarSession(h.page, 'Add worktree switcher').click()
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+
+  // Three tabs across two columns, not four: clicking a session that is already open goes to
+  // where it is. A second copy would be the same conversation twice, indistinguishable from a split.
+  await expect(h.page.getByTestId('session-tab')).toHaveCount(3)
+})
+
+test('a tab can be dragged to a new position, and stays where it is put', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await sidebarSession(h.page, 'Add worktree switcher').click()
+  const tabs = h.page.getByTestId('session-tab')
+  await expect(tabs.first()).toContainText('Fix CSV export bug')
+
+  await tabs.last().dragTo(tabs.first())
+
+  await expect(tabs.first()).toContainText('Add worktree switcher')
+  await expect(tabs.last()).toContainText('Fix CSV export bug')
+  await expect(tabs).toHaveCount(2)
+})
+
+test('right-clicking a tab offers to pin the session, which lifts it into the pinned section', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await expect(h.page.getByTestId('pinned-section')).toHaveCount(0)
+
+  await h.page.getByTestId('session-tab').first().click({ button: 'right' })
+  await expect(h.page.getByTestId('tab-menu')).toBeVisible()
+  await h.page.getByTestId('tab-menu-pin').click()
+
+  const section = h.page.getByTestId('pinned-section')
+  await expect(section).toBeVisible()
+  await expect(section.getByTestId('session-item')).toContainText('Fix CSV export bug')
+
+  // And the menu says so the second time round, rather than offering to pin it again.
+  await h.page.getByTestId('session-tab').first().click({ button: 'right' })
+  await expect(h.page.getByTestId('tab-menu-pin')).toHaveText('Unpin from sidebar')
+})

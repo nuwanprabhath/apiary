@@ -21,6 +21,10 @@ export interface AppSettingsPayload {
   autoImportAll: boolean
   /** Minutes between automatic rescans, or null when periodic scanning is off. */
   autoImportIntervalMinutes: number | null
+  /** Scroll the sidebar to a session, and highlight it, when its tab is activated. */
+  revealActiveInSidebar: boolean
+  /** Search conversation contents as well as titles. */
+  searchChatContent: boolean
 }
 
 export const CHANNELS = {

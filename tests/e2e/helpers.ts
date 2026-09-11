@@ -34,6 +34,23 @@ function headlessEnv(): Record<string, string> {
   return process.env.APIARY_HEADED === '1' ? {} : { APIARY_HEADLESS: '1' }
 }
 
+/**
+ * The environment to launch Electron with.
+ *
+ * `ELECTRON_RUN_AS_NODE` has to go. Anything that runs Electron's binary as a plain Node
+ * interpreter sets it, and it is inherited by everything started from that shell afterwards — at
+ * which point every launch here dies with "Process failed to launch", because the app starts as
+ * Node and `electron` exports no `BrowserWindow`. Cheap to rule out once, and the failure it
+ * causes looks nothing like its cause.
+ */
+function launchEnv(extra: Record<string, string>): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [k, v] of Object.entries(process.env)) {
+    if (k !== 'ELECTRON_RUN_AS_NODE' && v !== undefined) env[k] = v
+  }
+  return { ...env, ...extra, ...headlessEnv() }
+}
+
 function git(cwd: string, ...args: string[]): void {
   execFileSync('git', args, { cwd, stdio: 'pipe' })
 }
@@ -150,13 +167,11 @@ export async function launchApiary(
     // already created, instead of sharing Electron's OS-default userData directory (and thus
     // the developer's real Apiary profile) across every test run and relaunch.
     args: [`--user-data-dir=${join(home, 'userdata')}`, '.'],
-    env: {
-      ...process.env,
+    env: launchEnv({
       APIARY_CONFIG_ROOT: home,
       APIARY_DB_PATH: join(home, 'apiary.db'),
       APIARY_FAKE_LIVE: opts.fakeLiveSessionId ?? '',
-      ...headlessEnv(),
-    },
+    }),
   })
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
@@ -202,13 +217,11 @@ export async function relaunchApiary(h: Harness): Promise<void> {
   await h.app.close()
   const app = await electron.launch({
     args: [`--user-data-dir=${join(h.home, 'userdata')}`, '.'],
-    env: {
-      ...process.env,
+    env: launchEnv({
       APIARY_CONFIG_ROOT: h.home,
       APIARY_DB_PATH: join(h.home, 'apiary.db'),
       APIARY_FAKE_LIVE: '',
-      ...headlessEnv(),
-    },
+    }),
   })
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')

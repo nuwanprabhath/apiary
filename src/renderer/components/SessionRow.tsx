@@ -35,7 +35,7 @@ export function SessionRow({
   session, selected, pinned, onSelect, onSplit, onDelete, onTogglePin,
 }: Props): JSX.Element {
   return (
-    <div className="session-row-wrap" data-pinned={pinned}>
+    <div className="session-row-wrap" data-pinned={pinned} data-session-id={session.sessionId}>
       <button
         className="session-row"
         data-testid="session-item"
