@@ -166,3 +166,27 @@ test('a long branch name ellipsizes instead of growing the toolbar into the term
 
   expect(await toolbarHeight()).toBe(before)
 })
+
+test('arrowing through the terminal list moves the selection without boxing the row you clicked', async () => {
+  await h.page.getByTestId('terminal-add').click()
+  await h.page.getByTestId('terminal-add').click()
+  const rows = h.page.getByTestId('terminal-tab-row')
+  await expect(rows).toHaveCount(3)
+
+  await rows.nth(1).getByTestId('terminal-tab-label').click()
+  await expect(rows.nth(1)).toHaveAttribute('data-active', 'true')
+
+  await h.page.keyboard.press('ArrowUp')
+  await expect(rows.first()).toHaveAttribute('data-active', 'true')
+  await expect(rows.first()).toHaveAttribute('data-keyboard-focused', 'true')
+  await expect(rows.nth(1)).toHaveAttribute('data-keyboard-focused', 'false')
+
+  // The reported bug: DOM focus stayed on the button of the row that was clicked, so pressing a
+  // key made Chromium draw its own focus ring around it — a box around a row that the selection
+  // had already left, and one that reads as the rename field a row turns into.
+  const focused = await h.page.evaluate(() => document.activeElement?.className ?? '')
+  expect(focused).toContain('terminal-list-panel')
+
+  await h.page.keyboard.press('ArrowDown')
+  await expect(rows.nth(1)).toHaveAttribute('data-active', 'true')
+})

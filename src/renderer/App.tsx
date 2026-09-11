@@ -7,7 +7,7 @@ import { DeleteSessionDialog } from './components/DeleteSessionDialog'
 import { ImportDialog } from './components/ImportDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import {
-  newColumn, openTab, closeTab, setTabView, rekeyTab, moveTab, findColumnWithTab,
+  newColumn, openTab, closeTab, setTabView, rekeyTab, moveTabToColumn, findColumnWithTab,
   type Column,
 } from './state/columns'
 import { loadUiState, saveUiState, type UiState } from './state/uiState'
@@ -773,7 +773,11 @@ export function App(): JSX.Element {
             onRenamePending={setPendingTitle}
             onSplitActive={splitActiveTab}
             onReorderTab={(key, toIndex) => {
-              setColumns((prev) => prev.map((c) => (c.id === column.id ? moveTab(c, key, toIndex) : c)))
+              // The tab may have been dragged in from another column, so this cannot be a change
+              // to this column alone — a move has to leave the column it came from at the same
+              // time, or the same session ends up open twice.
+              setColumns((prev) => moveTabToColumn(prev, key, column.id, toIndex))
+              setActiveColumnId(column.id)
             }}
             pinnedKeys={pinnedKeys}
             onTogglePin={(key) => {

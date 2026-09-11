@@ -314,3 +314,45 @@ test('a tab dropped on the left edge of the first tab lands in first position', 
   await expect(tabs.first()).toContainText('Add worktree switcher')
   await expect(tabs).toHaveCount(2)
 })
+
+// The reported bug: the tab being dragged belonged to another column, and a strip that reacted
+// only to a drag begun inside itself never became a drop target at all — so the drag ended with
+// the tab snapping back and nothing having happened.
+test('a tab can be dragged from one column into another, at the position it is dropped', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('session-tab-split').click()
+  await expect(h.page.getByTestId('session-column')).toHaveCount(2)
+
+  // The second column gets a session of its own, which is the one to drag across.
+  await sidebarSession(h.page, 'Add worktree switcher').click()
+  const columns = h.page.getByTestId('session-column')
+  await expect(columns.last().getByTestId('session-tab')).toHaveCount(2)
+
+  const dragged = columns.last().getByTestId('session-tab')
+    .filter({ hasText: 'Add worktree switcher' })
+  await dragged.dragTo(columns.first().getByTestId('session-tab').first(), {
+    targetPosition: { x: 4, y: 10 },
+  })
+
+  const left = columns.first().getByTestId('session-tab')
+  await expect(left).toHaveCount(2)
+  await expect(left.first()).toContainText('Add worktree switcher')
+  // And it has left the column it came from, rather than being open twice.
+  await expect(columns.last().getByTestId('session-tab')).toHaveCount(1)
+})
+
+test('dragging a column its last tab leaves that column gone, not empty', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('session-tab-split').click()
+  await sidebarSession(h.page, 'Add worktree switcher').click()
+  const columns = h.page.getByTestId('session-column')
+  await columns.last().getByTestId('session-tab').filter({ hasText: 'Fix CSV export bug' })
+    .getByTestId('session-tab-close').click()
+  await expect(columns.last().getByTestId('session-tab')).toHaveCount(1)
+
+  await columns.last().getByTestId('session-tab').first()
+    .dragTo(columns.first().getByTestId('session-tab').first(), { targetPosition: { x: 4, y: 10 } })
+
+  await expect(h.page.getByTestId('session-column')).toHaveCount(1)
+  await expect(h.page.getByTestId('session-tab')).toHaveCount(2)
+})

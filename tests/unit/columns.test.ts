@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { newColumn, openTab, moveTab, findColumnWithTab } from '../../src/renderer/state/columns'
+import {
+  newColumn, openTab, moveTab, moveTabToColumn, setTabView, findColumnWithTab,
+} from '../../src/renderer/state/columns'
 
 const keys = (column: { tabs: { key: string }[] }): string[] => column.tabs.map((t) => t.key)
 
@@ -47,5 +49,51 @@ describe('moveTab', () => {
   it('keeps which tab is active while reordering', () => {
     const column = three() // 'c' was opened last, so it is active
     expect(moveTab(column, 'a', 2).activeKey).toBe('c')
+  })
+})
+
+describe('moveTabToColumn', () => {
+  /** Two columns: left holds 'a' and 'b', right holds 'c'. */
+  const pair = () => [
+    openTab(openTab(newColumn(), 'a'), 'b'),
+    openTab(newColumn(), 'c'),
+  ]
+
+  it('moves a tab into another column at the position it was dropped', () => {
+    const columns = pair()
+    const next = moveTabToColumn(columns, 'c', columns[0].id, 0)
+    expect(keys(next[0])).toEqual(['c', 'a', 'b'])
+  })
+
+  it('takes the tab out of the column it came from, so the session is not open twice', () => {
+    const columns = pair()
+    const next = moveTabToColumn(columns, 'c', columns[0].id, 2)
+    expect(keys(next[0])).toEqual(['a', 'b', 'c'])
+    expect(keys(next[1])).toEqual([])
+  })
+
+  it('makes the moved tab active where it lands — it is what was just dropped there', () => {
+    const columns = pair()
+    const next = moveTabToColumn(columns, 'c', columns[0].id, 0)
+    expect(next[0].activeKey).toBe('c')
+  })
+
+  it('brings the tab\'s view with it, so it arrives showing what it was showing', () => {
+    const [left, right] = pair()
+    const next = moveTabToColumn([left, setTabView(right, 'c', 'terminal')], 'c', left.id, 0)
+    expect(next[0].tabs[0].view).toBe('terminal')
+  })
+
+  it('is an ordinary reorder when the tab is already in the target column', () => {
+    const columns = pair()
+    const next = moveTabToColumn(columns, 'b', columns[0].id, 0)
+    expect(keys(next[0])).toEqual(['b', 'a'])
+    expect(keys(next[1])).toEqual(['c'])
+  })
+
+  it('leaves everything alone when the tab or the column is unknown', () => {
+    const columns = pair()
+    expect(moveTabToColumn(columns, 'nope', columns[0].id, 0)).toBe(columns)
+    expect(moveTabToColumn(columns, 'c', 'no-such-column', 0)).toBe(columns)
   })
 })

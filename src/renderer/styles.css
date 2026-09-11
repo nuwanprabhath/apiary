@@ -916,6 +916,14 @@ body.resizing-active { user-select: none; }
   box-shadow: inset 2px 0 0 0 var(--accent);
   background: var(--hover);
 }
+/* The list owns the keyboard focus indicator (the bar above), so a label that ends up focused —
+   by a click, or by tabbing past the list — must not also draw Chromium's default ring, which
+   follows the OS accent and reads as a second, boxed selection on a row the arrows have already
+   moved off. */
+.terminal-tab-label:focus-visible {
+  outline: none;
+  box-shadow: inset 2px 0 0 0 var(--accent);
+}
 .terminal-tab-label {
   flex: 1;
   min-width: 0;

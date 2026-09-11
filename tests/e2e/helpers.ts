@@ -20,6 +20,8 @@ export interface Harness {
   repoRoot: string
   /** A `git worktree add` checkout of repoRoot, nested under it in the tree. */
   worktreeDir: string
+  /** A second worktree of repoRoot, present only when `secondWorktree` was asked for. */
+  worktreeDirB: string | null
   /** Opens a second app window through the real File > New Window menu item. */
   newWindow(): Promise<Page>
   close(): Promise<void>
@@ -93,6 +95,12 @@ export async function launchApiary(
   opts: {
     extraSessions?: Array<Omit<FixtureOptions, 'cwd'> & { slug: string }>
     withMissingCwd?: boolean
+    /**
+     * Adds a second worktree of repo-c, so the nested level is a list of two and can be
+     * rearranged. It has to exist before launch: the tree's git topology is resolved by the
+     * startup scan, and a worktree added afterwards is not picked up by Refresh.
+     */
+    secondWorktree?: boolean
     fakeLiveSessionId?: string
   } = {},
 ): Promise<Harness> {
@@ -109,6 +117,11 @@ export async function launchApiary(
   const workdirB = join(home, 'work-b')
   mkdirSync(workdirB)
   const { repoRoot, worktreeDir } = makeRepoWithWorktree(home)
+  let worktreeDirB: string | null = null
+  if (opts.secondWorktree === true) {
+    worktreeDirB = join(home, 'repo-c-wt2')
+    git(repoRoot, 'worktree', 'add', '-q', '-b', 'feature/wt2', worktreeDirB)
+  }
 
   makeSession(projects, '-work-a', {
     sessionId: '11111111-1111-1111-1111-111111111111',
@@ -146,6 +159,15 @@ export async function launchApiary(
     gitBranch: 'feature/wt',
     title: 'Worktree session',
   })
+
+  if (worktreeDirB !== null) {
+    makeSession(projects, '-repo-c-wt2', {
+      sessionId: '66666666-6666-6666-6666-666666666666',
+      cwd: worktreeDirB,
+      gitBranch: 'feature/wt2',
+      title: 'Second worktree session',
+    })
+  }
 
   for (const { slug, ...o } of opts.extraSessions ?? []) {
     const cwd = join(home, slug.replace(/^-+/, '') || slug)
@@ -187,6 +209,7 @@ export async function launchApiary(
     workdirB,
     repoRoot,
     worktreeDir,
+    worktreeDirB,
     async newWindow() {
       // Driven through the actual menu item rather than by constructing a BrowserWindow here, so
       // the test exercises the path a user takes — including whatever the app does on the way.

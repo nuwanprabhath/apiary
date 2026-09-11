@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { CloseIcon, SplitIcon } from './icons'
 import { ContextMenu } from './ContextMenu'
 
+/** The drag payload type for a session tab, shared by every strip in the window. */
+const TAB_MIME = 'application/x-apiary-tab'
+
 export interface SessionTabView {
   key: string
   label: string
@@ -26,8 +29,12 @@ interface Props {
   onClose: (key: string) => void
   /** Splits the active tab into a column of its own, the way VS Code's editor-title split does. */
   onSplitActive: () => void
-  /** Moves a tab to `toIndex` within this column's strip, after a drag. */
-  onReorder: (key: string, toIndex: number) => void
+  /**
+   * Puts `key` at `toIndex` in this column's strip, after a drag. The tab may have come from this
+   * strip (a reorder) or from another column's (a move); the strip does not distinguish between
+   * them, because to the person dragging it they are the same gesture.
+   */
+  onDropTab: (key: string, toIndex: number) => void
   /** Keys currently in the sidebar's Pinned section, so the menu offers the right verb. */
   pinnedKeys: Set<string>
   onTogglePin: (key: string) => void
@@ -42,7 +49,10 @@ interface Props {
  * contain another interactive element, the same constraint the sidebar rows work around.
  */
 export function SessionTabBar(
-  { tabs, activeKey, onActivate, onClose, onSplitActive, onReorder, pinnedKeys, onTogglePin }: Props,
+  {
+    tabs, activeKey, onActivate, onClose, onSplitActive, onDropTab, pinnedKeys,
+    onTogglePin,
+  }: Props,
 ): JSX.Element {
   /**
    * The tab being dragged, and where it would land: an index into the strip *without* the dragged
@@ -68,7 +78,23 @@ export function SessionTabBar(
 
   return (
     <div className="session-tab-bar" data-testid="session-tab-bar" role="tablist">
-      <div className="session-tab-strip">
+      <div
+        className="session-tab-strip"
+        // The strip's own empty space is a target too, so a tab can be dropped onto a column that
+        // has none of its own yet — and dropping past the end means "last", rather than nothing.
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes(TAB_MIME)) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+        }}
+        onDrop={(e) => {
+          const key = e.dataTransfer.getData(TAB_MIME)
+          if (key === '') return
+          e.preventDefault()
+          onDropTab(key, tabs.length)
+          endDrag()
+        }}
+      >
       {tabs.map((tab, index) => (
         <div
           key={tab.key}
@@ -86,19 +112,30 @@ export function SessionTabBar(
           onDragStart={(e) => {
             setDragKey(tab.key)
             e.dataTransfer.effectAllowed = 'move'
-            // Firefox refuses to start a drag without payload; the key is also what we read back.
+            // A typed payload, so a strip can tell a tab being dragged from anywhere in the window
+            // apart from a folder, a pinned row or a plain text selection. `text/plain` is kept
+            // beside it because Firefox refuses to start a drag with no standard payload at all.
+            e.dataTransfer.setData(TAB_MIME, tab.key)
             e.dataTransfer.setData('text/plain', tab.key)
           }}
           onDragOver={(e) => {
-            if (dragKey === null) return
-            e.preventDefault() // Without this the drop never fires.
+            // Keyed off the payload type rather than off `dragKey`, which is set only in the strip
+            // the drag started in: a tab dragged from another column would otherwise find no
+            // target here at all, because without `preventDefault` no drop ever fires.
+            if (!e.dataTransfer.types.includes(TAB_MIME)) return
+            e.preventDefault()
             e.dataTransfer.dropEffect = 'move'
             setDropAt(insertionFor(e, index))
           }}
           onDrop={(e) => {
+            const key = e.dataTransfer.getData(TAB_MIME)
+            if (key === '') return
             e.preventDefault()
-            const key = dragKey ?? e.dataTransfer.getData('text/plain')
-            if (key !== '') onReorder(key, insertionFor(e, index))
+            // The strip behind this tab is a drop target of its own (for the empty space past the
+            // last tab); without this the drop would count twice and the second, coarser one would
+            // win, sending every tab to the end.
+            e.stopPropagation()
+            onDropTab(key, insertionFor(e, index))
             endDrag()
           }}
           onDragEnd={endDrag}

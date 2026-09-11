@@ -249,6 +249,9 @@ export function Sidebar({
     ]
   }
 
+  /** The folders a group can hold: groups are a top-level arrangement, worktrees are not in them. */
+  const topLevelPaths = new Set(tree.map((n) => n.path))
+
   const reorderFolder = (path: string, beforePath: string): void => {
     patchGroups({
       folderOrder: moveFolder(groupState.folderOrder, allFolderPaths(tree), path, beforePath),
@@ -256,8 +259,7 @@ export function Sidebar({
     // Dropping a top-level folder onto another files it into that one's group too, which is the
     // other half of what dragging it means. Nested folders (a repository's worktrees) are not in
     // groups at all, so this only applies where both are top level.
-    const topLevel = new Set(tree.map((n) => n.path))
-    if (!topLevel.has(path) || !topLevel.has(beforePath)) return
+    if (!topLevelPaths.has(path) || !topLevelPaths.has(beforePath)) return
     const target = groupState.assignments[beforePath]
     if (target !== groupState.assignments[path]) assignFolder(path, target ?? null)
   }
@@ -446,7 +448,10 @@ export function Sidebar({
                 onDrop={(e) => {
                   setDropIntoGroup(null)
                   const dragged = e.dataTransfer.getData('application/x-apiary-folder')
-                  if (dragged === '') return
+                  // Only a top-level folder can be filed into a group: a worktree belongs to its
+                  // repository, and dropping one on the group's whitespace must not quietly move
+                  // it out from under the repository it is part of.
+                  if (dragged === '' || !topLevelPaths.has(dragged)) return
                   e.preventDefault()
                   assignFolder(dragged, group.id)
                 }}

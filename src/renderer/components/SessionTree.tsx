@@ -73,6 +73,13 @@ export function SessionTree({
                 const dragged = e.dataTransfer.getData('application/x-apiary-folder')
                 if (dragged === '' || dragged === node.path) return
                 e.preventDefault()
+                // A row inside a group sits inside the group's own drop target, which covers the
+                // whole section. Both handlers would then fire and both would write back the
+                // whole arrangement from the render they were created in — so the group's copy,
+                // landing second, restored the order this drop had just changed. The row is the
+                // more specific target and already files the folder into the right group itself,
+                // so the drop stops here.
+                e.stopPropagation()
                 onReorderFolder(dragged, node.path)
               }}
               onContextMenu={(e) => {

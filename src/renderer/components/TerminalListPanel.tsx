@@ -54,6 +54,12 @@ export function TerminalListPanel(
       if (nextId) {
         setFocusedId(nextId)
         onSwitch(nextId)
+        // Keyboard focus belongs to the list, not to the row that happened to be clicked first.
+        // Left on that row's button, the browser draws its own focus ring around it the moment a
+        // key is pressed — a full box around a row, which is exactly what a row here looks like
+        // while it is being renamed, and on the wrong row besides, since the arrow has already
+        // moved to another one.
+        listRef.current?.focus()
       }
     }
   }
@@ -61,6 +67,7 @@ export function TerminalListPanel(
   const handleItemClick = (tabId: string): void => {
     setFocusedId(tabId)
     onSwitch(tabId)
+    listRef.current?.focus()
   }
 
   const handleListFocus = (): void => {
@@ -78,12 +85,16 @@ export function TerminalListPanel(
       role="listbox"
       aria-label="Open terminals"
       tabIndex={0}
+      // The focused row is named rather than focused in the DOM (the roving-focus listbox
+      // pattern), so assistive technology follows the arrow keys without focus leaving the list.
+      aria-activedescendant={focusedId === null ? undefined : `terminal-tab-${focusedId}`}
       onKeyDown={handleListKeyDown}
       onFocus={handleListFocus}
     >
       {tabs.map((tab) => (
         <li
           key={tab.id}
+          id={`terminal-tab-${tab.id}`}
           className="terminal-tab-row"
           data-testid="terminal-tab-row"
           data-active={tab.id === activeId}

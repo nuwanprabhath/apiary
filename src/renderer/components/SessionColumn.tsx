@@ -374,7 +374,7 @@ export function SessionColumn(props: Props): JSX.Element {
         onActivate={onActivateTab}
         onClose={onCloseTab}
         onSplitActive={() => { if (activeKey !== null) onSplitActive(activeKey) }}
-        onReorder={onReorderTab}
+        onDropTab={onReorderTab}
         pinnedKeys={pinnedKeys}
         onTogglePin={onTogglePin}
       />

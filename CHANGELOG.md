@@ -4,6 +4,30 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.2] - 2026-09-11
+
+### Added
+
+- A tab can be dragged from one column into another, landing where it is dropped. Dragging a
+  column's last tab away closes that column rather than leaving it empty.
+
+### Fixed
+
+- **Dragging a tab onto another column did nothing.** A tab strip only became a drop target for a
+  drag that had begun inside itself, so a tab from a different column found nothing to land on and
+  snapped back. Both strips now read the drag from its payload type, and the drop is one gesture
+  whether the tab stays in its column or moves. (The earlier "drag to first position" fix was real,
+  but it only ever applied within a single column — which was not the drag being attempted.)
+- **A worktree could not be reordered inside a grouped repository.** The drop landed on the row and
+  then bubbled to the enclosing group, whose handler wrote back the whole arrangement as it had
+  been before the drop — undoing the reorder a moment after it happened. A drop on a row now stops
+  there, and a group only accepts the top-level folders it can actually hold.
+- **Clicking a terminal in the shell list and then pressing an arrow key drew a box around the row
+  you had clicked.** Keyboard focus stayed on that row's button, so the first keypress brought out
+  Chromium's own focus ring — around a row the selection had already moved off, and looking just
+  like the rename field a row turns into. Focus now belongs to the list itself, with the selected
+  row named through `aria-activedescendant`.
+
 ## [1.8.1] - 2026-09-11
 
 ### Added
