@@ -1,10 +1,11 @@
-import { ipcMain, clipboard, BrowserWindow } from 'electron'
+import { ipcMain, clipboard, BrowserWindow, app } from 'electron'
 import { watch } from 'chokidar'
 import { projectsDir } from './config'
-import { CHANNELS, type AppSettingsPayload } from '@shared/api'
+import { CHANNELS, type AppSettingsPayload, type UpdateStatusPayload } from '@shared/api'
 import type { AppService } from './appService'
 import type { AppSettings } from './settings'
 import { loadSettings, saveSettings } from './settings'
+import type { UpdateService } from './update/updateService'
 
 export function registerIpc(
   service: AppService,
@@ -12,6 +13,8 @@ export function registerIpc(
   configRoot: string,
   settingsFile: string,
   onAutoImportIntervalChange?: (intervalMinutes: number | null) => void,
+  /** Null where there is no updater at all (a dev run, or a platform without one). */
+  updater?: UpdateService | null,
 ): () => void {
   /**
    * Broadcasts to every window, not just the focused one.
@@ -74,6 +77,10 @@ export function registerIpc(
       autoImportIntervalMinutes: settings.autoImportIntervalMinutes,
       revealActiveInSidebar: settings.revealActiveInSidebar,
       searchChatContent: settings.searchChatContent,
+      updateAutomaticChecks: settings.updateAutomaticChecks,
+      updateCheckIntervalHours: settings.updateCheckIntervalHours,
+      updateAutoDownload: settings.updateAutoDownload,
+      updateAllowPrerelease: settings.updateAllowPrerelease,
     }
   })
   ipcMain.handle(CHANNELS.settingsSet, async (_e, next: AppSettingsPayload) => {
@@ -85,8 +92,15 @@ export function registerIpc(
       autoImportIntervalMinutes: next.autoImportIntervalMinutes,
       revealActiveInSidebar: next.revealActiveInSidebar,
       searchChatContent: next.searchChatContent,
+      updateAutomaticChecks: next.updateAutomaticChecks,
+      updateCheckIntervalHours: next.updateCheckIntervalHours,
+      updateAutoDownload: next.updateAutoDownload,
+      updateAllowPrerelease: next.updateAllowPrerelease,
     }
     saveSettings(settingsFile, merged)
+    // The schedule has to follow the settings immediately: switching checks off and having one
+    // fire ten minutes later is the kind of thing that makes a toggle look broken.
+    updater?.settingsChanged()
     service.setClaudeBin(merged.claudeBin)
     service.setAutoImportAll(merged.autoImportAll)
     service.setSearchChatContent(merged.searchChatContent)
@@ -162,6 +176,41 @@ export function registerIpc(
   ipcMain.handle(CHANNELS.sendPrompt, (_e, ptyId: string, text: string) => {
     service.sendPrompt(ptyId, text)
   })
+
+  /**
+   * Updater. Every handler tolerates there being no updater at all — a dev run has none, and the
+   * renderer is the same code either way, so it asks and gets an honest "unsupported" back rather
+   * than needing to know which build it is running in.
+   */
+  const noUpdater = (): UpdateStatusPayload => ({
+    phase: 'error',
+    capability: { kind: 'unsupported', reason: 'Running from source — updates apply to installed builds only.' },
+    currentVersion: app.getVersion(),
+    availableVersion: null,
+    releaseNotes: null,
+    releaseUrl: null,
+    progressPercent: null,
+    downloadedPath: null,
+    error: null,
+    lastCheckedAt: null,
+    skippedVersion: null,
+  })
+
+  ipcMain.handle(CHANNELS.updateStatus, (): UpdateStatusPayload =>
+    updater?.current() ?? noUpdater())
+  ipcMain.handle(CHANNELS.updateCheck, async (): Promise<UpdateStatusPayload> =>
+    (await updater?.check({ manual: true })) ?? noUpdater())
+  ipcMain.handle(CHANNELS.updateDownload, async (): Promise<UpdateStatusPayload> =>
+    (await updater?.download()) ?? noUpdater())
+  ipcMain.handle(CHANNELS.updateInstall, () => { updater?.install() })
+  ipcMain.handle(CHANNELS.updateOpenDownloaded, async () => { await updater?.openDownloaded() })
+  ipcMain.handle(CHANNELS.updateSkip, () => {
+    updater?.skip()
+    // The skip is a settings change, so it has to reach settings.json as well as the service.
+    const current = loadSettings(settingsFile)
+    saveSettings(settingsFile, { ...current, updateSkippedVersion: updater?.current().skippedVersion ?? null })
+  })
+  ipcMain.handle(CHANNELS.updateDismiss, () => { updater?.dismiss() })
 
   ipcMain.on(CHANNELS.ptyWrite, (_e, id: string, data: string) => service.pty.write(id, data))
   ipcMain.on(CHANNELS.ptyResize, (_e, id: string, cols: number, rows: number) =>

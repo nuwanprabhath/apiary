@@ -1,0 +1,144 @@
+import { test, expect } from '@playwright/test'
+import { launchApiary, importAll, type Harness } from './helpers'
+
+/**
+ * The updater as the user meets it. The release feed is a fixture (see `fakeUpdate` in helpers) —
+ * what is being tested is the app's side: what appears, what the buttons say on a build that
+ * cannot install itself, and that a version dismissed for good stays dismissed.
+ */
+
+let h: Harness
+test.afterEach(async () => { await h.close() })
+
+/** The menu lives in the main process, so trigger the same channel it sends. */
+async function openSettings(): Promise<void> {
+  await h.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+  })
+  await expect(h.page.getByTestId('settings-dialog')).toBeVisible()
+}
+
+/** Opens Settings on the Updates section. */
+async function openUpdateSettings(): Promise<void> {
+  await openSettings()
+  await h.page.getByTestId('settings-nav-updates').click()
+}
+
+async function launch(opts: Parameters<typeof launchApiary>[0] = {}): Promise<void> {
+  h = await launchApiary(opts)
+  await importAll(h.page)
+  await h.page.getByTestId('sidebar-refresh').click()
+}
+
+/**
+ * Runs the check the "Check for Updates" menu item runs.
+ *
+ * The scheduled one deliberately waits half a minute after launch so it is not competing with
+ * startup, which is far longer than a test should sit still for — and a manual check is the same
+ * code path with `manual: true`, which is what the menu item does anyway.
+ */
+async function checkNow(): Promise<void> {
+  await h.page.evaluate(() => window.apiary.updateCheck())
+}
+
+test('no update, no banner — the app does not talk about updates it has not found', async () => {
+  await launch()
+  await expect(h.page.getByTestId('update-banner')).toHaveCount(0)
+})
+
+test('an available update is offered in a strip above the workspace, not a dialog', async () => {
+  await launch({ fakeUpdate: '9.9.9' })
+  await checkNow()
+  const banner = h.page.getByTestId('update-banner')
+  await expect(banner).toBeVisible()
+  await expect(banner).toContainText('9.9.9')
+  // Nothing modal: the session underneath is still there to be worked in.
+  await expect(h.page.getByTestId('sidebar-refresh')).toBeEnabled()
+})
+
+test('an unsigned build offers to download, and says why it cannot install by itself', async () => {
+  await launch({ fakeUpdate: '9.9.9', updateMode: 'assisted' })
+  await checkNow()
+  const banner = h.page.getByTestId('update-banner')
+
+  await expect(banner.getByTestId('update-download')).toHaveText('Download')
+  await expect(banner).toContainText('drag')
+
+  await banner.getByTestId('update-download').click()
+  await expect(banner).toContainText('has been downloaded')
+  await expect(banner.getByTestId('update-open-downloaded')).toBeVisible()
+  // It must never offer to restart into an update it cannot install.
+  await expect(banner.getByTestId('update-install')).toHaveCount(0)
+})
+
+test('a build that can install itself offers to restart into the update', async () => {
+  await launch({ fakeUpdate: '9.9.9', updateMode: 'auto' })
+  await checkNow()
+  const banner = h.page.getByTestId('update-banner')
+
+  await expect(banner.getByTestId('update-download')).toHaveText('Download and install')
+  await banner.getByTestId('update-download').click()
+  await expect(banner.getByTestId('update-install')).toBeVisible()
+  await expect(banner).toContainText('ready to install')
+})
+
+test('skipping a version puts the banner away and keeps it away', async () => {
+  await launch({ fakeUpdate: '9.9.9' })
+  await checkNow()
+  const banner = h.page.getByTestId('update-banner')
+  await banner.getByTestId('update-skip').click()
+  await expect(banner).toHaveCount(0)
+
+  // A check the user asks for still answers honestly about the skipped version — the skip
+  // silences the automatic offer, not the question.
+  await openUpdateSettings()
+  await h.page.getByTestId('update-check-now').click()
+  await expect(h.page.getByTestId('update-version-row')).toContainText('Skipping 9.9.9')
+})
+
+test('dismissing is not skipping: the banner goes, the update is still there', async () => {
+  await launch({ fakeUpdate: '9.9.9' })
+  await checkNow()
+  await h.page.getByTestId('update-dismiss').click()
+  await expect(h.page.getByTestId('update-banner')).toHaveCount(0)
+
+  await openUpdateSettings()
+  await h.page.getByTestId('update-check-now').click()
+  await expect(h.page.getByTestId('update-banner')).toBeVisible()
+})
+
+test('the Updates settings show the version, the last check, and why installs are manual', async () => {
+  await launch({ fakeUpdate: '9.9.9' })
+  await openUpdateSettings()
+
+  const row = h.page.getByTestId('update-version-row')
+  await expect(row).toContainText('Version')
+  await expect(row).toContainText('Last checked')
+  // The reason is on screen rather than implied by a missing button.
+  await expect(row).toContainText('Unsigned build')
+})
+
+test('turning automatic checks off hides the interval, and the choice survives a reopen', async () => {
+  await launch({ fakeUpdate: '9.9.9' })
+  await openUpdateSettings()
+
+  await expect(h.page.getByTestId('setting-update-interval')).toBeVisible()
+  await h.page.getByTestId('setting-update-automatic').uncheck()
+  await expect(h.page.getByTestId('setting-update-interval')).toHaveCount(0)
+
+  await h.page.getByTestId('settings-save').click()
+  await openUpdateSettings()
+  await expect(h.page.getByTestId('setting-update-automatic')).not.toBeChecked()
+})
+
+test('the check interval can be set from a preset', async () => {
+  await launch({ fakeUpdate: '9.9.9' })
+  await openUpdateSettings()
+
+  await h.page.getByTestId('setting-update-preset-24').click()
+  await expect(h.page.getByTestId('setting-update-interval')).toHaveValue('24')
+
+  await h.page.getByTestId('settings-save').click()
+  await openUpdateSettings()
+  await expect(h.page.getByTestId('setting-update-interval')).toHaveValue('24')
+})

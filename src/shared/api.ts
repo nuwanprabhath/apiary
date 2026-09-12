@@ -25,6 +25,30 @@ export interface AppSettingsPayload {
   revealActiveInSidebar: boolean
   /** Search conversation contents as well as titles. */
   searchChatContent: boolean
+  /** Check GitHub for a newer release on a schedule. */
+  updateAutomaticChecks: boolean
+  /** Hours between those checks. */
+  updateCheckIntervalHours: number
+  /** Fetch an update as soon as it is found, rather than after the user agrees to it. */
+  updateAutoDownload: boolean
+  /** Offer pre-release builds as well as stable ones. */
+  updateAllowPrerelease: boolean
+}
+
+/** Mirrors `UpdateStatus` in main/update/updateService.ts; kept structural to avoid the renderer
+ *  importing main-process code. */
+export interface UpdateStatusPayload {
+  phase: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'downloaded' | 'up-to-date' | 'error'
+  capability: { kind: 'auto' | 'assisted' | 'unsupported'; reason: string }
+  currentVersion: string
+  availableVersion: string | null
+  releaseNotes: string | null
+  releaseUrl: string | null
+  progressPercent: number | null
+  downloadedPath: string | null
+  error: string | null
+  lastCheckedAt: number | null
+  skippedVersion: string | null
 }
 
 export const CHANNELS = {
@@ -67,6 +91,14 @@ export const CHANNELS = {
   saveImage: 'apiary:save-image',
   readImage: 'apiary:read-image',
   sendPrompt: 'apiary:send-prompt',
+  updateStatus: 'apiary:update-status',
+  updateCheck: 'apiary:update-check',
+  updateDownload: 'apiary:update-download',
+  updateInstall: 'apiary:update-install',
+  updateOpenDownloaded: 'apiary:update-open-downloaded',
+  updateSkip: 'apiary:update-skip',
+  updateDismiss: 'apiary:update-dismiss',
+  updateChanged: 'apiary:update-changed',
 } as const
 
 export interface ApiaryApi {
@@ -123,6 +155,20 @@ export interface ApiaryApi {
   readImage(path: string): Promise<{ dataUrl: string } | null>
   /** Types a composed prompt into a session's running `claude` process and submits it. */
   sendPrompt(ptyId: string, text: string): Promise<void>
+
+  /** The updater's current state, for the banner and the Settings panel. */
+  updateStatus(): Promise<UpdateStatusPayload>
+  /** Checks now. `manual` checks report "up to date" and errors; scheduled ones stay quiet. */
+  updateCheck(): Promise<UpdateStatusPayload>
+  updateDownload(): Promise<UpdateStatusPayload>
+  /** Restarts into a staged update. Only meaningful when the phase is `ready`. */
+  updateInstall(): Promise<void>
+  /** Opens an already-downloaded installer again (the assisted flow). */
+  updateOpenDownloaded(): Promise<void>
+  updateSkip(): Promise<void>
+  updateDismiss(): Promise<void>
+  /** Pushed whenever the updater's state changes, to every window. */
+  onUpdateChanged(cb: (status: UpdateStatusPayload) => void): () => void
 }
 
 declare global {

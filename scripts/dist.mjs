@@ -39,7 +39,12 @@ if (process.platform === 'darwin') {
     console.error(`scripts/dist.mjs: unsupported mac arch "${requestedArch}" (expected "arm64" or "x64")`);
     process.exit(1);
   }
-  config.mac.target = [{ target: 'dmg', arch: [requestedArch] }];
+  config.mac.target = [
+    { target: 'dmg', arch: [requestedArch] },
+    // The zip goes with it: latest-mac.yml names it, so a release built without one describes a
+    // file that is not there.
+    { target: 'zip', arch: [requestedArch] },
+  ];
 }
 // Linux target only declares x64 today, so no narrowing is needed there.
 

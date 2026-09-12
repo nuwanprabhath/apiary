@@ -8,6 +8,10 @@ import { buildMenu } from './menu'
 import { CHANNELS } from '@shared/api'
 import { loadSettings, saveSettings } from './settings'
 import { boundsAreOnScreen } from './windowBounds'
+import { UpdateService, type UpdateSettings } from './update/updateService'
+import { decideCapability } from './update/capability'
+import { createUpdateBackend } from './update/electronUpdaterBackend'
+import { hasDeveloperIdSignature } from './update/macSignature'
 
 const dirname = fileURLToPath(new URL('.', import.meta.url))
 
@@ -26,6 +30,7 @@ let mainWindow: BrowserWindow | null = null
  */
 let windowsOpened = 0
 let settingsFile = ''
+let updater: UpdateService | null = null
 let autoImportTimer: NodeJS.Timeout | null = null
 
 /**
@@ -187,6 +192,74 @@ async function onNewSessionInFolder(): Promise<void> {
   }
 }
 
+/**
+ * Builds the updater, or returns null where there is nothing it could do.
+ *
+ * The signature check is done once, here, by asking `codesign` what authority signed the running
+ * bundle: an ad-hoc signature (what an unsigned build gets) has no Developer ID authority, and
+ * Squirrel will refuse to replace such a bundle — see update/capability.ts. Doing it at startup
+ * rather than at check time keeps the answer out of the path the user is waiting on.
+ */
+function createUpdater(settingsFile: string): UpdateService | null {
+  const repo = 'nuwanprabhath/apiary'
+  // Test-only: pretend a release exists, so the banner and the Settings panel can be driven
+  // end-to-end. Nothing here reaches the network or the disk. Same shape as APIARY_FAKE_LIVE.
+  const fake = process.env.APIARY_FAKE_UPDATE
+  const faking = fake !== undefined && fake !== ''
+
+  const capabilityInput = faking
+    ? {
+      platform: process.env.APIARY_FAKE_UPDATE_MODE === 'auto' ? ('linux' as const) : ('darwin' as const),
+      packaged: true,
+      appImagePath: process.env.APIARY_FAKE_UPDATE_MODE === 'auto' ? '/tmp/Apiary.AppImage' : undefined,
+      macSigned: false,
+    }
+    : {
+      platform: process.platform,
+      packaged: app.isPackaged,
+      appImagePath: process.env.APPIMAGE,
+      macSigned: process.platform === 'darwin' && app.isPackaged && hasDeveloperIdSignature(),
+    }
+  if (decideCapability(capabilityInput).kind === 'unsupported') return null
+
+  const readUpdateSettings = (): UpdateSettings => {
+    const s = loadSettings(settingsFile)
+    return {
+      automaticChecks: s.updateAutomaticChecks,
+      checkIntervalHours: s.updateCheckIntervalHours,
+      autoDownload: s.updateAutoDownload,
+      allowPrerelease: s.updateAllowPrerelease,
+      skippedVersion: s.updateSkippedVersion,
+    }
+  }
+
+  return new UpdateService({
+    currentVersion: app.getVersion(),
+    capabilityInput,
+    backend: faking
+      ? {
+        check: async () => ({ version: fake, releaseNotes: 'Fixture release', releaseUrl: `https://example.invalid/${fake}` }),
+        downloadForInstall: async (onProgress) => { onProgress(100) },
+        install: () => { /* A test must not quit the app. */ },
+        downloadInstaller: async (onProgress) => { onProgress(100); return `/tmp/Apiary-${fake}.dmg` },
+        openInstaller: async () => { /* Nothing to open in a test. */ },
+      }
+      : createUpdateBackend({ repo, platform: process.platform, arch: process.arch }),
+    settings: readUpdateSettings,
+    saveSettings: (patch) => {
+      const current = loadSettings(settingsFile)
+      if (patch.skippedVersion !== undefined) {
+        saveSettings(settingsFile, { ...current, updateSkippedVersion: patch.skippedVersion })
+      }
+    },
+    onStatus: (status) => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send(CHANNELS.updateChanged, status)
+      }
+    },
+  })
+}
+
 void app.whenReady().then(async () => {
   setDevDockIcon()
   // Test-only overrides so E2E can run against fixture data.
@@ -210,7 +283,10 @@ void app.whenReady().then(async () => {
       ? async () => new Map([[fakeLive, 4242]])
       : undefined,
   })
-  disposeIpc = registerIpc(service, () => mainWindow, configRoot, settingsFile, setAutoImportInterval)
+  updater = createUpdater(settingsFile)
+  disposeIpc = registerIpc(
+    service, () => mainWindow, configRoot, settingsFile, setAutoImportInterval, updater,
+  )
   await service.refresh()
   // The first refresh runs before the window exists, so nothing is listening for `treeChanged`
   // yet — importing here, before the window is created, is what makes everything already be in
@@ -229,8 +305,16 @@ void app.whenReady().then(async () => {
       () => mainWindow?.webContents.send(CHANNELS.openSettingsDialog),
       () => { void onNewSessionInFolder() },
       () => createWindow(),
+      () => {
+        // A manual check should show its answer, whatever the answer is, so the window comes to
+        // the front and the banner reports "up to date" and errors as well as updates.
+        mainWindow?.show()
+        void updater?.check({ manual: true })
+      },
     ),
   )
+  // Started after the window exists, so the first status push has somewhere to land.
+  updater?.start()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

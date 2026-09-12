@@ -10,7 +10,11 @@ import {
   newColumn, openTab, closeTab, setTabView, rekeyTab, moveTabToColumn, findColumnWithTab,
   type Column,
 } from './state/columns'
-import { loadUiState, saveUiState, type UiState } from './state/uiState'
+import {
+  loadUiState, saveUiState, subscribeSharedUiState, type UiState,
+} from './state/uiState'
+import { useUpdate } from './state/useUpdate'
+import { UpdateBanner } from './components/UpdateBanner'
 import { moveBefore, type GroupState } from './state/groups'
 import { useNotifications } from './state/notifications'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -102,6 +106,7 @@ interface PendingSession extends NewSessionInfo {
 export function App(): JSX.Element {
   const { notify, notifyError } = useNotifications()
   const [ui, setUi] = useState<UiState>(() => loadUiState())
+  const updateStatus = useUpdate()
   /**
    * Open sessions, arranged as VS Code-style editor groups: one column per group, each with its
    * own tab strip and its own shell. Splitting a session from the sidebar appends a column; there
@@ -212,6 +217,9 @@ export function App(): JSX.Element {
   }, [setColumns])
 
   useEffect(() => { saveUiState(ui) }, [ui])
+  // Pins and groups belong to the library rather than to this window, so a change made in another
+  // window lands here as it happens instead of at the next launch.
+  useEffect(() => subscribeSharedUiState((shared) => { setUi((prev) => ({ ...prev, ...shared })) }), [])
   useEffect(() => window.apiary.onOpenImportDialog(() => setImportOpen(true)), [])
   useEffect(() => window.apiary.onOpenSettingsDialog(() => setSettingsOpen(true)), [])
 
@@ -661,10 +669,14 @@ export function App(): JSX.Element {
   )
 
   return (
-    <div
-      className="layout"
-      style={{ gridTemplateColumns: String(ui.sidebarWidth) + 'px 4px 1fr' }}
-    >
+    <div className="app-shell">
+      {updateStatus !== null && (
+        <UpdateBanner status={updateStatus} onOpenSettings={() => setSettingsOpen(true)} />
+      )}
+      <div
+        className="layout"
+        style={{ gridTemplateColumns: String(ui.sidebarWidth) + 'px 4px 1fr' }}
+      >
       <Sidebar
         key={treeNonce}
         selectedId={activeKey}
@@ -822,6 +834,7 @@ export function App(): JSX.Element {
       {settingsOpen && (
         <SettingsDialog onClose={() => { setSettingsOpen(false); loadUiSettings() }} />
       )}
+      </div>
     </div>
   )
 }

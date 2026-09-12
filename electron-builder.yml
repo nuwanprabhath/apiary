@@ -21,11 +21,26 @@ asarUnpack:
   - "**/node_modules/better-sqlite3/**"
   - "**/node_modules/node-pty/**"
 afterPack: build/afterPack.cjs
+# Where the app looks for updates, and the provider whose metadata electron-builder generates.
+# This block is what produces `latest-mac.yml` / `latest-linux.yml` beside the installers and
+# `app-update.yml` inside the package — without them, a built app has no feed to check and the
+# updater is inert. It does NOT cause publishing: that is still `--publish never` on every
+# invocation, with the upload done by the release workflow.
+publish:
+  - provider: github
+    owner: nuwanprabhath
+    repo: apiary
 mac:
   category: public.app-category.developer-tools
   icon: build/icon.icns
   target:
     - target: dmg
+      arch: [arm64, x64]
+    # Squirrel.Mac installs from a zip, not a dmg, so the signed-build auto-update path needs one
+    # in the release. It is also what latest-mac.yml points at. Unsigned builds never install it
+    # (see src/main/update/capability.ts), but publishing it now means the day a Developer ID
+    # certificate exists, the releases already have what the updater wants.
+    - target: zip
       arch: [arm64, x64]
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist

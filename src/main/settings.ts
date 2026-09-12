@@ -26,6 +26,20 @@ export interface AppSettings {
    * On by default; turning it off falls back to title-only search and stops the indexer running.
    */
   searchChatContent: boolean
+  /**
+   * Update preferences. Checking is on by default — an app that can update itself and doesn't
+   * mention it is how people end up months behind — but nothing is ever downloaded or installed
+   * without the user saying so, which is what `updateAutoDownload: false` means.
+   */
+  updateAutomaticChecks: boolean
+  /** Hours between automatic checks. Clamped to 1..168 by the service. */
+  updateCheckIntervalHours: number
+  /** Fetch the update as soon as it is found, instead of after the user agrees. */
+  updateAutoDownload: boolean
+  /** Offer pre-release builds. */
+  updateAllowPrerelease: boolean
+  /** A version the user chose to skip; the next release is offered as normal. */
+  updateSkippedVersion: string | null
   windowBounds: WindowBounds | null
 }
 
@@ -35,6 +49,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoImportIntervalMinutes: null,
   revealActiveInSidebar: true,
   searchChatContent: true,
+  updateAutomaticChecks: true,
+  updateCheckIntervalHours: 6,
+  updateAutoDownload: false,
+  updateAllowPrerelease: false,
+  updateSkippedVersion: null,
   windowBounds: null,
 }
 

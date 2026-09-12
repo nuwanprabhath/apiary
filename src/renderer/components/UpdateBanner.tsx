@@ -1,0 +1,137 @@
+import type { UpdateStatusPayload } from '@shared/api'
+import { CloseIcon } from './icons'
+import { formatVersion } from '../state/useUpdate'
+
+/**
+ * The strip that appears when there is an update, and at no other time.
+ *
+ * Deliberately not a modal. An update is never urgent enough to take the keyboard away from
+ * someone mid-sentence in a session, and a dialog that appears over the app every few hours is
+ * how people learn to dismiss updates without reading them. It sits above the workspace, it can
+ * be dismissed, and it comes back at the next check unless the version was skipped.
+ *
+ * What the buttons say depends on what this installation can actually do — an unsigned macOS
+ * build cannot replace itself (see main/update/capability.ts), so it must not offer to.
+ */
+export function UpdateBanner(
+  { status, onOpenSettings }: { status: UpdateStatusPayload; onOpenSettings: () => void },
+): JSX.Element | null {
+  const { phase, capability, availableVersion } = status
+  // 'up-to-date' and 'error' come from a check the user asked for, and are shown so that pressing
+  // the menu item visibly does something; a silent scheduled check never reaches either.
+  const shown = phase === 'available' || phase === 'downloading' || phase === 'ready'
+    || phase === 'downloaded' || phase === 'up-to-date' || (phase === 'error' && status.error !== null)
+  if (!shown) return null
+
+  const version = availableVersion === null ? '' : formatVersion(availableVersion)
+  const assisted = capability.kind === 'assisted'
+
+  const body = (): JSX.Element => {
+    switch (phase) {
+      case 'up-to-date':
+        return <span>Apiary {formatVersion(status.currentVersion)} is the latest version.</span>
+      case 'error':
+        return <span>Could not check for updates — {status.error}</span>
+      case 'downloading':
+        return (
+          <span>
+            Downloading Apiary {version}…
+            {status.progressPercent !== null && ` ${String(status.progressPercent)}%`}
+          </span>
+        )
+      case 'ready':
+        return <span>Apiary {version} is ready to install.</span>
+      case 'downloaded':
+        return (
+          <span>
+            Apiary {version} has been downloaded. Open it and drag Apiary into Applications to
+            finish updating.
+          </span>
+        )
+      default:
+        return (
+          <span>
+            <strong>Apiary {version} is available.</strong> You are on{' '}
+            {formatVersion(status.currentVersion)}.
+          </span>
+        )
+    }
+  }
+
+  return (
+    <div className="update-banner" data-testid="update-banner" data-phase={phase} role="status">
+      <div className="update-banner-text">
+        {body()}
+        {phase === 'available' && assisted && (
+          // Said before they click, not after: an unsigned build cannot install itself, and
+          // finding that out at the end of a download is the thing this sentence prevents.
+          <span className="update-banner-note">{capability.reason}</span>
+        )}
+      </div>
+
+      {phase === 'downloading' && status.progressPercent !== null && (
+        <div className="update-progress" data-testid="update-progress">
+          <div className="update-progress-fill" style={{ width: `${String(status.progressPercent)}%` }} />
+        </div>
+      )}
+
+      <div className="update-banner-actions">
+        {phase === 'available' && (
+          <>
+            <button
+              className="primary"
+              data-testid="update-download"
+              onClick={() => { void window.apiary.updateDownload() }}
+            >
+              {assisted ? 'Download' : 'Download and install'}
+            </button>
+            <button
+              data-testid="update-skip"
+              title={`Stop offering ${version} — the next release is offered as normal`}
+              onClick={() => { void window.apiary.updateSkip() }}
+            >
+              Skip this version
+            </button>
+          </>
+        )}
+        {phase === 'ready' && (
+          <button
+            className="primary"
+            data-testid="update-install"
+            onClick={() => { void window.apiary.updateInstall() }}
+          >
+            Restart and install
+          </button>
+        )}
+        {phase === 'downloaded' && (
+          <button
+            className="primary"
+            data-testid="update-open-downloaded"
+            onClick={() => { void window.apiary.updateOpenDownloaded() }}
+          >
+            Open installer
+          </button>
+        )}
+        {status.releaseUrl !== null && phase !== 'up-to-date' && phase !== 'error' && (
+          <button
+            data-testid="update-notes"
+            onClick={() => { void window.apiary.copyToClipboard(status.releaseUrl ?? '') }}
+            title="Copy the release page link"
+          >
+            Release notes
+          </button>
+        )}
+        <button data-testid="update-settings" onClick={onOpenSettings}>Update settings</button>
+        <button
+          className="update-banner-close"
+          data-testid="update-dismiss"
+          aria-label="Dismiss"
+          title="Dismiss"
+          onClick={() => { void window.apiary.updateDismiss() }}
+        >
+          <CloseIcon />
+        </button>
+      </div>
+    </div>
+  )
+}

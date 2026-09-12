@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AppSettingsPayload } from '@shared/api'
+import { useUpdate, formatVersion, formatChecked } from '../state/useUpdate'
 
 /**
  * One page of settings. Sections are data, not markup — adding a setting later means adding an
@@ -17,8 +18,12 @@ const SECTIONS: Section[] = [
   { id: 'sessions', label: 'Sessions', blurb: 'How sessions get into Apiary, and how often it looks for new ones.' },
   { id: 'search', label: 'Search', blurb: 'What the search box looks at when you type in it.' },
   { id: 'sidebar', label: 'Sidebar', blurb: 'How the session list behaves while you work.' },
+  { id: 'updates', label: 'Updates', blurb: 'How Apiary keeps itself up to date.' },
   { id: 'general', label: 'General', blurb: 'Where Apiary finds the tools it runs.' },
 ]
+
+/** Check-interval presets, in hours. */
+const UPDATE_INTERVAL_PRESETS = [1, 6, 12, 24]
 
 /** The blurb for the section on screen, by id rather than by position in the array. */
 const blurbOf = (id: string): string => SECTIONS.find((s) => s.id === id)?.blurb ?? ''
@@ -35,6 +40,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
   /** How many sessions are indexed, and whether a rebuild is running — the Search section's state. */
   const [indexed, setIndexed] = useState<number | null>(null)
   const [rebuilding, setRebuilding] = useState(false)
+  const update = useUpdate()
+  /** Set while a check the user pressed for is running, so the button can say so. */
+  const [checking, setChecking] = useState(false)
 
   const loadIndexStatus = (): void => {
     void window.apiary.searchStatus()
@@ -222,6 +230,129 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
                     {rebuilding ? 'Rebuilding…' : 'Rebuild index'}
                   </button>
                 </div>
+              </>
+            ) : section === 'updates' ? (
+              <>
+                <p className="settings-blurb">{blurbOf('updates')}</p>
+
+                <div className="settings-row" data-testid="update-version-row">
+                  <span className="settings-help">
+                    <strong>Version {update === null ? '—' : formatVersion(update.currentVersion)}</strong>
+                    <br />
+                    Last checked: {formatChecked(update?.lastCheckedAt ?? null)}
+                    {update !== null && update.capability.kind !== 'auto' && (
+                      <>
+                        <br />
+                        {update.capability.reason}
+                      </>
+                    )}
+                    {update?.skippedVersion != null && (
+                      <>
+                        <br />
+                        Skipping {formatVersion(update.skippedVersion)}. A newer release than that
+                        is still offered.
+                      </>
+                    )}
+                  </span>
+                  <button
+                    data-testid="update-check-now"
+                    disabled={checking || update?.phase === 'checking' || update?.phase === 'downloading'}
+                    onClick={() => {
+                      setChecking(true)
+                      void window.apiary.updateCheck().finally(() => { setChecking(false) })
+                    }}
+                  >
+                    {checking || update?.phase === 'checking' ? 'Checking…' : 'Check now'}
+                  </button>
+                </div>
+
+                <label className="settings-row">
+                  <input
+                    type="checkbox"
+                    data-testid="setting-update-automatic"
+                    checked={draft.updateAutomaticChecks}
+                    onChange={(e) => patch({ updateAutomaticChecks: e.target.checked })}
+                  />
+                  <span>
+                    <strong>Check for updates automatically</strong>
+                    <span className="settings-help">
+                      Apiary asks GitHub whether there is a newer release, and tells you if there
+                      is. Nothing is downloaded or installed without you saying so.
+                    </span>
+                  </span>
+                </label>
+
+                {draft.updateAutomaticChecks && (
+                  <div className="settings-row settings-row-indent">
+                    <label className="settings-inline">
+                      <span>Every</span>
+                      <input
+                        className="search settings-number"
+                        type="number"
+                        min={1}
+                        max={168}
+                        data-testid="setting-update-interval"
+                        value={draft.updateCheckIntervalHours}
+                        onChange={(e) => {
+                          const n = Number(e.target.value)
+                          patch({
+                            updateCheckIntervalHours:
+                              Number.isFinite(n) && n >= 1 ? Math.min(168, Math.round(n)) : 1,
+                          })
+                        }}
+                      />
+                      <span>hours</span>
+                    </label>
+                    <div className="settings-presets">
+                      {UPDATE_INTERVAL_PRESETS.map((hrs) => (
+                        <button
+                          key={hrs}
+                          className="settings-preset"
+                          data-testid={`setting-update-preset-${String(hrs)}`}
+                          data-active={draft.updateCheckIntervalHours === hrs}
+                          onClick={() => patch({ updateCheckIntervalHours: hrs })}
+                        >
+                          {hrs}h
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <label className="settings-row">
+                  <input
+                    type="checkbox"
+                    data-testid="setting-update-auto-download"
+                    checked={draft.updateAutoDownload}
+                    onChange={(e) => patch({ updateAutoDownload: e.target.checked })}
+                  />
+                  <span>
+                    <strong>Download updates as soon as they are found</strong>
+                    <span className="settings-help">
+                      {update?.capability.kind === 'assisted'
+                        ? 'The installer is fetched in the background and opened when it is ready, '
+                          + 'instead of waiting for you to press Download.'
+                        : 'The update is fetched in the background, so installing it is just a '
+                          + 'restart. Nothing restarts on its own.'}
+                    </span>
+                  </span>
+                </label>
+
+                <label className="settings-row">
+                  <input
+                    type="checkbox"
+                    data-testid="setting-update-prerelease"
+                    checked={draft.updateAllowPrerelease}
+                    onChange={(e) => patch({ updateAllowPrerelease: e.target.checked })}
+                  />
+                  <span>
+                    <strong>Include pre-release versions</strong>
+                    <span className="settings-help">
+                      Offers beta builds as well as finished releases. Off unless you want to test
+                      what is coming next.
+                    </span>
+                  </span>
+                </label>
               </>
             ) : section === 'sidebar' ? (
               <>

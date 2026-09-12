@@ -1,6 +1,6 @@
 {
   "name": "apiary",
-  "version": "1.8.2",
+  "version": "1.9.0",
   "private": true,
   "type": "module",
   "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",
@@ -38,6 +38,7 @@
     "better-sqlite3": "^11.5.0",
     "chokidar": "^4.0.1",
     "dompurify": "^3.4.14",
+    "electron-updater": "^6.8.9",
     "marked": "^15.0.12",
     "node-pty": "^1.0.0",
     "react": "^18.3.1",

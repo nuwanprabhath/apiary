@@ -356,3 +356,20 @@ test('dragging a column its last tab leaves that column gone, not empty', async 
   await expect(h.page.getByTestId('session-column')).toHaveCount(1)
   await expect(h.page.getByTestId('session-tab')).toHaveCount(2)
 })
+
+test('every tab shows its close button without being hovered first', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await sidebarSession(h.page, 'Add worktree switcher').click()
+
+  // Including the inactive one, which is the case that used to leave the right-click menu as the
+  // only way to close a tab at all.
+  const inactive = h.page.getByTestId('session-tab').first()
+  await expect(inactive).toHaveAttribute('data-active', 'false')
+  await expect(inactive.getByTestId('session-tab-close')).toBeVisible()
+  expect(await inactive.getByTestId('session-tab-close').evaluate(
+    (el) => getComputedStyle(el).opacity,
+  )).toBe('1')
+
+  await inactive.getByTestId('session-tab-close').click()
+  await expect(h.page.getByTestId('session-tab')).toHaveCount(1)
+})

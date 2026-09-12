@@ -23,6 +23,11 @@ describe('settings', () => {
       autoImportIntervalMinutes: 30,
       revealActiveInSidebar: false,
       searchChatContent: false,
+      updateAutomaticChecks: false,
+      updateCheckIntervalHours: 24,
+      updateAutoDownload: true,
+      updateAllowPrerelease: true,
+      updateSkippedVersion: '1.9.0',
       windowBounds: bounds,
     })
     expect(loadSettings(file())).toEqual({
@@ -31,6 +36,11 @@ describe('settings', () => {
       autoImportIntervalMinutes: 30,
       revealActiveInSidebar: false,
       searchChatContent: false,
+      updateAutomaticChecks: false,
+      updateCheckIntervalHours: 24,
+      updateAutoDownload: true,
+      updateAllowPrerelease: true,
+      updateSkippedVersion: '1.9.0',
       windowBounds: bounds,
     })
   })
@@ -42,14 +52,10 @@ describe('settings', () => {
 
   it('fills in missing keys from defaults', () => {
     writeFileSync(file(), JSON.stringify({ claudeBin: '/opt/claude' }))
-    expect(loadSettings(file())).toEqual({
-      claudeBin: '/opt/claude',
-      autoImportAll: false,
-      autoImportIntervalMinutes: null,
-      revealActiveInSidebar: true,
-      searchChatContent: true,
-      windowBounds: null,
-    })
+    // Stated against the defaults themselves rather than a copy of them: a list of every field
+    // has to be edited every time a setting is added, which makes an unrelated change look like
+    // a failure and teaches whoever sees it to update the expectation without reading it.
+    expect(loadSettings(file())).toEqual({ ...DEFAULT_SETTINGS, claudeBin: '/opt/claude' })
   })
 
   it('includes new session-related fields in defaults', () => {

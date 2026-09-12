@@ -54,6 +54,14 @@ const api: ApiaryApi = {
   saveImage: (base64, mediaType) => ipcRenderer.invoke(CHANNELS.saveImage, base64, mediaType),
   readImage: (path) => ipcRenderer.invoke(CHANNELS.readImage, path),
   sendPrompt: (ptyId, text) => ipcRenderer.invoke(CHANNELS.sendPrompt, ptyId, text),
+  updateStatus: () => ipcRenderer.invoke(CHANNELS.updateStatus),
+  updateCheck: () => ipcRenderer.invoke(CHANNELS.updateCheck),
+  updateDownload: () => ipcRenderer.invoke(CHANNELS.updateDownload),
+  updateInstall: () => ipcRenderer.invoke(CHANNELS.updateInstall),
+  updateOpenDownloaded: () => ipcRenderer.invoke(CHANNELS.updateOpenDownloaded),
+  updateSkip: () => ipcRenderer.invoke(CHANNELS.updateSkip),
+  updateDismiss: () => ipcRenderer.invoke(CHANNELS.updateDismiss),
+  onUpdateChanged: (cb) => subscribe(CHANNELS.updateChanged, cb),
 }
 
 contextBridge.exposeInMainWorld('apiary', api)

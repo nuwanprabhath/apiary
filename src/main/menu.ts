@@ -6,11 +6,22 @@ export function buildMenu(
   onSettings: () => void,
   onNewSessionInFolder: () => void,
   onNewWindow: () => void,
+  onCheckForUpdates: () => void,
 ): Menu {
   const isMac = process.platform === 'darwin'
 
   const macAppMenu: MenuItemConstructorOptions[] = isMac
-    ? [{ label: app.name, submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'quit' }] }]
+    ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        // Where every Mac app keeps it, directly under About — the two questions "what am I
+        // running" and "is there something newer" are asked in the same breath.
+        { label: 'Check for Updates...', click: onCheckForUpdates },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    }]
     : []
 
   const template: MenuItemConstructorOptions[] = [
@@ -59,6 +70,12 @@ export function buildMenu(
       submenu: [{ role: 'toggleDevTools' }, { type: 'separator' }, { role: 'togglefullscreen' }],
     },
     { role: 'windowMenu' },
+    // Non-Mac has no application menu to put it in, so it goes where Linux and Windows apps keep
+    // it instead. On Mac it is already under the Apiary menu and a second copy would be clutter.
+    ...(isMac ? [] : [{
+      label: 'Help',
+      submenu: [{ label: 'Check for Updates...', click: onCheckForUpdates }],
+    } as MenuItemConstructorOptions]),
   ]
 
   return Menu.buildFromTemplate(template)

@@ -57,7 +57,54 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 /* See the comment on the sidebar/bottom-pane resize effects in App.tsx. */
 body.resizing-active { user-select: none; }
 
-.layout { display: grid; height: 100vh; }
+.app-shell { display: flex; flex-direction: column; height: 100vh; }
+.layout { display: grid; flex: 1; min-height: 0; }
+
+/* The update strip, above the whole workspace rather than over it: an update is never urgent
+   enough to cover what someone is reading, and a banner that pushes the layout down by its own
+   height is one the eye finds once and then ignores until it is dealt with. */
+.update-banner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  position: relative;
+}
+.update-banner[data-phase="error"] { border-bottom-color: var(--danger); }
+.update-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.update-banner-note { color: var(--muted); font-size: 12px; }
+.update-banner-actions { flex: none; display: flex; align-items: center; gap: 6px; }
+.update-banner-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.update-banner-close:hover { background: var(--hover); color: var(--text); }
+.update-banner-close svg { width: 12px; height: 12px; display: block; }
+
+/* A hairline along the very bottom of the strip, so progress is legible without the layout
+   shifting as a bar appears and disappears. */
+.update-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--border);
+}
+.update-progress-fill { height: 100%; background: var(--accent); transition: width 120ms linear; }
 
 .sidebar {
   background: var(--bg-panel);
@@ -440,11 +487,12 @@ body.resizing-active { user-select: none; }
   background: none;
   color: var(--muted);
   cursor: pointer;
-  opacity: 0;
 }
+/* Always visible, never hover-revealed. A close button that appears only on the tab you are
+   pointing at means closing a tab is a two-step hunt, and on the tabs it was hidden on the only
+   way to close one at all was the right-click menu — which is not where anyone looks first. */
 .session-tab:hover .session-tab-close,
-.session-tab[data-active="true"] .session-tab-close,
-.session-tab-close:focus-visible { opacity: 1; }
+.session-tab[data-active="true"] .session-tab-close { color: var(--text); }
 .session-tab-close:hover { background: var(--hover); color: var(--text); }
 .session-tab-close svg { width: 12px; height: 12px; display: block; }
 .session-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }

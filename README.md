@@ -52,6 +52,11 @@ resume it in an embedded terminal in the correct working directory.
 - **Remove sessions from view** — hide a session you don't need without ever
   touching the underlying transcript file on disk; it stays importable again
   later if you change your mind.
+- **Keeps itself up to date** — checks GitHub for new releases on a schedule and offers them in
+  a strip above the workspace, with *Check for Updates…* in the menu for asking on demand. On
+  Linux (AppImage) it installs the update and restarts into it; on macOS, where an unsigned app
+  is not allowed to replace itself, it downloads and verifies the .dmg and opens it for you.
+  Settings has the schedule, auto-download and pre-release options.
 - **Everything remembered across restarts** — window size and position, sidebar
   width, which folders are collapsed, the selected session, and the shell pane's
   height all persist between launches.

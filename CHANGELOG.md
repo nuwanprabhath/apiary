@@ -4,6 +4,36 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] - 2026-09-12
+
+### Added
+
+- **Apiary updates itself.** It checks GitHub for a newer release on a schedule (every 6 hours by
+  default), and offers what it finds in a strip above the workspace — never a dialog over what you
+  are reading. *Check for Updates…* in the Apiary menu (Help on Linux) asks on demand and reports
+  the answer either way. A new Updates section in Settings holds the schedule, an auto-download
+  option, pre-release opt-in, the running version and when it last checked.
+- **What the update button offers depends on what the build can actually do.** A Linux AppImage
+  installs the update and restarts into it. An unsigned macOS build cannot — macOS will not let an
+  app replace itself unless it is signed with a Developer ID certificate — so it downloads the
+  .dmg, verifies it against the checksum in the release, and opens it for you to drag into
+  Applications. The reason is on screen before you press anything, rather than after a download
+  that could not have worked. Signing the app later turns macOS into a silent update with no code
+  change.
+- Skipping a version stops it being offered; the next release is offered as normal, and a check you
+  ask for still answers honestly about the version you skipped.
+- Releases now carry `latest-mac.yml` / `latest-linux.yml` and a macOS `.zip` beside the existing
+  installers. These are what an installed copy reads to discover a new version.
+
+### Changed
+
+- **The pinned sessions and folder groups are shared by every window.** They describe how you have
+  organised your sessions, not how one window is arranged, and a second window that opened with an
+  empty sidebar was the same workspace with the shelves emptied. Pinning in one window now shows up
+  in the other as it happens. Tabs, column widths and the selected session stay per-window.
+- **A tab's close button is always visible**, rather than appearing on hover. On the tabs it was
+  hidden, the right-click menu was the only way to close anything.
+
 ## [1.8.2] - 2026-09-11
 
 ### Added

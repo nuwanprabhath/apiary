@@ -102,6 +102,13 @@ export async function launchApiary(
      */
     secondWorktree?: boolean
     fakeLiveSessionId?: string
+    /**
+     * Pretend a release of this version exists, so the update banner can be driven without a
+     * network or a packaged build. `updateMode` picks which capability is simulated: 'assisted'
+     * (an unsigned mac build — download and open) or 'auto' (an AppImage — install and restart).
+     */
+    fakeUpdate?: string
+    updateMode?: 'assisted' | 'auto'
   } = {},
 ): Promise<Harness> {
   // realpath the root up front: on macOS os.tmpdir() is under /var, a symlink to /private/var,
@@ -195,6 +202,8 @@ export async function launchApiary(
       APIARY_CONFIG_ROOT: home,
       APIARY_DB_PATH: join(home, 'apiary.db'),
       APIARY_FAKE_LIVE: opts.fakeLiveSessionId ?? '',
+      APIARY_FAKE_UPDATE: opts.fakeUpdate ?? '',
+      APIARY_FAKE_UPDATE_MODE: opts.updateMode ?? 'assisted',
     }),
   })
   const page = await app.firstWindow()
