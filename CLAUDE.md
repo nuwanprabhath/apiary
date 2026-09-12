@@ -103,13 +103,29 @@ point would.
   names before adding one.
 - TypeScript is strict; `npm run typecheck` covers both tsconfigs and both must pass.
 
+## Settings arriving over IPC
+
+`AppSettingsPayload` is typed, but it crosses a process boundary from a renderer that is not
+guaranteed to be the same build as the main process — a dev reload, or an update that reloads the
+window. A key the sender has never heard of is simply absent, so **treat a missing field as
+"unchanged", never as `false`**: `ipc.ts`'s settings merge does this deliberately. Getting it wrong
+once cost a whole afternoon, because the failure hides itself — the feature switched off in memory,
+its index was wiped as a switch-off is meant to do, and `JSON.stringify` dropped the undefined key
+so the file on disk still said the feature was on.
+
 ## Measure before fixing
 
 The bugs in this app that took longest were the ones where a plausible explanation was acted on
 without checking. The terminal-cutoff bug was "fixed" twice before someone measured the actual
 element heights and found a 352px terminal inside a 167px row. The "needs Enter twice" bug got a
 delay-tuning fix that was irrelevant, because the real cause was a write landing a second before the
-program existed — found only by tapping the PTY and looking at the bytes.
+program existed — found only by tapping the PTY and looking at the bytes. "Notes are saved but never
+indexed" was found by reading the user's actual `apiary.db` and `search.db` and running the app's own
+sync against a copy of them, which showed the code worked and the *state* was wrong.
+
+One trap while doing that: `sqlite3 -readonly` cannot open the `-shm` file, so it silently ignores
+everything in the WAL and reports an out-of-date picture of the database. Copy the `.db` and `-wal`
+together (never the `-shm`) and read the copy.
 
 Both are cheap to do: a short script with `node-pty`, a `getBoundingClientRect` in the devtools
 console, a `tail` of what the child actually received. Do that before changing code, and say what you

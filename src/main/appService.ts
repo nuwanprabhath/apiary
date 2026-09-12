@@ -235,6 +235,9 @@ export class AppService {
   }
 
   setSearchChatContent(enabled: boolean): void {
+    // Anything that is not a boolean is a caller that does not know about this setting, not a
+    // request to turn it off. See the note on the settings merge in ipc.ts.
+    if (typeof enabled !== 'boolean') return
     this.searchChatContent = enabled
   }
 
@@ -247,6 +250,9 @@ export class AppService {
    * immediate and cheap, because a note is a line of text and no transcript has to be re-read.
    */
   setSearchSessionNotes(enabled: boolean): void {
+    // Guarded before the comparison, because the damage here is not just a flag: switching off
+    // empties the note index, so a stray `undefined` would silently delete it.
+    if (typeof enabled !== 'boolean') return
     if (enabled === this.searchSessionNotes) return
     this.searchSessionNotes = enabled
     try {

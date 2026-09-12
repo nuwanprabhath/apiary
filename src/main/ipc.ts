@@ -86,18 +86,33 @@ export function registerIpc(
   })
   ipcMain.handle(CHANNELS.settingsSet, async (_e, next: AppSettingsPayload) => {
     const current = loadSettings(settingsFile)
+    /**
+     * A field the payload does not carry means "leave it alone", never "off".
+     *
+     * The payload is typed, but it arrives over IPC from a renderer that is not guaranteed to be
+     * the same build as this process — during a dev reload, or an update that reloads the window
+     * — and a key the sender has never heard of simply is not there. Assigning it straight across
+     * then wrote `undefined`, which is falsy: the feature switched off in this process, its index
+     * was wiped as a switch-off is meant to do, and `JSON.stringify` dropped the undefined key on
+     * the way to disk so `settings.json` still said the feature was on. Nothing about that is
+     * visible from the outside. This is the bug that made session notes stop being indexed.
+     */
+    const keep = <T>(value: T | undefined, fallback: T): T => value ?? fallback
     const merged: AppSettings = {
       ...current,
-      claudeBin: next.claudeBin,
-      autoImportAll: next.autoImportAll,
-      autoImportIntervalMinutes: next.autoImportIntervalMinutes,
-      revealActiveInSidebar: next.revealActiveInSidebar,
-      searchChatContent: next.searchChatContent,
-      searchSessionNotes: next.searchSessionNotes,
-      updateAutomaticChecks: next.updateAutomaticChecks,
-      updateCheckIntervalHours: next.updateCheckIntervalHours,
-      updateAutoDownload: next.updateAutoDownload,
-      updateAllowPrerelease: next.updateAllowPrerelease,
+      // `claudeBin` is the exception: null is a real value there, meaning "find it on PATH".
+      claudeBin: next.claudeBin === undefined ? current.claudeBin : next.claudeBin,
+      autoImportAll: keep(next.autoImportAll, current.autoImportAll),
+      autoImportIntervalMinutes: next.autoImportIntervalMinutes === undefined
+        ? current.autoImportIntervalMinutes
+        : next.autoImportIntervalMinutes,
+      revealActiveInSidebar: keep(next.revealActiveInSidebar, current.revealActiveInSidebar),
+      searchChatContent: keep(next.searchChatContent, current.searchChatContent),
+      searchSessionNotes: keep(next.searchSessionNotes, current.searchSessionNotes),
+      updateAutomaticChecks: keep(next.updateAutomaticChecks, current.updateAutomaticChecks),
+      updateCheckIntervalHours: keep(next.updateCheckIntervalHours, current.updateCheckIntervalHours),
+      updateAutoDownload: keep(next.updateAutoDownload, current.updateAutoDownload),
+      updateAllowPrerelease: keep(next.updateAllowPrerelease, current.updateAllowPrerelease),
     }
     saveSettings(settingsFile, merged)
     // The schedule has to follow the settings immediately: switching checks off and having one

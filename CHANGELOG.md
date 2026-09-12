@@ -4,6 +4,24 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.10.2] - 2026-09-12
+
+### Fixed
+
+- **A saved note was never indexed, and Rebuild index did not help.** A settings save whose
+  payload did not carry a given field wrote `undefined` over that setting. `undefined` is falsy,
+  so note search switched off inside the running process and took the note index with it — that
+  being what switching it off is meant to do — and `JSON.stringify` then dropped the key on the
+  way to disk, leaving `settings.json` still reading `true`. Nothing about the state was visible
+  from the outside, which is why the checkbox looked right while nothing was indexed. A field the
+  payload does not carry now means "leave it alone", never "off", and the two search settings
+  ignore anything that is not a boolean.
+
+### Note
+
+- If your notes are not being found, restart Apiary once: it re-indexes every note it has at
+  startup, and this release stops the state going wrong again.
+
 ## [1.10.1] - 2026-09-12
 
 ### Fixed
