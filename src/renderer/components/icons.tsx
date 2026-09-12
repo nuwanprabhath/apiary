@@ -133,3 +133,25 @@ export function PinIcon({ className, filled = false }: IconProps & { filled?: bo
     </svg>
   )
 }
+
+/**
+ * A note: a page with lines of writing on it. Filled in with a corner fold when the session
+ * already has one, so a glance down the sidebar tells you which sessions you have annotated
+ * without hovering each in turn.
+ */
+export function NoteIcon({ className, filled = false }: IconProps & { filled?: boolean }): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path
+        d="M4 2.5h5L12 5.5v8H4z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+        fill={filled ? 'currentColor' : 'none'}
+        fillOpacity={filled ? 0.25 : 0}
+      />
+      <path d="M9 2.5v3h3" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M6 8.5h4M6 10.5h4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
+  )
+}

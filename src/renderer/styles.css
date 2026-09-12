@@ -1646,3 +1646,42 @@ body.resizing-active { user-select: none; }
 .hover-card-row { display: flex; gap: 6px; }
 .hover-card-label { color: var(--muted); min-width: 72px; }
 .hover-card-branch { color: var(--accent); word-break: break-all; }
+
+/* The note glyph beside a title, marking a session that has one. Muted rather than accented: it
+   is a fact about the row, not a call to action. */
+.session-note-mark { flex: none; display: flex; align-items: center; color: var(--muted); }
+.session-note-mark svg { width: 12px; height: 12px; display: block; }
+.session-row[data-selected="true"] .session-note-mark { color: var(--text); }
+
+/* The note inside a hover card. Pre-wrapped so the lines someone typed survive, and capped so a
+   long note cannot grow the card past the window. */
+.hover-card-note {
+  white-space: pre-wrap;
+  max-height: 180px;
+  overflow: hidden;
+  padding: 4px 6px;
+  border-left: 2px solid var(--accent);
+  background: var(--hover);
+  border-radius: 0 4px 4px 0;
+}
+
+.note-dialog { width: 520px; max-width: 90vw; }
+.note-dialog-session { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+.note-dialog-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 140px;
+  resize: vertical;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
+}
+.note-dialog-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+/* Pushes the confirm/cancel pair to the right while Remove stays on the left, the usual place for
+   a destructive action that is not the one being encouraged. */
+.modal-actions-spacer { flex: 1; }
+.note-dialog-remove { color: var(--danger); }

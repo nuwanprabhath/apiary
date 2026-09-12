@@ -173,3 +173,75 @@ describe('runIndexPass', () => {
     expect(result.indexed).toBe(1)
   })
 })
+
+describe('notes in the index', () => {
+  it('finds a session by something written in its note', () => {
+    index.putNote('s1', 'Debugging the nightly pipeline, MR !1257 open against dev/1.0.12')
+    expect(index.searchNotes('nightly').map((h) => h.sessionId)).toEqual(['s1'])
+  })
+
+  it('finds a note by an identifier with or without its punctuation, like everything else', () => {
+    index.putNote('s1', 'MR !1257 and ticket #2902')
+    expect(index.searchNotes('!1257').map((h) => h.sessionId)).toEqual(['s1'])
+    expect(index.searchNotes('1257').map((h) => h.sessionId)).toEqual(['s1'])
+    expect(index.searchNotes('2902').map((h) => h.sessionId)).toEqual(['s1'])
+  })
+
+  it('replaces a note rather than accumulating versions of it', () => {
+    index.putNote('s1', 'chasing a flaky test')
+    index.putNote('s1', 'turned out to be a clock skew')
+    expect(index.searchNotes('flaky')).toEqual([])
+    expect(index.searchNotes('skew').map((h) => h.sessionId)).toEqual(['s1'])
+  })
+
+  it('removes the entry when the note is cleared', () => {
+    index.putNote('s1', 'temporary thought')
+    index.putNote('s1', '')
+    expect(index.searchNotes('temporary')).toEqual([])
+    expect(index.noteCount()).toBe(0)
+  })
+
+  it('treats a whitespace-only note as no note', () => {
+    index.putNote('s1', '   \n  ')
+    expect(index.noteCount()).toBe(0)
+  })
+
+  it('keeps notes and transcripts apart, so either can be searched without the other', () => {
+    index.put('s1', 'the transcript mentions carburettors', 10, 1)
+    index.putNote('s2', 'the note mentions carburettors')
+
+    expect(index.search('carburettors').map((h) => h.sessionId)).toEqual(['s1'])
+    expect(index.searchNotes('carburettors').map((h) => h.sessionId)).toEqual(['s2'])
+  })
+
+  it('drops a session\'s note when the session is forgotten', () => {
+    index.put('s1', 'body', 10, 1)
+    index.putNote('s1', 'a note')
+    index.forget('s1')
+    expect(index.searchNotes('note')).toEqual([])
+  })
+
+  it('a note survives the transcript being re-indexed, and vice versa', () => {
+    // They are separate tables precisely so one does not disturb the other: a session whose
+    // transcript grows must not lose the note attached to it.
+    index.putNote('s1', 'MR !1257')
+    index.put('s1', 'first version', 10, 1)
+    index.put('s1', 'second version', 20, 2)
+
+    expect(index.searchNotes('1257').map((h) => h.sessionId)).toEqual(['s1'])
+    expect(index.search('second').map((h) => h.sessionId)).toEqual(['s1'])
+    expect(index.search('first')).toEqual([])
+  })
+
+  it('clearNotes empties the notes but leaves the transcripts indexed', () => {
+    index.put('s1', 'transcript text', 10, 1)
+    index.putNote('s1', 'note text')
+    index.clearNotes()
+
+    expect(index.noteCount()).toBe(0)
+    expect(index.search('transcript').map((h) => h.sessionId)).toEqual(['s1'])
+    // And the transcript is still considered up to date, so switching notes off does not force a
+    // re-read of every session file.
+    expect(index.needsIndexing('s1', 10, 1)).toBe(false)
+  })
+})

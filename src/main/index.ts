@@ -274,6 +274,7 @@ void app.whenReady().then(async () => {
     claudeBin: settings.claudeBin ?? undefined,
     autoImportAll: settings.autoImportAll,
     searchChatContent: settings.searchChatContent,
+    searchSessionNotes: settings.searchSessionNotes,
     onIndexUpdated: () => {
       for (const win of BrowserWindow.getAllWindows()) {
         if (!win.isDestroyed()) win.webContents.send(CHANNELS.treeChanged)

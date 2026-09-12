@@ -74,6 +74,20 @@ export class SearchIndex {
         size INTEGER NOT NULL,
         mtime INTEGER NOT NULL
       );
+      /*
+       * Notes are a table of their own rather than more text appended to the chunks table.
+       *
+       * A note is written by hand and changes on its own schedule, while chunks is keyed to a
+       * transcript's size and mtime — so folding notes into it would mean either re-reading a
+       * whole JSONL to record a one-line note, or an entry whose freshness check no longer
+       * describes what is in it. Separating them also makes the two searchable independently,
+       * which is what lets notes stay on when transcript indexing is turned off.
+       */
+      CREATE VIRTUAL TABLE IF NOT EXISTS notes USING fts5(
+        session_id UNINDEXED,
+        body,
+        tokenize = 'unicode61 remove_diacritics 2'
+      );
     `)
   }
 
@@ -102,18 +116,60 @@ export class SearchIndex {
     write()
   }
 
+  /** Replaces the indexed note for one session. An empty or absent note removes the entry. */
+  putNote(sessionId: string, note: string | null): void {
+    const write = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM notes WHERE session_id = ?').run(sessionId)
+      const trimmed = note?.trim() ?? ''
+      if (trimmed !== '') {
+        this.db.prepare('INSERT INTO notes (session_id, body) VALUES (?, ?)')
+          .run(sessionId, trimmed.slice(0, MAX_TEXT_PER_SESSION))
+      }
+    })
+    write()
+  }
+
+  /** Session ids whose *note* matches. Separate from `search` so the two can be enabled apart. */
+  searchNotes(raw: string, limit = 200): SearchHit[] {
+    const match = toMatchQuery(raw)
+    if (match === null) return []
+    try {
+      return this.db.prepare(`
+        SELECT session_id AS sessionId, snippet(notes, 1, '«', '»', '…', 12) AS snippet
+        FROM notes
+        WHERE notes MATCH ?
+        ORDER BY rank
+        LIMIT ?
+      `).all(match, limit) as SearchHit[]
+    } catch {
+      return []
+    }
+  }
+
+  /** Empties only the notes, for when note indexing is switched off. */
+  clearNotes(): void {
+    this.db.exec('DELETE FROM notes')
+  }
+
+  /** How many notes are indexed — shown in Settings beside the transcript count. */
+  noteCount(): number {
+    const row = this.db.prepare('SELECT COUNT(*) AS n FROM notes').get() as { n: number }
+    return row.n
+  }
+
   /** Drops a session from the index — used when it is removed from view. */
   forget(sessionId: string): void {
     const write = this.db.transaction(() => {
       this.db.prepare('DELETE FROM chunks WHERE session_id = ?').run(sessionId)
       this.db.prepare('DELETE FROM indexed WHERE session_id = ?').run(sessionId)
+      this.db.prepare('DELETE FROM notes WHERE session_id = ?').run(sessionId)
     })
     write()
   }
 
   /** Empties the index, so the next pass rebuilds it from scratch. */
   clear(): void {
-    this.db.exec('DELETE FROM chunks; DELETE FROM indexed;')
+    this.db.exec('DELETE FROM chunks; DELETE FROM indexed; DELETE FROM notes;')
   }
 
   /** Session ids whose conversation matches, best first. */

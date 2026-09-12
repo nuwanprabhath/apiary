@@ -45,6 +45,8 @@ interface Props {
   /** Session ids the user has pinned, most recently pinned first. */
   pinned: string[]
   onTogglePin: (session: SessionNode) => void
+  /** Opens the note editor for a session. */
+  onEditNote: (session: SessionNode) => void
   /** Whether the pinned section is collapsed — persisted, like the folder collapse state. */
   pinnedCollapsed: boolean
   onPinnedCollapsedChange: (next: boolean) => void
@@ -90,7 +92,7 @@ function pathsToSession(nodes: ProjectNode[], id: string, trail: string[] = []):
 
 export function Sidebar({
   selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onDeleteSession,
-  onSplitSession, pinned, onTogglePin, pinnedCollapsed, onPinnedCollapsedChange,
+  onSplitSession, pinned, onTogglePin, onEditNote, pinnedCollapsed, onPinnedCollapsedChange,
   pending, onSelectPending, revealId, groupState, onGroupStateChange, onReorderPinned,
 }: Props): JSX.Element {
   const [query, setQuery] = useState('')
@@ -275,6 +277,7 @@ export function Sidebar({
     onSplitSession,
     pinned: pinnedSet,
     onTogglePin,
+    onEditNote,
     onReorderFolder: reorderFolder,
     onFolderMenu: (path: string, x: number, y: number) => setMenu({ kind: 'folder', id: path, x, y }),
     orderFolders: (nodes: ProjectNode[]) => orderFolders(nodes, (n) => n.path, groupState.folderOrder),
@@ -392,6 +395,7 @@ export function Sidebar({
                 onSplit={onSplitSession}
                 onDelete={onDeleteSession}
                 onTogglePin={onTogglePin}
+                onEditNote={onEditNote}
               />
             </div>
           ))}

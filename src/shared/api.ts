@@ -25,6 +25,8 @@ export interface AppSettingsPayload {
   revealActiveInSidebar: boolean
   /** Search conversation contents as well as titles. */
   searchChatContent: boolean
+  /** Search the notes people write on sessions. */
+  searchSessionNotes: boolean
   /** Check GitHub for a newer release on a schedule. */
   updateAutomaticChecks: boolean
   /** Hours between those checks. */
@@ -99,6 +101,8 @@ export const CHANNELS = {
   updateSkip: 'apiary:update-skip',
   updateDismiss: 'apiary:update-dismiss',
   updateChanged: 'apiary:update-changed',
+  setSessionNote: 'apiary:set-session-note',
+  sessionNote: 'apiary:session-note',
 } as const
 
 export interface ApiaryApi {
@@ -147,8 +151,12 @@ export interface ApiaryApi {
   copyToClipboard(text: string): Promise<void>
   /** Wipes and rebuilds the conversation index; resolves when the pass has finished. */
   searchRebuild(): Promise<void>
-  /** How many sessions are currently indexed. */
-  searchStatus(): Promise<{ indexed: number }>
+  /** How many sessions and notes are currently indexed. */
+  searchStatus(): Promise<{ indexed: number; notes: number }>
+  /** Saves the user's note for a session; an empty string removes it. */
+  setSessionNote(sessionId: string, note: string): Promise<void>
+  /** The note currently saved for a session, or '' when there is none. */
+  sessionNote(sessionId: string): Promise<string>
   /** Writes a pasted image to Apiary's own data directory; resolves to its absolute path. */
   saveImage(base64: string, mediaType: string): Promise<string>
   /** Reads one of those images back as a data URL, or null if it is gone or out of bounds. */

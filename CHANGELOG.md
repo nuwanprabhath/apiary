@@ -4,6 +4,24 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] - 2026-09-12
+
+### Added
+
+- **Notes on sessions.** Hovering a session in the sidebar reveals a note button; the note you
+  write there — what you were chasing, the ticket, the merge request you had open — shows in the
+  row's hover card, and a small glyph marks the sessions that have one so they can be picked out
+  of the list at a glance.
+- **Notes are searched from the search box.** A note saying `nightly pipeline failure, MR !1257`
+  is found by `nightly`, by `!1257` and by `1257`, the same identifier-first tokenising the
+  transcript search uses. A note becomes searchable the moment it is saved rather than at the next
+  index pass.
+- **Search settings has a switch for it.** Turning note search off empties the note index — an
+  index of things the user asked not to be searched should not sit on disk — and leaves the notes
+  themselves untouched and still shown on hover. Turning it back on repopulates from the notes,
+  which is instant: notes are indexed separately from transcripts, so neither setting can make the
+  other re-read a session file.
+
 ## [1.9.1] - 2026-09-12
 
 ### Fixed

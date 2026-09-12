@@ -19,6 +19,7 @@ function toSessionNode(
     messageCount: s.messageCount,
     isLive: liveIds.has(s.sessionId),
     cwdExists: cwd !== '' && cwdExists(cwd),
+    note: s.note,
   }
 }
 

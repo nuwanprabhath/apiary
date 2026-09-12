@@ -27,6 +27,12 @@ export interface AppSettings {
    */
   searchChatContent: boolean
   /**
+   * Whether the notes people write on sessions are searchable. Separate from `searchChatContent`
+   * because it is a different bargain: a note is a line the user typed on purpose, so indexing it
+   * costs nothing and is what makes it findable later.
+   */
+  searchSessionNotes: boolean
+  /**
    * Update preferences. Checking is on by default — an app that can update itself and doesn't
    * mention it is how people end up months behind — but nothing is ever downloaded or installed
    * without the user saying so, which is what `updateAutoDownload: false` means.
@@ -49,6 +55,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoImportIntervalMinutes: null,
   revealActiveInSidebar: true,
   searchChatContent: true,
+  searchSessionNotes: true,
   updateAutomaticChecks: true,
   updateCheckIntervalHours: 6,
   updateAutoDownload: false,

@@ -11,7 +11,7 @@ const sess = (id: string, projectPath: string, over: Partial<StoredSession> = {}
   sessionId: id, projectPath, title: `Title ${id}`, firstPrompt: null,
   cwd: projectPath, gitBranch: 'main', startedAtMs: 1, lastActiveAtMs: 1,
   messageCount: null, filePath: `/x/${id}.jsonl`, fileMtimeMs: 1, fileSize: 1,
-  imported: true, archived: false, ...over,
+  imported: true, archived: false, note: null, ...over,
 })
 
 const always = () => true

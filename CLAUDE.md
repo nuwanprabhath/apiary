@@ -78,6 +78,14 @@ indivisible token and break every partial search anyone would type. User queries
 `toMatchQuery`, which reduces them the same way — typed raw into `MATCH`, `!1257` is a syntax error,
 not a search.
 
+Notes live in a second FTS table in the same file, deliberately apart from the transcript chunks.
+A note is written by hand and changes on its own schedule, while `chunks` is keyed to a
+transcript's size and mtime — folding the two together would mean either re-reading a whole JSONL
+to record a one-line note, or a freshness check that no longer describes what it covers. Keeping
+them apart is also what lets the two settings be independent, and what makes a note searchable the
+instant it is saved. The notes themselves belong to the *session store*: they are the one thing
+here that cannot be rebuilt from `~/.claude/projects`.
+
 Indexing is incremental (unchanged files are skipped by size and mtime without being opened) and
 yields between files. It is deliberately *not* a worker thread: the renderer is already a separate
 process, so indexing cannot freeze the UI, and yielding costs far less than a second bundled entry

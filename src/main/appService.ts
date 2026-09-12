@@ -30,6 +30,7 @@ export interface AppServiceOptions {
   searchDbPath?: string
   /** Whether search also looks inside conversations. */
   searchChatContent?: boolean
+  searchSessionNotes?: boolean
   /**
    * Called after an index pass that actually changed something. Indexing runs behind whatever the
    * user is doing, so a search typed while it was still running would otherwise sit on results
@@ -75,6 +76,7 @@ export class AppService {
    */
   private searchIndex: SearchIndex | null = null
   private searchChatContent = true
+  private searchSessionNotes = true
   /** Set while a pass is running, so refreshes cannot stack passes on top of each other. */
   private indexing = false
 
@@ -83,6 +85,7 @@ export class AppService {
     this.store = new SessionStore(options.dbPath)
     this.autoImportAll = options.autoImportAll ?? false
     this.searchChatContent = options.searchChatContent ?? true
+    this.searchSessionNotes = options.searchSessionNotes ?? true
   }
 
   /**
@@ -200,11 +203,23 @@ export class AppService {
     return filterTree(full, query, byContent)
   }
 
-  /** Session ids whose conversation matches, or none when content search is off. */
+  /**
+   * Session ids matched by anything other than their title: the conversation, the user's note, or
+   * both, according to which of the two are switched on. They are independent — a note is a line
+   * the user wrote and costs nothing to keep indexed, so it stays searchable even for someone who
+   * has turned transcript indexing off.
+   */
   searchSessions(query: string): string[] {
-    if (!this.searchChatContent) return []
+    if (!this.searchChatContent && !this.searchSessionNotes) return []
     try {
-      return this.index().search(query).map((hit) => hit.sessionId)
+      const ids = new Set<string>()
+      if (this.searchChatContent) {
+        for (const hit of this.index().search(query)) ids.add(hit.sessionId)
+      }
+      if (this.searchSessionNotes) {
+        for (const hit of this.index().searchNotes(query)) ids.add(hit.sessionId)
+      }
+      return [...ids]
     } catch {
       // Search is an enhancement to the sidebar, never a reason for it to fail to load.
       return []
@@ -223,16 +238,75 @@ export class AppService {
     this.searchChatContent = enabled
   }
 
+  /**
+   * Turns note indexing on or off.
+   *
+   * Switching it off empties the note index rather than merely ignoring it — a search index of
+   * things the user asked not to be searched should not sit on disk. Switching it back on
+   * repopulates from the session store, which is the record of the notes themselves; this is
+   * immediate and cheap, because a note is a line of text and no transcript has to be re-read.
+   */
+  setSearchSessionNotes(enabled: boolean): void {
+    if (enabled === this.searchSessionNotes) return
+    this.searchSessionNotes = enabled
+    try {
+      if (!enabled) this.index().clearNotes()
+      else this.syncNoteIndex()
+    } catch {
+      // The note index is derived data; failing to reshape it must not fail the settings save.
+    }
+  }
+
+  /** Rewrites the note index from the store — used when note indexing is switched back on. */
+  private syncNoteIndex(): void {
+    const index = this.index()
+    index.clearNotes()
+    for (const { sessionId, note } of this.store.sessionsWithNotes()) index.putNote(sessionId, note)
+  }
+
+  /**
+   * Saves the user's note for a session, and keeps the index in step with it.
+   *
+   * The index write happens here rather than being left to the next background pass: a note is
+   * written so it can be found again, and a note that is not searchable until some later rescan
+   * is a note that appears not to work.
+   */
+  async setSessionNote(sessionId: string, note: string): Promise<void> {
+    this.requireSession(sessionId)
+    const trimmed = note.trim()
+    this.store.setNote(sessionId, trimmed === '' ? null : trimmed)
+    if (this.searchSessionNotes) {
+      try {
+        this.index().putNote(sessionId, trimmed === '' ? null : trimmed)
+      } catch {
+        // Saved either way: the note lives in the session store, and a rebuild recovers the index.
+      }
+    }
+  }
+
+  /** The note for one session, for the editor to open with what is already there. */
+  sessionNote(sessionId: string): string {
+    return this.store.allSessions().find((s) => s.sessionId === sessionId)?.note ?? ''
+  }
+
   /** Wipes the index so the next pass rebuilds it — the "Rebuild index" action in Settings. */
   async rebuildSearchIndex(): Promise<void> {
-    if (!this.searchChatContent) return
+    if (!this.searchChatContent && !this.searchSessionNotes) return
     this.index().clear()
+    // Notes come back from the store immediately; transcripts are the slow part and are left to
+    // the pass below.
+    if (this.searchSessionNotes) this.syncNoteIndex()
     await this.updateSearchIndex()
   }
 
   /** How many sessions are indexed, for Settings to show that the index exists and is populated. */
   searchIndexCount(): number {
     return this.searchChatContent ? this.index().count() : 0
+  }
+
+  /** How many notes are indexed, shown beside the session count in Settings. */
+  searchNoteCount(): number {
+    return this.searchSessionNotes ? this.index().noteCount() : 0
   }
 
   /**
@@ -243,6 +317,11 @@ export class AppService {
    * means overlapping refreshes queue no work rather than racing each other over the same files.
    */
   async updateSearchIndex(): Promise<void> {
+    // Notes are kept in step by whoever changes them, but a pass is also where a note written
+    // before indexing was switched on gets picked up.
+    if (this.searchSessionNotes && !this.disposed) {
+      try { this.syncNoteIndex() } catch { /* Derived data; the next pass tries again. */ }
+    }
     if (!this.searchChatContent || this.indexing || this.disposed) return
     this.indexing = true
     try {

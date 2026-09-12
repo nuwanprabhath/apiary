@@ -12,6 +12,8 @@ export interface StoredSession extends SessionMeta {
   projectPath: string
   imported: boolean
   archived: boolean
+  /** The user's own note about the session. Null when they have not written one. */
+  note: string | null
 }
 
 interface ProjectRow {
@@ -22,6 +24,7 @@ interface ProjectRow {
 interface SessionRow {
   session_id: string; project_path: string; title: string | null
   custom_title: string | null
+  note: string | null
   first_prompt: string | null; cwd: string | null; git_branch: string | null
   started_at_ms: number | null; last_active_ms: number | null
   message_count: number | null; file_path: string; file_mtime_ms: number
@@ -55,6 +58,7 @@ const toSession = (r: SessionRow): StoredSession => ({
   fileSize: r.file_size,
   imported: r.imported === 1,
   archived: r.archived === 1,
+  note: r.note,
 })
 
 export class SessionStore {
@@ -78,6 +82,9 @@ export class SessionStore {
     const columns = this.db.prepare<[], { name: string }>('PRAGMA table_info(session)').all()
     if (!columns.some((c) => c.name === 'custom_title')) {
       this.db.exec('ALTER TABLE session ADD COLUMN custom_title TEXT')
+    }
+    if (!columns.some((c) => c.name === 'note')) {
+      this.db.exec('ALTER TABLE session ADD COLUMN note TEXT')
     }
   }
 
@@ -225,6 +232,27 @@ export class SessionStore {
 
   setMessageCount(sessionId: string, count: number): void {
     this.db.prepare('UPDATE session SET message_count = ? WHERE session_id = ?').run(count, sessionId)
+  }
+
+  /**
+   * The user's note for a session; `null` removes it.
+   *
+   * Kept in the session store rather than the search index because it is the user's own writing —
+   * the one thing here that cannot be reconstructed from `~/.claude/projects` if the file is
+   * deleted. The index gets a copy, and can be rebuilt from this.
+   */
+  setNote(sessionId: string, note: string | null): void {
+    this.db.prepare('UPDATE session SET note = ? WHERE session_id = ?').run(note, sessionId)
+  }
+
+  /** Every session that has a note, for populating the index. */
+  sessionsWithNotes(): { sessionId: string; note: string }[] {
+    return this.db
+      .prepare<[], { session_id: string; note: string }>(
+        "SELECT session_id, note FROM session WHERE note IS NOT NULL AND note != ''",
+      )
+      .all()
+      .map((r) => ({ sessionId: r.session_id, note: r.note }))
   }
 
   /** `null` clears a user-set title, reverting display back to whatever the scanner last read. */

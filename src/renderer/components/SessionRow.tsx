@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SessionNode } from '@shared/types'
-import { PinIcon, SplitIcon, TrashIcon } from './icons'
+import { NoteIcon, PinIcon, SplitIcon, TrashIcon } from './icons'
 import { HoverCard, HOVER_DELAY_MS } from './HoverCard'
 
 /** Days since a session was last touched, in the compact form the sidebar has room for. */
@@ -28,6 +28,8 @@ interface Props {
   onSplit: (session: SessionNode) => void
   onDelete: (session: SessionNode) => void
   onTogglePin: (session: SessionNode) => void
+  /** Opens the note editor for this session. */
+  onEditNote: (session: SessionNode) => void
 }
 
 /**
@@ -42,8 +44,9 @@ interface Props {
  * rather than children of it because a <button> cannot contain another interactive element.
  */
 export function SessionRow({
-  session, selected, pinned, onSelect, onSplit, onDelete, onTogglePin,
+  session, selected, pinned, onSelect, onSplit, onDelete, onTogglePin, onEditNote,
 }: Props): JSX.Element {
+  const hasNote = session.note !== null && session.note !== ''
   /** The row's rectangle while the hover card is up; null when it is not. */
   const [cardAnchor, setCardAnchor] = useState<DOMRect | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -78,6 +81,7 @@ export function SessionRow({
           title={session.title}
           path={session.cwd}
           branch={session.gitBranch}
+          note={session.note}
           lastActive={session.lastActiveAtMs === null ? null : fullTime(session.lastActiveAtMs)}
           missing={!session.cwdExists}
         />
@@ -91,8 +95,25 @@ export function SessionRow({
       >
         {session.isLive && <span className="live-dot" aria-label="running" />}
         <span className="session-title">{session.title}</span>
+        {hasNote && (
+          // Marked in the row itself, not only in the actions: which sessions you have annotated
+          // is worth knowing while scanning the list, and the actions only appear on hover.
+          <span className="session-note-mark" data-testid="session-note-mark" aria-label="has a note">
+            <NoteIcon filled />
+          </span>
+        )}
         {!session.cwdExists && <span className="missing">folder gone</span>}
         <span className="session-time" data-testid="session-time">{relativeTime(session.lastActiveAtMs)}</span>
+      </button>
+      <button
+        className="row-action note-session-button"
+        data-testid="note-session-button"
+        data-has-note={hasNote}
+        title={hasNote ? 'Edit this session\u2019s note' : 'Add a note to this session'}
+        aria-label={`${hasNote ? 'Edit' : 'Add'} note for session ${session.title}`}
+        onClick={(e) => { e.stopPropagation(); onEditNote(session) }}
+      >
+        <NoteIcon filled={hasNote} />
       </button>
       <button
         className="row-action pin-session-button"

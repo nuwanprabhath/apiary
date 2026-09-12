@@ -52,6 +52,10 @@ resume it in an embedded terminal in the correct working directory.
 - **Remove sessions from view** — hide a session you don't need without ever
   touching the underlying transcript file on disk; it stays importable again
   later if you change your mind.
+- **Notes on sessions** — jot down what you were doing (the ticket, the merge request, what you
+  had ruled out) from the session's row. Notes show when you hover it, and are searched from the
+  search box, so a session is findable months later by the MR number you remember. Can be switched
+  off in Search settings.
 - **Keeps itself up to date** — checks GitHub for new releases on a schedule and offers them in
   a strip above the workspace, with *Check for Updates…* in the menu for asking on demand. On
   Linux (AppImage) it installs the update and restarts into it; on macOS, where an unsigned app

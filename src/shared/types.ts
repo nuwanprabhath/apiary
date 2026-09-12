@@ -56,6 +56,12 @@ export interface SessionNode {
   messageCount: number | null
   isLive: boolean
   cwdExists: boolean
+  /**
+   * The user's own note about this session — what they were doing, the ticket or MR it belongs to.
+   * Null when there is none, which is the normal case; shown in the row's hover card and searched
+   * alongside titles and transcripts.
+   */
+  note: string | null
 }
 
 export interface ProjectNode {

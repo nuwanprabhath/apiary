@@ -77,6 +77,7 @@ export function registerIpc(
       autoImportIntervalMinutes: settings.autoImportIntervalMinutes,
       revealActiveInSidebar: settings.revealActiveInSidebar,
       searchChatContent: settings.searchChatContent,
+      searchSessionNotes: settings.searchSessionNotes,
       updateAutomaticChecks: settings.updateAutomaticChecks,
       updateCheckIntervalHours: settings.updateCheckIntervalHours,
       updateAutoDownload: settings.updateAutoDownload,
@@ -92,6 +93,7 @@ export function registerIpc(
       autoImportIntervalMinutes: next.autoImportIntervalMinutes,
       revealActiveInSidebar: next.revealActiveInSidebar,
       searchChatContent: next.searchChatContent,
+      searchSessionNotes: next.searchSessionNotes,
       updateAutomaticChecks: next.updateAutomaticChecks,
       updateCheckIntervalHours: next.updateCheckIntervalHours,
       updateAutoDownload: next.updateAutoDownload,
@@ -104,6 +106,7 @@ export function registerIpc(
     service.setClaudeBin(merged.claudeBin)
     service.setAutoImportAll(merged.autoImportAll)
     service.setSearchChatContent(merged.searchChatContent)
+    service.setSearchSessionNotes(merged.searchSessionNotes)
     // Switching content search on should not mean waiting until the next rescan to be able to use
     // it, so the first pass starts now; it is a background chore either way.
     if (merged.searchChatContent) void service.updateSearchIndex()
@@ -168,7 +171,17 @@ export function registerIpc(
   })
   ipcMain.handle(CHANNELS.copyToClipboard, (_e, text: string) => { clipboard.writeText(text) })
   ipcMain.handle(CHANNELS.searchRebuild, async () => { await service.rebuildSearchIndex() })
-  ipcMain.handle(CHANNELS.searchStatus, () => ({ indexed: service.searchIndexCount() }))
+  ipcMain.handle(CHANNELS.searchStatus, () => ({
+    indexed: service.searchIndexCount(),
+    notes: service.searchNoteCount(),
+  }))
+  ipcMain.handle(CHANNELS.setSessionNote, async (_e, id: string, note: string) => {
+    await service.setSessionNote(id, note)
+    // The note shows in the sidebar's hover card and changes what searches match, so every window
+    // needs to re-read the tree — the same signal a rename sends.
+    send(CHANNELS.treeChanged)
+  })
+  ipcMain.handle(CHANNELS.sessionNote, (_e, id: string) => service.sessionNote(id))
   ipcMain.handle(CHANNELS.saveImage, (_e, base64: string, mediaType: string) =>
     service.saveImage(base64, mediaType),
   )

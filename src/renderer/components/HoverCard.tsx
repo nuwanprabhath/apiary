@@ -23,6 +23,8 @@ interface Props {
   path: string
   branch: string | null
   lastActive: string | null
+  /** The user's own note, shown first — it is the thing they wrote to be read here. */
+  note?: string | null
   /** Shown when the folder a session ran in no longer exists. */
   missing?: boolean
 }
@@ -30,7 +32,9 @@ interface Props {
 const GAP = 8
 const MARGIN = 8
 
-export function HoverCard({ anchor, title, path, branch, lastActive, missing }: Props): JSX.Element {
+export function HoverCard(
+  { anchor, title, path, branch, lastActive, note, missing }: Props,
+): JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null)
   // Placed once its own size is known: a card is positioned relative to its width, which cannot
   // be measured before it renders. It starts offscreen rather than at 0,0 so the first paint is
@@ -65,6 +69,11 @@ export function HoverCard({ anchor, title, path, branch, lastActive, missing }: 
         : { left: pos.left, top: pos.top }}
     >
       <div className="hover-card-title">{title}</div>
+      {note !== null && note !== undefined && note !== '' && (
+        // Above the path rather than below it: the note is why someone wrote anything at all, and
+        // burying it under the metadata would make it the last thing read.
+        <div className="hover-card-note" data-testid="hover-card-note">{note}</div>
+      )}
       <div className="hover-card-path" data-testid="hover-card-path">{path}</div>
       {missing === true && <div className="hover-card-missing">This folder no longer exists.</div>}
       {branch !== null && (

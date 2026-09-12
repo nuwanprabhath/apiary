@@ -39,6 +39,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
   const [saving, setSaving] = useState(false)
   /** How many sessions are indexed, and whether a rebuild is running — the Search section's state. */
   const [indexed, setIndexed] = useState<number | null>(null)
+  const [notesIndexed, setNotesIndexed] = useState<number>(0)
   const [rebuilding, setRebuilding] = useState(false)
   const update = useUpdate()
   /** Set while a check the user pressed for is running, so the button can say so. */
@@ -46,7 +47,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
 
   const loadIndexStatus = (): void => {
     void window.apiary.searchStatus()
-      .then((s) => setIndexed(s.indexed))
+      .then((s) => { setIndexed(s.indexed); setNotesIndexed(s.notes) })
       .catch(() => setIndexed(null))
   }
   useEffect(loadIndexStatus, [])
@@ -207,6 +208,29 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
                   </span>
                 </label>
 
+                <label className="settings-row">
+                  <input
+                    type="checkbox"
+                    data-testid="setting-search-session-notes"
+                    checked={draft.searchSessionNotes}
+                    onChange={(e) => patch({ searchSessionNotes: e.target.checked })}
+                  />
+                  <span>
+                    <strong>Search session notes</strong>
+                    <span className="settings-help">
+                      Notes you write on a session — the ticket you were on, the MR you had open —
+                      are matched by the search box too. Turning this off empties the note index;
+                      the notes themselves are kept and still show when you hover a session.
+                    </span>
+                  </span>
+                </label>
+
+                <div className="settings-row settings-row-indent">
+                  <span className="settings-help" data-testid="search-note-status">
+                    {`${String(notesIndexed)} ${notesIndexed === 1 ? 'note' : 'notes'} indexed.`}
+                  </span>
+                </div>
+
                 <div className="settings-row settings-row-indent">
                   <span className="settings-help" data-testid="search-index-status">
                     {indexed === null
@@ -217,7 +241,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
                   </span>
                   <button
                     data-testid="search-rebuild"
-                    disabled={rebuilding || draft.searchChatContent === false}
+                    disabled={rebuilding || (!draft.searchChatContent && !draft.searchSessionNotes)}
                     onClick={() => {
                       setRebuilding(true)
                       void window.apiary.searchRebuild()

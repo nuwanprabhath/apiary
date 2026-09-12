@@ -16,6 +16,7 @@ import {
 } from './state/uiState'
 import { useUpdate } from './state/useUpdate'
 import { UpdateBanner } from './components/UpdateBanner'
+import { NoteDialog } from './components/NoteDialog'
 import { moveBefore, type GroupState } from './state/groups'
 import { useNotifications } from './state/notifications'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -108,6 +109,8 @@ export function App(): JSX.Element {
   const { notify, notifyError } = useNotifications()
   const [ui, setUi] = useState<UiState>(() => loadUiState())
   const updateStatus = useUpdate()
+  /** The session whose note is being edited, with the note as it stood when the editor opened. */
+  const [noteTarget, setNoteTarget] = useState<{ session: SessionNode; note: string } | null>(null)
   /**
    * Open sessions, arranged as VS Code-style editor groups: one column per group, each with its
    * own tab strip and its own shell. Splitting a session from the sidebar appends a column; there
@@ -683,6 +686,13 @@ export function App(): JSX.Element {
       >
       <Sidebar
         key={treeNonce}
+        onEditNote={(session) => {
+          // Read from the main process rather than from the tree node, so the editor opens on
+          // what is actually saved even if this window's tree is a moment out of date.
+          void window.apiary.sessionNote(session.sessionId)
+            .then((note) => { setNoteTarget({ session, note }) })
+            .catch(() => { setNoteTarget({ session, note: session.note ?? '' }) })
+        }}
         selectedId={activeKey}
         revealId={revealActiveInSidebar ? activeKey : null}
         groupState={{
@@ -837,6 +847,21 @@ export function App(): JSX.Element {
 
       {settingsOpen && (
         <SettingsDialog onClose={() => { setSettingsOpen(false); loadUiSettings() }} />
+      )}
+
+      {noteTarget !== null && (
+        <NoteDialog
+          sessionTitle={noteTarget.session.title}
+          initial={noteTarget.note}
+          onClose={() => { setNoteTarget(null) }}
+          onSave={(note) => {
+            const id = noteTarget.session.sessionId
+            setNoteTarget(null)
+            void window.apiary.setSessionNote(id, note).catch((e: unknown) => {
+              notifyError(e, 'Could not save the note')
+            })
+          }}
+        />
       )}
       </div>
     </div>

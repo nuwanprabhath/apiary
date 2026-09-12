@@ -18,6 +18,8 @@ interface Props {
    *  here, so the same row is never listed twice. */
   pinned: Set<string>
   onTogglePin: (session: SessionNode) => void
+  /** Opens the note editor for a session. */
+  onEditNote: (session: SessionNode) => void
   /**
    * Drag-to-reorder, at every level. The worktrees under a repository are as much a list with an
    * order worth having as the top-level folders are — 1.0.11 before 1.0.12, or the other way
@@ -33,7 +35,7 @@ interface Props {
 
 export function SessionTree({
   nodes, depth = 0, collapsed, onToggle, selectedId, onSelect, onNewSession, onDeleteSession,
-  onSplitSession, pinned, onTogglePin, onReorderFolder, onFolderMenu, orderFolders,
+  onSplitSession, pinned, onTogglePin, onEditNote, onReorderFolder, onFolderMenu, orderFolders,
 }: Props): JSX.Element {
   const rearrangeable = onReorderFolder !== undefined
   const ordered = orderFolders === undefined ? nodes : orderFolders(nodes)
@@ -135,6 +137,7 @@ export function SessionTree({
                     onSplit={onSplitSession}
                     onDelete={onDeleteSession}
                     onTogglePin={onTogglePin}
+                    onEditNote={onEditNote}
                   />
                 ))}
                 {childProjects.length > 0 && (
@@ -150,6 +153,7 @@ export function SessionTree({
                     onSplitSession={onSplitSession}
                     pinned={pinned}
                     onTogglePin={onTogglePin}
+                    onEditNote={onEditNote}
                     onReorderFolder={onReorderFolder}
                     orderFolders={orderFolders}
                   />
