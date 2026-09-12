@@ -43,6 +43,21 @@ test('a note can be written on a session from its row, and survives a restart', 
   await expect(row('Fix CSV export bug').getByTestId('session-note-mark')).toBeVisible()
 })
 
+test('only one note icon is on a row at a time, not the mark and the button together', async () => {
+  // Reported: hovering an annotated row showed two near-identical note glyphs side by side. The
+  // mark says "there is a note", the button says "edit it" — but not legibly, at 12px, together.
+  await writeNote('Fix CSV export bug', 'something worth noting')
+  const target = row('Fix CSV export bug')
+  await expect(target.getByTestId('session-note-mark')).toBeVisible()
+
+  await target.hover()
+  await expect(target.getByTestId('note-session-button')).toBeVisible()
+  await expect(target.getByTestId('session-note-mark')).toBeHidden()
+
+  // The button still shows a note exists, so hiding the mark loses nothing.
+  await expect(target.getByTestId('note-session-button')).toHaveAttribute('data-has-note', 'true')
+})
+
 test('the note is what the hover card shows', async () => {
   await writeNote('Fix CSV export bug', 'Nightly pipeline is flaky on dev/1.0.12')
 

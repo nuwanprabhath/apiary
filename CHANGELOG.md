@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.10.1] - 2026-09-12
+
+### Fixed
+
+- **A row with a note showed two note icons while hovered** — the mark saying one exists, beside
+  the button for editing it, as near-identical glyphs. The mark now steps aside on hover the way
+  the timestamp already does; the button is drawn filled when there is a note, so nothing is lost.
+
 ## [1.10.0] - 2026-09-12
 
 ### Added

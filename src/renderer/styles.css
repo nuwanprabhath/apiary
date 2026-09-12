@@ -1648,8 +1648,16 @@ body.resizing-active { user-select: none; }
 .hover-card-branch { color: var(--accent); word-break: break-all; }
 
 /* The note glyph beside a title, marking a session that has one. Muted rather than accented: it
-   is a fact about the row, not a call to action. */
+   is a fact about the row, not a call to action.
+
+   It steps aside on hover, exactly as the timestamp does. The hovered row grows a note *button*
+   of its own, and the two sat side by side as near-identical icons — one meaning "there is a
+   note here" and the other "edit the note", which is not a distinction anybody should have to
+   make from two 12px glyphs. On hover the button is the one that matters, and it is drawn filled
+   when a note exists, so nothing is lost by hiding the mark. */
 .session-note-mark { flex: none; display: flex; align-items: center; color: var(--muted); }
+.session-row-wrap:hover .session-note-mark,
+.session-row-wrap:focus-within .session-note-mark { display: none; }
 .session-note-mark svg { width: 12px; height: 12px; display: block; }
 .session-row[data-selected="true"] .session-note-mark { color: var(--text); }
 
