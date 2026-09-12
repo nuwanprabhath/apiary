@@ -419,10 +419,17 @@ body.resizing-active { user-select: none; }
   overflow-x: auto;
   overflow-y: hidden;
 }
-/* A horizontal scrollbar across a 32px strip eats most of the tab; the strip still scrolls, it
- * just does it without reserving visible track (and, since the arrow buttons below would show up
- * on it too, without those either). */
-.session-tab-strip::-webkit-scrollbar { height: 0; }
+/*
+ * A hairline scrollbar, overlaid on the bottom edge of the strip rather than given a track of its
+ * own: a full-height one across a 32px strip eats most of the tab, but a strip that scrolls with
+ * *no* indication at all is worse — it was the reason a tab sliced through by the edge read as a
+ * broken tab rather than a scrollable strip. No arrow buttons, for the same reason of height.
+ */
+.session-tab-strip::-webkit-scrollbar { height: 3px; }
+.session-tab-strip::-webkit-scrollbar-track { background: transparent; }
+.session-tab-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.session-tab-strip:hover::-webkit-scrollbar-thumb { background: var(--muted); }
+.session-tab-strip::-webkit-scrollbar-button { display: none; }
 
 .session-tab-split {
   flex: none;
@@ -444,7 +451,19 @@ body.resizing-active { user-select: none; }
 .session-tab {
   display: flex;
   align-items: center;
-  flex: none;
+  /*
+   * Tabs shrink to share the strip rather than keeping their width and running off the end of it.
+   * They used to be `flex: none` in a strip that scrolled with no visible scrollbar, so once the
+   * tabs outgrew the strip the last one was sliced through — taking its close button with it, and
+   * leaving the right-click menu as the only way to close that tab. Shrinking keeps the close
+   * button of every tab on screen; the label ellipsizes instead, which is the part that can be
+   * read from what is left of it.
+   */
+  flex: 0 1 auto;
+  /* Enough for a few characters plus the close button. Below this the tab says nothing useful,
+   * so the strip scrolls after all — the case of a dozen tabs in a narrow column, where the
+   * active tab is kept scrolled into view and the scrollbar below makes the rest reachable. */
+  min-width: 64px;
   max-width: 220px;
   background: var(--bg-panel);
   border-right: 1px solid var(--border);
@@ -461,6 +480,9 @@ body.resizing-active { user-select: none; }
 .session-tab-label {
   display: flex;
   align-items: center;
+  /* Without this the label refuses to shrink below its text and pushes the close button out of
+   * the tab, which is the same clipping in a different place. */
+  min-width: 0;
   gap: 6px;
   min-width: 0;
   border: 0;
@@ -1593,3 +1615,34 @@ body.resizing-active { user-select: none; }
 /* A folder being dragged over the heading of the group it would join. */
 .folder-group-header-wrap { border-radius: 6px; }
 .folder-group-header-wrap:hover { background: var(--hover); }
+
+/*
+ * The sidebar's hover card. Fixed and portalled to the body (see HoverCard.tsx) so it can overhang
+ * the sidebar rather than being clipped by its scroll edge, and `pointer-events: none` so it can
+ * never intercept the click that the hover was leading up to.
+ */
+.hover-card {
+  position: fixed;
+  z-index: 60;
+  max-width: 420px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 45%);
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hover-card-title { font-weight: 600; font-size: 13px; }
+/* The path wraps rather than ellipsizing: which worktree a session ran in is often the last
+   segment, and that is precisely the end a single truncated line would drop. */
+.hover-card-path { color: var(--muted); word-break: break-all; }
+.hover-card-missing { color: var(--danger); }
+.hover-card-row { display: flex; gap: 6px; }
+.hover-card-label { color: var(--muted); min-width: 72px; }
+.hover-card-branch { color: var(--accent); word-break: break-all; }

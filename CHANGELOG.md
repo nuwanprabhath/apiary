@@ -4,6 +4,27 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.9.1] - 2026-09-12
+
+### Fixed
+
+- **The empty panel beside the session came back after splitting and closing.** Dragging a divider
+  gives the two columns weights that add up to two — 0.6 and 1.4, say — and closing one left the
+  survivor growing by 0.6. Flex hands out only that fraction of the row when the growth factors add
+  up to less than one, so the column took 60% of the width and the other 40% stayed empty
+  background. The weights are now normalised to the number of columns on the way to the layout,
+  which keeps the ratio you dragged and always fills the row.
+- **A tab's close button could still be hidden.** Making it always painted was not enough: tabs
+  kept their full width in a strip that scrolled with an invisible scrollbar, so once they outgrew
+  the strip the last one was sliced through and its close button was past the edge. Tabs now shrink
+  to share the strip, the active tab is scrolled into view when there are more than fit, and the
+  strip has a hairline scrollbar so an overflow reads as scrollable rather than broken.
+- **The session hover tooltip never really appeared.** It was a `title` attribute — correct
+  content, and a test that passed on the strength of the attribute existing, while in use the OS
+  tooltip took a second to show up in the system style. It is a proper hover card now: path,
+  branch, last active and a note when the folder is gone, after a short delay, drawn beside the
+  row and able to overhang the sidebar.
+
 ## [1.9.0] - 2026-09-12
 
 ### Added

@@ -101,6 +101,33 @@ export function moveTabToColumn(
   })
 }
 
+/**
+ * The flex-grow values to lay the columns out with, from the weights the dividers have been
+ * dragged to.
+ *
+ * Normalised so they always sum to the number of columns, which is what stops a stranded empty
+ * strip appearing beside the last column. Weights are stored per column and a drag makes them
+ * share a fixed total: drag the divider left and the pair might become 0.6 and 1.4. Close the
+ * 1.4 one and the survivor is left growing by 0.6 — and since flex distributes only that
+ * *fraction* of the free space when the growth factors add up to less than one, the column takes
+ * 60% of the row and the remaining 40% stays empty background. That is the "empty side panel"
+ * that comes back after splitting and closing.
+ *
+ * Normalising keeps the ratios the user dragged while guaranteeing the row is always filled.
+ * Weights for columns that no longer exist are ignored rather than counted.
+ */
+export function layoutWeights(columns: Column[], weights: Map<string, number>): Map<string, number> {
+  const present = columns.map((c) => ({ id: c.id, weight: Math.max(weights.get(c.id) ?? 1, 0.01) }))
+  const total = present.reduce((sum, c) => sum + c.weight, 0)
+  const out = new Map<string, number>()
+  if (total <= 0) {
+    for (const c of present) out.set(c.id, 1)
+    return out
+  }
+  for (const c of present) out.set(c.id, (c.weight * present.length) / total)
+  return out
+}
+
 /** Adds `key` to the column if it isn't already there, and makes it active either way. */
 export function openTab(column: Column, key: string): Column {
   if (findTab(column, key) !== null) return { ...column, activeKey: key }

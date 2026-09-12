@@ -161,11 +161,21 @@ test('groups reorder by dragging one heading onto another', async () => {
   await expect(h.page.getByTestId('folder-group-toggle')).toHaveText([/Second/, /First/])
 })
 
-test('a session row says where it ran, on what branch, and when it was last active', async () => {
-  const row = h.page.getByTestId('session-item').filter({ hasText: 'Worktree session' })
-  const tooltip = await row.getAttribute('title')
-  expect(tooltip).toContain('Worktree session')
-  expect(tooltip).toContain('repo-c-wt')
-  expect(tooltip).toContain('branch: feature/wt')
-  expect(tooltip).toContain('last active:')
+test('hovering a session row shows where it ran, on what branch, and when it was last active', async () => {
+  // This was a `title` attribute to begin with, which made for a test that passed while the
+  // feature was all but invisible: the OS tooltip takes a second to appear and is drawn in the
+  // system style. The assertion is now that something is actually on screen.
+  const row = h.page.locator('[data-testid="session-item"]', { hasText: 'Worktree session' }).first()
+  await row.hover()
+
+  const card = h.page.getByTestId('session-hover-card')
+  await expect(card).toBeVisible()
+  await expect(card).toContainText('Worktree session')
+  await expect(card).toContainText('repo-c-wt')
+  await expect(card).toContainText('feature/wt')
+  await expect(card).toContainText('Last active')
+
+  // And it goes away again, rather than being left over the list.
+  await h.page.getByTestId('search-input').hover()
+  await expect(card).toHaveCount(0)
 })

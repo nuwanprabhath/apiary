@@ -373,3 +373,82 @@ test('every tab shows its close button without being hovered first', async () =>
   await inactive.getByTestId('session-tab-close').click()
   await expect(h.page.getByTestId('session-tab')).toHaveCount(1)
 })
+
+// The reported bug, and the gesture that produces it: split, drag the divider, close the second
+// column. The survivor kept the growth factor the drag gave it (below 1), and flex hands out only
+// that fraction of the row — so the rest stayed as an empty panel beside the session.
+test('closing a column after dragging the divider leaves no empty strip beside the survivor', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('session-tab-split').click()
+  await expect(h.page.getByTestId('session-column')).toHaveCount(2)
+
+  // Drag left, so the *first* column ends up with the smaller weight and is the one left behind.
+  const handle = (await h.page.getByTestId('column-resizer').boundingBox())!
+  await h.page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+  await h.page.mouse.down()
+  await h.page.mouse.move(handle.x - 200, handle.y + handle.height / 2, { steps: 10 })
+  await h.page.mouse.up()
+
+  await h.page.getByTestId('session-column').last().getByTestId('session-tab-close').click()
+  await expect(h.page.getByTestId('session-column')).toHaveCount(1)
+
+  const [content, column] = await Promise.all([
+    h.page.getByTestId('content').boundingBox(),
+    h.page.getByTestId('session-column').boundingBox(),
+  ])
+  // The one remaining column fills the row it is in, rather than stopping partway across it.
+  expect(column!.width).toBeGreaterThan(content!.width - 2)
+})
+
+// The follow-up report: making the close button always *painted* was not enough, because with
+// enough tabs open the last one was sliced through by the edge of the strip and its close button
+// was outside the visible area — no scrollbar, no way to reach it but the right-click menu.
+test('the close button stays reachable as tabs multiply and the strip runs out of room', async () => {
+  // Narrow the room first, then fill it: three columns makes each strip small enough that four
+  // tabs cannot possibly keep their full width.
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('session-tab-split').click()
+  await h.page.getByTestId('session-tab-split').first().click()
+  await expect(h.page.getByTestId('session-column')).toHaveCount(3)
+
+  const column = h.page.getByTestId('session-column').first()
+  for (const title of ['Add worktree switcher', 'Repo root session', 'Worktree session']) {
+    await column.getByTestId('session-tab').first().click()
+    await sidebarSession(h.page, title).click()
+  }
+  const tabs = column.getByTestId('session-tab')
+  await expect(tabs).toHaveCount(4)
+
+  // The tabs give up width rather than running off the end: every close button is inside the
+  // strip, and every tab is narrower than it would have been left to itself.
+  const strip = (await column.locator('.session-tab-strip').boundingBox())!
+  const count = await tabs.count()
+  for (let i = 0; i < count; i += 1) {
+    const tab = (await tabs.nth(i).boundingBox())!
+    expect(tab.width).toBeLessThan(220)
+    const close = (await tabs.nth(i).getByTestId('session-tab-close').boundingBox())!
+    expect(close.width).toBeGreaterThan(0)
+    expect(close.x).toBeGreaterThanOrEqual(strip.x - 1)
+    expect(close.x + close.width).toBeLessThanOrEqual(strip.x + strip.width + 1)
+  }
+})
+
+// Past the point where shrinking can help, the strip scrolls — and then the tab being worked in
+// has to be the one on screen, or switching to a tab leaves you looking at a sliver of it.
+test('the active tab is scrolled into view when there are more tabs than fit', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('session-tab-split').click()
+  await h.page.getByTestId('session-tab-split').first().click()
+  await expect(h.page.getByTestId('session-column')).toHaveCount(3)
+
+  const column = h.page.getByTestId('session-column').first()
+  for (const title of ['Add worktree switcher', 'Repo root session', 'Worktree session']) {
+    await column.getByTestId('session-tab').first().click()
+    await sidebarSession(h.page, title).click()
+  }
+
+  const strip = (await column.locator('.session-tab-strip').boundingBox())!
+  const active = (await column.locator('[data-testid="session-tab"][data-active="true"]').boundingBox())!
+  expect(active.x).toBeGreaterThanOrEqual(strip.x - 1)
+  expect(active.x + active.width).toBeLessThanOrEqual(strip.x + strip.width + 1)
+})

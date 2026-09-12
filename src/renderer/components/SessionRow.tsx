@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from 'react'
 import type { SessionNode } from '@shared/types'
 import { PinIcon, SplitIcon, TrashIcon } from './icons'
+import { HoverCard, HOVER_DELAY_MS } from './HoverCard'
 
 /** Days since a session was last touched, in the compact form the sidebar has room for. */
 /** An absolute timestamp for the tooltip — "8d" is for the row, where space is the constraint. */
@@ -42,23 +44,50 @@ interface Props {
 export function SessionRow({
   session, selected, pinned, onSelect, onSplit, onDelete, onTogglePin,
 }: Props): JSX.Element {
+  /** The row's rectangle while the hover card is up; null when it is not. */
+  const [cardAnchor, setCardAnchor] = useState<DOMRect | null>(null)
+  const wrapRef = useRef<HTMLDivElement | null>(null)
+  const timer = useRef<number | null>(null)
+
+  const cancelHover = (): void => {
+    if (timer.current !== null) { window.clearTimeout(timer.current); timer.current = null }
+    setCardAnchor(null)
+  }
+  // Any click hides it: the card is for deciding which row you want, and it has no business
+  // sitting over the session you just opened.
+  useEffect(() => cancelHover, [])
+
   return (
-    <div className="session-row-wrap" data-pinned={pinned} data-session-id={session.sessionId}>
+    <div
+      className="session-row-wrap"
+      data-pinned={pinned}
+      data-session-id={session.sessionId}
+      ref={wrapRef}
+      onMouseEnter={() => {
+        timer.current = window.setTimeout(() => {
+          const rect = wrapRef.current?.getBoundingClientRect()
+          if (rect !== undefined) setCardAnchor(rect)
+        }, HOVER_DELAY_MS)
+      }}
+      onMouseLeave={cancelHover}
+      onMouseDown={cancelHover}
+    >
+      {cardAnchor !== null && (
+        <HoverCard
+          anchor={cardAnchor}
+          title={session.title}
+          path={session.cwd}
+          branch={session.gitBranch}
+          lastActive={session.lastActiveAtMs === null ? null : fullTime(session.lastActiveAtMs)}
+          missing={!session.cwdExists}
+        />
+      )}
       <button
         className="session-row"
         data-testid="session-item"
         data-selected={selected}
         data-live={session.isLive}
         onClick={() => onSelect(session)}
-        // Everything needed to tell two similarly-named sessions apart, which the row itself has
-        // no width for: where it ran, on what branch, and when it was last touched. The title is
-        // repeated because the row ellipsizes it long before the tooltip would.
-        title={[
-          session.title,
-          session.cwd,
-          session.gitBranch === null ? null : `branch: ${session.gitBranch}`,
-          session.lastActiveAtMs === null ? null : `last active: ${fullTime(session.lastActiveAtMs)}`,
-        ].filter((line): line is string => line !== null).join('\n')}
       >
         {session.isLive && <span className="live-dot" aria-label="running" />}
         <span className="session-title">{session.title}</span>

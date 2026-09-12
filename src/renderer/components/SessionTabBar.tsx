@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CloseIcon, SplitIcon } from './icons'
 import { ContextMenu } from './ContextMenu'
 
@@ -74,6 +74,18 @@ export function SessionTabBar(
   }
   const [menu, setMenu] = useState<{ key: string; x: number; y: number } | null>(null)
 
+  /**
+   * Keeps the active tab in view.
+   *
+   * With enough tabs open the strip scrolls, and the tab you just switched to can be the one off
+   * the end of it — visible as a sliver with its close button beyond the edge. Scrolling it into
+   * view means the tab being worked in is always whole, whatever is open beside it.
+   */
+  const activeRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [activeKey, tabs.length])
+
   const endDrag = (): void => { setDragKey(null); setDropAt(null) }
 
   return (
@@ -98,6 +110,7 @@ export function SessionTabBar(
       {tabs.map((tab, index) => (
         <div
           key={tab.key}
+          ref={tab.key === activeKey ? activeRef : null}
           className="session-tab"
           data-testid="session-tab"
           data-active={tab.key === activeKey}

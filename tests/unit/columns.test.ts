@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  newColumn, openTab, moveTab, moveTabToColumn, setTabView, findColumnWithTab,
+  newColumn, openTab, moveTab, moveTabToColumn, setTabView, findColumnWithTab, layoutWeights,
 } from '../../src/renderer/state/columns'
 
 const keys = (column: { tabs: { key: string }[] }): string[] => column.tabs.map((t) => t.key)
@@ -95,5 +95,39 @@ describe('moveTabToColumn', () => {
     const columns = pair()
     expect(moveTabToColumn(columns, 'nope', columns[0].id, 0)).toBe(columns)
     expect(moveTabToColumn(columns, 'c', 'no-such-column', 0)).toBe(columns)
+  })
+})
+
+describe('layoutWeights', () => {
+  const cols = (...ids: string[]) => ids.map((id) => ({ id, tabs: [], activeKey: null }))
+
+  it('gives every column an equal share when nothing has been dragged', () => {
+    const out = layoutWeights(cols('a', 'b'), new Map())
+    expect([...out.values()]).toEqual([1, 1])
+  })
+
+  it('fills the row when the surviving column was left with a weight below one', () => {
+    // The stranded-empty-panel bug: a pair drag leaves 0.6/1.4, the 1.4 column is closed, and
+    // flex hands the survivor only 60% of the row because the growth factors no longer reach 1.
+    const out = layoutWeights(cols('a'), new Map([['a', 0.6], ['b', 1.4]]))
+    expect(out.get('a')).toBe(1)
+  })
+
+  it('keeps the ratio the dividers were dragged to', () => {
+    const out = layoutWeights(cols('a', 'b'), new Map([['a', 0.5], ['b', 1.5]]))
+    expect(out.get('a')).toBe(0.5)
+    expect(out.get('b')).toBe(1.5)
+    // Always sums to the column count, so there is never free space left over.
+    expect((out.get('a') ?? 0) + (out.get('b') ?? 0)).toBe(2)
+  })
+
+  it('ignores weights belonging to columns that have gone', () => {
+    const out = layoutWeights(cols('a', 'b'), new Map([['a', 1], ['b', 1], ['gone', 50]]))
+    expect([...out.values()]).toEqual([1, 1])
+  })
+
+  it('never lets a column collapse to nothing, whatever is in the weights', () => {
+    const out = layoutWeights(cols('a', 'b'), new Map([['a', 0], ['b', 0]]))
+    for (const value of out.values()) expect(value).toBeGreaterThan(0)
   })
 })

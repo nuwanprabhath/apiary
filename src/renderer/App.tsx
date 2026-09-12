@@ -8,6 +8,7 @@ import { ImportDialog } from './components/ImportDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import {
   newColumn, openTab, closeTab, setTabView, rekeyTab, moveTabToColumn, findColumnWithTab,
+  layoutWeights,
   type Column,
 } from './state/columns'
 import {
@@ -661,6 +662,9 @@ export function App(): JSX.Element {
    *  sessions that aren't already reachable as a tab. */
   const openKeys = new Set(columns.flatMap((c) => c.tabs.map((t) => t.key)))
 
+  // Normalised so the columns always fill the row: see layoutWeights.
+  const layout = layoutWeights(columns, columnWeights)
+
   const pendingTabInfo = new Map(
     [...pending.values()].map((info) => [
       info.ptyId,
@@ -798,7 +802,7 @@ export function App(): JSX.Element {
               const session = openSessions.get(key)
               if (session) togglePin(session)
             }}
-            weight={columnWeights.get(column.id) ?? 1}
+            weight={layout.get(column.id) ?? 1}
           />
           </ErrorBoundary>
           </Fragment>
