@@ -58,7 +58,7 @@ describe('the GitLab merge-request plugin', () => {
       'git remote get-url': REMOTE,
       'glab mr list': JSON.stringify([mr()]),
     })
-    const item = await createGitLabMrPlugin({ exec }).evaluate(ctx)
+    const item = await createGitLabMrPlugin({ exec }).evaluate(ctx, {})
 
     expect(item?.label).toBe('!1255')
     expect(item?.action).toEqual({
@@ -73,7 +73,7 @@ describe('the GitLab merge-request plugin', () => {
       'git remote get-url': REMOTE,
       'glab mr list': JSON.stringify([mr({ draft: true })]),
     })
-    expect((await createGitLabMrPlugin({ exec }).evaluate(ctx))?.title).toContain('Draft')
+    expect((await createGitLabMrPlugin({ exec }).evaluate(ctx, {}))?.title).toContain('Draft')
   })
 
   it('asks about the branch it was given, not whatever glab thinks is current', async () => {
@@ -81,14 +81,14 @@ describe('the GitLab merge-request plugin', () => {
       'git remote get-url': REMOTE,
       'glab mr list': '[]',
     })
-    await createGitLabMrPlugin({ exec }).evaluate(ctx)
+    await createGitLabMrPlugin({ exec }).evaluate(ctx, {})
     expect(calls.some((c) => c.includes('--source-branch') && c.includes('camera-trap-dropdown')))
       .toBe(true)
   })
 
   it('offers to create one when the branch has none', async () => {
     const { exec } = fakeExec({ 'git remote get-url': REMOTE, 'glab mr list': '[]' })
-    const item = await createGitLabMrPlugin({ exec }).evaluate(ctx)
+    const item = await createGitLabMrPlugin({ exec }).evaluate(ctx, {})
 
     expect(item?.label).toBe('MR')
     expect(item?.action).toEqual({
@@ -104,22 +104,22 @@ describe('the GitLab merge-request plugin', () => {
       'git remote get-url': REMOTE,
       'glab mr list': new Error('spawn glab ENOENT'),
     })
-    expect((await createGitLabMrPlugin({ exec }).evaluate(ctx))?.id).toBe('mr-new')
+    expect((await createGitLabMrPlugin({ exec }).evaluate(ctx, {}))?.id).toBe('mr-new')
   })
 
   it('shows nothing at all for a repository that is not on GitLab', async () => {
     const { exec } = fakeExec({ 'git remote get-url': 'git@github.com:someone/thing.git' })
-    expect(await createGitLabMrPlugin({ exec }).evaluate(ctx)).toBeNull()
+    expect(await createGitLabMrPlugin({ exec }).evaluate(ctx, {})).toBeNull()
   })
 
   it('shows nothing for a folder with no git remote', async () => {
     const { exec } = fakeExec({ 'git remote get-url': new Error('not a git repository') })
-    expect(await createGitLabMrPlugin({ exec }).evaluate(ctx)).toBeNull()
+    expect(await createGitLabMrPlugin({ exec }).evaluate(ctx, {})).toBeNull()
   })
 
   it('shows nothing on a detached HEAD, which has no branch to have an MR for', async () => {
     const { exec, calls } = fakeExec({ 'git remote get-url': REMOTE })
-    expect(await createGitLabMrPlugin({ exec }).evaluate({ cwd: '/work/repo', branch: null }))
+    expect(await createGitLabMrPlugin({ exec }).evaluate({ cwd: '/work/repo', branch: null }, {}))
       .toBeNull()
     // And it does not go looking, either.
     expect(calls).toEqual([])
@@ -127,7 +127,7 @@ describe('the GitLab merge-request plugin', () => {
 
   it('survives glab returning something that is not a merge request list', async () => {
     const { exec } = fakeExec({ 'git remote get-url': REMOTE, 'glab mr list': 'not json at all' })
-    expect((await createGitLabMrPlugin({ exec }).evaluate(ctx))?.id).toBe('mr-new')
+    expect((await createGitLabMrPlugin({ exec }).evaluate(ctx, {}))?.id).toBe('mr-new')
   })
 })
 
@@ -241,5 +241,131 @@ describe('the plugin registry', () => {
     await registry.refresh(ctx)
     registry.setEnabled('a', false)
     expect(await registry.refresh(ctx)).toEqual([])
+  })
+})
+
+describe('plugin settings', () => {
+  it('targets the branch the setting names, when creating a merge request', async () => {
+    const { exec } = fakeExec({ 'git remote get-url': REMOTE, 'glab mr list': '[]' })
+    const item = await createGitLabMrPlugin({ exec })
+      .evaluate(ctx, { targetBranch: 'dev/1.0.12' })
+
+    const url = new URL((item?.action as { url: string }).url)
+    expect(url.searchParams.get('merge_request[target_branch]')).toBe('dev/1.0.12')
+    expect(url.searchParams.get('merge_request[source_branch]')).toBe('camera-trap-dropdown')
+    // And says so before it is clicked, rather than being a surprise on GitLab's form.
+    expect(item?.title).toContain('dev/1.0.12')
+  })
+
+  it('leaves the target out entirely when the setting is blank, so GitLab picks its default', async () => {
+    // An empty `target_branch` parameter is not the same as no parameter: GitLab would take the
+    // empty string as the answer rather than falling back to the project's default branch.
+    const { exec } = fakeExec({ 'git remote get-url': REMOTE, 'glab mr list': '[]' })
+    for (const blank of ['', '   ']) {
+      const item = await createGitLabMrPlugin({ exec }).evaluate(ctx, { targetBranch: blank })
+      expect((item?.action as { url: string }).url).not.toContain('target_branch')
+    }
+  })
+
+  it('fills in a plugin\'s declared defaults, so it never has to check for absence', () => {
+    const registry = new PluginRegistry()
+    registry.register(createGitLabMrPlugin())
+    expect(registry.settingsFor('gitlab-mr')).toEqual({ targetBranch: '' })
+  })
+
+  it('ignores a stored value of the wrong type, which settings.json can be edited to hold', () => {
+    const registry = new PluginRegistry()
+    registry.register(createGitLabMrPlugin())
+    registry.setSettings('gitlab-mr', { targetBranch: 42 as unknown as string })
+    expect(registry.settingsFor('gitlab-mr')).toEqual({ targetBranch: '' })
+  })
+
+  it('hands each plugin its own settings and nobody else\'s', async () => {
+    const seen: Record<string, unknown> = {}
+    const registry = new PluginRegistry()
+    for (const id of ['a', 'b']) {
+      registry.register({
+        id,
+        name: id,
+        settings: [{ kind: 'string', key: 'value', label: 'v', default: '' }],
+        evaluate: async (_ctx, settings) => { seen[id] = settings; return null },
+      })
+    }
+    registry.setSettings('a', { value: 'for-a' })
+    registry.setSettings('b', { value: 'for-b' })
+
+    await registry.refresh(ctx)
+    expect(seen).toEqual({ a: { value: 'for-a' }, b: { value: 'for-b' } })
+  })
+
+  it('looks again when a setting changes, rather than serving the old answer', async () => {
+    const registry = new PluginRegistry({ ttlMs: 10_000, now: () => 1000 })
+    const plugin = stubPlugin('a', barItem('a'))
+    registry.register({ ...plugin, settings: [{ kind: 'string', key: 'v', label: 'v', default: '' }] })
+
+    await registry.refresh(ctx)
+    registry.items(ctx)
+    expect(plugin.calls).toBe(1)
+
+    registry.setSettings('a', { v: 'changed' })
+    registry.items(ctx)
+    await vi.waitFor(() => { expect(plugin.calls).toBe(2) })
+  })
+
+  it('lists what each plugin declares, so Settings can draw it without knowing the plugin', () => {
+    const registry = new PluginRegistry()
+    registry.register(createGitLabMrPlugin())
+    const [entry] = registry.list()
+
+    expect(entry.id).toBe('gitlab-mr')
+    expect(entry.description).toBeTruthy()
+    expect(entry.fields.map((f) => f.key)).toEqual(['targetBranch'])
+    expect(entry.values).toEqual({ targetBranch: '' })
+  })
+})
+
+describe('changing a setting while the bar is on screen', () => {
+  it('keeps showing the old answer until the new one is ready, rather than blinking out', async () => {
+    // Clearing the cache would leave the bar empty for as long as the lookup takes, and — worse —
+    // during that gap a click would still carry the URL computed under the old setting.
+    const registry = new PluginRegistry({ ttlMs: 10_000, now: () => 1000 })
+    registry.register({
+      id: 'a',
+      name: 'a',
+      settings: [{ kind: 'string', key: 'v', label: 'v', default: '' }],
+      evaluate: async (_ctx, settings) => ({
+        ...barItem('a'), label: String(settings.v ?? ''),
+      }),
+    })
+
+    await registry.refresh(ctx)
+    registry.setSettings('a', { v: 'new' })
+
+    // Whatever is on screen is still a real button, at every instant.
+    expect(registry.items(ctx)).toHaveLength(1)
+    await vi.waitFor(() => { expect(registry.items(ctx)[0].label).toBe('new') })
+  })
+
+  it('a refresh asked for during a lookup joins it instead of getting the stale answer', async () => {
+    const registry = new PluginRegistry({ ttlMs: 0 })
+    // Held in an object: TypeScript narrows a `let` that is only ever assigned inside a callback
+    // to `never`, and the point of this test is calling it from outside.
+    const gate: { release: (() => void) | null } = { release: null }
+    registry.register({
+      id: 'slow',
+      name: 'slow',
+      evaluate: async () => {
+        await new Promise<void>((r) => { gate.release = r })
+        return barItem('slow')
+      },
+    })
+
+    const first = registry.refresh(ctx)
+    const second = registry.refresh(ctx)
+    await vi.waitFor(() => { expect(gate.release).not.toBeNull() })
+    gate.release?.()
+
+    expect(await second).toEqual(await first)
+    expect((await second).map((i) => i.pluginId)).toEqual(['slow'])
   })
 })

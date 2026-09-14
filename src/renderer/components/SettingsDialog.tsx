@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { AppSettingsPayload } from '@shared/api'
+import type { AppSettingsPayload, PluginInfoPayload, PluginSettingFieldPayload } from '@shared/api'
 import { useUpdate, formatVersion, formatChecked } from '../state/useUpdate'
 
 /**
@@ -46,8 +46,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
   const update = useUpdate()
   /** Set while a check the user pressed for is running, so the button can say so. */
   const [checking, setChecking] = useState(false)
-  /** The plugins that exist, as the main process reports them. */
-  const [plugins, setPlugins] = useState<{ id: string; name: string; enabled: boolean }[]>([])
+  /** The plugins that exist, as the main process reports them, with their declared settings. */
+  const [plugins, setPlugins] = useState<PluginInfoPayload[]>([])
   useEffect(() => {
     void window.apiary.pluginList().then(setPlugins).catch(() => { setPlugins([]) })
   }, [])
@@ -321,34 +321,50 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
               <>
                 <p className="settings-blurb">{blurbOf('plugins')}</p>
 
-                {plugins.map((plugin) => (
-                  <label className="settings-row" key={plugin.id}>
-                    <input
-                      type="checkbox"
-                      data-testid={`setting-plugin-${plugin.id}`}
-                      checked={draft.plugins[plugin.id] ?? plugin.enabled}
-                      onChange={(e) => patch({
-                        plugins: { ...draft.plugins, [plugin.id]: e.target.checked },
-                      })}
-                    />
-                    <span>
-                      <strong>{plugin.name}</strong>
-                      {plugin.id === 'gitlab-mr' && (
-                        <span className="settings-help">
-                          Shows the merge request for the branch you are on, with its number, and
-                          opens it when clicked. When there is none, it opens GitLab&rsquo;s
-                          new-merge-request form with the branch already filled in.
-                          <br />
-                          Merge requests are looked up with <code>glab</code>, GitLab&rsquo;s own
-                          command-line tool, so Apiary never holds a token of yours — it uses the
-                          login <code>glab auth login</code> already made, including on self-hosted
-                          instances. Without <code>glab</code> the button still offers to create
-                          one, which needs nothing but the git remote.
+                {plugins.map((plugin) => {
+                  const enabled = draft.plugins[plugin.id] ?? plugin.enabled
+                  const values = { ...plugin.values, ...draft.pluginSettings[plugin.id] }
+                  const setValue = (key: string, value: string | number | boolean): void => {
+                    patch({
+                      pluginSettings: {
+                        ...draft.pluginSettings,
+                        [plugin.id]: { ...values, [key]: value },
+                      },
+                    })
+                  }
+                  return (
+                    <div className="settings-plugin" key={plugin.id} data-testid={`plugin-${plugin.id}`}>
+                      <label className="settings-row">
+                        <input
+                          type="checkbox"
+                          data-testid={`setting-plugin-${plugin.id}`}
+                          checked={enabled}
+                          onChange={(e) => patch({
+                            plugins: { ...draft.plugins, [plugin.id]: e.target.checked },
+                          })}
+                        />
+                        <span>
+                          <strong>{plugin.name}</strong>
+                          {plugin.description !== null && (
+                            <span className="settings-help">{plugin.description}</span>
+                          )}
                         </span>
-                      )}
-                    </span>
-                  </label>
-                ))}
+                      </label>
+
+                      {/* A plugin's own settings sit under it, indented, and only while it is on:
+                          configuring something switched off is a question nobody asked. */}
+                      {enabled && plugin.fields.map((field) => (
+                        <PluginField
+                          key={field.key}
+                          pluginId={plugin.id}
+                          field={field}
+                          value={values[field.key] ?? field.default}
+                          onChange={(value) => setValue(field.key, value)}
+                        />
+                      ))}
+                    </div>
+                  )
+                })}
 
                 {plugins.length === 0 && <p className="empty">No plugins are installed.</p>}
               </>
@@ -530,6 +546,66 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * One plugin setting, drawn from what the plugin declared.
+ *
+ * Everything about the Plugins section is generic: a plugin that adds a field gets a working,
+ * consistent control here without the dialog knowing what the field means. Adding a new *kind* of
+ * field is the only thing that touches this file.
+ */
+function PluginField(
+  { pluginId, field, value, onChange }: {
+    pluginId: string
+    field: PluginSettingFieldPayload
+    value: string | number | boolean
+    onChange: (value: string | number | boolean) => void
+  },
+): JSX.Element {
+  const testId = `plugin-setting-${pluginId}-${field.key}`
+
+  if (field.kind === 'boolean') {
+    return (
+      <label className="settings-row settings-row-indent">
+        <input
+          type="checkbox"
+          data-testid={testId}
+          checked={typeof value === 'boolean' ? value : field.default}
+          onChange={(e) => { onChange(e.target.checked) }}
+        />
+        <span>
+          <strong>{field.label}</strong>
+          {field.help !== undefined && <span className="settings-help">{field.help}</span>}
+        </span>
+      </label>
+    )
+  }
+
+  return (
+    <div className="settings-row settings-row-indent settings-plugin-field">
+      <label className="settings-field-label" htmlFor={testId}>{field.label}</label>
+      <input
+        id={testId}
+        className="search"
+        data-testid={testId}
+        type={field.kind === 'number' ? 'number' : 'text'}
+        min={field.kind === 'number' ? field.min : undefined}
+        max={field.kind === 'number' ? field.max : undefined}
+        placeholder={field.kind === 'string' ? field.placeholder : undefined}
+        value={String(value)}
+        onChange={(e) => {
+          if (field.kind === 'number') {
+            const n = Number(e.target.value)
+            onChange(Number.isFinite(n) ? n : field.default)
+          } else {
+            onChange(e.target.value)
+          }
+        }}
+      />
+      {field.help !== undefined && <span className="settings-help">{field.help}</span>}
     </div>
   )
 }

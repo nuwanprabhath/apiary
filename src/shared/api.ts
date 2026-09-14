@@ -33,6 +33,8 @@ export interface AppSettingsPayload {
   terminalPathSegments: number
   /** Which session-bar plugins are on, by plugin id. */
   plugins: Record<string, boolean>
+  /** Each plugin's own settings, namespaced by plugin id. */
+  pluginSettings: Record<string, Record<string, string | number | boolean>>
   /** Check GitHub for a newer release on a schedule. */
   updateAutomaticChecks: boolean
   /** Hours between those checks. */
@@ -57,6 +59,22 @@ export interface UpdateStatusPayload {
   error: string | null
   lastCheckedAt: number | null
   skippedVersion: string | null
+}
+
+/** A setting a plugin declares, which the Plugins section of Settings draws. */
+export type PluginSettingFieldPayload =
+  | { kind: 'string'; key: string; label: string; help?: string; placeholder?: string; default: string }
+  | { kind: 'boolean'; key: string; label: string; help?: string; default: boolean }
+  | { kind: 'number'; key: string; label: string; help?: string; default: number; min?: number; max?: number }
+
+/** A plugin as Settings sees it: what it is, whether it is on, and what it can be configured with. */
+export interface PluginInfoPayload {
+  id: string
+  name: string
+  description: string | null
+  enabled: boolean
+  fields: PluginSettingFieldPayload[]
+  values: Record<string, string | number | boolean>
 }
 
 /** A button a plugin has contributed to a session's bar. Mirrors main/plugins/types.ts. */
@@ -181,8 +199,8 @@ export interface ApiaryApi {
   pluginBarRefresh(key: string, isPtyId: boolean): Promise<PluginBarItemPayload[]>
   /** Performs a bar item's action — opening its URL, after the main process has checked it. */
   pluginRunAction(item: PluginBarItemPayload): Promise<void>
-  /** The plugins that exist, for the Settings list. */
-  pluginList(): Promise<{ id: string; name: string; enabled: boolean }[]>
+  /** The plugins that exist, with their declared settings, for the Settings list. */
+  pluginList(): Promise<PluginInfoPayload[]>
   /** Fires when a background plugin lookup changed what the bar should show. */
   onPluginsChanged(cb: () => void): () => void
   /** Saves the user's note for a session; an empty string removes it. */

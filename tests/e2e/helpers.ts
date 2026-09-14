@@ -106,6 +106,12 @@ export async function launchApiary(
      * from. Opt-in: the git toolbar specs rely on repo-c having no remote of its own.
      */
     gitlabRemote?: boolean
+    /**
+     * Adds a session in the repo whose *recorded* branch is not the branch the folder is on now —
+     * a session started weeks ago, on a branch since switched away from. The two were both
+     * labelled "Branch" and contradicted each other; see sidebarBranch.spec.ts.
+     */
+    staleBranchSession?: boolean
     /** A stand-in `glab` for the merge-request plugin (see scripts/fixtures/fake-glab.sh). */
     glabPath?: string
     /** Makes the stand-in `glab` report no merge requests, or fail outright. */
@@ -186,6 +192,15 @@ export async function launchApiary(
       cwd: worktreeDirB,
       gitBranch: 'feature/wt2',
       title: 'Second worktree session',
+    })
+  }
+
+  if (opts.staleBranchSession === true) {
+    makeSession(projects, '-repo-c-stale', {
+      sessionId: '77777777-7777-7777-7777-777777777777',
+      cwd: repoRoot,
+      gitBranch: 'dev/1.0.12',
+      title: 'Session from an older branch',
     })
   }
 

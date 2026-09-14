@@ -19,6 +19,20 @@ function flattenSessions(nodes: ProjectNode[], into = new Map<string, SessionNod
   return into
 }
 
+/**
+ * Each session's *folder* branch, by session id.
+ *
+ * The pinned section draws rows outside the tree that holds them, so the project node — and with
+ * it the branch its worktree is on — is not to hand. The lookup is built alongside the flatten.
+ */
+function folderBranches(nodes: ProjectNode[], into = new Map<string, string | null>()): Map<string, string | null> {
+  for (const node of nodes) {
+    for (const s of node.sessions) into.set(s.sessionId, node.branch)
+    folderBranches(node.children, into)
+  }
+  return into
+}
+
 /** A new-session pty still awaiting its first JSONL — see `PendingSession` in App.tsx. Listed so
  *  a pending session other than the one currently shown can still be reached and switched back to,
  *  rather than being silently unreachable while it resolves in the background. */
@@ -139,6 +153,7 @@ export function Sidebar({
    * that ignores the search box.
    */
   const pinnedSet = useMemo(() => new Set(pinned), [pinned])
+  const branchOfSession = useMemo(() => folderBranches(tree), [tree])
   const pinnedSessions = useMemo(() => {
     const byId = flattenSessions(tree)
     return pinned.map((id) => byId.get(id)).filter((s): s is SessionNode => s !== undefined)
@@ -396,6 +411,7 @@ export function Sidebar({
                 onDelete={onDeleteSession}
                 onTogglePin={onTogglePin}
                 onEditNote={onEditNote}
+                folderBranch={branchOfSession.get(s.sessionId) ?? null}
               />
             </div>
           ))}

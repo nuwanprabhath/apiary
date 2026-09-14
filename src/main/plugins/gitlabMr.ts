@@ -1,7 +1,9 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { parseGitLabRemote, newMergeRequestUrl, type GitLabRemote } from './gitlabRemote'
-import type { PluginBarItem, PluginContext, SessionBarPlugin } from './types'
+import type {
+  PluginBarItem, PluginContext, PluginSettingValues, SessionBarPlugin,
+} from './types'
 
 const run = promisify(execFile)
 
@@ -73,14 +75,21 @@ export function itemForMergeRequest(mr: GlabMr): PluginBarItem {
 }
 
 /** The button offering to create one. */
-export function itemForNewMergeRequest(remote: GitLabRemote, branch: string): PluginBarItem {
+export function itemForNewMergeRequest(
+  remote: GitLabRemote,
+  branch: string,
+  targetBranch?: string | null,
+): PluginBarItem {
+  const target = targetBranch?.trim() ?? ''
   return {
     pluginId: 'gitlab-mr',
     id: 'mr-new',
     icon: 'plus',
     label: 'MR',
-    title: `No merge request for ${branch} — create one on GitLab`,
-    action: { kind: 'open-url', url: newMergeRequestUrl(remote, branch) },
+    title: target === ''
+      ? `No merge request for ${branch} — create one on GitLab`
+      : `No merge request for ${branch} — create one into ${target}`,
+    action: { kind: 'open-url', url: newMergeRequestUrl(remote, branch, target) },
     tone: 'suggest',
   }
 }
@@ -97,8 +106,25 @@ export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarP
   return {
     id: 'gitlab-mr',
     name: 'GitLab merge request',
+    description: 'Shows the merge request for the branch you are on, and opens it in a click. '
+      + 'With no merge request yet, it opens GitLab\u2019s new-merge-request form with the branch '
+      + 'filled in. Uses glab, so Apiary never holds a token of yours.',
+    settings: [
+      {
+        kind: 'string',
+        key: 'targetBranch',
+        label: 'Target branch for new merge requests',
+        placeholder: 'GitLab\u2019s default (usually main)',
+        default: '',
+        help: 'Where a new merge request should merge into. Left empty, GitLab picks the '
+          + 'project\u2019s default branch. Set it when you work against a release branch — '
+          + 'dev/1.0.12, say — rather than main. This applies to every project, so leave it empty '
+          + 'if your projects target different branches.',
+      },
+    ],
 
-    async evaluate(ctx: PluginContext): Promise<PluginBarItem | null> {
+    async evaluate(ctx: PluginContext, settings: PluginSettingValues): Promise<PluginBarItem | null> {
+      const targetBranch = typeof settings.targetBranch === 'string' ? settings.targetBranch : ''
       // A detached HEAD has no branch to have an MR for, and nothing sensible to create one from.
       if (ctx.branch === null || ctx.branch === '') return null
 
@@ -120,11 +146,13 @@ export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarP
         // No glab, not logged in, no network, or a project it cannot see. The half of the button
         // that needs none of those still works, so fall through to offering to create one rather
         // than showing an error for a thing the user may not even want.
-        return itemForNewMergeRequest(remote, ctx.branch)
+        return itemForNewMergeRequest(remote, ctx.branch, targetBranch)
       }
 
       const mr = pickMergeRequest(list)
-      return mr === null ? itemForNewMergeRequest(remote, ctx.branch) : itemForMergeRequest(mr)
+      return mr === null
+        ? itemForNewMergeRequest(remote, ctx.branch, targetBranch)
+        : itemForMergeRequest(mr)
     },
   }
 }

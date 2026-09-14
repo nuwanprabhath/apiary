@@ -138,6 +138,7 @@ export function SessionTree({
                     onDelete={onDeleteSession}
                     onTogglePin={onTogglePin}
                     onEditNote={onEditNote}
+                    folderBranch={node.branch}
                   />
                 ))}
                 {childProjects.length > 0 && (

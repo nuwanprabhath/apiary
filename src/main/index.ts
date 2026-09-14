@@ -280,6 +280,7 @@ void app.whenReady().then(async () => {
       segments: settings.terminalPathSegments,
     },
     plugins: settings.plugins,
+    pluginSettings: settings.pluginSettings,
     // Test-only, like APIARY_FAKE_LIVE: points the merge-request plugin at a stand-in `glab`.
     glabPath: process.env.APIARY_GLAB_PATH === '' ? undefined : process.env.APIARY_GLAB_PATH,
     onPluginsChanged: () => {

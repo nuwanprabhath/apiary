@@ -124,6 +124,14 @@ Two things the registry guarantees, both learned from what the bar is for:
   cached per folder+branch and refreshed in the background, with a stale answer served meanwhile,
   so a network call cannot decide how fast switching sessions feels.
 
+**Plugins declare their settings too**, in the same declarative spirit: a plugin lists fields
+(kind, key, label, help, default) and the Plugins section of Settings draws them, storing values
+namespaced under `pluginSettings[pluginId]`. Nothing in the settings dialog knows what a field
+means, so a new plugin needs no changes there — only a new *kind* of field does. Changing a value
+recomputes what is cached in place rather than clearing it: clearing blanks the bar until the
+lookup lands, and during that gap the window still holds the answer computed under the old setting,
+which is a click on a button that does the thing you just changed.
+
 The GitLab plugin shells out to **`glab`** rather than calling the API. Talking to the API means
 holding a token, which means storing a credential, offering a field to paste it into, keeping it
 out of settings backups, and explaining what scope it needs — all of which `glab` has already

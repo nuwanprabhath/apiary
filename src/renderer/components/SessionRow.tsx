@@ -30,6 +30,12 @@ interface Props {
   onTogglePin: (session: SessionNode) => void
   /** Opens the note editor for this session. */
   onEditNote: (session: SessionNode) => void
+  /**
+   * The branch the session's folder is on *now*, from the scan — the same value the session bar
+   * shows. Distinct from `session.gitBranch`, which is the branch recorded in the JSONL at the
+   * time the session ran and can be months out of date.
+   */
+  folderBranch?: string | null
 }
 
 /**
@@ -44,7 +50,7 @@ interface Props {
  * rather than children of it because a <button> cannot contain another interactive element.
  */
 export function SessionRow({
-  session, selected, pinned, onSelect, onSplit, onDelete, onTogglePin, onEditNote,
+  session, selected, pinned, onSelect, onSplit, onDelete, onTogglePin, onEditNote, folderBranch,
 }: Props): JSX.Element {
   const hasNote = session.note !== null && session.note !== ''
   /** The row's rectangle while the hover card is up; null when it is not. */
@@ -102,7 +108,20 @@ export function SessionRow({
           anchor={cardAnchor}
           title={session.title}
           path={session.cwd}
-          branch={session.gitBranch}
+          branch={folderBranch ?? session.gitBranch}
+          /*
+           * Only when it differs from where the folder is now. Reported as a contradiction: the
+           * card said `dev/1.0.12` while the bar under the session said `dev/1.0.11`, both
+           * labelled "Branch". They were two different facts — the branch the session was recorded
+           * on, and the branch its worktree is checked out to today — so the card now leads with
+           * the live one and names the other for what it is.
+           */
+          recordedBranch={
+            folderBranch !== undefined && folderBranch !== null
+            && session.gitBranch !== null && session.gitBranch !== folderBranch
+              ? session.gitBranch
+              : null
+          }
           note={session.note}
           lastActive={session.lastActiveAtMs === null ? null : fullTime(session.lastActiveAtMs)}
           missing={!session.cwdExists}

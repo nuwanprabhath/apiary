@@ -109,3 +109,56 @@ test('the plugin can be switched off, and its button goes with it', async () => 
 
   await expect(h.page.getByTestId('plugin-gitlab-mr-mr')).toHaveCount(0)
 })
+
+test('a plugin\'s own settings are drawn from what it declares, under the plugin itself', async () => {
+  await launch({ glabEmpty: true })
+
+  await h.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+  })
+  await h.page.getByTestId('settings-nav-plugins').click()
+
+  // Everything about this section is generic: the field exists because the plugin declared it.
+  const block = h.page.getByTestId('plugin-gitlab-mr')
+  await expect(block).toContainText('GitLab merge request')
+  await expect(block.getByTestId('plugin-setting-gitlab-mr-targetBranch')).toBeVisible()
+})
+
+test('the target branch setting is used when creating a merge request, and persists', async () => {
+  await launch({ glabEmpty: true })
+  const opened = await captureOpenExternal(h.page, h)
+
+  await h.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+  })
+  await h.page.getByTestId('settings-nav-plugins').click()
+  await h.page.getByTestId('plugin-setting-gitlab-mr-targetBranch').fill('dev/1.0.12')
+  await h.page.getByTestId('settings-save').click()
+  await expect(h.page.getByTestId('settings-dialog')).toHaveCount(0)
+
+  await h.page.getByTestId('plugin-gitlab-mr-mr-new').click()
+  await expect.poll(opened).toEqual([
+    'https://gitlab.com/ternandsparrow/paratoo-fdcp/-/merge_requests/new'
+    + '?merge_request%5Bsource_branch%5D=main&merge_request%5Btarget_branch%5D=dev%2F1.0.12',
+  ])
+
+  // Reopening Settings shows what was saved, rather than the default again.
+  await h.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+  })
+  await h.page.getByTestId('settings-nav-plugins').click()
+  await expect(h.page.getByTestId('plugin-setting-gitlab-mr-targetBranch')).toHaveValue('dev/1.0.12')
+})
+
+test('a plugin\'s settings are hidden while the plugin is off', async () => {
+  await launch()
+
+  await h.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+  })
+  await h.page.getByTestId('settings-nav-plugins').click()
+  await expect(h.page.getByTestId('plugin-setting-gitlab-mr-targetBranch')).toBeVisible()
+
+  await h.page.getByTestId('setting-plugin-gitlab-mr').uncheck()
+  await expect(h.page.getByTestId('plugin-setting-gitlab-mr-targetBranch')).toHaveCount(0)
+})

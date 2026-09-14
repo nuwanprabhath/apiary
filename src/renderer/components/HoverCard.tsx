@@ -34,6 +34,8 @@ interface Props {
   title: string
   path: string
   branch: string | null
+  /** The branch the session ran on, when that is not the branch the folder is on now. */
+  recordedBranch?: string | null
   lastActive: string | null
   /** The user's own note, shown first — it is the thing they wrote to be read here. */
   note?: string | null
@@ -45,7 +47,10 @@ const GAP = 8
 const MARGIN = 8
 
 export function HoverCard(
-  { anchor, title, path, branch, lastActive, note, missing, onPointerEnter, onPointerLeave }: Props,
+  {
+    anchor, title, path, branch, recordedBranch, lastActive, note, missing,
+    onPointerEnter, onPointerLeave,
+  }: Props,
 ): JSX.Element {
   const [copied, setCopied] = useState(false)
   // The tick is an acknowledgement, not a state worth keeping: it goes back to the copy glyph so
@@ -116,6 +121,12 @@ export function HoverCard(
           >
             {copied ? <CheckIcon /> : <CopyIcon />}
           </button>
+        </div>
+      )}
+      {recordedBranch !== null && recordedBranch !== undefined && (
+        <div className="hover-card-row">
+          <span className="hover-card-label">Ran on</span>
+          <span className="hover-card-branch hover-card-stale">{recordedBranch}</span>
         </div>
       )}
       {lastActive !== null && (

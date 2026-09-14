@@ -44,6 +44,11 @@ export interface AppSettings {
    */
   plugins: Record<string, boolean>
   /**
+   * Each plugin's own settings, namespaced by plugin id. Plugins declare what they take (see
+   * plugins/types.ts) and Settings draws it, so nothing here needs a field per plugin.
+   */
+  pluginSettings: Record<string, Record<string, string | number | boolean>>
+  /**
    * Update preferences. Checking is on by default — an app that can update itself and doesn't
    * mention it is how people end up months behind — but nothing is ever downloaded or installed
    * without the user saying so, which is what `updateAutoDownload: false` means.
@@ -70,6 +75,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   terminalShortenPath: false,
   terminalPathSegments: 2,
   plugins: {},
+  pluginSettings: {},
   updateAutomaticChecks: true,
   updateCheckIntervalHours: 6,
   updateAutoDownload: false,

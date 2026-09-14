@@ -64,7 +64,18 @@ function build(hostname: string, rawProject: string): GitLabRemote | null {
  * the point: creating an MR involves a title, a description and reviewers, and a button in a
  * terminal app has no business inventing those.
  */
-export function newMergeRequestUrl(remote: GitLabRemote, branch: string): string {
-  const source = encodeURIComponent(branch)
-  return `${remote.webUrl}/-/merge_requests/new?merge_request%5Bsource_branch%5D=${source}`
+export function newMergeRequestUrl(
+  remote: GitLabRemote,
+  branch: string,
+  targetBranch?: string | null,
+): string {
+  const params = new URLSearchParams()
+  params.set('merge_request[source_branch]', branch)
+  // Left out entirely when there is none, so GitLab falls back to the project's default branch —
+  // which is the right answer when the user has expressed no preference, and is what an empty
+  // `target_branch` parameter would *not* produce.
+  if (targetBranch !== undefined && targetBranch !== null && targetBranch.trim() !== '') {
+    params.set('merge_request[target_branch]', targetBranch.trim())
+  }
+  return `${remote.webUrl}/-/merge_requests/new?${params.toString()}`
 }

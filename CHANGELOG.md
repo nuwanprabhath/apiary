@@ -4,6 +4,33 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.11.1] - 2026-09-14
+
+### Added
+
+- **Plugins declare their own settings, and Settings draws them.** A plugin says what it takes — a
+  text field, a checkbox, a number, each with a label and help — and the Plugins section renders it
+  under that plugin, saving it namespaced by plugin id. A new plugin gets a working, consistent
+  settings panel without the dialog knowing anything about it, and everything configurable about
+  plugins stays in one findable place instead of spreading into sections named after individual
+  integrations.
+- **A target branch for new merge requests**, the first such setting. Left empty, GitLab picks the
+  project's default branch as before; set to `dev/1.0.12`, the new-merge-request form opens with
+  that as the target. The empty case leaves the parameter out of the URL entirely rather than
+  sending a blank one, which GitLab would take as the answer.
+
+### Fixed
+
+- **The sidebar hover card and the session bar disagreed about the branch.** The card showed the
+  branch recorded in the session's JSONL when it ran; the bar shows the branch the folder is on
+  today. Both were true and both were labelled "Branch". The card now leads with the live branch —
+  the same one the bar shows — and names the other "Ran on", only when they differ.
+- **Changing a plugin setting no longer leaves its button briefly stale.** The cache was cleared on
+  a settings change, so the bar had nothing to show until a fresh lookup landed, and in that gap a
+  click still carried the URL computed under the old setting. Cached answers are now recomputed in
+  place, and a lookup asked for while one is running joins it rather than being handed the stale
+  answer it was trying to get past.
+
 ## [1.11.0] - 2026-09-14
 
 ### Added

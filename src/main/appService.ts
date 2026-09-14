@@ -38,6 +38,8 @@ export interface AppServiceOptions {
   promptPath?: PromptPathOptions
   /** Which session-bar plugins are switched on, by plugin id. */
   plugins?: Record<string, boolean>
+  /** Each plugin's own settings, namespaced by plugin id. */
+  pluginSettings?: Record<string, Record<string, string | number | boolean>>
   /** Path to the `glab` executable, for anyone whose install is not on PATH (and for tests). */
   glabPath?: string
   /** Called when a plugin's contribution to a bar changed, so windows can re-read it. */
@@ -105,6 +107,9 @@ export class AppService {
       createGitLabMrPlugin({ glabPath: options.glabPath }),
       options.plugins?.['gitlab-mr'] ?? true,
     )
+    for (const [id, values] of Object.entries(options.pluginSettings ?? {})) {
+      this.plugins.setSettings(id, values)
+    }
   }
 
   /**
@@ -149,7 +154,11 @@ export class AppService {
     this.plugins.setEnabled(pluginId, enabled)
   }
 
-  listPlugins(): { id: string; name: string; enabled: boolean }[] {
+  setPluginSettings(pluginId: string, values: Record<string, string | number | boolean>): void {
+    this.plugins.setSettings(pluginId, values)
+  }
+
+  listPlugins(): ReturnType<PluginRegistry['list']> {
     return this.plugins.list()
   }
 

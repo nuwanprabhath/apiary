@@ -86,6 +86,7 @@ export function registerIpc(
       terminalShortenPath: settings.terminalShortenPath,
       terminalPathSegments: settings.terminalPathSegments,
       plugins: Object.fromEntries(service.listPlugins().map((p) => [p.id, p.enabled])),
+      pluginSettings: Object.fromEntries(service.listPlugins().map((p) => [p.id, p.values])),
       updateAutomaticChecks: settings.updateAutomaticChecks,
       updateCheckIntervalHours: settings.updateCheckIntervalHours,
       updateAutoDownload: settings.updateAutoDownload,
@@ -120,6 +121,7 @@ export function registerIpc(
       terminalShortenPath: keep(next.terminalShortenPath, current.terminalShortenPath),
       terminalPathSegments: keep(next.terminalPathSegments, current.terminalPathSegments),
       plugins: keep(next.plugins, current.plugins),
+      pluginSettings: keep(next.pluginSettings, current.pluginSettings),
       updateAutomaticChecks: keep(next.updateAutomaticChecks, current.updateAutomaticChecks),
       updateCheckIntervalHours: keep(next.updateCheckIntervalHours, current.updateCheckIntervalHours),
       updateAutoDownload: keep(next.updateAutoDownload, current.updateAutoDownload),
@@ -135,6 +137,9 @@ export function registerIpc(
     service.setSearchSessionNotes(merged.searchSessionNotes)
     for (const [id, enabled] of Object.entries(merged.plugins)) {
       service.setPluginEnabled(id, enabled)
+    }
+    for (const [id, values] of Object.entries(merged.pluginSettings)) {
+      service.setPluginSettings(id, values)
     }
     // Switching a plugin off changes what every open bar should show, and nothing else would tell
     // the windows: the bar only re-reads on a branch change or on this signal.

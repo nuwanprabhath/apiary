@@ -20,6 +20,56 @@
  *   against an allowlist of schemes before anything is opened.
  */
 
+/**
+ * A setting a plugin declares.
+ *
+ * Plugins describe their settings rather than drawing them, for the same reason they describe
+ * their buttons: the main process has no UI, and a plugin that could render into the settings
+ * dialog could render anything. Settings has one Plugins section that draws whatever the plugins
+ * declare, so a new plugin gets a working, consistent settings panel without touching the dialog —
+ * and everything configurable about plugins is in one findable place rather than scattered
+ * through sections named after individual integrations.
+ */
+export type PluginSettingField =
+  | {
+    kind: 'string'
+    key: string
+    label: string
+    help?: string
+    placeholder?: string
+    default: string
+  }
+  | { kind: 'boolean'; key: string; label: string; help?: string; default: boolean }
+  | {
+    kind: 'number'
+    key: string
+    label: string
+    help?: string
+    default: number
+    min?: number
+    max?: number
+  }
+
+/** A plugin's settings, as stored and as handed back to it. */
+export type PluginSettingValues = Record<string, string | number | boolean>
+
+/** Fills in anything the user has not set, so a plugin never has to check for absence. */
+export function withDefaults(
+  fields: PluginSettingField[],
+  values: PluginSettingValues | undefined,
+): PluginSettingValues {
+  const out: PluginSettingValues = {}
+  for (const field of fields) {
+    const value = values?.[field.key]
+    // A value of the wrong type is treated as absent: settings.json is a file people edit, and a
+    // string where a number belongs must not reach a plugin as one.
+    out[field.key] = typeof value === typeof field.default && value !== undefined
+      ? value
+      : field.default
+  }
+  return out
+}
+
 /** What a plugin is told about the session whose bar it is contributing to. */
 export interface PluginContext {
   /** Absolute working directory, resolved in the main process. */
@@ -60,11 +110,15 @@ export interface SessionBarPlugin {
   id: string
   /** Shown in Settings, where the plugin is switched on and off. */
   name: string
+  /** A sentence under the name saying what the plugin does. */
+  description?: string
+  /** The settings this plugin declares; Settings draws them, and they come back to `evaluate`. */
+  settings?: PluginSettingField[]
   /**
    * What to put on the bar, or null for nothing at all.
    *
    * May be slow (this one shells out to `glab`, which goes to the network), so the registry caches
    * and never blocks the bar on it. Throwing is allowed and contained: see the registry.
    */
-  evaluate(ctx: PluginContext): Promise<PluginBarItem | null>
+  evaluate(ctx: PluginContext, settings: PluginSettingValues): Promise<PluginBarItem | null>
 }
