@@ -9,6 +9,13 @@ import {
   type GroupState,
 } from '../state/groups'
 import { CloseIcon, RefreshIcon } from './icons'
+import { useNotifications } from '../state/notifications'
+import { describeRefresh } from '../state/refreshSummary'
+
+/** How many sessions the tree holds, at any depth. */
+function countSessions(nodes: ProjectNode[]): number {
+  return nodes.reduce((n, node) => n + node.sessions.length + countSessions(node.children), 0)
+}
 
 /** Every session anywhere in the tree, flattened, so pinned ids can be resolved back to rows. */
 function flattenSessions(nodes: ProjectNode[], into = new Map<string, SessionNode>()): Map<string, SessionNode> {
@@ -110,7 +117,8 @@ export function Sidebar({
   pending, onSelectPending, revealId, groupState, onGroupStateChange, onReorderPinned,
 }: Props): JSX.Element {
   const [query, setQuery] = useState('')
-  const { tree, loading, reload } = useTree(query)
+  const { tree, loading, reload, reloadNow } = useTree(query)
+  const { notify, notifyError } = useNotifications()
   const [refreshing, setRefreshing] = useState(false)
   const listRef = useRef<HTMLDivElement | null>(null)
 
@@ -330,10 +338,16 @@ export function Sidebar({
           data-refreshing={refreshing}
           disabled={refreshing}
           onClick={() => {
+            // What the list holds before the rescan, so the notification afterwards can say what
+            // the rescan actually found rather than only that it happened.
+            const before = countSessions(tree)
             setRefreshing(true)
             void window.apiary.refresh()
-              .then(reload)
-              .catch(() => reload())
+              .then(reloadNow)
+              .then((next) => {
+                notify({ message: describeRefresh(before, countSessions(next), query.trim() !== '') })
+              })
+              .catch((e: unknown) => { reload(); notifyError(e, 'Could not rescan sessions') })
               .finally(() => setRefreshing(false))
           }}
           title="Refresh"

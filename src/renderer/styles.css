@@ -46,6 +46,32 @@
   --scrollbar-thumb: rgba(121, 121, 121, 0.4);
   --scrollbar-thumb-hover: rgba(100, 100, 100, 0.7);
 
+  /*
+   * Shape and size, for the same reason as the colours above: a theme is not only a palette.
+   * Every control in the app resolves its height, padding, corner and focus ring through these,
+   * so "buttons are too tall" or "corners are too round" is one edit here rather than a search
+   * through forty rules. The heights exist because the app had six near-identical button rules
+   * that each chose their own padding, which is exactly how a dialog ends up with a Cancel and
+   * a Save of visibly different heights.
+   */
+  --control-height: 26px;
+  --control-height-sm: 22px;
+  --control-padding-x: 10px;
+  --control-gap: 6px;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+
+  /* The surfaces a control is drawn on, named by role rather than by where they are used. */
+  --control-bg: var(--bg);
+  --control-bg-hover: var(--selected);
+  --control-bg-active: var(--border);
+  --control-border: var(--border);
+
+  /* One focus style for the whole app — see the note on .search:focus for why it is not an
+   * outline. Controls and fields share it so focus looks the same wherever it lands. */
+  --focus-ring: 0 0 0 1px var(--accent);
+
   font-family: -apple-system, "Segoe UI", Ubuntu, sans-serif;
   font-size: 13px;
 }
@@ -56,6 +82,191 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 
 /* See the comment on the sidebar/bottom-pane resize effects in App.tsx. */
 body.resizing-active { user-select: none; }
+
+/*
+ * Controls.
+ *
+ * One base rule for every button that looks like a button, rather than each corner of the app
+ * inventing its own. Before this existed there were six near-identical rules — `.icon-button`,
+ * `.modal-actions button`, `.resume-bar button`, `.crash-actions button`, `.notification-action`,
+ * `.settings-preset` — with four different paddings and two different backgrounds between them,
+ * and any button that belonged to none of them (the update banner's, Settings' "Check now")
+ * fell through to Chromium's native control, which on macOS is white and looks like it came
+ * from another application entirely.
+ *
+ * `.btn` is what new markup should use. The container-scoped selectors are kept beside it so
+ * existing dialogs need no churn, but they are aliases, not separate designs: every one of them
+ * resolves the same tokens, so a change to height, corner or colour lands everywhere at once.
+ *
+ * The variants are `.primary` (the one action the dialog is for) and `.danger` (the one that
+ * destroys something). Both are deliberately class names rather than separate rules per
+ * container, so `.btn.primary` in a banner and `.primary` in a modal footer are the same button.
+ */
+.btn,
+.icon-button,
+.modal-actions button,
+.resume-bar button,
+.crash-actions button,
+.notification-action,
+.settings-preset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--control-gap);
+  /* A min-height rather than symmetric padding: text and icon+text buttons then agree on a
+   * height whatever is inside them, which is what stops a Cancel and a Save sitting side by
+   * side at different sizes. */
+  min-height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  background: var(--control-bg);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.btn:hover:not(:disabled),
+.icon-button:hover:not(:disabled),
+.modal-actions button:hover:not(:disabled),
+.resume-bar button:hover:not(:disabled),
+.crash-actions button:hover:not(:disabled),
+.notification-action:hover,
+.settings-preset:hover { background: var(--control-bg-hover); color: var(--text); }
+
+.btn:active:not(:disabled),
+.icon-button:active:not(:disabled),
+.modal-actions button:active:not(:disabled),
+.resume-bar button:active:not(:disabled) { background: var(--control-bg-active); }
+
+.btn:disabled,
+.icon-button:disabled,
+.modal-actions button:disabled,
+.resume-bar button:disabled,
+.settings-preset:disabled { cursor: default; opacity: 0.5; }
+
+/* Filled variants. Both read as "this is the action", so they carry the accent's ink colour
+ * rather than the app's text colour. */
+.btn.primary,
+.modal-actions .primary,
+.resume-bar .primary,
+.crash-actions .primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+.btn.primary:hover:not(:disabled),
+.modal-actions .primary:hover:not(:disabled),
+.resume-bar .primary:hover:not(:disabled),
+.crash-actions .primary:hover:not(:disabled) { background: var(--accent); opacity: 0.9; color: var(--accent-contrast); }
+
+.btn.danger,
+.modal-actions .danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+.btn.danger:hover:not(:disabled),
+.modal-actions .danger:hover:not(:disabled) { background: var(--danger); opacity: 0.9; color: var(--accent-contrast); }
+
+/* A quieter button for a secondary action sitting inside a paragraph of text, where a bordered
+ * control would outweigh what it sits next to. */
+.btn.quiet { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.quiet:hover:not(:disabled) { background: var(--control-bg-hover); color: var(--text); }
+
+.btn.small,
+.notification-action,
+.settings-preset { min-height: var(--control-height-sm); padding: 0 8px; font-size: 12px; }
+
+.btn svg { width: 14px; height: 14px; flex: none; }
+
+/*
+ * One focus style for everything focusable. Chromium's default ring follows the OS accent
+ * colour, which here reads as a second, slightly offset border in a colour the app never uses.
+ * See the longer note on `.search:focus`.
+ */
+.btn:focus-visible,
+.icon-button:focus-visible,
+.modal-actions button:focus-visible,
+.resume-bar button:focus-visible,
+.crash-actions button:focus-visible,
+.notification-action:focus-visible,
+.settings-preset:focus-visible,
+.toolbar-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/*
+ * Checkboxes.
+ *
+ * Drawn by the app rather than by the platform. `accent-color` alone only colours the *checked*
+ * fill: an unchecked native checkbox stays a white box with a grey border, which in a dark panel
+ * is the brightest thing on the screen and reads as a text field rather than as a switch. Taking
+ * the whole control over is the only way to make the unchecked state belong here too.
+ *
+ * The tick is a clipped square rather than an SVG or a font glyph, so it inherits the accent's
+ * ink colour and stays crisp at any pixel ratio without another asset to keep in step.
+ */
+input[type="checkbox"] {
+  appearance: none;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  display: inline-grid;
+  place-content: center;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--control-bg);
+  cursor: pointer;
+  transition: background-color 0.1s, border-color 0.1s;
+}
+input[type="checkbox"]:hover:not(:disabled) { border-color: var(--accent); }
+input[type="checkbox"]:checked, input[type="checkbox"]:indeterminate {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+input[type="checkbox"]:checked::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: var(--accent-contrast);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+/* The import dialog's folder rows: some of what is inside is picked, but not all. */
+input[type="checkbox"]:indeterminate::before {
+  content: "";
+  width: 9px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent-contrast);
+}
+input[type="checkbox"]:disabled { opacity: 0.45; cursor: default; }
+input[type="checkbox"]:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+input[type="radio"] { accent-color: var(--accent); }
+
+/*
+ * The last line of defence: a button that reaches the screen without one of the classes above
+ * still looks like it belongs to this app rather than to macOS. It is not a licence to skip the
+ * class — `.btn` is what carries hover, disabled and focus — only a guarantee that a missed one
+ * degrades to something quiet instead of to a white native control in the middle of a dark UI.
+ */
+button:not([class]) {
+  min-height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  background: var(--control-bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
 
 .app-shell { display: flex; flex-direction: column; height: 100vh; }
 .layout { display: grid; flex: 1; min-height: 0; }
@@ -128,10 +339,11 @@ body.resizing-active { user-select: none; }
 
 .search {
   flex: 1;
-  padding: 6px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg);
+  min-height: var(--control-height);
+  padding: 0 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
   color: var(--text);
 }
 /*
@@ -143,7 +355,7 @@ body.resizing-active { user-select: none; }
 .search:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  box-shadow: var(--focus-ring);
 }
 
 /* Wrapper that lets the clear button overlay the right-hand end of the field. The field keeps
@@ -171,29 +383,7 @@ body.resizing-active { user-select: none; }
 .search-clear:hover, .search-clear:focus-visible { background: var(--hover); color: var(--text); }
 .search-clear svg { width: 12px; height: 12px; display: block; }
 
-.icon-button {
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--muted);
-  border-radius: 6px;
-  cursor: pointer;
-  padding: 0 8px;
-  transition: background-color 0.1s, color 0.1s;
-}
-
-.icon-button:hover {
-  background: var(--selected);
-  color: var(--text);
-}
-
-.icon-button:active {
-  background: var(--border);
-}
-
-.icon-button:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
+.icon-button { color: var(--muted); padding: 0 8px; }
 
 /* Refresh button's own icon spins for as long as the refresh it triggered is still in
  * flight — otherwise a click has zero visual feedback, since the fetch usually resolves
@@ -209,12 +399,8 @@ body.resizing-active { user-select: none; }
  * shrank the whole button (a single character is much narrower than "Refresh") — jarring, and
  * easy to misread as the button itself having disappeared. The icon now just spins in place.
  */
-.sidebar-refresh {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.sidebar-refresh svg { width: 13px; height: 13px; flex: none; }
+.sidebar-refresh { gap: 5px; }
+.sidebar-refresh svg { width: 14px; height: 14px; flex: none; }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -670,10 +856,8 @@ body.resizing-active { user-select: none; }
 .thinking-toggle { background: none; border: 0; color: var(--muted); cursor: pointer; font: inherit; padding: 0; }
 
 .resume-bar { display: flex; gap: 6px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); }
-.resume-bar button { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--bg-panel); color: var(--text); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; }
 .resume-bar button[data-active="true"] { background: var(--selected); border-color: var(--accent); }
-.resume-bar button:disabled { opacity: 0.45; cursor: not-allowed; }
-.resume-bar .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); font-weight: 600; }
+.resume-bar button:disabled { cursor: not-allowed; }
 .spacer { flex: 1; }
 
 /*
@@ -809,13 +993,12 @@ body.resizing-active { user-select: none; }
   display: grid;
   place-items: center;
 }
-.modal { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; max-width: 460px; }
+.modal { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; max-width: 460px; }
 .modal h2 { margin: 0 0 10px; font-size: 15px; }
 .modal p { line-height: 1.55; margin: 0 0 10px; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
-.modal-actions button { border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 6px; padding: 5px 12px; cursor: pointer; font: inherit; }
-.modal-actions .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); font-weight: 600; }
-.modal-actions .danger { background: var(--danger); border-color: var(--danger); color: var(--accent-contrast); font-weight: 600; }
+/* Sizing and colour come from the control layer at the top of this file; a dialog footer only
+   decides the arrangement. */
 
 .modal.wide { width: 620px; max-width: 90vw; }
 .modal .search { width: 100%; margin-bottom: 10px; }
@@ -1025,7 +1208,7 @@ body.resizing-active { user-select: none; }
  * stray white/orange outline around the field. */
 .terminal-tab-rename-input:focus {
   outline: none;
-  box-shadow: 0 0 0 1px var(--accent);
+  box-shadow: var(--focus-ring);
 }
 .terminal-tab-action {
   flex: none;
@@ -1167,17 +1350,6 @@ body.resizing-active { user-select: none; }
   overflow-wrap: anywhere;
 }
 .notification-actions { display: flex; gap: 6px; margin-top: 8px; }
-.notification-action {
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 3px 10px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-}
-.notification-action:hover { background: var(--selected); }
 .notification-close {
   flex: none;
   width: 22px;
@@ -1236,21 +1408,6 @@ body.resizing-active { user-select: none; }
   overflow-wrap: anywhere;
 }
 .crash-actions { display: flex; gap: 8px; margin-top: 4px; }
-.crash-actions button {
-  border: 1px solid var(--border);
-  background: var(--bg-panel);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 5px 12px;
-  cursor: pointer;
-  font: inherit;
-}
-.crash-actions .primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-contrast);
-  font-weight: 600;
-}
 
 /* The transcript pane's own failure state, reusing the crash pane's message/detail styling. */
 .transcript-error { padding: 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -1386,17 +1543,7 @@ body.resizing-active { user-select: none; }
 .settings-inline { display: flex; align-items: center; gap: 8px; }
 .settings-number { width: 80px; }
 .settings-presets { display: flex; gap: 6px; }
-.settings-preset {
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--muted);
-  border-radius: 6px;
-  padding: 3px 10px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-}
-.settings-preset:hover { color: var(--text); background: var(--selected); }
+.settings-preset { color: var(--muted); }
 .settings-preset[data-active="true"] { border-color: var(--accent); color: var(--text); }
 
 /* Shown in place of "pick some sessions" when the app is already importing all of them. */
@@ -1466,7 +1613,7 @@ body.resizing-active { user-select: none; }
   font: inherit;
   line-height: 1.5;
 }
-.composer-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.composer-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .composer-input:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .composer-actions { display: flex; align-items: center; gap: 10px; padding-top: 8px; }
@@ -1687,7 +1834,7 @@ body.resizing-active { user-select: none; }
   font: inherit;
   line-height: 1.5;
 }
-.note-dialog-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.note-dialog-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 /* Pushes the confirm/cancel pair to the right while Remove stays on the left, the usual place for
    a destructive action that is not the one being encouraged. */
 .modal-actions-spacer { flex: 1; }

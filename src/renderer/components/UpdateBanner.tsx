@@ -79,13 +79,14 @@ export function UpdateBanner(
         {phase === 'available' && (
           <>
             <button
-              className="primary"
+              className="btn primary"
               data-testid="update-download"
               onClick={() => { void window.apiary.updateDownload() }}
             >
               {assisted ? 'Download' : 'Download and install'}
             </button>
             <button
+              className="btn"
               data-testid="update-skip"
               title={`Stop offering ${version} — the next release is offered as normal`}
               onClick={() => { void window.apiary.updateSkip() }}
@@ -96,7 +97,7 @@ export function UpdateBanner(
         )}
         {phase === 'ready' && (
           <button
-            className="primary"
+            className="btn primary"
             data-testid="update-install"
             onClick={() => { void window.apiary.updateInstall() }}
           >
@@ -105,7 +106,7 @@ export function UpdateBanner(
         )}
         {phase === 'downloaded' && (
           <button
-            className="primary"
+            className="btn primary"
             data-testid="update-open-downloaded"
             onClick={() => { void window.apiary.updateOpenDownloaded() }}
           >
@@ -114,6 +115,7 @@ export function UpdateBanner(
         )}
         {status.releaseUrl !== null && phase !== 'up-to-date' && phase !== 'error' && (
           <button
+            className="btn"
             data-testid="update-notes"
             onClick={() => { void window.apiary.copyToClipboard(status.releaseUrl ?? '') }}
             title="Copy the release page link"
@@ -121,7 +123,7 @@ export function UpdateBanner(
             Release notes
           </button>
         )}
-        <button data-testid="update-settings" onClick={onOpenSettings}>Update settings</button>
+        <button className="btn" data-testid="update-settings" onClick={onOpenSettings}>Update settings</button>
         <button
           className="update-banner-close"
           data-testid="update-dismiss"

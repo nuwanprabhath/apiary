@@ -86,6 +86,11 @@ test('capture the README screenshot', async () => {
   // Give each shell a moment to apply the new prompt and settle.
   await h.page.waitForTimeout(1000)
 
+  // The Refresh above reports what it found, which is useful in the app and noise in a README
+  // image. Close whatever is still on screen rather than waiting out its dwell time.
+  for (const close of await h.page.getByTestId('notification-close').all()) await close.click()
+  await expect(h.page.getByTestId('notification')).toHaveCount(0)
+
   await h.page.screenshot({ path: join(process.cwd(), 'docs', 'screenshot.png') })
   await h.close()
 })

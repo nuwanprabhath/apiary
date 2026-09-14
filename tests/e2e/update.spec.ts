@@ -56,6 +56,45 @@ test('an available update is offered in a strip above the workspace, not a dialo
   await expect(h.page.getByTestId('sidebar-refresh')).toBeEnabled()
 })
 
+test('"Update settings" opens Settings on the Updates section', async () => {
+  // The button names the settings it opens, so landing on Sessions — three clicks away from
+  // anything it mentions — reads as the button being wired to the wrong thing.
+  await launch({ fakeUpdate: '9.9.9' })
+  await checkNow()
+  await h.page.getByTestId('update-settings').click()
+
+  await expect(h.page.getByTestId('settings-dialog')).toBeVisible()
+  await expect(h.page.getByTestId('settings-nav-updates')).toHaveAttribute('data-active', 'true')
+  await expect(h.page.getByTestId('settings-pane')).toContainText('How Apiary keeps itself up to date')
+})
+
+test('the banner\'s buttons are the app\'s own buttons, not the platform\'s', async () => {
+  // They used to carry no styling at all, so Chromium drew its native control: white, differently
+  // sized, and visibly from another application. The comparison is against a button elsewhere in
+  // the app rather than against a hardcoded colour, because the point is that they agree.
+  await launch({ fakeUpdate: '9.9.9' })
+  await checkNow()
+
+  const box = async (id: string): Promise<{ height: number; background: string }> =>
+    h.page.getByTestId(id).evaluate((el) => ({
+      height: Math.round(el.getBoundingClientRect().height),
+      background: getComputedStyle(el).backgroundColor,
+    }))
+
+  const reference = await box('sidebar-refresh')
+  for (const id of ['update-settings', 'update-skip', 'update-notes']) {
+    const button = await box(id)
+    expect(button.background).toBe(reference.background)
+    expect(Math.abs(button.height - reference.height)).toBeLessThanOrEqual(1)
+  }
+
+  // The primary action is filled rather than outlined — different on purpose, and the same
+  // height as the rest.
+  const primary = await box('update-download')
+  expect(primary.background).not.toBe(reference.background)
+  expect(Math.abs(primary.height - reference.height)).toBeLessThanOrEqual(1)
+})
+
 test('an unsigned build offers to download, and says why it cannot install by itself', async () => {
   await launch({ fakeUpdate: '9.9.9', updateMode: 'assisted' })
   await checkNow()

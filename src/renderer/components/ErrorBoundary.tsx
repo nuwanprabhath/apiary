@@ -61,7 +61,7 @@ export class ErrorBoundary extends Component<Props, State> {
           >
             Try again
           </button>
-          <button data-testid="crash-reload" onClick={() => { window.location.reload() }}>
+          <button className="btn" data-testid="crash-reload" onClick={() => { window.location.reload() }}>
             Reload Apiary
           </button>
         </div>

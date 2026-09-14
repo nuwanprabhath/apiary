@@ -4,6 +4,40 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.12.0] - 2026-09-14
+
+### Added
+
+- **One design system for every control.** Height, padding, corner radius and focus ring are now
+  tokens alongside the colours at the top of `styles.css`, and every button in the app resolves
+  them through a single base rule (`.btn`, plus the container-scoped aliases the existing dialogs
+  use). Theming was always the plan for the colours; this extends the same promise to shape and
+  size, so "buttons are too tall" is one edit rather than a search through forty rules.
+- **Refresh says what it found.** Pressing Refresh raises a notification — how many sessions the
+  rescan added, or plainly that there were none. A rescan usually changes nothing visible, so the
+  only feedback before this was a spinner stopping, which is indistinguishable from a button that
+  does nothing.
+
+### Changed
+
+- **A new refresh icon**: two arrows chasing each other round a circle, the shape every browser's
+  reload button uses. The old single arc with one arrowhead read as a circle with an arrow stuck
+  in it.
+- **Checkboxes are drawn by the app**, not by the platform. An unchecked native checkbox is a
+  white box, which in a dark panel is the brightest thing on screen and reads as a text field;
+  a checked one was drawn in the *OS* accent colour rather than Apiary's.
+
+### Fixed
+
+- **"Update settings" in the update banner opens the Updates section.** It opened Settings on
+  Sessions, three clicks from anything the button names, which reads as the button being wired to
+  the wrong thing.
+- **Buttons that looked like they came from another application.** The update banner's buttons and
+  Settings' "Check now" and "Rebuild index" carried no styling at all, so Chromium drew its native
+  macOS control — white, and a different size from everything around it. Between the app's own
+  button rules there were four different paddings, which is why a Cancel and a Save sitting side
+  by side were visibly different heights.
+
 ## [1.11.1] - 2026-09-14
 
 ### Added

@@ -51,6 +51,37 @@ test('the refresh button keeps a stable width while it spins', async () => {
   }
 })
 
+test('pressing Refresh says what the rescan found', async () => {
+  // A rescan usually changes nothing on screen — the watcher has normally seen the disk already —
+  // so without a sentence afterwards the only feedback is a spinner stopping, which is
+  // indistinguishable from a button that does nothing at all.
+  await h.page.getByTestId('sidebar-refresh').click()
+
+  // `.last()`: the harness itself presses Refresh once during setup, and that first press has
+  // something to report (the freshly imported sessions), so there are two of these on screen.
+  const note = h.page.getByTestId('notification').filter({ hasText: 'Rescanned' }).last()
+  await expect(note).toBeVisible()
+  await expect(note).toHaveAttribute('data-kind', 'info')
+  // Nothing was added between the two scans, and the message says so rather than claiming a
+  // number it cannot support.
+  await expect(note).toContainText('no new sessions')
+})
+
+test('the buttons in a dialog footer are the same size as each other', async () => {
+  // Regression: every group of buttons in the app used to carry its own padding, so a Cancel and
+  // a Save sitting side by side were visibly different heights. They now resolve one set of
+  // tokens; this asserts the outcome rather than the mechanism.
+  await h.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+  })
+  await expect(h.page.getByTestId('settings-dialog')).toBeVisible()
+
+  const height = async (id: string): Promise<number> =>
+    h.page.getByTestId(id).evaluate((el) => Math.round(el.getBoundingClientRect().height))
+
+  expect(await height('settings-save')).toBe(await height('settings-cancel'))
+})
+
 test.describe('import dialog, before anything has been imported', () => {
   test.beforeEach(async () => {
     // A fresh harness: `importAll` in the outer beforeEach would leave every row already

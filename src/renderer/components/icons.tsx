@@ -52,16 +52,26 @@ export function ListIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** Two curved arrows chasing each other into a circle — the refresh button's icon, which spins
- *  in place (via the shared `.spinner` class) rather than the button swapping its whole label
- *  out for a bare glyph, which used to change the button's width mid-click. */
+/**
+ * The refresh glyph: two arrows chasing each other round a circle, the shape VS Code, GitHub and
+ * every browser's reload button use. It replaced a single arc with one line-drawn arrowhead,
+ * which read as "a circle with an arrow stuck in it" rather than as refresh.
+ *
+ * The arrowheads are filled triangles rather than two strokes meeting at a point, and each arc
+ * stops well short of the other so the pair never closes into a plain ring. Both are because of
+ * the size this is actually drawn at — 13px in the sidebar, where a 1.3px chevron is a smudge and
+ * a 50° gap is the only thing telling the eye these are arrows and not a circle.
+ *
+ * It spins in place via the shared `.spinner` class rather than the button swapping its label for
+ * a bare glyph, which used to change the button's width mid-click.
+ */
 export function RefreshIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path
-        d="M13 8A5 5 0 1 1 11.4 4.3M13 8V4.5M13 8H9.5"
-        stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"
-      />
+      <path d="M3.47 5.89A5 5 0 0 1 12.53 5.89" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M13.14 7.18 10.32 5.63 13.76 4.02Z" fill="currentColor" />
+      <path d="M12.53 10.11A5 5 0 0 1 3.47 10.11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M2.86 8.82 5.68 10.37 2.24 11.98Z" fill="currentColor" />
     </svg>
   )
 }

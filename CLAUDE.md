@@ -101,8 +101,18 @@ point would.
   most comments record a decision, a measurement, or a bug that will otherwise be reintroduced. Match
   it. A comment that restates the line below it is noise; one that says why the obvious approach was
   wrong is the point.
-- **`styles.css` uses CSS custom properties for colour.** No literal colours (the scrollbar arrow
-  data-URI SVGs are the one documented exception).
+- **`styles.css` uses CSS custom properties for colour *and* for shape.** No literal colours (the
+  scrollbar arrow data-URI SVGs are the one documented exception), and no literal control heights,
+  paddings, corner radii or focus rings either — they are tokens at the top of the file for the
+  same reason: a theme is not only a palette.
+- **Controls go through the control layer**, not through a rule of their own. Every button that
+  looks like a button resolves one base rule; `.btn` is what new markup uses, with `.primary` and
+  `.danger` for the filled variants and `.small` for a compact one. The app previously had six
+  near-identical button rules with four different paddings between them, which is how a Cancel and
+  a Save ended up side by side at different heights — and a button belonging to none of them fell
+  through to Chromium's native macOS control, which is white and looks like another application's.
+  Checkboxes are drawn by the app for that second reason: `accent-color` alone only colours the
+  checked state, leaving the unchecked box white in a dark panel.
 - **Tests are written as statements about behaviour**, not about implementation: read a few existing
   names before adding one.
 - TypeScript is strict; `npm run typecheck` covers both tsconfigs and both must pass.

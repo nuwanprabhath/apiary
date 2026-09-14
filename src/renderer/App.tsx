@@ -151,7 +151,13 @@ export function App(): JSX.Element {
   const [conflict, setConflict] = useState<ResumeConflict | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<SessionNode | null>(null)
   const [importOpen, setImportOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  /**
+   * Which settings section is on screen, or null when the dialog is closed — one piece of state
+   * rather than two, so it is impossible to open the dialog without saying what it should show.
+   * "Update settings" in the update banner is the reason: opening the dialog and landing on
+   * Sessions makes the button look broken, since the settings it names are three clicks away.
+   */
+  const [settingsSection, setSettingsSection] = useState<string | null>(null)
   /**
    * Settings the renderer itself acts on. Re-read when the settings dialog closes rather than
    * subscribed to: these change only when someone changes them, and only from that one dialog.
@@ -225,7 +231,7 @@ export function App(): JSX.Element {
   // window lands here as it happens instead of at the next launch.
   useEffect(() => subscribeSharedUiState((shared) => { setUi((prev) => ({ ...prev, ...shared })) }), [])
   useEffect(() => window.apiary.onOpenImportDialog(() => setImportOpen(true)), [])
-  useEffect(() => window.apiary.onOpenSettingsDialog(() => setSettingsOpen(true)), [])
+  useEffect(() => window.apiary.onOpenSettingsDialog(() => setSettingsSection('sessions')), [])
 
   // Registers a freshly-started new session as pending and opens it as a tab — shared by both
   // entry points (the sidebar "+" button and the File menu item below). The tab is keyed by pty
@@ -678,7 +684,7 @@ export function App(): JSX.Element {
   return (
     <div className="app-shell">
       {updateStatus !== null && (
-        <UpdateBanner status={updateStatus} onOpenSettings={() => setSettingsOpen(true)} />
+        <UpdateBanner status={updateStatus} onOpenSettings={() => setSettingsSection('updates')} />
       )}
       <div
         className="layout"
@@ -845,8 +851,11 @@ export function App(): JSX.Element {
         />
       )}
 
-      {settingsOpen && (
-        <SettingsDialog onClose={() => { setSettingsOpen(false); loadUiSettings() }} />
+      {settingsSection !== null && (
+        <SettingsDialog
+          initialSection={settingsSection}
+          onClose={() => { setSettingsSection(null); loadUiSettings() }}
+        />
       )}
 
       {noteTarget !== null && (

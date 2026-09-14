@@ -33,8 +33,15 @@ const blurbOf = (id: string): string => SECTIONS.find((s) => s.id === id)?.blurb
 /** The interval presets, plus the option to type a number. Minutes throughout. */
 const INTERVAL_PRESETS = [1, 5, 15, 30, 60]
 
-export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Element {
-  const [section, setSection] = useState<string>(SECTIONS[0].id)
+export function SettingsDialog(
+  { onClose, initialSection }: { onClose: () => void; initialSection?: string },
+): JSX.Element {
+  // Whoever opens the dialog says which section it should land on; an unknown id falls back to
+  // the first rather than showing an empty pane.
+  const known = SECTIONS.some((s) => s.id === initialSection)
+  const [section, setSection] = useState<string>(known && initialSection !== undefined
+    ? initialSection
+    : SECTIONS[0].id)
   // Null until the first load resolves; every field below is driven from this one object, so a
   // new setting is a new key rather than another piece of local state to remember to save.
   const [draft, setDraft] = useState<AppSettingsPayload | null>(null)
@@ -247,6 +254,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
                     Rebuild it if results ever look stale.
                   </span>
                   <button
+                    className="btn"
                     data-testid="search-rebuild"
                     disabled={rebuilding || (!draft.searchChatContent && !draft.searchSessionNotes)}
                     onClick={() => {
@@ -392,6 +400,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
                     )}
                   </span>
                   <button
+                    className="btn"
                     data-testid="update-check-now"
                     disabled={checking || update?.phase === 'checking' || update?.phase === 'downloading'}
                     onClick={() => {
