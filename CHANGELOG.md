@@ -4,6 +4,22 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.12.1] - 2026-09-14
+
+### Fixed
+
+- **"Check now" appeared to do nothing.** On a build with no updater — running from source, or a
+  platform without one — the press was swallowed in the main process, which pushes no status back,
+  so nothing on screen changed. The button is now disabled there, with the reason beside it. Where
+  a check *can* run, its answer is shown next to the button that asked for it: the banner the
+  pushed status feeds is drawn behind the settings dialog's backdrop, so an answer that only ever
+  appeared there was invisible to whoever pressed the button.
+- **A secondary button next to a primary one looked shorter than it was.** Both measure the same
+  26px; the outlined one was drawn *darker* than the panel behind it, so it read as a hole rather
+  than as a block, and a hole beside a solid fill does not look like the same size. Buttons now
+  sit a step lighter than their panel and fields a step darker — a button is on top of the page, a
+  field is cut into it — which is the distinction the old single surface was missing.
+
 ## [1.12.0] - 2026-09-14
 
 ### Added

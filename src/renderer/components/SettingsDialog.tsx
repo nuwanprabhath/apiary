@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AppSettingsPayload, PluginInfoPayload, PluginSettingFieldPayload } from '@shared/api'
-import { useUpdate, formatVersion, formatChecked } from '../state/useUpdate'
+import { useUpdate } from '../state/useUpdate'
+import { formatVersion, formatChecked, describeCheck } from '../state/updateSummary'
 
 /**
  * One page of settings. Sections are data, not markup — adding a setting later means adding an
@@ -53,6 +54,8 @@ export function SettingsDialog(
   const update = useUpdate()
   /** Set while a check the user pressed for is running, so the button can say so. */
   const [checking, setChecking] = useState(false)
+  /** What the last check the user pressed for came back with, said next to the button. */
+  const [checkResult, setCheckResult] = useState<string | null>(null)
   /** The plugins that exist, as the main process reports them, with their declared settings. */
   const [plugins, setPlugins] = useState<PluginInfoPayload[]>([])
   useEffect(() => {
@@ -104,6 +107,8 @@ export function SettingsDialog(
   }
 
   const intervalEnabled = draft?.autoImportIntervalMinutes !== null
+  /** False where this build has no updater to ask — a dev run, or a platform without one. */
+  const canCheck = update !== null && update.capability.kind !== 'unsupported'
 
   return (
     <div className="modal-backdrop">
@@ -399,17 +404,37 @@ export function SettingsDialog(
                       </>
                     )}
                   </span>
-                  <button
-                    className="btn"
-                    data-testid="update-check-now"
-                    disabled={checking || update?.phase === 'checking' || update?.phase === 'downloading'}
-                    onClick={() => {
-                      setChecking(true)
-                      void window.apiary.updateCheck().finally(() => { setChecking(false) })
-                    }}
-                  >
-                    {checking || update?.phase === 'checking' ? 'Checking…' : 'Check now'}
-                  </button>
+                  <div className="settings-inline settings-check">
+                    {checkResult !== null && (
+                      <span className="settings-help" data-testid="update-check-result">{checkResult}</span>
+                    )}
+                    <button
+                      className="btn"
+                      data-testid="update-check-now"
+                      // A check that cannot run is not offered. On a build with no updater at all
+                      // the press used to be swallowed silently, which is indistinguishable from
+                      // a broken button — the reason is already spelled out above.
+                      disabled={
+                        canCheck === false
+                        || checking || update?.phase === 'checking' || update?.phase === 'downloading'
+                      }
+                      title={canCheck === false ? update?.capability.reason : undefined}
+                      onClick={() => {
+                        setChecking(true)
+                        setCheckResult(null)
+                        // The answer comes from what this call resolves with, not from the pushed
+                        // status: see describeCheck for why the push is not enough here.
+                        void window.apiary.updateCheck()
+                          .then((status) => { setCheckResult(describeCheck(status)) })
+                          .catch((e: unknown) => {
+                            setCheckResult(`Could not check — ${e instanceof Error ? e.message : String(e)}`)
+                          })
+                          .finally(() => { setChecking(false) })
+                      }}
+                    >
+                      {checking || update?.phase === 'checking' ? 'Checking…' : 'Check now'}
+                    </button>
+                  </div>
                 </div>
 
                 <label className="settings-row">

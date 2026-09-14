@@ -62,11 +62,20 @@
   --radius: 6px;
   --radius-lg: 10px;
 
-  /* The surfaces a control is drawn on, named by role rather than by where they are used. */
-  --control-bg: var(--bg);
+  /*
+   * The surfaces a control is drawn on, named by role rather than by where they are used.
+   *
+   * A button's surface is a step *lighter* than the panel behind it, and a field's a step darker.
+   * That is not decoration: a button sits on top of the page and a field is cut into it, and
+   * getting it the wrong way round is why an outlined Cancel next to a filled Save looked shorter
+   * than it measured — both were 26px, but a button darker than its own panel reads as a hole
+   * rather than as a block, and a hole next to a solid fill does not look like the same size.
+   */
+  --control-bg: #2a2d32;
   --control-bg-hover: var(--selected);
   --control-bg-active: var(--border);
   --control-border: var(--border);
+  --field-bg: var(--bg);
 
   /* One focus style for the whole app — see the note on .search:focus for why it is not an
    * outline. Controls and fields share it so focus looks the same wherever it lands. */
@@ -102,6 +111,7 @@ body.resizing-active { user-select: none; }
  * destroys something). Both are deliberately class names rather than separate rules per
  * container, so `.btn.primary` in a banner and `.primary` in a modal footer are the same button.
  */
+.composer-send,
 .btn,
 .icon-button,
 .modal-actions button,
@@ -142,6 +152,7 @@ body.resizing-active { user-select: none; }
 .modal-actions button:active:not(:disabled),
 .resume-bar button:active:not(:disabled) { background: var(--control-bg-active); }
 
+.composer-send:disabled,
 .btn:disabled,
 .icon-button:disabled,
 .modal-actions button:disabled,
@@ -150,6 +161,7 @@ body.resizing-active { user-select: none; }
 
 /* Filled variants. Both read as "this is the action", so they carry the accent's ink colour
  * rather than the app's text colour. */
+.composer-send,
 .btn.primary,
 .modal-actions .primary,
 .resume-bar .primary,
@@ -159,6 +171,7 @@ body.resizing-active { user-select: none; }
   color: var(--accent-contrast);
   font-weight: 600;
 }
+.composer-send:hover:not(:disabled),
 .btn.primary:hover:not(:disabled),
 .modal-actions .primary:hover:not(:disabled),
 .resume-bar .primary:hover:not(:disabled),
@@ -223,7 +236,8 @@ input[type="checkbox"] {
   place-content: center;
   border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
-  background: var(--control-bg);
+  /* A checkbox is a field, not a button: it is filled in, so it belongs at the field's depth. */
+  background: var(--field-bg);
   cursor: pointer;
   transition: background-color 0.1s, border-color 0.1s;
 }
@@ -343,7 +357,7 @@ button:not([class]) {
   padding: 0 8px;
   border-radius: var(--radius);
   border: 1px solid var(--control-border);
-  background: var(--control-bg);
+  background: var(--field-bg);
   color: var(--text);
 }
 /*
@@ -737,7 +751,7 @@ button:not([class]) {
   font: inherit;
   font-weight: 600;
   color: var(--text);
-  background: var(--bg);
+  background: var(--field-bg);
   border: 1px solid var(--accent);
   border-radius: 4px;
   padding: 1px 6px;
@@ -1196,9 +1210,9 @@ button:not([class]) {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 3px 5px;
-  background: var(--bg);
+  background: var(--field-bg);
   color: var(--text);
   font: inherit;
 }
@@ -1541,6 +1555,9 @@ button:not([class]) {
 .settings-help { color: var(--muted); line-height: 1.5; font-size: 12px; }
 
 .settings-inline { display: flex; align-items: center; gap: 8px; }
+/* The check's answer sits beside the button that asked for it, and wraps ahead of it rather than
+   pushing it off the row. */
+.settings-check { margin-left: auto; justify-content: flex-end; flex-wrap: wrap; }
 .settings-number { width: 80px; }
 .settings-presets { display: flex; gap: 6px; }
 .settings-preset { color: var(--muted); }
@@ -1607,7 +1624,7 @@ button:not([class]) {
   min-height: 58px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--bg);
+  background: var(--field-bg);
   color: var(--text);
   padding: 8px 10px;
   font: inherit;
@@ -1628,17 +1645,9 @@ button:not([class]) {
   font-size: 12px;
 }
 .composer-hint { margin-left: auto; font-size: 12px; }
-.composer-send {
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-weight: 600;
-  border-radius: 6px;
-  padding: 5px 14px;
-  cursor: pointer;
-  font: inherit;
-}
-.composer-send:disabled { opacity: 0.5; cursor: default; }
+/* Sizing, colour and disabled state come from the control layer: `.composer-send` is listed
+   there beside `.btn.primary`, and only its wider padding is its own. */
+.composer-send { padding: 0 14px; }
 
 /* An image path we could not turn into a picture, shown as the line it actually was. */
 .composer-path-fallback {
@@ -1827,9 +1836,9 @@ button:not([class]) {
   min-height: 140px;
   resize: vertical;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--field-bg);
   color: var(--text);
   font: inherit;
   line-height: 1.5;

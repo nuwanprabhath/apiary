@@ -157,6 +157,36 @@ test('the Updates settings show the version, the last check, and why installs ar
   await expect(row).toContainText('Unsigned build')
 })
 
+test('"Check now" answers inside the dialog, where the question was asked', async () => {
+  // The banner the pushed status feeds is drawn behind the settings dialog's backdrop, so an
+  // answer that only ever appeared there was invisible to whoever pressed the button.
+  await launch({ fakeUpdate: '9.9.9' })
+  await openUpdateSettings()
+
+  await h.page.getByTestId('update-check-now').click()
+  await expect(h.page.getByTestId('update-check-result')).toContainText('9.9.9 is available')
+})
+
+test('a check that finds nothing says so, rather than leaving the button silent', async () => {
+  // A fixture release older than what is running: the feed answers, and the answer is "no".
+  await launch({ fakeUpdate: '0.0.1' })
+  await openUpdateSettings()
+
+  await h.page.getByTestId('update-check-now').click()
+  await expect(h.page.getByTestId('update-check-result')).toContainText('is the latest version')
+})
+
+test('a build with no updater does not offer a check it cannot run', async () => {
+  // Running from source — the case that reported "pressing Check now does nothing". There is no
+  // updater at all, so the press was swallowed in the main process and nothing was ever pushed
+  // back, which is indistinguishable from a broken button.
+  await launch()
+  await openUpdateSettings()
+
+  await expect(h.page.getByTestId('update-check-now')).toBeDisabled()
+  await expect(h.page.getByTestId('update-version-row')).toContainText('updates apply to installed builds only')
+})
+
 test('turning automatic checks off hides the interval, and the choice survives a reopen', async () => {
   await launch({ fakeUpdate: '9.9.9' })
   await openUpdateSettings()

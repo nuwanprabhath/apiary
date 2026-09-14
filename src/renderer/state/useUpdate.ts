@@ -19,19 +19,3 @@ export function useUpdate(): UpdateStatusPayload | null {
 
   return status
 }
-
-/** A version string for display: `1.9.0` reads better than `v1.9.0` beside a label saying Version. */
-export function formatVersion(version: string): string {
-  return version.replace(/^v/, '')
-}
-
-/** "Never", or a short local date-time — the useful form for "last checked". */
-export function formatChecked(at: number | null): string {
-  if (at === null) return 'Never'
-  const date = new Date(at)
-  const today = new Date()
-  const sameDay = date.toDateString() === today.toDateString()
-  return sameDay
-    ? `Today at ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-    : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
-}

@@ -1,6 +1,6 @@
 import type { UpdateStatusPayload } from '@shared/api'
 import { CloseIcon } from './icons'
-import { formatVersion } from '../state/useUpdate'
+import { formatVersion } from '../state/updateSummary'
 
 /**
  * The strip that appears when there is an update, and at no other time.
