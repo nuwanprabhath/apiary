@@ -155,3 +155,45 @@ export function NoteIcon({ className, filled = false }: IconProps & { filled?: b
     </svg>
   )
 }
+
+/** A tick, used to acknowledge a copy without changing the button's size. */
+export function CheckIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M3.5 8.5l3 3 6-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** GitLab's merge-request glyph: a branch line merging back into the trunk. */
+export function MergeRequestIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="4" cy="4" r="1.8" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="4" cy="12.5" r="1.8" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="12" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M4 5.8v4.9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M5.8 4h1.4A3 3 0 0 1 10.2 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** A generic external link, for plugin buttons that only open something. */
+export function LinkIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M6.5 9.5l3-3M7 4.5h3.5V8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M11.5 9.5v2.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** Something a plugin needs the user to know about before its button can work. */
+export function AlertIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M8 3l5.5 9.5h-11z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M8 6.8v2.4M8 11h.01" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+}

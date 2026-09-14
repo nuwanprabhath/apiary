@@ -50,15 +50,34 @@ export function SessionRow({
   /** The row's rectangle while the hover card is up; null when it is not. */
   const [cardAnchor, setCardAnchor] = useState<DOMRect | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
-  const timer = useRef<number | null>(null)
+  const openTimer = useRef<number | null>(null)
+  const closeTimer = useRef<number | null>(null)
 
-  const cancelHover = (): void => {
-    if (timer.current !== null) { window.clearTimeout(timer.current); timer.current = null }
-    setCardAnchor(null)
+  const clearTimers = (): void => {
+    if (openTimer.current !== null) { window.clearTimeout(openTimer.current); openTimer.current = null }
+    if (closeTimer.current !== null) { window.clearTimeout(closeTimer.current); closeTimer.current = null }
   }
-  // Any click hides it: the card is for deciding which row you want, and it has no business
-  // sitting over the session you just opened.
-  useEffect(() => cancelHover, [])
+  const hideNow = (): void => { clearTimers(); setCardAnchor(null) }
+
+  /**
+   * The row and the card are one hover region.
+   *
+   * The card has a button on it now, so reaching it means leaving the row and crossing the gap
+   * between them — which, closed on the row's `mouseleave` alone, would shut the card on the way
+   * to the very thing it exists to offer. Leaving either side starts a short grace period that
+   * entering the other cancels.
+   */
+  const GRACE_MS = 160
+  const keepOpen = (): void => {
+    if (closeTimer.current !== null) { window.clearTimeout(closeTimer.current); closeTimer.current = null }
+  }
+  const scheduleClose = (): void => {
+    if (openTimer.current !== null) { window.clearTimeout(openTimer.current); openTimer.current = null }
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
+    closeTimer.current = window.setTimeout(() => { setCardAnchor(null) }, GRACE_MS)
+  }
+
+  useEffect(() => clearTimers, [])
 
   return (
     <div
@@ -67,13 +86,16 @@ export function SessionRow({
       data-session-id={session.sessionId}
       ref={wrapRef}
       onMouseEnter={() => {
-        timer.current = window.setTimeout(() => {
+        keepOpen()
+        openTimer.current = window.setTimeout(() => {
           const rect = wrapRef.current?.getBoundingClientRect()
           if (rect !== undefined) setCardAnchor(rect)
         }, HOVER_DELAY_MS)
       }}
-      onMouseLeave={cancelHover}
-      onMouseDown={cancelHover}
+      onMouseLeave={scheduleClose}
+      // Any click hides it: the card is for deciding which row you want, and it has no business
+      // sitting over the session you just opened.
+      onMouseDown={hideNow}
     >
       {cardAnchor !== null && (
         <HoverCard
@@ -84,6 +106,8 @@ export function SessionRow({
           note={session.note}
           lastActive={session.lastActiveAtMs === null ? null : fullTime(session.lastActiveAtMs)}
           missing={!session.cwdExists}
+          onPointerEnter={keepOpen}
+          onPointerLeave={scheduleClose}
         />
       )}
       <button

@@ -15,6 +15,8 @@ export interface SpawnOptions {
    * `whenQuiet()`.
    */
   tui?: boolean
+  /** Extra environment for this child, merged over the inherited environment. */
+  env?: Record<string, string>
 }
 
 type DataHandler = (id: string, data: string) => void
@@ -80,7 +82,7 @@ export class PtyManager {
       cwd: opts.cwd,
       cols: opts.cols ?? 80,
       rows: opts.rows ?? 24,
-      env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
+      env: { ...process.env, TERM: 'xterm-256color', ...opts.env } as Record<string, string>,
     })
 
     child.onData((data) => {

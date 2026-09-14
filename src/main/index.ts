@@ -275,6 +275,18 @@ void app.whenReady().then(async () => {
     autoImportAll: settings.autoImportAll,
     searchChatContent: settings.searchChatContent,
     searchSessionNotes: settings.searchSessionNotes,
+    promptPath: {
+      enabled: settings.terminalShortenPath,
+      segments: settings.terminalPathSegments,
+    },
+    plugins: settings.plugins,
+    // Test-only, like APIARY_FAKE_LIVE: points the merge-request plugin at a stand-in `glab`.
+    glabPath: process.env.APIARY_GLAB_PATH === '' ? undefined : process.env.APIARY_GLAB_PATH,
+    onPluginsChanged: () => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send(CHANNELS.pluginsChanged)
+      }
+    },
     onIndexUpdated: () => {
       for (const win of BrowserWindow.getAllWindows()) {
         if (!win.isDestroyed()) win.webContents.send(CHANNELS.treeChanged)

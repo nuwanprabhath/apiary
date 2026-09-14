@@ -12,6 +12,11 @@ export interface ToolbarButtonSpec {
   disabled?: boolean
   /** Set when something opens from this button and needs its box to position against. */
   buttonRef?: RefObject<HTMLButtonElement>
+  /**
+   * Colours a plugin's button: `suggest` for an offer (create a merge request), `problem` for
+   * something needing attention. Plain buttons leave it unset.
+   */
+  tone?: 'normal' | 'suggest' | 'problem'
 }
 
 interface Props {
@@ -43,6 +48,7 @@ function ToolbarButton(spec: ToolbarButtonSpec): JSX.Element {
       className="toolbar-button"
       data-testid={spec.testId}
       data-active={spec.active ?? false}
+      data-tone={spec.tone ?? 'normal'}
       title={spec.title}
       aria-label={spec.title}
       disabled={spec.disabled}

@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { CopyIcon, CheckIcon } from './icons'
 import { createPortal } from 'react-dom'
 
 /**
@@ -13,12 +14,23 @@ import { createPortal } from 'react-dom'
  *
  * Positioned `fixed` and portalled to the body: the sidebar is a scroll container, and a card
  * inside it is clipped by its edge exactly where the card needs to overhang.
+ *
+ * It sits *below* the row rather than beside it. Beside meant the card covered the sessions either
+ * side of the one being pointed at, which are exactly the rows someone is comparing it against; a
+ * card underneath pushes into the space below the pointer, which is where the eye already is.
+ *
+ * It is also interactive — it has a button on it — so it stays up while the pointer is on it. The
+ * gap between the row and the card is crossed without the card closing, because the two are
+ * treated as one hover region by the caller (see SessionRow).
  */
 export const HOVER_DELAY_MS = 350
 
 interface Props {
   /** The anchor's rectangle, in viewport coordinates. */
   anchor: DOMRect
+  /** Keeps the card open while the pointer is on it, and closes it on the way out. */
+  onPointerEnter: () => void
+  onPointerLeave: () => void
   title: string
   path: string
   branch: string | null
@@ -33,8 +45,16 @@ const GAP = 8
 const MARGIN = 8
 
 export function HoverCard(
-  { anchor, title, path, branch, lastActive, note, missing }: Props,
+  { anchor, title, path, branch, lastActive, note, missing, onPointerEnter, onPointerLeave }: Props,
 ): JSX.Element {
+  const [copied, setCopied] = useState(false)
+  // The tick is an acknowledgement, not a state worth keeping: it goes back to the copy glyph so
+  // the button does not claim a copy made a minute ago is the one just now.
+  useEffect(() => {
+    if (!copied) return
+    const timer = window.setTimeout(() => { setCopied(false) }, 1200)
+    return () => { window.clearTimeout(timer) }
+  }, [copied])
   const ref = useRef<HTMLDivElement | null>(null)
   // Placed once its own size is known: a card is positioned relative to its width, which cannot
   // be measured before it renders. It starts offscreen rather than at 0,0 so the first paint is
@@ -45,16 +65,15 @@ export function HoverCard(
     const el = ref.current
     if (el === null) return
     const box = el.getBoundingClientRect()
-    // Beside the row by preference, flipping to its left when the window has no room on the
-    // right — a card half off the screen says less than no card at all.
-    const right = anchor.right + GAP
-    const left = right + box.width + MARGIN <= window.innerWidth
-      ? right
-      : Math.max(MARGIN, anchor.left - GAP - box.width)
-    const top = Math.min(
-      Math.max(MARGIN, anchor.top),
-      Math.max(MARGIN, window.innerHeight - box.height - MARGIN),
-    )
+    // Below the row, flipping above it only when the bottom of the window leaves no room — a card
+    // that runs off the bottom edge is one whose last lines cannot be read.
+    const below = anchor.bottom + GAP
+    const top = below + box.height + MARGIN <= window.innerHeight
+      ? below
+      : Math.max(MARGIN, anchor.top - GAP - box.height)
+    // Left-aligned with the row, so the card and the row it belongs to share an edge; pulled back
+    // only as far as the window forces.
+    const left = Math.max(MARGIN, Math.min(anchor.left, window.innerWidth - box.width - MARGIN))
     setPos({ left, top })
   }, [anchor])
 
@@ -67,6 +86,12 @@ export function HoverCard(
       style={pos === null
         ? { visibility: 'hidden', left: 0, top: 0 }
         : { left: pos.left, top: pos.top }}
+      onMouseEnter={onPointerEnter}
+      onMouseLeave={onPointerLeave}
+      // A portal moves the card in the DOM but not in the React tree, so its events still bubble
+      // to the row that rendered it — including to the row's "hide when clicked" handler, which
+      // unmounted the card from under the pointer before the click on this button could land.
+      onMouseDown={(e) => { e.stopPropagation() }}
     >
       <div className="hover-card-title">{title}</div>
       {note !== null && note !== undefined && note !== '' && (
@@ -80,6 +105,17 @@ export function HoverCard(
         <div className="hover-card-row">
           <span className="hover-card-label">Branch</span>
           <span className="hover-card-branch">{branch}</span>
+          <button
+            className="hover-card-copy"
+            data-testid="hover-card-copy-branch"
+            title={copied ? 'Copied' : 'Copy branch name'}
+            aria-label={`Copy branch name ${branch}`}
+            onClick={() => {
+              void window.apiary.copyToClipboard(branch).then(() => { setCopied(true) })
+            }}
+          >
+            {copied ? <CheckIcon /> : <CopyIcon />}
+          </button>
         </div>
       )}
       {lastActive !== null && (

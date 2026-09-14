@@ -4,6 +4,37 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.11.0] - 2026-09-14
+
+### Added
+
+- **A merge-request button on the session bar.** When the branch you are on has a GitLab merge
+  request, the bar shows it by number (`!1255`) and clicking opens it in your browser. When it has
+  none, the button offers to create one and opens GitLab's own new-merge-request form with the
+  branch already chosen — the title, description and reviewers belong in GitLab, not in a button.
+  Merge requests are looked up with `glab`, GitLab's own CLI, so **Apiary never holds a token of
+  yours**: it uses the login `glab auth login` already made, including on self-hosted instances.
+  Without `glab` the "create one" half still works, since that needs nothing but the git remote.
+- **The bar takes plugins.** The merge-request button is the first thing on that bar Apiary itself
+  has no business knowing about, and it will not be the last, so the bar now takes contributions
+  instead of growing another hardcoded button. A plugin answers one question — given this folder
+  and this branch, what would you put on the bar? — and describes a button rather than returning
+  markup; what a click can do is a fixed list, checked in the main process. Plugins are listed and
+  switched on and off in a new Plugins section in Settings.
+- **A setting to shorten the path in terminal prompts.** A worktree path takes most of a narrow
+  terminal's first line before anything is typed, and the part that identifies it is the end.
+  Apiary can ask the shell to keep only the last few folders, using bash's own `PROMPT_DIRTRIM`, so
+  the rest of your prompt — its colours, its git segment, its shape — is untouched. Applies to
+  terminals opened from then on. zsh has no equivalent variable and is left alone, which the
+  setting says.
+- **A copy button beside the branch in the sidebar hover card.**
+
+### Changed
+
+- **The sidebar hover card appears below the row instead of beside it.** Beside meant it covered
+  the sessions either side of the one being pointed at — exactly the rows being compared against
+  it. It also stays up while the pointer moves onto it, so the copy button can actually be reached.
+
 ## [1.10.2] - 2026-09-12
 
 ### Fixed

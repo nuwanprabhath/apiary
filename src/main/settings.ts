@@ -33,6 +33,17 @@ export interface AppSettings {
    */
   searchSessionNotes: boolean
   /**
+   * Trim the working directory in the prompt of shells Apiary starts, to the last
+   * `terminalPathSegments` folders. See pty/promptPath.ts — bash only, by design.
+   */
+  terminalShortenPath: boolean
+  terminalPathSegments: number
+  /**
+   * Which session-bar plugins are on, by plugin id. A map rather than a field per plugin so
+   * adding one does not mean touching the settings shape — which is the point of plugins.
+   */
+  plugins: Record<string, boolean>
+  /**
    * Update preferences. Checking is on by default — an app that can update itself and doesn't
    * mention it is how people end up months behind — but nothing is ever downloaded or installed
    * without the user saying so, which is what `updateAutoDownload: false` means.
@@ -56,6 +67,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   revealActiveInSidebar: true,
   searchChatContent: true,
   searchSessionNotes: true,
+  terminalShortenPath: false,
+  terminalPathSegments: 2,
+  plugins: {},
   updateAutomaticChecks: true,
   updateCheckIntervalHours: 6,
   updateAutoDownload: false,

@@ -53,6 +53,10 @@ this should stay fixed; if you see that error anywhere else, check the variable 
 
 ## Terminals and PTYs
 
+- Shells can be spawned with extra environment (`SpawnOptions.env`); `pty/promptPath.ts` uses it to
+  set `PROMPT_DIRTRIM`, which is bash's own way to shorten `\w` — chosen over writing a `PS1`
+  because overwriting a prompt someone configured themselves, from a checkbox, is not a trade
+  anyone would take. zsh has no equivalent and is deliberately left alone.
 - Sessions are resumed as `$SHELL -l -c 'exec claude --resume <uuid>'`. The login shell is what puts
   nvm/homebrew installs of `claude` on `PATH`.
 - **Writing to a PTY is not the same as a program receiving it.** Until a full-screen program starts
@@ -102,6 +106,31 @@ point would.
 - **Tests are written as statements about behaviour**, not about implementation: read a few existing
   names before adding one.
 - TypeScript is strict; `npm run typecheck` covers both tsconfigs and both must pass.
+
+## Session-bar plugins
+
+`src/main/plugins/` lets things contribute a button to the bar under a session without the bar
+knowing what they are. A plugin answers one question — given this folder and this branch, what
+would you put on the bar? — and the answer is *data*: an icon chosen from a fixed set the renderer
+knows how to draw, a label, and an action from a closed list (today, "open this URL"). No markup
+crosses the boundary, so a plugin cannot put arbitrary content in the window, and the URL is
+re-checked in the main process before `shell.openExternal` sees it.
+
+Two things the registry guarantees, both learned from what the bar is for:
+
+- **A plugin that throws contributes nothing and disturbs nothing else.** The bar carries git state
+  that matters; an integration failing to reach its API must not take that with it.
+- **A plugin is never on the render path.** The bar redraws on every git-status poll. Results are
+  cached per folder+branch and refreshed in the background, with a stale answer served meanwhile,
+  so a network call cannot decide how fast switching sessions feels.
+
+The GitLab plugin shells out to **`glab`** rather than calling the API. Talking to the API means
+holding a token, which means storing a credential, offering a field to paste it into, keeping it
+out of settings backups, and explaining what scope it needs — all of which `glab` has already
+solved, including for self-hosted instances. The consequence worth remembering: Apiary never sees a
+GitLab credential, and the feature's setup instruction is `glab auth login`. The half that needs no
+API (offering to create an MR) is built from the git remote alone, so it survives `glab` being
+absent.
 
 ## Settings arriving over IPC
 

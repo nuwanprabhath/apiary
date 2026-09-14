@@ -101,6 +101,16 @@ export async function launchApiary(
      * startup scan, and a worktree added afterwards is not picked up by Refresh.
      */
     secondWorktree?: boolean
+    /**
+     * Gives the fixture repo a GitLab `origin`, so the merge-request plugin has something to work
+     * from. Opt-in: the git toolbar specs rely on repo-c having no remote of its own.
+     */
+    gitlabRemote?: boolean
+    /** A stand-in `glab` for the merge-request plugin (see scripts/fixtures/fake-glab.sh). */
+    glabPath?: string
+    /** Makes the stand-in `glab` report no merge requests, or fail outright. */
+    glabEmpty?: boolean
+    glabFails?: boolean
     fakeLiveSessionId?: string
     /**
      * Pretend a release of this version exists, so the update banner can be driven without a
@@ -124,6 +134,9 @@ export async function launchApiary(
   const workdirB = join(home, 'work-b')
   mkdirSync(workdirB)
   const { repoRoot, worktreeDir } = makeRepoWithWorktree(home)
+  if (opts.gitlabRemote === true) {
+    git(repoRoot, 'remote', 'add', 'origin', 'git@gitlab.com:ternandsparrow/paratoo-fdcp.git')
+  }
   let worktreeDirB: string | null = null
   if (opts.secondWorktree === true) {
     worktreeDirB = join(home, 'repo-c-wt2')
@@ -203,6 +216,9 @@ export async function launchApiary(
       APIARY_DB_PATH: join(home, 'apiary.db'),
       APIARY_FAKE_LIVE: opts.fakeLiveSessionId ?? '',
       APIARY_FAKE_UPDATE: opts.fakeUpdate ?? '',
+      APIARY_GLAB_PATH: opts.glabPath ?? '',
+      APIARY_FAKE_GLAB_EMPTY: opts.glabEmpty === true ? '1' : '',
+      APIARY_FAKE_GLAB_FAIL: opts.glabFails === true ? '1' : '',
       APIARY_FAKE_UPDATE_MODE: opts.updateMode ?? 'assisted',
     }),
   })

@@ -27,6 +27,12 @@ export interface AppSettingsPayload {
   searchChatContent: boolean
   /** Search the notes people write on sessions. */
   searchSessionNotes: boolean
+  /** Trim the path in the prompt of shells Apiary starts. */
+  terminalShortenPath: boolean
+  /** How many trailing folders the trimmed prompt keeps. */
+  terminalPathSegments: number
+  /** Which session-bar plugins are on, by plugin id. */
+  plugins: Record<string, boolean>
   /** Check GitHub for a newer release on a schedule. */
   updateAutomaticChecks: boolean
   /** Hours between those checks. */
@@ -51,6 +57,17 @@ export interface UpdateStatusPayload {
   error: string | null
   lastCheckedAt: number | null
   skippedVersion: string | null
+}
+
+/** A button a plugin has contributed to a session's bar. Mirrors main/plugins/types.ts. */
+export interface PluginBarItemPayload {
+  pluginId: string
+  id: string
+  icon: 'merge-request' | 'link' | 'plus' | 'alert'
+  label: string
+  title: string
+  action: { kind: 'open-url'; url: string } | { kind: 'none' }
+  tone?: 'normal' | 'suggest' | 'problem'
 }
 
 export const CHANNELS = {
@@ -101,6 +118,11 @@ export const CHANNELS = {
   updateSkip: 'apiary:update-skip',
   updateDismiss: 'apiary:update-dismiss',
   updateChanged: 'apiary:update-changed',
+  pluginBarItems: 'apiary:plugin-bar-items',
+  pluginBarRefresh: 'apiary:plugin-bar-refresh',
+  pluginRunAction: 'apiary:plugin-run-action',
+  pluginList: 'apiary:plugin-list',
+  pluginsChanged: 'apiary:plugins-changed',
   setSessionNote: 'apiary:set-session-note',
   sessionNote: 'apiary:session-note',
 } as const
@@ -153,6 +175,16 @@ export interface ApiaryApi {
   searchRebuild(): Promise<void>
   /** How many sessions and notes are currently indexed. */
   searchStatus(): Promise<{ indexed: number; notes: number }>
+  /** Buttons the session-bar plugins contribute for this session. Answers from cache. */
+  pluginBarItems(key: string, isPtyId: boolean): Promise<PluginBarItemPayload[]>
+  /** Forces the plugins to look again, ignoring the cache. */
+  pluginBarRefresh(key: string, isPtyId: boolean): Promise<PluginBarItemPayload[]>
+  /** Performs a bar item's action — opening its URL, after the main process has checked it. */
+  pluginRunAction(item: PluginBarItemPayload): Promise<void>
+  /** The plugins that exist, for the Settings list. */
+  pluginList(): Promise<{ id: string; name: string; enabled: boolean }[]>
+  /** Fires when a background plugin lookup changed what the bar should show. */
+  onPluginsChanged(cb: () => void): () => void
   /** Saves the user's note for a session; an empty string removes it. */
   setSessionNote(sessionId: string, note: string): Promise<void>
   /** The note currently saved for a session, or '' when there is none. */

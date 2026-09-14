@@ -1,7 +1,12 @@
-import { ipcMain, clipboard, BrowserWindow, app } from 'electron'
+import { ipcMain, clipboard, BrowserWindow, app, shell } from 'electron'
 import { watch } from 'chokidar'
 import { projectsDir } from './config'
-import { CHANNELS, type AppSettingsPayload, type UpdateStatusPayload } from '@shared/api'
+import {
+  CHANNELS,
+  type AppSettingsPayload,
+  type UpdateStatusPayload,
+  type PluginBarItemPayload,
+} from '@shared/api'
 import type { AppService } from './appService'
 import type { AppSettings } from './settings'
 import { loadSettings, saveSettings } from './settings'
@@ -78,6 +83,9 @@ export function registerIpc(
       revealActiveInSidebar: settings.revealActiveInSidebar,
       searchChatContent: settings.searchChatContent,
       searchSessionNotes: settings.searchSessionNotes,
+      terminalShortenPath: settings.terminalShortenPath,
+      terminalPathSegments: settings.terminalPathSegments,
+      plugins: Object.fromEntries(service.listPlugins().map((p) => [p.id, p.enabled])),
       updateAutomaticChecks: settings.updateAutomaticChecks,
       updateCheckIntervalHours: settings.updateCheckIntervalHours,
       updateAutoDownload: settings.updateAutoDownload,
@@ -109,6 +117,9 @@ export function registerIpc(
       revealActiveInSidebar: keep(next.revealActiveInSidebar, current.revealActiveInSidebar),
       searchChatContent: keep(next.searchChatContent, current.searchChatContent),
       searchSessionNotes: keep(next.searchSessionNotes, current.searchSessionNotes),
+      terminalShortenPath: keep(next.terminalShortenPath, current.terminalShortenPath),
+      terminalPathSegments: keep(next.terminalPathSegments, current.terminalPathSegments),
+      plugins: keep(next.plugins, current.plugins),
       updateAutomaticChecks: keep(next.updateAutomaticChecks, current.updateAutomaticChecks),
       updateCheckIntervalHours: keep(next.updateCheckIntervalHours, current.updateCheckIntervalHours),
       updateAutoDownload: keep(next.updateAutoDownload, current.updateAutoDownload),
@@ -122,6 +133,16 @@ export function registerIpc(
     service.setAutoImportAll(merged.autoImportAll)
     service.setSearchChatContent(merged.searchChatContent)
     service.setSearchSessionNotes(merged.searchSessionNotes)
+    for (const [id, enabled] of Object.entries(merged.plugins)) {
+      service.setPluginEnabled(id, enabled)
+    }
+    // Switching a plugin off changes what every open bar should show, and nothing else would tell
+    // the windows: the bar only re-reads on a branch change or on this signal.
+    send(CHANNELS.pluginsChanged)
+    service.setPromptPath({
+      enabled: merged.terminalShortenPath,
+      segments: merged.terminalPathSegments,
+    })
     // Switching content search on should not mean waiting until the next rescan to be able to use
     // it, so the first pass starts now; it is a background chore either way.
     if (merged.searchChatContent) void service.updateSearchIndex()
@@ -190,6 +211,32 @@ export function registerIpc(
     indexed: service.searchIndexCount(),
     notes: service.searchNoteCount(),
   }))
+  ipcMain.handle(CHANNELS.pluginBarItems, (_e, key: string, isPtyId: boolean) =>
+    service.pluginBarItems(key, isPtyId),
+  )
+  ipcMain.handle(CHANNELS.pluginBarRefresh, (_e, key: string, isPtyId: boolean) =>
+    service.refreshPluginBar(key, isPtyId),
+  )
+  ipcMain.handle(CHANNELS.pluginList, () => service.listPlugins())
+  ipcMain.handle(CHANNELS.pluginRunAction, async (_e, item: PluginBarItemPayload) => {
+    if (item.action.kind !== 'open-url') return
+    /*
+     * Checked here rather than trusted from the renderer.
+     *
+     * The URL originates in a plugin, but it arrives back over IPC, and `shell.openExternal` will
+     * happily hand the OS anything — `file:`, and on some platforms schemes that run things. Only
+     * http(s) is ever opened, so the worst a compromised renderer can do with this channel is open
+     * a web page.
+     */
+    let url: URL
+    try {
+      url = new URL(item.action.url)
+    } catch {
+      return
+    }
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return
+    await shell.openExternal(url.toString())
+  })
   ipcMain.handle(CHANNELS.setSessionNote, async (_e, id: string, note: string) => {
     await service.setSessionNote(id, note)
     // The note shows in the sidebar's hover card and changes what searches match, so every window

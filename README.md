@@ -52,6 +52,12 @@ resume it in an embedded terminal in the correct working directory.
 - **Remove sessions from view** — hide a session you don't need without ever
   touching the underlying transcript file on disk; it stays importable again
   later if you change your mind.
+- **Merge-request button** — the session bar shows the GitLab MR for the branch you are on by
+  number, and opens it in a click; with no MR yet it opens GitLab's new-MR form with the branch
+  filled in. Uses `glab`, so Apiary never stores a token. Part of a small plugin system, so the
+  bar can grow other integrations the same way.
+- **Shorter terminal prompts** — optionally trim the working directory in the prompt of shells
+  Apiary starts, so a deep worktree path stops eating the first line.
 - **Notes on sessions** — jot down what you were doing (the ticket, the merge request, what you
   had ruled out) from the session's row. Notes show when you hover it, and are searched from the
   search box, so a session is findable months later by the MR number you remember. Can be switched

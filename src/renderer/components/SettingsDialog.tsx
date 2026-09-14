@@ -18,6 +18,8 @@ const SECTIONS: Section[] = [
   { id: 'sessions', label: 'Sessions', blurb: 'How sessions get into Apiary, and how often it looks for new ones.' },
   { id: 'search', label: 'Search', blurb: 'What the search box looks at when you type in it.' },
   { id: 'sidebar', label: 'Sidebar', blurb: 'How the session list behaves while you work.' },
+  { id: 'terminal', label: 'Terminal', blurb: 'The shells Apiary starts for a session.' },
+  { id: 'plugins', label: 'Plugins', blurb: 'Extras that add a button to the bar under a session.' },
   { id: 'updates', label: 'Updates', blurb: 'How Apiary keeps itself up to date.' },
   { id: 'general', label: 'General', blurb: 'Where Apiary finds the tools it runs.' },
 ]
@@ -44,6 +46,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
   const update = useUpdate()
   /** Set while a check the user pressed for is running, so the button can say so. */
   const [checking, setChecking] = useState(false)
+  /** The plugins that exist, as the main process reports them. */
+  const [plugins, setPlugins] = useState<{ id: string; name: string; enabled: boolean }[]>([])
+  useEffect(() => {
+    void window.apiary.pluginList().then(setPlugins).catch(() => { setPlugins([]) })
+  }, [])
 
   const loadIndexStatus = (): void => {
     void window.apiary.searchStatus()
@@ -254,6 +261,96 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
                     {rebuilding ? 'Rebuilding…' : 'Rebuild index'}
                   </button>
                 </div>
+              </>
+            ) : section === 'terminal' ? (
+              <>
+                <p className="settings-blurb">{blurbOf('terminal')}</p>
+
+                <label className="settings-row">
+                  <input
+                    type="checkbox"
+                    data-testid="setting-terminal-shorten-path"
+                    checked={draft.terminalShortenPath}
+                    onChange={(e) => patch({ terminalShortenPath: e.target.checked })}
+                  />
+                  <span>
+                    <strong>Shorten the path in the prompt</strong>
+                    <span className="settings-help">
+                      A worktree path takes most of a narrow terminal&rsquo;s first line before you
+                      have typed anything, and the part that identifies it is the end. Apiary asks
+                      the shell to keep only the last few folders, leaving the rest of your prompt
+                      exactly as you have it.
+                    </span>
+                  </span>
+                </label>
+
+                {draft.terminalShortenPath && (
+                  <div className="settings-row settings-row-indent">
+                    <label className="settings-inline">
+                      <span>Keep the last</span>
+                      <input
+                        className="search settings-number"
+                        type="number"
+                        min={1}
+                        max={8}
+                        data-testid="setting-terminal-path-segments"
+                        value={draft.terminalPathSegments}
+                        onChange={(e) => {
+                          const n = Number(e.target.value)
+                          patch({
+                            terminalPathSegments:
+                              Number.isFinite(n) && n >= 1 ? Math.min(8, Math.round(n)) : 1,
+                          })
+                        }}
+                      />
+                      <span>folders</span>
+                    </label>
+                  </div>
+                )}
+
+                <div className="settings-row settings-row-indent">
+                  <span className="settings-help" data-testid="terminal-shorten-note">
+                    Applies to terminals opened from now on — a shell already running keeps the
+                    environment it started with. This uses bash&rsquo;s own <code>PROMPT_DIRTRIM</code>,
+                    so a zsh prompt is unaffected: zsh has no equivalent, and the alternative is
+                    overwriting a prompt you configured yourself.
+                  </span>
+                </div>
+              </>
+            ) : section === 'plugins' ? (
+              <>
+                <p className="settings-blurb">{blurbOf('plugins')}</p>
+
+                {plugins.map((plugin) => (
+                  <label className="settings-row" key={plugin.id}>
+                    <input
+                      type="checkbox"
+                      data-testid={`setting-plugin-${plugin.id}`}
+                      checked={draft.plugins[plugin.id] ?? plugin.enabled}
+                      onChange={(e) => patch({
+                        plugins: { ...draft.plugins, [plugin.id]: e.target.checked },
+                      })}
+                    />
+                    <span>
+                      <strong>{plugin.name}</strong>
+                      {plugin.id === 'gitlab-mr' && (
+                        <span className="settings-help">
+                          Shows the merge request for the branch you are on, with its number, and
+                          opens it when clicked. When there is none, it opens GitLab&rsquo;s
+                          new-merge-request form with the branch already filled in.
+                          <br />
+                          Merge requests are looked up with <code>glab</code>, GitLab&rsquo;s own
+                          command-line tool, so Apiary never holds a token of yours — it uses the
+                          login <code>glab auth login</code> already made, including on self-hosted
+                          instances. Without <code>glab</code> the button still offers to create
+                          one, which needs nothing but the git remote.
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                ))}
+
+                {plugins.length === 0 && <p className="empty">No plugins are installed.</p>}
               </>
             ) : section === 'updates' ? (
               <>

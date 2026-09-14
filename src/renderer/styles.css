@@ -1633,7 +1633,6 @@ body.resizing-active { user-select: none; }
   box-shadow: 0 6px 20px rgb(0 0 0 / 45%);
   font-size: 12px;
   line-height: 1.45;
-  pointer-events: none;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1643,7 +1642,7 @@ body.resizing-active { user-select: none; }
    segment, and that is precisely the end a single truncated line would drop. */
 .hover-card-path { color: var(--muted); word-break: break-all; }
 .hover-card-missing { color: var(--danger); }
-.hover-card-row { display: flex; gap: 6px; }
+.hover-card-row { display: flex; gap: 6px; align-items: center; }
 .hover-card-label { color: var(--muted); min-width: 72px; }
 .hover-card-branch { color: var(--accent); word-break: break-all; }
 
@@ -1693,3 +1692,29 @@ body.resizing-active { user-select: none; }
    a destructive action that is not the one being encouraged. */
 .modal-actions-spacer { flex: 1; }
 .note-dialog-remove { color: var(--danger); }
+
+/* The copy button on a hover card row. Sized to the text beside it rather than to a toolbar
+   button, so the row it sits in keeps its height. */
+.hover-card-copy {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.hover-card-copy:hover { background: var(--hover); color: var(--text); }
+.hover-card-copy svg { width: 12px; height: 12px; display: block; }
+
+/* A plugin's button when it is offering something that does not exist yet — "no MR, make one".
+   Outlined rather than filled: it is an invitation, and the bar's real state (branch, ahead,
+   behind) must stay the loudest thing on the row. */
+.toolbar-button[data-tone="suggest"] { color: var(--muted); }
+.toolbar-button[data-tone="suggest"]:hover { color: var(--accent); }
+.toolbar-button[data-tone="problem"] { color: var(--danger); }

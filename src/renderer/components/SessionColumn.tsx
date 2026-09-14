@@ -10,6 +10,7 @@ import { TerminalView } from './TerminalView'
 import { TerminalListPanel } from './TerminalListPanel'
 import { ResumeBar } from './ResumeBar'
 import { Toolbar, type ToolbarButtonSpec } from './Toolbar'
+import { usePluginBar, pluginButtons } from './pluginBar'
 import { BranchSwitcher } from './BranchSwitcher'
 import { Composer } from './Composer'
 import { ImageLightbox } from './ImageLightbox'
@@ -117,6 +118,9 @@ export function SessionColumn(props: Props): JSX.Element {
 
   const shellKey = activeKey !== null ? keyFor(activeKey) : null
   const shellKeyIsPtyId = activeKey !== null && isPtyKey(activeKey)
+  // Plugins are asked again when the branch changes, which is the event that decides which merge
+  // request (if any) belongs to what is in front of you.
+  const { items: pluginItems } = usePluginBar(shellKey, shellKeyIsPtyId, gitStatus?.branch ?? null)
 
   const loadGitStatus = useCallback(() => {
     if (shellKey === null) { setGitStatus(null); return }
@@ -549,6 +553,9 @@ export function SessionColumn(props: Props): JSX.Element {
                       },
                     ] as ToolbarButtonSpec[])
                   : []),
+                // Plugin buttons sit after git's, at the end of the left group: they are about the
+                // same checkout, and anything contributed belongs after what Apiary itself owns.
+                ...pluginButtons(pluginItems),
               ]}
               right={[
                 {

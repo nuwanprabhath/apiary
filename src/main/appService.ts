@@ -12,6 +12,10 @@ import { detectLiveSessions } from './live/liveSessionDetector'
 import { PtyManager } from './pty/ptyManager'
 import { SearchIndex } from './search/searchIndex'
 import { runIndexPass, type IndexableSession } from './search/indexer'
+import { promptPathEnv, type PromptPathOptions } from './pty/promptPath'
+import { PluginRegistry } from './plugins/registry'
+import { createGitLabMrPlugin } from './plugins/gitlabMr'
+import type { PluginBarItem } from './plugins/types'
 import { buildResumeCommand, buildNewSessionCommand } from './pty/resumeCommand'
 import * as branchOps from './git/branchOps'
 import type { ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo } from '@shared/types'
@@ -31,6 +35,13 @@ export interface AppServiceOptions {
   /** Whether search also looks inside conversations. */
   searchChatContent?: boolean
   searchSessionNotes?: boolean
+  promptPath?: PromptPathOptions
+  /** Which session-bar plugins are switched on, by plugin id. */
+  plugins?: Record<string, boolean>
+  /** Path to the `glab` executable, for anyone whose install is not on PATH (and for tests). */
+  glabPath?: string
+  /** Called when a plugin's contribution to a bar changed, so windows can re-read it. */
+  onPluginsChanged?: () => void
   /**
    * Called after an index pass that actually changed something. Indexing runs behind whatever the
    * user is doing, so a search typed while it was still running would otherwise sit on results
@@ -77,6 +88,8 @@ export class AppService {
   private searchIndex: SearchIndex | null = null
   private searchChatContent = true
   private searchSessionNotes = true
+  private promptPath: PromptPathOptions = { enabled: false, segments: 2 }
+  private readonly plugins: PluginRegistry
   /** Set while a pass is running, so refreshes cannot stack passes on top of each other. */
   private indexing = false
 
@@ -86,6 +99,67 @@ export class AppService {
     this.autoImportAll = options.autoImportAll ?? false
     this.searchChatContent = options.searchChatContent ?? true
     this.searchSessionNotes = options.searchSessionNotes ?? true
+    this.promptPath = options.promptPath ?? { enabled: false, segments: 2 }
+    this.plugins = new PluginRegistry({ onChanged: () => options.onPluginsChanged?.() })
+    this.plugins.register(
+      createGitLabMrPlugin({ glabPath: options.glabPath }),
+      options.plugins?.['gitlab-mr'] ?? true,
+    )
+  }
+
+  /**
+   * What the session-bar plugins would put on this session's bar.
+   *
+   * Synchronous from the cache — the bar redraws on every git-status poll, and a plugin that talks
+   * to the network cannot be on that path. A cold or stale answer refreshes in the background and
+   * announces itself through `onPluginsChanged`.
+   */
+  pluginBarItems(key: string, isPtyId: boolean): PluginBarItem[] {
+    const ctx = this.pluginContext(key, isPtyId)
+    return ctx === null ? [] : this.plugins.items(ctx)
+  }
+
+  /** Forces a lookup, for the bar's own refresh action. */
+  async refreshPluginBar(key: string, isPtyId: boolean): Promise<PluginBarItem[]> {
+    const ctx = this.pluginContext(key, isPtyId)
+    return ctx === null ? [] : this.plugins.refresh(ctx)
+  }
+
+  /**
+   * The folder and branch a plugin is asked about.
+   *
+   * Returns null rather than throwing for a session whose folder has gone: the bar is drawn for
+   * such a session too (it is how you find out the folder has gone), and it simply has no plugin
+   * buttons on it.
+   */
+  private pluginContext(key: string, isPtyId: boolean): { cwd: string; branch: string | null } | null {
+    let cwd: string
+    try {
+      cwd = this.resolveShellCwd(key, isPtyId)
+    } catch {
+      return null
+    }
+    return { cwd, branch: this.lastBranch.get(cwd) ?? null }
+  }
+
+  /** Which branch each folder was last seen on, filled in by `gitStatus`. */
+  private readonly lastBranch = new Map<string, string | null>()
+
+  setPluginEnabled(pluginId: string, enabled: boolean): void {
+    this.plugins.setEnabled(pluginId, enabled)
+  }
+
+  listPlugins(): { id: string; name: string; enabled: boolean }[] {
+    return this.plugins.list()
+  }
+
+  /**
+   * Changes how shells started from now on show their path. Shells already running keep the
+   * environment they were spawned with — a variable cannot be pushed into a live process — so the
+   * setting's help text says the change applies to new terminals.
+   */
+  setPromptPath(options: PromptPathOptions): void {
+    this.promptPath = options
   }
 
   /**
@@ -463,7 +537,12 @@ export class AppService {
    *  than one tab can exist per session; each is addressed by its own tabId. */
   async openShell(sessionId: string, tabId: string): Promise<void> {
     const cwd = this.resolveShellCwd(sessionId, false)
-    this.pty.spawn({ id: `shell:${sessionId}:${tabId}`, cwd, command: 'exec "$SHELL" -l' })
+    this.pty.spawn({
+      id: `shell:${sessionId}:${tabId}`,
+      cwd,
+      command: 'exec "$SHELL" -l',
+      env: promptPathEnv(this.promptPath),
+    })
   }
 
   /**
@@ -472,11 +551,21 @@ export class AppService {
    */
   async openShellForPty(ptyId: string, tabId: string): Promise<void> {
     const cwd = this.resolveShellCwd(ptyId, true)
-    this.pty.spawn({ id: `shell:${ptyId}:${tabId}`, cwd, command: 'exec "$SHELL" -l' })
+    this.pty.spawn({
+      id: `shell:${ptyId}:${tabId}`,
+      cwd,
+      command: 'exec "$SHELL" -l',
+      env: promptPathEnv(this.promptPath),
+    })
   }
 
   async gitStatus(key: string, isPtyId: boolean): Promise<GitStatus> {
-    return branchOps.status(this.resolveShellCwd(key, isPtyId))
+    const cwd = this.resolveShellCwd(key, isPtyId)
+    const status = await branchOps.status(cwd)
+    // Plugins are asked about a branch, and this is where the branch is already being read — so
+    // the bar's own polling is what keeps them current, with no second `git` call of their own.
+    this.lastBranch.set(cwd, status.branch)
+    return status
   }
 
   async gitListRefs(key: string, isPtyId: boolean): Promise<GitRefs> {

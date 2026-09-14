@@ -135,3 +135,34 @@ test('turning note search off stops notes matching, but keeps the notes themselv
   await sidebarSession(h.page, 'Fix CSV export bug').hover()
   await expect(h.page.getByTestId('hover-card-note')).toHaveText('nightly pipeline failure')
 })
+
+test('the hover card sits below the row, not over the sessions beside it', async () => {
+  // Beside the row meant the card covered the rows either side — which are exactly the sessions
+  // being compared against the one under the pointer.
+  const target = sidebarSession(h.page, 'Fix CSV export bug')
+  await target.hover()
+  const card = h.page.getByTestId('session-hover-card')
+  await expect(card).toBeVisible()
+
+  const rowBox = (await row('Fix CSV export bug').boundingBox())!
+  const cardBox = (await card.boundingBox())!
+  expect(cardBox.y).toBeGreaterThanOrEqual(rowBox.y + rowBox.height - 1)
+  // Left-aligned with the row it belongs to, so the two share an edge.
+  expect(Math.abs(cardBox.x - rowBox.x)).toBeLessThan(24)
+})
+
+test('the branch can be copied from the hover card, which stays up while reaching for it', async () => {
+  await sidebarSession(h.page, 'Worktree session').hover()
+  const card = h.page.getByTestId('session-hover-card')
+  await expect(card).toBeVisible()
+
+  // Moving onto the card crosses a gap: the card has to survive the trip, or the button it exists
+  // to offer can never be clicked.
+  const copy = card.getByTestId('hover-card-copy-branch')
+  await copy.hover()
+  await expect(card).toBeVisible()
+  await copy.click()
+
+  // Electron's clipboard, not the page's: the copy goes through the main process.
+  expect(await h.app.evaluate(({ clipboard }) => clipboard.readText())).toBe('feature/wt')
+})
