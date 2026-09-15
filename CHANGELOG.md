@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.13.2] - 2026-09-15
+
+### Changed
+
+- **The README screenshot's live session no longer looks half-loaded.** The stand-in `claude` used
+  to capture it printed a fixed block at whatever size the pty happened to start at, so its content
+  stopped halfway down the pane with the input box floating in the dead space — while the
+  transcript columns either side filled theirs. It now draws to the size of the pane and keeps its
+  composer on the last row, the way a real session does, and redraws when the pane is resized.
+
 ## [1.13.1] - 2026-09-15
 
 ### Fixed
