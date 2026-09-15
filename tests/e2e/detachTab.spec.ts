@@ -4,11 +4,16 @@ import { launchApiary, importAll, sidebarSession, type Harness } from './helpers
 /**
  * Moving a session into a window of its own.
  *
- * The drag gesture itself (tearing a tab off by dropping it on the desktop) cannot be driven from
- * Playwright — it needs a real OS drag ending outside every window, and `dropEffect` is decided by
- * the platform's drag manager. What *is* driven here is everything the gesture routes through:
- * the menu item, the window it opens, what that window shows, and the fact that the tab leaves the
- * window it came from. The drag handler is the same call with a pointer position.
+ * The drag gesture itself cannot be driven from Playwright: it needs a real OS drag, and where it
+ * ends is decided by the platform's drag manager. Everything the gesture routes through is driven
+ * here — the menu item, the window that opens, what it shows, the receiving window's side of a
+ * move, and the fact that the tab leaves the window it came from. Which window a release landed on
+ * is `pickWindowAt`, unit-tested separately.
+ *
+ * That split matters, because the first version of this feature shipped with the untested half
+ * broken: it assumed a drag started in one window would deliver `dragover`/`drop` to another, and
+ * an HTML5 drag started in one `BrowserWindow` delivers nothing to any other. Dropping a tab on a
+ * second window did nothing at all.
  */
 
 let h: Harness
@@ -57,4 +62,35 @@ test('opening the same session in two windows on purpose still opens it in both'
 
   await expect(second.getByTestId('session-tab')).toHaveCount(1)
   await expect(h.page.getByTestId('session-tab')).toHaveCount(1)
+})
+
+test('a tab dropped on another window arrives there showing its session', async () => {
+  // The receiving half of a cross-window move. The drop itself is worked out in the main process
+  // from where the pointer was released, so what lands here is a bare key — and the window has to
+  // turn that into an open, readable session rather than a tab with nothing behind it, which is
+  // exactly what it failed to do the first time.
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  const key = await sidebarSession(h.page, 'Fix CSV export bug')
+    .locator('xpath=ancestor-or-self::*[@data-session-id]')
+    .first()
+    .getAttribute('data-session-id')
+  expect(key).not.toBeNull()
+
+  const second = await h.newWindow()
+  await expect(second.getByTestId('session-tab')).toHaveCount(0)
+
+  // What the main process sends the window it decided the tab was dropped on. Addressed by the
+  // window number in its URL rather than by position: `getAllWindows()` answers newest-first, and
+  // a test that assumes otherwise silently sends the message straight back where it came from.
+  await h.app.evaluate(({ BrowserWindow }, tabKey) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      const isSecond = win.webContents.getURL().includes('w=2')
+      win.webContents.send(isSecond ? 'apiary:tab-adopt' : 'apiary:tab-claimed', tabKey)
+    }
+  }, key)
+
+  await expect(second.getByTestId('session-tab')).toHaveCount(1)
+  await expect(second.getByTestId('session-title')).toHaveText('Fix CSV export bug')
+  // And it is gone from the window it came from: a move, not a copy.
+  await expect(h.page.getByTestId('session-tab')).toHaveCount(0)
 })

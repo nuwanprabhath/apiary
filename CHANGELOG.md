@@ -4,6 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.13.1] - 2026-09-15
+
+### Fixed
+
+- **Dragging a tab onto another window did nothing.** The first version of the gesture assumed the
+  window being dropped on would receive the drag — and it does not: an HTML5 drag started in one
+  Electron window delivers no `dragenter`, `dragover` or `drop` to any other, so the receiving
+  window never hears about the gesture at all. Where a tab went is now decided in the main process
+  from where the pointer was released, measured against the windows' own bounds, and the receiving
+  window is told to take it. Released over the window it came from, nothing happens; released over
+  no window, it becomes a window of its own.
+
 ## [1.13.0] - 2026-09-15
 
 ### Added

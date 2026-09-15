@@ -148,11 +148,9 @@ export const CHANNELS = {
   pluginsChanged: 'apiary:plugins-changed',
   setSessionNote: 'apiary:set-session-note',
   sessionNote: 'apiary:session-note',
-  tabDragStart: 'apiary:tab-drag-start',
-  tabDragEnd: 'apiary:tab-drag-end',
-  tabDragCurrent: 'apiary:tab-drag-current',
+  tabDropped: 'apiary:tab-dropped',
   tabDetach: 'apiary:tab-detach',
-  tabClaim: 'apiary:tab-claim',
+  tabAdopt: 'apiary:tab-adopt',
   tabClaimed: 'apiary:tab-claimed',
 } as const
 
@@ -195,23 +193,22 @@ export interface ApiaryApi {
   forkSession(sessionId: string): Promise<NewSessionInfo>
 
   /**
-   * Moving a session tab between windows.
+   * A tab drag that ended without anything in this window taking it, at `at` in screen coordinates.
    *
-   * HTML5 drag-and-drop data does not cross a top-level window boundary — two Electron windows are
-   * two OS windows, and a drop in the second one arrives with an empty `dataTransfer`. So the key
-   * being dragged is parked in the main process for the duration of the drag, and whichever strip
-   * receives the drop asks for it. That is also what makes "dragged out of every window" a usable
-   * signal: the drag ends with nothing having claimed it, which is the gesture for tearing a tab
-   * off into a window of its own.
+   * The main process decides what that meant, from where the pointer was released: another window
+   * of ours (move it there), no window at all (tear it off into a new one), or this same window
+   * (nothing happened — the tab was released over the transcript or the sidebar).
+   *
+   * It has to be decided from geometry rather than from a drop event, because there is no drop
+   * event to decide it from: an HTML5 drag started in one `BrowserWindow` delivers no `dragover`
+   * or `drop` to another, so the receiving window never hears about the gesture at all. `dragend`
+   * in the *source* window is the only part of a cross-window drag that reaches any of our code.
    */
-  tabDragStart(key: string): void
-  tabDragEnd(): void
-  /** The key currently being dragged, for a strip whose own `dataTransfer` came up empty. */
-  tabDragCurrent(): Promise<string | null>
-  /** Opens `key` in a window of its own, at the pointer, and takes it out of every other window. */
+  tabDropped(key: string, at: { x: number; y: number }): Promise<void>
+  /** Opens `key` in a window of its own, at `at`, and takes it out of every other window. */
   tabDetach(key: string, at: { x: number; y: number }): Promise<void>
-  /** Claims `key` for this window, so whichever window had it lets go. */
-  tabClaim(key: string): Promise<void>
+  /** Fired when a tab dragged from another window has been dropped on this one. */
+  onTabAdopt(cb: (key: string) => void): () => void
   /** Fired when another window has taken a tab this one was showing. */
   onTabClaimed(cb: (key: string) => void): () => void
   /** Fired when `File > New Session in Folder...` starts a session via the native dialog. */

@@ -11,6 +11,7 @@ import type { AppService } from './appService'
 import type { AppSettings } from './settings'
 import { loadSettings, saveSettings } from './settings'
 import type { UpdateService } from './update/updateService'
+import { pickWindowAt } from './windowAtPoint'
 
 export function registerIpc(
   service: AppService,
@@ -302,19 +303,27 @@ export function registerIpc(
   )
   ipcMain.on(CHANNELS.ptyKill, (_e, id: string) => service.pty.kill(id))
   ipcMain.handle(CHANNELS.ptyReplay, (_e, id: string) => service.pty.replay(id))
+  ipcMain.handle(CHANNELS.ptyRunning, (_e, ids: string[]) => ids.filter((id) => service.pty.has(id)))
 
   /**
    * Moving a session tab between windows.
    *
-   * The key being dragged lives here, in the main process, for the length of the drag. It has to:
-   * two Electron windows are two OS windows, and HTML5 drag data does not cross that boundary —
-   * a drop in the second window arrives with an empty `dataTransfer` and no way to know what was
-   * dropped. Parking it here is what lets the receiving strip ask.
-   *
-   * It is a single value rather than a map because a drag is a single pointer gesture; there is
-   * no such thing as two at once.
+   * Decided here, from where the pointer was released, because there is no drop event to decide it
+   * from. An HTML5 drag started in one `BrowserWindow` delivers no `dragover` or `drop` to another
+   * — the receiving window never hears about the gesture at all — so the only part of a
+   * cross-window drag that reaches any of our code is `dragend` in the window it started in. That
+   * carries screen coordinates, and screen coordinates are enough: see `pickWindowAt`.
    */
-  let draggingTab: string | null = null
+
+  /** webContents ids, most recently focused first — `pickWindowAt`'s stand-in for z-order. */
+  const focusOrder: number[] = []
+  const rememberFocus = (win: BrowserWindow): void => {
+    const id = win.webContents.id
+    const at = focusOrder.indexOf(id)
+    if (at !== -1) focusOrder.splice(at, 1)
+    focusOrder.unshift(id)
+  }
+  app.on('browser-window-focus', (_e, win) => { rememberFocus(win) })
 
   /** Tells every window but `keeper` that a tab it may be showing now belongs somewhere else. */
   const announceClaimed = (key: string, keeper: number | null): void => {
@@ -324,15 +333,37 @@ export function registerIpc(
     }
   }
 
-  ipcMain.on(CHANNELS.tabDragStart, (_e, key: string) => { draggingTab = key })
-  ipcMain.on(CHANNELS.tabDragEnd, () => { draggingTab = null })
-  ipcMain.handle(CHANNELS.tabDragCurrent, () => draggingTab)
-  ipcMain.handle(CHANNELS.tabClaim, (e, key: string) => {
-    draggingTab = null
-    announceClaimed(key, e.sender.id)
+  const windowUnder = (at: { x: number; y: number }): BrowserWindow | null => {
+    const windows = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+    const id = pickWindowAt(
+      windows.map((w) => ({ id: w.webContents.id, ...w.getBounds(), visible: w.isVisible() })),
+      focusOrder,
+      at,
+    )
+    return windows.find((w) => w.webContents.id === id) ?? null
+  }
+
+  ipcMain.handle(CHANNELS.tabDropped, (e, key: string, at: { x: number; y: number }) => {
+    const target = windowUnder(at)
+    // Released over the window it came from — the transcript, the sidebar, anywhere that is not a
+    // tab strip. Nothing happened, and tearing a window off for that would be a surprise.
+    if (target === null ? false : target.webContents.id === e.sender.id) return
+
+    if (target !== null) {
+      target.webContents.send(CHANNELS.tabAdopt, key)
+      // Brought to the front: the tab is now there, and a move whose result is behind another
+      // window looks exactly like a move that did not happen.
+      target.focus()
+      announceClaimed(key, target.webContents.id)
+      return
+    }
+
+    // Dropped on the desktop: a window of its own. Announced before the window is made — see below.
+    announceClaimed(key, null)
+    openDetachedWindow?.(key, at)
   })
+
   ipcMain.handle(CHANNELS.tabDetach, (_e, key: string, at: { x: number; y: number }) => {
-    draggingTab = null
     // Announced before the window is made, not after: the new window has not loaded its renderer
     // yet and so cannot hear anything, and a claim arriving once it *has* would tell it to close
     // the very tab it exists to show. Nothing is lost in the gap — the pty keeps running whether
@@ -340,7 +371,6 @@ export function registerIpc(
     announceClaimed(key, null)
     openDetachedWindow?.(key, at)
   })
-  ipcMain.handle(CHANNELS.ptyRunning, (_e, ids: string[]) => ids.filter((id) => service.pty.has(id)))
 
   service.pty.onData((id, data) => send(CHANNELS.ptyData, id, data))
   service.pty.onExit((id, code) => send(CHANNELS.ptyExit, id, code))

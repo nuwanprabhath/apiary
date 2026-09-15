@@ -91,10 +91,14 @@ Apiary is multi-window, and the division is worth stating because getting it wro
   URL. The key travels in the URL for the same reason the window number does: it decides the whole
   layout, and a window that asked over IPC would paint the sidebar first and rearrange itself
   after.
-- **Drag data does not cross a window boundary.** Two Electron windows are two OS windows: a drop
-  in the second arrives with an empty `dataTransfer`. The key being dragged is parked in the main
-  process for the length of the drag (`tabDragStart`/`tabDragCurrent`), which is also what makes
-  "the drag ended and nothing took it" usable as the tear-off gesture.
+- **A drag does not cross a window boundary at all.** Not the data — the *events*. An HTML5 drag
+  started in one `BrowserWindow` delivers no `dragenter`, `dragover` or `drop` to another, so the
+  receiving window never hears about the gesture and has nothing to accept. The only part of a
+  cross-window drag that reaches any of our code is `dragend` in the window it started in. So
+  where a tab went is worked out from geometry: the release point in screen coordinates against
+  the windows' bounds (`windowAtPoint.ts`), decided in the main process, which then *tells* the
+  receiving window to take the tab. Anything built on the receiving window seeing the drop is
+  built on something that does not happen — this shipped once and did nothing at all.
 
 ## Search
 

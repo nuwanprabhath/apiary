@@ -59,8 +59,8 @@ interface Props {
   onTogglePin: (key: string) => void
   /** Forks the session behind a tab, opening the fork beside it. */
   onFork: (key: string) => void
-  /** A tab from another window, dropped on this column's strip. */
-  onAdoptTab: (key: string, toIndex: number) => void
+  /** A drag that ended with nothing in this window taking the tab. */
+  onTabDropped: (key: string, at: { x: number; y: number }) => void
   /** Tears a tab off into a window of its own. */
   onDetach: (key: string, at: { x: number; y: number }) => void
   /** flex-grow weight, set by dragging the dividers between columns (see App.tsx). */
@@ -79,7 +79,7 @@ export function SessionColumn(props: Props): JSX.Element {
     column, sessions, pending, resumed, ptyOverrides, shellTabs, setShellTabs,
     activeTerminal, setActiveTerminal, bottomHeight, onStartBottomResize, isActive, onFocus,
     onActivateTab, onCloseTab, onSetView, onResume, onResumeAsync, onRenameSession, onRenamePending,
-    onSplitActive, onReorderTab, pinnedKeys, onTogglePin, onFork, onAdoptTab, onDetach,
+    onSplitActive, onReorderTab, pinnedKeys, onTogglePin, onFork, onTabDropped, onDetach,
     weight,
   } = props
 
@@ -389,7 +389,7 @@ export function SessionColumn(props: Props): JSX.Element {
         pinnedKeys={pinnedKeys}
         onTogglePin={onTogglePin}
         onFork={onFork}
-        onAdoptTab={onAdoptTab}
+        onTabDropped={onTabDropped}
         onDetach={onDetach}
       />
 

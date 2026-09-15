@@ -787,6 +787,22 @@ export function App(): JSX.Element {
   }, [openKeysSignature, pending, openSessions])
 
   /**
+   * A tab dragged from another window has been dropped on this one.
+   *
+   * It arrives as a bare key with no position: the drop is worked out in the main process from
+   * where the pointer was released (there is no drop event in this window to carry an index), so
+   * the tab goes to the end of the active column — which is where a tab dropped past the last one
+   * would have gone anyway.
+   */
+  useEffect(() => window.apiary.onTabAdopt((key) => {
+    setColumns((prev) => {
+      const targetId = prev.some((c) => c.id === activeColumnId) ? activeColumnId : prev[0]?.id
+      const target = prev.find((c) => c.id === targetId)
+      return target === undefined ? prev : adoptTab(prev, key, target.id, target.tabs.length)
+    })
+  }), [activeColumnId, setColumns])
+
+  /**
    * Another window has taken a tab this one was showing, so let go of it.
    *
    * This is what makes dragging a tab between windows a *move*. Opening the same session in two
@@ -955,12 +971,8 @@ export function App(): JSX.Element {
               if (session) togglePin(session)
             }}
             onFork={(key) => { void forkSession(key) }}
-            onAdoptTab={(key, toIndex) => {
-              // Opened here first, then claimed: the claim is what makes the window it came from
-              // let go, and doing it the other way round leaves the tab nowhere for a round trip.
-              setColumns((prev) => adoptTab(prev, key, column.id, toIndex))
-              setActiveColumnId(column.id)
-              void window.apiary.tabClaim(key).catch((e: unknown) => {
+            onTabDropped={(key, at) => {
+              void window.apiary.tabDropped(key, at).catch((e: unknown) => {
                 notifyError(e, 'Could not move this tab')
               })
             }}
