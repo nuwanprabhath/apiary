@@ -211,3 +211,19 @@ test('the check interval can be set from a preset', async () => {
   await openUpdateSettings()
   await expect(h.page.getByTestId('setting-update-interval')).toHaveValue('24')
 })
+
+test('a downloaded .deb says how to install it, rather than talking about Applications', async () => {
+  // On Ubuntu the banner used to read "Open it and drag Apiary into Applications" beside a button
+  // that could not open a .deb at all — `shell.openPath` on one reports success and does nothing.
+  await launch({ fakeUpdate: '9.9.9', updateMode: 'deb' })
+  await checkNow()
+  await h.page.getByTestId('update-download').click()
+
+  const banner = h.page.getByTestId('update-banner')
+  await expect(banner).toHaveAttribute('data-phase', 'downloaded')
+  await expect(banner).toContainText('root')
+  await expect(banner).not.toContainText('Applications')
+  // And the button says what it will actually do.
+  await expect(h.page.getByTestId('update-open-downloaded')).toHaveText('Show in folder')
+  await expect(h.page.getByTestId('update-copy-command')).toBeVisible()
+})

@@ -68,6 +68,40 @@ describe('the GitLab merge-request plugin', () => {
     expect(item?.title).toContain('fix(cypress)')
   })
 
+  it('asks for merge requests in every state, or a merged one would look like no merge request', async () => {
+    // `glab mr list` returns only open MRs unless told otherwise. Measured against a real project:
+    // a merged branch answers `[]` by default and `[{state: "merged"}]` with --all. Without the
+    // flag the button flips to "create one" the moment an MR lands, inviting a duplicate.
+    const { exec, calls } = fakeExec({ 'git remote get-url': REMOTE, 'glab mr list': '[]' })
+    await createGitLabMrPlugin({ exec }).evaluate(ctx, {})
+    expect(calls.find((c) => c.includes('mr'))).toContain('--all')
+  })
+
+  it('shows a merged merge request as merged, in its glyph and in words', async () => {
+    const { exec } = fakeExec({
+      'git remote get-url': REMOTE,
+      'glab mr list': JSON.stringify([mr({ iid: 1268, state: 'merged' })]),
+    })
+    const item = await createGitLabMrPlugin({ exec }).evaluate(ctx, {})
+
+    expect(item?.label).toBe('!1268')
+    expect(item?.icon).toBe('merge-request-merged')
+    expect(item?.title).toContain('Merged')
+    // Not `suggest`: that tone is the offer to create one, and a merged MR is not an offer.
+    expect(item?.tone).toBe('normal')
+  })
+
+  it('shows a closed merge request as closed rather than as merged', async () => {
+    const { exec } = fakeExec({
+      'git remote get-url': REMOTE,
+      'glab mr list': JSON.stringify([mr({ state: 'closed' })]),
+    })
+    const item = await createGitLabMrPlugin({ exec }).evaluate(ctx, {})
+
+    expect(item?.icon).toBe('merge-request-closed')
+    expect(item?.title).toContain('Closed')
+  })
+
   it('says when the merge request is a draft, which changes whether it is ready to look at', async () => {
     const { exec } = fakeExec({
       'git remote get-url': REMOTE,

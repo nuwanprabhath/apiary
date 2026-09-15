@@ -4,6 +4,65 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.13.0] - 2026-09-15
+
+### Added
+
+- **Move a session into a window of its own.** Right-click a tab and choose *Move into New Window*,
+  or drag it out of the window and drop it on the desktop. The window that opens has no sidebar —
+  the conversation and its shell get the whole screen, which is the point of tearing it off.
+- **Drag a session tab from one window to another.** Two Electron windows are two OS windows, and
+  HTML5 drag data does not survive the crossing, so the tab being dragged is held in the main
+  process for the length of the drag and the receiving strip asks for it. The tab leaves the window
+  it came from: it is a move, not a copy. Opening the same session in two windows from the sidebar
+  still opens it in both, deliberately.
+- **Fork a session**, from the right-click menu on a tab or on a sidebar row. The fork starts as a
+  copy of the conversation so far and opens *beside* the original, titled `fork: <original>`; the
+  original is untouched.
+- **A terminal that arrives late is caught up.** The main process now keeps a bounded buffer of
+  each terminal's recent output and replays it to any view that attaches afterwards. Before this,
+  a session opened in a second window — or a tab moved into one — got an empty terminal, and a
+  program sitting at a prompt may never print again, so it stayed empty.
+- **The prompt-shortening setting shows a worked example** of what it will do to a real worktree
+  path, so the effect of "keep the last N folders" is something to look at rather than to reason
+  about.
+
+### Fixed
+
+- **A merged merge request no longer disappears.** `glab mr list` returns only *open* merge
+  requests unless told otherwise, so the moment one merged it vanished from the answer and the bar
+  offered to create a second merge request for a branch that had already landed. Merge requests are
+  now asked for in every state, and merged and closed ones get their own glyph and their own word
+  in the tooltip.
+- **"Open installer" did nothing on Ubuntu.** A stock 24.04 desktop registers no handler for a
+  `.deb`, and `shell.openPath` on one reports success having done nothing — so the button was dead
+  and its error fallback could never fire. A downloaded `.deb` is now revealed in the file manager,
+  and the banner offers the `sudo apt install …` command that actually finishes the job.
+- **The download banner no longer tells Linux users to drag Apiary into Applications.** What to do
+  with a downloaded installer is decided where the platform is known, and travels to the banner as
+  words.
+- **The shortened prompt reaches the session's own terminal**, not only the shell tabs — the
+  setting was wired into one and not the other, so it looked broken to anyone who tried it where
+  they actually work.
+- **A shell open in two windows is no longer killed by the second one.** Shell tab ids are minted
+  per window and the first is always `1`, so a session shown in a second window asked for the very
+  pty the first was using — and spawning over a live pty kills it. A build, a `tail -f` or an
+  editor running there died silently. The second window now attaches to the running shell.
+- **Forking from the "already running elsewhere" dialog attached the terminal to the wrong
+  session.** `--fork-session` makes Claude write a *different* session, but Apiary keyed the
+  terminal by the original's id: the original's transcript never moved, the fork turned up later as
+  a row with no terminal behind it, and pressing Resume on it started a second process. Forking is
+  now its own operation rather than a flag on resume.
+
+### Changed
+
+- **The prompt trim keeps one folder by default, not two.** Measured against bash: on
+  `~/projects/thing.worktrees/pipeline-issues`, two folders keeps
+  `thing.worktrees/pipeline-issues` — almost the whole path. The last component is the one that
+  says which worktree you are in. (Existing installs keep whatever they have set.)
+- **Whether a session has a terminal is now asked of the main process** rather than remembered per
+  window, so a second window knows about a session the first one started.
+
 ## [1.12.1] - 2026-09-14
 
 ### Fixed

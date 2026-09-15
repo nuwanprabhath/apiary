@@ -57,6 +57,12 @@ interface Props {
   /** Session ids in the sidebar's Pinned section, so the tab menu offers the right verb. */
   pinnedKeys: Set<string>
   onTogglePin: (key: string) => void
+  /** Forks the session behind a tab, opening the fork beside it. */
+  onFork: (key: string) => void
+  /** A tab from another window, dropped on this column's strip. */
+  onAdoptTab: (key: string, toIndex: number) => void
+  /** Tears a tab off into a window of its own. */
+  onDetach: (key: string, at: { x: number; y: number }) => void
   /** flex-grow weight, set by dragging the dividers between columns (see App.tsx). */
   weight: number
 }
@@ -73,7 +79,8 @@ export function SessionColumn(props: Props): JSX.Element {
     column, sessions, pending, resumed, ptyOverrides, shellTabs, setShellTabs,
     activeTerminal, setActiveTerminal, bottomHeight, onStartBottomResize, isActive, onFocus,
     onActivateTab, onCloseTab, onSetView, onResume, onResumeAsync, onRenameSession, onRenamePending,
-    onSplitActive, onReorderTab, pinnedKeys, onTogglePin, weight,
+    onSplitActive, onReorderTab, pinnedKeys, onTogglePin, onFork, onAdoptTab, onDetach,
+    weight,
   } = props
 
   // Failures raised in here go to the app-wide notification stack rather than an in-pane banner:
@@ -381,6 +388,9 @@ export function SessionColumn(props: Props): JSX.Element {
         onDropTab={onReorderTab}
         pinnedKeys={pinnedKeys}
         onTogglePin={onTogglePin}
+        onFork={onFork}
+        onAdoptTab={onAdoptTab}
+        onDetach={onDetach}
       />
 
       {activeKey === null ? (

@@ -1,3 +1,7 @@
+import { clampSegments, type PromptPathOptions } from '@shared/promptPath'
+
+export type { PromptPathOptions }
+
 /**
  * Shortening the working directory in a shell's own prompt.
  *
@@ -16,16 +20,26 @@
  * `PROMPT` itself (`%2~`), which is the destructive thing above, or injecting a `ZDOTDIR` shim
  * ahead of the user's own `.zshrc`. Neither is worth it for a cosmetic setting, so a zsh prompt is
  * left alone and the setting says so.
+ *
+ * **And not bash 3.2 either.** `PROMPT_DIRTRIM` arrived in bash 4.0, and macOS still ships 3.2 as
+ * `/bin/bash`, where it is ignored in silence. Measured on both: bash 3.2 printed the whole path
+ * unchanged with the variable set, bash 5.3 printed `[.../pipeline-issues/paratoo-core]`.
+ *
+ * **What the count counts**, also measured rather than assumed, because it is the thing that made
+ * the setting look broken. For `~/dirtrim-probe/projects/deep.worktrees/pipeline-issues`:
+ *
+ * ```
+ * DIRTRIM=1 -> ~/.../pipeline-issues
+ * DIRTRIM=2 -> ~/.../deep.worktrees/pipeline-issues
+ * DIRTRIM=4 -> ~/dirtrim-probe/projects/deep.worktrees/pipeline-issues
+ * ```
+ *
+ * The tilde survives and is not itself one of the N. So N is a count of *directories kept*, not a
+ * budget of width — and on the paths this feature exists for, where one component is often
+ * `something.worktrees`, keeping two of them shortens almost nothing. That is why the default is
+ * one: the identifying part of a worktree path is the last component, and everything before it is
+ * what was in the way.
  */
-
-/** The most components worth keeping; past this nothing is being shortened. */
-const MAX_SEGMENTS = 8
-
-export interface PromptPathOptions {
-  enabled: boolean
-  /** How many trailing directories to keep. */
-  segments: number
-}
 
 /**
  * The extra environment a shell should be spawned with, empty when the setting is off.
@@ -35,6 +49,5 @@ export interface PromptPathOptions {
  */
 export function promptPathEnv({ enabled, segments }: PromptPathOptions): Record<string, string> {
   if (!enabled) return {}
-  const clamped = Math.min(Math.max(Math.round(segments), 1), MAX_SEGMENTS)
-  return { PROMPT_DIRTRIM: String(clamped) }
+  return { PROMPT_DIRTRIM: String(clampSegments(segments)) }
 }

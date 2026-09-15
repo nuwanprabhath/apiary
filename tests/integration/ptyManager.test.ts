@@ -127,3 +127,42 @@ describe('PtyManager', () => {
     expect(await winched).toMatch(/APIARY_WINCH/)
   }, 10000)
 })
+
+describe('replaying what a pty already printed', () => {
+  it('hands a newly-attached view the output it missed', async () => {
+    // The bug: a session opened in a second window, or a tab moved into one, got a fresh xterm
+    // with no scrollback — and a TUI sitting at a prompt may never print again, so the pane
+    // stayed blank. Nothing but the main process can remember that output.
+    const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
+    try {
+      manager = new PtyManager()
+      const done = collect(manager, 'replay', /APIARY_PAST/)
+      manager.spawn({ id: 'replay', cwd: dir, command: 'echo APIARY_PAST; sleep 30' })
+      await done
+
+      expect(manager.replay('replay')).toMatch(/APIARY_PAST/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('forgets a pty that has been killed, rather than holding its output for ever', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
+    try {
+      manager = new PtyManager()
+      const done = collect(manager, 'gone', /APIARY_PAST/)
+      manager.spawn({ id: 'gone', cwd: dir, command: 'echo APIARY_PAST; sleep 30' })
+      await done
+      manager.kill('gone')
+
+      expect(manager.replay('gone')).toBe('')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('answers with nothing for a pty that never existed', () => {
+    manager = new PtyManager()
+    expect(manager.replay('never-spawned')).toBe('')
+  })
+})

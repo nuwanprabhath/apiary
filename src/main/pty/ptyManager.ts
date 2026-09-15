@@ -45,6 +45,21 @@ const PTY_KILL_TIMEOUT_MS = 1500
  */
 const ALT_SCREEN = '\x1b[?1049h'
 
+/**
+ * How much of each pty's recent output is kept so a *new* view of it can be brought up to date.
+ *
+ * Until this existed, scrollback lived only in whichever window's xterm happened to have been
+ * attached since the process started. Opening the same session in a second window, or moving its
+ * tab into a window of its own, produced a terminal that was simply blank until the program next
+ * printed something — which, for a TUI waiting on input, can be never. Output is not something the
+ * main process can regenerate, so it has to be remembered here.
+ *
+ * 256KB is roughly a full-screen TUI's worth of redraws and several screens of scrollback, which
+ * is what a person needs to recognise where they are. It is a cap per pty, not a total: a handful
+ * of sessions costs a couple of megabytes, against the alternative of a window that looks broken.
+ */
+const REPLAY_BYTES = 256 * 1024
+
 export class PtyManager {
   private processes = new Map<string, pty.IPty>()
   private lastSize = new Map<string, { cols: number; rows: number }>()
@@ -55,6 +70,8 @@ export class PtyManager {
   /** Per-pty output activity, so a caller can wait for the child to finish reacting to input. */
   private lastDataAt = new Map<string, number>()
   private outputCounts = new Map<string, number>()
+  /** Recent output per pty, oldest-trimmed, for `replay()`. */
+  private replayBuffers = new Map<string, string>()
   private dataHandlers: DataHandler[] = []
   private exitHandlers: ExitHandler[] = []
 
@@ -86,6 +103,7 @@ export class PtyManager {
     })
 
     child.onData((data) => {
+      this.remember(opts.id, data)
       this.lastDataAt.set(opts.id, Date.now())
       this.outputCounts.set(opts.id, (this.outputCounts.get(opts.id) ?? 0) + 1)
       if (data.includes(ALT_SCREEN)) this.tuiStarted.set(opts.id, true)
@@ -103,6 +121,30 @@ export class PtyManager {
     this.tuiStarted.set(opts.id, false)
     this.lastDataAt.set(opts.id, Date.now())
     this.outputCounts.set(opts.id, 0)
+    this.replayBuffers.set(opts.id, '')
+  }
+
+  /**
+   * Appends to the replay buffer, trimming from the front once it is over the cap.
+   *
+   * Trimmed at a whole number of bytes rather than at an escape-sequence boundary, because there
+   * is no way to find one cheaply and a terminal emulator discards a partial sequence at the start
+   * of a stream without complaint. The first line of a replayed buffer may therefore be missing
+   * its colour; every line after it is exact.
+   */
+  private remember(id: string, data: string): void {
+    const next = (this.replayBuffers.get(id) ?? '') + data
+    this.replayBuffers.set(id, next.length > REPLAY_BYTES ? next.slice(-REPLAY_BYTES) : next)
+  }
+
+  /**
+   * What this pty has printed recently, for a view that is only now attaching to it.
+   *
+   * Empty for a pty that does not exist, which is the same answer as a pty that has printed
+   * nothing — neither is an error, and a caller that has to tell them apart has `has()`.
+   */
+  replay(id: string): string {
+    return this.replayBuffers.get(id) ?? ''
   }
 
   /**
@@ -223,6 +265,8 @@ export class PtyManager {
     this.processes.delete(id)
     this.lastSize.delete(id)
     this.cwds.delete(id)
+    // Nothing will ever attach to a dead pty, so its scrollback is only a leak from here on.
+    this.replayBuffers.delete(id)
     try { child.kill() } catch { /* already gone */ }
   }
 

@@ -7,12 +7,13 @@ import { DeleteSessionDialog } from './components/DeleteSessionDialog'
 import { ImportDialog } from './components/ImportDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import {
-  newColumn, openTab, closeTab, setTabView, rekeyTab, moveTabToColumn, findColumnWithTab,
+  newColumn, openTab, openTabAfter, closeTab, setTabView, rekeyTab, moveTabToColumn, adoptTab,
+  findColumnWithTab,
   layoutWeights,
   type Column,
 } from './state/columns'
 import {
-  loadUiState, saveUiState, subscribeSharedUiState, type UiState,
+  loadUiState, saveUiState, subscribeSharedUiState, detachedKey, type UiState,
 } from './state/uiState'
 import { useUpdate } from './state/useUpdate'
 import { UpdateBanner } from './components/UpdateBanner'
@@ -116,6 +117,12 @@ export function App(): JSX.Element {
    * own tab strip and its own shell. Splitting a session from the sidebar appends a column; there
    * is always at least one, even when empty, so there is somewhere for the next click to land.
    */
+  /**
+   * The tab this window was torn off to show, or null for an ordinary window. Read once: a window
+   * does not stop being a detached one, and re-reading the URL per render would be a lie waiting
+   * to happen.
+   */
+  const [detached] = useState<string | null>(detachedKey)
   const [columnsRaw, setColumnsRaw] = useState<Column[]>(() => [newColumn()])
   const columns = columnsRaw
   /** Every column update goes through `pruneColumns` — see the note on it above. */
@@ -237,15 +244,36 @@ export function App(): JSX.Element {
   // entry points (the sidebar "+" button and the File menu item below). The tab is keyed by pty
   // id until the watcher finds the session's real id, at which point the reconciler below rekeys
   // it in place.
-  const addPending = useCallback((info: NewSessionInfo, nodes: ProjectNode[]) => {
+  const addPending = useCallback((
+    info: NewSessionInfo,
+    nodes: ProjectNode[],
+    // A fork arrives with both of these: a title it should keep once it has a session id to hang
+    // it on, and the tab it belongs next to. A session started from scratch has neither.
+    opts: { titleOverride?: string; after?: string } = {},
+  ) => {
     setPending((prev) => {
       const next = new Map(prev)
-      next.set(info.ptyId, { ...info, knownSessionIds: collectSessionIds(nodes), titleOverride: null })
+      next.set(info.ptyId, {
+        ...info,
+        knownSessionIds: collectSessionIds(nodes),
+        titleOverride: opts.titleOverride ?? null,
+      })
       return next
     })
     setColumns((prev) => {
-      const targetId = prev.some((c) => c.id === activeColumnId) ? activeColumnId : prev[0]?.id
-      return prev.map((c) => (c.id === targetId ? openTab(c, info.ptyId) : c))
+      const after = opts.after
+      const home = after === undefined ? null : findColumnWithTab(prev, after)
+      // A fork opens beside its original wherever that is, even in a column the user is not
+      // looking at — putting it in the active column instead would separate the two things the
+      // gesture exists to compare.
+      const targetId = home?.id
+        ?? (prev.some((c) => c.id === activeColumnId) ? activeColumnId : prev[0]?.id)
+      return prev.map((c) => {
+        if (c.id !== targetId) return c
+        return after !== undefined && home !== null
+          ? openTabAfter(c, info.ptyId, after)
+          : openTab(c, info.ptyId)
+      })
     })
   }, [activeColumnId])
 
@@ -376,7 +404,9 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (restoreAttempted.current) return
     restoreAttempted.current = true
-    const id = ui.selectedSessionId
+    // A detached window opens the tab it was torn off to show; an ordinary one reopens whatever
+    // was last in front. Same machinery either way — the only difference is which id.
+    const id = detached ?? ui.selectedSessionId
     if (id === null) return
     let cancelled = false
     window.apiary
@@ -603,9 +633,32 @@ export function App(): JSX.Element {
     }
   }, [addPending, notifyError])
 
-  const startResume = useCallback(async (session: SessionNode, fork: boolean) => {
+  /**
+   * Forks a session from a tab or a sidebar row: a new conversation seeded with this one's, opened
+   * beside it, leaving the original untouched.
+   *
+   * The fork has no session id yet — Claude mints one when it writes the JSONL — so this goes
+   * through exactly the same pending-pty bookkeeping as starting a session from scratch, and the
+   * `fork: …` title rides along as a `titleOverride` that is applied as a real rename the moment
+   * the session resolves. Doing it that way rather than renaming afterwards means there is never a
+   * moment where the fork and its original are two rows with the same name.
+   */
+  const forkSession = useCallback(async (sessionId: string) => {
     try {
-      await window.apiary.resume(session.sessionId, fork)
+      const [info, nodes] = await Promise.all([
+        window.apiary.forkSession(sessionId),
+        window.apiary.tree(''),
+      ])
+      addPending(info, nodes, { titleOverride: info.label, after: sessionId })
+      notify({ message: `Forking — ${info.label}` })
+    } catch (e) {
+      notifyError(e, 'Could not fork this session')
+    }
+  }, [addPending, notify, notifyError])
+
+  const startResume = useCallback(async (session: SessionNode) => {
+    try {
+      await window.apiary.resume(session.sessionId)
       setResumed((prev) => new Set([...prev, session.sessionId]))
       setColumns((prev) => prev.map((c) => setTabView(c, session.sessionId, 'terminal')))
     } catch (e) {
@@ -644,7 +697,7 @@ export function App(): JSX.Element {
     }
     const existing = await window.apiary.checkConflict(session.sessionId)
     if (existing !== null) { setResumeTarget(session); setConflict(existing); return }
-    await startResume(session, false)
+    await startResume(session)
   }, [resumed, startResume, setColumns])
 
   /**
@@ -662,7 +715,7 @@ export function App(): JSX.Element {
       setConflict(existing)
       throw new Error('This session is already running elsewhere — choose how to open it first.')
     }
-    await window.apiary.resume(session.sessionId, false)
+    await window.apiary.resume(session.sessionId)
     setResumed((prev) => new Set([...prev, session.sessionId]))
     setColumns((prev) => prev.map((c) => setTabView(c, session.sessionId, 'terminal')))
   }, [resumed, setColumns])
@@ -670,6 +723,79 @@ export function App(): JSX.Element {
   /** Every session id currently open in some column, so the sidebar can list only the pending
    *  sessions that aren't already reachable as a tab. */
   const openKeys = new Set(columns.flatMap((c) => c.tabs.map((t) => t.key)))
+
+  /**
+   * Keeps `resumed` in step with the ptys the main process actually has.
+   *
+   * `resumed` started life as a record of what *this window* had started, and that was wrong in
+   * two ways that both ended at a blank pane: a second window knew nothing of a session the first
+   * had opened, and a relaunched window restored a tab still set to its terminal view with no
+   * terminal behind it. Whether a session has a process is main-process state, so it is asked for
+   * rather than remembered — cheaply, since it is a set-membership test over ids the window
+   * already holds.
+   *
+   * Only ever *adds*: a pty that has gone away arrives as `onPtyExit`, which is the event that
+   * knows the exit code and does the rest of the tidying.
+   */
+  const openKeysSignature = [...openKeys].sort((a, b) => a.localeCompare(b)).join(' ')
+  useEffect(() => {
+    const keys = openKeysSignature === '' ? [] : openKeysSignature.split(' ')
+    if (keys.length === 0) return
+    // A pending tab is keyed by its pty id already; a resolved one may have been started under a
+    // different pty id, which `ptyOverrides` remembers.
+    const ptyIdOf = new Map(keys.map((k) => [ptyOverrides.get(k) ?? k, k]))
+    void window.apiary.ptyRunning([...ptyIdOf.keys()])
+      .then((running) => {
+        const live = running.map((id) => ptyIdOf.get(id)).filter((k): k is string => k !== undefined)
+        setResumed((prev) => {
+          const missing = live.filter((k) => !prev.has(k))
+          return missing.length === 0 ? prev : new Set([...prev, ...missing])
+        })
+      })
+      // A window that cannot ask is a window that shows what it knew, which is where it was
+      // before this existed.
+      .catch(() => { /* as above */ })
+  }, [openKeysSignature, ptyOverrides])
+
+  /**
+   * Fills in the SessionNode behind any tab this window has not looked up yet.
+   *
+   * A tab normally arrives through `openSessionTab`, which brings its node with it — but a tab
+   * dropped in from *another window* arrives as a bare key, and without this the column would have
+   * a tab with no session behind it: no title on the strip, and a blank header over a blank pane.
+   */
+  useEffect(() => {
+    const keys = openKeysSignature === '' ? [] : openKeysSignature.split(' ')
+    const unknown = keys.filter((k) => !pending.has(k) && !openSessions.has(k))
+    if (unknown.length === 0) return
+    let cancelled = false
+    void window.apiary.tree('')
+      .then((nodes) => {
+        if (cancelled) return
+        const found = unknown
+          .map((k) => findSessionById(nodes, k))
+          .filter((n): n is SessionNode => n !== null && n !== undefined)
+        if (found.length === 0) return
+        setOpenSessions((prev) => {
+          const next = new Map(prev)
+          for (const node of found) next.set(node.sessionId, node)
+          return next
+        })
+      })
+      .catch(() => { /* the refresh effect below asks again on the next tree change */ })
+    return () => { cancelled = true }
+  }, [openKeysSignature, pending, openSessions])
+
+  /**
+   * Another window has taken a tab this one was showing, so let go of it.
+   *
+   * This is what makes dragging a tab between windows a *move*. Opening the same session in two
+   * windows on purpose is still allowed — that goes through the sidebar and never announces a
+   * claim — so the two gestures stay distinguishable.
+   */
+  useEffect(() => window.apiary.onTabClaimed((key) => {
+    setColumns((prev) => prev.map((c) => closeTab(c, key)))
+  }), [setColumns])
 
   // Normalised so the columns always fill the row: see layoutWeights.
   const layout = layoutWeights(columns, columnWeights)
@@ -688,10 +814,17 @@ export function App(): JSX.Element {
       )}
       <div
         className="layout"
-        style={{ gridTemplateColumns: String(ui.sidebarWidth) + 'px 4px 1fr' }}
+        data-detached={detached !== null}
+        style={{
+          gridTemplateColumns: detached !== null
+            ? '1fr'
+            : String(ui.sidebarWidth) + 'px 4px 1fr',
+        }}
       >
+      {detached === null && (
       <Sidebar
         key={treeNonce}
+        onForkSession={(sessionId) => { void forkSession(sessionId) }}
         onEditNote={(session) => {
           // Read from the main process rather than from the tree node, so the editor opens on
           // what is actually saved even if this window's tree is a moment out of date.
@@ -738,12 +871,15 @@ export function App(): JSX.Element {
           })
         }}
       />
+      )}
 
-      <div
-        className="sidebar-resizer"
-        data-testid="sidebar-resizer"
-        onMouseDown={(e) => { e.preventDefault(); setResizing(true) }}
-      />
+      {detached === null && (
+        <div
+          className="sidebar-resizer"
+          data-testid="sidebar-resizer"
+          onMouseDown={(e) => { e.preventDefault(); setResizing(true) }}
+        />
+      )}
 
       <main className="content" data-testid="content">
         {columns.map((column, index) => (
@@ -818,6 +954,21 @@ export function App(): JSX.Element {
               const session = openSessions.get(key)
               if (session) togglePin(session)
             }}
+            onFork={(key) => { void forkSession(key) }}
+            onAdoptTab={(key, toIndex) => {
+              // Opened here first, then claimed: the claim is what makes the window it came from
+              // let go, and doing it the other way round leaves the tab nowhere for a round trip.
+              setColumns((prev) => adoptTab(prev, key, column.id, toIndex))
+              setActiveColumnId(column.id)
+              void window.apiary.tabClaim(key).catch((e: unknown) => {
+                notifyError(e, 'Could not move this tab')
+              })
+            }}
+            onDetach={(key, at) => {
+              void window.apiary.tabDetach(key, at).catch((e: unknown) => {
+                notifyError(e, 'Could not open this session in a new window')
+              })
+            }}
             weight={layout.get(column.id) ?? 1}
           />
           </ErrorBoundary>
@@ -829,8 +980,16 @@ export function App(): JSX.Element {
         <ConflictDialog
           conflict={conflict}
           onCancel={() => { setConflict(null); setResumeTarget(null) }}
-          onFork={() => { setConflict(null); setResumeTarget(null); void startResume(resumeTarget, true) }}
-          onOpenAnyway={() => { setConflict(null); setResumeTarget(null); void startResume(resumeTarget, false) }}
+          onFork={() => {
+            setConflict(null)
+            setResumeTarget(null)
+            // Forking goes through the fork path, not through resume-with-a-flag. The old code
+            // marked the *original* session resumed and pointed its tab at a pty that was in fact
+            // running a different, newly-minted session — so the original's transcript never
+            // moved and the fork turned up later as a row with no terminal behind it.
+            void forkSession(resumeTarget.sessionId)
+          }}
+          onOpenAnyway={() => { setConflict(null); setResumeTarget(null); void startResume(resumeTarget) }}
         />
       )}
 

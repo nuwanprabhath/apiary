@@ -139,7 +139,16 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
       return target
     },
 
-    async openInstaller(path: string): Promise<void> {
+    async openInstaller(path: string, action: 'open' | 'reveal'): Promise<void> {
+      // `reveal` is not a fallback here, it is the answer. A stock Ubuntu 24.04 desktop registers
+      // no handler for `.deb`, and `shell.openPath` on one returns '' — success — having done
+      // nothing at all. So the button appeared dead, and the fallback below could never fire
+      // because there was no error to fire it. Where the file cannot be handed over, show the
+      // user where it is and tell them the command instead (see `installInstructions`).
+      if (action === 'reveal') {
+        shell.showItemInFolder(path)
+        return
+      }
       const error = await shell.openPath(path)
       if (error !== '') {
         // Falling back to revealing it: the user can still double-click it themselves, which is

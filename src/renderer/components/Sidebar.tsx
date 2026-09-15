@@ -68,6 +68,8 @@ interface Props {
   onTogglePin: (session: SessionNode) => void
   /** Opens the note editor for a session. */
   onEditNote: (session: SessionNode) => void
+  /** Starts a fork of a session: a new conversation seeded with this one's. */
+  onForkSession: (sessionId: string) => void
   /** Whether the pinned section is collapsed — persisted, like the folder collapse state. */
   pinnedCollapsed: boolean
   onPinnedCollapsedChange: (next: boolean) => void
@@ -113,7 +115,8 @@ function pathsToSession(nodes: ProjectNode[], id: string, trail: string[] = []):
 
 export function Sidebar({
   selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onDeleteSession,
-  onSplitSession, pinned, onTogglePin, onEditNote, pinnedCollapsed, onPinnedCollapsedChange,
+  onSplitSession, pinned, onTogglePin, onEditNote, onForkSession, pinnedCollapsed,
+  onPinnedCollapsedChange,
   pending, onSelectPending, revealId, groupState, onGroupStateChange, onReorderPinned,
 }: Props): JSX.Element {
   const [query, setQuery] = useState('')
@@ -188,7 +191,9 @@ export function Sidebar({
   const groupsCollapsed = useMemo(() => new Set(groupState.collapsed), [groupState.collapsed])
 
   /** Which menu is open, if any: a right-click on a folder, or on a group's header. */
-  const [menu, setMenu] = useState<{ kind: 'folder' | 'group'; id: string; x: number; y: number } | null>(null)
+  const [menu, setMenu] = useState<
+    { kind: 'folder' | 'group' | 'session'; id: string; x: number; y: number } | null
+  >(null)
   /** The group a folder is currently being dragged over, so the whole section can light up. */
   const [dropIntoGroup, setDropIntoGroup] = useState<string | null>(null)
   /** A group whose name is being edited in place, instead of through a modal. */
@@ -227,6 +232,15 @@ export function Sidebar({
 
   const menuItems = (): ContextMenuItem[] => {
     if (menu === null) return []
+    if (menu.kind === 'session') {
+      return [
+        {
+          id: 'fork-session',
+          label: 'Fork session',
+          run: () => onForkSession(menu.id),
+        },
+      ]
+    }
     if (menu.kind === 'folder') {
       const current = groupState.assignments[menu.id]
       return [
@@ -303,11 +317,13 @@ export function Sidebar({
     onEditNote,
     onReorderFolder: reorderFolder,
     onFolderMenu: (path: string, x: number, y: number) => setMenu({ kind: 'folder', id: path, x, y }),
+    onSessionMenu: (s: SessionNode, x: number, y: number) =>
+      setMenu({ kind: 'session', id: s.sessionId, x, y }),
     orderFolders: (nodes: ProjectNode[]) => orderFolders(nodes, (n) => n.path, groupState.folderOrder),
   }
 
   return (
-    <aside className="sidebar" ref={listRef}>
+    <aside className="sidebar" data-testid="sidebar" ref={listRef}>
       <div className="sidebar-header">
         {/* The clear button sits inside the field rather than beside it, so the row keeps the
          *  two-control shape it already had (field + Refresh) instead of gaining a third
@@ -425,6 +441,7 @@ export function Sidebar({
                 onDelete={onDeleteSession}
                 onTogglePin={onTogglePin}
                 onEditNote={onEditNote}
+                onMenu={(node, x, y) => setMenu({ kind: 'session', id: node.sessionId, x, y })}
                 folderBranch={branchOfSession.get(s.sessionId) ?? null}
               />
             </div>

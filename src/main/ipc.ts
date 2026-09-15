@@ -20,6 +20,8 @@ export function registerIpc(
   onAutoImportIntervalChange?: (intervalMinutes: number | null) => void,
   /** Null where there is no updater at all (a dev run, or a platform without one). */
   updater?: UpdateService | null,
+  /** Opens a tab in a window of its own. Injected so this module never imports the window code. */
+  openDetachedWindow?: (key: string, at: { x: number; y: number }) => void,
 ): () => void {
   /**
    * Broadcasts to every window, not just the focused one.
@@ -54,7 +56,7 @@ export function registerIpc(
     service.transcript(id, beforeIndex),
   )
   ipcMain.handle(CHANNELS.checkConflict, (_e, id: string) => service.checkConflict(id))
-  ipcMain.handle(CHANNELS.resume, (_e, id: string, fork: boolean) => service.resume(id, fork))
+  ipcMain.handle(CHANNELS.resume, (_e, id: string) => service.resume(id))
   ipcMain.handle(CHANNELS.renameSession, async (_e, id: string, title: string) => {
     await service.renameSession(id, title)
     // Nothing on disk changed, so the filesystem watcher will never fire for this — push the
@@ -71,6 +73,7 @@ export function registerIpc(
   ipcMain.handle(CHANNELS.openShellForPty, (_e, id: string, tabId: string) =>
     service.openShellForPty(id, tabId),
   )
+  ipcMain.handle(CHANNELS.forkSession, (_e, id: string) => service.forkSession(id))
   ipcMain.handle(CHANNELS.newSessionInProject, (_e, path: string) =>
     service.newSessionInProject(path),
   )
@@ -271,6 +274,7 @@ export function registerIpc(
     releaseUrl: null,
     progressPercent: null,
     downloadedPath: null,
+    install: null,
     error: null,
     lastCheckedAt: null,
     skippedVersion: null,
@@ -297,6 +301,46 @@ export function registerIpc(
     service.pty.resize(id, cols, rows),
   )
   ipcMain.on(CHANNELS.ptyKill, (_e, id: string) => service.pty.kill(id))
+  ipcMain.handle(CHANNELS.ptyReplay, (_e, id: string) => service.pty.replay(id))
+
+  /**
+   * Moving a session tab between windows.
+   *
+   * The key being dragged lives here, in the main process, for the length of the drag. It has to:
+   * two Electron windows are two OS windows, and HTML5 drag data does not cross that boundary —
+   * a drop in the second window arrives with an empty `dataTransfer` and no way to know what was
+   * dropped. Parking it here is what lets the receiving strip ask.
+   *
+   * It is a single value rather than a map because a drag is a single pointer gesture; there is
+   * no such thing as two at once.
+   */
+  let draggingTab: string | null = null
+
+  /** Tells every window but `keeper` that a tab it may be showing now belongs somewhere else. */
+  const announceClaimed = (key: string, keeper: number | null): void => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (win.isDestroyed() || win.webContents.id === keeper) continue
+      win.webContents.send(CHANNELS.tabClaimed, key)
+    }
+  }
+
+  ipcMain.on(CHANNELS.tabDragStart, (_e, key: string) => { draggingTab = key })
+  ipcMain.on(CHANNELS.tabDragEnd, () => { draggingTab = null })
+  ipcMain.handle(CHANNELS.tabDragCurrent, () => draggingTab)
+  ipcMain.handle(CHANNELS.tabClaim, (e, key: string) => {
+    draggingTab = null
+    announceClaimed(key, e.sender.id)
+  })
+  ipcMain.handle(CHANNELS.tabDetach, (_e, key: string, at: { x: number; y: number }) => {
+    draggingTab = null
+    // Announced before the window is made, not after: the new window has not loaded its renderer
+    // yet and so cannot hear anything, and a claim arriving once it *has* would tell it to close
+    // the very tab it exists to show. Nothing is lost in the gap — the pty keeps running whether
+    // or not a view is attached to it.
+    announceClaimed(key, null)
+    openDetachedWindow?.(key, at)
+  })
+  ipcMain.handle(CHANNELS.ptyRunning, (_e, ids: string[]) => ids.filter((id) => service.pty.has(id)))
 
   service.pty.onData((id, data) => send(CHANNELS.ptyData, id, data))
   service.pty.onExit((id, code) => send(CHANNELS.ptyExit, id, code))

@@ -56,6 +56,8 @@ export interface UpdateStatusPayload {
   releaseUrl: string | null
   progressPercent: number | null
   downloadedPath: string | null
+  /** What to do with the downloaded file, decided by the platform it landed on. */
+  install: { hint: string; command: string | null; action: 'open' | 'reveal' } | null
   error: string | null
   lastCheckedAt: number | null
   skippedVersion: string | null
@@ -81,7 +83,7 @@ export interface PluginInfoPayload {
 export interface PluginBarItemPayload {
   pluginId: string
   id: string
-  icon: 'merge-request' | 'link' | 'plus' | 'alert'
+  icon: 'merge-request' | 'merge-request-merged' | 'merge-request-closed' | 'link' | 'plus' | 'alert'
   label: string
   title: string
   action: { kind: 'open-url'; url: string } | { kind: 'none' }
@@ -101,11 +103,14 @@ export const CHANNELS = {
   openShell: 'apiary:open-shell',
   openShellForPty: 'apiary:open-shell-for-pty',
   newSessionInProject: 'apiary:new-session-in-project',
+  forkSession: 'apiary:fork-session',
   newSessionStarted: 'apiary:new-session-started',
   ptyWrite: 'apiary:pty-write',
   ptyResize: 'apiary:pty-resize',
   ptyKill: 'apiary:pty-kill',
   ptyData: 'apiary:pty-data',
+  ptyReplay: 'apiary:pty-replay',
+  ptyRunning: 'apiary:pty-running',
   ptyExit: 'apiary:pty-exit',
   treeChanged: 'apiary:tree-changed',
   openImportDialog: 'apiary:open-import-dialog',
@@ -143,6 +148,12 @@ export const CHANNELS = {
   pluginsChanged: 'apiary:plugins-changed',
   setSessionNote: 'apiary:set-session-note',
   sessionNote: 'apiary:session-note',
+  tabDragStart: 'apiary:tab-drag-start',
+  tabDragEnd: 'apiary:tab-drag-end',
+  tabDragCurrent: 'apiary:tab-drag-current',
+  tabDetach: 'apiary:tab-detach',
+  tabClaim: 'apiary:tab-claim',
+  tabClaimed: 'apiary:tab-claimed',
 } as const
 
 export interface ApiaryApi {
@@ -152,7 +163,17 @@ export interface ApiaryApi {
   importSessions(sessionIds: string[], autoImportProjects: string[]): Promise<void>
   transcript(sessionId: string, beforeIndex?: number): Promise<TranscriptPage>
   checkConflict(sessionId: string): Promise<ResumeConflict | null>
-  resume(sessionId: string, fork: boolean): Promise<void>
+  /**
+   * Opens a session in an embedded terminal, keyed by its own id.
+   *
+   * Forking is `forkSession`, not a flag here. It used to be one, and that was wrong in a way
+   * worth recording: `--fork-session` makes Claude write a *different* session, so the pty ended
+   * up keyed by the id of a conversation it was not running. The original's transcript never
+   * moved, the fork appeared later as a row with no terminal, and pressing Resume on it started a
+   * second process. A fork has no id until Claude mints one, which is a different shape of
+   * operation entirely.
+   */
+  resume(sessionId: string): Promise<void>
   /** Sets (empty/whitespace-only clears) a session's user-facing title. */
   renameSession(sessionId: string, title: string): Promise<void>
   /** Removes a session from view (never touches the JSONL on disk). Rejects while it is live. */
@@ -166,11 +187,52 @@ export interface ApiaryApi {
    * stored project row before spawning, never trusting it as a raw filesystem path.
    */
   newSessionInProject(path: string): Promise<NewSessionInfo>
+  /**
+   * Forks a session: starts a new one seeded with this one's conversation, leaving the original
+   * alone. Resolves with the pending pty, the way starting a session does — a fork has no session
+   * id of its own until Claude writes one.
+   */
+  forkSession(sessionId: string): Promise<NewSessionInfo>
+
+  /**
+   * Moving a session tab between windows.
+   *
+   * HTML5 drag-and-drop data does not cross a top-level window boundary — two Electron windows are
+   * two OS windows, and a drop in the second one arrives with an empty `dataTransfer`. So the key
+   * being dragged is parked in the main process for the duration of the drag, and whichever strip
+   * receives the drop asks for it. That is also what makes "dragged out of every window" a usable
+   * signal: the drag ends with nothing having claimed it, which is the gesture for tearing a tab
+   * off into a window of its own.
+   */
+  tabDragStart(key: string): void
+  tabDragEnd(): void
+  /** The key currently being dragged, for a strip whose own `dataTransfer` came up empty. */
+  tabDragCurrent(): Promise<string | null>
+  /** Opens `key` in a window of its own, at the pointer, and takes it out of every other window. */
+  tabDetach(key: string, at: { x: number; y: number }): Promise<void>
+  /** Claims `key` for this window, so whichever window had it lets go. */
+  tabClaim(key: string): Promise<void>
+  /** Fired when another window has taken a tab this one was showing. */
+  onTabClaimed(cb: (key: string) => void): () => void
   /** Fired when `File > New Session in Folder...` starts a session via the native dialog. */
   onNewSessionStarted(cb: (info: NewSessionInfo) => void): () => void
   ptyWrite(id: string, data: string): void
   ptyResize(id: string, cols: number, rows: number): void
   ptyKill(id: string): void
+  /**
+   * What this pty printed before the caller attached to it, so a terminal opened in a second
+   * window — or a tab moved into one — is not blank until the program next speaks.
+   */
+  ptyReplay(id: string): Promise<string>
+  /**
+   * Which of `ids` currently have a live process behind them.
+   *
+   * Whether a session has a terminal is main-process state, not window state. A window that asked
+   * only itself got it wrong in two ways that both ended in an empty pane: a second window never
+   * knew about a session the first had started, and a relaunched window restored a tab still set
+   * to its terminal view with nothing behind it.
+   */
+  ptyRunning(ids: string[]): Promise<string[]>
   onPtyData(cb: (id: string, data: string) => void): () => void
   onPtyExit(cb: (id: string, exitCode: number) => void): () => void
   onTreeChanged(cb: () => void): () => void

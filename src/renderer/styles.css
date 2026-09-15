@@ -1554,6 +1554,23 @@ button:not([class]) {
 .settings-row-indent { padding-left: 26px; border-top: 0; padding-top: 0; cursor: default; flex-direction: column; gap: 8px; }
 .settings-help { color: var(--muted); line-height: 1.5; font-size: 12px; }
 
+/* The worked example under "keep the last N folders". Drawn as a field rather than as prose
+   because it stands for something the shell will print, and a field is how this app already says
+   "this is terminal output, not UI copy". */
+.settings-preview code {
+  display: inline-block;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  color: var(--text);
+}
+
+/* A window torn off to hold one session has no sidebar and so no resizer either; the layout is a
+   single column. Declared here rather than only as an inline grid-template so anything else keyed
+   to the sidebar's presence has one thing to ask. */
+.layout[data-detached="true"] { grid-template-columns: 1fr; }
+
 .settings-inline { display: flex; align-items: center; gap: 8px; }
 /* The check's answer sits beside the button that asked for it, and wraps ahead of it rather than
    pushing it off the row. */

@@ -117,14 +117,17 @@ export async function launchApiary(
     /** Makes the stand-in `glab` report no merge requests, or fail outright. */
     glabEmpty?: boolean
     glabFails?: boolean
+    /** Makes it report a merged merge request rather than an open one. */
+    glabMerged?: boolean
     fakeLiveSessionId?: string
     /**
      * Pretend a release of this version exists, so the update banner can be driven without a
      * network or a packaged build. `updateMode` picks which capability is simulated: 'assisted'
-     * (an unsigned mac build — download and open) or 'auto' (an AppImage — install and restart).
+     * (an unsigned mac build — download and open), 'auto' (an AppImage — install and restart), or
+     * 'deb' (a Linux .deb — downloaded, but nothing on the desktop can open it).
      */
     fakeUpdate?: string
-    updateMode?: 'assisted' | 'auto'
+    updateMode?: 'assisted' | 'auto' | 'deb'
   } = {},
 ): Promise<Harness> {
   // realpath the root up front: on macOS os.tmpdir() is under /var, a symlink to /private/var,
@@ -234,6 +237,7 @@ export async function launchApiary(
       APIARY_GLAB_PATH: opts.glabPath ?? '',
       APIARY_FAKE_GLAB_EMPTY: opts.glabEmpty === true ? '1' : '',
       APIARY_FAKE_GLAB_FAIL: opts.glabFails === true ? '1' : '',
+      APIARY_FAKE_GLAB_MERGED: opts.glabMerged === true ? '1' : '',
       APIARY_FAKE_UPDATE_MODE: opts.updateMode ?? 'assisted',
     }),
   })

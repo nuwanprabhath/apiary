@@ -39,14 +39,22 @@ class StubBackend implements UpdateBackend {
 
   install(): void { this.installs += 1 }
 
+  /** Overridden by the .deb test, since the extension is what decides the instructions. */
+  installerPath = '/tmp/Apiary-1.9.0.dmg'
+
   async downloadInstaller(onProgress: (p: number) => void): Promise<string> {
     this.downloads += 1
     if (this.downloadError !== null) throw this.downloadError
     onProgress(100)
-    return '/tmp/Apiary-1.9.0.dmg'
+    return this.installerPath
   }
 
-  async openInstaller(path: string): Promise<void> { this.opened.push(path) }
+  async openInstaller(path: string, action: 'open' | 'reveal'): Promise<void> {
+    this.opened.push(path)
+    this.openActions.push(action)
+  }
+
+  readonly openActions: ('open' | 'reveal')[] = []
 }
 
 /** A clock the test advances by hand, so schedules are tested without waiting for them. */
@@ -90,6 +98,10 @@ const macUnsigned: CapabilityInput = {
 }
 const appImage: CapabilityInput = {
   platform: 'linux', packaged: true, appImagePath: '/tmp/Apiary.AppImage', macSigned: false,
+}
+/** Linux with no AppImage path: installed from a .deb, which needs root and cannot self-install. */
+const debPackage: CapabilityInput = {
+  platform: 'linux', packaged: true, appImagePath: undefined, macSigned: false,
 }
 
 interface Harness {
@@ -343,5 +355,42 @@ describe('dismissing', () => {
     h.service.dismiss()
     // Still ready to install: dismissing the banner is not cancelling the update.
     expect(h.service.current().phase).toBe('ready')
+  })
+})
+
+describe('a downloaded .deb, which nothing on the desktop can open', () => {
+  it('is revealed rather than handed to the OS, and says how to install it', async () => {
+    // `shell.openPath` on a .deb returns success having done nothing on a stock Ubuntu desktop,
+    // so the button looked dead and the error fallback could never fire. The answer is to stop
+    // trying to open it and tell the user the command instead.
+    const deb = harness(debPackage)
+    deb.backend.installerPath = '/home/nuwan/Downloads/apiary_1.9.0_amd64.deb'
+
+    await deb.service.check({ manual: true })
+    const status = await deb.service.download()
+
+    expect(status.phase).toBe('downloaded')
+    expect(deb.backend.openActions).toEqual(['reveal'])
+    expect(status.install?.command).toContain('sudo apt install')
+    expect(status.install?.hint).not.toContain('Applications')
+  })
+
+  it('reveals it again when asked a second time, rather than reverting to opening it', async () => {
+    const deb = harness(debPackage)
+    deb.backend.installerPath = '/home/nuwan/Downloads/apiary_1.9.0_amd64.deb'
+    await deb.service.check({ manual: true })
+    await deb.service.download()
+
+    await deb.service.openDownloaded()
+
+    expect(deb.backend.openActions).toEqual(['reveal', 'reveal'])
+  })
+
+  it('leaves a mac download being opened, since that one works', async () => {
+    const mac = harness(macUnsigned)
+    await mac.service.check({ manual: true })
+    await mac.service.download()
+
+    expect(mac.backend.openActions).toEqual(['open'])
   })
 })

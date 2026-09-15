@@ -14,6 +14,19 @@ export interface SessionTabView {
 }
 
 /**
+ * Whether a point in screen coordinates is outside this window's frame.
+ *
+ * `outerWidth`/`outerHeight` include the frame, which is what `screenX`/`screenY` are measured
+ * against — using the viewport's own width here would call the title bar "outside".
+ */
+function outsideThisWindow(x: number, y: number): boolean {
+  return x < window.screenX
+    || y < window.screenY
+    || x > window.screenX + window.outerWidth
+    || y > window.screenY + window.outerHeight
+}
+
+/**
  * Where the tab at `index` sits once `dragKey` is lifted out of the list — the coordinate the drop
  * indicator and `moveTab` both work in.
  */
@@ -38,6 +51,16 @@ interface Props {
   /** Keys currently in the sidebar's Pinned section, so the menu offers the right verb. */
   pinnedKeys: Set<string>
   onTogglePin: (key: string) => void
+  /** Forks the session behind a tab into a new one, opened beside it. */
+  onFork: (key: string) => void
+  /**
+   * A tab dropped here that belongs to another window. Separate from `onDropTab` because the tab
+   * is in no column of this window to be moved out of — it has to be adopted, and the window it
+   * came from has to be told to let go.
+   */
+  onAdoptTab: (key: string, toIndex: number) => void
+  /** Tears a tab off into a window of its own, at a point in screen coordinates. */
+  onDetach: (key: string, at: { x: number; y: number }) => void
 }
 
 /**
@@ -51,7 +74,7 @@ interface Props {
 export function SessionTabBar(
   {
     tabs, activeKey, onActivate, onClose, onSplitActive, onDropTab, pinnedKeys,
-    onTogglePin,
+    onTogglePin, onFork, onAdoptTab, onDetach,
   }: Props,
 ): JSX.Element {
   /**
@@ -86,7 +109,46 @@ export function SessionTabBar(
     activeRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [activeKey, tabs.length])
 
-  const endDrag = (): void => { setDragKey(null); setDropAt(null) }
+  /**
+   * The key of a tab being dragged from *another window*, once this strip has asked for it.
+   *
+   * Two Electron windows are two OS windows, and HTML5 drag data does not cross that boundary: a
+   * drop arriving from the other window has an empty `dataTransfer` and no `TAB_MIME` in its
+   * `types`, so without this the strip would refuse the drag before a drop could ever fire. The
+   * main process holds the key for the length of the drag; this asks once, on first entry, and
+   * remembers the answer until the drag is over.
+   */
+  const [foreignKey, setForeignKey] = useState<string | null>(null)
+  const asking = useRef(false)
+
+  /** Whether this drag is a session tab at all — from this window or from another one. */
+  const isTabDrag = (e: React.DragEvent): boolean =>
+    e.dataTransfer.types.includes(TAB_MIME) || foreignKey !== null
+
+  /** Asks the main process what is being dragged, the first time a foreign drag comes over. */
+  const noteForeignDrag = (e: React.DragEvent): void => {
+    if (e.dataTransfer.types.includes(TAB_MIME) || foreignKey !== null || asking.current) return
+    // Files and text get dragged over a window too; a null answer simply leaves this strip
+    // refusing the drag, which is what it did before.
+    asking.current = true
+    void window.apiary.tabDragCurrent()
+      .then(setForeignKey)
+      .catch(() => { /* nothing to say: the drag is simply not one of ours */ })
+      .finally(() => { asking.current = false })
+  }
+
+  /** The tab a drop is carrying, from this window's payload or from the main process. */
+  const droppedKey = (e: React.DragEvent): { key: string; foreign: boolean } | null => {
+    const own = e.dataTransfer.getData(TAB_MIME)
+    if (own !== '') return { key: own, foreign: false }
+    return foreignKey === null ? null : { key: foreignKey, foreign: true }
+  }
+
+  const endDrag = (): void => {
+    setDragKey(null)
+    setDropAt(null)
+    setForeignKey(null)
+  }
 
   return (
     <div className="session-tab-bar" data-testid="session-tab-bar" role="tablist">
@@ -95,15 +157,17 @@ export function SessionTabBar(
         // The strip's own empty space is a target too, so a tab can be dropped onto a column that
         // has none of its own yet — and dropping past the end means "last", rather than nothing.
         onDragOver={(e) => {
-          if (!e.dataTransfer.types.includes(TAB_MIME)) return
+          noteForeignDrag(e)
+          if (!isTabDrag(e)) return
           e.preventDefault()
           e.dataTransfer.dropEffect = 'move'
         }}
         onDrop={(e) => {
-          const key = e.dataTransfer.getData(TAB_MIME)
-          if (key === '') return
+          const dropped = droppedKey(e)
+          if (dropped === null) return
           e.preventDefault()
-          onDropTab(key, tabs.length)
+          if (dropped.foreign) onAdoptTab(dropped.key, tabs.length)
+          else onDropTab(dropped.key, tabs.length)
           endDrag()
         }}
       >
@@ -130,28 +194,46 @@ export function SessionTabBar(
             // beside it because Firefox refuses to start a drag with no standard payload at all.
             e.dataTransfer.setData(TAB_MIME, tab.key)
             e.dataTransfer.setData('text/plain', tab.key)
+            // Parked in the main process for the length of the drag, so a strip in *another*
+            // window can find out what is coming — see `foreignKey` above.
+            window.apiary.tabDragStart(tab.key)
           }}
           onDragOver={(e) => {
             // Keyed off the payload type rather than off `dragKey`, which is set only in the strip
             // the drag started in: a tab dragged from another column would otherwise find no
             // target here at all, because without `preventDefault` no drop ever fires.
-            if (!e.dataTransfer.types.includes(TAB_MIME)) return
+            noteForeignDrag(e)
+            if (!isTabDrag(e)) return
             e.preventDefault()
             e.dataTransfer.dropEffect = 'move'
             setDropAt(insertionFor(e, index))
           }}
           onDrop={(e) => {
-            const key = e.dataTransfer.getData(TAB_MIME)
-            if (key === '') return
+            const dropped = droppedKey(e)
+            if (dropped === null) return
             e.preventDefault()
             // The strip behind this tab is a drop target of its own (for the empty space past the
             // last tab); without this the drop would count twice and the second, coarser one would
             // win, sending every tab to the end.
             e.stopPropagation()
-            onDropTab(key, insertionFor(e, index))
+            if (dropped.foreign) onAdoptTab(dropped.key, insertionFor(e, index))
+            else onDropTab(dropped.key, insertionFor(e, index))
             endDrag()
           }}
-          onDragEnd={endDrag}
+          onDragEnd={(e) => {
+            // A drag that ended with nothing having accepted it, *outside this window*, is the
+            // gesture for tearing the tab off into one of its own. `dropEffect` is the only signal
+            // that nothing took it — there is no "dropped on the desktop" event, only the absence
+            // of a drop — but on its own it is not enough: releasing a tab over the transcript or
+            // the sidebar reports 'none' too, and tearing a window off for that would be a
+            // surprise. So the pointer has to have left the window as well.
+            const torn = e.dataTransfer.dropEffect === 'none'
+              && !tab.isPending
+              && outsideThisWindow(e.screenX, e.screenY)
+            if (torn) onDetach(tab.key, { x: e.screenX, y: e.screenY })
+            else window.apiary.tabDragEnd()
+            endDrag()
+          }}
           onContextMenu={(e) => {
             e.preventDefault()
             setMenu({ key: tab.key, x: e.clientX, y: e.clientY })
@@ -202,7 +284,25 @@ export function SessionTabBar(
         onClose={() => setMenu(null)}
         items={menu === null ? [] : [
           {
+            id: 'fork',
+            label: 'Fork session',
+            // A session that has not written its JSONL yet has no id to fork from — Claude mints
+            // that when it first saves, and `--resume` needs one.
+            disabled: tabs.find((t) => t.key === menu.key)?.isPending ?? false,
+            run: () => onFork(menu.key),
+          },
+          {
+            id: 'detach',
+            label: 'Move into New Window',
+            // Same reason as forking: the new window opens a *session*, and a tab that has not
+            // written its JSONL yet has no session id to open — detaching one would leave an
+            // empty window and take the tab out of this one on the way.
+            disabled: tabs.find((t) => t.key === menu.key)?.isPending ?? false,
+            run: () => onDetach(menu.key, { x: menu.x, y: menu.y }),
+          },
+          {
             id: 'pin',
+            separator: true,
             label: pinnedKeys.has(menu.key) ? 'Unpin from sidebar' : 'Pin to sidebar',
             run: () => onTogglePin(menu.key),
           },

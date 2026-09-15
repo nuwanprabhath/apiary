@@ -14,6 +14,8 @@ import type { ToolbarButtonSpec } from './Toolbar'
 
 const ICONS: Record<PluginBarItemPayload['icon'], JSX.Element> = {
   'merge-request': <MergeRequestIcon />,
+  'merge-request-merged': <MergeRequestIcon state="merged" />,
+  'merge-request-closed': <MergeRequestIcon state="closed" />,
   link: <LinkIcon />,
   plus: <PlusIcon />,
   alert: <AlertIcon />,

@@ -81,10 +81,28 @@ function setDevDockIcon(): void {
  */
 const headless = process.env.APIARY_HEADLESS === '1'
 
-function createWindow(): void {
+/**
+ * A window that shows one session and nothing else.
+ *
+ * Dragging a tab out of the window, or `Move into New Window`, gives you the conversation and its
+ * shell with no sidebar in the way — which is the point of the gesture: a session you want to read
+ * or work in without the library beside it. The key travels in the URL for the same reason the
+ * window number does (see below): the renderer needs it at first render, before an IPC round trip
+ * could answer, or the window flashes the full layout before rearranging itself.
+ */
+export interface NewWindowOptions {
+  /** The tab key this window opens on its own, with no sidebar. */
+  detach?: string
+  /** Where to put it — the pointer, when the window was made by dragging a tab out of another. */
+  at?: { x: number; y: number }
+}
+
+function createWindow(opts: NewWindowOptions = {}): void {
   windowsOpened += 1
   const windowNumber = windowsOpened
   const isFirst = windowNumber === 1
+
+  const detached = opts.detach !== undefined && opts.detach !== ''
 
   const saved = loadSettings(settingsFile).windowBounds
   const restored =
@@ -95,20 +113,25 @@ function createWindow(): void {
   // the first looks like nothing happened, so it cascades instead — the convention every
   // multi-window app uses, and the reason `windowNumber` is not reset.
   const offset = isFirst ? 0 : ((windowNumber - 1) % 5) * 30
-  const bounds = isFirst
+  const bounds = isFirst && !detached
     ? restored
     : {
-      width: restored.width,
+      // A detached window has no sidebar, so it does not need the width for one — and a window
+      // torn off by dragging should appear under the pointer that tore it off, not cascaded from
+      // wherever the last window happened to be.
+      width: detached ? Math.min(restored.width, 1000) : restored.width,
       height: restored.height,
-      ...('x' in restored && 'y' in restored
-        ? { x: restored.x + offset, y: restored.y + offset }
-        : {}),
+      ...(opts.at !== undefined
+        ? { x: Math.round(opts.at.x - 120), y: Math.round(opts.at.y - 20) }
+        : 'x' in restored && 'y' in restored
+          ? { x: restored.x + offset, y: restored.y + offset }
+          : {}),
     }
 
   const win = new BrowserWindow({
     ...bounds,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: detached ? 520 : 900,
+    minHeight: 400,
     show: false,
     title: 'Apiary',
     // A *packaged* macOS app takes its window/dock icon from the .app bundle (see
@@ -150,7 +173,7 @@ function createWindow(): void {
   // Only the first window's geometry is remembered: with several open there is no single "the
   // window" to restore, and letting each one write would mean the last window moved silently
   // decides where the app opens next time.
-  if (isFirst) {
+  if (isFirst && !detached) {
     const persistBounds = (): void => {
       const current = loadSettings(settingsFile)
       saveSettings(settingsFile, { ...current, windowBounds: win.getNormalBounds() })
@@ -162,15 +185,17 @@ function createWindow(): void {
   // The window's number reaches the renderer through the URL rather than the preload bridge: it is
   // needed before anything else to pick which stored layout to load, and a query string is
   // available synchronously at first render.
-  const query = { w: String(windowNumber) }
+  const query: Record<string, string> = { w: String(windowNumber) }
+  if (opts.detach !== undefined && opts.detach !== '') query.detach = opts.detach
   if (process.env.ELECTRON_RENDERER_URL) {
     const url = new URL(process.env.ELECTRON_RENDERER_URL)
-    url.searchParams.set('w', query.w)
+    for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v)
     void win.loadURL(url.toString())
   } else {
     void win.loadFile(join(dirname, '../renderer/index.html'), { query })
   }
 }
+
 
 /**
  * `File > New Session in Folder...`. The folder comes from Electron's own native picker, never
@@ -207,11 +232,14 @@ function createUpdater(settingsFile: string): UpdateService | null {
   const fake = process.env.APIARY_FAKE_UPDATE
   const faking = fake !== undefined && fake !== ''
 
+  // 'auto' is a Linux AppImage (installs itself), 'deb' a Linux .deb (assisted, and the case that
+  // cannot be opened by the OS at all), anything else an unsigned macOS build.
+  const fakeMode = process.env.APIARY_FAKE_UPDATE_MODE
   const capabilityInput = faking
     ? {
-      platform: process.env.APIARY_FAKE_UPDATE_MODE === 'auto' ? ('linux' as const) : ('darwin' as const),
+      platform: fakeMode === 'auto' || fakeMode === 'deb' ? ('linux' as const) : ('darwin' as const),
       packaged: true,
-      appImagePath: process.env.APIARY_FAKE_UPDATE_MODE === 'auto' ? '/tmp/Apiary.AppImage' : undefined,
+      appImagePath: fakeMode === 'auto' ? '/tmp/Apiary.AppImage' : undefined,
       macSigned: false,
     }
     : {
@@ -241,7 +269,11 @@ function createUpdater(settingsFile: string): UpdateService | null {
         check: async () => ({ version: fake, releaseNotes: 'Fixture release', releaseUrl: `https://example.invalid/${fake}` }),
         downloadForInstall: async (onProgress) => { onProgress(100) },
         install: () => { /* A test must not quit the app. */ },
-        downloadInstaller: async (onProgress) => { onProgress(100); return `/tmp/Apiary-${fake}.dmg` },
+        downloadInstaller: async (onProgress) => {
+          onProgress(100)
+          // The extension is what decides the instructions, so the fixture has to get it right.
+          return fakeMode === 'deb' ? `/tmp/apiary_${fake}_amd64.deb` : `/tmp/Apiary-${fake}.dmg`
+        },
         openInstaller: async () => { /* Nothing to open in a test. */ },
       }
       : createUpdateBackend({ repo, platform: process.platform, arch: process.arch }),
@@ -300,6 +332,7 @@ void app.whenReady().then(async () => {
   updater = createUpdater(settingsFile)
   disposeIpc = registerIpc(
     service, () => mainWindow, configRoot, settingsFile, setAutoImportInterval, updater,
+    (key, at) => { createWindow({ detach: key, at }) },
   )
   await service.refresh()
   // The first refresh runs before the window exists, so nothing is listening for `treeChanged`

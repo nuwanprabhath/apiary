@@ -72,6 +72,30 @@ this should stay fixed; if you see that error anywhere else, check the variable 
   the host element runs *after* xterm has already written to the PTY, so `preventDefault()` there
   cannot stop a key — which is how you end up copying a selection *and* sending SIGINT.
 
+## Windows, and what belongs to which
+
+Apiary is multi-window, and the division is worth stating because getting it wrong is silent:
+
+- **A pty belongs to the main process, not to a window.** Two windows can show the same session,
+  and both are attached to the one process. `PtyManager` keeps a bounded buffer of each pty's
+  recent output (`replay()`) precisely so a view that attaches *late* — a second window, a tab
+  moved into one — is not looking at an empty rectangle while a program sits at a prompt saying
+  nothing.
+- **Never spawn over an id that is already live.** `spawn()` kills whatever is under an id before
+  taking it. Shell tab ids are minted per window and the first is always `1`, so a session opened
+  in a second window asked for the very pty the first was using — and killed a build with it.
+  `openShell` now attaches instead.
+- **Whether a session has a terminal is a main-process question** (`ptyRunning`), not something a
+  window can know by remembering what it started.
+- **A detached window** — one tab, no sidebar — is an ordinary window with `?detach=<key>` in its
+  URL. The key travels in the URL for the same reason the window number does: it decides the whole
+  layout, and a window that asked over IPC would paint the sidebar first and rearrange itself
+  after.
+- **Drag data does not cross a window boundary.** Two Electron windows are two OS windows: a drop
+  in the second arrives with an empty `dataTransfer`. The key being dragged is parked in the main
+  process for the length of the drag (`tabDragStart`/`tabDragCurrent`), which is also what makes
+  "the drag ended and nothing took it" usable as the tear-off gesture.
+
 ## Search
 
 `src/main/search/` keeps an FTS5 index in a database of its own, because it is derived data that can
@@ -115,6 +139,10 @@ point would.
   checked state, leaving the unchecked box white in a dark panel.
 - **Tests are written as statements about behaviour**, not about implementation: read a few existing
   names before adding one.
+- **A pure helper wanted on both sides of the bridge lives in `src/shared/`**, never in
+  `src/main/`. `tsconfig.node.json` has no DOM lib, so a unit test that reaches into a renderer
+  module drags it into that project; and the renderer has no Node. `shared/promptPath.ts` and
+  `shared/forkLabel.ts` exist for that reason.
 - TypeScript is strict; `npm run typecheck` covers both tsconfigs and both must pass.
 
 ## Session-bar plugins

@@ -57,7 +57,17 @@ export function pickMergeRequest(list: GlabMr[]): GlabMr | null {
   return byNewest.find((mr) => mr.state === 'opened') ?? byNewest[0]
 }
 
-/** Turns the chosen MR into the button. */
+/**
+ * Turns the chosen MR into the button.
+ *
+ * The state reaches the button three times over — as a word in the tooltip, as the glyph, and as
+ * the tone — because the bar is usually read at a glance and the tooltip needs a hover. A merged
+ * MR that looks exactly like an open one is the thing this is for: "!1274" beside a branch says
+ * nothing about whether that work has landed, which is the first question anyone asks about it.
+ *
+ * `suggest` is reserved for the *offer* to create one, so a merged MR is `normal` — it is a thing
+ * that exists, not something being proposed. The glyph is what separates the states.
+ */
 export function itemForMergeRequest(mr: GlabMr): PluginBarItem {
   const state = mr.state === 'opened'
     ? (mr.draft === true ? 'Draft' : 'Open')
@@ -65,13 +75,20 @@ export function itemForMergeRequest(mr: GlabMr): PluginBarItem {
   return {
     pluginId: 'gitlab-mr',
     id: 'mr',
-    icon: 'merge-request',
+    icon: iconForState(mr.state),
     // The number is the label because it is what gets quoted in chat, in commits and in standups.
     label: `!${String(mr.iid)}`,
     title: `${state}: ${mr.title}`,
     action: { kind: 'open-url', url: mr.web_url },
-    tone: mr.state === 'opened' ? 'normal' : 'suggest',
+    tone: 'normal',
   }
+}
+
+/** GitLab's own three merge-request glyphs, chosen by the state the API reports. */
+function iconForState(state: string): PluginBarItem['icon'] {
+  if (state === 'merged') return 'merge-request-merged'
+  if (state === 'closed' || state === 'locked') return 'merge-request-closed'
+  return 'merge-request'
 }
 
 /** The button offering to create one. */
@@ -135,9 +152,14 @@ export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarP
 
       let list: GlabMr[] = []
       try {
+        // `--all` means every state, and it is not optional. Without it `glab mr list` returns
+        // only *open* merge requests, so the instant one is merged it vanishes from the answer and
+        // the button flips to "no MR yet — create one" for a branch that has already landed. That
+        // is worse than a stale label: it invites a duplicate MR. Measured against a real project:
+        // a merged branch returns `[]` by default and `[{state: "merged"}]` with `--all`.
         const stdout = await exec(
           glab,
-          ['mr', 'list', '--source-branch', ctx.branch, '--output', 'json'],
+          ['mr', 'list', '--all', '--source-branch', ctx.branch, '--output', 'json'],
           ctx.cwd,
         )
         const parsed: unknown = JSON.parse(stdout.trim() === '' ? '[]' : stdout)

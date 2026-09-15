@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  newColumn, openTab, moveTab, moveTabToColumn, setTabView, findColumnWithTab, layoutWeights,
+  newColumn, openTab, moveTab, moveTabToColumn, setTabView, findColumnWithTab, layoutWeights, openTabAfter, adoptTab,
 } from '../../src/renderer/state/columns'
 
 const keys = (column: { tabs: { key: string }[] }): string[] => column.tabs.map((t) => t.key)
@@ -129,5 +129,61 @@ describe('layoutWeights', () => {
   it('never lets a column collapse to nothing, whatever is in the weights', () => {
     const out = layoutWeights(cols('a', 'b'), new Map([['a', 0], ['b', 0]]))
     for (const value of out.values()) expect(value).toBeGreaterThan(0)
+  })
+})
+
+describe('openTabAfter', () => {
+  const column = newColumn([
+    { key: 'a', view: 'transcript' },
+    { key: 'b', view: 'transcript' },
+    { key: 'c', view: 'transcript' },
+  ])
+
+  it('puts the new tab directly right of the one it came from', () => {
+    // A fork belongs beside its original, not at the far end of the strip.
+    expect(openTabAfter(column, 'b-fork', 'b').tabs.map((t) => t.key))
+      .toEqual(['a', 'b', 'b-fork', 'c'])
+  })
+
+  it('makes the new tab the active one, since it is what was just asked for', () => {
+    expect(openTabAfter(column, 'b-fork', 'b').activeKey).toBe('b-fork')
+  })
+
+  it('appends when the tab it should follow is not in this column', () => {
+    expect(openTabAfter(column, 'z', 'not-here').tabs.map((t) => t.key))
+      .toEqual(['a', 'b', 'c', 'z'])
+  })
+
+  it('just activates a tab that is already open rather than opening a second copy', () => {
+    const same = openTabAfter(column, 'c', 'a')
+    expect(same.tabs.map((t) => t.key)).toEqual(['a', 'b', 'c'])
+    expect(same.activeKey).toBe('c')
+  })
+})
+
+describe('adoptTab', () => {
+  const columns = [
+    newColumn([{ key: 'a', view: 'transcript' }, { key: 'b', view: 'transcript' }]),
+    newColumn([{ key: 'c', view: 'transcript' }]),
+  ]
+
+  it('takes in a tab from another window at the position it was dropped', () => {
+    const next = adoptTab(columns, 'from-elsewhere', columns[0].id, 1)
+    expect(next[0].tabs.map((t) => t.key)).toEqual(['a', 'from-elsewhere', 'b'])
+    expect(next[0].activeKey).toBe('from-elsewhere')
+  })
+
+  it('leaves the other columns alone', () => {
+    expect(adoptTab(columns, 'from-elsewhere', columns[0].id, 0)[1]).toBe(columns[1])
+  })
+
+  it('clamps a drop position past the end rather than leaving a hole', () => {
+    expect(adoptTab(columns, 'z', columns[1].id, 99)[1].tabs.map((t) => t.key)).toEqual(['c', 'z'])
+  })
+
+  it('does nothing for a tab this window already has, which is a move and not an adoption', () => {
+    // Guards the case where the same key arrives from a drag that never left the window: adopting
+    // it would open a second copy of a session that is already here.
+    expect(adoptTab(columns, 'c', columns[0].id, 0)).toBe(columns)
   })
 })

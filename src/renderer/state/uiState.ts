@@ -77,6 +77,22 @@ function stateKey(): string {
   }
 }
 
+/**
+ * The tab this window was torn off to show, or null for an ordinary window.
+ *
+ * Read from the URL for the same reason the window number is: it decides the whole layout, and a
+ * window that asked over IPC would paint the full sidebar first and rearrange itself a moment
+ * later.
+ */
+export function detachedKey(): string | null {
+  try {
+    const key = new URLSearchParams(window.location.search).get('detach')
+    return key === null || key === '' ? null : key
+  } catch {
+    return null
+  }
+}
+
 const KEY = stateKey()
 /** Window 1's key, which is where the shared half lived before it had a key of its own. */
 const FIRST_WINDOW_KEY = 'apiary.ui'

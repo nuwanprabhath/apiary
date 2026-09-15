@@ -73,9 +73,39 @@ export function TerminalView({ ptyId, testId, visible = true }: Props): JSX.Elem
     // the comment on `resize()` in ptyManager.ts. The renderer just reports its real size.
     window.apiary.ptyResize(ptyId, term.cols, term.rows)
 
+    /**
+     * Catch this fresh xterm up on what the pty already printed.
+     *
+     * A terminal that is attaching for the first time in *this* window — a session opened in a
+     * second window, or a tab dragged into one — has none of the scrollback the originating
+     * window's xterm accumulated, and a TUI sitting at a prompt may never print again, so the
+     * pane stays blank indefinitely. The main process keeps a bounded buffer for exactly this.
+     *
+     * The replay is an async round trip, so live output arriving meanwhile is queued rather than
+     * written: writing it first would put the present above the past. `disposed` guards the case
+     * where the tab is closed before the round trip lands, since writing to a disposed terminal
+     * throws.
+     */
+    let disposed = false
+    let caughtUp = false
+    const queued: string[] = []
+
     const offData = window.apiary.onPtyData((id, data) => {
-      if (id === ptyId) term.write(data)
+      if (id !== ptyId) return
+      if (caughtUp) term.write(data)
+      else queued.push(data)
     })
+
+    void window.apiary.ptyReplay(ptyId)
+      .then((history) => { if (!disposed && history !== '') term.write(history) })
+      // A replay that cannot be fetched is a terminal that starts empty — which is exactly where
+      // it was before this existed, and not worth an error in front of a running session.
+      .catch(() => { /* as above */ })
+      .finally(() => {
+        caughtUp = true
+        if (!disposed) for (const data of queued) term.write(data)
+        queued.length = 0
+      })
     const offExit = window.apiary.onPtyExit((id, code) => {
       // Keep the terminal on screen so the exit status is readable.
       if (id === ptyId) term.write(`\r\n[process exited with code ${String(code)}]\r\n`)
@@ -151,6 +181,7 @@ export function TerminalView({ ptyId, testId, visible = true }: Props): JSX.Elem
     observer.observe(host.current)
 
     return () => {
+      disposed = true
       observer.disconnect()
       if (rafId !== null) cancelAnimationFrame(rafId)
       offData()

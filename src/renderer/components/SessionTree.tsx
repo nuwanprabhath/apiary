@@ -29,13 +29,16 @@ interface Props {
   onReorderFolder?: (path: string, beforePath: string) => void
   /** Filing into groups stays a top-level idea: a worktree belongs to its repository, not a group. */
   onFolderMenu?: (path: string, x: number, y: number) => void
+  /** Right-click on a session row. */
+  onSessionMenu?: (session: SessionNode, x: number, y: number) => void
   /** Orders a level's folders by the user's arrangement. */
   orderFolders?: (nodes: ProjectNode[]) => ProjectNode[]
 }
 
 export function SessionTree({
   nodes, depth = 0, collapsed, onToggle, selectedId, onSelect, onNewSession, onDeleteSession,
-  onSplitSession, pinned, onTogglePin, onEditNote, onReorderFolder, onFolderMenu, orderFolders,
+  onSplitSession, pinned, onTogglePin, onEditNote, onReorderFolder, onFolderMenu,
+  onSessionMenu, orderFolders,
 }: Props): JSX.Element {
   const rearrangeable = onReorderFolder !== undefined
   const ordered = orderFolders === undefined ? nodes : orderFolders(nodes)
@@ -138,6 +141,7 @@ export function SessionTree({
                     onDelete={onDeleteSession}
                     onTogglePin={onTogglePin}
                     onEditNote={onEditNote}
+                    onMenu={onSessionMenu}
                     folderBranch={node.branch}
                   />
                 ))}
@@ -156,6 +160,7 @@ export function SessionTree({
                     onTogglePin={onTogglePin}
                     onEditNote={onEditNote}
                     onReorderFolder={onReorderFolder}
+                    onSessionMenu={onSessionMenu}
                     orderFolders={orderFolders}
                   />
                 )}

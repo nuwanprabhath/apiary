@@ -79,7 +79,13 @@ export interface PluginContext {
 }
 
 /** The icons the renderer can draw for a plugin. Adding one means adding it in both places. */
-export type PluginIcon = 'merge-request' | 'link' | 'plus' | 'alert'
+export type PluginIcon =
+  | 'merge-request'
+  | 'merge-request-merged'
+  | 'merge-request-closed'
+  | 'link'
+  | 'plus'
+  | 'alert'
 
 /** What clicking a plugin's button does. */
 export type PluginAction =

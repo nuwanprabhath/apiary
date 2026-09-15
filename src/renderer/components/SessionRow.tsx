@@ -30,6 +30,9 @@ interface Props {
   onTogglePin: (session: SessionNode) => void
   /** Opens the note editor for this session. */
   onEditNote: (session: SessionNode) => void
+  /** Right-click. The menu itself belongs to the sidebar, which is the only thing that can
+   *  position one over the whole pane rather than inside a clipped, scrolling row. */
+  onMenu?: (session: SessionNode, x: number, y: number) => void
   /**
    * The branch the session's folder is on *now*, from the scan — the same value the session bar
    * shows. Distinct from `session.gitBranch`, which is the branch recorded in the JSONL at the
@@ -50,7 +53,8 @@ interface Props {
  * rather than children of it because a <button> cannot contain another interactive element.
  */
 export function SessionRow({
-  session, selected, pinned, onSelect, onSplit, onDelete, onTogglePin, onEditNote, folderBranch,
+  session, selected, pinned, onSelect, onSplit, onDelete, onTogglePin, onEditNote, onMenu,
+  folderBranch,
 }: Props): JSX.Element {
   const hasNote = session.note !== null && session.note !== ''
   /** The row's rectangle while the hover card is up; null when it is not. */
@@ -91,6 +95,14 @@ export function SessionRow({
       data-pinned={pinned}
       data-session-id={session.sessionId}
       ref={wrapRef}
+      onContextMenu={(e) => {
+        if (onMenu === undefined) return
+        e.preventDefault()
+        // The hover card would otherwise sit over the menu that was just asked for.
+        clearTimers()
+        setCardAnchor(null)
+        onMenu(session, e.clientX, e.clientY)
+      }}
       onMouseEnter={() => {
         keepOpen()
         openTimer.current = window.setTimeout(() => {

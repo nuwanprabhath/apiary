@@ -34,7 +34,12 @@ export interface AppSettings {
   searchSessionNotes: boolean
   /**
    * Trim the working directory in the prompt of shells Apiary starts, to the last
-   * `terminalPathSegments` folders. See pty/promptPath.ts — bash only, by design.
+   * `terminalPathSegments` folders. See pty/promptPath.ts — bash 4+ only, by design.
+   *
+   * One folder, not two. The paths this exists for look like
+   * `~/projects/thing.worktrees/pipeline-issues`, and keeping two of those keeps
+   * `thing.worktrees/pipeline-issues` — almost the whole thing. The last component is the one that
+   * says which worktree you are in; everything before it is what was in the way.
    */
   terminalShortenPath: boolean
   terminalPathSegments: number
@@ -72,8 +77,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   revealActiveInSidebar: true,
   searchChatContent: true,
   searchSessionNotes: true,
-  terminalShortenPath: false,
-  terminalPathSegments: 2,
+  terminalShortenPath: true,
+  terminalPathSegments: 1,
   plugins: {},
   pluginSettings: {},
   updateAutomaticChecks: true,

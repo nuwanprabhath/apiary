@@ -162,3 +162,16 @@ test('a plugin\'s settings are hidden while the plugin is off', async () => {
   await h.page.getByTestId('setting-plugin-gitlab-mr').uncheck()
   await expect(h.page.getByTestId('plugin-setting-gitlab-mr-targetBranch')).toHaveCount(0)
 })
+
+test('a merged merge request says so, instead of looking like an open one', async () => {
+  // The regression this guards is not a wrong label but a missing button: `glab mr list` answers
+  // with open merge requests only, so before `--all` a merged MR vanished and the bar offered to
+  // create a second one for a branch that had already landed.
+  await launch({ glabMerged: true })
+
+  const button = h.page.getByTestId('plugin-gitlab-mr-mr')
+  await expect(button).toBeVisible()
+  await expect(button).toContainText('!1268')
+  await expect(button).toHaveAttribute('title', /^Merged:/)
+  await expect(h.page.getByTestId('plugin-gitlab-mr-mr-new')).toHaveCount(0)
+})

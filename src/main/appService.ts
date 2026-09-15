@@ -13,6 +13,7 @@ import { PtyManager } from './pty/ptyManager'
 import { SearchIndex } from './search/searchIndex'
 import { runIndexPass, type IndexableSession } from './search/indexer'
 import { promptPathEnv, type PromptPathOptions } from './pty/promptPath'
+import { forkLabel } from '@shared/forkLabel'
 import { PluginRegistry } from './plugins/registry'
 import { createGitLabMrPlugin } from './plugins/gitlabMr'
 import type { PluginBarItem } from './plugins/types'
@@ -516,7 +517,7 @@ export class AppService {
   }
 
   /** Spawns `claude --resume` in the session's recorded cwd. Terminal id is the session id. */
-  async resume(sessionId: string, fork: boolean): Promise<void> {
+  async resume(sessionId: string): Promise<void> {
     const session = this.requireSession(sessionId)
     const cwd = session.cwd
     if (!cwd || !existsSync(cwd)) {
@@ -525,8 +526,14 @@ export class AppService {
     this.pty.spawn({
       id: sessionId,
       cwd,
-      command: buildResumeCommand(sessionId, { fork, claudeBin: this.options.claudeBin }),
+      command: buildResumeCommand(sessionId, { claudeBin: this.options.claudeBin }),
       tui: true,
+      // Claude takes the screen, so its own prompt is not bash's — but the shell is still there
+      // underneath and is what you are left looking at the moment Claude exits, which is where a
+      // 90-column worktree path greets you. This was missed when the setting was added: it reached
+      // the shell tabs and not the session's own terminal, so the setting looked broken to anyone
+      // who tried it on the terminal they actually use.
+      env: promptPathEnv(this.promptPath),
     })
   }
 
@@ -542,12 +549,24 @@ export class AppService {
     return cwd
   }
 
-  /** Spawns a plain interactive shell in the session's cwd, keyed `shell:<id>:<tabId>` — more
-   *  than one tab can exist per session; each is addressed by its own tabId. */
+  /**
+   * Spawns a plain interactive shell in the session's cwd, keyed `shell:<id>:<tabId>` — more
+   * than one tab can exist per session; each is addressed by its own tabId.
+   *
+   * **An existing shell is attached to, never replaced.** Shell tab ids are minted per window and
+   * the first one is always `1`, so opening the shell for a session that is already open in
+   * another window asked for the id that window was using — and `spawn()` kills whatever is under
+   * an id before taking it. A build, a `tail -f`, an editor, anything running in the first
+   * window's shell died the moment the second window showed the same session, with nothing said.
+   * Attaching is now a real answer rather than a blank pane, because the pty keeps a replay buffer
+   * for a view that arrives late (see `PtyManager.replay`).
+   */
   async openShell(sessionId: string, tabId: string): Promise<void> {
+    const id = `shell:${sessionId}:${tabId}`
+    if (this.pty.has(id)) return
     const cwd = this.resolveShellCwd(sessionId, false)
     this.pty.spawn({
-      id: `shell:${sessionId}:${tabId}`,
+      id,
       cwd,
       command: 'exec "$SHELL" -l',
       env: promptPathEnv(this.promptPath),
@@ -559,9 +578,11 @@ export class AppService {
    * `shell:<ptyId>:<tabId>`.
    */
   async openShellForPty(ptyId: string, tabId: string): Promise<void> {
+    const id = `shell:${ptyId}:${tabId}`
+    if (this.pty.has(id)) return
     const cwd = this.resolveShellCwd(ptyId, true)
     this.pty.spawn({
-      id: `shell:${ptyId}:${tabId}`,
+      id,
       cwd,
       command: 'exec "$SHELL" -l',
       env: promptPathEnv(this.promptPath),
@@ -639,6 +660,38 @@ export class AppService {
   }
 
   /**
+   * Forks a session: starts `claude --resume <id> --fork-session`, which replays the conversation
+   * so far into a *new* session rather than continuing the old one.
+   *
+   * Deliberately routed through the same `new:<uuid>` pty bookkeeping as starting a session from
+   * scratch, not through `resume()`. A fork's session id does not exist yet — Claude mints it and
+   * writes the JSONL itself — so there is nothing to key the terminal by until the watcher finds
+   * it, which is exactly the problem the pending-session machinery already solves. The one thing
+   * that differs is the label, and the renderer carries that across as a rename once the real id
+   * appears.
+   *
+   * The original is untouched, which is the point of forking rather than branching in place: the
+   * conversation you forked from is still there to go back to.
+   */
+  forkSession(sessionId: string): NewSessionInfo {
+    const session = this.requireSession(sessionId)
+    const cwd = session.cwd
+    if (!cwd || !existsSync(cwd)) {
+      throw new Error(`The folder for this session no longer exists: ${cwd ?? 'unknown'}`)
+    }
+    this.store.setAutoImport(cwd, true)
+    const ptyId = `new:${randomUUID()}`
+    this.pty.spawn({
+      id: ptyId,
+      cwd,
+      command: buildResumeCommand(sessionId, { fork: true, claudeBin: this.options.claudeBin }),
+      tui: true,
+      env: promptPathEnv(this.promptPath),
+    })
+    return { ptyId, cwd, label: forkLabel(session.title ?? (basename(cwd) || cwd)) }
+  }
+
+  /**
    * Spawns `claude` (no `--resume`) in `cwd`, keyed under a fresh `new:<uuid>` pty id — there is
    * no session id yet, so it cannot be keyed like `resume()`/`openShell()` are. Also flips the
    * project's `auto_import` flag so the session the watcher discovers once Claude writes its
@@ -654,6 +707,7 @@ export class AppService {
       cwd,
       command: buildNewSessionCommand({ claudeBin: this.options.claudeBin }),
       tui: true,
+      env: promptPathEnv(this.promptPath),
     })
     return { ptyId, cwd, label: basename(cwd) || cwd }
   }

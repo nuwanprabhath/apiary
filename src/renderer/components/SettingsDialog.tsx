@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react'
 import type { AppSettingsPayload, PluginInfoPayload, PluginSettingFieldPayload } from '@shared/api'
 import { useUpdate } from '../state/useUpdate'
 import { formatVersion, formatChecked, describeCheck } from '../state/updateSummary'
+import { previewPrompt } from '@shared/promptPath'
+
+/**
+ * The path the preview is shown against: a real worktree layout, not the user's own directory.
+ * A fixed example is what makes the setting comparable — the point being demonstrated is that one
+ * folder shortens such a path and two barely do, and that only shows if the example is long.
+ */
+const EXAMPLE_PATH = '~/projects/paratoo-fdcp.worktrees/pipeline-issues'
 
 /**
  * One page of settings. Sections are data, not markup — adding a setting later means adding an
@@ -292,7 +300,9 @@ export function SettingsDialog(
                       A worktree path takes most of a narrow terminal&rsquo;s first line before you
                       have typed anything, and the part that identifies it is the end. Apiary asks
                       the shell to keep only the last few folders, leaving the rest of your prompt
-                      exactly as you have it.
+                      exactly as you have it. One folder is usually the right answer: a worktree
+                      path is identified by its last component, and keeping two of
+                      <code> thing.worktrees/pipeline-issues</code> keeps nearly the whole path.
                     </span>
                   </span>
                 </label>
@@ -318,6 +328,12 @@ export function SettingsDialog(
                       />
                       <span>folders</span>
                     </label>
+                    <div className="settings-help settings-preview" data-testid="terminal-path-preview">
+                      <code>{previewPrompt(EXAMPLE_PATH, {
+                        enabled: draft.terminalShortenPath,
+                        segments: draft.terminalPathSegments,
+                      })}</code>
+                    </div>
                   </div>
                 )}
 
@@ -326,7 +342,8 @@ export function SettingsDialog(
                     Applies to terminals opened from now on — a shell already running keeps the
                     environment it started with. This uses bash&rsquo;s own <code>PROMPT_DIRTRIM</code>,
                     so a zsh prompt is unaffected: zsh has no equivalent, and the alternative is
-                    overwriting a prompt you configured yourself.
+                    overwriting a prompt you configured yourself. It needs bash 4 or newer, so
+                    macOS&rsquo;s own <code>/bin/bash</code> (still 3.2) ignores it.
                   </span>
                 </div>
               </>

@@ -175,15 +175,40 @@ export function CheckIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** GitLab's merge-request glyph: a branch line merging back into the trunk. */
-export function MergeRequestIcon({ className }: IconProps): JSX.Element {
+/**
+ * GitLab's merge-request glyph: a branch line merging back into the trunk — one family, three
+ * states, because "!1274" beside a branch says nothing about whether that work has landed, and
+ * that is the first question anyone asks about a merge request.
+ *
+ * The state is carried by the *target* node alone, so all three share a silhouette and the eye
+ * only has to read one small difference rather than learn three shapes. What that difference is
+ * was decided by rendering all three at 14px (the size this is actually drawn at on the bar) and
+ * looking, the same way the refresh icon was:
+ *
+ * - **open** — an outlined ring, the branch arriving at it.
+ * - **merged** — the same ring filled solid. A filled 3.6px disc against a 1.2px ring is the
+ *   largest difference available in that space, and it is the GitHub/GitLab convention besides.
+ * - **closed** — a cross where the ring would be. A ring with something *inside* it turns to mush
+ *   at this size; a bare cross keeps two clean strokes.
+ */
+export function MergeRequestIcon(
+  { className, state = 'open' }: IconProps & { state?: 'open' | 'merged' | 'closed' },
+): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <circle cx="4" cy="4" r="1.8" stroke="currentColor" strokeWidth="1.2" />
       <circle cx="4" cy="12.5" r="1.8" stroke="currentColor" strokeWidth="1.2" />
-      <circle cx="12" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.2" />
       <path d="M4 5.8v4.9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
       <path d="M5.8 4h1.4A3 3 0 0 1 10.2 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      {state === 'closed'
+        ? <path d="M10.6 6.6 13.4 9.4M13.4 6.6 10.6 9.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+        : (
+          <circle
+            cx="12" cy="8" r="1.8"
+            stroke="currentColor" strokeWidth="1.2"
+            fill={state === 'merged' ? 'currentColor' : 'none'}
+          />
+        )}
     </svg>
   )
 }

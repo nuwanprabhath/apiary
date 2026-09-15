@@ -38,6 +38,55 @@ export interface Capability {
   reason: string
 }
 
+/**
+ * What the user has to do with an `assisted` download, once it is on disk.
+ *
+ * This exists because the banner used to say "Open it and drag Apiary into Applications" on every
+ * platform. On Ubuntu that sentence describes nothing that exists, next to a button that did
+ * nothing — `shell.openPath` on a `.deb` is a no-op on a desktop with no handler registered for
+ * one, and it reports success, so even the fallback never fired.
+ *
+ * So the instruction is decided where the platform is already known, beside the capability, and
+ * travels to the UI as words rather than being reinvented there.
+ */
+export interface InstallInstructions {
+  /** The sentence the banner shows once the file is downloaded. */
+  hint: string
+  /** A command that finishes the job, ready to copy — or null where double-clicking is the answer. */
+  command: string | null
+  /**
+   * What to do with the file when the user presses the button: hand it to the OS, or just show
+   * them where it is. A `.deb` is `reveal`, because handing it over is the thing that fails.
+   */
+  action: 'open' | 'reveal'
+}
+
+/** POSIX single-quoting, so a download path with a space in it survives being pasted. */
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+/** The instructions for a downloaded installer at `path`. Pure, so the wording is testable. */
+export function installInstructions(input: CapabilityInput, path: string): InstallInstructions {
+  if (input.platform === 'linux' && path.endsWith('.deb')) {
+    return {
+      // Not "double-click it": installing a .deb needs root, and Ubuntu 24.04's desktop has no
+      // handler for one at all, so the honest instruction is the command that works everywhere.
+      hint: 'Installing a .deb needs root, so Apiary cannot do it for you. Run this to finish:',
+      command: `sudo apt install ${shellQuote(path)}`,
+      action: 'reveal',
+    }
+  }
+  if (input.platform === 'darwin') {
+    return {
+      hint: 'Open it and drag Apiary into Applications to finish updating.',
+      command: null,
+      action: 'open',
+    }
+  }
+  return { hint: 'Open it to finish updating.', command: null, action: 'open' }
+}
+
 export function decideCapability(input: CapabilityInput): Capability {
   if (!input.packaged) {
     return { kind: 'unsupported', reason: 'Running from source — updates apply to installed builds only.' }

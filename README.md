@@ -23,6 +23,12 @@ resume it in an embedded terminal in the correct working directory.
 - **Work on several sessions at once** — sessions open as tabs, and any session can
   be split into a column of its own beside the current one (as many columns as you
   like), so two or three conversations can be watched side by side.
+- **A session in a window of its own** — drag a tab out of the window, or right-click it and
+  choose *Move into New Window*, and the conversation and its shell get a window with no sidebar
+  in the way. Tabs can be dragged between open windows too.
+- **Fork a session** — right-click a tab or a sidebar row to start a new conversation from where
+  this one has got to. The fork opens beside the original, named after it; the original is left
+  exactly as it was.
 - **Chat from the transcript** — a message box under the conversation, so you can reply without
   switching to the raw terminal. Paste or drop images straight into it: each one gets a thumbnail
   you can click to see full size, and images already in a session's history render the same way.
@@ -53,8 +59,8 @@ resume it in an embedded terminal in the correct working directory.
   touching the underlying transcript file on disk; it stays importable again
   later if you change your mind.
 - **Merge-request button** — the session bar shows the GitLab MR for the branch you are on by
-  number, and opens it in a click; with no MR yet it opens GitLab's new-MR form with the branch
-  filled in. Uses `glab`, so Apiary never stores a token. Part of a small plugin system, so the
+  number, and opens it in a click, saying whether it is open, merged or closed; with no MR yet it
+  opens GitLab's new-MR form with the branch filled in. Uses `glab`, so Apiary never stores a token. Part of a small plugin system, so the
   bar can grow other integrations the same way.
 - **Shorter terminal prompts** — optionally trim the working directory in the prompt of shells
   Apiary starts, so a deep worktree path stops eating the first line.

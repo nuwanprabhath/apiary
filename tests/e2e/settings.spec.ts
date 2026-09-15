@@ -104,3 +104,19 @@ test('the periodic check is off unless it is switched on, and its interval only 
   await h.page.getByTestId('setting-auto-import-interval-enabled').check()
   await expect(h.page.getByTestId('setting-auto-import-interval')).toBeVisible()
 })
+
+test('the prompt-shortening setting shows what it will actually do', async () => {
+  // "Keep the last N folders" is a rule whose effect on a real path is not obvious — and the
+  // default of two shortened a worktree path so little that the setting looked broken. The
+  // example is the fix: the difference between one folder and two is visible rather than argued.
+  await openSettings(h)
+  await h.page.getByTestId('settings-nav-terminal').click()
+  await h.page.getByTestId('setting-terminal-shorten-path').check()
+
+  const preview = h.page.getByTestId('terminal-path-preview')
+  await h.page.getByTestId('setting-terminal-path-segments').fill('1')
+  await expect(preview).toHaveText('~/.../pipeline-issues')
+
+  await h.page.getByTestId('setting-terminal-path-segments').fill('2')
+  await expect(preview).toHaveText('~/.../paratoo-fdcp.worktrees/pipeline-issues')
+})

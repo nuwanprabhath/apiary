@@ -75,3 +75,25 @@ test('each window still keeps its own tabs and its own sidebar width', async () 
   await expect(h.page.getByTestId('session-title')).toHaveText('Fix CSV export bug')
   await expect(second.getByTestId('session-title')).toHaveText('Add worktree switcher')
 })
+
+test('a session opened in a second window shows what it already printed', async () => {
+  // Scrollback lived only in whichever xterm had been attached since the process started, so a
+  // second view of a running session opened blank — and a TUI sitting at a prompt may never print
+  // again, so it stayed blank. The main process now keeps the output and replays it on attach.
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('shell-toggle').click()
+  await h.page.getByTestId('terminal-shell').click()
+  await h.page.keyboard.type('echo APIARY_EARLIER_OUTPUT\n')
+  await expect(h.page.getByTestId('terminal-shell')).toContainText('APIARY_EARLIER_OUTPUT', {
+    timeout: 20000,
+  })
+
+  const second = await h.newWindow()
+  await sidebarSession(second, 'Fix CSV export bug').click()
+  await second.getByTestId('shell-toggle').click()
+
+  // Printed before this window existed, and nothing has printed since.
+  await expect(second.getByTestId('terminal-shell')).toContainText('APIARY_EARLIER_OUTPUT', {
+    timeout: 20000,
+  })
+})

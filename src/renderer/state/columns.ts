@@ -135,6 +135,50 @@ export function openTab(column: Column, key: string): Column {
 }
 
 /**
+ * Adds `key` directly to the right of `afterKey`, rather than at the end of the strip.
+ *
+ * This is what forking a session needs: the fork belongs beside the conversation it came from, so
+ * the pair can be read against each other without hunting along the strip for whichever tab landed
+ * last. Falls back to appending when `afterKey` is not in this column, which is the honest answer
+ * — there is nothing to sit beside.
+ */
+export function openTabAfter(column: Column, key: string, afterKey: string): Column {
+  if (findTab(column, key) !== null) return { ...column, activeKey: key }
+  const at = column.tabs.findIndex((t) => t.key === afterKey)
+  if (at === -1) return openTab(column, key)
+  const tab: OpenTab = { key, view: 'transcript' }
+  return {
+    ...column,
+    tabs: [...column.tabs.slice(0, at + 1), tab, ...column.tabs.slice(at + 1)],
+    activeKey: key,
+  }
+}
+
+/**
+ * Puts a tab that is not in this window at `toIndex` of `toColumnId`.
+ *
+ * Distinct from `moveTabToColumn`, which lifts a tab out of the column it is already in. A tab
+ * arriving from *another window* is in none of them, so there is nothing to lift — and treating
+ * the two as one case meant a cross-window drop landed on a column that had never heard of the
+ * key and quietly did nothing.
+ */
+export function adoptTab(
+  columns: Column[],
+  key: string,
+  toColumnId: string,
+  toIndex: number,
+): Column[] {
+  if (findColumnWithTab(columns, key) !== null) return columns
+  return columns.map((c) => {
+    if (c.id !== toColumnId) return c
+    const clamped = Math.max(0, Math.min(toIndex, c.tabs.length))
+    const tabs = [...c.tabs]
+    tabs.splice(clamped, 0, { key, view: 'transcript' })
+    return { ...c, tabs, activeKey: key }
+  })
+}
+
+/**
  * Removes a tab. The next tab to activate is the one to the right, falling back to the one to the
  * left when the closed tab was last — the behaviour every tabbed editor has trained people to
  * expect. Returns a column with no tabs (rather than null) so the caller decides whether an empty

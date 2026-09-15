@@ -1,4 +1,7 @@
-import { decideCapability, type Capability, type CapabilityInput } from './capability'
+import {
+  decideCapability, installInstructions,
+  type Capability, type CapabilityInput, type InstallInstructions,
+} from './capability'
 import { shouldOffer } from './versions'
 
 /**
@@ -38,6 +41,12 @@ export interface UpdateStatus {
   progressPercent: number | null
   /** Where the installer was saved, for the assisted flow's "Show in Finder"/"Open" affordance. */
   downloadedPath: string | null
+  /**
+   * What to do with that file, in the words of the platform it was downloaded on. Null until
+   * there is a file — the instruction depends on which one was downloaded (`.deb` or `.dmg`), not
+   * only on the platform, so it cannot be decided up front with the capability.
+   */
+  install: InstallInstructions | null
   error: string | null
   lastCheckedAt: number | null
   skippedVersion: string | null
@@ -61,8 +70,12 @@ export interface UpdateBackend {
    * the release metadata, and returns where it was saved.
    */
   downloadInstaller(onProgress: (percent: number) => void): Promise<string>
-  /** `assisted`: hands the downloaded installer to the OS to open. */
-  openInstaller(path: string): Promise<void>
+  /**
+   * `assisted`: hands the downloaded installer to the OS, or just reveals it in the file manager.
+   * Which one is not the backend's choice: a `.deb` cannot be opened by anything on a stock
+   * Ubuntu desktop, so `installInstructions` decides and this does as it is told.
+   */
+  openInstaller(path: string, action: InstallInstructions['action']): Promise<void>
 }
 
 export interface UpdateSettings {
@@ -126,6 +139,7 @@ export class UpdateService {
       releaseUrl: null,
       progressPercent: null,
       downloadedPath: null,
+      install: null,
       error: null,
       lastCheckedAt: null,
       skippedVersion: opts.settings().skippedVersion,
@@ -254,8 +268,9 @@ export class UpdateService {
         this.patch({ phase: 'ready', progressPercent: 100 })
       } else {
         const path = await this.opts.backend.downloadInstaller(onProgress)
-        this.patch({ phase: 'downloaded', progressPercent: 100, downloadedPath: path })
-        await this.opts.backend.openInstaller(path)
+        const install = installInstructions(this.opts.capabilityInput, path)
+        this.patch({ phase: 'downloaded', progressPercent: 100, downloadedPath: path, install })
+        await this.opts.backend.openInstaller(path, install.action)
       }
     } catch (e) {
       // Back to `available`, not to `idle`: the update is still there and still worth offering,
@@ -275,10 +290,11 @@ export class UpdateService {
     this.opts.backend.install()
   }
 
-  /** `assisted` only: opens the installer again, for anyone who closed it. */
+  /** `assisted` only: opens (or reveals) the installer again, for anyone who closed it. */
   async openDownloaded(): Promise<void> {
-    if (this.status.downloadedPath === null) return
-    await this.opts.backend.openInstaller(this.status.downloadedPath)
+    const path = this.status.downloadedPath
+    if (path === null) return
+    await this.opts.backend.openInstaller(path, this.status.install?.action ?? 'open')
   }
 
   /** Dismisses this version for good — until a newer one arrives. */

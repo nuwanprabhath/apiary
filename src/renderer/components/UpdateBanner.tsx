@@ -42,10 +42,13 @@ export function UpdateBanner(
       case 'ready':
         return <span>Apiary {version} is ready to install.</span>
       case 'downloaded':
+        // The instruction comes from the main process, because it depends on what was downloaded
+        // and where. This used to say "drag Apiary into Applications" on Ubuntu, beside a button
+        // that could not open a .deb — an instruction for a thing that does not exist there.
         return (
           <span>
-            Apiary {version} has been downloaded. Open it and drag Apiary into Applications to
-            finish updating.
+            Apiary {version} has been downloaded.{' '}
+            {status.install?.hint ?? 'Open it to finish updating.'}
           </span>
         )
       default:
@@ -110,7 +113,19 @@ export function UpdateBanner(
             data-testid="update-open-downloaded"
             onClick={() => { void window.apiary.updateOpenDownloaded() }}
           >
-            Open installer
+            {status.install?.action === 'reveal' ? 'Show in folder' : 'Open installer'}
+          </button>
+        )}
+        {phase === 'downloaded' && status.install?.command != null && (
+          // The command is the thing that actually finishes the update on a .deb, so it is a
+          // button rather than a sentence to retype: nobody transcribes a path from a banner.
+          <button
+            className="btn"
+            data-testid="update-copy-command"
+            title={status.install.command}
+            onClick={() => { void window.apiary.copyToClipboard(status.install?.command ?? '') }}
+          >
+            Copy install command
           </button>
         )}
         {status.releaseUrl !== null && phase !== 'up-to-date' && phase !== 'error' && (
