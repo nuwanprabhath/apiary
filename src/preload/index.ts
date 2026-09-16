@@ -24,6 +24,11 @@ const api: ApiaryApi = {
   openShellForPty: (id, tabId) => ipcRenderer.invoke(CHANNELS.openShellForPty, id, tabId),
   newSessionInProject: (path) => ipcRenderer.invoke(CHANNELS.newSessionInProject, path),
   forkSession: (id) => ipcRenderer.invoke(CHANNELS.forkSession, id),
+  logStatus: () => ipcRenderer.invoke(CHANNELS.logStatus),
+  logReveal: () => ipcRenderer.invoke(CHANNELS.logReveal),
+  logClear: () => ipcRenderer.invoke(CHANNELS.logClear),
+  logWrite: (level, scope, message, fields) =>
+    ipcRenderer.send(CHANNELS.logWrite, level, scope, message, fields),
   tabDropped: (key, at) => ipcRenderer.invoke(CHANNELS.tabDropped, key, at),
   tabDetach: (key, at) => ipcRenderer.invoke(CHANNELS.tabDetach, key, at),
   onTabAdopt: (cb) => subscribe(CHANNELS.tabAdopt, cb),

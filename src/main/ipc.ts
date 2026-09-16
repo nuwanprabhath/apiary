@@ -10,6 +10,8 @@ import {
 import type { AppService } from './appService'
 import type { AppSettings } from './settings'
 import { loadSettings, saveSettings } from './settings'
+import { log, type LogLevel } from './log/logger'
+import { configureLogging } from './log/configure'
 import type { UpdateService } from './update/updateService'
 import { pickWindowAt } from './windowAtPoint'
 
@@ -25,6 +27,40 @@ export function registerIpc(
   openDetachedWindow?: (key: string, at: { x: number; y: number }) => void,
 ): () => void {
   /**
+   * Every `invoke` handler, wrapped so its failures and its slow cases are recorded.
+   *
+   * This is the instrumentation the "Open installer" bug needed and did not have: the renderer
+   * reported `Error invoking remote method '…': reply was never sent`, which says something about
+   * Electron's plumbing and nothing about what the handler was doing when it stopped. A channel
+   * name, a duration and the error are enough to tell a thrown error from one that never
+   * returned, which is the distinction that took a day of guessing.
+   *
+   * Wrapping centrally rather than per handler is deliberate: there are fifty of these, and the
+   * one that matters next will be whichever nobody thought to instrument.
+   */
+  type Handler = Parameters<typeof ipcMain.handle>[1]
+  const handle = (channel: string, fn: Handler): void => {
+    ipcMain.handle(channel, async (event, ...args) => {
+      const started = Date.now()
+      try {
+        const result: unknown = await fn(event, ...args)
+        const ms = Date.now() - started
+        // Only the slow ones: logging every call would bury the interesting lines in traffic.
+        if (ms > 2000) log.warn('ipc', 'slow handler', { channel, ms })
+        return result
+      } catch (error) {
+        // `warn`, not `error`: a rejecting handler is usually an *expected* failure on its way to
+        // being shown to the user — asking for git status in a folder that is not a repository
+        // rejects every time you click such a session, and a log where that is an error has no
+        // room left for the things nobody handled. `error` is reserved for exactly those: see the
+        // renderer's uncaught-error net.
+        log.warn('ipc', 'handler failed', { channel, ms: Date.now() - started, error })
+        throw error
+      }
+    })
+  }
+
+  /**
    * Broadcasts to every window, not just the focused one.
    *
    * With more than one window open, terminal output and tree changes belong to whichever windows
@@ -39,9 +75,9 @@ export function registerIpc(
     }
   }
 
-  ipcMain.handle(CHANNELS.refresh, () => service.refresh())
-  ipcMain.handle(CHANNELS.tree, (_e, query: string) => service.tree(query))
-  ipcMain.handle(CHANNELS.discovered, async () =>
+  handle(CHANNELS.refresh, () => service.refresh())
+  handle(CHANNELS.tree, (_e, query: string) => service.tree(query))
+  handle(CHANNELS.discovered, async () =>
     (await service.discovered()).map((s) => ({
       sessionId: s.sessionId,
       projectPath: s.projectPath,
@@ -50,15 +86,15 @@ export function registerIpc(
       imported: s.imported,
     })),
   )
-  ipcMain.handle(CHANNELS.importSessions, (_e, ids: string[], projects: string[]) =>
+  handle(CHANNELS.importSessions, (_e, ids: string[], projects: string[]) =>
     service.importSessions(ids, projects),
   )
-  ipcMain.handle(CHANNELS.transcript, (_e, id: string, beforeIndex?: number) =>
+  handle(CHANNELS.transcript, (_e, id: string, beforeIndex?: number) =>
     service.transcript(id, beforeIndex),
   )
-  ipcMain.handle(CHANNELS.checkConflict, (_e, id: string) => service.checkConflict(id))
-  ipcMain.handle(CHANNELS.resume, (_e, id: string) => service.resume(id))
-  ipcMain.handle(CHANNELS.renameSession, async (_e, id: string, title: string) => {
+  handle(CHANNELS.checkConflict, (_e, id: string) => service.checkConflict(id))
+  handle(CHANNELS.resume, (_e, id: string) => service.resume(id))
+  handle(CHANNELS.renameSession, async (_e, id: string, title: string) => {
     await service.renameSession(id, title)
     // Nothing on disk changed, so the filesystem watcher will never fire for this — push the
     // same "tree changed" signal it uses so every open view (the sidebar list here, and any
@@ -66,19 +102,19 @@ export function registerIpc(
     // refresh.
     send(CHANNELS.treeChanged)
   })
-  ipcMain.handle(CHANNELS.removeSession, async (_e, id: string) => {
+  handle(CHANNELS.removeSession, async (_e, id: string) => {
     await service.removeSession(id)
     send(CHANNELS.treeChanged)
   })
-  ipcMain.handle(CHANNELS.openShell, (_e, id: string, tabId: string) => service.openShell(id, tabId))
-  ipcMain.handle(CHANNELS.openShellForPty, (_e, id: string, tabId: string) =>
+  handle(CHANNELS.openShell, (_e, id: string, tabId: string) => service.openShell(id, tabId))
+  handle(CHANNELS.openShellForPty, (_e, id: string, tabId: string) =>
     service.openShellForPty(id, tabId),
   )
-  ipcMain.handle(CHANNELS.forkSession, (_e, id: string) => service.forkSession(id))
-  ipcMain.handle(CHANNELS.newSessionInProject, (_e, path: string) =>
+  handle(CHANNELS.forkSession, (_e, id: string) => service.forkSession(id))
+  handle(CHANNELS.newSessionInProject, (_e, path: string) =>
     service.newSessionInProject(path),
   )
-  ipcMain.handle(CHANNELS.settingsGet, (): AppSettingsPayload => {
+  handle(CHANNELS.settingsGet, (): AppSettingsPayload => {
     const settings = loadSettings(settingsFile)
     return {
       claudeBin: settings.claudeBin,
@@ -89,6 +125,9 @@ export function registerIpc(
       searchSessionNotes: settings.searchSessionNotes,
       terminalShortenPath: settings.terminalShortenPath,
       terminalPathSegments: settings.terminalPathSegments,
+      diagnosticsEnabled: settings.diagnosticsEnabled,
+      logRetentionDays: settings.logRetentionDays,
+      logMaxSizeMb: settings.logMaxSizeMb,
       plugins: Object.fromEntries(service.listPlugins().map((p) => [p.id, p.enabled])),
       pluginSettings: Object.fromEntries(service.listPlugins().map((p) => [p.id, p.values])),
       updateAutomaticChecks: settings.updateAutomaticChecks,
@@ -97,7 +136,7 @@ export function registerIpc(
       updateAllowPrerelease: settings.updateAllowPrerelease,
     }
   })
-  ipcMain.handle(CHANNELS.settingsSet, async (_e, next: AppSettingsPayload) => {
+  handle(CHANNELS.settingsSet, async (_e, next: AppSettingsPayload) => {
     const current = loadSettings(settingsFile)
     /**
      * A field the payload does not carry means "leave it alone", never "off".
@@ -130,6 +169,9 @@ export function registerIpc(
       updateCheckIntervalHours: keep(next.updateCheckIntervalHours, current.updateCheckIntervalHours),
       updateAutoDownload: keep(next.updateAutoDownload, current.updateAutoDownload),
       updateAllowPrerelease: keep(next.updateAllowPrerelease, current.updateAllowPrerelease),
+      diagnosticsEnabled: keep(next.diagnosticsEnabled, current.diagnosticsEnabled),
+      logRetentionDays: keep(next.logRetentionDays, current.logRetentionDays),
+      logMaxSizeMb: keep(next.logMaxSizeMb, current.logMaxSizeMb),
     }
     saveSettings(settingsFile, merged)
     // The schedule has to follow the settings immediately: switching checks off and having one
@@ -152,6 +194,14 @@ export function registerIpc(
       enabled: merged.terminalShortenPath,
       segments: merged.terminalPathSegments,
     })
+    // Applied immediately: switching diagnostics off has to stop writing now, not at next launch,
+    // or "off" is a promise the app keeps only eventually.
+    configureLogging(merged)
+    log.info('settings', 'settings saved', {
+      diagnosticsEnabled: merged.diagnosticsEnabled,
+      terminalShortenPath: merged.terminalShortenPath,
+      terminalPathSegments: merged.terminalPathSegments,
+    })
     // Switching content search on should not mean waiting until the next rescan to be able to use
     // it, so the first pass starts now; it is a background chore either way.
     if (merged.searchChatContent) void service.updateSearchIndex()
@@ -163,13 +213,13 @@ export function registerIpc(
     }
   })
 
-  ipcMain.handle(CHANNELS.gitStatus, (_e, key: string, isPtyId: boolean) =>
+  handle(CHANNELS.gitStatus, (_e, key: string, isPtyId: boolean) =>
     service.gitStatus(key, isPtyId),
   )
-  ipcMain.handle(CHANNELS.gitListRefs, (_e, key: string, isPtyId: boolean) =>
+  handle(CHANNELS.gitListRefs, (_e, key: string, isPtyId: boolean) =>
     service.gitListRefs(key, isPtyId),
   )
-  ipcMain.handle(CHANNELS.gitCheckoutBranch, async (_e, key: string, isPtyId: boolean, name: string) => {
+  handle(CHANNELS.gitCheckoutBranch, async (_e, key: string, isPtyId: boolean, name: string) => {
     const outcome = await service.gitCheckoutBranch(key, isPtyId, name)
     // `tree()` reads the `branch` column, which only `refresh()` (via `resolveProject`) writes —
     // without this, the sidebar keeps showing the pre-checkout branch until something else
@@ -180,7 +230,7 @@ export function registerIpc(
     }
     return outcome
   })
-  ipcMain.handle(CHANNELS.gitPullWorktree, async (_e, key: string, isPtyId: boolean, branch: string) => {
+  handle(CHANNELS.gitPullWorktree, async (_e, key: string, isPtyId: boolean, branch: string) => {
     const path = await service.gitPullWorktree(key, isPtyId, branch)
     // The worktree that was pulled is a project in its own right here, and its ahead/behind counts
     // have just changed.
@@ -188,10 +238,10 @@ export function registerIpc(
     send(CHANNELS.treeChanged)
     return path
   })
-  ipcMain.handle(CHANNELS.newSessionInWorktree, (_e, key: string, isPtyId: boolean, branch: string) =>
+  handle(CHANNELS.newSessionInWorktree, (_e, key: string, isPtyId: boolean, branch: string) =>
     service.newSessionInWorktree(key, isPtyId, branch),
   )
-  ipcMain.handle(
+  handle(
     CHANNELS.gitCheckoutRemote,
     async (_e, key: string, isPtyId: boolean, remoteRef: string, localName: string) => {
       await service.gitCheckoutRemote(key, isPtyId, remoteRef, localName)
@@ -199,12 +249,12 @@ export function registerIpc(
       send(CHANNELS.treeChanged)
     },
   )
-  ipcMain.handle(CHANNELS.gitCheckoutDetached, async (_e, key: string, isPtyId: boolean, ref: string) => {
+  handle(CHANNELS.gitCheckoutDetached, async (_e, key: string, isPtyId: boolean, ref: string) => {
     await service.gitCheckoutDetached(key, isPtyId, ref)
     await service.refresh()
     send(CHANNELS.treeChanged)
   })
-  ipcMain.handle(
+  handle(
     CHANNELS.gitCreateBranch,
     async (_e, key: string, isPtyId: boolean, name: string, from?: string) => {
       await service.gitCreateBranch(key, isPtyId, name, from)
@@ -212,36 +262,36 @@ export function registerIpc(
       send(CHANNELS.treeChanged)
     },
   )
-  ipcMain.handle(CHANNELS.gitPull, (_e, key: string, isPtyId: boolean) => service.gitPull(key, isPtyId))
-  ipcMain.handle(CHANNELS.gitPush, (_e, key: string, isPtyId: boolean) => service.gitPush(key, isPtyId))
-  ipcMain.handle(CHANNELS.gitMerge, async (_e, key: string, isPtyId: boolean, ref: string) => {
+  handle(CHANNELS.gitPull, (_e, key: string, isPtyId: boolean) => service.gitPull(key, isPtyId))
+  handle(CHANNELS.gitPush, (_e, key: string, isPtyId: boolean) => service.gitPush(key, isPtyId))
+  handle(CHANNELS.gitMerge, async (_e, key: string, isPtyId: boolean, ref: string) => {
     await service.gitMerge(key, isPtyId, ref)
     // Merge changes which commits are on the branch and affects ahead/behind counts, so refresh
     // and signal the tree view to update the displayed branch state — same reason as checkoutBranch.
     await service.refresh()
     send(CHANNELS.treeChanged)
   })
-  ipcMain.handle(CHANNELS.gitFetch, async (_e, key: string, isPtyId: boolean) => {
+  handle(CHANNELS.gitFetch, async (_e, key: string, isPtyId: boolean) => {
     await service.gitFetch(key, isPtyId)
     // Fetch changes ahead/behind counts (by updating remote-tracking refs), so refresh
     // and signal the tree view to update the displayed status.
     await service.refresh()
     send(CHANNELS.treeChanged)
   })
-  ipcMain.handle(CHANNELS.copyToClipboard, (_e, text: string) => { clipboard.writeText(text) })
-  ipcMain.handle(CHANNELS.searchRebuild, async () => { await service.rebuildSearchIndex() })
-  ipcMain.handle(CHANNELS.searchStatus, () => ({
+  handle(CHANNELS.copyToClipboard, (_e, text: string) => { clipboard.writeText(text) })
+  handle(CHANNELS.searchRebuild, async () => { await service.rebuildSearchIndex() })
+  handle(CHANNELS.searchStatus, () => ({
     indexed: service.searchIndexCount(),
     notes: service.searchNoteCount(),
   }))
-  ipcMain.handle(CHANNELS.pluginBarItems, (_e, key: string, isPtyId: boolean) =>
+  handle(CHANNELS.pluginBarItems, (_e, key: string, isPtyId: boolean) =>
     service.pluginBarItems(key, isPtyId),
   )
-  ipcMain.handle(CHANNELS.pluginBarRefresh, (_e, key: string, isPtyId: boolean) =>
+  handle(CHANNELS.pluginBarRefresh, (_e, key: string, isPtyId: boolean) =>
     service.refreshPluginBar(key, isPtyId),
   )
-  ipcMain.handle(CHANNELS.pluginList, () => service.listPlugins())
-  ipcMain.handle(CHANNELS.pluginRunAction, async (_e, item: PluginBarItemPayload) => {
+  handle(CHANNELS.pluginList, () => service.listPlugins())
+  handle(CHANNELS.pluginRunAction, async (_e, item: PluginBarItemPayload) => {
     if (item.action.kind !== 'open-url') return
     /*
      * Checked here rather than trusted from the renderer.
@@ -260,18 +310,18 @@ export function registerIpc(
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return
     await shell.openExternal(url.toString())
   })
-  ipcMain.handle(CHANNELS.setSessionNote, async (_e, id: string, note: string) => {
+  handle(CHANNELS.setSessionNote, async (_e, id: string, note: string) => {
     await service.setSessionNote(id, note)
     // The note shows in the sidebar's hover card and changes what searches match, so every window
     // needs to re-read the tree — the same signal a rename sends.
     send(CHANNELS.treeChanged)
   })
-  ipcMain.handle(CHANNELS.sessionNote, (_e, id: string) => service.sessionNote(id))
-  ipcMain.handle(CHANNELS.saveImage, (_e, base64: string, mediaType: string) =>
+  handle(CHANNELS.sessionNote, (_e, id: string) => service.sessionNote(id))
+  handle(CHANNELS.saveImage, (_e, base64: string, mediaType: string) =>
     service.saveImage(base64, mediaType),
   )
-  ipcMain.handle(CHANNELS.readImage, (_e, path: string) => service.readImage(path))
-  ipcMain.handle(CHANNELS.sendPrompt, (_e, ptyId: string, text: string) => {
+  handle(CHANNELS.readImage, (_e, path: string) => service.readImage(path))
+  handle(CHANNELS.sendPrompt, (_e, ptyId: string, text: string) => {
     service.sendPrompt(ptyId, text)
   })
 
@@ -295,29 +345,49 @@ export function registerIpc(
     skippedVersion: null,
   })
 
-  ipcMain.handle(CHANNELS.updateStatus, (): UpdateStatusPayload =>
+  handle(CHANNELS.updateStatus, (): UpdateStatusPayload =>
     updater?.current() ?? noUpdater())
-  ipcMain.handle(CHANNELS.updateCheck, async (): Promise<UpdateStatusPayload> =>
+  handle(CHANNELS.updateCheck, async (): Promise<UpdateStatusPayload> =>
     (await updater?.check({ manual: true })) ?? noUpdater())
-  ipcMain.handle(CHANNELS.updateDownload, async (): Promise<UpdateStatusPayload> =>
+  handle(CHANNELS.updateDownload, async (): Promise<UpdateStatusPayload> =>
     (await updater?.download()) ?? noUpdater())
-  ipcMain.handle(CHANNELS.updateInstall, () => { updater?.install() })
-  ipcMain.handle(CHANNELS.updateOpenDownloaded, async () => { await updater?.openDownloaded() })
-  ipcMain.handle(CHANNELS.updateSkip, () => {
+  handle(CHANNELS.updateInstall, () => { updater?.install() })
+  handle(CHANNELS.updateOpenDownloaded, async () => { await updater?.openDownloaded() })
+  handle(CHANNELS.updateSkip, () => {
     updater?.skip()
     // The skip is a settings change, so it has to reach settings.json as well as the service.
     const current = loadSettings(settingsFile)
     saveSettings(settingsFile, { ...current, updateSkippedVersion: updater?.current().skippedVersion ?? null })
   })
-  ipcMain.handle(CHANNELS.updateDismiss, () => { updater?.dismiss() })
+  handle(CHANNELS.updateDismiss, () => { updater?.dismiss() })
 
   ipcMain.on(CHANNELS.ptyWrite, (_e, id: string, data: string) => service.pty.write(id, data))
   ipcMain.on(CHANNELS.ptyResize, (_e, id: string, cols: number, rows: number) =>
     service.pty.resize(id, cols, rows),
   )
   ipcMain.on(CHANNELS.ptyKill, (_e, id: string) => service.pty.kill(id))
-  ipcMain.handle(CHANNELS.ptyReplay, (_e, id: string) => service.pty.replay(id))
-  ipcMain.handle(CHANNELS.ptyRunning, (_e, ids: string[]) => ids.filter((id) => service.pty.has(id)))
+  handle(CHANNELS.ptyReplay, (_e, id: string) => service.pty.replay(id))
+
+  handle(CHANNELS.logStatus, () => log.status())
+  handle(CHANNELS.logClear, () => { log.clear(); return log.status() })
+  handle(CHANNELS.logReveal, async () => {
+    const { dir } = log.status()
+    // `openPath` on a directory is the one case where handing it to the desktop is right: every
+    // platform has something that opens a folder. Revealing the active file instead would show
+    // the folder *and* select a file the user is about to be told to attach.
+    const error = await shell.openPath(dir)
+    if (error !== '') shell.showItemInFolder(dir)
+    return dir
+  })
+  /**
+   * The renderer's window into the same log. Sent rather than invoked: a log line is never
+   * something the UI should wait on, and a renderer that is logging an error is already having a
+   * bad enough time without a round trip.
+   */
+  ipcMain.on(CHANNELS.logWrite, (_e, level: LogLevel, scope: string, message: string, fields?: Record<string, unknown>) => {
+    log.log(level, `renderer:${scope}`, message, fields)
+  })
+  handle(CHANNELS.ptyRunning, (_e, ids: string[]) => ids.filter((id) => service.pty.has(id)))
 
   /**
    * Moving a session tab between windows.
@@ -357,8 +427,16 @@ export function registerIpc(
     return windows.find((w) => w.webContents.id === id) ?? null
   }
 
-  ipcMain.handle(CHANNELS.tabDropped, (e, key: string, at: { x: number; y: number }) => {
+  handle(CHANNELS.tabDropped, (e, key: string, at: { x: number; y: number }) => {
     const target = windowUnder(at)
+    // The whole decision, because this gesture shipped once doing nothing at all and there was
+    // no way to tell from outside whether the drop had even been noticed.
+    log.info('tabs', 'tab dropped', {
+      at,
+      from: e.sender.id,
+      target: target?.webContents.id ?? null,
+      outcome: target === null ? 'detach' : target.webContents.id === e.sender.id ? 'same-window' : 'move',
+    })
     // Released over the window it came from — the transcript, the sidebar, anywhere that is not a
     // tab strip. Nothing happened, and tearing a window off for that would be a surprise.
     if (target === null ? false : target.webContents.id === e.sender.id) return
@@ -377,7 +455,7 @@ export function registerIpc(
     openDetachedWindow?.(key, at)
   })
 
-  ipcMain.handle(CHANNELS.tabDetach, (_e, key: string, at: { x: number; y: number }) => {
+  handle(CHANNELS.tabDetach, (_e, key: string, at: { x: number; y: number }) => {
     // Announced before the window is made, not after: the new window has not loaded its renderer
     // yet and so cannot hear anything, and a claim arriving once it *has* would tell it to close
     // the very tab it exists to show. Nothing is lost in the gap — the pty keeps running whether

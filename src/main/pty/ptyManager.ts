@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import * as pty from 'node-pty'
 import { loginShell } from './resumeCommand'
+import { log } from '../log/logger'
 
 export interface SpawnOptions {
   id: string
@@ -110,10 +111,23 @@ export class PtyManager {
       for (const h of this.dataHandlers) h(opts.id, data)
     })
     child.onExit(({ exitCode }) => {
+      log.info('pty', 'exited', { id: opts.id, exitCode })
       this.processes.delete(opts.id)
       for (const h of this.exitHandlers) h(opts.id, exitCode)
     })
 
+    // Logged because "which pty, in which directory, with what extra environment" answered two
+    // separate bugs: a second window killing the first's shell, and a prompt setting that never
+    // reached the terminal it was meant for. The command is *not* logged — it can carry a session
+    // id and, for a shell, whatever the user configured.
+    log.info('pty', 'spawned', {
+      id: opts.id,
+      cwd: opts.cwd,
+      tui: opts.tui ?? false,
+      env: Object.keys(opts.env ?? {}),
+      cols: opts.cols ?? 80,
+      rows: opts.rows ?? 24,
+    })
     this.processes.set(opts.id, child)
     this.lastSize.set(opts.id, { cols: opts.cols ?? 80, rows: opts.rows ?? 24 })
     this.cwds.set(opts.id, opts.cwd)
@@ -262,6 +276,7 @@ export class PtyManager {
   kill(id: string): void {
     const child = this.processes.get(id)
     if (!child) return
+    log.info('pty', 'killing', { id })
     this.processes.delete(id)
     this.lastSize.delete(id)
     this.cwds.delete(id)

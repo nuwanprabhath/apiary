@@ -12,6 +12,8 @@ import { UpdateService, type UpdateSettings } from './update/updateService'
 import { decideCapability } from './update/capability'
 import { createUpdateBackend } from './update/electronUpdaterBackend'
 import { hasDeveloperIdSignature } from './update/macSignature'
+import { log } from './log/logger'
+import { configureLogging } from './log/configure'
 
 const dirname = fileURLToPath(new URL('.', import.meta.url))
 
@@ -158,6 +160,7 @@ function createWindow(opts: NewWindowOptions = {}): void {
       ...(headless ? { backgroundThrottling: false } : {}),
     },
   })
+  log.info('window', 'created', { number: windowNumber, detached, at: opts.at !== undefined })
   mainWindow = win
   // The menu and native dialogs act on whichever window is in front, so this follows focus rather
   // than staying pinned to the first window opened.
@@ -300,6 +303,15 @@ void app.whenReady().then(async () => {
   const fakeLive = process.env.APIARY_FAKE_LIVE
   settingsFile = join(app.getPath('userData'), 'settings.json')
   const settings = loadSettings(settingsFile)
+  // Before anything else that might be worth recording. Off unless the user switched it on.
+  configureLogging(settings)
+  log.info('app', 'started', {
+    version: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    electron: process.versions.electron,
+    packaged: app.isPackaged,
+  })
   // Written straight back, so a migration applied on read is recorded. Without this it would be
   // re-applied on every launch, and a setting the user had since turned off would come back.
   saveSettings(settingsFile, settings)

@@ -1571,6 +1571,18 @@ button:not([class]) {
    to the sidebar's presence has one thing to ask. */
 .layout[data-detached="true"] { grid-template-columns: 1fr; }
 
+/* A path the user is about to copy or read out: shown as a field so it is obviously a value and
+   not prose, and allowed to wrap, because a log folder under a long home directory does not fit. */
+.settings-path {
+  display: block;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  color: var(--text);
+  word-break: break-all;
+}
+
 .settings-inline { display: flex; align-items: center; gap: 8px; }
 /* The check's answer sits beside the button that asked for it, and wraps ahead of it rather than
    pushing it off the row. */

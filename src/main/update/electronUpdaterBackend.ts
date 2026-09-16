@@ -1,6 +1,7 @@
 import { createWriteStream } from 'node:fs'
 import { mkdir, rm, stat } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
+import { log } from '../log/logger'
 import { join } from 'node:path'
 import { get } from 'node:https'
 import type { IncomingMessage } from 'node:http'
@@ -166,14 +167,22 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
       // do it for you. So handing the file over is the wrong gesture whatever the desktop does:
       // show the user where it is and give them the command instead (see `installInstructions`).
       if (action === 'reveal') {
+        log.info('update', 'revealing installer', { path, action })
         shell.showItemInFolder(path)
         return
       }
       // A timeout means the opener is still running, which means the file did open.
+      //
+      // Every branch below is logged, because this is the call that produced a bug nobody could
+      // reproduce: what the desktop did with the file is the one fact that was missing.
+      log.info('update', 'opening installer', { path, action })
+      const started = Date.now()
       const error = await settle(shell.openPath(path), '')
+      log.info('update', 'openPath returned', { ms: Date.now() - started, error: error === '' ? null : error })
       if (error !== '') {
         // Falling back to revealing it: the user can still double-click it themselves, which is
         // better than an error with nothing behind it.
+        log.warn('update', 'could not open installer, revealing instead', { path, error })
         shell.showItemInFolder(path)
       }
     },

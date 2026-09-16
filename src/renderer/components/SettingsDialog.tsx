@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { AppSettingsPayload, PluginInfoPayload, PluginSettingFieldPayload } from '@shared/api'
+import type {
+  AppSettingsPayload, PluginInfoPayload, PluginSettingFieldPayload, LogStatusPayload,
+} from '@shared/api'
 import { useUpdate } from '../state/useUpdate'
 import { formatVersion, formatChecked, describeCheck } from '../state/updateSummary'
 import { previewPrompt } from '@shared/promptPath'
@@ -31,6 +33,11 @@ const SECTIONS: Section[] = [
   { id: 'plugins', label: 'Plugins', blurb: 'Extras that add a button to the bar under a session.' },
   { id: 'updates', label: 'Updates', blurb: 'How Apiary keeps itself up to date.' },
   { id: 'general', label: 'General', blurb: 'Where Apiary finds the tools it runs.' },
+  {
+    id: 'diagnostics',
+    label: 'Diagnostics',
+    blurb: 'A log you can switch on when something goes wrong, and send on.',
+  },
 ]
 
 /** Check-interval presets, in hours. */
@@ -38,6 +45,13 @@ const UPDATE_INTERVAL_PRESETS = [1, 6, 12, 24]
 
 /** The blurb for the section on screen, by id rather than by position in the array. */
 const blurbOf = (id: string): string => SECTIONS.find((s) => s.id === id)?.blurb ?? ''
+
+/** Log sizes, in the units a person would say them in. */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${String(bytes)} bytes`
+  if (bytes < 1024 * 1024) return `${String(Math.round(bytes / 1024))} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 /** The interval presets, plus the option to type a number. Minutes throughout. */
 const INTERVAL_PRESETS = [1, 5, 15, 30, 60]
@@ -54,6 +68,9 @@ export function SettingsDialog(
   // Null until the first load resolves; every field below is driven from this one object, so a
   // new setting is a new key rather than another piece of local state to remember to save.
   const [draft, setDraft] = useState<AppSettingsPayload | null>(null)
+  /** Where the logs are and how much room they take. Read when the section is opened, and again
+   *  after they are deleted, so the numbers on screen are the numbers on disk. */
+  const [logStatus, setLogStatus] = useState<LogStatusPayload | null>(null)
   const [saving, setSaving] = useState(false)
   /** How many sessions are indexed, and whether a rebuild is running — the Search section's state. */
   const [indexed, setIndexed] = useState<number | null>(null)
@@ -85,6 +102,13 @@ export function SettingsDialog(
   useEffect(() => {
     void window.apiary.settingsGet().then(setDraft)
   }, [])
+
+  // Re-read whenever the Diagnostics section is shown, and whenever the switch is flipped: the
+  // folder does not exist until logging is on, so "where the logs are" changes with the checkbox.
+  useEffect(() => {
+    if (section !== 'diagnostics') return
+    void window.apiary.logStatus().then(setLogStatus).catch(() => setLogStatus(null))
+  }, [section, draft?.diagnosticsEnabled])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -562,6 +586,127 @@ export function SettingsDialog(
                     </span>
                   </span>
                 </label>
+              </>
+            ) : section === 'diagnostics' ? (
+              <>
+                <p className="settings-blurb">{blurbOf('diagnostics')}</p>
+
+                <label className="settings-row">
+                  <input
+                    type="checkbox"
+                    data-testid="setting-diagnostics-enabled"
+                    checked={draft.diagnosticsEnabled}
+                    onChange={(e) => patch({ diagnosticsEnabled: e.target.checked })}
+                  />
+                  <span>
+                    <strong>Write a diagnostic log</strong>
+                    <span className="settings-help">
+                      Off by default, and off means nothing is written at all &mdash; no folder,
+                      no file. Switch it on when something is going wrong, reproduce it, then send
+                      the folder below on. Some bugs only happen on one machine, and without this
+                      there is nothing to read.
+                    </span>
+                  </span>
+                </label>
+
+                <div className="settings-row settings-row-indent">
+                  <span className="settings-help" data-testid="diagnostics-privacy">
+                    <strong>What goes in it.</strong> What Apiary did &mdash; which terminals it
+                    started, which git commands ran and how they ended, what the updater tried,
+                    which settings are on. <strong>Not</strong> your conversations: no prompts, no
+                    replies, no transcript text, ever. Paths have your home directory replaced
+                    with <code>~</code>, and anything shaped like a token or a password is
+                    stripped before it is written.
+                  </span>
+                </div>
+
+                {draft.diagnosticsEnabled && (
+                  <div className="settings-row settings-row-indent">
+                    <label className="settings-inline">
+                      <span>Keep logs for</span>
+                      <input
+                        className="search settings-number"
+                        type="number"
+                        min={1}
+                        max={90}
+                        data-testid="setting-log-retention-days"
+                        value={draft.logRetentionDays}
+                        onChange={(e) => {
+                          const n = Number(e.target.value)
+                          patch({
+                            logRetentionDays:
+                              Number.isFinite(n) && n >= 1 ? Math.min(90, Math.round(n)) : 1,
+                          })
+                        }}
+                      />
+                      <span>days, using at most</span>
+                      <input
+                        className="search settings-number"
+                        type="number"
+                        min={1}
+                        max={500}
+                        data-testid="setting-log-max-size"
+                        value={draft.logMaxSizeMb}
+                        onChange={(e) => {
+                          const n = Number(e.target.value)
+                          patch({
+                            logMaxSizeMb:
+                              Number.isFinite(n) && n >= 1 ? Math.min(500, Math.round(n)) : 1,
+                          })
+                        }}
+                      />
+                      <span>MB</span>
+                    </label>
+                    <span className="settings-help">
+                      Whichever limit is reached first. The size limit wins where they disagree:
+                      the oldest files go until the logs fit.
+                    </span>
+                  </div>
+                )}
+
+                <div className="settings-row settings-row-stacked">
+                  <strong>Where the logs are</strong>
+                  <code className="settings-path" data-testid="log-folder-path">
+                    {logStatus === null ? 'Not written yet' : logStatus.dir}
+                  </code>
+                  <span className="settings-help" data-testid="log-folder-size">
+                    {logStatus === null
+                      ? ''
+                      : logStatus.files === 0
+                        ? 'No log files yet.'
+                        : `${String(logStatus.files)} file${logStatus.files === 1 ? '' : 's'}, ${formatBytes(logStatus.bytes)}.`}
+                  </span>
+                  <div className="settings-inline">
+                    <button
+                      className="btn"
+                      data-testid="log-open-folder"
+                      onClick={() => {
+                        void window.apiary.logReveal().catch(() => { /* nothing useful to add */ })
+                      }}
+                    >
+                      Open log folder
+                    </button>
+                    <button
+                      className="btn"
+                      data-testid="log-copy-path"
+                      onClick={() => {
+                        void window.apiary.copyToClipboard(logStatus?.dir ?? '')
+                      }}
+                    >
+                      Copy path
+                    </button>
+                    <button
+                      className="btn danger"
+                      data-testid="log-clear"
+                      disabled={logStatus === null || logStatus.files === 0}
+                      onClick={() => {
+                        void window.apiary.logClear().then(setLogStatus).catch(() => { /* as above */ })
+                      }}
+                    >
+                      Delete logs
+                    </button>
+                  </div>
+                </div>
               </>
             ) : (
               <>

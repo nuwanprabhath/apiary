@@ -14,6 +14,7 @@ import { SearchIndex } from './search/searchIndex'
 import { runIndexPass, type IndexableSession } from './search/indexer'
 import { promptPathEnv, type PromptPathOptions } from './pty/promptPath'
 import { forkLabel } from '@shared/forkLabel'
+import { log } from './log/logger'
 import { PluginRegistry } from './plugins/registry'
 import { createGitLabMrPlugin } from './plugins/gitlabMr'
 import type { PluginBarItem } from './plugins/types'
@@ -171,6 +172,13 @@ export class AppService {
    * setting's help text says the change applies to new terminals.
    */
   setPromptPath(options: PromptPathOptions): void {
+    // The exact answer to "I turned the setting on and my prompt is still long": what the app
+    // decided, and what it will actually put in the environment.
+    log.info('prompt', 'prompt trim configured', {
+      enabled: options.enabled,
+      segments: options.segments,
+      env: promptPathEnv(options),
+    })
     this.promptPath = options
   }
 
@@ -565,7 +573,10 @@ export class AppService {
    */
   async openShell(sessionId: string, tabId: string): Promise<void> {
     const id = `shell:${sessionId}:${tabId}`
-    if (this.pty.has(id)) return
+    if (this.pty.has(id)) {
+      log.info('shell', 'attaching to a shell that is already running', { id })
+      return
+    }
     const cwd = this.resolveShellCwd(sessionId, false)
     this.pty.spawn({
       id,
@@ -626,6 +637,9 @@ export class AppService {
       const message = e instanceof Error ? e.message : String(e)
       if (!branchOps.isWorktreeConflict(message)) throw e
       const worktreePath = await branchOps.worktreeForBranch(cwd, name)
+      log.info('git', 'checkout refused: branch is in another worktree', {
+        branch: name, cwd, worktreePath,
+      })
       // Git said a worktree has it but the list does not agree — rather than invent an answer,
       // let the original error through, which at least says what git said.
       if (worktreePath === null) throw e

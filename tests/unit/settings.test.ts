@@ -36,6 +36,9 @@ describe('settings', () => {
       updateAutoDownload: true,
       updateAllowPrerelease: true,
       updateSkippedVersion: '1.9.0',
+      diagnosticsEnabled: true,
+      logRetentionDays: 14,
+      logMaxSizeMb: 50,
       windowBounds: bounds,
     })
     expect(loadSettings(file())).toEqual({
@@ -55,6 +58,9 @@ describe('settings', () => {
       updateAutoDownload: true,
       updateAllowPrerelease: true,
       updateSkippedVersion: '1.9.0',
+      diagnosticsEnabled: true,
+      logRetentionDays: 14,
+      logMaxSizeMb: 50,
       windowBounds: bounds,
     })
   })

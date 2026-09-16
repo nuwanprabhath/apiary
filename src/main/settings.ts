@@ -79,6 +79,16 @@ export interface AppSettings {
   updateAllowPrerelease: boolean
   /** A version the user chose to skip; the next release is offered as normal. */
   updateSkippedVersion: string | null
+  /**
+   * Write a diagnostic log to disk. **Off by default and off means nothing is written** — see
+   * main/log/logger.ts. It exists so a bug that only happens on someone else's machine leaves
+   * something to read.
+   */
+  diagnosticsEnabled: boolean
+  /** How long archived log files are kept. */
+  logRetentionDays: number
+  /** Total disk the logs may take, across every file. */
+  logMaxSizeMb: number
   windowBounds: WindowBounds | null
 }
 
@@ -99,6 +109,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   updateAutoDownload: false,
   updateAllowPrerelease: false,
   updateSkippedVersion: null,
+  diagnosticsEnabled: false,
+  logRetentionDays: 7,
+  logMaxSizeMb: 20,
   windowBounds: null,
 }
 

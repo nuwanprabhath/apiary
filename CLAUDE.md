@@ -209,6 +209,31 @@ once cost a whole afternoon, because the failure hides itself — the feature sw
 its index was wiped as a switch-off is meant to do, and `JSON.stringify` dropped the undefined key
 so the file on disk still said the feature was on.
 
+## The diagnostic log
+
+`src/main/log/` writes a local log when the user switches it on in Settings → Diagnostics. It
+exists because "Open installer" failed on a user's Ubuntu with an Electron IPC message, every
+hypothesis was disproved in a container, and the app had recorded nothing about what it tried.
+
+Four rules, and they are the feature rather than decoration:
+
+- **Off is the default, and off means nothing** — no directory, no file, `log()` returns
+  immediately. A diagnostic that writes by default records things nobody agreed to.
+- **Conversation content is never passed to it.** Not redacted — never passed. No amount of
+  scrubbing makes a transcript safe to hand to someone else, so prompts, replies and message text
+  simply do not go in. Log *what the app did*, never *what the user said*.
+- **Redaction happens inside the logger** (`shared/redact.ts`), not at call sites, so it cannot be
+  forgotten: home directories become `~`, credential-shaped strings are stripped, long fields are
+  truncated. Add a rule there and every existing call gets it.
+- **It must never break the app.** Every entry point swallows its own errors. A full disk stops
+  logging; it does not stop the thing being logged.
+
+When adding a log line, ask what a stranger reading this file would need to tell two
+explanations apart — that is the bar the "Open installer" bug set, and failed. The existing lines
+are placed at exactly the points where earlier bugs were invisible: pty spawn/exit and the
+attach-instead-of-spawn case, the prompt-trim environment, what the updater handed to the
+desktop and what came back, which window a cross-window drop resolved to, and every IPC rejection.
+
 ## Measure before fixing
 
 The bugs in this app that took longest were the ones where a plausible explanation was acted on

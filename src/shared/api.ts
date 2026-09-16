@@ -44,6 +44,20 @@ export interface AppSettingsPayload {
   updateAutoDownload: boolean
   /** Offer pre-release builds as well as stable ones. */
   updateAllowPrerelease: boolean
+  /** Write a diagnostic log to disk. Off by default; off means nothing is written at all. */
+  diagnosticsEnabled: boolean
+  /** How long archived log files are kept. */
+  logRetentionDays: number
+  /** Total disk the logs may take, across every file. */
+  logMaxSizeMb: number
+}
+
+/** Where the diagnostic logs are and how much room they take, for the Diagnostics section. */
+export interface LogStatusPayload {
+  enabled: boolean
+  dir: string
+  files: number
+  bytes: number
 }
 
 /** Mirrors `UpdateStatus` in main/update/updateService.ts; kept structural to avoid the renderer
@@ -151,6 +165,10 @@ export const CHANNELS = {
   pluginsChanged: 'apiary:plugins-changed',
   setSessionNote: 'apiary:set-session-note',
   sessionNote: 'apiary:session-note',
+  logStatus: 'apiary:log-status',
+  logReveal: 'apiary:log-reveal',
+  logClear: 'apiary:log-clear',
+  logWrite: 'apiary:log-write',
   tabDropped: 'apiary:tab-dropped',
   tabDetach: 'apiary:tab-detach',
   tabAdopt: 'apiary:tab-adopt',
@@ -207,6 +225,15 @@ export interface ApiaryApi {
    * or `drop` to another, so the receiving window never hears about the gesture at all. `dragend`
    * in the *source* window is the only part of a cross-window drag that reaches any of our code.
    */
+  /** Where the diagnostic logs are, how many there are, and how much disk they take. */
+  logStatus(): Promise<LogStatusPayload>
+  /** Opens the log folder in the OS file manager. Resolves with the folder's path. */
+  logReveal(): Promise<string>
+  /** Deletes every log file. */
+  logClear(): Promise<LogStatusPayload>
+  /** Records something the renderer saw. A no-op when diagnostics are off. */
+  logWrite(level: 'debug' | 'info' | 'warn' | 'error', scope: string, message: string, fields?: Record<string, unknown>): void
+
   tabDropped(key: string, at: { x: number; y: number }): Promise<void>
   /** Opens `key` in a window of its own, at `at`, and takes it out of every other window. */
   tabDetach(key: string, at: { x: number; y: number }): Promise<void>

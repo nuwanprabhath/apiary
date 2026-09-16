@@ -113,10 +113,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, [])
 
   useEffect(() => {
+    // Also written to the diagnostic log, when it is on. An error that reached this net is one
+    // nothing else expected, which makes it the most valuable line in the file — and the toast
+    // that shows it is gone in a few seconds, long before anyone thinks to write it down.
     const onError = (e: ErrorEvent): void => {
+      window.apiary.logWrite('error', 'window', 'uncaught error', {
+        message: e.message,
+        source: e.filename,
+        line: e.lineno,
+      })
       notifyError(e.error ?? e.message, 'Unexpected error')
     }
     const onRejection = (e: PromiseRejectionEvent): void => {
+      window.apiary.logWrite('error', 'window', 'unhandled rejection', {
+        reason: e.reason instanceof Error ? e.reason.message : String(e.reason),
+      })
       notifyError(e.reason, 'Unexpected error')
     }
     window.addEventListener('error', onError)

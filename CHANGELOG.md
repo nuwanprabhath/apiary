@@ -4,6 +4,32 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.15.0] - 2026-09-16
+
+### Added
+
+- **A diagnostic log, off by default.** Settings has a Diagnostics section that switches on a
+  local log, shows the folder it is in, opens it, and empties it. It exists because of a bug that
+  could not be reproduced: "Open installer" failed on one machine with an Electron IPC message,
+  every hypothesis about why was disproved in a container, and nothing in the app had recorded
+  what it actually tried.
+
+  - **Off means nothing is written** — no folder, no file. The section says what is recorded
+    before you switch it on.
+  - **Your conversations are never in it.** No prompts, no replies, no transcript text: not
+    redacted, simply never passed to the logger. What is recorded is what Apiary did — terminals
+    it started, git commands and how they ended, what the updater tried, which settings are on.
+  - **Paths have your home directory replaced with `~`**, and anything shaped like an API key,
+    a GitHub or GitLab token, a bearer header, a JWT or a `password=`/`token=` parameter is
+    stripped before it is written. Every field is redacted on the way in, so no call site can
+    forget to.
+  - **Kept inside two limits you set** — how many days, and how much disk in total. Where they
+    disagree the size limit wins, and the oldest files go first.
+
+- **Every IPC handler failure is recorded**, with its channel and how long it ran. That is the
+  instrumentation the "Open installer" bug needed and did not have: a channel name and a duration
+  tell a handler that threw from one that never returned.
+
 ## [1.14.0] - 2026-09-16
 
 ### Added

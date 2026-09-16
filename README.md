@@ -52,6 +52,10 @@ resume it in an embedded terminal in the correct working directory.
   a Pinned section at the top of the sidebar (collapsible, like a folder), so the
   two or three you actually work in aren't buried among months of history. A row's
   age gives way to its buttons on hover, so nothing has to compete for width.
+- **A diagnostic log, when you want one** — off by default and silent until you switch it on in
+  Settings. It records what Apiary did, never what you said to Claude: no prompts, no replies, no
+  transcript text, home directories replaced with `~` and anything token-shaped stripped. Kept
+  inside a retention and size limit you set, and the folder is one click away to send on.
 - **Failures say what happened** — anything that goes wrong, from a missing
   transcript file to a failed push, appears as a notification with the message in
   plain words and the raw error behind a "Details" toggle. A crash in one session's
