@@ -45,6 +45,10 @@ const api: ApiaryApi = {
   gitListRefs: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitListRefs, key, isPtyId),
   gitCheckoutBranch: (key, isPtyId, name) =>
     ipcRenderer.invoke(CHANNELS.gitCheckoutBranch, key, isPtyId, name),
+  gitPullWorktree: (key, isPtyId, branch) =>
+    ipcRenderer.invoke(CHANNELS.gitPullWorktree, key, isPtyId, branch),
+  newSessionInWorktree: (key, isPtyId, branch) =>
+    ipcRenderer.invoke(CHANNELS.newSessionInWorktree, key, isPtyId, branch),
   gitCheckoutRemote: (key, isPtyId, remoteRef, localName) =>
     ipcRenderer.invoke(CHANNELS.gitCheckoutRemote, key, isPtyId, remoteRef, localName),
   gitCheckoutDetached: (key, isPtyId, ref) =>

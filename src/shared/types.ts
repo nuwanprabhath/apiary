@@ -115,3 +115,26 @@ export interface NewSessionInfo {
   cwd: string
   label: string
 }
+
+
+/**
+ * A checkout refused because the branch is already checked out in another worktree.
+ *
+ * Reported rather than thrown, because it is not really a failure — the branch *is* available,
+ * just somewhere else, and the two things anyone actually wants at that moment (bring it up to
+ * date where it lives, or go and work in it) are both doable from here. Being told "fatal: …
+ * already used by worktree at …" and left to go and find that directory by hand is the part
+ * this replaces.
+ */
+export interface WorktreeConflict {
+  branch: string
+  /** Absolute path of the worktree holding it — resolved in the main process, shown for context. */
+  worktreePath: string
+  /** Its last path segment, which is what the folder is called in the sidebar. */
+  label: string
+}
+
+/** What a branch checkout did. A worktree conflict is an outcome, not an error. */
+export type CheckoutOutcome =
+  | { ok: true }
+  | { ok: false; conflict: WorktreeConflict }

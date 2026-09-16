@@ -4,8 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
-  status, listRefs, checkoutBranch, checkoutRemote, checkoutDetached, createBranch, pull, push,
-  merge, fetch,
+  status, listRefs, checkoutBranch, checkoutRemote, checkoutDetached, createBranch, pull, push, merge, fetch, parseWorktreeList, isWorktreeConflict, worktreeForBranch, listWorktrees,
 } from '../../src/main/git/branchOps'
 
 let repo: string
@@ -285,5 +284,105 @@ describe('fetch', () => {
 
     rmSync(remote, { recursive: true, force: true })
     rmSync(other, { recursive: true, force: true })
+  })
+})
+
+describe('parseWorktreeList', () => {
+  const output = [
+    'worktree /home/nuwan/projects/paratoo-fdcp',
+    'HEAD 1111111111111111111111111111111111111111',
+    'branch refs/heads/main',
+    '',
+    'worktree /home/nuwan/projects/paratoo-fdcp.worktrees/dev-1.0.12',
+    'HEAD 2222222222222222222222222222222222222222',
+    'branch refs/heads/dev/1.0.12',
+    '',
+    'worktree /home/nuwan/projects/paratoo-fdcp.worktrees/poking about',
+    'HEAD 3333333333333333333333333333333333333333',
+    'detached',
+    '',
+  ].join('\n')
+
+  it('reads every worktree and the branch each has checked out', () => {
+    expect(parseWorktreeList(output)).toEqual([
+      { path: '/home/nuwan/projects/paratoo-fdcp', branch: 'main' },
+      { path: '/home/nuwan/projects/paratoo-fdcp.worktrees/dev-1.0.12', branch: 'dev/1.0.12' },
+      { path: '/home/nuwan/projects/paratoo-fdcp.worktrees/poking about', branch: null },
+    ])
+  })
+
+  it('keeps a branch name that contains a slash intact', () => {
+    // The blocking branch in the report that prompted this is `dev/1.0.12`; splitting the ref on
+    // "/" rather than stripping the refs/heads/ prefix would turn it into "1.0.12" and match
+    // nothing.
+    expect(parseWorktreeList(output)[1].branch).toBe('dev/1.0.12')
+  })
+
+  it('keeps a worktree path that contains a space intact', () => {
+    expect(parseWorktreeList(output)[2].path).toContain('poking about')
+  })
+
+  it('is empty for empty output rather than inventing a worktree', () => {
+    expect(parseWorktreeList('')).toEqual([])
+  })
+})
+
+describe('isWorktreeConflict', () => {
+  it('recognises the checkout failure that means "it is open somewhere else"', () => {
+    expect(isWorktreeConflict(
+      "fatal: 'dev/1.0.12' is already used by worktree at '/home/nuwan/p.worktrees/dev-1.0.12'",
+    )).toBe(true)
+  })
+
+  it('does not claim every checkout failure is one', () => {
+    expect(isWorktreeConflict('error: pathspec \'nope\' did not match any file(s) known to git'))
+      .toBe(false)
+  })
+})
+
+describe('a branch checked out in another worktree', () => {
+  /** Adds a worktree holding a new branch, the way a worktree-per-ticket layout does. */
+  function addWorktree(branch: string): string {
+    const path = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-worktree-')))
+    rmSync(path, { recursive: true, force: true })
+    git(repo, 'worktree', 'add', '-q', '-b', branch, path)
+    return path
+  }
+
+  it('is found by branch name, without reading it out of git\'s error message', async () => {
+    const path = addWorktree('dev/1.0.12')
+    try {
+      expect(await worktreeForBranch(repo, 'dev/1.0.12')).toBe(path)
+    } finally {
+      git(repo, 'worktree', 'remove', '--force', path)
+    }
+  })
+
+  it('answers null for a branch that is not checked out anywhere else', async () => {
+    await createBranch(repo, 'unused', 'main')
+    await checkoutBranch(repo, 'main')
+    expect(await worktreeForBranch(repo, 'unused')).toBeNull()
+  })
+
+  it('reports the real refusal, so the app can tell this case from a typo', async () => {
+    const path = addWorktree('dev/1.0.12')
+    try {
+      const message = await checkoutBranch(repo, 'dev/1.0.12').then(() => '', (e: Error) => e.message)
+      expect(message).not.toBe('')
+      expect(isWorktreeConflict(message)).toBe(true)
+    } finally {
+      git(repo, 'worktree', 'remove', '--force', path)
+    }
+  })
+
+  it('lists the main worktree alongside the added one', async () => {
+    const path = addWorktree('dev/1.0.12')
+    try {
+      const all = await listWorktrees(repo)
+      expect(all.map((w) => w.branch).sort()).toEqual(['dev/1.0.12', 'main'])
+      expect(all.map((w) => w.path)).toContain(repo)
+    } finally {
+      git(repo, 'worktree', 'remove', '--force', path)
+    }
   })
 })

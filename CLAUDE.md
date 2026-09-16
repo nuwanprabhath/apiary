@@ -22,6 +22,10 @@ Two rules the codebase holds to, both learned the hard way:
   UUID check, `readImage`'s confinement to its own directory). Keep it that way.
 - **Working directories come from the `cwd` field inside a session's JSONL**, never from the
   directory name under `~/.claude/projects`, which is a lossy encoding of the path.
+- **Git's prose is not an interface.** Where a path has to come out of a git failure — the
+  worktree holding a branch you tried to check out — it is looked up with
+  `git worktree list --porcelain`, not parsed out of the English, quoted error message. That also
+  keeps the rule above: the path the app then acts on is one the main process derived itself.
 
 ## The native-module ABI trap
 
@@ -181,6 +185,19 @@ solved, including for self-hosted instances. The consequence worth remembering: 
 GitLab credential, and the feature's setup instruction is `glab auth login`. The half that needs no
 API (offering to create an MR) is built from the git remote alone, so it survives `glab` being
 absent.
+
+## Changing a default reaches nobody
+
+`saveSettings` writes the **whole** settings object, and the app writes it whenever the first
+window is moved or resized. So every `settings.json` in existence already pins every field to
+whatever the default was on the day it was first written, and **changing `DEFAULT_SETTINGS` only
+ever affects someone who has never run the app**. This was found the slow way: the prompt trim was
+"defaulted on" in 1.13.2 and nothing changed for anyone.
+
+Changing a default for existing users means a migration: bump `SETTINGS_VERSION`, extend
+`migrateSettings`, and only touch values that are still exactly what the old default was — someone
+who chose a value has said what they want. The migrated result is written back at startup, or it
+would be re-applied on every launch and undo a later deliberate change.
 
 ## Settings arriving over IPC
 

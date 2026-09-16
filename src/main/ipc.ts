@@ -170,13 +170,27 @@ export function registerIpc(
     service.gitListRefs(key, isPtyId),
   )
   ipcMain.handle(CHANNELS.gitCheckoutBranch, async (_e, key: string, isPtyId: boolean, name: string) => {
-    await service.gitCheckoutBranch(key, isPtyId, name)
+    const outcome = await service.gitCheckoutBranch(key, isPtyId, name)
     // `tree()` reads the `branch` column, which only `refresh()` (via `resolveProject`) writes —
     // without this, the sidebar keeps showing the pre-checkout branch until something else
-    // happens to trigger a full refresh.
+    // happens to trigger a full refresh. Skipped when nothing was checked out.
+    if (outcome.ok) {
+      await service.refresh()
+      send(CHANNELS.treeChanged)
+    }
+    return outcome
+  })
+  ipcMain.handle(CHANNELS.gitPullWorktree, async (_e, key: string, isPtyId: boolean, branch: string) => {
+    const path = await service.gitPullWorktree(key, isPtyId, branch)
+    // The worktree that was pulled is a project in its own right here, and its ahead/behind counts
+    // have just changed.
     await service.refresh()
     send(CHANNELS.treeChanged)
+    return path
   })
+  ipcMain.handle(CHANNELS.newSessionInWorktree, (_e, key: string, isPtyId: boolean, branch: string) =>
+    service.newSessionInWorktree(key, isPtyId, branch),
+  )
   ipcMain.handle(
     CHANNELS.gitCheckoutRemote,
     async (_e, key: string, isPtyId: boolean, remoteRef: string, localName: string) => {

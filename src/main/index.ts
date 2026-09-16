@@ -300,6 +300,9 @@ void app.whenReady().then(async () => {
   const fakeLive = process.env.APIARY_FAKE_LIVE
   settingsFile = join(app.getPath('userData'), 'settings.json')
   const settings = loadSettings(settingsFile)
+  // Written straight back, so a migration applied on read is recorded. Without this it would be
+  // re-applied on every launch, and a setting the user had since turned off would come back.
+  saveSettings(settingsFile, settings)
   service = new AppService({
     configRoot,
     dbPath,

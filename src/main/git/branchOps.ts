@@ -91,6 +91,67 @@ export async function checkoutBranch(cwd: string, name: string): Promise<void> {
   await git(cwd, ['checkout', name])
 }
 
+/** One entry of `git worktree list --porcelain`. `branch` is null for a detached worktree. */
+export interface WorktreeEntry {
+  path: string
+  branch: string | null
+}
+
+/**
+ * Parses `git worktree list --porcelain`.
+ *
+ * Porcelain rather than the human format, and a parser of its own rather than a regex over
+ * git's prose: the message that sends us here — "'dev/1.0.12' is already used by worktree at
+ * '/…'" — is English, quoted, and not a stable interface, while the porcelain output is exactly
+ * that. A branch name may contain a slash, a worktree path may contain a space, and both are
+ * ordinary here.
+ *
+ * Records are blank-line separated; each starts with `worktree <path>` and carries either
+ * `branch refs/heads/<name>` or a bare `detached`.
+ */
+export function parseWorktreeList(stdout: string): WorktreeEntry[] {
+  const out: WorktreeEntry[] = []
+  let path: string | null = null
+  let branch: string | null = null
+  const flush = (): void => {
+    if (path !== null) out.push({ path, branch })
+    path = null
+    branch = null
+  }
+  for (const line of stdout.split('\n')) {
+    const text = line.trimEnd()
+    if (text === '') { flush(); continue }
+    if (text.startsWith('worktree ')) { flush(); path = text.slice('worktree '.length); continue }
+    if (text.startsWith('branch ')) {
+      const ref = text.slice('branch '.length)
+      branch = ref.startsWith('refs/heads/') ? ref.slice('refs/heads/'.length) : ref
+    }
+  }
+  flush()
+  return out
+}
+
+export async function listWorktrees(cwd: string): Promise<WorktreeEntry[]> {
+  return parseWorktreeList(await git(cwd, ['worktree', 'list', '--porcelain']))
+}
+
+/**
+ * Where `branch` is checked out, or null when it is not checked out anywhere.
+ *
+ * This is how the worktree that blocks a checkout is found. It is deliberately *not* read out of
+ * git's error message: the renderer never supplies a path (see CLAUDE.md), so the path the app
+ * then acts on has to be one the main process derived itself from the repository.
+ */
+export async function worktreeForBranch(cwd: string, branch: string): Promise<string | null> {
+  const found = (await listWorktrees(cwd)).find((w) => w.branch === branch)
+  return found?.path ?? null
+}
+
+/** Whether a failed checkout failed *because* the branch is checked out in another worktree. */
+export function isWorktreeConflict(message: string): boolean {
+  return /already used by worktree at/i.test(message)
+}
+
 export async function checkoutRemote(cwd: string, remoteRef: string, localName: string): Promise<void> {
   await git(cwd, ['checkout', '-b', localName, '--track', remoteRef])
 }

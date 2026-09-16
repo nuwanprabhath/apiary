@@ -8,7 +8,19 @@ export interface WindowBounds {
   height: number
 }
 
+/**
+ * The shape of the stored file, bumped when an existing one needs adjusting as it is read.
+ *
+ * Without this, a changed default reaches nobody. `saveSettings` writes the whole object, and the
+ * app writes it whenever the window is moved or resized — so every settings.json in existence
+ * already pins every field to whatever the default was on the day it was first written, and a new
+ * default only ever applies to someone who has never used the app.
+ */
+export const SETTINGS_VERSION = 1
+
 export interface AppSettings {
+  /** Which migrations have already been applied. Absent in files written before this existed. */
+  schemaVersion: number
   /** Explicit path to the claude binary, used when it is not on PATH. */
   claudeBin: string | null
   /** Import every discovered session automatically, instead of picking them by hand. */
@@ -71,6 +83,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  schemaVersion: SETTINGS_VERSION,
   claudeBin: null,
   autoImportAll: false,
   autoImportIntervalMinutes: null,
@@ -89,10 +102,36 @@ export const DEFAULT_SETTINGS: AppSettings = {
   windowBounds: null,
 }
 
+/**
+ * Brings a stored settings file up to date as it is read.
+ *
+ * Version 1 turns the prompt trim on at one folder. It is a *migration* rather than a changed
+ * default because a changed default could never arrive: the app rewrites the whole settings file
+ * every time its window is moved, so `terminalShortenPath: false` is already written down
+ * everywhere, chosen by nobody.
+ *
+ * It only touches values that are still exactly what the old defaults were. Someone who turned
+ * the trim on, or who set a segment count of their own, has said what they want and keeps it —
+ * so this can only affect people who never made a choice at all, and Settings undoes it in a
+ * click either way.
+ */
+export function migrateSettings(raw: Partial<AppSettings>): Partial<AppSettings> {
+  if ((raw.schemaVersion ?? 0) >= SETTINGS_VERSION) return raw
+
+  const chose = raw.terminalShortenPath === true
+    || (raw.terminalPathSegments !== undefined && raw.terminalPathSegments !== 2)
+
+  return {
+    ...raw,
+    schemaVersion: SETTINGS_VERSION,
+    ...(chose ? {} : { terminalShortenPath: true, terminalPathSegments: 1 }),
+  }
+}
+
 export function loadSettings(file: string): AppSettings {
   try {
     const raw = JSON.parse(readFileSync(file, 'utf8')) as Partial<AppSettings>
-    return { ...DEFAULT_SETTINGS, ...raw }
+    return { ...DEFAULT_SETTINGS, ...migrateSettings(raw) }
   } catch {
     // Missing or corrupt settings must never stop the app from starting.
     return DEFAULT_SETTINGS

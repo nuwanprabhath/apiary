@@ -971,6 +971,13 @@ export function App(): JSX.Element {
               if (session) togglePin(session)
             }}
             onFork={(key) => { void forkSession(key) }}
+            onSessionStarted={(info) => {
+              // A session started from the worktree-conflict dialog is a new session like any
+              // other: it has no id until Claude writes one, so it goes through the same pending
+              // bookkeeping rather than a path of its own.
+              void window.apiary.tree('').then((nodes) => { addPending(info, nodes) })
+                .catch((e: unknown) => { notifyError(e, 'Could not open that session') })
+            }}
             onTabDropped={(key, at) => {
               void window.apiary.tabDropped(key, at).catch((e: unknown) => {
                 notifyError(e, 'Could not move this tab')

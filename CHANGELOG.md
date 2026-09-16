@@ -4,6 +4,33 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.14.0] - 2026-09-16
+
+### Added
+
+- **A branch that another worktree already has is now an offer, not an error.** Checking one out
+  used to fail with git's own sentence — "fatal: 'dev/1.0.12' is already used by worktree at
+  '/…'" — leaving you to go and find that directory by hand. Apiary now says which worktree has it
+  and offers the two things anyone wants at that moment: pull it there, or start a Claude session
+  there. The worktree is found with `git worktree list --porcelain` rather than scraped out of the
+  message, and the follow-up actions name the *branch*, never a path.
+
+### Changed
+
+- **The prompt trim is switched on, at one folder, for everybody.** It was already the default in
+  1.13.2, and that default could never have reached anyone: the app rewrites the whole settings
+  file every time its window is moved, so `terminalShortenPath: false` was already written down in
+  every existing install, chosen by nobody. Settings files now carry a version and are migrated on
+  read. A trim you switched on yourself, or a segment count you chose, is left exactly as it is.
+
+### Fixed
+
+- **"Open installer" no longer reports Electron's plumbing at you.** Pressing it could surface
+  "Error invoking remote method 'apiary:update-open-downloaded': reply was never sent" — which
+  says nothing about the installer sitting on your disk. The hand-off to the desktop is now
+  bounded, so it always finishes one way or the other, and a failure says where the file is
+  instead of quoting the IPC layer.
+
 ## [1.13.2] - 2026-09-15
 
 ### Changed

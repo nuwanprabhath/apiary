@@ -1,4 +1,5 @@
 import type {
+  CheckoutOutcome,
   ProjectNode,
   ResumeConflict,
   TranscriptPage,
@@ -120,6 +121,8 @@ export const CHANNELS = {
   gitStatus: 'apiary:git-status',
   gitListRefs: 'apiary:git-list-refs',
   gitCheckoutBranch: 'apiary:git-checkout-branch',
+  gitPullWorktree: 'apiary:git-pull-worktree',
+  newSessionInWorktree: 'apiary:new-session-in-worktree',
   gitCheckoutRemote: 'apiary:git-checkout-remote',
   gitCheckoutDetached: 'apiary:git-checkout-detached',
   gitCreateBranch: 'apiary:git-create-branch',
@@ -239,7 +242,15 @@ export interface ApiaryApi {
   onOpenSettingsDialog(cb: () => void): () => void
   gitStatus(key: string, isPtyId: boolean): Promise<GitStatus>
   gitListRefs(key: string, isPtyId: boolean): Promise<GitRefs>
-  gitCheckoutBranch(key: string, isPtyId: boolean, name: string): Promise<void>
+  /**
+   * Checks out a branch. Resolves with `{ ok: false, conflict }` when another worktree already
+   * has it — which is an outcome to act on, not an error to report. Anything else still rejects.
+   */
+  gitCheckoutBranch(key: string, isPtyId: boolean, name: string): Promise<CheckoutOutcome>
+  /** Pulls `branch` in the worktree that holds it. Resolves with that worktree's path. */
+  gitPullWorktree(key: string, isPtyId: boolean, branch: string): Promise<string>
+  /** Starts a new Claude session in the worktree that holds `branch`. */
+  newSessionInWorktree(key: string, isPtyId: boolean, branch: string): Promise<NewSessionInfo>
   gitCheckoutRemote(key: string, isPtyId: boolean, remoteRef: string, localName: string): Promise<void>
   gitCheckoutDetached(key: string, isPtyId: boolean, ref: string): Promise<void>
   gitCreateBranch(key: string, isPtyId: boolean, name: string, from?: string): Promise<void>

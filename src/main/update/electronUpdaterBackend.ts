@@ -49,6 +49,13 @@ async function fetchStream(url: string, redirectsLeft = 5): Promise<IncomingMess
   })
 }
 
+/**
+ * How long to wait for the desktop to take a downloaded installer off our hands before giving up
+ * on hearing back. Long enough that a slow file manager still reports its own error, short enough
+ * that the button is never permanently stuck.
+ */
+const OPEN_TIMEOUT_MS = 10_000
+
 export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
   autoUpdater.autoDownload = false
   // Never install behind the user's back on quit: with `assisted` platforms in the mix, "you
@@ -140,16 +147,30 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
     },
 
     async openInstaller(path: string, action: 'open' | 'reveal'): Promise<void> {
-      // `reveal` is not a fallback here, it is the answer. A stock Ubuntu 24.04 desktop registers
-      // no handler for `.deb`, and `shell.openPath` on one returns '' — success — having done
-      // nothing at all. So the button appeared dead, and the fallback below could never fire
-      // because there was no error to fire it. Where the file cannot be handed over, show the
-      // user where it is and tell them the command instead (see `installInstructions`).
+      // Bounded, because `shell.openPath` waits for the program it launched to *exit*. Where the
+      // desktop hands the file to something long-lived, that is a promise that settles when the
+      // user closes an unrelated window — and an `ipcMain.handle` that never returns is an
+      // `invoke` that never resolves, which the renderer eventually reports as "reply was never
+      // sent": an Electron message about our plumbing, in front of a user who only wanted their
+      // installer. Measured on Ubuntu 24.04: with `gio` present this returns in ~10ms even when
+      // the handler stays open, so the bound is for the cases that are not that one.
+      const settle = <T>(promise: Promise<T>, fallback: T): Promise<T> => Promise.race([
+        promise,
+        new Promise<T>((resolve) => setTimeout(() => resolve(fallback), OPEN_TIMEOUT_MS)),
+      ])
+      // `reveal` is not a fallback here, it is the answer — and not for the reason first
+      // assumed. Measured on Ubuntu 24.04 in Docker: with no handler registered, `openPath`
+      // fails fast ("A required tool could not be found", xdg-open's exit 3); with a handler and
+      // `gio` present, as on a real GNOME desktop, it succeeds in ~10ms and launches it. Neither
+      // outcome installs anything, because installing a `.deb` needs root and no desktop app can
+      // do it for you. So handing the file over is the wrong gesture whatever the desktop does:
+      // show the user where it is and give them the command instead (see `installInstructions`).
       if (action === 'reveal') {
         shell.showItemInFolder(path)
         return
       }
-      const error = await shell.openPath(path)
+      // A timeout means the opener is still running, which means the file did open.
+      const error = await settle(shell.openPath(path), '')
       if (error !== '') {
         // Falling back to revealing it: the user can still double-click it themselves, which is
         // better than an error with nothing behind it.

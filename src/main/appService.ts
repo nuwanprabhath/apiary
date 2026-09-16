@@ -19,7 +19,9 @@ import { createGitLabMrPlugin } from './plugins/gitlabMr'
 import type { PluginBarItem } from './plugins/types'
 import { buildResumeCommand, buildNewSessionCommand } from './pty/resumeCommand'
 import * as branchOps from './git/branchOps'
-import type { ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo } from '@shared/types'
+import type {
+  ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo, CheckoutOutcome,
+} from '@shared/types'
 import type { StoredSession } from './store/sessionStore'
 import type { SessionMeta, GitStatus, GitRefs } from '@shared/types'
 
@@ -602,8 +604,64 @@ export class AppService {
     return branchOps.listRefs(this.resolveShellCwd(key, isPtyId))
   }
 
-  async gitCheckoutBranch(key: string, isPtyId: boolean, name: string): Promise<void> {
-    await branchOps.checkoutBranch(this.resolveShellCwd(key, isPtyId), name)
+  /**
+   * Checks out a branch, reporting the one failure that is not really a failure.
+   *
+   * Git refuses to check out a branch that another worktree already has, and says so in prose. On
+   * a repository with a worktree per ticket that is the *normal* answer, not an error: the branch
+   * exists and is up the road in another directory. Returning it as an outcome lets the UI offer
+   * the two things wanted at that point — update it where it lives, or open a session there —
+   * instead of printing git's sentence and leaving the user to go and find the folder.
+   *
+   * The worktree's path is looked up with `git worktree list --porcelain` rather than scraped out
+   * of the message. The message is English and quoted; the porcelain output is an interface. It
+   * also keeps the rule that a path the app later acts on is one the main process derived itself.
+   */
+  async gitCheckoutBranch(key: string, isPtyId: boolean, name: string): Promise<CheckoutOutcome> {
+    const cwd = this.resolveShellCwd(key, isPtyId)
+    try {
+      await branchOps.checkoutBranch(cwd, name)
+      return { ok: true }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      if (!branchOps.isWorktreeConflict(message)) throw e
+      const worktreePath = await branchOps.worktreeForBranch(cwd, name)
+      // Git said a worktree has it but the list does not agree — rather than invent an answer,
+      // let the original error through, which at least says what git said.
+      if (worktreePath === null) throw e
+      return { ok: false, conflict: { branch: name, worktreePath, label: basename(worktreePath) } }
+    }
+  }
+
+  /**
+   * Resolves the worktree holding `branch`, for the two follow-ups a conflict offers.
+   *
+   * The renderer names the *branch*, never the path: this is the same trust boundary every other
+   * cwd-carrying call goes through, and the answer is re-derived each time because a worktree can
+   * be removed between the refusal and the click.
+   */
+  private async requireWorktreeFor(key: string, isPtyId: boolean, branch: string): Promise<string> {
+    const cwd = this.resolveShellCwd(key, isPtyId)
+    const path = await branchOps.worktreeForBranch(cwd, branch)
+    if (path === null) {
+      throw new Error(`${branch} is no longer checked out in a worktree of this repository`)
+    }
+    if (!existsSync(path)) throw new Error(`That worktree no longer exists: ${path}`)
+    return path
+  }
+
+  /** Pulls `branch` in the worktree that has it, which is the only place it *can* be pulled. */
+  async gitPullWorktree(key: string, isPtyId: boolean, branch: string): Promise<string> {
+    const path = await this.requireWorktreeFor(key, isPtyId, branch)
+    await branchOps.pull(path)
+    return path
+  }
+
+  /** Starts a new Claude session in the worktree that has `branch`. */
+  async newSessionInWorktree(
+    key: string, isPtyId: boolean, branch: string,
+  ): Promise<NewSessionInfo> {
+    return this.newSessionInFolder(await this.requireWorktreeFor(key, isPtyId, branch))
   }
 
   async gitCheckoutRemote(key: string, isPtyId: boolean, remoteRef: string, localName: string): Promise<void> {

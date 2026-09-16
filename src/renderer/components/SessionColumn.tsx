@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { GitStatus, SessionNode } from '@shared/types'
+import type { GitStatus, SessionNode, WorktreeConflict, NewSessionInfo } from '@shared/types'
 import type { Column, OpenTab } from '../state/columns'
 import { findTab } from '../state/columns'
 import { moveBefore } from '../state/groups'
@@ -12,6 +12,7 @@ import { ResumeBar } from './ResumeBar'
 import { Toolbar, type ToolbarButtonSpec } from './Toolbar'
 import { usePluginBar, pluginButtons } from './pluginBar'
 import { BranchSwitcher } from './BranchSwitcher'
+import { WorktreeConflictDialog } from './WorktreeConflictDialog'
 import { Composer } from './Composer'
 import { ImageLightbox } from './ImageLightbox'
 import { BranchIcon, ArrowDownIcon, ArrowUpIcon, CopyIcon, PlusIcon, ListIcon, EllipsisIcon } from './icons'
@@ -57,6 +58,9 @@ interface Props {
   /** Session ids in the sidebar's Pinned section, so the tab menu offers the right verb. */
   pinnedKeys: Set<string>
   onTogglePin: (key: string) => void
+  /** A session started from this column that has no session id yet — the same bookkeeping the
+   *  "+" button's new sessions go through. */
+  onSessionStarted: (info: NewSessionInfo) => void
   /** Forks the session behind a tab, opening the fork beside it. */
   onFork: (key: string) => void
   /** A drag that ended with nothing in this window taking the tab. */
@@ -80,6 +84,7 @@ export function SessionColumn(props: Props): JSX.Element {
     activeTerminal, setActiveTerminal, bottomHeight, onStartBottomResize, isActive, onFocus,
     onActivateTab, onCloseTab, onSetView, onResume, onResumeAsync, onRenameSession, onRenamePending,
     onSplitActive, onReorderTab, pinnedKeys, onTogglePin, onFork, onTabDropped, onDetach,
+    onSessionStarted,
     weight,
   } = props
 
@@ -96,6 +101,10 @@ export function SessionColumn(props: Props): JSX.Element {
   // The branch picker serves two jobs: choosing a branch to check out, and choosing one to merge
   // in. Null when closed, so one piece of state carries both "is it open" and "what for".
   const [branchPicker, setBranchPicker] = useState<'checkout' | 'merge' | 'create' | null>(null)
+  /** A checkout refused because another worktree has the branch, and whether a follow-up is
+   *  running — both actions shell out to git, and neither should be startable twice. */
+  const [worktreeConflict, setWorktreeConflict] = useState<WorktreeConflict | null>(null)
+  const [worktreeBusy, setWorktreeBusy] = useState(false)
   const [gitMenuOpen, setGitMenuOpen] = useState(false)
   /** The image being shown full size, from either the transcript or the composer. */
   const [lightbox, setLightbox] = useState<string | null>(null)
@@ -418,7 +427,9 @@ export function SessionColumn(props: Props): JSX.Element {
                 />
               ) : null}
             </h1>
-            <p className="session-cwd">{activePending !== null ? activePending.cwd : activeSession?.cwd}</p>
+            <p className="session-cwd" data-testid="session-path">
+              {activePending !== null ? activePending.cwd : activeSession?.cwd}
+            </p>
           </header>
 
           {activePending === null && activeSession !== null && (
@@ -645,6 +656,35 @@ export function SessionColumn(props: Props): JSX.Element {
           onClose={() => setBranchPicker(null)}
           onCheckedOut={loadGitStatus}
           onError={(message) => notify({ kind: 'error', message })}
+          onWorktreeConflict={setWorktreeConflict}
+        />
+      )}
+
+      {worktreeConflict !== null && shellKey !== null && (
+        <WorktreeConflictDialog
+          conflict={worktreeConflict}
+          busy={worktreeBusy}
+          onCancel={() => setWorktreeConflict(null)}
+          onPull={() => {
+            setWorktreeBusy(true)
+            void window.apiary.gitPullWorktree(shellKey, shellKeyIsPtyId, worktreeConflict.branch)
+              .then(() => {
+                notify({ message: `Pulled ${worktreeConflict.branch} in ${worktreeConflict.label}.` })
+                setWorktreeConflict(null)
+              })
+              .catch((e: unknown) => { notifyError(e, `Could not pull ${worktreeConflict.branch}`) })
+              .finally(() => setWorktreeBusy(false))
+          }}
+          onOpenSession={() => {
+            setWorktreeBusy(true)
+            void window.apiary.newSessionInWorktree(shellKey, shellKeyIsPtyId, worktreeConflict.branch)
+              .then((info) => {
+                onSessionStarted(info)
+                setWorktreeConflict(null)
+              })
+              .catch((e: unknown) => { notifyError(e, 'Could not start a session there') })
+              .finally(() => setWorktreeBusy(false))
+          }}
         />
       )}
     </section>

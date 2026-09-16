@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { GitRefEntry, GitRefs } from '@shared/types'
+import type { GitRefEntry, GitRefs, WorktreeConflict } from '@shared/types'
 
 interface Props {
   shellKey: string
@@ -7,6 +7,8 @@ interface Props {
   onClose: () => void
   onCheckedOut: () => void
   onError: (message: string) => void
+  /** Raised instead of an error when the branch is already checked out in another worktree. */
+  onWorktreeConflict: (conflict: WorktreeConflict) => void
   /**
    * What picking a ref from the list does. 'checkout' is the branch switcher proper; 'merge'
    * reuses the very same searchable list of branches, remotes and tags to choose what to merge
@@ -31,7 +33,8 @@ function matches(entry: GitRefEntry, query: string): boolean {
 }
 
 export function BranchSwitcher({
-  shellKey, isPtyId, onClose, onCheckedOut, onError, mode = 'checkout', currentBranch = null,
+  shellKey, isPtyId, onClose, onCheckedOut, onError, onWorktreeConflict, mode = 'checkout',
+  currentBranch = null,
   startAt = 'list',
 }: Props): JSX.Element {
   const [refs, setRefs] = useState<GitRefs | null>(null)
@@ -90,7 +93,14 @@ export function BranchSwitcher({
     setErrorMessage(null)
     setBusy(true)
     try {
-      await window.apiary.gitCheckoutBranch(shellKey, isPtyId, name)
+      const outcome = await window.apiary.gitCheckoutBranch(shellKey, isPtyId, name)
+      if (!outcome.ok) {
+        // Not an error, and not this popover's to solve: hand the conflict up and get out of the
+        // way, so the choice is made in a dialog rather than inside a branch list.
+        onClose()
+        onWorktreeConflict(outcome.conflict)
+        return
+      }
       onCheckedOut()
       onClose()
     } catch (e) {

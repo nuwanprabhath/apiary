@@ -26,6 +26,9 @@ resume it in an embedded terminal in the correct working directory.
 - **A session in a window of its own** — drag a tab out of the window, or right-click it and
   choose *Move into New Window*, and the conversation and its shell get a window with no sidebar
   in the way. Tabs can be dragged between open windows too.
+- **Branches held by another worktree** — checking one out is refused by git, so Apiary says which
+  worktree has it and offers to pull it there or start a session there, instead of printing the
+  error and leaving you to find the folder.
 - **Fork a session** — right-click a tab or a sidebar row to start a new conversation from where
   this one has got to. The fork opens beside the original, named after it; the original is left
   exactly as it was.

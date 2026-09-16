@@ -89,17 +89,48 @@ test('checks out a tag detached', async () => {
   await expect(h.page.getByTestId('branch-switcher')).toBeVisible()
 })
 
-test('shows a visible error inside the branch switcher on a failed checkout, and keeps it open', async () => {
-  // h.worktreeDir already has feature/wt checked out — trying to check it out again from the
-  // repoRoot session must fail with git's "already used by worktree" error, visibly, without
-  // silently closing the modal (see Finding 3: the modal-backdrop otherwise hid the app's own
-  // error reporting behind it).
+test('shows a failed checkout inside the branch switcher, without closing it', async () => {
+  // A checkout that fails for an ordinary reason — a ref that is not there — is reported inside
+  // the modal rather than behind it: the modal's own backdrop covers the app's error banner, so an
+  // error routed only to the parent would be invisible. (A branch held by another worktree is not
+  // this case; it is an outcome with actions, see the worktree tests below.)
   await h.page.getByTestId('toolbar-branch-button').click()
   await expect(h.page.getByTestId('branch-switcher')).toBeVisible()
-  await h.page.getByTestId('branch-switcher-search').fill('feature/wt')
-  await h.page.getByTestId('branch-switcher-branch-row').filter({ hasText: 'feature/wt' }).click()
+  await h.page.getByTestId('branch-switcher-create').click()
+  await h.page.getByTestId('branch-switcher-name-input').fill('main')
+  await h.page.getByTestId('branch-switcher-confirm').click()
 
   await expect(h.page.getByTestId('branch-switcher')).toBeVisible()
   await expect(h.page.getByTestId('branch-switcher-error')).toBeVisible()
-  await expect(h.page.getByTestId('branch-switcher-error')).toContainText(/worktree/i)
+  await expect(h.page.getByTestId('branch-switcher-error')).toContainText(/already exists/i)
+})
+
+test('a branch another worktree has offers to pull it there, or open a session there', async () => {
+  // `feature/wt` is checked out in repo-c-wt (see helpers' makeRepoWithWorktree), so git refuses
+  // this checkout. On a repository with a worktree per ticket that refusal is the normal answer,
+  // not a failure — and being shown git's sentence and left to go and find that directory by hand
+  // is the slow part.
+  await h.page.getByTestId('toolbar-branch-button').click()
+  await h.page.getByTestId('branch-switcher-search').fill('feature/wt')
+  await h.page.getByTestId('branch-switcher-branch-row').filter({ hasText: 'feature/wt' }).first().click()
+
+  const dialog = h.page.getByTestId('worktree-conflict-dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('feature/wt')
+  await expect(h.page.getByTestId('worktree-conflict-label')).toHaveText('repo-c-wt')
+  // The branch switcher gets out of the way rather than showing this inside a branch list.
+  await expect(h.page.getByTestId('branch-switcher')).toHaveCount(0)
+  // And nothing was checked out: the session's own branch is untouched.
+  await expect(h.page.getByTestId('toolbar-branch-button')).toContainText('main')
+})
+
+test('opening a session in that worktree starts it in the worktree, not the repo root', async () => {
+  await h.page.getByTestId('toolbar-branch-button').click()
+  await h.page.getByTestId('branch-switcher-search').fill('feature/wt')
+  await h.page.getByTestId('branch-switcher-branch-row').filter({ hasText: 'feature/wt' }).first().click()
+  await h.page.getByTestId('worktree-conflict-session').click()
+
+  await expect(h.page.getByTestId('worktree-conflict-dialog')).toHaveCount(0)
+  // A new tab, showing the worktree's own directory in the header.
+  await expect(h.page.getByTestId('session-path')).toContainText('repo-c-wt')
 })

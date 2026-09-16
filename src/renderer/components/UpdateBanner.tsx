@@ -1,6 +1,7 @@
 import type { UpdateStatusPayload } from '@shared/api'
 import { CloseIcon } from './icons'
 import { formatVersion } from '../state/updateSummary'
+import { useNotifications } from '../state/notifications'
 
 /**
  * The strip that appears when there is an update, and at no other time.
@@ -16,6 +17,7 @@ import { formatVersion } from '../state/updateSummary'
 export function UpdateBanner(
   { status, onOpenSettings }: { status: UpdateStatusPayload; onOpenSettings: () => void },
 ): JSX.Element | null {
+  const { notify } = useNotifications()
   const { phase, capability, availableVersion } = status
   // 'up-to-date' and 'error' come from a check the user asked for, and are shown so that pressing
   // the menu item visibly does something; a silent scheduled check never reaches either.
@@ -111,7 +113,19 @@ export function UpdateBanner(
           <button
             className="btn primary"
             data-testid="update-open-downloaded"
-            onClick={() => { void window.apiary.updateOpenDownloaded() }}
+            onClick={() => {
+              // Caught rather than left to the global unhandled-rejection net, which would put
+              // Electron's own words in front of the user — "reply was never sent" — and say
+              // nothing about the file that is sitting on their disk, ready to install.
+              void window.apiary.updateOpenDownloaded().catch(() => {
+                notify({
+                  kind: 'error',
+                  message: status.downloadedPath === null
+                    ? 'Could not hand the installer to your desktop.'
+                    : `Could not hand the installer to your desktop. It is at ${status.downloadedPath}`,
+                })
+              })
+            }}
           >
             {status.install?.action === 'reveal' ? 'Show in folder' : 'Open installer'}
           </button>
