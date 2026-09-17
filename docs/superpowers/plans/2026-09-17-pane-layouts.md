@@ -857,7 +857,7 @@ This task changes no visible behaviour except that splitting now stops at four p
   - `layout: Layout` state and `setLayout(update: (prev: Layout) => Layout): void` (always tidied)
   - `setColumns(update: (prev: Column[]) => Column[]): void` — kept as a wrapper over `setLayout` so the ~50 existing call sites do not change
   - `tracks: Map<PresetId, Tracks>` state
-- `SessionColumn` props: `weight: number` is **removed**; `gridArea: string` is added; `emptyContent?: React.ReactNode` is added; `layoutButton?: React.ReactNode` is added (rendered by `SessionTabBar`, Task 7).
+- `SessionColumn` props: `weight: number` is **removed**; `gridArea: string` is added; `emptyContent?: ReactNode` is added; `layoutButton?: ReactNode` is added (rendered by `SessionTabBar`, Task 7).
 - `PaneDividers` props: `{ preset: PresetId; tracks: Tracks; onChange: (next: Tracks) => void }`.
 
 - [ ] **Step 1: Update the "no cap" e2e test to say what is now true**
