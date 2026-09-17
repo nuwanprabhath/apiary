@@ -47,11 +47,13 @@ export function SidebarIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** Two chevrons folding together — collapse everything beneath. VS Code's "Collapse All". */
+/** VS Code's "Collapse Folders": a box with a minus, stacked on the one behind it. */
 export function CollapseAllIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M4.5 2.5 8 6l3.5-3.5M4.5 13.5 8 10l3.5 3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M2.5 11V3.5a1 1 0 0 1 1-1H11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M7.25 9.5h4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   )
 }
