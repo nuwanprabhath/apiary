@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Component, type CSSProperties, type ErrorInfo, type ReactNode } from 'react'
 import { describeError } from '../errors'
 
 interface Props {
@@ -7,6 +7,9 @@ interface Props {
   label?: string
   /** Reported alongside the fallback, so the notification stack records it too. */
   onError?: (thrown: unknown, componentStack: string) => void
+  /** Passed to the crash fallback, so it still lands in its pane's grid zone when its child throws
+   *  before ever rendering the element that would otherwise carry that style. */
+  style?: CSSProperties
 }
 
 interface State {
@@ -42,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
     const { message, detail } = this.state
     if (message === null) return this.props.children
     return (
-      <div className="crash-pane" data-testid="crash-pane">
+      <div className="crash-pane" data-testid="crash-pane" style={this.props.style}>
         <h2 className="crash-title">
           {this.props.label === undefined ? 'Something went wrong' : `${this.props.label} could not be displayed`}
         </h2>

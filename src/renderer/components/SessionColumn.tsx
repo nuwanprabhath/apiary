@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { GitStatus, SessionNode, WorktreeConflict, NewSessionInfo } from '@shared/types'
 import type { Column, OpenTab } from '../state/columns'
 import { findTab } from '../state/columns'
@@ -67,8 +67,12 @@ interface Props {
   onTabDropped: (key: string, at: { x: number; y: number }) => void
   /** Tears a tab off into a window of its own. */
   onDetach: (key: string, at: { x: number; y: number }) => void
-  /** flex-grow weight, set by dragging the dividers between columns (see App.tsx). */
-  weight: number
+  /** The grid zone this pane sits in (`z1`…`z4`), from the layout preset. */
+  gridArea: string
+  /** Shown in place of the "Select a session" message when this pane is waiting to be filled. */
+  emptyContent?: ReactNode
+  /** The window's layout button, when this pane is the one at the top-right corner. */
+  layoutButton?: ReactNode
 }
 
 /**
@@ -85,7 +89,7 @@ export function SessionColumn(props: Props): JSX.Element {
     onActivateTab, onCloseTab, onSetView, onResume, onResumeAsync, onRenameSession, onRenamePending,
     onSplitActive, onReorderTab, pinnedKeys, onTogglePin, onFork, onTabDropped, onDetach,
     onSessionStarted,
-    weight,
+    gridArea, emptyContent, layoutButton,
   } = props
 
   // Failures raised in here go to the app-wide notification stack rather than an in-pane banner:
@@ -385,12 +389,14 @@ export function SessionColumn(props: Props): JSX.Element {
       className="session-column"
       data-testid="session-column"
       data-column-id={column.id}
-      style={{ flexGrow: weight }}
+      style={{ gridArea }}
       data-active={isActive}
+      data-placeholder={column.placeholder === true}
       onFocusCapture={onFocus}
       onMouseDownCapture={onFocus}
     >
       <SessionTabBar
+        columnId={column.id}
         tabs={tabViews}
         activeKey={activeKey}
         onActivate={onActivateTab}
@@ -402,12 +408,15 @@ export function SessionColumn(props: Props): JSX.Element {
         onFork={onFork}
         onTabDropped={onTabDropped}
         onDetach={onDetach}
+        layoutButton={layoutButton}
       />
 
       {activeKey === null ? (
-        <p className="empty" data-testid="content-empty">
-          Select a session to view its transcript.
-        </p>
+        emptyContent ?? (
+          <p className="empty" data-testid="content-empty">
+            Select a session to view its transcript.
+          </p>
+        )
       ) : (
         <>
           <header className="session-header">

@@ -61,6 +61,8 @@
   --control-padding-x: 10px;
   --control-gap: 6px;
   --radius-sm: 4px;
+  /* Smaller than --radius-sm: for a mark drawn at miniature scale (the layout picker's zones), not a control. */
+  --radius-xs: 2px;
   --radius: 6px;
   --radius-lg: 10px;
 
@@ -587,41 +589,56 @@ button:not([class]) {
 
 .pending-list { list-style: none; margin: 0; padding: 0 0 6px; border-bottom: 1px solid var(--border); }
 
-/*
- * The editor area is a row of columns, and it never scrolls itself: `overflow: hidden` pins the
- * shell pane to the bottom of the window the way VS Code's panel is pinned, so opening a terminal
- * can't push the layout down and start scrolling the whole app. Everything that legitimately
- * overflows — the transcript, each terminal — scrolls inside its own box instead.
- */
-.content { overflow: hidden; min-height: 0; display: flex; flex-direction: row; }
+/* The window's panes, laid out by the layout preset (layout.ts). Each preset names its zones z1–z4
+ * in fill order; the tracks come from the style attribute, which the dividers drag. It never
+ * scrolls itself: `overflow: hidden` pins the shell pane to the bottom of the window the way VS
+ * Code's panel is pinned, so opening a terminal can't push the layout down and start scrolling the
+ * whole app — everything that legitimately overflows scrolls inside its own box instead. */
+.content {
+  overflow: hidden;
+  min-height: 0;
+  display: grid;
+  position: relative;
+}
+.content[data-preset="single"] { grid-template-areas: "z1"; }
+.content[data-preset="halves-h"] { grid-template-areas: "z1 z2"; }
+.content[data-preset="halves-v"] { grid-template-areas: "z1" "z2"; }
+.content[data-preset="thirds-h"] { grid-template-areas: "z1 z2 z3"; }
+.content[data-preset="main-right2"] { grid-template-areas: "z1 z2" "z1 z3"; }
+.content[data-preset="left2-main"] { grid-template-areas: "z1 z3" "z2 z3"; }
+.content[data-preset="top-bottom2"] { grid-template-areas: "z1 z1" "z2 z3"; }
+.content[data-preset="grid"] { grid-template-areas: "z1 z2" "z3 z4"; }
 
 /* One editor group. Columns share the width evenly and each owns its full vertical stack:
  * tab strip, session, then that session's shell. */
 .session-column {
-  flex: 1;
-  /* Never squeezed to a sliver, however the dividers were dragged or however many columns are
-   * open — below this a column shows nothing usable, and it is better for the row to overflow
-   * (it scrolls nowhere, but each column stays legible) than for one to collapse to a stripe. */
-  min-width: 180px;
-  min-height: 0;
+  /* Never squeezed to a sliver, however the dividers were dragged or however many panes are
+   * open — below this a column shows nothing usable, and it is better for the window to overflow
+   * (it scrolls nowhere, but each column stays legible) than for one to collapse to a stripe.
+   * Matches PaneDividers' MIN_PANE_WIDTH/MIN_PANE_HEIGHT, which stop a drag from asking for less. */
+  min-width: 220px;
+  min-height: 180px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-/*
- * The grab strip between two columns. Its own border is what separates the columns now — the
- * columns themselves no longer draw one, or the two would sit side by side as a double rule.
- * Wider on hover the way the sidebar's resizer is, so a 4px target is findable without making a
- * permanent 8px gutter between every pair of columns.
- */
-.column-resizer {
-  flex: none;
-  width: 5px;
-  cursor: col-resize;
+/* Panes are separated by the dividers laid over them, plus this hairline for panes whose
+ * boundary has no divider of its own to draw it (a waiting zone beside a filled one). */
+.session-column { box-shadow: inset 1px 0 0 var(--border), inset 0 1px 0 var(--border); }
+
+/* Divider handles, laid over the grid by PaneDividers. Centered on the boundary; wider on hover
+ * the way the sidebar's resizer is. */
+.pane-dividers { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.column-resizer, .row-resizer {
+  position: absolute;
+  pointer-events: auto;
   background: var(--border);
   transition: background-color 0.1s;
 }
-.column-resizer:hover, .column-resizer:active { background: var(--accent); }
+.column-resizer { width: 5px; transform: translateX(-50%); cursor: col-resize; }
+.row-resizer { height: 5px; transform: translateY(-50%); cursor: row-resize; }
+.column-resizer:hover, .column-resizer:active,
+.row-resizer:hover, .row-resizer:active { background: var(--accent); }
 
 /* The split action stays pinned to the right while the tabs themselves scroll, so it can't be
  * scrolled out of reach the way it would be as just another item in the scrolling strip. */
@@ -741,6 +758,29 @@ button:not([class]) {
 .session-tab[data-active="true"] .session-tab-close { color: var(--text); }
 .session-tab-close:hover { background: var(--hover); color: var(--text); }
 .session-tab-close svg { width: 12px; height: 12px; display: block; }
+
+/* The per-tab layout button: present on the tab under the pointer and on the active tab only, so
+ * a strip of many tabs does not become a strip of many icons. Same box as the close button. */
+.session-tab-layout {
+  flex: none;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+}
+.session-tab:hover .session-tab-layout,
+.session-tab[data-active="true"] .session-tab-layout,
+.session-tab-layout:focus-visible { display: flex; }
+.session-tab-layout:hover { background: var(--hover); color: var(--text); }
+.session-tab-layout svg { width: 12px; height: 12px; display: block; }
+
 .session-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
 .session-header h1 { font-size: 16px; margin: 0 0 4px; display: flex; align-items: center; gap: 6px; }
 .session-cwd { color: var(--muted); margin: 0; font-size: 12px; }
@@ -1940,3 +1980,59 @@ button:not([class]) {
 .settings-plugin-field { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
 .settings-field-label { font-weight: 600; font-size: 12px; }
 .settings-plugin-field .search { width: 100%; box-sizing: border-box; }
+
+/* The layout picker (LayoutPicker.tsx): eight thumbnails, each drawn as its own tiny grid. */
+.layout-picker {
+  position: fixed;
+  z-index: 60;
+  padding: var(--control-padding-x);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px var(--bg-overlay);
+}
+.layout-picker-heading { color: var(--muted); font-size: 11px; margin: 0 2px 8px; }
+.layout-picker-grid { display: grid; grid-template-columns: repeat(4, 44px); gap: var(--control-padding-x); }
+/* 44/32 and the 2px gap/padding below are a miniature's own drawing dimensions, not control shape —
+ * they stay literal on purpose, unlike the picker's own padding/gap and the zone's corner above. */
+.layout-thumb {
+  display: grid;
+  gap: 2px;
+  width: 44px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+}
+.layout-thumb[data-current="true"] { border-color: var(--accent); }
+.layout-zone {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: var(--hover);
+  cursor: pointer;
+}
+.layout-zone:hover, .layout-zone:focus-visible,
+button.layout-thumb:hover .layout-zone, button.layout-thumb:focus-visible .layout-zone {
+  background: var(--accent);
+  outline: none;
+}
+
+/* A pane waiting to be filled (PaneFiller.tsx): a short list, not a full sidebar. */
+.pane-filler {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 0;
+  max-width: 420px;
+}
+.pane-filler section { display: flex; flex-direction: column; }
+.pane-filler-heading { color: var(--muted); font-size: 11px; font-weight: 600; margin: 0 0 4px; text-transform: uppercase; }
+.pane-filler .session-row { width: 100%; }
+.pane-filler-close { align-self: flex-start; }

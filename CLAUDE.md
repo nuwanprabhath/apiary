@@ -109,6 +109,27 @@ Apiary is multi-window, and the division is worth stating because getting it wro
   receiving window to take the tab. Anything built on the receiving window seeing the drop is
   built on something that does not happen — this shipped once and did nothing at all.
 
+## Layouts
+
+A window's panes are a `Layout` (`src/renderer/state/layout.ts`): one of eight presets and at
+most four panes, each pane being a `Column` with its own tabs and terminals. It is a preset table
+rather than a split tree on purpose — "zone three" and "what closing a pane turns into" are then
+table lookups, and the picker shows exactly the shapes that can exist.
+
+- **Every change goes through `tidyLayout`** (via `setLayout` in `App.tsx`). It closes a pane
+  whose last tab went away and steps the layout down, keeps a pane that is *waiting* to be filled
+  (`placeholder`), and never lets the pane count exceed the preset. Do not prune panes anywhere
+  else.
+- **Placing moves; splitting copies.** `placeInZone` moves a tab that is already open;
+  `openBeside` (the split button's click) opens a second view, as splitting always has.
+- **Nothing a layout change does closes a tab.** A smaller layout folds the extra panes' tabs into
+  the last one.
+- **Terminals do not care which pane they are in.** Shell ids are `shell:<session key>:<n>`, and
+  the pty belongs to the main process, so moving a tab between panes remounts its views onto the
+  same processes (the replay buffer fills them in).
+- The pickers are fed through `LayoutContext`, so a sidebar row can place a session without the
+  layout being threaded through every component between `App` and it.
+
 ## Search
 
 `src/main/search/` keeps an FTS5 index in a database of its own, because it is derived data that can

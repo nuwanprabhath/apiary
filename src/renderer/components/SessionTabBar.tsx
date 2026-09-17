@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { CloseIcon, SplitIcon } from './icons'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { CloseIcon, SplitIcon, LayoutIcon } from './icons'
 import { ContextMenu } from './ContextMenu'
+import { LayoutMenuButton } from './LayoutMenuButton'
+import { useLayoutActions } from '../state/layoutContext'
 
 /** The drag payload type for a session tab, shared by every strip in the window. */
 const TAB_MIME = 'application/x-apiary-tab'
@@ -23,6 +25,10 @@ function indexInRest(tabs: SessionTabView[], dragKey: string, index: number): nu
 }
 
 interface Props {
+  /** The pane this strip belongs to — carried on a place/arrange target so a key open in more
+   *  than one pane at once (a split) is placed from the pane the user actually picked, not
+   *  whichever pane happens to be found first. */
+  columnId: string
   tabs: SessionTabView[]
   activeKey: string | null
   onActivate: (key: string) => void
@@ -47,6 +53,8 @@ interface Props {
   onTabDropped: (key: string, at: { x: number; y: number }) => void
   /** Tears a tab off into a window of its own, at a point in screen coordinates. */
   onDetach: (key: string, at: { x: number; y: number }) => void
+  /** The window's layout button, shown beside the split button on the top-right pane only. */
+  layoutButton?: ReactNode
 }
 
 /**
@@ -59,8 +67,8 @@ interface Props {
  */
 export function SessionTabBar(
   {
-    tabs, activeKey, onActivate, onClose, onSplitActive, onDropTab, pinnedKeys,
-    onTogglePin, onFork, onTabDropped, onDetach,
+    columnId, tabs, activeKey, onActivate, onClose, onSplitActive, onDropTab, pinnedKeys,
+    onTogglePin, onFork, onTabDropped, onDetach, layoutButton,
   }: Props,
 ): JSX.Element {
   /**
@@ -71,6 +79,7 @@ export function SessionTabBar(
    */
   const [dragKey, setDragKey] = useState<string | null>(null)
   const [dropAt, setDropAt] = useState<number | null>(null)
+  const { place, requestPicker } = useLayoutActions()
 
   /** Where a drop on this tab would insert, given which half of it the pointer is over. */
   const insertionFor = (e: { currentTarget: HTMLElement; clientX: number }, index: number): number => {
@@ -187,6 +196,16 @@ export function SessionTabBar(
             {tab.isPending && <span className="live-dot" aria-label="running" />}
             <span className="session-tab-text">{tab.label}</span>
           </button>
+          <LayoutMenuButton
+            className="session-tab-layout"
+            testId="session-tab-layout"
+            title="Arrange"
+            ariaLabel={`Arrange ${tab.label}`}
+            heading={`Move “${tab.label}” here`}
+            onPick={(preset, zone) => { place({ kind: 'tab', key: tab.key, paneId: columnId }, preset, zone) }}
+          >
+            <LayoutIcon />
+          </LayoutMenuButton>
           <button
             className="session-tab-close"
             data-testid="session-tab-close"
@@ -203,16 +222,22 @@ export function SessionTabBar(
       {/* Pinned to the right of the strip, where VS Code keeps its own split action — reaching a
        *  session that is already open in this column shouldn't mean going back to the sidebar to
        *  find its row again just to use the split button there. */}
+      {layoutButton}
+
       {activeKey !== null && (
-        <button
+        <LayoutMenuButton
           className="session-tab-split"
-          data-testid="session-tab-split"
-          title="Split this session into a new column"
-          aria-label="Split this session into a new column"
+          testId="session-tab-split"
+          title="Split this session into a new pane — rest here for layouts"
+          ariaLabel="Split this session into a new pane"
+          heading="Move the session in front here"
           onClick={onSplitActive}
+          onPick={(preset, zone) => {
+            if (activeKey !== null) place({ kind: 'tab', key: activeKey, paneId: columnId }, preset, zone)
+          }}
         >
           <SplitIcon />
-        </button>
+        </LayoutMenuButton>
       )}
 
       <ContextMenu
@@ -236,6 +261,11 @@ export function SessionTabBar(
             // empty window and take the tab out of this one on the way.
             disabled: tabs.find((t) => t.key === menu.key)?.isPending ?? false,
             run: () => onDetach(menu.key, { x: menu.x, y: menu.y }),
+          },
+          {
+            id: 'arrange',
+            label: 'Arrange…',
+            run: () => { requestPicker({ kind: 'tab', key: menu.key, paneId: columnId }, { x: menu.x, y: menu.y }) },
           },
           {
             id: 'pin',

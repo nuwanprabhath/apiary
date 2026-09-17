@@ -4,6 +4,29 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.17.0] - 2026-09-17
+
+### Added
+
+- **Layouts of up to four sessions in one window.** Rest the pointer on a session's split button
+  in the sidebar, on the split button at the end of a tab strip, or on the small layout icon of a
+  tab, and a picker shows eight layouts — single, two columns, two rows, three columns, a main
+  pane with two beside it (either side), a top pane with two below, and a 2×2 grid. Click the spot
+  you want the session in and it goes there; the other panes arrange themselves around it. The
+  same picker is under **Arrange…** in the right-click menu of tabs and sidebar sessions.
+- **A layout button** on the top-right pane changes the layout without moving anything.
+- **Empty panes offer what to put in them** — your other open tabs first, then recent sessions,
+  with a search — or can be closed.
+- **Dividers between rows** as well as columns.
+
+### Changed
+
+- **Splitting stops at four panes.** A split with four panes already open opens the session as a
+  tab in the next pane.
+- **Closing a pane's last tab steps the layout down** — a grid becomes a main pane with two beside
+  it, and so on — rather than leaving a gap.
+- A plain click on a split button still opens the session to the side, as before.
+
 ## [1.16.0] - 2026-09-17
 
 ### Added

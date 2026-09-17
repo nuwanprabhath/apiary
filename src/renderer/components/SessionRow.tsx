@@ -2,6 +2,8 @@ import type { SessionNode } from '@shared/types'
 import { NoteIcon, PinIcon, SplitIcon, TrashIcon } from './icons'
 import { HoverCard } from './HoverCard'
 import { useHoverCard } from './useHoverCard'
+import { LayoutMenuButton } from './LayoutMenuButton'
+import { useLayoutActions } from '../state/layoutContext'
 
 /** Days since a session was last touched, in the compact form the sidebar has room for. */
 /** An absolute timestamp for the tooltip — "8d" is for the row, where space is the constraint. */
@@ -59,6 +61,7 @@ export function SessionRow({
   const hasNote = session.note !== null && session.note !== ''
   const { anchor: cardAnchor, ref: wrapRef, arm, keepOpen, scheduleClose, hideNow } =
     useHoverCard<HTMLDivElement>()
+  const { place, isOpen } = useLayoutActions()
 
   return (
     <div
@@ -145,15 +148,17 @@ export function SessionRow({
       >
         <PinIcon filled={pinned} />
       </button>
-      <button
+      <LayoutMenuButton
         className="row-action split-session-button"
-        data-testid="split-session-button"
-        title="Open to the side"
-        aria-label={`Open session ${session.title} to the side`}
-        onClick={(e) => { e.stopPropagation(); onSplit(session) }}
+        testId="split-session-button"
+        title="Open to the side — rest here for layouts"
+        ariaLabel={`Open session ${session.title} to the side`}
+        heading={isOpen(session.sessionId) ? `Move “${session.title}” here` : `Open “${session.title}” here`}
+        onClick={() => { onSplit(session) }}
+        onPick={(preset, zone) => { hideNow(); place({ kind: 'session', session }, preset, zone) }}
       >
         <SplitIcon />
-      </button>
+      </LayoutMenuButton>
       <button
         className="row-action delete-session-button"
         data-testid="delete-session-button"

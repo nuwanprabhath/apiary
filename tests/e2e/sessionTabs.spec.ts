@@ -67,13 +67,18 @@ test('the split button opens the session in a second column, with its own shell'
   await expect(columns.last()).toContainText('Add worktree switcher')
 })
 
-test('splitting again keeps adding columns — there is no cap', async () => {
+test('splitting keeps adding panes up to four, then opens in an existing one', async () => {
   await sidebarSession(h.page, 'Fix CSV export bug').click()
-  for (const title of ['Add worktree switcher', 'Repo root session']) {
+  for (const title of ['Add worktree switcher', 'Repo root session', 'Worktree session']) {
     const target = h.page.locator('.session-row-wrap').filter({ hasText: title })
     await clickRowAction(target, 'split-session-button')
   }
-  await expect(h.page.getByTestId('session-column')).toHaveCount(3)
+  await expect(h.page.getByTestId('session-column')).toHaveCount(4)
+  await expect(h.page.getByTestId('content')).toHaveAttribute('data-preset', 'grid')
+
+  // A fifth has nowhere of its own to go.
+  await h.page.getByTestId('session-tab-split').first().click()
+  await expect(h.page.getByTestId('session-column')).toHaveCount(4)
 })
 
 test('the shell pane stays pinned to the bottom instead of scrolling the layout away', async () => {

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   isTabTransfer,
   type NewSessionInfo, type ProjectNode, type ResumeConflict, type SessionNode, type TabTransfer,
@@ -10,11 +10,20 @@ import { DeleteSessionDialog } from './components/DeleteSessionDialog'
 import { ImportDialog } from './components/ImportDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import {
-  newColumn, openTab, openTabAfter, closeTab, setTabView, rekeyTab, moveTabToColumn, adoptTab,
+  openTab, openTabAfter, closeTab, setTabView, rekeyTab, moveTabToColumn, adoptTab,
   findColumnWithTab,
-  layoutWeights,
   type Column,
 } from './state/columns'
+import {
+  initialLayout, tidyLayout, openBeside, defaultTracks, trackTemplate, placeInZone, applyPreset,
+  presetDef, closePane,
+  type Layout, type PresetId, type Tracks,
+} from './state/layout'
+import { LayoutContext, type LayoutActions, type PlaceTarget } from './state/layoutContext'
+import { LayoutPicker } from './components/LayoutPicker'
+import { LayoutMenuButton } from './components/LayoutMenuButton'
+import { PaneDividers } from './components/PaneDividers'
+import { PaneFiller } from './components/PaneFiller'
 import {
   loadUiState, saveUiState, subscribeSharedUiState, detachedKey, detachedTransfer, type UiState,
 } from './state/uiState'
@@ -25,7 +34,7 @@ import { moveBefore, type GroupState } from './state/groups'
 import { useNotifications } from './state/notifications'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { describeError } from './errors'
-import { SidebarIcon } from './components/icons'
+import { SidebarIcon, LayoutIcon } from './components/icons'
 
 /** How the toggle's shortcut is written on this platform — see the View menu in main/menu.ts. */
 const SIDEBAR_SHORTCUT = navigator.platform.toLowerCase().includes('mac') ? '⌘B' : 'Ctrl+Shift+B'
@@ -37,27 +46,6 @@ const MAX_SIDEBAR_WIDTH = 600
 // area above it readable rather than squeezed to a sliver.
 const MIN_BOTTOM_HEIGHT = 120
 const MAX_BOTTOM_HEIGHT = 560
-
-// Narrow enough that three or four columns still fit on a laptop screen, wide enough that a
-// session's header and toolbar are still readable rather than a stack of ellipses.
-const MIN_COLUMN_WIDTH = 220
-
-/**
- * The one invariant every column update goes through: a column with no tabs left in it is dropped,
- * unless it is the only one — in which case it stays as the empty placeholder that gives the next
- * click somewhere to land.
- *
- * Applied here, centrally, rather than at each call site. Several different things close a tab
- * (the close button, removing a session, a pending session's pty exiting before it ever resolved)
- * and each one used to be individually responsible for remembering this; the ones that forgot left
- * a blank column sitting beside the real ones, which is what "an empty side section appeared"
- * looks like. Now it cannot be forgotten, because there is only one place to forget it.
- */
-function pruneColumns(columns: Column[]): Column[] {
-  const kept = columns.filter((c) => c.tabs.length > 0)
-  if (kept.length === columns.length) return columns
-  return kept.length > 0 ? kept : [columns[0] ?? newColumn()]
-}
 
 function findSessionById(nodes: ProjectNode[], id: string): SessionNode | null {
   for (const node of nodes) {
@@ -120,11 +108,6 @@ export function App(): JSX.Element {
   /** The session whose note is being edited, with the note as it stood when the editor opened. */
   const [noteTarget, setNoteTarget] = useState<{ session: SessionNode; note: string } | null>(null)
   /**
-   * Open sessions, arranged as VS Code-style editor groups: one column per group, each with its
-   * own tab strip and its own shell. Splitting a session from the sidebar appends a column; there
-   * is always at least one, even when empty, so there is somewhere for the next click to land.
-   */
-  /**
    * The tab this window was torn off to show, or null for an ordinary window. Read once: a window
    * does not stop being a detached one, and re-reading the URL per render would be a lie waiting
    * to happen.
@@ -133,14 +116,63 @@ export function App(): JSX.Element {
   /** The rest of that tab — the processes it runs, which a torn-off window has to start out knowing
    *  (see TabTransfer). Read once, like `detached`. */
   const [arrival] = useState<TabTransfer | null>(detachedTransfer)
-  const [columnsRaw, setColumnsRaw] = useState<Column[]>(() => [newColumn()])
-  const columns = columnsRaw
-  /** Every column update goes through `pruneColumns` — see the note on it above. */
-  const setColumns = useCallback(
-    (update: (prev: Column[]) => Column[]) => { setColumnsRaw((prev) => pruneColumns(update(prev))) },
-    [],
+  /**
+   * The window's panes and which one is focused, as one piece of state rather than two.
+   *
+   * A gesture that both changes the layout and moves focus to a pane it just created (a split, a
+   * placement from the sidebar picker) needs the new pane's id the moment it is minted — before
+   * anything can read it back out. That id is only known inside the layout rule's own updater, so
+   * reading it from a *second*, separately-dispatched `setActiveColumnId` update — via a variable
+   * closed over by both — depended on React resolving `layout`'s pending update before
+   * `activeColumnId`'s. It does not: hooks are resolved during render in the order they are
+   * declared, which put `activeColumnId` first, so that second update always saw the variable's
+   * unmutated initial value and focus silently fell back to pane one. Keeping both in one useState
+   * means a gesture like that is one update, computed from one `prev`, with no ordering to depend
+   * on. See `openSessionTab`'s split branch, `splitActiveTab` and `placeTarget`.
+   */
+  const [windowState, setWindowState] = useState<{ layout: Layout; activeColumnId: string | null }>(
+    () => ({ layout: initialLayout(), activeColumnId: null }),
   )
-  const [activeColumnId, setActiveColumnId] = useState<string | null>(null)
+  const { layout, activeColumnId } = windowState
+  /**
+   * `activePaneId`, when given, is what the tidy step keeps in front instead of the current active
+   * pane — needed when the same gesture both changes the layout and moves focus to a different
+   * pane: without it, tidy would decide what to do with an emptied pane using whichever pane was
+   * active *before* this update, which by the time this runs is already the wrong one. It only
+   * feeds the tidy step's decision; callers that also want it to become the real active pane still
+   * call `setActiveColumnId` themselves (both read/write the same combined state, so there is no
+   * ordering hazard between them the way there was between two separate `useState`s).
+   */
+  const setLayout = useCallback((update: (prev: Layout) => Layout, activePaneId?: string) => {
+    setWindowState((prev) => {
+      const nextLayout = tidyLayout(update(prev.layout), activePaneId ?? prev.activeColumnId)
+      return nextLayout === prev.layout ? prev : { ...prev, layout: nextLayout }
+    })
+  }, [])
+  const setActiveColumnId = useCallback((
+    update: string | null | ((prev: string | null) => string | null),
+  ) => {
+    setWindowState((prev) => {
+      const next = typeof update === 'function'
+        ? (update as (p: string | null) => string | null)(prev.activeColumnId)
+        : update
+      return next === prev.activeColumnId ? prev : { ...prev, activeColumnId: next }
+    })
+  }, [])
+  const columns = layout.panes
+  /** The column-shaped view the existing tab operations were written against. */
+  const setColumns = useCallback(
+    (update: (prev: Column[]) => Column[], activePaneId?: string) => {
+      setLayout((prev) => {
+        const panes = update(prev.panes)
+        return panes === prev.panes ? prev : { ...prev, panes }
+      }, activePaneId)
+    },
+    [setLayout],
+  )
+  /** Divider positions per preset, for as long as the window is open. */
+  const [tracks, setTracks] = useState<Map<PresetId, Tracks>>(new Map())
+  const currentTracks = tracks.get(layout.preset) ?? defaultTracks(layout.preset)
   /**
    * The `SessionNode` behind every open tab, kept fresh from the tree so a tab's title and live
    * state track the session rather than freezing at whatever it was when it was opened. Tabs hold
@@ -199,20 +231,6 @@ export function App(): JSX.Element {
   const [treeNonce, setTreeNonce] = useState(0)
   const [resizing, setResizing] = useState(false)
   const [resizingBottom, setResizingBottom] = useState(false)
-  /**
-   * Relative widths of the open columns, as flex-grow weights keyed by column id.
-   *
-   * Weights rather than pixel widths, deliberately: a column is `flex: 1` by default, so anything
-   * absent from this map keeps sharing the space evenly, and a window resize redistributes the
-   * columns in the proportions the user dragged them to instead of leaving fixed pixel columns
-   * with a gap (or an overflow) beside them. Not persisted — columns themselves only exist for as
-   * long as the split does.
-   */
-  const [columnWeights, setColumnWeights] = useState<Map<string, number>>(new Map())
-  /** The divider currently being dragged: the two columns it sits between, and where it started. */
-  const [columnDrag, setColumnDrag] = useState<
-    { leftId: string; rightId: string; startX: number; leftWidth: number; rightWidth: number } | null
-  >(null)
 
   const activeColumn = columns.find((c) => c.id === activeColumnId) ?? columns[0]
   /** Pinned ids as a set, for the tab menu's Pin/Unpin wording. */
@@ -229,9 +247,14 @@ export function App(): JSX.Element {
   const openSessionTab = useCallback((session: SessionNode, split: boolean) => {
     setOpenSessions((prev) => new Map(prev).set(session.sessionId, session))
     if (split) {
-      const column = newColumn([{ key: session.sessionId, view: 'transcript' }])
-      setColumns((prev) => [...prev, column])
-      setActiveColumnId(column.id)
+      // Computed inside one `setWindowState` updater, against `prev` rather than the render-time
+      // `layout`/`activeColumnId`, so a change already queued earlier in the same tick is not
+      // dropped, and so the new pane's id — only known here — reaches `activeColumnId` in the same
+      // update instead of through a second, separately-ordered one.
+      setWindowState((prev) => {
+        const result = openBeside(prev.layout, prev.activeColumnId, { key: session.sessionId, view: 'transcript' })
+        return { layout: tidyLayout(result.layout, result.paneId), activeColumnId: result.paneId }
+      })
       return
     }
     setColumns((prev) => {
@@ -511,63 +534,59 @@ export function App(): JSX.Element {
   }, [resizingBottom])
 
   /**
-   * Dragging a divider between two columns. Only the pair either side of the divider changes —
-   * every other column keeps the weight it had, so dragging one boundary doesn't quietly reflow
-   * the whole row. The pair's combined weight is preserved and redistributed in proportion to
-   * their new pixel widths, which is what keeps the arithmetic stable across repeated drags.
-   */
-  useEffect(() => {
-    if (columnDrag === null) return
-    document.body.classList.add('resizing-active')
-    const { leftId, rightId, startX, leftWidth, rightWidth } = columnDrag
-    const onMove = (e: MouseEvent): void => {
-      const pairWidth = leftWidth + rightWidth
-      const delta = Math.max(
-        MIN_COLUMN_WIDTH - leftWidth,
-        Math.min(rightWidth - MIN_COLUMN_WIDTH, e.clientX - startX),
-      )
-      setColumnWeights((prev) => {
-        const pairWeight = (prev.get(leftId) ?? 1) + (prev.get(rightId) ?? 1)
-        const leftShare = (leftWidth + delta) / pairWidth
-        const next = new Map(prev)
-        next.set(leftId, pairWeight * leftShare)
-        next.set(rightId, pairWeight * (1 - leftShare))
-        return next
-      })
-    }
-    const onUp = (): void => setColumnDrag(null)
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    return () => {
-      document.body.classList.remove('resizing-active')
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-  }, [columnDrag])
-
-  /** Starts a divider drag, measuring both columns as they are right now. */
-  const startColumnDrag = useCallback((leftId: string, rightId: string, startX: number) => {
-    const widthOf = (id: string): number =>
-      document.querySelector(`[data-column-id="${id}"]`)?.getBoundingClientRect().width ?? 0
-    setColumnDrag({
-      leftId, rightId, startX, leftWidth: widthOf(leftId), rightWidth: widthOf(rightId),
-    })
-  }, [])
-
-  /**
-   * The tab bar's split button: the active session moves into a column of its own beside the
-   * current one, keeping whichever view (transcript or terminal) it was already on. It stays open
-   * in the original column too, matching both VS Code's split and the sidebar's own split button.
+   * The tab bar's split button: the active session opened again beside the current pane, keeping
+   * the view it was on. It stays open where it was too, matching VS Code's split and the sidebar's
+   * own split button. With four panes it opens in the next pane instead (see `openBeside`).
    */
   const splitActiveTab = useCallback((key: string) => {
-    const created = newColumn()
-    setColumns((prev) => {
-      const tab = prev.flatMap((c) => c.tabs).find((t) => t.key === key)
+    // As above: one `setWindowState` update, computed against its own `prev` rather than the
+    // render-time `layout`/`activeColumnId` — the pane tidy keeps in front, and the pane that
+    // becomes active, is the one this very update is choosing, not whatever was active before it.
+    setWindowState((prev) => {
+      const tab = prev.layout.panes.flatMap((c) => c.tabs).find((t) => t.key === key)
       if (tab === undefined) return prev
-      return [...prev, { ...created, tabs: [{ ...tab }], activeKey: key }]
+      const result = openBeside(prev.layout, prev.activeColumnId, { ...tab })
+      return { layout: tidyLayout(result.layout, result.paneId), activeColumnId: result.paneId }
     })
-    setActiveColumnId(created.id)
   }, [])
+
+  const placeTarget = useCallback((target: PlaceTarget, preset: PresetId, zone: number) => {
+    const key = target.kind === 'tab' ? target.key : target.session.sessionId
+    if (target.kind === 'session') {
+      const node = target.session
+      setOpenSessions((prev) => new Map(prev).set(node.sessionId, node))
+    }
+    setWindowState((prev) => {
+      const result = placeInZone(prev.layout, preset, zone, key, target.kind === 'tab' ? target.paneId : undefined)
+      return { layout: tidyLayout(result.layout, result.paneId), activeColumnId: result.paneId }
+    })
+  }, [])
+
+  const applyLayout = useCallback((preset: PresetId) => {
+    setLayout((prev) => applyPreset(prev, preset))
+  }, [setLayout])
+
+  /** A picker opened from a context menu's "Arrange…", which has no button to hang it from. */
+  const [requestedPicker, setRequestedPicker] = useState<{ target: PlaceTarget; at: DOMRect } | null>(null)
+
+  const layoutActions: LayoutActions = {
+    preset: layout.preset,
+    place: placeTarget,
+    apply: applyLayout,
+    requestPicker: (target, at) => { setRequestedPicker({ target, at: new DOMRect(at.x, at.y, 0, 0) }) },
+    isOpen: (key) => findColumnWithTab(columns, key) !== null,
+  }
+
+  // A requested picker (opened from a context menu, with no button of its own to anchor a
+  // blur/mousedown handler to) has to close itself on an outside click.
+  useEffect(() => {
+    if (requestedPicker === null) return
+    const close = (e: MouseEvent): void => {
+      if ((e.target as Element | null)?.closest('[data-testid="layout-picker"]') == null) setRequestedPicker(null)
+    }
+    window.addEventListener('mousedown', close)
+    return () => { window.removeEventListener('mousedown', close) }
+  }, [requestedPicker])
 
   // Records a rename typed in before this pending session had a real id yet — held in-memory
   // (see PendingSession.titleOverride) until the reconciliation effect above can apply it.
@@ -866,9 +885,6 @@ export function App(): JSX.Element {
     setColumns((prev) => prev.map((c) => closeTab(c, key)))
   }), [setColumns])
 
-  // Normalised so the columns always fill the row: see layoutWeights.
-  const layout = layoutWeights(columns, columnWeights)
-
   const pendingTabInfo = new Map(
     [...pending.values()].map((info) => [
       info.ptyId,
@@ -876,7 +892,15 @@ export function App(): JSX.Element {
     ]),
   )
 
+  // Rebuilt only when the set of open keys actually changes, so PaneFiller's own memo (keyed on
+  // this set) isn't invalidated by every unrelated render of App.
+  const openKeySet = useMemo(
+    () => new Set(openKeysSignature === '' ? [] : openKeysSignature.split(' ')),
+    [openKeysSignature],
+  )
+
   return (
+    <LayoutContext.Provider value={layoutActions}>
     <div className="app-shell">
       {updateStatus !== null && (
         <UpdateBanner status={updateStatus} onOpenSettings={() => setSettingsSection('updates')} />
@@ -972,23 +996,21 @@ export function App(): JSX.Element {
         />
       )}
 
-      <main className="content" data-testid="content">
+      <main
+        className="content"
+        data-testid="content"
+        data-preset={layout.preset}
+        style={{
+          gridTemplateColumns: trackTemplate(currentTracks.cols),
+          gridTemplateRows: trackTemplate(currentTracks.rows),
+        }}
+      >
         {columns.map((column, index) => (
-          <Fragment key={column.id}>
-          {index > 0 && (
-            <div
-              className="column-resizer"
-              data-testid="column-resizer"
-              onMouseDown={(e) => {
-                e.preventDefault()
-                startColumnDrag(columns[index - 1].id, column.id, e.clientX)
-              }}
-            />
-          )}
-          {/* Per column, not just once around the whole app: a column whose session renders badly
-            * (a transcript with something unexpected in it, say) should fail inside its own pane
-            * and leave the sidebar and the other columns working, rather than blanking the window. */}
+          // Per pane, not just once around the whole app: a pane whose session renders badly (a
+          // transcript with something unexpected in it, say) should fail inside its own zone and
+          // leave the sidebar and the other panes working, rather than blanking the window.
           <ErrorBoundary
+            key={column.id}
             label="This session"
             onError={(thrown, componentStack) => {
               const { message, detail } = describeError(thrown)
@@ -998,8 +1020,10 @@ export function App(): JSX.Element {
                 detail: [detail, componentStack].filter((t) => t !== null && t !== '').join('\n'),
               })
             }}
+            style={{ gridArea: `z${String(index + 1)}` }}
           >
           <SessionColumn
+            gridArea={`z${String(index + 1)}`}
             column={column}
             sessions={openSessions}
             pending={pendingTabInfo}
@@ -1035,7 +1059,7 @@ export function App(): JSX.Element {
               // The tab may have been dragged in from another column, so this cannot be a change
               // to this column alone — a move has to leave the column it came from at the same
               // time, or the same session ends up open twice.
-              setColumns((prev) => moveTabToColumn(prev, key, column.id, toIndex))
+              setColumns((prev) => moveTabToColumn(prev, key, column.id, toIndex), column.id)
               setActiveColumnId(column.id)
             }}
             pinnedKeys={pinnedKeys}
@@ -1063,12 +1087,72 @@ export function App(): JSX.Element {
                 notifyError(e, 'Could not open this session in a new window')
               })
             }}
-            weight={layout.get(column.id) ?? 1}
+            layoutButton={index === presetDef(layout.preset).topRight ? (
+              <LayoutMenuButton
+                className="session-tab-split window-layout-button"
+                testId="window-layout-button"
+                title="Layout"
+                ariaLabel="Change layout"
+                heading="Layout"
+                mode="layout"
+                onPick={(preset) => { applyLayout(preset) }}
+              >
+                <LayoutIcon />
+              </LayoutMenuButton>
+            ) : undefined}
+            emptyContent={column.placeholder === true ? (
+              <PaneFiller
+                openTabs={columns
+                  // A pane's only tab is excluded: moving it would empty that pane and step the
+                  // layout down, so the click would look like it did nothing. The picker can still
+                  // move it deliberately.
+                  .filter((c) => c.id !== column.id && c.tabs.length > 1)
+                  .flatMap((c) => c.tabs)
+                  .map((t) => ({
+                    key: t.key,
+                    label: openSessions.get(t.key)?.title ?? pendingTabInfo.get(t.key)?.label ?? t.key,
+                  }))}
+                exclude={openKeySet}
+                onMoveHere={(key) => {
+                  setColumns((prev) => moveTabToColumn(prev, key, column.id, 0), column.id)
+                  setActiveColumnId(column.id)
+                }}
+                onOpenHere={(session) => {
+                  setOpenSessions((prev) => new Map(prev).set(session.sessionId, session))
+                  setColumns((prev) => prev.map((c) => (c.id === column.id ? openTab(c, session.sessionId) : c)))
+                  setActiveColumnId(column.id)
+                }}
+                onClosePane={() => { setLayout((prev) => closePane(prev, column.id, activeColumnId)) }}
+              />
+            ) : undefined}
           />
           </ErrorBoundary>
-          </Fragment>
         ))}
+        <PaneDividers
+          preset={layout.preset}
+          tracks={currentTracks}
+          onChange={(next) => { setTracks((prev) => new Map(prev).set(layout.preset, next)) }}
+        />
       </main>
+
+      {requestedPicker !== null && (
+        <LayoutPicker
+          anchor={requestedPicker.at}
+          mode="place"
+          heading="Arrange"
+          current={layout.preset}
+          onPick={(preset, zone) => {
+            const target = requestedPicker.target
+            setRequestedPicker(null)
+            // The target was captured when the picker opened; by the time a zone is picked the
+            // tab it named may have closed. Placing it then would reopen a session nobody asked
+            // for, so a tab target that is no longer open in the window is silently dropped.
+            if (target.kind === 'tab' && findColumnWithTab(columns, target.key) === null) return
+            placeTarget(target, preset, zone)
+          }}
+          onClose={() => { setRequestedPicker(null) }}
+        />
+      )}
 
       {conflict !== null && resumeTarget !== null && (
         <ConflictDialog
@@ -1127,5 +1211,6 @@ export function App(): JSX.Element {
       )}
       </div>
     </div>
+    </LayoutContext.Provider>
   )
 }

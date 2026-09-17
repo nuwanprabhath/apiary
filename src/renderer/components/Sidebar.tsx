@@ -11,6 +11,7 @@ import {
 import { CloseIcon, RefreshIcon, SidebarIcon } from './icons'
 import { useNotifications } from '../state/notifications'
 import { describeRefresh } from '../state/refreshSummary'
+import { useLayoutActions } from '../state/layoutContext'
 
 /** How many sessions the tree holds, at any depth. */
 function countSessions(nodes: ProjectNode[]): number {
@@ -128,6 +129,7 @@ export function Sidebar({
   const [query, setQuery] = useState('')
   const { tree, loading, reload, reloadNow } = useTree(query)
   const { notify, notifyError } = useNotifications()
+  const { requestPicker } = useLayoutActions()
   const [refreshing, setRefreshing] = useState(false)
   const listRef = useRef<HTMLDivElement | null>(null)
 
@@ -239,11 +241,18 @@ export function Sidebar({
   const menuItems = (): ContextMenuItem[] => {
     if (menu === null) return []
     if (menu.kind === 'session') {
+      const session = flattenSessions(tree).get(menu.id)
       return [
         {
           id: 'fork-session',
           label: 'Fork session',
           run: () => onForkSession(menu.id),
+        },
+        {
+          id: 'arrange',
+          label: 'Arrange…',
+          disabled: session === undefined,
+          run: () => { if (session !== undefined) requestPicker({ kind: 'session', session }, { x: menu.x, y: menu.y }) },
         },
       ]
     }

@@ -2,9 +2,8 @@
  * The editor-group model behind the session tab bar and the split view.
  *
  * A **column** is one editor group, in the VS Code sense: it owns a strip of open session tabs,
- * knows which of them is active, and renders that session plus its own shell underneath. Splitting
- * appends another column beside the first, so several sessions can be worked on at once; there is
- * no cap on how many.
+ * knows which of them is active, and renders that session plus its own shell underneath. How
+ * columns are arranged in the window — and that there are at most four — is layout.ts's business.
  *
  * A tab's `key` is the same identity the shell bookkeeping uses — a real session id, or a
  * still-pending new session's `new:<uuid>` pty id (see the `shellKey` comment in SessionColumn).
@@ -23,6 +22,11 @@ export interface Column {
   tabs: OpenTab[]
   /** Null only while the column is empty, which is possible for the last remaining column. */
   activeKey: string | null
+  /**
+   * A pane made empty on purpose, as a zone of a layout waiting to be filled — as opposed to one
+   * left empty because its last tab went away, which is closed. See `tidyLayout` in layout.ts.
+   */
+  placeholder?: boolean
 }
 
 let nextColumnId = 0
@@ -99,33 +103,6 @@ export function moveTabToColumn(
     }
     return findTab(c, key) === null ? c : closeTab(c, key)
   })
-}
-
-/**
- * The flex-grow values to lay the columns out with, from the weights the dividers have been
- * dragged to.
- *
- * Normalised so they always sum to the number of columns, which is what stops a stranded empty
- * strip appearing beside the last column. Weights are stored per column and a drag makes them
- * share a fixed total: drag the divider left and the pair might become 0.6 and 1.4. Close the
- * 1.4 one and the survivor is left growing by 0.6 — and since flex distributes only that
- * *fraction* of the free space when the growth factors add up to less than one, the column takes
- * 60% of the row and the remaining 40% stays empty background. That is the "empty side panel"
- * that comes back after splitting and closing.
- *
- * Normalising keeps the ratios the user dragged while guaranteeing the row is always filled.
- * Weights for columns that no longer exist are ignored rather than counted.
- */
-export function layoutWeights(columns: Column[], weights: Map<string, number>): Map<string, number> {
-  const present = columns.map((c) => ({ id: c.id, weight: Math.max(weights.get(c.id) ?? 1, 0.01) }))
-  const total = present.reduce((sum, c) => sum + c.weight, 0)
-  const out = new Map<string, number>()
-  if (total <= 0) {
-    for (const c of present) out.set(c.id, 1)
-    return out
-  }
-  for (const c of present) out.set(c.id, (c.weight * present.length) / total)
-  return out
 }
 
 /** Adds `key` to the column if it isn't already there, and makes it active either way. */

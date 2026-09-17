@@ -24,6 +24,8 @@ export function useHoverCard<T extends HTMLElement>(): {
   scheduleClose: () => void
   /** For anything that should put the card away at once — a click, a context menu. */
   hideNow: () => void
+  /** Shows the card at once, without the hover delay — for a click on something whose only job is to open it. */
+  openNow: () => void
 } {
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
   const ref = useRef<T | null>(null)
@@ -52,8 +54,13 @@ export function useHoverCard<T extends HTMLElement>(): {
     closeTimer.current = window.setTimeout(() => { setAnchor(null) }, GRACE_MS)
   }
   const hideNow = (): void => { clearTimers(); setAnchor(null) }
+  const openNow = (): void => {
+    clearTimers()
+    const rect = ref.current?.getBoundingClientRect()
+    if (rect !== undefined) setAnchor(rect)
+  }
 
   useEffect(() => clearTimers, [])
 
-  return { anchor, ref, arm, keepOpen, scheduleClose, hideNow }
+  return { anchor, ref, arm, keepOpen, scheduleClose, hideNow, openNow }
 }
