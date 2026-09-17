@@ -94,7 +94,12 @@ Apiary is multi-window, and the division is worth stating because getting it wro
 - **A detached window** — one tab, no sidebar — is an ordinary window with `?detach=<key>` in its
   URL. The key travels in the URL for the same reason the window number does: it decides the whole
   layout, and a window that asked over IPC would paint the sidebar first and rearrange itself
-  after.
+  after. The rest of the tab rides in `?transfer=` (see `TabTransfer`).
+- **A tab moving between windows carries its processes, not just its key.** A session started or
+  forked here runs under a `new:<uuid>` pty id that only the window which started it maps to the
+  session id (`ptyOverrides`), and its shells hang off that id. Handed the bare key, the receiving
+  window found nothing running and showed a live session as stopped. `TabTransfer` carries the pty
+  id, the view and the shell tabs; `tab-adopt` and the detached window's URL both use it.
 - **A drag does not cross a window boundary at all.** Not the data — the *events*. An HTML5 drag
   started in one `BrowserWindow` delivers no `dragenter`, `dragover` or `drop` to another, so the
   receiving window never hears about the gesture and has nothing to accept. The only part of a

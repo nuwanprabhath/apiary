@@ -1,5 +1,8 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
-import type { NewSessionInfo, ProjectNode, ResumeConflict, SessionNode } from '@shared/types'
+import {
+  isTabTransfer,
+  type NewSessionInfo, type ProjectNode, type ResumeConflict, type SessionNode, type TabTransfer,
+} from '@shared/types'
 import { Sidebar } from './components/Sidebar'
 import { SessionColumn, type TerminalTab } from './components/SessionColumn'
 import { ConflictDialog } from './components/ConflictDialog'
@@ -13,7 +16,7 @@ import {
   type Column,
 } from './state/columns'
 import {
-  loadUiState, saveUiState, subscribeSharedUiState, detachedKey, type UiState,
+  loadUiState, saveUiState, subscribeSharedUiState, detachedKey, detachedTransfer, type UiState,
 } from './state/uiState'
 import { useUpdate } from './state/useUpdate'
 import { UpdateBanner } from './components/UpdateBanner'
@@ -22,6 +25,10 @@ import { moveBefore, type GroupState } from './state/groups'
 import { useNotifications } from './state/notifications'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { describeError } from './errors'
+import { SidebarIcon } from './components/icons'
+
+/** How the toggle's shortcut is written on this platform — see the View menu in main/menu.ts. */
+const SIDEBAR_SHORTCUT = navigator.platform.toLowerCase().includes('mac') ? '⌘B' : 'Ctrl+Shift+B'
 
 const MIN_SIDEBAR_WIDTH = 200
 const MAX_SIDEBAR_WIDTH = 600
@@ -123,6 +130,9 @@ export function App(): JSX.Element {
    * to happen.
    */
   const [detached] = useState<string | null>(detachedKey)
+  /** The rest of that tab — the processes it runs, which a torn-off window has to start out knowing
+   *  (see TabTransfer). Read once, like `detached`. */
+  const [arrival] = useState<TabTransfer | null>(detachedTransfer)
   const [columnsRaw, setColumnsRaw] = useState<Column[]>(() => [newColumn()])
   const columns = columnsRaw
   /** Every column update goes through `pruneColumns` — see the note on it above. */
@@ -144,7 +154,9 @@ export function App(): JSX.Element {
   // once the real SessionNode appears, instead of a second pty being spawned under the id.
   // Also doubles as the cross-tick "already claimed" record the reconciler below consults so two
   // pending sessions in the same folder can never be folded into the same discovered SessionNode.
-  const [ptyOverrides, setPtyOverrides] = useState<Map<string, string>>(new Map())
+  const [ptyOverrides, setPtyOverrides] = useState<Map<string, string>>(() => (
+    arrival?.ptyId != null ? new Map([[arrival.key, arrival.ptyId]]) : new Map()
+  ))
   // Every new-session pty currently awaiting its first JSONL, keyed by pty id (not a single
   // value) so more than one can be in flight — see PendingSession above.
   const [pending, setPending] = useState<Map<string, PendingSession>>(new Map())
@@ -153,8 +165,14 @@ export function App(): JSX.Element {
    * rather than per column: two columns showing the same session must share one set of terminals,
    * or they would each spawn `shell:<key>:1` and silently kill each other's shell.
    */
-  const [shellTabs, setShellTabs] = useState<Map<string, TerminalTab[]>>(new Map())
-  const [activeTerminal, setActiveTerminal] = useState<Map<string, string>>(new Map())
+  const [shellTabs, setShellTabs] = useState<Map<string, TerminalTab[]>>(() => (
+    arrival !== null && arrival.shells.length > 0
+      ? new Map([[arrival.ptyId ?? arrival.key, arrival.shells]])
+      : new Map()
+  ))
+  const [activeTerminal, setActiveTerminal] = useState<Map<string, string>>(() => (
+    arrival?.activeShell != null ? new Map([[arrival.ptyId ?? arrival.key, arrival.activeShell]]) : new Map()
+  ))
   const [conflict, setConflict] = useState<ResumeConflict | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<SessionNode | null>(null)
   const [importOpen, setImportOpen] = useState(false)
@@ -239,6 +257,10 @@ export function App(): JSX.Element {
   useEffect(() => subscribeSharedUiState((shared) => { setUi((prev) => ({ ...prev, ...shared })) }), [])
   useEffect(() => window.apiary.onOpenImportDialog(() => setImportOpen(true)), [])
   useEffect(() => window.apiary.onOpenSettingsDialog(() => setSettingsSection('sessions')), [])
+  const toggleSidebar = useCallback(() => {
+    setUi((prev) => ({ ...prev, sidebarHidden: !prev.sidebarHidden }))
+  }, [])
+  useEffect(() => window.apiary.onToggleSidebar(toggleSidebar), [toggleSidebar])
 
   // Registers a freshly-started new session as pending and opens it as a tab — shared by both
   // entry points (the sidebar "+" button and the File menu item below). The tab is keyed by pty
@@ -414,7 +436,11 @@ export function App(): JSX.Element {
       .then((nodes) => {
         if (cancelled) return
         const found = findSessionById(nodes, id)
-        if (found) openSessionTab(found, false)
+        if (!found) return
+        openSessionTab(found, false)
+        if (arrival !== null && arrival.view !== 'transcript') {
+          setColumns((prev) => prev.map((c) => setTabView(c, found.sessionId, arrival.view)))
+        }
       })
       .catch((e: unknown) => {
         // Restoring the previous selection is best-effort — the app is perfectly usable with
@@ -794,13 +820,40 @@ export function App(): JSX.Element {
    * the tab goes to the end of the active column — which is where a tab dropped past the last one
    * would have gone anyway.
    */
-  useEffect(() => window.apiary.onTabAdopt((key) => {
+  useEffect(() => window.apiary.onTabAdopt((tab) => {
+    if (!isTabTransfer(tab)) return
+    // The processes first, so that by the time the tab renders it already knows what it runs.
+    const shellKey = tab.ptyId ?? tab.key
+    if (tab.ptyId !== null) {
+      const ptyId = tab.ptyId
+      setPtyOverrides((prev) => (prev.get(tab.key) === ptyId ? prev : new Map(prev).set(tab.key, ptyId)))
+    }
+    // Replaces rather than merges: the window the tab came from was the one using these shells,
+    // and anything this window remembers for the same session is from before it last let go of it.
+    if (tab.shells.length > 0) setShellTabs((prev) => new Map(prev).set(shellKey, tab.shells))
+    if (tab.activeShell !== null) {
+      const active = tab.activeShell
+      setActiveTerminal((prev) => new Map(prev).set(shellKey, active))
+    }
     setColumns((prev) => {
       const targetId = prev.some((c) => c.id === activeColumnId) ? activeColumnId : prev[0]?.id
       const target = prev.find((c) => c.id === targetId)
-      return target === undefined ? prev : adoptTab(prev, key, target.id, target.tabs.length)
+      return target === undefined ? prev : adoptTab(prev, tab.key, target.id, target.tabs.length, tab.view)
     })
   }), [activeColumnId, setColumns])
+
+  /** Everything about an open tab another window would need to carry on with it. */
+  const transferFor = (key: string): TabTransfer => {
+    const ptyId = ptyOverrides.get(key) ?? null
+    const shellKey = ptyId ?? key
+    return {
+      key,
+      view: columns.flatMap((c) => c.tabs).find((t) => t.key === key)?.view ?? 'transcript',
+      ptyId,
+      shells: shellTabs.get(shellKey) ?? [],
+      activeShell: activeTerminal.get(shellKey) ?? null,
+    }
+  }
 
   /**
    * Another window has taken a tab this one was showing, so let go of it.
@@ -834,12 +887,34 @@ export function App(): JSX.Element {
         style={{
           gridTemplateColumns: detached !== null
             ? '1fr'
-            : String(ui.sidebarWidth) + 'px 4px 1fr',
+            : ui.sidebarHidden
+              ? 'var(--sidebar-rail-width) 1fr'
+              : String(ui.sidebarWidth) + 'px 4px 1fr',
         }}
       >
+      {detached === null && ui.sidebarHidden && (
+        // A rail rather than nothing: a sidebar hidden with no visible way back is one someone has
+        // to remember a shortcut to recover, which is a sidebar that has gone missing.
+        <div className="sidebar-rail" data-testid="sidebar-rail">
+          <button
+            className="icon-button"
+            data-testid="sidebar-show"
+            title={`Show sidebar (${SIDEBAR_SHORTCUT})`}
+            aria-label="Show sidebar"
+            onClick={toggleSidebar}
+          >
+            <SidebarIcon />
+          </button>
+        </div>
+      )}
       {detached === null && (
       <Sidebar
         key={treeNonce}
+        // Hidden, not unmounted, so the search typed into it and where it was scrolled to are
+        // still there when it comes back.
+        hidden={ui.sidebarHidden}
+        onHide={toggleSidebar}
+        hideTitle={`Hide sidebar (${SIDEBAR_SHORTCUT})`}
         onForkSession={(sessionId) => { void forkSession(sessionId) }}
         onEditNote={(session) => {
           // Read from the main process rather than from the tree node, so the editor opens on
@@ -889,7 +964,7 @@ export function App(): JSX.Element {
       />
       )}
 
-      {detached === null && (
+      {detached === null && !ui.sidebarHidden && (
         <div
           className="sidebar-resizer"
           data-testid="sidebar-resizer"
@@ -979,12 +1054,12 @@ export function App(): JSX.Element {
                 .catch((e: unknown) => { notifyError(e, 'Could not open that session') })
             }}
             onTabDropped={(key, at) => {
-              void window.apiary.tabDropped(key, at).catch((e: unknown) => {
+              void window.apiary.tabDropped(transferFor(key), at).catch((e: unknown) => {
                 notifyError(e, 'Could not move this tab')
               })
             }}
             onDetach={(key, at) => {
-              void window.apiary.tabDetach(key, at).catch((e: unknown) => {
+              void window.apiary.tabDetach(transferFor(key), at).catch((e: unknown) => {
                 notifyError(e, 'Could not open this session in a new window')
               })
             }}

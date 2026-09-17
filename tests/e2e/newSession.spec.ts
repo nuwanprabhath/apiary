@@ -318,3 +318,77 @@ test('a rename typed in while a session is still pending applies once it resolve
   await relaunchApiary(h)
   await expect(h.page.getByTestId('session-title')).toHaveText('Renamed before it existed')
 })
+
+// A session started here runs under a `new:<uuid>` pty id that only the window which started it
+// knows belongs to the session. Moving its tab used to hand the other window the session id
+// alone, so the receiving window found no process under that id and showed the session as
+// stopped — while it was in fact still running, now with no view onto it.
+test('a running session moved into a new window keeps running there, on its terminal', async () => {
+  const workA = groupLabelled(h.page, 'work-a')
+  await workA.getByTestId('new-session-button').click()
+  await expect(h.page.getByTestId('terminal-session')).toBeVisible()
+  await h.page.getByTestId('terminal-session').click({ force: true })
+  await h.page.keyboard.type('echo MOVED_MARKER_$((6*7))\n')
+  await expect(h.page.getByTestId('terminal-session')).toContainText('MOVED_MARKER_42', { timeout: 20000 })
+
+  makeSession(h.projectsRoot, '-work-a-moved', {
+    sessionId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    cwd: h.workdir,
+    title: 'Moved running session',
+  })
+  await expect(h.page.getByTestId('session-title')).toContainText('Moved running session', { timeout: 15000 })
+
+  const opened = h.app.waitForEvent('window')
+  await h.page.getByTestId('session-tab').first().click({ button: 'right' })
+  await h.page.getByTestId('tab-menu').getByText('Move into New Window').click()
+  const detached = await opened
+  await detached.waitForLoadState('domcontentloaded')
+
+  await expect(detached.getByTestId('session-title')).toContainText('Moved running session')
+  // The same process, not a fresh one: what it printed before the move is still there, and it
+  // still answers.
+  await expect(detached.getByTestId('terminal-session')).toContainText('MOVED_MARKER_42', { timeout: 15000 })
+  await detached.getByTestId('terminal-session').click({ force: true })
+  await detached.keyboard.type('echo STILL_$((5*5))\n')
+  await expect(detached.getByTestId('terminal-session')).toContainText('STILL_25', { timeout: 15000 })
+})
+
+test('a running session dropped on another window keeps running there, on its terminal', async () => {
+  const workA = groupLabelled(h.page, 'work-a')
+  await workA.getByTestId('new-session-button').click()
+  await expect(h.page.getByTestId('terminal-session')).toBeVisible()
+  await h.page.getByTestId('terminal-session').click({ force: true })
+  await h.page.keyboard.type('echo DROPPED_MARKER_$((6*7))\n')
+  await expect(h.page.getByTestId('terminal-session')).toContainText('DROPPED_MARKER_42', { timeout: 20000 })
+  makeSession(h.projectsRoot, '-work-a-dropped', {
+    sessionId: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+    cwd: h.workdir,
+    title: 'Dropped running session',
+  })
+  await expect(h.page.getByTestId('session-title')).toContainText('Dropped running session', { timeout: 15000 })
+
+  const second = await h.newWindow()
+  // The release point is the middle of the second window; the tab strip's own dragend is what a
+  // real drag ends with, and it is the one event of the gesture a test can raise.
+  const bounds = await h.app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('w=2'))
+    return win?.getBounds() ?? null
+  })
+  expect(bounds).not.toBeNull()
+  // Test windows are never shown, and a hidden window is rightly never a drop target — so for
+  // this one test they say they are visible, rather than putting real windows on the screen.
+  await h.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.prototype.isVisible = function isVisible() { return true }
+  })
+  await h.page.getByTestId('session-tab').first().evaluate((el, at) => {
+    const ev = new DragEvent('dragend', {
+      bubbles: true, screenX: at.x, screenY: at.y, dataTransfer: new DataTransfer(),
+    })
+    ev.dataTransfer!.dropEffect = 'none'
+    el.dispatchEvent(ev)
+  }, { x: bounds!.x + Math.floor(bounds!.width / 2), y: bounds!.y + Math.floor(bounds!.height / 2) })
+
+  await expect(second.getByTestId('session-title')).toContainText('Dropped running session')
+  await expect(second.getByTestId('terminal-session')).toContainText('DROPPED_MARKER_42', { timeout: 15000 })
+  await expect(h.page.getByTestId('session-tab')).toHaveCount(0)
+})

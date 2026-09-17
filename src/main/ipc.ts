@@ -8,6 +8,7 @@ import {
   type PluginBarItemPayload,
 } from '@shared/api'
 import type { AppService } from './appService'
+import { isTabTransfer, type TabTransfer } from '@shared/types'
 import type { AppSettings } from './settings'
 import { loadSettings, saveSettings } from './settings'
 import { log, type LogLevel } from './log/logger'
@@ -24,7 +25,7 @@ export function registerIpc(
   /** Null where there is no updater at all (a dev run, or a platform without one). */
   updater?: UpdateService | null,
   /** Opens a tab in a window of its own. Injected so this module never imports the window code. */
-  openDetachedWindow?: (key: string, at: { x: number; y: number }) => void,
+  openDetachedWindow?: (tab: TabTransfer, at: { x: number; y: number }) => void,
 ): () => void {
   /**
    * Every `invoke` handler, wrapped so its failures and its slow cases are recorded.
@@ -427,7 +428,9 @@ export function registerIpc(
     return windows.find((w) => w.webContents.id === id) ?? null
   }
 
-  handle(CHANNELS.tabDropped, (e, key: string, at: { x: number; y: number }) => {
+  handle(CHANNELS.tabDropped, (e, tab: unknown, at: { x: number; y: number }) => {
+    if (!isTabTransfer(tab)) throw new Error('Not a tab.')
+    const { key } = tab
     const target = windowUnder(at)
     // The whole decision, because this gesture shipped once doing nothing at all and there was
     // no way to tell from outside whether the drop had even been noticed.
@@ -442,7 +445,7 @@ export function registerIpc(
     if (target === null ? false : target.webContents.id === e.sender.id) return
 
     if (target !== null) {
-      target.webContents.send(CHANNELS.tabAdopt, key)
+      target.webContents.send(CHANNELS.tabAdopt, tab)
       // Brought to the front: the tab is now there, and a move whose result is behind another
       // window looks exactly like a move that did not happen.
       target.focus()
@@ -452,16 +455,17 @@ export function registerIpc(
 
     // Dropped on the desktop: a window of its own. Announced before the window is made — see below.
     announceClaimed(key, null)
-    openDetachedWindow?.(key, at)
+    openDetachedWindow?.(tab, at)
   })
 
-  handle(CHANNELS.tabDetach, (_e, key: string, at: { x: number; y: number }) => {
+  handle(CHANNELS.tabDetach, (_e, tab: unknown, at: { x: number; y: number }) => {
+    if (!isTabTransfer(tab)) throw new Error('Not a tab.')
     // Announced before the window is made, not after: the new window has not loaded its renderer
     // yet and so cannot hear anything, and a claim arriving once it *has* would tell it to close
     // the very tab it exists to show. Nothing is lost in the gap — the pty keeps running whether
     // or not a view is attached to it.
-    announceClaimed(key, null)
-    openDetachedWindow?.(key, at)
+    announceClaimed(tab.key, null)
+    openDetachedWindow?.(tab, at)
   })
 
   service.pty.onData((id, data) => send(CHANNELS.ptyData, id, data))

@@ -1,4 +1,5 @@
 import type { SessionGroup } from './groups'
+import { isTabTransfer, type TabTransfer } from '@shared/types'
 
 export type { SessionGroup }
 
@@ -37,6 +38,8 @@ export interface UiState {
   folderOrder: string[]
   selectedSessionId: string | null
   sidebarWidth: number
+  /** Whether this window's sidebar is folded away to a rail, leaving the sessions the width. */
+  sidebarHidden: boolean
   bottomHeight: number
   /** Width of the import dialog, which is draggable because session titles get long. */
   importDialogWidth: number
@@ -93,6 +96,21 @@ export function detachedKey(): string | null {
   }
 }
 
+/**
+ * Everything else about the tab this window was torn off to show — see TabTransfer. Null when the
+ * window is an ordinary one, or when the URL carries something that is not a tab.
+ */
+export function detachedTransfer(): TabTransfer | null {
+  try {
+    const raw = new URLSearchParams(window.location.search).get('transfer')
+    if (raw === null) return null
+    const parsed: unknown = JSON.parse(raw)
+    return isTabTransfer(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
 const KEY = stateKey()
 /** Window 1's key, which is where the shared half lived before it had a key of its own. */
 const FIRST_WINDOW_KEY = 'apiary.ui'
@@ -125,6 +143,7 @@ export const DEFAULT_UI_STATE: UiState = {
   pinnedCollapsed: false,
   selectedSessionId: null,
   sidebarWidth: 320,
+  sidebarHidden: false,
   bottomHeight: 200,
   importDialogWidth: 620,
 }

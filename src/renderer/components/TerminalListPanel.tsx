@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { PencilIcon, TrashIcon } from './icons'
 
 interface Tab { id: string; name: string }
@@ -11,6 +11,12 @@ interface Props {
   onDelete: (tabId: string) => void
   /** Moves a terminal to sit where the one it was dropped on was. */
   onReorder: (tabId: string, beforeId: string) => void
+  /** Asks for a terminal to go into rename mode — F2 pressed in the terminal itself. A fresh
+   *  object each time, so pressing it twice for the same terminal still counts. */
+  renameRequest?: { id: string } | null
+  /** Called once a request has been acted on, so a list that is hidden and shown again does not
+   *  act on it a second time. */
+  onRenameRequestHandled?: () => void
 }
 
 /** The side panel listing every open terminal for the current session — click switches; a rename
@@ -19,13 +25,28 @@ interface Props {
  *  Arrow keys navigate the list when focused: ArrowDown moves to the next shell, ArrowUp to the
  *  previous, and switching shells as you navigate (roving-focus listbox pattern). */
 export function TerminalListPanel(
-  { tabs, activeId, onSwitch, onRename, onDelete, onReorder }: Props,
+  { tabs, activeId, onSwitch, onRename, onDelete, onReorder, renameRequest = null, onRenameRequestHandled }: Props,
 ): JSX.Element {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   /** Which terminal has keyboard focus. Starts at the active terminal; arrow keys move it. */
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const listRef = useRef<HTMLUListElement | null>(null)
+
+  const startRename = (tabId: string): void => {
+    const tab = tabs.find((t) => t.id === tabId)
+    if (tab === undefined) return
+    setDraft(tab.name)
+    setEditingId(tabId)
+  }
+
+  useEffect(() => {
+    if (renameRequest === null) return
+    startRename(renameRequest.id)
+    onRenameRequestHandled?.()
+    // Only a new request starts a rename; `tabs` changing under an open editor must not restart it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renameRequest])
 
   const commit = (tabId: string): void => {
     const trimmed = draft.trim()
@@ -35,6 +56,12 @@ export function TerminalListPanel(
 
   const handleListKeyDown = (e: React.KeyboardEvent<HTMLUListElement>): void => {
     if (editingId !== null) return // Don't navigate while renaming
+
+    if (e.key === 'F2') {
+      const target = focusedId ?? activeId
+      if (target !== null) { e.preventDefault(); startRename(target) }
+      return
+    }
 
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
@@ -138,7 +165,7 @@ export function TerminalListPanel(
               className="terminal-tab-label"
               data-testid="terminal-tab-label"
               onClick={() => handleItemClick(tab.id)}
-              onDoubleClick={() => { setDraft(tab.name); setEditingId(tab.id) }}
+              onDoubleClick={() => { startRename(tab.id) }}
             >
               {tab.name}
             </button>
@@ -149,9 +176,9 @@ export function TerminalListPanel(
             <button
               className="terminal-tab-action terminal-tab-rename"
               data-testid="terminal-tab-rename"
-              title="Rename terminal"
+              title="Rename terminal (F2)"
               aria-label={`Rename ${tab.name}`}
-              onClick={() => { setDraft(tab.name); setEditingId(tab.id) }}
+              onClick={() => { startRename(tab.id) }}
             >
               <PencilIcon />
             </button>

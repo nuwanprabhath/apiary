@@ -96,6 +96,8 @@ export function SessionColumn(props: Props): JSX.Element {
 
   const [shellOpen, setShellOpen] = useState(false)
   const [tabListOpen, setTabListOpen] = useState(false)
+  /** F2 in a shell: which terminal to rename. See TerminalListPanel's `renameRequest`. */
+  const [renameRequest, setRenameRequest] = useState<{ id: string } | null>(null)
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
   const [gitBusy, setGitBusy] = useState<'pull' | 'push' | 'fetch' | null>(null)
   // The branch picker serves two jobs: choosing a branch to check out, and choosing one to merge
@@ -624,6 +626,12 @@ export function SessionColumn(props: Props): JSX.Element {
                         ptyId={`shell:${key}:${terminal.id}`}
                         testId={visible ? 'terminal-shell' : `terminal-shell-${tab.key}-${terminal.id}`}
                         visible={visible}
+                        onRenameKey={() => {
+                          // The rename field lives in the terminal list, so F2 opens the list too —
+                          // renaming something whose name is not on screen would be typing blind.
+                          setTabListOpen(true)
+                          setRenameRequest({ id: terminal.id })
+                        }}
                       />
                     </div>
                   )
@@ -637,6 +645,8 @@ export function SessionColumn(props: Props): JSX.Element {
                   onRename={renameTerminalTab}
                   onDelete={deleteTerminalTab}
                   onReorder={reorderTerminalTab}
+                  renameRequest={renameRequest}
+                  onRenameRequestHandled={() => { setRenameRequest(null) }}
                 />
               )}
             </div>

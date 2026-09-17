@@ -138,3 +138,37 @@ export interface WorktreeConflict {
 export type CheckoutOutcome =
   | { ok: true }
   | { ok: false; conflict: WorktreeConflict }
+
+/**
+ * A session tab on its way from one window to another.
+ *
+ * The key alone is not enough to carry a *running* session across. A session started or forked
+ * here runs under a `new:<uuid>` pty id that only the window which started it knows belongs to
+ * the session, and its bottom shells hang off that same id — so a window handed the bare session
+ * id finds no process behind it and shows the session as stopped, while the process runs on with
+ * nothing showing it. Everything the receiving window needs to pick the same processes back up
+ * travels here instead.
+ */
+export interface TabTransfer {
+  key: string
+  view: 'transcript' | 'terminal'
+  /** The pty the session runs under, when that is not the key itself. */
+  ptyId: string | null
+  /** The bottom shell tabs, in order, and which one was in front. */
+  shells: { id: string; name: string }[]
+  activeShell: string | null
+}
+
+/** Whether something that came over IPC or out of a URL is a well-formed `TabTransfer`. */
+export function isTabTransfer(value: unknown): value is TabTransfer {
+  if (typeof value !== 'object' || value === null) return false
+  const v = value as Record<string, unknown>
+  return typeof v.key === 'string' && v.key !== ''
+    && (v.view === 'transcript' || v.view === 'terminal')
+    && (v.ptyId === null || typeof v.ptyId === 'string')
+    && Array.isArray(v.shells)
+    && v.shells.every((s: unknown) => typeof s === 'object' && s !== null
+      && typeof (s as Record<string, unknown>).id === 'string'
+      && typeof (s as Record<string, unknown>).name === 'string')
+    && (v.activeShell === null || typeof v.activeShell === 'string')
+}

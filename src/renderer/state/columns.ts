@@ -167,13 +167,15 @@ export function adoptTab(
   key: string,
   toColumnId: string,
   toIndex: number,
+  /** What the tab was showing where it came from — a running session arrives on its terminal. */
+  view: OpenTab['view'] = 'transcript',
 ): Column[] {
   if (findColumnWithTab(columns, key) !== null) return columns
   return columns.map((c) => {
     if (c.id !== toColumnId) return c
     const clamped = Math.max(0, Math.min(toIndex, c.tabs.length))
     const tabs = [...c.tabs]
-    tabs.splice(clamped, 0, { key, view: 'transcript' })
+    tabs.splice(clamped, 0, { key, view })
     return { ...c, tabs, activeKey: key }
   })
 }

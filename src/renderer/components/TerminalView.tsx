@@ -13,6 +13,8 @@ interface Props {
    * "became visible" is a prop change here, not a mount — see the scroll effect below.
    */
   visible?: boolean
+  /** F2 on this terminal: rename it. Absent where a terminal has no name to change. */
+  onRenameKey?: () => void
 }
 
 /**
@@ -37,8 +39,12 @@ function themeFromTokens(): ITheme {
   }
 }
 
-export function TerminalView({ ptyId, testId, visible = true }: Props): JSX.Element {
+export function TerminalView({ ptyId, testId, visible = true, onRenameKey }: Props): JSX.Element {
   const host = useRef<HTMLDivElement | null>(null)
+  // Read through a ref by the key handler, which is installed once per pty: a callback captured
+  // at mount would rename whichever terminal list was current when the terminal was created.
+  const onRenameKeyRef = useRef(onRenameKey)
+  onRenameKeyRef.current = onRenameKey
   // The live xterm instance, exposed to effects outside the mount effect that owns it (the
   // scroll-on-show effect below). Cleared on teardown so a late callback can't touch a disposed
   // terminal.
@@ -128,6 +134,15 @@ export function TerminalView({ ptyId, testId, visible = true }: Props): JSX.Elem
     const isMac = navigator.userAgent.includes('Mac')
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== 'keydown') return true
+      // F2 is the rename key almost everywhere a list of named things exists, and no shell or
+      // common terminal program here depends on it — so it is taken before the pty sees it.
+      if (
+        e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey
+        && onRenameKeyRef.current !== undefined
+      ) {
+        onRenameKeyRef.current()
+        return false
+      }
       if (!e.ctrlKey && !e.metaKey) return true
       const key = e.key.toLowerCase()
 

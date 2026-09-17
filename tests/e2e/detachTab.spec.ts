@@ -85,7 +85,13 @@ test('a tab dropped on another window arrives there showing its session', async 
   await h.app.evaluate(({ BrowserWindow }, tabKey) => {
     for (const win of BrowserWindow.getAllWindows()) {
       const isSecond = win.webContents.getURL().includes('w=2')
-      win.webContents.send(isSecond ? 'apiary:tab-adopt' : 'apiary:tab-claimed', tabKey)
+      if (isSecond) {
+        win.webContents.send('apiary:tab-adopt', {
+          key: tabKey, view: 'transcript', ptyId: null, shells: [], activeShell: null,
+        })
+      } else {
+        win.webContents.send('apiary:tab-claimed', tabKey)
+      }
     }
   }, key)
 

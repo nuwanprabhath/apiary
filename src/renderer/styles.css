@@ -56,6 +56,8 @@
    */
   --control-height: 26px;
   --control-height-sm: 22px;
+  /* The strip a hidden sidebar leaves behind: one icon button and its breathing room. */
+  --sidebar-rail-width: 40px;
   --control-padding-x: 10px;
   --control-gap: 6px;
   --radius-sm: 4px;
@@ -339,6 +341,18 @@ button:not([class]) {
   flex-direction: column;
 }
 
+.sidebar[hidden] { display: none; }
+
+/* What is left of the sidebar while it is hidden: one button, at the spot the hide button was. */
+.sidebar-rail {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+}
+
 .sidebar-resizer {
   cursor: col-resize;
   background: var(--border);
@@ -414,6 +428,10 @@ button:not([class]) {
  * easy to misread as the button itself having disappeared. The icon now just spins in place.
  */
 .sidebar-refresh { gap: 5px; }
+.sidebar-hide,
+.sidebar-rail .icon-button { padding: 0 5px; flex: none; }
+.sidebar-hide svg,
+.sidebar-rail .icon-button svg { width: 16px; height: 16px; flex: none; }
 .sidebar-refresh svg { width: 14px; height: 14px; flex: none; }
 
 @keyframes spin {
@@ -471,6 +489,12 @@ button:not([class]) {
   color: var(--text);
 }
 .new-session-button svg { width: 16px; height: 16px; display: block; }
+
+/* Same hover-revealed treatment as "+", and the same box: the two sit side by side. */
+.project-row-wrap:hover .collapse-all-button,
+.collapse-all-button:focus-visible { opacity: 1; }
+.collapse-all-button { margin-right: 0; }
+.collapse-all-button svg { width: 14px; height: 14px; }
 
 /*
  * Matches VS Code's own "twisty" chevron: a small right-pointing arrow that rotates 90deg to
@@ -1825,7 +1849,8 @@ button:not([class]) {
 .hover-card-title { font-weight: 600; font-size: 13px; }
 /* The path wraps rather than ellipsizing: which worktree a session ran in is often the last
    segment, and that is precisely the end a single truncated line would drop. */
-.hover-card-path { color: var(--muted); word-break: break-all; }
+.hover-card-path { color: var(--muted); word-break: break-all; flex: 1; min-width: 0; }
+.hover-card-path-row { align-items: flex-start; }
 .hover-card-missing { color: var(--danger); }
 .hover-card-row { display: flex; gap: 6px; align-items: center; }
 .hover-card-label { color: var(--muted); min-width: 72px; }

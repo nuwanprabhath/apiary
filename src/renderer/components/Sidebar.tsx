@@ -8,7 +8,7 @@ import {
   groupFolders, orderFolders, moveFolder, moveGroup, moveGroupBefore, deleteGroup, newGroupId,
   type GroupState,
 } from '../state/groups'
-import { CloseIcon, RefreshIcon } from './icons'
+import { CloseIcon, RefreshIcon, SidebarIcon } from './icons'
 import { useNotifications } from '../state/notifications'
 import { describeRefresh } from '../state/refreshSummary'
 
@@ -50,6 +50,11 @@ export interface PendingSessionSummary {
 }
 
 interface Props {
+  /** Folded away to the rail. Kept mounted meanwhile — see App. */
+  hidden?: boolean
+  onHide?: () => void
+  /** The hide button's tooltip, which names the platform's shortcut. */
+  hideTitle?: string
   selectedId: string | null
   onSelect: (session: SessionNode) => void
   /** Paths of folders currently collapsed. Anything not in this set is open, including a
@@ -114,6 +119,7 @@ function pathsToSession(nodes: ProjectNode[], id: string, trail: string[] = []):
 }
 
 export function Sidebar({
+  hidden = false, onHide, hideTitle = 'Hide sidebar',
   selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onDeleteSession,
   onSplitSession, pinned, onTogglePin, onEditNote, onForkSession, pinnedCollapsed,
   onPinnedCollapsedChange,
@@ -320,11 +326,32 @@ export function Sidebar({
     onSessionMenu: (s: SessionNode, x: number, y: number) =>
       setMenu({ kind: 'session', id: s.sessionId, x, y }),
     orderFolders: (nodes: ProjectNode[]) => orderFolders(nodes, (n) => n.path, groupState.folderOrder),
+    onCollapseBeneath: (path: string, beneath: string[]) => {
+      const next = new Set(collapsed)
+      for (const p of beneath) next.add(p)
+      // Opened, if it was not: collapsing what is inside a closed folder would look like nothing
+      // happened, and the list of worktrees is what the click is asking to see.
+      next.delete(path)
+      onCollapsedChange(next)
+    },
   }
 
   return (
-    <aside className="sidebar" data-testid="sidebar" ref={listRef}>
+    <aside className="sidebar" data-testid="sidebar" ref={listRef} hidden={hidden}>
       <div className="sidebar-header">
+        {onHide !== undefined && (
+          // First in the row, at the edge it folds towards — where the rail's button that brings it
+          // back will be, so hiding and showing is the same spot under the pointer.
+          <button
+            className="icon-button sidebar-hide"
+            data-testid="sidebar-hide"
+            title={hideTitle}
+            aria-label="Hide sidebar"
+            onClick={onHide}
+          >
+            <SidebarIcon />
+          </button>
+        )}
         {/* The clear button sits inside the field rather than beside it, so the row keeps the
          *  two-control shape it already had (field + Refresh) instead of gaining a third
          *  element that steals width from the field on a narrow sidebar. */}

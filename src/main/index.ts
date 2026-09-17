@@ -6,6 +6,7 @@ import { registerIpc } from './ipc'
 import { resolveConfigRoot } from './config'
 import { buildMenu } from './menu'
 import { CHANNELS } from '@shared/api'
+import type { TabTransfer } from '@shared/types'
 import { loadSettings, saveSettings } from './settings'
 import { boundsAreOnScreen } from './windowBounds'
 import { UpdateService, type UpdateSettings } from './update/updateService'
@@ -93,8 +94,8 @@ const headless = process.env.APIARY_HEADLESS === '1'
  * could answer, or the window flashes the full layout before rearranging itself.
  */
 export interface NewWindowOptions {
-  /** The tab key this window opens on its own, with no sidebar. */
-  detach?: string
+  /** The tab this window opens on its own, with no sidebar. */
+  detach?: TabTransfer
   /** Where to put it — the pointer, when the window was made by dragging a tab out of another. */
   at?: { x: number; y: number }
 }
@@ -104,7 +105,7 @@ function createWindow(opts: NewWindowOptions = {}): void {
   const windowNumber = windowsOpened
   const isFirst = windowNumber === 1
 
-  const detached = opts.detach !== undefined && opts.detach !== ''
+  const detached = opts.detach !== undefined
 
   const saved = loadSettings(settingsFile).windowBounds
   const restored =
@@ -189,7 +190,12 @@ function createWindow(opts: NewWindowOptions = {}): void {
   // needed before anything else to pick which stored layout to load, and a query string is
   // available synchronously at first render.
   const query: Record<string, string> = { w: String(windowNumber) }
-  if (opts.detach !== undefined && opts.detach !== '') query.detach = opts.detach
+  if (opts.detach !== undefined) {
+    query.detach = opts.detach.key
+    // The rest of the tab rides alongside the key: which process it runs under and which shells
+    // hang off it. See TabTransfer.
+    query.transfer = JSON.stringify(opts.detach)
+  }
   if (process.env.ELECTRON_RENDERER_URL) {
     const url = new URL(process.env.ELECTRON_RENDERER_URL)
     for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v)
@@ -347,7 +353,7 @@ void app.whenReady().then(async () => {
   updater = createUpdater(settingsFile)
   disposeIpc = registerIpc(
     service, () => mainWindow, configRoot, settingsFile, setAutoImportInterval, updater,
-    (key, at) => { createWindow({ detach: key, at }) },
+    (tab, at) => { createWindow({ detach: tab, at }) },
   )
   await service.refresh()
   // The first refresh runs before the window exists, so nothing is listening for `treeChanged`
@@ -373,6 +379,7 @@ void app.whenReady().then(async () => {
         mainWindow?.show()
         void updater?.check({ manual: true })
       },
+      () => mainWindow?.webContents.send(CHANNELS.toggleSidebar),
     ),
   )
   // Started after the window exists, so the first status push has somewhere to land.

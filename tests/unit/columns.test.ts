@@ -173,6 +173,11 @@ describe('adoptTab', () => {
     expect(next[0].activeKey).toBe('from-elsewhere')
   })
 
+  it('keeps the view the tab had in the window it came from', () => {
+    const next = adoptTab(columns, 'running', columns[0].id, 0, 'terminal')
+    expect(next[0].tabs[0]).toEqual({ key: 'running', view: 'terminal' })
+  })
+
   it('leaves the other columns alone', () => {
     expect(adoptTab(columns, 'from-elsewhere', columns[0].id, 0)[1]).toBe(columns[1])
   })

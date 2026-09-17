@@ -6,6 +6,7 @@ import type {
   NewSessionInfo,
   GitStatus,
   GitRefs,
+  TabTransfer,
 } from './types'
 
 export interface DiscoveredSession {
@@ -132,6 +133,7 @@ export const CHANNELS = {
   settingsGet: 'apiary:settings-get',
   settingsSet: 'apiary:settings-set',
   openSettingsDialog: 'apiary:open-settings-dialog',
+  toggleSidebar: 'apiary:toggle-sidebar',
   gitStatus: 'apiary:git-status',
   gitListRefs: 'apiary:git-list-refs',
   gitCheckoutBranch: 'apiary:git-checkout-branch',
@@ -234,11 +236,11 @@ export interface ApiaryApi {
   /** Records something the renderer saw. A no-op when diagnostics are off. */
   logWrite(level: 'debug' | 'info' | 'warn' | 'error', scope: string, message: string, fields?: Record<string, unknown>): void
 
-  tabDropped(key: string, at: { x: number; y: number }): Promise<void>
-  /** Opens `key` in a window of its own, at `at`, and takes it out of every other window. */
-  tabDetach(key: string, at: { x: number; y: number }): Promise<void>
+  tabDropped(tab: TabTransfer, at: { x: number; y: number }): Promise<void>
+  /** Opens the tab in a window of its own, at `at`, and takes it out of every other window. */
+  tabDetach(tab: TabTransfer, at: { x: number; y: number }): Promise<void>
   /** Fired when a tab dragged from another window has been dropped on this one. */
-  onTabAdopt(cb: (key: string) => void): () => void
+  onTabAdopt(cb: (tab: TabTransfer) => void): () => void
   /** Fired when another window has taken a tab this one was showing. */
   onTabClaimed(cb: (key: string) => void): () => void
   /** Fired when `File > New Session in Folder...` starts a session via the native dialog. */
@@ -267,6 +269,8 @@ export interface ApiaryApi {
   settingsGet(): Promise<AppSettingsPayload>
   settingsSet(settings: AppSettingsPayload): Promise<void>
   onOpenSettingsDialog(cb: () => void): () => void
+  /** View > Toggle Sidebar. */
+  onToggleSidebar(cb: () => void): () => void
   gitStatus(key: string, isPtyId: boolean): Promise<GitStatus>
   gitListRefs(key: string, isPtyId: boolean): Promise<GitRefs>
   /**

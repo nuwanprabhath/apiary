@@ -4,6 +4,32 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.16.0] - 2026-09-17
+
+### Added
+
+- **F2 renames a terminal.** Pressed in a bottom shell it opens the terminal list with that
+  terminal's name ready to edit; pressed on the list it renames the terminal in front. The pencil
+  button still works, and its tooltip now names the key.
+- **Hovering a folder shows where it is.** A repository or worktree row raises the same card a
+  session does, with the full path and a button to copy it. Session cards gained the same copy
+  button beside their path.
+- **Collapse all, per folder.** Hovering a folder that has worktrees beneath it shows a button
+  that folds every one of them, leaving the folder itself open as a short list of its worktrees.
+- **The sidebar can be hidden.** A button at the left of the search row folds it to a thin rail,
+  whose button brings it back; View → Toggle Sidebar does the same (⌘B on macOS, Ctrl+Shift+B
+  elsewhere — plain Ctrl+B is the shell's own key). Each window remembers its choice, and the
+  search you typed is still there when the sidebar returns.
+
+### Fixed
+
+- **A running session moved to another window keeps running there.** Dragging a tab onto another
+  window, or using Move into New Window, handed the other window only the session's id. A session
+  started or forked in Apiary runs under a terminal id only the original window knew about, so the
+  receiving window found nothing running and showed the session as stopped, while the process ran
+  on with nothing showing it. A moved tab now carries its terminal, the view it was on and its
+  bottom shells with it.
+
 ## [1.15.0] - 2026-09-16
 
 ### Added

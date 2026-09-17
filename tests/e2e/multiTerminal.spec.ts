@@ -47,6 +47,36 @@ test('renames a terminal tab', async () => {
   await expect(h.page.getByTestId('terminal-tab-label')).toHaveText('Build watcher')
 })
 
+test('F2 in a terminal renames that terminal, opening the list to do it in', async () => {
+  await h.page.getByTestId('terminal-add').click()
+  await expect(h.page.getByTestId('terminal-tab-row')).toHaveCount(2)
+  // Hidden first, so the key is shown to bring the list back rather than relying on it being open.
+  await h.page.getByTestId('terminal-list-toggle').click()
+  await expect(h.page.getByTestId('terminal-list-panel')).toHaveCount(0)
+
+  await h.page.getByTestId('terminal-shell').click()
+  await h.page.keyboard.press('F2')
+  const input = h.page.getByTestId('terminal-tab-rename-input')
+  await expect(input).toBeFocused()
+  // The one in front is the second, just added — not simply the first in the list.
+  await expect(input).toHaveValue('Terminal 2')
+  await input.fill('Logs')
+  await input.press('Enter')
+  await expect(h.page.getByTestId('terminal-tab-label').last()).toHaveText('Logs')
+})
+
+test('F2 on the terminal list renames the terminal in front', async () => {
+  await h.page.getByTestId('terminal-list-toggle').click()
+  await h.page.getByTestId('terminal-list-panel').focus()
+  await h.page.keyboard.press('F2')
+  await expect(h.page.getByTestId('terminal-tab-rename-input')).toHaveValue('Terminal 1')
+  await h.page.keyboard.press('Escape')
+  // Escaped, and not reopened when the list is hidden and shown again.
+  await h.page.getByTestId('terminal-list-toggle').click()
+  await h.page.getByTestId('terminal-list-toggle').click()
+  await expect(h.page.getByTestId('terminal-tab-rename-input')).toHaveCount(0)
+})
+
 test('a rename button and a delete button both appear on hovering a terminal row', async () => {
   // With several terminals open there was previously no discoverable way to manage them beyond
   // double-clicking the label (to rename) or a trash icon easy to miss — both actions now have a

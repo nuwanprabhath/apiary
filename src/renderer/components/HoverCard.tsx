@@ -41,6 +41,7 @@ interface Props {
   note?: string | null
   /** Shown when the folder a session ran in no longer exists. */
   missing?: boolean
+  testId?: string
 }
 
 const GAP = 8
@@ -49,15 +50,17 @@ const MARGIN = 8
 export function HoverCard(
   {
     anchor, title, path, branch, recordedBranch, lastActive, note, missing,
+    testId = 'session-hover-card',
     onPointerEnter, onPointerLeave,
   }: Props,
 ): JSX.Element {
-  const [copied, setCopied] = useState(false)
+  /** Which value was just copied, for the tick on its button. */
+  const [copied, setCopied] = useState<'branch' | 'path' | null>(null)
   // The tick is an acknowledgement, not a state worth keeping: it goes back to the copy glyph so
   // the button does not claim a copy made a minute ago is the one just now.
   useEffect(() => {
-    if (!copied) return
-    const timer = window.setTimeout(() => { setCopied(false) }, 1200)
+    if (copied === null) return
+    const timer = window.setTimeout(() => { setCopied(null) }, 1200)
     return () => { window.clearTimeout(timer) }
   }, [copied])
   const ref = useRef<HTMLDivElement | null>(null)
@@ -86,7 +89,7 @@ export function HoverCard(
     <div
       ref={ref}
       className="hover-card"
-      data-testid="session-hover-card"
+      data-testid={testId}
       role="tooltip"
       style={pos === null
         ? { visibility: 'hidden', left: 0, top: 0 }
@@ -104,7 +107,20 @@ export function HoverCard(
         // burying it under the metadata would make it the last thing read.
         <div className="hover-card-note" data-testid="hover-card-note">{note}</div>
       )}
-      <div className="hover-card-path" data-testid="hover-card-path">{path}</div>
+      <div className="hover-card-row hover-card-path-row">
+        <span className="hover-card-path" data-testid="hover-card-path">{path}</span>
+        <button
+          className="hover-card-copy"
+          data-testid="hover-card-copy-path"
+          title={copied === 'path' ? 'Copied' : 'Copy path'}
+          aria-label={`Copy path ${path}`}
+          onClick={() => {
+            void window.apiary.copyToClipboard(path).then(() => { setCopied('path') })
+          }}
+        >
+          {copied === 'path' ? <CheckIcon /> : <CopyIcon />}
+        </button>
+      </div>
       {missing === true && <div className="hover-card-missing">This folder no longer exists.</div>}
       {branch !== null && (
         <div className="hover-card-row">
@@ -113,13 +129,13 @@ export function HoverCard(
           <button
             className="hover-card-copy"
             data-testid="hover-card-copy-branch"
-            title={copied ? 'Copied' : 'Copy branch name'}
+            title={copied === 'branch' ? 'Copied' : 'Copy branch name'}
             aria-label={`Copy branch name ${branch}`}
             onClick={() => {
-              void window.apiary.copyToClipboard(branch).then(() => { setCopied(true) })
+              void window.apiary.copyToClipboard(branch).then(() => { setCopied('branch') })
             }}
           >
-            {copied ? <CheckIcon /> : <CopyIcon />}
+            {copied === 'branch' ? <CheckIcon /> : <CopyIcon />}
           </button>
         </div>
       )}

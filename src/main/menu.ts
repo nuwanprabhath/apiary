@@ -7,6 +7,7 @@ export function buildMenu(
   onNewSessionInFolder: () => void,
   onNewWindow: () => void,
   onCheckForUpdates: () => void,
+  onToggleSidebar: () => void = () => {},
 ): Menu {
   const isMac = process.platform === 'darwin'
 
@@ -67,7 +68,20 @@ export function buildMenu(
     { role: 'editMenu' },
     {
       label: 'View',
-      submenu: [{ role: 'toggleDevTools' }, { type: 'separator' }, { role: 'togglefullscreen' }],
+      submenu: [
+        {
+          label: 'Toggle Sidebar',
+          // Cmd+B is VS Code's, and costs nothing on a Mac. Plain Ctrl+B is not free anywhere else:
+          // a menu accelerator is taken before the page sees the key, and in a terminal Ctrl+B is
+          // the shell's back-one-character (and tmux's prefix).
+          accelerator: isMac ? 'Cmd+B' : 'Ctrl+Shift+B',
+          click: onToggleSidebar,
+        },
+        { type: 'separator' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
     },
     { role: 'windowMenu' },
     // Non-Mac has no application menu to put it in, so it goes where Linux and Windows apps keep

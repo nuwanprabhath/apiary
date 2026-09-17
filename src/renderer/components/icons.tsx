@@ -36,6 +36,26 @@ export function CopyIcon({ className }: IconProps): JSX.Element {
   )
 }
 
+/** A window with its left-hand panel marked — the sidebar show/hide control. */
+export function SidebarIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M6 3.5v9" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M3.5 6h1M3.5 8h1M3.5 10h1" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** Two chevrons folding together — collapse everything beneath. VS Code's "Collapse All". */
+export function CollapseAllIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M4.5 2.5 8 6l3.5-3.5M4.5 13.5 8 10l3.5 3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function PlusIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

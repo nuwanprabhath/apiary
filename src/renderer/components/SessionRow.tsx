@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
 import type { SessionNode } from '@shared/types'
 import { NoteIcon, PinIcon, SplitIcon, TrashIcon } from './icons'
-import { HoverCard, HOVER_DELAY_MS } from './HoverCard'
+import { HoverCard } from './HoverCard'
+import { useHoverCard } from './useHoverCard'
 
 /** Days since a session was last touched, in the compact form the sidebar has room for. */
 /** An absolute timestamp for the tooltip — "8d" is for the row, where space is the constraint. */
@@ -57,37 +57,8 @@ export function SessionRow({
   folderBranch,
 }: Props): JSX.Element {
   const hasNote = session.note !== null && session.note !== ''
-  /** The row's rectangle while the hover card is up; null when it is not. */
-  const [cardAnchor, setCardAnchor] = useState<DOMRect | null>(null)
-  const wrapRef = useRef<HTMLDivElement | null>(null)
-  const openTimer = useRef<number | null>(null)
-  const closeTimer = useRef<number | null>(null)
-
-  const clearTimers = (): void => {
-    if (openTimer.current !== null) { window.clearTimeout(openTimer.current); openTimer.current = null }
-    if (closeTimer.current !== null) { window.clearTimeout(closeTimer.current); closeTimer.current = null }
-  }
-  const hideNow = (): void => { clearTimers(); setCardAnchor(null) }
-
-  /**
-   * The row and the card are one hover region.
-   *
-   * The card has a button on it now, so reaching it means leaving the row and crossing the gap
-   * between them — which, closed on the row's `mouseleave` alone, would shut the card on the way
-   * to the very thing it exists to offer. Leaving either side starts a short grace period that
-   * entering the other cancels.
-   */
-  const GRACE_MS = 160
-  const keepOpen = (): void => {
-    if (closeTimer.current !== null) { window.clearTimeout(closeTimer.current); closeTimer.current = null }
-  }
-  const scheduleClose = (): void => {
-    if (openTimer.current !== null) { window.clearTimeout(openTimer.current); openTimer.current = null }
-    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
-    closeTimer.current = window.setTimeout(() => { setCardAnchor(null) }, GRACE_MS)
-  }
-
-  useEffect(() => clearTimers, [])
+  const { anchor: cardAnchor, ref: wrapRef, arm, keepOpen, scheduleClose, hideNow } =
+    useHoverCard<HTMLDivElement>()
 
   return (
     <div
@@ -99,17 +70,10 @@ export function SessionRow({
         if (onMenu === undefined) return
         e.preventDefault()
         // The hover card would otherwise sit over the menu that was just asked for.
-        clearTimers()
-        setCardAnchor(null)
+        hideNow()
         onMenu(session, e.clientX, e.clientY)
       }}
-      onMouseEnter={() => {
-        keepOpen()
-        openTimer.current = window.setTimeout(() => {
-          const rect = wrapRef.current?.getBoundingClientRect()
-          if (rect !== undefined) setCardAnchor(rect)
-        }, HOVER_DELAY_MS)
-      }}
+      onMouseEnter={arm}
       onMouseLeave={scheduleClose}
       // Any click hides it: the card is for deciding which row you want, and it has no business
       // sitting over the session you just opened.
