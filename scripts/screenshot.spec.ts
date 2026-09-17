@@ -28,8 +28,8 @@ test('capture the README screenshot', async () => {
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 
-  // A roomy, evenly-proportioned window — big enough for three columns side by side without
-  // either the sidebar or a column looking cramped.
+  // A roomy window — big enough for a large pane and two stacked ones, each with a shell, without
+  // either the sidebar or a pane looking cramped.
   await h.app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0].setSize(1760, 1050)
   })
@@ -51,30 +51,43 @@ test('capture the README screenshot', async () => {
   await h.page.getByTestId('settings-save').click()
   await h.page.getByTestId('settings-dialog').waitFor({ state: 'detached' })
 
-  // Three sessions, three columns — search on the left, several conversations open side by side,
-  // each with its own shell running underneath it.
+  // Three sessions in a layout — search on the left, several conversations open at once, the large
+  // one with its shell running underneath it. Three splits give "main and two on the right".
   await sidebarSession(h.page, 'Repo root session').click()
   for (const title of ['Add worktree switcher', 'Worktree session']) {
     const target = h.page.locator('.session-row-wrap').filter({ hasText: title })
     await clickRowAction(target, 'split-session-button')
   }
+  await expect(h.page.getByTestId('content')).toHaveAttribute('data-preset', 'main-right2')
+
+  // The session about to be resumed goes into the large pane, through the layout picker on its own
+  // tab — the feature the picture is showing off. Not the fixture's "already running elsewhere"
+  // session, because resuming that one deliberately asks before doing anything.
+  const tab = h.page.getByTestId('session-tab').filter({ hasText: 'Add worktree switcher' })
+  await expect(async () => {
+    await tab.hover({ timeout: 2000 })
+    await tab.getByTestId('session-tab-layout').hover({ timeout: 2000 })
+    await expect(h.page.getByTestId('layout-picker')).toBeVisible({ timeout: 2000 })
+  }).toPass({ timeout: 20000 })
+  await h.page.getByTestId('layout-zone-main-right2-1').click()
+  await expect(h.page.getByTestId('layout-picker')).toHaveCount(0)
 
   const columns = h.page.getByTestId('session-column')
-  const columnCount = await columns.count()
 
-  // Resume the middle session, so the picture shows what the app is actually for: a live Claude
-  // Code session running inside it. The others stay on their transcripts, which is the other half
-  // of what it does — reading history and working in it, side by side. The middle one rather than
-  // the first because the first is the fixture's "already running elsewhere" session, and
-  // resuming that one deliberately asks before doing anything.
-  const live = columns.nth(1)
+  // Resume it, so the picture shows what the app is actually for: a live Claude Code session
+  // running inside it. The others stay on their transcripts, which is the other half of what it
+  // does — reading history and working in it, side by side.
+  const live = columns.first()
   await live.getByTestId('resume-button').click()
   await expect(live.getByTestId('terminal-session')).toContainText('Claude Code', { timeout: 20000 })
 
-  for (let i = 0; i < columnCount; i++) {
+  // A shell under the large pane only: the two stacked panes are half height, and a shell in each
+  // leaves their transcripts no room to be read — which is the half of the picture they are for.
+  const shellPanes = 1
+  for (let i = 0; i < shellPanes; i++) {
     await columns.nth(i).getByTestId('shell-toggle').click()
   }
-  for (let i = 0; i < columnCount; i++) {
+  for (let i = 0; i < shellPanes; i++) {
     const shell = columns.nth(i).getByTestId('terminal-shell')
     await shell.click()
     // This is a real, live shell in whatever directory the session ran in — genuinely running,
@@ -83,7 +96,9 @@ test('capture the README screenshot', async () => {
     // one instead of publishing whoever happened to run this script's login name.
     await h.page.keyboard.type('export PS1="$ "; clear\n')
   }
-  // Give each shell a moment to apply the new prompt and settle.
+  // Give each shell a moment to apply the new prompt and settle, and move the pointer off the
+  // panes so no hover card or picker is caught in the picture.
+  await h.page.mouse.move(2, 2)
   await h.page.waitForTimeout(1000)
 
   // The Refresh above reports what it found, which is useful in the app and noise in a README

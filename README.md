@@ -7,7 +7,7 @@ Apiary reads the session files Claude Code already writes to `~/.claude/projects
 worktrees under their parent repository, and lets you read any conversation or
 resume it in an embedded terminal in the correct working directory.
 
-![Apiary: a searchable sidebar with pinned and grouped sessions on the left, three sessions open side by side — the middle one a live Claude Code session, the others showing their transcripts — each with its own shell running underneath it](docs/screenshot.png)
+![Apiary: a searchable sidebar with pinned and grouped sessions on the left, three sessions arranged in a layout — a live Claude Code session in the large pane, two transcripts stacked beside it, and a shell running under the live one](docs/screenshot.png)
 
 ## Features
 
@@ -20,9 +20,15 @@ resume it in an embedded terminal in the correct working directory.
 - **Read any transcript** — full conversation history, rendered as markdown
   (headings, code blocks, lists), with tool calls/results collapsed into
   expandable blocks and subagent (sidechain) messages hidden by default.
-- **Work on several sessions at once** — sessions open as tabs, and any session can
-  be split into a column of its own beside the current one (as many columns as you
-  like), so two or three conversations can be watched side by side.
+- **Work on several sessions at once** — sessions open as tabs, and a window arranges up
+  to four of them in a layout: columns, rows, a main pane with two beside it, or a 2×2 grid.
+  Rest the pointer on a session's split button or a tab's layout icon (or choose *Arrange…*
+  from its right-click menu), click the spot you want it in, and the rest arrange around it.
+  Empty panes offer your open tabs and recent sessions, and the dividers drag in both
+  directions.
+- **Tidy terminals and a tidy sidebar** — F2 renames the terminal you're in; hovering a folder
+  shows its full path with a copy button, and collapses every worktree under it in one click;
+  the whole sidebar folds away to a thin rail (⌘B / Ctrl+Shift+B) when you want the width.
 - **A session in a window of its own** — drag a tab out of the window, or right-click it and
   choose *Move into New Window*, and the conversation and its shell get a window with no sidebar
   in the way. Tabs can be dragged between open windows too.
@@ -120,7 +126,8 @@ as long as the build requirements below are met.
 
 `npm run screenshot` launches the real app against a representative fixture (three
 project folders, a git worktree, a few sessions with human-sounding titles), opens
-three of them side by side with a shell running under each, and resumes one so the
+three of them in a layout (placing one in the large pane through the layout picker) with
+a shell running under it, and resumes that one so the
 picture shows a live session rather than only transcripts, before overwriting
 `docs/screenshot.png` — see `scripts/screenshot.spec.ts`. The resumed session runs
 `scripts/fixtures/fake-claude.sh`, a stand-in that prints a fixed, believable Claude
