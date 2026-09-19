@@ -8,12 +8,14 @@ import {
   existsSync,
   writeFileSync,
   readFileSync,
+  chmodSync,
 } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { AppService } from '../../src/main/appService'
 import { makeSession } from '../fixtures/makeSession'
+import { encodeProjectDirName as encodeProjectDirNameForTest } from '../../src/main/scanner/projectDirName'
 
 let home: string
 let workdir: string
@@ -78,7 +80,7 @@ describe('AppService', () => {
     expect(tree[0].sessions[0].cwdExists).toBe(true)
   })
 
-  it('filters the tree by query', async () => {
+  it('tree() returns everything unfiltered; title matching is now the renderer’s job', async () => {
     makeSession(projects(), '-w', {
       sessionId: '11111111-1111-1111-1111-111111111111', cwd: workdir, title: 'Fix CSV export',
     })
@@ -87,11 +89,10 @@ describe('AppService', () => {
     })
     await service.refresh()
     await service.importSessions(
-      ['11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222'],
-      [],
+      ['11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222'], [],
     )
-    const tree = await service.tree('csv')
-    expect(tree[0].sessions.map((s) => s.title)).toEqual(['Fix CSV export'])
+    const tree = await service.tree()
+    expect(tree[0].sessions.map((s) => s.title).sort()).toEqual(['Bump deps', 'Fix CSV export'])
   })
 
   it('auto-imports a new session in an auto-import project', async () => {
@@ -320,6 +321,12 @@ describe('AppService', () => {
     }
   })
 
+  // This drives two real refresh passes back to back (the gated one, then the one it releases
+  // into), each doing real filesystem/git work rather than being mocked out. What it actually
+  // asserts is an ordering property — that a concurrent refresh() call does not start a second
+  // run while one is in flight — which has nothing to do with elapsed time. The timeout below
+  // is not a performance budget; its only job is to catch a genuine hang instead of letting the
+  // suite run forever.
   it('does not run overlapping refreshes when refresh() is called concurrently', async () => {
     let calls = 0
     let release: () => void = () => {}
@@ -352,7 +359,7 @@ describe('AppService', () => {
     } finally {
       await guardedService.dispose()
     }
-  })
+  }, 10000)
 
   it('a refresh() that joins an in-flight run still observes a file written after that run started (Finding 3)', async () => {
     let calls = 0
@@ -485,7 +492,7 @@ describe('git operations', () => {
     await service.refresh()
     await service.importSessions([sessionId], [])
 
-    const before = await service.tree('')
+    const before = await service.tree()
     expect(before[0]?.branch).toBe('main')
 
     git(gitDir, 'branch', 'feature/z')
@@ -496,7 +503,7 @@ describe('git operations', () => {
     // gitCheckoutBranch itself.
     await service.refresh()
 
-    const after = await service.tree('')
+    const after = await service.tree()
     expect(after[0]?.branch).toBe('feature/z')
     rmSync(gitDir, { recursive: true, force: true })
   })
@@ -543,6 +550,48 @@ describe('multi-tab shells', () => {
       })
     })
     expect(seen).toContain('still:alive')
+  })
+})
+
+describe('resuming a session that already has a pty', () => {
+  it('attaches to it instead of respawning — two windows both resuming a restored session must not race', async () => {
+    // The scenario this covers: a session recorded `live` at quit can legitimately have been open
+    // in two windows at once. On relaunch each window's renderer calls resume() independently —
+    // neither can see what the other has already started, since each is its own process. Without
+    // this check, the second call would hit `spawn()`'s unconditional `kill()` and restart the pty
+    // out from under the first window mid-startup. `fake-claude.sh` records one line per time it
+    // is actually launched, so a second `resume()` producing no second line is the proof.
+    const started = join(home, 'started.log')
+    const fakeClaude = join(home, 'fake-claude.sh')
+    writeFileSync(fakeClaude, `#!/bin/sh\necho spawned >> ${JSON.stringify(started)}\nexec sleep 100\n`)
+    chmodSync(fakeClaude, 0o755)
+
+    const resumeService = new AppService({
+      configRoot: join(home, '.claude'),
+      dbPath: join(home, 'apiary-resume.db'),
+      detectLive: async () => new Map(),
+      claudeBin: fakeClaude,
+    })
+    try {
+      makeSession(projects(), '-w', {
+        sessionId: '55555555-5555-5555-5555-555555555555', cwd: workdir, title: 'Two windows',
+      })
+      await resumeService.refresh()
+      await resumeService.importSessions(['55555555-5555-5555-5555-555555555555'], [])
+
+      await resumeService.resume('55555555-5555-5555-5555-555555555555')
+      await vi.waitFor(() => {
+        expect(readFileSync(started, 'utf8').trim().split('\n')).toHaveLength(1)
+      })
+      // The second window's mount effect, calling resume() for the same restored session id.
+      await resumeService.resume('55555555-5555-5555-5555-555555555555')
+
+      // No second launch — the check is synchronous with spawn, so there is nothing to wait for.
+      expect(readFileSync(started, 'utf8').trim().split('\n')).toHaveLength(1)
+      expect(resumeService.pty.has('55555555-5555-5555-5555-555555555555')).toBe(true)
+    } finally {
+      await resumeService.dispose()
+    }
   })
 })
 
@@ -746,16 +795,17 @@ describe('session notes', () => {
     await seed()
     await service.setSessionNote(ID, 'nightly pipeline, MR !1257 against dev/1.0.12')
 
-    // The identifier forms people actually type, and a plain word from the note.
+    // The identifier forms people actually type, and a plain word from the note. Note matching
+    // is `searchSessions`'s job now — `tree()` no longer filters by query at all.
     for (const query of ['nightly', '!1257', '1257', 'dev/1.0.12']) {
-      expect(await service.tree(query)).toHaveLength(1)
+      expect(await service.searchSessions(query)).toEqual([ID])
     }
   })
 
   it('searching a note is immediate — it does not wait for the next index pass', async () => {
     await seed()
     await service.setSessionNote(ID, 'carburettor')
-    expect(service.searchSessions('carburettor')).toEqual([ID])
+    expect(await service.searchSessions('carburettor')).toEqual([ID])
   })
 
   it('stops matching once the note is changed, so an old note cannot haunt the results', async () => {
@@ -763,8 +813,8 @@ describe('session notes', () => {
     await service.setSessionNote(ID, 'carburettor')
     await service.setSessionNote(ID, 'gearbox')
 
-    expect(service.searchSessions('carburettor')).toEqual([])
-    expect(service.searchSessions('gearbox')).toEqual([ID])
+    expect(await service.searchSessions('carburettor')).toEqual([])
+    expect(await service.searchSessions('gearbox')).toEqual([ID])
   })
 
   it('rejects a note on an unknown session', async () => {
@@ -775,7 +825,7 @@ describe('session notes', () => {
     await seed()
     service.setSearchChatContent(false)
     await service.setSessionNote(ID, 'nightly pipeline')
-    expect(service.searchSessions('nightly')).toEqual([ID])
+    expect(await service.searchSessions('nightly')).toEqual([ID])
   })
 
   it('turning note search off stops matching, and turning it back on restores it', async () => {
@@ -783,12 +833,12 @@ describe('session notes', () => {
     await service.setSessionNote(ID, 'nightly pipeline')
 
     service.setSearchSessionNotes(false)
-    expect(service.searchSessions('nightly')).toEqual([])
+    expect(await service.searchSessions('nightly')).toEqual([])
     // The note itself is untouched — it is the user's writing, not derived data.
     expect(service.sessionNote(ID)).toBe('nightly pipeline')
 
     service.setSearchSessionNotes(true)
-    expect(service.searchSessions('nightly')).toEqual([ID])
+    expect(await service.searchSessions('nightly')).toEqual([ID])
   })
 
   it('picks up notes written while note indexing was switched off', async () => {
@@ -797,14 +847,14 @@ describe('session notes', () => {
     await service.setSessionNote(ID, 'written while off')
 
     service.setSearchSessionNotes(true)
-    expect(service.searchSessions('written')).toEqual([ID])
+    expect(await service.searchSessions('written')).toEqual([ID])
   })
 
   it('a rebuild restores the note index from the notes themselves', async () => {
     await seed()
     await service.setSessionNote(ID, 'nightly pipeline')
     await service.rebuildSearchIndex()
-    expect(service.searchSessions('nightly')).toEqual([ID])
+    expect(await service.searchSessions('nightly')).toEqual([ID])
   })
 })
 
@@ -825,15 +875,15 @@ describe('a settings payload from a renderer that does not know about a setting'
     await service.refresh()
     await service.importSessions([ID], [])
     await service.setSessionNote(ID, 'nightly pipeline, MR !1257')
-    expect(service.searchSessions('1257')).toEqual([ID])
+    expect(await service.searchSessions('1257')).toEqual([ID])
 
     service.setSearchSessionNotes(undefined as unknown as boolean)
 
     expect(service.searchNoteCount()).toBe(1)
-    expect(service.searchSessions('1257')).toEqual([ID])
+    expect(await service.searchSessions('1257')).toEqual([ID])
     // And a note written afterwards is still indexed, rather than the feature being half-off.
     await service.setSessionNote(ID, 'now about MR !1300')
-    expect(service.searchSessions('1300')).toEqual([ID])
+    expect(await service.searchSessions('1300')).toEqual([ID])
   })
 
   it('leaves transcript search alone too — the same payload, the same hazard', () => {
@@ -852,7 +902,7 @@ describe('a settings payload from a renderer that does not know about a setting'
 
     service.setSearchSessionNotes(false)
     expect(service.searchNoteCount()).toBe(0)
-    expect(service.searchSessions('nightly')).toEqual([])
+    expect(await service.searchSessions('nightly')).toEqual([])
   })
 })
 
@@ -924,5 +974,95 @@ describe('checking out a branch another worktree already has', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('moveSession', () => {
+  it('moves the transcript file and the session follows it, surviving a rescan', async () => {
+    const target = makeGitWorkdir()
+    makeSession(projects(), '-w', {
+      sessionId: '33333333-3333-3333-3333-333333333333', cwd: workdir, title: 'Move me',
+    })
+    await service.refresh()
+    await service.importSessions(['33333333-3333-3333-3333-333333333333'], [])
+    // The target has to already be a project the store knows about — discovered by scanning,
+    // same as any other folder — before it can be a move's destination.
+    await service.newSessionInFolder(target).catch(() => {}) // registers the project row
+    await service.refresh()
+
+    await service.moveSession('33333333-3333-3333-3333-333333333333', target)
+    let tree = await service.tree()
+    let moved = tree.flatMap((p) => p.sessions).find((s) => s.sessionId === '33333333-3333-3333-3333-333333333333')
+    expect(moved?.cwd).toBe(target)
+
+    // A rescan reads the *old* cwd back out of the (unmoved-in-content) JSONL — the override
+    // is what stops that reverting the move.
+    await service.refresh()
+    tree = await service.tree()
+    moved = tree.flatMap((p) => p.sessions).find((s) => s.sessionId === '33333333-3333-3333-3333-333333333333')
+    expect(moved?.cwd).toBe(target)
+  })
+
+  it('refuses when a session of that id already exists at the target', async () => {
+    const target = makeGitWorkdir()
+    makeSession(projects(), '-w', {
+      sessionId: '44444444-4444-4444-4444-444444444444', cwd: workdir, title: 'Original',
+    })
+    await service.refresh()
+    await service.importSessions(['44444444-4444-4444-4444-444444444444'], [])
+    await service.newSessionInFolder(target).catch(() => {})
+    await service.refresh()
+    // A file already sitting where the move would land.
+    mkdirSync(join(projects(), encodeProjectDirNameForTest(target)), { recursive: true })
+    writeFileSync(join(projects(), encodeProjectDirNameForTest(target), '44444444-4444-4444-4444-444444444444.jsonl'), '')
+
+    await expect(service.moveSession('44444444-4444-4444-4444-444444444444', target))
+      .rejects.toThrow('already exists')
+  })
+
+  it('refuses to move a live session', async () => {
+    const target = makeGitWorkdir()
+    const liveService = new AppService({
+      configRoot: join(home, '.claude'), dbPath: join(home, 'apiary-live.db'),
+      detectLive: async () => new Map([['55555555-5555-5555-5555-555555555555', 1234]]),
+    })
+    makeSession(projects(), '-w', {
+      sessionId: '55555555-5555-5555-5555-555555555555', cwd: workdir, title: 'Live one',
+    })
+    await liveService.refresh()
+    await liveService.importSessions(['55555555-5555-5555-5555-555555555555'], [])
+    await liveService.newSessionInFolder(target).catch(() => {})
+    await liveService.refresh()
+    await expect(liveService.moveSession('55555555-5555-5555-5555-555555555555', target))
+      .rejects.toThrow('still running')
+    await liveService.dispose()
+  })
+
+  it('refuses to move a session whose pty is running even though the live scan has not seen it yet', async () => {
+    // Exactly the sequence a user takes: click Resume, then drag the session onto another
+    // worktree before the next rescan. `detectLive` is the external process scan, and it only
+    // repopulates on `refresh()` — so it reports nothing here, as it would in that gap.
+    const target = makeGitWorkdir()
+    makeSession(projects(), '-w', {
+      sessionId: '88888888-8888-8888-8888-888888888888', cwd: workdir, title: 'Resumed a moment ago',
+    })
+    await service.refresh()
+    await service.importSessions(['88888888-8888-8888-8888-888888888888'], [])
+    await service.newSessionInFolder(target).catch(() => {})
+    await service.refresh()
+
+    service.pty.spawn({
+      id: '88888888-8888-8888-8888-888888888888',
+      cwd: workdir,
+      command: 'sleep 30',
+    })
+    expect(service.pty.has('88888888-8888-8888-8888-888888888888')).toBe(true)
+
+    await expect(service.moveSession('88888888-8888-8888-8888-888888888888', target))
+      .rejects.toThrow('still running')
+    // And the transcript is still where it was, not half-moved.
+    expect(existsSync(join(projects(), '-w', '88888888-8888-8888-8888-888888888888.jsonl'))).toBe(true)
+
+    service.pty.kill('88888888-8888-8888-8888-888888888888')
   })
 })

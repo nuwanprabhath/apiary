@@ -1,0 +1,6 @@
+{
+  "name": "idle-after-answer",
+  "note": "finished answering, composer empty, nothing running",
+  "sinceLastOutputMs": 4033,
+  "capturedAt": "2026-09-19T01:13:11.287Z"
+}

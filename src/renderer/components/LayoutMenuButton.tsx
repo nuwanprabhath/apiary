@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { LayoutPicker } from './LayoutPicker'
 import { useHoverCard } from './useHoverCard'
 import { useLayoutActions } from '../state/layoutContext'
@@ -11,6 +11,10 @@ interface Props {
   ariaLabel: string
   /** What a plain click does — the button's job before the picker existed. */
   onClick?: () => void
+  /** Called as the picker appears, so whatever else the pointer opened on the way here (the row's
+   *  own hover card) can get out of its way. Two popups from one gesture, overlapping each other,
+   *  is not a menu — it is a mess. */
+  onOpen?: () => void
   heading: string
   mode?: 'place' | 'layout'
   onPick: (preset: PresetId, zone: number) => void
@@ -23,10 +27,16 @@ interface Props {
  * picker straight away.
  */
 export function LayoutMenuButton({
-  className, testId, title, ariaLabel, onClick, heading, mode = 'place', onPick, children,
+  className, testId, title, ariaLabel, onClick, onOpen, heading, mode = 'place', onPick, children,
 }: Props): JSX.Element {
   const { preset } = useLayoutActions()
   const hover = useHoverCard<HTMLButtonElement>()
+  // Fires on the transition into "open", not on every render while open.
+  const wasOpen = useRef(false)
+  useEffect(() => {
+    if (hover.anchor !== null && !wasOpen.current) onOpen?.()
+    wasOpen.current = hover.anchor !== null
+  }, [hover.anchor, onOpen])
   return (
     <>
       <button

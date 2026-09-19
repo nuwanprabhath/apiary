@@ -586,6 +586,46 @@ export function SettingsDialog(
                     </span>
                   </span>
                 </label>
+
+                <label className="settings-row">
+                  <input
+                    type="checkbox"
+                    data-testid="setting-recent-enabled"
+                    checked={draft.recentSectionEnabled}
+                    onChange={(e) => patch({ recentSectionEnabled: e.target.checked })}
+                  />
+                  <span>
+                    <strong>Show a Recent section</strong>
+                    <span className="settings-help">
+                      Lists sessions worked in recently, below Pinned, so a session you just left is
+                      one click away without hunting through the tree.
+                    </span>
+                  </span>
+                </label>
+
+                {draft.recentSectionEnabled && (
+                  <div className="settings-row settings-row-indent">
+                    <label className="settings-inline">
+                      <span>Within the last</span>
+                      <input
+                        className="search settings-number"
+                        type="number"
+                        min={1}
+                        max={168}
+                        data-testid="setting-recent-hours"
+                        value={draft.recentSectionHours}
+                        onChange={(e) => {
+                          const n = Number(e.target.value)
+                          patch({
+                            recentSectionHours:
+                              Number.isFinite(n) && n >= 1 ? Math.min(168, Math.round(n)) : 1,
+                          })
+                        }}
+                      />
+                      <span>hours</span>
+                    </label>
+                  </div>
+                )}
               </>
             ) : section === 'diagnostics' ? (
               <>

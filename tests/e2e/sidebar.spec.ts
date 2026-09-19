@@ -1,5 +1,8 @@
 import { test, expect, type Page, type Locator } from '@playwright/test'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { launchApiary, importAll, relaunchApiary, type Harness, sidebarSession } from './helpers'
+import { makeSession } from '../fixtures/makeSession'
 
 let h: Harness
 test.beforeEach(async () => { h = await launchApiary() })
@@ -160,4 +163,68 @@ test('dragging the sidebar resizer persists the new width across a relaunch (Fin
   const afterRelaunch = await h.page.locator('.sidebar').boundingBox()
   if (afterRelaunch === null) throw new Error('sidebar has no bounding box after relaunch')
   expect(Math.abs(afterRelaunch.width - dragged.width)).toBeLessThanOrEqual(2)
+})
+
+test('a session worked in recently appears in Recent, and dismissing it hides it until reused', async () => {
+  // Every standard fixture session is timestamped in 2026-09 (see makeSession), which is not
+  // "recent" relative to whenever this suite actually runs. A session is written here whose
+  // last line is patched to a live timestamp, so it lands inside the default 24-hour Recent
+  // window no matter what today's real date is.
+  const sessionId = '99999999-9999-9999-9999-999999999999'
+  makeSession(h.projectsRoot, '-work-a-recent', {
+    sessionId,
+    cwd: h.workdir,
+    title: 'Recently active session',
+  })
+  const file = join(h.projectsRoot, '-work-a-recent', `${sessionId}.jsonl`)
+  const patched = readFileSync(file, 'utf8').replace('2026-09-02T12:00:00.000Z', new Date().toISOString())
+  writeFileSync(file, patched)
+
+  // `importAll` marks whatever the store already knows about as imported; a file written to disk
+  // after launch is not in the store yet, so a rescan has to complete first. The Refresh button's
+  // click resolves as soon as the event is dispatched, not once its async rescan finishes, so the
+  // rescan's own effect (a 5th discovered session) is polled for rather than assumed.
+  await h.page.getByTestId('sidebar-refresh').click()
+  await expect.poll(
+    () => h.page.evaluate(() => window.apiary.discovered()).then((d) => d.length),
+    { timeout: 10000 },
+  ).toBe(5)
+  await importAll(h.page)
+  await h.page.getByTestId('sidebar-refresh').click()
+  // 5 imported sessions in the tree, plus the new one a second time in the Recent section below it.
+  await expect(h.page.getByTestId('session-item')).toHaveCount(6, { timeout: 15000 })
+
+  const section = h.page.getByTestId('recent-section')
+  await expect(section).toBeVisible()
+  await expect(section.getByTestId('session-item')).toContainText('Recently active session')
+
+  const row = section.locator('.recent-row-wrap').filter({ hasText: 'Recently active session' })
+  // Hidden until the row is hovered, the same way the pin/split/remove actions are: shown always,
+  // it sat as a bare block on top of the session's timestamp.
+  await expect(row.getByTestId('recent-dismiss-button')).toBeHidden()
+  await row.hover()
+  const dismiss = row.getByTestId('recent-dismiss-button')
+  await expect(dismiss).toBeVisible()
+  // And it has an icon in it. An inline <svg> with no width/height collapses inside a flex button,
+  // which is what turned this into an empty grey box.
+  const iconBox = await dismiss.locator('svg').boundingBox()
+  expect(iconBox?.width ?? 0).toBeGreaterThan(0)
+  expect(iconBox?.height ?? 0).toBeGreaterThan(0)
+
+  await dismiss.click()
+  await expect(section.getByTestId('session-item')).toHaveCount(0)
+})
+
+test('the Recent window is a validated setting', async () => {
+  // The menu lives in the main process; trigger the same channel it sends rather than reaching
+  // for a renderer menu button that does not exist.
+  await h.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+  })
+  await expect(h.page.getByTestId('settings-dialog')).toBeVisible()
+  await h.page.getByTestId('settings-nav-sidebar').click()
+
+  await h.page.getByTestId('setting-recent-hours').fill('9999')
+  await h.page.getByTestId('setting-recent-hours').blur()
+  await expect(h.page.getByTestId('setting-recent-hours')).toHaveValue('168')
 })

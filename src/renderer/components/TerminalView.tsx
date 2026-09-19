@@ -3,6 +3,7 @@ import { Terminal, type ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import { pasteText } from '../state/terminalPaste'
 
 interface Props {
   ptyId: string
@@ -158,8 +159,21 @@ export function TerminalView({ ptyId, testId, visible = true, onRenameKey }: Pro
       }
 
       if (key === 'v' && (e.shiftKey || (isMac && e.metaKey))) {
+        // Returning false below stops xterm's own *keydown*-driven handling, but it does not
+        // stop the browser's default action for this chord — on Linux, Chromium treats
+        // Ctrl+Shift+V as a native paste shortcut in its own right and, left unprevented, fires
+        // a 'paste' DOM event on the textarea as a result of this same keypress. xterm listens
+        // for that event independently (see terminalPaste.ts) and would call its own paste()
+        // a second time from it. preventDefault() here is what stops that second, browser-issued
+        // paste from ever starting — measured against a real Ubuntu 24.04 run, which is the only
+        // way this doubling reproduces (a macOS run does not hit it: Ctrl+Shift+V has no native
+        // paste action there, only Cmd+V does).
+        e.preventDefault()
+        // Read the clipboard ourselves only to hand the text to xterm's own `paste()` — not to
+        // write it to the pty directly. `paste()` is the same call the browser's native paste
+        // event would otherwise drive, so there is exactly one write path instead of two.
         void navigator.clipboard.readText()
-          .then((text) => { if (text !== '') window.apiary.ptyWrite(ptyId, text) })
+          .then((text) => { pasteText(term, text) })
           .catch(() => {
             // Clipboard read can be refused; better to do nothing than to interrupt the session.
           })
@@ -249,8 +263,10 @@ export function TerminalView({ ptyId, testId, visible = true, onRenameKey }: Pro
       id: 'paste',
       label: 'Paste',
       run: () => {
+        const current = termRef.current
+        if (current === null) return
         navigator.clipboard.readText().then((text) => {
-          window.apiary.ptyWrite(ptyId, text)
+          pasteText(current, text)
         }).catch((err) => {
           console.error('Failed to read clipboard:', err)
         })

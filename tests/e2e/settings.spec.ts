@@ -3,10 +3,20 @@ import { launchApiary, relaunchApiary, type Harness } from './helpers'
 
 /** The menu lives in the main process, so trigger the same channel it sends. */
 async function openSettings(h: Harness): Promise<void> {
-  await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
-  })
-  await expect(h.page.getByTestId('settings-dialog')).toBeVisible()
+  // Sent repeatedly until the dialog is actually up, rather than once and hoped for.
+  //
+  // This is a menu action, so the only way to trigger it is to send main's own IPC — and a send is
+  // fire-and-forget. Against a window that has just been relaunched, the message can land before
+  // the renderer has subscribed to the channel, and a lost message is indistinguishable from a
+  // broken dialog: the test waits fifteen seconds for something nobody will ever send again. A
+  // person clicking the menu has a loaded window by definition, so retrying is what makes the test
+  // match the situation it is meant to describe.
+  await expect(async () => {
+    await h.app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+    })
+    await expect(h.page.getByTestId('settings-dialog')).toBeVisible({ timeout: 2000 })
+  }).toPass({ timeout: 20000 })
 }
 
 async function openImport(h: Harness): Promise<void> {

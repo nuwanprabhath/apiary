@@ -20,6 +20,11 @@ files:
 asarUnpack:
   - "**/node_modules/better-sqlite3/**"
   - "**/node_modules/node-pty/**"
+  # The content search runs in a worker thread, and `new Worker(path)` is not a plain fs read —
+  # loading a worker entry from inside the archive is not something to rely on. Unpacked, the same
+  # path resolves through app.asar.unpacked transparently. If it ever failed to start, search would
+  # silently fall back to running on the main thread, which is the freeze it exists to prevent.
+  - "out/main/searchWorker.js"
 afterPack: build/afterPack.cjs
 # Where the app looks for updates, and the provider whose metadata electron-builder generates.
 # This block is what produces `latest-mac.yml` / `latest-linux.yml` beside the installers and

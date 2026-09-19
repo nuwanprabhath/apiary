@@ -33,7 +33,7 @@ export function PaneFiller({ openTabs, exclude, onMoveHere, onOpenHere, onCloseP
 
   useEffect(() => {
     let cancelled = false
-    void window.apiary.tree('')
+    void window.apiary.tree()
       .then((nodes) => { if (!cancelled) setSessions(flatten(nodes)) })
       .catch(() => { /* the open tabs are still offered; recent sessions are a convenience */ })
     return () => { cancelled = true }

@@ -4,6 +4,65 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.18.0] - 2026-09-19
+
+### Added
+
+- **Windows come back the way you left them.** Every window's size, position, panes and tabs are
+  restored on relaunch, and a session that was actually running when you quit resumes running
+  rather than reopening as a plain transcript.
+- **Search stays responsive with thousands of sessions.** Typing is never blocked by filtering:
+  the box shows what you typed immediately and a small spinner while the results catch up, rather
+  than appearing to swallow keystrokes and then producing them all at once.
+- **An Active section above Pinned** lists every session open across all your windows — including
+  ones torn off into a window of their own — with a status dot for running, waiting on you, idle
+  or stopped. Each state has its own animation as well as its own colour: a slow breath while
+  Claude works, an insistent double pulse with a marked row when it is waiting on an answer, and
+  stillness when nothing is happening. Hover the section header for a legend. Clicking a row
+  brings its window forward and switches to its tab.
+- **A Recent section below Pinned** lists sessions you've used in the last few hours, so the one
+  you were just in doesn't get lost in a folder. The window is configurable in Settings, the
+  section itself can be switched off, and any row in it can be dismissed on its own.
+- **A GitLab MR reference in a title or note now shows its status.** `!1267` renders as
+  `!1267 (merged)` (or open, or closed), resolved through the `glab` CLI you may already have
+  authenticated for the MR button; without `glab` it degrades to plain text.
+- **Drag a session onto another worktree to move it there,** with a confirmation before anything
+  happens on disk.
+- **The branch switcher checks out an exact match on Enter**, instead of requiring a click into
+  the list first.
+- **An "Open in VS Code" button** on a session's hover card, next to the path.
+- **Every assisted update now offers a copyable install command** — the .deb and AppImage on
+  Linux, the .dmg on macOS — so a stalled or declined auto-install still leaves you with something
+  to run by hand.
+
+### Fixed
+
+- **The Ubuntu "Open installer" button did nothing.** It ran a fixed ten-second wait and reported
+  success regardless of what happened, so a slower launch — or one that never started at all —
+  looked identical to a working one. Downloaded AppImages were also missing their executable bit,
+  which is why even a prompt launch of the installer silently failed. Both are fixed: the button
+  now waits on the process actually starting and reports what really happened.
+- **Typing in the search box could freeze the whole app for seconds.** The content search ran on
+  the main process's thread, and a one- or two-character query made the index scan every word
+  beginning with those letters — measured at 7.7 seconds for a single letter. Because keystrokes
+  reach a window through that same thread, typing stopped dead and the characters all appeared at
+  once when it finished. The search now runs on a thread of its own, so a slow one costs nothing
+  but later results, and very short fragments no longer trigger the expensive scan.
+- **A failed content search now says so** instead of quietly looking like a search that found
+  nothing.
+- **Search no longer lags as you type.** Filtering used to rebuild a pruned tree in the main
+  process on every keystroke; it now runs in the window against a cached tree, and results are a
+  flat list ranked by best match instead of a tree with branches pruned out of it.
+- **Pasting into a terminal wrote the text twice**, and could leave a literal `^[[200~` sitting in
+  the input. Reported on Ubuntu, where Chromium fires its own paste on Ctrl+Shift+V in addition to
+  the one xterm already handles; paste now goes through xterm's own write path so it lands once,
+  cleanly, on every platform.
+- **Closing a window could crash the app**, from a closed-window handler that read the very
+  `webContents` that had just gone away.
+- **A session's hover card could be dismissed out from under you** when the sidebar reflowed
+  underneath it — the Recent and Active sections changing the sidebar's height was enough to
+  trigger it. The card now stays anchored to its row through a reflow.
+
 ## [1.17.0] - 2026-09-17
 
 ### Added

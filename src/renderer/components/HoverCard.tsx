@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { CopyIcon, CheckIcon } from './icons'
+import { MrRefText, type MrState } from './mrRefText'
 import { createPortal } from 'react-dom'
 
 /**
@@ -39,8 +40,14 @@ interface Props {
   lastActive: string | null
   /** The user's own note, shown first — it is the thing they wrote to be read here. */
   note?: string | null
+  /** Resolved GitLab status for each `!<iid>` reference the note contains, computed by the caller
+   *  (SessionRow) so this component stays a pure display component with no IPC calls of its own. */
+  noteMrStatuses?: Record<number, MrState | null>
   /** Shown when the folder a session ran in no longer exists. */
   missing?: boolean
+  /** Only true once main-process detection has found VS Code and the folder exists. */
+  canOpenInVsCode?: boolean
+  onOpenInVsCode?: () => void
   testId?: string
 }
 
@@ -49,7 +56,8 @@ const MARGIN = 8
 
 export function HoverCard(
   {
-    anchor, title, path, branch, recordedBranch, lastActive, note, missing,
+    anchor, title, path, branch, recordedBranch, lastActive, note, noteMrStatuses, missing,
+    canOpenInVsCode, onOpenInVsCode,
     testId = 'session-hover-card',
     onPointerEnter, onPointerLeave,
   }: Props,
@@ -105,7 +113,9 @@ export function HoverCard(
       {note !== null && note !== undefined && note !== '' && (
         // Above the path rather than below it: the note is why someone wrote anything at all, and
         // burying it under the metadata would make it the last thing read.
-        <div className="hover-card-note" data-testid="hover-card-note">{note}</div>
+        <div className="hover-card-note" data-testid="hover-card-note">
+          <MrRefText text={note} statuses={noteMrStatuses ?? {}} />
+        </div>
       )}
       <div className="hover-card-row hover-card-path-row">
         <span className="hover-card-path" data-testid="hover-card-path">{path}</span>
@@ -150,6 +160,15 @@ export function HoverCard(
           <span className="hover-card-label">Last active</span>
           <span>{lastActive}</span>
         </div>
+      )}
+      {canOpenInVsCode === true && (
+        <button
+          className="btn small hover-card-open-vscode"
+          data-testid="hover-card-open-vscode"
+          onClick={onOpenInVsCode}
+        >
+          Open in VS Code
+        </button>
       )}
     </div>,
     document.body,

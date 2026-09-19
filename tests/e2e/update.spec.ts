@@ -108,6 +108,8 @@ test('an unsigned build offers to download, and says why it cannot install by it
   await expect(banner.getByTestId('update-open-downloaded')).toBeVisible()
   // It must never offer to restart into an update it cannot install.
   await expect(banner.getByTestId('update-install')).toHaveCount(0)
+  // A mac .dmg is an assisted platform too — the copy button must not be a .deb-only affordance.
+  await expect(banner.getByTestId('update-copy-command')).toBeVisible()
 })
 
 test('a build that can install itself offers to restart into the update', async () => {

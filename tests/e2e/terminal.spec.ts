@@ -197,3 +197,60 @@ test('dragging the bottom-pane resizer does not select surrounding page text', a
 
   expect(selectedText).toBe('')
 })
+
+// Regression test: xterm registers its own native `paste` DOM listener on the terminal's
+// textarea independently of attachCustomKeyEventHandler's keydown handling (see
+// @xterm/xterm's Terminal._initGlobal / Clipboard.handlePasteEvent). The key handler used to
+// read the clipboard and write it to the pty itself *as well as* letting that native listener
+// fire, so the same text landed twice — once raw, once wrapped in bracketed-paste markers.
+test('pasting writes the clipboard text once, with no bracketed-paste markers', async () => {
+  await h.page.getByTestId('shell-toggle').click()
+  await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
+  await h.page.getByTestId('terminal-shell').click()
+
+  // Sets the real OS clipboard through Electron's own module, the way a person's copy would —
+  // not `navigator.clipboard.writeText`, which a background page cannot always call without a
+  // user gesture having happened first.
+  const marker = 'APIARY_PASTE_MARKER'
+  await h.app.evaluate(({ clipboard }, text) => clipboard.writeText(text), marker)
+
+  // Ctrl+Shift+V is the terminal's own paste chord on every platform (see TerminalView.tsx) and,
+  // unlike a bare Ctrl+V, is never a control character the shell would swallow — pressing it here
+  // exercises both paths at once: the custom key handler's own clipboard read, and the browser's
+  // independent native `paste` event that xterm listens for on the same keypress.
+  await h.page.keyboard.press('Control+Shift+V')
+
+  await expect(h.page.getByTestId('terminal-shell')).toContainText(marker, { timeout: 10000 })
+  const text = await h.page.getByTestId('terminal-shell').innerText()
+  const occurrences = text.split(marker).length - 1
+  expect(occurrences).toBe(1)
+  expect(text).not.toContain('[200~')
+  expect(text).not.toContain('[201~')
+})
+
+// Regression test, platform-specific chord: Ctrl+Shift+V is a real native paste shortcut on
+// Linux (Chromium fires its own 'paste' DOM event for it, independent of any keydown handling),
+// so that is what the test above drives. But Cmd+V is the actual OS-level paste binding on
+// macOS, and the same risk applies to it: if Chromium there also fires a native 'paste' event as
+// the default action of that chord, the key handler's own preventDefault() has to be the thing
+// stopping it, same as for Ctrl+Shift+V on Linux — reasoning that the shift/meta branch structure
+// covers it is not the same as having measured it. This drives whichever chord is this platform's
+// own paste binding and asserts the same single-write, no-marker outcome.
+test('pasting with the platform paste chord writes the clipboard text once, with no bracketed-paste markers', async () => {
+  await h.page.getByTestId('shell-toggle').click()
+  await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
+  await h.page.getByTestId('terminal-shell').click()
+
+  const marker = 'APIARY_PASTE_MARKER_PLATFORM'
+  await h.app.evaluate(({ clipboard }, text) => clipboard.writeText(text), marker)
+
+  const chord = process.platform === 'darwin' ? 'Meta+V' : 'Control+Shift+V'
+  await h.page.keyboard.press(chord)
+
+  await expect(h.page.getByTestId('terminal-shell')).toContainText(marker, { timeout: 10000 })
+  const text = await h.page.getByTestId('terminal-shell').innerText()
+  const occurrences = text.split(marker).length - 1
+  expect(occurrences).toBe(1)
+  expect(text).not.toContain('[200~')
+  expect(text).not.toContain('[201~')
+})

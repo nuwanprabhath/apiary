@@ -40,15 +40,38 @@ const MAX_TEXT_PER_SESSION = 2 * 1024 * 1024
  * FTS5's query language treats `!`, `#`, `-`, `*` and quotes as syntax, so a raw query like
  * `!1257` is a syntax error rather than a search. Everything is therefore reduced to bare tokens
  * the same way the tokeniser reduces the indexed text, then quoted and ANDed. The final token gets
- * a `*` so the results narrow as you type rather than only on word boundaries.
+ * a `*` so the results narrow as you type rather than only on word boundaries — but only once it
+ * is long enough to be worth it. See MIN_PREFIX_CHARS.
  *
  * Returns null when there is nothing left to search for, which the caller reads as "no query".
  */
+/**
+ * How long the final token must be before it is searched as a prefix.
+ *
+ * A prefix term makes FTS5 walk every token in the index that starts with it, so the cost is
+ * inversely proportional to how much has been typed: the *first* letter is the most expensive
+ * query the index can be asked. Measured on a real library, `"t"*` took **7.7 seconds** while
+ * `"te"*` took 143ms and a whole word took single digits.
+ *
+ * That was not merely slow. `better-sqlite3` is synchronous, so the query ran on the main
+ * process's main thread — and since input reaches a renderer *through* main, typing froze for the
+ * whole 7.7 seconds and the keystrokes arrived afterwards in a burst. The renderer was idle
+ * throughout, which is why it looked like a rendering problem and was twice diagnosed as one.
+ *
+ * Three characters is where the cost becomes ordinary. Below it the token is still searched, just
+ * exactly rather than as a prefix — and titles, paths and branches are filtered in the renderer
+ * against a cached tree, so a one-letter query still narrows the sidebar instantly. What is given
+ * up is content matches for a one- or two-letter fragment, which was never a useful search.
+ */
+const MIN_PREFIX_CHARS = 3
+
 export function toMatchQuery(raw: string): string | null {
   const tokens = raw.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((t) => t !== '')
   if (tokens.length === 0) return null
   return tokens
-    .map((t, i) => (i === tokens.length - 1 ? `"${t}"*` : `"${t}"`))
+    .map((t, i) => (
+      i === tokens.length - 1 && t.length >= MIN_PREFIX_CHARS ? `"${t}"*` : `"${t}"`
+    ))
     .join(' AND ')
 }
 

@@ -10,11 +10,22 @@ import {
 import type { AppService } from './appService'
 import { isTabTransfer, type TabTransfer } from '@shared/types'
 import type { AppSettings } from './settings'
-import { loadSettings, saveSettings } from './settings'
+import { loadSettings, saveSettings, clampRecentHours } from './settings'
 import { log, type LogLevel } from './log/logger'
 import { configureLogging } from './log/configure'
 import type { UpdateService } from './update/updateService'
 import { pickWindowAt } from './windowAtPoint'
+import type { SessionLayoutStore } from './sessionLayoutStore'
+import type { LayoutFlushCoordinator } from './layoutFlushCoordinator'
+import type { WindowLayoutReport } from '@shared/types'
+import { TabRegistry, focusTab, type OpenTab } from './tabRegistry'
+import { classifyActivity } from '@shared/activity'
+
+/**
+ * How often, at most, the Active section's activity broadcast goes out while a pty is producing
+ * output. See the comment where it is used.
+ */
+const ACTIVITY_BROADCAST_MS = 500
 
 export function registerIpc(
   service: AppService,
@@ -24,8 +35,20 @@ export function registerIpc(
   onAutoImportIntervalChange?: (intervalMinutes: number | null) => void,
   /** Null where there is no updater at all (a dev run, or a platform without one). */
   updater?: UpdateService | null,
+  /** Null where the store has not been constructed yet (mirrors `updater` above). */
+  sessionLayoutStore?: SessionLayoutStore | null,
+  /** Told about every incoming `reportLayout` so `before-quit` can wait for a specific window's. */
+  layoutFlushCoordinator?: LayoutFlushCoordinator | null,
   /** Opens a tab in a window of its own. Injected so this module never imports the window code. */
   openDetachedWindow?: (tab: TabTransfer, at: { x: number; y: number }) => void,
+  /** Where every window's open tabs are recorded, for the Active section. Null where the registry
+   *  has not been constructed yet, mirroring `sessionLayoutStore` above. */
+  tabRegistry?: TabRegistry | null,
+  /** Maps the sending window's `webContents.id` to the window number `reportTabs` should file
+   *  under, so `TabRegistry` (keyed by window number, same as `SessionLayoutStore`) never has to
+   *  know about webContents ids at all. Populated in `main/index.ts`, next to where a window's
+   *  number is minted. */
+  windowNumberFor?: (webContentsId: number) => number | null,
 ): () => void {
   /**
    * Every `invoke` handler, wrapped so its failures and its slow cases are recorded.
@@ -40,6 +63,8 @@ export function registerIpc(
    * one that matters next will be whichever nobody thought to instrument.
    */
   type Handler = Parameters<typeof ipcMain.handle>[1]
+
+
   const handle = (channel: string, fn: Handler): void => {
     ipcMain.handle(channel, async (event, ...args) => {
       const started = Date.now()
@@ -77,7 +102,8 @@ export function registerIpc(
   }
 
   handle(CHANNELS.refresh, () => service.refresh())
-  handle(CHANNELS.tree, (_e, query: string) => service.tree(query))
+  handle(CHANNELS.tree, () => service.tree())
+  handle(CHANNELS.searchContent, (_e, query: string) => service.searchSessions(query))
   handle(CHANNELS.discovered, async () =>
     (await service.discovered()).map((s) => ({
       sessionId: s.sessionId,
@@ -95,6 +121,34 @@ export function registerIpc(
   )
   handle(CHANNELS.checkConflict, (_e, id: string) => service.checkConflict(id))
   handle(CHANNELS.resume, (_e, id: string) => service.resume(id))
+  handle(CHANNELS.reportLayout, (e, report: WindowLayoutReport) => {
+    sessionLayoutStore?.reportLayout(report)
+    // Resolves `before-quit`'s bounded wait for this specific window, when one is in progress.
+    layoutFlushCoordinator?.onReport(e.sender.id)
+  })
+  ipcMain.on(
+    CHANNELS.reportTabs,
+    (e, tabs: { key: string; view: 'transcript' | 'terminal'; ptyId: string | null }[]) => {
+      const windowNumber = windowNumberFor?.(e.sender.id) ?? null
+      if (windowNumber === null || !tabRegistry) return
+      tabRegistry.report(windowNumber, tabs.map((t): OpenTab => ({ ...t, windowNumber })))
+    },
+  )
+  handle(CHANNELS.activeTabs, () => (tabRegistry?.list() ?? []).map((t) => ({
+    windowNumber: t.windowNumber,
+    key: t.key,
+    view: t.view,
+    status: classifyActivity(
+      // The rendered screen, not the raw stream — see `classifyActivity` and `pty/screen.ts`.
+      t.ptyId !== null ? service.pty.screen(t.ptyId) : '',
+      t.ptyId !== null ? service.pty.lastOutputAt(t.ptyId) : 0,
+      Date.now(),
+      t.ptyId !== null && service.pty.has(t.ptyId),
+    ),
+  })))
+  handle(CHANNELS.focusTab, (_e, windowNumber: number, key: string) => {
+    focusTab(BrowserWindow.getAllWindows(), windowNumber, key)
+  })
   handle(CHANNELS.renameSession, async (_e, id: string, title: string) => {
     await service.renameSession(id, title)
     // Nothing on disk changed, so the filesystem watcher will never fire for this — push the
@@ -105,6 +159,13 @@ export function registerIpc(
   })
   handle(CHANNELS.removeSession, async (_e, id: string) => {
     await service.removeSession(id)
+    send(CHANNELS.treeChanged)
+  })
+  handle(CHANNELS.moveSession, async (_e, id: string, targetPath: string) => {
+    await service.moveSession(id, targetPath)
+    // Same signal a rename or an archive sends: the sidebar re-reads the (unfiltered, cached)
+    // tree, which now shows the session under its new project instead of the old one.
+    await service.refresh()
     send(CHANNELS.treeChanged)
   })
   handle(CHANNELS.openShell, (_e, id: string, tabId: string) => service.openShell(id, tabId))
@@ -124,6 +185,8 @@ export function registerIpc(
       revealActiveInSidebar: settings.revealActiveInSidebar,
       searchChatContent: settings.searchChatContent,
       searchSessionNotes: settings.searchSessionNotes,
+      recentSectionEnabled: settings.recentSectionEnabled,
+      recentSectionHours: settings.recentSectionHours,
       terminalShortenPath: settings.terminalShortenPath,
       terminalPathSegments: settings.terminalPathSegments,
       diagnosticsEnabled: settings.diagnosticsEnabled,
@@ -162,6 +225,13 @@ export function registerIpc(
       revealActiveInSidebar: keep(next.revealActiveInSidebar, current.revealActiveInSidebar),
       searchChatContent: keep(next.searchChatContent, current.searchChatContent),
       searchSessionNotes: keep(next.searchSessionNotes, current.searchSessionNotes),
+      recentSectionEnabled: keep(next.recentSectionEnabled, current.recentSectionEnabled),
+      // Clamped here rather than trusted as `keep` would leave it: `next.recentSectionHours` is
+      // typed `number` but arrives over IPC from a renderer that is not guaranteed to have
+      // validated it (a stale build, or devtools) — see `clampRecentHours`.
+      recentSectionHours: next.recentSectionHours === undefined
+        ? current.recentSectionHours
+        : clampRecentHours(next.recentSectionHours),
       terminalShortenPath: keep(next.terminalShortenPath, current.terminalShortenPath),
       terminalPathSegments: keep(next.terminalPathSegments, current.terminalPathSegments),
       plugins: keep(next.plugins, current.plugins),
@@ -219,6 +289,10 @@ export function registerIpc(
   )
   handle(CHANNELS.gitListRefs, (_e, key: string, isPtyId: boolean) =>
     service.gitListRefs(key, isPtyId),
+  )
+
+  handle(CHANNELS.gitlabMrRefStatus, (_e, key: string, isPtyId: boolean, iids: number[]) =>
+    service.gitlabMrRefStatus(key, isPtyId, iids),
   )
   handle(CHANNELS.gitCheckoutBranch, async (_e, key: string, isPtyId: boolean, name: string) => {
     const outcome = await service.gitCheckoutBranch(key, isPtyId, name)
@@ -279,6 +353,8 @@ export function registerIpc(
     await service.refresh()
     send(CHANNELS.treeChanged)
   })
+  handle(CHANNELS.vsCodeAvailable, () => service.vsCodeAvailable())
+  handle(CHANNELS.openInVsCode, (_e, key: string, isPtyId: boolean) => service.openInVsCode(key, isPtyId))
   handle(CHANNELS.copyToClipboard, (_e, text: string) => { clipboard.writeText(text) })
   handle(CHANNELS.searchRebuild, async () => { await service.rebuildSearchIndex() })
   handle(CHANNELS.searchStatus, () => ({
@@ -341,6 +417,7 @@ export function registerIpc(
     progressPercent: null,
     downloadedPath: null,
     install: null,
+    openResult: null,
     error: null,
     lastCheckedAt: null,
     skippedVersion: null,
@@ -353,7 +430,8 @@ export function registerIpc(
   handle(CHANNELS.updateDownload, async (): Promise<UpdateStatusPayload> =>
     (await updater?.download()) ?? noUpdater())
   handle(CHANNELS.updateInstall, () => { updater?.install() })
-  handle(CHANNELS.updateOpenDownloaded, async () => { await updater?.openDownloaded() })
+  handle(CHANNELS.updateOpenDownloaded, async () =>
+    (await updater?.openDownloaded()) ?? { ok: 'failed', reason: 'Running from source — there is no updater.' })
   handle(CHANNELS.updateSkip, () => {
     updater?.skip()
     // The skip is a settings change, so it has to reach settings.json as well as the service.
@@ -470,6 +548,36 @@ export function registerIpc(
 
   service.pty.onData((id, data) => send(CHANNELS.ptyData, id, data))
   service.pty.onExit((id, code) => send(CHANNELS.ptyExit, id, code))
+  // A pty's own data/exit changes what `classifyActivity` would say about it without any window
+  // re-reporting its tabs — a long-idle session finally going quiet, or exiting outright — so the
+  // Active section's dots have to be re-broadcast on those too, not just on `tabRegistry.onChange`.
+  //
+  // Coalesced, because pty output is not an event — it is a stream. Broadcasting per chunk meant
+  // a build log in one terminal put out hundreds of broadcasts a second, and *each* one makes
+  // every open window call `activeTabs`, which replays up to 256KB per tab (`REPLAY_BYTES`) and
+  // runs a global ANSI regex plus a split over all of it. It also re-sorted the Recent section
+  // continuously, which is the reflow the hover card already has to survive.
+  //
+  // Leading edge, then at most one broadcast per interval: the first chunk after a quiet period
+  // flips the dot to `running` immediately, and the trailing call is what makes the *last* chunk
+  // count — without it a session that stops producing output would sit showing `running` until
+  // something unrelated happened to broadcast. Two seconds is `classifyActivity`'s running/idle
+  // boundary, so 500ms is comfortably inside the window a status change has to be noticed in.
+  let activityTimer: NodeJS.Timeout | null = null
+  let activityPending = false
+  const broadcastActivity = (): void => {
+    if (activityTimer !== null) { activityPending = true; return }
+    send(CHANNELS.activeTabsChanged)
+    activityTimer = setTimeout(() => {
+      activityTimer = null
+      if (activityPending) { activityPending = false; broadcastActivity() }
+    }, ACTIVITY_BROADCAST_MS)
+  }
+  // Not coalesced: a tab opening or closing is a user action, rare and immediately visible, and
+  // delaying it by up to half a second would be felt.
+  tabRegistry?.onChange(() => send(CHANNELS.activeTabsChanged))
+  service.pty.onData(broadcastActivity)
+  service.pty.onExit(broadcastActivity)
 
   // New session files appear without a restart; debounce because Claude writes often.
   let timer: NodeJS.Timeout | null = null
@@ -488,6 +596,7 @@ export function registerIpc(
 
   return () => {
     if (timer) clearTimeout(timer)
+    if (activityTimer !== null) { clearTimeout(activityTimer); activityTimer = null }
     void watcher.close()
     for (const channel of Object.values(CHANNELS)) {
       ipcMain.removeHandler(channel)

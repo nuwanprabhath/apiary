@@ -3,6 +3,10 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { AppService } from './appService'
 import { registerIpc } from './ipc'
+import { createSessionLayoutStore, loadSessionLayout, type SessionLayoutStore, type WindowLayoutRecord } from './sessionLayoutStore'
+import { createLayoutFlushCoordinator, type LayoutFlushCoordinator } from './layoutFlushCoordinator'
+import { TabRegistry } from './tabRegistry'
+import { pruneStaleLive } from './sessionLayoutRestore'
 import { resolveConfigRoot } from './config'
 import { buildMenu } from './menu'
 import { CHANNELS } from '@shared/api'
@@ -15,6 +19,7 @@ import { createUpdateBackend } from './update/electronUpdaterBackend'
 import { hasDeveloperIdSignature } from './update/macSignature'
 import { log } from './log/logger'
 import { configureLogging } from './log/configure'
+import { detectVsCode } from './vscode/detectVsCode'
 
 const dirname = fileURLToPath(new URL('.', import.meta.url))
 
@@ -33,6 +38,17 @@ let mainWindow: BrowserWindow | null = null
  */
 let windowsOpened = 0
 let settingsFile = ''
+let sessionLayoutStore: SessionLayoutStore | null = null
+let layoutFlushCoordinator: LayoutFlushCoordinator | null = null
+let tabRegistry: TabRegistry | null = null
+/** `webContents.id` -> the window number it was created with, so a `reportTabs` call (which only
+ *  carries the sender's webContents) can be filed under the same number `SessionLayoutStore` and
+ *  the `?w=` URL already use for that window. Populated and cleared right alongside the window
+ *  itself in `createWindow`, the same lifecycle `sessionLayoutStore`'s per-window bookkeeping follows. */
+const windowNumberByWebContentsId = new Map<number, number>()
+function windowNumberFor(webContentsId: number): number | null {
+  return windowNumberByWebContentsId.get(webContentsId) ?? null
+}
 let updater: UpdateService | null = null
 let autoImportTimer: NodeJS.Timeout | null = null
 
@@ -98,11 +114,13 @@ export interface NewWindowOptions {
   detach?: TabTransfer
   /** Where to put it — the pointer, when the window was made by dragging a tab out of another. */
   at?: { x: number; y: number }
+  /** A window being recreated from the previous run's SessionLayoutStore record. */
+  restore?: WindowLayoutRecord
 }
 
 function createWindow(opts: NewWindowOptions = {}): void {
   windowsOpened += 1
-  const windowNumber = windowsOpened
+  const windowNumber = opts.restore?.number ?? windowsOpened
   const isFirst = windowNumber === 1
 
   const detached = opts.detach !== undefined
@@ -112,24 +130,38 @@ function createWindow(opts: NewWindowOptions = {}): void {
     saved && boundsAreOnScreen(saved, screen.getAllDisplays().map((d) => d.workArea))
       ? saved
       : { width: 1400, height: 900 }
+  // A restored window's own recorded bounds are more specific than the app's last-known single
+  // position, so they take precedence over `restored` when they still land on a connected display.
+  const restoreBounds = opts.restore !== undefined
+    && boundsAreOnScreen(opts.restore.bounds, screen.getAllDisplays().map((d) => d.workArea))
+    ? opts.restore.bounds
+    : null
   // Only the first window restores its saved position. A second window opening exactly on top of
   // the first looks like nothing happened, so it cascades instead — the convention every
   // multi-window app uses, and the reason `windowNumber` is not reset.
   const offset = isFirst ? 0 : ((windowNumber - 1) % 5) * 30
-  const bounds = isFirst && !detached
-    ? restored
-    : {
-      // A detached window has no sidebar, so it does not need the width for one — and a window
-      // torn off by dragging should appear under the pointer that tore it off, not cascaded from
-      // wherever the last window happened to be.
-      width: detached ? Math.min(restored.width, 1000) : restored.width,
-      height: restored.height,
-      ...(opts.at !== undefined
-        ? { x: Math.round(opts.at.x - 120), y: Math.round(opts.at.y - 20) }
-        : 'x' in restored && 'y' in restored
-          ? { x: restored.x + offset, y: restored.y + offset }
-          : {}),
-    }
+  // `restoreBounds` takes precedence over the single-window `windowBounds` fallback: a restored
+  // window's own recorded bounds are more specific than the app's last-known single position.
+  const effectiveBounds: { x?: number; y?: number; width: number; height: number } = restoreBounds ?? restored
+  const effectivePos = typeof effectiveBounds.x === 'number' && typeof effectiveBounds.y === 'number'
+    ? { x: effectiveBounds.x, y: effectiveBounds.y }
+    : null
+  const bounds = restoreBounds !== null
+    ? restoreBounds
+    : isFirst && !detached
+      ? effectiveBounds
+      : {
+        // A detached window has no sidebar, so it does not need the width for one — and a window
+        // torn off by dragging should appear under the pointer that tore it off, not cascaded from
+        // wherever the last window happened to be.
+        width: detached ? Math.min(effectiveBounds.width, 1000) : effectiveBounds.width,
+        height: effectiveBounds.height,
+        ...(opts.at !== undefined
+          ? { x: Math.round(opts.at.x - 120), y: Math.round(opts.at.y - 20) }
+          : effectivePos !== null
+            ? { x: effectivePos.x + offset, y: effectivePos.y + offset }
+            : {}),
+      }
 
   const win = new BrowserWindow({
     ...bounds,
@@ -162,29 +194,57 @@ function createWindow(opts: NewWindowOptions = {}): void {
     },
   })
   log.info('window', 'created', { number: windowNumber, detached, at: opts.at !== undefined })
+  // Captured now, not read back off `win.webContents` in the `closed` handler below: by the time
+  // `closed` fires the window (and its webContents) has already been destroyed, and touching
+  // `win.webContents` at that point throws `Object has been destroyed` — uncaught, since `closed`
+  // is an Electron event emitter callback, which took the whole main process down with a native
+  // error dialog every time a window closed.
+  const webContentsId = win.webContents.id
+  windowNumberByWebContentsId.set(webContentsId, windowNumber)
   mainWindow = win
   // The menu and native dialogs act on whichever window is in front, so this follows focus rather
   // than staying pinned to the first window opened.
   win.on('focus', () => { mainWindow = win })
+
+  // Only the first window's geometry is remembered in settings.json: with several open there is
+  // no single "the window" to restore, and letting each one write would mean the last window
+  // moved silently decides where the app opens next time. The session-layout store is different —
+  // it tracks every window by number, so every window's bounds go there regardless.
+  if (!detached) {
+    const persistBounds = (): void => {
+      const current = loadSettings(settingsFile)
+      const normal = win.getNormalBounds()
+      if (isFirst) saveSettings(settingsFile, { ...current, windowBounds: normal })
+      sessionLayoutStore?.reportBounds(windowNumber, normal)
+    }
+    win.on('resized', persistBounds)
+    win.on('moved', persistBounds)
+  }
   win.on('closed', () => {
+    // A window the user closed while carrying on working is genuinely gone and its record should
+    // go with it. A window closing *because the app is shutting down* is not — and the ordinary
+    // way to quit on Linux (and Windows) is the last window's X button, whose Electron ordering is
+    // `closed` -> `window-all-closed` -> `app.quit()` -> `before-quit`. So by the time
+    // `before-quit` flushes the store, the record it should be writing has already been deleted
+    // and the file is written empty: the whole layout is discarded on every quit but Cmd+Q.
+    //
+    // A `quitting` flag alone cannot fix this, because nothing has decided to quit yet when
+    // `closed` fires; neither can snapshotting in `before-quit`, which runs after the deletion.
+    // What is knowable here is that no windows are left, and "no windows" is never a layout worth
+    // persisting — there would be nothing to restore. So the last window out leaves its record
+    // behind, and whatever comes next (a quit, or on macOS a new window from the dock reporting
+    // its own layout) overwrites it.
+    if (!quitting && BrowserWindow.getAllWindows().length > 0) {
+      sessionLayoutStore?.removeWindow(windowNumber)
+    }
+    tabRegistry?.unregisterWindow(windowNumber)
+    windowNumberByWebContentsId.delete(webContentsId)
     if (mainWindow === win) mainWindow = BrowserWindow.getAllWindows()[0] ?? null
   })
 
   // Deliberately never shown in headless mode: `show: false` above is the initial state, and this
   // is the line that would undo it.
   if (!headless) win.on('ready-to-show', () => win.show())
-
-  // Only the first window's geometry is remembered: with several open there is no single "the
-  // window" to restore, and letting each one write would mean the last window moved silently
-  // decides where the app opens next time.
-  if (isFirst && !detached) {
-    const persistBounds = (): void => {
-      const current = loadSettings(settingsFile)
-      saveSettings(settingsFile, { ...current, windowBounds: win.getNormalBounds() })
-    }
-    win.on('resized', persistBounds)
-    win.on('moved', persistBounds)
-  }
 
   // The window's number reaches the renderer through the URL rather than the preload bridge: it is
   // needed before anything else to pick which stored layout to load, and a query string is
@@ -195,6 +255,14 @@ function createWindow(opts: NewWindowOptions = {}): void {
     // The rest of the tab rides alongside the key: which process it runs under and which shells
     // hang off it. See TabTransfer.
     query.transfer = JSON.stringify(opts.detach)
+  }
+  if (opts.restore !== undefined) {
+    // `bounds` and `hasLayout` are stripped because the renderer never needs either: `bounds` is
+    // a main/OS concept (consistent with the renderer never handling window geometry anywhere
+    // else in this file), and `hasLayout` is main's own signal for whether a record is safe to
+    // restore at all — by the time a record reaches here it has already passed that check (see
+    // the `records` filter in `app.whenReady()`), so the renderer has nothing to do with it.
+    query.restore = JSON.stringify({ ...opts.restore, bounds: undefined, hasLayout: undefined })
   }
   if (process.env.ELECTRON_RENDERER_URL) {
     const url = new URL(process.env.ELECTRON_RENDERER_URL)
@@ -283,7 +351,7 @@ function createUpdater(settingsFile: string): UpdateService | null {
           // The extension is what decides the instructions, so the fixture has to get it right.
           return fakeMode === 'deb' ? `/tmp/apiary_${fake}_amd64.deb` : `/tmp/Apiary-${fake}.dmg`
         },
-        openInstaller: async () => { /* Nothing to open in a test. */ },
+        openInstaller: async () => ({ ok: 'opened' as const }),
       }
       : createUpdateBackend({ repo, platform: process.platform, arch: process.arch }),
     settings: readUpdateSettings,
@@ -308,6 +376,10 @@ void app.whenReady().then(async () => {
   const dbPath = process.env.APIARY_DB_PATH ?? join(app.getPath('userData'), 'apiary.db')
   const fakeLive = process.env.APIARY_FAKE_LIVE
   settingsFile = join(app.getPath('userData'), 'settings.json')
+  const sessionLayoutFile = join(app.getPath('userData'), 'session-layout.json')
+  sessionLayoutStore = createSessionLayoutStore(sessionLayoutFile)
+  layoutFlushCoordinator = createLayoutFlushCoordinator()
+  tabRegistry = new TabRegistry()
   const settings = loadSettings(settingsFile)
   // Before anything else that might be worth recording. Off unless the user switched it on.
   configureLogging(settings)
@@ -321,6 +393,13 @@ void app.whenReady().then(async () => {
   // Written straight back, so a migration applied on read is recorded. Without this it would be
   // re-applied on every launch, and a setting the user had since turned off would come back.
   saveSettings(settingsFile, settings)
+  // Test-only, like APIARY_GLAB_PATH: substitutes a fake `code` binary for E2E, and an empty
+  // string simulates VS Code not being found at all. Undefined (never set outside tests) means
+  // run the real detection.
+  const codePathOverride = process.env.APIARY_CODE_PATH
+  const vsCodePath = codePathOverride === undefined
+    ? await detectVsCode()
+    : (codePathOverride === '' ? null : codePathOverride)
   service = new AppService({
     configRoot,
     dbPath,
@@ -336,6 +415,7 @@ void app.whenReady().then(async () => {
     pluginSettings: settings.pluginSettings,
     // Test-only, like APIARY_FAKE_LIVE: points the merge-request plugin at a stand-in `glab`.
     glabPath: process.env.APIARY_GLAB_PATH === '' ? undefined : process.env.APIARY_GLAB_PATH,
+    vsCodePath,
     onPluginsChanged: () => {
       for (const win of BrowserWindow.getAllWindows()) {
         if (!win.isDestroyed()) win.webContents.send(CHANNELS.pluginsChanged)
@@ -353,7 +433,9 @@ void app.whenReady().then(async () => {
   updater = createUpdater(settingsFile)
   disposeIpc = registerIpc(
     service, () => mainWindow, configRoot, settingsFile, setAutoImportInterval, updater,
+    sessionLayoutStore, layoutFlushCoordinator,
     (tab, at) => { createWindow({ detach: tab, at }) },
+    tabRegistry, windowNumberFor,
   )
   await service.refresh()
   // The first refresh runs before the window exists, so nothing is listening for `treeChanged`
@@ -363,7 +445,21 @@ void app.whenReady().then(async () => {
     await service.importAllDiscovered()
   }
   setAutoImportInterval(settings.autoImportIntervalMinutes)
-  createWindow()
+  const stored = loadSessionLayout(sessionLayoutFile)
+  const records = stored.windows
+    .map((r) => pruneStaleLive(r, (id) => service!.sessionIsResumable(id)))
+    .filter((r) => r.layout.panes.some((p) => p.tabs.length > 0))
+  if (records.length === 0) {
+    createWindow()
+  } else {
+    // Advanced to the highest recorded window number before restore begins, so a freshly opened
+    // window after restore does not collide with a recorded number.
+    windowsOpened = Math.max(0, ...records.map((r) => r.number))
+    for (const record of records) {
+      createWindow({ restore: record }) // never combined with { detach } — restored windows are
+      // only ever opened here, never through the drag/tear-off or registerIpc code paths.
+    }
+  }
   Menu.setApplicationMenu(
     buildMenu(
       () => mainWindow?.webContents.send(CHANNELS.openImportDialog),
@@ -398,11 +494,34 @@ void app.whenReady().then(async () => {
 // enough for every live PTY to actually exit (`AppService.dispose()`/`PtyManager.killAll()`
 // wait on each child's real exit, bounded by a short timeout) before we let quit proceed.
 let quitting = false
+let shutdownFinished = false
 app.on('before-quit', (event) => {
-  if (quitting) return
+  // The one quit that is allowed through: the one this handler issues itself once teardown is
+  // done. Everything else is deferred, including a *second* request arriving while the first is
+  // still running — a Cmd+Q on top of a window-close quit, or a test harness calling `app.quit()`
+  // twice. Letting that second one through (as simply returning early used to) tears the process
+  // down in the middle of the teardown it asked for, losing the layout flush and leaving the PTYs
+  // to be reaped by Electron's own cleanup — the native abort the deferral exists to avoid.
+  if (shutdownFinished) return
   event.preventDefault()
+  if (quitting) return
   quitting = true
   void (async () => {
+    try {
+      await shutdown()
+    } finally {
+      // `preventDefault()` above has already stopped this quit, so anything that throws on the way
+      // through must not be allowed to skip `app.quit()` — the app would then be unquittable, with
+      // every later Cmd+Q deferred forever. Losing some saved state on a bad shutdown is
+      // survivable; an app that cannot be quit is not.
+      shutdownFinished = true
+      app.quit()
+    }
+  })()
+})
+
+async function shutdown(): Promise<void> {
+  try {
     // Before dispose(), so a pending rescan can never fire against a closed store.
     setAutoImportInterval(null)
     // The renderer keeps its UI state (selected session, sidebar width, pins) in localStorage, and
@@ -410,11 +529,39 @@ app.on('before-quit', (event) => {
     // after a change could therefore drop it — you would come back to the app having forgotten
     // which session you had open. This forces the pending write out before shutdown continues.
     session.defaultSession.flushStorageData()
+    // Ask every window to report its layout right now, bypassing its own 500ms debounce, and wait
+    // (briefly, bounded — the same shape as the PTY wait above) for each one's `reportLayout` to
+    // actually land before writing the file. Without this, quitting within that debounce window
+    // (e.g. closing the last tab in a pane, then Cmd+Q) would persist an already-stale layout.
+    //
+    // Per window, and every failure swallowed: a window can be destroyed between the
+    // `isDestroyed()` check and the `send()` (there is no way to close that race from here), and
+    // an unhandled throw at that point would take the flush, the dispose and the quit with it.
+    // One window failing to report must cost only that window's layout, never the others'.
+    if (layoutFlushCoordinator !== null) {
+      const coordinator = layoutFlushCoordinator
+      await Promise.all(BrowserWindow.getAllWindows().map(async (win) => {
+        try {
+          if (win.isDestroyed()) return
+          const wait = coordinator.waitFor(win.webContents.id)
+          win.webContents.send(CHANNELS.requestLayoutFlush)
+          await wait
+        } catch (err) {
+          log.warn('window', 'layout flush failed for a window', {
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }))
+    }
+    sessionLayoutStore?.flush()
+  } finally {
+    // Runs even if the layout side threw: the PTYs still have to be reaped before Electron starts
+    // tearing the Node environment down (see the comment above `before-quit`), which is the whole
+    // reason quitting is deferred at all.
     disposeIpc?.()
     await service?.dispose()
-    app.quit()
-  })()
-})
+  }
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

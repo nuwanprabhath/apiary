@@ -45,6 +45,21 @@ describe('toMatchQuery', () => {
     expect(toMatchQuery('')).toBeNull()
     expect(toMatchQuery('   !!!  ')).toBeNull()
   })
+
+  it('does not make a prefix term out of one or two characters', () => {
+    // A prefix term makes FTS5 walk every token in the index beginning with it, so the first
+    // letter typed is the most expensive query the index can be asked. On a real library `"t"*`
+    // took 7.7 seconds — synchronously, on the main process's thread, which froze typing in every
+    // window until it finished. Short tokens are searched exactly instead.
+    expect(toMatchQuery('t')).toBe('"t"')
+    expect(toMatchQuery('te')).toBe('"te"')
+    expect(toMatchQuery('tes')).toBe('"tes"*')
+  })
+
+  it('still prefixes only the last token, and only when it is long enough', () => {
+    expect(toMatchQuery('a test')).toBe('"a" AND "test"*')
+    expect(toMatchQuery('test a')).toBe('"test" AND "a"')
+  })
 })
 
 describe('SearchIndex', () => {

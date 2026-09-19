@@ -7,7 +7,7 @@ Apiary reads the session files Claude Code already writes to `~/.claude/projects
 worktrees under their parent repository, and lets you read any conversation or
 resume it in an embedded terminal in the correct working directory.
 
-![Apiary: a searchable sidebar with pinned and grouped sessions on the left, three sessions arranged in a layout — a live Claude Code session in the large pane, two transcripts stacked beside it, and a shell running under the live one](docs/screenshot.png)
+![Apiary: a searchable sidebar with an Active section listing open sessions, Pinned and grouped sessions below it, and three sessions arranged in a layout on the right — a live Claude Code session in the large pane, two transcripts stacked beside it, and a shell running under the live one](docs/screenshot.png)
 
 ## Features
 
@@ -88,7 +88,19 @@ resume it in an embedded terminal in the correct working directory.
   Settings has the schedule, auto-download and pre-release options.
 - **Everything remembered across restarts** — window size and position, sidebar
   width, which folders are collapsed, the selected session, and the shell pane's
-  height all persist between launches.
+  height all persist between launches. Every window's panes and tabs come back too, and a
+  session that was actually running when you quit resumes running rather than reopening as a
+  plain transcript.
+- **Active and Recent, above and below Pinned** — Active lists every session open across all your
+  windows, with a status dot for running, waiting on you, idle or stopped; clicking one brings its
+  window forward and switches to its tab. Recent lists sessions you've used in the last few hours,
+  with a configurable window, an on/off switch in Settings, and per-row dismissal.
+- **MR status beside the reference** — a `!1234` in a session's title or note shows its state
+  inline, `!1234 (merged)`, resolved through `glab`; it degrades to plain text if `glab` isn't
+  available.
+- **Move a session to another worktree by dragging it there** — drop a sidebar row onto a
+  different worktree and, after a confirmation, Apiary moves it there.
+- **Open in VS Code** — a button on a session's hover card opens its folder directly in VS Code.
 
 ## Install
 

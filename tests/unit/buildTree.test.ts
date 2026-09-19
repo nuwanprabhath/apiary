@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildTree, filterTree } from '../../src/main/tree/buildTree'
+import { buildTree } from '../../src/main/tree/buildTree'
 import type { StoredProject, StoredSession } from '../../src/main/store/sessionStore'
 
 const proj = (path: string, over: Partial<StoredProject> = {}): StoredProject => ({
@@ -86,44 +86,5 @@ describe('buildTree', () => {
       always,
     )
     expect(tree[0].sessions.map((s) => s.sessionId)).toEqual(['new', 'old'])
-  })
-})
-
-describe('filterTree', () => {
-  const projects = [
-    proj('/p/app'),
-    proj('/p/wt', { repoRoot: '/p/repo', isWorktree: true, branch: 'species-list' }),
-  ]
-  const sessions = [
-    sess('s1', '/p/app', { title: 'Fix CSV export' }),
-    sess('s2', '/p/app', { title: 'Add worktree switcher' }),
-    sess('s3', '/p/wt', { title: 'Bump deps' }),
-  ]
-  const tree = buildTree(projects, sessions, new Set(), always)
-
-  it('keeps only sessions matching the title', () => {
-    const out = filterTree(tree, 'csv')
-    expect(out).toHaveLength(1)
-    expect(out[0].sessions.map((s) => s.sessionId)).toEqual(['s1'])
-  })
-
-  it('keeps a whole project when the project label matches', () => {
-    const out = filterTree(tree, 'app')
-    expect(out[0].sessions).toHaveLength(2)
-  })
-
-  it('keeps a worktree when its branch matches, retaining the parent', () => {
-    const out = filterTree(tree, 'species')
-    expect(out[0].path).toBe('/p/repo')
-    const wt = out[0].children[0] as typeof out[0]
-    expect(wt.sessions.map((s) => s.sessionId)).toEqual(['s3'])
-  })
-
-  it('returns the whole tree for an empty query', () => {
-    expect(filterTree(tree, '')).toEqual(tree)
-  })
-
-  it('returns nothing when nothing matches', () => {
-    expect(filterTree(tree, 'zzzz')).toHaveLength(0)
   })
 })

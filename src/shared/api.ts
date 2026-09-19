@@ -7,6 +7,7 @@ import type {
   GitStatus,
   GitRefs,
   TabTransfer,
+  WindowLayoutReport,
 } from './types'
 
 export interface DiscoveredSession {
@@ -29,6 +30,10 @@ export interface AppSettingsPayload {
   searchChatContent: boolean
   /** Search the notes people write on sessions. */
   searchSessionNotes: boolean
+  /** Whether the Recent section (sessions active in the last `recentSectionHours`) is shown. */
+  recentSectionEnabled: boolean
+  /** How far back "recent" looks, in hours. */
+  recentSectionHours: number
   /** Trim the path in the prompt of shells Apiary starts. */
   terminalShortenPath: boolean
   /** How many trailing folders the trimmed prompt keeps. */
@@ -74,6 +79,8 @@ export interface UpdateStatusPayload {
   downloadedPath: string | null
   /** What to do with the downloaded file, decided by the platform it landed on. */
   install: { hint: string; command: string | null; action: 'open' | 'reveal' } | null
+  /** What the last attempt to open/reveal the installer actually did. Null until one has run. */
+  openResult: { ok: 'opened' } | { ok: 'revealed' } | { ok: 'failed'; reason: string } | null
   error: string | null
   lastCheckedAt: number | null
   skippedVersion: string | null
@@ -95,6 +102,15 @@ export interface PluginInfoPayload {
   values: Record<string, string | number | boolean>
 }
 
+/** A tab open somewhere, with the activity `classifyActivity` derived for it, for the sidebar's
+ *  Active section. Mirrors `OpenTab` (`main/tabRegistry.ts`) plus its computed status. */
+export interface ActiveTabPayload {
+  windowNumber: number
+  key: string
+  view: 'transcript' | 'terminal'
+  status: import('./activity').ActivityStatus
+}
+
 /** A button a plugin has contributed to a session's bar. Mirrors main/plugins/types.ts. */
 export interface PluginBarItemPayload {
   pluginId: string
@@ -109,6 +125,7 @@ export interface PluginBarItemPayload {
 export const CHANNELS = {
   refresh: 'apiary:refresh',
   tree: 'apiary:tree',
+  searchContent: 'apiary:search-content',
   discovered: 'apiary:discovered',
   importSessions: 'apiary:import',
   transcript: 'apiary:transcript',
@@ -116,6 +133,7 @@ export const CHANNELS = {
   resume: 'apiary:resume',
   renameSession: 'apiary:rename-session',
   removeSession: 'apiary:remove-session',
+  moveSession: 'apiary:move-session',
   openShell: 'apiary:open-shell',
   openShellForPty: 'apiary:open-shell-for-pty',
   newSessionInProject: 'apiary:new-session-in-project',
@@ -136,6 +154,7 @@ export const CHANNELS = {
   toggleSidebar: 'apiary:toggle-sidebar',
   gitStatus: 'apiary:git-status',
   gitListRefs: 'apiary:git-list-refs',
+  gitlabMrRefStatus: 'apiary:gitlab-mr-ref-status',
   gitCheckoutBranch: 'apiary:git-checkout-branch',
   gitPullWorktree: 'apiary:git-pull-worktree',
   newSessionInWorktree: 'apiary:new-session-in-worktree',
@@ -175,11 +194,23 @@ export const CHANNELS = {
   tabDetach: 'apiary:tab-detach',
   tabAdopt: 'apiary:tab-adopt',
   tabClaimed: 'apiary:tab-claimed',
+  reportLayout: 'apiary:report-layout',
+  requestLayoutFlush: 'apiary:request-layout-flush',
+  reportTabs: 'apiary:report-tabs',
+  activeTabs: 'apiary:active-tabs',
+  activeTabsChanged: 'apiary:active-tabs-changed',
+  focusTab: 'apiary:focus-tab',
+  selectTab: 'apiary:select-tab',
+  vsCodeAvailable: 'apiary:vscode-available',
+  openInVsCode: 'apiary:open-in-vscode',
 } as const
 
 export interface ApiaryApi {
   refresh(): Promise<void>
-  tree(query?: string): Promise<ProjectNode[]>
+  tree(): Promise<ProjectNode[]>
+  /** Session ids matched by conversation content or notes — only worth calling when either search
+   *  setting is on; empty when both are off. */
+  searchContent(query: string): Promise<string[]>
   discovered(): Promise<DiscoveredSession[]>
   importSessions(sessionIds: string[], autoImportProjects: string[]): Promise<void>
   transcript(sessionId: string, beforeIndex?: number): Promise<TranscriptPage>
@@ -195,10 +226,26 @@ export interface ApiaryApi {
    * operation entirely.
    */
   resume(sessionId: string): Promise<void>
+  /** Reports this window's current bounds, panes and tabs so it can be restored on next launch. */
+  reportLayout(report: WindowLayoutReport): Promise<void>
+  /** Tells main what this window currently has open, replacing its previous report. Sent from the
+   *  same effect as `reportLayout`, over the same walk of this window's tabs — see App.tsx. */
+  reportTabs(tabs: { key: string; view: 'transcript' | 'terminal'; ptyId: string | null }[]): void
+  /** Every open tab across every window, with its derived status, for the Active section. */
+  activeTabs(): Promise<ActiveTabPayload[]>
+  /** Fires whenever the registry or any tab's activity status changes. */
+  onActiveTabsChanged(cb: () => void): () => void
+  /** Raises the given window and selects that tab in it. */
+  focusTab(windowNumber: number, key: string): Promise<void>
+  /** Fired in the target window so it can switch to the tab `focusTab` asked for. */
+  onSelectTab(cb: (key: string) => void): () => void
   /** Sets (empty/whitespace-only clears) a session's user-facing title. */
   renameSession(sessionId: string, title: string): Promise<void>
   /** Removes a session from view (never touches the JSONL on disk). Rejects while it is live. */
   removeSession(sessionId: string): Promise<void>
+  /** Moves a session's transcript to another worktree. Rejects while it is live, if the target
+   *  file already exists, or if `targetProjectPath` is not a project the store already knows. */
+  moveSession(sessionId: string, targetProjectPath: string): Promise<void>
   openShell(sessionId: string, tabId: string): Promise<void>
   /** Same as `openShell`, but for a new session's pty before it has a real session id yet. */
   openShellForPty(ptyId: string, tabId: string): Promise<void>
@@ -243,6 +290,12 @@ export interface ApiaryApi {
   onTabAdopt(cb: (tab: TabTransfer) => void): () => void
   /** Fired when another window has taken a tab this one was showing. */
   onTabClaimed(cb: (key: string) => void): () => void
+  /**
+   * Fired by main's `before-quit` handler, which waits (briefly, bounded) for the resulting
+   * `reportLayout` call before writing the file — so a quit landing inside this window's own
+   * 500ms layout debounce does not persist stale, already-closed tabs.
+   */
+  onRequestLayoutFlush(cb: () => void): () => void
   /** Fired when `File > New Session in Folder...` starts a session via the native dialog. */
   onNewSessionStarted(cb: (info: NewSessionInfo) => void): () => void
   ptyWrite(id: string, data: string): void
@@ -273,6 +326,11 @@ export interface ApiaryApi {
   onToggleSidebar(cb: () => void): () => void
   gitStatus(key: string, isPtyId: boolean): Promise<GitStatus>
   gitListRefs(key: string, isPtyId: boolean): Promise<GitRefs>
+  /** Resolves each of the given `!<iid>` references against the session's GitLab remote (if it
+   *  has one); a ref with no answer yet — no remote, no glab, a lookup failure — maps to null. */
+  gitlabMrRefStatus(
+    key: string, isPtyId: boolean, iids: number[],
+  ): Promise<Record<number, 'opened' | 'merged' | 'closed' | 'locked' | null>>
   /**
    * Checks out a branch. Resolves with `{ ok: false, conflict }` when another worktree already
    * has it — which is an outcome to act on, not an error to report. Anything else still rejects.
@@ -289,6 +347,10 @@ export interface ApiaryApi {
   gitPush(key: string, isPtyId: boolean): Promise<void>
   gitMerge(key: string, isPtyId: boolean, ref: string): Promise<void>
   gitFetch(key: string, isPtyId: boolean): Promise<void>
+  /** Whether VS Code was found on this machine at launch. Checked once; does not change at runtime. */
+  vsCodeAvailable(): Promise<boolean>
+  /** Opens the session's folder in VS Code. Rejects if VS Code was not found or the folder is gone. */
+  openInVsCode(key: string, isPtyId: boolean): Promise<void>
   copyToClipboard(text: string): Promise<void>
   /** Wipes and rebuilds the conversation index; resolves when the pass has finished. */
   searchRebuild(): Promise<void>
@@ -322,8 +384,8 @@ export interface ApiaryApi {
   updateDownload(): Promise<UpdateStatusPayload>
   /** Restarts into a staged update. Only meaningful when the phase is `ready`. */
   updateInstall(): Promise<void>
-  /** Opens an already-downloaded installer again (the assisted flow). */
-  updateOpenDownloaded(): Promise<void>
+  /** Opens an already-downloaded installer again (the assisted flow); reports what happened. */
+  updateOpenDownloaded(): Promise<{ ok: 'opened' } | { ok: 'revealed' } | { ok: 'failed'; reason: string }>
   updateSkip(): Promise<void>
   updateDismiss(): Promise<void>
   /** Pushed whenever the updater's state changes, to every window. */

@@ -4,6 +4,7 @@ import {
   type UpdateBackend, type UpdateSettings, type UpdateStatus, type FeedResult,
 } from '../../src/main/update/updateService'
 import type { CapabilityInput } from '../../src/main/update/capability'
+import type { OpenInstallerResult } from '../../src/main/update/updateService'
 
 /**
  * The updater's behaviour, driven against a stub backend and a clock the test owns.
@@ -49,9 +50,12 @@ class StubBackend implements UpdateBackend {
     return this.installerPath
   }
 
-  async openInstaller(path: string, action: 'open' | 'reveal'): Promise<void> {
+  openResult: OpenInstallerResult = { ok: 'opened' }
+
+  async openInstaller(path: string, action: 'open' | 'reveal'): Promise<OpenInstallerResult> {
     this.opened.push(path)
     this.openActions.push(action)
+    return this.openResult
   }
 
   readonly openActions: ('open' | 'reveal')[] = []
@@ -392,5 +396,13 @@ describe('a downloaded .deb, which nothing on the desktop can open', () => {
     await mac.service.download()
 
     expect(mac.backend.openActions).toEqual(['open'])
+  })
+
+  it('remembers what happened when the installer was handed over, so the banner can say so', async () => {
+    const mac = harness(macUnsigned)
+    mac.backend.openResult = { ok: 'revealed' }
+    await mac.service.check({ manual: false })
+    const status = await mac.service.download()
+    expect(status.openResult).toEqual({ ok: 'revealed' })
   })
 })

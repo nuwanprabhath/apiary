@@ -1,9 +1,26 @@
+import { useEffect, useMemo, useState } from 'react'
 import type { SessionNode } from '@shared/types'
+import { parseMrRefs } from '@shared/mrRefs'
 import { NoteIcon, PinIcon, SplitIcon, TrashIcon } from './icons'
 import { HoverCard } from './HoverCard'
+import { MrRefText, type MrState } from './mrRefText'
 import { useHoverCard } from './useHoverCard'
 import { LayoutMenuButton } from './LayoutMenuButton'
 import { useLayoutActions } from '../state/layoutContext'
+import { useNotifications } from '../state/notifications'
+
+/**
+ * Whether VS Code was found, read once for every row rather than once per row: main-process
+ * detection runs a single time at startup and never changes, so a hundred rows each awaiting
+ * their own `ipcRenderer.invoke` would be a hundred round trips for one fact. The first row to
+ * mount starts the lookup; every other row (mounted before or after) shares its result.
+ */
+let vsCodeAvailable: boolean | null = null
+let vsCodeAvailablePromise: Promise<boolean> | null = null
+function loadVsCodeAvailable(): Promise<boolean> {
+  vsCodeAvailablePromise ??= window.apiary.vsCodeAvailable().then((v) => { vsCodeAvailable = v; return v })
+  return vsCodeAvailablePromise
+}
 
 /** Days since a session was last touched, in the compact form the sidebar has room for. */
 /** An absolute timestamp for the tooltip — "8d" is for the row, where space is the constraint. */
@@ -41,6 +58,10 @@ interface Props {
    * time the session ran and can be months out of date.
    */
   folderBranch?: string | null
+  /** Shown under the title instead of the row's usual folder-branch tooltip context — the flat
+   *  search list's way of saying which worktree a result lives in, since there is no folder header
+   *  above it to say so. */
+  subtitle?: string | null
 }
 
 /**
@@ -56,12 +77,44 @@ interface Props {
  */
 export function SessionRow({
   session, selected, pinned, onSelect, onSplit, onDelete, onTogglePin, onEditNote, onMenu,
-  folderBranch,
+  folderBranch, subtitle,
 }: Props): JSX.Element {
   const hasNote = session.note !== null && session.note !== ''
   const { anchor: cardAnchor, ref: wrapRef, arm, keepOpen, scheduleClose, hideNow } =
     useHoverCard<HTMLDivElement>()
   const { place, isOpen } = useLayoutActions()
+  const { notifyError } = useNotifications()
+
+  const [canOpenInVsCode, setCanOpenInVsCode] = useState(vsCodeAvailable ?? false)
+  useEffect(() => {
+    if (vsCodeAvailable !== null) { setCanOpenInVsCode(vsCodeAvailable && session.cwdExists); return }
+    void loadVsCodeAvailable().then((v) => { setCanOpenInVsCode(v && session.cwdExists) })
+  }, [session.cwdExists])
+
+  // Resolves `!<iid>` references named in the title and the note independently, so the hover
+  // card — a pure display component with no IPC calls of its own — is simply handed the answer.
+  const titleRefs = useMemo(() => parseMrRefs(session.title), [session.title])
+  const [mrStatuses, setMrStatuses] = useState<Record<number, MrState | null>>({})
+  useEffect(() => {
+    if (titleRefs.length === 0) { setMrStatuses({}); return }
+    let cancelled = false
+    void window.apiary.gitlabMrRefStatus(session.sessionId, false, titleRefs.map((r) => r.iid))
+      .then((result) => { if (!cancelled) setMrStatuses(result) })
+      .catch(() => { /* an unresolved reference just stays plain text */ })
+    return () => { cancelled = true }
+  }, [session.sessionId, titleRefs])
+
+  const noteText = session.note ?? ''
+  const noteRefs = useMemo(() => parseMrRefs(noteText), [noteText])
+  const [noteMrStatuses, setNoteMrStatuses] = useState<Record<number, MrState | null>>({})
+  useEffect(() => {
+    if (noteRefs.length === 0) { setNoteMrStatuses({}); return }
+    let cancelled = false
+    void window.apiary.gitlabMrRefStatus(session.sessionId, false, noteRefs.map((r) => r.iid))
+      .then((result) => { if (!cancelled) setNoteMrStatuses(result) })
+      .catch(() => { /* an unresolved reference just stays plain text */ })
+    return () => { cancelled = true }
+  }, [session.sessionId, noteRefs])
 
   return (
     <div
@@ -69,6 +122,16 @@ export function SessionRow({
       data-pinned={pinned}
       data-session-id={session.sessionId}
       ref={wrapRef}
+      // A pinned row is already wrapped in its own draggable div (the pin-reorder gesture — see
+      // Sidebar.tsx); nesting a second draggable element inside it would make a native drag pick
+      // the innermost one and silently break reordering, since only one `dragstart` ever fires
+      // for a real mouse drag. The pinned section is never a valid move target anyway (it mirrors
+      // a folder row's session, it is not one), so the move gesture only makes sense here.
+      draggable={!pinned}
+      onDragStart={pinned ? undefined : (e) => {
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('application/x-apiary-session', session.sessionId)
+      }}
       onContextMenu={(e) => {
         if (onMenu === undefined) return
         e.preventDefault()
@@ -102,8 +165,15 @@ export function SessionRow({
               : null
           }
           note={session.note}
+          noteMrStatuses={noteMrStatuses}
           lastActive={session.lastActiveAtMs === null ? null : fullTime(session.lastActiveAtMs)}
           missing={!session.cwdExists}
+          canOpenInVsCode={canOpenInVsCode}
+          onOpenInVsCode={() => {
+            window.apiary.openInVsCode(session.sessionId, false).catch((e: unknown) => {
+              notifyError(e, 'Could not open VS Code')
+            })
+          }}
           onPointerEnter={keepOpen}
           onPointerLeave={scheduleClose}
         />
@@ -116,7 +186,10 @@ export function SessionRow({
         onClick={() => onSelect(session)}
       >
         {session.isLive && <span className="live-dot" aria-label="running" />}
-        <span className="session-title">{session.title}</span>
+        <span className="session-title">
+          <MrRefText text={session.title} statuses={mrStatuses} />
+        </span>
+        {subtitle != null && <span className="session-subtitle" data-testid="session-subtitle">{subtitle}</span>}
         {hasNote && (
           // Marked in the row itself, not only in the actions: which sessions you have annotated
           // is worth knowing while scanning the list, and the actions only appear on hover.
@@ -155,6 +228,9 @@ export function SessionRow({
         ariaLabel={`Open session ${session.title} to the side`}
         heading={isOpen(session.sessionId) ? `Move “${session.title}” here` : `Open “${session.title}” here`}
         onClick={() => { onSplit(session) }}
+        // The row's own hover card is still up when the pointer reaches this button — it opened on
+        // the way past. Two overlapping popups from one movement is unreadable, so the card yields.
+        onOpen={hideNow}
         onPick={(preset, zone) => { hideNow(); place({ kind: 'session', session }, preset, zone) }}
       >
         <SplitIcon />

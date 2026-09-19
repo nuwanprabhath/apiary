@@ -40,6 +40,38 @@
   --warning: #e3b341;
   --info: #6cb6ff;
 
+  /* The Active section's status dot — one token per state's colour, plus the shape and the pulse
+   * timing shared by the two states that mean "something is happening right now" (running/waiting).
+   * idle/stopped are motionless, so they need no duration of their own. */
+  --status-running: var(--info);
+  --status-waiting: var(--warning);
+  --status-idle: var(--muted);
+  --status-stopped: var(--border);
+  /* The drawn size of an icon inside a control, for inline SVGs that carry no size of their own. */
+  --icon-size: 14px;
+  /* The search box's "still filtering" spinner, offset to clear the button beside it. */
+  --search-spinner-size: 12px;
+  --search-spinner-width: 2px;
+  --search-spinner-right: 26px;
+  --search-spinner-duration: 0.7s;
+  --status-dot-size: 8px;
+  --status-ring-width: 2px;
+  /* Three states, three motions — see the .status-dot rules for why they differ this much. */
+  --status-breathe-duration: 2s;
+  --status-breathe-min-opacity: 0.3;
+  --status-breathe-min-scale: 0.7;
+  --status-attention-duration: 1.4s;
+  --status-attention-spread: 7px;
+  --status-attention-scale: 1.35;
+
+  /* A `!<iid>` reference's resolved GitLab state (see MrRefText). --mr-opened/--mr-closed/
+   * --mr-locked reuse the general status tones; --mr-merged is its own, since a merged MR is
+   * neither an error nor a warning — it is the answer everyone hopes for. */
+  --mr-opened: var(--info);
+  --mr-merged: #b385f5;
+  --mr-closed: var(--danger);
+  --mr-locked: var(--muted);
+
   /* Lift for anything that floats over the rest of the app (notifications, popovers). */
   --shadow-overlay: 0 8px 28px rgba(0, 0, 0, 0.45);
 
@@ -413,6 +445,31 @@ button:not([class]) {
 .search-clear:hover, .search-clear:focus-visible { background: var(--hover); color: var(--text); }
 .search-clear svg { width: 12px; height: 12px; display: block; }
 
+/*
+ * Shown while the typed query and the results on screen disagree — i.e. a large library is still
+ * being filtered. It sits to the left of the clear button rather than replacing it, so the two
+ * never fight over the same spot and clearing stays available while a search is in flight.
+ *
+ * This is the honest half of the search's contract: typing is always instant, and filtering a few
+ * thousand sessions may not be, so the box says so instead of appearing to have ignored you.
+ */
+.search-spinner {
+  position: absolute;
+  right: var(--search-spinner-right);
+  top: 50%;
+  width: var(--search-spinner-size);
+  height: var(--search-spinner-size);
+  margin-top: calc(var(--search-spinner-size) / -2);
+  border: var(--search-spinner-width) solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin var(--search-spinner-duration) linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Still visible, still meaningful — just not rotating. */
+  .search-spinner { animation: none; border-top-color: var(--accent); }
+}
+
 .icon-button { color: var(--muted); padding: 0 8px; }
 
 /* Refresh button's own icon spins for as long as the refresh it triggered is still in
@@ -432,12 +489,84 @@ button:not([class]) {
 .sidebar-refresh { gap: 5px; }
 .sidebar-hide,
 .sidebar-rail .icon-button { padding: 0 5px; flex: none; }
+/*
+ * An inline <svg> with a viewBox and no width/height has no intrinsic size, so inside a flex
+ * button it can collapse to nothing and leave a button that is visibly an empty box. Sized here,
+ * on the control layer, rather than per button — the Recent dismiss button was the one place that
+ * had never been given a size of its own, and it looked broken because of it. The two rules below
+ * are more specific and keep the larger glyphs they already had.
+ */
+.icon-button svg { width: var(--icon-size); height: var(--icon-size); flex: none; }
 .sidebar-hide svg,
 .sidebar-rail .icon-button svg { width: 16px; height: 16px; flex: none; }
 .sidebar-refresh svg { width: 14px; height: 14px; flex: none; }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/*
+ * Claude is working, and wants nothing: a slow, even breath. No halo, no bounce — the dot should
+ * register as "alive" in peripheral vision and then be ignorable, because a row in this state is
+ * one the user has already decided not to look at.
+ */
+@keyframes status-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: var(--status-breathe-min-opacity); transform: scale(var(--status-breathe-min-scale)); }
+}
+
+/*
+ * Claude is asking something: a double knock. Two quick beats, each throwing off a halo, then a
+ * rest — the rhythm of a notification rather than a heartbeat, deliberately unlike the smooth
+ * breathing above so the two are told apart by movement alone and not only by hue. This is the
+ * one state the user is meant to notice from across the room, possibly on another screen.
+ */
+@keyframes status-attention {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 var(--pulse-color); }
+  12% { transform: scale(var(--status-attention-scale)); }
+  30% { transform: scale(1); box-shadow: 0 0 0 var(--status-attention-spread) transparent; }
+  32% { box-shadow: 0 0 0 0 var(--pulse-color); }
+  44% { transform: scale(var(--status-attention-scale)); }
+  62% { transform: scale(1); box-shadow: 0 0 0 var(--status-attention-spread) transparent; }
+  100% { transform: scale(1); box-shadow: 0 0 0 var(--status-attention-spread) transparent; }
+}
+
+.status-dot {
+  width: var(--status-dot-size);
+  height: var(--status-dot-size);
+  border-radius: 50%;
+  flex: none;
+}
+.status-dot[data-status="running"] {
+  background: var(--status-running);
+  animation: status-breathe var(--status-breathe-duration) ease-in-out infinite;
+}
+.status-dot[data-status="waiting"] {
+  background: var(--status-waiting);
+  --pulse-color: color-mix(in srgb, var(--status-waiting) 70%, transparent);
+  animation: status-attention var(--status-attention-duration) ease-out infinite;
+}
+/* Idle is the absence of motion, which is the point: stillness is what makes the two animated
+   states legible as states rather than as decoration. */
+.status-dot[data-status="idle"] { background: var(--status-idle); }
+.status-dot[data-status="stopped"] {
+  background: transparent;
+  border: var(--status-ring-width) solid var(--status-idle);
+}
+
+/* The colour alone still tells the four states apart, so turning motion off costs nothing —
+ * this is the one rule in the file that reads a media feature, because it is the one place an
+ * indefinite loop is added for a *state*, not a one-shot transition like the refresh spinner. */
+@media (prefers-reduced-motion: reduce) {
+  .status-dot[data-status="running"],
+  .status-dot[data-status="waiting"] {
+    animation: none;
+  }
+  /* With motion off, the one state that still has to stand out keeps a static halo — the row
+     highlight below is unaffected either way, so "needs you" never depends on movement alone. */
+  .status-dot[data-status="waiting"] {
+    box-shadow: 0 0 0 var(--status-ring-width) var(--pulse-color);
+  }
 }
 
 .tree { list-style: none; margin: 0; padding: 0; }
@@ -582,8 +711,18 @@ button:not([class]) {
 }
 
 .session-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-subtitle { color: var(--muted); }
 .session-time { color: var(--muted); font-size: 11px; }
 .missing { color: var(--danger); font-size: 11px; }
+
+/* A `!<iid>` reference whose GitLab status has resolved (see MrRefText). Unresolved references
+ * render as plain text alongside this, with no rule of their own — the point is that nothing here
+ * shifts layout while a lookup is still in flight. */
+.mr-ref { font-weight: 600; }
+.mr-ref[data-state="opened"] { color: var(--mr-opened); }
+.mr-ref[data-state="merged"] { color: var(--mr-merged); }
+.mr-ref[data-state="closed"] { color: var(--mr-closed); }
+.mr-ref[data-state="locked"] { color: var(--mr-locked); }
 
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex: none; }
 
@@ -1182,6 +1321,7 @@ button:not([class]) {
   font: inherit;
 }
 .branch-switcher-row:hover { background: var(--selected); }
+.branch-switcher-row[data-active="true"] { background: var(--selected); }
 .branch-switcher-row-meta { color: var(--muted); font-size: 11px; }
 .branch-switcher-action {
   display: block;
@@ -1337,6 +1477,60 @@ button:not([class]) {
  * collapsing a folder rather than like a separate mechanism.
  */
 .pinned-section { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px; }
+
+/* Active section: every open tab across every window, mission-control style, above Pinned. */
+.active-section { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px; }
+.active-window-number { color: var(--muted); font-size: 11px; margin-left: auto; }
+/* The header is hoverable and focusable rather than decorative, because it carries the legend. */
+.active-header { cursor: help; }
+.active-header:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/*
+ * A row waiting on an answer is marked on the row, not only on its dot. An 8px dot is easy to miss
+ * in a sidebar that is often on a second screen, and this is the one status with a cost to missing
+ * it: Claude is stopped, waiting, and will stay that way until someone looks. The edge is static —
+ * the dot already carries the motion, and two moving things in one row is noise.
+ */
+.active-tab-row:has(.status-dot[data-status="waiting"]) {
+  background: color-mix(in srgb, var(--status-waiting) 10%, transparent);
+  box-shadow: inset var(--status-ring-width) 0 0 0 var(--status-waiting);
+}
+
+/* The legend behind the Active header. Laid out as a grid so the meanings line up in a column
+   that can be read down, rather than each starting wherever its status name happened to end. */
+/* Qualified with `.hover-card`, which it reuses for the panel chrome and which is defined later
+   in this file — an unqualified `.activity-legend` loses the `display` to it on source order. */
+.hover-card.activity-legend {
+  pointer-events: none;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 4px 8px;
+  align-items: center;
+}
+.activity-legend .hover-card-title { grid-column: 1 / -1; }
+.activity-legend-row { display: contents; }
+.activity-legend-name { font-weight: 600; white-space: nowrap; }
+.activity-legend-meaning { color: var(--muted); }
+
+/* Recent section: same shape as Pinned, directly below it — sessions worked in lately rather
+ * than deliberately promoted, so leaving is not the same as losing the session. */
+.recent-section { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px; }
+.recent-row-wrap { position: relative; }
+/*
+ * The dismiss button follows the same take-turns rule as the row actions: hidden until the row is
+ * hovered or focused, so it and the session's age share the strip at the right-hand end instead of
+ * the button permanently sitting on top of the date. Shown always, it rendered as a bare grey
+ * block over the timestamp — the icon inside it had no size of its own (see `.icon-button svg`
+ * above), so what was left was the button's background and nothing else.
+ */
+.recent-dismiss {
+  position: absolute;
+  right: var(--control-gap);
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+}
+.recent-row-wrap:hover .recent-dismiss,
+.recent-row-wrap:focus-within .recent-dismiss { display: inline-flex; }
 .pinned-header {
   display: flex;
   align-items: center;
@@ -1841,6 +2035,8 @@ button:not([class]) {
 .folder-group { margin-bottom: 2px; border-radius: 6px; }
 /* The whole group lights up as a folder is dragged over it, since the whole group is the target. */
 .folder-group[data-drop-into="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
+/* A folder row lights up while a session is dragged over it — the drag-to-move-session target. */
+.project-row-wrap[data-drop-target="true"] { box-shadow: inset var(--focus-ring); }
 .folder-group-header {
   display: flex;
   align-items: center;
@@ -1895,6 +2091,7 @@ button:not([class]) {
 .hover-card-row { display: flex; gap: 6px; align-items: center; }
 .hover-card-label { color: var(--muted); min-width: 72px; }
 .hover-card-branch { color: var(--accent); word-break: break-all; }
+.hover-card-open-vscode { margin-top: var(--control-gap); align-self: flex-start; }
 
 /* The note glyph beside a title, marking a session that has one. Muted rather than accented: it
    is a fact about the row, not a call to action.

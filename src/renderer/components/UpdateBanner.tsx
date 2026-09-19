@@ -114,17 +114,34 @@ export function UpdateBanner(
             className="btn primary"
             data-testid="update-open-downloaded"
             onClick={() => {
-              // Caught rather than left to the global unhandled-rejection net, which would put
-              // Electron's own words in front of the user — "reply was never sent" — and say
-              // nothing about the file that is sitting on their disk, ready to install.
-              void window.apiary.updateOpenDownloaded().catch(() => {
-                notify({
-                  kind: 'error',
-                  message: status.downloadedPath === null
-                    ? 'Could not hand the installer to your desktop.'
-                    : `Could not hand the installer to your desktop. It is at ${status.downloadedPath}`,
+              void window.apiary.updateOpenDownloaded()
+                .then((result) => {
+                  if (result.ok === 'opened') return
+                  if (result.ok === 'revealed') {
+                    notify({
+                      kind: 'info',
+                      message: 'Showed the installer in your file manager — open it from there to finish.',
+                    })
+                    return
+                  }
+                  notify({
+                    kind: 'error',
+                    message: status.downloadedPath === null
+                      ? 'Could not hand the installer to your desktop.'
+                      : `Could not hand the installer to your desktop. It is at ${status.downloadedPath}`,
+                  })
                 })
-              })
+                // Caught rather than left to the global unhandled-rejection net, which would put
+                // Electron's own words in front of the user — "reply was never sent" — and say
+                // nothing about the file that is sitting on their disk, ready to install.
+                .catch(() => {
+                  notify({
+                    kind: 'error',
+                    message: status.downloadedPath === null
+                      ? 'Could not hand the installer to your desktop.'
+                      : `Could not hand the installer to your desktop. It is at ${status.downloadedPath}`,
+                  })
+                })
             }}
           >
             {status.install?.action === 'reveal' ? 'Show in folder' : 'Open installer'}

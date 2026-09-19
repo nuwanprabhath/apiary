@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
+import { writeFileSync, readFileSync, chmodSync } from 'node:fs'
+import { join } from 'node:path'
 import { launchApiary, importAll, type Harness, sidebarSession } from './helpers'
 
 let h: Harness
@@ -46,6 +48,55 @@ test('switches branch via the branch switcher', async () => {
 
   await expect(h.page.getByTestId('branch-switcher')).toHaveCount(0)
   await expect(h.page.getByTestId('toolbar-branch-button')).toContainText('feature/from-switcher')
+})
+
+test('Enter checks out an exact branch name; a partial one does nothing', async () => {
+  execFileSync('git', ['branch', 'feature/exact-enter'], { cwd: h.repoRoot })
+
+  await h.page.getByTestId('toolbar-branch-button').click()
+  // Wait for the refs to actually be loaded before typing — the search input accepts keystrokes
+  // immediately on open, but Enter's exact-match check is computed against the fetched ref list,
+  // which arrives over IPC. Typing and pressing Enter before it lands would race, since a null
+  // ref list can never produce a match.
+  await expect(h.page.getByTestId('branch-switcher-branch-row').filter({ hasText: 'feature/exact-enter' })).toBeVisible()
+  await h.page.getByTestId('branch-switcher-search').fill('feature/exact-enter')
+  await h.page.getByTestId('branch-switcher-search').press('Enter')
+
+  await expect(h.page.getByTestId('branch-switcher')).toHaveCount(0)
+  await expect(h.page.getByTestId('toolbar-branch-button')).toContainText('feature/exact-enter')
+
+  await h.page.getByTestId('toolbar-branch-button').click()
+  await h.page.getByTestId('branch-switcher-search').fill('feature/exact')
+  await h.page.getByTestId('branch-switcher-search').press('Enter')
+
+  // Still open, and still on the branch it started on — a partial match is not a choice.
+  await expect(h.page.getByTestId('branch-switcher')).toBeVisible()
+})
+
+test('a second Enter while a checkout is in flight does not fire a second checkout', async () => {
+  execFileSync('git', ['branch', 'feature/slow-checkout'], { cwd: h.repoRoot })
+
+  // A real post-checkout hook that sleeps and records each invocation. This opens a genuine
+  // window — not a simulated one — where the component's `busy` state is true while
+  // gitCheckoutBranch's underlying `git checkout` is still running, so a second Enter pressed in
+  // that window proves whether the guard on the keyboard path (mirroring the row buttons'
+  // `disabled={busy}`) actually stops a second concurrent checkout.
+  const marker = join(h.repoRoot, 'checkout-calls.log')
+  const hookPath = join(h.repoRoot, '.git', 'hooks', 'post-checkout')
+  writeFileSync(hookPath, `#!/bin/sh\necho called >> "${marker}"\nsleep 1\n`)
+  chmodSync(hookPath, 0o755)
+
+  await h.page.getByTestId('toolbar-branch-button').click()
+  await expect(h.page.getByTestId('branch-switcher-branch-row').filter({ hasText: 'feature/slow-checkout' })).toBeVisible()
+  await h.page.getByTestId('branch-switcher-search').fill('feature/slow-checkout')
+  await h.page.getByTestId('branch-switcher-search').press('Enter')
+  // The hook is still sleeping when this lands — without the busy guard this fires a second
+  // gitCheckoutBranch for the same ref.
+  await h.page.getByTestId('branch-switcher-search').press('Enter')
+
+  await expect(h.page.getByTestId('branch-switcher')).toHaveCount(0, { timeout: 5000 })
+  await expect(h.page.getByTestId('toolbar-branch-button')).toContainText('feature/slow-checkout')
+  expect(readFileSync(marker, 'utf8').trim().split('\n')).toEqual(['called'])
 })
 
 test('creates a new branch from the branch switcher', async () => {

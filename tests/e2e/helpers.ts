@@ -16,6 +16,8 @@ export interface Harness {
   workdir: string
   /** cwd of the fixture session in the second plain (non-git) project folder, "work-b". */
   workdirB: string
+  /** Where the stand-in `code` binary (see `codePath`) records the folders it was asked to open. */
+  vsCodeLog: string
   /** Root of the fixture git repo, "repo-c" — has its own session plus a nested worktree. */
   repoRoot: string
   /** A `git worktree add` checkout of repoRoot, nested under it in the tree. */
@@ -114,6 +116,18 @@ export async function launchApiary(
     staleBranchSession?: boolean
     /** A stand-in `glab` for the merge-request plugin (see scripts/fixtures/fake-glab.sh). */
     glabPath?: string
+    /**
+     * A stand-in `code` binary (see scripts/fixtures/fake-code.sh), substituted for real
+     * detection so the "Open in VS Code" button's spawn never launches a real editor. Empty
+     * string simulates VS Code not being found at all; omitted behaves the same way, so specs
+     * that do not care about this feature never see the button.
+     */
+    codePath?: string
+    /**
+     * Overrides the repo-c fixture session's title — used to give it a `!<iid>` reference so the
+     * MR-status lookup (mrStatus.spec.ts) has something to resolve against a real GitLab remote.
+     */
+    sessionTitle?: string
     /** Makes the stand-in `glab` report no merge requests, or fail outright. */
     glabEmpty?: boolean
     glabFails?: boolean
@@ -180,7 +194,7 @@ export async function launchApiary(
     sessionId: '33333333-3333-3333-3333-333333333333',
     cwd: repoRoot,
     gitBranch: 'main',
-    title: 'Repo root session',
+    title: opts.sessionTitle ?? 'Repo root session',
   })
   makeSession(projects, '-repo-c-wt', {
     sessionId: '44444444-4444-4444-4444-444444444444',
@@ -224,6 +238,7 @@ export async function launchApiary(
     })
   }
 
+  const vsCodeLog = join(home, 'vscode-log.txt')
   const app = await electron.launch({
     // Every launch gets its own Chromium profile dir under the throwaway `home` this call
     // already created, instead of sharing Electron's OS-default userData directory (and thus
@@ -239,6 +254,11 @@ export async function launchApiary(
       APIARY_FAKE_GLAB_FAIL: opts.glabFails === true ? '1' : '',
       APIARY_FAKE_GLAB_MERGED: opts.glabMerged === true ? '1' : '',
       APIARY_FAKE_UPDATE_MODE: opts.updateMode ?? 'assisted',
+      // Empty when omitted — main/index.ts treats that as "VS Code not found" rather than
+      // falling back to real detection, so a spec that never mentions VS Code never sees the
+      // button and can never spawn a real editor by accident.
+      APIARY_CODE_PATH: opts.codePath ?? '',
+      APIARY_FAKE_CODE_LOG: vsCodeLog,
     }),
   })
   const page = await app.firstWindow()
@@ -251,6 +271,7 @@ export async function launchApiary(
     projectsRoot: projects,
     workdir,
     workdirB,
+    vsCodeLog,
     repoRoot,
     worktreeDir,
     worktreeDirB,
@@ -285,20 +306,43 @@ export async function launchApiary(
  * in place; `h.close()` still works afterwards and cleans up the one shared `home` directory.
  */
 export async function relaunchApiary(h: Harness): Promise<void> {
-  // Wait for the renderer to stop writing UI state before killing it. The state a relaunch is
-  // meant to restore (selected session, sidebar width, pins) is written by an effect that runs
-  // *after* the render the test just waited for — so "the title is on screen" does not yet mean
-  // "the selection has been recorded". The app flushes localStorage to disk on quit (see the
-  // before-quit handler in main/index.ts), which handles the disk side; this handles the JS side,
-  // by waiting until two consecutive reads agree that nothing more is being written.
-  let previous: string | null = null
-  for (let i = 0; i < 20; i++) {
-    const current = await h.page.evaluate(() => localStorage.getItem('apiary.ui'))
-    if (i > 0 && current === previous) break
-    previous = current
-    await h.page.waitForTimeout(100)
-  }
+  await settleUiState(h.page)
   await h.app.close()
+  await launchAgainst(h)
+}
+
+/**
+ * The same as `relaunchApiary`, except the app is quit the way a user on Linux or Windows quits
+ * it: by clicking the last window's close button, rather than by Playwright's `app.close()`.
+ *
+ * The distinction is not cosmetic. Electron's ordering for that gesture is
+ * `closed` -> `window-all-closed` -> `app.quit()` -> `before-quit`, so the window's own `closed`
+ * handler runs *before* anything saves — which is how the saved session layout came to be deleted
+ * and then written out empty on every quit but Cmd+Q, with `app.close()` never going near the
+ * path. macOS keeps the app alive with no windows open, so `app.quit()` stands in for the Cmd+Q
+ * that a mac user would follow the close with; the record has already been removed by then either
+ * way, which is the part under test.
+ */
+export async function relaunchApiaryViaWindowClose(h: Harness): Promise<void> {
+  await settleUiState(h.page)
+  await h.app.evaluate(async ({ app, BrowserWindow }) => {
+    const windows = BrowserWindow.getAllWindows()
+    await Promise.all(windows.map((win) => new Promise<void>((resolve) => {
+      win.once('closed', () => { resolve() })
+      win.close()
+    })))
+    app.quit()
+    // Not awaited by the caller: the reply may never come back, because the main process can be
+    // gone before it is sent. `app.close()` below is what actually waits for the exit.
+  }).catch(() => {
+    // The process exited before the evaluate could answer — which is the successful case.
+  })
+  await h.app.close().catch(() => {})
+  await launchAgainst(h)
+}
+
+/** Relaunches into `h.app`/`h.page` against the same profile, config root and database. */
+async function launchAgainst(h: Harness): Promise<void> {
   const app = await electron.launch({
     args: [`--user-data-dir=${join(h.home, 'userdata')}`, '.'],
     env: launchEnv({
@@ -311,6 +355,22 @@ export async function relaunchApiary(h: Harness): Promise<void> {
   await page.waitForLoadState('domcontentloaded')
   h.app = app
   h.page = page
+}
+
+async function settleUiState(page: Page): Promise<void> {
+  // Wait for the renderer to stop writing UI state before killing it. The state a relaunch is
+  // meant to restore (selected session, sidebar width, pins) is written by an effect that runs
+  // *after* the render the test just waited for — so "the title is on screen" does not yet mean
+  // "the selection has been recorded". The app flushes localStorage to disk on quit (see the
+  // before-quit handler in main/index.ts), which handles the disk side; this handles the JS side,
+  // by waiting until two consecutive reads agree that nothing more is being written.
+  let previous: string | null = null
+  for (let i = 0; i < 20; i++) {
+    const current = await page.evaluate(() => localStorage.getItem('apiary.ui'))
+    if (i > 0 && current === previous) break
+    previous = current
+    await page.waitForTimeout(100)
+  }
 }
 
 /** Imports every discovered session, bypassing the dialog. */
@@ -450,8 +510,8 @@ export async function ptyResizeCallCount(app: ElectronApplication): Promise<numb
  * that means "the row in the list" — clicking one open, or asserting the list's contents — wants
  * this rather than a page-wide text match.
  */
-export function sidebarSession(page: Page, title: string): Locator {
-  return page.locator('.sidebar').getByText(title, { exact: true })
+export function sidebarSession(page: Page, title: string, options: { exact?: boolean } = {}): Locator {
+  return page.locator('.sidebar').getByText(title, { exact: options.exact ?? true })
 }
 
 /**

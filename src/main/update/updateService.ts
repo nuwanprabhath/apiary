@@ -14,6 +14,12 @@ import { shouldOffer } from './versions'
  * by a test here is covered by nothing until it reaches a user.
  */
 
+/** What the last attempt to open or reveal a downloaded installer actually did. */
+export type OpenInstallerResult =
+  | { ok: 'opened' }
+  | { ok: 'revealed' }
+  | { ok: 'failed'; reason: string }
+
 export type UpdatePhase =
   /** Nothing known yet, or a check found nothing and was not asked for by hand. */
   | 'idle'
@@ -47,6 +53,8 @@ export interface UpdateStatus {
    * only on the platform, so it cannot be decided up front with the capability.
    */
   install: InstallInstructions | null
+  /** What the last attempt to open/reveal the installer actually did. Null until one has run. */
+  openResult: OpenInstallerResult | null
   error: string | null
   lastCheckedAt: number | null
   skippedVersion: string | null
@@ -75,7 +83,7 @@ export interface UpdateBackend {
    * Which one is not the backend's choice: a `.deb` cannot be opened by anything on a stock
    * Ubuntu desktop, so `installInstructions` decides and this does as it is told.
    */
-  openInstaller(path: string, action: InstallInstructions['action']): Promise<void>
+  openInstaller(path: string, action: InstallInstructions['action']): Promise<OpenInstallerResult>
 }
 
 export interface UpdateSettings {
@@ -140,6 +148,7 @@ export class UpdateService {
       progressPercent: null,
       downloadedPath: null,
       install: null,
+      openResult: null,
       error: null,
       lastCheckedAt: null,
       skippedVersion: opts.settings().skippedVersion,
@@ -270,7 +279,8 @@ export class UpdateService {
         const path = await this.opts.backend.downloadInstaller(onProgress)
         const install = installInstructions(this.opts.capabilityInput, path)
         this.patch({ phase: 'downloaded', progressPercent: 100, downloadedPath: path, install })
-        await this.opts.backend.openInstaller(path, install.action)
+        const openResult = await this.opts.backend.openInstaller(path, install.action)
+        this.patch({ openResult })
       }
     } catch (e) {
       // Back to `available`, not to `idle`: the update is still there and still worth offering,
@@ -291,10 +301,12 @@ export class UpdateService {
   }
 
   /** `assisted` only: opens (or reveals) the installer again, for anyone who closed it. */
-  async openDownloaded(): Promise<void> {
+  async openDownloaded(): Promise<OpenInstallerResult> {
     const path = this.status.downloadedPath
-    if (path === null) return
-    await this.opts.backend.openInstaller(path, this.status.install?.action ?? 'open')
+    if (path === null) return { ok: 'failed', reason: 'Nothing has been downloaded yet.' }
+    const openResult = await this.opts.backend.openInstaller(path, this.status.install?.action ?? 'open')
+    this.patch({ openResult })
+    return openResult
   }
 
   /** Dismisses this version for good — until a newer one arrives. */

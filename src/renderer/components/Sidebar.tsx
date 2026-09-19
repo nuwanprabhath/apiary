@@ -1,6 +1,10 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectNode, SessionNode } from '@shared/types'
+import type { ActiveTabPayload } from '@shared/api'
+import { describeActivityStatus } from '@shared/activity'
 import { useTree } from '../state/useTree'
+import { rankSessions } from '@shared/sessionRank'
+import { SEARCH_RESULT_CAP } from '@shared/treeFilter'
 import { SessionTree } from './SessionTree'
 import { SessionRow } from './SessionRow'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
@@ -8,10 +12,13 @@ import {
   groupFolders, orderFolders, moveFolder, moveGroup, moveGroupBefore, deleteGroup, newGroupId,
   type GroupState,
 } from '../state/groups'
+import { selectRecent, type DismissedMap } from '../state/recentSessions'
 import { CloseIcon, RefreshIcon, SidebarIcon } from './icons'
+import { SearchField } from './SearchField'
 import { useNotifications } from '../state/notifications'
 import { describeRefresh } from '../state/refreshSummary'
 import { useLayoutActions } from '../state/layoutContext'
+import { ActivityLegend } from './ActivityLegend'
 
 /** How many sessions the tree holds, at any depth. */
 function countSessions(nodes: ProjectNode[]): number {
@@ -96,6 +103,28 @@ interface Props {
   onGroupStateChange: (next: GroupState) => void
   /** Reorders the pinned section by dropping one pinned session onto another. */
   onReorderPinned: (id: string, beforeId: string) => void
+  /** Whether the Recent section is shown at all — Settings > Sidebar. */
+  recentSectionEnabled: boolean
+  /** How far back, in hours, "recent" looks — Settings > Sidebar. */
+  recentSectionHours: number
+  /** sessionId -> dismissedAtMs, shared like `pinned` — see state/recentSessions.ts. */
+  dismissedRecent: DismissedMap
+  /** Whether the Recent section itself is collapsed — persisted, like the pinned section's. */
+  recentCollapsed: boolean
+  onRecentCollapsedChange: (next: boolean) => void
+  /** Hides a session from Recent until it is used again. */
+  onDismissRecent: (session: SessionNode) => void
+  /** Every open tab across every window, for the Active section above Pinned. */
+  activeTabs: ActiveTabPayload[]
+  /** Raises the window showing a tab and switches it to that tab. */
+  onFocusTab: (windowNumber: number, key: string) => void
+  /** Search conversation contents as well as titles — Settings > Search. */
+  searchChatContent: boolean
+  /** Search the notes people write on sessions — Settings > Search. */
+  searchSessionNotes: boolean
+  /** A session row was dropped on a folder — the drag-to-move gesture. Resolved here to the
+   *  `SessionNode` the tree already holds, so the caller only ever deals in sessions, not ids. */
+  onSessionDropped: (session: SessionNode, toPath: string) => void
 }
 
 /**
@@ -125,9 +154,24 @@ export function Sidebar({
   onSplitSession, pinned, onTogglePin, onEditNote, onForkSession, pinnedCollapsed,
   onPinnedCollapsedChange,
   pending, onSelectPending, revealId, groupState, onGroupStateChange, onReorderPinned,
+  recentSectionEnabled, recentSectionHours, dismissedRecent, recentCollapsed,
+  onRecentCollapsedChange, onDismissRecent, activeTabs, onFocusTab,
+  searchChatContent, searchSessionNotes, onSessionDropped,
 }: Props): JSX.Element {
+  /** The settled query — `SearchField` publishes it once typing pauses, never per keystroke. */
   const [query, setQuery] = useState('')
-  const { tree, loading, reload, reloadNow } = useTree(query)
+  /**
+   * The query the expensive work runs against.
+   *
+   * `useDeferredValue` lets React treat filtering, ranking and rendering several hundred rows as
+   * interruptible, lower-priority work. If another keystroke settles while a big list is still
+   * rendering, React abandons that render and starts the newer one instead of finishing work
+   * nobody will see — and the search box, which is ordinary priority, stays responsive throughout.
+   */
+  const deferredQuery = useDeferredValue(query)
+  const { tree, rawTree, settledQuery, matchedByContent, capped, loading, reload, reloadNow } = useTree(deferredQuery, {
+    searchChatContent, searchSessionNotes,
+  })
   const { notify, notifyError } = useNotifications()
   const { requestPicker } = useLayoutActions()
   const [refreshing, setRefreshing] = useState(false)
@@ -173,10 +217,35 @@ export function Sidebar({
    */
   const pinnedSet = useMemo(() => new Set(pinned), [pinned])
   const branchOfSession = useMemo(() => folderBranches(tree), [tree])
+  const sessionsById = useMemo(() => flattenSessions(tree), [tree])
   const pinnedSessions = useMemo(() => {
-    const byId = flattenSessions(tree)
-    return pinned.map((id) => byId.get(id)).filter((s): s is SessionNode => s !== undefined)
-  }, [tree, pinned])
+    return pinned.map((id) => sessionsById.get(id)).filter((s): s is SessionNode => s !== undefined)
+  }, [sessionsById, pinned])
+
+  /** Keys of every tab the Active section is already showing, so Recent never repeats one. */
+  const activeIds = useMemo(() => new Set(activeTabs.map((t) => t.key)), [activeTabs])
+  /** The Active header's rect while the pointer (or focus) is on it — see ActivityLegend. */
+  const [legendAnchor, setLegendAnchor] = useState<DOMRect | null>(null)
+
+  /**
+   * Every session known anywhere, unfiltered — what the Active section resolves its titles
+   * against. Using the search-filtered `sessionsById` here would turn a row for a tab open in
+   * *another* window into a bare, unreadable session id the moment this window's own search box
+   * happens to exclude that tab's project, which defeats the whole point of resolving a title in
+   * the first place.
+   */
+  const activeSessionsById = useMemo(() => flattenSessions(rawTree), [rawTree])
+
+  /**
+   * Recent, resolved against the same filtered tree pinned is — a search narrows this section too.
+   * `activeIds` keeps Recent from repeating a session Active already shows.
+   */
+  const recentSessions = useMemo(() => {
+    if (!recentSectionEnabled) return []
+    return selectRecent(
+      Array.from(sessionsById.values()), pinnedSet, activeIds, dismissedRecent, Date.now(), recentSectionHours,
+    )
+  }, [sessionsById, pinnedSet, activeIds, dismissedRecent, recentSectionEnabled, recentSectionHours])
 
   const toggle = (path: string): void => {
     const next = new Set(collapsed)
@@ -191,12 +260,42 @@ export function Sidebar({
    * Searching deliberately bypasses the arrangement — while a query is on, the tree is already a
    * filtered subset, and hiding matches inside collapsed groups would defeat the point of typing.
    */
-  const searching = query.trim() !== ''
+  // Keyed on the deferred query so what is on screen is always internally consistent: the flat
+  // results list appears with the results, not a moment before them.
+  const searching = deferredQuery.trim() !== ''
   const arranged = useMemo(
     () => groupFolders(tree, (n) => n.path, groupState.groups, groupState.assignments, groupState.folderOrder),
     [tree, groupState],
   )
   const groupsCollapsed = useMemo(() => new Set(groupState.collapsed), [groupState.collapsed])
+
+  /**
+   * The flat, ranked results shown while searching — ranked over every match `tree` holds (which
+   * is uncapped; see `filterTreeLocal`), with the cap applied here, to the *ranked* list, so the
+   * best matches survive it rather than whichever `SEARCH_RESULT_CAP` sessions a folder walk
+   * happened to reach first. Memoized because `rankSessions` now runs over the full match set —
+   * unbounded by the old pre-rank cap — and re-ranking on every unrelated render (an Active-section
+   * poll, a git-status refresh) would reintroduce exactly the per-render cost this feature exists
+   * to avoid.
+   *
+   * Keyed on `settledQuery`, never the live `query`. Keying on the live one made the memo miss on
+   * every keystroke while `tree` still held the *previous* query's matches — so each character
+   * typed re-ranked the widest match set there is (a one-character query matches nearly every
+   * session), synchronously, before the character could be painted, and then ranked it again when
+   * the debounce settled. That was the beach ball: typing the second letter of a search stalled
+   * the whole window.
+   */
+  const rankedResults = useMemo(
+    () => rankSessions(tree, settledQuery, matchedByContent)
+      // Pinned matches are already on screen in the Pinned section above, which a search narrows
+      // the same way it narrows this list — so leaving them in showed the same session twice. The
+      // tree does exactly this (`SessionTree` renders only a folder's unpinned sessions); the flat
+      // results list simply never learned to. Filtered before the cap, so excluding a pinned row
+      // gives its place back to the next-best match rather than shortening the list.
+      .filter(({ session }) => !pinnedSet.has(session.sessionId))
+      .slice(0, SEARCH_RESULT_CAP),
+    [tree, settledQuery, matchedByContent, pinnedSet],
+  )
 
   /** Which menu is open, if any: a right-click on a folder, or on a group's header. */
   const [menu, setMenu] = useState<
@@ -334,6 +433,12 @@ export function Sidebar({
     onFolderMenu: (path: string, x: number, y: number) => setMenu({ kind: 'folder', id: path, x, y }),
     onSessionMenu: (s: SessionNode, x: number, y: number) =>
       setMenu({ kind: 'session', id: s.sessionId, x, y }),
+    // Resolved against the unfiltered tree — a session being dragged is on screen and therefore in
+    // `tree` too, but there is no reason to make this depend on the search box being empty.
+    onSessionDrop: (sessionId: string, folderPath: string) => {
+      const session = activeSessionsById.get(sessionId)
+      if (session !== undefined) onSessionDropped(session, folderPath)
+    },
     orderFolders: (nodes: ProjectNode[]) => orderFolders(nodes, (n) => n.path, groupState.folderOrder),
     onCollapseBeneath: (path: string, beneath: string[]) => {
       const next = new Set(collapsed)
@@ -361,29 +466,10 @@ export function Sidebar({
             <SidebarIcon />
           </button>
         )}
-        {/* The clear button sits inside the field rather than beside it, so the row keeps the
-         *  two-control shape it already had (field + Refresh) instead of gaining a third
-         *  element that steals width from the field on a narrow sidebar. */}
-        <div className="search-field">
-          <input
-            className="search"
-            data-testid="search-input"
-            placeholder="Search sessions"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          {query !== '' && (
-            <button
-              className="search-clear"
-              data-testid="search-clear"
-              title="Clear search"
-              aria-label="Clear search"
-              onClick={() => setQuery('')}
-            >
-              <CloseIcon />
-            </button>
-          )}
-        </div>
+        {/* Owns the typed text itself, so a keystroke re-renders the box and nothing else — see
+         *  SearchField. `resultsFor` is the query the rows below actually correspond to, which is
+         *  what tells the field whether it is still catching up. */}
+        <SearchField onChange={setQuery} resultsFor={deferredQuery} />
         <button
           className="icon-button sidebar-refresh"
           data-testid="sidebar-refresh"
@@ -397,7 +483,7 @@ export function Sidebar({
             void window.apiary.refresh()
               .then(reloadNow)
               .then((next) => {
-                notify({ message: describeRefresh(before, countSessions(next), query.trim() !== '') })
+                notify({ message: describeRefresh(before, countSessions(next), deferredQuery.trim() !== '') })
               })
               .catch((e: unknown) => { reload(); notifyError(e, 'Could not rescan sessions') })
               .finally(() => setRefreshing(false))
@@ -411,7 +497,7 @@ export function Sidebar({
         </button>
       </div>
 
-      {isEmpty && query.trim() === '' && (
+      {isEmpty && deferredQuery.trim() === '' && (
         <p className="empty" data-testid="sidebar-empty">
           No sessions imported yet.
           <br />
@@ -423,8 +509,53 @@ export function Sidebar({
         </p>
       )}
 
-      {isEmpty && query.trim() !== '' && (
+      {isEmpty && deferredQuery.trim() !== '' && (
         <p className="empty" data-testid="sidebar-no-matches">No sessions match that search.</p>
+      )}
+
+      {capped && (
+        <p className="search-cap-note muted" data-testid="search-cap-note">
+          Showing first {SEARCH_RESULT_CAP} results.
+        </p>
+      )}
+
+      {activeTabs.length > 0 && (
+        <section className="active-section" data-testid="active-section" aria-label="Active sessions">
+          {/* Focusable, and it answers hover as well as focus: the legend below is the only place
+              the four dots are ever explained, so it has to be reachable without a pointer. */}
+          <div
+            className="pinned-header active-header"
+            data-testid="active-header"
+            tabIndex={0}
+            onPointerEnter={(e) => { setLegendAnchor(e.currentTarget.getBoundingClientRect()) }}
+            onPointerLeave={() => { setLegendAnchor(null) }}
+            onFocus={(e) => { setLegendAnchor(e.currentTarget.getBoundingClientRect()) }}
+            onBlur={() => { setLegendAnchor(null) }}
+          >
+            <span className="pinned-label">Active</span>
+            <span className="pinned-count">{activeTabs.length}</span>
+          </div>
+          {legendAnchor !== null && <ActivityLegend anchor={legendAnchor} />}
+          {activeTabs.map((t) => (
+            <button
+              key={`${String(t.windowNumber)}:${t.key}`}
+              className="session-row active-tab-row"
+              data-testid="active-tab-row"
+              onClick={() => onFocusTab(t.windowNumber, t.key)}
+              title={`Window ${String(t.windowNumber)}`}
+            >
+              <span
+                className="status-dot"
+                data-testid="active-status-dot"
+                data-status={t.status}
+                role="img"
+                aria-label={describeActivityStatus(t.status)}
+              />
+              <span className="session-title">{activeSessionsById.get(t.key)?.title ?? t.key}</span>
+              <span className="active-window-number">W{t.windowNumber}</span>
+            </button>
+          ))}
+        </section>
       )}
 
       {pinnedSessions.length > 0 && (
@@ -485,6 +616,48 @@ export function Sidebar({
         </section>
       )}
 
+      {recentSessions.length > 0 && (
+        <section className="recent-section" data-testid="recent-section">
+          <button
+            className="pinned-header"
+            data-testid="recent-toggle"
+            aria-expanded={!recentCollapsed}
+            onClick={() => onRecentCollapsedChange(!recentCollapsed)}
+          >
+            <svg className="chevron" data-expanded={!recentCollapsed} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="pinned-label">Recent</span>
+            <span className="pinned-count">{recentSessions.length}</span>
+          </button>
+          {!recentCollapsed && recentSessions.map((s) => (
+            <div key={s.sessionId} className="recent-row-wrap">
+              <SessionRow
+                session={s}
+                selected={s.sessionId === selectedId}
+                pinned={false}
+                onSelect={onSelect}
+                onSplit={onSplitSession}
+                onDelete={onDeleteSession}
+                onTogglePin={onTogglePin}
+                onEditNote={onEditNote}
+                onMenu={(node, x, y) => setMenu({ kind: 'session', id: node.sessionId, x, y })}
+                folderBranch={branchOfSession.get(s.sessionId) ?? null}
+              />
+              <button
+                className="icon-button recent-dismiss"
+                data-testid="recent-dismiss-button"
+                title="Dismiss from Recent"
+                aria-label="Dismiss from Recent"
+                onClick={() => onDismissRecent(s)}
+              >
+                <CloseIcon />
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
+
       {pending.length > 0 && (
         <ul className="pending-list" data-testid="pending-list">
           {pending.map((p) => (
@@ -503,7 +676,26 @@ export function Sidebar({
         </ul>
       )}
 
-      {tree.length > 0 && searching && <SessionTree nodes={tree} {...treeProps} />}
+      {tree.length > 0 && searching && (
+        <ul className="tree flat-results" data-testid="flat-results">
+          {rankedResults.map(({ session, worktreeLabel }) => (
+            <li key={session.sessionId}>
+              <SessionRow
+                session={session}
+                selected={session.sessionId === selectedId}
+                pinned={pinnedSet.has(session.sessionId)}
+                onSelect={onSelect}
+                onSplit={onSplitSession}
+                onDelete={onDeleteSession}
+                onTogglePin={onTogglePin}
+                onEditNote={onEditNote}
+                onMenu={(node, x, y) => setMenu({ kind: 'session', id: node.sessionId, x, y })}
+                subtitle={worktreeLabel}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
 
       {tree.length > 0 && !searching && (
         <>

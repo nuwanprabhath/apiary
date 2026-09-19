@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import * as pty from 'node-pty'
 import { loginShell } from './resumeCommand'
 import { log } from '../log/logger'
+import { ScreenBuffers } from './screen'
 
 export interface SpawnOptions {
   id: string
@@ -73,6 +74,9 @@ export class PtyManager {
   private outputCounts = new Map<string, number>()
   /** Recent output per pty, oldest-trimmed, for `replay()`. */
   private replayBuffers = new Map<string, string>()
+  /** A headless terminal per pty, so `screen()` can report what is actually on screen rather than
+   *  what was sent — see `screen.ts` for why those differ and why it matters. */
+  private screens = new ScreenBuffers()
   private dataHandlers: DataHandler[] = []
   private exitHandlers: ExitHandler[] = []
 
@@ -105,6 +109,7 @@ export class PtyManager {
 
     child.onData((data) => {
       this.remember(opts.id, data)
+      this.screens.write(opts.id, data)
       this.lastDataAt.set(opts.id, Date.now())
       this.outputCounts.set(opts.id, (this.outputCounts.get(opts.id) ?? 0) + 1)
       if (data.includes(ALT_SCREEN)) this.tuiStarted.set(opts.id, true)
@@ -130,6 +135,8 @@ export class PtyManager {
     })
     this.processes.set(opts.id, child)
     this.lastSize.set(opts.id, { cols: opts.cols ?? 80, rows: opts.rows ?? 24 })
+    // Before any output arrives, so the pty's very first screen is rendered at the right width.
+    this.screens.resize(opts.id, opts.cols ?? 80, opts.rows ?? 24)
     this.cwds.set(opts.id, opts.cwd)
     this.expectTui.set(opts.id, opts.tui ?? false)
     this.tuiStarted.set(opts.id, false)
@@ -162,12 +169,32 @@ export class PtyManager {
   }
 
   /**
+   * What is on this pty's screen right now, as plain text — the input `classifyActivity` needs.
+   *
+   * Not the same thing as `replay()`, and the difference is the point: `replay()` is the byte
+   * stream, which a view replays through its own emulator to rebuild the picture. This is that
+   * picture, rendered here, for code that needs to *read* the terminal rather than show it.
+   */
+  screen(id: string): string {
+    return this.screens.read(id)
+  }
+
+  /**
    * How many chunks of output this pty has produced. Only useful as a before/after comparison:
    * pass it to `whenQuiet` as `after` to wait for the child to react to something you wrote,
    * rather than mistaking the quiet that preceded your write for the quiet that follows it.
    */
   outputCount(id: string): number {
     return this.outputCounts.get(id) ?? 0
+  }
+
+  /**
+   * When this pty last produced output, for `classifyActivity` (`shared/activity.ts`) to tell a
+   * session that just went quiet from one that has been sitting at a prompt for a while. 0 for a
+   * pty that has never existed, which reads the same as "not recently" to that classifier.
+   */
+  lastOutputAt(id: string): number {
+    return this.lastDataAt.get(id) ?? 0
   }
 
   /**
@@ -267,6 +294,7 @@ export class PtyManager {
       } else {
         child.resize(clampedCols, clampedRows)
         this.lastSize.set(id, { cols: clampedCols, rows: clampedRows })
+        this.screens.resize(id, clampedCols, clampedRows)
       }
     } catch {
       // The process can exit between the renderer measuring and this call.
@@ -282,6 +310,7 @@ export class PtyManager {
     this.cwds.delete(id)
     // Nothing will ever attach to a dead pty, so its scrollback is only a leak from here on.
     this.replayBuffers.delete(id)
+    this.screens.dispose(id)
     try { child.kill() } catch { /* already gone */ }
   }
 

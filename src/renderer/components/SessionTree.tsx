@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ProjectNode, SessionNode } from '@shared/types'
 import { SessionRow } from './SessionRow'
 import { HoverCard } from './HoverCard'
@@ -48,12 +49,15 @@ interface Props {
   /** Collapses every folder beneath `path`, leaving `path` itself open so what is left is the
    *  short list of its worktrees. */
   onCollapseBeneath?: (path: string, beneath: string[]) => void
+  /** A session row was dropped on this folder — the drag-to-move gesture. Undefined disables
+   *  accepting a session drop entirely (the flat search-result list has no folder rows to drop on). */
+  onSessionDrop?: (sessionId: string, folderPath: string) => void
 }
 
 export function SessionTree({
   nodes, depth = 0, collapsed, onToggle, selectedId, onSelect, onNewSession, onDeleteSession,
   onSplitSession, pinned, onTogglePin, onEditNote, onReorderFolder, onFolderMenu,
-  onSessionMenu, orderFolders, onCollapseBeneath,
+  onSessionMenu, orderFolders, onCollapseBeneath, onSessionDrop,
 }: Props): JSX.Element {
   const rearrangeable = onReorderFolder !== undefined
   const ordered = orderFolders === undefined ? nodes : orderFolders(nodes)
@@ -82,6 +86,7 @@ export function SessionTree({
                   ? () => { onCollapseBeneath(node.path, descendantPaths(childProjects)) }
                   : undefined
               }
+              onSessionDrop={onSessionDrop}
             />
 
             {isOpen && (
@@ -119,6 +124,7 @@ export function SessionTree({
                     onSessionMenu={onSessionMenu}
                     orderFolders={orderFolders}
                     onCollapseBeneath={onCollapseBeneath}
+                    onSessionDrop={onSessionDrop}
                   />
                 )}
               </>
@@ -141,6 +147,8 @@ interface FolderHeaderProps {
   onFolderMenu?: (path: string, x: number, y: number) => void
   /** Present only on a folder that has folders beneath it. */
   onCollapseBeneath?: () => void
+  /** A session row was dropped on this folder — the drag-to-move gesture. */
+  onSessionDrop?: (sessionId: string, folderPath: string) => void
 }
 
 /**
@@ -152,9 +160,12 @@ interface FolderHeaderProps {
  */
 function FolderHeader({
   node, depth, isOpen, rearrangeable, onToggle, onNewSession, onReorderFolder, onFolderMenu,
-  onCollapseBeneath,
+  onCollapseBeneath, onSessionDrop,
 }: FolderHeaderProps): JSX.Element {
   const card = useHoverCard<HTMLDivElement>()
+  // Highlights the row while a session is dragged over it — a folder drag has its own dropEffect
+  // feedback already, but a session drop had nothing to show it would land here at all.
+  const [sessionOver, setSessionOver] = useState(false)
   return (
     <div
       ref={card.ref}
@@ -164,6 +175,7 @@ function FolderHeader({
       // level can be filed into a group, and a CSS selector cannot tell the levels apart
       // without encoding the nesting of the markup into every query that asks.
       data-depth={depth}
+      data-drop-target={sessionOver}
       draggable={rearrangeable}
       onMouseEnter={card.arm}
       onMouseLeave={card.scheduleClose}
@@ -174,13 +186,25 @@ function FolderHeader({
         e.dataTransfer.setData('application/x-apiary-folder', node.path)
       }}
       onDragOver={(e) => {
-        // Only react to a folder drag: without the type check this would also swallow a
-        // tab being dragged across the window.
-        if (!rearrangeable || !e.dataTransfer.types.includes('application/x-apiary-folder')) return
-        e.preventDefault()
-        e.dataTransfer.dropEffect = 'move'
+        if (rearrangeable && e.dataTransfer.types.includes('application/x-apiary-folder')) {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          return
+        }
+        if (onSessionDrop !== undefined && e.dataTransfer.types.includes('application/x-apiary-session')) {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          setSessionOver(true)
+        }
       }}
+      onDragLeave={() => setSessionOver(false)}
       onDrop={(e) => {
+        if (onSessionDrop !== undefined && e.dataTransfer.types.includes('application/x-apiary-session')) {
+          setSessionOver(false)
+          const sessionId = e.dataTransfer.getData('application/x-apiary-session')
+          if (sessionId !== '') { e.preventDefault(); onSessionDrop(sessionId, node.path) }
+          return
+        }
         if (onReorderFolder === undefined) return
         const dragged = e.dataTransfer.getData('application/x-apiary-folder')
         if (dragged === '' || dragged === node.path) return

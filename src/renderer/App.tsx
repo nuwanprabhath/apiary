@@ -2,21 +2,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   isTabTransfer,
   type NewSessionInfo, type ProjectNode, type ResumeConflict, type SessionNode, type TabTransfer,
+  type WindowLayoutReport,
 } from '@shared/types'
+import { buildPersistedLayout } from '@shared/layoutReport'
 import { Sidebar } from './components/Sidebar'
 import { SessionColumn, type TerminalTab } from './components/SessionColumn'
 import { ConflictDialog } from './components/ConflictDialog'
 import { DeleteSessionDialog } from './components/DeleteSessionDialog'
+import { MoveSessionDialog } from './components/MoveSessionDialog'
 import { ImportDialog } from './components/ImportDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import {
   openTab, openTabAfter, closeTab, setTabView, rekeyTab, moveTabToColumn, adoptTab,
-  findColumnWithTab,
+  findColumnWithTab, newColumn,
   type Column,
 } from './state/columns'
 import {
   initialLayout, tidyLayout, openBeside, defaultTracks, trackTemplate, placeInZone, applyPreset,
-  presetDef, closePane,
+  presetDef, closePane, PRESETS,
   type Layout, type PresetId, type Tracks,
 } from './state/layout'
 import { LayoutContext, type LayoutActions, type PlaceTarget } from './state/layoutContext'
@@ -25,9 +28,12 @@ import { LayoutMenuButton } from './components/LayoutMenuButton'
 import { PaneDividers } from './components/PaneDividers'
 import { PaneFiller } from './components/PaneFiller'
 import {
-  loadUiState, saveUiState, subscribeSharedUiState, detachedKey, detachedTransfer, type UiState,
+  loadUiState, saveUiState, subscribeSharedUiState, detachedKey, detachedTransfer, restoredWindow,
+  type UiState,
 } from './state/uiState'
+import { pruneDismissed, dismissRecent } from './state/recentSessions'
 import { useUpdate } from './state/useUpdate'
+import { useActiveTabs } from './state/useActiveTabs'
 import { UpdateBanner } from './components/UpdateBanner'
 import { NoteDialog } from './components/NoteDialog'
 import { moveBefore, type GroupState } from './state/groups'
@@ -101,10 +107,12 @@ interface PendingSession extends NewSessionInfo {
   titleOverride: string | null
 }
 
+
 export function App(): JSX.Element {
   const { notify, notifyError } = useNotifications()
   const [ui, setUi] = useState<UiState>(() => loadUiState())
   const updateStatus = useUpdate()
+  const activeTabs = useActiveTabs()
   /** The session whose note is being edited, with the note as it stood when the editor opened. */
   const [noteTarget, setNoteTarget] = useState<{ session: SessionNode; note: string } | null>(null)
   /**
@@ -116,6 +124,14 @@ export function App(): JSX.Element {
   /** The rest of that tab — the processes it runs, which a torn-off window has to start out knowing
    *  (see TabTransfer). Read once, like `detached`. */
   const [arrival] = useState<TabTransfer | null>(detachedTransfer)
+  /**
+   * The previous run's record for this window, or null for an ordinary launch — see
+   * `restoredWindow`. Read once, like `detached`/`arrival`: a window does not stop being a
+   * restored one mid-session, and re-reading the URL per render would be a lie waiting to happen.
+   * `restoredWindow` itself already returns null for a detached window, so this and `detached`
+   * are mutually exclusive.
+   */
+  const [restored] = useState<WindowLayoutReport | null>(restoredWindow)
   /**
    * The window's panes and which one is focused, as one piece of state rather than two.
    *
@@ -131,7 +147,21 @@ export function App(): JSX.Element {
    * on. See `openSessionTab`'s split branch, `splitActiveTab` and `placeTarget`.
    */
   const [windowState, setWindowState] = useState<{ layout: Layout; activeColumnId: string | null }>(
-    () => ({ layout: initialLayout(), activeColumnId: null }),
+    () => {
+      if (restored === null) return { layout: initialLayout(), activeColumnId: null }
+      // Panes get fresh ids from `newColumn` rather than reusing the persisted ones: `id` is a
+      // per-window runtime identity, not something anything on disk needs to stay stable across a
+      // restart, and reusing "col-1"/"col-2" verbatim would leave the module's own `nextColumnId`
+      // counter at 0, so the very next split would mint "col-1" again and collide with a pane
+      // already on screen.
+      const panes = restored.layout.panes.map((pane) => ({
+        ...newColumn(pane.tabs.map((t) => ({ key: t.key, view: t.view }))),
+        activeKey: pane.activeTab,
+      }))
+      const knownPreset = PRESETS.some((p) => p.id === restored.layout.preset)
+      const preset = (knownPreset ? restored.layout.preset : 'single') as PresetId
+      return { layout: { preset, panes }, activeColumnId: panes[0]?.id ?? null }
+    },
   )
   const { layout, activeColumnId } = windowState
   /**
@@ -197,16 +227,26 @@ export function App(): JSX.Element {
    * rather than per column: two columns showing the same session must share one set of terminals,
    * or they would each spawn `shell:<key>:1` and silently kill each other's shell.
    */
-  const [shellTabs, setShellTabs] = useState<Map<string, TerminalTab[]>>(() => (
-    arrival !== null && arrival.shells.length > 0
-      ? new Map([[arrival.ptyId ?? arrival.key, arrival.shells]])
-      : new Map()
-  ))
-  const [activeTerminal, setActiveTerminal] = useState<Map<string, string>>(() => (
-    arrival?.activeShell != null ? new Map([[arrival.ptyId ?? arrival.key, arrival.activeShell]]) : new Map()
-  ))
+  const [shellTabs, setShellTabs] = useState<Map<string, TerminalTab[]>>(() => {
+    const map = new Map<string, TerminalTab[]>()
+    for (const pane of restored?.layout.panes ?? []) {
+      for (const tab of pane.tabs) if (tab.shells.length > 0) map.set(tab.key, tab.shells)
+    }
+    if (arrival !== null && arrival.shells.length > 0) map.set(arrival.ptyId ?? arrival.key, arrival.shells)
+    return map
+  })
+  const [activeTerminal, setActiveTerminal] = useState<Map<string, string>>(() => {
+    const map = new Map<string, string>()
+    for (const pane of restored?.layout.panes ?? []) {
+      for (const tab of pane.tabs) if (tab.activeShell !== null) map.set(tab.key, tab.activeShell)
+    }
+    if (arrival?.activeShell != null) map.set(arrival.ptyId ?? arrival.key, arrival.activeShell)
+    return map
+  })
   const [conflict, setConflict] = useState<ResumeConflict | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<SessionNode | null>(null)
+  /** A session dropped onto a folder row, awaiting confirmation before the transcript is moved. */
+  const [moveTarget, setMoveTarget] = useState<{ session: SessionNode; toPath: string } | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   /**
    * Which settings section is on screen, or null when the dialog is closed — one piece of state
@@ -220,14 +260,55 @@ export function App(): JSX.Element {
    * subscribed to: these change only when someone changes them, and only from that one dialog.
    */
   const [revealActiveInSidebar, setRevealActiveInSidebar] = useState(true)
+  const [recentSectionEnabled, setRecentSectionEnabled] = useState(true)
+  const [recentSectionHours, setRecentSectionHours] = useState(24)
+  const [searchChatContent, setSearchChatContent] = useState(true)
+  const [searchSessionNotes, setSearchSessionNotes] = useState(true)
   const loadUiSettings = useCallback(() => {
     void window.apiary.settingsGet()
-      .then((s) => setRevealActiveInSidebar(s.revealActiveInSidebar))
+      .then((s) => {
+        setRevealActiveInSidebar(s.revealActiveInSidebar)
+        setRecentSectionEnabled(s.recentSectionEnabled)
+        setRecentSectionHours(s.recentSectionHours)
+        setSearchChatContent(s.searchChatContent)
+        setSearchSessionNotes(s.searchSessionNotes)
+      })
       .catch(() => {
         // Defaults are already in place; a settings read failing is not worth interrupting anyone.
       })
   }, [])
   useEffect(() => { loadUiSettings() }, [loadUiSettings])
+  /**
+   * Drops dismissals old enough that they could never hide a session again, so the shared map does
+   * not grow without bound across months of use. Re-checked whenever the window is open and either
+   * input changes; a no-op prune returns the same reference (see `pruneDismissed`), so this only
+   * writes shared state when there is actually something to drop.
+   */
+  useEffect(() => {
+    setUi((prev) => {
+      const pruned = pruneDismissed(prev.dismissedRecent, Date.now(), recentSectionHours)
+      return pruned === prev.dismissedRecent ? prev : { ...prev, dismissedRecent: pruned }
+    })
+  }, [recentSectionHours])
+  /**
+   * Sessions recorded as live at quit are resumed the same way a manual "Resume" click is —
+   * `window.apiary.resume` already spawns `claude --resume` and is what `startResume` calls.
+   * Restore is not a special code path for spawning; it is a special *reason* to call the
+   * ordinary one, once, for each id the main process already pruned down to sessions that still
+   * resolve (see `pruneStaleLive`/`sessionIsResumable`).
+   */
+  useEffect(() => {
+    if (restored === null) return
+    for (const sessionId of restored.live) {
+      void window.apiary.resume(sessionId)
+        .then(() => setResumed((prev) => new Set([...prev, sessionId])))
+        .catch(() => { /* main already dropped anything unresumable; a spawn failure here is the
+                         * same as a failed manual resume and needs no extra handling */ })
+    }
+    // Runs once: `restored` never changes after mount, and re-running on a later render would
+    // re-spawn over ptys the first pass already started.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [treeNonce, setTreeNonce] = useState(0)
   const [resizing, setResizing] = useState(false)
   const [resizingBottom, setResizingBottom] = useState(false)
@@ -325,7 +406,7 @@ export function App(): JSX.Element {
   // `File > New Session in Folder...` picks its folder via a native dialog in the main process
   // (never from the renderer) and pushes the result here once the pty is already running.
   useEffect(() => window.apiary.onNewSessionStarted((info) => {
-    void window.apiary.tree('').then((nodes) => { addPending(info, nodes) })
+    void window.apiary.tree().then((nodes) => { addPending(info, nodes) })
   }), [addPending])
 
   // If a pending pty exits before ever producing a JSONL (the user quits Claude immediately, the
@@ -392,7 +473,7 @@ export function App(): JSX.Element {
     if (pending.size === 0) return
     let cancelled = false
     const check = (): void => {
-      void window.apiary.tree('').then((nodes) => {
+      void window.apiary.tree().then((nodes) => {
         if (cancelled) return
         const claimed = new Set<string>()
         for (const [ptyId, info] of pending) {
@@ -455,7 +536,7 @@ export function App(): JSX.Element {
     if (id === null) return
     let cancelled = false
     window.apiary
-      .tree('')
+      .tree()
       .then((nodes) => {
         if (cancelled) return
         const found = findSessionById(nodes, id)
@@ -643,7 +724,7 @@ export function App(): JSX.Element {
    * copy from the moment it was opened would show stale text and a stale resume state.
    */
   useEffect(() => window.apiary.onTreeChanged(() => {
-    void window.apiary.tree('').then((nodes) => {
+    void window.apiary.tree().then((nodes) => {
       setOpenSessions((prev) => {
         if (prev.size === 0) return prev
         let changed = false
@@ -670,7 +751,7 @@ export function App(): JSX.Element {
     try {
       const [info, nodes] = await Promise.all([
         window.apiary.newSessionInProject(path),
-        window.apiary.tree(''),
+        window.apiary.tree(),
       ])
       addPending(info, nodes)
     } catch (e) {
@@ -692,7 +773,7 @@ export function App(): JSX.Element {
     try {
       const [info, nodes] = await Promise.all([
         window.apiary.forkSession(sessionId),
-        window.apiary.tree(''),
+        window.apiary.tree(),
       ])
       addPending(info, nodes, { titleOverride: info.label, after: sessionId })
       notify({ message: `Forking — ${info.label}` })
@@ -802,6 +883,86 @@ export function App(): JSX.Element {
       .catch(() => { /* as above */ })
   }, [openKeysSignature, ptyOverrides])
 
+  /** This window's own number, the same key `uiState.ts`'s `stateKey()` reads from the URL. */
+  const windowNumber = useMemo(() => {
+    try {
+      return Number(new URLSearchParams(window.location.search).get('w') ?? '1') || 1
+    } catch {
+      return 1
+    }
+  }, [])
+
+  /**
+   * The actual send, kept in a ref rather than only inside the debounced effect below so it can
+   * also be called *immediately*, bypassing the debounce, when main asks for a flush before quit
+   * (see the `onRequestLayoutFlush` effect). The ref is refreshed on every render so it always
+   * closes over the latest layout/shell state, the same values the debounced call would have used.
+   */
+  const reportLayoutNowRef = useRef<() => void>(() => {})
+  reportLayoutNowRef.current = () => {
+    const persistedLayout = buildPersistedLayout(layout, shellTabs, activeTerminal, ptyOverrides)
+    const live = [...resumed].filter((id) => openKeys.has(id))
+    void window.apiary.reportLayout({ number: windowNumber, layout: persistedLayout, live })
+      .catch(() => { /* the next change tries again; nothing to show for a dropped report */ })
+  }
+
+  /**
+   * What this window has open, for the Active section — a separate report from the layout one
+   * above, and deliberately not gated on `detached`.
+   *
+   * These two were once the same send, which quietly made the Active section blind to exactly the
+   * windows it exists for: a torn-off window is excluded from the *layout* record (it is not part
+   * of the restorable arrangement), and that exclusion took its tab report with it. A session
+   * dragged out to a second screen — the case where you most need to see at a glance that it is
+   * running or waiting on you — was the one case mission control never listed.
+   *
+   * `resumed` is what marks a tab as actually running a pty at all (a plain transcript tab nobody
+   * has resumed has none); `ptyOverrides` is the same "which id does its process actually run
+   * under" lookup `transferFor` and `buildPersistedLayout` already use.
+   */
+  const reportTabsNowRef = useRef<() => void>(() => {})
+  reportTabsNowRef.current = () => {
+    window.apiary.reportTabs(columns.flatMap((c) => c.tabs).map((t) => ({
+      key: t.key,
+      view: t.view,
+      ptyId: resumed.has(t.key) ? (ptyOverrides.get(t.key) ?? t.key) : null,
+    })))
+  }
+
+  /**
+   * Reports this window's layout to main, debounced ~500ms so a drag or a burst of tab churn does
+   * not spam the IPC channel and the disk write behind it. `detached` windows are excluded: a
+   * torn-off single-tab window is not part of the restorable arrangement (see Task 3).
+   */
+  useEffect(() => {
+    if (detached !== null) return
+    const timer = setTimeout(() => { reportLayoutNowRef.current() }, 500)
+    return () => { clearTimeout(timer) }
+  }, [layout, shellTabs, activeTerminal, ptyOverrides, resumed, openKeys, detached, windowNumber])
+
+  /**
+   * Reports this window's open tabs, every window including a detached one. Debounced on the same
+   * 500ms as the layout report above and driven by the same state, so the registry and the
+   * persisted record still agree about an ordinary window — but a torn-off window reports too,
+   * which is the whole point of keeping this separate (see `reportTabsNowRef`).
+   */
+  useEffect(() => {
+    const timer = setTimeout(() => { reportTabsNowRef.current() }, 500)
+    return () => { clearTimeout(timer) }
+  }, [layout, shellTabs, activeTerminal, ptyOverrides, resumed, openKeys, windowNumber])
+
+  /**
+   * Quitting can land inside the 500ms debounce above — close the last tab in a pane, then Cmd+Q
+   * within half a second, and without this the persisted record would still show that tab. Main's
+   * `before-quit` handler broadcasts this request to every window and waits (briefly, bounded) for
+   * each to report before it writes the file, so the on-disk state always reflects what was open
+   * the instant before quit actually happened.
+   */
+  useEffect(() => {
+    if (detached !== null) return
+    return window.apiary.onRequestLayoutFlush(() => { reportLayoutNowRef.current() })
+  }, [detached])
+
   /**
    * Fills in the SessionNode behind any tab this window has not looked up yet.
    *
@@ -814,7 +975,7 @@ export function App(): JSX.Element {
     const unknown = keys.filter((k) => !pending.has(k) && !openSessions.has(k))
     if (unknown.length === 0) return
     let cancelled = false
-    void window.apiary.tree('')
+    void window.apiary.tree()
       .then((nodes) => {
         if (cancelled) return
         const found = unknown
@@ -885,6 +1046,20 @@ export function App(): JSX.Element {
     setColumns((prev) => prev.map((c) => closeTab(c, key)))
   }), [setColumns])
 
+  /**
+   * Another window's Active row was clicked for a tab this window already has open — focus it
+   * where it already is, the same "go to it rather than open it again" rule `openSessionTab` uses,
+   * just against a bare key instead of a full `SessionNode`.
+   */
+  useEffect(() => window.apiary.onSelectTab((key) => {
+    setColumns((prev) => {
+      const existing = findColumnWithTab(prev, key)
+      if (existing === null) return prev
+      setActiveColumnId(existing.id)
+      return prev.map((c) => (c.id === existing.id ? openTab(c, key) : c))
+    })
+  }), [setColumns])
+
   const pendingTabInfo = new Map(
     [...pending.values()].map((info) => [
       info.ptyId,
@@ -949,6 +1124,8 @@ export function App(): JSX.Element {
         }}
         selectedId={activeKey}
         revealId={revealActiveInSidebar ? activeKey : null}
+        searchChatContent={searchChatContent}
+        searchSessionNotes={searchSessionNotes}
         groupState={{
           groups: ui.groups,
           assignments: ui.groupAssignments,
@@ -972,10 +1149,20 @@ export function App(): JSX.Element {
         onCollapsedChange={setCollapsed}
         onNewSession={(path) => { void onNewSession(path) }}
         onDeleteSession={setDeleteTarget}
+        onSessionDropped={(session, toPath) => setMoveTarget({ session, toPath })}
         pinned={ui.pinned}
         onTogglePin={togglePin}
         pinnedCollapsed={ui.pinnedCollapsed}
         onPinnedCollapsedChange={(next) => setUi((prev) => ({ ...prev, pinnedCollapsed: next }))}
+        recentSectionEnabled={recentSectionEnabled}
+        recentSectionHours={recentSectionHours}
+        dismissedRecent={ui.dismissedRecent}
+        recentCollapsed={ui.recentCollapsed}
+        onRecentCollapsedChange={(next) => setUi((prev) => ({ ...prev, recentCollapsed: next }))}
+        onDismissRecent={(session) => setUi((prev) => ({
+          ...prev,
+          dismissedRecent: dismissRecent(prev.dismissedRecent, session.sessionId, Date.now()),
+        }))}
         pending={[...pending.values()]
           .filter((p) => !openKeys.has(p.ptyId))
           .map((p) => ({ ptyId: p.ptyId, label: p.titleOverride ?? p.label, cwd: p.cwd }))}
@@ -985,6 +1172,8 @@ export function App(): JSX.Element {
             return prev.map((c) => (c.id === targetId ? openTab(c, ptyId) : c))
           })
         }}
+        activeTabs={activeTabs}
+        onFocusTab={(w, key) => void window.apiary.focusTab(w, key)}
       />
       )}
 
@@ -1074,7 +1263,7 @@ export function App(): JSX.Element {
               // A session started from the worktree-conflict dialog is a new session like any
               // other: it has no id until Claude writes one, so it goes through the same pending
               // bookkeeping rather than a path of its own.
-              void window.apiary.tree('').then((nodes) => { addPending(info, nodes) })
+              void window.apiary.tree().then((nodes) => { addPending(info, nodes) })
                 .catch((e: unknown) => { notifyError(e, 'Could not open that session') })
             }}
             onTabDropped={(key, at) => {
@@ -1176,6 +1365,21 @@ export function App(): JSX.Element {
           title={deleteTarget.title}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => { void confirmDelete() }}
+        />
+      )}
+
+      {moveTarget !== null && (
+        <MoveSessionDialog
+          sessionTitle={moveTarget.session.title}
+          fromPath={moveTarget.session.cwd}
+          toPath={moveTarget.toPath}
+          onCancel={() => setMoveTarget(null)}
+          onConfirm={() => {
+            const { session, toPath } = moveTarget
+            setMoveTarget(null)
+            void window.apiary.moveSession(session.sessionId, toPath)
+              .catch((e: unknown) => notifyError(e, 'Could not move session'))
+          }}
         />
       )}
 

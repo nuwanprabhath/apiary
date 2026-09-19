@@ -111,7 +111,9 @@ export function itemForNewMergeRequest(
   }
 }
 
-async function defaultExec(file: string, args: string[], cwd: string): Promise<string> {
+/** The `execFile`-backed `exec` every plugin call here defaults to; reused by the MR status cache
+ *  so `git`/`glab` are shelled out to exactly one way rather than each caller building its own. */
+export async function defaultExec(file: string, args: string[], cwd: string): Promise<string> {
   const { stdout } = await run(file, args, { cwd, timeout: DEFAULT_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024 })
   return stdout
 }
@@ -180,7 +182,7 @@ export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarP
 }
 
 /** The `origin` remote's URL, or null when there is no remote (or no git). */
-async function originUrl(
+export async function originUrl(
   cwd: string,
   exec: (file: string, args: string[], cwd: string) => Promise<string>,
 ): Promise<string | null> {

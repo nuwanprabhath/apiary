@@ -1,5 +1,5 @@
 import type { SessionGroup } from './groups'
-import { isTabTransfer, type TabTransfer } from '@shared/types'
+import { isTabTransfer, isWindowLayoutReport, type TabTransfer, type WindowLayoutReport } from '@shared/types'
 
 export type { SessionGroup }
 
@@ -20,6 +20,11 @@ export interface UiState {
   pinned: string[]
   /** Whether the pinned section itself is collapsed. */
   pinnedCollapsed: boolean
+  /** sessionId -> dismissedAtMs, for the Recent section. Shared like `pinned`: dismissing a
+   *  session is an act on the library, not on one window. */
+  dismissedRecent: Record<string, number>
+  /** Whether the Recent section itself is collapsed. */
+  recentCollapsed: boolean
   /**
    * Top-level folder groups, in display order — the user's own headings for the sidebar, so months
    * of folders can be filed away rather than scrolled past. Modelled on the simple-worktrees VS
@@ -61,6 +66,7 @@ export interface UiState {
  */
 const SHARED_FIELDS = [
   'pinned', 'pinnedCollapsed', 'groups', 'groupAssignments', 'groupsCollapsed', 'folderOrder',
+  'dismissedRecent', 'recentCollapsed',
 ] as const
 
 type SharedField = typeof SHARED_FIELDS[number]
@@ -111,6 +117,26 @@ export function detachedTransfer(): TabTransfer | null {
   }
 }
 
+/**
+ * The previous run's record for this window, or null for an ordinary launch. Read from the URL
+ * for the same reason `detachedTransfer` is: the layout it decides is needed at first render, and
+ * main has already validated and stripped `bounds` (and `hasLayout`, a main-only pruning signal)
+ * out of it before putting it here (see `createWindow` in main/index.ts). Detached windows never
+ * carry `?restore=`, but a window with both would be a bug worth not acting on, so a detached
+ * window is never treated as a restored one even if it somehow did.
+ */
+export function restoredWindow(): WindowLayoutReport | null {
+  try {
+    if (detachedKey() !== null) return null
+    const raw = new URLSearchParams(window.location.search).get('restore')
+    if (raw === null) return null
+    const parsed: unknown = JSON.parse(raw)
+    return isWindowLayoutReport(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
 const KEY = stateKey()
 /** Window 1's key, which is where the shared half lived before it had a key of its own. */
 const FIRST_WINDOW_KEY = 'apiary.ui'
@@ -141,6 +167,8 @@ export const DEFAULT_UI_STATE: UiState = {
   folderOrder: [],
   pinned: [],
   pinnedCollapsed: false,
+  dismissedRecent: {},
+  recentCollapsed: false,
   selectedSessionId: null,
   sidebarWidth: 320,
   sidebarHidden: false,

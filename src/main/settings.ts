@@ -44,6 +44,10 @@ export interface AppSettings {
    * costs nothing and is what makes it findable later.
    */
   searchSessionNotes: boolean
+  /** Whether the Recent section (sessions active in the last `recentSectionHours`) is shown. */
+  recentSectionEnabled: boolean
+  /** How far back "recent" looks. Clamped to 1..168 by the settings dialog, same as the update-check interval. */
+  recentSectionHours: number
   /**
    * Trim the working directory in the prompt of shells Apiary starts, to the last
    * `terminalPathSegments` folders. See pty/promptPath.ts — bash 4+ only, by design.
@@ -100,6 +104,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   revealActiveInSidebar: true,
   searchChatContent: true,
   searchSessionNotes: true,
+  recentSectionEnabled: true,
+  recentSectionHours: 24,
   terminalShortenPath: true,
   terminalPathSegments: 1,
   plugins: {},
@@ -113,6 +119,26 @@ export const DEFAULT_SETTINGS: AppSettings = {
   logRetentionDays: 7,
   logMaxSizeMb: 20,
   windowBounds: null,
+}
+
+/**
+ * Clamps a Recent-window hour count to 1..168, exactly like the settings dialog's own input does
+ * — but here, where it is persisted, so a value never has to arrive through the dialog to be
+ * trusted.
+ *
+ * Both `loadSettings` and the `settingsSet` IPC handler run every value through this rather than
+ * relying on the renderer's own clamp. A stale renderer build, devtools, or a hand-edited
+ * settings.json can all hand a 0, a negative number, a fraction, or something that is not a
+ * number at all straight to the main process, which otherwise persists it verbatim — and once
+ * `recentSectionHours` is `<= 0`, `windowMs` in `selectRecent` never admits anything, so Recent
+ * goes silently and permanently empty with no error and, since `loadSettings` only fills in
+ * *missing* fields, no way to self-correct on the next launch. Accepting `unknown` rather than
+ * `number` is deliberate: the whole point is that the value on disk or over IPC is not
+ * guaranteed to actually be one.
+ */
+export function clampRecentHours(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) && n >= 1 ? Math.min(168, Math.round(n)) : 1
 }
 
 /**
@@ -144,7 +170,11 @@ export function migrateSettings(raw: Partial<AppSettings>): Partial<AppSettings>
 export function loadSettings(file: string): AppSettings {
   try {
     const raw = JSON.parse(readFileSync(file, 'utf8')) as Partial<AppSettings>
-    return { ...DEFAULT_SETTINGS, ...migrateSettings(raw) }
+    const merged = { ...DEFAULT_SETTINGS, ...migrateSettings(raw) }
+    // `migrateSettings`/the defaults spread only fill in *missing* fields — a present-but-invalid
+    // one (a settings.json hand-edited or left over from a build that didn't validate) passes
+    // straight through otherwise, so it is clamped here on every load, not only on write.
+    return { ...merged, recentSectionHours: clampRecentHours(merged.recentSectionHours) }
   } catch {
     // Missing or corrupt settings must never stop the app from starting.
     return DEFAULT_SETTINGS

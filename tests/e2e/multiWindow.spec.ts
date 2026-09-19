@@ -97,3 +97,20 @@ test('a session opened in a second window shows what it already printed', async 
     timeout: 20000,
   })
 })
+
+// Regression: `closed`'s handler used to read `win.webContents.id` back off the window it was
+// itself reacting to closing. By the time `closed` fires, the window (and its webContents) is
+// already destroyed, so that read threw `Object has been destroyed` — uncaught, since `closed` is
+// a plain Electron event callback with nothing wrapping it — which took the whole main process
+// down with it, not just the one window. `windowNumberByWebContentsId` now captures the id while
+// the window is still alive and closes over that instead.
+test('closing a second window does not crash the main process', async () => {
+  const second = await h.newWindow()
+  await second.close()
+
+  // Proof the main process is still alive and still servicing IPC, not just that Playwright's
+  // reference to the first window's Page object still exists: if `closed`'s handler had thrown,
+  // the whole app process would be gone and this call would reject or hang.
+  await expect(h.page.evaluate(() => window.apiary.tree())).resolves.toBeDefined()
+  await expect(h.page.getByTestId('session-item').first()).toBeVisible()
+})

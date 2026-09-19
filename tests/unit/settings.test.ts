@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   loadSettings, saveSettings, DEFAULT_SETTINGS, migrateSettings, SETTINGS_VERSION,
+  clampRecentHours,
 } from '../../src/main/settings'
 
 let dir: string
@@ -27,6 +28,8 @@ describe('settings', () => {
       revealActiveInSidebar: false,
       searchChatContent: false,
       searchSessionNotes: false,
+      recentSectionEnabled: false,
+      recentSectionHours: 12,
       terminalShortenPath: true,
       terminalPathSegments: 3,
       plugins: { 'gitlab-mr': false },
@@ -49,6 +52,8 @@ describe('settings', () => {
       revealActiveInSidebar: false,
       searchChatContent: false,
       searchSessionNotes: false,
+      recentSectionEnabled: false,
+      recentSectionHours: 12,
       terminalShortenPath: true,
       terminalPathSegments: 3,
       plugins: { 'gitlab-mr': false },
@@ -90,6 +95,44 @@ describe('settings', () => {
     expect(loaded.autoImportAll).toBe(false)
     expect(loaded.autoImportIntervalMinutes).toBe(null)
     expect(loaded.claudeBin).toBe('/opt/claude')
+  })
+
+  it('heals an already-bad recentSectionHours on load, since a missing-field fill-in would leave it alone', () => {
+    // A hand-edited file, or one written by a build that didn't validate, persists whatever it
+    // was given — filling in *missing* keys from defaults does nothing for a key that is present
+    // but out of range, so loadSettings has to clamp it itself on every read.
+    writeFileSync(file(), JSON.stringify({ recentSectionHours: 0 }))
+    expect(loadSettings(file()).recentSectionHours).toBe(1)
+  })
+})
+
+describe('clampRecentHours', () => {
+  it('floors zero up to the 1-hour minimum', () => {
+    expect(clampRecentHours(0)).toBe(1)
+  })
+
+  it('floors a negative value up to the 1-hour minimum', () => {
+    expect(clampRecentHours(-5)).toBe(1)
+  })
+
+  it('caps a value above the 168-hour maximum', () => {
+    expect(clampRecentHours(200)).toBe(168)
+  })
+
+  it('rounds a fraction to the nearest whole hour', () => {
+    expect(clampRecentHours(2.7)).toBe(3)
+  })
+
+  it('falls back to 1 for a non-numeric value', () => {
+    expect(clampRecentHours('not a number')).toBe(1)
+    expect(clampRecentHours(undefined)).toBe(1)
+    expect(clampRecentHours(NaN)).toBe(1)
+  })
+
+  it('leaves an already-valid value unchanged', () => {
+    expect(clampRecentHours(24)).toBe(24)
+    expect(clampRecentHours(1)).toBe(1)
+    expect(clampRecentHours(168)).toBe(168)
   })
 })
 

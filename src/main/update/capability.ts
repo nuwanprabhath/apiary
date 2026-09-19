@@ -66,6 +66,13 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/**
+ * The volume and app name a downloaded `.dmg` mounts as, on every build electron-builder produces
+ * for this project. Named rather than repeated, since the mac branch of `installInstructions`
+ * below relies on both spellings matching the actual release artifact.
+ */
+const MAC_APP_NAME = 'Apiary'
+
 /** The instructions for a downloaded installer at `path`. Pure, so the wording is testable. */
 export function installInstructions(input: CapabilityInput, path: string): InstallInstructions {
   if (input.platform === 'linux' && path.endsWith('.deb')) {
@@ -77,10 +84,24 @@ export function installInstructions(input: CapabilityInput, path: string): Insta
       action: 'reveal',
     }
   }
+  if (input.platform === 'linux') {
+    // An AppImage downloaded over HTTP has no executable bit — nothing on a stock desktop can
+    // run it by double-clicking, so the copy-able command is the one thing guaranteed to work
+    // even where `openInstaller` cannot launch it either (see electronUpdaterBackend.ts).
+    return {
+      hint: 'Open it to finish updating. If nothing happens, run this to finish:',
+      command: `chmod +x ${shellQuote(path)} && ${shellQuote(path)}`,
+      action: 'open',
+    }
+  }
   if (input.platform === 'darwin') {
     return {
       hint: 'Open it and drag Apiary into Applications to finish updating.',
-      command: null,
+      // One line rather than three separate steps to copy: mount the image quietly, copy the
+      // bundle over whatever is already installed, detach so the Finder window does not linger.
+      command: `hdiutil attach ${shellQuote(path)} -nobrowse -quiet `
+        + `&& cp -R /Volumes/${MAC_APP_NAME}/${MAC_APP_NAME}.app /Applications/ `
+        + `&& hdiutil detach /Volumes/${MAC_APP_NAME} -quiet`,
       action: 'open',
     }
   }

@@ -25,6 +25,7 @@ interface SessionRow {
   session_id: string; project_path: string; title: string | null
   custom_title: string | null
   note: string | null
+  cwd_override: string | null
   first_prompt: string | null; cwd: string | null; git_branch: string | null
   started_at_ms: number | null; last_active_ms: number | null
   message_count: number | null; file_path: string; file_mtime_ms: number
@@ -48,7 +49,10 @@ const toSession = (r: SessionRow): StoredSession => ({
   // a rename the moment Claude's own title-generation caught up or the file was re-read.
   title: r.custom_title ?? r.title,
   firstPrompt: r.first_prompt,
-  cwd: r.cwd,
+  // A move's own record always wins over whatever the scanner most recently read out of the
+  // transcript — the transcript's own recorded cwd never changes (the JSONL isn't rewritten), so
+  // without this the very next rescan would put the session back where it started.
+  cwd: r.cwd_override ?? r.cwd,
   gitBranch: r.git_branch,
   startedAtMs: r.started_at_ms,
   lastActiveAtMs: r.last_active_ms,
@@ -85,6 +89,9 @@ export class SessionStore {
     }
     if (!columns.some((c) => c.name === 'note')) {
       this.db.exec('ALTER TABLE session ADD COLUMN note TEXT')
+    }
+    if (!columns.some((c) => c.name === 'cwd_override')) {
+      this.db.exec('ALTER TABLE session ADD COLUMN cwd_override TEXT')
     }
   }
 
@@ -258,6 +265,19 @@ export class SessionStore {
   /** `null` clears a user-set title, reverting display back to whatever the scanner last read. */
   setCustomTitle(sessionId: string, title: string | null): void {
     this.db.prepare('UPDATE session SET custom_title = ? WHERE session_id = ?').run(title, sessionId)
+  }
+
+  /**
+   * Records that a session's transcript now lives under a different project. `cwd_override` and
+   * `project_path` are never written by `syncSessions` (see its column list), so a rescan — which
+   * reads the *stale* cwd still recorded inside the moved JSONL — cannot undo this. `file_path` is
+   * set here too, immediately, rather than waiting for the rescan the caller will also trigger, so
+   * the session is resumable the instant this returns.
+   */
+  recordSessionMove(sessionId: string, projectPath: string, cwd: string, filePath: string): void {
+    this.db.prepare(
+      'UPDATE session SET project_path = ?, cwd_override = ?, file_path = ? WHERE session_id = ?',
+    ).run(projectPath, cwd, filePath, sessionId)
   }
 
   /**

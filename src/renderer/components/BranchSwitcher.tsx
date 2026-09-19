@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { GitRefEntry, GitRefs, WorktreeConflict } from '@shared/types'
+import { exactRefMatch } from '../state/branchSelection'
 
 interface Props {
   shellKey: string
@@ -48,6 +49,8 @@ export function BranchSwitcher({
   // would otherwise render invisibly behind the still-open modal.
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  const pickingBaseNow = (s: Step): boolean => s.kind === 'pick-base' || s.kind === 'pick-detached'
+
   const reportError = (message: string): void => {
     setErrorMessage(message)
     onError(message)
@@ -88,6 +91,11 @@ export function BranchSwitcher({
       tags: refs.tags.filter((r) => matches(r, q)),
     }
   }, [refs, q])
+
+  const trimmedQuery = query.trim()
+  const activeMatch = mode === 'checkout' && !pickingBaseNow(step)
+    ? exactRefMatch(refs ?? { local: [], remote: [] }, trimmedQuery)
+    : null
 
   const checkout = async (name: string): Promise<void> => {
     setErrorMessage(null)
@@ -208,7 +216,7 @@ export function BranchSwitcher({
     )
   }
 
-  const pickingBase = step.kind === 'pick-base' || step.kind === 'pick-detached'
+  const pickingBase = pickingBaseNow(step)
   // In merge mode the create/detached actions are meaningless — this list is only being used to
   // answer "merge what?".
   const showActions = !pickingBase && mode === 'checkout'
@@ -229,6 +237,13 @@ export function BranchSwitcher({
           autoFocus
           value={query}
           onChange={(e) => { setQuery(e.target.value); setErrorMessage(null) }}
+          onKeyDown={(e) => {
+            // Same guard the row buttons get from `disabled={busy}`: without it, a checkout
+            // already in flight (the modal stays open across its await) lets a second Enter
+            // fire a second concurrent gitCheckoutBranch for the same ref.
+            if (e.key !== 'Enter' || activeMatch === null || busy) return
+            pickRef(activeMatch.entry.name, activeMatch.kind)
+          }}
         />
 
         <ul className="branch-switcher-list">
@@ -258,14 +273,17 @@ export function BranchSwitcher({
             <>
               <BranchSection
                 title="branches" testId="branch-switcher-branch-row" rows={filtered.local} busy={busy}
+                activeName={activeMatch?.kind === 'local' ? activeMatch.entry.name : null}
                 onPick={(r) => pickRef(r.name, 'local')}
               />
               <BranchSection
                 title="remote branches" testId="branch-switcher-remote-row" rows={filtered.remote} busy={busy}
+                activeName={activeMatch?.kind === 'remote' ? activeMatch.entry.name : null}
                 onPick={(r) => pickRef(r.name, 'remote')}
               />
               <BranchSection
                 title="tags" testId="branch-switcher-tag-row" rows={filtered.tags} busy={busy}
+                activeName={null}
                 onPick={(r) => pickRef(r.name, 'tag')}
               />
             </>
@@ -277,8 +295,11 @@ export function BranchSwitcher({
 }
 
 function BranchSection(
-  { title, testId, rows, onPick, busy }:
-  { title: string; testId: string; rows: GitRefEntry[]; onPick: (r: GitRefEntry) => void; busy: boolean },
+  { title, testId, rows, onPick, busy, activeName }:
+  {
+    title: string; testId: string; rows: GitRefEntry[]; onPick: (r: GitRefEntry) => void
+    busy: boolean; activeName: string | null
+  },
 ): JSX.Element | null {
   if (rows.length === 0) return null
   return (
@@ -289,6 +310,7 @@ function BranchSection(
           <button
             className="branch-switcher-row"
             data-testid={testId}
+            data-active={r.name === activeName}
             disabled={busy}
             onClick={() => onPick(r)}
           >

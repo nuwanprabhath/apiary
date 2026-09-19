@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs'
-import { mkdir, rm, stat } from 'node:fs/promises'
+import { chmod, mkdir, rm, stat } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { log } from '../log/logger'
 import { join } from 'node:path'
@@ -7,7 +7,7 @@ import { get } from 'node:https'
 import type { IncomingMessage } from 'node:http'
 import { app, shell } from 'electron'
 import electronUpdater, { type UpdateInfo } from 'electron-updater'
-import type { FeedResult, UpdateBackend } from './updateService'
+import type { FeedResult, OpenInstallerResult, UpdateBackend } from './updateService'
 import { pickInstaller, type FeedFile, type BackendOptions } from './installerAsset'
 
 /**
@@ -54,8 +54,10 @@ async function fetchStream(url: string, redirectsLeft = 5): Promise<IncomingMess
  * How long to wait for the desktop to take a downloaded installer off our hands before giving up
  * on hearing back. Long enough that a slow file manager still reports its own error, short enough
  * that the button is never permanently stuck.
+ *
+ * Exported so it can be driven from a test rather than duplicated as a magic number.
  */
-const OPEN_TIMEOUT_MS = 10_000
+export const OPEN_TIMEOUT_MS = 10_000
 
 export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
   autoUpdater.autoDownload = false
@@ -144,10 +146,16 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
       // being sure is one stat.
       if ((await stat(target)).size === 0) throw new Error('The download was empty')
 
+      // A downloaded file carries no executable bit. On Linux that is fatal for an AppImage —
+      // nothing on the desktop can run it by double-clicking, and `openInstaller` below would
+      // otherwise "succeed" at opening a file nothing can execute. Only after the checksum has
+      // passed: a mismatched download must never be left runnable.
+      if (opts.platform === 'linux') await chmod(target, 0o755)
+
       return target
     },
 
-    async openInstaller(path: string, action: 'open' | 'reveal'): Promise<void> {
+    async openInstaller(path: string, action: 'open' | 'reveal'): Promise<OpenInstallerResult> {
       // Bounded, because `shell.openPath` waits for the program it launched to *exit*. Where the
       // desktop hands the file to something long-lived, that is a promise that settles when the
       // user closes an unrelated window — and an `ipcMain.handle` that never returns is an
@@ -159,6 +167,18 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
         promise,
         new Promise<T>((resolve) => setTimeout(() => resolve(fallback), OPEN_TIMEOUT_MS)),
       ])
+
+      const reveal = (): OpenInstallerResult => {
+        try {
+          shell.showItemInFolder(path)
+          return { ok: 'revealed' }
+        } catch (e) {
+          const reason = e instanceof Error ? e.message : String(e)
+          log.warn('update', 'could not reveal installer', { path, error: reason })
+          return { ok: 'failed', reason }
+        }
+      }
+
       // `reveal` is not a fallback here, it is the answer — and not for the reason first
       // assumed. Measured on Ubuntu 24.04 in Docker: with no handler registered, `openPath`
       // fails fast ("A required tool could not be found", xdg-open's exit 3); with a handler and
@@ -168,23 +188,27 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
       // show the user where it is and give them the command instead (see `installInstructions`).
       if (action === 'reveal') {
         log.info('update', 'revealing installer', { path, action })
-        shell.showItemInFolder(path)
-        return
+        return reveal()
       }
-      // A timeout means the opener is still running, which means the file did open.
-      //
+
       // Every branch below is logged, because this is the call that produced a bug nobody could
       // reproduce: what the desktop did with the file is the one fact that was missing.
       log.info('update', 'opening installer', { path, action })
       const started = Date.now()
-      const error = await settle(shell.openPath(path), '')
-      log.info('update', 'openPath returned', { ms: Date.now() - started, error: error === '' ? null : error })
-      if (error !== '') {
-        // Falling back to revealing it: the user can still double-click it themselves, which is
-        // better than an error with nothing behind it.
-        log.warn('update', 'could not open installer, revealing instead', { path, error })
-        shell.showItemInFolder(path)
-      }
+      const TIMED_OUT = Symbol('timed out')
+      const outcome = await settle<string | typeof TIMED_OUT>(shell.openPath(path), TIMED_OUT)
+      const timedOut = outcome === TIMED_OUT
+      const error = timedOut ? '' : outcome
+      log.info('update', 'openPath returned', {
+        ms: Date.now() - started, error: error === '' ? null : error, timedOut,
+      })
+
+      // A timeout means the opener is still running, which is not the same thing as it having
+      // launched — the caller cannot tell the difference from here, so it is reported the same
+      // way a deliberate `reveal` is: shown, not claimed to have opened.
+      if (!timedOut && error === '') return { ok: 'opened' }
+      if (!timedOut) log.warn('update', 'could not open installer, revealing instead', { path, error })
+      return reveal()
     },
   }
 }

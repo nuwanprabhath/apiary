@@ -30,10 +30,37 @@ describe('installInstructions', () => {
     expect(installInstructions(linux, '/tmp/Apiary-1.13.0.AppImage').action).toBe('open')
   })
 
-  it('still tells a mac user to drag it into Applications, with no command to run', () => {
+  it('gives an AppImage the command that makes it executable and runs it', () => {
+    const { command, action } = installInstructions(linux, '/tmp/Apiary-1.13.0.AppImage')
+    expect(command).toBe("chmod +x '/tmp/Apiary-1.13.0.AppImage' && '/tmp/Apiary-1.13.0.AppImage'")
+    expect(action).toBe('open')
+  })
+
+  it('quotes an AppImage path with a space and one with an apostrophe', () => {
+    expect(installInstructions(linux, '/home/a b/Apiary-1.13.0.AppImage').command)
+      .toBe("chmod +x '/home/a b/Apiary-1.13.0.AppImage' && '/home/a b/Apiary-1.13.0.AppImage'")
+    expect(installInstructions(linux, "/home/o'brien/Apiary-1.13.0.AppImage").command)
+      .toBe("chmod +x '/home/o'\\''brien/Apiary-1.13.0.AppImage' && '/home/o'\\''brien/Apiary-1.13.0.AppImage'")
+  })
+
+  it('gives a mac .dmg a one-line command that mounts, copies and detaches it', () => {
+    const { command, action } = installInstructions(mac, '/tmp/Apiary-1.13.0-arm64.dmg')
+    expect(command).toContain('hdiutil attach')
+    expect(command).toContain('/Applications')
+    expect(command).toContain('hdiutil detach')
+    expect(action).toBe('open')
+  })
+
+  it('quotes a .dmg path with a space and one with an apostrophe', () => {
+    expect(installInstructions(mac, '/Users/a b/Apiary-1.13.0.dmg').command).toContain("'/Users/a b/Apiary-1.13.0.dmg'")
+    expect(installInstructions(mac, "/Users/o'brien/Apiary-1.13.0.dmg").command)
+      .toContain("'/Users/o'\\''brien/Apiary-1.13.0.dmg'")
+  })
+
+  it('still tells a mac user to drag it into Applications, and gives the command that does it', () => {
     const { hint, command, action } = installInstructions(mac, '/tmp/Apiary-1.13.0-arm64.dmg')
     expect(hint).toContain('Applications')
-    expect(command).toBeNull()
+    expect(command).not.toBeNull()
     expect(action).toBe('open')
   })
 })

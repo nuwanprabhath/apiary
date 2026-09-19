@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS session (
   project_path     TEXT NOT NULL REFERENCES project(path),
   title            TEXT,
   custom_title     TEXT,
+  cwd_override     TEXT,
   first_prompt     TEXT,
   cwd              TEXT,
   git_branch       TEXT,

@@ -1,24 +1,29 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { projectsDir } from './config'
 import { scanProjects } from './scanner/sessionScanner'
+import { encodeProjectDirName } from './scanner/projectDirName'
 import { resolveProject, clearResolverCache } from './git/worktreeResolver'
 import { SessionStore } from './store/sessionStore'
-import { buildTree, filterTree } from './tree/buildTree'
+import { buildTree } from './tree/buildTree'
 import { indexTranscript, readTranscriptPage } from './transcript/transcriptReader'
 import { detectLiveSessions } from './live/liveSessionDetector'
 import { PtyManager } from './pty/ptyManager'
 import { SearchIndex } from './search/searchIndex'
+import { SearchClient } from './search/searchClient'
 import { runIndexPass, type IndexableSession } from './search/indexer'
 import { promptPathEnv, type PromptPathOptions } from './pty/promptPath'
 import { forkLabel } from '@shared/forkLabel'
 import { log } from './log/logger'
 import { PluginRegistry } from './plugins/registry'
-import { createGitLabMrPlugin } from './plugins/gitlabMr'
+import { createGitLabMrPlugin, originUrl, defaultExec as defaultGitExec } from './plugins/gitlabMr'
+import { parseGitLabRemote } from './plugins/gitlabRemote'
 import type { PluginBarItem } from './plugins/types'
+import { resolveMrStatus, type MrState } from './git/mrStatusCache'
 import { buildResumeCommand, buildNewSessionCommand } from './pty/resumeCommand'
+import { openInVsCode as spawnVsCode } from './vscode/detectVsCode'
 import * as branchOps from './git/branchOps'
 import type {
   ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo, CheckoutOutcome,
@@ -46,6 +51,8 @@ export interface AppServiceOptions {
   pluginSettings?: Record<string, Record<string, string | number | boolean>>
   /** Path to the `glab` executable, for anyone whose install is not on PATH (and for tests). */
   glabPath?: string
+  /** Path to the `code` CLI, resolved once at startup by `detectVsCode`. Null when none was found. */
+  vsCodePath?: string | null
   /** Called when a plugin's contribution to a bar changed, so windows can re-read it. */
   onPluginsChanged?: () => void
   /**
@@ -92,12 +99,16 @@ export class AppService {
    * the schema when content search is actually on, and it can be switched off in Settings.
    */
   private searchIndex: SearchIndex | null = null
+  /** Owns the worker thread the content search runs on — see `searchSessions`. */
+  private searchClient: SearchClient | null = null
   private searchChatContent = true
   private searchSessionNotes = true
   private promptPath: PromptPathOptions = { enabled: false, segments: 2 }
   private readonly plugins: PluginRegistry
   /** Set while a pass is running, so refreshes cannot stack passes on top of each other. */
   private indexing = false
+  /** Resolved once at construction by `detectVsCode`; never re-probed per hover. */
+  private readonly vsCodePath: string | null
 
   constructor(options: AppServiceOptions) {
     this.options = options
@@ -106,6 +117,7 @@ export class AppService {
     this.searchChatContent = options.searchChatContent ?? true
     this.searchSessionNotes = options.searchSessionNotes ?? true
     this.promptPath = options.promptPath ?? { enabled: false, segments: 2 }
+    this.vsCodePath = options.vsCodePath ?? null
     this.plugins = new PluginRegistry({ onChanged: () => options.onPluginsChanged?.() })
     this.plugins.register(
       createGitLabMrPlugin({ glabPath: options.glabPath }),
@@ -283,18 +295,13 @@ export class AppService {
     void this.updateSearchIndex()
   }
 
-  async tree(query = ''): Promise<ProjectNode[]> {
-    const full = buildTree(
+  async tree(): Promise<ProjectNode[]> {
+    return buildTree(
       this.store.visibleProjects(),
       this.store.visibleSessions(),
       new Set(this.live.keys()),
       (path) => existsSync(path),
     )
-    // Title matching happens in the tree itself; the index contributes the sessions whose
-    // *contents* match, which are then kept by the same filter. Searching content is additive —
-    // it can only widen what a query finds, never hide something the title already matched.
-    const byContent = query.trim() === '' ? new Set<string>() : new Set(this.searchSessions(query))
-    return filterTree(full, query, byContent)
   }
 
   /**
@@ -303,8 +310,27 @@ export class AppService {
    * the user wrote and costs nothing to keep indexed, so it stays searchable even for someone who
    * has turned transcript indexing off.
    */
-  searchSessions(query: string): string[] {
+  /**
+   * Which sessions match `query` by conversation content or by note.
+   *
+   * Runs in a worker thread (`SearchClient`), not here. `better-sqlite3` is synchronous, so doing
+   * this inline put an FTS query on the thread that also routes window input — and a slow query
+   * therefore froze typing in every window rather than merely delaying results. See
+   * `searchWorker.ts`; the 7.7-second case that proved it is described in `searchIndex.ts`.
+   */
+  async searchSessions(query: string): Promise<string[]> {
     if (!this.searchChatContent && !this.searchSessionNotes) return []
+    this.searchClient ??= new SearchClient(this.searchDbPath())
+    const fromWorker = await this.searchClient.search(query, {
+      content: this.searchChatContent,
+      notes: this.searchSessionNotes,
+    })
+    if (fromWorker !== null) return fromWorker
+
+    // No worker available — search in-process rather than pretending nothing matched. This blocks
+    // the main thread, which is the very thing the worker exists to avoid, so it is a fallback and
+    // not a mode: `SearchClient` logs loudly when it cannot start one. It is also the path the
+    // integration tests take, since they run the source directly with no bundled worker beside it.
     try {
       const ids = new Set<string>()
       if (this.searchChatContent) {
@@ -320,11 +346,13 @@ export class AppService {
     }
   }
 
+  private searchDbPath(): string {
+    return this.options.searchDbPath ?? join(dirname(this.options.dbPath), 'search.db')
+  }
+
   /** The index, opened on first use. */
   private index(): SearchIndex {
-    this.searchIndex ??= new SearchIndex(
-      this.options.searchDbPath ?? join(dirname(this.options.dbPath), 'search.db'),
-    )
+    this.searchIndex ??= new SearchIndex(this.searchDbPath())
     return this.searchIndex
   }
 
@@ -521,13 +549,69 @@ export class AppService {
     this.store.setArchived(sessionId, true)
   }
 
+  /**
+   * Moves a session's transcript into another worktree's Claude projects directory and points the
+   * store at it from then on. Refused outright while the session is live: a running pty cannot be
+   * asked to change the directory a whole process tree is rooted in.
+   */
+  async moveSession(sessionId: string, targetProjectPath: string): Promise<void> {
+    const session = this.requireSession(sessionId)
+    // Both sources of liveness, because neither one alone is current. `this.live` is the external
+    // process scan, refreshed only by `refresh()` — so a session the user resumed *here* a moment
+    // ago is not in it until the next rescan. `this.pty.has()` is this process's own ptys, which
+    // is what `resume()` and `openShell()` already trust, and it knows immediately. With only the
+    // stale half, clicking Resume and then dragging that session onto another worktree passed the
+    // guard and renamed the JSONL out from under a running Claude Code, which simply recreated the
+    // file at the old path — the history then split in two, with the store pointing at the copy
+    // that stopped being written to.
+    if (this.pty.has(sessionId) || this.live.has(sessionId)) {
+      throw new Error('This session is still running — stop it before moving it to another worktree.')
+    }
+    if (!existsSync(session.filePath)) {
+      throw new Error(`This session's transcript file is no longer on disk: ${session.filePath}`)
+    }
+    // The renderer only ever hands back a path it was shown in the tree (a project row's own
+    // path), but it is still checked against a row this store already holds before it is used to
+    // touch the filesystem — the same rule newSessionInProject follows for the same reason.
+    const known = this.store.getProject(targetProjectPath)
+    if (!known) throw new Error(`Unknown project: ${targetProjectPath}`)
+    const target = await resolveProject(known.path)
+
+    const targetDir = join(projectsDir(this.options.configRoot), encodeProjectDirName(target.path))
+    const targetFile = join(targetDir, `${sessionId}.jsonl`)
+    if (existsSync(targetFile)) {
+      throw new Error(`A session already exists there: ${targetFile}`)
+    }
+
+    await mkdir(targetDir, { recursive: true })
+    await rename(session.filePath, targetFile)
+
+    this.store.syncProject(target)
+    this.store.recordSessionMove(sessionId, target.path, target.path, targetFile)
+  }
+
   async checkConflict(sessionId: string): Promise<ResumeConflict | null> {
     const pid = this.live.get(sessionId)
     return pid === undefined ? null : { sessionId, pid }
   }
 
-  /** Spawns `claude --resume` in the session's recorded cwd. Terminal id is the session id. */
+  /**
+   * Spawns `claude --resume` in the session's recorded cwd. Terminal id is the session id.
+   *
+   * **An already-running pty is attached to, never replaced.** The same session can legitimately
+   * be live in two windows at once (see `checkConflict`'s own comment on the class), and each
+   * window is a separate renderer that cannot see what another one has already started — this is
+   * exactly what surfaced restoring after a relaunch: both windows recorded the session as `live`
+   * at quit, both call `resume()` independently on mount, and without this check the second call
+   * would hit `spawn()`'s unconditional `kill()` and restart the pty out from under the first
+   * window mid-startup. `this.pty.has` is the same check `openShell` already makes for the
+   * equivalent shell-tab collision.
+   */
   async resume(sessionId: string): Promise<void> {
+    if (this.pty.has(sessionId)) {
+      log.info('resume', 'attaching to a session that is already running', { sessionId })
+      return
+    }
     const session = this.requireSession(sessionId)
     const cwd = session.cwd
     if (!cwd || !existsSync(cwd)) {
@@ -557,6 +641,18 @@ export class AppService {
     if (!cwd) throw new Error(`Unknown session: ${key}`)
     if (!existsSync(cwd)) throw new Error(`The folder for this session no longer exists: ${cwd}`)
     return cwd
+  }
+
+  /** Whether VS Code was found on this machine at launch. Checked once; does not change at runtime. */
+  vsCodeAvailable(): boolean {
+    return this.vsCodePath !== null
+  }
+
+  /** Opens the session's folder in VS Code. Rejects if VS Code was not found or the folder is gone. */
+  async openInVsCode(key: string, isPtyId: boolean): Promise<void> {
+    if (this.vsCodePath === null) throw new Error('VS Code was not found on this machine')
+    const cwd = this.resolveShellCwd(key, isPtyId)
+    spawnVsCode(this.vsCodePath, cwd)
   }
 
   /**
@@ -613,6 +709,30 @@ export class AppService {
 
   async gitListRefs(key: string, isPtyId: boolean): Promise<GitRefs> {
     return branchOps.listRefs(this.resolveShellCwd(key, isPtyId))
+  }
+
+  /**
+   * Resolves each `!<iid>` reference named in a session's title or note against its GitLab
+   * remote, the way the session-bar plugin resolves its own button: through `glab`, never a
+   * stored token. No remote, no `glab`, a non-zero exit or a timeout all map every iid to `null`
+   * rather than throwing — an unresolved reference is meant to render exactly as if this call
+   * had never been made.
+   */
+  async gitlabMrRefStatus(
+    key: string, isPtyId: boolean, iids: number[],
+  ): Promise<Record<number, MrState | null>> {
+    const cwd = this.resolveShellCwd(key, isPtyId)
+    const out: Record<number, MrState | null> = {}
+    const remoteUrl = await originUrl(cwd, defaultGitExec)
+    const remote = remoteUrl === null ? null : parseGitLabRemote(remoteUrl)
+    if (remote === null) {
+      for (const iid of iids) out[iid] = null
+      return out
+    }
+    await Promise.all(iids.map(async (iid) => {
+      out[iid] = await resolveMrStatus(cwd, remote.host, remote.project, iid, { glabPath: this.options.glabPath })
+    }))
+    return out
   }
 
   /**
@@ -788,6 +908,20 @@ export class AppService {
     const session = this.store.getSession(sessionId)
     if (!session) throw new Error(`Unknown session: ${sessionId}`)
     return session
+  }
+
+  /**
+   * Whether `sessionId` can still be resumed: it must resolve in the store, its transcript file
+   * must still exist (it can be deleted by removing the worktree it lived in — see `resume()`
+   * above), and its cwd must still exist. Unlike `requireSession`, this never throws — restore
+   * calls it once per recorded live session and a stale one is meant to be dropped, not to abort
+   * the whole launch.
+   */
+  sessionIsResumable(sessionId: string): boolean {
+    const session = this.store.getSession(sessionId)
+    if (session === undefined || session === null) return false
+    if (!existsSync(session.filePath)) return false
+    return session.cwd !== null && existsSync(session.cwd)
   }
 
   async dispose(): Promise<void> {

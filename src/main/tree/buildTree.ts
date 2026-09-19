@@ -1,7 +1,6 @@
 import { basename } from 'node:path'
 import type { ProjectNode, SessionNode } from '@shared/types'
 import type { StoredProject, StoredSession } from '../store/sessionStore'
-import { fuzzyScore } from './fuzzy'
 
 function toSessionNode(
   s: StoredSession,
@@ -83,44 +82,4 @@ export function buildTree(
     node.children.sort((a, b) => a.label.localeCompare(b.label))
   }
   return result.sort((a, b) => a.label.localeCompare(b.label))
-}
-
-function projectMatches(node: ProjectNode, query: string): boolean {
-  return (
-    fuzzyScore(query, node.label) !== null ||
-    fuzzyScore(query, node.path) !== null ||
-    (node.branch !== null && fuzzyScore(query, node.branch) !== null)
-  )
-}
-
-function filterNode(node: ProjectNode, query: string, alsoMatched: Set<string>): ProjectNode | null {
-  // A matching project keeps everything beneath it.
-  if (projectMatches(node, query)) return node
-
-  const sessions = node.sessions.filter(
-    (s) => fuzzyScore(query, s.title) !== null || alsoMatched.has(s.sessionId),
-  )
-  const children = node.children
-    .map((c) => filterNode(c, query, alsoMatched))
-    .filter((c): c is ProjectNode => c !== null)
-
-  if (sessions.length === 0 && children.length === 0) return null
-  return { ...node, sessions, children }
-}
-
-/**
- * Narrows the tree to what matches.
- *
- * `alsoMatched` carries session ids matched by something this function cannot see for itself —
- * today, the full-text index over what was said in them. Keeping it as a parameter rather than
- * reaching for the index here leaves this module pure and synchronous, which is what lets it stay
- * unit-testable without a database.
- */
-export function filterTree(
-  tree: ProjectNode[],
-  query: string,
-  alsoMatched: Set<string> = new Set(),
-): ProjectNode[] {
-  if (query.trim() === '') return tree
-  return tree.map((n) => filterNode(n, query, alsoMatched)).filter((n): n is ProjectNode => n !== null)
 }

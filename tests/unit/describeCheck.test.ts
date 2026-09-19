@@ -11,6 +11,7 @@ const status = (over: Partial<UpdateStatusPayload>): UpdateStatusPayload => ({
   releaseUrl: null,
   progressPercent: null,
   install: null,
+  openResult: null,
   downloadedPath: null,
   error: null,
   lastCheckedAt: null,
