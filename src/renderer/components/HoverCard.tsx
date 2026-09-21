@@ -81,14 +81,23 @@ export function HoverCard(
     const el = ref.current
     if (el === null) return
     const box = el.getBoundingClientRect()
-    // Below the row, flipping above it only when the bottom of the window leaves no room — a card
-    // that runs off the bottom edge is one whose last lines cannot be read.
+    // Beside the row, out past the sidebar's edge, top-aligned with it. Below the row the card
+    // covered the next several sessions — the very rows you look at and move to next — so you
+    // could neither read them nor hover the next one without first backing out of this one.
+    // Out to the side, the list stays whole, and reaching the card is a straight move right that
+    // crosses no other row.
+    const beside = anchor.right + GAP
+    if (beside + box.width + MARGIN <= window.innerWidth) {
+      const top = Math.max(MARGIN, Math.min(anchor.top, window.innerHeight - box.height - MARGIN))
+      setPos({ left: beside, top })
+      return
+    }
+    // A window too narrow to fit it beside: below the row, flipping above only when the bottom of
+    // the window leaves no room — a card run off the bottom edge is one whose last lines are lost.
     const below = anchor.bottom + GAP
     const top = below + box.height + MARGIN <= window.innerHeight
       ? below
       : Math.max(MARGIN, anchor.top - GAP - box.height)
-    // Left-aligned with the row, so the card and the row it belongs to share an edge; pulled back
-    // only as far as the window forces.
     const left = Math.max(MARGIN, Math.min(anchor.left, window.innerWidth - box.width - MARGIN))
     setPos({ left, top })
   }, [anchor])

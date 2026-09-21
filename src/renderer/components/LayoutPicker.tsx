@@ -36,11 +36,16 @@ export function LayoutPicker({
     const el = ref.current
     if (el === null) return
     const box = el.getBoundingClientRect()
-    const below = anchor.bottom + GAP
-    const top = below + box.height + MARGIN <= window.innerHeight
-      ? below
-      : Math.max(MARGIN, anchor.top - GAP - box.height)
-    const left = Math.max(MARGIN, Math.min(anchor.left, window.innerWidth - box.width - MARGIN))
+    // Beside the button, not beneath it. Directly below puts the picker on top of the next
+    // session rows, so the pointer travelling to it crosses them — and each one it crosses arms
+    // its own hover card, which takes the gesture away before the picker can be clicked. To the
+    // right there is nothing between the button and the menu.
+    const right = anchor.right + GAP
+    const left = right + box.width + MARGIN <= window.innerWidth
+      ? right
+      : Math.max(MARGIN, anchor.left - GAP - box.width)
+    // Top-aligned with the button, pulled up only as far as staying on screen requires.
+    const top = Math.max(MARGIN, Math.min(anchor.top, window.innerHeight - box.height - MARGIN))
     setPos({ left, top })
   }, [anchor])
 

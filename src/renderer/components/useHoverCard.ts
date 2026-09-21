@@ -1,8 +1,93 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { HOVER_DELAY_MS } from './HoverCard'
 
 /** How long leaving the row or the card waits before closing, so the gap between them can be crossed. */
 const GRACE_MS = 160
+
+/**
+ * The delay once a card is already showing, or has only just gone.
+ *
+ * The first card waits `HOVER_DELAY_MS`, so a pointer passing through the sidebar on its way
+ * somewhere else does not set cards off. But someone running down the list reading each session
+ * has already said what they want: making them wait the full delay on every row turns the scan
+ * into a flicker of blank gaps. Kept above the time it takes to cross one row diagonally, so a
+ * pointer on its way from a row to its card does not open the card of a row it clips on the way.
+ */
+const WARM_DELAY_MS = 120
+/** How long after a card closes the next one still counts as a continuation of the same scan. */
+const WARM_WINDOW_MS = 400
+
+/**
+ * The one card that may be open, as a way to close it.
+ *
+ * Module-level because only one popup should ever be on screen, and no single hook can know what
+ * the others are doing. Each card previously closed itself on its own schedule, and any path that
+ * swallowed its close left it up beside the next one — the stacks of cards that kept being
+ * reported. With this, opening a card closes whatever else is open, so stacking cannot happen
+ * whatever the timers do.
+ */
+let openCard: { current: () => void } | null = null
+let lastCardClosedAtMs = 0
+function isWarm(): boolean {
+  return openCard !== null || Date.now() - lastCardClosedAtMs < WARM_WINDOW_MS
+}
+
+/**
+ * How long after a scroll a hover is still treated as the scroll's doing rather than the pointer's.
+ *
+ * Scrolling drags rows underneath a pointer that has not moved. Every row that passes under it
+ * gets a real `mouseenter`, and every one of those rows has also moved by the time its
+ * `mouseleave` arrives — which is the exact condition `scheduleClose` reads as "the row moved, not
+ * the pointer" and swallows. So each row armed a card and none of them could close it, and a
+ * flick of the wheel left a stack of cards over the sidebar. Long enough to cover the gap between
+ * wheel events in one gesture; short enough that resting after a scroll still shows a card.
+ */
+const SCROLL_QUIET_MS = 250
+
+/**
+ * When anything in the window last scrolled.
+ *
+ * Module-level and shared by every hook instance on purpose: the row that must not open a card is
+ * rarely the element that scrolled, so each hook asking only about its own subtree would miss it.
+ * One capture-phase listener sees every scroll in the window, including inside the sidebar.
+ */
+let lastScrollAtMs = 0
+const scrollListeners = new Set<() => void>()
+/**
+ * Where the pointer is, tracked globally.
+ *
+ * Needed because a scroll has to be able to ask "is the pointer still over this row?" after it
+ * settles. The events that would otherwise answer that — `mouseenter` and `mouseleave` — do not
+ * fire when the pointer stays within one row, so a card put away by a scroll could never come
+ * back while the pointer rested exactly where the user left it.
+ */
+const pointer = { x: -1, y: -1 }
+if (typeof document !== 'undefined') {
+  document.addEventListener('scroll', () => {
+    lastScrollAtMs = Date.now()
+    for (const notify of scrollListeners) notify()
+  }, { capture: true, passive: true })
+  document.addEventListener('mousemove', (e) => {
+    pointer.x = e.clientX
+    pointer.y = e.clientY
+  }, { capture: true, passive: true })
+}
+function pointerIsOver(el: Element | null): boolean {
+  if (el === null || pointer.x < 0) return false
+  const r = el.getBoundingClientRect()
+  if (isDegenerate(r)) return false
+  return pointer.x >= r.left && pointer.x <= r.right && pointer.y >= r.top && pointer.y <= r.bottom
+}
+function scrolledJustNow(): boolean {
+  return Date.now() - lastScrollAtMs < SCROLL_QUIET_MS
+}
+
+/** A rect an element cannot actually be occupying — what `getBoundingClientRect` returns for a
+ *  hidden or detached node. Anchoring to one puts the popup in the window's corner, nowhere near
+ *  whatever opened it, and leaves it there. */
+function isDegenerate(rect: DOMRect): boolean {
+  return rect.width === 0 && rect.height === 0
+}
 
 /**
  * The timing behind a sidebar hover card, shared by session rows and folder rows.
@@ -56,13 +141,19 @@ export function useHoverCard<T extends HTMLElement>(): {
   }
   const arm = (): void => {
     keepOpen()
+    // A `mouseenter` that arrived because the list scrolled, not because the pointer went
+    // anywhere. Opening on it is what produced a trail of cards down the sidebar.
+    if (scrolledJustNow()) return
     lastKnownRect.current = ref.current?.getBoundingClientRect() ?? null
     if (openTimer.current !== null) window.clearTimeout(openTimer.current)
     openTimer.current = window.setTimeout(() => {
       openTimer.current = null
+      // Re-checked here as well as on entry: the wheel may have turned during the delay, and the
+      // row under the pointer now is not the row the pointer chose.
+      if (scrolledJustNow()) return
       const rect = ref.current?.getBoundingClientRect()
-      if (rect !== undefined) { lastKnownRect.current = rect; setAnchor(rect) }
-    }, HOVER_DELAY_MS)
+      if (rect !== undefined && !isDegenerate(rect)) { lastKnownRect.current = rect; setAnchor(rect) }
+    }, isWarm() ? WARM_DELAY_MS : HOVER_DELAY_MS)
   }
   const scheduleClose = (): void => {
     // Re-measure the row before trusting this leave. If it has moved since the pointer arrived —
@@ -72,9 +163,12 @@ export function useHoverCard<T extends HTMLElement>(): {
     // still exactly where the pointer found it is the real thing, and closes/cancels as before.
     const el = ref.current
     const previous = lastKnownRect.current
-    if (el !== null && previous !== null) {
+    // Never during a scroll. The tolerance exists for a row displaced by something the pointer had
+    // nothing to do with — a live section resizing above it — and a scroll moves every row at
+    // once, so applying it here swallows every genuine leave the scroll produces.
+    if (el !== null && previous !== null && !scrolledJustNow()) {
       const now = el.getBoundingClientRect()
-      if (now.top !== previous.top || now.left !== previous.left) {
+      if (!isDegenerate(now) && (now.top !== previous.top || now.left !== previous.left)) {
         lastKnownRect.current = now
         if (anchor !== null) setAnchor(now)
         return
@@ -118,13 +212,62 @@ export function useHoverCard<T extends HTMLElement>(): {
     document.addEventListener('mousemove', onMove)
     return () => { document.removeEventListener('mousemove', onMove) }
   }, [anchor])
+  /**
+   * A scroll puts every popup away at once.
+   *
+   * Not a grace period: the row a card describes is no longer where the card is pointing the
+   * moment the list moves, so there is nothing to preserve by waiting. Closing here also covers
+   * the card that was legitimately open *before* the scroll began, which the suppression in `arm`
+   * cannot reach.
+   */
+  useEffect(() => {
+    const onScroll = (): void => {
+      if (openTimer.current !== null) { window.clearTimeout(openTimer.current); openTimer.current = null }
+      if (closeTimer.current !== null) { window.clearTimeout(closeTimer.current); closeTimer.current = null }
+      setAnchor(null)
+      // ...and come back once the list has stopped moving, if the pointer turns out to be resting
+      // on this row. Each scroll event replaces this timer, so a long scroll settles once at the
+      // end rather than flickering a card between wheel notches — the debounce this needed.
+      openTimer.current = window.setTimeout(() => {
+        openTimer.current = null
+        if (scrolledJustNow() || !pointerIsOver(ref.current)) return
+        const rect = ref.current?.getBoundingClientRect()
+        if (rect !== undefined && !isDegenerate(rect)) { lastKnownRect.current = rect; setAnchor(rect) }
+      }, SCROLL_QUIET_MS + HOVER_DELAY_MS)
+    }
+    scrollListeners.add(onScroll)
+    return () => { scrollListeners.delete(onScroll) }
+  }, [])
+
   const openNow = (): void => {
     clearTimers()
     const rect = ref.current?.getBoundingClientRect()
-    if (rect !== undefined) { lastKnownRect.current = rect; setAnchor(rect) }
+    if (rect !== undefined && !isDegenerate(rect)) { lastKnownRect.current = rect; setAnchor(rect) }
   }
 
-  useEffect(() => clearTimers, [])
+  /**
+   * Enforces the one-card rule: this card opening closes any other, and its closing is recorded
+   * for the warm delay. A layout effect, so the card being replaced is gone before the browser
+   * paints the new one — never a frame with both.
+   */
+  const closeSelf = useRef(() => {
+    if (openTimer.current !== null) { window.clearTimeout(openTimer.current); openTimer.current = null }
+    if (closeTimer.current !== null) { window.clearTimeout(closeTimer.current); closeTimer.current = null }
+    lastKnownRect.current = null
+    setAnchor(null)
+  })
+  useLayoutEffect(() => {
+    if (anchor === null) {
+      if (openCard === closeSelf) { openCard = null; lastCardClosedAtMs = Date.now() }
+      return
+    }
+    if (openCard !== null && openCard !== closeSelf) openCard.current()
+    openCard = closeSelf
+  }, [anchor])
+  useEffect(() => () => {
+    clearTimers()
+    if (openCard === closeSelf) { openCard = null; lastCardClosedAtMs = Date.now() }
+  }, [])
 
   return { anchor, ref, arm, keepOpen, scheduleClose, hideNow, openNow }
 }

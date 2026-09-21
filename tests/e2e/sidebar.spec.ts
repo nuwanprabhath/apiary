@@ -228,3 +228,28 @@ test('the Recent window is a validated setting', async () => {
   await h.page.getByTestId('setting-recent-hours').blur()
   await expect(h.page.getByTestId('setting-recent-hours')).toHaveValue('168')
 })
+
+test('a folder holding the open session can still be collapsed', async () => {
+  // With "Reveal the open session in the sidebar" on, the reveal effect opens whatever folders
+  // stand between the top of the tree and the active session. It re-runs whenever `collapsed`
+  // changes — which is exactly what a click on the chevron does — so unless its latch has already
+  // caught, the user's collapse is undone in the same tick that requested it. The folder flickers
+  // shut and springs back open, and no amount of clicking helps.
+  //
+  // Opening the session first is the whole point: collapsing a folder that holds nothing open has
+  // never been broken.
+  await importAll(h.page)
+  await h.page.getByTestId('sidebar-refresh').click()
+  await expect(h.page.getByTestId('session-item')).toHaveCount(4)
+
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await expect(h.page.getByTestId('session-title')).toHaveText('Fix CSV export bug')
+
+  await h.page.getByTestId('project-toggle').first().click()
+
+  // It must still be collapsed a moment later, not merely at the instant of the click: the
+  // re-expand arrives on the next render, so an immediate assertion would pass against the bug.
+  await expect(h.page.getByTestId('session-item')).toHaveCount(2)
+  await h.page.waitForTimeout(300)
+  await expect(h.page.getByTestId('session-item')).toHaveCount(2)
+})

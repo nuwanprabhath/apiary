@@ -4,6 +4,43 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.18.1] - 2026-09-21
+
+### Changed
+
+- **Hover cards open beside the sidebar instead of over it.** Below the row, a card covered the
+  next several sessions, so you could neither read them nor move onto the next one without first
+  backing out. It now sits out past the sidebar's edge, top-aligned with its row, and the list
+  underneath stays whole. (An older version placed it beside the row and was moved for covering
+  neighbouring rows; the rule now checked is simply that the card covers no session at all.)
+- **Reading down the list is quicker.** Once one card is showing, the next row's opens after a
+  brief pause rather than the full hover delay, so running the pointer down the sidebar reads
+  each session in turn instead of flickering blank between them.
+- **Only one hover card or layout picker is ever open at a time.** Opening one closes any other,
+  so cards cannot stack up whatever their timers do.
+
+### Fixed
+
+- **Scrolling the sidebar no longer leaves a trail of hover cards.** Rows sliding under a still
+  pointer each opened a card, and none of them could close: the same event that would have
+  dismissed one was being discarded as "the row moved, not the pointer" — which is exactly what a
+  scroll looks like. Cards are now put away as soon as the list moves and come back once it
+  settles, on the row the pointer actually ended up over.
+- **The layout picker opens beside its button instead of below it.** Directly underneath, the
+  pointer had to cross the next session rows to reach the menu, and each row it crossed armed its
+  own hover card and stole the gesture before the menu could be clicked.
+- **The layout picker can no longer be stranded in the corner of the window.** A hidden or
+  detached button reports an all-zero rectangle, which the placement maths clamped to the top-left
+  margin, and the popup then sat there ignoring clicks. A popup with no real anchor is no longer
+  opened at all.
+- **The Active section shows merge-request status,** matching the tree and Pinned. A session
+  titled `!1261` read `(merged)` two sections down while Active showed the bare title — the
+  section meant to be read at a glance was the one out of date.
+- **Collapsing a folder that holds the open session is no longer undone.** With "Reveal the open
+  session in the sidebar" on, revealing re-ran on every collapse change, so clicking the chevron
+  could be reverted by the render it caused. Revealing now responds to the selection changing, as
+  intended, rather than standing as a rule that keeps those folders open.
+
 ## [1.18.0] - 2026-09-19
 
 ### Added

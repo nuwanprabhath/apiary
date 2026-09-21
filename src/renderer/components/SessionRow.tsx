@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { SessionNode } from '@shared/types'
-import { parseMrRefs } from '@shared/mrRefs'
 import { NoteIcon, PinIcon, SplitIcon, TrashIcon } from './icons'
 import { HoverCard } from './HoverCard'
-import { MrRefText, type MrState } from './mrRefText'
+import { MrRefText } from './mrRefText'
 import { useHoverCard } from './useHoverCard'
+import { useMrStatuses } from './useMrStatuses'
 import { LayoutMenuButton } from './LayoutMenuButton'
 import { useLayoutActions } from '../state/layoutContext'
 import { useNotifications } from '../state/notifications'
@@ -93,28 +93,8 @@ export function SessionRow({
 
   // Resolves `!<iid>` references named in the title and the note independently, so the hover
   // card — a pure display component with no IPC calls of its own — is simply handed the answer.
-  const titleRefs = useMemo(() => parseMrRefs(session.title), [session.title])
-  const [mrStatuses, setMrStatuses] = useState<Record<number, MrState | null>>({})
-  useEffect(() => {
-    if (titleRefs.length === 0) { setMrStatuses({}); return }
-    let cancelled = false
-    void window.apiary.gitlabMrRefStatus(session.sessionId, false, titleRefs.map((r) => r.iid))
-      .then((result) => { if (!cancelled) setMrStatuses(result) })
-      .catch(() => { /* an unresolved reference just stays plain text */ })
-    return () => { cancelled = true }
-  }, [session.sessionId, titleRefs])
-
-  const noteText = session.note ?? ''
-  const noteRefs = useMemo(() => parseMrRefs(noteText), [noteText])
-  const [noteMrStatuses, setNoteMrStatuses] = useState<Record<number, MrState | null>>({})
-  useEffect(() => {
-    if (noteRefs.length === 0) { setNoteMrStatuses({}); return }
-    let cancelled = false
-    void window.apiary.gitlabMrRefStatus(session.sessionId, false, noteRefs.map((r) => r.iid))
-      .then((result) => { if (!cancelled) setNoteMrStatuses(result) })
-      .catch(() => { /* an unresolved reference just stays plain text */ })
-    return () => { cancelled = true }
-  }, [session.sessionId, noteRefs])
+  const mrStatuses = useMrStatuses(session.sessionId, session.title)
+  const noteMrStatuses = useMrStatuses(session.sessionId, session.note ?? '')
 
   return (
     <div

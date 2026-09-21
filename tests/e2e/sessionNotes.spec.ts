@@ -136,19 +136,29 @@ test('turning note search off stops notes matching, but keeps the notes themselv
   await expect(h.page.getByTestId('hover-card-note')).toHaveText('nightly pipeline failure')
 })
 
-test('the hover card sits below the row, not over the sessions beside it', async () => {
-  // Beside the row meant the card covered the rows either side — which are exactly the sessions
-  // being compared against the one under the pointer.
+test('the hover card covers no session in the list, neither beside nor below its row', async () => {
+  // Two reports, one rule. Placed beside the row it once covered the sessions either side; moved
+  // below, it covered the next several — the rows you read and move to next, so the next one
+  // could not even be hovered. Both are "the card is on top of the list". It now sits out past
+  // the sidebar's edge, which is checked here directly: against every session row on screen.
   const target = sidebarSession(h.page, 'Fix CSV export bug')
   await target.hover()
   const card = h.page.getByTestId('session-hover-card')
   await expect(card).toBeVisible()
 
-  const rowBox = (await row('Fix CSV export bug').boundingBox())!
   const cardBox = (await card.boundingBox())!
-  expect(cardBox.y).toBeGreaterThanOrEqual(rowBox.y + rowBox.height - 1)
-  // Left-aligned with the row it belongs to, so the two share an edge.
-  expect(Math.abs(cardBox.x - rowBox.x)).toBeLessThan(24)
+  const sidebarBox = (await h.page.getByTestId('sidebar').boundingBox())!
+  expect(cardBox.x).toBeGreaterThanOrEqual(sidebarBox.x + sidebarBox.width - 1)
+
+  for (const box of await h.page.getByTestId('session-item').evaluateAll((els) =>
+    els.map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height } }))) {
+    const overlaps = cardBox.x < box.x + box.w && cardBox.x + cardBox.width > box.x
+      && cardBox.y < box.y + box.h && cardBox.y + cardBox.height > box.y
+    expect(overlaps, `card covers a session row at y=${String(box.y)}`).toBe(false)
+  }
+  // Still top-aligned with the row it describes, so which row it belongs to is not in doubt.
+  const rowBox = (await row('Fix CSV export bug').boundingBox())!
+  expect(Math.abs(cardBox.y - rowBox.y)).toBeLessThan(4)
 })
 
 test('the branch can be copied from the hover card, which stays up while reaching for it', async () => {

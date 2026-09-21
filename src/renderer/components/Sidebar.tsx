@@ -7,6 +7,8 @@ import { rankSessions } from '@shared/sessionRank'
 import { SEARCH_RESULT_CAP } from '@shared/treeFilter'
 import { SessionTree } from './SessionTree'
 import { SessionRow } from './SessionRow'
+import { MrRefText } from './mrRefText'
+import { useMrStatuses } from './useMrStatuses'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import {
   groupFolders, orderFolders, moveFolder, moveGroup, moveGroupBefore, deleteGroup, newGroupId,
@@ -148,6 +150,18 @@ function pathsToSession(nodes: ProjectNode[], id: string, trail: string[] = []):
   return null
 }
 
+/**
+ * An Active row's title, with any `!<iid>` in it resolved to its merge-request state.
+ *
+ * Its own component because the lookup is a hook, and the rows are produced in a `map` inside
+ * `Sidebar` where a hook cannot go. Active is the section meant to be read at a glance without
+ * opening anything, so it is the last place that should be showing a staler title than the tree.
+ */
+function ActiveTabTitle({ sessionId, title }: { sessionId: string; title: string }): JSX.Element {
+  const statuses = useMrStatuses(sessionId, title)
+  return <span className="session-title"><MrRefText text={title} statuses={statuses} /></span>
+}
+
 export function Sidebar({
   hidden = false, onHide, hideTitle = 'Hide sidebar',
   selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onDeleteSession,
@@ -190,11 +204,28 @@ export function Sidebar({
    * you back. `block: 'nearest'` likewise leaves an already-visible row exactly where it is.
    */
   const scrolledTo = useRef<string | null>(null)
+  /**
+   * Which session the folders have already been opened for.
+   *
+   * Separate from `scrolledTo`, and the reason a folder can be collapsed at all. The expand step
+   * re-runs on every `collapsed` change, and collapsing a folder *is* a `collapsed` change — so
+   * with only the scroll latch to stop it, a click on the chevron of the folder holding the open
+   * session was undone by the very render it caused. The folder shut and sprang back open, which
+   * is exactly what "clicking B or C won't collapse that folder" looked like from outside, and
+   * why turning the setting off appeared to fix it.
+   *
+   * Revealing is a response to the *selection changing*, not a standing rule that the selected
+   * session's folders stay open. Once this has opened them for a given id, the user's own
+   * collapsing wins until a different session is revealed. The scroll below still retries, since
+   * it is what has to wait for the row to exist.
+   */
+  const expandedFor = useRef<string | null>(null)
   useLayoutEffect(() => {
     if (revealId === null || scrolledTo.current === revealId) return
 
     const chain = pathsToSession(tree, revealId)
-    if (chain !== null && chain.some((path) => collapsed.has(path))) {
+    if (chain !== null && expandedFor.current !== revealId && chain.some((path) => collapsed.has(path))) {
+      expandedFor.current = revealId
       const next = new Set(collapsed)
       for (const path of chain) next.delete(path)
       onCollapsedChange(next)
@@ -551,7 +582,7 @@ export function Sidebar({
                 role="img"
                 aria-label={describeActivityStatus(t.status)}
               />
-              <span className="session-title">{activeSessionsById.get(t.key)?.title ?? t.key}</span>
+              <ActiveTabTitle sessionId={t.key} title={activeSessionsById.get(t.key)?.title ?? t.key} />
               <span className="active-window-number">W{t.windowNumber}</span>
             </button>
           ))}
