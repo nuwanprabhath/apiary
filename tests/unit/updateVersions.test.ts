@@ -132,11 +132,27 @@ describe('decideCapability', () => {
 describe('pickInstaller', () => {
   const file = (url: string) => ({ url, sha512: 'x' })
 
-  it('takes the dmg on macOS and the AppImage on Linux, never the zip', () => {
+  it('takes the dmg on macOS, never the zip', () => {
     const files = [file('Apiary-1.9.0-arm64.dmg'), file('Apiary-1.9.0-arm64.zip')]
     expect(pickInstaller(files, 'darwin', 'arm64')?.url).toBe('Apiary-1.9.0-arm64.dmg')
-    expect(pickInstaller([file('Apiary-1.9.0.AppImage')], 'linux', 'x64')?.url)
-      .toBe('Apiary-1.9.0.AppImage')
+  })
+
+  it('takes the .deb on Linux, not the AppImage sitting beside it in the same release', () => {
+    // The real 1.18.1 feed, verbatim file names. Only a .deb install ever downloads an installer
+    // on Linux (an AppImage updates itself), and it was being handed the AppImage — which on
+    // Ubuntu 22.04+ will not start without libfuse2, and is not what it was installed from.
+    const feed = [file('Apiary-1.18.1.AppImage'), file('apiary_1.18.1_amd64.deb')]
+    expect(pickInstaller(feed, 'linux', 'x64')?.url).toBe('apiary_1.18.1_amd64.deb')
+  })
+
+  it('matches Debian architecture names, and refuses a .deb for another architecture', () => {
+    const feed = [file('apiary_1.18.1_amd64.deb'), file('apiary_1.18.1_arm64.deb')]
+    expect(pickInstaller(feed, 'linux', 'arm64')?.url).toBe('apiary_1.18.1_arm64.deb')
+    expect(pickInstaller([file('apiary_1.18.1_amd64.deb')], 'linux', 'arm64')).toBeNull()
+  })
+
+  it('returns null on Linux when the release has no .deb, rather than falling back to the AppImage', () => {
+    expect(pickInstaller([file('Apiary-1.18.1.AppImage')], 'linux', 'x64')).toBeNull()
   })
 
   it('picks the file for this architecture when a release carries several', () => {

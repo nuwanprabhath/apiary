@@ -143,7 +143,7 @@ export const CHANNELS = {
   ptyResize: 'apiary:pty-resize',
   ptyKill: 'apiary:pty-kill',
   ptyData: 'apiary:pty-data',
-  ptyReplay: 'apiary:pty-replay',
+  ptySnapshot: 'apiary:pty-snapshot',
   ptyRunning: 'apiary:pty-running',
   ptyExit: 'apiary:pty-exit',
   treeChanged: 'apiary:tree-changed',
@@ -162,6 +162,7 @@ export const CHANNELS = {
   gitCheckoutDetached: 'apiary:git-checkout-detached',
   gitCreateBranch: 'apiary:git-create-branch',
   gitPull: 'apiary:git-pull',
+  gitPullFolder: 'apiary:git-pull-folder',
   gitPush: 'apiary:git-push',
   gitMerge: 'apiary:git-merge',
   gitFetch: 'apiary:git-fetch',
@@ -204,6 +205,14 @@ export const CHANNELS = {
   vsCodeAvailable: 'apiary:vscode-available',
   openInVsCode: 'apiary:open-in-vscode',
 } as const
+
+
+/** A pty's screen as escape sequences that repaint it, and the size they were laid out for. */
+export interface PtySnapshot {
+  data: string
+  cols: number
+  rows: number
+}
 
 export interface ApiaryApi {
   refresh(): Promise<void>
@@ -302,10 +311,12 @@ export interface ApiaryApi {
   ptyResize(id: string, cols: number, rows: number): void
   ptyKill(id: string): void
   /**
-   * What this pty printed before the caller attached to it, so a terminal opened in a second
-   * window — or a tab moved into one — is not blank until the program next speaks.
+   * The pty's screen and history as it stands, so a terminal attaching late — a tab switched
+   * back to, a session opened in a second window, a tab moved between panes — is not blank until
+   * the program next speaks. A rendered snapshot rather than the raw byte history: see
+   * `ScreenBuffers.snapshot`. Paint it at its own `cols`×`rows`, then fit and resize.
    */
-  ptyReplay(id: string): Promise<string>
+  ptySnapshot(id: string): Promise<PtySnapshot | null>
   /**
    * Which of `ids` currently have a live process behind them.
    *
@@ -344,6 +355,9 @@ export interface ApiaryApi {
   gitCheckoutDetached(key: string, isPtyId: boolean, ref: string): Promise<void>
   gitCreateBranch(key: string, isPtyId: boolean, name: string, from?: string): Promise<void>
   gitPull(key: string, isPtyId: boolean): Promise<void>
+  /** Fast-forwards a sidebar folder's branch from its upstream; never merges or rebases. `path`
+   *  must be a folder the sidebar shows — main rejects any other. */
+  gitPullFolder(path: string): Promise<{ commits: number }>
   gitPush(key: string, isPtyId: boolean): Promise<void>
   gitMerge(key: string, isPtyId: boolean, ref: string): Promise<void>
   gitFetch(key: string, isPtyId: boolean): Promise<void>

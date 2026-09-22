@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { CopyIcon, CheckIcon } from './icons'
+import { ArrowDownIcon, CopyIcon, CheckIcon } from './icons'
 import { MrRefText, type MrState } from './mrRefText'
 import { createPortal } from 'react-dom'
 
@@ -48,6 +48,13 @@ interface Props {
   /** Only true once main-process detection has found VS Code and the folder exists. */
   canOpenInVsCode?: boolean
   onOpenInVsCode?: () => void
+  /**
+   * Fast-forwards the branch from its upstream. Only a folder's card offers it: a folder's branch
+   * is what its worktree has checked out *now*, while a session card's may be the branch it was
+   * recorded on months ago — pulling that into today's checkout would be the wrong branch.
+   * Resolves once the pull has finished, successfully or not; the caller reports the outcome.
+   */
+  onPullBranch?: () => Promise<void>
   testId?: string
 }
 
@@ -57,13 +64,15 @@ const MARGIN = 8
 export function HoverCard(
   {
     anchor, title, path, branch, recordedBranch, lastActive, note, noteMrStatuses, missing,
-    canOpenInVsCode, onOpenInVsCode,
+    canOpenInVsCode, onOpenInVsCode, onPullBranch,
     testId = 'session-hover-card',
     onPointerEnter, onPointerLeave,
   }: Props,
 ): JSX.Element {
   /** Which value was just copied, for the tick on its button. */
   const [copied, setCopied] = useState<'branch' | 'path' | null>(null)
+  /** A pull in flight: the button is disabled so a second click cannot start a second pull. */
+  const [pulling, setPulling] = useState(false)
   // The tick is an acknowledgement, not a state worth keeping: it goes back to the copy glyph so
   // the button does not claim a copy made a minute ago is the one just now.
   useEffect(() => {
@@ -156,6 +165,22 @@ export function HoverCard(
           >
             {copied === 'branch' ? <CheckIcon /> : <CopyIcon />}
           </button>
+          {onPullBranch !== undefined && (
+            <button
+              className="hover-card-copy"
+              data-testid="hover-card-pull-branch"
+              title={pulling ? 'Pulling…' : `Pull the latest ${branch} (fast-forward only)`}
+              aria-label={`Pull the latest ${branch}`}
+              aria-busy={pulling}
+              disabled={pulling}
+              onClick={() => {
+                setPulling(true)
+                void onPullBranch().finally(() => { setPulling(false) })
+              }}
+            >
+              <ArrowDownIcon />
+            </button>
+          )}
         </div>
       )}
       {recordedBranch !== null && recordedBranch !== undefined && (

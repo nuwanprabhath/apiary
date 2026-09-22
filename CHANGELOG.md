@@ -4,6 +4,32 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.18.2] - 2026-09-22
+
+### Added
+
+- **Pull the latest of a branch from a folder's hover card.** A down-arrow beside the branch
+  name fast-forwards that worktree from its upstream and says how many commits arrived, or that
+  it was already up to date. It only ever fast-forwards: if the branch has diverged, or an
+  uncommitted change would be overwritten, git's refusal is shown and nothing is changed — so a
+  click on a folder you are not looking at can never leave it mid-merge. Offered on folder cards
+  only, since a session card's branch may be the one it was recorded on rather than today's.
+
+### Fixed
+
+- **Clicking a session no longer scrambles the conversation in its terminal.** A terminal
+  attaching to a running session was caught up by replaying the session's raw output, which had
+  been drawn at other widths by a program that places every word at an exact column; in a
+  narrower pane, words landed in the wrong places and lines overwrote each other. It is now given
+  a rendered snapshot of the screen instead, painted at the size it was drawn at before the pane
+  resizes it. Measured on recorded Claude sessions: 156 garbled lines before, none after.
+- **Updating a .deb installation on Linux downloads the .deb.** It downloaded the AppImage — not
+  what was installed, and on Ubuntu 22.04 and later unable to start at all
+  (`dlopen(): error loading libfuse.so.2`). The banner now offers `sudo apt install` on the
+  downloaded package, verified on a stock Ubuntu 24.04. An installation still on 1.18.1 or
+  earlier will fetch the AppImage one last time: install 1.18.2's `.deb` from the release page by
+  hand to get past it.
+
 ## [1.18.1] - 2026-09-21
 
 ### Changed

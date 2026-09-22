@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import * as pty from 'node-pty'
 import { loginShell } from './resumeCommand'
 import { log } from '../log/logger'
-import { ScreenBuffers } from './screen'
+import { ScreenBuffers, type ScreenSnapshot } from './screen'
 
 export interface SpawnOptions {
   id: string
@@ -166,6 +166,15 @@ export class PtyManager {
    */
   replay(id: string): string {
     return this.replayBuffers.get(id) ?? ''
+  }
+
+  /**
+   * This pty's screen, history included, as something a view can paint — see
+   * `ScreenBuffers.snapshot` for why a view is given this rather than `replay()`. Null for a pty
+   * that has printed nothing (or does not exist); the view then simply starts empty.
+   */
+  snapshot(id: string): Promise<ScreenSnapshot | null> {
+    return this.screens.snapshot(id)
   }
 
   /**

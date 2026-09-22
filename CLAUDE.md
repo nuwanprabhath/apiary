@@ -81,10 +81,15 @@ this should stay fixed; if you see that error anywhere else, check the variable 
 Apiary is multi-window, and the division is worth stating because getting it wrong is silent:
 
 - **A pty belongs to the main process, not to a window.** Two windows can show the same session,
-  and both are attached to the one process. `PtyManager` keeps a bounded buffer of each pty's
-  recent output (`replay()`) precisely so a view that attaches *late* — a second window, a tab
-  moved into one — is not looking at an empty rectangle while a program sits at a prompt saying
-  nothing.
+  and both are attached to the one process. A view that attaches *late* — a second window, a tab
+  switched back to, a tab moved between panes — is caught up from a **rendered snapshot**
+  (`PtyManager.snapshot()`, built by `ScreenBuffers` with `@xterm/addon-serialize`), not from the
+  raw byte history (`replay()`). The bytes were produced at whatever widths the session had over
+  its life, by a program that places each word at an absolute column, so replayed into a narrower
+  pane they scrambled the conversation. `TerminalView` paints the snapshot at the snapshot's own
+  size, waits for xterm to *parse* it (`write()` is async, `resize()` is not), and only then fits
+  and resizes the pty so the program repaints. Change that order and the scrambling returns —
+  `tests/unit/screenSnapshot.test.ts` measures it against the recorded sessions.
 - **Never spawn over an id that is already live.** `spawn()` kills whatever is under an id before
   taking it. Shell tab ids are minted per window and the first is always `1`, so a session opened
   in a second window asked for the very pty the first was using — and killed a build with it.
@@ -400,6 +405,11 @@ download.
 
 The day a Developer ID certificate exists, `hasDeveloperIdSignature()` returns true, macOS becomes
 `auto`, and nothing else has to change.
+
+**On Linux the assisted download is the `.deb`, never the AppImage** (`pickInstaller`). Only a
+.deb installation takes the assisted path — an AppImage run updates itself — and for a long time it
+was handed the AppImage: a different packaging from the one it came from, which on Ubuntu 22.04+
+does not even start without libfuse2. A release with no `.deb` is an error, not a fallback.
 
 Two things are easy to break from outside the code:
 

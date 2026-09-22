@@ -46,7 +46,7 @@ const api: ApiaryApi = {
   ptyWrite: (id, data) => ipcRenderer.send(CHANNELS.ptyWrite, id, data),
   ptyResize: (id, cols, rows) => ipcRenderer.send(CHANNELS.ptyResize, id, cols, rows),
   ptyKill: (id) => ipcRenderer.send(CHANNELS.ptyKill, id),
-  ptyReplay: (id) => ipcRenderer.invoke(CHANNELS.ptyReplay, id),
+  ptySnapshot: (id) => ipcRenderer.invoke(CHANNELS.ptySnapshot, id),
   ptyRunning: (ids) => ipcRenderer.invoke(CHANNELS.ptyRunning, ids),
   onPtyData: (cb) => subscribe(CHANNELS.ptyData, cb),
   onPtyExit: (cb) => subscribe(CHANNELS.ptyExit, cb),
@@ -73,6 +73,7 @@ const api: ApiaryApi = {
   gitCreateBranch: (key, isPtyId, name, from) =>
     ipcRenderer.invoke(CHANNELS.gitCreateBranch, key, isPtyId, name, from),
   gitPull: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitPull, key, isPtyId),
+  gitPullFolder: (path) => ipcRenderer.invoke(CHANNELS.gitPullFolder, path),
   gitPush: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitPush, key, isPtyId),
   gitMerge: (key, isPtyId, ref) => ipcRenderer.invoke(CHANNELS.gitMerge, key, isPtyId, ref),
   gitFetch: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitFetch, key, isPtyId),

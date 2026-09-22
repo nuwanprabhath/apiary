@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs'
-import { chmod, mkdir, rm, stat } from 'node:fs/promises'
+import { mkdir, rm, stat } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { log } from '../log/logger'
 import { join } from 'node:path'
@@ -145,12 +145,6 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
       // Nothing else should be able to produce a zero-length "verified" file, but the cost of
       // being sure is one stat.
       if ((await stat(target)).size === 0) throw new Error('The download was empty')
-
-      // A downloaded file carries no executable bit. On Linux that is fatal for an AppImage —
-      // nothing on the desktop can run it by double-clicking, and `openInstaller` below would
-      // otherwise "succeed" at opening a file nothing can execute. Only after the checksum has
-      // passed: a mismatched download must never be left runnable.
-      if (opts.platform === 'linux') await chmod(target, 0o755)
 
       return target
     },

@@ -68,34 +68,36 @@ export function TerminalView({ ptyId, testId, visible = true, onRenameKey }: Pro
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(host.current)
-    fit.fit()
-    // A fresh xterm instance always starts with empty scrollback — the PTY itself (and whatever
-    // it already printed) is untouched by an unmount, but nothing replays that history into the
-    // new instance. When this mount is reattaching to a PTY that was already running (a tab
-    // switch back, not a brand-new spawn) at an unchanged size, no real SIGWINCH is delivered
-    // and the shell never redraws, so the pane looks blank. Rather than the renderer fabricating
-    // a fake size to force a change (a fire-and-forget race with no guarantee the main process
-    // won't interleave work between two `ipcRenderer.send` calls), `PtyManager.resize` itself
-    // detects a same-size request and forces the redraw by delivering SIGWINCH directly — see
-    // the comment on `resize()` in ptyManager.ts. The renderer just reports its real size.
-    window.apiary.ptyResize(ptyId, term.cols, term.rows)
 
     /**
-     * Catch this fresh xterm up on what the pty already printed.
+     * Catch this fresh xterm up on the pty it is attaching to, *then* size it to the pane.
      *
-     * A terminal that is attaching for the first time in *this* window — a session opened in a
-     * second window, or a tab dragged into one — has none of the scrollback the originating
-     * window's xterm accumulated, and a TUI sitting at a prompt may never print again, so the
-     * pane stays blank indefinitely. The main process keeps a bounded buffer for exactly this.
+     * A view attaching to a running pty — a tab switched back to, a session opened in a second
+     * window, a tab moved between panes — starts with nothing, and a TUI sitting at a prompt may
+     * never print again. It used to be caught up by replaying the pty's raw output, but that
+     * output was produced at whatever widths the session had over its life, by a program that
+     * places each word at an absolute column. Replayed into a narrower pane the words landed in
+     * the wrong columns and overwrote one another — the scrambled conversation above an intact
+     * prompt that was reported.
      *
-     * The replay is an async round trip, so live output arriving meanwhile is queued rather than
-     * written: writing it first would put the present above the past. `disposed` guards the case
-     * where the tab is closed before the round trip lands, since writing to a disposed terminal
-     * throws.
+     * So the main process hands over a rendered snapshot instead (`ScreenBuffers.snapshot`), and
+     * the order here is the fix as much as the snapshot is:
+     *
+     * 1. Paint it at the size it was laid out for.
+     * 2. Only once xterm has *parsed* it, fit to the pane and resize the pty — which makes the
+     *    program repaint itself at the new width. `write()` parses asynchronously while
+     *    `resize()` applies at once, so resizing straight after writing would lay the snapshot
+     *    out at the new width after all, which is the bug again by another route.
+     *
+     * Live output arriving meanwhile is queued, not written, and drained in order behind the
+     * snapshot: writing it first would put the present above the past. `disposed` guards a tab
+     * closed before the round trip lands, since writing to a disposed terminal throws.
      */
     let disposed = false
     let caughtUp = false
     const queued: string[] = []
+    let lastCols = term.cols
+    let lastRows = term.rows
 
     const offData = window.apiary.onPtyData((id, data) => {
       if (id !== ptyId) return
@@ -103,15 +105,38 @@ export function TerminalView({ ptyId, testId, visible = true, onRenameKey }: Pro
       else queued.push(data)
     })
 
-    void window.apiary.ptyReplay(ptyId)
-      .then((history) => { if (!disposed && history !== '') term.write(history) })
-      // A replay that cannot be fetched is a terminal that starts empty — which is exactly where
-      // it was before this existed, and not worth an error in front of a running session.
+    /** Writes whatever has queued up, and calls `done` once xterm has parsed all of it. Loops
+     *  because output can keep arriving while a batch is being parsed. */
+    const drain = (done: () => void): void => {
+      if (disposed) return
+      if (queued.length === 0) { done(); return }
+      const batch = queued.splice(0).join('')
+      term.write(batch, () => { drain(done) })
+    }
+
+    /** Fits to the pane and tells the pty. On an unchanged size `PtyManager.resize` itself forces
+     *  the redraw a reattaching view needs — see the comment on `resize()` in ptyManager.ts. */
+    const settle = (): void => {
+      fit.fit()
+      lastCols = term.cols
+      lastRows = term.rows
+      window.apiary.ptyResize(ptyId, term.cols, term.rows)
+    }
+
+    void window.apiary.ptySnapshot(ptyId)
+      .then((snap) => new Promise<void>((resolve) => {
+        if (disposed || snap === null) { resolve(); return }
+        term.resize(snap.cols, snap.rows)
+        term.write(snap.data, resolve)
+      }))
+      // A snapshot that cannot be fetched is a terminal that starts empty, which is where a
+      // brand-new pty starts anyway — not worth an error in front of a running session.
       .catch(() => { /* as above */ })
       .finally(() => {
-        caughtUp = true
-        if (!disposed) for (const data of queued) term.write(data)
-        queued.length = 0
+        drain(() => {
+          caughtUp = true
+          settle()
+        })
       })
     const offExit = window.apiary.onPtyExit((id, code) => {
       // Keep the terminal on screen so the exit status is readable.
@@ -192,13 +217,14 @@ export function TerminalView({ ptyId, testId, visible = true, onRenameKey }: Pro
     // would keep both fit() and the PTY resize going, repainting the TUI's prompt at alternating
     // row counts. Gating on an actual change makes a no-op resize inert even if the observer
     // still fires.
-    let lastCols = term.cols
-    let lastRows = term.rows
     let rafId: number | null = null
     const observer = new ResizeObserver(() => {
       if (rafId !== null) return
       rafId = requestAnimationFrame(() => {
         rafId = null
+        // Until the snapshot is painted the view is deliberately at the snapshot's size, not the
+        // pane's; fitting now would resize it under a snapshot still being parsed.
+        if (!caughtUp) return
         fit.fit()
         if (term.cols !== lastCols || term.rows !== lastRows) {
           lastCols = term.cols

@@ -139,6 +139,14 @@ describe('AppService', () => {
     await expect(service.newSessionInProject(workdir)).rejects.toThrow(/unknown project/i)
   })
 
+  it('refuses to pull into a folder the sidebar does not show, before git runs anywhere', async () => {
+    // The folder card's pull button sends a path from the renderer. Like every path-carrying call,
+    // it is only acted on if it names a project the store already holds.
+    await service.refresh()
+    await expect(service.gitPullFolder(workdir)).rejects.toThrow(/unknown project/i)
+    await expect(service.gitPullFolder('/etc')).rejects.toThrow(/unknown project/i)
+  })
+
   it('starts a new session in a known project and flips its auto-import flag', async () => {
     makeSession(projects(), '-w', {
       sessionId: '11111111-1111-1111-1111-111111111111', cwd: workdir, title: 'Existing',

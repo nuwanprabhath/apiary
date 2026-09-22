@@ -47,17 +47,23 @@ describe('downloadInstaller', () => {
   beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'apiary-update-')) })
   afterEach(async () => { await rm(dir, { recursive: true, force: true }); vi.clearAllMocks() })
 
-  it('makes a downloaded Linux installer executable once its checksum passes', async () => {
-    const bytes = Buffer.from('fake appimage bytes')
+  it('downloads the .deb on Linux, not the AppImage published beside it', async () => {
+    // Only a .deb installation downloads an installer on Linux. It was being handed the AppImage.
+    const bytes = Buffer.from('fake deb bytes')
     const sha512 = createHash('sha512').update(bytes).digest('base64')
     checkForUpdates.mockResolvedValue({
       updateInfo: {
-        version: '1.18.0',
+        version: '1.18.2',
         releaseNotes: 'notes',
-        files: [{ url: 'Apiary-1.18.0.AppImage', sha512, size: bytes.length }],
+        files: [
+          { url: 'Apiary-1.18.2.AppImage', sha512: 'not-this-one', size: 999 },
+          { url: 'apiary_1.18.2_amd64.deb', sha512, size: bytes.length },
+        ],
       },
     })
-    httpGet.mockImplementation((_url: string, _opts: unknown, cb: (r: unknown) => void) => {
+    const requested: string[] = []
+    httpGet.mockImplementation((url: string, _opts: unknown, cb: (r: unknown) => void) => {
+      requested.push(url)
       cb(fakeResponse(bytes))
       return { on: () => {} }
     })
@@ -66,8 +72,9 @@ describe('downloadInstaller', () => {
     await backend.check({ allowPrerelease: false })
     const path = await backend.downloadInstaller(() => {})
 
-    const mode = (await stat(path)).mode & 0o777
-    expect(mode).toBe(0o755)
+    expect(path).toBe(join(dir, 'apiary_1.18.2_amd64.deb'))
+    expect(requested).toEqual(['https://github.com/nuwan/apiary/releases/download/v1.18.2/apiary_1.18.2_amd64.deb'])
+    expect((await stat(path)).size).toBe(bytes.length)
   })
 })
 

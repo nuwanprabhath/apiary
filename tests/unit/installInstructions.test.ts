@@ -26,21 +26,12 @@ describe('installInstructions', () => {
     expect(command).toBe("sudo apt install '/home/a b/apiary_1.13.0_amd64.deb'")
   })
 
-  it('leaves a Linux AppImage download to be opened, since only .deb is the special case', () => {
-    expect(installInstructions(linux, '/tmp/Apiary-1.13.0.AppImage').action).toBe('open')
-  })
-
-  it('gives an AppImage the command that makes it executable and runs it', () => {
-    const { command, action } = installInstructions(linux, '/tmp/Apiary-1.13.0.AppImage')
-    expect(command).toBe("chmod +x '/tmp/Apiary-1.13.0.AppImage' && '/tmp/Apiary-1.13.0.AppImage'")
-    expect(action).toBe('open')
-  })
-
-  it('quotes an AppImage path with a space and one with an apostrophe', () => {
-    expect(installInstructions(linux, '/home/a b/Apiary-1.13.0.AppImage').command)
-      .toBe("chmod +x '/home/a b/Apiary-1.13.0.AppImage' && '/home/a b/Apiary-1.13.0.AppImage'")
-    expect(installInstructions(linux, "/home/o'brien/Apiary-1.13.0.AppImage").command)
-      .toBe("chmod +x '/home/o'\\''brien/Apiary-1.13.0.AppImage' && '/home/o'\\''brien/Apiary-1.13.0.AppImage'")
+  it('never hands out the AppImage command that needs libfuse2', () => {
+    // `chmod +x <file> && <file>` is what 1.18.1 gave an Ubuntu user, and it died with "error
+    // loading libfuse.so.2" — Ubuntu 22.04+ does not ship it. Linux downloads are always the .deb
+    // now; were anything else ever to arrive here, it gets no command rather than that one.
+    const { command } = installInstructions(linux, '/tmp/Apiary-1.18.1.AppImage')
+    expect(command ?? '').not.toContain('chmod')
   })
 
   it('gives a mac .dmg a one-line command that mounts, copies and detaches it', () => {

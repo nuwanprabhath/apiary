@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
-  status, listRefs, checkoutBranch, checkoutRemote, checkoutDetached, createBranch, pull, push, merge, fetch, parseWorktreeList, isWorktreeConflict, worktreeForBranch, listWorktrees,
+  status, listRefs, checkoutBranch, checkoutRemote, checkoutDetached, createBranch, pull, pullFastForward, push, merge, fetch, parseWorktreeList, isWorktreeConflict, worktreeForBranch, listWorktrees,
 } from '../../src/main/git/branchOps'
 
 let repo: string
@@ -255,6 +255,63 @@ describe('merge', () => {
 
     rmSync(remote, { recursive: true, force: true })
     rmSync(other, { recursive: true, force: true })
+  })
+})
+
+describe('pullFastForward', () => {
+  // The pull button on a folder's hover card: one click, for a worktree nobody may be looking at.
+  // The guarantees that make that safe are the ones asserted here — it moves the branch only by
+  // fast-forwarding, and when it cannot, it changes nothing at all.
+  let remote: string
+  let other: string
+
+  /** `repo` tracking a bare remote, plus a second clone that stands in for a teammate pushing. */
+  beforeEach(() => {
+    remote = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-ff-remote-')))
+    git(remote, 'init', '-q', '--bare', '-b', 'main')
+    git(repo, 'remote', 'add', 'origin', remote)
+    git(repo, 'push', '-q', '-u', 'origin', 'main')
+    other = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-ff-other-')))
+    git(other, 'clone', '-q', remote, '.')
+    git(other, 'config', 'user.email', 'other@example.com')
+    git(other, 'config', 'user.name', 'Other')
+  })
+  afterEach(() => {
+    rmSync(remote, { recursive: true, force: true })
+    rmSync(other, { recursive: true, force: true })
+  })
+
+  it('brings the branch up to date and says how many commits arrived', async () => {
+    commit(other, 'one.txt', 'first upstream commit')
+    commit(other, 'two.txt', 'second upstream commit')
+    git(other, 'push', '-q')
+
+    expect(await pullFastForward(repo)).toEqual({ commits: 2 })
+    expect(git(repo, 'log', '-1', '--format=%s').trim()).toBe('second upstream commit')
+  })
+
+  it('reports zero, rather than a success that did nothing, when already up to date', async () => {
+    expect(await pullFastForward(repo)).toEqual({ commits: 0 })
+  })
+
+  it('refuses a branch that has diverged, and leaves it exactly where it was — no merge commit', async () => {
+    commit(other, 'theirs.txt', 'upstream work')
+    git(other, 'push', '-q')
+    commit(repo, 'mine.txt', 'local work')
+    const before = git(repo, 'rev-parse', 'HEAD').trim()
+
+    await expect(pullFastForward(repo)).rejects.toThrow(/fast-forward/i)
+    expect(git(repo, 'rev-parse', 'HEAD').trim()).toBe(before)
+    expect(git(repo, 'status', '--porcelain').trim()).toBe('')
+  })
+
+  it('refuses rather than overwrite an uncommitted change, which it leaves untouched', async () => {
+    commit(other, 'README.md', 'upstream edit of the readme')
+    git(other, 'push', '-q')
+    writeFileSync(join(repo, 'README.md'), 'my unsaved edit')
+
+    await expect(pullFastForward(repo)).rejects.toThrow()
+    expect(execFileSync('cat', [join(repo, 'README.md')]).toString()).toBe('my unsaved edit')
   })
 })
 

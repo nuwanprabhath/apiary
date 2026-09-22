@@ -4,6 +4,7 @@ import { SessionRow } from './SessionRow'
 import { HoverCard } from './HoverCard'
 import { useHoverCard } from './useHoverCard'
 import { CollapseAllIcon } from './icons'
+import { useNotifications } from '../state/notifications'
 
 /** Every folder beneath these, at any depth — what "collapse all" folds. */
 function descendantPaths(nodes: ProjectNode[], into: string[] = []): string[] {
@@ -163,6 +164,7 @@ function FolderHeader({
   onCollapseBeneath, onSessionDrop,
 }: FolderHeaderProps): JSX.Element {
   const card = useHoverCard<HTMLDivElement>()
+  const { notify, notifyError } = useNotifications()
   // Highlights the row while a session is dragged over it — a folder drag has its own dropEffect
   // feedback already, but a session drop had nothing to show it would land here at all.
   const [sessionOver, setSessionOver] = useState(false)
@@ -233,6 +235,18 @@ function FolderHeader({
           path={node.path}
           branch={node.branch}
           lastActive={null}
+          onPullBranch={node.branch === null ? undefined : async () => {
+            try {
+              const { commits } = await window.apiary.gitPullFolder(node.path)
+              notify({
+                message: commits === 0
+                  ? `${node.label} is already up to date with ${node.branch ?? 'its upstream'}`
+                  : `Pulled ${String(commits)} commit${commits === 1 ? '' : 's'} into ${node.label}`,
+              })
+            } catch (e: unknown) {
+              notifyError(e, `Could not pull ${node.branch ?? 'the branch'} into ${node.label}`)
+            }
+          }}
           onPointerEnter={card.keepOpen}
           onPointerLeave={card.scheduleClose}
         />

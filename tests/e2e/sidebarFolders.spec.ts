@@ -1,4 +1,7 @@
 import { test, expect, type Locator } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
 
 /**
@@ -93,4 +96,49 @@ test('View > Toggle Sidebar hides and shows it, and hidden survives a reload', a
   await expect(h.page.getByTestId('sidebar-rail')).toBeVisible()
   await toggle()
   await expect(h.page.getByTestId('sidebar')).toBeVisible()
+})
+
+test('a folder\'s card pulls the latest of its branch into that worktree', async () => {
+  // Give a fixture folder a real upstream, then have "someone else" push to it.
+  const row = h.page.locator('.project-row-wrap[data-depth="0"]').first()
+  const path = await row.getAttribute('data-folder-path')
+  if (path === null) throw new Error('folder row has no path')
+  const git = (cwd: string, ...args: string[]): string =>
+    execFileSync('git', ['-c', 'commit.gpgsign=false', ...args], { cwd, stdio: 'pipe' }).toString().trim()
+  const branch = git(path, 'rev-parse', '--abbrev-ref', 'HEAD')
+  const remote = mkdtempSync(join(h.home, 'upstream-'))
+  git(remote, 'init', '-q', '--bare')
+  git(path, 'remote', 'add', 'origin', remote)
+  git(path, 'push', '-q', '-u', 'origin', branch)
+  const teammate = mkdtempSync(join(h.home, 'teammate-'))
+  git(teammate, 'clone', '-q', remote, '.')
+  git(teammate, 'config', 'user.email', 't@example.com')
+  git(teammate, 'config', 'user.name', 'Teammate')
+  writeFileSync(join(teammate, 'from-teammate.txt'), 'hello')
+  git(teammate, 'add', '.')
+  git(teammate, 'commit', '-qm', 'teammate work')
+  git(teammate, 'push', '-q')
+
+  await row.hover()
+  const card = h.page.getByTestId('folder-hover-card')
+  await expect(card).toBeVisible()
+  const pull = card.getByTestId('hover-card-pull-branch')
+  await pull.hover()
+  await pull.click()
+
+  await expect(h.page.getByTestId('notification-message').last()).toContainText(/Pulled 1 commit into/)
+  expect(git(path, 'log', '-1', '--format=%s')).toBe('teammate work')
+
+  // A second pull has nothing to bring, and says so rather than claiming another success.
+  await row.hover()
+  await expect(card).toBeVisible()
+  await card.getByTestId('hover-card-pull-branch').click()
+  await expect(h.page.getByTestId('notification-message').last()).toContainText(/already up to date/)
+})
+
+test('a session\'s card offers no pull: its branch may be one it was recorded on, not today\'s checkout', async () => {
+  await sidebarSession(h.page, 'Worktree session').hover()
+  const card = h.page.getByTestId('session-hover-card')
+  await expect(card).toBeVisible()
+  await expect(card.getByTestId('hover-card-pull-branch')).toHaveCount(0)
 })

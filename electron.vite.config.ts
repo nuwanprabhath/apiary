@@ -11,7 +11,8 @@ export default defineConfig({
     // import of a CJS module, whose named exports Node cannot see — the app died at startup with
     // "Named export 'Terminal' not found". Bundling lets rollup do the interop, and has the side
     // benefit that nothing has to be present in node_modules at runtime for it.
-    plugins: [externalizeDepsPlugin({ exclude: ['@xterm/headless'] })],
+    // `@xterm/addon-serialize` is bundled for the same reason: it is CommonJS as well.
+    plugins: [externalizeDepsPlugin({ exclude: ['@xterm/headless', '@xterm/addon-serialize'] })],
     resolve: { alias: shared },
     build: {
       rollupOptions: {

@@ -338,6 +338,16 @@ export function registerIpc(
     },
   )
   handle(CHANNELS.gitPull, (_e, key: string, isPtyId: boolean) => service.gitPull(key, isPtyId))
+  handle(CHANNELS.gitPullFolder, async (_e, path: string) => {
+    const outcome = await service.gitPullFolder(path)
+    // New commits change ahead/behind and possibly what is checked out, so the tree is re-read —
+    // the same reason gitMerge below refreshes.
+    if (outcome.commits > 0) {
+      await service.refresh()
+      send(CHANNELS.treeChanged)
+    }
+    return outcome
+  })
   handle(CHANNELS.gitPush, (_e, key: string, isPtyId: boolean) => service.gitPush(key, isPtyId))
   handle(CHANNELS.gitMerge, async (_e, key: string, isPtyId: boolean, ref: string) => {
     await service.gitMerge(key, isPtyId, ref)
@@ -445,7 +455,7 @@ export function registerIpc(
     service.pty.resize(id, cols, rows),
   )
   ipcMain.on(CHANNELS.ptyKill, (_e, id: string) => service.pty.kill(id))
-  handle(CHANNELS.ptyReplay, (_e, id: string) => service.pty.replay(id))
+  handle(CHANNELS.ptySnapshot, (_e, id: string) => service.pty.snapshot(id))
 
   handle(CHANNELS.logStatus, () => log.status())
   handle(CHANNELS.logClear, () => { log.clear(); return log.status() })

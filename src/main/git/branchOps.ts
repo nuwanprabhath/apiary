@@ -169,6 +169,27 @@ export async function pull(cwd: string): Promise<void> {
   await git(cwd, ['pull'])
 }
 
+/**
+ * Brings a worktree's branch up to date with its upstream, but only by fast-forwarding.
+ *
+ * `--ff-only` rather than the plain `pull()` above, because of where this is offered: a one-click
+ * button on a folder's hover card, for a worktree the user is usually *not* looking at. Plain
+ * `git pull` does whatever the user's config says — merge or rebase — and either can leave that
+ * worktree mid-conflict with nobody at a terminal in it. A fast-forward cannot conflict: it
+ * either moves the branch to what the remote has, or refuses and changes nothing, and git's own
+ * refusal ("Not possible to fast-forward", "would be overwritten") is what gets shown.
+ *
+ * Returns how many commits arrived, measured from HEAD before and after, so the caller can say
+ * "already up to date" instead of reporting a success that did nothing.
+ */
+export async function pullFastForward(cwd: string): Promise<{ commits: number }> {
+  const before = await git(cwd, ['rev-parse', 'HEAD'])
+  await git(cwd, ['pull', '--ff-only'])
+  const after = await git(cwd, ['rev-parse', 'HEAD'])
+  if (before === after) return { commits: 0 }
+  return { commits: Number(await git(cwd, ['rev-list', '--count', `${before}..${after}`])) }
+}
+
 /** Plain `git push`; if the branch has no upstream yet, retries once as
  *  `git push -u origin HEAD` instead of requiring a separate "publish branch" step. */
 export async function push(cwd: string): Promise<void> {

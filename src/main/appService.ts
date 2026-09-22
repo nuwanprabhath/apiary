@@ -814,6 +814,17 @@ export class AppService {
     await branchOps.pull(this.resolveShellCwd(key, isPtyId))
   }
 
+  /**
+   * Fast-forwards a folder's branch from its upstream — the pull button on a folder's hover card.
+   * `path` comes from the renderer, so it is checked against a stored project row before git
+   * runs anywhere, the same rule `newSessionInProject` keeps.
+   */
+  async gitPullFolder(path: string): Promise<{ commits: number }> {
+    const project = this.store.getProject(path)
+    if (!project) throw new Error(`Unknown project: ${path}`)
+    return branchOps.pullFastForward(project.path)
+  }
+
   async gitPush(key: string, isPtyId: boolean): Promise<void> {
     await branchOps.push(this.resolveShellCwd(key, isPtyId))
   }

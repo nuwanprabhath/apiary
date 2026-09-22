@@ -84,16 +84,9 @@ export function installInstructions(input: CapabilityInput, path: string): Insta
       action: 'reveal',
     }
   }
-  if (input.platform === 'linux') {
-    // An AppImage downloaded over HTTP has no executable bit — nothing on a stock desktop can
-    // run it by double-clicking, so the copy-able command is the one thing guaranteed to work
-    // even where `openInstaller` cannot launch it either (see electronUpdaterBackend.ts).
-    return {
-      hint: 'Open it to finish updating. If nothing happens, run this to finish:',
-      command: `chmod +x ${shellQuote(path)} && ${shellQuote(path)}`,
-      action: 'open',
-    }
-  }
+  // No AppImage branch, deliberately. It used to hand out `chmod +x <file> && <file>` — the command
+  // that failed on Ubuntu 22.04+ with "error loading libfuse.so.2" — for a download that only ever
+  // reached a .deb installation by mistake. `pickInstaller` now always fetches the .deb on Linux.
   if (input.platform === 'darwin') {
     return {
       hint: 'Open it and drag Apiary into Applications to finish updating.',
