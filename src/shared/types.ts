@@ -242,3 +242,11 @@ export function isWindowLayoutReport(value: unknown): value is WindowLayoutRepor
   return typeof layout.preset === 'string'
     && Array.isArray(layout.panes) && layout.panes.every(isPersistedPane)
 }
+
+/**
+ * What a session is called when it has neither a title nor a first prompt yet — which is a session
+ * nobody has typed in: `/clear` starts one, and a new session is one until its first message.
+ * It used to fall back to the raw session id, so the header and Active showed
+ * `d81148ef-1230-4160-…` for exactly the session the user had just started.
+ */
+export const UNTITLED_SESSION = 'New session'

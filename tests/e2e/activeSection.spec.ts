@@ -128,3 +128,25 @@ test('hovering the Active header explains what each status dot means', async () 
   // Drawn with the real dots, so the motion in the legend is the motion on the rows.
   await expect(legend.locator('.status-dot')).toHaveCount(4)
 })
+
+test('an Active row edits the session\'s note, like a row in the tree', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  const row = h.page.getByTestId('active-section').locator('.active-row-wrap').filter({ hasText: 'Fix CSV export bug' })
+  await row.hover()
+  const note = row.getByTestId('active-note-button')
+  await expect(note).toBeVisible()
+  // Hover reveals it in the space the window number otherwise takes, as a tree row's age does.
+  await expect(row.locator('.active-window-number')).toBeHidden()
+
+  await note.click()
+  await expect(h.page.getByTestId('note-dialog')).toBeVisible()
+  await h.page.getByTestId('note-input').fill('check with Mark first')
+  await h.page.getByTestId('note-save').click()
+  await expect(h.page.getByTestId('note-dialog')).toHaveCount(0)
+
+  // Saved on the session itself, so the tree row carries it too.
+  await expect(note).toHaveAttribute('data-has-note', 'true')
+  // The tree's row, specifically: the Active row carries the same title and has no hover card.
+  await h.page.locator('.tree').getByTestId('session-item').filter({ hasText: 'Fix CSV export bug' }).hover()
+  await expect(h.page.getByTestId('hover-card-note')).toHaveText('check with Mark first')
+})

@@ -3,6 +3,7 @@ import * as pty from 'node-pty'
 import { loginShell } from './resumeCommand'
 import { log } from '../log/logger'
 import { ScreenBuffers, type ScreenSnapshot } from './screen'
+import { childEnv, strippedMarkers } from './childEnv'
 
 export interface SpawnOptions {
   id: string
@@ -91,6 +92,21 @@ export class PtyManager {
    */
   getCwd(id: string): string | undefined { return this.cwds.get(id) }
 
+  /**
+   * The process id behind each live pty that was started as a TUI (a `claude`, not a plain shell).
+   *
+   * Sessions run as `$SHELL -l -c 'exec claude …'`, and `exec` keeps the pid, so this is Claude's
+   * own pid — the key of the `~/.claude/sessions/<pid>.json` file that says which session the
+   * process is on right now. See `claudeSessionTracker.ts`.
+   */
+  tuiPids(): Map<string, number> {
+    const out = new Map<string, number>()
+    for (const [id, child] of this.processes) {
+      if (this.expectTui.get(id) === true) out.set(id, child.pid)
+    }
+    return out
+  }
+
   spawn(opts: SpawnOptions): void {
     if (!existsSync(opts.cwd)) {
       throw new Error(`Working directory does not exist: ${opts.cwd}`)
@@ -104,7 +120,7 @@ export class PtyManager {
       cwd: opts.cwd,
       cols: opts.cols ?? 80,
       rows: opts.rows ?? 24,
-      env: { ...process.env, TERM: 'xterm-256color', ...opts.env } as Record<string, string>,
+      env: childEnv(process.env, opts.env),
     })
 
     child.onData((data) => {
@@ -130,6 +146,9 @@ export class PtyManager {
       cwd: opts.cwd,
       tui: opts.tui ?? false,
       env: Object.keys(opts.env ?? {}),
+      // Another Claude session's markers removed from the inherited environment (see childEnv.ts).
+      // Non-empty only when Apiary itself was started from inside a Claude Code session.
+      stripped: strippedMarkers(process.env),
       cols: opts.cols ?? 80,
       rows: opts.rows ?? 24,
     })

@@ -64,7 +64,9 @@ describe('buildTree', () => {
     expect(s2.cwdExists).toBe(false)
   })
 
-  it('falls back to the first prompt, then the session id, for a missing title', () => {
+  it('falls back to the first prompt, then "New session" — never a raw session id', () => {
+    // A session with neither is one nobody has typed in yet (`/clear` starts one). Its id used to
+    // be the title, so the header read `d81148ef-1230-…` for the session just started.
     const tree = buildTree(
       [proj('/p/app')],
       [
@@ -75,7 +77,7 @@ describe('buildTree', () => {
       always,
     )
     expect(tree[0].sessions[0].title).toBe('rename the widget')
-    expect(tree[0].sessions[1].title).toBe('s2')
+    expect(tree[0].sessions[1].title).toBe('New session')
   })
 
   it('sorts sessions newest first', () => {

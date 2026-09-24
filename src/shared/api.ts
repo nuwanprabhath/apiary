@@ -144,6 +144,9 @@ export const CHANNELS = {
   ptyKill: 'apiary:pty-kill',
   ptyData: 'apiary:pty-data',
   ptySnapshot: 'apiary:pty-snapshot',
+  ptySessions: 'apiary:pty-sessions',
+  mrStatusesInvalidated: 'apiary:mr-statuses-invalidated',
+  ptySessionsChanged: 'apiary:pty-sessions-changed',
   ptyRunning: 'apiary:pty-running',
   ptyExit: 'apiary:pty-exit',
   treeChanged: 'apiary:tree-changed',
@@ -193,6 +196,7 @@ export const CHANNELS = {
   logWrite: 'apiary:log-write',
   tabDropped: 'apiary:tab-dropped',
   tabDetach: 'apiary:tab-detach',
+  tabAdoptHere: 'apiary:tab-adopt-here',
   tabAdopt: 'apiary:tab-adopt',
   tabClaimed: 'apiary:tab-claimed',
   reportLayout: 'apiary:report-layout',
@@ -206,6 +210,19 @@ export const CHANNELS = {
   openInVsCode: 'apiary:open-in-vscode',
 } as const
 
+
+/**
+ * Which Claude session a running terminal is on right now, from Claude's own
+ * `~/.claude/sessions/<pid>.json` — see `claudeSessionTracker.ts` in main.
+ */
+export interface PtySessionInfo {
+  sessionId: string
+  /** Claude's name for the session, or null when it has none. */
+  name: string | null
+  /** True when the user chose the name (`/rename`, `--name`) rather than Claude deriving one. */
+  nameIsUser: boolean
+  status: 'idle' | 'busy' | null
+}
 
 /** A pty's screen as escape sequences that repaint it, and the size they were laid out for. */
 export interface PtySnapshot {
@@ -295,6 +312,13 @@ export interface ApiaryApi {
   tabDropped(tab: TabTransfer, at: { x: number; y: number }): Promise<void>
   /** Opens the tab in a window of its own, at `at`, and takes it out of every other window. */
   tabDetach(tab: TabTransfer, at: { x: number; y: number }): Promise<void>
+  /**
+   * A tab from another window was dropped on this window's own tab strip. Where the platform
+   * delivers drag events across windows (X11 can), the drop lands here rather than as a `dragend`
+   * over nothing in the window it came from — so this window asks to take it, and every other
+   * window lets go, exactly as `tabDropped` would have arranged.
+   */
+  tabAdoptHere(tab: TabTransfer): Promise<void>
   /** Fired when a tab dragged from another window has been dropped on this one. */
   onTabAdopt(cb: (tab: TabTransfer) => void): () => void
   /** Fired when another window has taken a tab this one was showing. */
@@ -317,6 +341,12 @@ export interface ApiaryApi {
    * `ScreenBuffers.snapshot`. Paint it at its own `cols`×`rows`, then fit and resize.
    */
   ptySnapshot(id: string): Promise<PtySnapshot | null>
+  /** pty id → the Claude session its process is on now, for every running Claude terminal. */
+  ptySessions(): Promise<Record<string, PtySessionInfo>>
+  /** Fires with the full map whenever any terminal's session or name changes. */
+  onPtySessionsChanged(cb: (sessions: Record<string, PtySessionInfo>) => void): () => void
+  /** Fires when cached merge-request states have been discarded (the Refresh button) — re-ask. */
+  onMrStatusesInvalidated(cb: () => void): () => void
   /**
    * Which of `ids` currently have a live process behind them.
    *

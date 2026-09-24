@@ -69,7 +69,12 @@ export function useTree(
         reportedSearchFailure.current = true
         notifyError(error, 'Searching conversation contents failed')
       })
-  }, [debouncedQuery, options.searchChatContent, options.searchSessionNotes])
+    // `rawTree` is a dependency on purpose: it changes when the main process says the tree changed,
+    // and that is also what it says when the search index has caught up (`onIndexUpdated`). Without
+    // it, a query typed in the first second after launch — before indexing had finished — got the
+    // empty answer and kept it until the user typed something else, so searching by what was said
+    // found nothing. The e2e spec for content search hit exactly that race once it went the other way.
+  }, [debouncedQuery, options.searchChatContent, options.searchSessionNotes, rawTree])
 
   // Memoized on the debounced query, not the raw one: `Sidebar` re-renders on every keystroke
   // (its own `query` state updates in `onChange`), and without this the filter would still run on

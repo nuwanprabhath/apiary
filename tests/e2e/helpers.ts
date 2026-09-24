@@ -104,6 +104,12 @@ export async function launchApiary(
      */
     secondWorktree?: boolean
     /**
+     * Scan this Claude config root instead of the fixture home — the live specs point it at the
+     * real `~/.claude` so a real `claude` and the app see the same sessions. The database stays in
+     * the throwaway home either way, so nothing about the user's own Apiary is touched.
+     */
+    configRoot?: string
+    /**
      * Gives the fixture repo a GitLab `origin`, so the merge-request plugin has something to work
      * from. Opt-in: the git toolbar specs rely on repo-c having no remote of its own.
      */
@@ -245,11 +251,12 @@ export async function launchApiary(
     // the developer's real Apiary profile) across every test run and relaunch.
     args: [`--user-data-dir=${join(home, 'userdata')}`, '.'],
     env: launchEnv({
-      APIARY_CONFIG_ROOT: home,
+      APIARY_CONFIG_ROOT: opts.configRoot ?? home,
       APIARY_DB_PATH: join(home, 'apiary.db'),
       APIARY_FAKE_LIVE: opts.fakeLiveSessionId ?? '',
       APIARY_FAKE_UPDATE: opts.fakeUpdate ?? '',
       APIARY_GLAB_PATH: opts.glabPath ?? '',
+      APIARY_FAKE_GLAB_STATE_FILE: join(home, 'glab-state'),
       APIARY_FAKE_GLAB_EMPTY: opts.glabEmpty === true ? '1' : '',
       APIARY_FAKE_GLAB_FAIL: opts.glabFails === true ? '1' : '',
       APIARY_FAKE_GLAB_MERGED: opts.glabMerged === true ? '1' : '',

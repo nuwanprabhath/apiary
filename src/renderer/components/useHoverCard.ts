@@ -89,6 +89,17 @@ function isDegenerate(rect: DOMRect): boolean {
   return rect.width === 0 && rect.height === 0
 }
 
+export interface HoverCardOptions {
+  /**
+   * A selector for an ancestor of the anchor that also counts as "still here" while the popup is
+   * open. The layout picker passes its session row: the picker opens beside its button, and the
+   * pointer on its way there crosses the row's other buttons — the Recent row's dismiss button most
+   * of all — which are neither the button nor the picker, so the grace period ran out mid-crossing
+   * and the picker vanished unless the pointer was moved very fast.
+   */
+  safeWithin?: string
+}
+
 /**
  * The timing behind a sidebar hover card, shared by session rows and folder rows.
  *
@@ -97,7 +108,7 @@ function isDegenerate(rect: DOMRect): boolean {
  * alone, would shut the card on the way to the very thing it exists to offer. Leaving either side
  * starts a short grace period that entering the other cancels.
  */
-export function useHoverCard<T extends HTMLElement>(): {
+export function useHoverCard<T extends HTMLElement>(options: HoverCardOptions = {}): {
   /** The row's rectangle while the card is up; null when it is not. */
   anchor: DOMRect | null
   ref: React.MutableRefObject<T | null>
@@ -202,8 +213,16 @@ export function useHoverCard<T extends HTMLElement>(): {
       if (target === null) return
       // `.hover-card` covers the session card and the activity legend; `.layout-picker` the
       // layout menus. Any popup this hook drives has to be one of them, or it cannot be reached.
-      if (ref.current?.contains(target) === true) return
-      if (target.closest('.hover-card, .layout-picker') !== null) return
+      const safe = options.safeWithin === undefined ? null : ref.current?.closest(options.safeWithin) ?? null
+      if (
+        ref.current?.contains(target) === true
+        || target.closest('.hover-card, .layout-picker') !== null
+        || safe?.contains(target) === true
+      ) {
+        // Demonstrably still on safe ground: cancel any close a `mouseleave` on the way here started.
+        if (closeTimer.current !== null) { window.clearTimeout(closeTimer.current); closeTimer.current = null }
+        return
+      }
       // Already counting down — leave it alone, or a moving pointer would reset the grace period
       // forever and never actually close.
       if (closeTimer.current !== null) return
@@ -211,7 +230,7 @@ export function useHoverCard<T extends HTMLElement>(): {
     }
     document.addEventListener('mousemove', onMove)
     return () => { document.removeEventListener('mousemove', onMove) }
-  }, [anchor])
+  }, [anchor, options.safeWithin])
   /**
    * A scroll puts every popup away at once.
    *

@@ -7,6 +7,9 @@ export interface ContextMenuItem {
   disabled?: boolean
   /** Starts a new visual group above this item, for separating unlike actions. */
   separator?: boolean
+  /** Why the item is unavailable, shown on hover. A greyed-out item with no reason given reads as
+   *  broken rather than as "not yet". */
+  disabledReason?: string
 }
 
 interface Props {
@@ -88,6 +91,7 @@ export function ContextMenu({ items, position, onClose, testId }: Props): JSX.El
           data-separator={item.separator === true}
           role="menuitem"
           disabled={item.disabled ?? false}
+          title={item.disabled === true ? item.disabledReason : undefined}
           onClick={() => { item.run(); onClose() }}
         >
           {item.label}

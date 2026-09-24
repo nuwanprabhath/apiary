@@ -211,6 +211,17 @@ test('a session worked in recently appears in Recent, and dismissing it hides it
   expect(iconBox?.width ?? 0).toBeGreaterThan(0)
   expect(iconBox?.height ?? 0).toBeGreaterThan(0)
 
+  // One of the row's own actions, not a control laid over them: reported as a large X sitting on
+  // top of the layout button. Same size as its neighbours, and overlapping none of them.
+  const split = row.getByTestId('split-session-button')
+  const d = await dismiss.boundingBox()
+  const b = await split.boundingBox()
+  if (d === null || b === null) throw new Error('dismiss or layout button has no box')
+  expect(Math.round(d.height)).toBe(Math.round(b.height))
+  expect(Math.round(d.width)).toBe(Math.round(b.width))
+  const overlap = d.x < b.x + b.width && d.x + d.width > b.x && d.y < b.y + b.height && d.y + d.height > b.y
+  expect(overlap).toBe(false)
+
   await dismiss.click()
   await expect(section.getByTestId('session-item')).toHaveCount(0)
 })

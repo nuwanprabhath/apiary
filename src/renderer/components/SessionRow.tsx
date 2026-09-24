@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { SessionNode } from '@shared/types'
-import { NoteIcon, PinIcon, SplitIcon, TrashIcon } from './icons'
+import { CloseIcon, NoteIcon, PinIcon, SplitIcon, TrashIcon } from './icons'
 import { HoverCard } from './HoverCard'
 import { MrRefText } from './mrRefText'
 import { useHoverCard } from './useHoverCard'
@@ -62,6 +62,13 @@ interface Props {
    *  search list's way of saying which worktree a result lives in, since there is no folder header
    *  above it to say so. */
   subtitle?: string | null
+  /**
+   * Offers a "dismiss" action in the row's own button strip — the Recent section's way of letting
+   * a session drop out of the list. Part of the strip rather than a button laid over the row: laid
+   * over it, a full-size control sat on top of the layout button, and the pointer crossing it on
+   * the way to the layout picker closed the picker.
+   */
+  onDismiss?: (session: SessionNode) => void
 }
 
 /**
@@ -77,7 +84,7 @@ interface Props {
  */
 export function SessionRow({
   session, selected, pinned, onSelect, onSplit, onDelete, onTogglePin, onEditNote, onMenu,
-  folderBranch, subtitle,
+  folderBranch, subtitle, onDismiss,
 }: Props): JSX.Element {
   const hasNote = session.note !== null && session.note !== ''
   const { anchor: cardAnchor, ref: wrapRef, arm, keepOpen, scheduleClose, hideNow } =
@@ -224,6 +231,17 @@ export function SessionRow({
       >
         <TrashIcon />
       </button>
+      {onDismiss !== undefined && (
+        <button
+          className="row-action recent-dismiss"
+          data-testid="recent-dismiss-button"
+          title="Dismiss from Recent"
+          aria-label={`Dismiss ${session.title} from Recent`}
+          onClick={(e) => { e.stopPropagation(); onDismiss(session) }}
+        >
+          <CloseIcon />
+        </button>
+      )}
     </div>
   )
 }

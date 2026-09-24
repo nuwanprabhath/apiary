@@ -30,7 +30,8 @@ export function LayoutMenuButton({
   className, testId, title, ariaLabel, onClick, onOpen, heading, mode = 'place', onPick, children,
 }: Props): JSX.Element {
   const { preset } = useLayoutActions()
-  const hover = useHoverCard<HTMLButtonElement>()
+  // The row the button sits in counts as part of the picker's hover region — see `safeWithin`.
+  const hover = useHoverCard<HTMLButtonElement>({ safeWithin: '.session-row-wrap' })
   // Fires on the transition into "open", not on every render while open.
   const wasOpen = useRef(false)
   useEffect(() => {

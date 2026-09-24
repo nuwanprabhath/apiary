@@ -179,3 +179,29 @@ test('hovering a session row shows where it ran, on what branch, and when it was
   await h.page.getByTestId('search-input').hover()
   await expect(card).toHaveCount(0)
 })
+
+test('a group\'s collapse-all folds every folder in it, and leaves the group open', async () => {
+  // Reported as wanting the folder rows' collapse-all on groups too, to fold a whole group's
+  // repositories — worktrees included — in one click.
+  await folder(h.page, 'repo-c').click({ button: 'right' })
+  await h.page.getByTestId('context-menu-new-group').click()
+  const rename = h.page.getByTestId('folder-group-rename')
+  await rename.fill('Other projects')
+  await rename.press('Enter')
+
+  const group = h.page.locator('section.folder-group').filter({ hasText: 'Other projects' })
+  // repo-c holds two sessions: its own and its worktree's.
+  await expect(group.getByTestId('session-item')).toHaveCount(2)
+
+  await group.locator('.folder-group-header-wrap').hover()
+  const button = group.getByTestId('group-collapse-all-button')
+  await expect(button).toBeVisible()
+  await button.click()
+
+  await expect(group.getByTestId('session-item')).toHaveCount(0)
+  // The group itself stays open, showing its folders closed.
+  await expect(group.getByTestId('folder-group-toggle')).toHaveAttribute('aria-expanded', 'true')
+  await expect(group.locator('.project-label', { hasText: 'repo-c' }).first()).toBeVisible()
+  // Nothing outside the group was touched.
+  await expect(h.page.getByTestId('session-item').filter({ hasText: 'Fix CSV export bug' })).toBeVisible()
+})

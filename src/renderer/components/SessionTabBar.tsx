@@ -3,9 +3,22 @@ import { CloseIcon, SplitIcon, LayoutIcon } from './icons'
 import { ContextMenu } from './ContextMenu'
 import { LayoutMenuButton } from './LayoutMenuButton'
 import { useLayoutActions } from '../state/layoutContext'
+import { isTabTransfer, type TabTransfer } from '@shared/types'
 
 /** The drag payload type for a session tab, shared by every strip in the window. */
 const TAB_MIME = 'application/x-apiary-tab'
+/** The whole tab — its pty and shells — for a strip in *another* window that receives the drop.
+ *  See `onDropTab`'s `transfer`. */
+const TRANSFER_MIME = 'application/x-apiary-tab-transfer'
+
+function readTransfer(dt: DataTransfer): TabTransfer | null {
+  try {
+    const parsed: unknown = JSON.parse(dt.getData(TRANSFER_MIME))
+    return isTabTransfer(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
 
 export interface SessionTabView {
   key: string
@@ -40,7 +53,14 @@ interface Props {
    * strip (a reorder) or from another column's (a move); the strip does not distinguish between
    * them, because to the person dragging it they are the same gesture.
    */
-  onDropTab: (key: string, toIndex: number) => void
+  /**
+   * A tab was dropped on this strip. `transfer` is the whole tab as its own window described it,
+   * present when the drag carried one — which is what lets a strip take a tab from another window
+   * on a platform that delivers the drop here (see `tabAdoptHere`).
+   */
+  onDropTab: (key: string, toIndex: number, transfer: TabTransfer | null) => void
+  /** Describes a tab for the drag payload, so another window can take it whole. */
+  transferFor?: (key: string) => TabTransfer
   /** Keys currently in the sidebar's Pinned section, so the menu offers the right verb. */
   pinnedKeys: Set<string>
   onTogglePin: (key: string) => void
@@ -67,7 +87,7 @@ interface Props {
  */
 export function SessionTabBar(
   {
-    columnId, tabs, activeKey, onActivate, onClose, onSplitActive, onDropTab, pinnedKeys,
+    columnId, tabs, activeKey, onActivate, onClose, onSplitActive, onDropTab, transferFor, pinnedKeys,
     onTogglePin, onFork, onTabDropped, onDetach, layoutButton,
   }: Props,
 ): JSX.Element {
@@ -121,7 +141,7 @@ export function SessionTabBar(
           const key = e.dataTransfer.getData(TAB_MIME)
           if (key === '') return
           e.preventDefault()
-          onDropTab(key, tabs.length)
+          onDropTab(key, tabs.length, readTransfer(e.dataTransfer))
           endDrag()
         }}
       >
@@ -148,6 +168,7 @@ export function SessionTabBar(
             // beside it because Firefox refuses to start a drag with no standard payload at all.
             e.dataTransfer.setData(TAB_MIME, tab.key)
             e.dataTransfer.setData('text/plain', tab.key)
+            if (transferFor !== undefined) e.dataTransfer.setData(TRANSFER_MIME, JSON.stringify(transferFor(tab.key)))
           }}
           onDragOver={(e) => {
             // Keyed off the payload type rather than off `dragKey`, which is set only in the strip
@@ -166,7 +187,7 @@ export function SessionTabBar(
             // last tab); without this the drop would count twice and the second, coarser one would
             // win, sending every tab to the end.
             e.stopPropagation()
-            onDropTab(key, insertionFor(e, index))
+            onDropTab(key, insertionFor(e, index), readTransfer(e.dataTransfer))
             endDrag()
           }}
           onDragEnd={(e) => {
@@ -251,6 +272,7 @@ export function SessionTabBar(
             // A session that has not written its JSONL yet has no id to fork from — Claude mints
             // that when it first saves, and `--resume` needs one.
             disabled: tabs.find((t) => t.key === menu.key)?.isPending ?? false,
+            disabledReason: 'Available once the session has started — send it a message first',
             run: () => onFork(menu.key),
           },
           {
@@ -260,6 +282,7 @@ export function SessionTabBar(
             // written its JSONL yet has no session id to open — detaching one would leave an
             // empty window and take the tab out of this one on the way.
             disabled: tabs.find((t) => t.key === menu.key)?.isPending ?? false,
+            disabledReason: 'Available once the session has started — send it a message first',
             run: () => onDetach(menu.key, { x: menu.x, y: menu.y }),
           },
           {

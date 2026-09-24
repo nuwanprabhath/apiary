@@ -15,7 +15,7 @@ import {
   type GroupState,
 } from '../state/groups'
 import { selectRecent, type DismissedMap } from '../state/recentSessions'
-import { CloseIcon, RefreshIcon, SidebarIcon } from './icons'
+import { CollapseAllIcon, NoteIcon, RefreshIcon, SidebarIcon } from './icons'
 import { SearchField } from './SearchField'
 import { useNotifications } from '../state/notifications'
 import { describeRefresh } from '../state/refreshSummary'
@@ -567,25 +567,44 @@ export function Sidebar({
             <span className="pinned-count">{activeTabs.length}</span>
           </div>
           {legendAnchor !== null && <ActivityLegend anchor={legendAnchor} />}
-          {activeTabs.map((t) => (
-            <button
-              key={`${String(t.windowNumber)}:${t.key}`}
-              className="session-row active-tab-row"
-              data-testid="active-tab-row"
-              onClick={() => onFocusTab(t.windowNumber, t.key)}
-              title={`Window ${String(t.windowNumber)}`}
-            >
-              <span
-                className="status-dot"
-                data-testid="active-status-dot"
-                data-status={t.status}
-                role="img"
-                aria-label={describeActivityStatus(t.status)}
-              />
-              <ActiveTabTitle sessionId={t.key} title={activeSessionsById.get(t.key)?.title ?? t.key} />
-              <span className="active-window-number">W{t.windowNumber}</span>
-            </button>
-          ))}
+          {activeTabs.map((t) => {
+            const session = activeSessionsById.get(t.key)
+            return (
+              // A wrapper, like a session row's: the row is a <button>, and a button cannot hold the
+              // note button beside it.
+              <div key={`${String(t.windowNumber)}:${t.key}`} className="session-row-wrap active-row-wrap">
+                <button
+                  className="session-row active-tab-row"
+                  data-testid="active-tab-row"
+                  onClick={() => onFocusTab(t.windowNumber, t.key)}
+                  title={`Window ${String(t.windowNumber)}`}
+                >
+                  <span
+                    className="status-dot"
+                    data-testid="active-status-dot"
+                    data-status={t.status}
+                    role="img"
+                    aria-label={describeActivityStatus(t.status)}
+                  />
+                  <ActiveTabTitle sessionId={t.key} title={session?.title ?? t.key} />
+                  <span className="active-window-number">W{t.windowNumber}</span>
+                </button>
+                {/* A tab still waiting for its session id has no session to attach a note to yet. */}
+                {session !== undefined && (
+                  <button
+                    className="row-action note-session-button"
+                    data-testid="active-note-button"
+                    data-has-note={session.note !== null && session.note !== ''}
+                    title={session.note !== null && session.note !== '' ? 'Edit note' : 'Add a note'}
+                    aria-label={`Edit the note on ${session.title}`}
+                    onClick={(e) => { e.stopPropagation(); onEditNote(session) }}
+                  >
+                    <NoteIcon filled={session.note !== null && session.note !== ''} />
+                  </button>
+                )}
+              </div>
+            )
+          })}
         </section>
       )}
 
@@ -674,16 +693,8 @@ export function Sidebar({
                 onEditNote={onEditNote}
                 onMenu={(node, x, y) => setMenu({ kind: 'session', id: node.sessionId, x, y })}
                 folderBranch={branchOfSession.get(s.sessionId) ?? null}
+                onDismiss={onDismissRecent}
               />
-              <button
-                className="icon-button recent-dismiss"
-                data-testid="recent-dismiss-button"
-                title="Dismiss from Recent"
-                aria-label="Dismiss from Recent"
-                onClick={() => onDismissRecent(s)}
-              >
-                <CloseIcon />
-              </button>
             </div>
           ))}
         </section>
@@ -822,6 +833,28 @@ export function Sidebar({
                       </svg>
                       <span className="folder-group-label">{group.name}</span>
                       <span className="pinned-count">{folders.length}</span>
+                    </button>
+                  )}
+                  {folders.length > 0 && renamingGroup !== group.id && (
+                    <button
+                      className="new-session-button collapse-all-button"
+                      data-testid="group-collapse-all-button"
+                      title={`Collapse all folders in ${group.name}`}
+                      aria-label={`Collapse all folders in ${group.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        // Every folder in the group, at every depth, and the group itself opened —
+                        // what the folder rows' own button does one level down: the click asks to
+                        // see the list of folders, closed.
+                        const next = new Set(collapsed)
+                        for (const p of allFolderPaths(folders)) next.add(p)
+                        onCollapsedChange(next)
+                        if (!open) {
+                          patchGroups({ collapsed: groupState.collapsed.filter((id) => id !== group.id) })
+                        }
+                      }}
+                    >
+                      <CollapseAllIcon />
                     </button>
                   )}
                 </div>

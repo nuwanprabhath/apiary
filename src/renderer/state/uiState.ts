@@ -180,7 +180,11 @@ export function loadUiState(): UiState {
   // The shared half falls back to window 1's own record: before the split, that is where the pins
   // and groups were kept, so an existing install finds its arrangement rather than a clean slate.
   const shared = { ...pickShared(read(FIRST_WINDOW_KEY)), ...pickShared(read(SHARED_KEY)) }
-  return { ...DEFAULT_UI_STATE, ...read(KEY), ...shared }
+  // A torn-off window starts with its sidebar folded to the rail: it was torn off to give one
+  // session the room, but the rail keeps the rest of the library a click away rather than out of
+  // reach — which is what it was until the sidebar was kept in these windows at all.
+  const defaults = detachedKey() !== null ? { ...DEFAULT_UI_STATE, sidebarHidden: true } : DEFAULT_UI_STATE
+  return { ...defaults, ...read(KEY), ...shared }
 }
 
 /** Reads only the shared half — what a `storage` event from another window means. */

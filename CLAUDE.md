@@ -184,6 +184,39 @@ row for `waiting`, stillness for `idle` and `stopped`. `ActivityLegend.tsx`, on 
 is the only place that vocabulary is explained — it draws real `.status-dot`s so the legend
 animates exactly as the rows do.
 
+## Which session a terminal is on
+
+**Ask Claude, don't guess.** Claude Code keeps `<config>/sessions/<pid>.json` for every interactive
+process — `sessionId`, `name`, `nameSource` (`user` or `derived`), `status` — and a session's pty
+pid *is* Claude's pid (sessions run under `exec`). `ClaudeSessionTracker` polls those files for live
+TUI ptys; `App.tsx` rekeys any tab whose pty is on another session the tree knows. Measured on real
+Haiku sessions (Claude 2.1.281):
+
+- the file exists from startup, but the session's **JSONL only appears on the first message** —
+  so the tracker learns an id before the tree has it, and the rekey has to re-check on tree changes;
+- `/clear` and `/resume` change `sessionId` **in place**, on the same process;
+- `/rename` changes `name` and appends a `custom-title` record to the JSONL;
+- `--fork-session` copies the parent's `custom-title`; `/fork` (2.1.281) starts a *separate*
+  background session and leaves the process where it was;
+- the file is removed when the process exits.
+
+Before this, a new or forked tab was matched by waiting for an unseen JSONL in its folder. `/resume`
+inside a new session switches to a session that already existed — the one case that match rules
+out — and the tab stayed a `new:<uuid>` pty forever: unpinnable, missing from Recent, its pty id in
+Active, Fork disabled.
+
+**Inherited markers turn transcripts off.** An Apiary started from a shell Claude Code opened
+inherits `CLAUDE_CODE_CHILD_SESSION` and friends, and a child `claude` that sees it writes no JSONL
+and no session file. `pty/childEnv.ts` strips an explicit list; do not widen it to every
+`CLAUDE_CODE_*` (that would drop real config like `CLAUDE_CODE_USE_BEDROCK`).
+
+**Verify against a real session.** `tests/e2e/live/` drives a real `claude --model haiku` through
+the built app (`APIARY_LIVE_CLAUDE=1 npm run test:e2e -- live/`; opt-in, spends tokens). The
+stand-in spec (`sessionFollowing.spec.ts`) passed on the first version of this fix, whose session
+already existed; the live spec failed it at once, because real Claude writes the JSONL later. When
+driving the TUI: the trust prompt defaults to "No, exit" (Down, Enter), and a resumed or forked
+screen repaints old "done" lines, so wait for a *new* one before typing again.
+
 ## The cwd override column, and why the scanner must leave it alone
 
 The `session` table has a `cwd_override` column (`src/main/store/schema.ts`), set only by
@@ -374,6 +407,10 @@ explanations apart — that is the bar the "Open installer" bug set, and failed.
 are placed at exactly the points where earlier bugs were invisible: pty spawn/exit and the
 attach-instead-of-spawn case, the prompt-trim environment, what the updater handed to the
 desktop and what came back, which window a cross-window drop resolved to, and every IPC rejection.
+Since then: every pty's move to another Claude session (`session-tracker`) and the renderer
+rekeying a tab to follow it (`tabs`), whether an Apiary rename reached Claude and why not
+(`rename`), each fresh merge-request lookup and what it replaced (`mr-status`), links opened in the
+browser or blocked (`navigation`), and which inherited Claude markers a spawn stripped.
 
 ## Measure before fixing
 

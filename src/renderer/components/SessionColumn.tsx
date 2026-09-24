@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { GitStatus, SessionNode, WorktreeConflict, NewSessionInfo } from '@shared/types'
+import type { GitStatus, SessionNode, WorktreeConflict, NewSessionInfo, TabTransfer } from '@shared/types'
 import type { Column, OpenTab } from '../state/columns'
 import { findTab } from '../state/columns'
 import { moveBefore } from '../state/groups'
@@ -54,7 +54,8 @@ interface Props {
   /** Splits this column's active session into a column of its own beside it. */
   onSplitActive: (key: string) => void
   /** Moves a tab within this column's strip, after a drag. */
-  onReorderTab: (key: string, toIndex: number) => void
+  onReorderTab: (key: string, toIndex: number, transfer: TabTransfer | null) => void
+  transferFor?: (key: string) => TabTransfer
   /** Session ids in the sidebar's Pinned section, so the tab menu offers the right verb. */
   pinnedKeys: Set<string>
   onTogglePin: (key: string) => void
@@ -87,7 +88,7 @@ export function SessionColumn(props: Props): JSX.Element {
     column, sessions, pending, resumed, ptyOverrides, shellTabs, setShellTabs,
     activeTerminal, setActiveTerminal, bottomHeight, onStartBottomResize, isActive, onFocus,
     onActivateTab, onCloseTab, onSetView, onResume, onResumeAsync, onRenameSession, onRenamePending,
-    onSplitActive, onReorderTab, pinnedKeys, onTogglePin, onFork, onTabDropped, onDetach,
+    onSplitActive, onReorderTab, transferFor, pinnedKeys, onTogglePin, onFork, onTabDropped, onDetach,
     onSessionStarted,
     gridArea, emptyContent, layoutButton,
   } = props
@@ -403,6 +404,7 @@ export function SessionColumn(props: Props): JSX.Element {
         onClose={onCloseTab}
         onSplitActive={() => { if (activeKey !== null) onSplitActive(activeKey) }}
         onDropTab={onReorderTab}
+        transferFor={transferFor}
         pinnedKeys={pinnedKeys}
         onTogglePin={onTogglePin}
         onFork={onFork}

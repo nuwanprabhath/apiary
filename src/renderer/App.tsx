@@ -33,6 +33,7 @@ import {
 } from './state/uiState'
 import { pruneDismissed, dismissRecent } from './state/recentSessions'
 import { useUpdate } from './state/useUpdate'
+import { usePtySessions } from './state/usePtySessions'
 import { useActiveTabs } from './state/useActiveTabs'
 import { UpdateBanner } from './components/UpdateBanner'
 import { NoteDialog } from './components/NoteDialog'
@@ -82,6 +83,15 @@ function collectSessionIds(nodes: ProjectNode[]): Set<string> {
  * one session the watcher just discovered in a folder a "new session" request was made against,
  * without mistaking an already-existing session in that same (possibly non-empty) folder for it.
  */
+/** Every session in the tree by id, at any depth. */
+function flattenTree(nodes: ProjectNode[], into = new Map<string, SessionNode>()): Map<string, SessionNode> {
+  for (const node of nodes) {
+    for (const s of node.sessions) into.set(s.sessionId, s)
+    flattenTree(node.children, into)
+  }
+  return into
+}
+
 function findNewSessionByCwd(
   nodes: ProjectNode[],
   cwd: string,
@@ -222,6 +232,8 @@ export function App(): JSX.Element {
   // Every new-session pty currently awaiting its first JSONL, keyed by pty id (not a single
   // value) so more than one can be in flight — see PendingSession above.
   const [pending, setPending] = useState<Map<string, PendingSession>>(new Map())
+  /** Which Claude session each terminal is on, from Claude itself — see the effect that uses it. */
+  const ptySessions = usePtySessions()
   /**
    * Shell terminals per session, keyed the way `SessionColumn` keys them. Deliberately global
    * rather than per column: two columns showing the same session must share one set of terminals,
@@ -421,7 +433,13 @@ export function App(): JSX.Element {
       next.delete(id)
       return next
     })
-    setColumns((prev) => prev.map((c) => closeTab(c, id)))
+    // Only a tab still keyed by its `new:` pty id — a session whose process died before it ever
+    // had a session id — is closed: there is nothing left in it to show. This used to close the tab
+    // of *any* pty that exited (a 1.3.0 generalisation of what had cleared only the pending
+    // session), so exiting a resumed session made its tab vanish — and with it the Active row,
+    // whose "stopped" dot could therefore never be seen. A real session keeps its tab, transcript
+    // and all, and reads as stopped.
+    if (id.startsWith('new:')) setColumns((prev) => prev.map((c) => closeTab(c, id)))
 
     /**
      * A shell terminal whose process is gone must stop being listed. Typing `exit` at a shell
@@ -477,6 +495,9 @@ export function App(): JSX.Element {
         if (cancelled) return
         const claimed = new Set<string>()
         for (const [ptyId, info] of pending) {
+          // Claude says which session this pty is on; the effect below rekeys it exactly. Guessing
+          // from the folder as well could pick a different session and claim it first.
+          if (ptySessions[ptyId] !== undefined) continue
           const exclude = new Set([...info.knownSessionIds, ...claimed, ...ptyOverrides.keys()])
           const found = findNewSessionByCwd(nodes, info.cwd, exclude)
           if (!found) continue
@@ -522,7 +543,105 @@ export function App(): JSX.Element {
     check()
     const off = window.apiary.onTreeChanged(check)
     return () => { cancelled = true; off() }
-  }, [pending, ptyOverrides, notifyError])
+  }, [pending, ptyOverrides, notifyError, ptySessions])
+
+  /**
+   * Keeps every tab on the session its terminal is *actually* on, as Claude reports it.
+   *
+   * A tab is keyed by a session id, but the process behind it can move: a new or forked session
+   * starts under a `new:<uuid>` pty id and only later has an id of its own, and `/clear` or
+   * `/resume` typed in any session switch the process to another session in place. The folder
+   * matching above can only guess at the first case and cannot see the others — a new session in
+   * which you typed `/resume` switched to a session that already existed, which that matching
+   * deliberately excludes, so the tab stayed `new:<uuid>` for good: unpinnable, absent from
+   * Recent, showing its pty id in Active, and unforkable.
+   *
+   * `ptySessions` is Claude's own answer (`~/.claude/sessions/<pid>.json`), so no matching is
+   * needed: a tab whose pty is on another session that the tree knows is rekeyed to it, carrying
+   * its pty, its shells and any rename typed while it was pending. It works in any window,
+   * including one a tab was moved into while still pending, which never had a pending entry for
+   * it at all. A session with no JSONL yet (nothing has been typed in it) is not in the tree, so
+   * the tab simply waits — never guesses.
+   */
+  useEffect(() => {
+    if (Object.keys(ptySessions).length === 0) return
+    let cancelled = false
+    // Re-checked on every tree change, not only when `ptySessions` changes. Claude writes its
+    // session file at startup but the session's JSONL only on the first message, so the first
+    // check finds nothing in the tree and `ptySessions` never changes again to prompt another.
+    // Missed by a stand-in whose session already existed; caught by the live Haiku spec.
+    const check = (): void => { void window.apiary.tree().then((nodes) => {
+      if (cancelled) return
+      const known = flattenTree(nodes)
+      const openKeys = new Set(columns.flatMap((c) => c.tabs.map((t) => t.key)))
+      const moves: Array<{ from: string; to: SessionNode; ptyId: string }> = []
+      for (const key of openKeys) {
+        const ptyId = ptyOverrides.get(key) ?? key
+        const now = ptySessions[ptyId]?.sessionId
+        if (now === undefined || now === key) continue
+        const target = known.get(now)
+        // Not in the tree yet (no message sent in it), or already open in its own tab here —
+        // rekeying onto an open tab would leave two tabs claiming one key.
+        if (target === undefined || openKeys.has(now)) continue
+        moves.push({ from: key, to: target, ptyId })
+      }
+      if (moves.length === 0) return
+      for (const { from, to, ptyId } of moves) {
+        // Logged because a tab stuck on the wrong session was invisible from outside: which tab
+        // was rekeyed, from what to what, and whether it had been pending.
+        window.apiary.logWrite('info', 'tabs', 'tab follows its terminal', {
+          from, to: to.sessionId, ptyId, wasPending: pending.has(from),
+        })
+        const titleOverride = pending.get(from)?.titleOverride ?? null
+        if (titleOverride !== null) {
+          void window.apiary.renameSession(to.sessionId, titleOverride).catch((e: unknown) => {
+            notifyError(e, 'Could not rename the session')
+          })
+        }
+        const node = titleOverride !== null ? { ...to, title: titleOverride } : to
+        setPtyOverrides((prev) => {
+          const next = new Map(prev)
+          next.delete(from)
+          if (ptyId !== to.sessionId) next.set(to.sessionId, ptyId)
+          return next
+        })
+        setResumed((prev) => {
+          const next = new Set(prev)
+          next.delete(from)
+          next.add(to.sessionId)
+          return next
+        })
+        setOpenSessions((prev) => {
+          const next = new Map(prev)
+          next.delete(from)
+          next.set(to.sessionId, node)
+          return next
+        })
+        setShellTabs((prev) => {
+          const shells = prev.get(from)
+          if (shells === undefined) return prev
+          const next = new Map(prev)
+          next.delete(from)
+          next.set(to.sessionId, shells)
+          return next
+        })
+        // Kept on the terminal: the tab was showing a live process, and still is. A rekeyed tab
+        // otherwise falls back to the transcript view, pulling the user off what they were doing.
+        setColumns((prevCols) => prevCols.map((c) =>
+          setTabView(rekeyTab(c, from, to.sessionId), to.sessionId, 'terminal'),
+        ))
+        setPending((prev) => {
+          if (!prev.has(from)) return prev
+          const next = new Map(prev)
+          next.delete(from)
+          return next
+        })
+      }
+    }) }
+    check()
+    const off = window.apiary.onTreeChanged(check)
+    return () => { cancelled = true; off() }
+  }, [ptySessions, columns, ptyOverrides, pending, notifyError, setColumns])
 
   // Restore the previously selected session on launch, once, from the id persisted last time.
   // If it no longer exists in the freshly loaded tree, fall back to no selection.
@@ -1084,14 +1203,14 @@ export function App(): JSX.Element {
         className="layout"
         data-detached={detached !== null}
         style={{
-          gridTemplateColumns: detached !== null
-            ? '1fr'
-            : ui.sidebarHidden
-              ? 'var(--sidebar-rail-width) 1fr'
-              : String(ui.sidebarWidth) + 'px 4px 1fr',
+          // The same for a torn-off window as any other: it keeps the sidebar (hidden to the rail
+          // by default, see uiState), so the library is never out of reach from it.
+          gridTemplateColumns: ui.sidebarHidden
+            ? 'var(--sidebar-rail-width) 1fr'
+            : String(ui.sidebarWidth) + 'px 4px 1fr',
         }}
       >
-      {detached === null && ui.sidebarHidden && (
+      {ui.sidebarHidden && (
         // A rail rather than nothing: a sidebar hidden with no visible way back is one someone has
         // to remember a shortcut to recover, which is a sidebar that has gone missing.
         <div className="sidebar-rail" data-testid="sidebar-rail">
@@ -1106,7 +1225,7 @@ export function App(): JSX.Element {
           </button>
         </div>
       )}
-      {detached === null && (
+      {(
       <Sidebar
         key={treeNonce}
         // Hidden, not unmounted, so the search typed into it and where it was scrolled to are
@@ -1177,7 +1296,7 @@ export function App(): JSX.Element {
       />
       )}
 
-      {detached === null && !ui.sidebarHidden && (
+      {!ui.sidebarHidden && (
         <div
           className="sidebar-resizer"
           data-testid="sidebar-resizer"
@@ -1244,7 +1363,20 @@ export function App(): JSX.Element {
             }}
             onRenamePending={setPendingTitle}
             onSplitActive={splitActiveTab}
-            onReorderTab={(key, toIndex) => {
+            transferFor={transferFor}
+            onReorderTab={(key, toIndex, transfer) => {
+              // Not open anywhere in this window: it came from another one, whose drop the platform
+              // delivered here rather than as a `dragend` over nothing (X11 does this). Moving it
+              // within this window would silently do nothing — the reported "dragging it back to
+              // the main window does nothing" — so ask the main process to hand it over instead.
+              if (!openKeys.has(key)) {
+                if (transfer !== null) {
+                  void window.apiary.tabAdoptHere(transfer).catch((e: unknown) => {
+                    notifyError(e, 'Could not move this tab')
+                  })
+                }
+                return
+              }
               // The tab may have been dragged in from another column, so this cannot be a change
               // to this column alone — a move has to leave the column it came from at the same
               // time, or the same session ends up open twice.

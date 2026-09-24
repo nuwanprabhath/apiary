@@ -50,6 +50,16 @@ function firstUserPrompt(entries: Entry[]): string | null {
   return null
 }
 
+function latestCustomTitle(entries: Entry[]): string | null {
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    const e = entries[i]
+    if (e.type === 'custom-title' && typeof e.customTitle === 'string' && e.customTitle.trim() !== '') {
+      return e.customTitle.trim()
+    }
+  }
+  return null
+}
+
 export async function extractMeta(filePath: string): Promise<SessionMeta> {
   const info = await stat(filePath)
   const head = parseLines(await readHeadLines(filePath))
@@ -61,6 +71,13 @@ export async function extractMeta(filePath: string): Promise<SessionMeta> {
   const lastTitle = [...tail].reverse().find(
     (e) => e.type === 'ai-title' && typeof e.aiTitle === 'string',
   )
+  // The name the user gave the session in Claude — `/rename`, `--name`, or the VS Code
+  // extension's rename — which Claude records as `custom-title` and re-appends each turn, so the
+  // tail normally has the latest. It outranks Claude's own generated `ai-title`: a name somebody
+  // chose beats one a model guessed. (A rename made in Apiary still outranks both — see
+  // SessionStore's `custom_title`.) Until this was read, renaming a session in Claude changed its
+  // name everywhere except Apiary.
+  const customTitle = latestCustomTitle(tail) ?? latestCustomTitle(head)
 
   return {
     sessionId: basename(filePath, '.jsonl'),
@@ -69,7 +86,7 @@ export async function extractMeta(filePath: string): Promise<SessionMeta> {
     fileSize: info.size,
     cwd: (withCwd?.cwd as string) ?? null,
     gitBranch: (withCwd?.gitBranch as string) ?? null,
-    title: (lastTitle?.aiTitle as string) ?? null,
+    title: customTitle ?? (lastTitle?.aiTitle as string) ?? null,
     firstPrompt: firstUserPrompt(head),
     startedAtMs: toMs(firstTimestamped?.timestamp),
     lastActiveAtMs: toMs(lastTimestamped?.timestamp) ?? info.mtimeMs,

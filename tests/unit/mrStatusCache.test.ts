@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { resolveMrStatus, resetMrStatusCache } from '../../src/main/git/mrStatusCache'
+import { resolveMrStatus, resetMrStatusCache, invalidateMrStatuses } from '../../src/main/git/mrStatusCache'
 
 beforeEach(() => { resetMrStatusCache() })
 
@@ -24,15 +24,33 @@ describe('resolveMrStatus', () => {
     }])
   })
 
-  it('caches per host+project+iid until the TTL expires', async () => {
+  it('re-checks an open merge request after two minutes, since that is the state that changes', async () => {
     let now = 0
     const { exec, calls } = fakeExec(() => JSON.stringify({ state: 'opened' }))
     const options = { exec, now: () => now }
     await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 1, options)
     await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 1, options)
     expect(calls).toHaveLength(1)
-    now = 10 * 60 * 1000 + 1
+    now = 2 * 60 * 1000 + 1
     await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 1, options)
+    expect(calls).toHaveLength(2)
+  })
+
+  it('keeps a merged one much longer — it is not going to change back', async () => {
+    let now = 0
+    const { exec, calls } = fakeExec(() => JSON.stringify({ state: 'merged' }))
+    const options = { exec, now: () => now }
+    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 2, options)
+    now = 30 * 60 * 1000
+    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 2, options)
+    expect(calls).toHaveLength(1)
+  })
+
+  it('asks again straight away once invalidated — the Refresh button', async () => {
+    const { exec, calls } = fakeExec(() => JSON.stringify({ state: 'opened' }))
+    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 3, { exec })
+    invalidateMrStatuses()
+    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 3, { exec })
     expect(calls).toHaveLength(2)
   })
 

@@ -201,3 +201,30 @@ test('the pointer can travel from a row to its card and use it', async () => {
   await expect(card).toBeVisible()
   await expect(card).toContainText('Fix CSV export bug')
 })
+
+test('the layout picker survives a slow trip across the row to reach it', async () => {
+  // Reported: moving from the layout button to its picker, the pointer passed over the row's other
+  // buttons, and the picker vanished unless the move was very fast. Paused in between for longer
+  // than the grace period, it must still be there.
+  const wrap = rowWrap(sidebarSession(h.page, 'Fix CSV export bug'))
+  await wrap.hover()
+  const button = wrap.getByTestId('split-session-button')
+  await button.hover()
+  const picker = h.page.getByTestId('layout-picker')
+  await expect(picker).toBeVisible()
+
+  const b = await button.boundingBox()
+  const p = await picker.boundingBox()
+  const r = await wrap.boundingBox()
+  if (b === null || p === null || r === null) throw new Error('missing box')
+  // A point on the row, past the button, short of the picker.
+  const midX = Math.min(b.x + b.width + 2, p.x - 1)
+  await h.page.mouse.move(midX, b.y + b.height / 2, { steps: 8 })
+  await h.page.waitForTimeout(500)
+  await expect(picker).toBeVisible()
+
+  await h.page.mouse.move(p.x + p.width / 2, p.y + p.height / 2, { steps: 8 })
+  await expect(picker).toBeVisible()
+  await h.page.mouse.move(r.x + r.width / 2, r.y + 300, { steps: 8 })
+  await expect(picker).toHaveCount(0)
+})

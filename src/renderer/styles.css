@@ -1481,6 +1481,10 @@ button:not([class]) {
 /* Active section: every open tab across every window, mission-control style, above Pinned. */
 .active-section { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px; }
 .active-window-number { color: var(--muted); font-size: 11px; margin-left: auto; }
+/* The window number makes way for the note button on hover, as a session row's age does. */
+.active-row-wrap:hover .active-window-number,
+.active-row-wrap:focus-within .active-window-number { display: none; }
+.active-row-wrap .note-session-button { margin-right: 6px; }
 /* The header is hoverable and focusable rather than decorative, because it carries the legend. */
 .active-header { cursor: help; }
 .active-header:focus-visible { outline: none; box-shadow: var(--focus-ring); }
@@ -1516,21 +1520,11 @@ button:not([class]) {
 .recent-section { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px; }
 .recent-row-wrap { position: relative; }
 /*
- * The dismiss button follows the same take-turns rule as the row actions: hidden until the row is
- * hovered or focused, so it and the session's age share the strip at the right-hand end instead of
- * the button permanently sitting on top of the date. Shown always, it rendered as a bare grey
- * block over the timestamp — the icon inside it had no size of its own (see `.icon-button svg`
- * above), so what was left was the button's background and nothing else.
+ * The dismiss button is an ordinary `.row-action` in the row's own strip (see SessionRow's
+ * `onDismiss`), so it shares the strip's size and its take-turns rule with the age. It used to be a
+ * full-size control positioned over the row's right-hand end — on top of the layout button, and in
+ * the path from that button to its picker.
  */
-.recent-dismiss {
-  position: absolute;
-  right: var(--control-gap);
-  top: 50%;
-  transform: translateY(-50%);
-  display: none;
-}
-.recent-row-wrap:hover .recent-dismiss,
-.recent-row-wrap:focus-within .recent-dismiss { display: inline-flex; }
 .pinned-header {
   display: flex;
   align-items: center;
@@ -1824,10 +1818,6 @@ button:not([class]) {
   color: var(--text);
 }
 
-/* A window torn off to hold one session has no sidebar and so no resizer either; the layout is a
-   single column. Declared here rather than only as an inline grid-template so anything else keyed
-   to the sidebar's presence has one thing to ask. */
-.layout[data-detached="true"] { grid-template-columns: 1fr; }
 
 /* A path the user is about to copy or read out: shown as a field so it is obviously a value and
    not prose, and allowed to wrap, because a log folder under a long home directory does not fit. */
@@ -2058,7 +2048,10 @@ button:not([class]) {
 /* Shown only while a group is empty, since the drop target would otherwise be invisible. */
 .folder-group-empty { margin: 0 0 4px 22px; font-size: 12px; }
 /* A folder being dragged over the heading of the group it would join. */
-.folder-group-header-wrap { border-radius: 6px; }
+.folder-group-header-wrap { border-radius: 6px; display: flex; align-items: center; }
+/* The group's collapse-all, revealed on hover exactly as a folder row's is. */
+.folder-group-header-wrap:hover .collapse-all-button { opacity: 1; }
+.folder-group-header-wrap .collapse-all-button { margin-right: 4px; }
 .folder-group-header-wrap:hover { background: var(--hover); }
 
 /*

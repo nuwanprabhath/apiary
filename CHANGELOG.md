@@ -4,6 +4,55 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.19.0] - 2026-09-24
+
+### Fixed
+
+- **A session's tab now follows the session its terminal is really on.** Typing `/resume` in a new
+  session, or `/clear` in any session, moves Claude to another session in place, and Apiary had been
+  guessing which session a terminal belonged to. A new session in which you typed `/resume` stayed a
+  `new:<uuid>` tab for good: its id shown in Active, pinning it did nothing, it never reached Recent,
+  and Fork and Move into New Window were greyed out. Apiary now reads Claude's own record of which
+  session each running terminal is on, so all of those work, and a forked or new session is picked
+  up as soon as it has a transcript. Verified against real Claude sessions: a new session, `/clear`,
+  `/resume` inside a new session, and a fork from the tab menu.
+- **Sessions no longer silently stop saving when Apiary is started from inside Claude Code.**
+  Launched from a shell Claude Code had opened (an `npm start` in a Claude terminal, or a VS Code
+  window with the Claude extension), Apiary passed that session's markers on to every session it
+  started, and Claude then saved no transcript for any of them.
+- **Renaming a session in Claude now shows in Apiary,** and **renaming it in Apiary now reaches
+  Claude**, so the VS Code extension and `/resume` show the same name. Apiary types `/rename` into
+  the running session only when Claude is idle and nothing is typed in its input box; otherwise it
+  waits, and gives up rather than interrupt. A session nobody has typed in yet is called "New
+  session" rather than showing its raw id.
+- **Links in a transcript open in your browser.** Clicking one used to turn the Apiary window into
+  that web page, with no way back.
+- **Merge-request status stays current, and Refresh re-checks it.** A row asked for its MR status
+  once, when it appeared, so a merged `!1328` could say "opened" in Active all day. Rows now re-ask
+  every couple of minutes, and Refresh discards what is cached. Open MRs are re-checked sooner than
+  merged or closed ones.
+- **The layout picker no longer vanishes on the way to it.** Moving from a row's layout button to
+  its picker crossed the row's other buttons, and the picker closed unless you moved fast.
+- **Recent's dismiss button** is now the same size as the row's other buttons and sits among them,
+  instead of a larger button on top of the layout button.
+- **Dragging a tab from a torn-off window back onto the main window moves it back.** It could be
+  refused (a still-unresolved tab) or, on Linux, swallowed by the main window's tab strip.
+- **Searching straight after launch finds sessions by what was said in them.** A search typed
+  before the search index had caught up got an empty answer and kept it until the query changed;
+  it is now asked again as soon as the index updates.
+- **Exiting a session no longer closes its tab.** Its tab stays, with its transcript, and Active
+  shows it as stopped — a state that could previously never be seen.
+
+### Added
+
+- **Torn-off windows keep the sidebar,** folded to its rail by default so the session still gets
+  the room.
+- **Collapse-all on group headers,** like the one on folder rows: every folder in the group folds,
+  and the group stays open.
+- **Edit a session's note from its Active row.**
+- **More in the diagnostic log**: which session each terminal moved to, tabs following them,
+  whether a rename reached Claude, merge-request lookups, and links opened or blocked.
+
 ## [1.18.2] - 2026-09-22
 
 ### Added

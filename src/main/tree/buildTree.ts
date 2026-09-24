@@ -1,5 +1,5 @@
 import { basename } from 'node:path'
-import type { ProjectNode, SessionNode } from '@shared/types'
+import { UNTITLED_SESSION, type ProjectNode, type SessionNode } from '@shared/types'
 import type { StoredProject, StoredSession } from '../store/sessionStore'
 
 function toSessionNode(
@@ -11,7 +11,7 @@ function toSessionNode(
   return {
     kind: 'session',
     sessionId: s.sessionId,
-    title: s.title ?? s.firstPrompt ?? s.sessionId,
+    title: s.title ?? s.firstPrompt ?? UNTITLED_SESSION,
     cwd,
     gitBranch: s.gitBranch,
     lastActiveAtMs: s.lastActiveAtMs,

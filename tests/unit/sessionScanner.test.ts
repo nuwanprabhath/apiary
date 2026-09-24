@@ -52,6 +52,20 @@ describe('extractMeta', () => {
     expect(meta.title).toBe('Late title')
   })
 
+  it('prefers the name the user gave in Claude over the title Claude generated', async () => {
+    // Recorded from a real haiku session that was renamed with `/rename Renamed in the TUI`
+    // (trimmed to the records the scanner reads). Claude wrote both kinds of title; the one a person
+    // chose wins. Before, Apiary read only `ai-title`, so a rename made in Claude — or in the VS
+    // Code extension — changed the name everywhere except here.
+    const { copyFileSync, mkdirSync } = await import('node:fs')
+    const dir = join(root, '-home-user-haiku-lab')
+    mkdirSync(dir, { recursive: true })
+    const file = join(dir, 'bdf6e1a5-0a4c-485e-ae6c-f3d8719c2ed0.jsonl')
+    copyFileSync(join(__dirname, '../fixtures/titles/renamed-in-tui.jsonl'), file)
+    const meta = await extractMeta(file)
+    expect(meta.title).toBe('Renamed in the TUI')
+  })
+
   it('falls back to the first prompt when there is no ai-title', async () => {
     const file = makeSession(root, '-home-nuwan-untitled', {
       sessionId: '44444444-4444-4444-4444-444444444444',

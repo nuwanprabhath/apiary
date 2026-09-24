@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, dialog, screen, session } from 'electron'
+import { app, BrowserWindow, Menu, dialog, screen, session, shell } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { AppService } from './appService'
@@ -18,6 +18,7 @@ import { decideCapability } from './update/capability'
 import { createUpdateBackend } from './update/electronUpdaterBackend'
 import { hasDeveloperIdSignature } from './update/macSignature'
 import { log } from './log/logger'
+import { guardNavigation } from './navigationGuard'
 import { configureLogging } from './log/configure'
 import { detectVsCode } from './vscode/detectVsCode'
 
@@ -194,6 +195,7 @@ function createWindow(opts: NewWindowOptions = {}): void {
     },
   })
   log.info('window', 'created', { number: windowNumber, detached, at: opts.at !== undefined })
+  guardNavigation(win.webContents, (url) => shell.openExternal(url))
   // Captured now, not read back off `win.webContents` in the `closed` handler below: by the time
   // `closed` fires the window (and its webContents) has already been destroyed, and touching
   // `win.webContents` at that point throws `Object has been destroyed` — uncaught, since `closed`

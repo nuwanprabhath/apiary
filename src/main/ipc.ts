@@ -8,7 +8,7 @@ import {
   type PluginBarItemPayload,
 } from '@shared/api'
 import type { AppService } from './appService'
-import { isTabTransfer, type TabTransfer } from '@shared/types'
+import { isTabTransfer, UNTITLED_SESSION, type TabTransfer } from '@shared/types'
 import type { AppSettings } from './settings'
 import { loadSettings, saveSettings, clampRecentHours } from './settings'
 import { log, type LogLevel } from './log/logger'
@@ -20,6 +20,10 @@ import type { LayoutFlushCoordinator } from './layoutFlushCoordinator'
 import type { WindowLayoutReport } from '@shared/types'
 import { TabRegistry, focusTab, type OpenTab } from './tabRegistry'
 import { classifyActivity } from '@shared/activity'
+import { ClaudeSessionTracker } from './claudeSessionTracker'
+import { invalidateMrStatuses } from './git/mrStatusCache'
+import { renameInClaude } from './claudeRename'
+import { join } from 'node:path'
 
 /**
  * How often, at most, the Active section's activity broadcast goes out while a pty is producing
@@ -101,14 +105,21 @@ export function registerIpc(
     }
   }
 
-  handle(CHANNELS.refresh, () => service.refresh())
+  handle(CHANNELS.refresh, async () => {
+    // Refresh also means "check merge requests again": the likeliest reason to press it is having
+    // just merged one. Every view re-asks when told the cache is gone.
+    invalidateMrStatuses()
+    send(CHANNELS.mrStatusesInvalidated)
+    log.info('mr-status', 'invalidated by refresh')
+    return service.refresh()
+  })
   handle(CHANNELS.tree, () => service.tree())
   handle(CHANNELS.searchContent, (_e, query: string) => service.searchSessions(query))
   handle(CHANNELS.discovered, async () =>
     (await service.discovered()).map((s) => ({
       sessionId: s.sessionId,
       projectPath: s.projectPath,
-      title: s.title ?? s.firstPrompt ?? s.sessionId,
+      title: s.title ?? s.firstPrompt ?? UNTITLED_SESSION,
       lastActiveAtMs: s.lastActiveAtMs,
       imported: s.imported,
     })),
@@ -151,6 +162,17 @@ export function registerIpc(
   })
   handle(CHANNELS.renameSession, async (_e, id: string, title: string) => {
     await service.renameSession(id, title)
+    // And in Claude's own record, where the VS Code extension and /resume read the name — only for
+    // a session running here, and only once it is safe to type into (see claudeRename.ts). Not
+    // awaited: it can wait up to a minute for Claude to go idle, and the rename in Apiary is done.
+    if (title.trim() !== '') {
+      void renameInClaude({
+        sessions: () => sessionTracker.current(),
+        screen: (ptyId) => service.pty.screen(ptyId),
+        write: (ptyId, data) => { service.pty.write(ptyId, data) },
+        isAlive: (ptyId) => service.pty.has(ptyId),
+      }, id, title).catch(() => { /* the Apiary rename already succeeded */ })
+    }
     // Nothing on disk changed, so the filesystem watcher will never fire for this — push the
     // same "tree changed" signal it uses so every open view (the sidebar list here, and any
     // other window) picks up the new title immediately instead of only on its next unrelated
@@ -457,6 +479,19 @@ export function registerIpc(
   ipcMain.on(CHANNELS.ptyKill, (_e, id: string) => service.pty.kill(id))
   handle(CHANNELS.ptySnapshot, (_e, id: string) => service.pty.snapshot(id))
 
+  // Which session each Claude terminal is on, followed through /clear, /resume and /rename. The
+  // Active section is keyed by these as well, so it is told too.
+  const sessionTracker = new ClaudeSessionTracker({
+    sessionsDir: join(configRoot, 'sessions'),
+    pids: () => service.pty.tuiPids(),
+    onChange: (sessions) => {
+      send(CHANNELS.ptySessionsChanged, sessions)
+      send(CHANNELS.activeTabsChanged)
+    },
+  })
+  sessionTracker.start()
+  handle(CHANNELS.ptySessions, () => sessionTracker.current())
+
   handle(CHANNELS.logStatus, () => log.status())
   handle(CHANNELS.logClear, () => { log.clear(); return log.status() })
   handle(CHANNELS.logReveal, async () => {
@@ -544,6 +579,13 @@ export function registerIpc(
     // Dropped on the desktop: a window of its own. Announced before the window is made — see below.
     announceClaimed(key, null)
     openDetachedWindow?.(tab, at)
+  })
+
+  handle(CHANNELS.tabAdoptHere, (e, tab: unknown) => {
+    if (!isTabTransfer(tab)) throw new Error('Not a tab.')
+    log.info('tabs', 'tab dropped on a strip in another window', { to: e.sender.id })
+    announceClaimed(tab.key, e.sender.id)
+    e.sender.send(CHANNELS.tabAdopt, tab)
   })
 
   handle(CHANNELS.tabDetach, (_e, tab: unknown, at: { x: number; y: number }) => {

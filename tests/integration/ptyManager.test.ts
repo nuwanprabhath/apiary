@@ -34,6 +34,31 @@ describe('PtyManager', () => {
     }
   })
 
+  it('does not pass another Claude session\'s markers on to the sessions it starts', async () => {
+    // Apiary started from a terminal Claude Code opened inherits that session's markers, and a
+    // `claude` that sees CLAUDE_CODE_CHILD_SESSION writes no transcript at all — so its tab could
+    // never be matched to a session. Real configuration such as CLAUDE_CODE_USE_BEDROCK stays.
+    const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
+    const saved = { ...process.env }
+    try {
+      process.env.CLAUDE_CODE_CHILD_SESSION = '1'
+      process.env.CLAUDE_CODE_SESSION_ID = 'someone-elses-session'
+      process.env.CLAUDECODE = '1'
+      process.env.CLAUDE_CODE_USE_BEDROCK = '1'
+      manager = new PtyManager()
+      const done = collect(manager, 'env', /APIARY_ENV_END/)
+      manager.spawn({
+        id: 'env', cwd: dir,
+        command: 'echo "child=[$CLAUDE_CODE_CHILD_SESSION] sid=[$CLAUDE_CODE_SESSION_ID] cc=[$CLAUDECODE] bedrock=[$CLAUDE_CODE_USE_BEDROCK]"; echo APIARY_ENV_END',
+      })
+      const out = await done
+      expect(out).toContain('child=[] sid=[] cc=[] bedrock=[1]')
+    } finally {
+      process.env = saved
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('runs the command in the given directory', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
     try {

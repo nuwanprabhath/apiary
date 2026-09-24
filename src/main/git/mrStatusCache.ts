@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { log } from '../log/logger'
 
 const run = promisify(execFile)
 
@@ -10,13 +11,34 @@ interface CacheEntry {
   state: MrState | null
 }
 
-const TTL_MS = 10 * 60 * 1000
+/**
+ * How long an answer is trusted, by what it says.
+ *
+ * An open merge request is the one whose state is expected to change — it gets merged, which is
+ * the news a user watches for — so it is re-checked after two minutes. Merged and closed are final
+ * in practice, and re-asking GitLab about them every few minutes is wasted calls. A null (lookup
+ * failed) is retried soon, since the cause is often transient. It was ten minutes for everything,
+ * which is how a merged `!1328` could keep saying "opened" long after the merge.
+ */
+function ttlFor(state: MrState | null): number {
+  if (state === 'merged' || state === 'closed') return 60 * 60 * 1000
+  if (state === null) return 60 * 1000
+  return 2 * 60 * 1000
+}
 const DEFAULT_TIMEOUT_MS = 8000
 
 const cache = new Map<string, CacheEntry>()
 const inFlight = new Map<string, Promise<MrState | null>>()
 /** Set once `glab` itself is missing, so a bad install is not re-probed on every reference. */
 let glabMissing = false
+
+/**
+ * Forgets every cached answer, so the next lookup asks GitLab again. What the Refresh button does:
+ * someone pressing it has usually just merged something and wants to see it.
+ */
+export function invalidateMrStatuses(): void {
+  cache.clear()
+}
 
 /** Test-only: clears every module-level cache so specs do not leak into each other. */
 export function resetMrStatusCache(): void {
@@ -75,7 +97,9 @@ export async function resolveMrStatus(
   const key = `${host}|${project}|${iid}`
 
   const hit = cache.get(key)
-  if (hit !== undefined && now() - hit.at < TTL_MS) return hit.state
+  if (hit !== undefined && now() - hit.at < ttlFor(hit.state)) return hit.state
+  // Only fresh lookups are logged — a cached answer is served many times a minute. "Why does it
+  // still say opened?" is answered by whether, and when, GitLab was last actually asked.
 
   const running = inFlight.get(key)
   if (running !== undefined) return running
@@ -85,6 +109,7 @@ export async function resolveMrStatus(
   try {
     const state = await promise
     cache.set(key, { at: now(), state })
+    log.info('mr-status', 'looked up', { iid, state, stale: hit !== undefined ? hit.state : null })
     return state
   } finally {
     inFlight.delete(key)
