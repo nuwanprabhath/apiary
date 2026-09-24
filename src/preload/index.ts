@@ -26,6 +26,7 @@ const api: ApiaryApi = {
   focusTab: (windowNumber, key) => ipcRenderer.invoke(CHANNELS.focusTab, windowNumber, key),
   onSelectTab: (cb) => subscribe(CHANNELS.selectTab, cb),
   renameSession: (id, title) => ipcRenderer.invoke(CHANNELS.renameSession, id, title),
+  renameTerminalInClaude: (ptyId, title) => { ipcRenderer.send(CHANNELS.renameTerminalInClaude, ptyId, title) },
   removeSession: (id) => ipcRenderer.invoke(CHANNELS.removeSession, id),
   moveSession: (id, path) => ipcRenderer.invoke(CHANNELS.moveSession, id, path),
   openShell: (id, tabId) => ipcRenderer.invoke(CHANNELS.openShell, id, tabId),

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { GitRefEntry, GitRefs, WorktreeConflict } from '@shared/types'
 import { exactRefMatch } from '../state/branchSelection'
+import { CopyIcon, CheckIcon } from './icons'
 
 interface Props {
   shellKey: string
@@ -306,7 +307,7 @@ function BranchSection(
     <>
       <li className="branch-switcher-section-label">{title}</li>
       {rows.map((r) => (
-        <li key={r.name}>
+        <li key={r.name} className="branch-switcher-item">
           <button
             className="branch-switcher-row"
             data-testid={testId}
@@ -319,8 +320,38 @@ function BranchSection(
               {r.relativeDate} &middot; {r.author} &middot; {r.shortSha} &middot; {r.subject}
             </span>
           </button>
+          <CopyRefButton name={r.name} />
         </li>
       ))}
     </>
+  )
+}
+
+/**
+ * Copies a ref's name without picking it. A sibling of the row's button rather than inside it — a
+ * button cannot hold another — shown on hover or keyboard focus, and enabled even while a checkout
+ * is running, since copying changes nothing.
+ */
+function CopyRefButton({ name }: { name: string }): JSX.Element {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const t = setTimeout(() => { setCopied(false) }, 1200)
+    return () => { clearTimeout(t) }
+  }, [copied])
+  return (
+    <button
+      className="branch-switcher-copy"
+      data-testid="branch-switcher-copy"
+      data-copied={copied}
+      title={copied ? 'Copied' : `Copy ${name}`}
+      aria-label={`Copy ${name}`}
+      onClick={(e) => {
+        e.stopPropagation()
+        void window.apiary.copyToClipboard(name).then(() => { setCopied(true) })
+      }}
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
+    </button>
   )
 }

@@ -55,6 +55,40 @@ export interface RenameDeps {
 
 export type RenameOutcome = 'renamed' | 'not-running' | 'never-idle' | 'already-named'
 
+interface Timing { timeoutMs: number; pollMs: number; sleep: (ms: number) => Promise<void> }
+
+function timing(deps: RenameDeps, timeoutMs: number, pollMs: number): Timing {
+  return { timeoutMs, pollMs, sleep: deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms))) }
+}
+
+/**
+ * Types `/rename <clean>` into one pty once it is idle with an empty composer, as long as it stays
+ * on `sessionId`. Resolves whether it was sent.
+ */
+async function sendRename(deps: RenameDeps, ptyId: string, sessionId: string, clean: string, t: Timing): Promise<RenameOutcome> {
+  const current = deps.sessions()[ptyId]
+  if (current?.name === clean && current.nameIsUser) return 'already-named'
+  let sent = false
+  for (let waited = 0; waited <= t.timeoutMs; waited += t.pollMs) {
+    if (!deps.isAlive(ptyId)) break
+    const info = deps.sessions()[ptyId]
+    // Re-checked every time: the process may have moved to another session meanwhile.
+    if (info?.sessionId !== sessionId) break
+    if (info.status === 'idle' && composerIsEmpty(deps.screen(ptyId))) {
+      deps.write(ptyId, `/rename ${clean}`)
+      await t.sleep(300)
+      deps.write(ptyId, '\r')
+      sent = true
+      break
+    }
+    await t.sleep(t.pollMs)
+  }
+  // Logged either way: "I renamed it in Apiary but VS Code still shows the old name" is
+  // answered by whether this ran, and why not.
+  log.info('rename', sent ? 'sent to claude' : 'not sent to claude', { ptyId, sessionId })
+  return sent ? 'renamed' : 'never-idle'
+}
+
 /**
  * Sends `/rename <title>` to every live Claude on `sessionId`, once each is idle with an empty
  * composer. Resolves when done, or after `timeoutMs` for any that never became safe to type into.
@@ -66,37 +100,37 @@ export async function renameInClaude(
   timeoutMs = 60_000,
   pollMs = 500,
 ): Promise<RenameOutcome> {
-  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
   const clean = sanitizeTitle(title)
   if (clean === '') return 'not-running'
   const targets = Object.entries(deps.sessions()).filter(([, s]) => s.sessionId === sessionId).map(([id]) => id)
   if (targets.length === 0) return 'not-running'
-
+  const t = timing(deps, timeoutMs, pollMs)
   let outcome: RenameOutcome = 'renamed'
   for (const ptyId of targets) {
-    if (deps.sessions()[ptyId]?.name === clean && deps.sessions()[ptyId]?.nameIsUser === true) {
-      outcome = 'already-named'
-      continue
-    }
-    let sent = false
-    for (let waited = 0; waited <= timeoutMs; waited += pollMs) {
-      if (!deps.isAlive(ptyId)) break
-      const info = deps.sessions()[ptyId]
-      // Re-checked every time: the process may have moved to another session meanwhile.
-      if (info?.sessionId !== sessionId) break
-      if (info.status === 'idle' && composerIsEmpty(deps.screen(ptyId))) {
-        deps.write(ptyId, `/rename ${clean}`)
-        await sleep(300)
-        deps.write(ptyId, '\r')
-        sent = true
-        break
-      }
-      await sleep(pollMs)
-    }
-    // Logged either way: "I renamed it in Apiary but VS Code still shows the old name" is
-    // answered by whether this ran, and why not.
-    log.info('rename', sent ? 'sent to claude' : 'not sent to claude', { ptyId, sessionId })
-    if (!sent) outcome = 'never-idle'
+    const one = await sendRename(deps, ptyId, sessionId, clean, t)
+    if (one === 'never-idle') outcome = 'never-idle'
+    else if (one === 'already-named' && outcome === 'renamed') outcome = 'already-named'
   }
   return outcome
+}
+
+/**
+ * The same, for one terminal named by its pty rather than by a session id — a tab that has no
+ * session id of its own yet, because Claude has written no transcript for it. Whichever session
+ * the process is on when this is called is the one renamed.
+ */
+export async function renameTerminalInClaude(
+  deps: RenameDeps,
+  ptyId: string,
+  title: string,
+  timeoutMs = 60_000,
+  pollMs = 500,
+): Promise<RenameOutcome> {
+  const clean = sanitizeTitle(title)
+  const sessionId = deps.sessions()[ptyId]?.sessionId
+  if (clean === '' || sessionId === undefined || !deps.isAlive(ptyId)) {
+    log.info('rename', 'not sent to claude', { ptyId, reason: clean === '' ? 'empty title' : 'no claude session known for this terminal' })
+    return 'not-running'
+  }
+  return sendRename(deps, ptyId, sessionId, clean, timing(deps, timeoutMs, pollMs))
 }

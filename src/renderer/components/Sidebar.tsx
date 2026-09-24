@@ -1,5 +1,6 @@
 import { useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectNode, SessionNode } from '@shared/types'
+import { UNTITLED_SESSION } from '@shared/types'
 import type { ActiveTabPayload } from '@shared/api'
 import { describeActivityStatus } from '@shared/activity'
 import { useTree } from '../state/useTree'
@@ -586,7 +587,7 @@ export function Sidebar({
                     role="img"
                     aria-label={describeActivityStatus(t.status)}
                   />
-                  <ActiveTabTitle sessionId={t.key} title={session?.title ?? t.key} />
+                  <ActiveTabTitle sessionId={t.key} title={session?.title ?? t.label ?? UNTITLED_SESSION} />
                   <span className="active-window-number">W{t.windowNumber}</span>
                 </button>
                 {/* A tab still waiting for its session id has no session to attach a note to yet. */}

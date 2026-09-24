@@ -785,10 +785,12 @@ export class AppService {
   }
 
   /** Pulls `branch` in the worktree that has it, which is the only place it *can* be pulled. */
-  async gitPullWorktree(key: string, isPtyId: boolean, branch: string): Promise<string> {
+  async gitPullWorktree(
+    key: string, isPtyId: boolean, branch: string,
+  ): Promise<{ path: string; commits: number }> {
     const path = await this.requireWorktreeFor(key, isPtyId, branch)
-    await branchOps.pull(path)
-    return path
+    const { commits } = await branchOps.pull(path)
+    return { path, commits }
   }
 
   /** Starts a new Claude session in the worktree that has `branch`. */
@@ -810,8 +812,8 @@ export class AppService {
     await branchOps.createBranch(this.resolveShellCwd(key, isPtyId), name, from)
   }
 
-  async gitPull(key: string, isPtyId: boolean): Promise<void> {
-    await branchOps.pull(this.resolveShellCwd(key, isPtyId))
+  async gitPull(key: string, isPtyId: boolean): Promise<{ commits: number }> {
+    return branchOps.pull(this.resolveShellCwd(key, isPtyId))
   }
 
   /**
@@ -825,8 +827,8 @@ export class AppService {
     return branchOps.pullFastForward(project.path)
   }
 
-  async gitPush(key: string, isPtyId: boolean): Promise<void> {
-    await branchOps.push(this.resolveShellCwd(key, isPtyId))
+  async gitPush(key: string, isPtyId: boolean): Promise<{ commits: number; published: boolean }> {
+    return branchOps.push(this.resolveShellCwd(key, isPtyId))
   }
 
   async gitMerge(key: string, isPtyId: boolean, ref: string): Promise<void> {

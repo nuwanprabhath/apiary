@@ -1323,6 +1323,31 @@ button:not([class]) {
 .branch-switcher-row:hover { background: var(--selected); }
 .branch-switcher-row[data-active="true"] { background: var(--selected); }
 .branch-switcher-row-meta { color: var(--muted); font-size: 11px; }
+.branch-switcher-item { position: relative; }
+/* Room on the right for the copy button, so a long name or subject never runs under it. */
+.branch-switcher-item .branch-switcher-row { padding-right: 36px; }
+.branch-switcher-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.branch-switcher-copy svg { width: 14px; height: 14px; }
+.branch-switcher-item:hover .branch-switcher-copy,
+.branch-switcher-item:focus-within .branch-switcher-copy,
+.branch-switcher-copy[data-copied="true"] { display: flex; }
+.branch-switcher-copy:hover { background: var(--border); color: var(--text); }
+.branch-switcher-copy[data-copied="true"] { color: var(--accent); }
 .branch-switcher-action {
   display: block;
   width: 100%;

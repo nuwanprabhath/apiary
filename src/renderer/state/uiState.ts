@@ -183,8 +183,12 @@ export function loadUiState(): UiState {
   // A torn-off window starts with its sidebar folded to the rail: it was torn off to give one
   // session the room, but the rail keeps the rest of the library a click away rather than out of
   // reach — which is what it was until the sidebar was kept in these windows at all.
-  const defaults = detachedKey() !== null ? { ...DEFAULT_UI_STATE, sidebarHidden: true } : DEFAULT_UI_STATE
-  return { ...defaults, ...read(KEY), ...shared }
+  //
+  // Applied over what is stored, not as a default beneath it: window numbers are reused, and the
+  // record under this number may be an earlier window's that had its sidebar open — which is how
+  // a tab popped out into "W6" arrived with the sidebar fully out.
+  const state = { ...DEFAULT_UI_STATE, ...read(KEY), ...shared }
+  return detachedKey() !== null ? { ...state, sidebarHidden: true } : state
 }
 
 /** Reads only the shared half — what a `storage` event from another window means. */

@@ -109,6 +109,8 @@ export interface ActiveTabPayload {
   key: string
   view: 'transcript' | 'terminal'
   status: import('./activity').ActivityStatus
+  /** The tab's title while it has no session yet (see `reportTabs`); null otherwise. */
+  label: string | null
 }
 
 /** A button a plugin has contributed to a session's bar. Mirrors main/plugins/types.ts. */
@@ -132,6 +134,7 @@ export const CHANNELS = {
   checkConflict: 'apiary:check-conflict',
   resume: 'apiary:resume',
   renameSession: 'apiary:rename-session',
+  renameTerminalInClaude: 'apiary:rename-terminal-in-claude',
   removeSession: 'apiary:remove-session',
   moveSession: 'apiary:move-session',
   openShell: 'apiary:open-shell',
@@ -256,7 +259,7 @@ export interface ApiaryApi {
   reportLayout(report: WindowLayoutReport): Promise<void>
   /** Tells main what this window currently has open, replacing its previous report. Sent from the
    *  same effect as `reportLayout`, over the same walk of this window's tabs — see App.tsx. */
-  reportTabs(tabs: { key: string; view: 'transcript' | 'terminal'; ptyId: string | null }[]): void
+  reportTabs(tabs: { key: string; view: 'transcript' | 'terminal'; ptyId: string | null; label: string | null }[]): void
   /** Every open tab across every window, with its derived status, for the Active section. */
   activeTabs(): Promise<ActiveTabPayload[]>
   /** Fires whenever the registry or any tab's activity status changes. */
@@ -267,6 +270,9 @@ export interface ApiaryApi {
   onSelectTab(cb: (key: string) => void): () => void
   /** Sets (empty/whitespace-only clears) a session's user-facing title. */
   renameSession(sessionId: string, title: string): Promise<void>
+  /** Types `/rename <title>` into the Claude running in `ptyId`, once it is safe to (see
+   *  claudeRename.ts) — for a tab with no session id yet, which `renameSession` cannot name. */
+  renameTerminalInClaude(ptyId: string, title: string): void
   /** Removes a session from view (never touches the JSONL on disk). Rejects while it is live. */
   removeSession(sessionId: string): Promise<void>
   /** Moves a session's transcript to another worktree. Rejects while it is live, if the target
@@ -377,18 +383,18 @@ export interface ApiaryApi {
    * has it — which is an outcome to act on, not an error to report. Anything else still rejects.
    */
   gitCheckoutBranch(key: string, isPtyId: boolean, name: string): Promise<CheckoutOutcome>
-  /** Pulls `branch` in the worktree that holds it. Resolves with that worktree's path. */
-  gitPullWorktree(key: string, isPtyId: boolean, branch: string): Promise<string>
+  /** Pulls `branch` in the worktree that holds it. Resolves with that worktree's path and how many commits arrived. */
+  gitPullWorktree(key: string, isPtyId: boolean, branch: string): Promise<{ path: string; commits: number }>
   /** Starts a new Claude session in the worktree that holds `branch`. */
   newSessionInWorktree(key: string, isPtyId: boolean, branch: string): Promise<NewSessionInfo>
   gitCheckoutRemote(key: string, isPtyId: boolean, remoteRef: string, localName: string): Promise<void>
   gitCheckoutDetached(key: string, isPtyId: boolean, ref: string): Promise<void>
   gitCreateBranch(key: string, isPtyId: boolean, name: string, from?: string): Promise<void>
-  gitPull(key: string, isPtyId: boolean): Promise<void>
+  gitPull(key: string, isPtyId: boolean): Promise<{ commits: number }>
   /** Fast-forwards a sidebar folder's branch from its upstream; never merges or rebases. `path`
    *  must be a folder the sidebar shows — main rejects any other. */
   gitPullFolder(path: string): Promise<{ commits: number }>
-  gitPush(key: string, isPtyId: boolean): Promise<void>
+  gitPush(key: string, isPtyId: boolean): Promise<{ commits: number; published: boolean }>
   gitMerge(key: string, isPtyId: boolean, ref: string): Promise<void>
   gitFetch(key: string, isPtyId: boolean): Promise<void>
   /** Whether VS Code was found on this machine at launch. Checked once; does not change at runtime. */

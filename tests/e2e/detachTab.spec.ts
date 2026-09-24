@@ -48,6 +48,49 @@ test('a session moved into a new window arrives there, with the sidebar folded t
   await expect(detached.getByTestId('session-item').filter({ hasText: 'Add worktree switcher' }).first()).toBeVisible()
 })
 
+test('a torn-off window starts folded even when an earlier window with its number had the sidebar open', async () => {
+  // Window numbers are reused, and each window's sidebar state is kept under its number. Reported:
+  // a tab popped out into "W6" opened with the sidebar fully out, because an earlier window 6 had
+  // saved it open — and that saved record overrode the torn-off default.
+  await h.page.evaluate(() => {
+    for (let w = 2; w <= 9; w += 1) localStorage.setItem(`apiary.ui.${String(w)}`, JSON.stringify({ sidebarHidden: false }))
+  })
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  const opened = h.app.waitForEvent('window')
+  await h.page.getByTestId('session-tab').first().click({ button: 'right' })
+  await h.page.getByTestId('tab-menu').getByText('Move into New Window').click()
+  const detached = await opened
+  await detached.waitForLoadState('domcontentloaded')
+
+  await expect(detached.getByTestId('session-title')).toHaveText('Fix CSV export bug')
+  await expect(detached.getByTestId('sidebar-rail')).toBeVisible()
+  await expect(detached.getByTestId('sidebar')).toBeHidden()
+})
+
+test('a session moved into a new window never drops out of Active on the way', async () => {
+  // Reported: the moved session vanished from Active and came back a moment later. The window it
+  // left reported the loss at once; the new one only after loading and its report debounce.
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  const active = h.page.getByTestId('active-section').getByTestId('active-tab-row')
+  await expect(active.filter({ hasText: 'Fix CSV export bug' })).toHaveCount(1)
+
+  const opened = h.app.waitForEvent('window')
+  await h.page.getByTestId('session-tab').first().click({ button: 'right' })
+  await h.page.getByTestId('tab-menu').getByText('Move into New Window').click()
+
+  // Sampled through the whole hand-over, not just at the end.
+  const seen: number[] = []
+  const until = Date.now() + 2500
+  while (Date.now() < until) {
+    seen.push(await active.filter({ hasText: 'Fix CSV export bug' }).count())
+    await h.page.waitForTimeout(50)
+  }
+  expect(seen.filter((n) => n !== 1)).toEqual([])
+  const detached = await opened
+  await expect(active.filter({ hasText: 'Fix CSV export bug' })).toContainText(/W\d/)
+  await expect(detached.getByTestId('session-title')).toHaveText('Fix CSV export bug')
+})
+
 test('folding the sidebar in a torn-off window does not fold it in the main window', async () => {
   // Sidebar visibility is per window. The torn-off one starting folded must not reach back and
   // fold the sidebar of the window it came from.

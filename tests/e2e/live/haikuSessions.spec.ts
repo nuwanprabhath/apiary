@@ -178,6 +178,37 @@ test('a fork from the tab menu resolves to its own session', async () => {
 
 
 
+test('a fork nobody has typed in is named in Active, and renaming it resolves the tab — the reported case', async () => {
+  await labFolder().getByTestId('new-session-button').click()
+  await ask('Reply with just the word: parent')
+  await expect(h.page.getByTestId('session-title')).not.toContainText('New session', { timeout: 30_000 })
+
+  const tabs = h.page.getByTestId('session-tab-bar')
+  await tabs.locator('[role="tab"], .session-tab').last().click({ button: 'right' })
+  await h.page.getByRole('menuitem', { name: /fork session/i }).click()
+  await expect(tabs.locator('.session-tab')).toHaveCount(2)
+  await expect(terminal()).toContainText(/Haiku \d/, { timeout: 60_000 })
+
+  // Nothing typed in the fork: Claude has written no transcript for it, so the tab cannot resolve
+  // yet — but Active names it as the tab bar does, never by its pty id.
+  await expect(activeRows()).toHaveCount(2)
+  await expect(activeRows().filter({ hasText: /^.*fork: /i })).toHaveCount(1, { timeout: 10_000 })
+  await expect(activeRows().filter({ hasText: 'new:' })).toHaveCount(0)
+
+  await h.page.getByTestId('session-title-edit').click()
+  const input = h.page.getByTestId('session-title-input')
+  await input.fill('Renamed untouched fork')
+  await input.press('Enter')
+
+  // The rename reaches Claude, which writes the fork's transcript; the tab follows it and keeps
+  // the name — in Active, and as a real session in the sidebar.
+  await expect(activeRows().filter({ hasText: 'Renamed untouched fork' })).toHaveCount(1, { timeout: 60_000 })
+  await expect(labFolder().getByTestId('session-item').filter({ hasText: 'Renamed untouched fork' }))
+    .toHaveCount(1, { timeout: 60_000 })
+  await expect(h.page.getByTestId('session-title')).not.toContainText('New session')
+  await expect(activeRows().filter({ hasText: 'new:' })).toHaveCount(0)
+})
+
 test('renaming in Apiary renames the session in Claude too — what VS Code and /resume read', async () => {
   await labFolder().getByTestId('new-session-button').click()
   await ask('Reply with just the word: named')

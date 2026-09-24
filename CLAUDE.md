@@ -198,7 +198,15 @@ Haiku sessions (Claude 2.1.281):
 - `/rename` changes `name` and appends a `custom-title` record to the JSONL;
 - `--fork-session` copies the parent's `custom-title`; `/fork` (2.1.281) starts a *separate*
   background session and leaves the process where it was;
-- the file is removed when the process exits.
+- the file is removed when the process exits;
+- a **fork nobody has typed in has no JSONL at all** (a `/rename` makes Claude write one), so
+  until then the tab is pending: Active names it from the tab's reported `label`, and renaming it
+  sends `/rename` through `renameTerminalInClaude(ptyId)` — the tab then resolves on its own.
+
+Shell terminals are filed under the pty a tab runs under (`keyFor` = `ptyOverrides.get(key) ??
+key`), not the tab key — a rekey must leave `shellTabs` alone. And shells do not survive a quit
+while the layout still lists them: `SessionColumn` restarts a shown terminal whose pty is not
+running, rather than attaching to nothing.
 
 Before this, a new or forked tab was matched by waiting for an unseen JSONL in its folder. `/resume`
 inside a new session switches to a session that already existed — the one case that match rules

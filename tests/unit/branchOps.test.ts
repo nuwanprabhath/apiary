@@ -150,10 +150,13 @@ describe('pull / push', () => {
     git(clone, 'config', 'user.email', 'test@example.com')
     git(clone, 'config', 'user.name', 'Test')
     commit(clone, 'from-clone.txt', 'pushed from clone')
+    commit(clone, 'from-clone-2.txt', 'second from clone')
     git(clone, 'push', '-q')
 
-    await pull(repo)
+    // The count is what the notification shows; a second pull has nothing to bring.
+    expect(await pull(repo)).toEqual({ commits: 2 })
     expect(git(repo, 'log', '--oneline')).toContain('pushed from clone')
+    expect(await pull(repo)).toEqual({ commits: 0 })
     rmSync(remote, { recursive: true, force: true })
     rmSync(clone, { recursive: true, force: true })
   })
@@ -163,8 +166,14 @@ describe('pull / push', () => {
     git(remote, 'init', '-q', '--bare', '-b', 'main')
     git(repo, 'remote', 'add', 'origin', remote)
 
-    await push(repo)
+    commit(repo, 'second.txt', 'second')
+    // Publishing: both commits are new to every remote.
+    expect(await push(repo)).toEqual({ commits: 2, published: true })
     expect((await status(repo)).hasUpstream).toBe(true)
+
+    commit(repo, 'third.txt', 'third')
+    expect(await push(repo)).toEqual({ commits: 1, published: false })
+    expect(await push(repo)).toEqual({ commits: 0, published: false })
     rmSync(remote, { recursive: true, force: true })
   })
 

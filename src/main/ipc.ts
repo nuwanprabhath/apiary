@@ -22,7 +22,7 @@ import { TabRegistry, focusTab, type OpenTab } from './tabRegistry'
 import { classifyActivity } from '@shared/activity'
 import { ClaudeSessionTracker } from './claudeSessionTracker'
 import { invalidateMrStatuses } from './git/mrStatusCache'
-import { renameInClaude } from './claudeRename'
+import { renameInClaude, renameTerminalInClaude, type RenameDeps } from './claudeRename'
 import { join } from 'node:path'
 
 /**
@@ -43,8 +43,9 @@ export function registerIpc(
   sessionLayoutStore?: SessionLayoutStore | null,
   /** Told about every incoming `reportLayout` so `before-quit` can wait for a specific window's. */
   layoutFlushCoordinator?: LayoutFlushCoordinator | null,
-  /** Opens a tab in a window of its own. Injected so this module never imports the window code. */
-  openDetachedWindow?: (tab: TabTransfer, at: { x: number; y: number }) => void,
+  /** Opens a tab in a window of its own, resolving the new window's number. Injected so this
+   *  module never imports the window code. */
+  openDetachedWindow?: (tab: TabTransfer, at: { x: number; y: number }) => number,
   /** Where every window's open tabs are recorded, for the Active section. Null where the registry
    *  has not been constructed yet, mirroring `sessionLayoutStore` above. */
   tabRegistry?: TabRegistry | null,
@@ -139,7 +140,7 @@ export function registerIpc(
   })
   ipcMain.on(
     CHANNELS.reportTabs,
-    (e, tabs: { key: string; view: 'transcript' | 'terminal'; ptyId: string | null }[]) => {
+    (e, tabs: { key: string; view: 'transcript' | 'terminal'; ptyId: string | null; label: string | null }[]) => {
       const windowNumber = windowNumberFor?.(e.sender.id) ?? null
       if (windowNumber === null || !tabRegistry) return
       tabRegistry.report(windowNumber, tabs.map((t): OpenTab => ({ ...t, windowNumber })))
@@ -149,6 +150,7 @@ export function registerIpc(
     windowNumber: t.windowNumber,
     key: t.key,
     view: t.view,
+    label: t.label,
     status: classifyActivity(
       // The rendered screen, not the raw stream — see `classifyActivity` and `pty/screen.ts`.
       t.ptyId !== null ? service.pty.screen(t.ptyId) : '',
@@ -160,18 +162,23 @@ export function registerIpc(
   handle(CHANNELS.focusTab, (_e, windowNumber: number, key: string) => {
     focusTab(BrowserWindow.getAllWindows(), windowNumber, key)
   })
+  const renameDeps = (): RenameDeps => ({
+    sessions: () => sessionTracker.current(),
+    screen: (ptyId) => service.pty.screen(ptyId),
+    write: (ptyId, data) => { service.pty.write(ptyId, data) },
+    isAlive: (ptyId) => service.pty.has(ptyId),
+  })
+  ipcMain.on(CHANNELS.renameTerminalInClaude, (_e, ptyId: string, title: string) => {
+    log.info('rename', 'terminal renamed before it had a session', { ptyId })
+    void renameTerminalInClaude(renameDeps(), ptyId, title).catch(() => { /* best effort */ })
+  })
   handle(CHANNELS.renameSession, async (_e, id: string, title: string) => {
     await service.renameSession(id, title)
     // And in Claude's own record, where the VS Code extension and /resume read the name — only for
     // a session running here, and only once it is safe to type into (see claudeRename.ts). Not
     // awaited: it can wait up to a minute for Claude to go idle, and the rename in Apiary is done.
     if (title.trim() !== '') {
-      void renameInClaude({
-        sessions: () => sessionTracker.current(),
-        screen: (ptyId) => service.pty.screen(ptyId),
-        write: (ptyId, data) => { service.pty.write(ptyId, data) },
-        isAlive: (ptyId) => service.pty.has(ptyId),
-      }, id, title).catch(() => { /* the Apiary rename already succeeded */ })
+      void renameInClaude(renameDeps(), id, title).catch(() => { /* the Apiary rename already succeeded */ })
     }
     // Nothing on disk changed, so the filesystem watcher will never fire for this — push the
     // same "tree changed" signal it uses so every open view (the sidebar list here, and any
@@ -328,12 +335,12 @@ export function registerIpc(
     return outcome
   })
   handle(CHANNELS.gitPullWorktree, async (_e, key: string, isPtyId: boolean, branch: string) => {
-    const path = await service.gitPullWorktree(key, isPtyId, branch)
+    const outcome = await service.gitPullWorktree(key, isPtyId, branch)
     // The worktree that was pulled is a project in its own right here, and its ahead/behind counts
     // have just changed.
     await service.refresh()
     send(CHANNELS.treeChanged)
-    return path
+    return outcome
   })
   handle(CHANNELS.newSessionInWorktree, (_e, key: string, isPtyId: boolean, branch: string) =>
     service.newSessionInWorktree(key, isPtyId, branch),
@@ -541,6 +548,23 @@ export function registerIpc(
     }
   }
 
+  /**
+   * Files a moved tab under the window it went to at the moment of the move. Each window reports
+   * its own tabs, but the receiving one only after it has loaded (a new window) or adopted the tab,
+   * plus the 500ms report debounce — while the window it left reports its loss at once. In that gap
+   * the tab was in no window at all, and dropped out of Active for a second or two.
+   */
+  const handOver = (tab: TabTransfer, toWindow: number | null): void => {
+    if (toWindow === null || !tabRegistry) return
+    tabRegistry.handOver(toWindow, {
+      windowNumber: toWindow,
+      key: tab.key,
+      view: tab.view,
+      ptyId: tab.ptyId ?? (service.pty.has(tab.key) ? tab.key : null),
+      label: null,
+    })
+  }
+
   const windowUnder = (at: { x: number; y: number }): BrowserWindow | null => {
     const windows = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
     const id = pickWindowAt(
@@ -569,6 +593,7 @@ export function registerIpc(
 
     if (target !== null) {
       target.webContents.send(CHANNELS.tabAdopt, tab)
+      handOver(tab, windowNumberFor?.(target.webContents.id) ?? null)
       // Brought to the front: the tab is now there, and a move whose result is behind another
       // window looks exactly like a move that did not happen.
       target.focus()
@@ -578,7 +603,7 @@ export function registerIpc(
 
     // Dropped on the desktop: a window of its own. Announced before the window is made — see below.
     announceClaimed(key, null)
-    openDetachedWindow?.(tab, at)
+    handOver(tab, openDetachedWindow?.(tab, at) ?? null)
   })
 
   handle(CHANNELS.tabAdoptHere, (e, tab: unknown) => {
@@ -586,6 +611,7 @@ export function registerIpc(
     log.info('tabs', 'tab dropped on a strip in another window', { to: e.sender.id })
     announceClaimed(tab.key, e.sender.id)
     e.sender.send(CHANNELS.tabAdopt, tab)
+    handOver(tab, windowNumberFor?.(e.sender.id) ?? null)
   })
 
   handle(CHANNELS.tabDetach, (_e, tab: unknown, at: { x: number; y: number }) => {
@@ -595,7 +621,7 @@ export function registerIpc(
     // the very tab it exists to show. Nothing is lost in the gap — the pty keeps running whether
     // or not a view is attached to it.
     announceClaimed(tab.key, null)
-    openDetachedWindow?.(tab, at)
+    handOver(tab, openDetachedWindow?.(tab, at) ?? null)
   })
 
   service.pty.onData((id, data) => send(CHANNELS.ptyData, id, data))

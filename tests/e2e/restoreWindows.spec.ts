@@ -62,3 +62,27 @@ test('the layout returns after quitting by closing the last window, not just via
   await expect(h.page.getByTestId('session-tab')).toHaveCount(3)
   await expect(h.page.getByTestId('session-title').last()).toHaveText('Add worktree switcher')
 })
+
+test('a shell listed from before a relaunch starts again when shown, rather than a dead cursor', async () => {
+  // The shell's process ends with the app, but the restored layout still lists its terminal.
+  // Showing the pane used to find that listing, spawn nothing, and attach to a pty that no longer
+  // existed: a blinking cursor, no prompt, and hiding and showing again changed nothing.
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('shell-toggle').click()
+  await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
+  await h.page.getByTestId('terminal-shell').click()
+  await h.page.keyboard.type('echo BEFORE_$((20+1))\n')
+  await expect(h.page.getByTestId('terminal-shell')).toContainText('BEFORE_21', { timeout: 10000 })
+
+  await relaunchApiary(h)
+
+  await expect(h.page.getByTestId('session-title')).toHaveText('Fix CSV export bug')
+  await h.page.getByTestId('shell-toggle').click()
+  await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
+  await h.page.getByTestId('terminal-shell').click()
+  await h.page.keyboard.type('echo AFTER_$((40+2))\n')
+  await expect(h.page.getByTestId('terminal-shell')).toContainText('AFTER_42', { timeout: 10000 })
+  // Still the one terminal it was, not a second one added beside a dead first.
+  await h.page.getByTestId('terminal-list-toggle').click()
+  await expect(h.page.getByTestId('terminal-tab-row')).toHaveCount(1)
+})

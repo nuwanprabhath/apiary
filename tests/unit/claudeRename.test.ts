@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { composerIsEmpty, sanitizeTitle, renameInClaude } from '../../src/main/claudeRename'
+import { composerIsEmpty, sanitizeTitle, renameInClaude, renameTerminalInClaude } from '../../src/main/claudeRename'
 import { renderScreen } from '../../src/main/pty/screen'
 import type { PtySessionInfo } from '../../src/shared/api'
 
@@ -83,6 +83,35 @@ describe('renameInClaude', () => {
       sessions: () => ({ p: info({ sessionId: 'other' }) }),
       screen: () => '', write: () => { throw new Error('must not type') }, isAlive: () => true,
     }, 's1', 'New name')
+    expect(outcome).toBe('not-running')
+  })
+})
+
+describe('renameTerminalInClaude', () => {
+  // A fork nobody has typed in yet: Claude reports the session it is on, but has written no
+  // transcript, so Apiary has no session id for the tab — only its pty. Measured on a real Haiku
+  // fork: `/rename` is what makes Claude write that transcript.
+  const forkPty = { 'new:4c870d2d': { sessionId: 'cd17fdeb', name: 'paratoo-main-e3', nameIsUser: false, status: 'idle' as const } }
+
+  it('renames whatever session the terminal is on, named by its pty', async () => {
+    const idleScreen = await fixture('idle-after-answer')
+    const written: Array<[string, string]> = []
+    const outcome = await renameTerminalInClaude({
+      sessions: () => forkPty,
+      screen: () => idleScreen,
+      write: (id, d) => { written.push([id, d]) },
+      isAlive: () => true,
+      sleep: async () => {},
+    }, 'new:4c870d2d', 'paratoo allure setup stage fixes', 50, 10)
+    expect(outcome).toBe('renamed')
+    expect(written).toEqual([['new:4c870d2d', '/rename paratoo allure setup stage fixes'], ['new:4c870d2d', '\r']])
+  })
+
+  it('does nothing for a terminal Claude has reported no session for', async () => {
+    const outcome = await renameTerminalInClaude({
+      sessions: () => ({}),
+      screen: () => '', write: () => { throw new Error('must not type') }, isAlive: () => true,
+    }, 'new:unknown', 'Name')
     expect(outcome).toBe('not-running')
   })
 })

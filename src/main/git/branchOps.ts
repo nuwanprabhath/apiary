@@ -165,8 +165,19 @@ export async function createBranch(cwd: string, name: string, from?: string): Pr
   await git(cwd, from ? ['checkout', '-b', name, from] : ['checkout', '-b', name])
 }
 
-export async function pull(cwd: string): Promise<void> {
+/** Plain `git pull`, reporting how many commits HEAD moved by — git's own output is not shown, so
+ *  without a count "pulled" read the same whether ten commits arrived or none did. */
+export async function pull(cwd: string): Promise<{ commits: number }> {
+  const before = await git(cwd, ['rev-parse', 'HEAD'])
   await git(cwd, ['pull'])
+  return { commits: await commitsBetween(cwd, before) }
+}
+
+/** Commits reachable from HEAD but not from `before` — 0 when HEAD did not move. */
+async function commitsBetween(cwd: string, before: string): Promise<number> {
+  const after = await git(cwd, ['rev-parse', 'HEAD'])
+  if (before === after) return 0
+  return Number(await git(cwd, ['rev-list', '--count', `${before}..${after}`]))
 }
 
 /**
@@ -185,20 +196,24 @@ export async function pull(cwd: string): Promise<void> {
 export async function pullFastForward(cwd: string): Promise<{ commits: number }> {
   const before = await git(cwd, ['rev-parse', 'HEAD'])
   await git(cwd, ['pull', '--ff-only'])
-  const after = await git(cwd, ['rev-parse', 'HEAD'])
-  if (before === after) return { commits: 0 }
-  return { commits: Number(await git(cwd, ['rev-list', '--count', `${before}..${after}`])) }
+  return { commits: await commitsBetween(cwd, before) }
 }
 
 /** Plain `git push`; if the branch has no upstream yet, retries once as
- *  `git push -u origin HEAD` instead of requiring a separate "publish branch" step. */
-export async function push(cwd: string): Promise<void> {
+ *  `git push -u origin HEAD` instead of requiring a separate "publish branch" step.
+ *
+ *  The count is measured before pushing: commits ahead of the upstream, or — for a branch being
+ *  published — commits no remote has yet. It is what was sent, as far as this clone knows. */
+export async function push(cwd: string): Promise<{ commits: number; published: boolean }> {
+  const ahead = await tryGit(cwd, ['rev-list', '--count', '@{upstream}..HEAD'])
   try {
     await git(cwd, ['push'])
+    return { commits: Number(ahead ?? 0), published: false }
   } catch (e) {
     if (e instanceof Error && /has no upstream branch/i.test(e.message)) {
+      const unpushed = await tryGit(cwd, ['rev-list', '--count', 'HEAD', '--not', '--remotes'])
       await git(cwd, ['push', '-u', 'origin', 'HEAD'])
-      return
+      return { commits: Number(unpushed ?? 0), published: true }
     }
     throw e
   }

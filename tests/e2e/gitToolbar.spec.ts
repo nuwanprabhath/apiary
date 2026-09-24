@@ -30,11 +30,11 @@ test('pull and push succeed against a real remote and refresh the branch button'
   // Both commands are silent on success at the git level, so the toolbar says so instead —
   // and the absence of an error notification is what proves nothing went wrong.
   await h.page.getByTestId('toolbar-push').click()
-  await expect(h.page.getByTestId('notification').filter({ hasText: 'Pushed to upstream.' })).toBeVisible()
+  await expect(h.page.getByTestId('notification').filter({ hasText: 'Published the branch with 1 commit.' })).toBeVisible()
   await expect(h.page.locator('[data-testid="notification"][data-kind="error"]')).toHaveCount(0)
 
   await h.page.getByTestId('toolbar-pull').click()
-  await expect(h.page.getByTestId('notification').filter({ hasText: 'Pulled from upstream.' })).toBeVisible()
+  await expect(h.page.getByTestId('notification').filter({ hasText: 'Already up to date.' })).toBeVisible()
   await expect(h.page.locator('[data-testid="notification"][data-kind="error"]')).toHaveCount(0)
 })
 
@@ -48,6 +48,25 @@ test('switches branch via the branch switcher', async () => {
 
   await expect(h.page.getByTestId('branch-switcher')).toHaveCount(0)
   await expect(h.page.getByTestId('toolbar-branch-button')).toContainText('feature/from-switcher')
+})
+
+test('a branch row copies its name on hover, without checking it out', async () => {
+  execFileSync('git', ['branch', 'feature/copy-me'], { cwd: h.repoRoot })
+
+  await h.page.getByTestId('toolbar-branch-button').click()
+  await h.page.getByTestId('branch-switcher-search').fill('copy-me')
+  const item = h.page.locator('.branch-switcher-item').filter({ hasText: 'feature/copy-me' })
+  const copy = item.getByTestId('branch-switcher-copy')
+  // Out of the way until the row is hovered.
+  await expect(copy).toBeHidden()
+  await item.hover()
+  await copy.click()
+
+  await expect(copy).toHaveAttribute('data-copied', 'true')
+  expect(await h.app.evaluate(({ clipboard }) => clipboard.readText())).toBe('feature/copy-me')
+  // Copying is not picking: the switcher stays open and the branch is unchanged.
+  await expect(h.page.getByTestId('branch-switcher')).toBeVisible()
+  await expect(h.page.getByTestId('toolbar-branch-button')).toContainText('main')
 })
 
 test('Enter checks out an exact branch name; a partial one does nothing', async () => {

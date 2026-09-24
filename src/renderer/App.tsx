@@ -563,6 +563,8 @@ export function App(): JSX.Element {
    * it at all. A session with no JSONL yet (nothing has been typed in it) is not in the tree, so
    * the tab simply waits — never guesses.
    */
+  /** Waits already logged by the effect below, so each is logged once rather than per tree change. */
+  const loggedWaitsRef = useRef(new Set<string>())
   useEffect(() => {
     if (Object.keys(ptySessions).length === 0) return
     let cancelled = false
@@ -582,7 +584,19 @@ export function App(): JSX.Element {
         const target = known.get(now)
         // Not in the tree yet (no message sent in it), or already open in its own tab here —
         // rekeying onto an open tab would leave two tabs claiming one key.
-        if (target === undefined || openKeys.has(now)) continue
+        if (target === undefined || openKeys.has(now)) {
+          // Logged once per wait: "Active still shows new:…" was unanswerable from the log, which
+          // showed the terminal on a session and then nothing. This says why it did not follow.
+          const waitKey = `${key}>${now}`
+          if (!loggedWaitsRef.current.has(waitKey)) {
+            loggedWaitsRef.current.add(waitKey)
+            window.apiary.logWrite('info', 'tabs', 'tab not following its terminal yet', {
+              key, ptyId, session: now,
+              reason: target === undefined ? 'no transcript yet' : 'session already open in another tab',
+            })
+          }
+          continue
+        }
         moves.push({ from: key, to: target, ptyId })
       }
       if (moves.length === 0) return
@@ -617,14 +631,9 @@ export function App(): JSX.Element {
           next.set(to.sessionId, node)
           return next
         })
-        setShellTabs((prev) => {
-          const shells = prev.get(from)
-          if (shells === undefined) return prev
-          const next = new Map(prev)
-          next.delete(from)
-          next.set(to.sessionId, shells)
-          return next
-        })
+        // Shells stay where they are: they are filed by the pty the tab runs under (see
+        // `keyFor`), which is `ptyId` before this and — through the override above — after it.
+        // Moving them to the session id mislaid every shell the tab had open while pending.
         // Kept on the terminal: the tab was showing a live process, and still is. A rekeyed tab
         // otherwise falls back to the transcript view, pulling the user off what they were doing.
         setColumns((prevCols) => prevCols.map((c) =>
@@ -791,6 +800,12 @@ export function App(): JSX.Element {
   // Records a rename typed in before this pending session had a real id yet — held in-memory
   // (see PendingSession.titleOverride) until the reconciliation effect above can apply it.
   const setPendingTitle = useCallback((ptyId: string, title: string) => {
+    // Also typed into that Claude as `/rename`. Beyond naming it where VS Code and /resume look,
+    // this is what lets the tab resolve: a fork or new session writes no transcript until
+    // something happens in it — measured on a real Haiku fork — so a renamed but untouched tab
+    // otherwise waited, still `new:…`, however often Refresh was pressed. The rename makes Claude
+    // write the transcript, the tab follows it, and the title below is applied as a real rename.
+    if (title.trim() !== '') window.apiary.renameTerminalInClaude(ptyId, title)
     setPending((prev) => {
       const info = prev.get(ptyId)
       if (!info) return prev
@@ -1041,11 +1056,17 @@ export function App(): JSX.Element {
    */
   const reportTabsNowRef = useRef<() => void>(() => {})
   reportTabsNowRef.current = () => {
-    window.apiary.reportTabs(columns.flatMap((c) => c.tabs).map((t) => ({
-      key: t.key,
-      view: t.view,
-      ptyId: resumed.has(t.key) ? (ptyOverrides.get(t.key) ?? t.key) : null,
-    })))
+    window.apiary.reportTabs(columns.flatMap((c) => c.tabs).map((t) => {
+      const p = pending.get(t.key)
+      return {
+        key: t.key,
+        view: t.view,
+        ptyId: resumed.has(t.key) ? (ptyOverrides.get(t.key) ?? t.key) : null,
+        // What the tab bar shows for a tab with no session yet — Active, in any window, has no
+        // other way to name it, and fell back to the raw `new:<uuid>` key.
+        label: p === undefined ? null : (p.titleOverride ?? p.label),
+      }
+    }))
   }
 
   /**
@@ -1068,7 +1089,7 @@ export function App(): JSX.Element {
   useEffect(() => {
     const timer = setTimeout(() => { reportTabsNowRef.current() }, 500)
     return () => { clearTimeout(timer) }
-  }, [layout, shellTabs, activeTerminal, ptyOverrides, resumed, openKeys, windowNumber])
+  }, [layout, shellTabs, activeTerminal, ptyOverrides, resumed, openKeys, windowNumber, pending])
 
   /**
    * Quitting can land inside the 500ms debounce above — close the last tab in a pane, then Cmd+Q

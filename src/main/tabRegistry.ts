@@ -10,6 +10,9 @@ export interface OpenTab {
    *  real session id exists, or the session id itself once resolved). Null for a transcript-only
    *  tab that has never been run as a terminal. */
   ptyId: string | null
+  /** The tab's own title for a tab with no session yet (a pending new session or fork); null once
+   *  it has a session, whose title comes from the tree. */
+  label: string | null
 }
 
 /**
@@ -31,6 +34,19 @@ export class TabRegistry {
    *  same way a window's full set is reported rather than diffed. */
   report(windowNumber: number, tabs: OpenTab[]): void {
     this.byWindow.set(windowNumber, tabs)
+    this.notify()
+  }
+
+  /**
+   * Moves one tab to `windowNumber` now, ahead of that window's own report — see `handOver` in
+   * ipc.ts. The window's next report replaces all of this with what it really has open.
+   */
+  handOver(windowNumber: number, tab: OpenTab): void {
+    for (const [n, tabs] of this.byWindow) {
+      if (n !== windowNumber) this.byWindow.set(n, tabs.filter((t) => t.key !== tab.key))
+    }
+    const into = (this.byWindow.get(windowNumber) ?? []).filter((t) => t.key !== tab.key)
+    this.byWindow.set(windowNumber, [...into, tab])
     this.notify()
   }
 

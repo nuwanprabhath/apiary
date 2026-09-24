@@ -119,7 +119,7 @@ export interface NewWindowOptions {
   restore?: WindowLayoutRecord
 }
 
-function createWindow(opts: NewWindowOptions = {}): void {
+function createWindow(opts: NewWindowOptions = {}): number {
   windowsOpened += 1
   const windowNumber = opts.restore?.number ?? windowsOpened
   const isFirst = windowNumber === 1
@@ -273,6 +273,7 @@ function createWindow(opts: NewWindowOptions = {}): void {
   } else {
     void win.loadFile(join(dirname, '../renderer/index.html'), { query })
   }
+  return windowNumber
 }
 
 
@@ -436,7 +437,7 @@ void app.whenReady().then(async () => {
   disposeIpc = registerIpc(
     service, () => mainWindow, configRoot, settingsFile, setAutoImportInterval, updater,
     sessionLayoutStore, layoutFlushCoordinator,
-    (tab, at) => { createWindow({ detach: tab, at }) },
+    (tab, at) => createWindow({ detach: tab, at }),
     tabRegistry, windowNumberFor,
   )
   await service.refresh()

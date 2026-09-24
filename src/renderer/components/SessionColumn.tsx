@@ -18,6 +18,7 @@ import { ImageLightbox } from './ImageLightbox'
 import { BranchIcon, ArrowDownIcon, ArrowUpIcon, CopyIcon, PlusIcon, ListIcon, EllipsisIcon } from './icons'
 import { GitMenu, type GitMenuItem } from './GitMenu'
 import { useNotifications } from '../state/notifications'
+import { pullMessage, pushMessage, worktreePullMessage } from '@shared/gitMessages'
 
 /** A shell terminal inside one session's shell pane. */
 export interface TerminalTab { id: string; name: string }
@@ -225,6 +226,47 @@ export function SessionColumn(props: Props): JSX.Element {
     }
   }, [shellTabs, spawnTerminal, setShellTabs, setActiveTerminal])
 
+  /**
+   * Bumped for a terminal whose process was started again, so its view remounts and attaches the
+   * way a fresh terminal's does — snapshot, fit, resize — rather than staying on the dead pty's
+   * blank screen at the default 80x24.
+   */
+  const [revivals, setRevivals] = useState<Map<string, number>>(new Map())
+  const revivingRef = useRef<Set<string>>(new Set())
+
+  /**
+   * Starts a listed terminal again when it comes on screen with no process behind it.
+   *
+   * Shells end with the app, but the restored layout still lists them — and "Show shell" only
+   * spawns for a session with *no* terminal listed, so after a relaunch it found the listing,
+   * spawned nothing, and showed a pty that no longer existed: a blinking cursor with no prompt,
+   * which hiding and showing again could not fix, while "+" (a new id) worked. The terminal is
+   * restarted under its own id and name, so the list the user arranged stays as it was.
+   */
+  const shownShellPty = shellOpen && isActive && shellKey !== null && currentTerminalId !== null
+    ? `shell:${shellKey}:${currentTerminalId}` : null
+  useEffect(() => {
+    if (shownShellPty === null || currentTerminalId === null) return
+    if (revivingRef.current.has(shownShellPty)) return
+    let cancelled = false
+    const ptyId = shownShellPty
+    const terminalId = currentTerminalId
+    void window.apiary.ptyRunning([ptyId]).then(async (running) => {
+      if (cancelled || running.includes(ptyId)) return
+      revivingRef.current.add(ptyId)
+      window.apiary.logWrite('info', 'shell', 'restarting a listed terminal with no process', { ptyId })
+      try {
+        await spawnTerminal(terminalId)
+        setRevivals((prev) => new Map(prev).set(ptyId, (prev.get(ptyId) ?? 0) + 1))
+      } catch (e: unknown) {
+        notifyError(e, 'Could not restart the shell')
+      } finally {
+        revivingRef.current.delete(ptyId)
+      }
+    })
+    return () => { cancelled = true }
+  }, [shownShellPty, currentTerminalId, spawnTerminal, notifyError])
+
   const toggleShell = useCallback(async () => {
     if (shellKey === null) return
     if (shellOpen) { setShellOpen(false); return }
@@ -323,17 +365,17 @@ export function SessionColumn(props: Props): JSX.Element {
     if (shellKey === null) return
     setGitBusy(kind)
     try {
-      if (kind === 'pull') await window.apiary.gitPull(shellKey, shellKeyIsPtyId)
-      else if (kind === 'fetch') await window.apiary.gitFetch(shellKey, shellKeyIsPtyId)
-      else await window.apiary.gitPush(shellKey, shellKeyIsPtyId)
-      // Both commands are silent when they succeed, which reads identically to nothing having
-      // happened — the same confusion the Refresh button had before it grew a spinner.
-      notify({
-        kind: 'success',
-        message: kind === 'pull' ? 'Pulled from upstream.'
-          : kind === 'push' ? 'Pushed to upstream.'
-          : 'Fetched from remote.',
-      })
+      // All three are silent when they succeed, which reads identically to nothing having
+      // happened — the same confusion the Refresh button had before it grew a spinner. Pull and
+      // push say how many commits moved, so "nothing to do" is distinguishable too.
+      let message: string
+      if (kind === 'pull') message = pullMessage((await window.apiary.gitPull(shellKey, shellKeyIsPtyId)).commits)
+      else if (kind === 'push') message = pushMessage(await window.apiary.gitPush(shellKey, shellKeyIsPtyId))
+      else {
+        await window.apiary.gitFetch(shellKey, shellKeyIsPtyId)
+        message = 'Fetched from remote.'
+      }
+      notify({ kind: 'success', message })
       loadGitStatus()
     } catch (e) {
       notifyError(e, kind === 'pull' ? 'Pull failed' : kind === 'push' ? 'Push failed' : 'Fetch failed')
@@ -632,7 +674,11 @@ export function SessionColumn(props: Props): JSX.Element {
                   // pty while collapsed either — the process is left completely undisturbed.
                   const visible = shellOpen && tab.key === activeKey && terminal.id === shownTerminal
                   return (
-                    <div key={`${key}:${terminal.id}`} hidden={!visible} className="terminal-tab-view">
+                    <div
+                      key={`${key}:${terminal.id}:${String(revivals.get(`shell:${key}:${terminal.id}`) ?? 0)}`}
+                      hidden={!visible}
+                      className="terminal-tab-view"
+                    >
                       <TerminalView
                         ptyId={`shell:${key}:${terminal.id}`}
                         testId={visible ? 'terminal-shell' : `terminal-shell-${tab.key}-${terminal.id}`}
@@ -689,8 +735,8 @@ export function SessionColumn(props: Props): JSX.Element {
           onPull={() => {
             setWorktreeBusy(true)
             void window.apiary.gitPullWorktree(shellKey, shellKeyIsPtyId, worktreeConflict.branch)
-              .then(() => {
-                notify({ message: `Pulled ${worktreeConflict.branch} in ${worktreeConflict.label}.` })
+              .then(({ commits }) => {
+                notify({ message: worktreePullMessage(worktreeConflict.branch, worktreeConflict.label, commits) })
                 setWorktreeConflict(null)
               })
               .catch((e: unknown) => { notifyError(e, `Could not pull ${worktreeConflict.branch}`) })

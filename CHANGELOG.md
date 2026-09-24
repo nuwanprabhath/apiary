@@ -4,6 +4,38 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.20.0] - 2026-09-24
+
+### Added
+
+- **Pull and push say how many commits moved.** "Pulled 3 commits from upstream.", "Pushed 2
+  commits to upstream.", "Already up to date.", "Published the branch with 1 commit." — in the
+  shell toolbar, the ... menu, and the pull offered for a branch in another worktree. It used to
+  say only "Pulled" or "Pushed" whether anything happened or not.
+- **Copy a branch name from the branch list.** Hover a branch, remote branch or tag in the branch
+  switcher and click the copy button on its right; the switcher stays open and nothing is checked
+  out.
+
+### Fixed
+
+- **A fork you have not typed in yet is named in Active, and renaming it works.** Claude writes no
+  transcript for a fork (or a new session) until something happens in it, so Apiary had no session
+  to attach the tab to: Active showed its raw `new:<uuid>` id, and renaming it or pressing Refresh
+  changed nothing. Active now shows the tab's own name, and a rename is also typed into that Claude
+  as `/rename`, which makes Claude write the transcript, so the tab becomes a real session with the
+  new name. Verified against a real Claude fork.
+- **The shell works after restarting Apiary.** Shells end when Apiary quits, but a session's shell
+  tab was still listed afterwards, so showing the shell opened a dead terminal: a blinking cursor
+  with no prompt, which hiding and showing again did not fix. A listed shell with nothing running
+  behind it is now started again, under the same name, when it comes on screen.
+- **A session moved to another window stays in Active throughout.** It used to drop out of the
+  list and reappear a second or two later, once the receiving window had loaded.
+- **A tab moved into a new window always starts with the sidebar folded.** Window numbers are
+  reused, and a new window could pick up an earlier same-numbered window's "sidebar open" and arrive
+  with the sidebar fully out.
+- **Shells stay listed when a tab picks up its session.** Shells opened in a new session before it
+  had a transcript dropped out of the terminal list once it did.
+
 ## [1.19.0] - 2026-09-24
 
 ### Fixed

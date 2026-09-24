@@ -115,3 +115,35 @@ test('a session whose transcript only appears after its terminal started is stil
   await expect(h.page.getByTestId('session-title')).toHaveText('Written on the first message')
   await expect(h.page.getByTestId('active-section').getByTestId('active-tab-row')).not.toContainText('new:')
 })
+
+test('a shell opened while the tab was pending is still its shell after the tab follows its session', async () => {
+  const later = '99999999-9999-4999-8999-999999999999'
+  await useClaudeThatResumes(h, later)
+  const workA = groupLabelled(h.page, 'work-a')
+  const cwd = await workA.locator('.project-row-wrap').first().getAttribute('data-folder-path')
+  if (cwd === null) throw new Error('work-a has no path')
+  await workA.getByTestId('new-session-button').click()
+  await expect(h.page.getByTestId('session-title')).toContainText('New session')
+
+  await h.page.getByTestId('shell-toggle').click()
+  await h.page.getByTestId('terminal-shell').click()
+  await h.page.keyboard.type('echo PENDING_$((30+3))\n')
+  await expect(h.page.getByTestId('terminal-shell')).toContainText('PENDING_33', { timeout: 10000 })
+  // A second terminal: the first alone would be re-listed by the pane's own "no terminal yet"
+  // spawn, whose pty happens to still be running, and hide the shells having been mislaid.
+  await h.page.getByTestId('terminal-add').click()
+  await expect(h.page.getByTestId('terminal-tab-row')).toHaveCount(2)
+  await h.page.getByTestId('terminal-list-toggle').click()
+
+  makeSession(join(h.home, 'projects'), '-work-a', {
+    sessionId: later, cwd, title: 'Resolved with a shell open', firstPrompt: 'hello',
+  })
+  await h.page.getByTestId('sidebar-refresh').click()
+  await expect(h.page.getByTestId('session-title')).toHaveText('Resolved with a shell open')
+
+  // The same shells — both still listed, neither replaced by a fresh one.
+  await h.page.getByTestId('terminal-list-toggle').click()
+  await expect(h.page.getByTestId('terminal-tab-row')).toHaveCount(2)
+  await h.page.getByTestId('terminal-tab-row').first().click()
+  await expect(h.page.getByTestId('terminal-shell')).toContainText('PENDING_33')
+})
