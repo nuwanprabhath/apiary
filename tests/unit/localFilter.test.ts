@@ -45,7 +45,7 @@ describe('filterTreeLocal', () => {
     const repo: ProjectNode = { ...proj('/p/repo'), children: [wt] }
     const { tree: out } = filterTreeLocal([repo], 'species', new Set())
     expect(out[0].path).toBe('/p/repo')
-    const child = out[0].children[0] as ProjectNode
+    const child = out[0].children[0]
     expect(child.sessions.map((s) => s.sessionId)).toEqual(['s3'])
   })
 

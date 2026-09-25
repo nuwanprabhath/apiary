@@ -5,7 +5,9 @@ import { launchApiary, importAll, relaunchApiary, type Harness, sidebarSession }
 import { makeSession } from '../fixtures/makeSession'
 
 let h: Harness
+
 test.beforeEach(async () => { h = await launchApiary() })
+
 test.afterEach(async () => { await h.close() })
 
 /**
@@ -261,6 +263,7 @@ test('a folder holding the open session can still be collapsed', async () => {
   // It must still be collapsed a moment later, not merely at the instant of the click: the
   // re-expand arrives on the next render, so an immediate assertion would pass against the bug.
   await expect(h.page.getByTestId('session-item')).toHaveCount(2)
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- proving it stays collapsed rather than re-expanding a moment later; there is no later condition to assert on other than re-checking after time passes
   await h.page.waitForTimeout(300)
   await expect(h.page.getByTestId('session-item')).toHaveCount(2)
 })

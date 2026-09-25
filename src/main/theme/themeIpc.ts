@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
-import { CHANNELS, type ThemeOptions, type ThemeState, type ThemeGenerateResult } from '@shared/api'
+import { CHANNELS, type ThemeState, type ThemeGenerateResult } from '@shared/api'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
 import { log } from '../log/logger'
 import type { ThemeStore } from './themeStore'
@@ -64,7 +64,7 @@ export function registerThemeIpc(store: ThemeStore, safeMode: boolean, generator
     broadcast()
   })
   ipcMain.handle(CHANNELS.themeSetOptions, (_e, options: unknown) => {
-    store.setOptions((typeof options === 'object' && options !== null ? options : {}) as Partial<ThemeOptions>)
+    store.setOptions((typeof options === 'object' && options !== null ? options : {}))
     broadcast()
   })
 

@@ -1,6 +1,6 @@
 # Apiary
 
-Import, search and resume pre-existing Claude Code sessions across folders and git worktrees in your whole machine. Single place to manage them all. 
+Import, search and resume pre-existing Claude Code sessions across folders and git worktrees in your whole machine. Single place to manage them all.
 
 Apiary reads the session files Claude Code already writes to `~/.claude/projects`
 (or `$CLAUDE_CONFIG_DIR`), groups them by the folder they started in, nests git

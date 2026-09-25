@@ -11,12 +11,10 @@ describe('parseColor', () => {
     expect(toHex8(parseColor('  #ABCDEF  ')!)).toBe('#abcdefff')
   })
 
-  it('refuses everything else, however colour-like', () => {
-    for (const bad of ['red', 'url(x)', 'var(--x)', 'expression(alert(1))', 'javascript:x',
-      '#12', 'rgb(1,2)', 'rgb(1,2,3); display:none', '', '#ggg', 'rgb(1e999,0,0)',
-      'rgb(1,2,3)/*x*/', 'hsl(1,2,3)']) {
-      expect(parseColor(bad), bad).toBeNull()
-    }
+  it.each(['red', 'url(x)', 'var(--x)', 'expression(alert(1))', 'javascript:x',
+    '#12', 'rgb(1,2)', 'rgb(1,2,3); display:none', '', '#ggg', 'rgb(1e999,0,0)',
+    'rgb(1,2,3)/*x*/', 'hsl(1,2,3)'])('refuses %j, however colour-like', (bad) => {
+    expect(parseColor(bad)).toBeNull()
   })
 
   it('refuses non-strings', () => {

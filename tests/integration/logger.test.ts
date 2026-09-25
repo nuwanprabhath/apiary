@@ -20,7 +20,7 @@ const on = (over: Partial<Parameters<Logger['configure']>[0]> = {}): void =>
   logger.configure({ enabled: true, dir, retentionDays: 7, maxSizeMb: 20, ...over })
 
 const lines = (): Record<string, unknown>[] =>
-  readFileSync(join(dir, 'apiary.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l))
+  readFileSync(join(dir, 'apiary.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>)
 
 describe('a logger that is switched off', () => {
   it('writes nothing, and does not even create the folder', () => {

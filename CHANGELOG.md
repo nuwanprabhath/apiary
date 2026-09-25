@@ -4,6 +4,20 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.24.1] - 2026-09-25
+
+### Changed
+
+- The code is now linted — ESLint, Stylelint, markdownlint and shellcheck — with commit hooks
+  and a CI check. Nothing about the app changes, apart from the two fixes below.
+
+### Fixed
+
+- A message that fails to reach a running session is now written to the diagnostic log instead
+  of disappearing without a trace.
+- A window's layout is saved half a second after its tabs change, as intended, even while the
+  window is busy re-rendering (the save used to keep being postponed).
+
 ## [1.24.0] - 2026-09-25
 
 ### Added

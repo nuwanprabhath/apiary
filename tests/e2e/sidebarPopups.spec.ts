@@ -18,11 +18,13 @@ function rowWrap(row: Locator): Locator {
  * ignoring every click. These tests are about the dismissal, not the appearance.
  */
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('the layout picker closes when the pointer moves away from it', async () => {
@@ -119,6 +121,7 @@ test('scrolling under a still pointer leaves no trail of hover cards', async () 
   // the end of the list after a notch or two and never produces enough boundary events to stack
   // anything up — which is how an earlier version of this test passed against the bug.
   await h.page.getByTestId('sidebar-list').evaluate((e) => { e.scrollTop = 0 })
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- lets the scroll-reset's own re-render settle before the pointer starts moving, so the drag below isn't itself the thing racing a pending re-render
   await h.page.waitForTimeout(100)
   await h.page.mouse.move(cx, cy)
 
@@ -130,6 +133,7 @@ test('scrolling under a still pointer leaves no trail of hover cards', async () 
   for (let i = 0; i < 12; i++) {
     await h.page.mouse.wheel(0, 90)
     await h.page.mouse.move(cx + (i % 2), cy)
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- sampling the hover-card count between wheel notches at a fixed interval is the mechanism this test uses to catch the overlap window; there is no single condition to poll for
     await h.page.waitForTimeout(60)
     worst = Math.max(worst, await h.page.getByTestId('session-hover-card').count())
   }
@@ -197,6 +201,7 @@ test('the pointer can travel from a row to its card and use it', async () => {
   const cardBox = await card.boundingBox()
   if (cardBox === null) throw new Error('card has no box')
   await h.page.mouse.move(cardBox.x + 20, cardBox.y + 12, { steps: 12 })
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- proving the card survives the crossing rather than closing a moment after the move completes; there is no later condition to assert on other than re-checking after time passes
   await h.page.waitForTimeout(400)
   await expect(card).toBeVisible()
   await expect(card).toContainText('Fix CSV export bug')
@@ -220,6 +225,7 @@ test('the layout picker survives a slow trip across the row to reach it', async 
   // A point on the row, past the button, short of the picker.
   const midX = Math.min(b.x + b.width + 2, p.x - 1)
   await h.page.mouse.move(midX, b.y + b.height / 2, { steps: 8 })
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- pausing mid-crossing longer than the grace period is the point of this test; there is no condition to poll for other than re-checking after the pause
   await h.page.waitForTimeout(500)
   await expect(picker).toBeVisible()
 

@@ -7,6 +7,7 @@ import { launchApiary, importAll, sidebarSession, type Harness } from './helpers
  * handle in it — the VS Code arrangement the user asked for.
  */
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
@@ -15,6 +16,7 @@ test.beforeEach(async () => {
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
 })
+
 test.afterEach(async () => { await h.close() })
 
 const radius = (l: Locator): Promise<number> =>
@@ -176,6 +178,7 @@ test('a terminal ends its last row the same distance above the card edge at any 
     await h.page.mouse.down()
     await h.page.mouse.move(r.x + r.width / 2, r.y + 3 - dy, { steps: 2 })
     await h.page.mouse.up()
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- settles layout/transition after the drag before measuring pixel geometry below; there is no visible-state condition to assert on instead
     await h.page.waitForTimeout(300)
     gaps.push(await h.page.getByTestId('terminal-shell').evaluate((el) => {
       const host = (el.closest('.terminal-host') ?? el).getBoundingClientRect()

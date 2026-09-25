@@ -1,6 +1,6 @@
 {
   "name": "apiary",
-  "version": "1.24.0",
+  "version": "1.24.1",
   "private": true,
   "type": "module",
   "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",
@@ -26,11 +26,18 @@
     "test:e2e": "npm run rebuild:electron && npm run build && playwright test",
     "screenshot": "npm run rebuild:electron && npm run build && playwright test --config=playwright.screenshot.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "lint": "npm run lint:js && npm run lint:css && npm run lint:md && npm run lint:sh",
+    "lint:js": "eslint . --max-warnings 0",
+    "lint:css": "stylelint \"src/**/*.css\" --max-warnings 0",
+    "lint:md": "markdownlint-cli2",
+    "lint:sh": "shellcheck $(git ls-files '*.sh')",
+    "lint:fix": "eslint . --fix && stylelint \"src/**/*.css\" --fix && markdownlint-cli2 --fix",
     "dist": "npm run rebuild:electron && npm run build && node scripts/dist.mjs",
     "dist:mac:arm64": "npm run rebuild:electron && npm run build && node scripts/dist.mjs arm64",
     "dist:mac:x64": "npm run rebuild:electron && npm run build && node scripts/dist.mjs x64",
     "dist:mac:all": "npm run rebuild:electron && npm run build && electron-builder --config electron-builder.yml --mac --arm64 --x64 --publish never",
-    "dist:linux": "npm run rebuild:electron && npm run build && electron-builder --config electron-builder.yml --linux --publish never"
+    "dist:linux": "npm run rebuild:electron && npm run build && electron-builder --config electron-builder.yml --linux --publish never",
+    "prepare": "husky"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
@@ -47,7 +54,11 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
     "@electron/rebuild": "^3.7.0",
+    "@eslint-react/eslint-plugin": "^5.20.8",
+    "@eslint/js": "^10.0.1",
     "@fontsource/fira-code": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.3.0",
@@ -63,11 +74,29 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
+    "@vitest/eslint-plugin": "^1.6.27",
     "electron": "^38.0.0",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
+    "eslint": "^10.11.0",
+    "eslint-plugin-playwright": "^2.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
+    "husky": "^9.1.7",
     "js-yaml": "^4.3.2",
+    "lint-staged": "^16.4.0",
+    "markdownlint-cli2": "^0.23.3",
+    "shellcheck": "^4.1.0",
+    "stylelint": "^17.15.0",
+    "stylelint-config-standard": "^40.0.0",
     "typescript": "^5.6.3",
+    "typescript-eslint": "^8.70.1",
     "vitest": "^2.1.4"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": "eslint --fix --max-warnings 0",
+    "*.css": "stylelint --fix --max-warnings 0",
+    "*.md": "markdownlint-cli2 --fix",
+    "*.sh": "shellcheck"
   }
 }

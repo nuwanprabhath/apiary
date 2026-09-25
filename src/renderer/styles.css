@@ -18,7 +18,7 @@
   --bg: #1b1c1e;
   --bg-panel: #212327;
   --bg-terminal: #151618;
-  --bg-overlay: rgba(0, 0, 0, 0.55);
+  --bg-overlay: rgb(0 0 0 / 55%);
 
   /* Lines and type. */
   --border: #33363b;
@@ -31,12 +31,12 @@
 
   /* Interaction states. --selected marks a persistent selection, --hover a transient one. */
   --selected: #2f3238;
-  --hover: rgba(90, 93, 94, 0.31);
+  --hover: rgb(90 93 94 / 31%);
 
   /* Status. --danger-soft is the tint behind a destructive control on hover; --danger-bg the
    * fill behind a whole error banner. */
   --danger: #e0736d;
-  --danger-soft: rgba(224, 115, 109, 0.18);
+  --danger-soft: rgb(224 115 109 / 18%);
   --danger-bg: #3a2422;
   --success: #58c06e;
   --warning: #e3b341;
@@ -75,16 +75,16 @@
   --mr-locked: var(--muted);
 
   /* Lift for anything that floats over the rest of the app (notifications, popovers). */
-  --shadow-overlay: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --shadow-overlay: 0 8px 28px rgb(0 0 0 / 45%);
 
   /* The grab handles drawn in the gaps between panels: always faintly there, like VS Code's, so
    * the resize affordance can be found without hunting for it; brighter under the pointer. */
-  --handle-color: rgba(154, 160, 166, 0.45);
+  --handle-color: rgb(154 160 166 / 45%);
   --handle-color-hover: var(--muted);
   --handle-color-active: var(--accent);
 
-  --scrollbar-thumb: rgba(121, 121, 121, 0.4);
-  --scrollbar-thumb-hover: rgba(100, 100, 100, 0.7);
+  --scrollbar-thumb: rgb(121 121 121 / 40%);
+  --scrollbar-thumb-hover: rgb(100 100 100 / 70%);
 
   /*
    * Shape and size, for the same reason as the colours above: a theme is not only a palette.
@@ -123,7 +123,7 @@
    */
   --radius-panel: 8px;
   --panel-gap: 6px;
-  --panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 var(--glow-size) var(--glow-color);
+  --panel-shadow: 0 1px 3px rgb(0 0 0 / 30%), 0 0 var(--glow-size) var(--glow-color);
   --handle-length: 18px;
   --handle-thickness: 4px;
 
@@ -167,7 +167,7 @@
   --term-bright-blue: #94cbff;
   --term-bright-magenta: #cda6ff;
   --term-bright-cyan: #86e1ec;
-  --term-bright-white: #ffffff;
+  --term-bright-white: #fff;
 
   /* A theme's neon glow on the panels' edges (cssVars.ts); none unless a theme asks for it. */
   --glow-color: transparent;
@@ -464,7 +464,6 @@ button:not([class]) {
   display: flex;
   flex-direction: column;
 }
-.sidebar-header { flex: none; }
 
 .sidebar[hidden] { display: none; }
 
@@ -536,8 +535,8 @@ button:not([class]) {
   content: '';
   position: absolute;
 }
-.sidebar-resizer::before, .column-resizer::before, .terminal-list-resizer::before { top: 0; bottom: 0; left: -3px; right: -3px; }
-.row-resizer::before, .bottom-resizer::before { left: 0; right: 0; top: -3px; bottom: -3px; }
+.sidebar-resizer::before, .column-resizer::before, .terminal-list-resizer::before { inset: 0 -3px; }
+.row-resizer::before, .bottom-resizer::before { inset: -3px 0; }
 /* Mid-drag the pointer runs ahead of the gap; the cursor should not flicker back to an arrow. */
 body.resizing-col, body.resizing-col * { cursor: col-resize !important; }
 body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
@@ -549,6 +548,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .sidebar-frame > .sidebar { flex: 1; min-width: 0; }
 
 .sidebar-header {
+  flex: none;
   display: flex;
   gap: 6px;
   padding: 10px;
@@ -699,7 +699,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 }
 .status-dot[data-status="waiting"] {
   background: var(--status-waiting);
-  --pulse-color: color-mix(in srgb, var(--status-waiting) 70%, transparent);
+  --pulse-color: color-mix(in sRGB, var(--status-waiting) 70%, transparent);
   animation: status-attention var(--status-attention-duration) ease-out infinite;
 }
 /* Idle is the absence of motion, which is the point: stillness is what makes the two animated
@@ -913,6 +913,8 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 /* One editor group. Columns share the width evenly and each owns its full vertical stack:
  * tab strip, session, then that session's shell. */
 .session-column {
+  /* Anchors the swap target laid over it while a pane is dragged (.pane-drop). */
+  position: relative;
   /* Never squeezed to a sliver, however the dividers were dragged or however many panes are
    * open — below this a column shows nothing usable, and it is better for the window to overflow
    * (it scrolls nowhere, but each column stays legible) than for one to collapse to a stripe.
@@ -925,7 +927,6 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   padding: calc(var(--panel-gap) / 2);
 }
 /* Dragging a pane by its tab bar (see SessionTabBar): every other pane is a target to swap with. */
-.session-column { position: relative; }
 .pane-drop {
   position: absolute;
   inset: calc(var(--panel-gap) / 2);
@@ -935,12 +936,12 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   justify-content: center;
   border-radius: var(--radius-panel);
   border: 1px dashed var(--border);
-  background: color-mix(in srgb, var(--bg) 35%, transparent);
+  background: color-mix(in sRGB, var(--bg) 35%, transparent);
   transition: background-color 0.12s, border-color 0.12s;
 }
 .pane-drop[data-over="true"] {
   border: 1px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: color-mix(in sRGB, var(--accent) 14%, transparent);
 }
 .pane-drop-label {
   pointer-events: none;
@@ -1004,8 +1005,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   padding: 0 3px;
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: auto hidden;
 }
 /*
  * A hairline scrollbar, overlaid on the bottom edge of the strip rather than given a track of its
@@ -1068,7 +1068,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  */
 .session-tab[data-active="true"] {
   background: var(--bg);
-  box-shadow: 0 0 0 1px var(--border), 0 1px 3px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 0 1px var(--border), 0 1px 3px rgb(0 0 0 / 28%);
 }
 /* Keyboard focus, and only keyboard focus: a quiet ring, not the OS accent around the whole tab
  * on every click. */
@@ -1079,7 +1079,6 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   align-items: center;
   /* Without this the label refuses to shrink below its text and pushes the close button out of
    * the tab, which is the same clipping in a different place. */
-  min-width: 0;
   gap: 6px;
   min-width: 0;
   border: 0;
@@ -1325,7 +1324,16 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  * No padding here, deliberately — see the comment on `.terminal-host .xterm` below for why
  * padding belongs on that inner element instead.
  */
-.terminal-host { flex: 1; min-height: 0; background: var(--term-background); overflow: hidden; }
+.terminal-host {
+  flex: 1;
+  min-height: 0;
+  background: var(--term-background);
+  overflow: hidden;
+  /* Rows bottom-anchored — see the comment below. */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
 /*
  * The host paints the terminal's colour over its whole area and xterm paints none. xterm only
  * draws whole rows, so a sliver of up to a row's height is left under the last one; with xterm
@@ -1340,7 +1348,6 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  * the card's edge in every pane — top-anchored, it moved by up to a row as panes were resized,
  * and two panes side by side ended their text at visibly different heights.
  */
-.terminal-host { display: flex; flex-direction: column; justify-content: flex-end; }
 .terminal-host > .xterm { flex: none; }
 
 /*
@@ -1417,9 +1424,10 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   cursor: pointer;
   padding: 3px 6px;
   font: inherit;
+  white-space: nowrap;
+  min-width: 0;
 }
 .toolbar-button svg { width: 14px; height: 14px; flex: none; }
-.toolbar-button { white-space: nowrap; min-width: 0; }
 .toolbar-button:hover { background: var(--selected); color: var(--text); }
 .toolbar-button:active { background: var(--border); }
 .toolbar-button:disabled { cursor: default; opacity: 0.5; }
@@ -1500,6 +1508,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  */
 ::-webkit-scrollbar-thumb {
   background-color: transparent;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- a scrollbar thumb is a pill whatever the theme's corners */
   border-radius: 999px;
   border: 3px solid transparent;
   background-clip: padding-box;
@@ -1659,6 +1668,8 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   border-radius: var(--radius-control);
   padding: 2px;
   transition: background-color 0.12s, box-shadow 0.12s;
+  /* Anchors the rename/close buttons that float over its end (.terminal-tab-actions). */
+  position: relative;
 }
 .terminal-tab-row + .terminal-tab-row { margin-top: 2px; }
 .terminal-tab-row:hover { background: var(--hover); }
@@ -1666,13 +1677,13 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  * an accent bar down its leading edge, which was the generated-dashboard look the tabs dropped. */
 .terminal-tab-row[data-active="true"] {
   background: var(--bg);
-  box-shadow: 0 0 0 1px var(--border), 0 1px 3px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 0 1px var(--border), 0 1px 3px rgb(0 0 0 / 28%);
 }
 /* Keyboard focus: a quiet ring, as on the tabs. The list owns it (roving focus), so a label that
  * ends up focused must not also draw Chromium's default ring in the OS accent. */
 .terminal-tab-row[data-keyboard-focused="true"] { box-shadow: 0 0 0 1px var(--muted); }
 .terminal-tab-row[data-keyboard-focused="true"][data-active="true"] {
-  box-shadow: 0 0 0 1px var(--muted), 0 1px 3px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 0 1px var(--muted), 0 1px 3px rgb(0 0 0 / 28%);
 }
 .terminal-tab-label:focus-visible { outline: none; }
 .terminal-tab-label {
@@ -1714,9 +1725,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  * under them rather than being covered by a backing: a backing on a glass theme is translucent, so
  * the text would show through the icons, and reserving the room instead cut every name short. A
  * mask changes nothing about layout, so the fitted list does not jump wider under the pointer. */
-.terminal-tab-row { position: relative; }
 .terminal-tab-row:is(:hover, :focus-within) .terminal-tab-label {
-  -webkit-mask-image: linear-gradient(to left, transparent 48px, #000 62px);
   mask-image: linear-gradient(to left, transparent 48px, #000 62px);
 }
 .terminal-tab-actions {
@@ -1795,7 +1804,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  * the dot already carries the motion, and two moving things in one row is noise.
  */
 .active-tab-row:has(.status-dot[data-status="waiting"]) {
-  background: color-mix(in srgb, var(--status-waiting) 10%, transparent);
+  background: color-mix(in sRGB, var(--status-waiting) 10%, transparent);
   box-shadow: inset var(--status-ring-width) 0 0 0 var(--status-waiting);
 }
 
@@ -2255,7 +2264,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   position: fixed;
   inset: 0;
   z-index: 120;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgb(0 0 0 / 85%);
   display: grid;
   place-items: center;
   padding: 32px;
@@ -2349,14 +2358,13 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 /* Shown only while a group is empty, since the drop target would otherwise be invisible. */
 .folder-group-empty { margin: 0 0 4px 22px; font-size: 12px; }
 /* A folder being dragged over the heading of the group it would join. */
-.folder-group-header-wrap { border-radius: var(--radius-control); display: flex; align-items: center; }
+.folder-group-header-wrap { border-radius: var(--radius-control); display: flex; align-items: center; position: relative; }
 /* The group's collapse-all, revealed on hover exactly as a folder row's is. */
 /*
  * The collapse-all button takes the count's place on hover, as a session row's buttons take its
  * age's. Laid out beside the count instead, it pushed every group's count a button's width left
  * of the Active / Pinned / Recent counts above, and the two columns of numbers did not line up.
  */
-.folder-group-header-wrap { position: relative; }
 .folder-group-header-wrap .collapse-all-button {
   position: absolute;
   top: 50%;

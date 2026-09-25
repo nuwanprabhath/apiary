@@ -11,11 +11,13 @@ import { launchApiary, importAll, sidebarSession, type Harness } from './helpers
  */
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary({ staleBranchSession: true })
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('the card leads with the branch the folder is on now, matching the session bar', async () => {

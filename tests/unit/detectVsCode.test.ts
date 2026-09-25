@@ -58,6 +58,6 @@ describe('openInVsCode', () => {
 
   it('throws when spawning itself fails, so the caller can report it', () => {
     const spawn = (): never => { throw new Error('EACCES') }
-    expect(() => openInVsCode('code', '/repo/work', { spawn: spawn as never })).toThrow('EACCES')
+    expect(() => openInVsCode('code', '/repo/work', { spawn: spawn })).toThrow('EACCES')
   })
 })

@@ -38,6 +38,7 @@ test.beforeEach(async () => {
   await h.page.getByTestId('sidebar-refresh').click()
   await useFakeClaudeShell(h)
 })
+
 test.afterEach(async () => { await h.close() })
 
 /** Same scoping trick sidebar.spec.ts uses: the project-group `<li>` whose OWN toggle carries
@@ -57,6 +58,7 @@ test('the "+" button spawns a terminal running in that folder', async () => {
 
   // The prompt is shell-dependent, so assert on output we command ourselves — same pattern the
   // bottom-shell spec uses to prove *which* directory a terminal actually launched in.
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await h.page.getByTestId('terminal-session').click({ force: true })
   await h.page.keyboard.type('echo APIARY_NEW_$(basename "$PWD")\n')
   await expect(h.page.getByTestId('terminal-session')).toContainText('APIARY_NEW_work-a', {
@@ -82,12 +84,14 @@ test('resizing the new-session terminal settles instead of oscillating', async (
   await expect(h.page.getByTestId('terminal-session')).toBeVisible()
 
   // Give layout (and, if the bug were present, several oscillation cycles) time to settle.
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- the thing under test is the ptyResize call *rate* over a fixed window, which only a real elapsed interval can measure; there is no condition to poll for
   await h.page.waitForTimeout(1500)
   const afterSettle = await ptyResizeCallCount(h.app)
 
   // If the loop were still present, this window alone would rack up dozens more calls (an
   // observed ~60/second in the failure this test guards against). A stable layout adds at most
   // a handful from legitimate one-off layout settling, never an unbounded stream.
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- the thing under test is the ptyResize call *rate* over a fixed window, which only a real elapsed interval can measure; there is no condition to poll for
   await h.page.waitForTimeout(1500)
   const afterQuietWindow = await ptyResizeCallCount(h.app)
 
@@ -124,7 +128,7 @@ test('File > New Session in Folder... exists and starts a session in the picked 
   // `apiary:new-session-started` channel, and that the folder it receives (not some other path)
   // is what the new session actually launches in. What this cannot cover: the real OS dialog UI.
   await h.app.evaluate(({ dialog }, folder) => {
-    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [folder] })) as typeof dialog.showOpenDialog
+    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [folder] }))
   }, h.workdirB)
 
   const found = await h.app.evaluate(({ Menu }) => {
@@ -136,12 +140,13 @@ test('File > New Session in Folder... exists and starts a session in the picked 
   await h.app.evaluate(({ Menu, BrowserWindow }) => {
     const item = Menu.getApplicationMenu()?.getMenuItemById('new-session-in-folder')
     const win = BrowserWindow.getAllWindows()[0]
-    item?.click(item, win, {} as never)
+    item?.click(item, win, {})
   })
 
   await expect(h.page.getByTestId('terminal-session')).toBeVisible()
   await expect(h.page.getByTestId('session-title')).toContainText('New session')
 
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await h.page.getByTestId('terminal-session').click({ force: true })
   await h.page.keyboard.type('echo APIARY_NEW_$(basename "$PWD")\n')
   await expect(h.page.getByTestId('terminal-session')).toContainText('APIARY_NEW_work-b', {
@@ -162,6 +167,7 @@ test('a pending new session also offers a shell toggle in the same folder', asyn
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
 
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await h.page.getByTestId('terminal-shell').click({ force: true })
   await h.page.keyboard.type('echo APIARY_PENDING_SHELL_$(basename "$PWD")\n')
   await expect(h.page.getByTestId('terminal-shell')).toContainText('APIARY_PENDING_SHELL_work-a', {
@@ -211,6 +217,7 @@ test('starting a second new session before the first resolves does not orphan th
   // DOM position (see Finding 2), but the xterm instance behind it was just torn down and
   // recreated for the new pty, so typing into it before that finishes lands nowhere.
   await expect(h.page.locator('.session-cwd')).toHaveText(h.workdirB)
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await h.page.getByTestId('terminal-session').click({ force: true })
   await expect(h.page.getByTestId('terminal-session')).toContainText('$', { timeout: 20000 })
   await h.page.keyboard.type('echo APIARY_NEW_$(basename "$PWD")\n')
@@ -229,6 +236,7 @@ test('starting a second new session before the first resolves does not orphan th
   // into it directly and reading real output back, the same technique used above for work-b.
   await tabs.first().getByTestId('session-tab-label').click()
   await expect(h.page.locator('.session-cwd')).toHaveText(h.workdir)
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await h.page.getByTestId('terminal-session').click({ force: true })
   await expect(h.page.getByTestId('terminal-session')).toContainText('$', { timeout: 20000 })
   await h.page.keyboard.type('echo APIARY_NEW_$(basename "$PWD")\n')
@@ -259,6 +267,7 @@ test('reconciling a pending session into its real SessionNode keeps prior termin
 
   // Write a marker into the pending terminal — this is our own echoed input, not CLI-repainted
   // content, so (per the task notes) it is a stable, non-flaky thing to look for after reconciliation.
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await h.page.getByTestId('terminal-session').click({ force: true })
   await h.page.keyboard.type('echo PENDING_MARKER_survives\n')
   await expect(h.page.getByTestId('terminal-session')).toContainText('PENDING_MARKER_survives', {
@@ -327,6 +336,7 @@ test('a running session moved into a new window keeps running there, on its term
   const workA = groupLabelled(h.page, 'work-a')
   await workA.getByTestId('new-session-button').click()
   await expect(h.page.getByTestId('terminal-session')).toBeVisible()
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await h.page.getByTestId('terminal-session').click({ force: true })
   await h.page.keyboard.type('echo MOVED_MARKER_$((6*7))\n')
   await expect(h.page.getByTestId('terminal-session')).toContainText('MOVED_MARKER_42', { timeout: 20000 })
@@ -348,6 +358,7 @@ test('a running session moved into a new window keeps running there, on its term
   // The same process, not a fresh one: what it printed before the move is still there, and it
   // still answers.
   await expect(detached.getByTestId('terminal-session')).toContainText('MOVED_MARKER_42', { timeout: 15000 })
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await detached.getByTestId('terminal-session').click({ force: true })
   await detached.keyboard.type('echo STILL_$((5*5))\n')
   await expect(detached.getByTestId('terminal-session')).toContainText('STILL_25', { timeout: 15000 })
@@ -357,6 +368,7 @@ test('a running session dropped on another window keeps running there, on its te
   const workA = groupLabelled(h.page, 'work-a')
   await workA.getByTestId('new-session-button').click()
   await expect(h.page.getByTestId('terminal-session')).toBeVisible()
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await h.page.getByTestId('terminal-session').click({ force: true })
   await h.page.keyboard.type('echo DROPPED_MARKER_$((6*7))\n')
   await expect(h.page.getByTestId('terminal-session')).toContainText('DROPPED_MARKER_42', { timeout: 20000 })

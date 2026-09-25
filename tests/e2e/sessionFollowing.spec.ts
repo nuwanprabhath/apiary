@@ -47,11 +47,13 @@ function groupLabelled(page: Page, label: string): Locator {
 }
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('a new session that resumes an existing one becomes that session\'s tab everywhere', async () => {
@@ -83,9 +85,11 @@ test('it keeps the live terminal rather than starting a second process for the s
   // this test passed while the user was looking at the transcript instead.
   const terminal = h.page.getByTestId('terminal-session')
   await expect(terminal).toBeVisible()
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- proving a negative: that it stays the terminal view rather than flipping to the transcript at some point after the initial check, not a one-shot condition to poll for
   await h.page.waitForTimeout(1500)
   await expect(terminal).toBeVisible()
   // Typed into the terminal after the tab changed hands: it reaches the same shell.
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await terminal.click({ force: true })
   await h.page.keyboard.type('echo STILL_THE_SAME_PTY\n')
   await expect(terminal).toContainText('STILL_THE_SAME_PTY')
@@ -105,7 +109,8 @@ test('a session whose transcript only appears after its terminal started is stil
   if (cwd === null) throw new Error('work-a has no path')
   await workA.getByTestId('new-session-button').click()
   await expect(h.page.getByTestId('session-title')).toContainText('New session')
-  await h.page.waitForTimeout(2500) // several tracker polls go by with nothing in the tree yet
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- several tracker polls go by with nothing in the tree yet; proving the session stays absent for a while is the point, not a condition to poll for
+  await h.page.waitForTimeout(2500)
 
   makeSession(join(h.home, 'projects'), '-work-a', {
     sessionId: later, cwd, title: 'Written on the first message', firstPrompt: 'hello',

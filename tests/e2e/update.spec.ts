@@ -8,6 +8,7 @@ import { launchApiary, importAll, type Harness } from './helpers'
  */
 
 let h: Harness
+
 test.afterEach(async () => { await h.close() })
 
 /** The menu lives in the main process, so trigger the same channel it sends. */

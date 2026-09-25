@@ -10,12 +10,14 @@ import {
 import { makeSession } from '../fixtures/makeSession'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
   await sidebarSession(h.page, 'Fix CSV export bug').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('renders the conversation for the selected session', async () => {
@@ -50,7 +52,7 @@ test('hides sidechain messages until the toggle is switched on', async () => {
   // Wait for the transcript to actually finish loading first — otherwise "not visible"
   // would trivially pass while the pane is still empty, before the filter ever runs.
   await expect(h.page.getByTestId('message').first()).toBeVisible()
-  await expect(h.page.getByText('subagent side note')).not.toBeVisible()
+  await expect(h.page.getByText('subagent side note')).toBeHidden()
   await toggle.check()
   await expect(h.page.getByText('subagent side note')).toBeVisible()
 })
@@ -120,7 +122,9 @@ test.describe('paging a long session', () => {
     // otherwise itself serialize the clicks by waiting for the button to re-enable) so this
     // exercises the in-flight guard rather than Playwright's own click scheduling.
     await Promise.all([
+      // eslint-disable-next-line playwright/no-force-option -- bypasses Playwright's actionability wait on purpose, so both clicks fire back to back instead of Playwright serializing them by waiting for the button to re-enable; the in-flight guard under test needs the race, not Playwright's own scheduling
       button.click({ force: true }),
+      // eslint-disable-next-line playwright/no-force-option -- see above: this click must race the first one, not wait behind it
       button.click({ force: true }),
     ])
 
@@ -179,6 +183,7 @@ test.describe('paging responses across a session round trip', () => {
     // Now release the first visit's stale paging response.
     await releaseHeldTranscriptPaging(h.app)
     // Give the (now-resolved) stale promise a moment to reach the renderer, if it were going to.
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- proving a negative: that the stale response does not corrupt the second visit, so there is no "it happened" condition to poll for instead
     await h.page.waitForTimeout(500)
 
     // The second visit must be untouched by the stale response: still exactly the fresh

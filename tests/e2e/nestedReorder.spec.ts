@@ -2,11 +2,13 @@ import { test, expect, type Locator, type Page } from '@playwright/test'
 import { launchApiary, importAll, relaunchApiary, type Harness } from './helpers'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary({ secondWorktree: true })
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 /** A nested folder row — a worktree under its repository — addressed by its own label. */

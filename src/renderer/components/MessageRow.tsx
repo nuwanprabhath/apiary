@@ -28,8 +28,12 @@ function TextBlock(
 
   return (
     <>
+      {/* Segments are re-derived from `text` on every render in a fixed order with no id of
+          their own, so the index is a stable, correct key here. */}
       {segments.map((seg, i) => (seg.kind === 'image'
+        // eslint-disable-next-line @eslint-react/no-array-index-key -- segments have no identity; re-derived in a fixed order from `text` each render
         ? <TranscriptImageFile key={i} path={seg.value} fallbackText={seg.value} onOpen={onOpenImage} />
+        // eslint-disable-next-line @eslint-react/no-array-index-key -- segments have no identity; re-derived in a fixed order from `text` each render
         : seg.value.trim() === '' ? null : <MarkdownText key={i} text={seg.value} />))}
     </>
   )
@@ -59,13 +63,18 @@ export function MessageRow(
       <div className="message-role">{message.role === 'user' ? 'You' : 'Claude'}</div>
       <div className="message-body">
         {message.blocks.map((block, i) => {
+          // Blocks have no id of their own and this message's block list never reorders or
+          // mutates in place after being parsed from the JSONL, so the index is a stable key.
           switch (block.type) {
             case 'text':
+              // eslint-disable-next-line @eslint-react/no-array-index-key -- blocks have no identity; this message's block order is fixed
               return <TextBlock key={i} text={block.text} onOpenImage={onOpenImage} />
             case 'image':
+              // eslint-disable-next-line @eslint-react/no-array-index-key -- blocks have no identity; this message's block order is fixed
               return <ImageThumbnail key={i} src={block.dataUrl} onOpen={onOpenImage} />
             case 'thinking':
               return (
+                // eslint-disable-next-line @eslint-react/no-array-index-key -- blocks have no identity; this message's block order is fixed
                 <div key={i} className="thinking" data-testid="thinking-block">
                   <button className="thinking-toggle" onClick={() => setShowThinking(!showThinking)}>
                     {showThinking ? 'Hide thinking' : 'Show thinking'}
@@ -74,10 +83,12 @@ export function MessageRow(
                 </div>
               )
             case 'tool_use':
+              // eslint-disable-next-line @eslint-react/no-array-index-key -- blocks have no identity; this message's block order is fixed
               return <ToolBlock key={i} name={block.name} detail={summarise(block.input)} />
             case 'tool_result':
               return (
                 <ToolBlock
+                  // eslint-disable-next-line @eslint-react/no-array-index-key -- blocks have no identity; this message's block order is fixed
                   key={i}
                   name={block.isError ? 'Result (error)' : 'Result'}
                   detail={block.content}

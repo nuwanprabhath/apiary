@@ -59,7 +59,7 @@ describe('resolveMrStatus', () => {
     const exec = async (): Promise<string> =>
       new Promise((resolve) => { resolveExec = resolve })
     let calls = 0
-    const countingExec = async (file: string, args: string[], cwd: string): Promise<string> => {
+    const countingExec = async (_file: string, _args: string[], _cwd: string): Promise<string> => {
       calls++
       return exec()
     }

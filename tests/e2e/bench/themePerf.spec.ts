@@ -17,6 +17,7 @@ import { launchApiary, importAll, sidebarSession, type Harness } from '../helper
  *
  * A theme passes when it is no worse than the original by more than a small margin.
  */
+// eslint-disable-next-line playwright/no-skipped-test -- opt-in benchmark: it takes minutes and measures the machine it runs on, so it must not run by default in CI or a normal test pass
 test.skip(process.env.APIARY_BENCH !== '1', 'theme benchmark is opt-in: APIARY_BENCH=1')
 
 const SOFTWARE = process.env.APIARY_BENCH_GPU === 'off'
@@ -57,6 +58,7 @@ async function record(page: Page, run: () => Promise<void>): Promise<Sample> {
   })
   await run()
   // Let the last frames and event entries land.
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- draining the tail of async frame/event-timing entries that the observer above hasn't delivered yet; there is no UI condition to assert on instead
   await page.waitForTimeout(600)
   return page.evaluate(() => {
     const w = window as unknown as { bench: { on: boolean; frames: number[]; events: number[]; obs?: PerformanceObserver } }
@@ -66,6 +68,7 @@ async function record(page: Page, run: () => Promise<void>): Promise<Sample> {
   })
 }
 
+// eslint-disable-next-line playwright/no-wait-for-timeout -- paces simulated hover/scroll/drag input at a real frame interval so the benchmark measures input-to-frame latency under realistic timing, not as fast as the driver can issue events
 const pause = (page: Page, ms = 16): Promise<void> => page.waitForTimeout(ms)
 
 const SCENARIOS: Record<string, (h: Harness) => Promise<void>> = {
@@ -104,7 +107,10 @@ const SCENARIOS: Record<string, (h: Harness) => Promise<void>> = {
     await h.page.keyboard.press('Enter')
     await h.page.keyboard.type('echo done-typing', { delay: 40 })
     await h.page.keyboard.press('Enter')
-    await expect(h.page.getByTestId('terminal-shell').locator('.xterm-rows')).toContainText('done-typing')
+    // A plain assertion, not `expect`, because this runs from a scenario function rather than
+    // directly inside the `test()` block, and playwright/no-standalone-expect flags an `expect`
+    // call there regardless of it running during the test.
+    await h.page.getByTestId('terminal-shell').locator('.xterm-rows').filter({ hasText: 'done-typing' }).first().waitFor()
   },
 }
 
@@ -130,6 +136,7 @@ test('every built-in theme is as snappy as the original look', async () => {
       await sidebarSession(h.page, 'Fix CSV export bug').click()
       await h.page.getByTestId('shell-toggle').click()
       await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
+      // eslint-disable-next-line playwright/no-wait-for-timeout -- lets the theme's own transition/paint settle before measuring, so the first scenario's timings aren't skewed by the theme switch itself
       await h.page.waitForTimeout(1500)
       runs[name] ??= {}
       for (const [scenario, act] of Object.entries(SCENARIOS)) {
@@ -153,6 +160,7 @@ test('every built-in theme is as snappy as the original look', async () => {
 
   writeFileSync(OUT, JSON.stringify({ software: SOFTWARE, results }, null, 2))
   const rows = Object.keys(SCENARIOS).flatMap((scenario) => Object.keys(results).map((t) => ({ scenario, theme: t, ...results[t][scenario] })))
+  // eslint-disable-next-line no-console -- this benchmark's whole purpose is reporting its measured numbers to whoever ran it; also written to OUT above for machine reading
   console.table(rows)
 
   const base = results.original

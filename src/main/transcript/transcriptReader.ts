@@ -4,6 +4,15 @@ import type { TranscriptBlock, TranscriptMessage, TranscriptPage } from '@shared
 
 const DEFAULT_LIMIT = 200
 
+/** Coerces a JSONL field of unknown shape to a string without ever falling through to
+ *  `Object.prototype.toString` — real transcripts only ever put strings and numbers in these
+ *  fields, but a malformed line should degrade to `fallback`, not '[object Object]'. */
+function asString(value: unknown, fallback: string): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return fallback
+}
+
 interface Index { offsets: number[]; messageCount: number; mtimeMs: number; size: number }
 
 const cache = new Map<string, Index>()
@@ -88,8 +97,8 @@ function mapBlocks(role: 'user' | 'assistant', content: unknown): TranscriptBloc
       case 'tool_use':
         blocks.push({
           type: 'tool_use',
-          id: String(b.id ?? ''),
-          name: String(b.name ?? 'unknown'),
+          id: asString(b.id, ''),
+          name: asString(b.name, 'unknown'),
           input: b.input,
         })
         break
@@ -108,7 +117,7 @@ function mapBlocks(role: 'user' | 'assistant', content: unknown): TranscriptBloc
       case 'tool_result':
         blocks.push({
           type: 'tool_result',
-          toolUseId: String(b.tool_use_id ?? ''),
+          toolUseId: asString(b.tool_use_id, ''),
           content: typeof b.content === 'string' ? b.content : JSON.stringify(b.content),
           isError: b.is_error === true,
         })
@@ -127,7 +136,7 @@ function toMessage(entry: Record<string, unknown>): TranscriptMessage | null {
   if (!message) return null
   const ts = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : NaN
   return {
-    uuid: String(entry.uuid ?? ''),
+    uuid: asString(entry.uuid, ''),
     role,
     timestampMs: Number.isNaN(ts) ? null : ts,
     isSidechain: entry.isSidechain === true,
@@ -178,15 +187,17 @@ export async function readTranscriptPage(
   const info = await stat(filePath)
   const end = Math.max(0, Math.min(opts.beforeIndex ?? offsets.length, offsets.length))
 
-  let windowMessages: IndexedMessage[] = []
-  let skippedLines = 0
-  let windowStart = end
+  // Assigned unconditionally on every iteration before the loop's only `break`, so these are
+  // definitely assigned by the time they're read below without needing a throwaway initial value.
+  let windowMessages: IndexedMessage[]
+  let skippedLines: number
+  let windowStart: number
   let span = Math.max(limit * 2, 1)
 
   for (;;) {
     const nextStart = Math.max(0, end - span)
-    const byteStart = nextStart < offsets.length ? offsets[nextStart]! : info.size
-    const byteEnd = end < offsets.length ? offsets[end]! : info.size
+    const byteStart = nextStart < offsets.length ? offsets[nextStart] : info.size
+    const byteEnd = end < offsets.length ? offsets[end] : info.size
     const text = await readRange(filePath, byteStart, byteEnd)
 
     windowMessages = []
@@ -217,7 +228,7 @@ export async function readTranscriptPage(
 
   const overflow = Math.max(0, windowMessages.length - limit)
   const page = windowMessages.slice(overflow)
-  const earlierCursor = overflow > 0 ? page[0]!.index : null
+  const earlierCursor = overflow > 0 ? page[0].index : null
 
   return {
     messages: page.map((p) => p.message),

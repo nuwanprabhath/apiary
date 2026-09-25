@@ -10,11 +10,13 @@ import { launchApiary, importAll, sidebarSession, type Harness } from './helpers
  */
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary({ secondWorktree: true })
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 const folder = (label: string): Locator =>
@@ -87,7 +89,10 @@ test('View > Toggle Sidebar hides and shows it, and hidden survives a reload', a
   const toggle = async (): Promise<void> => {
     await h.app.evaluate(({ Menu }) => {
       const view = Menu.getApplicationMenu()!.items.find((i) => i.label === 'View')!
-      view.submenu!.items.find((i) => i.label === 'Toggle Sidebar')!.click()
+      const item = view.submenu!.items.find((i) => i.label === 'Toggle Sidebar')!
+      // Electron types `MenuItem.click` as the bare `Function` type, so calling it directly is
+      // an unsafe call as far as the type checker is concerned; it takes no arguments here.
+      ;(item.click as () => void)()
     })
   }
   await toggle()

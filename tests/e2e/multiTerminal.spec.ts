@@ -6,6 +6,7 @@ import { launchApiary, importAll, type Harness, sidebarSession, relaunchApiary }
 const NAME_START = { position: { x: 8, y: 8 } }
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
@@ -14,6 +15,7 @@ test.beforeEach(async () => {
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('adds a second terminal and switches between them', async () => {
@@ -178,6 +180,7 @@ test('the terminal never renders taller than the space it has, at any pane size'
     const pane = document.querySelector('.bottom-pane') as HTMLElement
     pane.style.height = '120px'
   })
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- settles layout after the direct style mutation before measuring pixel geometry below; there is no visible-state condition to assert on instead
   await h.page.waitForTimeout(400)
 
   const shrunk = await geometry()
@@ -196,6 +199,7 @@ test('a long branch name ellipsizes instead of growing the toolbar into the term
   await h.page.getByTestId('session-tab-split').click()
   await h.page.getByTestId('session-tab-split').first().click()
   await expect(h.page.getByTestId('session-column')).toHaveCount(3)
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- settles the toolbar's layout after the split before measuring its height below; there is no visible-state condition to assert on instead
   await h.page.waitForTimeout(300)
 
   expect(await toolbarHeight()).toBe(before)
@@ -285,6 +289,7 @@ test('the shell prompt is just "$" by default, and the full prompt is back with 
     await h.page.keyboard.type(`echo ${marker}\n`)
     // The command's output — a row that is just the marker — not the echo of what was typed.
     await expect.poll(() => rows.evaluate((el, m) => [...el.children].some((r) => (r.textContent ?? '').trim() === m), marker), { timeout: 20000 }).toBe(true)
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- the marker line appearing doesn't mean the shell has redrawn its next prompt yet; lets that repaint finish before the caller types on top of it
     await h.page.waitForTimeout(300)
   }
   await ready('WARM_1')
@@ -292,7 +297,9 @@ test('the shell prompt is just "$" by default, and the full prompt is back with 
   await expect(rows).toContainText('MINIMAL_OK')
   // The line the command was typed on starts with the prompt: nothing but "$ ".
   const typedOn = async (marker: string): Promise<string> => rows.evaluate((el, m) =>
-    [...el.children].map((r) => (r.textContent ?? '').replace(/ /g, ' ')).find((t) => t.includes(`echo ${m}`)) ?? '', marker)
+    // xterm renders spaces as U+00A0 (non-breaking space) in textContent; written as an escape
+    // rather than the literal character so the source stays free of irregular whitespace.
+    [...el.children].map((r) => (r.textContent ?? '').replace(/\u00A0/g, ' ')).find((t) => t.includes(`echo ${m}`)) ?? '', marker)
   expect(await typedOn('MINIMAL_OK')).toMatch(/^\$ echo MINIMAL_OK/)
 
   await h.app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog') })
@@ -304,6 +311,7 @@ test('the shell prompt is just "$" by default, and the full prompt is back with 
   await h.page.getByTestId('terminal-add').click()
   await expect(h.page.getByTestId('terminal-tab-row')).toHaveCount(2)
   await expect(h.page.getByTestId('terminal-list-panel')).toBeVisible()
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- lets the freshly spawned shell finish starting up and draw its first prompt before `ready` types into it
   await h.page.waitForTimeout(500)
   await ready('WARM_2')
   await h.page.keyboard.type('echo FULL_OK\n')

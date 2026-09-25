@@ -40,15 +40,15 @@ function groupByProject(rows: DiscoveredSession[]): Map<string, DiscoveredSessio
 
 export function ImportDialog({ onClose, onImported, width, onWidthChange }: Props): JSX.Element {
   const [rows, setRows] = useState<DiscoveredSession[]>([])
-  const [picked, setPicked] = useState<Set<string>>(new Set())
-  const [autoProjects, setAutoProjects] = useState<Set<string>>(new Set())
+  const [picked, setPicked] = useState<Set<string>>(() => new Set())
+  const [autoProjects, setAutoProjects] = useState<Set<string>>(() => new Set())
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
   /* Folder paths the user has collapsed. Absent = expanded, so a folder that appears later (or
    * after the search filter changes) starts open, with no separate "seen before" bookkeeping —
    * the sidebar tracks its own collapsed folders the same way. Ticking a collapsed folder's
    * checkbox still selects everything inside it; collapsing only hides rows. */
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
 
   const toggleCollapsed = (path: string): void => {
     setCollapsed((prev) => {

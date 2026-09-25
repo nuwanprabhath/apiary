@@ -2,11 +2,13 @@ import { test, expect } from '@playwright/test'
 import { launchApiary, importAll, type Harness, sidebarSession, clickRowAction } from './helpers'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('deleting a session removes it from the sidebar but leaves it importable again', async () => {

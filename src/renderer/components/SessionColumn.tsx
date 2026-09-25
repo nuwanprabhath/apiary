@@ -236,7 +236,7 @@ export function SessionColumn(props: Props): JSX.Element {
    * way a fresh terminal's does — snapshot, fit, resize — rather than staying on the dead pty's
    * blank screen at the default 80x24.
    */
-  const [revivals, setRevivals] = useState<Map<string, number>>(new Map())
+  const [revivals, setRevivals] = useState<Map<string, number>>(() => new Map())
   const revivingRef = useRef<Set<string>>(new Set())
 
   /**
@@ -412,9 +412,9 @@ export function SessionColumn(props: Props): JSX.Element {
       id: 'copy-branch',
       label: 'Copy Branch Name',
       separatorBefore: true,
-      disabled: gitStatus?.branch == null,
+      disabled: gitStatus?.branch === null || gitStatus?.branch === undefined,
       run: () => {
-        if (gitStatus?.branch != null) void window.apiary.copyToClipboard(gitStatus.branch)
+        if (gitStatus?.branch !== null && gitStatus?.branch !== undefined) void window.apiary.copyToClipboard(gitStatus.branch)
       },
     },
   ]

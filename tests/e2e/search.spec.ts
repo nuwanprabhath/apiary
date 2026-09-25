@@ -15,11 +15,13 @@ async function openSettings(h: Harness): Promise<void> {
 }
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 const search = (h: Harness) => h.page.getByTestId('search-input')
@@ -74,9 +76,9 @@ test('search renders a flat list, and clearing it restores the tree with its col
   // A folder collapsed before searching must still be collapsed after — proof the tree was never
   // torn down and rebuilt underneath the search, only hidden behind the flat list.
   await h.page.locator('[data-testid="project-toggle"]').first().click()
-  const wasCollapsed = await h.page.locator('[data-testid="project-toggle"]').first()
-    .getAttribute('aria-expanded')
-  expect(wasCollapsed).toBe('false')
+  const wasCollapsed = h.page.locator('[data-testid="project-toggle"]').first()
+    
+  await expect(wasCollapsed).toHaveAttribute('aria-expanded', 'false')
 
   await search(h).fill('csv')
   await expect(h.page.getByTestId('flat-results')).toBeVisible()
@@ -144,7 +146,7 @@ test('the search box keeps up with typing, with a realistic number of sessions',
           nodes.reduce((n, x) => n + x.sessions.length + count(
             x.children as { sessions: unknown[]; children: unknown[] }[],
           ), 0)
-        return count(await window.apiary.tree() as never)
+        return count(await window.apiary.tree())
       }),
       { timeout: 60000 },
     ).toBeGreaterThan(SCALE - 10)
@@ -171,9 +173,10 @@ test('the search box keeps up with typing, with a realistic number of sessions',
     // Read without waiting: the text must already be there the moment typing stops. A polling
     // assertion here would pass even if the letters trickled in over a second, which is the very
     // thing being tested.
-    expect(await many.page.getByTestId('search-input').inputValue()).toBe('test')
+    await expect(many.page.getByTestId('search-input')).toHaveValue('test')
     // Let whatever the last keystroke scheduled actually run, so a stall after the final
     // character is caught rather than measured only up to it.
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- the thing under test is the longest main-thread task over a fixed window after typing stops; there is no condition to poll for instead
     await many.page.waitForTimeout(2000)
 
     const worst = await many.page.evaluate(
@@ -194,8 +197,10 @@ test('typing is instant and the box says so while the results catch up', async (
   const shown = await h.page.evaluate(async () => {
     const el = document.querySelector<HTMLInputElement>('[data-testid="search-input"]')
     if (el === null) throw new Error('no search input')
-    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-    setValue?.call(el, 'worktree')
+    // Called directly off the descriptor rather than through an intermediate variable: lib.dom's
+    // `PropertyDescriptor.set` is method-shorthand typed (an implicit `this`), which
+    // @typescript-eslint/unbound-method only accepts as a direct call, not a stored reference.
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(el, 'worktree')
     el.dispatchEvent(new Event('input', { bubbles: true }))
     await new Promise((resolve) => { requestAnimationFrame(() => { resolve(null) }) })
     // Both read in the same frame as the keystroke: the text is painted, and the results — which

@@ -1,0 +1,35 @@
+{
+  "extends": [
+    "stylelint-config-standard"
+  ],
+  "rules": {
+    "declaration-block-single-line-max-declarations": null,
+    "rule-empty-line-before": null,
+    "comment-empty-line-before": null,
+    "custom-property-empty-line-before": null,
+    "at-rule-empty-line-before": null,
+    "declaration-empty-line-before": null,
+    "no-descending-specificity": null,
+    "selector-class-pattern": null,
+    "declaration-property-value-disallowed-list": [
+      {
+        "/^border(-(top|bottom)-(left|right))?-radius$/": [
+          "/(^|\\s)([4-9]|\\d{2,})(\\.\\d+)?px/"
+        ]
+      },
+      {
+        "message": "Corners come from the theme: use --radius-sm/-row/-panel/-lg/-control, never a literal radius above 3px (see CLAUDE.md, Themes)."
+      }
+    ],
+    "value-keyword-case": [
+      "lower",
+      {
+        "camelCaseSvgKeywords": true,
+        "ignoreProperties": [
+          "/^--font-/",
+          "font-family"
+        ]
+      }
+    ]
+  }
+}

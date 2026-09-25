@@ -17,6 +17,7 @@ import { launchApiary, importAll, type Harness } from '../helpers'
  * Claude does. This one proves the stand-in describes Claude — the step whose absence let the
  * activity dots ship wrong twice.
  */
+// eslint-disable-next-line playwright/no-skipped-test -- opt-in: spends real tokens and needs a logged-in `claude` on PATH, so it must not run by default
 test.skip(process.env.APIARY_LIVE_CLAUDE !== '1', 'live Claude specs are opt-in: APIARY_LIVE_CLAUDE=1')
 test.setTimeout(240_000)
 
@@ -48,6 +49,7 @@ const terminal = (): Locator => h.page.locator('[data-testid="terminal-session"]
 
 /** Types into the Claude TUI and presses Enter; answers the folder-trust prompt if it is up. */
 async function say(text: string): Promise<void> {
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await terminal().click({ force: true })
   // Claude takes a few seconds to paint; typing before it has is typing into nothing. Its status
   // line names the model once the composer is up.
@@ -60,15 +62,19 @@ async function say(text: string): Promise<void> {
   for (let i = 0; i < 10 && /trust this folder/.test(await screenText()); i++) {
     if (/❯\s*Yes, I trust this folder/.test(await screenText())) {
       await h.page.keyboard.press('Enter')
+      // eslint-disable-next-line playwright/no-wait-for-timeout -- lets the real TUI repaint past the trust prompt before the loop re-reads the screen; there is no other signal available mid-repaint
       await h.page.waitForTimeout(3000)
       continue
     }
+    // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
     await terminal().click({ force: true })
     await h.page.keyboard.press('ArrowDown')
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- paces the option-cursor move against the real TUI's own repaint before the loop re-reads the screen
     await h.page.waitForTimeout(500)
   }
   await expect(terminal()).toContainText(/Haiku \d/, { timeout: 60_000 })
   await h.page.keyboard.type(text, { delay: 10 })
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- gives the real TUI a moment to register the typed text before Enter submits it; there is no on-screen signal that typing has "landed"
   await h.page.waitForTimeout(400)
   await h.page.keyboard.press('Enter')
 }
@@ -85,6 +91,7 @@ const doneCount = async (): Promise<number> =>
  * where it was silently lost. That made a fork look unresolved when Claude had written nothing.
  */
 async function ask(text: string): Promise<void> {
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await terminal().click({ force: true })
   await expect(terminal()).toContainText(/trust this folder|Haiku \d/, { timeout: 60_000 })
   const before = await doneCount()
@@ -135,6 +142,7 @@ test('/clear moves the tab to the new session Claude starts', async () => {
   const before = await h.page.getByTestId('session-title').innerText()
 
   await say('/clear')
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- lets the real Claude process finish tearing down the old session and start the new one before asking it anything; there is no on-screen signal that the switch is complete
   await h.page.waitForTimeout(3000)
   await ask('Reply with just the word: after')
 

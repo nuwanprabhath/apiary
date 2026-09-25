@@ -50,7 +50,7 @@ function KindIcon({ kind }: { kind: NotificationKind }): JSX.Element {
  */
 export function NotificationCenter(): JSX.Element | null {
   const { items, dismiss } = useNotifications()
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
 
   if (items.length === 0) return null
 

@@ -80,12 +80,9 @@ export function TerminalListPanel(
       const current = focusedId ?? activeId
       const currentIdx = current !== null ? tabs.findIndex(t => t.id === current) : -1
 
-      let nextIdx = currentIdx
-      if (e.key === 'ArrowDown') {
-        nextIdx = Math.min(currentIdx + 1, tabs.length - 1)
-      } else {
-        nextIdx = Math.max(currentIdx - 1, 0)
-      }
+      const nextIdx = e.key === 'ArrowDown'
+        ? Math.min(currentIdx + 1, tabs.length - 1)
+        : Math.max(currentIdx - 1, 0)
 
       const nextId = tabs[nextIdx]?.id
       if (nextId) {

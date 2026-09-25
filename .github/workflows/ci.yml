@@ -1,0 +1,30 @@
+# Typecheck and lint on every push and pull request — the fast, native-free half of what a release
+# checks (see release.yml), so a problem shows up on the commit that made it rather than at tag time.
+# No tests here: the unit suite needs the native modules built, which is the release run's job.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # --ignore-scripts: nothing here needs node-pty or better-sqlite3 compiled.
+      - run: npm ci --ignore-scripts
+
+      - run: npm run typecheck
+
+      - run: npm run lint

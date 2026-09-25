@@ -176,7 +176,7 @@ export function SessionRow({
         <span className="session-title">
           <MrRefText text={session.title} statuses={mrStatuses} />
         </span>
-        {subtitle != null && <span className="session-subtitle" data-testid="session-subtitle">{subtitle}</span>}
+        {subtitle !== null && subtitle !== undefined && <span className="session-subtitle" data-testid="session-subtitle">{subtitle}</span>}
         {hasNote && (
           // Marked in the row itself, not only in the actions: which sessions you have annotated
           // is worth knowing while scanning the list, and the actions only appear on hover.

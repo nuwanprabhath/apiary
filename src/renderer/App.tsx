@@ -203,7 +203,7 @@ export function App(): JSX.Element {
   ) => {
     setWindowState((prev) => {
       const next = typeof update === 'function'
-        ? (update as (p: string | null) => string | null)(prev.activeColumnId)
+        ? (update)(prev.activeColumnId)
         : update
       return next === prev.activeColumnId ? prev : { ...prev, activeColumnId: next }
     })
@@ -220,15 +220,15 @@ export function App(): JSX.Element {
     [setLayout],
   )
   /** Divider positions per preset, for as long as the window is open. */
-  const [tracks, setTracks] = useState<Map<PresetId, Tracks>>(new Map())
+  const [tracks, setTracks] = useState<Map<PresetId, Tracks>>(() => new Map())
   const currentTracks = tracks.get(layout.preset) ?? defaultTracks(layout.preset)
   /**
    * The `SessionNode` behind every open tab, kept fresh from the tree so a tab's title and live
    * state track the session rather than freezing at whatever it was when it was opened. Tabs hold
    * only ids; this is where the rows themselves live.
    */
-  const [openSessions, setOpenSessions] = useState<Map<string, SessionNode>>(new Map())
-  const [resumed, setResumed] = useState<Set<string>>(new Set())
+  const [openSessions, setOpenSessions] = useState<Map<string, SessionNode>>(() => new Map())
+  const [resumed, setResumed] = useState<Set<string>>(() => new Set())
   // Sessions started via newSessionInProject()/newSessionInFolder() whose pty id differs from
   // the session's own id (a "new:<uuid>" id, minted before the session had one). Consulted when
   // addressing that session's terminals so the pty that was actually spawned keeps being used
@@ -236,11 +236,13 @@ export function App(): JSX.Element {
   // Also doubles as the cross-tick "already claimed" record the reconciler below consults so two
   // pending sessions in the same folder can never be folded into the same discovered SessionNode.
   const [ptyOverrides, setPtyOverrides] = useState<Map<string, string>>(() => (
-    arrival?.ptyId != null ? new Map([[arrival.key, arrival.ptyId]]) : new Map()
+    arrival?.ptyId !== null && arrival?.ptyId !== undefined
+      ? new Map([[arrival.key, arrival.ptyId]])
+      : new Map()
   ))
   // Every new-session pty currently awaiting its first JSONL, keyed by pty id (not a single
   // value) so more than one can be in flight — see PendingSession above.
-  const [pending, setPending] = useState<Map<string, PendingSession>>(new Map())
+  const [pending, setPending] = useState<Map<string, PendingSession>>(() => new Map())
   /** Which Claude session each terminal is on, from Claude itself — see the effect that uses it. */
   const ptySessions = usePtySessions()
   /**
@@ -261,7 +263,9 @@ export function App(): JSX.Element {
     for (const pane of restored?.layout.panes ?? []) {
       for (const tab of pane.tabs) if (tab.activeShell !== null) map.set(tab.key, tab.activeShell)
     }
-    if (arrival?.activeShell != null) map.set(arrival.ptyId ?? arrival.key, arrival.activeShell)
+    if (arrival?.activeShell !== null && arrival?.activeShell !== undefined) {
+      map.set(arrival.ptyId ?? arrival.key, arrival.activeShell)
+    }
     return map
   })
   const [conflict, setConflict] = useState<ResumeConflict | null>(null)
@@ -368,7 +372,7 @@ export function App(): JSX.Element {
       const targetId = prev.some((c) => c.id === activeColumnId) ? activeColumnId : prev[0]?.id
       return prev.map((c) => (c.id === targetId ? openTab(c, session.sessionId) : c))
     })
-  }, [activeColumnId, setColumns])
+  }, [activeColumnId, setColumns, setActiveColumnId])
 
   /** Closes a tab, dropping the column with it — unless it is the last one, which stays as an
    *  empty placeholder so the layout never collapses to nothing. */
@@ -422,7 +426,7 @@ export function App(): JSX.Element {
           : openTab(c, info.ptyId)
       })
     })
-  }, [activeColumnId])
+  }, [activeColumnId, setColumns])
 
   // `File > New Session in Folder...` picks its folder via a native dialog in the main process
   // (never from the renderer) and pushes the result here once the pty is already running.
@@ -476,7 +480,7 @@ export function App(): JSX.Element {
       next.delete(key)
       return next
     })
-  }), [])
+  }), [setColumns])
 
   // Once a "new session" pty is running (either entry point), watch for the SessionNode Claude's
   // own JSONL write eventually produces. When it appears, fold the pending terminal into the
@@ -552,7 +556,7 @@ export function App(): JSX.Element {
     check()
     const off = window.apiary.onTreeChanged(check)
     return () => { cancelled = true; off() }
-  }, [pending, ptyOverrides, notifyError, ptySessions])
+  }, [pending, ptyOverrides, notifyError, ptySessions, setColumns])
 
   /**
    * Keeps every tab on the session its terminal is *actually* on, as Claude reports it.
@@ -811,7 +815,8 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (requestedPicker === null) return
     const close = (e: MouseEvent): void => {
-      if ((e.target as Element | null)?.closest('[data-testid="layout-picker"]') == null) setRequestedPicker(null)
+      const inPicker = (e.target as Element | null)?.closest('[data-testid="layout-picker"]')
+      if (inPicker === null || inPicker === undefined) setRequestedPicker(null)
     }
     window.addEventListener('mousedown', close)
     return () => { window.removeEventListener('mousedown', close) }
@@ -944,7 +949,7 @@ export function App(): JSX.Element {
     } catch (e) {
       notifyError(e, 'Could not resume this session')
     }
-  }, [notifyError])
+  }, [notifyError, setColumns])
 
   const confirmDelete = useCallback(async () => {
     if (deleteTarget === null) return
@@ -965,7 +970,7 @@ export function App(): JSX.Element {
     } catch (e) {
       notifyError(e, 'Could not remove this session')
     }
-  }, [deleteTarget, notifyError, unpin])
+  }, [deleteTarget, notifyError, unpin, setColumns])
 
   /** The session a resume/conflict decision is currently about — set when the ResumeBar asks. */
   const [resumeTarget, setResumeTarget] = useState<SessionNode | null>(null)
@@ -1001,8 +1006,13 @@ export function App(): JSX.Element {
   }, [resumed, setColumns])
 
   /** Every session id currently open in some column, so the sidebar can list only the pending
-   *  sessions that aren't already reachable as a tab. */
-  const openKeys = new Set(columns.flatMap((c) => c.tabs.map((t) => t.key)))
+   *  sessions that aren't already reachable as a tab. Memoized: two effects below depend on it, and
+   *  a fresh Set every render would restart their debounce timers on every render instead of only
+   *  when the open tabs actually change. */
+  const openKeys = useMemo(
+    () => new Set(columns.flatMap((c) => c.tabs.map((t) => t.key))),
+    [columns],
+  )
 
   /**
    * Keeps `resumed` in step with the ptys the main process actually has.
@@ -1218,7 +1228,7 @@ export function App(): JSX.Element {
       setActiveColumnId(existing.id)
       return prev.map((c) => (c.id === existing.id ? openTab(c, key) : c))
     })
-  }), [setColumns])
+  }), [setColumns, setActiveColumnId])
 
   const pendingTabInfo = new Map(
     [...pending.values()].map((info) => [

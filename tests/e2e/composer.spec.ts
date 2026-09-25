@@ -38,11 +38,13 @@ async function pasteImage(h: Harness, base64 = TINY_PNG): Promise<void> {
 }
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('the transcript has a chat box, and what you type reaches the running session', async () => {

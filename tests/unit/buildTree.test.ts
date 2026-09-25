@@ -36,7 +36,7 @@ describe('buildTree', () => {
     expect(tree[0].path).toBe('/p/repo')
     expect(tree[0].sessions.map((s) => s.sessionId)).toEqual(['s1'])
     expect(tree[0].children).toHaveLength(1)
-    const wt = tree[0].children[0] as typeof tree[0]
+    const wt = tree[0].children[0]
     expect(wt.branch).toBe('rel/1.0.11')
     expect(wt.sessions.map((s) => s.sessionId)).toEqual(['s2'])
   })

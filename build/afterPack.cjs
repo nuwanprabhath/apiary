@@ -16,7 +16,9 @@
 //
 // This hook must never fail the build: any problem is logged and swallowed.
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- electron-builder loads this as CommonJS (.cjs); a static `import` isn't valid syntax here
 const { existsSync } = require('node:fs')
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- electron-builder loads this as CommonJS (.cjs); a static `import` isn't valid syntax here
 const path = require('node:path')
 
 module.exports = async function afterPack(context) {

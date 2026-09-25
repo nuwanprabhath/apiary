@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
@@ -11,6 +12,7 @@ test.beforeEach(async () => {
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('the "..." menu groups the git commands, with Branch as a submenu', async () => {

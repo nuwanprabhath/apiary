@@ -4,11 +4,13 @@ import { join } from 'node:path'
 import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('the search box clears from its own button', async () => {
@@ -46,9 +48,9 @@ test('the refresh button keeps a stable width while it spins', async () => {
   await expect(button).toContainText('Refresh')
   const after = await button.boundingBox()
   expect(after).not.toBeNull()
-  if (before !== null && after !== null) {
-    expect(Math.abs(before.width - after.width)).toBeLessThan(2)
-  }
+  // The two `expect`s above already fail the test if either is null; asserting unconditionally
+  // here (rather than inside an `if`) keeps the check as a plain expect, not a conditional one.
+  expect(Math.abs(before!.width - after!.width)).toBeLessThan(2)
 })
 
 test('pressing Refresh says what the rescan found', async () => {
@@ -189,6 +191,7 @@ test('the transcript catches up to the newest message when you switch back to it
     timestamp: '2026-09-02T10:05:00.000Z',
     message: { role: 'assistant', content: [{ type: 'text', text: 'ARRIVED_WHILE_ON_THE_TERMINAL' }] },
   }) + '\n')
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- the transcript is hidden and not scrollable while on the terminal, so there is no on-screen signal that the watcher's debounced rescan has picked up the new line before switching back to look for it
   await h.page.waitForTimeout(3000)
 
   await h.page.getByTestId('view-transcript').click()

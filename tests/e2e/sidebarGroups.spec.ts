@@ -2,11 +2,13 @@ import { test, expect, type Locator, type Page } from '@playwright/test'
 import { launchApiary, importAll, relaunchApiary, type Harness } from './helpers'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 /** A top-level folder row, addressed by the label on its own toggle. */

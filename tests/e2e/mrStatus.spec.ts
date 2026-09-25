@@ -6,6 +6,7 @@ import { launchApiary, importAll, sidebarSession, type Harness } from './helpers
 const FAKE_GLAB = join(process.cwd(), 'scripts/fixtures/fake-glab-api.sh')
 
 let h: Harness
+
 test.afterEach(async () => { await h.close() })
 
 test('a session titled with an MR reference shows its resolved status', async () => {

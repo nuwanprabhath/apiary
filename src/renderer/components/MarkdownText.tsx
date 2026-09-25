@@ -16,10 +16,11 @@ marked.setOptions({ breaks: true, gfm: true })
  */
 export function MarkdownText({ text }: { text: string }): JSX.Element {
   const html = useMemo(() => {
-    const rendered = marked.parse(text, { async: false }) as string
+    const rendered = marked.parse(text, { async: false })
     return DOMPurify.sanitize(rendered)
   }, [text])
 
-  // eslint-disable-next-line react/no-danger
+  // Sanitised with DOMPurify just above, so the HTML this sets is safe.
+  // eslint-disable-next-line @eslint-react/dom-no-dangerously-set-innerhtml -- html is DOMPurify-sanitised above
   return <div className="markdown text-block" dangerouslySetInnerHTML={{ __html: html }} />
 }

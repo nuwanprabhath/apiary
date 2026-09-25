@@ -310,7 +310,7 @@ describe('plugin settings', () => {
   it('ignores a stored value of the wrong type, which settings.json can be edited to hold', () => {
     const registry = new PluginRegistry()
     registry.register(createGitLabMrPlugin())
-    registry.setSettings('gitlab-mr', { targetBranch: 42 as unknown as string })
+    registry.setSettings('gitlab-mr', { targetBranch: 42 })
     expect(registry.settingsFor('gitlab-mr')).toEqual({ targetBranch: '' })
   })
 

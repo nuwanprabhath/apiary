@@ -331,6 +331,7 @@ export function Transcript({ session, visible = true, onOpenImage }: TranscriptP
 
       {visibleMessages.map((m, i) => (
         <MessageRow
+          // eslint-disable-next-line @eslint-react/no-array-index-key -- falls back to the index only for the rare message with no uuid; the uuid is the real, stable key
           key={m.uuid.length > 0 ? m.uuid : String(i)}
           message={m}
           onOpenImage={onOpenImage}

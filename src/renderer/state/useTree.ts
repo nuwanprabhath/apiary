@@ -36,7 +36,7 @@ export function useTree(
   // query, and `Sidebar` defers it on top of that — debouncing a third time would just add 150ms
   // to every search for no benefit.
   const debouncedQuery = query
-  const [matchedByContent, setMatchedByContent] = useState<Set<string>>(new Set())
+  const [matchedByContent, setMatchedByContent] = useState<Set<string>>(() => new Set())
 
   // Superseded rather than awaited: a slow content search for an old query must never land after
   // a fast one for a newer query and put stale ids on screen — the same shape of bug `useTree`'s
@@ -74,7 +74,7 @@ export function useTree(
     // it, a query typed in the first second after launch — before indexing had finished — got the
     // empty answer and kept it until the user typed something else, so searching by what was said
     // found nothing. The e2e spec for content search hit exactly that race once it went the other way.
-  }, [debouncedQuery, options.searchChatContent, options.searchSessionNotes, rawTree])
+  }, [debouncedQuery, options.searchChatContent, options.searchSessionNotes, rawTree, notifyError])
 
   // Memoized on the debounced query, not the raw one: `Sidebar` re-renders on every keystroke
   // (its own `query` state updates in `onChange`), and without this the filter would still run on

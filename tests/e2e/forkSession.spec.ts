@@ -12,11 +12,13 @@ import { launchApiary, importAll, sidebarSession, type Harness } from './helpers
  */
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('forking from a tab opens the fork next to it, named after the original', async () => {

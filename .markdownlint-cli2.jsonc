@@ -1,0 +1,14 @@
+{
+  // Prose docs: the rules that catch broken structure, not house style. Lines are wrapped by hand
+  // at ~100 columns, so no line-length rule; the specs and plans are working notes and ignored, and
+  // docs/install-prompt.md is text to paste into Claude, not a page, so markup there would be pasted.
+  "config": {
+    "default": true,
+    "MD013": false,
+    "MD024": { "siblings_only": true },
+    "MD033": false,
+    "MD041": false
+  },
+  "globs": ["**/*.md"],
+  "ignores": ["node_modules", ".worktrees", "docs/superpowers", "out", "test-results", ".superpowers", ".agent-reports", "docs/install-prompt.md"]
+}

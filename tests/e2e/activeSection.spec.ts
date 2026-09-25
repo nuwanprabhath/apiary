@@ -19,11 +19,13 @@ async function useFakeClaudeShell(h: Harness): Promise<void> {
 }
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('Active lists open sessions from both windows and clicking a row focuses the right window', async () => {
@@ -47,8 +49,8 @@ test('Active lists open sessions from both windows and clicking a row focuses th
   await otherRow.click()
   await expect.poll(() => second.evaluate(() => document.hasFocus())).toBe(true)
 
-  const firstWindowTabBarAfter = await h.page.getByTestId('session-tab-bar').innerText()
-  expect(firstWindowTabBarAfter).toBe(firstWindowTabBarBefore)
+  const firstWindowTabBarAfter = h.page.getByTestId('session-tab-bar')
+  await expect(firstWindowTabBarAfter).toHaveText(firstWindowTabBarBefore)
 })
 
 test('an Active row for a tab open in another window keeps its title even when this window\'s own search excludes it', async () => {
@@ -84,6 +86,7 @@ test('status dot reflects a stopped pty', async () => {
 
   // Killing the shell from within it lets the pty exit on its own, the same signal `classifyActivity`
   // reads for 'stopped' — not a simulated status, the real exit path.
+  // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await h.page.getByTestId('terminal-session').click({ force: true })
   await h.page.keyboard.type('exit\n')
 

@@ -256,7 +256,7 @@ Keep it that way.
   fraction of the window's resolution, scaled up) and saturated. A live backdrop filter per pane —
   the first version, with an SVG lens — re-ran on every frame and hover and made the app lag by
   ~800 ms without GPU compositing. "Refraction" is now a lens-edge glow in `--glass-rim`. The
-  pane is a `::before` on each card (and on `.sidebar-frame`, because `.sidebar` scrolls).
+  pane is a `::before` on each card (and on `.sidebar-frame`).
 - **Theme performance is measured, not guessed**: `tests/e2e/bench/themePerf.spec.ts`
   (`APIARY_BENCH=1`, add `APIARY_BENCH_GPU=off` for software compositing) compares every built-in
   theme with the original look on hover, scroll, fold, divider drag and terminal typing — input to
@@ -410,6 +410,28 @@ to look inside files the renderer never holds a copy of.
   module drags it into that project; and the renderer has no Node. `shared/promptPath.ts` and
   `shared/forkLabel.ts` exist for that reason.
 - TypeScript is strict; `npm run typecheck` covers both tsconfigs and both must pass.
+
+## Linting and hooks
+
+`npm run lint` runs four linters, and `.husky/` runs them for you:
+
+- **ESLint** (`eslint.config.js`, type-aware via both tsconfigs plus `tsconfig.eslint.json` for the
+  root configs). Per-area blocks encode the architecture: the renderer cannot import `electron`,
+  `node:*` or main-process code, shared code cannot import either side, main cannot import the
+  renderer. React hooks use React's own two classic rules only — the v7 React Compiler rules are
+  off because the app does not use the compiler.
+- **Stylelint** (`.stylelintrc.json`): standard's bug-catching rules without its formatting
+  opinions, plus one of ours — no literal `border-radius` above 3px (see Themes).
+- **markdownlint** (`.markdownlint-cli2.jsonc`) for the docs, **shellcheck** for `*.sh`.
+
+The hooks: pre-commit lints and autofixes the staged files (lint-staged); commit-msg requires
+Conventional Commits and rejects AI attribution; pre-push runs `typecheck` and the full `lint`.
+Tests are deliberately not in a hook — `npm test` and `test:e2e` rebuild the native modules for
+their runtime (see the ABI trap) and must not fire underneath a run in progress. CI (`ci.yml`)
+runs typecheck and lint on every push to main and every pull request.
+
+A disable comment is fine when it says why (`-- <reason>`); `reportUnusedDisableDirectives` fails
+the lint once the reason stops applying.
 
 ## Session-bar plugins
 

@@ -16,6 +16,7 @@ import { launchApiary, type Harness } from './helpers'
  * written, so neither `tsc` nor a linter is looking at the artifact that breaks.
  */
 let h: Harness
+
 test.afterEach(async () => { await h.close() })
 
 test('the main process boots and renders a window', async () => {

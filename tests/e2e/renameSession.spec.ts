@@ -2,12 +2,14 @@ import { test, expect } from '@playwright/test'
 import { launchApiary, importAll, relaunchApiary, type Harness, sidebarSession } from './helpers'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
   await sidebarSession(h.page, 'Fix CSV export bug').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('renaming a session updates the header and the sidebar row, and survives a relaunch', async () => {

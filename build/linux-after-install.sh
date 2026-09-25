@@ -1,4 +1,8 @@
 #!/bin/bash
+# A template: electron-builder fills in ${executable} and ${sanitizedProductName} before this
+# runs, so the single quotes around them are deliberate (SC2016). The update-alternatives block
+# is kept verbatim from the stock template (SC2166, SC2006) — see below.
+# shellcheck disable=SC2016,SC2166,SC2006
 #
 # Custom deb postinst script, replacing electron-builder's stock
 # after-install.tpl (node_modules/app-builder-lib/templates/linux/after-install.tpl).

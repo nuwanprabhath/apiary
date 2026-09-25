@@ -322,7 +322,9 @@ export function TerminalView({ ptyId, testId, visible = true, onRenameKey }: Pro
       run: () => {
         const selection = termRef.current?.getSelection()
         if (selection) {
-          window.apiary.copyToClipboard(selection)
+          // Fire-and-forget: a failed clipboard write has nothing useful to surface here, same as
+          // the other copyToClipboard call sites in this app.
+          void window.apiary.copyToClipboard(selection)
           termRef.current?.clearSelection()
         }
       },

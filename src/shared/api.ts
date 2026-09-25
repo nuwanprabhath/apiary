@@ -9,6 +9,8 @@ import type {
   TabTransfer,
   WindowLayoutReport,
 } from './types'
+import type { ThemeSpec } from './theme/spec'
+import type { ActivityStatus } from './activity'
 
 export interface DiscoveredSession {
   sessionId: string
@@ -113,7 +115,7 @@ export interface SavedTheme {
   /** What it was generated from, when it was generated; null for a copy of another theme. */
   prompt: string | null
   createdAt: number
-  spec: import('./theme/spec').ThemeSpec
+  spec: ThemeSpec
 }
 
 export interface ThemeOptions {
@@ -127,7 +129,7 @@ export interface ThemeOptions {
 
 /** A theme Claude designed, validated in main; `note` says what validation changed, if anything. */
 export interface ThemeGenerateResult {
-  spec: import('./theme/spec').ThemeSpec
+  spec: ThemeSpec
   note: string | null
 }
 
@@ -136,9 +138,9 @@ export interface ThemeState {
   /** A saved theme's id, a `builtin:*` id, or null for Apiary's own look. */
   activeId: string | null
   /** What to apply: the active theme's spec — or null for the original look, including in safe mode. */
-  active: import('./theme/spec').ThemeSpec | null
+  active: ThemeSpec | null
   saved: SavedTheme[]
-  builtins: Array<{ id: string; spec: import('./theme/spec').ThemeSpec }>
+  builtins: Array<{ id: string; spec: ThemeSpec }>
   options: ThemeOptions
   /** Started with `--safe-theme`: the original look for this run, whatever is saved. */
   safeMode: boolean
@@ -148,7 +150,7 @@ export interface ActiveTabPayload {
   windowNumber: number
   key: string
   view: 'transcript' | 'terminal'
-  status: import('./activity').ActivityStatus
+  status: ActivityStatus
   /** The tab's title while it has no session yet (see `reportTabs`); null otherwise. */
   label: string | null
 }
@@ -333,7 +335,7 @@ export interface ApiaryApi {
   /** Saves `spec` under `name`. Main validates it; the renderer's copy is never trusted. */
   themeSave(name: string, spec: unknown, prompt?: string): Promise<SavedTheme>
   /** Has the user's `claude` design a theme from `request` — or adjust `current` as `request` asks. */
-  themeGenerate(request: string, current: import('./theme/spec').ThemeSpec | null): Promise<ThemeGenerateResult>
+  themeGenerate(request: string, current: ThemeSpec | null): Promise<ThemeGenerateResult>
   themeGenerateCancel(): void
   themeRename(id: string, name: string): Promise<void>
   themeDelete(id: string): Promise<void>

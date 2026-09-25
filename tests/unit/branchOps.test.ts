@@ -59,10 +59,7 @@ describe('status', () => {
   it('throws when pointed at a non-git directory', async () => {
     const nonGitDir = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-branchops-nonrepo-')))
     try {
-      await status(nonGitDir)
-      expect.fail('should have thrown')
-    } catch (e) {
-      expect((e as Error).message).toMatch(/not a git repository|fatal/i)
+      await expect(status(nonGitDir)).rejects.toThrow(/not a git repository|fatal/i)
     } finally {
       rmSync(nonGitDir, { recursive: true, force: true })
     }
@@ -254,13 +251,10 @@ describe('merge', () => {
     // Try to merge the remote change — should fail with CONFLICT in the error
     await expect(merge(repo, 'origin/main')).rejects.toThrow(/conflict/i)
 
-    // Verify the repo is left mid-merge (MERGE_HEAD exists), not auto-aborted
-    try {
-      const mergeHead = git(repo, 'rev-parse', 'MERGE_HEAD')
-      expect(mergeHead).toMatch(/^[0-9a-f]+/)
-    } catch {
-      expect.fail('Repository should be mid-merge, but MERGE_HEAD does not exist')
-    }
+    // Verify the repo is left mid-merge (MERGE_HEAD exists), not auto-aborted. `git` throws on a
+    // non-zero exit, so a missing MERGE_HEAD fails the test on its own with git's own message.
+    const mergeHead = git(repo, 'rev-parse', 'MERGE_HEAD')
+    expect(mergeHead).toMatch(/^[0-9a-f]+/)
 
     rmSync(remote, { recursive: true, force: true })
     rmSync(other, { recursive: true, force: true })

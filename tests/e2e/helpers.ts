@@ -298,7 +298,9 @@ export async function launchApiary(
           .flatMap((i) => i.submenu?.items ?? [])
           .find((i) => i.label === 'New Window')
         if (item === undefined) throw new Error('File > New Window is missing from the menu')
-        item.click()
+        // Electron types `MenuItem.click` as the bare `Function` type, so calling it directly is
+        // an unsafe call as far as the type checker is concerned; it takes no arguments here.
+        ;(item.click as () => void)()
       })
       const opened = await app.waitForEvent('window')
       await opened.waitForLoadState('domcontentloaded')
@@ -384,6 +386,7 @@ async function settleUiState(page: Page): Promise<void> {
     const current = await page.evaluate(() => localStorage.getItem('apiary.ui'))
     if (i > 0 && current === previous) break
     previous = current
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- this loop *is* the polling mechanism (comparing successive reads for stability), not a single wait for a known condition
     await page.waitForTimeout(100)
   }
 }

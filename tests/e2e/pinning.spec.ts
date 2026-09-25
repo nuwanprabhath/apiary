@@ -2,12 +2,14 @@ import { test, expect } from '@playwright/test'
 import { launchApiary, importAll, relaunchApiary, clickRowAction, sidebarSession, type Harness } from './helpers'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
   await expect(h.page.getByTestId('session-item')).toHaveCount(4)
 })
+
 test.afterEach(async () => { await h.close() })
 
 /** The wrapper around one sidebar row, by the session's title — the pin button's own parent. */

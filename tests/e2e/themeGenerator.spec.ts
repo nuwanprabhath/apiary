@@ -47,6 +47,7 @@ test.beforeEach(async () => {
   await h.app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog') })
   await h.page.getByTestId('settings-nav-themes').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 const cssVar = (page: Page, name: string): Promise<string> =>

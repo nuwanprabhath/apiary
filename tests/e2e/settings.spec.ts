@@ -27,7 +27,9 @@ async function openImport(h: Harness): Promise<void> {
 }
 
 let h: Harness
+
 test.beforeEach(async () => { h = await launchApiary() })
+
 test.afterEach(async () => { await h.close() })
 
 test('settings are organised into sections, and the section you pick is the one you see', async () => {

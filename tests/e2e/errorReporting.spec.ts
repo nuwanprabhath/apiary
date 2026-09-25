@@ -4,11 +4,13 @@ import { join } from 'node:path'
 import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('a session whose transcript file is gone explains itself instead of blanking the pane', async () => {

@@ -8,7 +8,7 @@ import type { IncomingMessage } from 'node:http'
 import { app, shell } from 'electron'
 import electronUpdater, { type UpdateInfo } from 'electron-updater'
 import type { FeedResult, OpenInstallerResult, UpdateBackend } from './updateService'
-import { pickInstaller, type FeedFile, type BackendOptions } from './installerAsset'
+import { pickInstaller, type BackendOptions } from './installerAsset'
 
 /**
  * The real updater, wired to electron-updater and GitHub Releases.
@@ -102,7 +102,7 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
 
     async downloadInstaller(onProgress): Promise<string> {
       if (latest === null) throw new Error('No update has been found to download')
-      const file = pickInstaller(latest.files as FeedFile[], opts.platform, opts.arch)
+      const file = pickInstaller(latest.files, opts.platform, opts.arch)
       if (file === null) {
         throw new Error(`Release ${latest.version} has no installer for ${opts.platform} ${opts.arch}`)
       }

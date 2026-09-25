@@ -20,6 +20,7 @@ test.beforeEach(async () => {
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 async function openDiagnostics(): Promise<void> {
@@ -94,7 +95,8 @@ test('switching it back off stops the writing', async () => {
   // Anything that would have been logged, now that it is off.
   await sidebarSession(h.page, 'Add worktree switcher').click()
   await h.page.getByTestId('sidebar-refresh').click()
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- proving a negative: that switching diagnostics off stops any further writes, so there is no "it happened" condition to poll for instead
   await h.page.waitForTimeout(500)
 
-  expect(readFileSync(join(logDir(), 'apiary.log'), 'utf8').length).toBe(after)
+  expect(readFileSync(join(logDir(), 'apiary.log'), 'utf8')).toHaveLength(after)
 })

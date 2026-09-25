@@ -147,7 +147,7 @@ export function UpdateBanner(
             {status.install?.action === 'reveal' ? 'Show in folder' : 'Open installer'}
           </button>
         )}
-        {phase === 'downloaded' && status.install?.command != null && (
+        {phase === 'downloaded' && status.install?.command !== null && status.install?.command !== undefined && (
           // The command is the thing that actually finishes the update on a .deb, so it is a
           // button rather than a sentence to retype: nobody transcribes a path from a banner.
           <button

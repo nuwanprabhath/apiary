@@ -2,11 +2,13 @@ import { test, expect } from '@playwright/test'
 import { launchApiary, importAll, sidebarSession, type Harness, clickRowAction } from './helpers'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('opening a second session adds a tab rather than replacing the first', async () => {
@@ -92,12 +94,18 @@ test('the shell pane stays pinned to the bottom instead of scrolling the layout 
     .evaluate((el) => getComputedStyle(el).overflowY)
   expect(overflow).toBe('hidden')
 
-  const viewport = h.page.viewportSize()
-  const pane = await h.page.locator('.bottom-pane').boundingBox()
-  expect(pane).not.toBeNull()
-  if (pane !== null && viewport !== null) {
-    expect(Math.abs(viewport.height - (pane.y + pane.height))).toBeLessThan(4)
-  }
+  // The window's own height: Playwright's viewportSize() is always null for an Electron window,
+  // which is how an earlier version of this check never ran at all.
+  const windowHeight = await h.page.evaluate(() => window.innerHeight)
+  const pane = (await h.page.locator('.bottom-pane').boundingBox())!
+  // Docked means it ends where the layout does: one panel gap above the window's edge, the margin
+  // every floating card keeps. Scrolled away, it would end below the edge or far above it.
+  const panelGap = await h.page.evaluate(
+    () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--panel-gap')),
+  )
+  const gap = windowHeight - (pane.y + pane.height)
+  expect(gap).toBeGreaterThanOrEqual(0)
+  expect(gap).toBeLessThanOrEqual(panelGap + 1)
 })
 
 test('switching to a tab that never had a shell open spawns one automatically, not just an empty pane', async () => {
@@ -129,15 +137,16 @@ test('the bottom pane shrinks to fit a short window instead of overflowing off t
   await h.app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0].setSize(1000, 420)
   })
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- settles layout after the native window resize before measuring pixel geometry below; there is no visible-state condition to assert on instead
   await h.page.waitForTimeout(300)
 
   const viewportHeight = await h.page.evaluate(() => window.innerHeight)
   const pane = await h.page.locator('.bottom-pane').boundingBox()
   expect(pane).not.toBeNull()
-  if (pane !== null) {
-    // The pane's bottom edge must land at (or above) the window's own bottom edge — never past it.
-    expect(pane.y + pane.height).toBeLessThanOrEqual(viewportHeight + 1)
-  }
+  // The `expect` above already fails the test if `pane` is null; asserting unconditionally here
+  // (rather than inside an `if`) keeps this as a plain expect, not a conditional one.
+  // The pane's bottom edge must land at (or above) the window's own bottom edge — never past it.
+  expect(pane!.y + pane!.height).toBeLessThanOrEqual(viewportHeight + 1)
   // The toolbar (and its Hide/Show shell button) must still be reachable even when squeezed.
   await expect(h.page.getByTestId('shell-toggle')).toBeVisible()
 })

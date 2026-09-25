@@ -6,6 +6,7 @@ import { launchApiary, type Harness } from './helpers'
  * Links go to the system browser; the window keeps showing the app.
  */
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   // Record what the app asks the OS to open, instead of actually launching a browser.
@@ -15,6 +16,7 @@ test.beforeEach(async () => {
     shell.openExternal = async (url: string) => { g.opened.push(url) }
   })
 })
+
 test.afterEach(async () => { await h.close() })
 
 const opened = (): Promise<string[]> =>

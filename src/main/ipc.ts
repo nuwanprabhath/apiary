@@ -18,7 +18,7 @@ import { pickWindowAt } from './windowAtPoint'
 import type { SessionLayoutStore } from './sessionLayoutStore'
 import type { LayoutFlushCoordinator } from './layoutFlushCoordinator'
 import type { WindowLayoutReport } from '@shared/types'
-import { TabRegistry, focusTab, type OpenTab } from './tabRegistry'
+import { type TabRegistry, focusTab, type OpenTab } from './tabRegistry'
 import { classifyActivity } from '@shared/activity'
 import { ClaudeSessionTracker } from './claudeSessionTracker'
 import { invalidateMrStatuses } from './git/mrStatusCache'
@@ -74,7 +74,10 @@ export function registerIpc(
     ipcMain.handle(channel, async (event, ...args) => {
       const started = Date.now()
       try {
-        const result: unknown = await fn(event, ...args)
+        // `args` comes through as `any[]` from Electron's own `ipcMain.handle` typings; each
+        // individual handler below has its own typed parameters, so treat this spread as
+        // deliberately untyped rather than let `any` leak into the whole call.
+        const result: unknown = await fn(event, ...(args as unknown[]))
         const ms = Date.now() - started
         // Only the slow ones: logging every call would bury the interesting lines in traffic.
         if (ms > 2000) log.warn('ipc', 'slow handler', { channel, ms })
@@ -442,8 +445,12 @@ export function registerIpc(
     service.saveImage(base64, mediaType),
   )
   handle(CHANNELS.readImage, (_e, path: string) => service.readImage(path))
+  // Not awaited: delivery waits for the program to be ready (up to ~20s while Claude starts), and
+  // the composer clears as soon as the message is handed over. A failure is logged, not dropped.
   handle(CHANNELS.sendPrompt, (_e, ptyId: string, text: string) => {
-    service.sendPrompt(ptyId, text)
+    service.sendPrompt(ptyId, text).catch((e: unknown) => {
+      log.warn('ipc', 'prompt delivery failed', { error: e instanceof Error ? e.message : String(e) })
+    })
   })
 
   /**

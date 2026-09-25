@@ -30,7 +30,7 @@ export function PaneDividers({ preset, tracks, onChange }: Props): JSX.Element {
   useEffect(() => {
     if (dragging === null) return
     const host = ref.current?.parentElement
-    if (host == null) return
+    if (host === null || host === undefined) return
     const cursor = dragging.axis === 'col' ? 'resizing-col' : 'resizing-row'
     document.body.classList.add('resizing-active', cursor)
     const onMove = (e: MouseEvent): void => {

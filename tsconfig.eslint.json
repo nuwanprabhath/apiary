@@ -1,0 +1,7 @@
+{
+  // For ESLint only: the files neither tsconfig.json nor tsconfig.node.json includes.
+  "extends": "./tsconfig.node.json",
+  "compilerOptions": { "lib": ["ES2022", "DOM"] },
+  "include": ["*.config.ts", "scripts/*.spec.ts", "scripts/*.mjs", "eslint.config.js"],
+  "exclude": []
+}

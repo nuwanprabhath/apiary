@@ -1,0 +1,2 @@
+# Staged files only, so a commit stays quick: lint and autofix what is being committed.
+npx lint-staged

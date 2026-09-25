@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { launchApiary, importAll, type Harness, sidebarSession } from './helpers'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
@@ -13,6 +14,7 @@ test.beforeEach(async () => {
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('shows the current branch and lets you copy it', async () => {

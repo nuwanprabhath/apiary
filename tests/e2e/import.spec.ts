@@ -11,7 +11,9 @@ async function openImportDialog(harness: Harness): Promise<void> {
 
 test.describe('default fixture (one session per group)', () => {
   let h: Harness
+
   test.beforeEach(async () => { h = await launchApiary() })
+
   test.afterEach(async () => { await h.close() })
 
   test('lists every discovered session grouped by folder', async () => {
@@ -106,6 +108,7 @@ test.describe('folder with two sessions', () => {
   // `-work-a` fixture write (same directory, same cwd, distinct sessionId) that lands in the
   // same discovered group as the existing work-a session.
   let h: Harness
+
   test.beforeEach(async () => {
     h = await launchApiary({
       extraSessions: [
@@ -117,6 +120,7 @@ test.describe('folder with two sessions', () => {
       ],
     })
   })
+
   test.afterEach(async () => { await h.close() })
 
   test('ticking the folder header selects every session in it', async () => {
@@ -152,7 +156,9 @@ test.describe('folder with two sessions', () => {
 
 test.describe('folder checkbox state', () => {
   let h: Harness
+
   test.beforeEach(async () => { h = await launchApiary() })
+
   test.afterEach(async () => { await h.close() })
 
   test('a folder whose every session is already imported shows as checked, not unchecked', async () => {
@@ -231,7 +237,9 @@ test.describe('folder checkbox state', () => {
 
 test.describe('dialog behaviour', () => {
   let h: Harness
+
   test.beforeEach(async () => { h = await launchApiary() })
+
   test.afterEach(async () => { await h.close() })
 
   test('Escape closes the import dialog', async () => {

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
 
 /**
@@ -17,11 +17,13 @@ import { launchApiary, importAll, sidebarSession, type Harness } from './helpers
  */
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('a session moved into a new window arrives there, with the sidebar folded to its rail', async () => {
@@ -83,6 +85,7 @@ test('a session moved into a new window never drops out of Active on the way', a
   const until = Date.now() + 2500
   while (Date.now() < until) {
     seen.push(await active.filter({ hasText: 'Fix CSV export bug' }).count())
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- this is deliberately sampling the count at fixed intervals through the hand-over window, not waiting for a single condition
     await h.page.waitForTimeout(50)
   }
   expect(seen.filter((n) => n !== 1)).toEqual([])
@@ -166,7 +169,7 @@ test('a tab dropped on another window arrives there showing its session', async 
 })
 
 /** Moves 'Fix CSV export bug' into a window of its own and returns that window. */
-async function tearOff(): Promise<import('@playwright/test').Page> {
+async function tearOff(): Promise<Page> {
   await sidebarSession(h.page, 'Fix CSV export bug').click()
   const opened = h.app.waitForEvent('window')
   await h.page.getByTestId('session-tab').first().click({ button: 'right' })

@@ -7,11 +7,13 @@ import { launchApiary, importAll, sidebarSession, type Harness } from './helpers
  */
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary({ secondWorktree: true })
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 const content = (): Locator => h.page.getByTestId('content')

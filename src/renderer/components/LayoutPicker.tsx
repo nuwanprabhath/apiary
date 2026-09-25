@@ -55,10 +55,11 @@ export function LayoutPicker({
   // focus. Keyed on `pos === null` rather than `pos` itself so a later reposition (the window
   // resizing while the picker is open) doesn't steal focus back from whatever the arrow keys moved
   // it to.
+  const hasPos = pos !== null
   useEffect(() => {
-    if (pos === null) return
+    if (!hasPos) return
     ref.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true })
-  }, [pos === null])
+  }, [hasPos])
 
   // A document-level listener rather than relying on DOM focus being inside the picker: a plain
   // click on the button that opened it (as opposed to the hover path, which focuses the picker's

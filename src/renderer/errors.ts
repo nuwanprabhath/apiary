@@ -25,7 +25,7 @@ export function describeError(thrown: unknown): DescribedError {
   // A non-Error rejection (a thrown object, `undefined` from a rejected promise with no reason)
   // still has to say *something*: JSON is the most informative thing available, and it lands in
   // the detail rather than the headline because it is rarely a sentence.
-  let detail: string | null = null
+  let detail: string | null
   try { detail = JSON.stringify(thrown) } catch { detail = null }
   return { message: 'Something went wrong.', detail }
 }

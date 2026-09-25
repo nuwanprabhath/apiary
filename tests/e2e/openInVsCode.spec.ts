@@ -6,6 +6,7 @@ import { launchApiary, importAll, sidebarSession, type Harness } from './helpers
 const FAKE_CODE = join(process.cwd(), 'scripts/fixtures/fake-code.sh')
 
 let h: Harness
+
 test.afterEach(async () => { await h.close() })
 
 test('the button appears when VS Code is detected and opens the session folder', async () => {

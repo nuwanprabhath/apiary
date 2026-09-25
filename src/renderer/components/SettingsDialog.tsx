@@ -465,7 +465,7 @@ export function SettingsDialog(
                         {update.capability.reason}
                       </>
                     )}
-                    {update?.skippedVersion != null && (
+                    {update?.skippedVersion !== null && update?.skippedVersion !== undefined && (
                       <>
                         <br />
                         Skipping {formatVersion(update.skippedVersion)}. A newer release than that

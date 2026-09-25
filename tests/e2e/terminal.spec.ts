@@ -12,12 +12,14 @@ import {
 } from './helpers'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
   await sidebarSession(h.page, 'Fix CSV export bug').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 test('opens a bottom shell in the session working directory', async () => {
@@ -43,7 +45,7 @@ test('resume switches the centre pane to a terminal and back', async () => {
   // The transcript pane must not merely exist unseen behind the terminal — both panes stay
   // mounted (see the reconciliation test), so the only thing distinguishing "active" from
   // "hidden" is actual visibility, not presence in the DOM.
-  await expect(h.page.getByTestId('transcript')).not.toBeVisible()
+  await expect(h.page.getByTestId('transcript')).toBeHidden()
 
   // Once a terminal exists for this session, Resume must stop being offered as an action (it
   // used to stay visible and just re-switch to the terminal tab, presenting as a fresh action
@@ -55,14 +57,14 @@ test('resume switches the centre pane to a terminal and back', async () => {
   await expect(h.page.getByTestId('transcript')).toBeVisible()
   // The terminal pane it just replaced must genuinely be hidden, not merely covered — proves
   // the tab switch actually took effect rather than both panes rendering on top of each other.
-  await expect(h.page.getByTestId('terminal-session')).not.toBeVisible()
+  await expect(h.page.getByTestId('terminal-session')).toBeHidden()
   // Resume must stay hidden regardless of which tab is active — the terminal existing, not the
   // current view, is what governs it.
   await expect(h.page.getByTestId('resume-button')).toHaveCount(0)
   // Switching views must not kill the process.
   await h.page.getByTestId('view-terminal').click()
   await expect(h.page.getByTestId('terminal-session')).toBeVisible()
-  await expect(h.page.getByTestId('transcript')).not.toBeVisible()
+  await expect(h.page.getByTestId('transcript')).toBeHidden()
 
   expect(await ptyKillCallCount(h.app)).toBe(0)
 })
@@ -160,8 +162,10 @@ test('dragging the bottom-pane resizer does not oscillate the shell terminal siz
   await h.page.mouse.move(startX, startY - 20, { steps: 20 })
   await h.page.mouse.up()
 
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- the thing under test is the ptyResize call *rate* over a fixed window, which only a real elapsed interval can measure; there is no condition to poll for
   await h.page.waitForTimeout(1500)
   const afterSettle = await ptyResizeCallCount(h.app)
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- the thing under test is the ptyResize call *rate* over a fixed window, which only a real elapsed interval can measure; there is no condition to poll for
   await h.page.waitForTimeout(1500)
   const afterQuietWindow = await ptyResizeCallCount(h.app)
 

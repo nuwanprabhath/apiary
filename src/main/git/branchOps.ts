@@ -20,7 +20,7 @@ async function git(cwd: string, args: string[]): Promise<string> {
     // an execFile timeout kill leaves stdout/stderr blank).
     const err = e as { stdout?: string; stderr?: string; message: string }
     const text = [err.stderr, err.stdout].filter(Boolean).join('\n').trim()
-    throw new Error(text !== '' ? text : err.message)
+    throw new Error(text !== '' ? text : err.message, { cause: e })
   }
 }
 
@@ -226,7 +226,7 @@ export async function updateBranch(cwd: string, branch: string): Promise<{ commi
     await git(cwd, ['fetch', remote, `${merge}:refs/heads/${branch}`])
   } catch (e) {
     if (e instanceof Error && /non-fast-forward|rejected/i.test(e.message)) {
-      throw new Error(`${branch} has commits the remote does not, so it can't be fast-forwarded. Check it out and pull to merge them.`)
+      throw new Error(`${branch} has commits the remote does not, so it can't be fast-forwarded. Check it out and pull to merge them.`, { cause: e })
     }
     throw e
   }

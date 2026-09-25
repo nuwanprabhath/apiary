@@ -102,6 +102,7 @@ test('capture the README screenshot', async () => {
   // Give each shell a moment to apply the new prompt and settle, and move the pointer off the
   // panes so no hover card or picker is caught in the picture.
   await h.page.mouse.move(2, 2)
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- pacing for the committed screenshot: gives the shell prompt a moment to repaint after the typed command, with no UI signal to assert on instead
   await h.page.waitForTimeout(1000)
 
   // The Refresh above reports what it found, which is useful in the app and noise in a README

@@ -4,11 +4,13 @@ import { join } from 'node:path'
 import { launchApiary, importAll, sidebarSession, relaunchApiary, type Harness } from './helpers'
 
 let h: Harness
+
 test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 })
+
 test.afterEach(async () => { await h.close() })
 
 const cssVar = (page: Page, name: string): Promise<string> =>
@@ -49,6 +51,7 @@ test('a built-in theme recolours the app and a live terminal, and survives a rel
   await h.page.keyboard.type('echo THEMED_$((6*7))\n')
   await expect(h.page.getByTestId('terminal-shell')).toContainText('THEMED_42', { timeout: 10000 })
   await expect(h.page.getByTestId('theme-effects-back')).toBeVisible()
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- lets the theme's effects animate a bit before the committed screenshot below, which is for a human to eyeball
   await h.page.waitForTimeout(400)
   await h.page.screenshot({ path: '/private/tmp/claude-501/-Users-nuwan-projects-pet-projects/a021aefb-2a2b-46c0-b30f-d6ec7a9e02f5/scratchpad/theme-matrix.png' })
 
@@ -126,8 +129,10 @@ test('with animated effects off, the effects draw one still frame and no more', 
   // Applied once main confirms it, so clicked and then waited for rather than `uncheck()`ed.
   await h.page.getByTestId('theme-animated').click()
   await expect(h.page.getByTestId('theme-animated')).not.toBeChecked()
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- lets any in-flight animation frame finish before taking the "settled" baseline count below
   await h.page.waitForTimeout(300)
   const settled = await frames()
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- proving a negative: that no further frames are drawn once animation is off, so there is no condition to poll for other than re-checking after time passes
   await h.page.waitForTimeout(1000)
   expect(await frames()).toBe(settled)
 })

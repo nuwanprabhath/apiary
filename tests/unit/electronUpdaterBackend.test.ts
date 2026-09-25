@@ -7,10 +7,10 @@ import { join } from 'node:path'
 
 const openPath = vi.fn<(path: string) => Promise<string>>()
 const showItemInFolder = vi.fn<(path: string) => void>()
-const checkForUpdates = vi.fn()
-const downloadUpdate = vi.fn()
-const quitAndInstall = vi.fn()
-const httpGet = vi.fn()
+const checkForUpdates = vi.fn<(...args: unknown[]) => unknown>()
+const downloadUpdate = vi.fn<(...args: unknown[]) => unknown>()
+const quitAndInstall = vi.fn<(...args: unknown[]) => unknown>()
+const httpGet = vi.fn<(url: string, opts: unknown, cb: (r: unknown) => void) => { on: () => void }>()
 
 vi.mock('electron', () => ({
   app: { getPath: () => tmpdir() },
@@ -30,7 +30,7 @@ vi.mock('electron-updater', () => ({
     },
   },
 }))
-vi.mock('node:https', () => ({ get: (...args: unknown[]) => httpGet(...args) }))
+vi.mock('node:https', () => ({ get: (url: string, opts: unknown, cb: (r: unknown) => void) => httpGet(url, opts, cb) }))
 
 // Imported after the mocks above so the module picks them up.
 const { createUpdateBackend, OPEN_TIMEOUT_MS } = await import('../../src/main/update/electronUpdaterBackend')
