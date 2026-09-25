@@ -169,6 +169,92 @@ describe('AppService', () => {
     expect(tree[0].sessions.map((s) => s.title).sort()).toEqual(['Existing', 'Freshly started'])
   })
 
+  describe('every worktree of a folder, sessions or not', () => {
+    it('lists the worktrees no session has run in, and starts a session in one', async () => {
+      const repo = makeGitWorkdir()
+      const quiet = `${repo}-quiet`
+      git(repo, 'worktree', 'add', '-q', '-b', 'quiet', quiet)
+      try {
+        makeSession(projects(), encodeProjectDirNameForTest(repo), {
+          sessionId: '11111111-1111-1111-1111-111111111111', cwd: repo, title: 'In the repo',
+        })
+        await service.refresh()
+        await service.importSessions(['11111111-1111-1111-1111-111111111111'], [])
+
+        // The folder itself is not one of its "other" worktrees.
+        expect(await service.listWorktrees(repo)).toEqual([{ path: quiet, branch: 'quiet' }])
+
+        const info = await service.newSessionInProject(quiet)
+        expect(info.cwd).toBe(quiet)
+        expect(service.pty.has(info.ptyId)).toBe(true)
+      } finally {
+        rmSync(repo, { recursive: true, force: true })
+        rmSync(quiet, { recursive: true, force: true })
+      }
+    })
+
+    it('will not start a session in a folder it was never shown as a worktree', async () => {
+      const repo = makeGitWorkdir()
+      const quiet = `${repo}-quiet`
+      git(repo, 'worktree', 'add', '-q', '-b', 'quiet', quiet)
+      try {
+        makeSession(projects(), encodeProjectDirNameForTest(repo), {
+          sessionId: '11111111-1111-1111-1111-111111111111', cwd: repo, title: 'In the repo',
+        })
+        await service.refresh()
+        await service.importSessions(['11111111-1111-1111-1111-111111111111'], [])
+        // Real worktree, but the renderer never learned it from `listWorktrees`: still refused.
+        await expect(service.newSessionInProject(quiet)).rejects.toThrow(/unknown project/i)
+        await expect(service.listWorktrees('/etc')).rejects.toThrow(/unknown project/i)
+      } finally {
+        rmSync(repo, { recursive: true, force: true })
+        rmSync(quiet, { recursive: true, force: true })
+      }
+    })
+
+    it('works on a repository shown only because one of its worktrees has sessions', async () => {
+      // The sidebar draws a folder for the repository as the heading its worktrees sit under, even
+      // when nobody has run Claude in the repository folder itself — so the store has no project
+      // row for it. Its menu, "+" and pull button all name it all the same.
+      const repo = makeGitWorkdir()
+      const used = `${repo}-used`
+      const quiet = `${repo}-quiet`
+      git(repo, 'worktree', 'add', '-q', '-b', 'used', used)
+      git(repo, 'worktree', 'add', '-q', '-b', 'quiet', quiet)
+      try {
+        makeSession(projects(), encodeProjectDirNameForTest(used), {
+          sessionId: '11111111-1111-1111-1111-111111111111', cwd: used, title: 'In a worktree',
+        })
+        await service.refresh()
+        await service.importSessions(['11111111-1111-1111-1111-111111111111'], [])
+        expect((await service.tree()).map((n) => n.path)).toEqual([repo])
+
+        // In git's order, which the sidebar re-sorts by label anyway.
+        expect((await service.listWorktrees(repo)).sort((a, b) => a.path.localeCompare(b.path))).toEqual([
+          { path: quiet, branch: 'quiet' },
+          { path: used, branch: 'used' },
+        ])
+        expect((await service.newSessionInProject(repo)).cwd).toBe(repo)
+        expect((await service.newSessionInProject(quiet)).cwd).toBe(quiet)
+        // No upstream to pull from, but refused for that reason — not as an unknown folder.
+        await expect(service.gitPullFolder(repo)).rejects.not.toThrow(/unknown project/i)
+      } finally {
+        rmSync(repo, { recursive: true, force: true })
+        rmSync(used, { recursive: true, force: true })
+        rmSync(quiet, { recursive: true, force: true })
+      }
+    })
+
+    it('reports no worktrees for a folder that is not a repository', async () => {
+      makeSession(projects(), '-w', {
+        sessionId: '11111111-1111-1111-1111-111111111111', cwd: workdir, title: 'Plain folder',
+      })
+      await service.refresh()
+      await service.importSessions(['11111111-1111-1111-1111-111111111111'], [])
+      expect(await service.listWorktrees(workdir)).toEqual([])
+    })
+  })
+
   it('opens a shell alongside a still-pending new session, keyed by its pty id', async () => {
     makeSession(projects(), '-w', {
       sessionId: '33333333-3333-3333-3333-333333333333', cwd: workdir, title: 'Existing',
@@ -358,8 +444,10 @@ describe('AppService', () => {
       })
       const first = guardedService.refresh()
       const second = guardedService.refresh()
-      // While the first run is still gated inside detectLive, a second
+      // Waits for the first run to reach detectLive rather than for a fixed 50ms, which a busy
+      // machine's scan could outlast (calls was still 0). Then, while it is gated there, a second
       // concurrent call must not have started a second run.
+      await vi.waitFor(() => { expect(calls).toBe(1) })
       await new Promise((resolve) => setTimeout(resolve, 50))
       expect(calls).toBe(1)
       release()
@@ -396,9 +484,9 @@ describe('AppService', () => {
       })
       const first = rerunService.refresh()
       // Let the first run reach and block on the detectLive gate — its scanProjects() snapshot
-      // is now taken and does not include the session written below.
-      await new Promise((resolve) => setTimeout(resolve, 50))
-      expect(calls).toBe(1)
+      // is now taken and does not include the session written below. Waited for, not a fixed
+      // 50ms: a busy machine's scan outlasted that.
+      await vi.waitFor(() => { expect(calls).toBe(1) })
 
       makeSession(projects(), '-w2', {
         sessionId: '88888888-8888-8888-8888-888888888888',

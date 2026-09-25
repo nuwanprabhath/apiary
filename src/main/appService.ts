@@ -29,7 +29,7 @@ import type {
   ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo, CheckoutOutcome,
 } from '@shared/types'
 import type { StoredSession } from './store/sessionStore'
-import type { SessionMeta, GitStatus, GitRefs } from '@shared/types'
+import type { SessionMeta, GitStatus, GitRefs, FolderWorktree } from '@shared/types'
 
 export interface AppServiceOptions {
   configRoot: string
@@ -167,6 +167,8 @@ export class AppService {
 
   /** Which branch each folder was last seen on, filled in by `gitStatus`. */
   private readonly lastBranch = new Map<string, string | null>()
+  /** Worktree paths `listWorktrees` reported — see there. */
+  private readonly listedWorktrees = new Set<string>()
 
   setPluginEnabled(pluginId: string, enabled: boolean): void {
     this.plugins.setEnabled(pluginId, enabled)
@@ -841,9 +843,34 @@ export class AppService {
    * runs anywhere, the same rule `newSessionInProject` keeps.
    */
   async gitPullFolder(path: string): Promise<{ commits: number }> {
+    return branchOps.pullFastForward(this.requireFolder(path))
+  }
+
+  /**
+   * A sidebar folder named by the renderer, checked before anything acts on it: a stored project,
+   * or the repository a stored worktree belongs to (the heading the tree draws above its
+   * worktrees, which has no project row of its own until a session is started in it).
+   */
+  private requireFolder(path: string): string {
     const project = this.store.getProject(path)
-    if (!project) throw new Error(`Unknown project: ${path}`)
-    return branchOps.pullFastForward(project.path)
+    if (project) return project.path
+    if (this.store.isRepoRootOfWorktree(path)) return path
+    throw new Error(`Unknown project: ${path}`)
+  }
+
+  /**
+   * Every other worktree of a folder's repository, whether or not a session has ever been started
+   * in it — the folder menu's "Show all worktrees". `path` is checked against a stored project row
+   * like every renderer-supplied path; the worktrees reported are remembered, so starting a session
+   * in one (`newSessionInProject`) accepts a path the main process derived itself from git rather
+   * than one the renderer made up. Not a repository, or git failing, is simply no worktrees.
+   */
+  async listWorktrees(path: string): Promise<FolderWorktree[]> {
+    const folder = this.requireFolder(path)
+    const all = await branchOps.listWorktrees(folder).catch(() => [])
+    const others = all.filter((w) => w.path !== folder && existsSync(w.path))
+    for (const w of others) this.listedWorktrees.add(w.path)
+    return others
   }
 
   async gitPush(key: string, isPtyId: boolean): Promise<{ commits: number; published: boolean }> {
@@ -866,8 +893,13 @@ export class AppService {
    */
   async newSessionInProject(path: string): Promise<NewSessionInfo> {
     const project = this.store.getProject(path)
-    if (!project) throw new Error(`Unknown project: ${path}`)
-    return this.startNewSession(project.path)
+    if (project) return this.startNewSession(project.path)
+    // Neither a worktree `listWorktrees` found in git nor a repository heading has a project row
+    // yet. One is made first, so the auto-import flag `startNewSession` sets has a row to go on.
+    if (!this.listedWorktrees.has(path)) this.requireFolder(path)
+    const info = await resolveProject(path)
+    this.store.syncProject(info)
+    return this.startNewSession(info.path)
   }
 
   /**

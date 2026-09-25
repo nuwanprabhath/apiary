@@ -77,6 +77,17 @@ export interface ProjectNode {
 
 export type TreeNode = ProjectNode | SessionNode
 
+/**
+ * A worktree of a sidebar folder's repository, as `git worktree list` reports it — including the
+ * ones no Claude session has been started in, which the tree itself never holds. Listed on demand
+ * (a folder's "Show all worktrees") so a session can be started there.
+ */
+export interface FolderWorktree {
+  path: string
+  /** Null for a detached worktree. */
+  branch: string | null
+}
+
 export type TranscriptBlock =
   | { type: 'text'; text: string }
   | { type: 'thinking'; text: string }

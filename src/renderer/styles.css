@@ -2315,6 +2315,12 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 }
 .context-menu-item:hover:not(:disabled), .context-menu-item:focus-visible { background: var(--hover); }
 .context-menu-item:disabled { color: var(--muted); cursor: default; }
+/* A toggle's tick. Always takes its space, so a menu mixing toggles and actions keeps its labels
+   lined up whether the toggle is on or off. */
+.context-menu-check { width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; }
+.context-menu-check[data-on="false"] { visibility: hidden; }
+/* A worktree listed by "Show all worktrees" that no session has been started in yet. */
+.project-row-wrap[data-no-sessions="true"] .project-label { color: var(--muted); }
 .context-menu-item[data-separator="true"] {
   margin-top: 4px;
   padding-top: 7px;

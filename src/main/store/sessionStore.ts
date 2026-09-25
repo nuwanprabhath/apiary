@@ -208,6 +208,17 @@ export class SessionStore {
     return row ? toProject(row) : null
   }
 
+  /**
+   * Whether `path` is the repository some stored worktree belongs to. The tree draws that
+   * repository as a folder of its own — the heading its worktrees sit under — even when it has no
+   * project row, because nobody has run Claude in the repository folder itself.
+   */
+  isRepoRootOfWorktree(path: string): boolean {
+    return this.db
+      .prepare<[string], { one: number }>('SELECT 1 AS one FROM project WHERE is_worktree = 1 AND repo_root = ? LIMIT 1')
+      .get(path) !== undefined
+  }
+
   getSession(sessionId: string): StoredSession | null {
     const row = this.db
       .prepare<[string], SessionRow>('SELECT * FROM session WHERE session_id = ?')

@@ -1,5 +1,6 @@
 import type {
   CheckoutOutcome,
+  FolderWorktree,
   ProjectNode,
   ResumeConflict,
   TranscriptPage,
@@ -223,6 +224,7 @@ export const CHANNELS = {
   gitPull: 'apiary:git-pull',
   gitUpdateBranch: 'apiary:git-update-branch',
   gitPullFolder: 'apiary:git-pull-folder',
+  listWorktrees: 'apiary:list-worktrees',
   gitPush: 'apiary:git-push',
   gitMerge: 'apiary:git-merge',
   gitFetch: 'apiary:git-fetch',
@@ -467,6 +469,10 @@ export interface ApiaryApi {
   /** Fast-forwards a sidebar folder's branch from its upstream; never merges or rebases. `path`
    *  must be a folder the sidebar shows — main rejects any other. */
   gitPullFolder(path: string): Promise<{ commits: number }>
+  /** Every other worktree of a sidebar folder's repository, sessions or not; empty when the folder
+   *  is not a git repository. `path` must be a folder the sidebar shows — main rejects any other.
+   *  The paths returned are then accepted by `newSessionInProject`. */
+  listWorktrees(path: string): Promise<FolderWorktree[]>
   gitPush(key: string, isPtyId: boolean): Promise<{ commits: number; published: boolean }>
   gitMerge(key: string, isPtyId: boolean, ref: string): Promise<void>
   gitFetch(key: string, isPtyId: boolean): Promise<void>

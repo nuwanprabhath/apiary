@@ -1321,6 +1321,13 @@ export function App(): JSX.Element {
           ...prev,
           pinned: moveBefore(prev.pinned, id, beforeId),
         }))}
+        showAllWorktrees={ui.showAllWorktrees}
+        onToggleAllWorktrees={(path) => setUi((prev) => ({
+          ...prev,
+          showAllWorktrees: prev.showAllWorktrees.includes(path)
+            ? prev.showAllWorktrees.filter((p) => p !== path)
+            : [...prev.showAllWorktrees, path],
+        }))}
         onSelect={onSelect}
         onSplitSession={onSplitSession}
         collapsed={new Set(ui.collapsed)}

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export interface ContextMenuItem {
   id: string
@@ -10,6 +11,8 @@ export interface ContextMenuItem {
   /** Why the item is unavailable, shown on hover. A greyed-out item with no reason given reads as
    *  broken rather than as "not yet". */
   disabledReason?: string
+  /** Makes the item a toggle, drawn with a tick while it is on. */
+  checked?: boolean
 }
 
 interface Props {
@@ -26,6 +29,11 @@ interface Props {
  * Fixed to the viewport rather than positioned within its opener, so it is never clipped by the
  * scrolling or overflow of whatever it was opened from — the tab strip scrolls horizontally and the
  * sidebar vertically, and a menu that disappeared into either would be useless.
+ *
+ * Portalled to the body for the same reason one level up: fixed positioning escapes overflow but
+ * not a stacking context, and glass isolates each panel into one (`isolation: isolate`). Drawn
+ * inside the sidebar, the menu's z-index counted only within it, and the session pane beside it
+ * painted over whatever part of the menu reached across.
  */
 export function ContextMenu({ items, position, onClose, testId }: Props): JSX.Element | null {
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -75,7 +83,7 @@ export function ContextMenu({ items, position, onClose, testId }: Props): JSX.El
 
   if (position === null) return null
 
-  return (
+  return createPortal(
     <div
       className="context-menu"
       data-testid={testId ?? 'context-menu'}
@@ -89,14 +97,21 @@ export function ContextMenu({ items, position, onClose, testId }: Props): JSX.El
           className="context-menu-item"
           data-testid={`context-menu-${item.id}`}
           data-separator={item.separator === true}
-          role="menuitem"
+          role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+          aria-checked={item.checked}
           disabled={item.disabled ?? false}
           title={item.disabled === true ? item.disabledReason : undefined}
           onClick={() => { item.run(); onClose() }}
         >
+          {item.checked !== undefined && (
+            <svg className="context-menu-check" data-on={item.checked} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3.5 8.5l3 3 6-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
           {item.label}
         </button>
       ))}
-    </div>
+    </div>,
+    document.body,
   )
 }

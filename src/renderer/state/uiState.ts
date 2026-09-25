@@ -41,6 +41,11 @@ export interface UiState {
    * rather than silently jumping into the middle of an arrangement someone made deliberately.
    */
   folderOrder: string[]
+  /**
+   * Top-level folders whose every worktree is listed, not only the ones with sessions — the folder
+   * menu's "Show all worktrees", so a session can be started in a worktree Claude has never run in.
+   */
+  showAllWorktrees: string[]
   selectedSessionId: string | null
   sidebarWidth: number
   /** Whether this window's sidebar is folded away to a rail, leaving the sessions the width. */
@@ -68,7 +73,7 @@ export interface UiState {
  */
 const SHARED_FIELDS = [
   'pinned', 'pinnedCollapsed', 'groups', 'groupAssignments', 'groupsCollapsed', 'folderOrder',
-  'dismissedRecent', 'recentCollapsed',
+  'dismissedRecent', 'recentCollapsed', 'showAllWorktrees',
 ] as const
 
 type SharedField = typeof SHARED_FIELDS[number]
@@ -167,6 +172,7 @@ export const DEFAULT_UI_STATE: UiState = {
   groupAssignments: {},
   groupsCollapsed: [],
   folderOrder: [],
+  showAllWorktrees: [],
   pinned: [],
   pinnedCollapsed: false,
   dismissedRecent: {},

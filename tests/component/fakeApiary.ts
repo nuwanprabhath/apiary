@@ -16,7 +16,7 @@ import type {
   PluginBarItemPayload, PluginInfoPayload, SavedTheme, ThemeOptions, ThemeState, UpdateStatusPayload,
 } from '@shared/api'
 import type {
-  GitRefEntry, GitRefs, GitStatus, NewSessionInfo, ProjectNode, SessionNode, TranscriptMessage,
+  FolderWorktree, GitRefEntry, GitRefs, GitStatus, NewSessionInfo, ProjectNode, SessionNode, TranscriptMessage,
   TranscriptPage,
 } from '@shared/types'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
@@ -55,6 +55,8 @@ export interface FakeOptions {
   pluginBar?: PluginBarItemPayload[]
   refs?: Partial<GitRefs>
   vsCode?: boolean
+  /** What `listWorktrees` answers, by folder path. A folder with no entry has no other worktrees. */
+  worktrees?: Record<string, FolderWorktree[]>
 }
 
 export interface FakeCall { name: string; args: unknown[] }
@@ -91,6 +93,7 @@ export interface FakeState {
   tabs: ActiveTabPayload[]
   log: LogStatusPayload
   vsCode: boolean
+  worktrees: Record<string, FolderWorktree[]>
 }
 
 const DAY = 24 * 60 * 60 * 1000
@@ -192,6 +195,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     tabs: [],
     log: { enabled: false, dir: '/fixture/logs', files: 0, bytes: 0 },
     vsCode: opts.vsCode ?? false,
+    worktrees: opts.worktrees ?? {},
   }
 
   const calls: FakeCall[] = []
@@ -349,6 +353,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     gitPull: async () => ({ commits: 0 }),
     gitUpdateBranch: async () => ({ commits: 0 }),
     gitPullFolder: async () => { emit('treeChanged'); return { commits: 0 } },
+    listWorktrees: async (path) => state.worktrees[path] ?? [],
     gitPush: async () => ({ commits: 0, published: false }),
     gitMerge: async () => { emit('treeChanged') },
     gitFetch: async () => { emit('treeChanged') },

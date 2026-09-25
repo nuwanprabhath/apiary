@@ -385,6 +385,7 @@ export function registerIpc(
     }
     return outcome
   })
+  handle(CHANNELS.listWorktrees, (_e, path: string) => service.listWorktrees(path))
   handle(CHANNELS.gitPush, (_e, key: string, isPtyId: boolean) => service.gitPush(key, isPtyId))
   handle(CHANNELS.gitMerge, async (_e, key: string, isPtyId: boolean, ref: string) => {
     await service.gitMerge(key, isPtyId, ref)

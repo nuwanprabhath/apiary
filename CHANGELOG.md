@@ -4,6 +4,26 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.25.0] - 2026-09-26
+
+### Added
+
+- **Show all worktrees**, in a folder's right-click menu. The sidebar only knows about worktrees
+  a Claude session has run in, so a worktree you haven't used yet was nowhere to be found. Tick
+  it and every worktree of that folder's repository is listed, the unused ones greyed, each with
+  its "+" to start a session there. Untick it to hide them again. The choice is remembered per
+  folder and shared across windows. A folder with no other worktrees says so rather than
+  appearing to do nothing.
+
+### Fixed
+
+- On glass themes, a right-click menu in the sidebar no longer slides under the pane beside it.
+  Each glass panel is its own stacking layer, so a menu drawn inside the sidebar could never rise
+  above the session pane next to it. Menus are now drawn above the whole window.
+- A repository folder that is in the sidebar only because one of its worktrees has sessions can
+  now start a new session with its "+" and pull from its hover card. Both used to fail with
+  "Unknown project", because nobody had run Claude in the repository folder itself.
+
 ## [1.24.3] - 2026-09-26
 
 The same app as 1.24.2, released for macOS too. 1.24.2's macOS build stopped at its lint step,

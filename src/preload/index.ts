@@ -93,6 +93,7 @@ const api: ApiaryApi = {
   gitPull: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitPull, key, isPtyId),
   gitUpdateBranch: (key, isPtyId, branch) => ipcRenderer.invoke(CHANNELS.gitUpdateBranch, key, isPtyId, branch),
   gitPullFolder: (path) => ipcRenderer.invoke(CHANNELS.gitPullFolder, path),
+  listWorktrees: (path) => ipcRenderer.invoke(CHANNELS.listWorktrees, path),
   gitPush: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitPush, key, isPtyId),
   gitMerge: (key, isPtyId, ref) => ipcRenderer.invoke(CHANNELS.gitMerge, key, isPtyId, ref),
   gitFetch: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitFetch, key, isPtyId),

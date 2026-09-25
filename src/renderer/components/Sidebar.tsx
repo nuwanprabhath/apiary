@@ -22,6 +22,8 @@ import { useNotifications } from '../state/notifications'
 import { describeRefresh } from '../state/refreshSummary'
 import { useLayoutActions } from '../state/layoutContext'
 import { ActivityLegend } from './ActivityLegend'
+import { withAllWorktrees } from '../state/allWorktrees'
+import { useAllWorktrees } from '../state/useAllWorktrees'
 
 /** How many sessions the tree holds, at any depth. */
 function countSessions(nodes: ProjectNode[]): number {
@@ -130,6 +132,9 @@ interface Props {
   /** A session row was dropped on a folder — the drag-to-move gesture. Resolved here to the
    *  `SessionNode` the tree already holds, so the caller only ever deals in sessions, not ids. */
   onSessionDropped: (session: SessionNode, toPath: string) => void
+  /** Top-level folders listing every worktree, sessions or not — see `UiState.showAllWorktrees`. */
+  showAllWorktrees: string[]
+  onToggleAllWorktrees: (path: string) => void
 }
 
 /**
@@ -173,7 +178,7 @@ export function Sidebar({
   pending, onSelectPending, onStopPending, revealId, groupState, onGroupStateChange, onReorderPinned,
   recentSectionEnabled, recentSectionHours, dismissedRecent, recentCollapsed,
   onRecentCollapsedChange, onDismissRecent, activeTabs, onFocusTab,
-  searchChatContent, searchSessionNotes, onSessionDropped,
+  searchChatContent, searchSessionNotes, onSessionDropped, showAllWorktrees, onToggleAllWorktrees,
 }: Props): JSX.Element {
   /** The settled query — `SearchField` publishes it once typing pauses, never per keystroke. */
   const [query, setQuery] = useState('')
@@ -297,9 +302,13 @@ export function Sidebar({
   // Keyed on the deferred query so what is on screen is always internally consistent: the flat
   // results list appears with the results, not a moment before them.
   const searching = deferredQuery.trim() !== ''
+  const extraWorktrees = useAllWorktrees(showAllWorktrees, rawTree)
   const arranged = useMemo(
-    () => groupFolders(tree, (n) => n.path, groupState.groups, groupState.assignments, groupState.folderOrder),
-    [tree, groupState],
+    () => groupFolders(
+      withAllWorktrees(tree, extraWorktrees), (n) => n.path,
+      groupState.groups, groupState.assignments, groupState.folderOrder,
+    ),
+    [tree, extraWorktrees, groupState],
   )
   const groupsCollapsed = useMemo(() => new Set(groupState.collapsed), [groupState.collapsed])
 
@@ -391,8 +400,31 @@ export function Sidebar({
     }
     if (menu.kind === 'folder') {
       const current = groupState.assignments[menu.id]
+      const showingAll = showAllWorktrees.includes(menu.id)
+      const folder = menu.id
       return [
-        { id: 'new-group', label: 'New group from this folder…', run: () => startNewGroup(menu.id) },
+        {
+          id: 'show-all-worktrees',
+          label: 'Show all worktrees',
+          checked: showingAll,
+          run: () => {
+            onToggleAllWorktrees(folder)
+            if (showingAll) return
+            // Said out loud when there is nothing to add, or the tick would appear to do nothing.
+            void window.apiary.listWorktrees(folder).then((list) => {
+              const withSessions = new Set(rawTree.find((n) => n.path === folder)?.children.map((c) => c.path))
+              if (list.every((w) => withSessions.has(w.path))) {
+                const label = rawTree.find((n) => n.path === folder)?.label ?? folder
+                notify({
+                  message: list.length === 0
+                    ? `${label} has no other worktrees`
+                    : `Every worktree of ${label} already has sessions`,
+                })
+              }
+            }).catch((e: unknown) => { notifyError(e, 'Could not list the worktrees') })
+          },
+        },
+        { id: 'new-group', label: 'New group from this folder…', separator: true, run: () => startNewGroup(menu.id) },
         ...groupState.groups
           .filter((g) => g.id !== current)
           .map((g) => ({ id: `move-${g.id}`, label: `Add to “${g.name}”`, run: () => assignFolder(menu.id, g.id) })),

@@ -178,6 +178,7 @@ function FolderHeader({
       // without encoding the nesting of the markup into every query that asks.
       data-depth={depth}
       data-drop-target={sessionOver}
+      data-no-sessions={node.isWorktree && node.sessions.length === 0 && node.children.length === 0}
       draggable={rearrangeable}
       onMouseEnter={card.arm}
       onMouseLeave={card.scheduleClose}
