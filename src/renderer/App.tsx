@@ -32,6 +32,9 @@ import {
   type UiState,
 } from './state/uiState'
 import { pruneDismissed, dismissRecent } from './state/recentSessions'
+import { useThemeState, useAppliedTheme } from './theme/useTheme'
+import { ThemeEffects } from './theme/ThemeEffects'
+import { GlassLens } from './theme/GlassLens'
 import { useUpdate } from './state/useUpdate'
 import { usePtySessions } from './state/usePtySessions'
 import { useActiveTabs } from './state/useActiveTabs'
@@ -121,6 +124,10 @@ interface PendingSession extends NewSessionInfo {
 export function App(): JSX.Element {
   const { notify, notifyError } = useNotifications()
   const [ui, setUi] = useState<UiState>(() => loadUiState())
+  /** The theme, applied by the hook itself; kept here for the effects layer. */
+  const theme = useThemeState()
+  /** What is on screen — a preview included — for the effects layer. */
+  const applied = useAppliedTheme()
   const updateStatus = useUpdate()
   const activeTabs = useActiveTabs()
   /** The session whose note is being edited, with the note as it stood when the editor opened. */
@@ -704,7 +711,7 @@ export function App(): JSX.Element {
   // "Hide shell", etc.) visibly highlights as the cursor passes over it.
   useEffect(() => {
     if (!resizing) return
-    document.body.classList.add('resizing-active')
+    document.body.classList.add('resizing-active', 'resizing-col')
     const onMove = (e: MouseEvent): void => {
       const width = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, e.clientX))
       setUi((prev) => (prev.sidebarWidth === width ? prev : { ...prev, sidebarWidth: width }))
@@ -713,7 +720,7 @@ export function App(): JSX.Element {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => {
-      document.body.classList.remove('resizing-active')
+      document.body.classList.remove('resizing-active', 'resizing-col')
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
@@ -724,7 +731,7 @@ export function App(): JSX.Element {
   // cursor to the bottom of the window rather than from the top.
   useEffect(() => {
     if (!resizingBottom) return
-    document.body.classList.add('resizing-active')
+    document.body.classList.add('resizing-active', 'resizing-row')
     const onMove = (e: MouseEvent): void => {
       const height = Math.min(
         MAX_BOTTOM_HEIGHT,
@@ -736,7 +743,7 @@ export function App(): JSX.Element {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => {
-      document.body.classList.remove('resizing-active')
+      document.body.classList.remove('resizing-active', 'resizing-row')
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
@@ -1216,6 +1223,12 @@ export function App(): JSX.Element {
 
   return (
     <LayoutContext.Provider value={layoutActions}>
+    <ThemeEffects
+      effects={applied?.effects ?? []}
+      animated={theme.options.animated}
+      intensity={theme.options.intensity}
+    />
+    <GlassLens refraction={applied?.material.kind === 'glass' ? applied.material.refraction : 0} />
     <div className="app-shell">
       {updateStatus !== null && (
         <UpdateBanner status={updateStatus} onOpenSettings={() => setSettingsSection('updates')} />
@@ -1228,8 +1241,9 @@ export function App(): JSX.Element {
           // by default, see uiState), so the library is never out of reach from it.
           gridTemplateColumns: ui.sidebarHidden
             ? 'var(--sidebar-rail-width) 1fr'
-            : String(ui.sidebarWidth) + 'px 4px 1fr',
+            : String(ui.sidebarWidth) + 'px max(var(--panel-gap), 4px) 1fr',
         }}
+        data-sidebar-hidden={ui.sidebarHidden}
       >
       {ui.sidebarHidden && (
         // A rail rather than nothing: a sidebar hidden with no visible way back is one someone has

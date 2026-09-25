@@ -438,6 +438,10 @@ export function SessionColumn(props: Props): JSX.Element {
       onFocusCapture={onFocus}
       onMouseDownCapture={onFocus}
     >
+      {/* Two cards, the way VS Code floats its editor and its panel: the session (tabs, header,
+       *  transcript or terminal) and, below it across the gap, the shell. The gap between them is
+       *  the resize handle. */}
+      <div className="session-card" data-testid="session-card">
       <SessionTabBar
         columnId={column.id}
         tabs={tabViews}
@@ -542,6 +546,12 @@ export function SessionColumn(props: Props): JSX.Element {
             })}
           </div>
 
+        </>
+      )}
+      </div>
+
+      {activeKey !== null && (
+        <>
           {shellOpen && (
             <div
               className="bottom-resizer"
@@ -550,7 +560,7 @@ export function SessionColumn(props: Props): JSX.Element {
             />
           )}
 
-          <div className="bottom-pane" style={{ height: shellOpen ? bottomHeight : 32 }}>
+          <div className="bottom-pane shell-card" data-testid="shell-card" style={{ height: shellOpen ? bottomHeight : 32 }}>
             <div className="toolbar-anchor" ref={toolbarRef}>
             <Toolbar
               left={[

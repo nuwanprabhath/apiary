@@ -955,6 +955,11 @@ export class AppService {
     this.searchIndex = null
   }
 
+  /** The configured `claude`, or null for "find it on PATH" — the theme generator runs the same one. */
+  get claudeBin(): string | null {
+    return this.options.claudeBin ?? null
+  }
+
   setClaudeBin(path: string | null): void {
     this.options = { ...this.options, claudeBin: path ?? undefined }
   }

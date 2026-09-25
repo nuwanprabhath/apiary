@@ -31,7 +31,8 @@ export function PaneDividers({ preset, tracks, onChange }: Props): JSX.Element {
     if (dragging === null) return
     const host = ref.current?.parentElement
     if (host == null) return
-    document.body.classList.add('resizing-active')
+    const cursor = dragging.axis === 'col' ? 'resizing-col' : 'resizing-row'
+    document.body.classList.add('resizing-active', cursor)
     const onMove = (e: MouseEvent): void => {
       const rect = host.getBoundingClientRect()
       const { tracks: now, onChange: emit } = latest.current
@@ -47,7 +48,7 @@ export function PaneDividers({ preset, tracks, onChange }: Props): JSX.Element {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => {
-      document.body.classList.remove('resizing-active')
+      document.body.classList.remove('resizing-active', cursor)
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }

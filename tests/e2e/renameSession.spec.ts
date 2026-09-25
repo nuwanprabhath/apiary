@@ -47,7 +47,8 @@ test('Escape cancels an in-progress rename without changing the title', async ()
 test('blurring the input commits the rename, same as Enter', async () => {
   await h.page.getByTestId('session-title-edit').click()
   await h.page.getByTestId('session-title-input').fill('Committed on blur')
-  await h.page.getByTestId('content').click({ position: { x: 5, y: 5 } })
+  // The content's blank top edge — clear of the sidebar's resize strip, which reaches a few pixels in.
+  await h.page.getByTestId('content').click({ position: { x: 20, y: 1 } })
 
   await expect(h.page.getByTestId('session-title-input')).toHaveCount(0)
   await expect(h.page.getByTestId('session-title')).toHaveText('Committed on blur')

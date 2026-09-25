@@ -104,6 +104,44 @@ export interface PluginInfoPayload {
 
 /** A tab open somewhere, with the activity `classifyActivity` derived for it, for the sidebar's
  *  Active section. Mirrors `OpenTab` (`main/tabRegistry.ts`) plus its computed status. */
+/** A theme the user saved (see main/theme/themeStore.ts). Its spec has been validated. */
+export interface SavedTheme {
+  id: string
+  name: string
+  /** What it was generated from, when it was generated; null for a copy of another theme. */
+  prompt: string | null
+  createdAt: number
+  spec: import('./theme/spec').ThemeSpec
+}
+
+export interface ThemeOptions {
+  /** Whether effects move. Off draws a still frame — as does the OS asking for reduced motion. */
+  animated: boolean
+  /** A multiplier on every effect's intensity, 0–1. */
+  intensity: number
+  /** Which Claude model designs themes: 'sonnet', 'haiku' or 'opus'. */
+  model: string
+}
+
+/** A theme Claude designed, validated in main; `note` says what validation changed, if anything. */
+export interface ThemeGenerateResult {
+  spec: import('./theme/spec').ThemeSpec
+  note: string | null
+}
+
+/** Everything the Themes screen and every window's styling need, pushed on every change. */
+export interface ThemeState {
+  /** A saved theme's id, a `builtin:*` id, or null for Apiary's own look. */
+  activeId: string | null
+  /** What to apply: the active theme's spec — or null for the original look, including in safe mode. */
+  active: import('./theme/spec').ThemeSpec | null
+  saved: SavedTheme[]
+  builtins: Array<{ id: string; spec: import('./theme/spec').ThemeSpec }>
+  options: ThemeOptions
+  /** Started with `--safe-theme`: the original look for this run, whatever is saved. */
+  safeMode: boolean
+}
+
 export interface ActiveTabPayload {
   windowNumber: number
   key: string
@@ -134,6 +172,16 @@ export const CHANNELS = {
   checkConflict: 'apiary:check-conflict',
   resume: 'apiary:resume',
   renameSession: 'apiary:rename-session',
+  themeInitial: 'apiary:theme-initial',
+  themeState: 'apiary:theme-state',
+  themeApply: 'apiary:theme-apply',
+  themeSave: 'apiary:theme-save',
+  themeRename: 'apiary:theme-rename',
+  themeDelete: 'apiary:theme-delete',
+  themeSetOptions: 'apiary:theme-set-options',
+  themeChanged: 'apiary:theme-changed',
+  themeGenerate: 'apiary:theme-generate',
+  themeGenerateCancel: 'apiary:theme-generate-cancel',
   renameTerminalInClaude: 'apiary:rename-terminal-in-claude',
   removeSession: 'apiary:remove-session',
   moveSession: 'apiary:move-session',
@@ -270,6 +318,21 @@ export interface ApiaryApi {
   onSelectTab(cb: (key: string) => void): () => void
   /** Sets (empty/whitespace-only clears) a session's user-facing title. */
   renameSession(sessionId: string, title: string): Promise<void>
+  /** The theme state as it stood when this window loaded — read synchronously, so the first paint
+   *  is already themed. */
+  initialTheme: ThemeState
+  themeState(): Promise<ThemeState>
+  /** Makes a theme active: a saved id, a `builtin:*` id, or null for the original look. */
+  themeApply(id: string | null): Promise<void>
+  /** Saves `spec` under `name`. Main validates it; the renderer's copy is never trusted. */
+  themeSave(name: string, spec: unknown, prompt?: string): Promise<SavedTheme>
+  /** Has the user's `claude` design a theme from `request` — or adjust `current` as `request` asks. */
+  themeGenerate(request: string, current: import('./theme/spec').ThemeSpec | null): Promise<ThemeGenerateResult>
+  themeGenerateCancel(): void
+  themeRename(id: string, name: string): Promise<void>
+  themeDelete(id: string): Promise<void>
+  themeSetOptions(options: Partial<ThemeOptions>): Promise<void>
+  onThemeChanged(cb: (state: ThemeState) => void): () => void
   /** Types `/rename <title>` into the Claude running in `ptyId`, once it is safe to (see
    *  claudeRename.ts) — for a tab with no session id yet, which `renameSession` cannot name. */
   renameTerminalInClaude(ptyId: string, title: string): void

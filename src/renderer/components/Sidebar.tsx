@@ -483,6 +483,9 @@ export function Sidebar({
   }
 
   return (
+    // The frame is what glass themes paint their pane on (see styles.css): the sidebar itself
+    // scrolls, and a pane drawn inside a scroller would scroll away with the list.
+    <div className="sidebar-frame" hidden={hidden}>
     <aside className="sidebar" data-testid="sidebar" ref={listRef} hidden={hidden}>
       <div className="sidebar-header">
         {onHide !== undefined && (
@@ -880,5 +883,6 @@ export function Sidebar({
         testId="sidebar-menu"
       />
     </aside>
+    </div>
   )
 }

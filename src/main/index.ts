@@ -9,6 +9,9 @@ import { TabRegistry } from './tabRegistry'
 import { pruneStaleLive } from './sessionLayoutRestore'
 import { resolveConfigRoot } from './config'
 import { buildMenu } from './menu'
+import { ThemeStore } from './theme/themeStore'
+import { registerThemeIpc } from './theme/themeIpc'
+import { ThemeGenerator } from './theme/themeGenerator'
 import { CHANNELS } from '@shared/api'
 import type { TabTransfer } from '@shared/types'
 import { loadSettings, saveSettings } from './settings'
@@ -51,6 +54,7 @@ function windowNumberFor(webContentsId: number): number | null {
   return windowNumberByWebContentsId.get(webContentsId) ?? null
 }
 let updater: UpdateService | null = null
+let resetTheme: (route: string) => void = () => {}
 let autoImportTimer: NodeJS.Timeout | null = null
 
 /**
@@ -434,6 +438,15 @@ void app.whenReady().then(async () => {
       : undefined,
   })
   updater = createUpdater(settingsFile)
+  // Before any window exists: each window asks for its theme synchronously as it loads.
+  // `--safe-theme` (or APIARY_SAFE_THEME=1) starts with the original look for this run only.
+  const safeTheme = process.argv.includes('--safe-theme') || process.env.APIARY_SAFE_THEME === '1'
+  const themes = registerThemeIpc(
+    new ThemeStore(join(app.getPath('userData'), 'themes.json')),
+    safeTheme,
+    new ThemeGenerator({ claudeBin: () => service?.claudeBin ?? null }),
+  )
+  resetTheme = themes.reset
   disposeIpc = registerIpc(
     service, () => mainWindow, configRoot, settingsFile, setAutoImportInterval, updater,
     sessionLayoutStore, layoutFlushCoordinator,
@@ -479,6 +492,7 @@ void app.whenReady().then(async () => {
         void updater?.check({ manual: true })
       },
       () => mainWindow?.webContents.send(CHANNELS.toggleSidebar),
+      () => { resetTheme('menu') },
     ),
   )
   // Started after the window exists, so the first status push has somewhere to land.

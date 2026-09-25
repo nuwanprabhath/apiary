@@ -4,6 +4,51 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.22.0] - 2026-09-24
+
+### Added
+
+- **Describe a theme, and Claude designs it.** In Settings → Themes, write what you would like —
+  "a theme like the Matrix movie", "a cool cyberpunk theme", "a calm forest at dusk" — and your own
+  `claude` designs it. The whole app switches to it as a preview straight away. Ask for changes
+  ("more green", "less glow", "rounder corners"), step back and forward through the versions, then
+  Keep it, Save it under your own name, or Discard it. Choose which Claude model designs themes
+  (Sonnet by default). A design usually takes under a minute.
+- **Claude cannot break the app.** It is run with no tools at all, none of your CLAUDE.md files,
+  skills, hooks, plugins or MCP servers, in an empty folder, and without saving a session. It
+  can only return a description of a theme, and everything in that is checked before anything is
+  applied: colours must be real colours, numbers are kept in range, unknown fonts and effects are
+  ignored, and text that would be hard to read is adjusted. Anything that was changed is listed
+  under the preview.
+- **A new look: floating panels.** The sidebar, each editor pane and its shell are rounded cards
+  with a small gap between them, like VS Code. Every gap is a resize handle, marked with grip
+  dots that brighten under the pointer; the pointer turns into a resize cursor a few pixels either
+  side of the gap and stays one for the whole drag.
+- **Themes.** Matrix, Neon cyberpunk, Paper and Liquid Glass ship alongside Apiary's original look. A theme
+  changes colours (the terminal's included), fonts, corner roundness and spacing, and can add
+  effects: falling code, a synthwave grid, starfields, an aurora, scanlines, a neon glow, a CRT
+  vignette, paper grain and more. Save any theme under your own name, rename it, delete it. Every window
+  switches together, and your theme is back when you relaunch.
+- **Glass themes, down to macOS-style liquid glass.** Ask for "frosted glass" or "macOS liquid
+  glass" and the panels become panes of glass: see-through and blurred over a colourful moving
+  background, with a bright rim, a sheen and — for liquid glass — edges that bend what is behind
+  them like a lens. Menus and dialogs become glass too, thick enough to read over text, and the
+  terminal can be see-through as well. A Liquid Glass theme ships as an example. Readability is
+  still guaranteed: wherever something bright behind the glass would make text hard to read, that
+  pane is made thicker.
+- **Effects are gentle by design.** At most 30 frames a second, paused when a window is hidden or
+  left in the background, and still under your system's reduced-motion setting. Settings has an
+  Animated effects switch and an intensity slider. On solid themes the transcript, terminals and
+  dialogs always sit on a solid background, so text stays readable.
+- **Always a way back.** Reset to original in Settings; View → Reset Theme
+  (Cmd/Ctrl+Alt+Shift+T) in the application menu, which no theme can hide; and a `--safe-theme`
+  launch option that opens with the original look for one run.
+
+### Changed
+
+- **Scrollbars stay out of the way until you use them**, as VS Code's do: they appear when the
+  pointer is over a list or while it scrolls, and the thumb is rounded.
+
 ## [1.20.0] - 2026-09-24
 
 ### Added

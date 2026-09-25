@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ThemesSection } from './ThemesSection'
 import type {
   AppSettingsPayload, PluginInfoPayload, PluginSettingFieldPayload, LogStatusPayload,
 } from '@shared/api'
@@ -29,6 +30,7 @@ const SECTIONS: Section[] = [
   { id: 'sessions', label: 'Sessions', blurb: 'How sessions get into Apiary, and how often it looks for new ones.' },
   { id: 'search', label: 'Search', blurb: 'What the search box looks at when you type in it.' },
   { id: 'sidebar', label: 'Sidebar', blurb: 'How the session list behaves while you work.' },
+  { id: 'themes', label: 'Themes', blurb: 'How Apiary looks. A theme changes colours, type, shape and effects — never what is where.' },
   { id: 'terminal', label: 'Terminal', blurb: 'The shells Apiary starts for a session.' },
   { id: 'plugins', label: 'Plugins', blurb: 'Extras that add a button to the bar under a session.' },
   { id: 'updates', label: 'Updates', blurb: 'How Apiary keeps itself up to date.' },
@@ -165,6 +167,11 @@ export function SettingsDialog(
           <div className="settings-pane" data-testid="settings-pane">
             {draft === null ? (
               <p className="empty">Loading settings…</p>
+            ) : section === 'themes' ? (
+              <>
+                <p className="settings-blurb">{blurbOf('themes')}</p>
+                <ThemesSection />
+              </>
             ) : section === 'sessions' ? (
               <>
                 <p className="settings-blurb">{blurbOf('sessions')}</p>

@@ -225,6 +225,55 @@ already existed; the live spec failed it at once, because real Claude writes the
 driving the TUI: the trust prompt defaults to "No, exit" (Down, Enter), and a resumed or forked
 screen repaints old "done" lines, so wait for a *new* one before typing again.
 
+## Themes
+
+A theme is **data, never code** (`src/shared/theme/`). `validateTheme` is the only way anything
+becomes a `ThemeSpec` and is the feature's security boundary: it reads only allowlisted names as
+own properties, accepts only numeric colour syntaxes and re-serialises them as `#rrggbbaa`, clamps
+numbers, drops unknown fonts and effects, and then fixes readability (`ensureReadable`) and opacity
+(`limitAlpha`: the transcript, terminal and their backgrounds stay solid). Everything that reads a
+theme validates again: `ThemeStore` on load, the store on save, the generator on every reply.
+Keep it that way.
+
+- **Nothing a theme contains is parsed as CSS.** `applyTheme` sets allowlisted custom properties
+  (`themeToCssVars`) and two font attributes whose stacks live in styles.css. No injected
+  stylesheet, no HTML, no URL, no remote font. A new themable thing is a new token plus an
+  allowlist entry in `spec.ts`.
+- **Effects are Apiary's own draw functions** (`shared/theme/effects/`): pure functions of time,
+  with an opacity cap each, tested in Node against a recording context. `ThemeEffects.tsx` only
+  decides *when* to draw (30 fps cap, pause when hidden or backgrounded, a still frame under
+  reduced motion or with Animated effects off).
+- **Anything floating is solid** on solid themes: dialogs, menus, hover cards, toasts paint the
+  panel colour over `--bg`, because a theme's translucent chrome let the transcript show through a
+  dialog. On glass they are blurred panes at ≥ 82% tint (`--bg-popover`).
+- **Glass (`material: glass`)** lets `bg`, `bg-panel`, `bg-terminal` and controls go see-through
+  (floors in `MIN_ALPHA.glass`), always blurred (≥ `LIMITS.glassMinBlur`). `ensureReadable` then
+  checks text against every colour that can show through (`backdrops`: the window, plus each
+  background effect's colours at its opacity cap) and fixes failures by thickening panes —
+  a surface only if its own colour contrasts with the text, otherwise the panel/page under it —
+  moving the text only as a last resort. The pane is a `::before` on each card (and on
+  `.sidebar-frame`, because `.sidebar` scrolls), **never a backdrop filter on the card itself**:
+  that would make the card the containing block of the fixed menus and dialogs opened inside it.
+  Refraction is `url(#apiary-glass-lens)` from `GlassLens.tsx` — fixed displacement maps, the
+  theme contributes only a clamped strength.
+- The active theme reaches a window before its first paint through a synchronous preload read
+  (`initialTheme`); components mounted later must ask `themeState()`, not trust that snapshot.
+- **The generator** (`main/theme/themeGenerator.ts`) runs the user's `claude` as
+  `-p --output-format json --tools "" --safe-mode --strict-mcp-config --no-session-persistence
+  --json-schema …` in an empty temp dir, through the login shell with every argument as its own
+  positional parameter (`exec "$0" "$@"`) — nothing typed is ever parsed by a shell.
+  `--no-session-persistence` matters: without it every generation would appear in the sidebar.
+  The schema is built from the spec allowlists (`shared/theme/prompt.ts`), so the two cannot
+  drift; the reply still goes through `validateTheme` in main before the renderer sees it.
+  Real generations take 45–55 s on Sonnet; `tests/e2e/live/themeGenerator.spec.ts` checks a real
+  reply has nothing the validator must drop.
+- **A preview belongs to one window and one screen**: the Themes section applies it locally and
+  puts back the active theme when it unmounts. The effects layer follows what is *applied*
+  (`useAppliedTheme`, fed by `applyTheme`'s event), not the saved choice, so previews show effects.
+- **Ways back:** View → Reset Theme (native menu, Cmd/Ctrl+Alt+Shift+T), `--safe-theme` /
+  `APIARY_SAFE_THEME=1`. Holding Shift at launch was specced and dropped: Electron's main process
+  cannot see a modifier held before the first key event.
+
 ## The cwd override column, and why the scanner must leave it alone
 
 The `session` table has a `cwd_override` column (`src/main/store/schema.ts`), set only by

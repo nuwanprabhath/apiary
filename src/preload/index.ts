@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { CHANNELS, type ApiaryApi } from '@shared/api'
+import { CHANNELS, type ApiaryApi, type ThemeState } from '@shared/api'
 
 function subscribe<A extends unknown[]>(
   channel: string,
@@ -26,6 +26,18 @@ const api: ApiaryApi = {
   focusTab: (windowNumber, key) => ipcRenderer.invoke(CHANNELS.focusTab, windowNumber, key),
   onSelectTab: (cb) => subscribe(CHANNELS.selectTab, cb),
   renameSession: (id, title) => ipcRenderer.invoke(CHANNELS.renameSession, id, title),
+  // Synchronous on purpose, and once: the window's first paint should already be in its theme,
+  // and an async answer would arrive after React had painted the original look.
+  initialTheme: ipcRenderer.sendSync(CHANNELS.themeInitial) as ThemeState,
+  themeState: () => ipcRenderer.invoke(CHANNELS.themeState),
+  themeApply: (id) => ipcRenderer.invoke(CHANNELS.themeApply, id),
+  themeSave: (name, spec, prompt) => ipcRenderer.invoke(CHANNELS.themeSave, name, spec, prompt),
+  themeGenerate: (request, current) => ipcRenderer.invoke(CHANNELS.themeGenerate, request, current),
+  themeGenerateCancel: () => { ipcRenderer.send(CHANNELS.themeGenerateCancel) },
+  themeRename: (id, name) => ipcRenderer.invoke(CHANNELS.themeRename, id, name),
+  themeDelete: (id) => ipcRenderer.invoke(CHANNELS.themeDelete, id),
+  themeSetOptions: (options) => ipcRenderer.invoke(CHANNELS.themeSetOptions, options),
+  onThemeChanged: (cb) => subscribe(CHANNELS.themeChanged, cb),
   renameTerminalInClaude: (ptyId, title) => { ipcRenderer.send(CHANNELS.renameTerminalInClaude, ptyId, title) },
   removeSession: (id) => ipcRenderer.invoke(CHANNELS.removeSession, id),
   moveSession: (id, path) => ipcRenderer.invoke(CHANNELS.moveSession, id, path),

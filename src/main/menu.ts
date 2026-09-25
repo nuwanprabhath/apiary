@@ -8,6 +8,7 @@ export function buildMenu(
   onNewWindow: () => void,
   onCheckForUpdates: () => void,
   onToggleSidebar: () => void = () => {},
+  onResetTheme: () => void = () => {},
 ): Menu {
   const isMac = process.platform === 'darwin'
 
@@ -76,6 +77,15 @@ export function buildMenu(
           // the shell's back-one-character (and tmux's prefix).
           accelerator: isMac ? 'Cmd+B' : 'Ctrl+Shift+B',
           click: onToggleSidebar,
+        },
+        {
+          // The way back from any theme. It lives in the application menu, which is drawn by the
+          // OS and cannot be restyled or hidden by a theme, and its shortcut works however
+          // unreadable a theme has made the window.
+          id: 'reset-theme',
+          label: 'Reset Theme',
+          accelerator: 'CmdOrCtrl+Alt+Shift+T',
+          click: onResetTheme,
         },
         { type: 'separator' },
         { role: 'toggleDevTools' },

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Terminal, type ITheme } from '@xterm/xterm'
+import { THEME_CHANGE_EVENT } from '../theme/applyTheme'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
@@ -26,18 +27,40 @@ interface Props {
  */
 function themeFromTokens(): ITheme {
   const css = getComputedStyle(document.documentElement)
-  // Fall back to the token block's own current values: getPropertyValue returns '' for an
-  // unknown property, and handing xterm an empty string paints an invisible terminal.
+  // Fall back to the original look's values: getPropertyValue returns '' for an unknown
+  // property, and handing xterm an empty string paints an invisible terminal.
   const token = (name: string, fallback: string): string => {
     const value = css.getPropertyValue(name).trim()
     return value !== '' ? value : fallback
   }
   return {
-    background: token('--bg-terminal', '#151618'),
-    foreground: token('--text', '#e6e6e6'),
-    cursor: token('--text', '#e6e6e6'),
-    selectionBackground: token('--selected', '#2f3238'),
+    background: token('--term-background', '#151618'),
+    foreground: token('--term-foreground', '#e6e6e6'),
+    cursor: token('--term-cursor', '#e6e6e6'),
+    selectionBackground: token('--term-selection', '#2f3238'),
+    black: token('--term-black', '#1b1c1e'),
+    red: token('--term-red', '#e0736d'),
+    green: token('--term-green', '#58c06e'),
+    yellow: token('--term-yellow', '#e3b341'),
+    blue: token('--term-blue', '#6cb6ff'),
+    magenta: token('--term-magenta', '#b385f5'),
+    cyan: token('--term-cyan', '#56c8d8'),
+    white: token('--term-white', '#d0d0d0'),
+    brightBlack: token('--term-bright-black', '#6b7075'),
+    brightRed: token('--term-bright-red', '#ff8f88'),
+    brightGreen: token('--term-bright-green', '#7ee08f'),
+    brightYellow: token('--term-bright-yellow', '#f5cd6a'),
+    brightBlue: token('--term-bright-blue', '#94cbff'),
+    brightMagenta: token('--term-bright-magenta', '#cda6ff'),
+    brightCyan: token('--term-bright-cyan', '#86e1ec'),
+    brightWhite: token('--term-bright-white', '#ffffff'),
   }
+}
+
+/** The terminal's font stack — the theme's monospace choice, via the same token the page uses. */
+function fontFromTokens(): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim()
+  return value !== '' ? value : 'ui-monospace, "SF Mono", Menlo, Consolas, monospace'
 }
 
 export function TerminalView({ ptyId, testId, visible = true, onRenameKey }: Props): JSX.Element {
@@ -58,10 +81,12 @@ export function TerminalView({ ptyId, testId, visible = true, onRenameKey }: Pro
     if (host.current === null) return
 
     const term = new Terminal({
-      fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+      fontFamily: fontFromTokens(),
       fontSize: 12,
       cursorBlink: true,
       theme: themeFromTokens(),
+      // A glass theme's terminal background is see-through; xterm needs telling before open().
+      allowTransparency: true,
       convertEol: true,
     })
     termRef.current = term
@@ -235,8 +260,25 @@ export function TerminalView({ ptyId, testId, visible = true, onRenameKey }: Pro
     })
     observer.observe(host.current)
 
+    // A theme change repaints the terminal in place — new palette, new font — rather than only
+    // taking effect for terminals opened afterwards. A different font changes the cell size, so
+    // the view is refitted and the pty told if that changed its rows or columns.
+    const onTheme = (): void => {
+      term.options.theme = themeFromTokens()
+      term.options.fontFamily = fontFromTokens()
+      if (!caughtUp) return
+      fit.fit()
+      if (term.cols !== lastCols || term.rows !== lastRows) {
+        lastCols = term.cols
+        lastRows = term.rows
+        window.apiary.ptyResize(ptyId, term.cols, term.rows)
+      }
+    }
+    window.addEventListener(THEME_CHANGE_EVENT, onTheme)
+
     return () => {
       disposed = true
+      window.removeEventListener(THEME_CHANGE_EVENT, onTheme)
       observer.disconnect()
       if (rafId !== null) cancelAnimationFrame(rafId)
       offData()

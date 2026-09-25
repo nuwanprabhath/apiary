@@ -312,10 +312,10 @@ export async function launchApiary(
  * `APIARY_DB_PATH` (so the same sessions/projects are scanned again). Mutates `h.app`/`h.page`
  * in place; `h.close()` still works afterwards and cleans up the one shared `home` directory.
  */
-export async function relaunchApiary(h: Harness): Promise<void> {
+export async function relaunchApiary(h: Harness, extraEnv: Record<string, string> = {}): Promise<void> {
   await settleUiState(h.page)
   await h.app.close()
-  await launchAgainst(h)
+  await launchAgainst(h, extraEnv)
 }
 
 /**
@@ -349,13 +349,14 @@ export async function relaunchApiaryViaWindowClose(h: Harness): Promise<void> {
 }
 
 /** Relaunches into `h.app`/`h.page` against the same profile, config root and database. */
-async function launchAgainst(h: Harness): Promise<void> {
+async function launchAgainst(h: Harness, extraEnv: Record<string, string> = {}): Promise<void> {
   const app = await electron.launch({
     args: [`--user-data-dir=${join(h.home, 'userdata')}`, '.'],
     env: launchEnv({
       APIARY_CONFIG_ROOT: h.home,
       APIARY_DB_PATH: join(h.home, 'apiary.db'),
       APIARY_FAKE_LIVE: '',
+      ...extraEnv,
     }),
   })
   const page = await app.firstWindow()
