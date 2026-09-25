@@ -83,9 +83,23 @@ describe('ThemeGenerator', () => {
     const first = g.generate({ request: 'x', current: null, model: 'sonnet' })
     await expect(g.generate({ request: 'y', current: null, model: 'sonnet' })).rejects.toThrow(/Already/)
     await new Promise((r) => setTimeout(r, 100))
+    const cancelledAt = Date.now()
     g.cancel()
     await expect(first).rejects.toThrow(/Cancelled/)
     expect(g.busy).toBe(false)
+    // Promptly — not once the stand-in's own child (the sleep) finishes by itself.
+    expect(Date.now() - cancelledAt).toBeLessThan(1500)
+  })
+
+  it('leaves nothing it started running after a cancel', async () => {
+    const g = gen(standIn(`sleep 30 & echo $! > "${dir}/child.pid"; wait`))
+    const run = g.generate({ request: 'x', current: null, model: 'sonnet' })
+    for (let i = 0; i < 50 && !existsSync(join(dir, 'child.pid')); i += 1) await new Promise((r) => setTimeout(r, 50))
+    g.cancel()
+    await expect(run).rejects.toThrow(/Cancelled/)
+    const pid = Number(readFileSync(join(dir, 'child.pid'), 'utf8'))
+    await new Promise((r) => setTimeout(r, 300))
+    expect(() => process.kill(pid, 0)).toThrow()
   })
 
   it('sends the current theme along for a refinement', async () => {

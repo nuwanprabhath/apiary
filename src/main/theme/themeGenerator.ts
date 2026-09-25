@@ -14,6 +14,14 @@ export type ThemeModel = typeof THEME_MODELS[number]
 
 const MAX_STDOUT = 64 * 1024
 
+/** SIGTERM to the child's whole process group (it is spawned detached, as the group leader). */
+function killGroup(child: ChildProcess): void {
+  try {
+    if (child.pid !== undefined) { process.kill(-child.pid, 'SIGTERM'); return }
+  } catch { /* already gone, or no group: fall back to the child alone */ }
+  child.kill('SIGTERM')
+}
+
 /**
  * Asks the user's own `claude` to design a theme — and gives it nothing to do but answer.
  *
@@ -32,6 +40,8 @@ const MAX_STDOUT = 64 * 1024
 export class ThemeGenerator {
   private child: ChildProcess | null = null
   private cancelled = false
+  /** Settles the running generation as cancelled, without waiting for the process to exit. */
+  private abort: (() => void) | null = null
 
   constructor(private readonly opts: { claudeBin: () => string | null; timeoutMs?: number; shell?: string }) {}
 
@@ -40,7 +50,8 @@ export class ThemeGenerator {
   cancel(): void {
     if (this.child === null) return
     this.cancelled = true
-    this.child.kill('SIGTERM')
+    killGroup(this.child)
+    this.abort?.()
   }
 
   async generate(req: { request: string; current: ThemeSpec | null; model: ThemeModel }): Promise<{ spec: ThemeSpec; report: ThemeReport }> {
@@ -62,24 +73,28 @@ export class ThemeGenerator {
     this.cancelled = false
     try {
       const stdout = await new Promise<string>((resolve, reject) => {
+        // Its own process group, so cancel and the timeout can end everything it started: `claude`
+        // (or a wrapper script) may have children of its own, and one left holding stdout would
+        // keep the generation "running" until it finished by itself.
         const child = spawn(this.opts.shell ?? loginShell(), ['-l', '-c', 'exec "$0" "$@"', bin, ...args], {
-          cwd, env: childEnv(process.env), stdio: ['ignore', 'pipe', 'pipe'],
+          cwd, env: childEnv(process.env), stdio: ['ignore', 'pipe', 'pipe'], detached: true,
         })
         this.child = child
         let out = ''
         let err = ''
         let settled = false
         const finish = (fn: () => void): void => { if (!settled) { settled = true; clearTimeout(timer); fn() } }
+        this.abort = () => { finish(() => { reject(new Error('Cancelled.')) }) }
         const timer = setTimeout(() => {
           finish(() => { reject(new Error('Claude took too long to answer. Try again, or a shorter description.')) })
-          child.kill('SIGTERM')
+          killGroup(child)
         // A full theme took Sonnet 45–55 s on real requests (live spec), so 90 s was too close.
         }, this.opts.timeoutMs ?? 150_000)
         child.stdout?.on('data', (d: Buffer) => {
           out += d.toString('utf8')
           if (out.length > MAX_STDOUT) {
             finish(() => { reject(new Error("Claude's reply was too large to be a theme.")) })
-            child.kill('SIGTERM')
+            killGroup(child)
           }
         })
         child.stderr?.on('data', (d: Buffer) => { if (err.length < 4096) err += d.toString('utf8') })
@@ -104,6 +119,7 @@ export class ThemeGenerator {
       throw e
     } finally {
       this.child = null
+      this.abort = null
       rmSync(cwd, { recursive: true, force: true })
     }
   }

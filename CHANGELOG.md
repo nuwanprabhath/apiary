@@ -4,7 +4,9 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.22.0] - 2026-09-24
+## [1.22.1] - 2026-09-25
+
+1.22.0 was tagged but its build failed, so it was never published; everything below is new since 1.20.0.
 
 ### Added
 
