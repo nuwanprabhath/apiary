@@ -38,6 +38,8 @@ export interface AppSettingsPayload {
   terminalShortenPath: boolean
   /** How many trailing folders the trimmed prompt keeps. */
   terminalPathSegments: number
+  /** Show only `$` as the prompt of shells Apiary starts (takes precedence over the trim). */
+  terminalMinimalPrompt: boolean
   /** Which session-bar plugins are on, by plugin id. */
   plugins: Record<string, boolean>
   /** Each plugin's own settings, namespaced by plugin id. */
@@ -217,6 +219,7 @@ export const CHANNELS = {
   gitCheckoutDetached: 'apiary:git-checkout-detached',
   gitCreateBranch: 'apiary:git-create-branch',
   gitPull: 'apiary:git-pull',
+  gitUpdateBranch: 'apiary:git-update-branch',
   gitPullFolder: 'apiary:git-pull-folder',
   gitPush: 'apiary:git-push',
   gitMerge: 'apiary:git-merge',
@@ -457,6 +460,8 @@ export interface ApiaryApi {
   gitCheckoutDetached(key: string, isPtyId: boolean, ref: string): Promise<void>
   gitCreateBranch(key: string, isPtyId: boolean, name: string, from?: string): Promise<void>
   gitPull(key: string, isPtyId: boolean): Promise<{ commits: number }>
+  /** Fast-forwards a local branch from its upstream, checked out or not. */
+  gitUpdateBranch(key: string, isPtyId: boolean, branch: string): Promise<{ commits: number }>
   /** Fast-forwards a sidebar folder's branch from its upstream; never merges or rebases. `path`
    *  must be a folder the sidebar shows — main rejects any other. */
   gitPullFolder(path: string): Promise<{ commits: number }>

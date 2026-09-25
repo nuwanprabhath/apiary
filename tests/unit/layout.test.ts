@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { newColumn, type Column } from '../../src/renderer/state/columns'
 import {
   PRESETS, capacity, applyPreset, placeInZone, initialLayout, type Layout, type PresetId,
-  closePane, tidyLayout, openBeside, stepDown, stepUp,
+  closePane, tidyLayout, openBeside, stepDown, stepUp, swapPanes,
   dragTracks, trackTemplate, boundaryAt, defaultTracks,
 } from '../../src/renderer/state/layout'
 
@@ -307,6 +307,25 @@ describe('opening a session to the side', () => {
       layout = openBeside(layout, layout.panes[0].id, { key, view: 'transcript' }).layout
     }
     expect(layout.panes.length).toBeLessThanOrEqual(4)
+  })
+})
+
+describe('moving a pane onto another', () => {
+  it('trades the two panes\' places, each whole, and leaves the others and the layout alone', () => {
+    const [a, b, c] = [pane('a1', 'a2'), pane('b'), pane('c')]
+    const layout: Layout = { preset: 'thirds-h', panes: [a, b, c] }
+    const next = swapPanes(layout, a.id, c.id)
+    expect(next.preset).toBe(layout.preset)
+    expect(next.panes).toEqual([c, b, a])
+    // The pane objects themselves travel, so nothing inside them is rebuilt.
+    expect(next.panes[2]).toBe(a)
+  })
+
+  it('does nothing for the same pane, or one that is not there', () => {
+    const [a, b] = [pane('a'), pane('b')]
+    const layout: Layout = { preset: 'halves-h', panes: [a, b] }
+    expect(swapPanes(layout, a.id, a.id)).toBe(layout)
+    expect(swapPanes(layout, a.id, 'col-nope')).toBe(layout)
   })
 })
 

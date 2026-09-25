@@ -167,3 +167,38 @@ test('every corner follows the theme: unchanged on the original look, rounder on
   const card = (await h.page.getByTestId('shell-card').boundingBox())!
   await h.page.screenshot({ path: '/private/tmp/claude-501/-Users-nuwan-projects-pet-projects/a021aefb-2a2b-46c0-b30f-d6ec7a9e02f5/scratchpad/radius-glass.png', clip: { x: card.x - 4, y: card.y - 4, width: 260, height: 60 } })
 })
+
+test('a terminal ends its last row the same distance above the card edge at any height', async () => {
+  const gaps: number[] = []
+  for (const dy of [0, 7, 13]) {
+    const r = await box(h.page.getByTestId('bottom-resizer'))
+    await h.page.mouse.move(r.x + r.width / 2, r.y + 3)
+    await h.page.mouse.down()
+    await h.page.mouse.move(r.x + r.width / 2, r.y + 3 - dy, { steps: 2 })
+    await h.page.mouse.up()
+    await h.page.waitForTimeout(300)
+    gaps.push(await h.page.getByTestId('terminal-shell').evaluate((el) => {
+      const host = (el.closest('.terminal-host') ?? el).getBoundingClientRect()
+      return Math.round(host.bottom - el.querySelector('.xterm-screen')!.getBoundingClientRect().bottom)
+    }))
+  }
+  // Rows anchored to the bottom: the leftover sliver goes to the top, so two panes side by side
+  // (a Claude session and its neighbour) end their text at the same height.
+  expect(new Set(gaps).size).toBe(1)
+})
+
+test('the active tab is a lifted chip, not an accent-coloured bar', async () => {
+  const tab = h.page.locator('[data-testid="session-tab"][data-active="true"]').first()
+  const look = await tab.evaluate((el) => {
+    const accent = document.createElement('div')
+    accent.style.color = 'var(--accent)'
+    document.body.append(accent)
+    const a = getComputedStyle(accent).color
+    accent.remove()
+    const st = getComputedStyle(el)
+    return { shadow: st.boxShadow, border: st.borderTopColor, accent: a, bg: st.backgroundColor }
+  })
+  expect(look.shadow).not.toContain(look.accent)
+  expect(look.shadow).not.toBe('none')
+  expect(look.bg).not.toBe('rgba(0, 0, 0, 0)')
+})

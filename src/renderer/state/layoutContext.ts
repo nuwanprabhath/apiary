@@ -19,6 +19,14 @@ export interface LayoutActions {
   requestPicker: (target: PlaceTarget, at: { x: number; y: number }) => void
   /** Whether `key` is already open as a tab somewhere in this window, for the picker heading. */
   isOpen: (key: string) => boolean
+  /** How many panes the window has — a pane can only be moved onto another when there are two. */
+  paneCount: number
+  /** The pane being dragged by its tab bar, while one is: every other pane offers itself as a target. */
+  movingPane: string | null
+  startPaneMove: (paneId: string) => void
+  endPaneMove: () => void
+  /** Drops the moving pane onto `paneId`: the two trade places (see `swapPanes`). */
+  dropPaneOn: (paneId: string) => void
 }
 
 /**
@@ -31,6 +39,11 @@ export const LayoutContext = createContext<LayoutActions>({
   apply: () => {},
   requestPicker: () => {},
   isOpen: () => false,
+  paneCount: 1,
+  movingPane: null,
+  startPaneMove: () => {},
+  endPaneMove: () => {},
+  dropPaneOn: () => {},
 })
 
 export function useLayoutActions(): LayoutActions {

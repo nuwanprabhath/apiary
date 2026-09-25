@@ -27,3 +27,8 @@ export function worktreePullMessage(branch: string, where: string, count: number
     ? `${branch} in ${where} is already up to date.`
     : `Pulled ${commits(count)} into ${branch} in ${where}.`
 }
+
+/** The branch list's pull button: which branch, and how much moved. */
+export function updateBranchMessage(branch: string, count: number): string {
+  return count === 0 ? `${branch} is already up to date.` : `Pulled ${commits(count)} into ${branch}.`
+}

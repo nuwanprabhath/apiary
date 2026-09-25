@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
-  status, listRefs, checkoutBranch, checkoutRemote, checkoutDetached, createBranch, pull, pullFastForward, push, merge, fetch, parseWorktreeList, isWorktreeConflict, worktreeForBranch, listWorktrees,
+  status, listRefs, checkoutBranch, checkoutRemote, checkoutDetached, createBranch, pull, pullFastForward, push, merge, fetch, parseWorktreeList, isWorktreeConflict, worktreeForBranch, listWorktrees, updateBranch,
 } from '../../src/main/git/branchOps'
 
 let repo: string
@@ -450,5 +450,64 @@ describe('a branch checked out in another worktree', () => {
     } finally {
       git(repo, 'worktree', 'remove', '--force', path)
     }
+  })
+})
+
+describe('updateBranch — the branch list\'s pull button', () => {
+  let remote: string
+  let other: string
+  beforeEach(() => {
+    remote = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-branchops-remote-')))
+    git(remote, 'init', '-q', '--bare', '-b', 'main')
+    git(repo, 'remote', 'add', 'origin', remote)
+    git(repo, 'push', '-q', '-u', 'origin', 'main')
+    git(repo, 'checkout', '-q', '-b', 'feature/x')
+    git(repo, 'push', '-q', '-u', 'origin', 'feature/x')
+    git(repo, 'checkout', '-q', 'main')
+    // Someone else pushes two commits to feature/x.
+    other = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-branchops-other-')))
+    git(other, 'clone', '-q', remote, '.')
+    git(other, 'config', 'user.email', 'o@example.com')
+    git(other, 'config', 'user.name', 'Other')
+    git(other, 'checkout', '-q', 'feature/x')
+    commit(other, 'b.txt', 'theirs 1')
+    commit(other, 'c.txt', 'theirs 2')
+    git(other, 'push', '-q', 'origin', 'feature/x')
+  })
+  afterEach(() => { rmSync(remote, { recursive: true, force: true }); rmSync(other, { recursive: true, force: true }) })
+
+  it('fast-forwards a branch that is not checked out, without touching the working tree', async () => {
+    const { commits } = await updateBranch(repo, 'feature/x')
+    expect(commits).toBe(2)
+    expect(git(repo, 'rev-parse', 'feature/x').trim()).toBe(git(repo, 'rev-parse', 'origin/feature/x').trim())
+    expect(git(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('main')
+  })
+
+  it('pulls the current branch with a fast-forward', async () => {
+    git(repo, 'checkout', '-q', 'feature/x')
+    expect((await updateBranch(repo, 'feature/x')).commits).toBe(2)
+    expect((await updateBranch(repo, 'feature/x')).commits).toBe(0)
+  })
+
+  it('refuses, changing nothing, when the branch has commits the remote does not', async () => {
+    git(repo, 'checkout', '-q', 'feature/x')
+    commit(repo, 'mine.txt', 'mine')
+    git(repo, 'checkout', '-q', 'main')
+    const before = git(repo, 'rev-parse', 'feature/x').trim()
+    await expect(updateBranch(repo, 'feature/x')).rejects.toThrow(/can't be fast-forwarded|cannot be fast-forwarded/i)
+    expect(git(repo, 'rev-parse', 'feature/x').trim()).toBe(before)
+  })
+
+  it('says so when the branch has no upstream', async () => {
+    git(repo, 'branch', 'local-only')
+    await expect(updateBranch(repo, 'local-only')).rejects.toThrow(/no upstream/i)
+  })
+
+  it('pulls a branch checked out in another worktree in that worktree', async () => {
+    const wt = join(realpathSync(tmpdir()), `apiary-branchops-wt-${String(Date.now())}`)
+    git(repo, 'worktree', 'add', '-q', wt, 'feature/x')
+    expect((await updateBranch(repo, 'feature/x')).commits).toBe(2)
+    expect(git(wt, 'rev-parse', 'HEAD').trim()).toBe(git(repo, 'rev-parse', 'origin/feature/x').trim())
+    git(repo, 'worktree', 'remove', '--force', wt)
   })
 })

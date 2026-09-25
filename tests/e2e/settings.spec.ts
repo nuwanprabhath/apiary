@@ -121,6 +121,10 @@ test('the prompt-shortening setting shows what it will actually do', async () =>
   // example is the fix: the difference between one folder and two is visible rather than argued.
   await openSettings(h)
   await h.page.getByTestId('settings-nav-terminal').click()
+  // Shortening only matters with the path shown at all: the minimal prompt (on by default)
+  // removes it, and disables this control while it does.
+  await expect(h.page.getByTestId('setting-terminal-shorten-path')).toBeDisabled()
+  await h.page.getByTestId('setting-terminal-minimal-prompt').uncheck()
   await h.page.getByTestId('setting-terminal-shorten-path').check()
 
   const preview = h.page.getByTestId('terminal-path-preview')

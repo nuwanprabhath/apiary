@@ -199,6 +199,42 @@ export async function pullFastForward(cwd: string): Promise<{ commits: number }>
   return { commits: await commitsBetween(cwd, before) }
 }
 
+/**
+ * Brings any local branch up to date with its upstream — the pull button beside each branch in
+ * the branch list — by fast-forwarding only, for the same reason as `pullFastForward`: a click in
+ * a list must not be able to start a merge or leave a conflict behind.
+ *
+ * - The branch checked out here: `git pull --ff-only`.
+ * - Checked out in another worktree: the same, run in that worktree (git will not move a branch
+ *   another worktree has checked out from here).
+ * - Not checked out anywhere: `git fetch <remote> <upstream>:<branch>`, which moves the branch
+ *   without touching any working tree, and refuses anything but a fast-forward.
+ */
+export async function updateBranch(cwd: string, branch: string): Promise<{ commits: number }> {
+  const current = await tryGit(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
+  if (current === branch) return pullFastForward(cwd)
+  const elsewhere = await worktreeForBranch(cwd, branch)
+  if (elsewhere !== null) return pullFastForward(elsewhere)
+
+  const remote = await tryGit(cwd, ['config', `branch.${branch}.remote`])
+  const merge = await tryGit(cwd, ['config', `branch.${branch}.merge`])
+  if (remote === null || merge === null || remote === '' || merge === '') {
+    throw new Error(`${branch} has no upstream branch to pull from.`)
+  }
+  const before = await git(cwd, ['rev-parse', `refs/heads/${branch}`])
+  try {
+    await git(cwd, ['fetch', remote, `${merge}:refs/heads/${branch}`])
+  } catch (e) {
+    if (e instanceof Error && /non-fast-forward|rejected/i.test(e.message)) {
+      throw new Error(`${branch} has commits the remote does not, so it can't be fast-forwarded. Check it out and pull to merge them.`)
+    }
+    throw e
+  }
+  const after = await git(cwd, ['rev-parse', `refs/heads/${branch}`])
+  if (before === after) return { commits: 0 }
+  return { commits: Number(await git(cwd, ['rev-list', '--count', `${before}..${after}`])) }
+}
+
 /** Plain `git push`; if the branch has no upstream yet, retries once as
  *  `git push -u origin HEAD` instead of requiring a separate "publish branch" step.
  *

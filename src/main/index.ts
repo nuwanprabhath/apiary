@@ -10,6 +10,7 @@ import { pruneStaleLive } from './sessionLayoutRestore'
 import { resolveConfigRoot } from './config'
 import { buildMenu } from './menu'
 import { ThemeStore, DEFAULT_THEME_ID } from './theme/themeStore'
+import { writeZshShim } from './pty/promptPath'
 import { registerThemeIpc } from './theme/themeIpc'
 import { ThemeGenerator } from './theme/themeGenerator'
 import { CHANNELS } from '@shared/api'
@@ -417,7 +418,10 @@ void app.whenReady().then(async () => {
     promptPath: {
       enabled: settings.terminalShortenPath,
       segments: settings.terminalPathSegments,
+      minimal: settings.terminalMinimalPrompt,
     },
+    // Rewritten every launch, so a new Apiary's shim replaces an old one's.
+    zshPromptShim: writeZshShim(join(app.getPath('userData'), 'prompt-shim', 'zsh')),
     plugins: settings.plugins,
     pluginSettings: settings.pluginSettings,
     // Test-only, like APIARY_FAKE_LIVE: points the merge-request plugin at a stand-in `glab`.

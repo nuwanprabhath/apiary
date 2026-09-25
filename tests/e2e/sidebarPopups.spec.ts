@@ -118,7 +118,7 @@ test('scrolling under a still pointer leaves no trail of hover cards', async () 
   // run of rows under the pointer. Starting from wherever `hover()` happened to leave it reaches
   // the end of the list after a notch or two and never produces enough boundary events to stack
   // anything up — which is how an earlier version of this test passed against the bug.
-  await h.page.getByTestId('sidebar').evaluate((e) => { e.scrollTop = 0 })
+  await h.page.getByTestId('sidebar-list').evaluate((e) => { e.scrollTop = 0 })
   await h.page.waitForTimeout(100)
   await h.page.mouse.move(cx, cy)
 

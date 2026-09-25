@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { promptPathEnv } from '../../src/main/pty/promptPath'
+import { promptPathEnv, writeZshShim } from '../../src/main/pty/promptPath'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { previewPrompt } from '../../src/shared/promptPath'
 
 describe('promptPathEnv', () => {
@@ -51,5 +54,37 @@ describe('previewPrompt', () => {
 
   it('shows the untouched path while the setting is off', () => {
     expect(previewPrompt(path, { enabled: false, segments: 1 })).toBe(path)
+  })
+})
+
+describe('the minimal prompt', () => {
+  it('sets PS1 from PROMPT_COMMAND for bash, and points zsh at the shim, over the trim', () => {
+    const env = promptPathEnv({ enabled: true, segments: 1, minimal: true }, '/shim', { HOME: '/home/u' })
+    expect(env).toEqual({ PROMPT_COMMAND: "PS1='\\$ '", ZDOTDIR: '/shim', APIARY_USER_ZDOTDIR: '/home/u' })
+    expect(env.PROMPT_DIRTRIM).toBeUndefined()
+  })
+
+  it('hands zsh the user\'s own ZDOTDIR when they have one', () => {
+    expect(promptPathEnv({ enabled: false, segments: 1, minimal: true }, '/shim', { HOME: '/home/u', ZDOTDIR: '/home/u/.config/zsh' }).APIARY_USER_ZDOTDIR)
+      .toBe('/home/u/.config/zsh')
+  })
+
+  it('leaves zsh alone without a shim, and the trim works as before when off', () => {
+    expect(promptPathEnv({ enabled: true, segments: 1, minimal: true })).toEqual({ PROMPT_COMMAND: "PS1='\\$ '" })
+    expect(promptPathEnv({ enabled: true, segments: 2, minimal: false }, '/shim')).toEqual({ PROMPT_DIRTRIM: '2' })
+  })
+
+  it('writes a shim that runs each of the user\'s zsh files and sets the prompt last', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'apiary-zsh-shim-'))
+    writeZshShim(dir)
+    for (const f of ['.zshenv', '.zprofile', '.zshrc', '.zlogin']) {
+      expect(readFileSync(join(dir, f), 'utf8')).toContain(`. "$ZDOTDIR/${f}"`)
+    }
+    expect(readFileSync(join(dir, '.zshrc'), 'utf8')).toContain('precmd_functions+=(_apiary_minimal_prompt)')
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('previews as just $', () => {
+    expect(previewPrompt('~/a/b/c', { enabled: true, segments: 1, minimal: true })).toBe('$')
   })
 })

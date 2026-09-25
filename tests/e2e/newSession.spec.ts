@@ -392,3 +392,22 @@ test('a running session dropped on another window keeps running there, on its te
   await expect(second.getByTestId('terminal-session')).toContainText('DROPPED_MARKER_42', { timeout: 15000 })
   await expect(h.page.getByTestId('session-tab')).toHaveCount(0)
 })
+
+test('a new session closed before Claude names it is listed under its own heading, and can be stopped', async () => {
+  const workA = groupLabelled(h.page, 'work-a')
+  await workA.getByTestId('new-session-button').click()
+  await expect(h.page.getByTestId('terminal-session')).toBeVisible()
+  // Open in a tab, it is in Active — not listed a second time below Recent.
+  await expect(h.page.getByTestId('pending-section')).toHaveCount(0)
+
+  await h.page.getByTestId('session-tab-close').first().click()
+  const section = h.page.getByTestId('pending-section')
+  await expect(section).toBeVisible()
+  await expect(section).toContainText('Unnamed, running')
+  await expect(section.getByTestId('pending-session-item')).toHaveText(/New session · work-a/)
+
+  await section.getByTestId('pending-session-item').hover()
+  await section.getByTestId('pending-stop').click()
+  await expect(h.page.getByTestId('pending-section')).toHaveCount(0)
+})
+

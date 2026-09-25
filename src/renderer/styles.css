@@ -452,10 +452,19 @@ button:not([class]) {
   background: var(--bg-panel);
   border-radius: var(--radius-panel);
   box-shadow: var(--panel-shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* The list under the search row is what scrolls, so the search row never scrolls away. */
+.sidebar-list {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
+.sidebar-header { flex: none; }
 
 .sidebar[hidden] { display: none; }
 
@@ -484,7 +493,9 @@ button:not([class]) {
  * row gap — VS Code's sash grip, which reads as "hold here" where a pill read as a scrollbar.
  * The dots are a repeated radial gradient, so their colour stays in a token.
  */
-.sidebar-resizer::after, .column-resizer::after, .row-resizer::after, .bottom-resizer::after {
+/* The terminal list's edge is one too (TerminalListPanel). */
+.terminal-list-resizer { position: relative; flex: none; width: 6px; margin-left: -6px; z-index: 3; cursor: col-resize; }
+.sidebar-resizer::after, .column-resizer::after, .row-resizer::after, .bottom-resizer::after, .terminal-list-resizer::after {
   content: '';
   position: absolute;
   left: 50%;
@@ -496,7 +507,7 @@ button:not([class]) {
   transition: opacity 0.12s;
   pointer-events: none;
 }
-.sidebar-resizer::after, .column-resizer::after {
+.sidebar-resizer::after, .column-resizer::after, .terminal-list-resizer::after {
   width: var(--handle-thickness);
   height: var(--handle-length);
   background-size: var(--handle-thickness) calc(var(--handle-length) / 3);
@@ -506,12 +517,12 @@ button:not([class]) {
   height: var(--handle-thickness);
   background-size: calc(var(--handle-length) / 3) var(--handle-thickness);
 }
-.sidebar-resizer:hover::after, .column-resizer:hover::after,
+.sidebar-resizer:hover::after, .column-resizer:hover::after, .terminal-list-resizer:hover::after,
 .row-resizer:hover::after, .bottom-resizer:hover::after {
   opacity: 1;
   background-image: radial-gradient(circle, var(--handle-color-hover) 1.4px, transparent 1.9px);
 }
-.sidebar-resizer:active::after, .column-resizer:active::after,
+.sidebar-resizer:active::after, .column-resizer:active::after, .terminal-list-resizer:active::after,
 .row-resizer:active::after, .bottom-resizer:active::after {
   opacity: 1;
   background-image: radial-gradient(circle, var(--handle-color-active) 1.4px, transparent 1.9px);
@@ -521,11 +532,11 @@ button:not([class]) {
  * does: a gap of a few pixels is too thin to find, and missing it drags the neighbouring panel's
  * contents instead. 3px stays inside the scrollbar's transparent inset, so no thumb is covered.
  */
-.sidebar-resizer::before, .column-resizer::before, .row-resizer::before, .bottom-resizer::before {
+.sidebar-resizer::before, .column-resizer::before, .row-resizer::before, .bottom-resizer::before, .terminal-list-resizer::before {
   content: '';
   position: absolute;
 }
-.sidebar-resizer::before, .column-resizer::before { top: 0; bottom: 0; left: -3px; right: -3px; }
+.sidebar-resizer::before, .column-resizer::before, .terminal-list-resizer::before { top: 0; bottom: 0; left: -3px; right: -3px; }
 .row-resizer::before, .bottom-resizer::before { left: 0; right: 0; top: -3px; bottom: -3px; }
 /* Mid-drag the pointer runs ahead of the gap; the cursor should not flicker back to an arrow. */
 body.resizing-col, body.resizing-col * { cursor: col-resize !important; }
@@ -871,7 +882,9 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex: none; }
 
-.pending-list { list-style: none; margin: 0; padding: 0 0 6px; border-bottom: 1px solid var(--border); }
+.pending-section { border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.pending-header { cursor: default; }
+.pending-list { list-style: none; margin: 0; padding: 0; }
 
 /* The window's panes, laid out by the layout preset (layout.ts). Each preset names its zones z1–z4
  * in fill order; the tracks come from the style attribute, which the dividers drag. It never
@@ -911,6 +924,37 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   overflow: hidden;
   padding: calc(var(--panel-gap) / 2);
 }
+/* Dragging a pane by its tab bar (see SessionTabBar): every other pane is a target to swap with. */
+.session-column { position: relative; }
+.pane-drop {
+  position: absolute;
+  inset: calc(var(--panel-gap) / 2);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-panel);
+  border: 1px dashed var(--border);
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.pane-drop[data-over="true"] {
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.pane-drop-label {
+  pointer-events: none;
+  padding: 4px 10px;
+  border-radius: var(--radius-control);
+  background: var(--bg-popover, var(--bg));
+  color: var(--muted);
+  box-shadow: 0 0 0 1px var(--border);
+}
+.pane-drop[data-over="true"] .pane-drop-label { color: var(--text); }
+/* The empty part of a strip that can move its pane says so. */
+.session-tab-strip[draggable="true"] { cursor: grab; }
+.session-tab-strip[draggable="true"] .session-tab { cursor: default; }
+
 .session-card {
   display: flex;
   flex-direction: column;
@@ -946,16 +990,18 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   display: flex;
   flex: none;
   align-items: stretch;
-  min-height: 32px;
+  min-height: 34px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   overflow: hidden;
-  padding: 4px 0 0 4px;
+  padding: 0 0 0 5px;
 }
 .session-tab-strip {
   display: flex;
   align-items: stretch;
-  gap: 1px;
+  gap: 3px;
+  /* Room for the active chip's hairline and shadow, which a scrolling strip would clip. */
+  padding: 0 3px;
   flex: 1;
   min-width: 0;
   overflow-x: auto;
@@ -1007,17 +1053,27 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
    * active tab is kept scrolled into view and the scrollbar below makes the rest reachable. */
   min-width: 64px;
   max-width: 220px;
-  background: var(--bg-panel);
-  border-radius: var(--radius-control) var(--radius-control) 0 0;
+  margin: 3px 0 4px;
+  background: transparent;
+  border-radius: var(--radius-control);
+  transition: background-color 0.12s, box-shadow 0.12s;
 }
-.session-tab:hover { background: var(--selected); }
-/* The active tab is marked with an accent line along its rounded top, like VS Code's, rather than
- * by colour alone — the surrounding chrome is already several shades of the same grey. */
+.session-tab:hover { background: var(--hover); }
+/*
+ * The active tab is a lifted chip — the content's own surface, a hairline edge and a soft shadow —
+ * rather than an accent-coloured bar along its top. The bar is the house style of a thousand
+ * generated dashboards and it shouted: the one saturated colour in the chrome, on the thing you
+ * are already looking at. A chip says "this one" by shape and depth, and leaves the accent for
+ * what needs doing (Resume, Send).
+ */
 .session-tab[data-active="true"] {
   background: var(--bg);
-  box-shadow: inset 0 2px 0 var(--accent);
+  box-shadow: 0 0 0 1px var(--border), 0 1px 3px rgba(0, 0, 0, 0.28);
 }
-
+/* Keyboard focus, and only keyboard focus: a quiet ring, not the OS accent around the whole tab
+ * on every click. */
+.session-tab-label:focus-visible { outline: none; }
+.session-tab:has(.session-tab-label:focus-visible) { box-shadow: 0 0 0 1px var(--muted); }
 .session-tab-label {
   display: flex;
   align-items: center;
@@ -1269,7 +1325,23 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  * No padding here, deliberately — see the comment on `.terminal-host .xterm` below for why
  * padding belongs on that inner element instead.
  */
-.terminal-host { flex: 1; min-height: 0; background: var(--bg-terminal); overflow: hidden; }
+.terminal-host { flex: 1; min-height: 0; background: var(--term-background); overflow: hidden; }
+/*
+ * The host paints the terminal's colour over its whole area and xterm paints none. xterm only
+ * draws whole rows, so a sliver of up to a row's height is left under the last one; with xterm
+ * painting its own background that sliver showed whatever was behind it — on a glass theme a
+ * lighter bar whose height changed as the pane was resized. Painted once here, a see-through
+ * terminal colour is also not doubled up.
+ */
+.terminal-host .xterm-viewport { background-color: transparent !important; }
+/*
+ * The rows sit at the bottom and the sliver at the top. Claude's own screen and a shell prompt
+ * both live at the bottom edge, so anchoring there keeps the last line the same distance from
+ * the card's edge in every pane — top-anchored, it moved by up to a row as panes were resized,
+ * and two panes side by side ended their text at visibly different heights.
+ */
+.terminal-host { display: flex; flex-direction: column; justify-content: flex-end; }
+.terminal-host > .xterm { flex: none; }
 
 /*
  * Breathing room from the pane's edges belongs on the element FitAddon actually measures
@@ -1501,6 +1573,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .branch-switcher-item { position: relative; }
 /* Room on the right for the copy button, so a long name or subject never runs under it. */
 .branch-switcher-item .branch-switcher-row { padding-right: 36px; }
+.branch-switcher-item:has(.branch-switcher-pull) .branch-switcher-row { padding-right: 64px; }
 .branch-switcher-copy {
   position: absolute;
   top: 6px;
@@ -1523,6 +1596,9 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .branch-switcher-copy[data-copied="true"] { display: flex; }
 .branch-switcher-copy:hover { background: var(--border); color: var(--text); }
 .branch-switcher-copy[data-copied="true"] { color: var(--accent); }
+/* The pull button sits just left of copy, and stays up while it runs. */
+.branch-switcher-pull { right: 32px; }
+.branch-switcher-pull[data-busy="true"] { display: flex; opacity: 0.6; cursor: progress; }
 .branch-switcher-action {
   display: block;
   width: 100%;
@@ -1564,7 +1640,11 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   list-style: none;
   margin: 0;
   padding: 4px;
-  width: 180px;
+  /* As wide as the longest terminal name, within bounds, unless the user dragged it (inline
+   * width). A fixed 180px took room from the terminal for a list of "Terminal 1". */
+  width: max-content;
+  min-width: 96px;
+  max-width: min(480px, 45%);
   flex: none;
   border-left: 1px solid var(--border);
   overflow-y: auto;
@@ -1578,23 +1658,23 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   gap: 4px;
   border-radius: var(--radius-control);
   padding: 2px;
+  transition: background-color 0.12s, box-shadow 0.12s;
 }
-.terminal-tab-row[data-active="true"] { background: var(--selected); }
-/* Keyboard focus: an accent bar down the leading edge, not a box.
-   A full outline around the row reads as an editable field — which is exactly what a row here
-   becomes when renamed — so arrowing onto a terminal looked like it had started renaming it. */
-.terminal-tab-row[data-keyboard-focused="true"] {
-  box-shadow: inset 2px 0 0 0 var(--accent);
-  background: var(--hover);
+.terminal-tab-row + .terminal-tab-row { margin-top: 2px; }
+.terminal-tab-row:hover { background: var(--hover); }
+/* The terminal in front is a lifted chip, the same as the tab in front (see .session-tab) — not
+ * an accent bar down its leading edge, which was the generated-dashboard look the tabs dropped. */
+.terminal-tab-row[data-active="true"] {
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--border), 0 1px 3px rgba(0, 0, 0, 0.28);
 }
-/* The list owns the keyboard focus indicator (the bar above), so a label that ends up focused —
-   by a click, or by tabbing past the list — must not also draw Chromium's default ring, which
-   follows the OS accent and reads as a second, boxed selection on a row the arrows have already
-   moved off. */
-.terminal-tab-label:focus-visible {
-  outline: none;
-  box-shadow: inset 2px 0 0 0 var(--accent);
+/* Keyboard focus: a quiet ring, as on the tabs. The list owns it (roving focus), so a label that
+ * ends up focused must not also draw Chromium's default ring in the OS accent. */
+.terminal-tab-row[data-keyboard-focused="true"] { box-shadow: 0 0 0 1px var(--muted); }
+.terminal-tab-row[data-keyboard-focused="true"][data-active="true"] {
+  box-shadow: 0 0 0 1px var(--muted), 0 1px 3px rgba(0, 0, 0, 0.28);
 }
+.terminal-tab-label:focus-visible { outline: none; }
 .terminal-tab-label {
   flex: 1;
   min-width: 0;
@@ -1602,7 +1682,9 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   border: 0;
   background: transparent;
   color: var(--text);
-  padding: 4px 6px;
+  /* No room held back for the rename/close buttons: they float over the end of the row on hover
+   * (see .terminal-tab-actions), and the list fits the names themselves. */
+  padding: 4px 8px 4px 6px;
   border-radius: var(--radius-control);
   cursor: pointer;
   font: inherit;
@@ -1628,6 +1710,24 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   outline: none;
   box-shadow: var(--focus-ring);
 }
+/* The row's buttons float over its end on hover (see TerminalListPanel). The name's tail fades out
+ * under them rather than being covered by a backing: a backing on a glass theme is translucent, so
+ * the text would show through the icons, and reserving the room instead cut every name short. A
+ * mask changes nothing about layout, so the fitted list does not jump wider under the pointer. */
+.terminal-tab-row { position: relative; }
+.terminal-tab-row:is(:hover, :focus-within) .terminal-tab-label {
+  -webkit-mask-image: linear-gradient(to left, transparent 48px, #000 62px);
+  mask-image: linear-gradient(to left, transparent 48px, #000 62px);
+}
+.terminal-tab-actions {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-50%);
+  display: none;
+  gap: 2px;
+}
+.terminal-tab-row:hover .terminal-tab-actions, .terminal-tab-row:focus-within .terminal-tab-actions { display: flex; }
 .terminal-tab-action {
   flex: none;
   display: none;
@@ -2235,7 +2335,8 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   border: 0;
   background: transparent;
   color: var(--muted);
-  padding: 4px 8px;
+  /* The right padding matches .pinned-header's, so every count ends at the same edge. */
+  padding: 4px 10px 4px 8px;
   cursor: pointer;
   font: inherit;
   font-size: 11px;
@@ -2250,8 +2351,21 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 /* A folder being dragged over the heading of the group it would join. */
 .folder-group-header-wrap { border-radius: var(--radius-control); display: flex; align-items: center; }
 /* The group's collapse-all, revealed on hover exactly as a folder row's is. */
+/*
+ * The collapse-all button takes the count's place on hover, as a session row's buttons take its
+ * age's. Laid out beside the count instead, it pushed every group's count a button's width left
+ * of the Active / Pinned / Recent counts above, and the two columns of numbers did not line up.
+ */
+.folder-group-header-wrap { position: relative; }
+.folder-group-header-wrap .collapse-all-button {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  margin: 0;
+}
 .folder-group-header-wrap:hover .collapse-all-button { opacity: 1; }
-.folder-group-header-wrap .collapse-all-button { margin-right: 4px; }
+.folder-group-header-wrap:hover .folder-group-header .pinned-count { visibility: hidden; }
 .folder-group-header-wrap:hover { background: var(--hover); }
 
 /*
@@ -2522,8 +2636,6 @@ html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .s
   z-index: 2;
   box-shadow: var(--glass-rim);
 }
-/* The terminal's own colour is its pane; the host behind it would tint it twice. */
-html[data-material="glass"] .terminal-host { background: transparent; }
 html[data-material="glass"] :is(.modal, .context-menu, .git-menu, .hover-card, .notification, .layout-picker, .branch-switcher) {
   background: var(--glass-sheen), var(--bg-popover);
 }

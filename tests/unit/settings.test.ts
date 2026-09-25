@@ -32,6 +32,7 @@ describe('settings', () => {
       recentSectionHours: 12,
       terminalShortenPath: true,
       terminalPathSegments: 3,
+      terminalMinimalPrompt: false,
       plugins: { 'gitlab-mr': false },
       pluginSettings: { 'gitlab-mr': { targetBranch: 'dev/1.0.12' } },
       updateAutomaticChecks: false,
@@ -56,6 +57,7 @@ describe('settings', () => {
       recentSectionHours: 12,
       terminalShortenPath: true,
       terminalPathSegments: 3,
+      terminalMinimalPrompt: false,
       plugins: { 'gitlab-mr': false },
       pluginSettings: { 'gitlab-mr': { targetBranch: 'dev/1.0.12' } },
       updateAutomaticChecks: false,
@@ -165,5 +167,13 @@ describe('migrating a settings file written by an older version', () => {
 
   it('stamps the version, so switching it back off afterwards sticks', () => {
     expect(migrateSettings({}).schemaVersion).toBe(SETTINGS_VERSION)
+  })
+})
+
+describe('terminalMinimalPrompt', () => {
+  it('defaults on, including for an existing settings file that has never stored it', () => {
+    expect(DEFAULT_SETTINGS.terminalMinimalPrompt).toBe(true)
+    writeFileSync(file(), JSON.stringify({ schemaVersion: SETTINGS_VERSION, terminalShortenPath: true, terminalPathSegments: 1 }))
+    expect(loadSettings(file()).terminalMinimalPrompt).toBe(true)
   })
 })

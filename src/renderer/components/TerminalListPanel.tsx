@@ -17,7 +17,15 @@ interface Props {
   /** Called once a request has been acted on, so a list that is hidden and shown again does not
    *  act on it a second time. */
   onRenameRequestHandled?: () => void
+  /** The width the user dragged the list to, or null to fit the longest terminal name. */
+  width?: number | null
+  /** A drag on the list's edge finished (a width), or it was double-clicked (null: fit again). */
+  onResize?: (width: number | null) => void
 }
+
+/** Narrowest and widest a dragged list may be; a fitted list is bounded in CSS the same way. */
+export const TERMINAL_LIST_MIN = 96
+export const TERMINAL_LIST_MAX = 480
 
 /** The side panel listing every open terminal for the current session — click switches; a rename
  *  and a trash button appear on hover (double-clicking the label also renames, for muscle
@@ -25,8 +33,10 @@ interface Props {
  *  Arrow keys navigate the list when focused: ArrowDown moves to the next shell, ArrowUp to the
  *  previous, and switching shells as you navigate (roving-focus listbox pattern). */
 export function TerminalListPanel(
-  { tabs, activeId, onSwitch, onRename, onDelete, onReorder, renameRequest = null, onRenameRequestHandled }: Props,
+  { tabs, activeId, onSwitch, onRename, onDelete, onReorder, renameRequest = null, onRenameRequestHandled, width = null, onResize }: Props,
 ): JSX.Element {
+  /** The width while a drag is under way; committed through onResize when it ends. */
+  const [dragWidth, setDragWidth] = useState<number | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   /** Which terminal has keyboard focus. Starts at the active terminal; arrow keys move it. */
@@ -104,7 +114,38 @@ export function TerminalListPanel(
     }
   }
 
+  const startResize = (e: React.MouseEvent): void => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = listRef.current?.getBoundingClientRect().width ?? TERMINAL_LIST_MIN
+    let latest = startWidth
+    document.body.classList.add('resizing-active', 'resizing-col')
+    const onMove = (ev: MouseEvent): void => {
+      // The handle is on the list's left edge: dragging left widens it.
+      latest = Math.round(Math.min(TERMINAL_LIST_MAX, Math.max(TERMINAL_LIST_MIN, startWidth + startX - ev.clientX)))
+      setDragWidth(latest)
+    }
+    const onUp = (): void => {
+      document.body.classList.remove('resizing-active', 'resizing-col')
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setDragWidth(null)
+      onResize?.(latest)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  const shown = dragWidth ?? width
   return (
+    <>
+    <div
+      className="terminal-list-resizer"
+      data-testid="terminal-list-resizer"
+      title="Drag to resize · double-click to fit the names"
+      onMouseDown={startResize}
+      onDoubleClick={() => { onResize?.(null) }}
+    />
     <ul
       ref={listRef}
       className="terminal-list-panel"
@@ -117,6 +158,9 @@ export function TerminalListPanel(
       aria-activedescendant={focusedId === null ? undefined : `terminal-tab-${focusedId}`}
       onKeyDown={handleListKeyDown}
       onFocus={handleListFocus}
+      // Unset, the list is as wide as its longest name (bounded in styles.css).
+      style={shown === null ? undefined : { width: shown }}
+      data-fitted={shown === null}
     >
       {tabs.map((tab) => (
         <li
@@ -170,6 +214,9 @@ export function TerminalListPanel(
               {tab.name}
             </button>
           )}
+          {/* Floated over the end of the row on hover rather than laid out beside the label, so a
+              list sized to its longest name does not jump wider under the pointer. */}
+          <span className="terminal-tab-actions">
           {editingId !== tab.id && (
             // A dedicated button, not just the label's double-click: with many terminals open and
             // no other way to tell, double-click-to-rename is easy to never discover at all.
@@ -192,8 +239,10 @@ export function TerminalListPanel(
           >
             <TrashIcon />
           </button>
+          </span>
         </li>
       ))}
     </ul>
+    </>
   )
 }

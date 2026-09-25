@@ -144,6 +144,6 @@ test('a shell opened while the tab was pending is still its shell after the tab 
   // The same shells — both still listed, neither replaced by a fresh one.
   await h.page.getByTestId('terminal-list-toggle').click()
   await expect(h.page.getByTestId('terminal-tab-row')).toHaveCount(2)
-  await h.page.getByTestId('terminal-tab-row').first().click()
+  await h.page.getByTestId('terminal-tab-row').first().click({ position: { x: 8, y: 8 } })
   await expect(h.page.getByTestId('terminal-shell')).toContainText('PENDING_33')
 })

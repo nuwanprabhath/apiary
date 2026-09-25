@@ -16,7 +16,7 @@ import {
   type GroupState,
 } from '../state/groups'
 import { selectRecent, type DismissedMap } from '../state/recentSessions'
-import { CollapseAllIcon, NoteIcon, RefreshIcon, SidebarIcon } from './icons'
+import { CloseIcon, CollapseAllIcon, NoteIcon, RefreshIcon, SidebarIcon } from './icons'
 import { SearchField } from './SearchField'
 import { useNotifications } from '../state/notifications'
 import { describeRefresh } from '../state/refreshSummary'
@@ -95,6 +95,8 @@ interface Props {
   pending: PendingSessionSummary[]
   /** Switches the main pane to a pending session's terminal. */
   onSelectPending: (ptyId: string) => void
+  /** Ends a pending session's Claude — the row's stop button. */
+  onStopPending?: (ptyId: string) => void
   /**
    * A session to scroll into view, set when its tab is activated (Settings > Sidebar). Changing
    * this is the whole signal: it is deliberately not the same as `selectedId`, so that merely
@@ -168,7 +170,7 @@ export function Sidebar({
   selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onDeleteSession,
   onSplitSession, pinned, onTogglePin, onEditNote, onForkSession, pinnedCollapsed,
   onPinnedCollapsedChange,
-  pending, onSelectPending, revealId, groupState, onGroupStateChange, onReorderPinned,
+  pending, onSelectPending, onStopPending, revealId, groupState, onGroupStateChange, onReorderPinned,
   recentSectionEnabled, recentSectionHours, dismissedRecent, recentCollapsed,
   onRecentCollapsedChange, onDismissRecent, activeTabs, onFocusTab,
   searchChatContent, searchSessionNotes, onSessionDropped,
@@ -486,7 +488,7 @@ export function Sidebar({
     // The frame is what glass themes paint their pane on (see styles.css): the sidebar itself
     // scrolls, and a pane drawn inside a scroller would scroll away with the list.
     <div className="sidebar-frame" hidden={hidden}>
-    <aside className="sidebar" data-testid="sidebar" ref={listRef} hidden={hidden}>
+    <aside className="sidebar" data-testid="sidebar" hidden={hidden}>
       <div className="sidebar-header">
         {onHide !== undefined && (
           // First in the row, at the edge it folds towards — where the rail's button that brings it
@@ -531,6 +533,10 @@ export function Sidebar({
           <span>Refresh</span>
         </button>
       </div>
+
+      {/* Everything below the search row scrolls; the row itself stays put, so search and Refresh
+       *  are always one move away however far down the list you are. */}
+      <div className="sidebar-list" data-testid="sidebar-list" ref={listRef}>
 
       {isEmpty && deferredQuery.trim() === '' && (
         <p className="empty" data-testid="sidebar-empty">
@@ -705,21 +711,45 @@ export function Sidebar({
       )}
 
       {pending.length > 0 && (
-        <ul className="pending-list" data-testid="pending-list">
-          {pending.map((p) => (
-            <li key={p.ptyId}>
-              <button
-                className="session-row pending-row"
-                data-testid="pending-session-item"
-                onClick={() => onSelectPending(p.ptyId)}
-                title={p.cwd}
-              >
-                <span className="live-dot" aria-label="running" />
-                <span className="session-title">New session &middot; {p.label}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        // Claude sessions started here that Claude has not named yet: it writes a session — and
+        // its title — only once there is a first message, so until then all there is to show is
+        // the folder. Only the ones with no tab in any window are listed (an open one is in
+        // Active); they used to sit here unlabelled, which read as mystery rows.
+        <section className="pending-section" data-testid="pending-section">
+          <div
+            className="pinned-header pending-header"
+            title="Claude sessions started here that are not showing in any window. Claude names a session once it has a first message."
+          >
+            <span className="pinned-label">Unnamed, running</span>
+            <span className="pinned-count">{pending.length}</span>
+          </div>
+          <ul className="pending-list" data-testid="pending-list">
+            {pending.map((p) => (
+              <li key={p.ptyId} className="session-row-wrap">
+                <button
+                  className="session-row pending-row"
+                  data-testid="pending-session-item"
+                  onClick={() => onSelectPending(p.ptyId)}
+                  title={p.cwd}
+                >
+                  <span className="live-dot" aria-label="running" />
+                  <span className="session-title">New session &middot; {p.label}</span>
+                </button>
+                {onStopPending !== undefined && (
+                  <button
+                    className="row-action pending-stop"
+                    data-testid="pending-stop"
+                    title="Stop this Claude"
+                    aria-label={`Stop new session in ${p.label}`}
+                    onClick={() => onStopPending(p.ptyId)}
+                  >
+                    <CloseIcon />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {tree.length > 0 && searching && (
@@ -876,6 +906,7 @@ export function Sidebar({
         </>
       )}
 
+      </div>
       <ContextMenu
         items={menuItems()}
         position={menu === null ? null : { x: menu.x, y: menu.y }}

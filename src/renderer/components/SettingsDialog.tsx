@@ -321,6 +321,26 @@ export function SettingsDialog(
                 <label className="settings-row">
                   <input
                     type="checkbox"
+                    data-testid="setting-terminal-minimal-prompt"
+                    checked={draft.terminalMinimalPrompt}
+                    onChange={(e) => patch({ terminalMinimalPrompt: e.target.checked })}
+                  />
+                  <span>
+                    <strong>Minimal prompt: just <code>$</code></strong>
+                    <span className="settings-help">
+                      The shell&rsquo;s prompt shows nothing but <code>$</code> — no user, host or
+                      path — so the whole line is yours to type in. The session&rsquo;s header
+                      already says where the terminal is, and <code>pwd</code> still does. Works in
+                      bash (including macOS&rsquo;s own) and zsh, after your own startup files, so
+                      everything else they set up is untouched.
+                    </span>
+                  </span>
+                </label>
+
+                <label className="settings-row" data-disabled={draft.terminalMinimalPrompt}>
+                  <input
+                    type="checkbox"
+                    disabled={draft.terminalMinimalPrompt}
                     data-testid="setting-terminal-shorten-path"
                     checked={draft.terminalShortenPath}
                     onChange={(e) => patch({ terminalShortenPath: e.target.checked })}
@@ -338,7 +358,7 @@ export function SettingsDialog(
                   </span>
                 </label>
 
-                {draft.terminalShortenPath && (
+                {draft.terminalShortenPath && !draft.terminalMinimalPrompt && (
                   <div className="settings-row settings-row-indent">
                     <label className="settings-inline">
                       <span>Keep the last</span>
@@ -370,8 +390,9 @@ export function SettingsDialog(
 
                 <div className="settings-row settings-row-indent">
                   <span className="settings-help" data-testid="terminal-shorten-note">
-                    Applies to terminals opened from now on — a shell already running keeps the
-                    environment it started with. This uses bash&rsquo;s own <code>PROMPT_DIRTRIM</code>,
+                    Both apply to terminals opened from now on — a shell already running keeps the
+                    environment it started with. With the minimal prompt on, the path is gone
+                    anyway, so shortening it does nothing. Shortening uses bash&rsquo;s own <code>PROMPT_DIRTRIM</code>,
                     so a zsh prompt is unaffected: zsh has no equivalent, and the alternative is
                     overwriting a prompt you configured yourself. It needs bash 4 or newer, so
                     macOS&rsquo;s own <code>/bin/bash</code> (still 3.2) ignores it.

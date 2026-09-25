@@ -24,6 +24,9 @@ test('capture the README screenshot', async () => {
   // without needing an actual `claude` process (which may not even be on this machine's PATH).
   const h: Harness = await launchApiary({
     fakeLiveSessionId: '33333333-3333-3333-3333-333333333333', // "Repo root session"
+    // What a new install looks like: the default theme (Liquid Glass), not the test suite's
+    // original look.
+    realDefaultTheme: true,
   })
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()

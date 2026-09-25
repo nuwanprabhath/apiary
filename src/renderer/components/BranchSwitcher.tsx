@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { GitRefEntry, GitRefs, WorktreeConflict } from '@shared/types'
 import { exactRefMatch } from '../state/branchSelection'
-import { CopyIcon, CheckIcon } from './icons'
+import { CopyIcon, CheckIcon, ArrowDownIcon } from './icons'
+import { updateBranchMessage } from '@shared/gitMessages'
 
 interface Props {
   shellKey: string
@@ -22,6 +23,10 @@ interface Props {
   /** Opens straight into naming a new branch, for the menu's "Create Branch..." command, rather
    *  than making the user find that action inside the list first. */
   startAt?: 'list' | 'name'
+  /** A one-line result to show (the pull button's "Pulled 3 commits into main."). */
+  onNotice?: (message: string) => void
+  /** A branch moved (the pull button): the toolbar's ahead/behind is out of date. */
+  onBranchUpdated?: () => void
 }
 
 type Step =
@@ -38,6 +43,8 @@ export function BranchSwitcher({
   shellKey, isPtyId, onClose, onCheckedOut, onError, onWorktreeConflict, mode = 'checkout',
   currentBranch = null,
   startAt = 'list',
+  onNotice,
+  onBranchUpdated,
 }: Props): JSX.Element {
   const [refs, setRefs] = useState<GitRefs | null>(null)
   const [query, setQuery] = useState('')
@@ -55,6 +62,20 @@ export function BranchSwitcher({
   const reportError = (message: string): void => {
     setErrorMessage(message)
     onError(message)
+  }
+
+  /** The pull button beside a local branch: fast-forwards it from its upstream, in place. */
+  const updateBranch = async (name: string): Promise<void> => {
+    setErrorMessage(null)
+    try {
+      const { commits } = await window.apiary.gitUpdateBranch(shellKey, isPtyId, name)
+      onNotice?.(updateBranchMessage(name, commits))
+      onBranchUpdated?.()
+      // The row's date, author and subject are the branch tip's, which may just have moved.
+      void window.apiary.gitListRefs(shellKey, isPtyId).then(setRefs).catch(() => {})
+    } catch (e) {
+      reportError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   useEffect(() => {
@@ -276,6 +297,7 @@ export function BranchSwitcher({
                 title="branches" testId="branch-switcher-branch-row" rows={filtered.local} busy={busy}
                 activeName={activeMatch?.kind === 'local' ? activeMatch.entry.name : null}
                 onPick={(r) => pickRef(r.name, 'local')}
+                onUpdate={updateBranch}
               />
               <BranchSection
                 title="remote branches" testId="branch-switcher-remote-row" rows={filtered.remote} busy={busy}
@@ -296,10 +318,12 @@ export function BranchSwitcher({
 }
 
 function BranchSection(
-  { title, testId, rows, onPick, busy, activeName }:
+  { title, testId, rows, onPick, busy, activeName, onUpdate }:
   {
     title: string; testId: string; rows: GitRefEntry[]; onPick: (r: GitRefEntry) => void
     busy: boolean; activeName: string | null
+    /** Local branches only: the pull button. */
+    onUpdate?: (name: string) => Promise<void>
   },
 ): JSX.Element | null {
   if (rows.length === 0) return null
@@ -320,10 +344,37 @@ function BranchSection(
               {r.relativeDate} &middot; {r.author} &middot; {r.shortSha} &middot; {r.subject}
             </span>
           </button>
+          {onUpdate !== undefined && <PullRefButton name={r.name} onPull={onUpdate} />}
           <CopyRefButton name={r.name} />
         </li>
       ))}
     </>
+  )
+}
+
+/**
+ * Brings a local branch up to date with its upstream without picking it — beside the copy button,
+ * shown the same way. Fast-forward only (see branchOps.updateBranch); busy while it runs, so one
+ * click cannot start two pulls.
+ */
+function PullRefButton({ name, onPull }: { name: string; onPull: (name: string) => Promise<void> }): JSX.Element {
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      className="branch-switcher-copy branch-switcher-pull"
+      data-testid="branch-switcher-pull"
+      data-busy={busy}
+      disabled={busy}
+      title={busy ? `Pulling ${name}…` : `Pull ${name} from its upstream`}
+      aria-label={`Pull ${name}`}
+      onClick={(e) => {
+        e.stopPropagation()
+        setBusy(true)
+        void onPull(name).finally(() => { setBusy(false) })
+      }}
+    >
+      <ArrowDownIcon />
+    </button>
   )
 }
 

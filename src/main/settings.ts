@@ -60,6 +60,13 @@ export interface AppSettings {
   terminalShortenPath: boolean
   terminalPathSegments: number
   /**
+   * Show nothing but `$` as the prompt of shells Apiary starts — the path, user and host all go.
+   * On by default: a terminal pane is narrow, and the session's header already says where it is.
+   * A new field, so the default reaches existing installs too (nobody has a stored value for it).
+   * See pty/promptPath.ts for how it is done in bash and zsh.
+   */
+  terminalMinimalPrompt: boolean
+  /**
    * Which session-bar plugins are on, by plugin id. A map rather than a field per plugin so
    * adding one does not mean touching the settings shape — which is the point of plugins.
    */
@@ -108,6 +115,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   recentSectionHours: 24,
   terminalShortenPath: true,
   terminalPathSegments: 1,
+  terminalMinimalPrompt: true,
   plugins: {},
   pluginSettings: {},
   updateAutomaticChecks: true,

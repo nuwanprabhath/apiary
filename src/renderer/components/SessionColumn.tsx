@@ -18,6 +18,8 @@ import { ImageLightbox } from './ImageLightbox'
 import { BranchIcon, ArrowDownIcon, ArrowUpIcon, CopyIcon, PlusIcon, ListIcon, EllipsisIcon } from './icons'
 import { GitMenu, type GitMenuItem } from './GitMenu'
 import { useNotifications } from '../state/notifications'
+import { useLayoutActions } from '../state/layoutContext'
+import { PANE_MIME } from './SessionTabBar'
 import { pullMessage, pushMessage, worktreePullMessage } from '@shared/gitMessages'
 
 /** A shell terminal inside one session's shell pane. */
@@ -42,6 +44,9 @@ interface Props {
   setActiveTerminal: React.Dispatch<React.SetStateAction<Map<string, string>>>
   bottomHeight: number
   onStartBottomResize: () => void
+  /** The terminal list's dragged width (null: fit the names), and how to change it. */
+  terminalListWidth?: number | null
+  onTerminalListWidth?: (width: number | null) => void
   isActive: boolean
   onFocus: () => void
   onActivateTab: (key: string) => void
@@ -87,7 +92,7 @@ interface Props {
 export function SessionColumn(props: Props): JSX.Element {
   const {
     column, sessions, pending, resumed, ptyOverrides, shellTabs, setShellTabs,
-    activeTerminal, setActiveTerminal, bottomHeight, onStartBottomResize, isActive, onFocus,
+    activeTerminal, setActiveTerminal, bottomHeight, onStartBottomResize, terminalListWidth = null, onTerminalListWidth, isActive, onFocus,
     onActivateTab, onCloseTab, onSetView, onResume, onResumeAsync, onRenameSession, onRenamePending,
     onSplitActive, onReorderTab, transferFor, pinnedKeys, onTogglePin, onFork, onTabDropped, onDetach,
     onSessionStarted,
@@ -426,6 +431,9 @@ export function SessionColumn(props: Props): JSX.Element {
     pending.has(tab.key) || resumed.has(tab.key)
 
   const activeView = activeTab !== null ? viewOf(activeTab) : 'transcript'
+  const { movingPane, dropPaneOn } = useLayoutActions()
+  const [paneDropOver, setPaneDropOver] = useState(false)
+  useEffect(() => { if (movingPane === null) setPaneDropOver(false) }, [movingPane])
 
   return (
     <section
@@ -438,6 +446,30 @@ export function SessionColumn(props: Props): JSX.Element {
       onFocusCapture={onFocus}
       onMouseDownCapture={onFocus}
     >
+      {/* While another pane is dragged by its tab bar, this whole pane is where it can land. A
+       *  layer over everything rather than handlers on the column, so a terminal or a text box
+       *  underneath cannot take the drop for itself. */}
+      {movingPane !== null && movingPane !== column.id && (
+        <div
+          className="pane-drop"
+          data-testid="pane-drop"
+          data-over={paneDropOver}
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes(PANE_MIME)) return
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'move'
+            setPaneDropOver(true)
+          }}
+          onDragLeave={() => setPaneDropOver(false)}
+          onDrop={(e) => {
+            if (!e.dataTransfer.types.includes(PANE_MIME)) return
+            e.preventDefault()
+            dropPaneOn(column.id)
+          }}
+        >
+          <span className="pane-drop-label">Swap here</span>
+        </div>
+      )}
       {/* Two cards, the way VS Code floats its editor and its panel: the session (tabs, header,
        *  transcript or terminal) and, below it across the gap, the shell. The gap between them is
        *  the resize handle. */}
@@ -714,6 +746,8 @@ export function SessionColumn(props: Props): JSX.Element {
                   onReorder={reorderTerminalTab}
                   renameRequest={renameRequest}
                   onRenameRequestHandled={() => { setRenameRequest(null) }}
+                  width={terminalListWidth}
+                  onResize={onTerminalListWidth}
                 />
               )}
             </div>
@@ -733,6 +767,8 @@ export function SessionColumn(props: Props): JSX.Element {
           onClose={() => setBranchPicker(null)}
           onCheckedOut={loadGitStatus}
           onError={(message) => notify({ kind: 'error', message })}
+          onNotice={(message) => notify({ kind: 'success', message })}
+          onBranchUpdated={loadGitStatus}
           onWorktreeConflict={setWorktreeConflict}
         />
       )}

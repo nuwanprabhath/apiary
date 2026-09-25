@@ -289,6 +289,18 @@ Keep it that way.
   `APIARY_SAFE_THEME=1`. Holding Shift at launch was specced and dropped: Electron's main process
   cannot see a modifier held before the first key event.
 
+## Terminals: painting and prompts
+
+- **The host paints the terminal's colour, xterm paints none** (`.terminal-host` background is
+  `--term-background`, `.xterm-viewport` transparent). xterm draws whole rows only; the sliver
+  under the last one used to show whatever was behind — a bar on glass. Rows are **bottom-anchored**
+  (`justify-content: flex-end`), so every pane ends its text the same distance from the edge.
+- **Minimal prompt** (`terminalMinimalPrompt`, default on) is in `pty/promptPath.ts`: bash gets
+  `PROMPT_COMMAND="PS1='\$ '"` (runs after `.bashrc`, works in bash 3.2), zsh gets `ZDOTDIR` =
+  a shim written at startup (`<userData>/prompt-shim/zsh`) that sources the user's own four files
+  from `APIARY_USER_ZDOTDIR` and appends a `precmd` hook. Verified with real bash 3.2/5.3/zsh on
+  macOS and bash 5.2/zsh 5.9 on Ubuntu 24.04 (Docker). It overrides the path trim.
+
 ## The cwd override column, and why the scanner must leave it alone
 
 The `session` table has a `cwd_override` column (`src/main/store/schema.ts`), set only by

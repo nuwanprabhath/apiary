@@ -4,6 +4,50 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.24.0] - 2026-09-25
+
+### Added
+
+- **A minimal shell prompt, on by default.** Terminals Apiary opens show nothing but `$` — no
+  user, host or path — so the whole line is yours. Works in bash (macOS's own and newer) and zsh,
+  on macOS and Linux, applied after your own startup files so everything else they set up stays.
+  Settings → Terminal turns it off.
+- **Pull any branch from the branch list.** A pull button sits beside each local branch's copy
+  button. It fast-forwards that branch from its upstream — the current branch, one checked out in
+  another worktree, or one not checked out at all, without switching to it — and says how many
+  commits arrived. A branch with local commits the remote does not have is left alone, with a
+  message saying why.
+- **The terminal list fits its names and can be resized.** It is as wide as the longest terminal
+  name instead of a fixed 180px, and dragging its edge makes it any width you like (remembered;
+  double-click the edge to fit the names again). Names are never cut short to hold room for the
+  rename and close buttons: those appear over the end of a row on hover, with the name fading out
+  under them, and the list does not jump.
+- **Swap panes by dragging.** Drag the empty part of a pane's tab bar onto another pane and the
+  two trade places, each whole — tabs, the session in front and its running terminals — with the
+  layout and its sizes unchanged.
+
+### Changed
+
+- **Tabs have a new look**: quiet chips, with the active one lifted — no accent-coloured bar
+  along its top, and no focus ring around it after a click.
+- **The terminal in front is a lifted chip** in the terminal list, like the tab in front, instead
+  of a shaded row with an accent bar down its edge.
+- **The search row stays put** at the top of the sidebar while the session list scrolls under it.
+- **Unnamed running sessions are explained.** Sessions you started in Apiary that Claude has not
+  named yet (it names a session at its first message) and that are not open in any window are
+  listed under their own heading, *Unnamed, running*, each with a stop button — instead of as
+  unlabelled "New session · …" rows under Recent.
+- The README screenshot shows the default Liquid Glass theme.
+
+### Fixed
+
+- **No more bar under a terminal's last line.** The strip a terminal leaves below its last row —
+  which on glass themes showed as a lighter bar that changed height as the pane was resized — is
+  now the terminal's own colour.
+- **Terminals end their text at the same height in every pane**: rows sit at the bottom, so a
+  Claude session and its neighbour line up instead of stopping up to a row apart.
+- **Counts on group headings line up** with the Active, Pinned and Recent counts above them.
+
 ## [1.23.0] - 2026-09-25
 
 ### Changed

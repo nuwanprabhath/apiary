@@ -45,6 +45,8 @@ export interface AppServiceOptions {
   searchChatContent?: boolean
   searchSessionNotes?: boolean
   promptPath?: PromptPathOptions
+  /** The zsh startup shim the minimal prompt needs (see pty/promptPath.ts), or none. */
+  zshPromptShim?: string
   /** Which session-bar plugins are switched on, by plugin id. */
   plugins?: Record<string, boolean>
   /** Each plugin's own settings, namespaced by plugin id. */
@@ -189,7 +191,8 @@ export class AppService {
     log.info('prompt', 'prompt trim configured', {
       enabled: options.enabled,
       segments: options.segments,
-      env: promptPathEnv(options),
+      minimal: options.minimal ?? false,
+      env: promptPathEnv(options, this.options.zshPromptShim ?? null),
     })
     this.promptPath = options
   }
@@ -627,7 +630,7 @@ export class AppService {
       // 90-column worktree path greets you. This was missed when the setting was added: it reached
       // the shell tabs and not the session's own terminal, so the setting looked broken to anyone
       // who tried it on the terminal they actually use.
-      env: promptPathEnv(this.promptPath),
+      env: promptPathEnv(this.promptPath, this.options.zshPromptShim ?? null),
     })
   }
 
@@ -678,7 +681,7 @@ export class AppService {
       id,
       cwd,
       command: 'exec "$SHELL" -l',
-      env: promptPathEnv(this.promptPath),
+      env: promptPathEnv(this.promptPath, this.options.zshPromptShim ?? null),
     })
   }
 
@@ -694,7 +697,7 @@ export class AppService {
       id,
       cwd,
       command: 'exec "$SHELL" -l',
-      env: promptPathEnv(this.promptPath),
+      env: promptPathEnv(this.promptPath, this.options.zshPromptShim ?? null),
     })
   }
 
@@ -816,6 +819,11 @@ export class AppService {
     return branchOps.pull(this.resolveShellCwd(key, isPtyId))
   }
 
+  /** Fast-forwards any local branch from its upstream (the branch list's pull button). */
+  async gitUpdateBranch(key: string, isPtyId: boolean, branch: string): Promise<{ commits: number }> {
+    return branchOps.updateBranch(this.resolveShellCwd(key, isPtyId), branch)
+  }
+
   /**
    * Fast-forwards a folder's branch from its upstream — the pull button on a folder's hover card.
    * `path` comes from the renderer, so it is checked against a stored project row before git
@@ -891,7 +899,7 @@ export class AppService {
       cwd,
       command: buildResumeCommand(sessionId, { fork: true, claudeBin: this.options.claudeBin }),
       tui: true,
-      env: promptPathEnv(this.promptPath),
+      env: promptPathEnv(this.promptPath, this.options.zshPromptShim ?? null),
     })
     return { ptyId, cwd, label: forkLabel(session.title ?? (basename(cwd) || cwd)) }
   }
@@ -912,7 +920,7 @@ export class AppService {
       cwd,
       command: buildNewSessionCommand({ claudeBin: this.options.claudeBin }),
       tui: true,
-      env: promptPathEnv(this.promptPath),
+      env: promptPathEnv(this.promptPath, this.options.zshPromptShim ?? null),
     })
     return { ptyId, cwd, label: basename(cwd) || cwd }
   }

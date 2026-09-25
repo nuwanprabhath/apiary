@@ -18,6 +18,8 @@ export interface PromptPathOptions {
   enabled: boolean
   /** How many trailing directories to keep. */
   segments: number
+  /** Show nothing but `$` (the "Minimal prompt" setting). Takes precedence over the trim. */
+  minimal?: boolean
 }
 
 /** The count bash will actually be given, whatever a hand-edited settings file says. */
@@ -34,7 +36,8 @@ export function clampSegments(segments: number): number {
  * at, and it costs nothing: this reproduces the measured bash behaviour exactly, so what it shows
  * is what the shell will print.
  */
-export function previewPrompt(path: string, { enabled, segments }: PromptPathOptions): string {
+export function previewPrompt(path: string, { enabled, segments, minimal = false }: PromptPathOptions): string {
+  if (minimal) return '$'
   const home = path.startsWith('~')
   const body = home ? path.slice(1).replace(/^\//, '') : path.replace(/^\//, '')
   const parts = body.split('/').filter((p) => p !== '')

@@ -218,6 +218,7 @@ export function registerIpc(
       recentSectionHours: settings.recentSectionHours,
       terminalShortenPath: settings.terminalShortenPath,
       terminalPathSegments: settings.terminalPathSegments,
+      terminalMinimalPrompt: settings.terminalMinimalPrompt,
       diagnosticsEnabled: settings.diagnosticsEnabled,
       logRetentionDays: settings.logRetentionDays,
       logMaxSizeMb: settings.logMaxSizeMb,
@@ -263,6 +264,7 @@ export function registerIpc(
         : clampRecentHours(next.recentSectionHours),
       terminalShortenPath: keep(next.terminalShortenPath, current.terminalShortenPath),
       terminalPathSegments: keep(next.terminalPathSegments, current.terminalPathSegments),
+      terminalMinimalPrompt: keep(next.terminalMinimalPrompt, current.terminalMinimalPrompt),
       plugins: keep(next.plugins, current.plugins),
       pluginSettings: keep(next.pluginSettings, current.pluginSettings),
       updateAutomaticChecks: keep(next.updateAutomaticChecks, current.updateAutomaticChecks),
@@ -293,6 +295,7 @@ export function registerIpc(
     service.setPromptPath({
       enabled: merged.terminalShortenPath,
       segments: merged.terminalPathSegments,
+      minimal: merged.terminalMinimalPrompt,
     })
     // Applied immediately: switching diagnostics off has to stop writing now, not at next launch,
     // or "off" is a promise the app keeps only eventually.
@@ -301,6 +304,7 @@ export function registerIpc(
       diagnosticsEnabled: merged.diagnosticsEnabled,
       terminalShortenPath: merged.terminalShortenPath,
       terminalPathSegments: merged.terminalPathSegments,
+      terminalMinimalPrompt: merged.terminalMinimalPrompt,
     })
     // Switching content search on should not mean waiting until the next rescan to be able to use
     // it, so the first pass starts now; it is a background chore either way.
@@ -367,6 +371,7 @@ export function registerIpc(
     },
   )
   handle(CHANNELS.gitPull, (_e, key: string, isPtyId: boolean) => service.gitPull(key, isPtyId))
+  handle(CHANNELS.gitUpdateBranch, (_e, key: string, isPtyId: boolean, branch: string) => service.gitUpdateBranch(key, isPtyId, branch))
   handle(CHANNELS.gitPullFolder, async (_e, path: string) => {
     const outcome = await service.gitPullFolder(path)
     // New commits change ahead/behind and possibly what is checked out, so the tree is re-read —

@@ -226,6 +226,23 @@ export function closePane(layout: Layout, paneId: string, activePaneId: string |
 }
 
 /**
+ * Trades the places of two panes, for dragging one pane onto another.
+ *
+ * A swap rather than an insert: the zones of a preset are fixed, so moving one pane into another's
+ * zone has to put that pane somewhere, and the only place that disturbs nothing else is the zone
+ * just vacated. Both panes travel whole — tabs, active tab and terminals — and the layout and its
+ * sizes stay as they were.
+ */
+export function swapPanes(layout: Layout, fromId: string, toId: string): Layout {
+  const from = layout.panes.findIndex((p) => p.id === fromId)
+  const to = layout.panes.findIndex((p) => p.id === toId)
+  if (from === -1 || to === -1 || from === to) return layout
+  const panes = [...layout.panes]
+  ;[panes[from], panes[to]] = [panes[to], panes[from]]
+  return { ...layout, panes }
+}
+
+/**
  * The one rule every change to a window's panes goes through, the way `pruneColumns` was before.
  *
  * A pane that has become empty is closed — unless it was made empty on purpose, as a zone waiting

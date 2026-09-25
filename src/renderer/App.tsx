@@ -19,7 +19,7 @@ import {
 } from './state/columns'
 import {
   initialLayout, tidyLayout, openBeside, defaultTracks, trackTemplate, placeInZone, applyPreset,
-  presetDef, closePane, PRESETS,
+  presetDef, closePane, swapPanes, PRESETS,
   type Layout, type PresetId, type Tracks,
 } from './state/layout'
 import { LayoutContext, type LayoutActions, type PlaceTarget } from './state/layoutContext'
@@ -787,12 +787,23 @@ export function App(): JSX.Element {
   /** A picker opened from a context menu's "Arrange…", which has no button to hang it from. */
   const [requestedPicker, setRequestedPicker] = useState<{ target: PlaceTarget; at: DOMRect } | null>(null)
 
+  /** The pane being dragged onto another by its tab bar — see `swapPanes`. */
+  const [movingPane, setMovingPane] = useState<string | null>(null)
+
   const layoutActions: LayoutActions = {
     preset: layout.preset,
     place: placeTarget,
     apply: applyLayout,
     requestPicker: (target, at) => { setRequestedPicker({ target, at: new DOMRect(at.x, at.y, 0, 0) }) },
     isOpen: (key) => findColumnWithTab(columns, key) !== null,
+    paneCount: columns.length,
+    movingPane,
+    startPaneMove: setMovingPane,
+    endPaneMove: () => setMovingPane(null),
+    dropPaneOn: (paneId) => {
+      if (movingPane !== null) setLayout((prev) => swapPanes(prev, movingPane, paneId))
+      setMovingPane(null)
+    },
   }
 
   // A requested picker (opened from a context menu, with no button of its own to anchor a
@@ -1321,8 +1332,10 @@ export function App(): JSX.Element {
           dismissedRecent: dismissRecent(prev.dismissedRecent, session.sessionId, Date.now()),
         }))}
         pending={[...pending.values()]
-          .filter((p) => !openKeys.has(p.ptyId))
+          // Open in a tab here, or in any other window, it is already in Active.
+          .filter((p) => !openKeys.has(p.ptyId) && !activeTabs.some((t) => t.key === p.ptyId))
           .map((p) => ({ ptyId: p.ptyId, label: p.titleOverride ?? p.label, cwd: p.cwd }))}
+        onStopPending={(ptyId) => { window.apiary.ptyKill(ptyId) }}
         onSelectPending={(ptyId) => {
           setColumns((prev) => {
             const targetId = prev.some((c) => c.id === activeColumnId) ? activeColumnId : prev[0]?.id
@@ -1381,6 +1394,8 @@ export function App(): JSX.Element {
             setActiveTerminal={setActiveTerminal}
             bottomHeight={ui.bottomHeight}
             onStartBottomResize={() => setResizingBottom(true)}
+            terminalListWidth={ui.terminalListWidth}
+            onTerminalListWidth={(w) => { setUi((prev) => ({ ...prev, terminalListWidth: w })) }}
             isActive={column.id === activeColumn?.id}
             onFocus={() => setActiveColumnId(column.id)}
             onActivateTab={(key) => {

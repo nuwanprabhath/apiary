@@ -205,3 +205,46 @@ test('a group\'s collapse-all folds every folder in it, and leaves the group ope
   // Nothing outside the group was touched.
   await expect(h.page.getByTestId('session-item').filter({ hasText: 'Fix CSV export bug' })).toBeVisible()
 })
+
+test('the counts on group headings line up with the Active, Pinned and Recent counts', async () => {
+  const names = await folderOrder(h.page)
+  await folder(h.page, names[0]).click({ button: 'right' })
+  await h.page.getByTestId('context-menu-new-group').click()
+  await h.page.getByTestId('folder-group-rename').fill('Tools')
+  await h.page.getByTestId('folder-group-rename').press('Enter')
+  // Something in Recent, so a section count and a group count are both on screen.
+  await h.page.locator('[data-testid="session-item"]').first().click()
+  await expect(h.page.getByTestId('recent-section').or(h.page.getByTestId('active-header')).first()).toBeVisible()
+  await h.page.mouse.move(2, 2)
+
+  const rights = await h.page.locator('.sidebar .pinned-count').evaluateAll((els) =>
+    els.map((e) => Math.round(e.getBoundingClientRect().right)))
+  expect(rights.length).toBeGreaterThanOrEqual(2)
+  expect(Math.max(...rights) - Math.min(...rights)).toBeLessThanOrEqual(1)
+
+  // Hovering a group heading swaps its count for the collapse-all button, in the same place.
+  await h.page.getByTestId('folder-group-toggle').hover()
+  await expect(h.page.getByTestId('group-collapse-all-button')).toBeVisible()
+})
+
+test('the search row stays put while the session list scrolls under it', async () => {
+  const list = h.page.getByTestId('sidebar-list')
+  // The fixtures fit on one screen; a tall block at the end stands in for a long session history.
+  await list.evaluate((e) => {
+    const filler = document.createElement('div')
+    filler.style.height = '2000px'
+    filler.style.flex = 'none'
+    e.appendChild(filler)
+  })
+  await expect.poll(() => list.evaluate((e) => e.scrollHeight > e.clientHeight + 40)).toBe(true)
+  const search = h.page.locator('.sidebar-header')
+  const before = (await search.boundingBox())!
+
+  await list.hover()
+  await h.page.mouse.wheel(0, 2000)
+  await expect.poll(() => list.evaluate((e) => e.scrollTop)).toBeGreaterThan(40)
+
+  const after = (await search.boundingBox())!
+  expect(after.y).toBe(before.y)
+  await expect(h.page.getByTestId('sidebar-refresh')).toBeInViewport()
+})

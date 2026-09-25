@@ -204,3 +204,36 @@ test('opening a session in that worktree starts it in the worktree, not the repo
   // A new tab, showing the worktree's own directory in the header.
   await expect(h.page.getByTestId('session-path')).toContainText('repo-c-wt')
 })
+
+test('a branch row pulls that branch from its upstream, without checking it out', async () => {
+  const remote = h.repoRoot + '-remote.git'
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', remote])
+  execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: h.repoRoot })
+  execFileSync('git', ['push', '-q', '-u', 'origin', 'main'], { cwd: h.repoRoot })
+  execFileSync('git', ['branch', 'feature/behind'], { cwd: h.repoRoot })
+  execFileSync('git', ['push', '-q', '-u', 'origin', 'feature/behind'], { cwd: h.repoRoot })
+  // Someone else pushes a commit to feature/behind.
+  const other = h.repoRoot + '-other'
+  execFileSync('git', ['clone', '-q', '-b', 'feature/behind', remote, other])
+  writeFileSync(join(other, 'theirs.txt'), 'theirs')
+  execFileSync('git', ['add', '.'], { cwd: other })
+  execFileSync('git', ['-c', 'user.email=o@example.com', '-c', 'user.name=Other', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'theirs'], { cwd: other })
+  execFileSync('git', ['push', '-q', 'origin', 'feature/behind'], { cwd: other })
+
+  await h.page.getByTestId('toolbar-branch-button').click()
+  await h.page.getByTestId('branch-switcher-search').fill('behind')
+  const item = h.page.locator('.branch-switcher-item:has([data-testid="branch-switcher-branch-row"])').filter({ hasText: 'feature/behind' })
+  const pull = item.getByTestId('branch-switcher-pull')
+  await expect(pull).toBeHidden()
+  await item.hover()
+  await pull.click()
+
+  await expect(h.page.getByTestId('notification').filter({ hasText: 'Pulled 1 commit into feature/behind.' })).toBeVisible()
+  const tip = (ref: string): string => execFileSync('git', ['rev-parse', ref], { cwd: h.repoRoot }).toString().trim()
+  expect(tip('feature/behind')).toBe(tip('origin/feature/behind'))
+  // Not a checkout: still on main, switcher still open.
+  await expect(h.page.getByTestId('toolbar-branch-button')).toContainText('main')
+  await expect(h.page.getByTestId('branch-switcher')).toBeVisible()
+  // Remote branches and tags have no pull button — only local branches can be brought up to date.
+  await expect(h.page.locator('.branch-switcher-item:has([data-testid="branch-switcher-remote-row"]) [data-testid="branch-switcher-pull"]')).toHaveCount(0)
+})

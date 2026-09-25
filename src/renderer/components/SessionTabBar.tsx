@@ -10,6 +10,8 @@ const TAB_MIME = 'application/x-apiary-tab'
 /** The whole tab — its pty and shells — for a strip in *another* window that receives the drop.
  *  See `onDropTab`'s `transfer`. */
 const TRANSFER_MIME = 'application/x-apiary-tab-transfer'
+/** A whole pane, dragged by the empty part of its tab strip onto another pane. */
+export const PANE_MIME = 'application/x-apiary-pane'
 
 function readTransfer(dt: DataTransfer): TabTransfer | null {
   try {
@@ -99,7 +101,7 @@ export function SessionTabBar(
    */
   const [dragKey, setDragKey] = useState<string | null>(null)
   const [dropAt, setDropAt] = useState<number | null>(null)
-  const { place, requestPicker } = useLayoutActions()
+  const { place, requestPicker, paneCount, startPaneMove, endPaneMove } = useLayoutActions()
 
   /** Where a drop on this tab would insert, given which half of it the pointer is over. */
   const insertionFor = (e: { currentTarget: HTMLElement; clientX: number }, index: number): number => {
@@ -130,6 +132,18 @@ export function SessionTabBar(
     <div className="session-tab-bar" data-testid="session-tab-bar" role="tablist">
       <div
         className="session-tab-strip"
+        data-testid="session-tab-strip"
+        // The strip's empty space moves the whole pane onto another, as VS Code's does for an
+        // editor group. The tabs are draggable themselves and win inside their own bounds, but
+        // their dragstart bubbles here, hence the target checks.
+        draggable={paneCount > 1}
+        onDragStart={(e) => {
+          if (e.target !== e.currentTarget) return
+          e.dataTransfer.effectAllowed = 'move'
+          e.dataTransfer.setData(PANE_MIME, columnId)
+          startPaneMove(columnId)
+        }}
+        onDragEnd={(e) => { if (e.target === e.currentTarget) endPaneMove() }}
         // The strip's own empty space is a target too, so a tab can be dropped onto a column that
         // has none of its own yet — and dropping past the end means "last", rather than nothing.
         onDragOver={(e) => {

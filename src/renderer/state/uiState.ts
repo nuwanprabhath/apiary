@@ -46,6 +46,8 @@ export interface UiState {
   /** Whether this window's sidebar is folded away to a rail, leaving the sessions the width. */
   sidebarHidden: boolean
   bottomHeight: number
+  /** Width the terminal list was dragged to, or null to fit its longest terminal name. */
+  terminalListWidth: number | null
   /** Width of the import dialog, which is draggable because session titles get long. */
   importDialogWidth: number
 }
@@ -173,6 +175,7 @@ export const DEFAULT_UI_STATE: UiState = {
   sidebarWidth: 320,
   sidebarHidden: false,
   bottomHeight: 200,
+  terminalListWidth: null,
   importDialogWidth: 620,
 }
 

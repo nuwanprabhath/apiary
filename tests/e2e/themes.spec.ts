@@ -32,7 +32,8 @@ test('a built-in theme recolours the app and a live terminal, and survives a rel
   await sidebarSession(h.page, 'Fix CSV export bug').click()
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
-  const termBg = (): Promise<string> => h.page.getByTestId('terminal-shell').locator('.xterm-viewport')
+  // The host paints the terminal's colour (xterm's own background is transparent — see styles.css).
+  const termBg = (): Promise<string> => h.page.getByTestId('terminal-shell')
     .evaluate((el) => getComputedStyle(el).backgroundColor)
   const before = await termBg()
 
@@ -219,4 +220,29 @@ test('a fresh install starts on Liquid Glass; choosing the original look sticks'
   // A choice once made — the original look included — is kept over the default.
   await relaunchApiary(h, { APIARY_DEFAULT_THEME: '' })
   await expect(h.page.locator('html')).not.toHaveAttribute('data-material', 'glass')
+})
+
+test('the terminal colour reaches the bottom of its pane, with no bar under the last row', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('shell-toggle').click()
+  await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
+  await h.page.evaluate(() => window.apiary.themeApply('builtin:glass'))
+  await expect(h.page.locator('html')).toHaveAttribute('data-material', 'glass')
+  const paint = await h.page.getByTestId('terminal-shell').evaluate((el) => {
+    const host = el.closest('.terminal-host') ?? el
+    const viewport = host.querySelector('.xterm-viewport')!
+    const screen = host.querySelector('.xterm-screen')!.getBoundingClientRect()
+    return {
+      host: getComputedStyle(host).backgroundColor,
+      viewport: getComputedStyle(viewport).backgroundColor,
+      term: getComputedStyle(document.documentElement).getPropertyValue('--term-background').trim(),
+      sliver: host.getBoundingClientRect().bottom - screen.bottom,
+    }
+  })
+  // xterm draws whole rows only, so there is a sliver under the last one; the host's colour —
+  // the terminal's — fills it, not whatever is behind.
+  expect(paint.sliver).toBeGreaterThan(0)
+  expect(paint.viewport).toBe('rgba(0, 0, 0, 0)')
+  expect(paint.host).not.toBe('rgba(0, 0, 0, 0)')
+  expect(paint.term).not.toBe('')
 })
