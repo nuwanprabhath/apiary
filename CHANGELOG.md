@@ -4,7 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.24.2] - 2026-09-26
+## [1.24.3] - 2026-09-26
+
+The same app as 1.24.2, released for macOS too. 1.24.2's macOS build stopped at its lint step,
+whose shellcheck download was rate-limited by GitHub; the build now authenticates that download.
+A component test that could race the app's fonts loading on a cold build machine waits for them.
+
+## [1.24.2] - 2026-09-26 (Linux only)
 
 1.24.1 was tagged but never released: one of its new tests measured timing that did not hold on
 the build machines, which are faster than the machine it was written on. 1.24.2 is 1.24.1 with

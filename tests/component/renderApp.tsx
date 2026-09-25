@@ -40,6 +40,10 @@ export async function renderApp(opts: FakeOptions = {}): Promise<Rendered> {
   )
   mounted = { root, host }
   await expect.element(page.getByTestId('sidebar')).toBeVisible()
+  // The app's fonts load after the first render, and on a cold machine (a CI runner) late enough
+  // to reflow the page under a test that has already measured or hovered something — a hover
+  // landed on a button that then moved out from under the pointer. Nothing starts until they have.
+  await document.fonts.ready
   return { fake }
 }
 

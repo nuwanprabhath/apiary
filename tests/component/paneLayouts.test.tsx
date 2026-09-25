@@ -28,10 +28,19 @@ function row(title: string): HTMLElement {
  * timer (`useHoverCard`'s `arm` clears and restarts it on every `mouseenter`), so the hover happens
  * once and only the wait for the picker polls. */
 async function openPickerOn(button: Element, hoverFirst?: Element): Promise<HTMLElement> {
-  if (hoverFirst !== undefined) await userEvent.hover(hoverFirst)
-  await userEvent.hover(button)
-  await until(() => all('layout-picker').length > 0)
-  return all('layout-picker')[0]
+  // Up to three rests on the button: anything that moves the page under a still pointer (a late
+  // reflow on a slow machine) restarts the picker's hover delay, and a pointer that stays put never
+  // gets another mouseenter to start it again. A picker that never opens still fails.
+  for (let attempt = 1; ; attempt++) {
+    if (hoverFirst !== undefined) await userEvent.hover(hoverFirst)
+    await userEvent.hover(button)
+    try {
+      await until(() => all('layout-picker').length > 0, 2000)
+      return all('layout-picker')[0]
+    } catch (e) {
+      if (attempt === 3) throw e
+    }
+  }
 }
 
 describe('pane layouts', () => {

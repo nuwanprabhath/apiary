@@ -57,7 +57,11 @@ jobs:
 
       - run: npm run typecheck
 
+      # The shellcheck package downloads its binary from GitHub's API, which rate-limits anonymous
+      # requests on shared runners — the token lifts that.
       - run: npm run lint
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - run: npm test
 
