@@ -30,6 +30,7 @@ const api: ApiaryApi = {
   // and an async answer would arrive after React had painted the original look.
   initialTheme: ipcRenderer.sendSync(CHANNELS.themeInitial) as ThemeState,
   themeState: () => ipcRenderer.invoke(CHANNELS.themeState),
+  themeGpuCompositing: () => ipcRenderer.invoke(CHANNELS.themeGpuCompositing),
   themeApply: (id) => ipcRenderer.invoke(CHANNELS.themeApply, id),
   themeSave: (name, spec, prompt) => ipcRenderer.invoke(CHANNELS.themeSave, name, spec, prompt),
   themeGenerate: (request, current) => ipcRenderer.invoke(CHANNELS.themeGenerate, request, current),

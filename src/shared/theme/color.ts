@@ -128,3 +128,10 @@ export function rotateHue(c: RGBA, deg: number): RGBA {
   const { r, g, b } = hslToRgb((((h + deg) % 360) + 360) % 360, s, l)
   return { r, g, b, a: c.a }
 }
+
+/** The same colour with its HSL saturation multiplied by `factor` (clamped to 100%). */
+export function saturate(c: RGBA, factor: number): RGBA {
+  const { h, s, l } = rgbToHsl(c)
+  const { r, g, b } = hslToRgb(h, clamp(s * factor, 0, 100), l)
+  return { r, g, b, a: c.a }
+}

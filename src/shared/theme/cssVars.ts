@@ -44,23 +44,24 @@ export function themeToCssVars(spec: ThemeSpec): Record<string, string> {
 const white = (alpha: number): string => `rgba(255, 255, 255, ${alpha.toFixed(3)})`
 
 /**
- * Glass as CSS: the backdrop filter's numbers, the rim and sheen the highlight asks for, and a
- * thicker tint for popovers — a menu floats over text, which its blur would turn into noise, so
- * it keeps at least 82% of its colour whatever the panels do.
+ * Glass as CSS: the rim and sheen the highlight asks for, the lens edge the refraction asks for,
+ * and a thick tint for popovers — a menu floats over text, which would show through a thin one.
+ * (The blur and saturation are not CSS: ThemeEffects draws the background already blurred.)
  */
 function glassVars(spec: ThemeSpec): Record<string, string> {
-  const { blur, saturation, highlight: h } = spec.material
+  const { highlight: h, refraction: r } = spec.material
   const panel = parseColor(spec.palette['bg-panel'] ?? DEFAULT_PALETTE['bg-panel'])!
+  const rim = [
+    `inset 0 1px 0 0 ${white(0.55 * h)}`,
+    `inset 0 0 0 1px ${white(0.16 * h)}`,
+    `inset 0 -1px 0 0 ${white(0.06 * h)}`,
+  ]
+  // The bent, brightened band just inside a lens's edge, as a soft inner glow.
+  if (r > 0) rim.push(`inset 0 0 ${String(Math.round(8 + 16 * r))}px ${String(Math.round(r * 2))}px ${white(0.12 * r)}`)
   return {
-    '--glass-blur': `${String(Math.round(blur))}px`,
-    '--glass-saturate': saturation.toFixed(2),
-    '--glass-rim': [
-      `inset 0 1px 0 0 ${white(0.55 * h)}`,
-      `inset 0 0 0 1px ${white(0.16 * h)}`,
-      `inset 0 -1px 0 0 ${white(0.06 * h)}`,
-    ].join(', '),
+    '--glass-rim': rim.join(', '),
     '--glass-sheen': `linear-gradient(135deg, ${white(0.14 * h)} 0%, ${white(0)} 36%, ${white(0)} 72%, ${white(0.05 * h)} 100%)`,
-    '--bg-popover': toHex8({ ...panel, a: Math.max(panel.a, 0.82) }),
+    '--bg-popover': toHex8({ ...panel, a: Math.max(panel.a, 0.94) }),
   }
 }
 
@@ -69,5 +70,5 @@ export const ALL_THEME_VARS: readonly string[] = [
   ...PALETTE_TOKENS.map((t) => `--${t}`),
   ...TERMINAL_COLORS.map(termVar),
   '--radius-panel', '--radius-control', '--panel-gap', '--density', '--glow-color', '--glow-size',
-  '--glass-blur', '--glass-saturate', '--glass-rim', '--glass-sheen', '--bg-popover',
+  '--glass-rim', '--glass-sheen', '--bg-popover',
 ]

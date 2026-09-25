@@ -245,17 +245,32 @@ Keep it that way.
   reduced motion or with Animated effects off).
 - **Anything floating is solid** on solid themes: dialogs, menus, hover cards, toasts paint the
   panel colour over `--bg`, because a theme's translucent chrome let the transcript show through a
-  dialog. On glass they are blurred panes at ≥ 82% tint (`--bg-popover`).
+  dialog. On glass they are panes at ≥ 94% tint (`--bg-popover`) — no blur, see below.
 - **Glass (`material: glass`)** lets `bg`, `bg-panel`, `bg-terminal` and controls go see-through
-  (floors in `MIN_ALPHA.glass`), always blurred (≥ `LIMITS.glassMinBlur`). `ensureReadable` then
-  checks text against every colour that can show through (`backdrops`: the window, plus each
-  background effect's colours at its opacity cap) and fixes failures by thickening panes —
-  a surface only if its own colour contrasts with the text, otherwise the panel/page under it —
-  moving the text only as a last resort. The pane is a `::before` on each card (and on
-  `.sidebar-frame`, because `.sidebar` scrolls), **never a backdrop filter on the card itself**:
-  that would make the card the containing block of the fixed menus and dialogs opened inside it.
-  Refraction is `url(#apiary-glass-lens)` from `GlassLens.tsx` — fixed displacement maps, the
-  theme contributes only a clamped strength.
+  (floors in `MIN_ALPHA.glass`). `ensureReadable` checks text against every colour that can show
+  through (`backdrops`: the window, plus each background effect's colours — saturated as drawn —
+  at its opacity cap): borderline colours are fitted first, then panes thickened (a surface only
+  if its own colour contrasts with the text, otherwise the panel/page under it).
+  **There is no `backdrop-filter` anywhere, on purpose.** What shows through a pane is only the
+  window colour and the back effects canvas, so `ThemeEffects` draws that canvas blurred (at a
+  fraction of the window's resolution, scaled up) and saturated. A live backdrop filter per pane —
+  the first version, with an SVG lens — re-ran on every frame and hover and made the app lag by
+  ~800 ms without GPU compositing. "Refraction" is now a lens-edge glow in `--glass-rim`. The
+  pane is a `::before` on each card (and on `.sidebar-frame`, because `.sidebar` scrolls).
+- **Theme performance is measured, not guessed**: `tests/e2e/bench/themePerf.spec.ts`
+  (`APIARY_BENCH=1`, add `APIARY_BENCH_GPU=off` for software compositing) compares every built-in
+  theme with the original look on hover, scroll, fold, divider drag and terminal typing — input to
+  presented frame (Event Timing) and long frames, median of 3 runs. Run it after touching effects,
+  glass or anything painted over the whole window. Without GPU compositing
+  (`themeGpuCompositing()`, logged once as `theme gpu`) effects draw at 15 fps and 1×; during a
+  divider drag they hold their frame. Moving effects to a worker was tried and measured slower
+  in software compositing — the cost is compositing, not drawing.
+- **Corners come from the theme**: `--radius-sm`/`--radius-row`/`--radius-lg` are calc()s of
+  `--radius-panel` (4/5/10 px at the default 8), `--radius-control` is set by the theme. Never
+  write a literal px radius above 3px in styles.css.
+- **Liquid Glass is the first-run default** (`DEFAULT_THEME_ID`, only when themes.json does not
+  exist). The E2E harness starts on the original look (`APIARY_DEFAULT_THEME=original` in
+  `launchEnv`); `realDefaultTheme: true` gets the real default.
 - The active theme reaches a window before its first paint through a synchronous preload read
   (`initialTheme`); components mounted later must ask `themeState()`, not trust that snapshot.
 - **The generator** (`main/theme/themeGenerator.ts`) runs the user's `claude` as

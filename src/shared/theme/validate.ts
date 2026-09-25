@@ -1,4 +1,4 @@
-import { parseColor, toHex8, contrastRatio, nudgeForContrast, composite, type RGBA } from './color'
+import { parseColor, toHex8, contrastRatio, nudgeForContrast, composite, saturate, type RGBA } from './color'
 import {
   PALETTE_TOKENS, TERMINAL_COLORS, UI_FONTS, MONO_FONTS, EFFECT_KINDS, DENSITIES, MATERIALS, LIMITS,
   DEFAULT_PALETTE, DEFAULT_TERMINAL, DEFAULT_MATERIAL, ORIGINAL_THEME,
@@ -176,7 +176,9 @@ function backdrops(spec: ThemeSpec, resolved: (t: PaletteToken) => RGBA): RGBA[]
   for (const e of spec.effects) {
     if (e.kind === 'neon-glow' || EFFECTS[e.kind].layer !== 'back') continue
     const alpha = EFFECTS[e.kind].maxOpacity * e.intensity
-    const base = resolved(e.color ?? 'accent')
+    // Glass draws its background saturated (ThemeEffects), so that is what shows through.
+    const token = resolved(e.color ?? 'accent')
+    const base = spec.material.kind === 'glass' ? saturate(token, spec.material.saturation) : token
     const colours = e.kind === 'aurora' ? auroraColors(toHex8(base)).map((c) => parseColor(c)!) : [base]
     for (const c of colours) out.push(composite({ ...c, a: alpha * c.a }, win))
   }

@@ -18,16 +18,11 @@ export function applyTheme(spec: ThemeSpec | null): void {
     delete root.dataset.uiFont
     delete root.dataset.monoFont
     delete root.dataset.material
-    delete root.dataset.refraction
   } else {
     for (const [name, value] of Object.entries(themeToCssVars(spec))) root.style.setProperty(name, value)
     root.dataset.uiFont = spec.font.ui
     root.dataset.monoFont = spec.font.mono
     root.dataset.material = spec.material.kind
-    // The lens filter itself is rendered by GlassLens with the strength in it; this only says
-    // whether the panels should use it.
-    if (spec.material.kind === 'glass' && spec.material.refraction > 0) root.dataset.refraction = ''
-    else delete root.dataset.refraction
   }
   window.dispatchEvent(new CustomEvent<ThemeSpec | null>(THEME_CHANGE_EVENT, { detail: spec }))
 }

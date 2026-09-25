@@ -134,3 +134,36 @@ test('each grab handle shows the resize cursor across a generous strip, and is d
   await h.page.mouse.up()
   await h.page.screenshot({ path: '/private/tmp/claude-501/-Users-nuwan-projects-pet-projects/a021aefb-2a2b-46c0-b30f-d6ec7a9e02f5/scratchpad/look-grips.png' })
 })
+
+test('every corner follows the theme: unchanged on the original look, rounder on a rounder theme', async () => {
+  const px = (testId: string): Promise<number> => h.page.getByTestId(testId).first()
+    .evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius))
+  const token = (name: string): Promise<number> => h.page.evaluate((n) => {
+    const probe = document.createElement('div')
+    probe.style.width = `var(${n})`
+    document.body.append(probe)
+    const w = probe.getBoundingClientRect().width
+    probe.remove()
+    return w
+  }, name)
+  // The original look, exactly as before corners were derived from the panel radius.
+  expect(await token('--radius-sm')).toBe(4)
+  expect(await token('--radius-row')).toBe(5)
+  expect(await token('--radius-lg')).toBe(10)
+  expect(await px('shell-toggle')).toBe(6)
+
+  await h.page.evaluate(() => window.apiary.themeApply('builtin:glass'))
+  await expect(h.page.locator('html')).toHaveAttribute('data-material', 'glass')
+  const panel = await radius(h.page.getByTestId('shell-card'))
+  expect(panel).toBe(14)
+  // The Hide shell button sits a few pixels inside the card's corner: it has to be about as
+  // round as that corner minus the inset, not a fixed 6px that reads as square next to it.
+  for (const id of ['shell-toggle', 'sidebar-refresh', 'session-tab']) {
+    expect(await px(id), id).toBeGreaterThanOrEqual(panel * 0.6)
+  }
+  expect(await token('--radius-sm')).toBe(7)
+  expect(await token('--radius-lg')).toBeCloseTo(17.5)
+  await h.page.getByTestId('shell-toggle').hover()
+  const card = (await h.page.getByTestId('shell-card').boundingBox())!
+  await h.page.screenshot({ path: '/private/tmp/claude-501/-Users-nuwan-projects-pet-projects/a021aefb-2a2b-46c0-b30f-d6ec7a9e02f5/scratchpad/radius-glass.png', clip: { x: card.x - 4, y: card.y - 4, width: 260, height: 60 } })
+})

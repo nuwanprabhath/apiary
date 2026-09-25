@@ -4,6 +4,24 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.23.0] - 2026-09-25
+
+### Changed
+
+- **Liquid Glass is the default look** for a new install. If you have already picked a theme —
+  or Apiary's original look — you keep it; Reset to original still takes you back.
+- **Glass themes are as snappy as the original look.** Hovering, scrolling, folding, dragging a
+  divider and typing in a terminal lagged behind the pointer by most of a second on Liquid Glass
+  on some machines (Linux especially). The glass is now drawn in a way that costs almost nothing:
+  the background behind the panes is blurred once where it is drawn, instead of every pane
+  re-blurring it on every frame. Menus and dialogs on glass are a thicker tint instead of blurred.
+- **Animated themes go easier on machines without GPU compositing**: effects move at a lower
+  frame rate there, and pause while you drag a divider.
+- **Corners match the theme everywhere.** Toolbar buttons (like Hide shell), rows, lists, menus
+  and code blocks now take their roundness from the theme, so on a rounder theme a button sits
+  inside a card's corner with the same curve instead of looking square. The original look is
+  unchanged.
+
 ## [1.22.1] - 2026-09-25
 
 1.22.0 was tagged but its build failed, so it was never published; everything below is new since 1.20.0.

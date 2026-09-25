@@ -174,6 +174,7 @@ export const CHANNELS = {
   renameSession: 'apiary:rename-session',
   themeInitial: 'apiary:theme-initial',
   themeState: 'apiary:theme-state',
+  themeGpuCompositing: 'apiary:theme-gpu-compositing',
   themeApply: 'apiary:theme-apply',
   themeSave: 'apiary:theme-save',
   themeRename: 'apiary:theme-rename',
@@ -322,6 +323,8 @@ export interface ApiaryApi {
    *  is already themed. */
   initialTheme: ThemeState
   themeState(): Promise<ThemeState>
+  /** Whether Chromium composites on the GPU here; effects draw fewer, cheaper frames when not. */
+  themeGpuCompositing(): Promise<boolean>
   /** Makes a theme active: a saved id, a `builtin:*` id, or null for the original look. */
   themeApply(id: string | null): Promise<void>
   /** Saves `spec` under `name`. Main validates it; the renderer's copy is never trusted. */

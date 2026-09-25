@@ -1,10 +1,19 @@
 import { useEffect, useRef } from 'react'
 import type { EffectSpec } from '@shared/theme/spec'
 import { EFFECTS } from '@shared/theme/effects'
+import { parseColor, saturate, toHex8 } from '@shared/theme/color'
 import { THEME_CHANGE_EVENT } from './applyTheme'
 
 const FPS = 30
 const MAX_DPR = 1.5
+/**
+ * Without GPU compositing (Chromium's own choice on some Linux drivers, VMs and remote desktops)
+ * every animation frame is composited on the CPU, and an animated theme measurably slowed
+ * hovering, dragging and typing (tests/e2e/bench/themePerf.spec.ts with APIARY_BENCH_GPU=off).
+ * There the effects move at half the rate and draw at 1× resolution.
+ */
+const LOW_POWER_FPS = 15
+const LOW_POWER_DPR = 1
 /** A window left in the background this long stops animating until it is focused again. */
 const BLUR_PAUSE_MS = 30_000
 
@@ -14,6 +23,17 @@ interface Props {
   animated: boolean
   /** The global intensity multiplier, 0–1. */
   intensity: number
+  /**
+   * A glass theme's blur and saturation. Glass is done here, not with `backdrop-filter` on the
+   * panels: what shows through a pane is only this canvas and the window colour, so blurring it
+   * once where it is drawn looks the same and costs almost nothing, where a live backdrop filter
+   * per pane re-ran on every frame and, without GPU compositing, made hovering lag by most of a
+   * second (tests/e2e/bench/themePerf.spec.ts). The back canvas is drawn at a fraction of the
+   * window's resolution and scaled up, which is the blur; the colours are saturated as drawn.
+   */
+  glass?: { blur: number; saturation: number } | null
+  /** True when Chromium composites in software: fewer, cheaper frames (see LOW_POWER_FPS). */
+  lowPower?: boolean
 }
 
 /**
@@ -24,7 +44,7 @@ interface Props {
  * background for 30 seconds, and just once (a still frame) when motion is off. With no effects it
  * renders nothing at all, so the original look costs nothing.
  */
-export function ThemeEffects({ effects, animated, intensity }: Props): JSX.Element | null {
+export function ThemeEffects({ effects, animated, intensity, glass = null, lowPower = false }: Props): JSX.Element | null {
   const back = useRef<HTMLCanvasElement | null>(null)
   const front = useRef<HTMLCanvasElement | null>(null)
   const canvasEffects = effects.filter((e) => e.kind !== 'neon-glow')
@@ -40,18 +60,23 @@ export function ThemeEffects({ effects, animated, intensity }: Props): JSX.Eleme
       const css = getComputedStyle(document.documentElement)
       colors = new Map(canvasEffects.map((e) => {
         const token = e.color ?? 'accent'
-        return [token, css.getPropertyValue(`--${token}`).trim() || '#ffffff']
+        const value = css.getPropertyValue(`--${token}`).trim() || '#ffffff'
+        const parsed = glass === null ? null : parseColor(value)
+        return [token, parsed === null || glass === null ? value : toHex8(saturate(parsed, glass.saturation))]
       }))
     }
     readColors()
 
     const size = (): void => {
-      const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR)
-      for (const c of [back.current, front.current]) {
+      const dpr = Math.min(window.devicePixelRatio || 1, lowPower ? LOW_POWER_DPR : MAX_DPR)
+      // Behind glass: about one canvas pixel per third of the blur radius, so the browser's own
+      // smoothing when it scales the canvas up does the blurring.
+      const backScale = glass === null ? dpr : Math.min(dpr, 3 / Math.max(3, glass.blur))
+      for (const [c, scale] of [[back.current, backScale], [front.current, dpr]] as const) {
         if (c === null) continue
-        c.width = Math.round(window.innerWidth * dpr)
-        c.height = Math.round(window.innerHeight * dpr)
-        c.getContext('2d')?.setTransform(dpr, 0, 0, dpr, 0, 0)
+        c.width = Math.max(1, Math.round(window.innerWidth * scale))
+        c.height = Math.max(1, Math.round(window.innerHeight * scale))
+        c.getContext('2d')?.setTransform(scale, 0, 0, scale, 0, 0)
       }
     }
 
@@ -84,7 +109,11 @@ export function ThemeEffects({ effects, animated, intensity }: Props): JSX.Eleme
       raf = null
       if (document.hidden) return
       if (blurredAt !== null && now - blurredAt > BLUR_PAUSE_MS) return
-      if (now - last >= 1000 / FPS) { last = now; drawAt(now / 1000, false) }
+      // Held on its last frame while a divider is being dragged: every pointer move then
+      // re-lays-out the panels, and a new effects frame on top of that is what made dragging a
+      // frame or three late on animated themes (the benchmark's "drag the shell handle").
+      const dragging = document.body.classList.contains('resizing-active')
+      if (!dragging && now - last >= 1000 / (lowPower ? LOW_POWER_FPS : FPS)) { last = now; drawAt(now / 1000, false) }
       raf = requestAnimationFrame(tick)
     }
     const start = (): void => {
@@ -117,7 +146,7 @@ export function ThemeEffects({ effects, animated, intensity }: Props): JSX.Eleme
     }
     // `signature` stands in for the effects array, which is a new object on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature, animated, intensity])
+  }, [signature, animated, intensity, glass?.blur, glass?.saturation, lowPower])
 
   if (canvasEffects.length === 0) return null
   return (

@@ -236,6 +236,16 @@ transparency beyond translucent chrome; the user wants macOS-style liquid glass 
   (inside the scrollbar's transparent inset); the resize cursor is held on `body` for the whole
   drag.
 
+## Addendum (2026-09-25, 1.23.0) — glass performance, corners, default
+
+- Measured with `tests/e2e/bench/themePerf.spec.ts`: live `backdrop-filter` panes (blur + SVG
+  lens) cost ~800 ms input-to-screen without GPU compositing. Replaced by drawing the back canvas
+  blurred (low resolution, scaled up) and saturated; panes are tint + sheen + rim, refraction is a
+  lens-edge glow; popovers use a ≥ 94% tint. Without GPU compositing effects run at 15 fps / 1×,
+  and hold during divider drags. A worker for effects was measured and rejected.
+- All corner radii derive from `--radius-panel`.
+- Liquid Glass is the first-run default; an existing choice (including Original) is kept.
+
 ## Out of scope
 
 - Claude writing CSS, HTML or code of any kind (ruled out: a sanitiser cannot make that safe).

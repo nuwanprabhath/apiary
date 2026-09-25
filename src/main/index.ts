@@ -9,7 +9,7 @@ import { TabRegistry } from './tabRegistry'
 import { pruneStaleLive } from './sessionLayoutRestore'
 import { resolveConfigRoot } from './config'
 import { buildMenu } from './menu'
-import { ThemeStore } from './theme/themeStore'
+import { ThemeStore, DEFAULT_THEME_ID } from './theme/themeStore'
 import { registerThemeIpc } from './theme/themeIpc'
 import { ThemeGenerator } from './theme/themeGenerator'
 import { CHANNELS } from '@shared/api'
@@ -442,7 +442,9 @@ void app.whenReady().then(async () => {
   // `--safe-theme` (or APIARY_SAFE_THEME=1) starts with the original look for this run only.
   const safeTheme = process.argv.includes('--safe-theme') || process.env.APIARY_SAFE_THEME === '1'
   const themes = registerThemeIpc(
-    new ThemeStore(join(app.getPath('userData'), 'themes.json')),
+    // APIARY_DEFAULT_THEME=original is test-only: the E2E suite is written against the original
+    // look, so a fresh profile there starts on it rather than on the default theme.
+    new ThemeStore(join(app.getPath('userData'), 'themes.json'), process.env.APIARY_DEFAULT_THEME === 'original' ? null : DEFAULT_THEME_ID),
     safeTheme,
     new ThemeGenerator({ claudeBin: () => service?.claudeBin ?? null }),
   )

@@ -140,14 +140,15 @@ describe('readability through glass', () => {
 })
 
 describe('glass as CSS', () => {
-  it('sets the filter numbers, rim, sheen and a thicker popover tint — all formatted by Apiary', () => {
+  it('sets the rim, lens edge, sheen and a thick popover tint — all formatted by Apiary, and no filter', () => {
     const { spec } = validateTheme({ ...base, palette: { 'bg-panel': '#1a203866' }, material: glass })
     const vars = themeToCssVars(spec)
-    expect(vars['--glass-blur']).toBe('20px')
-    expect(vars['--glass-saturate']).toBe('1.60')
     expect(vars['--glass-rim']).toMatch(/^inset 0 1px 0 0 rgba\(255, 255, 255, [\d.]+\)/)
+    // Refraction 0.5: a soft inner glow along the edge.
+    expect(vars['--glass-rim']).toContain('inset 0 0 16px 1px')
+    expect(Object.values(vars).join(' ')).not.toMatch(/blur\(|url\(/)
     expect(vars['--glass-sheen']).toMatch(/^linear-gradient\(135deg, rgba/)
-    expect(alpha(vars['--bg-popover'])).toBeGreaterThanOrEqual(0.81)
+    expect(alpha(vars['--bg-popover'])).toBeGreaterThanOrEqual(0.93)
     for (const k of Object.keys(vars)) expect(ALL_THEME_VARS).toContain(k)
   })
 

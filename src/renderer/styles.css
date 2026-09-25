@@ -102,12 +102,19 @@
   --sidebar-rail-width: 40px;
   --control-padding-x: 10px;
   --control-gap: 6px;
-  --radius-sm: 4px;
+  /*
+   * Every corner follows the theme's panel radius (--radius-panel, set by a theme's shape.radius),
+   * so a rounder theme is rounder everywhere — a 6px button tucked into a 14px glass card looked
+   * square. The ratios reproduce the original look exactly at the default 8px: small 4, rows 5,
+   * controls 6, dialogs 10. Themes set --radius-control themselves (rounded, see cssVars.ts).
+   */
+  --radius-sm: calc(var(--radius-panel) * 0.5);
+  --radius-row: calc(var(--radius-panel) * 0.625);
   /* Smaller than --radius-sm: for a mark drawn at miniature scale (the layout picker's zones), not a control. */
   --radius-xs: 2px;
   --radius-control: 6px;
   --radius: var(--radius-control);
-  --radius-lg: 10px;
+  --radius-lg: calc(var(--radius-panel) * 1.25);
 
   /*
    * The floating-panel layout: the sidebar, each editor pane and each shell are cards with
@@ -421,7 +428,7 @@ button:not([class]) {
   height: 22px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -575,7 +582,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   height: 18px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -726,7 +733,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .project-row { font-weight: 600; flex: 1; min-width: 0; }
 .session-row:hover { background: var(--selected); }
 
-.project-row-wrap { display: flex; align-items: center; border-radius: 4px; }
+.project-row-wrap { display: flex; align-items: center; border-radius: var(--radius-sm); }
 .project-row-wrap:hover,
 .project-row-wrap:focus-within {
   background: var(--selected);
@@ -746,7 +753,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -790,7 +797,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  * claim the full row width itself — the wrapper does that — so it gets `flex: 1` here rather
  * than the `width: 100%` the (still-standalone) pending-session-list rows keep using.
  */
-.session-row-wrap { display: flex; align-items: center; border-radius: 4px; }
+.session-row-wrap { display: flex; align-items: center; border-radius: var(--radius-sm); }
 .session-row-wrap:hover,
 .session-row-wrap:focus-within,
 .session-row-wrap:has(.session-row[data-selected="true"]) {
@@ -819,7 +826,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -1039,7 +1046,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   margin-right: 6px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -1087,7 +1094,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -1110,7 +1117,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   color: var(--text);
   background: var(--field-bg);
   border: 1px solid var(--accent);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 1px 6px;
   min-width: 240px;
   outline: none;
@@ -1137,7 +1144,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   margin-bottom: 12px;
   padding: 6px;
   border: 1px dashed var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -1189,12 +1196,12 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   padding: 8px;
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--bg-panel);
 }
 .markdown pre code { background: none; padding: 0; font-size: 0.85em; line-height: 1.45; }
 
-.tool-block { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+.tool-block { border: 1px solid var(--border); border-radius: var(--radius-control); margin-bottom: 8px; overflow: hidden; }
 .tool-block[data-error="true"] { border-color: var(--danger); }
 
 .tool-head {
@@ -1334,7 +1341,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   border: 1px solid transparent;
   background: transparent;
   color: var(--muted);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   padding: 3px 6px;
   font: inherit;
@@ -1375,7 +1382,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .modal.wide { width: 620px; max-width: 90vw; }
 .modal .search { width: 100%; margin-bottom: 10px; }
 
-.import-list { max-height: 46vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; }
+.import-list { max-height: 46vh; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-control); }
 
 .import-group-head {
   display: flex;
@@ -1484,7 +1491,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   color: var(--text);
   text-align: left;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   font: inherit;
 }
@@ -1505,7 +1512,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   height: 24px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -1524,7 +1531,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   color: var(--accent);
   text-align: left;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   font: inherit;
   font-weight: 600;
@@ -1569,7 +1576,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   display: flex;
   align-items: center;
   gap: 4px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   padding: 2px;
 }
 .terminal-tab-row[data-active="true"] { background: var(--selected); }
@@ -1596,7 +1603,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   background: transparent;
   color: var(--text);
   padding: 4px 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   font: inherit;
   overflow: hidden;
@@ -1629,7 +1636,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   color: var(--muted);
   cursor: pointer;
   padding: 4px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
 }
 .terminal-tab-row:hover .terminal-tab-action, .terminal-tab-row:focus-within .terminal-tab-action { display: flex; align-items: center; justify-content: center; }
 .terminal-tab-action svg { width: 12px; height: 12px; display: block; }
@@ -1657,7 +1664,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   height: 20px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -1801,7 +1808,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   max-height: 180px;
   overflow: auto;
   background: var(--bg);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   color: var(--muted);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -1817,7 +1824,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -1845,7 +1852,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .crash-message {
   margin: 0;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--danger-bg);
   color: var(--danger);
   overflow-wrap: anywhere;
@@ -1860,7 +1867,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   overflow: auto;
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   font-family: var(--font-mono);
   font-size: 11px;
   white-space: pre-wrap;
@@ -1906,7 +1913,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   color: var(--text);
   text-align: left;
   padding: 5px 8px;
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   cursor: pointer;
   font: inherit;
 }
@@ -1975,7 +1982,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   background: transparent;
   color: var(--muted);
   padding: 7px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   font: inherit;
 }
@@ -2039,7 +2046,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   color: var(--muted);
   line-height: 1.5;
 }
@@ -2062,7 +2069,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   display: block;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--bg);
   cursor: zoom-in;
   overflow: hidden;
@@ -2109,7 +2116,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   padding: 3px 6px;
   font: inherit;
   font-size: 12px;
@@ -2134,7 +2141,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   padding: 0;
   margin: 4px 6px 4px 0;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--bg);
   cursor: zoom-in;
   overflow: hidden;
@@ -2193,7 +2200,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   color: var(--text);
   text-align: left;
   padding: 5px 8px;
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   cursor: pointer;
   font: inherit;
 }
@@ -2203,7 +2210,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   margin-top: 4px;
   padding-top: 7px;
   border-top: 1px solid var(--border);
-  border-radius: 0 0 5px 5px;
+  border-radius: 0 0 var(--radius-row) var(--radius-row);
 }
 
 /* Dragging a tab to reorder it: the tab being carried fades, and the one it would land on shows an
@@ -2215,7 +2222,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 
 /* A user-made heading in the sidebar, holding folders filed under it. Sits a step above the folder
    rows it contains — it is the user's own organisation, not part of the filesystem's. */
-.folder-group { margin-bottom: 2px; border-radius: 6px; }
+.folder-group { margin-bottom: 2px; border-radius: var(--radius-control); }
 /* The whole group lights up as a folder is dragged over it, since the whole group is the target. */
 .folder-group[data-drop-into="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
 /* A folder row lights up while a session is dragged over it — the drag-to-move-session target. */
@@ -2241,7 +2248,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 /* Shown only while a group is empty, since the drop target would otherwise be invisible. */
 .folder-group-empty { margin: 0 0 4px 22px; font-size: 12px; }
 /* A folder being dragged over the heading of the group it would join. */
-.folder-group-header-wrap { border-radius: 6px; display: flex; align-items: center; }
+.folder-group-header-wrap { border-radius: var(--radius-control); display: flex; align-items: center; }
 /* The group's collapse-all, revealed on hover exactly as a folder row's is. */
 .folder-group-header-wrap:hover .collapse-all-button { opacity: 1; }
 .folder-group-header-wrap .collapse-all-button { margin-right: 4px; }
@@ -2302,7 +2309,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   padding: 4px 6px;
   border-left: 2px solid var(--accent);
   background: var(--hover);
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 .note-dialog { width: 520px; max-width: 90vw; }
@@ -2337,7 +2344,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   height: 18px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -2480,14 +2487,17 @@ button.layout-thumb:hover .layout-zone, button.layout-thumb:focus-visible .layou
 
 /*
  * Glass (a theme's `material: glass`). Each panel's own background goes transparent and a pane is
- * drawn behind its content instead: the tint, a sheen, and a backdrop filter that blurs and
- * saturates what is behind — the window colour and the background effects. Refraction adds the
- * lens filter from GlassLens.tsx; the rim is a separate layer over the content, so a tab strip
- * at the top of a card does not hide it.
+ * drawn behind its content instead — the tint and a sheen — with a rim and lens-edge highlight
+ * over the content, so a tab strip at the top of a card does not hide it.
  *
- * The pane is a pseudo-element, never the panel itself, on purpose: a backdrop filter on an
- * element makes it the containing block of every `position: fixed` thing inside it, and menus,
- * dialogs and hover cards open from inside these panels.
+ * There is deliberately no `backdrop-filter` anywhere here. What shows through a pane is only the
+ * window colour and the back effects canvas, and ThemeEffects already draws that canvas blurred
+ * and saturated for glass. A live backdrop filter per pane re-ran on every change underneath —
+ * every animation frame, every hover — and without GPU compositing that made the whole app lag
+ * by most of a second (tests/e2e/bench/themePerf.spec.ts measures it). Popovers float over text,
+ * not over the canvas, so they get a thick tint (--bg-popover) instead of a blur.
+ *
+ * The pane is a pseudo-element on each card (and on .sidebar-frame, because .sidebar scrolls).
  */
 html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card) {
   position: relative;
@@ -2507,10 +2517,6 @@ html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .s
 html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card)::before {
   z-index: -1;
   background: var(--glass-sheen), var(--glass-tint);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-}
-html[data-material="glass"][data-refraction] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card)::before {
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) url(#apiary-glass-lens);
 }
 html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card)::after {
   z-index: 2;
@@ -2518,10 +2524,6 @@ html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .s
 }
 /* The terminal's own colour is its pane; the host behind it would tint it twice. */
 html[data-material="glass"] .terminal-host { background: transparent; }
-/* Popovers are glass too, but thicker (--bg-popover): they float over text. They are fixed
- * themselves, so the filter can go straight on them. */
 html[data-material="glass"] :is(.modal, .context-menu, .git-menu, .hover-card, .notification, .layout-picker, .branch-switcher) {
   background: var(--glass-sheen), var(--bg-popover);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
-.glass-lens-defs { position: absolute; width: 0; height: 0; overflow: hidden; }

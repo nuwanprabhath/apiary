@@ -54,7 +54,9 @@ function launchEnv(extra: Record<string, string>): Record<string, string> {
   for (const [k, v] of Object.entries(process.env)) {
     if (k !== 'ELECTRON_RUN_AS_NODE' && v !== undefined) env[k] = v
   }
-  return { ...env, ...extra, ...headlessEnv() }
+  // The suite is written against the original look; a spec that wants the real first-run default
+  // passes APIARY_DEFAULT_THEME: '' (see themes.spec.ts).
+  return { ...env, APIARY_DEFAULT_THEME: 'original', ...extra, ...headlessEnv() }
 }
 
 function git(cwd: string, ...args: string[]): void {
@@ -148,6 +150,10 @@ export async function launchApiary(
      */
     fakeUpdate?: string
     updateMode?: 'assisted' | 'auto' | 'deb'
+    /** Extra Chromium/Electron switches — the theme benchmark uses `--disable-gpu`. */
+    electronArgs?: string[]
+    /** Start a fresh profile on the real first-run theme instead of the original look. */
+    realDefaultTheme?: boolean
   } = {},
 ): Promise<Harness> {
   // realpath the root up front: on macOS os.tmpdir() is under /var, a symlink to /private/var,
@@ -249,8 +255,9 @@ export async function launchApiary(
     // Every launch gets its own Chromium profile dir under the throwaway `home` this call
     // already created, instead of sharing Electron's OS-default userData directory (and thus
     // the developer's real Apiary profile) across every test run and relaunch.
-    args: [`--user-data-dir=${join(home, 'userdata')}`, '.'],
+    args: [`--user-data-dir=${join(home, 'userdata')}`, ...(opts.electronArgs ?? []), '.'],
     env: launchEnv({
+      ...(opts.realDefaultTheme === true ? { APIARY_DEFAULT_THEME: '' } : {}),
       APIARY_CONFIG_ROOT: opts.configRoot ?? home,
       APIARY_DB_PATH: join(home, 'apiary.db'),
       APIARY_FAKE_LIVE: opts.fakeLiveSessionId ?? '',

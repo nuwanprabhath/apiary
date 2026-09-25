@@ -46,21 +46,21 @@ export type Density = typeof DENSITIES[number]
 /**
  * What the panels are made of. `solid` is paint; `glass` is a pane the window's background (and
  * its background effects) shows through, blurred — frosted glass, or with `refraction` and
- * `highlight`, the bent edges and bright rim of macOS's liquid glass. Every field is a number
- * Apiary turns into CSS itself; a theme never writes a filter.
+ * `highlight`, the lens edge and bright rim of macOS's liquid glass. Every field is a number
+ * Apiary turns into drawing itself; a theme never writes a filter.
  */
 export const MATERIALS = ['solid', 'glass'] as const
 export type MaterialKind = typeof MATERIALS[number]
 
 export interface MaterialSpec {
   kind: MaterialKind
-  /** Backdrop blur in px. Glass keeps at least `LIMITS.glassMinBlur`, so text never sits on a sharp backdrop. */
+  /** How blurred the background behind the panes is, in px. At least `LIMITS.glassMinBlur`, so text never sits on a sharp backdrop. */
   blur: number
-  /** Backdrop saturation multiplier: 1 is unchanged, liquid glass is about 1.8. */
+  /** Saturation of the background behind the panes: 1 is unchanged, liquid glass is about 1.8. */
   saturation: number
   /** 0–1: the bright rim and sheen along a pane's edges. */
   highlight: number
-  /** 0–1: how strongly a pane's edges bend what is behind them, like the rim of a lens. */
+  /** 0–1: the bright, lens-like band just inside a pane's edge. */
   refraction: number
 }
 

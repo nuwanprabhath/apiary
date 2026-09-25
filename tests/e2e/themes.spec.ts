@@ -180,13 +180,19 @@ test('a glass theme turns the panels into blurred panes, and menus inside them s
     }, pseudo)
   for (const id of ['sidebar', 'session-card', 'shell-card']) {
     const before = await pane(id, '::before')
-    expect(before.filter, id).toContain('blur(22px)')
-    expect(before.filter, id).toContain('url(')
+    // No live backdrop filter: it re-ran on every frame and made the app lag without GPU
+    // compositing. The blur is in the back canvas instead (below).
+    expect(before.filter, id).toBe('none')
     expect(before.bg, id).toBe('rgba(0, 0, 0, 0)')
     expect((await pane(id, '::after')).shadow, id).toContain('inset')
   }
-  // The lens the panes point at exists, with the theme's strength in it.
-  await expect(h.page.locator('#apiary-glass-lens feDisplacementMap').first()).toHaveAttribute('scale', '0.03')
+  // The background behind the glass is drawn at a fraction of the window's resolution and scaled
+  // up — that is the blur.
+  const canvas = await h.page.getByTestId('theme-effects-back').evaluate((c) => ({ w: (c as HTMLCanvasElement).width, css: c.clientWidth }))
+  expect(canvas.w).toBeLessThan(canvas.css / 4)
+  const filters = await h.page.evaluate(() => [...document.querySelectorAll('*')]
+    .filter((el) => getComputedStyle(el).backdropFilter !== 'none').length)
+  expect(filters).toBe(0)
 
   // A menu opened from inside a glass pane appears at the pointer, not offset by the pane.
   const tab = await h.page.getByTestId('session-tab').first().boundingBox()
@@ -200,4 +206,17 @@ test('a glass theme turns the panels into blurred panes, and menus inside them s
   await h.page.keyboard.type('echo glass-ok\n')
   await expect(h.page.getByTestId('terminal-shell').locator('.xterm-rows')).toContainText('glass-ok')
   await h.page.screenshot({ path: '/private/tmp/claude-501/-Users-nuwan-projects-pet-projects/a021aefb-2a2b-46c0-b30f-d6ec7a9e02f5/scratchpad/theme-glass.png' })
+})
+
+test('a fresh install starts on Liquid Glass; choosing the original look sticks', async () => {
+  await h.close()
+  h = await launchApiary({ realDefaultTheme: true })
+  await expect(h.page.locator('html')).toHaveAttribute('data-material', 'glass')
+  await openThemes(h.page)
+  await expect(card(h.page, 'builtin:glass')).toHaveAttribute('data-active', 'true')
+  await h.page.getByTestId('theme-reset').click()
+  await expect(h.page.locator('html')).not.toHaveAttribute('data-material', 'glass')
+  // A choice once made — the original look included — is kept over the default.
+  await relaunchApiary(h, { APIARY_DEFAULT_THEME: '' })
+  await expect(h.page.locator('html')).not.toHaveAttribute('data-material', 'glass')
 })

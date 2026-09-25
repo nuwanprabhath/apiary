@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import { CHANNELS, type ThemeOptions, type ThemeState, type ThemeGenerateResult } from '@shared/api'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
 import { log } from '../log/logger'
@@ -30,6 +30,18 @@ export function registerThemeIpc(store: ThemeStore, safeMode: boolean, generator
 
   ipcMain.on(CHANNELS.themeInitial, (e) => { e.returnValue = state() })
   ipcMain.handle(CHANNELS.themeState, () => state())
+  // Asked by each window once it is up — by then the GPU process has reported what it can do.
+  // Logged the first time: "the theme is slow here" starts with whether the GPU is in use at all,
+  // which on Linux Chromium decides for itself (driver, Wayland/X11, blocklist).
+  let gpuLogged = false
+  ipcMain.handle(CHANNELS.themeGpuCompositing, () => {
+    const status = app.getGPUFeatureStatus()
+    if (!gpuLogged) {
+      gpuLogged = true
+      log.info('theme', 'gpu', { compositing: status.gpu_compositing, rasterization: status.rasterization, webgl: status.webgl })
+    }
+    return String(status.gpu_compositing).startsWith('enabled')
+  })
   ipcMain.handle(CHANNELS.themeApply, (_e, id: unknown) => {
     store.setActive(typeof id === 'string' ? id : null)
     // Which theme, not its contents: a saved theme's id is enough to tell apart what happened.

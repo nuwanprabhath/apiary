@@ -34,7 +34,6 @@ import {
 import { pruneDismissed, dismissRecent } from './state/recentSessions'
 import { useThemeState, useAppliedTheme } from './theme/useTheme'
 import { ThemeEffects } from './theme/ThemeEffects'
-import { GlassLens } from './theme/GlassLens'
 import { useUpdate } from './state/useUpdate'
 import { usePtySessions } from './state/usePtySessions'
 import { useActiveTabs } from './state/useActiveTabs'
@@ -128,6 +127,9 @@ export function App(): JSX.Element {
   const theme = useThemeState()
   /** What is on screen — a preview included — for the effects layer. */
   const applied = useAppliedTheme()
+  // Assumed until main answers (a moment after start-up); only effects' frame rate depends on it.
+  const [gpuCompositing, setGpuCompositing] = useState(true)
+  useEffect(() => { void window.apiary.themeGpuCompositing().then(setGpuCompositing) }, [])
   const updateStatus = useUpdate()
   const activeTabs = useActiveTabs()
   /** The session whose note is being edited, with the note as it stood when the editor opened. */
@@ -1227,8 +1229,9 @@ export function App(): JSX.Element {
       effects={applied?.effects ?? []}
       animated={theme.options.animated}
       intensity={theme.options.intensity}
+      glass={applied?.material.kind === 'glass' ? applied.material : null}
+      lowPower={!gpuCompositing}
     />
-    <GlassLens refraction={applied?.material.kind === 'glass' ? applied.material.refraction : 0} />
     <div className="app-shell">
       {updateStatus !== null && (
         <UpdateBanner status={updateStatus} onOpenSettings={() => setSettingsSection('updates')} />

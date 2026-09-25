@@ -13,12 +13,21 @@ afterEach(() => { rmSync(dir, { recursive: true, force: true }) })
 const matrix = BUILTIN_THEMES[0]
 
 describe('ThemeStore', () => {
-  it('starts on the original look with nothing saved', () => {
+  it('starts a first run on the default theme, Liquid Glass, with nothing saved or written', () => {
     const store = new ThemeStore(file)
-    expect(store.activeId).toBeNull()
-    expect(store.activeSpec()).toBeNull()
+    expect(store.activeId).toBe('builtin:glass')
+    expect(store.activeSpec()?.material.kind).toBe('glass')
     expect(store.saved).toEqual([])
     expect(existsSync(file)).toBe(false)
+  })
+
+  it('keeps a choice of the original look over the default', () => {
+    new ThemeStore(file).setActive(null)
+    expect(new ThemeStore(file).activeId).toBeNull()
+  })
+
+  it('starts on the original look when there is no default', () => {
+    expect(new ThemeStore(file, null).activeId).toBeNull()
   })
 
   it('saves, activates, and reads back what it saved', () => {
@@ -63,6 +72,8 @@ describe('ThemeStore', () => {
     writeFileSync(file, '{ not json')
     const store = new ThemeStore(file)
     expect(store.saved).toEqual([])
+    // Not the default theme: an unreadable file gets the look that cannot go wrong.
+    expect(store.activeId).toBeNull()
     expect(readFileSync(file, 'utf8')).toBe('{ not json')
   })
 

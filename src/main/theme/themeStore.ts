@@ -16,6 +16,13 @@ interface ThemeFile {
 }
 
 const DEFAULT_OPTIONS: ThemeOptions = { animated: true, intensity: 1, model: 'sonnet' }
+
+/**
+ * The theme someone gets before they have ever chosen one (no themes.json yet). Only then: a
+ * choice once made — including "Original" — is kept, and a file that exists but cannot be read
+ * falls back to the original look, the one that cannot go wrong.
+ */
+export const DEFAULT_THEME_ID = 'builtin:glass'
 const isModel = (m: unknown): m is ThemeModel => typeof m === 'string' && (THEME_MODELS as readonly string[]).includes(m)
 
 /**
@@ -30,7 +37,7 @@ const isModel = (m: unknown): m is ThemeModel => typeof m === 'string' && (THEME
 export class ThemeStore {
   private data: ThemeFile
 
-  constructor(private readonly file: string) {
+  constructor(private readonly file: string, private readonly defaultThemeId: string | null = DEFAULT_THEME_ID) {
     this.data = this.load()
   }
 
@@ -39,8 +46,10 @@ export class ThemeStore {
     try {
       raw = JSON.parse(readFileSync(this.file, 'utf8'))
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') log.warn('theme', 'themes file unreadable, starting empty')
-      return { version: 1, activeThemeId: null, themes: [], options: { ...DEFAULT_OPTIONS } }
+      const missing = (e as NodeJS.ErrnoException).code === 'ENOENT'
+      if (!missing) log.warn('theme', 'themes file unreadable, starting empty')
+      const first = missing && this.defaultThemeId !== null && this.exists(this.defaultThemeId, []) ? this.defaultThemeId : null
+      return { version: 1, activeThemeId: first, themes: [], options: { ...DEFAULT_OPTIONS } }
     }
     const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
     const themes: SavedTheme[] = []
