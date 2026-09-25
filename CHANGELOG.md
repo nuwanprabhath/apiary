@@ -4,7 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.24.1] - 2026-09-26
+## [1.24.2] - 2026-09-26
+
+1.24.1 was tagged but never released: one of its new tests measured timing that did not hold on
+the build machines, which are faster than the machine it was written on. 1.24.2 is 1.24.1 with
+that test rewritten to prove the same thing without timing. Everything below under 1.24.1 ships
+in this release.
+
+## [1.24.1] - 2026-09-26 (not released)
 
 ### Changed
 

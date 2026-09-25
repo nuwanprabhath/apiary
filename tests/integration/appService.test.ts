@@ -431,6 +431,11 @@ describe('AppService', () => {
     // Every folder costs a few git calls to resolve, so a library of a few hundred makes a rescan
     // tens of seconds long — and quitting waits for the rescan in flight. It used to wait for all
     // of it, leaving the process running with no window for as long as the rescan had left.
+    //
+    // Proved by what the interrupted pass reaches, not by how long it takes: a pass that runs to
+    // the end asks for live sessions (`detectLive`) after resolving every folder, and one that
+    // stops when shutdown starts never gets there. (A timing ratio was tried first and failed on a
+    // fast CI runner, where a whole pass took less time than closing the store.)
     const bigHome = mkdtempSync(join(tmpdir(), 'apiary-home-big-'))
     const bigProjects = join(bigHome, '.claude', 'projects')
     mkdirSync(bigProjects, { recursive: true })
@@ -443,23 +448,21 @@ describe('AppService', () => {
         title: `Session ${String(i)}`,
       })
     }
+    let passesFinished = 0
     const big = new AppService({
       configRoot: join(bigHome, '.claude'),
       dbPath: join(bigHome, 'apiary.db'),
-      detectLive: async () => new Map(),
+      detectLive: async () => { passesFinished += 1; return new Map() },
     })
     try {
-      let started = Date.now()
       await big.refresh()
-      const fullPass = Date.now() - started
+      expect(passesFinished).toBe(1)
 
       const inFlight = big.refresh().catch(() => {})
-      started = Date.now()
       await big.dispose()
-      const quit = Date.now() - started
       await inFlight
 
-      expect(quit).toBeLessThan(fullPass / 2)
+      expect(passesFinished).toBe(1)
     } finally {
       rmSync(bigHome, { recursive: true, force: true })
     }
