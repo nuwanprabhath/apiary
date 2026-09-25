@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
+import { launchApiary, importAll, sidebarSession, expectStays, type Harness } from './helpers'
 
 /**
  * Moving a session into a window of its own.
@@ -80,15 +80,14 @@ test('a session moved into a new window never drops out of Active on the way', a
   await h.page.getByTestId('session-tab').first().click({ button: 'right' })
   await h.page.getByTestId('tab-menu').getByText('Move into New Window').click()
 
-  // Sampled through the whole hand-over, not just at the end.
-  const seen: number[] = []
-  const until = Date.now() + 2500
-  while (Date.now() < until) {
-    seen.push(await active.filter({ hasText: 'Fix CSV export bug' }).count())
-    // eslint-disable-next-line playwright/no-wait-for-timeout -- this is deliberately sampling the count at fixed intervals through the hand-over window, not waiting for a single condition
-    await h.page.waitForTimeout(50)
-  }
-  expect(seen.filter((n) => n !== 1)).toEqual([])
+  // Sampled through the whole hand-over, not just at the end — from the registry Active is drawn
+  // from, in the main process, rather than from the rendered rows: the bug was the registry
+  // losing the tab, and sampling the DOM also measured how quickly this window repainted, which
+  // under load could look like a dropped row when none was dropped.
+  await expectStays(async () => {
+    const tabs = await h.page.evaluate(() => window.apiary.activeTabs())
+    return tabs.filter((t) => t.key === '11111111-1111-1111-1111-111111111111').length === 1
+  }, 2500, 'the moved session stayed listed exactly once')
   const detached = await opened
   await expect(active.filter({ hasText: 'Fix CSV export bug' })).toContainText(/W\d/)
   await expect(detached.getByTestId('session-title')).toHaveText('Fix CSV export bug')

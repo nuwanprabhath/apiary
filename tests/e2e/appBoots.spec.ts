@@ -19,7 +19,7 @@ let h: Harness
 
 test.afterEach(async () => { await h.close() })
 
-test('the main process boots and renders a window', async () => {
+test('the main process boots and renders a window', { tag: '@smoke' }, async () => {
   h = await launchApiary()
   await expect(h.page.getByTestId('sidebar')).toBeVisible()
 })

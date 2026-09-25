@@ -22,7 +22,7 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => { await h.close() })
 
-test('opens a bottom shell in the session working directory', async () => {
+test('opens a bottom shell in the session working directory', { tag: '@smoke' }, async () => {
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
   // The prompt is shell-dependent, so assert on output we command ourselves.
@@ -33,7 +33,7 @@ test('opens a bottom shell in the session working directory', async () => {
   })
 })
 
-test('resume switches the centre pane to a terminal and back', async () => {
+test('resume switches the centre pane to a terminal and back', { tag: '@smoke' }, async () => {
   // Terminal *content* is not a reliable signal here: the resumed process is an interactive
   // CLI that can repaint its whole screen on the resize a remount triggers, so a torn-down and
   // rebuilt pane can look identical to one that was merely hidden. The IPC call that actually
@@ -85,19 +85,6 @@ test('warns before resuming a session that is already running', async () => {
   await expect(h.page.getByTestId('conflict-dialog')).toHaveCount(0)
 })
 
-test('disables resume when the working directory is gone', async () => {
-  await expect(h.page.getByTestId('resume-button')).toBeEnabled()
-
-  await h.close()
-  h = await launchApiary({ withMissingCwd: true })
-  await importAll(h.page)
-  await h.page.getByTestId('sidebar-refresh').click()
-  await sidebarSession(h.page, 'Orphaned worktree session').click()
-
-  await expect(h.page.getByTestId('resume-button')).toBeDisabled()
-  await expect(h.page.getByTestId('resume-button')).toHaveAttribute('data-cwd-exists', 'false')
-})
-
 test('dragging the bottom-pane resizer persists the new height across a relaunch', async () => {
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
@@ -142,7 +129,7 @@ test('dragging the bottom-pane resizer persists the new height across a relaunch
 // `.content`'s `overflow: auto` while the drag continuously changes .bottom-pane's height,
 // toggling a scrollbar on and off and oscillating cols/rows forever. That read as the shell's
 // content (and cursor) flickering while resizing. `ptyResize` call volume is the real signal.
-test('dragging the bottom-pane resizer does not oscillate the shell terminal size', async () => {
+test('dragging the bottom-pane resizer does not oscillate the shell terminal size', { tag: '@serial' }, async () => {
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
 
@@ -175,39 +162,12 @@ test('dragging the bottom-pane resizer does not oscillate the shell terminal siz
   expect(afterQuietWindow - afterSettle).toBeLessThan(5)
 })
 
-// Regression test: dragging the resizer is a mousedown-then-mousemove-over-page-content
-// sequence, which — with nothing to stop it — the browser treats exactly like a click-drag text
-// selection, highlighting whatever surrounding text (the session title, "Hide shell", etc.) the
-// cursor passes over during the drag. `preventDefault()` on mousedown plus a `user-select: none`
-// class for the duration of the drag closes this off.
-test('dragging the bottom-pane resizer does not select surrounding page text', async () => {
-  await h.page.getByTestId('shell-toggle').click()
-  await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
-
-  const resizer = h.page.getByTestId('bottom-resizer')
-  const box = await resizer.boundingBox()
-  if (box === null) throw new Error('resizer has no bounding box')
-  const startX = box.x + box.width / 2
-  const startY = box.y + box.height / 2
-
-  await h.page.mouse.move(startX, startY)
-  await h.page.mouse.down()
-  // Drag up and across, passing directly over the session title text above the resizer.
-  await h.page.mouse.move(startX - 100, startY - 150, { steps: 15 })
-  await h.page.mouse.move(startX, startY - 40, { steps: 15 })
-
-  const selectedText = await h.page.evaluate(() => window.getSelection()?.toString() ?? '')
-  await h.page.mouse.up()
-
-  expect(selectedText).toBe('')
-})
-
 // Regression test: xterm registers its own native `paste` DOM listener on the terminal's
 // textarea independently of attachCustomKeyEventHandler's keydown handling (see
 // @xterm/xterm's Terminal._initGlobal / Clipboard.handlePasteEvent). The key handler used to
 // read the clipboard and write it to the pty itself *as well as* letting that native listener
 // fire, so the same text landed twice — once raw, once wrapped in bracketed-paste markers.
-test('pasting writes the clipboard text once, with no bracketed-paste markers', async () => {
+test('pasting writes the clipboard text once, with no bracketed-paste markers', { tag: '@serial' }, async () => {
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
   await h.page.getByTestId('terminal-shell').click()
@@ -240,7 +200,7 @@ test('pasting writes the clipboard text once, with no bracketed-paste markers', 
 // stopping it, same as for Ctrl+Shift+V on Linux — reasoning that the shift/meta branch structure
 // covers it is not the same as having measured it. This drives whichever chord is this platform's
 // own paste binding and asserts the same single-write, no-marker outcome.
-test('pasting with the platform paste chord writes the clipboard text once, with no bracketed-paste markers', async () => {
+test('pasting with the platform paste chord writes the clipboard text once, with no bracketed-paste markers', { tag: '@serial' }, async () => {
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
   await h.page.getByTestId('terminal-shell').click()

@@ -22,10 +22,6 @@ function groupLabelled(page: Page, label: string): Locator {
   )
 }
 
-test('shows an empty state before anything is imported', async () => {
-  await expect(h.page.getByTestId('sidebar-empty')).toBeVisible()
-})
-
 test('lists imported sessions grouped under their own folder, including worktree nesting', async () => {
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
@@ -64,46 +60,6 @@ test('lists imported sessions grouped under their own folder, including worktree
   await expect(repoCOwnSessions).toHaveCount(1)
 
   await expect(h.page.getByTestId('session-item')).toHaveCount(4)
-})
-
-test('filters sessions by title as you type', async () => {
-  await importAll(h.page)
-  await h.page.getByTestId('sidebar-refresh').click()
-  await expect(h.page.getByTestId('session-item')).toHaveCount(4)
-
-  await h.page.getByTestId('search-input').fill('csv')
-  await expect(h.page.getByTestId('session-item')).toHaveCount(1)
-  await expect(sidebarSession(h.page, 'Fix CSV export bug')).toBeVisible()
-
-  await h.page.getByTestId('search-input').fill('')
-  await expect(h.page.getByTestId('session-item')).toHaveCount(4)
-})
-
-test('collapsing a folder hides only that folder (and its nested worktree), not every folder', async () => {
-  await importAll(h.page)
-  await h.page.getByTestId('sidebar-refresh').click()
-  await expect(h.page.getByTestId('session-item')).toHaveCount(4)
-
-  // Top-level groups sort alphabetically by label: repo-c, work-a, work-b — so the first
-  // top-level toggle belongs to repo-c, which (via its nested worktree) owns 2 of the 4
-  // sessions. A defect that collapsed every folder unconditionally would drop the count to 0;
-  // the correct, folder-scoped behaviour drops it to exactly 2 (work-a's and work-b's own
-  // sessions untouched).
-  await h.page.getByTestId('project-toggle').first().click()
-  await expect(h.page.getByTestId('session-item')).toHaveCount(2)
-  await expect(sidebarSession(h.page, 'Fix CSV export bug')).toBeVisible()
-  await expect(sidebarSession(h.page, 'Add worktree switcher')).toBeVisible()
-  await expect(sidebarSession(h.page, 'Repo root session')).toHaveCount(0)
-  await expect(sidebarSession(h.page, 'Worktree session')).toHaveCount(0)
-})
-
-test('selecting a session marks it selected and shows its header', async () => {
-  await importAll(h.page)
-  await h.page.getByTestId('sidebar-refresh').click()
-  await sidebarSession(h.page, 'Fix CSV export bug').click()
-  await expect(h.page.getByTestId('session-item').filter({ hasText: 'Fix CSV export bug' }))
-    .toHaveAttribute('data-selected', 'true')
-  await expect(h.page.getByTestId('session-title')).toHaveText('Fix CSV export bug')
 })
 
 test('a folder collapsed by the user stays collapsed after a relaunch (Finding 1a)', async () => {
@@ -226,44 +182,4 @@ test('a session worked in recently appears in Recent, and dismissing it hides it
 
   await dismiss.click()
   await expect(section.getByTestId('session-item')).toHaveCount(0)
-})
-
-test('the Recent window is a validated setting', async () => {
-  // The menu lives in the main process; trigger the same channel it sends rather than reaching
-  // for a renderer menu button that does not exist.
-  await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
-  })
-  await expect(h.page.getByTestId('settings-dialog')).toBeVisible()
-  await h.page.getByTestId('settings-nav-sidebar').click()
-
-  await h.page.getByTestId('setting-recent-hours').fill('9999')
-  await h.page.getByTestId('setting-recent-hours').blur()
-  await expect(h.page.getByTestId('setting-recent-hours')).toHaveValue('168')
-})
-
-test('a folder holding the open session can still be collapsed', async () => {
-  // With "Reveal the open session in the sidebar" on, the reveal effect opens whatever folders
-  // stand between the top of the tree and the active session. It re-runs whenever `collapsed`
-  // changes — which is exactly what a click on the chevron does — so unless its latch has already
-  // caught, the user's collapse is undone in the same tick that requested it. The folder flickers
-  // shut and springs back open, and no amount of clicking helps.
-  //
-  // Opening the session first is the whole point: collapsing a folder that holds nothing open has
-  // never been broken.
-  await importAll(h.page)
-  await h.page.getByTestId('sidebar-refresh').click()
-  await expect(h.page.getByTestId('session-item')).toHaveCount(4)
-
-  await sidebarSession(h.page, 'Fix CSV export bug').click()
-  await expect(h.page.getByTestId('session-title')).toHaveText('Fix CSV export bug')
-
-  await h.page.getByTestId('project-toggle').first().click()
-
-  // It must still be collapsed a moment later, not merely at the instant of the click: the
-  // re-expand arrives on the next render, so an immediate assertion would pass against the bug.
-  await expect(h.page.getByTestId('session-item')).toHaveCount(2)
-  // eslint-disable-next-line playwright/no-wait-for-timeout -- proving it stays collapsed rather than re-expanding a moment later; there is no later condition to assert on other than re-checking after time passes
-  await h.page.waitForTimeout(300)
-  await expect(h.page.getByTestId('session-item')).toHaveCount(2)
 })

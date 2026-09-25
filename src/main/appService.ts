@@ -255,6 +255,13 @@ export class AppService {
   private async runRefresh(): Promise<void> {
     clearResolverCache()
     const metas = await scanProjects(projectsDir(this.options.configRoot))
+    // A pass can take a long time — resolving each folder is a few git calls, and a library of a
+    // few hundred folders measured ~35s — and quitting waits for the pass in flight (see
+    // `dispose()`). So it checks at every step whether shutdown has started, and stops: everything
+    // it would have written is derived from the JSONL and is rebuilt by the next launch's scan.
+    // Without this a quit during a big rescan left the process running, windowless, for as long
+    // as the rescan had left.
+    if (this.disposed) return
 
     const byRawCwd = new Map<string, SessionMeta[]>()
     for (const m of metas) {
@@ -273,6 +280,7 @@ export class AppService {
     const byCanonicalCwd = new Map<string, SessionMeta[]>()
     const infoByCanonicalCwd = new Map<string, Awaited<ReturnType<typeof resolveProject>>>()
     for (const [rawCwd, list] of byRawCwd) {
+      if (this.disposed) return
       const info = await resolveProject(rawCwd)
       infoByCanonicalCwd.set(info.path, info)
       const existing = byCanonicalCwd.get(info.path) ?? []
@@ -280,6 +288,7 @@ export class AppService {
       byCanonicalCwd.set(info.path, existing)
     }
 
+    if (this.disposed) return
     for (const [canonicalCwd, list] of byCanonicalCwd) {
       const info = infoByCanonicalCwd.get(canonicalCwd)
       if (!info) continue
@@ -287,7 +296,9 @@ export class AppService {
       this.store.syncSessions(canonicalCwd, list)
     }
 
+    if (this.disposed) return
     this.live = await (this.options.detectLive ?? detectLiveSessions)()
+    if (this.disposed) return
     // Inside the refresh itself, rather than at each of its callers: the Refresh button, the file
     // watcher and the periodic rescan all arrive here, and a setting called "import everything
     // automatically" that only held for some of those routes would be the worst kind of half-true.

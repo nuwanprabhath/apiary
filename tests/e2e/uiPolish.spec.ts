@@ -13,46 +13,6 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => { await h.close() })
 
-test('the search box clears from its own button', async () => {
-  const search = h.page.getByTestId('search-input')
-  // The button only exists while there is something to clear — an always-present X over an empty
-  // field is just noise.
-  await expect(h.page.getByTestId('search-clear')).toHaveCount(0)
-
-  await search.fill('worktree')
-  // Filtering is a round trip to the main process, not a local array filter, so the list is
-  // briefly empty on the way to being narrowed — counting it the instant `fill` resolves catches
-  // that gap. Poll for the narrowed list instead of assuming it has already arrived.
-  await expect.poll(async () => h.page.getByTestId('session-item').count()).toBeGreaterThan(0)
-  const filtered = await h.page.getByTestId('session-item').count()
-  expect(filtered).toBeLessThan(4)
-
-  await h.page.getByTestId('search-clear').click()
-  await expect(search).toHaveValue('')
-  await expect(h.page.getByTestId('search-clear')).toHaveCount(0)
-  await expect(h.page.getByTestId('session-item')).toHaveCount(4)
-
-})
-
-test('the refresh button keeps a stable width while it spins', async () => {
-  // Regression: the button used to swap its whole "Refresh" label out for a bare spinner glyph
-  // while a refresh was in flight, which visibly shrank the button — jarring, and easy to misread
-  // as the control itself vanishing. The label now stays put; only the icon inside it spins.
-  const button = h.page.getByTestId('sidebar-refresh')
-  const before = await button.boundingBox()
-  expect(before).not.toBeNull()
-
-  await button.click()
-  // The click may resolve before Playwright gets a chance to observe the spinning state on a
-  // fast local scan, so assert on the label staying present rather than racing the spinner.
-  await expect(button).toContainText('Refresh')
-  const after = await button.boundingBox()
-  expect(after).not.toBeNull()
-  // The two `expect`s above already fail the test if either is null; asserting unconditionally
-  // here (rather than inside an `if`) keeps the check as a plain expect, not a conditional one.
-  expect(Math.abs(before!.width - after!.width)).toBeLessThan(2)
-})
-
 test('pressing Refresh says what the rescan found', async () => {
   // A rescan usually changes nothing on screen — the watcher has normally seen the disk already —
   // so without a sentence afterwards the only feedback is a spinner stopping, which is
@@ -67,54 +27,6 @@ test('pressing Refresh says what the rescan found', async () => {
   // Nothing was added between the two scans, and the message says so rather than claiming a
   // number it cannot support.
   await expect(note).toContainText('no new sessions')
-})
-
-test('the buttons in a dialog footer are the same size as each other', async () => {
-  // Regression: every group of buttons in the app used to carry its own padding, so a Cancel and
-  // a Save sitting side by side were visibly different heights. They now resolve one set of
-  // tokens; this asserts the outcome rather than the mechanism.
-  await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
-  })
-  await expect(h.page.getByTestId('settings-dialog')).toBeVisible()
-
-  const height = async (id: string): Promise<number> =>
-    h.page.getByTestId(id).evaluate((el) => Math.round(el.getBoundingClientRect().height))
-
-  expect(await height('settings-save')).toBe(await height('settings-cancel'))
-})
-
-test.describe('import dialog, before anything has been imported', () => {
-  test.beforeEach(async () => {
-    // A fresh harness: `importAll` in the outer beforeEach would leave every row already
-    // imported, and an all-imported folder's checkbox is deliberately disabled.
-    await h.close()
-    h = await launchApiary()
-  })
-
-  test('folders collapse, so a long folder is not in the way of the next one', async () => {
-    await h.app.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-import-dialog')
-    })
-    await expect(h.page.getByTestId('import-dialog')).toBeVisible()
-
-    const rowsBefore = await h.page.getByTestId('import-session-checkbox').count()
-    expect(rowsBefore).toBeGreaterThan(0)
-
-    const firstGroup = h.page.getByTestId('import-group').first()
-    await firstGroup.getByTestId('import-group-toggle').click()
-    await expect(firstGroup.getByTestId('import-session-checkbox')).toHaveCount(0)
-    // Only that folder folded away; the others are untouched.
-    await expect(h.page.getByTestId('import-session-checkbox')).toHaveCount(rowsBefore - 1)
-
-    // Collapsed or not, the folder checkbox still selects everything inside it — which is the
-    // whole point: tick the folder, fold it, move on to the next one without scrolling past it.
-    await firstGroup.getByTestId('import-group-checkbox').check()
-    await expect(firstGroup.getByTestId('import-group-checkbox')).toBeChecked()
-
-    await firstGroup.getByTestId('import-group-toggle').click()
-    await expect(firstGroup.getByTestId('import-session-checkbox')).toHaveCount(1)
-  })
 })
 
 test('the transcript follows the session live and opens at the newest message', async () => {
@@ -191,8 +103,12 @@ test('the transcript catches up to the newest message when you switch back to it
     timestamp: '2026-09-02T10:05:00.000Z',
     message: { role: 'assistant', content: [{ type: 'text', text: 'ARRIVED_WHILE_ON_THE_TERMINAL' }] },
   }) + '\n')
-  // eslint-disable-next-line playwright/no-wait-for-timeout -- the transcript is hidden and not scrollable while on the terminal, so there is no on-screen signal that the watcher's debounced rescan has picked up the new line before switching back to look for it
-  await h.page.waitForTimeout(3000)
+  // Nothing on screen shows the hidden transcript catching up, so ask the main process, through
+  // the renderer's own bridge, until the transcript it serves has the new turn — then switch back.
+  await expect.poll(() => h.page.evaluate(async () => {
+    const page = await window.apiary.transcript('11111111-1111-1111-1111-111111111111')
+    return page.messages.some((m) => m.uuid === 'arrived-while-hidden')
+  }), { timeout: 20000 }).toBe(true)
 
   await h.page.getByTestId('view-transcript').click()
   await expect(h.page.getByTestId('transcript')).toBeVisible()

@@ -15,7 +15,7 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => { await h.close() })
 
-test('a split with two tabs returns after relaunch, same preset and active tab', async () => {
+test('a split with two tabs returns after relaunch, same preset and active tab', { tag: '@smoke' }, async () => {
   await sidebarSession(h.page, 'Fix CSV export bug').click()
   // Splitting focuses the new pane (see paneLayouts.spec.ts), and copies the active tab into it
   // (per CLAUDE.md: "splitting copies") — so the new pane starts with "Fix CSV export bug" too,

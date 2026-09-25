@@ -30,7 +30,7 @@ for (const [slug, request] of [['matrix', 'I like to have a theme like the Matri
     await h.page.getByText('Fix CSV export bug').first().click().catch(() => {})
     // eslint-disable-next-line playwright/no-wait-for-timeout -- lets the newly applied theme's effects settle before the screenshot below, which is for a human to eyeball
     await h.page.waitForTimeout(1500)
-    await h.page.screenshot({ path: `/private/tmp/claude-501/-Users-nuwan-projects-pet-projects/a021aefb-2a2b-46c0-b30f-d6ec7a9e02f5/scratchpad/live-${slug}.png` })
+    await h.page.screenshot({ path: test.info().outputPath(`live-${slug}.png`) })
     // eslint-disable-next-line no-console -- reports what the real generator produced, for whoever ran this opt-in live spec to read
     console.log(slug, JSON.stringify({ name: result.spec.name, note: result.note, font: result.spec.font, effects: result.spec.effects.map((e) => e.kind) }))
   })
@@ -53,7 +53,7 @@ for (const [slug, request, refracts] of [['liquid-glass', 'Mac OS like liquid gl
     await h.page.getByText('Fix CSV export bug').first().click().catch(() => {})
     // eslint-disable-next-line playwright/no-wait-for-timeout -- lets the newly applied theme's effects settle before the screenshot below, which is for a human to eyeball
     await h.page.waitForTimeout(1500)
-    await h.page.screenshot({ path: `/private/tmp/claude-501/-Users-nuwan-projects-pet-projects/a021aefb-2a2b-46c0-b30f-d6ec7a9e02f5/scratchpad/live-${slug}.png` })
+    await h.page.screenshot({ path: test.info().outputPath(`live-${slug}.png`) })
     // eslint-disable-next-line no-console -- reports what the real generator produced, for whoever ran this opt-in live spec to read
     console.log(slug, JSON.stringify({ name: result.spec.name, note: result.note, material: result.spec.material, effects: result.spec.effects.map((e) => e.kind), panel: result.spec.palette['bg-panel'], bg: result.spec.palette.bg }))
   })

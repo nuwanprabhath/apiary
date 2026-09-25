@@ -427,6 +427,44 @@ describe('AppService', () => {
     }
   })
 
+  it('quitting in the middle of a long rescan does not wait for the rest of it', async () => {
+    // Every folder costs a few git calls to resolve, so a library of a few hundred makes a rescan
+    // tens of seconds long — and quitting waits for the rescan in flight. It used to wait for all
+    // of it, leaving the process running with no window for as long as the rescan had left.
+    const bigHome = mkdtempSync(join(tmpdir(), 'apiary-home-big-'))
+    const bigProjects = join(bigHome, '.claude', 'projects')
+    mkdirSync(bigProjects, { recursive: true })
+    for (let i = 0; i < 60; i++) {
+      const cwd = join(bigHome, `work-${String(i)}`)
+      mkdirSync(cwd)
+      makeSession(bigProjects, `-work-${String(i)}`, {
+        sessionId: `${String(i).padStart(8, '0')}-0000-4000-8000-000000000000`,
+        cwd,
+        title: `Session ${String(i)}`,
+      })
+    }
+    const big = new AppService({
+      configRoot: join(bigHome, '.claude'),
+      dbPath: join(bigHome, 'apiary.db'),
+      detectLive: async () => new Map(),
+    })
+    try {
+      let started = Date.now()
+      await big.refresh()
+      const fullPass = Date.now() - started
+
+      const inFlight = big.refresh().catch(() => {})
+      started = Date.now()
+      await big.dispose()
+      const quit = Date.now() - started
+      await inFlight
+
+      expect(quit).toBeLessThan(fullPass / 2)
+    } finally {
+      rmSync(bigHome, { recursive: true, force: true })
+    }
+  }, 30000)
+
   it('recovers after a refresh rejects so later refreshes still run', async () => {
     let calls = 0
     let shouldFail = true

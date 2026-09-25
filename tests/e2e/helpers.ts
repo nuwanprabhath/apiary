@@ -1,4 +1,5 @@
-import { _electron as electron, expect, type ElectronApplication, type Locator, type Page } from '@playwright/test'
+import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
+import type { ChildProcess } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
@@ -57,6 +58,35 @@ function launchEnv(extra: Record<string, string>): Record<string, string> {
   // The suite is written against the original look; a spec that wants the real first-run default
   // passes APIARY_DEFAULT_THEME: '' (see themes.spec.ts).
   return { ...env, APIARY_DEFAULT_THEME: 'original', ...extra, ...headlessEnv() }
+}
+
+/** Resolves true once `proc` has exited, or false if it is still running after `ms`. */
+function exitedWithin(proc: ChildProcess, ms: number): Promise<boolean> {
+  if (proc.exitCode !== null || proc.signalCode !== null) return Promise.resolve(true)
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { resolve(false) }, ms)
+    proc.once('exit', () => { clearTimeout(timer); resolve(true) })
+  })
+}
+
+/**
+ * Quits the app and makes sure its process is gone.
+ *
+ * Playwright's `app.close()` resolves when its own connection to the app closes, which is not the
+ * same as the process exiting — and an instance that outlived its test stayed alive until the
+ * whole worker ended. Over a full run they piled up (26 at once, measured), each a Dock icon and a
+ * share of the CPU the tests after it were timed against. A process still running 5s after the
+ * quit is reported under the test that left it and killed.
+ */
+async function closeApp(app: ElectronApplication): Promise<void> {
+  const proc = app.process()
+  await app.close()
+  if (await exitedWithin(proc, 5000)) return
+  let where = 'outside a test'
+  try { where = test.info().titlePath.join(' › ') } catch { /* not inside a test */ }
+  console.warn(`[e2e] Apiary (pid ${String(proc.pid)}) was still running 5s after quitting, in ${where}; killing it`)
+  proc.kill('SIGKILL')
+  await exitedWithin(proc, 5000)
 }
 
 function git(cwd: string, ...args: string[]): void {
@@ -289,10 +319,11 @@ export async function launchApiary(
     repoRoot,
     worktreeDir,
     worktreeDirB,
-    async newWindow() {
+    async newWindow(this: Harness) {
       // Driven through the actual menu item rather than by constructing a BrowserWindow here, so
       // the test exercises the path a user takes — including whatever the app does on the way.
-      await app.evaluate(({ Menu }) => {
+      // `this.app`, not the `app` this harness was built with: a relaunch replaces it.
+      await this.app.evaluate(({ Menu }) => {
         const menu = Menu.getApplicationMenu()
         const item = menu?.items
           .flatMap((i) => i.submenu?.items ?? [])
@@ -302,12 +333,14 @@ export async function launchApiary(
         // an unsafe call as far as the type checker is concerned; it takes no arguments here.
         ;(item.click as () => void)()
       })
-      const opened = await app.waitForEvent('window')
+      const opened = await this.app.waitForEvent('window')
       await opened.waitForLoadState('domcontentloaded')
       return opened
     },
-    async close() {
-      await app.close()
+    async close(this: Harness) {
+      // Likewise the current app: closing the one captured at launch left every relaunched
+      // instance running until the worker exited.
+      await closeApp(this.app)
       rmSync(home, { recursive: true, force: true })
       rmSync(workdir, { recursive: true, force: true })
       rmSync(workdirB, { recursive: true, force: true })
@@ -323,7 +356,7 @@ export async function launchApiary(
  */
 export async function relaunchApiary(h: Harness, extraEnv: Record<string, string> = {}): Promise<void> {
   await settleUiState(h.page)
-  await h.app.close()
+  await closeApp(h.app)
   await launchAgainst(h, extraEnv)
 }
 
@@ -353,7 +386,7 @@ export async function relaunchApiaryViaWindowClose(h: Harness): Promise<void> {
   }).catch(() => {
     // The process exited before the evaluate could answer — which is the successful case.
   })
-  await h.app.close().catch(() => {})
+  await closeApp(h.app).catch(() => {})
   await launchAgainst(h)
 }
 
@@ -552,4 +585,20 @@ export async function clickRowAction(row: Locator, testId: string): Promise<void
     await wrap.hover({ timeout: 2000 })
     await wrap.getByTestId(testId).click({ timeout: 2000 })
   }).toPass({ timeout: 20000 })
+}
+
+/**
+ * Asserts that `check` holds for the whole of `ms`, sampling it every 50ms and failing at the first
+ * sample where it does not — for tests whose point is that something does *not* happen (a flicker,
+ * a re-expand, a second write). A fixed wait followed by one look proves only the last instant;
+ * this proves the window, and says what it was proving when it fails.
+ */
+export async function expectStays(
+  check: () => boolean | Promise<boolean>, ms: number, what: string,
+): Promise<void> {
+  const started = Date.now()
+  while (Date.now() - started < ms) {
+    if (!(await check())) throw new Error(`Expected ${what} for ${String(ms)}ms, but it stopped after ${String(Date.now() - started)}ms`)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
 }

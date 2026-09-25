@@ -1,6 +1,9 @@
-# Typecheck and lint on every push and pull request — the fast, native-free half of what a release
-# checks (see release.yml), so a problem shows up on the commit that made it rather than at tag time.
-# No tests here: the unit suite needs the native modules built, which is the release run's job.
+# Typecheck, lint and the fast tests on every push to main and every pull request, so a problem
+# shows up on the commit that made it rather than at tag time (see release.yml, which repeats the
+# unit suite on each platform before building).
+#
+# The end-to-end suite is not here: it needs a display on Linux and launches the whole app per
+# test. It stays a local gate before tagging, as CLAUDE.md says.
 name: CI
 
 on:
@@ -28,3 +31,24 @@ jobs:
       - run: npm run typecheck
 
       - run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # With scripts: the unit and integration suites open real SQLite databases and ptys.
+      - run: npm ci
+
+      # Unit and integration tests (Node). `npm test` rebuilds the native modules for Node first.
+      - run: npm test
+
+      # Component tests: the renderer in headless Chromium against a fake bridge — no Electron.
+      - run: npx playwright install --with-deps chromium
+
+      - run: npm run test:component

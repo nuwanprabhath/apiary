@@ -30,7 +30,7 @@ const closeSettings = async (page: Page): Promise<void> => {
   if (await page.getByTestId('settings-dialog').count() > 0) await page.getByRole('button', { name: /cancel|close/i }).first().click()
 }
 
-test('a built-in theme recolours the app and a live terminal, and survives a relaunch', async () => {
+test('a built-in theme recolours the app and a live terminal, and survives a relaunch', { tag: '@smoke' }, async () => {
   await sidebarSession(h.page, 'Fix CSV export bug').click()
   await h.page.getByTestId('shell-toggle').click()
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
@@ -51,9 +51,6 @@ test('a built-in theme recolours the app and a live terminal, and survives a rel
   await h.page.keyboard.type('echo THEMED_$((6*7))\n')
   await expect(h.page.getByTestId('terminal-shell')).toContainText('THEMED_42', { timeout: 10000 })
   await expect(h.page.getByTestId('theme-effects-back')).toBeVisible()
-  // eslint-disable-next-line playwright/no-wait-for-timeout -- lets the theme's effects animate a bit before the committed screenshot below, which is for a human to eyeball
-  await h.page.waitForTimeout(400)
-  await h.page.screenshot({ path: '/private/tmp/claude-501/-Users-nuwan-projects-pet-projects/a021aefb-2a2b-46c0-b30f-d6ec7a9e02f5/scratchpad/theme-matrix.png' })
 
   await relaunchApiary(h)
   await expect.poll(() => cssVar(h.page, '--accent')).toBe('#22ff5aff')
@@ -71,27 +68,6 @@ test('Reset to original, and View → Reset Theme, both bring back the original 
   await expect.poll(() => cssVar(h.page, '--accent')).toBe('#a8471fff')
   await h.app.evaluate(({ Menu }) => { Menu.getApplicationMenu()?.getMenuItemById('reset-theme')?.click() })
   await expect.poll(() => cssVar(h.page, '--accent')).toBe(original)
-  await expect(card(h.page, 'original')).toHaveAttribute('data-active', 'true')
-})
-
-test('save a copy under a name, rename it, delete it', async () => {
-  await openThemes(h.page)
-  await card(h.page, 'builtin:matrix').click()
-  await h.page.getByTestId('theme-save-as').click()
-  await h.page.getByTestId('theme-save-name').fill('My matrix')
-  await h.page.getByTestId('theme-save-confirm').click()
-  await expect(h.page.getByTestId('theme-current-name')).toHaveText('My matrix')
-  await expect(h.page.getByTestId('theme-card').filter({ hasText: 'My matrix' })).toHaveAttribute('data-active', 'true')
-
-  await h.page.getByTestId('theme-rename').click()
-  await h.page.getByTestId('theme-save-name').fill('Green rain')
-  await h.page.getByTestId('theme-save-confirm').click()
-  await expect(h.page.getByTestId('theme-card').filter({ hasText: 'Green rain' })).toHaveCount(1)
-
-  const saved = h.page.locator('.theme-card-wrap').filter({ hasText: 'Green rain' })
-  await saved.hover()
-  await saved.getByTestId('theme-delete').click()
-  await expect(h.page.getByTestId('theme-card').filter({ hasText: 'Green rain' })).toHaveCount(0)
   await expect(card(h.page, 'original')).toHaveAttribute('data-active', 'true')
 })
 
@@ -121,22 +97,6 @@ test('--safe-theme starts in the original look without forgetting the chosen the
   await expect(card(h.page, 'builtin:neon')).toHaveAttribute('data-active', 'true')
 })
 
-test('with animated effects off, the effects draw one still frame and no more', async () => {
-  await openThemes(h.page)
-  await card(h.page, 'builtin:matrix').click()
-  const frames = (): Promise<number> => h.page.getByTestId('theme-effects-back').evaluate((el) => Number((el as HTMLElement).dataset.frames ?? '0'))
-  await expect.poll(frames).toBeGreaterThan(3)
-  // Applied once main confirms it, so clicked and then waited for rather than `uncheck()`ed.
-  await h.page.getByTestId('theme-animated').click()
-  await expect(h.page.getByTestId('theme-animated')).not.toBeChecked()
-  // eslint-disable-next-line playwright/no-wait-for-timeout -- lets any in-flight animation frame finish before taking the "settled" baseline count below
-  await h.page.waitForTimeout(300)
-  const settled = await frames()
-  // eslint-disable-next-line playwright/no-wait-for-timeout -- proving a negative: that no further frames are drawn once animation is off, so there is no condition to poll for other than re-checking after time passes
-  await h.page.waitForTimeout(1000)
-  expect(await frames()).toBe(settled)
-})
-
 test('a hostile themes.json is applied only as its safe parts', async () => {
   const original = await cssVar(h.page, '--bg')
   mkdirSync(join(h.home, 'userdata'), { recursive: true })
@@ -153,19 +113,6 @@ test('a hostile themes.json is applied only as its safe parts', async () => {
   expect(await cssVar(h.page, '--info')).toBe('#00ffccff')
   expect(await h.page.evaluate(() => document.documentElement.dataset.uiFont)).toBe('system')
   await expect(h.page.getByTestId('sidebar')).toBeVisible()
-})
-
-test('the Themes screen shows what is applied now, and dialogs stay solid over a translucent theme', async () => {
-  // Applied before the screen exists: it must not show what was true when the window loaded.
-  await h.page.evaluate(() => window.apiary.themeApply('builtin:neon'))
-  await expect.poll(() => cssVar(h.page, '--accent')).toBe('#ff2a6dff')
-  await openThemes(h.page)
-  await expect(h.page.getByTestId('theme-current-name')).toHaveText('Neon cyberpunk')
-  await expect(card(h.page, 'builtin:neon')).toHaveAttribute('data-active', 'true')
-
-  // Neon's panels are see-through so its grid shows; the dialog over them must not be.
-  const bg = await h.page.getByTestId('settings-dialog').evaluate((el) => getComputedStyle(el).backgroundColor)
-  expect(bg).toMatch(/^rgb\(/)
 })
 
 test('a glass theme turns the panels into blurred panes, and menus inside them still open where clicked', async () => {
@@ -211,7 +158,6 @@ test('a glass theme turns the panels into blurred panes, and menus inside them s
   await h.page.getByTestId('terminal-shell').click()
   await h.page.keyboard.type('echo glass-ok\n')
   await expect(h.page.getByTestId('terminal-shell').locator('.xterm-rows')).toContainText('glass-ok')
-  await h.page.screenshot({ path: '/private/tmp/claude-501/-Users-nuwan-projects-pet-projects/a021aefb-2a2b-46c0-b30f-d6ec7a9e02f5/scratchpad/theme-glass.png' })
 })
 
 test('a fresh install starts on Liquid Glass; choosing the original look sticks', async () => {
@@ -225,29 +171,4 @@ test('a fresh install starts on Liquid Glass; choosing the original look sticks'
   // A choice once made — the original look included — is kept over the default.
   await relaunchApiary(h, { APIARY_DEFAULT_THEME: '' })
   await expect(h.page.locator('html')).not.toHaveAttribute('data-material', 'glass')
-})
-
-test('the terminal colour reaches the bottom of its pane, with no bar under the last row', async () => {
-  await sidebarSession(h.page, 'Fix CSV export bug').click()
-  await h.page.getByTestId('shell-toggle').click()
-  await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
-  await h.page.evaluate(() => window.apiary.themeApply('builtin:glass'))
-  await expect(h.page.locator('html')).toHaveAttribute('data-material', 'glass')
-  const paint = await h.page.getByTestId('terminal-shell').evaluate((el) => {
-    const host = el.closest('.terminal-host') ?? el
-    const viewport = host.querySelector('.xterm-viewport')!
-    const screen = host.querySelector('.xterm-screen')!.getBoundingClientRect()
-    return {
-      host: getComputedStyle(host).backgroundColor,
-      viewport: getComputedStyle(viewport).backgroundColor,
-      term: getComputedStyle(document.documentElement).getPropertyValue('--term-background').trim(),
-      sliver: host.getBoundingClientRect().bottom - screen.bottom,
-    }
-  })
-  // xterm draws whole rows only, so there is a sliver under the last one; the host's colour —
-  // the terminal's — fills it, not whatever is behind.
-  expect(paint.sliver).toBeGreaterThan(0)
-  expect(paint.viewport).toBe('rgba(0, 0, 0, 0)')
-  expect(paint.host).not.toBe('rgba(0, 0, 0, 0)')
-  expect(paint.term).not.toBe('')
 })

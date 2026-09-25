@@ -47,7 +47,7 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => { await h.close() })
 
-test('the transcript has a chat box, and what you type reaches the running session', async () => {
+test('the transcript has a chat box, and what you type reaches the running session', { tag: '@smoke' }, async () => {
   await useFakeClaudeShell(h)
   await sidebarSession(h.page, 'Fix CSV export bug').click()
   await expect(h.page.getByTestId('composer')).toBeVisible()
@@ -80,24 +80,6 @@ test('Enter sends and Shift+Enter makes a new line', async () => {
   await expect(input).toHaveValue('', { timeout: 20000 })
 })
 
-test('a pasted image becomes a thumbnail you can enlarge, and can be removed again', async () => {
-  await sidebarSession(h.page, 'Fix CSV export bug').click()
-  await expect(h.page.getByTestId('composer-attachments')).toHaveCount(0)
-
-  await pasteImage(h)
-  await expect(h.page.getByTestId('composer-attachment')).toHaveCount(1)
-
-  // Click the preview to see it full size — the thing the terminal could never do.
-  await h.page.getByTestId('composer-attachment-preview').click()
-  await expect(h.page.getByTestId('image-lightbox')).toBeVisible()
-  await expect(h.page.getByTestId('image-lightbox-image')).toBeVisible()
-  await h.page.keyboard.press('Escape')
-  await expect(h.page.getByTestId('image-lightbox')).toHaveCount(0)
-
-  await h.page.getByTestId('composer-attachment-remove').click()
-  await expect(h.page.getByTestId('composer-attachment')).toHaveCount(0)
-})
-
 test('a pasted image is written to disk and its path is what gets sent', async () => {
   await useFakeClaudeShell(h)
   await sidebarSession(h.page, 'Fix CSV export bug').click()
@@ -118,47 +100,3 @@ test('a pasted image is written to disk and its path is what gets sent', async (
   await expect(h.page.getByTestId('terminal-session')).toContainText(String(file), { timeout: 30000 })
 })
 
-test('images already in a session render as thumbnails in the transcript', async () => {
-  // Blocks the reader used to drop entirely, so a conversation that included a screenshot showed
-  // a gap where the screenshot had been.
-  const { makeSession } = await import('../fixtures/makeSession')
-  makeSession(h.projectsRoot, '-work-a', {
-    sessionId: '99999999-9999-9999-9999-999999999999',
-    cwd: h.workdir,
-    title: 'Has an image in it',
-    extraLines: [
-      JSON.stringify({
-        sessionId: '99999999-9999-9999-9999-999999999999',
-        cwd: h.workdir,
-        gitBranch: 'main',
-        isSidechain: false,
-        version: '2.1.246',
-        type: 'user',
-        uuid: 'with-image',
-        timestamp: '2026-09-02T10:00:00.000Z',
-        message: {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'here is a screenshot' },
-            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: TINY_PNG } },
-          ],
-        },
-      }),
-    ],
-  })
-  // Scan first: `discovered()` reports what the store knows, and the store only learns about a
-  // file that appeared after startup once something has rescanned.
-  await h.page.evaluate(async () => {
-    await window.apiary.refresh()
-    const all = await window.apiary.discovered()
-    await window.apiary.importSessions(all.map((s) => s.sessionId), [])
-  })
-  await h.page.getByTestId('sidebar-refresh').click()
-
-  await sidebarSession(h.page, 'Has an image in it').click()
-  const thumb = h.page.getByTestId('transcript').getByTestId('image-thumb')
-  await expect(thumb).toHaveCount(1, { timeout: 20000 })
-
-  await thumb.click()
-  await expect(h.page.getByTestId('image-lightbox-image')).toBeVisible()
-})

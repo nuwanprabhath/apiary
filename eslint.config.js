@@ -125,6 +125,13 @@ export default defineConfig([
     languageOptions: { globals: { ...globals.node, ...vitest.environments.env.globals } },
   },
 
+  // Component tests: the renderer in a real browser against a fake bridge (tests/component).
+  {
+    files: ['tests/component/**/*.{ts,tsx}'],
+    extends: [vitest.configs.recommended],
+    languageOptions: { globals: globals.browser },
+  },
+
   // End-to-end tests and the screenshot script, which drive the app with Playwright.
   {
     files: ['tests/e2e/**/*.ts', 'scripts/*.spec.ts'],

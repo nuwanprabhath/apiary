@@ -37,21 +37,3 @@ test('a worktree can be dragged above its sibling, and stays there across a rest
   await relaunchApiary(h)
   await expect.poll(async () => worktreeOrder(h.page)).toEqual(['repo-c-wt2', 'repo-c-wt'])
 })
-
-// The reported case, and the one the plain test above cannot see: the repository was filed into
-// a group. A group is a drop target over its whole area, so a drop that landed on a worktree row
-// inside it also reached the group — and the group's own handler wrote back a copy of the
-// arrangement that predated the reorder, silently undoing it.
-test('a worktree inside a grouped repository can still be reordered', async () => {
-  await expect.poll(async () => worktreeOrder(h.page)).toEqual(['repo-c-wt', 'repo-c-wt2'])
-
-  await h.page.locator(
-    'div.project-row-wrap[data-depth="0"]:has(> button[data-testid="project-toggle"] .project-label:text-is("repo-c"))',
-  ).click({ button: 'right' })
-  await h.page.getByTestId('context-menu-new-group').click()
-  await h.page.getByTestId('folder-group-rename').press('Enter')
-  await expect(h.page.getByTestId('folder-group')).toHaveCount(1)
-
-  await worktree(h.page, 'repo-c-wt2').dragTo(worktree(h.page, 'repo-c-wt'))
-  expect(await worktreeOrder(h.page)).toEqual(['repo-c-wt2', 'repo-c-wt'])
-})

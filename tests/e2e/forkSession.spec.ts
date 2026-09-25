@@ -36,14 +36,3 @@ test('forking from a tab opens the fork next to it, named after the original', a
   // And the original is untouched — that is the whole point of forking rather than continuing.
   await expect(h.page.getByTestId('session-tab-label').first()).toHaveText(/Fix CSV export bug/)
 })
-
-test('forking from the sidebar works the same way', async () => {
-  await sidebarSession(h.page, 'Fix CSV export bug').click()
-
-  await sidebarSession(h.page, 'Fix CSV export bug').click({ button: 'right' })
-  await h.page.getByTestId('sidebar-menu').getByText('Fork session').click()
-
-  await expect(h.page.getByTestId('session-tab')).toHaveCount(2)
-  await expect(h.page.getByTestId('session-tab-label').nth(1))
-    .toHaveText(/fork: Fix CSV export bug/)
-})

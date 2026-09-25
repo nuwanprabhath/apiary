@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { launchApiary, importAll, clickRowAction, sidebarSession, type Harness } from './helpers'
+import { launchApiary, importAll, type Harness } from './helpers'
 
 /**
  * Opens Settings the way the other settings tests do.
@@ -72,46 +72,6 @@ test('settings reports how much has been indexed, and can rebuild it', async () 
   await expect(h.page.getByTestId('session-item')).toHaveCount(1)
 })
 
-test('search renders a flat list, and clearing it restores the tree with its collapse state', async () => {
-  // A folder collapsed before searching must still be collapsed after — proof the tree was never
-  // torn down and rebuilt underneath the search, only hidden behind the flat list.
-  await h.page.locator('[data-testid="project-toggle"]').first().click()
-  const wasCollapsed = h.page.locator('[data-testid="project-toggle"]').first()
-    
-  await expect(wasCollapsed).toHaveAttribute('aria-expanded', 'false')
-
-  await search(h).fill('csv')
-  await expect(h.page.getByTestId('flat-results')).toBeVisible()
-  // No folder chrome at all while a flat list is on screen.
-  await expect(h.page.getByTestId('project-toggle')).toHaveCount(0)
-  await expect(h.page.getByTestId('session-subtitle').first()).toBeVisible()
-
-  await h.page.getByTestId('search-clear').click()
-  await expect(h.page.getByTestId('flat-results')).toHaveCount(0)
-  await expect(h.page.locator('[data-testid="project-toggle"]').first())
-    .toHaveAttribute('aria-expanded', 'false')
-})
-
-test('a pinned session that matches the search is listed once, not in both sections', async () => {
-  // The tree already leaves pinned sessions out of the folder they live in (SessionTree renders
-  // only a folder's unpinned rows); the flat results list did not, so searching for a pinned
-  // session's title drew it in Pinned and again in the results below.
-  await clickRowAction(
-    h.page.locator('.session-row-wrap').filter({ hasText: 'Fix CSV export bug' }),
-    'pin-session-button',
-  )
-  await expect(h.page.getByTestId('pinned-section')).toBeVisible()
-
-  await search(h).fill('csv')
-  // The only match is the pinned one, so the results list is there but empty — not `toBeVisible`,
-  // which an empty `<ul>` with no height is not.
-  await expect(h.page.getByTestId('flat-results')).toHaveCount(1)
-  await expect(h.page.getByTestId('pinned-section').getByTestId('session-item')).toHaveCount(1)
-  await expect(h.page.getByTestId('flat-results').getByTestId('session-item')).toHaveCount(0)
-  await expect(h.page.locator('.sidebar').getByText('Fix CSV export bug', { exact: true }))
-    .toHaveCount(1)
-})
-
 /**
  * How many sessions the scale test seeds. A real library reaches this order of magnitude, and the
  * cost of a search is per row — five fixture sessions cost nothing to re-render and would measure
@@ -120,7 +80,7 @@ test('a pinned session that matches the search is listed once, not in both secti
  */
 const SCALE = 400
 
-test('the search box keeps up with typing, with a realistic number of sessions', async () => {
+test('the search box keeps up with typing, with a realistic number of sessions', { tag: '@serial' }, async () => {
   // The reported bug: typing "test" stalls at "te" and the rest of the word lands seconds later.
   // Seeded before launch, which is the only point the scan picks new project folders up.
   const many = await launchApiary({
@@ -191,49 +151,3 @@ test('the search box keeps up with typing, with a realistic number of sessions',
   }
 })
 
-test('typing is instant and the box says so while the results catch up', async () => {
-  // The contract: the text appears immediately, the results are allowed to take their time, and
-  // the box shows that it is still working rather than appearing to have swallowed the input.
-  const shown = await h.page.evaluate(async () => {
-    const el = document.querySelector<HTMLInputElement>('[data-testid="search-input"]')
-    if (el === null) throw new Error('no search input')
-    // Called directly off the descriptor rather than through an intermediate variable: lib.dom's
-    // `PropertyDescriptor.set` is method-shorthand typed (an implicit `this`), which
-    // @typescript-eslint/unbound-method only accepts as a direct call, not a stored reference.
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(el, 'worktree')
-    el.dispatchEvent(new Event('input', { bubbles: true }))
-    await new Promise((resolve) => { requestAnimationFrame(() => { resolve(null) }) })
-    // Both read in the same frame as the keystroke: the text is painted, and the results — which
-    // have not been told about the query yet — are still catching up.
-    return {
-      value: el.value,
-      spinner: document.querySelector('[data-testid="search-spinner"]') !== null,
-    }
-  })
-  expect(shown.value).toBe('worktree')
-  expect(shown.spinner).toBe(true)
-
-  // And it settles: the spinner goes once the results match what was typed.
-  await expect(h.page.getByTestId('search-spinner')).toHaveCount(0)
-  await expect(sidebarSession(h.page, 'Add worktree switcher')).toBeVisible()
-})
-
-test('a failing content search is reported, not silently treated as no matches', async () => {
-  // Unreported, this is close to invisible: the sidebar simply stops finding sessions by what was
-  // said in them, which looks exactly like a search that found nothing, and stays that way.
-  await h.app.evaluate(({ ipcMain }) => {
-    ipcMain.removeHandler('apiary:search-content')
-    ipcMain.handle('apiary:search-content', () => { throw new Error('index is broken') })
-  })
-
-  await search(h).fill('empty')
-
-  // Scoped to the error toast: the rescan from `beforeEach` leaves an informational one up too.
-  const notification = h.page.locator('[data-testid="notification"][data-kind="error"]')
-  await expect(notification).toBeVisible()
-  await expect(notification).toContainText('Searching conversation contents failed')
-
-  // And the sidebar still filters by everything it can do locally, rather than going blank.
-  await search(h).fill('worktree')
-  await expect(sidebarSession(h.page, 'Add worktree switcher')).toBeVisible()
-})

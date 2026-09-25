@@ -9,9 +9,9 @@
     "noUnusedLocals": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["vitest/globals"],
+    "types": ["vitest/globals", "@vitest/browser/providers/playwright", "@vitest/browser/matchers"],
     "paths": { "@shared/*": ["./src/shared/*"] },
     "baseUrl": "."
   },
-  "include": ["src/renderer", "src/shared", "src/preload", "tests/e2e"]
+  "include": ["src/renderer", "src/shared", "src/preload", "tests/e2e", "tests/component"]
 }

@@ -28,7 +28,7 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => { await h.close() })
 
-test('Active lists open sessions from both windows and clicking a row focuses the right window', async () => {
+test('Active lists open sessions from both windows and clicking a row focuses the right window', { tag: '@serial' }, async () => {
   await h.page.getByTestId('session-item').first().click()
 
   const second = await h.newWindow()
@@ -63,17 +63,13 @@ test('an Active row for a tab open in another window keeps its title even when t
   // A search here that matches the second window's own tab, but not "Fix CSV export bug" —
   // narrowing this window's tree must not turn the *other* window's Active row into a raw id.
   await h.page.getByTestId('search-input').fill('worktree switcher')
-  await expect(sidebarSession(h.page, 'Fix CSV export bug')).toHaveCount(0)
+  // The tree's rows only: the Active section is in the sidebar too, and its row for this very
+  // tab appears once the tab report lands — the check passed only when it ran before that did.
+  await expect(h.page.getByTestId('session-item').filter({ hasText: 'Fix CSV export bug' })).toHaveCount(0)
 
   const active = h.page.getByTestId('active-section')
   const ownRow = active.getByTestId('active-tab-row').filter({ hasText: 'Fix CSV export bug' })
   await expect(ownRow).toBeVisible()
-})
-
-test('the status dot names its status for a screen reader, not only by colour', async () => {
-  await sidebarSession(h.page, 'Fix CSV export bug').click()
-  const dot = h.page.getByTestId('active-section').getByTestId('active-status-dot')
-  await expect(dot).toHaveAttribute('aria-label', /./)
 })
 
 test('status dot reflects a stopped pty', async () => {
@@ -115,41 +111,3 @@ test('a session torn off into its own window still appears in Active', async () 
   await expect(active.getByTestId('active-tab-row')).toHaveText(/Fix CSV export bug/)
 })
 
-test('hovering the Active header explains what each status dot means', async () => {
-  await sidebarSession(h.page, 'Fix CSV export bug').click()
-  await expect(h.page.getByTestId('active-section')).toBeVisible()
-
-  await expect(h.page.getByTestId('activity-legend')).toHaveCount(0)
-  await h.page.getByTestId('active-header').hover()
-
-  const legend = h.page.getByTestId('activity-legend')
-  await expect(legend).toBeVisible()
-  // Every status the dots can take is named, or the legend is a legend with a hole in it.
-  for (const name of ['Running', 'Waiting for input', 'Idle', 'Stopped']) {
-    await expect(legend).toContainText(name)
-  }
-  // Drawn with the real dots, so the motion in the legend is the motion on the rows.
-  await expect(legend.locator('.status-dot')).toHaveCount(4)
-})
-
-test('an Active row edits the session\'s note, like a row in the tree', async () => {
-  await sidebarSession(h.page, 'Fix CSV export bug').click()
-  const row = h.page.getByTestId('active-section').locator('.active-row-wrap').filter({ hasText: 'Fix CSV export bug' })
-  await row.hover()
-  const note = row.getByTestId('active-note-button')
-  await expect(note).toBeVisible()
-  // Hover reveals it in the space the window number otherwise takes, as a tree row's age does.
-  await expect(row.locator('.active-window-number')).toBeHidden()
-
-  await note.click()
-  await expect(h.page.getByTestId('note-dialog')).toBeVisible()
-  await h.page.getByTestId('note-input').fill('check with Mark first')
-  await h.page.getByTestId('note-save').click()
-  await expect(h.page.getByTestId('note-dialog')).toHaveCount(0)
-
-  // Saved on the session itself, so the tree row carries it too.
-  await expect(note).toHaveAttribute('data-has-note', 'true')
-  // The tree's row, specifically: the Active row carries the same title and has no hover card.
-  await h.page.locator('.tree').getByTestId('session-item').filter({ hasText: 'Fix CSV export bug' }).hover()
-  await expect(h.page.getByTestId('hover-card-note')).toHaveText('check with Mark first')
-})

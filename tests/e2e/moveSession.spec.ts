@@ -41,20 +41,3 @@ test('dragging a session onto another worktree moves it there', async () => {
   await h.page.getByTestId('sidebar-refresh').click()
   await expect(targetGroup).toContainText(title)
 })
-
-test('a live session refuses to be dropped', async () => {
-  await h.close()
-  // `detectLive` reports this session live from launch — no need to actually spawn a pty to
-  // exercise the refusal, only to have the main process believe one is running.
-  h = await launchApiary({
-    secondWorktree: true,
-    fakeLiveSessionId: '11111111-1111-1111-1111-111111111111',
-  })
-  await importAll(h.page)
-  await h.page.getByTestId('sidebar-refresh').click()
-
-  const title = 'Fix CSV export bug'
-  await sidebarSession(h.page, title).dragTo(targetFolder(h))
-  await h.page.getByTestId('move-session-confirm').click()
-  await expect(h.page.getByText(/still running/i)).toBeVisible()
-})

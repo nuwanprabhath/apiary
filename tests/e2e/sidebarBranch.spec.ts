@@ -46,17 +46,3 @@ test('the card leads with the branch the folder is on now, matching the session 
   await expect(branchRow).toContainText('main')
   await expect(branchRow).not.toContainText('dev/1.0.12')
 })
-
-test('the branch the session ran on is still shown, named for what it is', async () => {
-  // Not dropped: "this session was about dev/1.0.12" is worth knowing. It is just not "Branch".
-  await sidebarSession(h.page, 'Session from an older branch').hover()
-  const card = h.page.getByTestId('session-hover-card')
-  await expect(card.locator('.hover-card-row', { hasText: 'Ran on' })).toContainText('dev/1.0.12')
-})
-
-test('a session still on its own branch says it once, not twice', async () => {
-  await sidebarSession(h.page, 'Worktree session').hover()
-  const card = h.page.getByTestId('session-hover-card')
-  await expect(card).toContainText('feature/wt')
-  await expect(card.locator('.hover-card-row', { hasText: 'Ran on' })).toHaveCount(0)
-})

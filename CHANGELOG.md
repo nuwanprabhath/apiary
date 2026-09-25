@@ -4,12 +4,17 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.24.1] - 2026-09-25
+## [1.24.1] - 2026-09-26
 
 ### Changed
 
 - The code is now linted — ESLint, Stylelint, markdownlint and shellcheck — with commit hooks
-  and a CI check. Nothing about the app changes, apart from the two fixes below.
+  and a CI check. Nothing about the app changes, apart from the fixes below.
+- The end-to-end tests no longer leave copies of the app running (a run could pile up two dozen
+  in the Dock), and test runs show no Dock icon at all.
+- The test suite is faster: most interface tests now run as component tests in a browser (~20 s),
+  the remaining end-to-end tests run in parallel (~3 min, from ~14), and CI runs the unit,
+  integration and component tests on every push.
 
 ### Fixed
 
@@ -17,6 +22,9 @@ All notable changes to Apiary are documented here. Format follows
   of disappearing without a trace.
 - A window's layout is saved half a second after its tabs change, as intended, even while the
   window is busy re-rendering (the save used to keep being postponed).
+- **Quitting during a big rescan no longer leaves Apiary running in the background.** With a few
+  hundred folders a rescan takes half a minute, and quitting waited for all of it — windows gone,
+  the app still running. It now stops the rescan and quits at once.
 
 ## [1.24.0] - 2026-09-25
 

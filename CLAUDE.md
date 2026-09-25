@@ -12,8 +12,9 @@ obvious from the code, and the traps that have already cost someone an afternoon
   typed bridge in `src/shared/api.ts`, implemented by `src/preload/index.ts`.
 - **`src/shared/`** — types and IPC channel names, imported by both sides. A new IPC call means
   touching `shared/api.ts`, `preload/index.ts` and `main/ipc.ts` together.
-- **`tests/unit`** and **`tests/integration`** run under Vitest in plain Node; **`tests/e2e`** drives
-  the real built app with Playwright.
+- **`tests/unit`** and **`tests/integration`** run under Vitest in plain Node; **`tests/component`**
+  runs the renderer in real Chromium against a fake bridge; **`tests/e2e`** drives the real built
+  app with Playwright. See "Testing" below for which layer a test belongs in.
 
 Two rules the codebase holds to, both learned the hard way:
 
@@ -38,6 +39,7 @@ Node's. The same `node_modules` cannot serve both, so each entry point rebuilds 
 | `npm test` | Node | Vitest |
 | `npm run test:e2e` | Electron | Playwright against the built app |
 | `npm run screenshot` | Electron | the README screenshot script |
+| `npm run test:component` | nothing — no native modules | the renderer in Chromium |
 
 **Whichever you ran last is the ABI the modules are left in.** Two consequences:
 
@@ -410,6 +412,35 @@ to look inside files the renderer never holds a copy of.
   module drags it into that project; and the renderer has no Node. `shared/promptPath.ts` and
   `shared/forkLabel.ts` exist for that reason.
 - TypeScript is strict; `npm run typecheck` covers both tsconfigs and both must pass.
+
+## Testing
+
+Three layers, and a test goes in the cheapest one that can prove what it claims:
+
+- **Unit / integration** (`npm test`, Vitest in Node): pure logic, the store, git and pty code.
+- **Component** (`npm run test:component`, Vitest browser mode): the whole renderer, mounted as
+  `main.tsx` mounts it, in real Chromium with the app's stylesheet, against `tests/component/
+  fakeApiary.ts` — an in-memory `ApiaryApi` that models the e2e fixture's four sessions and
+  records every call. Real layout and real pointer events (`helpers.ts` has a real mouse via a
+  server-side Playwright command), so geometry checks belong here too. ~180 tests in ~20 s.
+  - The fake is typed as `ApiaryApi`: a new IPC call it does not implement is a type error.
+    When main starts emitting an event after a call (`treeChanged` after a rename, say), the fake
+    must do the same or component tests will pass against behaviour the app does not have.
+  - `expect.element` on an element not there yet used to overflow the stack printing the whole
+    page; `vitest.component.config.ts` sets `DEBUG_PRINT_LIMIT=0` and a 5 s poll for that.
+- **End-to-end** (`npm run test:e2e`, Playwright + Electron): only what needs the real app —
+  processes and ptys, several windows, a relaunch, real git, the watcher, native menus. Every
+  spec keeps at least one test proving its feature's real wiring.
+  - Runs on **4 workers** (2 on CI). Tests that share the machine — the OS clipboard, window
+    focus, or a measurement of timing — are tagged `@serial` and run one at a time afterwards
+    (`--project=serial --no-deps` to run only them). `@smoke` is a one-minute run through the
+    main paths (`npm run test:e2e:smoke`).
+  - `Harness.close()` closes the *current* app (a relaunch replaces `h.app`) and makes sure the
+    process has exited, killing and reporting it by test name if not. Closing the first app
+    instead once left every relaunched instance running — 26 at once in a full run.
+  - No fixed waits: wait on a condition, or use `expectStays(check, ms, what)` to prove something
+    does *not* happen. The only `waitForTimeout`s left measure a rate over a window.
+  - Never write test output to a fixed path; `test.info().outputPath()` lands in `test-results/`.
 
 ## Linting and hooks
 

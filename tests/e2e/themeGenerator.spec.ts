@@ -62,7 +62,6 @@ test('generate previews the theme, refine adjusts it, back and forward step thro
   // A preview is only a preview: nothing is saved or active yet.
   await expect(h.page.locator('[data-testid="theme-card"][data-theme-id="original"]')).toHaveAttribute('data-active', 'true')
   await expect(h.page.getByTestId('theme-effects-back')).toBeVisible()
-  await h.page.screenshot({ path: '/private/tmp/claude-501/-Users-nuwan-projects-pet-projects/a021aefb-2a2b-46c0-b30f-d6ec7a9e02f5/scratchpad/gen-preview.png' })
 
   await h.page.getByTestId('theme-refine').fill('more neon please')
   await h.page.getByTestId('theme-refine-submit').click()

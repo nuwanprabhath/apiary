@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
+import { launchApiary, importAll, sidebarSession, expectStays, type Harness } from './helpers'
 
 /**
  * The diagnostic log, as the user meets it.
@@ -39,13 +39,6 @@ test('is off by default, and writes nothing at all until it is switched on', asy
   // Not an empty folder — no folder. A diagnostic feature that creates files by default is one
   // that records things nobody agreed to.
   expect(existsSync(logDir())).toBe(false)
-})
-
-test('says what it does and does not record, before you turn it on', async () => {
-  await openDiagnostics()
-  const privacy = h.page.getByTestId('diagnostics-privacy')
-  await expect(privacy).toContainText('no prompts')
-  await expect(privacy).toContainText('~')
 })
 
 test('switching it on starts a log, and the folder is shown and can be emptied', async () => {
@@ -95,8 +88,8 @@ test('switching it back off stops the writing', async () => {
   // Anything that would have been logged, now that it is off.
   await sidebarSession(h.page, 'Add worktree switcher').click()
   await h.page.getByTestId('sidebar-refresh').click()
-  // eslint-disable-next-line playwright/no-wait-for-timeout -- proving a negative: that switching diagnostics off stops any further writes, so there is no "it happened" condition to poll for instead
-  await h.page.waitForTimeout(500)
-
-  expect(readFileSync(join(logDir(), 'apiary.log'), 'utf8')).toHaveLength(after)
+  await expectStays(
+    () => readFileSync(join(logDir(), 'apiary.log'), 'utf8').length === after,
+    1000, 'the log to stay as it was',
+  )
 })

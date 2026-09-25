@@ -49,7 +49,7 @@ function groupLabelled(page: Page, label: string): Locator {
   )
 }
 
-test('the "+" button spawns a terminal running in that folder', async () => {
+test('the "+" button spawns a terminal running in that folder', { tag: '@smoke' }, async () => {
   const workA = groupLabelled(h.page, 'work-a')
   await workA.getByTestId('new-session-button').click()
 
@@ -76,7 +76,7 @@ test('the "+" button spawns a terminal running in that folder', async () => {
 // *content*, which a TUI can repaint identically at either size): this asserts the call count
 // reaches a steady state after the terminal settles, which fails against the oscillation (it
 // called `ptyResize` continuously, dozens of times a second, with no settling point).
-test('resizing the new-session terminal settles instead of oscillating', async () => {
+test('resizing the new-session terminal settles instead of oscillating', { tag: '@serial' }, async () => {
   await countPtyResizeCalls(h.app)
 
   const workA = groupLabelled(h.page, 'work-a')
@@ -96,30 +96,6 @@ test('resizing the new-session terminal settles instead of oscillating', async (
   const afterQuietWindow = await ptyResizeCallCount(h.app)
 
   expect(afterQuietWindow - afterSettle).toBeLessThan(5)
-})
-
-test('clicking "+" does not toggle the folder\'s expand/collapse state', async () => {
-  const workA = groupLabelled(h.page, 'work-a')
-  const toggle = workA.getByTestId('project-toggle')
-
-  // Starts expanded (default): its session is visible.
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
-  await expect(workA.getByText('Fix CSV export bug')).toBeVisible()
-
-  await workA.getByTestId('new-session-button').click()
-  await expect(h.page.getByTestId('terminal-session')).toBeVisible()
-
-  // Still expanded, and the pre-existing session row is still there — the click did not
-  // collapse it (nor did it toggle some unrelated group).
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
-  await expect(workA.getByText('Fix CSV export bug')).toBeVisible()
-
-  // Now collapse it by hand, then click "+" again — it must stay collapsed too, proving the
-  // handler never touches expand/collapse state in either direction.
-  await toggle.click()
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
-  await workA.getByTestId('new-session-button').click()
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
 })
 
 test('File > New Session in Folder... exists and starts a session in the picked folder', async () => {

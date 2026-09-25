@@ -25,7 +25,7 @@ const THEMES: Array<string | null> = (process.env.APIARY_BENCH_THEMES ?? 'origin
   .split(',').map((t) => (t === 'original' ? null : t))
 /** Each theme is measured this many times, interleaved, and the median taken: one run is noisy. */
 const RUNS = Number(process.env.APIARY_BENCH_RUNS ?? '3')
-const OUT = process.env.APIARY_BENCH_OUT ?? '/private/tmp/claude-501/-Users-nuwan-projects-pet-projects/a021aefb-2a2b-46c0-b30f-d6ec7a9e02f5/scratchpad/bench.json'
+const OUT = process.env.APIARY_BENCH_OUT ?? 'test-results/bench.json'
 
 interface Sample { events: number[]; frames: number[] }
 interface Metrics { inputP95: number; inputMax: number; slowInputs: number; longFrames: number; frameP95: number }

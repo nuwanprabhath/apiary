@@ -93,6 +93,12 @@ function setAutoImportInterval(intervalMinutes: number | null): void {
  */
 function setDevDockIcon(): void {
   if (app.isPackaged || process.platform !== 'darwin') return
+  // A headless test run has no window to show, so no Dock tile either: the suite launches the app
+  // hundreds of times in a row, and the Dock fell behind and piled up a row of icons while it ran.
+  if (headless) {
+    app.dock?.hide()
+    return
+  }
   app.dock?.setIcon(join(dirname, '../../build/icon.png'))
 }
 

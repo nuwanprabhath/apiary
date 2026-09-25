@@ -11,7 +11,7 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => { await h.close() })
 
-test('a second window is its own workspace over the same sessions', async () => {
+test('a second window is its own workspace over the same sessions', { tag: '@smoke' }, async () => {
   await sidebarSession(h.page, 'Fix CSV export bug').click()
   await expect(h.page.getByTestId('session-tab')).toHaveCount(1)
 
