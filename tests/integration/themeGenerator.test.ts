@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync, existsSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ThemeGenerator } from '../../src/main/theme/themeGenerator'
-import { BUILTIN_THEMES } from '../../src/shared/theme/builtins'
+import { BUILTIN_THEMES } from '@shared/theme/builtins'
 
 /**
  * The generator against a stand-in `claude`: a script that records how it was called and prints

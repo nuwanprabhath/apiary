@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { themeToCssVars, ALL_THEME_VARS } from '../../src/shared/theme/cssVars'
-import { validateTheme } from '../../src/shared/theme/validate'
-import { ORIGINAL_THEME } from '../../src/shared/theme/spec'
+import { themeToCssVars, ALL_THEME_VARS } from '@shared/theme/cssVars'
+import { validateTheme } from '@shared/theme/validate'
+import { ORIGINAL_THEME } from '@shared/theme/spec'
 
 describe('themeToCssVars', () => {
   it('sets only allowlisted properties, with values Apiary formatted itself', () => {

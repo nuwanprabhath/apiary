@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { boundsAreOnScreen, type DisplayRect } from '../../src/main/windowBounds'
+import { boundsAreOnScreen, type DisplayRect } from '../../src/main/windows/windowBounds'
 
 const primary: DisplayRect = { x: 0, y: 0, width: 1920, height: 1080 }
 const external: DisplayRect = { x: 1920, y: 0, width: 1920, height: 1080 }

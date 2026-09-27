@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { redact, redactString } from '../../src/shared/redact'
+import { redact, redactString } from '@shared/redact'
 
 const home = '/Users/nuwan'
 
@@ -55,6 +55,28 @@ describe('redacting credentials', () => {
     // A rule that eats too much makes the log useless, and a log nobody can read gets turned off.
     expect(redactString('checked out dev/1.0.12 in repo-c-wt'))
       .toBe('checked out dev/1.0.12 in repo-c-wt')
+  })
+
+  it('removes a credential embedded in a git remote URL, including in git\'s own failure text (SEC-11)', () => {
+    expect(redactString("fatal: unable to access 'https://bob:hunter2@gitlab.example/x.git/': The requested URL returned error: 403"))
+      .toBe("fatal: unable to access 'https://[redacted]@gitlab.example/x.git/': The requested URL returned error: 403")
+  })
+
+  it('removes an AWS access key', () => {
+    expect(redactString('AKIAIOSFODNN7EXAMPLE found in env')).toBe('[redacted-aws-key] found in env')
+  })
+
+  it('removes a Slack token', () => {
+    expect(redactString('xoxb-1234567890-abcdefghij')).toBe('[redacted-slack-token]')
+  })
+
+  it('removes an npm token', () => {
+    expect(redactString(`npm_${'a'.repeat(36)}`)).toBe('[redacted-npm-token]')
+  })
+
+  it('removes a PEM private key block', () => {
+    const pem = '-----BEGIN RSA PRIVATE KEY-----\nMIIBogIBAAJBAK\n-----END RSA PRIVATE KEY-----'
+    expect(redactString(`key: ${pem}`)).toBe('key: [redacted-private-key]')
   })
 })
 

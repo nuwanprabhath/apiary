@@ -1,0 +1,151 @@
+
+.resume-bar { display: flex; gap: 6px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+.resume-bar button[data-active="true"] { background: var(--selected); border-color: var(--accent); }
+.resume-bar button:disabled { cursor: not-allowed; }
+.spacer { flex: 1; }
+
+/*
+ * overflow: hidden is load-bearing, not decorative. centre-pane is meant to be a fixed
+ * viewport — its .pane-fill children are position:absolute/inset:0 so their size never feeds
+ * back into layout — but xterm's internal FitAddon measures this box, resizes the terminal to
+ * match it, then xterm can render a screen a pixel or two larger than what was measured (a
+ * sub-pixel rounding artifact of cols/rows * cell-size). Without clipping, that overflow used to
+ * bleed up into `.content`'s `overflow: auto`, which reacted by showing a scrollbar; the
+ * scrollbar's width/height (12px per the VS Code scrollbar rule below) shrank centre-pane's
+ * measured box on the very next ResizeObserver tick, so FitAddon proposed smaller cols/rows,
+ * the overflow vanished, the scrollbar disappeared, the box grew back, and the terminal was told
+ * to resize again — an unbounded two-state loop that visibly duplicated the input line as
+ * Claude Code's TUI repainted its prompt at alternating row counts every animation frame.
+ * Clipping here removes the feedback path at its source, independent of any scrollbar styling.
+ */
+.centre-pane { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+.pane-fill { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.pane-fill[hidden] { display: none; }
+
+/*
+ * overflow: hidden here for the same reason as .centre-pane above: this box also hosts a
+ * FitAddon-driven xterm instance, and it can equally overflow its own bounds by a sub-pixel
+ * amount and bleed into an ancestor's scrollable area. It matters most for the bottom shell pane,
+ * whose height changes continuously while the user drags .bottom-resizer — without this, that
+ * drag reproduces the exact same fit()/ResizeObserver oscillation .centre-pane's comment
+ * describes (there .content was the scrollable ancestor that reacted; here it still is, since
+ * .bottom-pane itself has no overflow rule of its own), which reads as the terminal's content
+ * (and cursor) flickering up and down while dragging.
+ *
+ * No padding here, deliberately — see the comment on `.terminal-host .xterm` below for why
+ * padding belongs on that inner element instead.
+ */
+.terminal-host {
+  flex: 1;
+  min-height: 0;
+  background: var(--term-background);
+  overflow: hidden;
+  /* Rows bottom-anchored — see the comment below. */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+/*
+ * The host paints the terminal's colour over its whole area and xterm paints none. xterm only
+ * draws whole rows, so a sliver of up to a row's height is left under the last one; with xterm
+ * painting its own background that sliver showed whatever was behind it — on a glass theme a
+ * lighter bar whose height changed as the pane was resized. Painted once here, a see-through
+ * terminal colour is also not doubled up.
+ */
+.terminal-host .xterm-viewport { background-color: transparent !important; }
+/*
+ * The rows sit at the bottom and the sliver at the top. Claude's own screen and a shell prompt
+ * both live at the bottom edge, so anchoring there keeps the last line the same distance from
+ * the card's edge in every pane — top-anchored, it moved by up to a row as panes were resized,
+ * and two panes side by side ended their text at visibly different heights.
+ */
+.terminal-host > .xterm { flex: none; }
+
+/*
+ * Breathing room from the pane's edges belongs on the element FitAddon actually measures
+ * against, not on .terminal-host. FitAddon.proposeDimensions() computes available rows/cols
+ * from .terminal-host's own box height/width, minus the padding of `terminal.element` (the
+ * "terminal xterm" div xterm creates one level in) — NOT minus .terminal-host's own padding.
+ * Padding placed on .terminal-host was therefore invisible to that calculation: FitAddon kept
+ * proposing a row count sized for the *unpadded* box, one row too many for the space actually
+ * left after the padding ate into it, so the bottom-most line or two got clipped by
+ * .terminal-host's own overflow: hidden — read by a user as Claude's own footer UI being cut off
+ * by the pane below it. Padding here is exactly what FitAddon subtracts, so the fit and the
+ * visible padding agree.
+ */
+.terminal-host .xterm { padding: 8px 10px; }
+
+.bottom-resizer {
+  position: relative;
+  /* Above both cards, so the hit area's reach into them (see ::before above) is not covered. */
+  z-index: var(--z-resizer);
+  height: max(var(--panel-gap), 4px);
+  flex: none;
+  cursor: row-resize;
+  background: transparent;
+}
+
+/*
+ * flex: 0 1 auto (not the earlier `flex: none`) lets this pane give ground when the window is
+ * too short to fit it at its full requested height: since its flex-basis (the inline `height`
+ * style, up to MAX_BOTTOM_HEIGHT) is what the shrink algorithm weighs, nearly all of any
+ * shrinkage lands here rather than on .centre-pane (whose basis is 0 and therefore has almost no
+ * weight to shrink by), down to `min-height`. Before this it was `flex: none` — rigid — so a
+ * short window (or a bottomHeight persisted from a taller one) simply overflowed the column, and
+ * `.session-column`'s `overflow: hidden` silently clipped whatever ran past the bottom edge: the
+ * last rows of a terminal, or the tail of the terminal list. See sessionTabs.spec.ts's
+ * "does not overflow off the bottom of a short window" for the regression this guards.
+ */
+.bottom-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 32px;
+  overflow: hidden;
+}
+/*
+ * Exactly one row tall, always. Nothing here wraps: in a narrow column (three splits, say) a long
+ * branch name used to wrap its label across three lines, and since the pane's height is fixed,
+ * every line the toolbar grew was a line taken from the terminal underneath it — the pane's
+ * usable height changing out from under the terminal as a branch label loaded. The left group is
+ * allowed to shrink (`min-width: 0`) so the branch label ellipsizes instead.
+ */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 4px 6px;
+  gap: 4px;
+  flex: none;
+}
+.toolbar-group { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.toolbar-group-right { margin-left: auto; flex: none; }
+.toolbar-button-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.toolbar-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  padding: 3px 6px;
+  font: inherit;
+  white-space: nowrap;
+  min-width: 0;
+}
+.toolbar-button svg { width: 14px; height: 14px; flex: none; }
+.toolbar-button:hover { background: var(--selected); color: var(--text); }
+.toolbar-button:active { background: var(--border); }
+.toolbar-button:disabled { cursor: default; opacity: 0.5; }
+.toolbar-button[data-active="true"] { background: var(--selected); color: var(--text); border-color: var(--border); }
+.toolbar-button .spinner { animation: spin 0.6s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .toolbar-button .spinner { animation: none; }
+}
+
+.error-banner { margin: 0; padding: 8px 16px; background: var(--danger-bg); color: var(--danger); }

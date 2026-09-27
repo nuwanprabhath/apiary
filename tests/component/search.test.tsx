@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, clickRowAction, until } from './helpers'
 

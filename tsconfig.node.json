@@ -6,12 +6,17 @@
     "moduleResolution": "bundler",
     "strict": true,
     "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "useUnknownInCatchVariables": true,
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["node", "vitest/globals"],
     "paths": { "@shared/*": ["./src/shared/*"] },
     "baseUrl": "."
   },
-  "include": ["src/main", "src/shared", "tests"],
+  "include": ["src/main", "src/shared", "tests", "src/renderer/env.d.ts"],
   "exclude": ["tests/e2e", "tests/component"]
 }

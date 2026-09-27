@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { pruneStaleLive } from '../../src/main/sessionLayoutRestore'
-import type { WindowLayoutRecord } from '../../src/main/sessionLayoutStore'
+import { pruneStaleLive } from '../../src/main/windows/sessionLayoutRestore'
+import type { WindowLayoutRecord } from '../../src/main/windows/sessionLayoutStore'
 
 const bounds = { x: 0, y: 0, width: 1400, height: 900 }
 const record: WindowLayoutRecord = {

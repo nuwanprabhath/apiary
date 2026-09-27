@@ -81,6 +81,22 @@ describe('PtyManager', () => {
     expect(m.has('c')).toBe(false)
   })
 
+  it('a pty that exits on its own releases its screen, not just its process (MAIN-6)', async () => {
+    // Before this, only `kill()` disposed the headless `Terminal` behind `screen()`/`snapshot()`
+    // — a pty that exited by itself (the common case: Claude finishing, a shell's command
+    // finishing) left it behind. Every `new:<uuid>` id is minted once and never reused, so this
+    // leaked one Terminal (up to 1,000 lines of scrollback) per session that ever exited normally.
+    manager = new PtyManager()
+    const m = manager
+    // Both listeners attached before spawn, so neither can race the child's own exit.
+    const done = collect(m, 'selfexit', /APIARY_BEFORE_EXIT/)
+    const exited = new Promise<void>((res) => m.onExit((id) => { if (id === 'selfexit') res() }))
+    m.spawn({ id: 'selfexit', cwd: process.cwd(), command: 'echo APIARY_BEFORE_EXIT; exit 0' })
+    await done
+    await exited
+    expect(m.screen('selfexit')).toBe('')
+  })
+
   it('throws when the cwd does not exist', () => {
     manager = new PtyManager()
     expect(() => manager!.spawn({ id: 'd', cwd: '/definitely/not/here', command: 'true' }))
@@ -93,6 +109,19 @@ describe('PtyManager', () => {
     manager.spawn({ id: 'e', cwd: process.cwd(), command: 'read x; echo APIARY_ECHO$x' })
     manager.resize('e', 100, 30)
     manager.write('e', 'hello\n')
+    expect(await done).toMatch(/APIARY_ECHO/)
+  })
+
+  it('clamps a NaN or out-of-range resize instead of passing it through (SEC-8)', async () => {
+    // A bad renderer message used to reach node-pty's own resize (and the headless screen buffer
+    // it feeds) unclamped: `Math.max(1, NaN)` is `NaN`, and there was no upper bound at all.
+    manager = new PtyManager()
+    const done = collect(manager, 'f', /APIARY_ECHO/)
+    manager.spawn({ id: 'f', cwd: process.cwd(), command: 'read x; echo APIARY_ECHO$x' })
+    expect(() => { manager!.resize('f', NaN, NaN) }).not.toThrow()
+    expect(() => { manager!.resize('f', 1e9, 1e9) }).not.toThrow()
+    expect(() => { manager!.resize('f', -5, -5) }).not.toThrow()
+    manager.write('f', 'hello\n')
     expect(await done).toMatch(/APIARY_ECHO/)
   })
 
@@ -151,43 +180,4 @@ describe('PtyManager', () => {
     m.resize('g', 100, 30)
     expect(await winched).toMatch(/APIARY_WINCH/)
   }, 10000)
-})
-
-describe('replaying what a pty already printed', () => {
-  it('hands a newly-attached view the output it missed', async () => {
-    // The bug: a session opened in a second window, or a tab moved into one, got a fresh xterm
-    // with no scrollback — and a TUI sitting at a prompt may never print again, so the pane
-    // stayed blank. Nothing but the main process can remember that output.
-    const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
-    try {
-      manager = new PtyManager()
-      const done = collect(manager, 'replay', /APIARY_PAST/)
-      manager.spawn({ id: 'replay', cwd: dir, command: 'echo APIARY_PAST; sleep 30' })
-      await done
-
-      expect(manager.replay('replay')).toMatch(/APIARY_PAST/)
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('forgets a pty that has been killed, rather than holding its output for ever', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
-    try {
-      manager = new PtyManager()
-      const done = collect(manager, 'gone', /APIARY_PAST/)
-      manager.spawn({ id: 'gone', cwd: dir, command: 'echo APIARY_PAST; sleep 30' })
-      await done
-      manager.kill('gone')
-
-      expect(manager.replay('gone')).toBe('')
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('answers with nothing for a pty that never existed', () => {
-    manager = new PtyManager()
-    expect(manager.replay('never-spawned')).toBe('')
-  })
 })

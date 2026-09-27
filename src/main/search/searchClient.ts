@@ -17,7 +17,13 @@ export class SearchClient {
   private nextId = 1
   private pending = new Map<number, (ids: string[] | null) => void>()
 
-  constructor(private readonly dbPath: string) {}
+  /**
+   * `workerPath` is an escape hatch for tests only (TEST-7): under Vitest, `import.meta.url`
+   * resolves inside `src/`, where `searchWorker.js` has never been built, so `ensure()` always hit
+   * `fail()` and every test exercised only the in-process fallback. Production code never passes
+   * it — electron-vite always emits the worker beside this bundle.
+   */
+  constructor(private readonly dbPath: string, private readonly workerPath?: string) {}
 
   private ensure(): Worker | null {
     if (this.unavailable) return null
@@ -26,7 +32,8 @@ export class SearchClient {
       // Resolved against this bundle's own location: electron-vite emits the worker beside it (see
       // the `main` build inputs in electron.vite.config.ts).
       const here = dirname(fileURLToPath(import.meta.url))
-      const worker = new Worker(join(here, 'searchWorker.js'), { workerData: { dbPath: this.dbPath } })
+      const path = this.workerPath ?? join(here, 'searchWorker.js')
+      const worker = new Worker(path, { workerData: { dbPath: this.dbPath } })
       worker.on('message', (r: { id: number; ids?: string[] }) => {
         const resolve = this.pending.get(r.id)
         if (resolve === undefined) return

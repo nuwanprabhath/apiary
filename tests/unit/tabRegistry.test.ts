@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { TabRegistry } from '../../src/main/tabRegistry'
+import { TabRegistry } from '../../src/main/windows/tabRegistry'
 
 describe('TabRegistry', () => {
   it('lists tabs reported by a window', () => {

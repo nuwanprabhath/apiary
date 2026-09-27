@@ -1,0 +1,494 @@
+/*
+ * The settings page. A nav column plus a pane, rather than one long scroll: the whole point is
+ * that this grows, and a list of unrelated switches with no structure stops being navigable at
+ * about the fourth one. SECTIONS in features/settings/registry.tsx drives both halves, so a new
+ * section is one registry entry and a component file — never a new layout.
+ */
+.settings-dialog { width: 720px; max-width: 92vw; }
+.settings-body {
+  display: flex;
+  gap: 16px;
+  min-height: 320px;
+  max-height: 60vh;
+}
+.settings-nav {
+  flex: none;
+  width: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid var(--border);
+  padding-right: 8px;
+}
+.settings-nav-item {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 7px 10px;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font: inherit;
+}
+.settings-nav-item:hover { background: var(--selected); color: var(--text); }
+.settings-nav-item[data-active="true"] { background: var(--selected); color: var(--text); font-weight: 600; }
+
+.settings-pane { flex: 1; min-width: 0; overflow-y: auto; padding-right: 4px; }
+.settings-blurb { margin: 0 0 14px; color: var(--muted); line-height: 1.5; }
+
+.settings-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+.settings-row:first-of-type { border-top: 0; }
+.settings-row > span { display: flex; flex-direction: column; gap: 4px; }
+.settings-row-stacked { flex-direction: column; cursor: default; }
+.settings-row-indent { padding-left: 26px; border-top: 0; padding-top: 0; cursor: default; flex-direction: column; gap: 8px; }
+.settings-help { color: var(--muted); line-height: 1.5; font-size: 12px; }
+
+/* The worked example under "keep the last N folders". Drawn as a field rather than as prose
+   because it stands for something the shell will print, and a field is how this app already says
+   "this is terminal output, not UI copy". */
+.settings-preview code {
+  display: inline-block;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  color: var(--text);
+}
+
+
+/* A path the user is about to copy or read out: shown as a field so it is obviously a value and
+   not prose, and allowed to wrap, because a log folder under a long home directory does not fit. */
+.settings-path {
+  display: block;
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.settings-inline { display: flex; align-items: center; gap: 8px; }
+/* The check's answer sits beside the button that asked for it, and wraps ahead of it rather than
+   pushing it off the row. */
+.settings-check { margin-left: auto; justify-content: flex-end; flex-wrap: wrap; }
+.settings-number { width: 80px; }
+.settings-presets { display: flex; gap: 6px; }
+.settings-preset { color: var(--muted); }
+.settings-preset[data-active="true"] { border-color: var(--accent); color: var(--text); }
+
+/* Shown in place of "pick some sessions" when the app is already importing all of them. */
+.import-auto-notice {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/*
+ * The chat box under the transcript. `flex: none` and outside the transcript's own scroll box, so
+ * it stays put while the conversation scrolls behind it — the transcript is the thing you read,
+ * this is the thing you type into, and it should never scroll away mid-sentence.
+ */
+.composer {
+  flex: none;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  padding: 8px 10px 10px;
+}
+
+.composer-attachments { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
+.composer-attachment { position: relative; }
+.composer-attachment-preview {
+  display: block;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+  cursor: zoom-in;
+  overflow: hidden;
+}
+.composer-attachment-preview img { display: block; width: 64px; height: 64px; object-fit: cover; }
+.composer-attachment-preview:hover { border-color: var(--accent); }
+.composer-attachment-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-panel);
+  color: var(--muted);
+  cursor: pointer;
+}
+.composer-attachment-remove:hover { color: var(--danger); border-color: var(--danger); }
+.composer-attachment-remove svg { width: 10px; height: 10px; display: block; }
+
+.composer-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 58px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--field-bg);
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+  line-height: 1.5;
+}
+.composer-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.composer-input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.composer-actions { display: flex; align-items: center; gap: 10px; padding-top: 8px; }
+.composer-model { display: flex; align-items: center; gap: 6px; }
+.composer-model select {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--radius-control);
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 12px;
+}
+.composer-hint { margin-left: auto; font-size: 12px; }
+/* Sizing, colour and disabled state come from the control layer: `.composer-send` is listed
+   there beside `.btn.primary`, and only its wider padding is its own. */
+.composer-send { padding: 0 14px; }
+
+/* An image path we could not turn into a picture, shown as the line it actually was. */
+.composer-path-fallback {
+  margin: 4px 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* A thumbnail anywhere in a message. Sized so several sit on one line without dominating it. */
+.image-thumb {
+  display: inline-block;
+  padding: 0;
+  margin: 4px 6px 4px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+  cursor: zoom-in;
+  overflow: hidden;
+  vertical-align: top;
+}
+.image-thumb img { display: block; max-width: 220px; max-height: 160px; }
+.image-thumb:hover { border-color: var(--accent); }
+
+/* Above every other overlay, including modals: it is opened *from* them. */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-lightbox);
+  background: var(--bg-lightbox);
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  cursor: zoom-out;
+}
+.lightbox-image { max-width: 100%; max-height: 100%; object-fit: contain; cursor: default; }
+.lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
+  color: var(--text);
+  cursor: pointer;
+}
+.lightbox-close:hover { background: var(--selected); }
+.lightbox-close svg { width: 16px; height: 16px; display: block; }
+
+/* The shared right-click menu (tab strip, terminal, sidebar). Fixed to the viewport at the cursor,
+   so it is never clipped by the overflow of whatever opened it; shares the git menu's look. */
+.context-menu {
+  position: fixed;
+  z-index: var(--z-popover);
+  padding: 4px;
+  min-width: 170px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-overlay);
+}
+.context-menu-item {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: var(--radius-row);
+  cursor: pointer;
+  font: inherit;
+}
+.context-menu-item:hover:not(:disabled), .context-menu-item:focus-visible { background: var(--hover); }
+.context-menu-item:disabled { color: var(--muted); cursor: default; }
+/* A toggle's tick. Always takes its space, so a menu mixing toggles and actions keeps its labels
+   lined up whether the toggle is on or off. */
+.context-menu-check { width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; }
+.context-menu-check[data-on="false"] { visibility: hidden; }
+/* A worktree listed by "Show all worktrees" that no session has been started in yet. */
+.project-row-wrap[data-no-sessions="true"] .project-label { color: var(--muted); }
+.context-menu-item[data-separator="true"] {
+  margin-top: 4px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-row) var(--radius-row);
+}
+
+/* Dragging a tab to reorder it: the tab being carried fades, and the one it would land on shows an
+   insertion edge. A border would shift the strip's layout as it appears, so the marker is an inset
+   shadow, which takes up no space. */
+.session-tab[data-dragging="true"] { opacity: 0.4; }
+.session-tab[data-drop-before="true"] { box-shadow: inset 2px 0 0 0 var(--accent); }
+.session-tab[data-drop-after="true"] { box-shadow: inset -2px 0 0 0 var(--accent); }
+
+/* A user-made heading in the sidebar, holding folders filed under it. Sits a step above the folder
+   rows it contains — it is the user's own organisation, not part of the filesystem's. */
+.folder-group { margin-bottom: 2px; border-radius: var(--radius-control); }
+/* The whole group lights up as a folder is dragged over it, since the whole group is the target. */
+.folder-group[data-drop-into="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
+/* A folder row lights up while a session is dragged over it — the drag-to-move-session target. */
+.project-row-wrap[data-drop-target="true"] { box-shadow: inset var(--focus-ring); }
+.folder-group-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  /* The right padding matches .pinned-header's, so every count ends at the same edge. */
+  padding: 4px 10px 4px 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.folder-group-header:hover { color: var(--text); }
+.folder-group-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-group-rename { margin: 2px 8px; width: calc(100% - 16px); }
+/* Shown only while a group is empty, since the drop target would otherwise be invisible. */
+.folder-group-empty { margin: 0 0 4px 22px; font-size: 12px; }
+/* A folder being dragged over the heading of the group it would join. */
+.folder-group-header-wrap { border-radius: var(--radius-control); display: flex; align-items: center; position: relative; }
+/* The group's collapse-all, revealed on hover exactly as a folder row's is. */
+/*
+ * The collapse-all button takes the count's place on hover, as a session row's buttons take its
+ * age's. Laid out beside the count instead, it pushed every group's count a button's width left
+ * of the Active / Pinned / Recent counts above, and the two columns of numbers did not line up.
+ */
+.folder-group-header-wrap .collapse-all-button {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  margin: 0;
+}
+.folder-group-header-wrap:hover .collapse-all-button { opacity: 1; }
+.folder-group-header-wrap:hover .folder-group-header .pinned-count { visibility: hidden; }
+.folder-group-header-wrap:hover { background: var(--hover); }
+
+/*
+ * The sidebar's hover card. Fixed and portalled to the body (see HoverCard.tsx) so it can overhang
+ * the sidebar rather than being clipped by its scroll edge, and `pointer-events: none` so it can
+ * never intercept the click that the hover was leading up to.
+ */
+.hover-card {
+  position: fixed;
+  z-index: var(--z-popover);
+  max-width: 420px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: var(--shadow-overlay);
+  font-size: 12px;
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hover-card-title { font-weight: 600; font-size: 13px; }
+/* The path wraps rather than ellipsizing: which worktree a session ran in is often the last
+   segment, and that is precisely the end a single truncated line would drop. */
+.hover-card-path { color: var(--muted); word-break: break-all; flex: 1; min-width: 0; }
+.hover-card-path-row { align-items: flex-start; }
+.hover-card-missing { color: var(--danger); }
+.hover-card-row { display: flex; gap: 6px; align-items: center; }
+.hover-card-label { color: var(--muted); min-width: 72px; }
+.hover-card-branch { color: var(--accent); word-break: break-all; }
+.hover-card-open-vscode { margin-top: var(--control-gap); align-self: flex-start; }
+
+/* The note glyph beside a title, marking a session that has one. Muted rather than accented: it
+   is a fact about the row, not a call to action.
+
+   It steps aside on hover, exactly as the timestamp does. The hovered row grows a note *button*
+   of its own, and the two sat side by side as near-identical icons — one meaning "there is a
+   note here" and the other "edit the note", which is not a distinction anybody should have to
+   make from two 12px glyphs. On hover the button is the one that matters, and it is drawn filled
+   when a note exists, so nothing is lost by hiding the mark. */
+.session-note-mark { flex: none; display: flex; align-items: center; color: var(--muted); }
+.session-row-wrap:hover .session-note-mark,
+.session-row-wrap:focus-within .session-note-mark { display: none; }
+.session-note-mark svg { width: 12px; height: 12px; display: block; }
+.session-row[data-selected="true"] .session-note-mark { color: var(--text); }
+
+/* The note inside a hover card. Pre-wrapped so the lines someone typed survive, and capped so a
+   long note cannot grow the card past the window. */
+.hover-card-note {
+  white-space: pre-wrap;
+  max-height: 180px;
+  overflow: hidden;
+  padding: 4px 6px;
+  border-left: 2px solid var(--accent);
+  background: var(--hover);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.note-dialog { width: 520px; max-width: 90vw; }
+.note-dialog-session { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+.note-dialog-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 140px;
+  resize: vertical;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--field-bg);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
+}
+.note-dialog-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+/* Pushes the confirm/cancel pair to the right while Remove stays on the left, the usual place for
+   a destructive action that is not the one being encouraged. */
+.modal-actions-spacer { flex: 1; }
+.note-dialog-remove { color: var(--danger); }
+
+/* The copy button on a hover card row. Sized to the text beside it rather than to a toolbar
+   button, so the row it sits in keeps its height. */
+.hover-card-copy {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.hover-card-copy:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+/* The pull button while its pull is in flight — the same treatment as .settings-preset:disabled. */
+.hover-card-copy:disabled { cursor: default; opacity: 0.5; }
+.hover-card-copy svg { width: 12px; height: 12px; display: block; }
+
+/* A plugin's button when it is offering something that does not exist yet — "no MR, make one".
+   Outlined rather than filled: it is an invitation, and the bar's real state (branch, ahead,
+   behind) must stay the loudest thing on the row. */
+.toolbar-button[data-tone="suggest"] { color: var(--muted); }
+.toolbar-button[data-tone="suggest"]:hover { color: var(--accent); }
+.toolbar-button[data-tone="problem"] { color: var(--danger); }
+
+/* The branch a session was recorded on, when the worktree has moved on since. Muted, so the live
+   branch above it stays the one being read. */
+.hover-card-stale { color: var(--muted); }
+
+/* One plugin's block in Settings: its switch, then whatever settings it declares, kept together
+   and separated from the next plugin so a list of them stays readable. */
+.settings-plugin { padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+.settings-plugin:last-of-type { border-bottom: 0; margin-bottom: 0; }
+.settings-plugin-field { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
+.settings-field-label { font-weight: 600; font-size: 12px; }
+.settings-plugin-field .search { width: 100%; box-sizing: border-box; }
+
+/* The layout picker (LayoutPicker.tsx): eight thumbnails, each drawn as its own tiny grid. */
+.layout-picker {
+  position: fixed;
+  z-index: var(--z-popover);
+  padding: var(--control-padding-x);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px var(--bg-overlay);
+}
+.layout-picker-heading { color: var(--muted); font-size: 11px; margin: 0 2px 8px; }
+.layout-picker-grid { display: grid; grid-template-columns: repeat(4, 44px); gap: var(--control-padding-x); }
+/* 44/32 and the 2px gap/padding below are a miniature's own drawing dimensions, not control shape —
+ * they stay literal on purpose, unlike the picker's own padding/gap and the zone's corner above. */
+.layout-thumb {
+  display: grid;
+  gap: 2px;
+  width: 44px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+}
+.layout-thumb[data-current="true"] { border-color: var(--accent); }
+.layout-zone {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: var(--hover);
+  cursor: pointer;
+}
+.layout-zone:hover, .layout-zone:focus-visible,
+button.layout-thumb:hover .layout-zone, button.layout-thumb:focus-visible .layout-zone {
+  background: var(--accent);
+  outline: none;
+}
+
+/* A pane waiting to be filled (PaneFiller.tsx): a short list, not a full sidebar. */
+.pane-filler {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 0;
+  max-width: 420px;
+}
+.pane-filler section { display: flex; flex-direction: column; }
+.pane-filler-heading { color: var(--muted); font-size: 11px; font-weight: 600; margin: 0 0 4px; text-transform: uppercase; }
+.pane-filler .session-row { width: 100%; }
+.pane-filler-close { align-self: flex-start; }
+

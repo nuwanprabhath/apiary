@@ -1,3 +1,7 @@
+import type { Capability, InstallInstructions } from '@shared/domain/update'
+
+export type { Capability, InstallInstructions } from '@shared/domain/update'
+
 /**
  * What this particular installation is allowed to do about an update.
  *
@@ -20,8 +24,6 @@
  * The point of the split is that the day a Developer ID certificate exists, macOS returns `auto`
  * from here and every other part of the updater already does the right thing.
  */
-export type UpdateCapability = 'auto' | 'assisted' | 'unsupported'
-
 export interface CapabilityInput {
   platform: NodeJS.Platform
   /** `app.isPackaged` — false in a dev run, where there is no installer to replace. */
@@ -30,35 +32,6 @@ export interface CapabilityInput {
   appImagePath: string | undefined
   /** Whether the running macOS bundle carries a Developer ID signature (see `hasDeveloperIdSignature`). */
   macSigned: boolean
-}
-
-export interface Capability {
-  kind: UpdateCapability
-  /** Shown in Settings, so "why is there no update button" always has an answer on screen. */
-  reason: string
-}
-
-/**
- * What the user has to do with an `assisted` download, once it is on disk.
- *
- * This exists because the banner used to say "Open it and drag Apiary into Applications" on every
- * platform. On Ubuntu that sentence describes nothing that exists, next to a button that did
- * nothing — `shell.openPath` on a `.deb` is a no-op on a desktop with no handler registered for
- * one, and it reports success, so even the fallback never fired.
- *
- * So the instruction is decided where the platform is already known, beside the capability, and
- * travels to the UI as words rather than being reinvented there.
- */
-export interface InstallInstructions {
-  /** The sentence the banner shows once the file is downloaded. */
-  hint: string
-  /** A command that finishes the job, ready to copy — or null where double-clicking is the answer. */
-  command: string | null
-  /**
-   * What to do with the file when the user presses the button: hand it to the OS, or just show
-   * them where it is. A `.deb` is `reveal`, because handing it over is the thing that fails.
-   */
-  action: 'open' | 'reveal'
 }
 
 /** POSIX single-quoting, so a download path with a space in it survives being pasted. */
@@ -90,11 +63,17 @@ export function installInstructions(input: CapabilityInput, path: string): Insta
   if (input.platform === 'darwin') {
     return {
       hint: 'Open it and drag Apiary into Applications to finish updating.',
-      // One line rather than three separate steps to copy: mount the image quietly, copy the
-      // bundle over whatever is already installed, detach so the Finder window does not linger.
-      command: `hdiutil attach ${shellQuote(path)} -nobrowse -quiet `
-        + `&& cp -R /Volumes/${MAC_APP_NAME}/${MAC_APP_NAME}.app /Applications/ `
-        + `&& hdiutil detach /Volumes/${MAC_APP_NAME} -quiet`,
+      // One line rather than three separate steps to copy: mount the image quietly at a mountpoint
+      // of our own, copy the bundle over whatever is already installed, detach so the Finder
+      // window does not linger. Mounting at a fixed `/Volumes/${MAC_APP_NAME}` (SEC-7) copied from
+      // whatever was already mounted there if a volume of that name existed — `hdiutil` appends
+      // " 1" to the name it actually uses in that case, silently mounting the new image elsewhere
+      // while the command still read from the old path. `mktemp -d` guarantees this run gets its
+      // own, empty mountpoint.
+      command: `m=$(mktemp -d) `
+        + `&& hdiutil attach ${shellQuote(path)} -nobrowse -quiet -mountpoint "$m" `
+        + `&& cp -R "$m/${MAC_APP_NAME}.app" /Applications/ `
+        + `&& hdiutil detach "$m" -quiet`,
       action: 'open',
     }
   }

@@ -1,0 +1,58 @@
+
+.app-shell { display: flex; flex-direction: column; height: 100vh; position: relative; z-index: var(--z-base); }
+
+/* A theme's effects (ThemeEffects.tsx): one canvas under the whole app, seen in the gaps and
+ * through translucent chrome, and one over it. Neither ever takes the pointer. */
+.theme-effects { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; }
+.theme-effects-back { z-index: var(--z-effects-back); }
+.theme-effects-front { z-index: var(--z-effects-front); }
+.layout { display: grid; flex: 1; min-height: 0; padding: var(--panel-gap); }
+/* With the sidebar folded to its rail there is no resizer track between the two, so the gap is a
+ * plain column gap instead. */
+.layout[data-sidebar-hidden="true"] { column-gap: var(--panel-gap); }
+
+/* The update strip, above the whole workspace rather than over it: an update is never urgent
+   enough to cover what someone is reading, and a banner that pushes the layout down by its own
+   height is one the eye finds once and then ignores until it is dealt with. */
+.update-banner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  position: relative;
+}
+.update-banner[data-phase="error"] { border-bottom-color: var(--danger); }
+.update-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.update-banner-note { color: var(--muted); font-size: 12px; }
+.update-banner-actions { flex: none; display: flex; align-items: center; gap: 6px; }
+.update-banner-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.update-banner-close:hover { background: var(--hover); color: var(--text); }
+.update-banner-close svg { width: 12px; height: 12px; display: block; }
+
+/* A hairline along the very bottom of the strip, so progress is legible without the layout
+   shifting as a bar appears and disappears. */
+.update-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--border);
+}
+.update-progress-fill { height: 100%; background: var(--accent); transition: width 120ms linear; }

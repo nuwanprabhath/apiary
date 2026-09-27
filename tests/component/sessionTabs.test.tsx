@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, clickRowAction, box, mouse, until } from './helpers'
 
@@ -32,11 +32,11 @@ describe('session tabs', () => {
 
     await userEvent.click(sidebarSession('Add worktree switcher'))
     await until(() => all('session-tab').length === 2)
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Add worktree switcher')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Add worktree switcher')
 
     // Both remain open, and the first is one click away rather than needing to be reopened.
     await userEvent.click(all('session-tab-label')[0])
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Fix CSV export bug')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
     expect(all('session-tab')).toHaveLength(2)
   })
 
@@ -47,7 +47,7 @@ describe('session tabs', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
 
     await until(() => all('session-tab').length === 2)
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Fix CSV export bug')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
   })
 
   it('closing a tab falls back to its neighbour, and closing the last one empties the column', async () => {
@@ -57,7 +57,7 @@ describe('session tabs', () => {
 
     await userEvent.click(all('session-tab-close')[1])
     await until(() => all('session-tab').length === 1)
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Fix CSV export bug')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
 
     await userEvent.click(all('session-tab-close')[0])
     await until(() => all('session-tab').length === 0)
@@ -299,7 +299,7 @@ describe('session tabs', () => {
 
     // And the menu says so the second time round, rather than offering to pin it again.
     rightClick(all('session-tab')[0])
-    await expect.element(page.getByTestId('context-menu-pin')).toHaveTextContent('Unpin from sidebar')
+    await expect.element(page.getByTestId('context-menu-pin')).toMatchTextContent('Unpin from sidebar')
   })
 
   it('a tab dropped on the left edge of the first tab lands in first position', async () => {
@@ -469,5 +469,82 @@ describe('session tabs', () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await expect.element(page.getByTestId('session-tab-strip')).toHaveAttribute('draggable', 'false')
+  })
+
+  describe('keyboard: the strip is a WAI-ARIA tablist', () => {
+    it('is a tablist of tabs, with only the active one a Tab stop', async () => {
+      await renderApp()
+      await userEvent.click(sidebarSession('Fix CSV export bug'))
+      await userEvent.click(sidebarSession('Add worktree switcher'))
+      await until(() => all('session-tab').length === 2)
+
+      await expect.element(page.getByTestId('session-tab-strip')).toHaveAttribute('role', 'tablist')
+      const labels = all('session-tab-label')
+      expect(labels.map((l) => l.getAttribute('role'))).toEqual(['tab', 'tab'])
+      // The second tab (opened last) is active — only it is reachable by Tab.
+      expect(labels.map((l) => l.getAttribute('tabindex'))).toEqual(['-1', '0'])
+      expect(labels[1].getAttribute('aria-selected')).toBe('true')
+      // The active tab names the tabpanel it controls; the panel points back at it.
+      const controls = labels[1].getAttribute('aria-controls')
+      expect(controls).not.toBeNull()
+      const panel = document.getElementById(controls!)
+      expect(panel?.getAttribute('role')).toBe('tabpanel')
+      expect(panel?.getAttribute('aria-labelledby')).toBe(labels[1].id)
+    })
+
+    it('ArrowRight/ArrowLeft move focus and activation between tabs, wrapping at the ends', async () => {
+      await renderApp()
+      await userEvent.click(sidebarSession('Fix CSV export bug'))
+      await userEvent.click(sidebarSession('Add worktree switcher'))
+      await until(() => all('session-tab').length === 2)
+      const [first, second] = all('session-tab-label')
+      expect(second.getAttribute('aria-selected')).toBe('true')
+
+      second.focus()
+      await userEvent.keyboard('{ArrowLeft}')
+      await until(() => first.getAttribute('aria-selected') === 'true')
+      expect(document.activeElement).toBe(first)
+      await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
+
+      // Wraps past the first tab back to the last.
+      await userEvent.keyboard('{ArrowLeft}')
+      await until(() => second.getAttribute('aria-selected') === 'true')
+      expect(document.activeElement).toBe(second)
+
+      await userEvent.keyboard('{ArrowRight}')
+      await until(() => first.getAttribute('aria-selected') === 'true')
+      expect(document.activeElement).toBe(first)
+    })
+
+    it('Home/End jump focus and activation to the first/last tab', async () => {
+      await renderApp()
+      await userEvent.click(sidebarSession('Fix CSV export bug'))
+      await userEvent.click(sidebarSession('Add worktree switcher'))
+      await userEvent.click(sidebarSession('Repo root session'))
+      await until(() => all('session-tab').length === 3)
+      const labels = all('session-tab-label')
+      labels[2].focus()
+
+      await userEvent.keyboard('{Home}')
+      await until(() => labels[0].getAttribute('aria-selected') === 'true')
+      expect(document.activeElement).toBe(labels[0])
+
+      await userEvent.keyboard('{End}')
+      await until(() => labels[2].getAttribute('aria-selected') === 'true')
+      expect(document.activeElement).toBe(labels[2])
+    })
+
+    it('Delete closes the focused tab', async () => {
+      await renderApp()
+      await userEvent.click(sidebarSession('Fix CSV export bug'))
+      await userEvent.click(sidebarSession('Add worktree switcher'))
+      await until(() => all('session-tab').length === 2)
+      const active = all('session-tab-label').find((l) => l.getAttribute('aria-selected') === 'true')!
+      active.focus()
+
+      await userEvent.keyboard('{Delete}')
+      await until(() => all('session-tab').length === 1)
+      expect(all('session-tab-label')[0]).toHaveTextContent('Fix CSV export bug')
+    })
   })
 })

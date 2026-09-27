@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveConfigRoot, projectsDir } from '../../src/main/config'
+import { resolveConfigRoot, projectsDir } from '../../src/main/app/config'
 
 describe('resolveConfigRoot', () => {
   it('defaults to ~/.claude', () => {

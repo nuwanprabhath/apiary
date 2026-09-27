@@ -22,10 +22,9 @@ export interface LayoutLike {
 /**
  * Walks a window's live layout state into the plain shape `reportLayout` sends to main.
  *
- * Lives here, not in `App.tsx`, so a later task that needs this window's open tabs from the main
- * process (see `WindowLayoutRecord`'s restore path) can call the exact same walker instead of
- * writing a second one that can drift from it — `src/main/` can import this file, but never
- * `src/renderer/`'s.
+ * Lives here rather than in `App.tsx` only because it is pure and its own unit tests are cheaper
+ * to write against a shared file than against a renderer component (CLAUDE.md Conventions).
+ * Today it has one caller, `App.tsx`; `src/main/` does not import it.
  */
 export function buildPersistedLayout(
   layout: LayoutLike,

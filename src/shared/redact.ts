@@ -37,6 +37,13 @@ const SECRETS: { pattern: RegExp; as: string }[] = [
   { pattern: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, as: '[redacted-jwt]' },
   { pattern: /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, as: '$1 [redacted]' },
   { pattern: /\b(api[-_]?key|secret|password|passwd|token|auth)\s*[=:]\s*("?)[^\s"&,}]{4,}\2/gi, as: '$1=[redacted]' },
+  // `scheme://user:password@host` — a git remote or a git failure that echoes one back
+  // (`fatal: unable to access '...'`). Checked before HOME_LIKE, which does not touch URLs.
+  { pattern: /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/:@]+:[^\s/@]+@/gi, as: '$1[redacted]@' },
+  { pattern: /\bAKIA[0-9A-Z]{16}\b/g, as: '[redacted-aws-key]' },
+  { pattern: /\bxox[abposr]-[A-Za-z0-9-]{10,}/g, as: '[redacted-slack-token]' },
+  { pattern: /\bnpm_[A-Za-z0-9]{30,}/g, as: '[redacted-npm-token]' },
+  { pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, as: '[redacted-private-key]' },
 ]
 
 /** `/Users/someone/...` and `/home/someone/...`, whoever they are. */

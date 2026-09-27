@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import type { FakeApiary } from './fakeApiary'
 import { sidebarSession, clickRowAction, sessionRow, box, until } from './helpers'

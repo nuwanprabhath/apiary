@@ -1,11 +1,15 @@
 import { DEFAULT_MATERIAL, type ThemeSpec } from './spec'
 
+/** The prefix that marks a theme id as one of these, rather than a saved (user) theme's uuid —
+ *  named once (SHARED-3) rather than repeated as a literal at every check. */
+export const BUILTIN_THEME_PREFIX = 'builtin:'
+
 /**
  * Themes that ship with Apiary. They are ordinary specs — validated like any other — and they are
  * written to pass that validation untouched, because they double as the examples the theme
  * generator is shown: whatever they do is what Claude will learn a good theme looks like.
  */
-export const BUILTIN_THEMES: ReadonlyArray<{ id: `builtin:${string}`; spec: ThemeSpec }> = [
+export const BUILTIN_THEMES: ReadonlyArray<{ id: `${typeof BUILTIN_THEME_PREFIX}${string}`; spec: ThemeSpec }> = [
   {
     id: 'builtin:matrix',
     spec: {

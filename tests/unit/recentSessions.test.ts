@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { selectRecent, pruneDismissed, dismissRecent } from '../../src/renderer/state/recentSessions'
-import type { SessionNode } from '../../src/shared/types'
+import { selectRecent, pruneDismissed, dismissRecent } from '../../src/renderer/features/sidebar/model/recentSessions'
+import type { SessionNode } from '@shared/types'
 
 const HOUR = 3600_000
 

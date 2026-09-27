@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildPersistedLayout, type LayoutLike } from '../../src/shared/layoutReport'
+import { buildPersistedLayout, type LayoutLike } from '@shared/layoutReport'
 
 describe('buildPersistedLayout', () => {
   it('walks panes and tabs into the persisted shape, keyed by session id', () => {

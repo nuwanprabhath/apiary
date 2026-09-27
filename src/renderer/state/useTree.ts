@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectNode } from '@shared/types'
 import { filterTreeLocal, SEARCH_RESULT_CAP } from '@shared/treeFilter'
 import { useSessionTreeCache } from './useSessionTreeCache'
-import { useNotifications } from './notifications'
+import { useNotifications } from '../ui/notifications'
 
 export function useTree(
   /** A *settled* query — see `SearchField`. Anything live enough to change per keystroke does not
@@ -21,8 +21,8 @@ export function useTree(
    *  `tree`, because a tab open in another window must stay readable even when this window's own
    *  search happens to exclude its project. */
   rawTree: ProjectNode[]
-  /** Session ids matched by content or a note — Task 9's ranking needs to tell that tier apart
-   *  from a title/path/branch match, which `filterTreeLocal` alone cannot. */
+  /** Session ids matched by content or a note — content-search ranking needs to tell that tier
+   *  apart from a title/path/branch match, which `filterTreeLocal` alone cannot. */
   matchedByContent: Set<string>
   totalMatches: number
   capped: boolean
@@ -32,10 +32,6 @@ export function useTree(
 } {
   const { rawTree, loading, reload, reloadNow } = useSessionTreeCache()
   const { notifyError } = useNotifications()
-  // Not debounced here any more. `SearchField` owns the typed text and publishes only a settled
-  // query, and `Sidebar` defers it on top of that — debouncing a third time would just add 150ms
-  // to every search for no benefit.
-  const debouncedQuery = query
   const [matchedByContent, setMatchedByContent] = useState<Set<string>>(() => new Set())
 
   // Superseded rather than awaited: a slow content search for an old query must never land after
@@ -46,7 +42,7 @@ export function useTree(
   const reportedSearchFailure = useRef(false)
   useEffect(() => {
     const id = ++requestId.current
-    const trimmed = debouncedQuery.trim()
+    const trimmed = query.trim()
     if (trimmed === '' || !(options.searchChatContent || options.searchSessionNotes)) {
       setMatchedByContent(new Set())
       return
@@ -74,24 +70,24 @@ export function useTree(
     // it, a query typed in the first second after launch — before indexing had finished — got the
     // empty answer and kept it until the user typed something else, so searching by what was said
     // found nothing. The e2e spec for content search hit exactly that race once it went the other way.
-  }, [debouncedQuery, options.searchChatContent, options.searchSessionNotes, rawTree, notifyError])
+  }, [query, options.searchChatContent, options.searchSessionNotes, rawTree, notifyError])
 
   // Memoized on the debounced query, not the raw one: `Sidebar` re-renders on every keystroke
   // (its own `query` state updates in `onChange`), and without this the filter would still run on
-  // every one of those renders even though `debouncedQuery` had not settled yet — the exact
-  // per-keystroke cost this task exists to remove, just moved from IPC into a local render.
+  // every one of those renders even though `query` had not settled yet — the exact
+  // per-keystroke cost this memoization exists to remove, just moved from IPC into a local render.
   const { tree, totalMatches } = useMemo(
-    () => filterTreeLocal(rawTree, debouncedQuery, matchedByContent),
-    [rawTree, debouncedQuery, matchedByContent],
+    () => filterTreeLocal(rawTree, query, matchedByContent),
+    [rawTree, query, matchedByContent],
   )
   // Only ever true while something is actually being searched for. `filterTreeLocal` counts the
   // *whole* tree for an empty query — it has nothing to filter by — so a bare `totalMatches >
   // SEARCH_RESULT_CAP` meant anyone with more than 200 sessions read "Showing first 200 results."
   // permanently, above a complete, uncapped tree. Gated on the debounced query rather than the
   // raw one so the note appears and disappears in step with the results it describes.
-  const capped = debouncedQuery.trim() !== '' && totalMatches > SEARCH_RESULT_CAP
+  const capped = query.trim() !== '' && totalMatches > SEARCH_RESULT_CAP
   return {
-    tree, rawTree, settledQuery: debouncedQuery, matchedByContent, totalMatches, capped, loading,
+    tree, rawTree, settledQuery: query, matchedByContent, totalMatches, capped, loading,
     reload, reloadNow,
   }
 }

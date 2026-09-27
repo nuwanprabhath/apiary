@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
 
-const FAKE_CODE = join(process.cwd(), 'scripts/fixtures/fake-code.sh')
+const FAKE_CODE = join(process.cwd(), 'tests/fixtures/bin/fake-code.sh')
 
 let h: Harness
 

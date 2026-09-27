@@ -48,21 +48,6 @@ const PTY_KILL_TIMEOUT_MS = 1500
  */
 const ALT_SCREEN = '\x1b[?1049h'
 
-/**
- * How much of each pty's recent output is kept so a *new* view of it can be brought up to date.
- *
- * Until this existed, scrollback lived only in whichever window's xterm happened to have been
- * attached since the process started. Opening the same session in a second window, or moving its
- * tab into a window of its own, produced a terminal that was simply blank until the program next
- * printed something — which, for a TUI waiting on input, can be never. Output is not something the
- * main process can regenerate, so it has to be remembered here.
- *
- * 256KB is roughly a full-screen TUI's worth of redraws and several screens of scrollback, which
- * is what a person needs to recognise where they are. It is a cap per pty, not a total: a handful
- * of sessions costs a couple of megabytes, against the alternative of a window that looks broken.
- */
-const REPLAY_BYTES = 256 * 1024
-
 export class PtyManager {
   private processes = new Map<string, pty.IPty>()
   private lastSize = new Map<string, { cols: number; rows: number }>()
@@ -73,8 +58,6 @@ export class PtyManager {
   /** Per-pty output activity, so a caller can wait for the child to finish reacting to input. */
   private lastDataAt = new Map<string, number>()
   private outputCounts = new Map<string, number>()
-  /** Recent output per pty, oldest-trimmed, for `replay()`. */
-  private replayBuffers = new Map<string, string>()
   /** A headless terminal per pty, so `screen()` can report what is actually on screen rather than
    *  what was sent — see `screen.ts` for why those differ and why it matters. */
   private screens = new ScreenBuffers()
@@ -124,7 +107,6 @@ export class PtyManager {
     })
 
     child.onData((data) => {
-      this.remember(opts.id, data)
       this.screens.write(opts.id, data)
       this.lastDataAt.set(opts.id, Date.now())
       this.outputCounts.set(opts.id, (this.outputCounts.get(opts.id) ?? 0) + 1)
@@ -133,7 +115,21 @@ export class PtyManager {
     })
     child.onExit(({ exitCode }) => {
       log.info('pty', 'exited', { id: opts.id, exitCode })
+      // A pty that exits on its own (as opposed to being `kill()`ed) used to only leave
+      // `processes`, and nothing ever cleared `expectTui`/`tuiStarted`/`lastDataAt`/
+      // `outputCounts`/the headless `screens` entry — even `kill()` missed the last three. Every
+      // `new:<uuid>` id is minted once and never reused (appService.ts), so a long-running app
+      // leaked one `Terminal` (with up to 1,000 lines of scrollback) per session whose Claude
+      // process ever exited normally (MAIN-6). `cwds` is the one thing deliberately kept: a
+      // pending id's cwd is still read afterwards (`resolveShellCwd`), and one string per pty is
+      // not the leak this fixes.
       this.processes.delete(opts.id)
+      this.lastSize.delete(opts.id)
+      this.expectTui.delete(opts.id)
+      this.tuiStarted.delete(opts.id)
+      this.lastDataAt.delete(opts.id)
+      this.outputCounts.delete(opts.id)
+      this.screens.dispose(opts.id)
       for (const h of this.exitHandlers) h(opts.id, exitCode)
     })
 
@@ -161,36 +157,14 @@ export class PtyManager {
     this.tuiStarted.set(opts.id, false)
     this.lastDataAt.set(opts.id, Date.now())
     this.outputCounts.set(opts.id, 0)
-    this.replayBuffers.set(opts.id, '')
-  }
-
-  /**
-   * Appends to the replay buffer, trimming from the front once it is over the cap.
-   *
-   * Trimmed at a whole number of bytes rather than at an escape-sequence boundary, because there
-   * is no way to find one cheaply and a terminal emulator discards a partial sequence at the start
-   * of a stream without complaint. The first line of a replayed buffer may therefore be missing
-   * its colour; every line after it is exact.
-   */
-  private remember(id: string, data: string): void {
-    const next = (this.replayBuffers.get(id) ?? '') + data
-    this.replayBuffers.set(id, next.length > REPLAY_BYTES ? next.slice(-REPLAY_BYTES) : next)
-  }
-
-  /**
-   * What this pty has printed recently, for a view that is only now attaching to it.
-   *
-   * Empty for a pty that does not exist, which is the same answer as a pty that has printed
-   * nothing — neither is an error, and a caller that has to tell them apart has `has()`.
-   */
-  replay(id: string): string {
-    return this.replayBuffers.get(id) ?? ''
   }
 
   /**
    * This pty's screen, history included, as something a view can paint — see
-   * `ScreenBuffers.snapshot` for why a view is given this rather than `replay()`. Null for a pty
-   * that has printed nothing (or does not exist); the view then simply starts empty.
+   * `ScreenBuffers.snapshot` for why a late-attaching view is given this rendered picture rather
+   * than the raw byte stream (see the removed `replay()` — MAIN-5: it had no production caller,
+   * only this rendered snapshot is used to catch a view up). Null for a pty that has printed
+   * nothing (or does not exist); the view then simply starts empty.
    */
   snapshot(id: string): Promise<ScreenSnapshot | null> {
     return this.screens.snapshot(id)
@@ -198,10 +172,8 @@ export class PtyManager {
 
   /**
    * What is on this pty's screen right now, as plain text — the input `classifyActivity` needs.
-   *
-   * Not the same thing as `replay()`, and the difference is the point: `replay()` is the byte
-   * stream, which a view replays through its own emulator to rebuild the picture. This is that
-   * picture, rendered here, for code that needs to *read* the terminal rather than show it.
+   * Rendered here from the headless terminal, not read out of a raw byte stream: this is the
+   * picture, for code that needs to *read* the terminal rather than show it.
    */
   screen(id: string): string {
     return this.screens.read(id)
@@ -304,8 +276,12 @@ export class PtyManager {
   resize(id: string, cols: number, rows: number): void {
     const child = this.processes.get(id)
     if (!child) return
-    const clampedCols = Math.max(1, cols)
-    const clampedRows = Math.max(1, rows)
+    // `Math.max(1, x)` alone let a NaN (from a bad renderer message) or an unbounded number
+    // through to node-pty's own resize, which sizes a headless xterm in this process to whatever
+    // was asked (SEC-8). Any real terminal is well inside these bounds; anything outside them is
+    // not a size a renderer should ever legitimately send.
+    const clampedCols = Number.isFinite(cols) ? Math.min(1000, Math.max(1, Math.trunc(cols))) : 80
+    const clampedRows = Number.isFinite(rows) ? Math.min(500, Math.max(1, Math.trunc(rows))) : 24
     const last = this.lastSize.get(id)
     const isNoOp = last !== undefined && last.cols === clampedCols && last.rows === clampedRows
     try {
@@ -336,8 +312,6 @@ export class PtyManager {
     this.processes.delete(id)
     this.lastSize.delete(id)
     this.cwds.delete(id)
-    // Nothing will ever attach to a dead pty, so its scrollback is only a leak from here on.
-    this.replayBuffers.delete(id)
     this.screens.dispose(id)
     try { child.kill() } catch { /* already gone */ }
   }

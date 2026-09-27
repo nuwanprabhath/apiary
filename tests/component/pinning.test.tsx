@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { clickRowAction, until } from './helpers'
 
@@ -48,7 +48,7 @@ describe('pinning', () => {
     await clickRowAction('Worktree session', 'pin-session-button')
     await until(() => all('pinned-section').length === 1)
     await userEvent.click(within(all('pinned-section')[0], 'session-item')[0])
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Worktree session')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Worktree session')
 
     // A pinned row that doesn't match the search would otherwise be the one row on screen that
     // ignores the search box.
@@ -86,7 +86,7 @@ describe('pinning', () => {
     await userEvent.hover(pinnedWrap)
     await userEvent.click(within(pinnedWrap, 'delete-session-button')[0])
     await userEvent.click(page.getByTestId('delete-session-confirm'))
-    // The real main process pushes this after removeSession resolves (src/main/ipc.ts); the fake
+    // The real main process pushes this after removeSession resolves (src/main/ipc/handlers/sessions.ts); the fake
     // mutates its own state but leaves emitting it to the caller, same as it does for every other
     // write that the app expects a `treeChanged` push for.
     fake.emit('treeChanged')

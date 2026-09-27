@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { clampSegments, type PromptPathOptions } from '@shared/promptPath'
+import { clampSegments, type PromptPathOptions } from '@shared/promptPreview'
 
 export type { PromptPathOptions }
 

@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SearchIndex, toMatchQuery } from '../../src/main/search/searchIndex'
 import { extractLineText } from '../../src/main/search/extractText'
 import { runIndexPass } from '../../src/main/search/indexer'
+import { log } from '../../src/main/log/logger'
 
 let dir: string
 let index: SearchIndex
@@ -117,6 +118,27 @@ describe('SearchIndex', () => {
     expect(index.needsIndexing('s1', 10, 99)).toBe(true)
     expect(index.needsIndexing('s1', 999, 1)).toBe(true)
     expect(index.needsIndexing('never-seen', 1, 1)).toBe(true)
+  })
+
+  it('logs a slow write but not an ordinary one (MAIN-24: measure before cutting anything)', () => {
+    const debugSpy = vi.spyOn(log, 'debug').mockImplementation(() => {})
+    try {
+      index.put('s3', 'an ordinary write', 5, 5)
+      expect(debugSpy).not.toHaveBeenCalled()
+
+      const realNow = Date.now
+      let call = 0
+      // Simulate a slow transaction without actually sleeping: the timer read at the start of
+      // `put` and the one read right after `write()` returns are the two calls that matter.
+      vi.spyOn(Date, 'now').mockImplementation(() => {
+        call += 1
+        return call === 1 ? realNow() : realNow() + 100
+      })
+      index.put('s4', 'a slow write', 6, 6)
+      expect(debugSpy).toHaveBeenCalledWith('search', 'slow index write', expect.objectContaining({ sessionId: 's4' }))
+    } finally {
+      vi.restoreAllMocks()
+    }
   })
 })
 
@@ -258,5 +280,33 @@ describe('notes in the index', () => {
     // And the transcript is still considered up to date, so switching notes off does not force a
     // re-read of every session file.
     expect(index.needsIndexing('s1', 10, 1)).toBe(false)
+  })
+
+  describe('replaceNotes (MAIN-7)', () => {
+    it('replaces the whole set of notes in one call', () => {
+      index.putNote('s1', 'stale note')
+      index.replaceNotes([{ sessionId: 's2', note: 'fresh note about carburettors' }])
+
+      expect(index.noteCount()).toBe(1)
+      expect(index.searchNotes('stale')).toEqual([])
+      expect(index.searchNotes('carburettors').map((h) => h.sessionId)).toEqual(['s2'])
+    })
+
+    it('drops an entry whose note is empty or blank, same as putNote', () => {
+      index.replaceNotes([
+        { sessionId: 's1', note: 'a real note' },
+        { sessionId: 's2', note: '   ' },
+        { sessionId: 's3', note: '' },
+      ])
+      expect(index.noteCount()).toBe(1)
+      expect(index.searchNotes('real').map((h) => h.sessionId)).toEqual(['s1'])
+    })
+
+    it('leaves the transcript index untouched', () => {
+      index.put('s1', 'transcript text', 10, 1)
+      index.replaceNotes([{ sessionId: 's1', note: 'a note' }])
+      expect(index.search('transcript').map((h) => h.sessionId)).toEqual(['s1'])
+      expect(index.needsIndexing('s1', 10, 1)).toBe(false)
+    })
   })
 })

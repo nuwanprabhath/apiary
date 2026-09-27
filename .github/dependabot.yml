@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      electron:
+        patterns:
+          - "electron*"
+          - "@electron/*"
+      vitest:
+        patterns:
+          - "vitest*"
+          - "@vitest/*"
+      eslint:
+        patterns:
+          - "eslint*"
+          - "@typescript-eslint/*"
+      build:
+        patterns:
+          - "vite*"
+          - "@vitejs/*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

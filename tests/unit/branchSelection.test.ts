@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { exactRefMatch } from '../../src/renderer/state/branchSelection'
+import { exactRefMatch } from '../../src/renderer/features/git/branchSelection'
 import type { GitRefEntry } from '@shared/types'
 
 const ref = (name: string): GitRefEntry => ({ name, relativeDate: '2h ago', author: 'a', shortSha: 'abc123', subject: 's' })

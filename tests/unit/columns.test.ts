@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   newColumn, openTab, moveTab, moveTabToColumn, setTabView, findColumnWithTab, openTabAfter, adoptTab,
-} from '../../src/renderer/state/columns'
+} from '../../src/renderer/features/layout/columns'
 
 const keys = (column: { tabs: { key: string }[] }): string[] => column.tabs.map((t) => t.key)
 

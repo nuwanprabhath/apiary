@@ -198,4 +198,55 @@ describe('SessionStore', () => {
     reopened.close()
     store = new SessionStore(dbPath) // afterEach expects `store` to be a live, closeable handle
   })
+
+  describe('syncAll (MAIN-2)', () => {
+    it('syncs every project and session from one pass in a single commit', () => {
+      store.syncAll([
+        { info: project('/home/nuwan/app'), metas: [meta('s1', '/home/nuwan/app')] },
+        { info: project('/home/nuwan/other'), metas: [meta('s2', '/home/nuwan/other')] },
+      ])
+      expect(store.allProjects().map((p) => p.path)).toEqual(['/home/nuwan/app', '/home/nuwan/other'])
+      expect(store.allSessions().map((s) => s.sessionId).sort()).toEqual(['s1', 's2'])
+    })
+
+    it('leaves no partial rows behind when a pass fails half-way', () => {
+      store.syncAll([{ info: project('/home/nuwan/app'), metas: [meta('s1', '/home/nuwan/app')] }])
+      const before = store.allSessions().length
+      expect(() => {
+        store.syncAll([
+          { info: project('/home/nuwan/other'), metas: [meta('s2', '/home/nuwan/other')] },
+          // `file_path` is NOT NULL in the schema; a null here fails the insert, simulating a
+          // refresh that threw partway through the batch.
+          {
+            info: project('/home/nuwan/third'),
+            metas: [{ ...meta('s3', '/home/nuwan/third'), filePath: null as unknown as string }],
+          },
+        ])
+      }).toThrow()
+      // Neither the project from the failed batch nor its session made it in, and the earlier,
+      // already-committed pass is untouched.
+      expect(store.allSessions()).toHaveLength(before)
+      expect(store.getProject('/home/nuwan/other')).toBeNull()
+    })
+  })
+
+  describe('fileStamps and distinctCwds (MAIN-1)', () => {
+    it('reports every session file path with its recorded size and mtime', () => {
+      store.syncProject(project('/home/nuwan/app'))
+      store.syncSessions('/home/nuwan/app', [
+        meta('s1', '/home/nuwan/app', { filePath: '/home/nuwan/app/.jsonl/s1.jsonl', fileSize: 111, fileMtimeMs: 222 }),
+      ])
+      const stamps = store.fileStamps()
+      expect(stamps.get('/home/nuwan/app/.jsonl/s1.jsonl')).toEqual({ size: 111, mtimeMs: 222 })
+    })
+
+    it('lists every distinct raw cwd recorded across sessions', () => {
+      store.syncProject(project('/home/nuwan/app'))
+      store.syncSessions('/home/nuwan/app', [
+        meta('s1', '/home/nuwan/app'),
+        meta('s2', '/home/nuwan/app'),
+      ])
+      expect(store.distinctCwds()).toEqual(['/home/nuwan/app'])
+    })
+  })
 })

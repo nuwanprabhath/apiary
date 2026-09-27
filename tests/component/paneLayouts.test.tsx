@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, box, mouse, until } from './helpers'
 
@@ -207,6 +207,29 @@ describe('pane layouts', () => {
     expect(after.height).toBeGreaterThan(before.height + 40)
   })
 
+  it('UI-27: a divider is a keyboard-operable separator, not just a drag handle', async () => {
+    await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await userEvent.click(page.getByTestId('window-layout-button'))
+    await userEvent.click(page.getByTestId('layout-option-grid'))
+    await until(() => all('session-column').length === 4)
+
+    const divider = page.getByTestId('row-resizer').element()
+    expect(divider.getAttribute('role')).toBe('separator')
+    expect(divider.getAttribute('aria-orientation')).toBe('horizontal')
+    expect(divider.getAttribute('tabIndex')).not.toBe('-1')
+
+    const before = all('session-column')[0].getBoundingClientRect()
+    divider.focus()
+    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.keyboard('{ArrowDown}')
+    await until(() => all('session-column')[0].getBoundingClientRect().height > before.height)
+    // ArrowUp steps it back the other way.
+    const grown = all('session-column')[0].getBoundingClientRect().height
+    await userEvent.keyboard('{ArrowUp}')
+    await until(() => all('session-column')[0].getBoundingClientRect().height < grown)
+  })
+
   it('closing the last tab in a pane steps the layout down', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
@@ -282,5 +305,41 @@ describe('pane layouts', () => {
     await userEvent.click(within(all('session-column')[3], 'pane-filler-close')[0])
     await until(() => all('content')[0].getAttribute('data-preset') === 'main-right2')
     expect(all('session-column')).toHaveLength(3)
+  })
+
+  it('a hover-opened picker does not steal focus from the composer (UI-28)', async () => {
+    await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await expect.element(page.getByTestId('composer-input')).toBeVisible()
+    await userEvent.click(page.getByTestId('composer-input'))
+    expect(document.activeElement).toBe(page.getByTestId('composer-input').element())
+
+    // The tab strip's split button opens the picker on hover ("rest here for layouts") — exactly
+    // the gesture UI-28 is about: resting the pointer on it while typing must not move focus.
+    await userEvent.hover(page.getByTestId('session-tab-split'))
+    await until(() => all('layout-picker').length > 0, 2000)
+    expect(document.activeElement).toBe(page.getByTestId('composer-input').element())
+
+    // Leaving without picking anything (the picker unmounts via `scheduleClose`, not `onClose`)
+    // must leave the composer focused too, not fall back to <body>.
+    await userEvent.hover(page.getByTestId('session-title'))
+    await until(() => all('layout-picker').length === 0, 2000)
+    expect(document.activeElement).toBe(page.getByTestId('composer-input').element())
+  })
+
+  it('a click-opened picker does take focus, and gives it back on Escape', async () => {
+    await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+
+    // The layout tab button (no onClick of its own) opens straight from a click — a click already
+    // focuses the button itself before React ever mounts the picker, so that (not the composer) is
+    // what focus returns to.
+    await userEvent.click(page.getByTestId('session-tab-layout'))
+    await until(() => all('layout-picker').length > 0)
+    expect(all('layout-picker')[0].contains(document.activeElement)).toBe(true)
+
+    await userEvent.keyboard('{Escape}')
+    await until(() => all('layout-picker').length === 0)
+    expect(document.activeElement).toBe(page.getByTestId('session-tab-layout').element())
   })
 })

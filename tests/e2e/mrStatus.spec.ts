@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { writeFileSync } from 'node:fs'
 import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
 
-const FAKE_GLAB = join(process.cwd(), 'scripts/fixtures/fake-glab-api.sh')
+const FAKE_GLAB = join(process.cwd(), 'tests/fixtures/bin/fake-glab-api.sh')
 
 let h: Harness
 

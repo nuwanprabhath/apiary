@@ -1,4 +1,4 @@
-import { afterEach } from 'vitest'
+import { afterEach, beforeEach } from 'vitest'
 import { createFakeApiary } from './fakeApiary'
 import { unmountApp } from './renderApp'
 
@@ -6,9 +6,97 @@ import { unmountApp } from './renderApp'
 // loads; `renderApp` replaces it with the test's own fake.
 window.apiary = createFakeApiary()
 
+/**
+ * Console errors, window errors and unhandled rejections are otherwise invisible noise: Vitest
+ * prints them as `stderr |` lines but a test that triggers one still passes. That let a real
+ * unmount race print in dozens of unrelated component tests for a long time before anyone
+ * noticed (TEST-14). A test that deliberately provokes an error — errorReporting.test.tsx's two
+ * cases — calls `expectConsoleError` first so this guard does not fail it.
+ *
+ * State lives on `window` rather than in this module's own closure: Vite/Vitest browser mode can
+ * load this file twice under different URLs (once as a configured `setupFile`, once again when a
+ * test file does `import { expectConsoleError } from './setup'`), each getting its own module
+ * instance with its own closure — a push from the test file's copy would then be invisible to the
+ * copy whose listeners and `afterEach` actually run. `window` is the one thing both copies agree
+ * on: it is the real browser page they share.
+ */
+// xterm's own internal Viewport keeps a ResizeObserver on the terminal element (separate from
+// TerminalView's own one), and a resize batch the browser already queued for this frame — a
+// pane closing, a divider drag settling — can still be delivered to it after the terminal (or
+// its renderer) has gone away, reading `_renderService.dimensions` off a renderer that no
+// longer exists. Measured stack: `Viewport.syncScrollArea` -> `RenderService.dimensions`, an
+// uncaught TypeError with no visible symptom, since the view producing it is already gone.
+// Deferring `TerminalView`'s own `term.dispose()` by a frame did not avoid it when tried, so the
+// race is inside xterm itself rather than in our teardown order; tracked as a TEST-14 remainder,
+// candidate fix the xterm 5 -> 6 upgrade (TEST-17).
+const DEFAULT_ALLOWED: RegExp[] = [
+  // Vitest's browser error-catcher rethrows with its own stack, so only the message survives —
+  // "reading 'dimensions'" is specific enough to this xterm signature on its own (confirmed by
+  // reproducing it standalone with the original stack intact: `Viewport.syncScrollArea` ->
+  // `RenderService.dimensions`).
+  /reading 'dimensions'/,
+  // React logs a caught render error as *two* separate console.error calls: the error itself
+  // (which a test allows with its own pattern, e.g. `expectConsoleError(/DELIBERATE_.../)`), and
+  // this second, generic one carrying only the component stack and no part of the error's own
+  // message. Always allowed, since on its own it never says whether the error it came with was
+  // expected — that judgement is made by the first call, which still has to match a pattern.
+  /React will try to recreate this component tree from scratch/,
+]
+
+interface ConsoleErrorGuard { allowed: RegExp[]; unexpected: string[] }
+declare global { interface Window { __consoleErrorGuard?: ConsoleErrorGuard } }
+
+function guard(): ConsoleErrorGuard {
+  window.__consoleErrorGuard ??= { allowed: [...DEFAULT_ALLOWED], unexpected: [] }
+  return window.__consoleErrorGuard
+}
+
+export function expectConsoleError(pattern: RegExp): void {
+  guard().allowed.push(pattern)
+}
+
+function record(message: string): void {
+  const g = guard()
+  if (g.allowed.some((pattern) => pattern.test(message))) return
+  g.unexpected.push(message)
+}
+
+/** Best-effort text for whatever a console.error/window error/unhandledrejection handed us: an
+ *  Error's stack, a PromiseRejectionEvent's `.reason` (Vitest's own browser error-catcher logs the
+ *  raw event, not the reason, so `String()` alone would only ever produce
+ *  "[object PromiseRejectionEvent]"), or the plain string form of anything else. */
+function describe(value: unknown): string {
+  if (value instanceof Error) return value.stack ?? value.message
+  if (typeof value === 'object' && value !== null && 'reason' in value) {
+    return describe(value.reason)
+  }
+  return String(value)
+}
+
+// Listeners are attached once per page, guarded the same way as the state above — a second module
+// instance must not double-report every error.
+if (!window.__consoleErrorGuard) {
+  guard()
+  const realConsoleError = console.error.bind(console)
+  console.error = (...args: unknown[]) => {
+    record(args.map(describe).join(' '))
+    realConsoleError(...args)
+  }
+  window.addEventListener('error', (e) => { record(describe(e.error ?? e.message)) })
+  window.addEventListener('unhandledrejection', (e) => { record(describe(e.reason)) })
+}
+
+beforeEach(() => {
+  window.__consoleErrorGuard = { allowed: [...DEFAULT_ALLOWED], unexpected: [] }
+})
+
 afterEach(() => {
   unmountApp()
   // The renderer keeps UI state (collapsed folders, widths, pins, the open tab) in localStorage,
   // per window — cleared so no test starts where the last one left off.
   localStorage.clear()
+  const unexpected = window.__consoleErrorGuard?.unexpected ?? []
+  if (unexpected.length > 0) {
+    throw new Error(`Unexpected console/window error(s), see stderr above:\n${unexpected.join('\n---\n')}`)
+  }
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { FIXTURE_SESSIONS, type FakeApiary, type FakeSession } from './fakeApiary'
 import { until, sidebarSession } from './helpers'
@@ -8,6 +8,11 @@ import { until, sidebarSession } from './helpers'
 async function openImportDialog(fake: FakeApiary): Promise<void> {
   fake.emit('openImportDialog')
   await expect.element(page.getByTestId('import-dialog')).toBeVisible()
+  // The dialog mounts before `window.apiary.discovered()` resolves (a `.then(setRows)` in
+  // ImportDialog), so it first paints with zero rows and zero checkboxes. Every scenario in this
+  // file discovers at least one session, so waiting for the first checkbox is the general "the
+  // dialog has finished loading" signal the rest of the file can build on without repeating it.
+  await until(() => page.getByTestId('import-session-checkbox').elements().length > 0)
 }
 
 /** Every `import-group` section whose path text includes `path`, as raw elements. */
@@ -98,7 +103,7 @@ describe('the import dialog', () => {
       const workASessionCheckboxes = [...workAGroup.querySelectorAll<HTMLInputElement>('[data-testid="import-session-checkbox"]')]
       expect(workASessionCheckboxes[0].checked).toBe(true)
       expect(workASessionCheckboxes[1].checked).toBe(true)
-      await expect.element(page.getByTestId('import-count')).toHaveTextContent('2')
+      await expect.element(page.getByTestId('import-count')).toMatchTextContent('2')
 
       // ...while work-b, a different group, is untouched.
       const workBCheckbox = workBGroup.querySelector<HTMLInputElement>('[data-testid="import-session-checkbox"]')!
@@ -178,17 +183,17 @@ describe('the import dialog', () => {
     it('one checkbox selects every session listed', async () => {
       const { fake } = await renderApp({ imported: 'none' })
       await openImportDialog(fake)
-      await expect.element(page.getByTestId('import-count')).toHaveTextContent('0 selected')
+      await expect.element(page.getByTestId('import-count')).toMatchTextContent('0 selected')
 
       await userEvent.click(page.getByTestId('import-select-all'))
-      await expect.element(page.getByTestId('import-count')).toHaveTextContent('4 selected')
+      await expect.element(page.getByTestId('import-count')).toMatchTextContent('4 selected')
       const boxes = page.getByTestId('import-session-checkbox').all()
       await expect.element(boxes[0]).toBeChecked()
       await expect.element(boxes[3]).toBeChecked()
 
       // Unticking it puts everything back, rather than leaving a half-selected mess behind.
       await userEvent.click(page.getByTestId('import-select-all'))
-      await expect.element(page.getByTestId('import-count')).toHaveTextContent('0 selected')
+      await expect.element(page.getByTestId('import-count')).toMatchTextContent('0 selected')
     })
 
     it('select-all follows the search, so it never quietly picks rows you filtered out', async () => {
@@ -198,7 +203,7 @@ describe('the import dialog', () => {
       await until(() => page.getByTestId('import-session-checkbox').elements().length === 1)
 
       await userEvent.click(page.getByTestId('import-select-all'))
-      await expect.element(page.getByTestId('import-count')).toHaveTextContent('1 selected')
+      await expect.element(page.getByTestId('import-count')).toMatchTextContent('1 selected')
     })
 
     it('hovering a session shows its full name and how old it is', async () => {

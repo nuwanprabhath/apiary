@@ -5,13 +5,13 @@ import { launchApiary, importAll, sidebarSession, type Harness } from './helpers
 /**
  * The merge-request button, end to end.
  *
- * `glab` is a fixture script (scripts/fixtures/fake-glab.sh) rather than a stub inside the app, so
+ * `glab` is a fixture script (tests/fixtures/bin/fake-glab.sh) rather than a stub inside the app, so
  * the spawn, the argument list and the JSON parsing all stay in the test's path — which is where
  * the mistakes in this plugin would be. What is *not* covered is a real GitLab: that needs a login
  * and a project, and is the part to try by hand.
  */
 
-const FAKE_GLAB = join(process.cwd(), 'scripts/fixtures/fake-glab.sh')
+const FAKE_GLAB = join(process.cwd(), 'tests/fixtures/bin/fake-glab.sh')
 
 let h: Harness
 

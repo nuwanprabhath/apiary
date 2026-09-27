@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, until } from './helpers'
 import type { FakeApiary, FakeOptions } from './fakeApiary'
-import type { GitRefEntry } from '@shared/types'
+import type { GitRefEntry, GitRefs, GitStatus } from '@shared/types'
 
 /** A ref entry with the same shape `fakeApiary.ts`'s own fixture refs use. */
 function ref(name: string): GitRefEntry {
@@ -32,7 +32,7 @@ describe('the git toolbar', () => {
     await userEvent.click(page.getByTestId('branch-switcher-branch-row').getByText('feature/from-switcher', { exact: true }))
 
     await expect.element(page.getByTestId('branch-switcher')).not.toBeInTheDocument()
-    await expect.element(page.getByTestId('toolbar-branch-button')).toHaveTextContent('feature/from-switcher')
+    await expect.element(page.getByTestId('toolbar-branch-button')).toMatchTextContent('feature/from-switcher')
   })
 
   it('a branch row copies its name on hover, without checking it out', async () => {
@@ -54,7 +54,7 @@ describe('the git toolbar', () => {
     expect(fake.callsTo('copyToClipboard')).toContainEqual(['feature/copy-me'])
     // Copying is not picking: the switcher stays open and the branch is unchanged.
     await expect.element(page.getByTestId('branch-switcher')).toBeVisible()
-    await expect.element(page.getByTestId('toolbar-branch-button')).toHaveTextContent('main')
+    await expect.element(page.getByTestId('toolbar-branch-button')).toMatchTextContent('main')
   })
 
   it('Enter checks out an exact branch name; a partial one does nothing', async () => {
@@ -71,7 +71,7 @@ describe('the git toolbar', () => {
     await userEvent.keyboard('{Enter}')
 
     await expect.element(page.getByTestId('branch-switcher')).not.toBeInTheDocument()
-    await expect.element(page.getByTestId('toolbar-branch-button')).toHaveTextContent('feature/exact-enter')
+    await expect.element(page.getByTestId('toolbar-branch-button')).toMatchTextContent('feature/exact-enter')
 
     await userEvent.click(page.getByTestId('toolbar-branch-button'))
     await userEvent.fill(page.getByTestId('branch-switcher-search'), 'feature/exact')
@@ -110,7 +110,7 @@ describe('the git toolbar', () => {
 
     resolveCheckout!()
     await expect.element(page.getByTestId('branch-switcher')).not.toBeInTheDocument()
-    await expect.element(page.getByTestId('toolbar-branch-button')).toHaveTextContent('feature/slow-checkout')
+    await expect.element(page.getByTestId('toolbar-branch-button')).toMatchTextContent('feature/slow-checkout')
     expect(calls).toBe(1)
   })
 
@@ -122,7 +122,7 @@ describe('the git toolbar', () => {
     await userEvent.click(page.getByTestId('branch-switcher-confirm'))
 
     await expect.element(page.getByTestId('branch-switcher')).not.toBeInTheDocument()
-    await expect.element(page.getByTestId('toolbar-branch-button')).toHaveTextContent('feature/created-in-test')
+    await expect.element(page.getByTestId('toolbar-branch-button')).toMatchTextContent('feature/created-in-test')
   })
 
   it('creates a new branch from a picked base ref', async () => {
@@ -136,7 +136,7 @@ describe('the git toolbar', () => {
     await userEvent.fill(page.getByTestId('branch-switcher-name-input'), 'feature/from-base')
     await userEvent.click(page.getByTestId('branch-switcher-confirm'))
 
-    await expect.element(page.getByTestId('toolbar-branch-button')).toHaveTextContent('feature/from-base')
+    await expect.element(page.getByTestId('toolbar-branch-button')).toMatchTextContent('feature/from-base')
   })
 
   it('checks out a tag detached', async () => {
@@ -152,7 +152,7 @@ describe('the git toolbar', () => {
     // branch switcher, the only way back to a named branch.
     const branchButton = page.getByTestId('toolbar-branch-button')
     await expect.element(branchButton).toBeVisible()
-    await expect.element(branchButton).toHaveTextContent(/detached/i)
+    await expect.element(branchButton).toMatchTextContent(/detached/i)
 
     await userEvent.click(branchButton)
     await expect.element(page.getByTestId('branch-switcher')).toBeVisible()
@@ -179,7 +179,32 @@ describe('the git toolbar', () => {
 
     await expect.element(page.getByTestId('branch-switcher')).toBeVisible()
     await expect.element(page.getByTestId('branch-switcher-error')).toBeVisible()
-    await expect.element(page.getByTestId('branch-switcher-error')).toHaveTextContent(/already exists/i)
+    await expect.element(page.getByTestId('branch-switcher-error')).toMatchTextContent(/already exists/i)
+  })
+
+  it('shows a plain error message, once, not the raw IPC wrapping twice (UI-16)', async () => {
+    const fake = await open({
+      refs: { current: 'main', local: [ref('main'), ref('feature/exact-enter')], remote: [], tags: [] },
+    })
+    fake.override('gitCheckoutBranch', async () => {
+      // The shape Electron's `ipcRenderer.invoke` actually rejects with — see errors.ts.
+      throw new Error("Error invoking remote method 'apiary:git-checkout-branch': Error: fatal: a lock file already exists")
+    })
+
+    await userEvent.click(page.getByTestId('toolbar-branch-button'))
+    await expect.element(page.getByTestId('branch-switcher-branch-row').getByText('feature/exact-enter', { exact: true })).toBeVisible()
+    await userEvent.fill(page.getByTestId('branch-switcher-search'), 'feature/exact-enter')
+    await userEvent.keyboard('{Enter}')
+
+    // The banner reads as a sentence, not Electron's plumbing...
+    await expect.element(page.getByTestId('branch-switcher-error')).toBeVisible()
+    await expect.element(page.getByTestId('branch-switcher-error')).toHaveTextContent('fatal: a lock file already exists')
+    await expect.element(page.getByTestId('branch-switcher-error')).not.toHaveTextContent('Error invoking remote method')
+    // ...and it is reported exactly once: no toast duplicating the same failure behind the modal
+    // (an unrelated notification, e.g. from a background dimension read, is not what this checks).
+    const toasts = [...document.querySelectorAll('[data-testid="notification-message"]')]
+      .map((el) => el.textContent ?? '')
+    expect(toasts.some((t) => t.includes('lock file'))).toBe(false)
   })
 
   it('a branch another worktree has offers to pull it there, or open a session there', async () => {
@@ -200,12 +225,12 @@ describe('the git toolbar', () => {
 
     const dialog = page.getByTestId('worktree-conflict-dialog')
     await expect.element(dialog).toBeVisible()
-    await expect.element(dialog).toHaveTextContent('feature/wt')
-    await expect.element(page.getByTestId('worktree-conflict-label')).toHaveTextContent('repo-c-wt')
+    await expect.element(dialog).toMatchTextContent('feature/wt')
+    await expect.element(page.getByTestId('worktree-conflict-label')).toMatchTextContent('repo-c-wt')
     // The branch switcher gets out of the way rather than showing this inside a branch list.
     await expect.element(page.getByTestId('branch-switcher')).not.toBeInTheDocument()
     // And nothing was checked out: the session's own branch is untouched.
-    await expect.element(page.getByTestId('toolbar-branch-button')).toHaveTextContent('main')
+    await expect.element(page.getByTestId('toolbar-branch-button')).toMatchTextContent('main')
   })
 
   it('opening a session in that worktree starts it in the worktree, not the repo root', async () => {
@@ -224,5 +249,94 @@ describe('the git toolbar', () => {
     await expect.element(page.getByTestId('worktree-conflict-dialog')).not.toBeInTheDocument()
     // A new tab, showing the worktree's own directory in the header.
     await until(() => page.getByTestId('session-path').elements().some((el) => el.textContent?.includes('repo-c-wt') === true))
+  })
+
+  it('a slow git status for a tab left behind does not overwrite the tab now in front (UI-14)', async () => {
+    const { fake } = await renderApp()
+    const responses = new Map<string, { status: GitStatus; resolve?: () => void }>([
+      ['33333333-3333-3333-3333-333333333333', { status: { branch: 'main', ahead: 0, behind: 0, hasUpstream: false } }],
+      ['44444444-4444-4444-4444-444444444444', { status: { branch: 'feature/wt', ahead: 0, behind: 0, hasUpstream: false } }],
+    ])
+    fake.override('gitStatus', (key) => new Promise<GitStatus>((resolve) => {
+      const entry = responses.get(key)
+      if (entry === undefined) { resolve({ branch: null, ahead: 0, behind: 0, hasUpstream: false }); return }
+      // "Repo root session"'s request is held open until the test resolves it by hand, standing in
+      // for a slow `git status`; "Worktree session"'s answers immediately, the way a fast repo
+      // would while the slow one is still in flight.
+      entry.resolve = () => resolve(entry.status)
+      if (key === '44444444-4444-4444-4444-444444444444') entry.resolve()
+    }))
+
+    // Opens "Repo root session" first — its gitStatus call is now parked, unresolved.
+    await userEvent.click(sidebarSession('Repo root session'))
+    await until(() => responses.get('33333333-3333-3333-3333-333333333333')?.resolve !== undefined)
+
+    // Switch to "Worktree session" before the first answer ever lands; its own (fast) answer
+    // resolves and the toolbar should show its branch.
+    await userEvent.click(sidebarSession('Worktree session'))
+    await expect.element(page.getByTestId('toolbar-branch-button')).toHaveTextContent('feature/wt')
+
+    // The stale answer for the tab left behind finally arrives. Without the fix, this overwrites
+    // the toolbar with "Repo root session"'s branch even though "Worktree session" is in front.
+    // Checked with a short timeout, well under the 5s status poll that would otherwise paper over
+    // a real failure by refetching and correcting it before the suite's default 5s matcher timeout.
+    responses.get('33333333-3333-3333-3333-333333333333')?.resolve?.()
+    // A fixed wait, not a polling assertion: `expect.element`/`until` would trivially pass on
+    // their first (immediate) check, before the stale response has even had a chance to land.
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(page.getByTestId('toolbar-branch-button').element().textContent).toContain('feature/wt')
+  })
+
+  it('re-lists refs for the tab now active if it changes under an open branch switcher (UI-15 item 3)', async () => {
+    const { fake } = await renderApp()
+    const refsByKey = new Map<string, GitRefs>([
+      ['33333333-3333-3333-3333-333333333333', { current: 'main', local: [ref('main')], remote: [], tags: [] }],
+      ['44444444-4444-4444-4444-444444444444', { current: 'feature/wt', local: [ref('feature/wt')], remote: [], tags: [] }],
+    ])
+    fake.override('gitListRefs', async (key) => refsByKey.get(key) ?? { current: null, local: [], remote: [], tags: [] })
+
+    // Both tabs opened up front, the way another window's Active row would find one already open —
+    // `onSelectTab` (below) only re-focuses a tab that exists here, it does not open one.
+    await userEvent.click(sidebarSession('Repo root session'))
+    await userEvent.click(sidebarSession('Worktree session'))
+    await userEvent.click(page.getByTestId('session-tab-label').elements()[0])
+    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Repo root session')
+
+    await userEvent.click(page.getByTestId('toolbar-branch-button'))
+    await expect.element(page.getByTestId('branch-switcher')).toBeVisible()
+    await expect.element(page.getByTestId('branch-switcher-branch-row').getByText('main', { exact: true })).toBeVisible()
+
+    // Another window raises this one's tab for "Worktree session" while the switcher stays open —
+    // it must not go on showing "Repo root session"'s branches under the new toolbar.
+    fake.emit('selectTab', '44444444-4444-4444-4444-444444444444')
+    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Worktree session')
+    await expect.element(page.getByTestId('branch-switcher-branch-row').getByText('feature/wt', { exact: true })).toBeVisible()
+    expect(page.getByTestId('branch-switcher-branch-row').getByText('main', { exact: true }).elements()).toHaveLength(0)
+  })
+
+  it('UI-26: ArrowDown from the search field moves focus into the row list, and it traps Tab', async () => {
+    await open({
+      refs: { current: 'main', local: [ref('main'), ref('feature/one')], remote: [], tags: [] },
+    })
+    await userEvent.click(page.getByTestId('toolbar-branch-button'))
+    const search = page.getByTestId('branch-switcher-search')
+    await expect.element(search).toBeVisible()
+    // Modal's own initial-focus effect (UI-25) already put focus here.
+    expect(document.activeElement).toBe(search.element())
+
+    await expect.element(page.getByTestId('branch-switcher-create')).toBeVisible()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(page.getByTestId('branch-switcher-create').element())
+    await userEvent.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(page.getByTestId('branch-switcher-create-from').element())
+    await userEvent.keyboard('{ArrowUp}')
+    expect(document.activeElement).toBe(page.getByTestId('branch-switcher-create').element())
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByTestId('branch-switcher')).not.toBeInTheDocument()
+    // Focus returns to the button that opened it — deferred a frame (see Modal.tsx), so polled
+    // rather than asserted the instant the dialog leaves the document.
+    const button = page.getByTestId('toolbar-branch-button').element()
+    await until(() => document.activeElement === button)
   })
 })

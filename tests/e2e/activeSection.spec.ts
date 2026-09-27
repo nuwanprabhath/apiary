@@ -1,22 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { writeFileSync, chmodSync } from 'node:fs'
-import { join } from 'node:path'
 import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
-
-/** Same stand-in newSession.spec.ts uses: a script that just execs the login shell, so a new
- *  session's terminal is something a test can actually converse with and kill. */
-async function useFakeClaudeShell(h: Harness): Promise<void> {
-  const script = join(h.home, 'fake-claude.sh')
-  writeFileSync(script, '#!/bin/sh\nexec "$SHELL" -l\n')
-  chmodSync(script, 0o755)
-  await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
-  })
-  await h.page.getByTestId('settings-nav-general').click()
-  await h.page.getByTestId('claude-bin-input').fill(script)
-  await h.page.getByTestId('settings-save').click()
-  await expect(h.page.getByTestId('settings-dialog')).toHaveCount(0)
-}
 
 let h: Harness
 
@@ -73,7 +56,8 @@ test('an Active row for a tab open in another window keeps its title even when t
 })
 
 test('status dot reflects a stopped pty', async () => {
-  await useFakeClaudeShell(h)
+  // The default `claudeBin` stand-in (see `launchApiary`) execs the login shell, so this session's
+  // terminal is something the test can actually converse with and kill.
   await h.page.getByTestId('session-item').first().click()
   await expect(h.page.getByTestId('composer')).toBeVisible()
   await h.page.getByTestId('composer-input').fill('echo hi')

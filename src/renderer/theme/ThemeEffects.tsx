@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { type JSX, useEffect, useRef } from 'react'
 import type { EffectSpec } from '@shared/theme/spec'
 import { EFFECTS } from '@shared/theme/effects'
 import { parseColor, saturate, toHex8 } from '@shared/theme/color'

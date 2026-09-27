@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { forkLabel } from '../../src/shared/forkLabel'
+import { forkLabel } from '@shared/forkLabel'
 
 describe('forkLabel', () => {
   it('prefixes the original title', () => {

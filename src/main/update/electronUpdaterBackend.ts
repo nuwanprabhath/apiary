@@ -1,8 +1,11 @@
-import { createWriteStream } from 'node:fs'
-import { mkdir, rm, stat } from 'node:fs/promises'
+import { createReadStream, createWriteStream, constants as fsConstants } from 'node:fs'
+import { mkdir, mkdtemp, rm, rename, copyFile, stat } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { pipeline } from 'node:stream/promises'
 import { log } from '../log/logger'
-import { join } from 'node:path'
+import { join, basename } from 'node:path'
 import { get } from 'node:https'
 import type { IncomingMessage } from 'node:http'
 import { app, shell } from 'electron'
@@ -59,6 +62,32 @@ async function fetchStream(url: string, redirectsLeft = 5): Promise<IncomingMess
  */
 export const OPEN_TIMEOUT_MS = 10_000
 
+const execFileAsync = promisify(execFile)
+
+/**
+ * Sets `com.apple.quarantine` on a verified download so Gatekeeper still evaluates it when the
+ * user opens it (SEC-5, partial). `createWriteStream` does not set this flag itself, so the
+ * assisted download bypassed the same check a browser download gets — the file was verified
+ * against a hash served by the same release as the installer, with nothing beyond that. Signing
+ * the update metadata with an offline key (the rest of SEC-5) is not done here: it needs a key
+ * pair generated and kept off CI, which is release infrastructure this change does not set up.
+ * Best-effort and macOS-only: a failure here must not stop the user getting a verified installer,
+ * only the extra OS-level nudge to double check it.
+ */
+type ExecFileFn = (file: string, args: readonly string[]) => Promise<{ stdout: string; stderr: string }>
+
+export async function setQuarantine(path: string, run: ExecFileFn = execFileAsync): Promise<void> {
+  const hexTime = Math.floor(Date.now() / 1000).toString(16)
+  await run('xattr', ['-w', 'com.apple.quarantine', `0081;${hexTime};Apiary;`, path])
+}
+
+/** sha512, base64 — the same encoding `file.sha512` in the feed uses — of a file already on disk. */
+async function hashFile(path: string): Promise<string> {
+  const hash = createHash('sha512')
+  await pipeline(createReadStream(path), hash)
+  return hash.digest('base64')
+}
+
 export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
   autoUpdater.autoDownload = false
   // Never install behind the user's back on quit: with `assisted` platforms in the mix, "you
@@ -68,6 +97,13 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
 
   /** The metadata from the last successful check, needed to download the right asset. */
   let latest: UpdateInfo | null = null
+  /**
+   * The sha512 a downloaded file was verified against, keyed by its final path. Consulted again in
+   * `openInstaller` right before `shell.openPath` (SEC-7): the earlier check only covers the
+   * moment of download, and the feed controls a path on disk that then sits there, unwatched, until
+   * the user clicks Open.
+   */
+  const verifiedSha512ByPath = new Map<string, string>()
 
   return {
     async check({ allowPrerelease }): Promise<FeedResult | null> {
@@ -109,43 +145,78 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
 
       const dir = opts.downloadDir ?? app.getPath('downloads')
       await mkdir(dir, { recursive: true })
-      const name = decodeURIComponent(file.url.split('/').pop() ?? `Apiary-${latest.version}`)
+      // `basename` rather than trusting the decoded string directly (SEC-7): the feed's `url` is
+      // remote data, and a name of `..%2F..%2FLibrary%2Fx.dmg` would otherwise escape `dir`
+      // entirely. A name that needed stripping down to get here is refused outright rather than
+      // silently corrected — the feed described a path, not a filename, and downloading it
+      // anywhere is the wrong response to that.
+      const decoded = decodeURIComponent(file.url.split('/').pop() ?? `Apiary-${latest.version}`)
+      const name = basename(decoded)
+      if (name === '' || name !== decoded || name.startsWith('.')) {
+        throw new Error('The release metadata named an installer file that is not a plain filename')
+      }
       const target = join(dir, name)
 
-      // A previous attempt's leftovers would otherwise be appended to, producing a file that fails
-      // its checksum for a reason nobody would guess from the message.
-      await rm(target, { force: true })
+      // Downloaded into a private temporary directory first, and only moved into `dir` once
+      // verified (SEC-7): the file that is opened later should be provably the file that was
+      // hashed, not a target path that anything else on the machine could have raced to fill or
+      // replace between the write and the check. `wx` refuses to follow a symlink or overwrite an
+      // existing entry left at the temp path by anything else.
+      const tmpDir = await mkdtemp(join(app.getPath('temp'), 'apiary-update-'))
+      const tmpTarget = join(tmpDir, name)
+      try {
+        const url = `https://github.com/${opts.repo}/releases/download/v${latest.version}/${file.url}`
+        const response = await fetchStream(url)
+        const total = file.size ?? Number(response.headers['content-length'] ?? 0)
+        const hash = createHash('sha512')
+        let received = 0
 
-      const url = `https://github.com/${opts.repo}/releases/download/v${latest.version}/${file.url}`
-      const response = await fetchStream(url)
-      const total = file.size ?? Number(response.headers['content-length'] ?? 0)
-      const hash = createHash('sha512')
-      let received = 0
-
-      await new Promise<void>((resolve, reject) => {
-        const out = createWriteStream(target)
-        response.on('data', (chunk: Buffer) => {
-          hash.update(chunk)
-          received += chunk.length
-          if (total > 0) onProgress((received / total) * 100)
+        await new Promise<void>((resolve, reject) => {
+          const out = createWriteStream(tmpTarget, { flags: 'wx', mode: 0o600 })
+          response.on('data', (chunk: Buffer) => {
+            hash.update(chunk)
+            received += chunk.length
+            if (total > 0) onProgress((received / total) * 100)
+          })
+          response.on('error', reject)
+          out.on('error', reject)
+          out.on('finish', resolve)
+          response.pipe(out)
         })
-        response.on('error', reject)
-        out.on('error', reject)
-        out.on('finish', resolve)
-        response.pipe(out)
-      })
 
-      const digest = hash.digest('base64')
-      if (digest !== file.sha512) {
-        // A mismatch means the bytes on disk are not the release. Delete them: a half-trusted
-        // installer sitting in the downloads folder is worse than no installer at all.
+        const digest = hash.digest('base64')
+        if (digest !== file.sha512) {
+          throw new Error('The downloaded file did not match the checksum in the release, so it was discarded')
+        }
+        // Nothing else should be able to produce a zero-length "verified" file, but the cost of
+        // being sure is one stat.
+        if ((await stat(tmpTarget)).size === 0) throw new Error('The download was empty')
+
+        // A previous attempt's leftovers would otherwise be appended to or block the rename,
+        // failing for a reason nobody would guess from the message.
         await rm(target, { force: true })
-        throw new Error('The downloaded file did not match the checksum in the release, so it was discarded')
+        try {
+          await rename(tmpTarget, target)
+        } catch (e) {
+          // EXDEV: the temp directory and Downloads are on different filesystems, so a rename
+          // cannot work. `COPYFILE_EXCL` keeps the same "never overwrite" guarantee a plain
+          // rename would have given, now that `target` has just been cleared of its own leftovers.
+          if ((e as NodeJS.ErrnoException).code !== 'EXDEV') throw e
+          await copyFile(tmpTarget, target, fsConstants.COPYFILE_EXCL)
+        }
+      } finally {
+        // The temp copy is either moved (rename) or copied-then-orphaned (copyFile), so this
+        // always has something to clean up on the success path too, on top of any failed attempt.
+        await rm(tmpDir, { recursive: true, force: true })
       }
-      // Nothing else should be able to produce a zero-length "verified" file, but the cost of
-      // being sure is one stat.
-      if ((await stat(target)).size === 0) throw new Error('The download was empty')
 
+      if (opts.platform === 'darwin') {
+        await setQuarantine(target).catch((e: unknown) => {
+          log.warn('update', 'could not set quarantine on downloaded installer', { path: target, error: String(e) })
+        })
+      }
+
+      verifiedSha512ByPath.set(target, file.sha512)
       return target
     },
 
@@ -183,6 +254,24 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
       if (action === 'reveal') {
         log.info('update', 'revealing installer', { path, action })
         return reveal()
+      }
+
+      // Re-checked right before the file is opened, not just at the moment it finished downloading
+      // (SEC-7): the verified file sits in Downloads, unwatched, for however long the user takes
+      // to click Open, and the only integrity check so far covered the moment of download, not the
+      // moment of use. Only applies to a path this same backend instance verified — an unknown
+      // path (nothing recorded for it, for instance a fresh process) is opened as before rather
+      // than refused for a check that was never possible to make.
+      const expected = verifiedSha512ByPath.get(path)
+      if (expected !== undefined) {
+        const current = await hashFile(path).catch((e: unknown) => {
+          log.warn('update', 'could not re-hash installer before opening', { path, error: String(e) })
+          return null
+        })
+        if (current !== expected) {
+          log.warn('update', 'installer changed since it was verified, refusing to open it', { path })
+          return { ok: 'failed', reason: 'The downloaded file changed since it was verified, so it was not opened.' }
+        }
       }
 
       // Every branch below is logged, because this is the call that produced a bug nobody could

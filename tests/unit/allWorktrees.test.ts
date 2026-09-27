@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { ProjectNode } from '@shared/types'
-import { withAllWorktrees } from '../../src/renderer/state/allWorktrees'
+import { withAllWorktrees } from '../../src/renderer/features/sidebar/model/allWorktrees'
 
 function folder(path: string, over: Partial<ProjectNode> = {}): ProjectNode {
   return {

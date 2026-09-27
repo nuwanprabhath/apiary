@@ -4,6 +4,148 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.26.0] - 2026-09-28
+
+Everything below comes out of the 2026-09-26 codebase review (115 findings; see
+`docs/reviews/2026-09-26-codebase-review.md` §7 for the finding-by-finding reply).
+
+### Security
+
+- **Upgraded Electron from 38 to 44** (three majors past end of support), along with every other
+  dependency `npm audit` (run with dev dependencies included, not `--omit=dev`) flagged:
+  electron-builder, `@electron/rebuild`, `better-sqlite3`, `node-pty`, Vitest and its browser-mode
+  packages, Vite, electron-vite and Playwright. `npm audit` now reports 0 vulnerabilities, down from
+  28, and is a required gate in both CI and the release workflow, ahead of build and test.
+- Replaced the npm `shellcheck` package (an unfixed zip-slip vulnerability in its `decompress`
+  dependency) with a script that runs a system-installed `shellcheck`.
+- A transcript can no longer inject forms, `<style>` or a same-window navigation: markdown is
+  sanitised to a strict allowlist, and a same-app navigation must match the current page exactly.
+- Pasted text can no longer end early and run as keystrokes, in both the composer and terminals.
+- `APIARY_*` test-only environment hooks and `ELECTRON_RENDERER_URL` are now ignored in a packaged
+  build.
+- A verified update download is quarantined on macOS (so Gatekeeper still evaluates it), confined to
+  a private temporary directory until verified, and re-hashed again immediately before it is opened.
+- Electron fuses (disabling `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS`, `--inspect`; enabling asar-only
+  loading, asar integrity validation and cookie encryption) are set on packaged builds; every GitHub
+  Action used in CI and release is pinned to a commit SHA.
+- The release workflow is restructured into verify → build → publish stages, so a failing platform
+  can no longer ship a partial release, and the `contents: write` token is only ever handed to a
+  publish step that runs no third-party code or install scripts.
+- Several IPC handlers now reject or clamp out-of-range/spoofed input instead of trusting it (a
+  transcript-paging cursor, a terminal resize, a window-layout report, an import path), and every
+  `ptyWrite`/`ptyResize`/`ptyKill`/`reportTabs`/`logWrite`/`renameTerminalInClaude` message is now
+  checked against the app's own renderer origin.
+- Git ref names from remotes or typed input can no longer be parsed as command-line flags or fall
+  back to a pathspec checkout that discards local edits.
+- Only the clipboard permission is granted, and only to the app's own page; every other permission
+  request (camera, microphone, screen capture, HID/serial/USB) is refused.
+- The diagnostic log now redacts credentials embedded in URLs and AWS/Slack/npm tokens/PEM private
+  keys, closing a gap where a log field could previously overwrite the redacted message.
+
+### Added
+
+- An `e2e-smoke` CI job runs the smoke test suite on Linux under xvfb; Dependabot now tracks npm and
+  GitHub Actions updates; a failed end-to-end test now saves a trace, screenshot and retries once on
+  CI.
+- Test coverage reporting (`npm run test:coverage`, `test:component:coverage`), no thresholds yet.
+- `CONTRIBUTING.md`, `LICENSE` and `.nvmrc`; CLAUDE.md is restructured into a short root file plus
+  topic docs (`docs/architecture/`, `docs/{testing,debugging,environment,packaging}.md`, `docs/adr/`)
+  so the "why" for a subsystem lives next to its code.
+- A CI check (`scripts/check-doc-refs.mjs`, run as part of `npm run lint`) that fails the build if a
+  path documented in CLAUDE.md or the architecture docs stops existing.
+
+### Changed
+
+- **Performance:** a file-watcher event now re-reads only the transcripts that changed, instead of
+  the whole session library on every tick; git status/branch/worktree lookups use fewer subprocess
+  spawns (e.g. status: up to 4 → 2 per check); re-indexing a growing transcript for search is now
+  incremental (measured ~12x faster: 25ms full scan vs. 2ms for one appended message on a ~20MB
+  transcript); terminal output is coalesced per tick before being sent to windows instead of one IPC
+  message per chunk; and merge-request status lookups and pty data/exit subscriptions are shared
+  across mounted components instead of opened once per instance.
+- **Accessibility:** every dialog (delete/conflict/move/worktree-conflict confirmations, plus the
+  note, import, settings and branch-switcher dialogs) now traps Tab, closes on Escape, is named for
+  screen readers, and restores focus to whatever opened it. Context and git menus are fully
+  keyboard-operable; a session's hover card is reachable by Tab and no longer claims a
+  non-interactive tooltip role it can't live up to. The session tab strip is a proper WAI-ARIA
+  tablist (arrow keys, Home/End, Delete-to-close) and the sidebar's folder/session list is a proper
+  ARIA tree (one keyboard stop for the whole tree instead of one per row) with full arrow-key
+  navigation, including moving a pinned session or folder up/down from its context menu. The sidebar
+  resizer, bottom-pane resizer and pane dividers are keyboard-operable. Every looping animation now
+  respects "reduce motion", and the "running" status dot gets a static ring so colour isn't the only
+  thing distinguishing it from "idle".
+- Git status for a folder that isn't a repository now resolves quietly instead of rejecting on every
+  five-second poll.
+- A theme's model, effect and font pickers can no longer drift from what the theme generator itself
+  accepts.
+- Packaged builds are smaller: renderer-only npm packages and native-module build-time artefacts are
+  excluded (measured on macOS arm64: the `.app` is ~7% smaller, the app bundle's `asar` is 5.2M, down
+  from 15M).
+- Native module rebuild steps were dropped from every npm script — `better-sqlite3` and `node-pty`
+  now ship prebuilt binaries that work under both Node and Electron with no rebuild step, closing the
+  long-standing native-ABI trap.
+- Changed: internal restructuring — the IPC contract (channel names, argument shapes, result types)
+  now lives in one typed, declarative source (`src/shared/ipc/contract.ts`) instead of being
+  hand-written three times; `AppService` and `src/main/ipc.ts` (a combined ~2,000 lines) are split
+  into small, independently-tested modules under `src/main/{sessions,git,terminals,search,windows,
+  ipc}/`; `src/main` and `src/renderer` were reorganised into feature folders; and the test suite was
+  split into parallel `unit`/serial `integration` Vitest projects with a native-import purity check.
+  None of this changes app behaviour.
+
+### Fixed
+
+- The composer no longer carries a draft, attachment or model choice from one session tab into
+  another.
+- Pressing Escape while naming a theme no longer closes the whole Settings dialog.
+- The git toolbar and a session's plugin buttons (e.g. its merge-request status) no longer briefly
+  show a tab you've switched away from if its own request was slower than the one for the tab now in
+  front.
+- Resting the pointer on a tab's arrange or split button to preview layouts no longer steals keyboard
+  focus away from what you were typing in.
+- A failed git operation's error banner now headlines the actual conflict/failure line instead of
+  git's own progress chatter (e.g. "Auto-merging README.md").
+- A theme change while Settings was open no longer applies twice.
+- Settings no longer opens a second, duplicate subscription to the updater, so an update push while
+  Settings was open is handled once, not twice.
+- Clicking "Rebuild index" while a background indexing pass was already running could leave a
+  silently incomplete index; it now always finishes with a fully rebuilt one.
+- A rescan triggered from the menu or the periodic auto-import timer now updates every open window's
+  sidebar, not only the front one.
+- `settings.json` and the window-layout file are now written atomically, so a crash or power loss
+  mid-write can no longer corrupt them and silently reset settings or layout to defaults.
+- A launch failure (a locked/corrupt database, an unwritable data directory) now shows an error
+  dialog and logs it, instead of silently opening no window at all.
+- An unobserved promise rejection or uncaught exception in the main process is now logged instead of
+  vanishing without a trace.
+- Opening a session's folder in VS Code no longer crashes the app if the VS Code binary has been
+  removed or made unexecutable.
+- Quitting now reliably cancels an in-progress theme generation, stops the updater and the session
+  tracker, and closes the background search worker — previously all four could keep running (in the
+  theme generator's case, spending real tokens) after the app had exited.
+- A session's terminal screen buffer is now released when its process exits on its own, not only
+  when explicitly closed.
+- Switching branches, pulling or fetching no longer waits for (or triggers) a full library rescan
+  just to update the sidebar.
+- Dragging the sidebar or bottom-pane resizer and relaunching immediately no longer reverts to the
+  pre-drag size.
+- A session that resolved after a manual sidebar refresh no longer gets stuck as a pending "New
+  session" tab.
+- A failed branch checkout, create or merge now shows a plain message instead of Electron's raw
+  internal error text, and is reported once instead of twice.
+- The branch switcher now re-lists branches when you switch tabs while it's open.
+- A render error inside the sidebar or a dialog no longer blanks the whole window — just that part
+  re-renders as a crash notice.
+- Opening Settings or the Import dialog now reports a failed initial read instead of showing an
+  empty list or "Loading…" forever.
+- A rare case where checking out a branch by pressing Enter in the branch switcher's search field
+  could reopen the dialog it had just closed.
+- A sidebar row's accessible name no longer drifts on its own as a note's age ticks over.
+
+### Removed
+
+- An unused internal terminal-output replay buffer that cost a copy of up to 256KB on every pty
+  output chunk in production, with no code path that ever read it back.
+
 ## [1.25.0] - 2026-09-26
 
 ### Added

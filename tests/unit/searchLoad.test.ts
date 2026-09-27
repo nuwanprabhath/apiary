@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { filterTreeLocal, SEARCH_RESULT_CAP } from '../../src/shared/treeFilter'
-import { rankSessions } from '../../src/shared/sessionRank'
-import type { ProjectNode, SessionNode } from '../../src/shared/types'
+import { filterTreeLocal, SEARCH_RESULT_CAP } from '@shared/treeFilter'
+import { rankSessions } from '@shared/sessionRank'
+import type { ProjectNode, SessionNode } from '@shared/types'
 
 /**
  * 5,000 sessions across 200 synthetic projects — the shape the spec's load test asks for. Built

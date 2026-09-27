@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { validateTheme, describeReport } from '../../src/shared/theme/validate'
-import { contrastRatio, parseColor } from '../../src/shared/theme/color'
+import { validateTheme, describeReport } from '@shared/theme/validate'
+import { contrastRatio, parseColor } from '@shared/theme/color'
 
 /**
  * The validator is the theme feature's security boundary: whatever Claude replies, or whatever

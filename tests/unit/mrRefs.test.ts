@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseMrRefs } from '../../src/shared/mrRefs'
+import { parseMrRefs } from '@shared/mrRefs'
 
 describe('parseMrRefs', () => {
   it('finds a bare reference', () => {

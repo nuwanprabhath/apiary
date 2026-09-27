@@ -1,0 +1,320 @@
+/* The window's panes, laid out by the layout preset (layout.ts). Each preset names its zones z1–z4
+ * in fill order; the tracks come from the style attribute, which the dividers drag. It never
+ * scrolls itself: `overflow: hidden` pins the shell pane to the bottom of the window the way VS
+ * Code's panel is pinned, so opening a terminal can't push the layout down and start scrolling the
+ * whole app — everything that legitimately overflows scrolls inside its own box instead. */
+.content {
+  overflow: hidden;
+  min-height: 0;
+  display: grid;
+  position: relative;
+  /* Each pane pads itself by half a gap, so neighbouring cards end up one gap apart while the
+   * grid's track boundaries — where PaneDividers draws its handles — stay exactly in the middle of
+   * each gap. This margin takes back the half-gap at the outer edges. */
+  margin: calc(var(--panel-gap) / -2);
+}
+.content[data-preset="single"] { grid-template-areas: "z1"; }
+.content[data-preset="halves-h"] { grid-template-areas: "z1 z2"; }
+.content[data-preset="halves-v"] { grid-template-areas: "z1" "z2"; }
+.content[data-preset="thirds-h"] { grid-template-areas: "z1 z2 z3"; }
+.content[data-preset="main-right2"] { grid-template-areas: "z1 z2" "z1 z3"; }
+.content[data-preset="left2-main"] { grid-template-areas: "z1 z3" "z2 z3"; }
+.content[data-preset="top-bottom2"] { grid-template-areas: "z1 z1" "z2 z3"; }
+.content[data-preset="grid"] { grid-template-areas: "z1 z2" "z3 z4"; }
+
+/* One editor group. Columns share the width evenly and each owns its full vertical stack:
+ * tab strip, session, then that session's shell. */
+.session-column {
+  /* Anchors the swap target laid over it while a pane is dragged (.pane-drop). */
+  position: relative;
+  /* Never squeezed to a sliver, however the dividers were dragged or however many panes are
+   * open — below this a column shows nothing usable, and it is better for the window to overflow
+   * (it scrolls nowhere, but each column stays legible) than for one to collapse to a stripe.
+   * Matches PaneDividers' MIN_PANE_WIDTH/MIN_PANE_HEIGHT, which stop a drag from asking for less. */
+  min-width: 220px;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: calc(var(--panel-gap) / 2);
+}
+/* Dragging a pane by its tab bar (see SessionTabBar): every other pane is a target to swap with. */
+.pane-drop {
+  position: absolute;
+  inset: calc(var(--panel-gap) / 2);
+  z-index: var(--z-pane-drop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-panel);
+  border: 1px dashed var(--border);
+  background: color-mix(in sRGB, var(--bg) 35%, transparent);
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.pane-drop[data-over="true"] {
+  border: 1px solid var(--accent);
+  background: color-mix(in sRGB, var(--accent) 14%, transparent);
+}
+.pane-drop-label {
+  pointer-events: none;
+  padding: 4px 10px;
+  border-radius: var(--radius-control);
+  background: var(--bg-popover, var(--bg));
+  color: var(--muted);
+  box-shadow: 0 0 0 1px var(--border);
+}
+.pane-drop[data-over="true"] .pane-drop-label { color: var(--text); }
+/* The empty part of a strip that can move its pane says so. */
+.session-tab-strip[draggable="true"] { cursor: grab; }
+.session-tab-strip[draggable="true"] .session-tab { cursor: default; }
+
+.session-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--panel-shadow);
+  overflow: hidden;
+}
+.shell-card {
+  background: var(--bg-panel);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--panel-shadow);
+}
+/* Collapsed, the shell card still floats a gap below the session; open, the resizer is the gap. */
+.session-card + .shell-card { margin-top: var(--panel-gap); }
+
+/* Divider handles, laid over the grid by PaneDividers. Centered on the boundary; wider on hover
+ * the way the sidebar's resizer is. */
+.pane-dividers { position: absolute; inset: 0; pointer-events: none; z-index: var(--z-pane-dividers); }
+.column-resizer, .row-resizer {
+  position: absolute;
+  pointer-events: auto;
+  background: transparent;
+}
+.column-resizer { width: max(var(--panel-gap), 6px); transform: translateX(-50%); cursor: col-resize; }
+.row-resizer { height: max(var(--panel-gap), 6px); transform: translateY(-50%); cursor: row-resize; }
+
+/* The split action stays pinned to the right while the tabs themselves scroll, so it can't be
+ * scrolled out of reach the way it would be as just another item in the scrolling strip. */
+.session-tab-bar {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  min-height: 34px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  padding: 0 0 0 5px;
+}
+.session-tab-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  /* Room for the active chip's hairline and shadow, which a scrolling strip would clip. */
+  padding: 0 3px;
+  flex: 1;
+  min-width: 0;
+  overflow: auto hidden;
+}
+/*
+ * A hairline scrollbar, overlaid on the bottom edge of the strip rather than given a track of its
+ * own: a full-height one across a 32px strip eats most of the tab, but a strip that scrolls with
+ * *no* indication at all is worse — it was the reason a tab sliced through by the edge read as a
+ * broken tab rather than a scrollable strip. No arrow buttons, for the same reason of height.
+ */
+.session-tab-strip::-webkit-scrollbar { height: 3px; }
+.session-tab-strip::-webkit-scrollbar-track { background: transparent; }
+.session-tab-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.session-tab-strip:hover::-webkit-scrollbar-thumb { background: var(--muted); }
+.session-tab-strip::-webkit-scrollbar-button { display: none; }
+
+.session-tab-split {
+  flex: none;
+  width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+.session-tab-split:hover, .session-tab-split:focus-visible { background: var(--selected); color: var(--text); }
+.session-tab-split svg { width: 15px; height: 15px; display: block; }
+
+
+.session-tab {
+  display: flex;
+  align-items: center;
+  /*
+   * Tabs shrink to share the strip rather than keeping their width and running off the end of it.
+   * They used to be `flex: none` in a strip that scrolled with no visible scrollbar, so once the
+   * tabs outgrew the strip the last one was sliced through — taking its close button with it, and
+   * leaving the right-click menu as the only way to close that tab. Shrinking keeps the close
+   * button of every tab on screen; the label ellipsizes instead, which is the part that can be
+   * read from what is left of it.
+   */
+  flex: 0 1 auto;
+  /* Enough for a few characters plus the close button. Below this the tab says nothing useful,
+   * so the strip scrolls after all — the case of a dozen tabs in a narrow column, where the
+   * active tab is kept scrolled into view and the scrollbar below makes the rest reachable. */
+  min-width: 64px;
+  max-width: 220px;
+  margin: 3px 0 4px;
+  background: transparent;
+  border-radius: var(--radius-control);
+  transition: background-color 0.12s, box-shadow 0.12s;
+}
+.session-tab:hover { background: var(--hover); }
+/*
+ * The active tab is a lifted chip — the content's own surface, a hairline edge and a soft shadow —
+ * rather than an accent-coloured bar along its top. The bar is the house style of a thousand
+ * generated dashboards and it shouted: the one saturated colour in the chrome, on the thing you
+ * are already looking at. A chip says "this one" by shape and depth, and leaves the accent for
+ * what needs doing (Resume, Send).
+ */
+.session-tab[data-active="true"] {
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--border), var(--shadow-chip);
+}
+/* Keyboard focus, and only keyboard focus: a quiet ring, not the OS accent around the whole tab
+ * on every click. */
+.session-tab-label:focus-visible { outline: none; }
+.session-tab:has(.session-tab-label:focus-visible) { box-shadow: 0 0 0 1px var(--muted); }
+.session-tab-label {
+  display: flex;
+  align-items: center;
+  /* Without this the label refuses to shrink below its text and pushes the close button out of
+   * the tab, which is the same clipping in a different place. */
+  gap: 6px;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  padding: 4px 4px 4px 10px;
+}
+.session-tab[data-active="true"] .session-tab-label { color: var(--text); }
+.session-tab-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.session-tab-close {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+/* Always visible, never hover-revealed. A close button that appears only on the tab you are
+   pointing at means closing a tab is a two-step hunt, and on the tabs it was hidden on the only
+   way to close one at all was the right-click menu — which is not where anyone looks first. */
+.session-tab:hover .session-tab-close,
+.session-tab[data-active="true"] .session-tab-close { color: var(--text); }
+.session-tab-close:hover { background: var(--hover); color: var(--text); }
+.session-tab-close svg { width: 12px; height: 12px; display: block; }
+
+/* The per-tab layout button: present on the tab under the pointer and on the active tab only, so
+ * a strip of many tabs does not become a strip of many icons. Same box as the close button. */
+.session-tab-layout {
+  flex: none;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+}
+.session-tab:hover .session-tab-layout,
+.session-tab[data-active="true"] .session-tab-layout,
+.session-tab-layout:focus-visible { display: flex; }
+.session-tab-layout:hover { background: var(--hover); color: var(--text); }
+.session-tab-layout svg { width: 12px; height: 12px; display: block; }
+
+.session-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.session-header h1 { font-size: 16px; margin: 0 0 4px; display: flex; align-items: center; gap: 6px; }
+.session-cwd { color: var(--muted); margin: 0; font-size: 12px; }
+
+.title-edit-button {
+  opacity: 0;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+.session-title-heading:hover .title-edit-button,
+.title-edit-button:focus-visible {
+  opacity: 1;
+}
+.title-edit-button:hover,
+.title-edit-button:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+.title-edit-button svg { width: 14px; height: 14px; display: block; }
+
+.title-edit-input {
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--field-bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  min-width: 240px;
+  outline: none;
+}
+
+.empty { color: var(--muted); padding: 16px; line-height: 1.6; }
+
+.transcript { flex: 1; overflow-y: auto; padding: 12px 16px; }
+
+.transcript-toolbar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding-bottom: 10px;
+  color: var(--muted);
+}
+
+.checkbox { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.muted { color: var(--muted); font-size: 12px; }
+
+.load-earlier {
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 6px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+}
+

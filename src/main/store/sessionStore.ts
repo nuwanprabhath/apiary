@@ -67,12 +67,52 @@ const toSession = (r: SessionRow): StoredSession => ({
 
 export class SessionStore {
   private db: Database.Database
+  // Prepared once, after `migrate()` has settled the schema, rather than by the `better-sqlite3`
+  // call re-preparing the same SQL text on every invocation (MAIN-2) — `getSession` in particular
+  // sits behind `requireSession`, which most IPC handlers call at least once.
+  private readonly stmtUpsertProject: Database.Statement
+  private readonly stmtUpsertSession: Database.Statement
+  private readonly stmtGetSession: Database.Statement
+  private readonly stmtGetProject: Database.Statement
 
   constructor(dbPath: string) {
     mkdirSync(dirname(dbPath), { recursive: true })
     this.db = new Database(dbPath)
     this.db.exec(SCHEMA)
     this.migrate()
+
+    this.stmtUpsertProject = this.db.prepare(`
+      INSERT INTO project (path, repo_root, is_worktree, branch, exists_flag)
+      VALUES (@path, @repoRoot, @isWorktree, @branch, @exists)
+      ON CONFLICT(path) DO UPDATE SET
+        repo_root = excluded.repo_root,
+        is_worktree = excluded.is_worktree,
+        branch = excluded.branch,
+        exists_flag = excluded.exists_flag
+    `)
+    this.stmtUpsertSession = this.db.prepare(`
+      INSERT INTO session (
+        session_id, project_path, title, first_prompt, cwd, git_branch,
+        started_at_ms, last_active_ms, message_count,
+        file_path, file_mtime_ms, file_size, imported
+      ) VALUES (
+        @sessionId, @projectPath, @title, @firstPrompt, @cwd, @gitBranch,
+        @startedAtMs, @lastActiveAtMs, @messageCount,
+        @filePath, @fileMtimeMs, @fileSize, @imported
+      )
+      ON CONFLICT(session_id) DO UPDATE SET
+        title = excluded.title,
+        first_prompt = excluded.first_prompt,
+        cwd = excluded.cwd,
+        git_branch = excluded.git_branch,
+        started_at_ms = excluded.started_at_ms,
+        last_active_ms = excluded.last_active_ms,
+        file_path = excluded.file_path,
+        file_mtime_ms = excluded.file_mtime_ms,
+        file_size = excluded.file_size
+    `)
+    this.stmtGetSession = this.db.prepare('SELECT * FROM session WHERE session_id = ?')
+    this.stmtGetProject = this.db.prepare('SELECT * FROM project WHERE path = ?')
   }
 
   /**
@@ -96,15 +136,7 @@ export class SessionStore {
   }
 
   syncProject(info: ProjectInfo): void {
-    this.db.prepare(`
-      INSERT INTO project (path, repo_root, is_worktree, branch, exists_flag)
-      VALUES (@path, @repoRoot, @isWorktree, @branch, @exists)
-      ON CONFLICT(path) DO UPDATE SET
-        repo_root = excluded.repo_root,
-        is_worktree = excluded.is_worktree,
-        branch = excluded.branch,
-        exists_flag = excluded.exists_flag
-    `).run({
+    this.stmtUpsertProject.run({
       path: info.path,
       repoRoot: info.repoRoot,
       isWorktree: info.isWorktree ? 1 : 0,
@@ -113,54 +145,73 @@ export class SessionStore {
     })
   }
 
-  /** Upserts metadata. Never clobbers `imported`; honours the project's auto-import flag for new rows. */
-  syncSessions(projectPath: string, metas: SessionMeta[]): void {
+  private upsertSessionRows(projectPath: string, metas: SessionMeta[]): void {
     const auto = this.db
       .prepare<[string], { auto_import: number }>('SELECT auto_import FROM project WHERE path = ?')
       .get(projectPath)?.auto_import ?? 0
+    for (const m of metas) {
+      this.stmtUpsertSession.run({
+        sessionId: m.sessionId,
+        projectPath,
+        title: m.title,
+        firstPrompt: m.firstPrompt,
+        cwd: m.cwd,
+        gitBranch: m.gitBranch,
+        startedAtMs: m.startedAtMs,
+        lastActiveAtMs: m.lastActiveAtMs,
+        messageCount: m.messageCount,
+        filePath: m.filePath,
+        fileMtimeMs: m.fileMtimeMs,
+        fileSize: m.fileSize,
+        imported: auto,
+      })
+    }
+  }
 
-    const stmt = this.db.prepare(`
-      INSERT INTO session (
-        session_id, project_path, title, first_prompt, cwd, git_branch,
-        started_at_ms, last_active_ms, message_count,
-        file_path, file_mtime_ms, file_size, imported
-      ) VALUES (
-        @sessionId, @projectPath, @title, @firstPrompt, @cwd, @gitBranch,
-        @startedAtMs, @lastActiveAtMs, @messageCount,
-        @filePath, @fileMtimeMs, @fileSize, @imported
-      )
-      ON CONFLICT(session_id) DO UPDATE SET
-        title = excluded.title,
-        first_prompt = excluded.first_prompt,
-        cwd = excluded.cwd,
-        git_branch = excluded.git_branch,
-        started_at_ms = excluded.started_at_ms,
-        last_active_ms = excluded.last_active_ms,
-        file_path = excluded.file_path,
-        file_mtime_ms = excluded.file_mtime_ms,
-        file_size = excluded.file_size
-    `)
+  /** Upserts metadata. Never clobbers `imported`; honours the project's auto-import flag for new rows. */
+  syncSessions(projectPath: string, metas: SessionMeta[]): void {
+    this.db.transaction(() => this.upsertSessionRows(projectPath, metas))()
+  }
 
-    const run = this.db.transaction((rows: SessionMeta[]) => {
-      for (const m of rows) {
-        stmt.run({
-          sessionId: m.sessionId,
-          projectPath,
-          title: m.title,
-          firstPrompt: m.firstPrompt,
-          cwd: m.cwd,
-          gitBranch: m.gitBranch,
-          startedAtMs: m.startedAtMs,
-          lastActiveAtMs: m.lastActiveAtMs,
-          messageCount: m.messageCount,
-          filePath: m.filePath,
-          fileMtimeMs: m.fileMtimeMs,
-          fileSize: m.fileSize,
-          imported: auto,
-        })
+  /**
+   * Syncs every project and its sessions from one refresh pass in a single commit (MAIN-2).
+   *
+   * `syncProject`/`syncSessions` each open their own transaction, so a full-library refresh with
+   * P projects cost 2P fsyncing commits on the main thread before this existed. One commit for the
+   * whole pass is both faster and more correct: a refresh that throws partway through (a stubbed
+   * failure in a test, or a real one) now leaves no partial set of project rows behind.
+   */
+  syncAll(entries: { info: ProjectInfo; metas: SessionMeta[] }[]): void {
+    this.db.transaction(() => {
+      for (const { info, metas } of entries) {
+        this.syncProject(info)
+        this.upsertSessionRows(info.path, metas)
       }
-    })
-    run(metas)
+    })()
+  }
+
+  /**
+   * Every known session's file size and mtime, keyed by its transcript path — what a scoped
+   * refresh pass (MAIN-1) checks a freshly-`stat`ed file against to decide whether it needs
+   * re-reading at all.
+   */
+  fileStamps(): Map<string, { size: number; mtimeMs: number }> {
+    const rows = this.db
+      .prepare<[], { file_path: string; file_size: number; file_mtime_ms: number }>(
+        'SELECT file_path, file_size, file_mtime_ms FROM session',
+      )
+      .all()
+    const out = new Map<string, { size: number; mtimeMs: number }>()
+    for (const r of rows) out.set(r.file_path, { size: r.file_size, mtimeMs: r.file_mtime_ms })
+    return out
+  }
+
+  /** Every distinct raw cwd recorded for a session — what a `full` refresh re-resolves. */
+  distinctCwds(): string[] {
+    return this.db
+      .prepare<[], { cwd: string }>('SELECT DISTINCT cwd FROM session WHERE cwd IS NOT NULL')
+      .all()
+      .map((r) => r.cwd)
   }
 
   allProjects(): StoredProject[] {
@@ -204,7 +255,7 @@ export class SessionStore {
    * already holds; an unknown path is rejected rather than spawned into.
    */
   getProject(path: string): StoredProject | null {
-    const row = this.db.prepare<[string], ProjectRow>('SELECT * FROM project WHERE path = ?').get(path)
+    const row = this.stmtGetProject.get(path) as ProjectRow | undefined
     return row ? toProject(row) : null
   }
 
@@ -220,9 +271,7 @@ export class SessionStore {
   }
 
   getSession(sessionId: string): StoredSession | null {
-    const row = this.db
-      .prepare<[string], SessionRow>('SELECT * FROM session WHERE session_id = ?')
-      .get(sessionId)
+    const row = this.stmtGetSession.get(sessionId) as SessionRow | undefined
     return row ? toSession(row) : null
   }
 

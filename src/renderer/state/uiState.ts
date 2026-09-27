@@ -1,5 +1,5 @@
-import type { SessionGroup } from './groups'
-import { isTabTransfer, isWindowLayoutReport, type TabTransfer, type WindowLayoutReport } from '@shared/types'
+import type { SessionGroup } from '../features/sidebar/model/groups'
+import { detachedKey } from './windowParams'
 
 export type { SessionGroup }
 
@@ -93,56 +93,8 @@ function stateKey(): string {
   }
 }
 
-/**
- * The tab this window was torn off to show, or null for an ordinary window.
- *
- * Read from the URL for the same reason the window number is: it decides the whole layout, and a
- * window that asked over IPC would paint the full sidebar first and rearrange itself a moment
- * later.
- */
-export function detachedKey(): string | null {
-  try {
-    const key = new URLSearchParams(window.location.search).get('detach')
-    return key === null || key === '' ? null : key
-  } catch {
-    return null
-  }
-}
-
-/**
- * Everything else about the tab this window was torn off to show — see TabTransfer. Null when the
- * window is an ordinary one, or when the URL carries something that is not a tab.
- */
-export function detachedTransfer(): TabTransfer | null {
-  try {
-    const raw = new URLSearchParams(window.location.search).get('transfer')
-    if (raw === null) return null
-    const parsed: unknown = JSON.parse(raw)
-    return isTabTransfer(parsed) ? parsed : null
-  } catch {
-    return null
-  }
-}
-
-/**
- * The previous run's record for this window, or null for an ordinary launch. Read from the URL
- * for the same reason `detachedTransfer` is: the layout it decides is needed at first render, and
- * main has already validated and stripped `bounds` (and `hasLayout`, a main-only pruning signal)
- * out of it before putting it here (see `createWindow` in main/index.ts). Detached windows never
- * carry `?restore=`, but a window with both would be a bug worth not acting on, so a detached
- * window is never treated as a restored one even if it somehow did.
- */
-export function restoredWindow(): WindowLayoutReport | null {
-  try {
-    if (detachedKey() !== null) return null
-    const raw = new URLSearchParams(window.location.search).get('restore')
-    if (raw === null) return null
-    const parsed: unknown = JSON.parse(raw)
-    return isWindowLayoutReport(parsed) ? parsed : null
-  } catch {
-    return null
-  }
-}
+// detachedKey, detachedTransfer and restoredWindow — all URL parsing rather than anything about
+// the `UiState` model itself — now live in ./windowParams (UI-18).
 
 const KEY = stateKey()
 /** Window 1's key, which is where the shared half lived before it had a key of its own. */

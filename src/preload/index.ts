@@ -1,125 +1,44 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { CHANNELS, type ApiaryApi, type ThemeState } from '@shared/api'
+import { IPC, type ApiaryApi, type ThemeState } from '@shared/api'
 
-function subscribe<A extends unknown[]>(
-  channel: string,
-  cb: (...args: A) => void,
-): () => void {
-  const listener = (_e: IpcRendererEvent, ...args: unknown[]): void => cb(...(args as A))
+function subscribe(channel: string, cb: (...args: unknown[]) => void): () => void {
+  const listener = (_e: IpcRendererEvent, ...args: unknown[]): void => cb(...args)
   ipcRenderer.on(channel, listener)
   return () => ipcRenderer.removeListener(channel, listener)
 }
 
-const api: ApiaryApi = {
-  refresh: () => ipcRenderer.invoke(CHANNELS.refresh),
-  tree: () => ipcRenderer.invoke(CHANNELS.tree),
-  searchContent: (query) => ipcRenderer.invoke(CHANNELS.searchContent, query),
-  discovered: () => ipcRenderer.invoke(CHANNELS.discovered),
-  importSessions: (ids, projects) => ipcRenderer.invoke(CHANNELS.importSessions, ids, projects),
-  transcript: (id, beforeIndex) => ipcRenderer.invoke(CHANNELS.transcript, id, beforeIndex),
-  checkConflict: (id) => ipcRenderer.invoke(CHANNELS.checkConflict, id),
-  resume: (id) => ipcRenderer.invoke(CHANNELS.resume, id),
-  reportLayout: (report) => ipcRenderer.invoke(CHANNELS.reportLayout, report),
-  reportTabs: (tabs) => ipcRenderer.send(CHANNELS.reportTabs, tabs),
-  activeTabs: () => ipcRenderer.invoke(CHANNELS.activeTabs),
-  onActiveTabsChanged: (cb) => subscribe(CHANNELS.activeTabsChanged, cb),
-  focusTab: (windowNumber, key) => ipcRenderer.invoke(CHANNELS.focusTab, windowNumber, key),
-  onSelectTab: (cb) => subscribe(CHANNELS.selectTab, cb),
-  renameSession: (id, title) => ipcRenderer.invoke(CHANNELS.renameSession, id, title),
-  // Synchronous on purpose, and once: the window's first paint should already be in its theme,
-  // and an async answer would arrive after React had painted the original look.
-  initialTheme: ipcRenderer.sendSync(CHANNELS.themeInitial) as ThemeState,
-  themeState: () => ipcRenderer.invoke(CHANNELS.themeState),
-  themeGpuCompositing: () => ipcRenderer.invoke(CHANNELS.themeGpuCompositing),
-  themeApply: (id) => ipcRenderer.invoke(CHANNELS.themeApply, id),
-  themeSave: (name, spec, prompt) => ipcRenderer.invoke(CHANNELS.themeSave, name, spec, prompt),
-  themeGenerate: (request, current) => ipcRenderer.invoke(CHANNELS.themeGenerate, request, current),
-  themeGenerateCancel: () => { ipcRenderer.send(CHANNELS.themeGenerateCancel) },
-  themeRename: (id, name) => ipcRenderer.invoke(CHANNELS.themeRename, id, name),
-  themeDelete: (id) => ipcRenderer.invoke(CHANNELS.themeDelete, id),
-  themeSetOptions: (options) => ipcRenderer.invoke(CHANNELS.themeSetOptions, options),
-  onThemeChanged: (cb) => subscribe(CHANNELS.themeChanged, cb),
-  renameTerminalInClaude: (ptyId, title) => { ipcRenderer.send(CHANNELS.renameTerminalInClaude, ptyId, title) },
-  removeSession: (id) => ipcRenderer.invoke(CHANNELS.removeSession, id),
-  moveSession: (id, path) => ipcRenderer.invoke(CHANNELS.moveSession, id, path),
-  openShell: (id, tabId) => ipcRenderer.invoke(CHANNELS.openShell, id, tabId),
-  openShellForPty: (id, tabId) => ipcRenderer.invoke(CHANNELS.openShellForPty, id, tabId),
-  newSessionInProject: (path) => ipcRenderer.invoke(CHANNELS.newSessionInProject, path),
-  forkSession: (id) => ipcRenderer.invoke(CHANNELS.forkSession, id),
-  logStatus: () => ipcRenderer.invoke(CHANNELS.logStatus),
-  logReveal: () => ipcRenderer.invoke(CHANNELS.logReveal),
-  logClear: () => ipcRenderer.invoke(CHANNELS.logClear),
-  logWrite: (level, scope, message, fields) =>
-    ipcRenderer.send(CHANNELS.logWrite, level, scope, message, fields),
-  tabDropped: (tab, at) => ipcRenderer.invoke(CHANNELS.tabDropped, tab, at),
-  tabDetach: (tab, at) => ipcRenderer.invoke(CHANNELS.tabDetach, tab, at),
-  tabAdoptHere: (tab) => ipcRenderer.invoke(CHANNELS.tabAdoptHere, tab),
-  onTabAdopt: (cb) => subscribe(CHANNELS.tabAdopt, cb),
-  onTabClaimed: (cb) => subscribe(CHANNELS.tabClaimed, cb),
-  onRequestLayoutFlush: (cb) => subscribe(CHANNELS.requestLayoutFlush, cb),
-  onNewSessionStarted: (cb) => subscribe(CHANNELS.newSessionStarted, cb),
-  ptyWrite: (id, data) => ipcRenderer.send(CHANNELS.ptyWrite, id, data),
-  ptyResize: (id, cols, rows) => ipcRenderer.send(CHANNELS.ptyResize, id, cols, rows),
-  ptyKill: (id) => ipcRenderer.send(CHANNELS.ptyKill, id),
-  ptySnapshot: (id) => ipcRenderer.invoke(CHANNELS.ptySnapshot, id),
-  ptySessions: () => ipcRenderer.invoke(CHANNELS.ptySessions),
-  onPtySessionsChanged: (cb) => subscribe(CHANNELS.ptySessionsChanged, cb),
-  onMrStatusesInvalidated: (cb) => subscribe(CHANNELS.mrStatusesInvalidated, cb),
-  ptyRunning: (ids) => ipcRenderer.invoke(CHANNELS.ptyRunning, ids),
-  onPtyData: (cb) => subscribe(CHANNELS.ptyData, cb),
-  onPtyExit: (cb) => subscribe(CHANNELS.ptyExit, cb),
-  onTreeChanged: (cb) => subscribe(CHANNELS.treeChanged, cb),
-  onOpenImportDialog: (cb) => subscribe(CHANNELS.openImportDialog, cb),
-  settingsGet: () => ipcRenderer.invoke(CHANNELS.settingsGet),
-  settingsSet: (settings) => ipcRenderer.invoke(CHANNELS.settingsSet, settings),
-  onOpenSettingsDialog: (cb) => subscribe(CHANNELS.openSettingsDialog, cb),
-  onToggleSidebar: (cb) => subscribe(CHANNELS.toggleSidebar, cb),
-  gitStatus: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitStatus, key, isPtyId),
-  gitListRefs: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitListRefs, key, isPtyId),
-  gitlabMrRefStatus: (key, isPtyId, iids) =>
-    ipcRenderer.invoke(CHANNELS.gitlabMrRefStatus, key, isPtyId, iids),
-  gitCheckoutBranch: (key, isPtyId, name) =>
-    ipcRenderer.invoke(CHANNELS.gitCheckoutBranch, key, isPtyId, name),
-  gitPullWorktree: (key, isPtyId, branch) =>
-    ipcRenderer.invoke(CHANNELS.gitPullWorktree, key, isPtyId, branch),
-  newSessionInWorktree: (key, isPtyId, branch) =>
-    ipcRenderer.invoke(CHANNELS.newSessionInWorktree, key, isPtyId, branch),
-  gitCheckoutRemote: (key, isPtyId, remoteRef, localName) =>
-    ipcRenderer.invoke(CHANNELS.gitCheckoutRemote, key, isPtyId, remoteRef, localName),
-  gitCheckoutDetached: (key, isPtyId, ref) =>
-    ipcRenderer.invoke(CHANNELS.gitCheckoutDetached, key, isPtyId, ref),
-  gitCreateBranch: (key, isPtyId, name, from) =>
-    ipcRenderer.invoke(CHANNELS.gitCreateBranch, key, isPtyId, name, from),
-  gitPull: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitPull, key, isPtyId),
-  gitUpdateBranch: (key, isPtyId, branch) => ipcRenderer.invoke(CHANNELS.gitUpdateBranch, key, isPtyId, branch),
-  gitPullFolder: (path) => ipcRenderer.invoke(CHANNELS.gitPullFolder, path),
-  listWorktrees: (path) => ipcRenderer.invoke(CHANNELS.listWorktrees, path),
-  gitPush: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitPush, key, isPtyId),
-  gitMerge: (key, isPtyId, ref) => ipcRenderer.invoke(CHANNELS.gitMerge, key, isPtyId, ref),
-  gitFetch: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.gitFetch, key, isPtyId),
-  vsCodeAvailable: () => ipcRenderer.invoke(CHANNELS.vsCodeAvailable),
-  openInVsCode: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.openInVsCode, key, isPtyId),
-  copyToClipboard: (text) => ipcRenderer.invoke(CHANNELS.copyToClipboard, text),
-  searchRebuild: () => ipcRenderer.invoke(CHANNELS.searchRebuild),
-  searchStatus: () => ipcRenderer.invoke(CHANNELS.searchStatus),
-  saveImage: (base64, mediaType) => ipcRenderer.invoke(CHANNELS.saveImage, base64, mediaType),
-  readImage: (path) => ipcRenderer.invoke(CHANNELS.readImage, path),
-  sendPrompt: (ptyId, text) => ipcRenderer.invoke(CHANNELS.sendPrompt, ptyId, text),
-  pluginBarItems: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.pluginBarItems, key, isPtyId),
-  pluginBarRefresh: (key, isPtyId) => ipcRenderer.invoke(CHANNELS.pluginBarRefresh, key, isPtyId),
-  pluginRunAction: (item) => ipcRenderer.invoke(CHANNELS.pluginRunAction, item),
-  pluginList: () => ipcRenderer.invoke(CHANNELS.pluginList),
-  onPluginsChanged: (cb) => subscribe(CHANNELS.pluginsChanged, cb),
-  setSessionNote: (id, note) => ipcRenderer.invoke(CHANNELS.setSessionNote, id, note),
-  sessionNote: (id) => ipcRenderer.invoke(CHANNELS.sessionNote, id),
-  updateStatus: () => ipcRenderer.invoke(CHANNELS.updateStatus),
-  updateCheck: () => ipcRenderer.invoke(CHANNELS.updateCheck),
-  updateDownload: () => ipcRenderer.invoke(CHANNELS.updateDownload),
-  updateInstall: () => ipcRenderer.invoke(CHANNELS.updateInstall),
-  updateOpenDownloaded: () => ipcRenderer.invoke(CHANNELS.updateOpenDownloaded),
-  updateSkip: () => ipcRenderer.invoke(CHANNELS.updateSkip),
-  updateDismiss: () => ipcRenderer.invoke(CHANNELS.updateDismiss),
-  onUpdateChanged: (cb) => subscribe(CHANNELS.updateChanged, cb),
+/**
+ * The bridge, built from `shared/ipc/contract.ts` instead of one hand-written line per channel
+ * (MAIN-11): a channel added to the contract appears here automatically, and one left out of the
+ * contract cannot appear here at all — the two can no longer drift apart the way the three
+ * hand-maintained copies (this file, `shared/api.ts`, `main/ipc.ts`) used to.
+ *
+ * `initialTheme` stays the one hand-written entry: it is read synchronously once, at import time,
+ * so the window's first paint is already themed (see `ApiaryApi.initialTheme`'s doc comment) —
+ * every other entry is a function the renderer calls or subscribes to later.
+ */
+const api: Record<string, unknown> = {
+  // Synchronous on purpose, and once: an async answer would arrive after React had painted the
+  // original look.
+  initialTheme: ipcRenderer.sendSync(IPC.themeInitial.channel) as ThemeState,
 }
 
-contextBridge.exposeInMainWorld('apiary', api)
+for (const [key, spec] of Object.entries(IPC)) {
+  if (spec.kind === 'invoke') {
+    api[key] = (...a: unknown[]) => ipcRenderer.invoke(spec.channel, ...a)
+  } else if (spec.kind === 'send') {
+    api[key] = (...a: unknown[]) => { ipcRenderer.send(spec.channel, ...a) }
+  } else if (spec.kind === 'event') {
+    api[`on${key[0].toUpperCase()}${key.slice(1)}`] = (cb: (...a: unknown[]) => void) =>
+      subscribe(spec.channel, cb)
+  }
+  // 'sync' (themeInitial) is handled once, above — every other kind of entry is covered.
+}
+
+// The cast is the one place this file is not statically checked against `ApiaryApi` — the loop
+// above builds it from `IPC`'s keys, which TypeScript cannot follow value-by-value. What *is*
+// checked: `tests/component/fakeApiary.ts` is typed as `ApiaryApi` (a channel this file forgot
+// would be a type error there, not a silent gap), and every main-side handler is checked against
+// the same contract by `main/ipc/registrar.ts`'s `Handlers`/`Listeners` types.
+const typedApi: ApiaryApi = api as ApiaryApi
+contextBridge.exposeInMainWorld('apiary', typedApi)

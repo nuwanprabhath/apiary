@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { describeError } from '../../src/renderer/errors'
+import { describeError } from '../../src/renderer/ui/errors'
 
 describe('describeError', () => {
   it('strips the IPC plumbing an Electron invoke wraps a main-process failure in', () => {
@@ -38,6 +38,13 @@ describe('describeError', () => {
     const odd = describeError({ code: 7 })
     expect(odd.message).toBe('Something went wrong.')
     expect(odd.detail).toBe('{"code":7}')
+  })
+
+  it('headlines the line where git says what failed, not its progress chatter', () => {
+    const merge = new Error('Auto-merging README.md\nCONFLICT (content): Merge conflict in README.md\nAutomatic merge failed; fix conflicts and then commit the result.')
+    expect(describeError(merge).message).toBe('CONFLICT (content): Merge conflict in README.md')
+    const push = new Error('To origin\nerror: failed to push some refs to origin')
+    expect(describeError(push).message).toBe('error: failed to push some refs to origin')
   })
 
   it('never returns an empty headline', () => {

@@ -13,7 +13,10 @@ test.setTimeout(240_000)
 let h: Harness
 
 test.beforeEach(async () => {
-  h = await launchApiary()
+  // claudeBin: null — this spec calls window.apiary.themeGenerate directly (no session/pty
+  // involved), against the real `claude`, so it must not get the harness's default stand-in
+  // (TEST-9).
+  h = await launchApiary({ claudeBin: null })
   await importAll(h.page)
 })
 

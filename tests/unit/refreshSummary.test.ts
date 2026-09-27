@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { describeRefresh } from '../../src/renderer/state/refreshSummary'
+import { describeRefresh } from '../../src/renderer/features/sidebar/model/refreshSummary'
 
 describe('describeRefresh', () => {
   it('says how many sessions the rescan added', () => {

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, readdirSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createSessionLayoutStore, loadSessionLayout } from '../../src/main/sessionLayoutStore'
+import { createSessionLayoutStore, loadSessionLayout, saveSessionLayoutNow } from '../../src/main/windows/sessionLayoutStore'
 
 let dir: string
 const file = () => join(dir, 'session-layout.json')
@@ -92,5 +92,25 @@ describe('SessionLayoutStore', () => {
   it('falls back to an empty file when the JSON is well-formed but the wrong shape', () => {
     writeFileSync(file(), JSON.stringify({ windows: 'nope' }))
     expect(loadSessionLayout(file())).toEqual({ windows: [] })
+  })
+})
+
+describe('saveSessionLayoutNow writes atomically (MAIN-16)', () => {
+  it('leaves no temp file behind after a normal save', () => {
+    saveSessionLayoutNow(file(), { windows: [{ number: 1, bounds, layout, live: ['sess-1'], hasLayout: true }] })
+    expect(readdirSync(dir)).toEqual(['session-layout.json'])
+  })
+
+  it('a crash between write and rename keeps the old file, rather than a truncated one', () => {
+    const first = { windows: [{ number: 1, bounds, layout, live: ['sess-1'], hasLayout: true }] }
+    saveSessionLayoutNow(file(), first)
+    chmodSync(dir, 0o500)
+    try {
+      saveSessionLayoutNow(file(), { windows: [] })
+    } finally {
+      chmodSync(dir, 0o700)
+    }
+    expect(loadSessionLayout(file())).toEqual(first)
+    expect(readdirSync(dir)).toEqual(['session-layout.json'])
   })
 })

@@ -1,0 +1,38 @@
+import { shell } from 'electron'
+import type { AppService } from '../../appService'
+import type { Handlers } from '../registrar'
+
+export interface PluginsDeps {
+  service: AppService
+}
+
+type HandledKeys = 'pluginBarItems' | 'pluginBarRefresh' | 'pluginRunAction' | 'pluginList'
+
+export function pluginsHandlers(deps: PluginsDeps): Pick<Handlers, HandledKeys> {
+  const { service } = deps
+
+  return {
+    pluginBarItems: (_e, key, isPtyId) => service.pluginBarItems(key, isPtyId),
+    pluginBarRefresh: (_e, key, isPtyId) => service.refreshPluginBar(key, isPtyId),
+    pluginList: () => service.listPlugins(),
+    pluginRunAction: async (_e, item) => {
+      if (item.action.kind !== 'open-url') return
+      /*
+       * Checked here rather than trusted from the renderer.
+       *
+       * The URL originates in a plugin, but it arrives back over IPC, and `shell.openExternal`
+       * will happily hand the OS anything — `file:`, and on some platforms schemes that run
+       * things. Only http(s) is ever opened, so the worst a compromised renderer can do with this
+       * channel is open a web page.
+       */
+      let url: URL
+      try {
+        url = new URL(item.action.url)
+      } catch {
+        return
+      }
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') return
+      await shell.openExternal(url.toString())
+    },
+  }
+}

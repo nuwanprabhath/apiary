@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, sessionRow, mouse, until } from './helpers'
 import { FIXTURE_SESSIONS } from './fakeApiary'
@@ -156,7 +156,7 @@ describe('sidebarPopups', () => {
     // And the next session is reachable straight down, opening its own card in place of this one.
     await userEvent.hover(sidebarSession('Add worktree switcher'))
     await until(() => page.getByTestId('session-hover-card').elements().length === 1)
-    await expect.element(page.getByTestId('session-hover-card')).toHaveTextContent('Add worktree switcher')
+    await expect.element(page.getByTestId('session-hover-card')).toMatchTextContent('Add worktree switcher')
   })
 
   it('the pointer can travel from a row to its card and use it', async () => {
@@ -171,7 +171,7 @@ describe('sidebarPopups', () => {
     // completes; there is no later condition to assert on other than re-checking after time passes.
     await new Promise((resolve) => setTimeout(resolve, 400))
     await expect.element(page.getByTestId('session-hover-card')).toBeVisible()
-    await expect.element(page.getByTestId('session-hover-card')).toHaveTextContent('Fix CSV export bug')
+    await expect.element(page.getByTestId('session-hover-card')).toMatchTextContent('Fix CSV export bug')
   })
 
   it('the layout picker survives a slow trip across the row to reach it', async () => {
@@ -200,5 +200,29 @@ describe('sidebarPopups', () => {
     await expect.element(page.getByTestId('layout-picker')).toBeVisible()
     await mouse.move(r.x + r.width / 2, r.y + 300, 8)
     await until(() => page.getByTestId('layout-picker').elements().length === 0)
+  })
+
+  it('UI-26: Tab-ing onto a session row opens its hover card, so a keyboard user can reach it', async () => {
+    // Before this, the card opened only on `mouseenter` — a keyboard user could never see a
+    // session's path, branch, note or "Open in VS Code" action at all.
+    await renderApp()
+    const row = await sessionRow('Fix CSV export bug')
+    row.focus()
+    await until(() => page.getByTestId('session-hover-card').elements().length === 1)
+    expect(page.getByTestId('session-hover-card').element().getAttribute('role')).toBe('dialog')
+
+    // Tabbing on into the card's own first button must not close it — the card and the row are one
+    // focus region, the same as they are one hover region. The card is portalled to `document.body`
+    // (only React-tree-adjacent to the row, not DOM-adjacent), so it is found from the document.
+    const copyPath = document.querySelector('[data-testid="hover-card-copy-path"]') as HTMLElement
+    copyPath.focus()
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    await expect.element(page.getByTestId('session-hover-card')).toBeVisible()
+
+    // Tabbing away from the row and its card entirely closes it. `document.body` has no `tabindex`
+    // so `.focus()` on it is a no-op in some browsers; `.blur()` on the currently-focused element is
+    // what actually fires the `blur` this is testing.
+    copyPath.blur()
+    await until(() => page.getByTestId('session-hover-card').elements().length === 0)
   })
 })

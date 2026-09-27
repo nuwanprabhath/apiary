@@ -3,8 +3,12 @@
  *
  * Every list here is an allowlist. A theme can only name things that appear in these lists, and
  * every value it gives is checked by `validateTheme` (validate.ts) before anything uses it. The
- * lists are also what the theme generator is told it may choose from, so adding an entry is how a
- * new colour, font or effect becomes available to themes — nothing else is needed.
+ * lists are also what the theme generator is told it may choose from. Adding an entry to
+ * `EFFECT_KINDS`, `UI_FONTS` or `MONO_FONTS` is not quite "nothing else is needed": it also needs
+ * a note in `prompt.ts`'s `EFFECT_NOTES`/`FONT_NOTES` (typed `Record<EffectKind, …>` etc., so a
+ * missing note is a compile error, not a theme the generator was never told about), and a new
+ * effect kind additionally needs a draw function registered in `effects/index.ts`'s `EFFECTS`
+ * (already enforced there by its own exhaustive `Record` type).
  */
 
 /** Colour tokens a theme may set — the `--name` custom properties in styles.css, without `--`. */

@@ -2,8 +2,10 @@
 # shows up on the commit that made it rather than at tag time (see release.yml, which repeats the
 # unit suite on each platform before building).
 #
-# The end-to-end suite is not here: it needs a display on Linux and launches the whole app per
-# test. It stays a local gate before tagging, as CLAUDE.md says.
+# `e2e-smoke` runs the `@smoke` subset of the e2e suite on Linux under xvfb, with a stand-in
+# `claude`/`glab`/`code` and an isolated git identity so it needs nothing beyond what CI provides
+# (see tests/e2e/helpers.ts). The rest of the suite — the parallel/serial split, multi-window and
+# timing-sensitive specs — stays a local/manual gate before tagging, as CLAUDE.md says.
 name: CI
 
 on:
@@ -14,13 +16,18 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -28,20 +35,30 @@ jobs:
       # --ignore-scripts: nothing here needs node-pty or better-sqlite3 compiled.
       - run: npm ci --ignore-scripts
 
+      # `npm audit --audit-level=low` as a pre-merge gate, before build/test spend any time —
+      # every dependency in the tree, dev included (see SEC-1: `--omit=dev` hid Electron's CVEs).
+      - run: npm run audit
+
       - run: npm run typecheck
 
-      # The shellcheck package downloads its binary from GitHub's API, which rate-limits anonymous
-      # requests on shared runners — the token lifts that.
+      # shellcheck ships preinstalled on GitHub's ubuntu runners, but pin the install explicitly
+      # rather than depend on that staying true.
+      - run: command -v shellcheck || sudo apt-get update && sudo apt-get install -y shellcheck
+
       - run: npm run lint
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The unit/integration suite runs in Node and the component suite runs in headless
+      # Chromium via Playwright — neither one launches Electron, so `npm ci`'s own download of
+      # Electron's binary is pure waste here (TEST-12). The e2e-smoke job below unsets this.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -49,10 +66,60 @@ jobs:
       # With scripts: the unit and integration suites open real SQLite databases and ptys.
       - run: npm ci
 
-      # Unit and integration tests (Node). `npm test` rebuilds the native modules for Node first.
+      # Unit and integration tests (Node). No rebuild needed — better-sqlite3 and node-pty ship
+      # prebuilt N-API binaries, ABI-stable across Node and Electron (TEST-1).
       - run: npm test
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          # Keyed on the installed @playwright/test version, from the lockfile it is pinned in.
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       # Component tests: the renderer in headless Chromium against a fake bridge — no Electron.
       - run: npx playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+
+      # A cache hit still needs the OS-level shared libraries a fresh runner image lacks; only
+      # the browser binary itself is skipped.
+      - run: npx playwright install-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
 
       - run: npm run test:component
+
+  e2e-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      # `resumeCommand.ts` already falls back to /bin/bash when $SHELL is unset, but the stand-in
+      # `claude` script itself execs "$SHELL" directly — set it explicitly rather than lean on a
+      # runner image detail.
+      SHELL: /bin/bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: sudo apt-get update && sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64 libgtk-3-0t64
+
+      # Ubuntu 24.04 restricts unprivileged user namespaces; Electron's sandbox needs one of these.
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - run: xvfb-run -a npm run test:e2e:smoke
+        env:
+          CI: '1'
+
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-smoke-results
+          path: |
+            test-results/
+            playwright-report/

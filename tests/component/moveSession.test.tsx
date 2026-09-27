@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession } from './helpers'
 
@@ -27,5 +27,13 @@ describe('moving a session by drag', () => {
     await expect.element(page.getByTestId('move-session-dialog')).toBeVisible()
     await userEvent.click(page.getByTestId('move-session-confirm'))
     await expect.element(page.getByText(/still running/i)).toBeVisible()
+  })
+
+  it('Escape cancels the move confirmation (UI-25 — this dialog had no Escape handler at all)', async () => {
+    await renderApp()
+    await userEvent.dragAndDrop(sidebarSession('Fix CSV export bug'), page.elementLocator(folderRow('repo-c-wt')))
+    await expect.element(page.getByTestId('move-session-dialog')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByTestId('move-session-dialog')).not.toBeInTheDocument()
   })
 })

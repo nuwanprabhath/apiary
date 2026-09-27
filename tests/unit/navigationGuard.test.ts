@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { decideNavigation } from '../../src/main/navigationGuard'
+import { decideNavigation } from '../../src/main/windows/navigationGuard'
 
 /**
  * Reported: a link clicked in a transcript opened the web page *inside* Apiary, with no way back.
@@ -18,8 +18,13 @@ describe('decideNavigation', () => {
 
   it('lets the app reload itself', () => {
     expect(decideNavigation(packaged, packaged)).toBe('allow')
-    expect(decideNavigation(packaged, packaged.replace('window=1', 'window=2&detach=x'))).toBe('allow')
-    expect(decideNavigation(dev, 'http://localhost:5173/?window=3')).toBe('allow')
+    expect(decideNavigation(packaged, packaged + '#section')).toBe('allow')
+    expect(decideNavigation(dev, dev)).toBe('allow')
+  })
+
+  it('blocks a same-page navigation whose query has changed, so a transcript link cannot reload with an attacker-chosen query', () => {
+    expect(decideNavigation(packaged, packaged.replace('window=1', 'window=2&detach=x'))).toBe('block')
+    expect(decideNavigation(packaged, packaged + '&restore=%7B%7D')).toBe('block')
   })
 
   it('never navigates the window to another local file, and never launches it either', () => {

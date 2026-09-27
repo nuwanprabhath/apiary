@@ -9,7 +9,7 @@ import { defineConfig } from '@playwright/test'
  * up as an 89th test to run and report on.
  */
 export default defineConfig({
-  testDir: './scripts',
+  testDir: './scripts/screenshot',
   testMatch: 'screenshot.spec.ts',
   timeout: 60000,
   expect: { timeout: 15000 },

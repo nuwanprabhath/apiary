@@ -4,6 +4,14 @@ import type { TranscriptBlock, TranscriptMessage, TranscriptPage } from '@shared
 
 const DEFAULT_LIMIT = 200
 
+/**
+ * A line longer than this is skipped rather than `JSON.parse`d (SEC-12): a multi-hundred-MB line
+ * (a base64 blob, a pasted log, hostile or otherwise) would otherwise be parsed synchronously on
+ * the main thread on every page that includes it, which is a real, measurable freeze — the same
+ * reasoning as the search indexer's own per-line cap (`search/indexer.ts`).
+ */
+const MAX_LINE_CHARS = 1_000_000
+
 /** Coerces a JSONL field of unknown shape to a string without ever falling through to
  *  `Object.prototype.toString` — real transcripts only ever put strings and numbers in these
  *  fields, but a malformed line should degrade to `fallback`, not '[object Object]'. */
@@ -13,7 +21,24 @@ function asString(value: unknown, fallback: string): string {
   return fallback
 }
 
-interface Index { offsets: number[]; messageCount: number; mtimeMs: number; size: number }
+interface Index {
+  offsets: number[]
+  messageCount: number
+  mtimeMs: number
+  size: number
+  /** Whether the last line scanned ended with `\n`. Only true, the fast path below can trust that
+   *  a byte appended after `size` starts a *new* line at exactly `size` — otherwise the "new"
+   *  bytes are actually the tail of what was already the last line, and a full rescan is needed to
+   *  get that line's offset and content right. */
+  endsWithNewline: boolean
+}
+
+/** How many transcripts' offset arrays are kept at once (MAIN-24). Unbounded before this: one
+ *  entry per transcript ever opened, for the life of the process. A user who has opened this many
+ *  distinct sessions in one run is rare enough that evicting the least-recently-used one costs a
+ *  full rescan next time it is reopened, which is the same amount of work a cold session already
+ *  pays. */
+const MAX_CACHE_ENTRIES = 50
 
 const cache = new Map<string, Index>()
 
@@ -21,9 +46,92 @@ export function clearTranscriptCache(): void {
   cache.clear()
 }
 
+/** Records `entry` as the most recently used, evicting the least recently used past the cap. A
+ *  `Map` already iterates in insertion order, so "oldest" is just its first key — re-inserting on
+ *  every touch (hit or write) is what keeps that order meaning "least recently used" rather than
+ *  "first ever inserted". */
+function remember(filePath: string, entry: Index): void {
+  cache.delete(filePath)
+  cache.set(filePath, entry)
+  if (cache.size > MAX_CACHE_ENTRIES) {
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) cache.delete(oldest)
+  }
+}
+
 /**
- * Records the byte offset of every non-empty line and counts message lines by
- * substring test. No JSON parsing, so this stays cheap on multi-megabyte files.
+ * Records the byte offset of every non-empty line from `startByte` onward, and counts message
+ * lines by substring test. No JSON parsing, so this stays cheap on multi-megabyte files.
+ *
+ * `startLineStart` is normally equal to `startByte` (a fresh scan starts counting from byte 0, an
+ * appended-bytes scan starts counting from the byte the previous scan ended at) — kept as a
+ * separate parameter only so the arithmetic below reads the same regardless of which caller it is.
+ */
+async function scanFrom(
+  filePath: string,
+  startByte: number,
+  startLineStart: number,
+): Promise<{ offsets: number[]; messageCount: number; endsWithNewline: boolean }> {
+  const offsets: number[] = []
+  let messageCount = 0
+  let position = startLineStart
+  let lineStart = startLineStart
+  let pending = ''
+  // The true byte length buffered for the current (still unterminated) line, tracked separately
+  // from `pending`'s own length: `pending` is capped at `MAX_LINE_CHARS` below (SEC-12), but the
+  // byte offsets recorded for every *later* line still have to be exact, so this keeps counting
+  // even once `pending` itself stops growing.
+  let pendingBytes = 0
+  let endsWithNewline = true
+
+  await new Promise<void>((resolve, reject) => {
+    const stream = createReadStream(filePath, { encoding: 'utf8', start: startByte })
+    stream.on('data', (chunk: string | Buffer) => {
+      const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8')
+      let from = 0
+      for (;;) {
+        const nl = text.indexOf('\n', from)
+        const segment = text.slice(from, nl === -1 ? undefined : nl)
+        pendingBytes += Buffer.byteLength(segment, 'utf8')
+        if (pending.length < MAX_LINE_CHARS) pending += segment.slice(0, MAX_LINE_CHARS - pending.length)
+        if (nl === -1) break
+
+        const line = pending
+        pending = ''
+        if (line.length > 0) {
+          offsets.push(lineStart)
+          if (line.includes('"type":"user"') || line.includes('"type":"assistant"')) messageCount++
+        }
+        position = lineStart + pendingBytes + 1
+        lineStart = position
+        pendingBytes = 0
+        from = nl + 1
+      }
+      // Account for the bytes buffered in `pending` on the next iteration.
+      position = lineStart + pendingBytes
+    })
+    stream.on('end', () => {
+      if (pending.length > 0) {
+        offsets.push(lineStart)
+        if (pending.includes('"type":"user"') || pending.includes('"type":"assistant"')) messageCount++
+        endsWithNewline = false
+      }
+      resolve()
+    })
+    stream.on('error', reject)
+  })
+
+  return { offsets, messageCount, endsWithNewline }
+}
+
+/**
+ * Records the byte offset of every non-empty line and counts message lines by substring test.
+ *
+ * **Append-only fast path (MAIN-24):** a live session's transcript is only ever appended to, so
+ * when the cached size grew and the cached scan ended cleanly on a newline, only the new bytes are
+ * read — the old offsets are still correct and are kept as-is. A file that shrank (or whose last
+ * cached line had no trailing newline yet) falls back to a full rescan, since neither case can be
+ * trusted to mean "unchanged content plus an append".
  */
 export async function indexTranscript(
   filePath: string,
@@ -31,55 +139,31 @@ export async function indexTranscript(
   const info = await stat(filePath)
   const hit = cache.get(filePath)
   if (hit && hit.mtimeMs === info.mtimeMs && hit.size === info.size) {
+    remember(filePath, hit)
     return { offsets: hit.offsets, messageCount: hit.messageCount }
   }
 
-  const offsets: number[] = []
-  let messageCount = 0
-  let position = 0
-  let lineStart = 0
-  let pending = ''
+  let offsets: number[]
+  let messageCount: number
+  let endsWithNewline: boolean
 
-  await new Promise<void>((resolve, reject) => {
-    const stream = createReadStream(filePath, { encoding: 'utf8' })
-    stream.on('data', (chunk: string | Buffer) => {
-      const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8')
-      let from = 0
-      for (;;) {
-        const nl = text.indexOf('\n', from)
-        if (nl === -1) {
-          pending += text.slice(from)
-          break
-        }
-        const line = pending + text.slice(from, nl)
-        pending = ''
-        if (line.length > 0) {
-          offsets.push(lineStart)
-          if (line.includes('"type":"user"') || line.includes('"type":"assistant"')) messageCount++
-        }
-        const consumed = Buffer.byteLength(text.slice(from, nl), 'utf8') + 1
-        position += consumed
-        lineStart = position
-        from = nl + 1
-      }
-      // Account for the bytes buffered in `pending` on the next iteration.
-      position = lineStart + Buffer.byteLength(pending, 'utf8')
-    })
-    stream.on('end', () => {
-      if (pending.length > 0) {
-        offsets.push(lineStart)
-        if (pending.includes('"type":"user"') || pending.includes('"type":"assistant"')) messageCount++
-      }
-      resolve()
-    })
-    stream.on('error', reject)
-  })
+  if (hit && hit.endsWithNewline && info.size > hit.size) {
+    const delta = await scanFrom(filePath, hit.size, hit.size)
+    offsets = hit.offsets.concat(delta.offsets)
+    messageCount = hit.messageCount + delta.messageCount
+    endsWithNewline = delta.endsWithNewline
+  } else {
+    const full = await scanFrom(filePath, 0, 0)
+    offsets = full.offsets
+    messageCount = full.messageCount
+    endsWithNewline = full.endsWithNewline
+  }
 
-  cache.set(filePath, { offsets, messageCount, mtimeMs: info.mtimeMs, size: info.size })
+  remember(filePath, { offsets, messageCount, mtimeMs: info.mtimeMs, size: info.size, endsWithNewline })
   return { offsets, messageCount }
 }
 
-function mapBlocks(role: 'user' | 'assistant', content: unknown): TranscriptBlock[] {
+function mapBlocks(_role: 'user' | 'assistant', content: unknown): TranscriptBlock[] {
   if (typeof content === 'string') return [{ type: 'text', text: content }]
   if (!Array.isArray(content)) return []
 
@@ -185,7 +269,15 @@ export async function readTranscriptPage(
   const limit = opts.limit ?? DEFAULT_LIMIT
   const { offsets } = await indexTranscript(filePath)
   const info = await stat(filePath)
-  const end = Math.max(0, Math.min(opts.beforeIndex ?? offsets.length, offsets.length))
+  // A renderer-supplied cursor that is not a real, non-negative index (NaN, most concretely) must
+  // not reach the arithmetic below: `Math.min(NaN, n)` is `NaN`, which makes `windowStart === 0`
+  // never hold and the loop below spin forever, opening and closing the file on every pass (SEC-8).
+  // Anything not a safe non-negative integer is treated as "no cursor", the same as omitting it.
+  const beforeIndex = Number.isSafeInteger(opts.beforeIndex) && (opts.beforeIndex as number) >= 0
+    ? opts.beforeIndex
+    : undefined
+  const end = Math.max(0, Math.min(beforeIndex ?? offsets.length, offsets.length))
+  if (!Number.isFinite(end)) throw new Error('Could not resolve a valid transcript window')
 
   // Assigned unconditionally on every iteration before the loop's only `break`, so these are
   // definitely assigned by the time they're read below without needing a throwaway initial value.
@@ -205,6 +297,11 @@ export async function readTranscriptPage(
     let lineIndex = nextStart
     for (const line of text.split('\n')) {
       if (line.length === 0) continue
+      if (line.length > MAX_LINE_CHARS) {
+        skippedLines++
+        lineIndex++
+        continue
+      }
       let entry: Record<string, unknown>
       try {
         entry = JSON.parse(line) as Record<string, unknown>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, until } from './helpers'
 
@@ -31,7 +31,7 @@ describe('themes', () => {
     await userEvent.click(page.getByTestId('theme-save-as'))
     await userEvent.fill(page.getByTestId('theme-save-name'), 'My matrix')
     await userEvent.click(page.getByTestId('theme-save-confirm'))
-    await expect.element(page.getByTestId('theme-current-name')).toHaveTextContent('My matrix')
+    await expect.element(page.getByTestId('theme-current-name')).toMatchTextContent('My matrix')
     const findCard = (text: string): HTMLElement | undefined =>
       [...document.querySelectorAll<HTMLElement>('[data-testid="theme-card"]')]
         .find((c) => c.textContent?.includes(text) === true)
@@ -49,6 +49,24 @@ describe('themes', () => {
     await userEvent.click(deleteButton)
     await until(() => findCard('Green rain') === undefined)
     expect(themeCard('original')?.getAttribute('data-active')).toBe('true')
+  })
+
+  it('Escape in the theme-name field closes the field, not the whole Settings dialog (UI-13)', async () => {
+    const { fake } = await renderApp()
+    await openThemes(fake)
+
+    await userEvent.click(themeCard('builtin:matrix')!)
+    await userEvent.click(page.getByTestId('theme-save-as'))
+    await expect.element(page.getByTestId('theme-save-name')).toBeVisible()
+
+    await userEvent.fill(page.getByTestId('theme-save-name'), 'Escape test')
+    await userEvent.keyboard('{Escape}')
+
+    // The naming form should have closed on its own...
+    await expect.element(page.getByTestId('theme-save-name')).not.toBeInTheDocument()
+    // ...but the dialog itself, and the rest of Settings, must still be open.
+    await expect.element(page.getByTestId('settings-dialog')).toBeVisible()
+    await expect.element(page.getByTestId('themes-section')).toBeVisible()
   })
 
   it('with animated effects off, the effects draw one still frame and no more', async () => {
@@ -79,7 +97,7 @@ describe('themes', () => {
     await fake.themeApply('builtin:neon')
     await until(() => cssVar('--accent') === '#ff2a6dff')
     await openThemes(fake)
-    await expect.element(page.getByTestId('theme-current-name')).toHaveTextContent('Neon cyberpunk')
+    await expect.element(page.getByTestId('theme-current-name')).toMatchTextContent('Neon cyberpunk')
     expect(themeCard('builtin:neon')?.getAttribute('data-active')).toBe('true')
 
     // Neon's panels are see-through so its grid shows; the dialog over them must not be.
@@ -110,5 +128,26 @@ describe('themes', () => {
     expect(viewportBg).toBe('rgba(0, 0, 0, 0)')
     expect(hostBg).not.toBe('rgba(0, 0, 0, 0)')
     expect(termBg).not.toBe('')
+  })
+
+  it('applies a broadcast once, even with the Themes screen open alongside App (UI-22)', async () => {
+    const { fake } = await renderApp()
+    await openThemes(fake)
+
+    // Both App and the open ThemesSection call useThemeState(); before the shared theme store,
+    // each held its own subscription and applied the broadcast itself, so one change from main
+    // dispatched THEME_CHANGE_EVENT (and reset every custom property) twice.
+    let dispatches = 0
+    const onChange = (): void => { dispatches += 1 }
+    window.addEventListener('apiary:themechange', onChange)
+    try {
+      await fake.themeApply('builtin:neon')
+      await until(() => cssVar('--accent') === '#ff2a6dff')
+      // Give any redundant second apply a chance to have already landed.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(dispatches).toBe(1)
+    } finally {
+      window.removeEventListener('apiary:themechange', onChange)
+    }
   })
 })

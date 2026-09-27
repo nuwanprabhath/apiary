@@ -1,4 +1,4 @@
-# The whole-repo checks, too slow to run on every commit: both tsconfigs and every linter.
-# Tests are left to `npm test` / `npm run test:e2e` on purpose — each rebuilds the native modules
-# for its own runtime, and doing that from a hook would pull them out from under a run in progress.
-npm run typecheck && npm run lint
+# The whole-repo checks, too slow to run on every commit: both tsconfigs and every linter, plus the
+# native-free unit project (fast: no native modules, parallel). Integration, component and e2e stay
+# out of hooks — they are slower and some drive real git/pty subprocesses.
+npm run typecheck && npm run lint && npm run test:unit

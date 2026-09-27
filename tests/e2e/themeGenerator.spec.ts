@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { writeFileSync, chmodSync, readFileSync } from 'node:fs'
+import { writeFileSync, chmodSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { launchApiary, importAll, relaunchApiary, type Harness } from './helpers'
 import { BUILTIN_THEMES } from '../../src/shared/theme/builtins'
@@ -23,6 +23,10 @@ async function useStandIn(): Promise<void> {
     '#!/bin/sh',
     'for a; do last=$a; done',
     `printf '%s' "$last" > "${dir}/last-prompt.txt"`,
+    // `exec "$0" "$@"` (themeGenerator.ts) replaces the login shell with this script, so `$$` here
+    // is the same pid the generator's own ChildProcess object holds — recorded so a test can check
+    // whether the process is still alive after Apiary has quit (MAIN-20).
+    `echo $$ > "${dir}/claude-pid.txt"`,
     'case "$last" in',
     `  *HOSTILE*) cat "${dir}/hostile.json" ;;`,
     '  *FAILPLEASE*) echo "model overloaded" >&2; exit 1 ;;',
@@ -127,6 +131,25 @@ test('a failure leaves the look alone and says what went wrong; a slow one can b
   await h.page.getByTestId('theme-generate-cancel').click()
   await expect(h.page.getByTestId('theme-generate-error')).toContainText('Cancelled')
   await expect(h.page.getByTestId('theme-generate')).toBeVisible()
+})
+
+test('quitting cancels a generation in progress, instead of leaving it running (MAIN-20)', async () => {
+  await h.page.getByTestId('theme-describe').fill('SLOWPLEASE')
+  await h.page.getByTestId('theme-generate').click()
+  await expect(h.page.getByTestId('theme-generating')).toBeVisible()
+  await expect.poll(() => existsSync(join(h.home, 'claude-pid.txt'))).toBe(true)
+  const pid = Number(readFileSync(join(h.home, 'claude-pid.txt'), 'utf8').trim())
+
+  await h.close()
+  // The shared `afterEach` also closes `h` — give it a fresh instance rather than the one just
+  // closed above, the same way themes.spec.ts's default-theme test does.
+  h = await launchApiary()
+
+  // The generator runs its child detached, in its own process group, precisely so a slow `claude`
+  // is not left running once Apiary decides to give up on it — which used to include quitting:
+  // nothing on the quit path called `cancel()`, so this process (spending tokens, on the real
+  // path) kept sleeping long after the app that started it was gone.
+  expect(() => process.kill(pid, 0)).toThrow()
 })
 
 test('the model a theme is designed with is a setting', async () => {

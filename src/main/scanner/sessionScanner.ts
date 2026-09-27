@@ -95,7 +95,26 @@ export async function extractMeta(filePath: string): Promise<SessionMeta> {
   }
 }
 
-export async function scanProjects(projectsRoot: string): Promise<SessionMeta[]> {
+export interface ScanStats {
+  /** How many `.jsonl` files were found under `projectsRoot`. */
+  filesSeen: number
+  /** How many of those were actually opened and re-parsed (MAIN-1: the rest were skipped by
+   *  `isUnchanged`). */
+  filesParsed: number
+}
+
+export interface ScanOptions {
+  /**
+   * Lets a caller skip re-reading a file whose size and mtime match what it already has on
+   * record — the store already keeps both per session (MAIN-1). Omit it (the default) to always
+   * parse every file, which is what every existing caller and test expects.
+   */
+  isUnchanged?(path: string, size: number, mtimeMs: number): boolean
+  /** Filled in with per-pass counts once scanning finishes, for the "measure before fixing" log line. */
+  stats?: ScanStats
+}
+
+export async function scanProjects(projectsRoot: string, opts?: ScanOptions): Promise<SessionMeta[]> {
   let dirs: string[]
   try {
     const entries = await readdir(projectsRoot, { withFileTypes: true })
@@ -105,6 +124,8 @@ export async function scanProjects(projectsRoot: string): Promise<SessionMeta[]>
   }
 
   const results: SessionMeta[] = []
+  let filesSeen = 0
+  let filesParsed = 0
   for (const dir of dirs) {
     const dirPath = join(projectsRoot, dir)
     let files: string[]
@@ -114,12 +135,23 @@ export async function scanProjects(projectsRoot: string): Promise<SessionMeta[]>
       continue
     }
     for (const f of files) {
+      filesSeen += 1
+      const filePath = join(dirPath, f)
       try {
-        results.push(await extractMeta(join(dirPath, f)))
+        if (opts?.isUnchanged) {
+          const info = await stat(filePath)
+          if (opts.isUnchanged(filePath, info.size, info.mtimeMs)) continue
+        }
+        filesParsed += 1
+        results.push(await extractMeta(filePath))
       } catch {
         // Unreadable file — skip rather than fail the whole scan.
       }
     }
+  }
+  if (opts?.stats) {
+    opts.stats.filesSeen = filesSeen
+    opts.stats.filesParsed = filesParsed
   }
   return results
 }

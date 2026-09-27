@@ -116,3 +116,38 @@ test('closing a second window does not crash the main process', async () => {
   await expect(h.page.evaluate(() => window.apiary.tree())).resolves.toBeDefined()
   await expect(h.page.getByTestId('session-item').first()).toBeVisible()
 })
+
+// MAIN-12: the menu's Rescan Sessions used to send `treeChanged` only to `mainWindow`, so a
+// background window kept a stale sidebar after it — unlike the sidebar's own Refresh button and
+// the filesystem watcher, both of which already broadcast to every window.
+test('rescan sessions from the menu updates every window\'s sidebar, not just the front one', async () => {
+  await expect(h.page.getByTestId('session-item').first()).toBeVisible()
+  const before = await h.page.getByTestId('session-item').count()
+  const second = await h.newWindow()
+  await expect(second.getByTestId('session-item')).toHaveCount(before)
+
+  // Turn on auto-import for the folder (what checking the box in the import dialog does), then
+  // write a new session straight to disk, the way a session started outside Apiary would appear.
+  await h.page.evaluate(async (workdir) => {
+    await window.apiary.importSessions([], [workdir])
+  }, h.workdir)
+  const { makeSession } = await import('../fixtures/makeSession')
+  makeSession(h.projectsRoot, '-work-a-menu-rescan', {
+    sessionId: '55555555-6666-7777-8888-999999999999',
+    cwd: h.workdir,
+    title: 'Picked up by Rescan Sessions from the menu',
+  })
+
+  // Triggered through the same native menu item a user would click, in the first window only.
+  await h.app.evaluate(({ Menu }) => {
+    const menu = Menu.getApplicationMenu()
+    const item = menu?.items
+      .flatMap((i) => i.submenu?.items ?? [])
+      .find((i) => i.label === 'Rescan Sessions')
+    if (item === undefined) throw new Error('File > Rescan Sessions is missing from the menu')
+    ;(item.click as () => void)()
+  })
+
+  await expect(h.page.getByTestId('session-item')).toHaveCount(before + 1, { timeout: 5000 })
+  await expect(second.getByTestId('session-item')).toHaveCount(before + 1, { timeout: 5000 })
+})

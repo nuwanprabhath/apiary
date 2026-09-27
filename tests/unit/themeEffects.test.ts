@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { EFFECTS } from '../../src/shared/theme/effects'
-import type { Ctx2D } from '../../src/shared/theme/effects/types'
+import { EFFECTS } from '@shared/theme/effects'
+import type { Ctx2D } from '@shared/theme/effects/types'
 
 /** A context that records what was drawn, and the most opaque anything was drawn at. */
 function recorder(): Ctx2D & { ops: string[]; maxAlpha: number; painted: number } {

@@ -20,7 +20,14 @@ export default defineConfig({
   expect: { timeout: 15000 },
   // A CI runner has fewer cores, and each worker is a whole Electron app.
   workers: process.env.CI ? 2 : 4,
-  reporter: 'list',
+  // One retry on CI turns a flake into a report annotated "flaky" instead of a red build, while
+  // still surfacing it rather than hiding it outright. `forbidOnly` stops an accidental
+  // `test.only` from silently narrowing a CI run to one test (TEST-10).
+  retries: process.env.CI ? 1 : 0,
+  forbidOnly: !!process.env.CI,
+  reporter: process.env.CI
+    ? [['list'], ['html', { open: 'never' }], ['junit', { outputFile: 'test-results/junit.xml' }]]
+    : 'list',
   projects: [
     { name: 'parallel', grepInvert: /@serial/, fullyParallel: true },
     { name: 'serial', grep: /@serial/, workers: 1, dependencies: ['parallel'] },

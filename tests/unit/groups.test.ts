@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   orderFolders, groupFolders, moveFolder, moveBefore, moveGroup, deleteGroup, newGroupId,
-} from '../../src/renderer/state/groups'
-import type { SessionGroup } from '../../src/renderer/state/groups'
+} from '../../src/renderer/features/sidebar/model/groups'
+import type { SessionGroup } from '../../src/renderer/features/sidebar/model/groups'
 
 const id = (p: string): string => p
 

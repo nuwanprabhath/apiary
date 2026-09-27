@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { createLayoutFlushCoordinator } from '../../src/main/layoutFlushCoordinator'
+import { createLayoutFlushCoordinator } from '../../src/main/windows/layoutFlushCoordinator'
 
 beforeEach(() => { vi.useFakeTimers() })
 afterEach(() => { vi.useRealTimers() })

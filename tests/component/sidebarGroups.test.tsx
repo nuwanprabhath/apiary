@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { until } from './helpers'
 
@@ -81,7 +81,7 @@ describe('sidebarGroups', () => {
     await userEvent.fill(rename, 'Archive')
     await userEvent.keyboard('{Enter}')
 
-    await expect.element(page.getByTestId('folder-group-toggle')).toHaveTextContent('Archive')
+    await expect.element(page.getByTestId('folder-group-toggle')).toMatchTextContent('Archive')
   })
 
   it('a folder can be dropped into a group that is still empty', async () => {

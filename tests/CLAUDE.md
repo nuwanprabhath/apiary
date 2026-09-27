@@ -1,0 +1,85 @@
+# Testing
+
+Read with root CLAUDE.md; this is the full version of its "Which layer" summary and the single-test
+commands in its "Commands" table. See also [docs/testing.md](../docs/testing.md) for why the
+native-module ABI trap this section used to warn about no longer applies.
+
+Three layers, and a test goes in the cheapest one that can prove what it claims:
+
+- **Unit** (`npm run test:unit`, part of `npm test`, Vitest in Node): pure logic, fully mocked or
+  filesystem-only — no real git or pty subprocess, no native module. `tests/unit/purity.test.ts`
+  guards the unit/integration split.
+- **Integration** (`npm run test:integration`, part of `npm test`): drives a real git or pty
+  subprocess, or loads a native module (`better-sqlite3`, `node-pty`). Runs with
+  `fileParallelism: false` — several files (worktreeResolver, ptyManager, branchOps, appService)
+  drive real subprocesses that contend for the same machine when run concurrently, and a test
+  awaiting real git work can overrun its timeout under contention. Serial execution costs about
+  13 seconds more than parallel would; that is a fair price for a suite whose green means something.
+- **Component** (`npm run test:component`, Vitest browser mode): the whole renderer, mounted as
+  `main.tsx` mounts it, in real Chromium with the app's stylesheet, against
+  `tests/component/fakeApiary.ts` — an in-memory `ApiaryApi` that models the e2e fixture's four
+  sessions and records every call. Real layout and real pointer events (`helpers.ts` has a real
+  mouse via a server-side Playwright command), so geometry checks belong here too. ~180 tests in
+  ~20 s.
+  - The fake is typed as `ApiaryApi`: a new IPC call it does not implement is a type error. When
+    main starts emitting an event after a call (`treeChanged` after a rename, say), the fake must
+    do the same or component tests will pass against behaviour the app does not have.
+  - `expect.element` on an element not there yet used to overflow the stack printing the whole
+    page; `vitest.component.config.ts` sets `DEBUG_PRINT_LIMIT=0` and a 5 s poll for that.
+- **End-to-end** (`npm run test:e2e`, Playwright + Electron): only what needs the real app —
+  processes and ptys, several windows, a relaunch, real git, the watcher, native menus. Every spec
+  keeps at least one test proving its feature's real wiring. `npm run test:e2e` always runs
+  `npm run build` first (see "Running a single spec" below).
+  - Two Playwright projects (`playwright.config.ts`): `parallel` (4 workers, 2 on CI) runs
+    everything except tests tagged `@serial`; `serial` (the OS clipboard, window focus, or a
+    measurement of timing — things that cannot share the machine) runs afterwards, one at a time,
+    and *depends on* `parallel`, so a parallel-project failure skips it.
+  - `@smoke` marks a one-minute run through the main paths (`npm run test:e2e:smoke`) — the only
+    part of this suite that runs in CI (`ci.yml`'s `e2e-smoke` job); everything else is a
+    local/manual gate before tagging a release.
+  - `Harness.close()` closes the *current* app (a relaunch replaces `h.app`) and makes sure the
+    process has exited, killing and reporting it by test name if not. Closing the first app
+    instead once left every relaunched instance running — 26 at once in a full run.
+  - No fixed waits: wait on a condition, or use `expectStays(check, ms, what)` to prove something
+    does *not* happen. The only `waitForTimeout`s left measure a rate over a window.
+  - Never write test output to a fixed path; `test.info().outputPath()` lands in `test-results/`.
+
+## Running a single spec
+
+- Unit: `npm test -- tests/unit/x.test.ts` (or `npm run test:unit -- tests/unit/x.test.ts`).
+- Integration: `npm run test:integration -- tests/integration/x.test.ts`.
+- Component: `npm run test:component -- tests/component/x.test.tsx`.
+- E2E: **build first, then run Playwright directly with `--no-deps`.** `npm run test:e2e -- <file>`
+  passes `<file>` to Playwright, but Playwright ignores path filters on a project's *dependencies* —
+  since `serial` depends on `parallel`, `npm run test:e2e -- tests/e2e/x.spec.ts` still runs the
+  **entire** `parallel` project first (as the dependency), then your one test in `serial` if it
+  matched, which is not a fast inner loop. Instead:
+
+  ```sh
+  npm run build
+  npx playwright test tests/e2e/x.spec.ts --project=parallel --no-deps
+  # add -g "test title" to narrow further; only safe once `out/` is fresh and the ABI is Electron's
+  # (see docs/testing.md — this no longer requires a rebuild, just a build).
+  ```
+
+  A test tagged `@serial` needs `--project=serial --no-deps` instead, and runs alone regardless.
+
+## Opt-in suites (spend real resources — never run these by default)
+
+- `APIARY_LIVE_CLAUDE=1 npm run test:e2e -- tests/e2e/live/` — drives a real `claude --model haiku`
+  through the built app. Spends real API tokens. See
+  [docs/architecture/session-following.md](../docs/architecture/session-following.md).
+- `APIARY_BENCH=1 npm run test:e2e -- tests/e2e/bench/` (`APIARY_BENCH_GPU=off` for software
+  compositing) — measures theme performance. See
+  [src/shared/theme/CLAUDE.md](../src/shared/theme/CLAUDE.md).
+- `scripts/capture-activity-fixtures.mjs` — records new activity-classifier fixtures against a real
+  `claude --model haiku`. Never run in CI. See
+  [docs/architecture/activity.md](../docs/architecture/activity.md).
+- `APIARY_HEADED=1 npm run test:e2e` — runs e2e with visible windows instead of off-screen, for
+  watching a spec run.
+
+## Troubleshooting
+
+If a Playwright launch dies with `Process failed to launch` and `electron does not provide an
+export named 'BrowserWindow'`, see [docs/debugging.md](../docs/debugging.md) —
+`ELECTRON_RUN_AS_NODE` is almost always the cause.

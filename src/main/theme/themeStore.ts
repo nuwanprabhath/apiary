@@ -2,11 +2,11 @@ import { readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { validateTheme } from '@shared/theme/validate'
-import { BUILTIN_THEMES } from '@shared/theme/builtins'
+import { BUILTIN_THEMES, BUILTIN_THEME_PREFIX } from '@shared/theme/builtins'
 import type { ThemeSpec } from '@shared/theme/spec'
-import type { SavedTheme, ThemeOptions } from '@shared/api'
+import type { SavedTheme, ThemeOptions } from '@shared/theme/state'
 import { log } from '../log/logger'
-import { THEME_MODELS, type ThemeModel } from './themeGenerator'
+import { THEME_MODELS, type ThemeModel } from '@shared/theme/models'
 
 interface ThemeFile {
   version: 1
@@ -22,7 +22,7 @@ const DEFAULT_OPTIONS: ThemeOptions = { animated: true, intensity: 1, model: 'so
  * choice once made — including "Original" — is kept, and a file that exists but cannot be read
  * falls back to the original look, the one that cannot go wrong.
  */
-export const DEFAULT_THEME_ID = 'builtin:glass'
+export const DEFAULT_THEME_ID = `${BUILTIN_THEME_PREFIX}glass`
 const isModel = (m: unknown): m is ThemeModel => typeof m === 'string' && (THEME_MODELS as readonly string[]).includes(m)
 
 /**

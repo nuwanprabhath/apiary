@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, until } from './helpers'
 
@@ -41,7 +41,7 @@ describe('the Active section', () => {
     await expect.element(legend).toBeVisible()
     // Every status the dots can take is named, or the legend is a legend with a hole in it.
     for (const name of ['Running', 'Waiting for input', 'Idle', 'Stopped']) {
-      await expect.element(legend).toHaveTextContent(name)
+      await expect.element(legend).toMatchTextContent(name)
     }
     // Drawn with the real dots, so the motion in the legend is the motion on the rows.
     expect(legend.element().querySelectorAll('.status-dot')).toHaveLength(4)
@@ -65,7 +65,7 @@ describe('the Active section', () => {
     await userEvent.fill(page.getByTestId('note-input'), 'check with Mark first')
     await userEvent.click(page.getByTestId('note-save'))
     // The main process pushes `treeChanged` once a note write reaches the store (see
-    // main/ipc.ts's `setSessionNote` handler) — the fake's own `setSessionNote` has no store of
+    // main/ipc/handlers/sessions.ts's `setSessionNote` handler) — the fake's own `setSessionNote` has no store of
     // its own to push a signal from, so the test raises the same event main would.
     fake.emit('treeChanged')
     await until(() => document.querySelector('[data-testid="note-dialog"]') === null)
@@ -81,6 +81,6 @@ describe('the Active section', () => {
     if (treeRow === undefined) throw new Error('no tree row for the session')
     await userEvent.hover(page.elementLocator(treeRow))
     await until(() => document.querySelector('[data-testid="hover-card-note"]') !== null)
-    await expect.element(page.getByTestId('hover-card-note')).toHaveTextContent('check with Mark first')
+    await expect.element(page.getByTestId('hover-card-note')).toMatchTextContent('check with Mark first')
   })
 })

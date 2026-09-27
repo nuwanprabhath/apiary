@@ -2,7 +2,7 @@
  * The component-test counterparts of tests/e2e/helpers.ts's DOM helpers, so a test moved down a
  * layer reads the same as it did.
  */
-import { commands, page, userEvent, type Locator } from '@vitest/browser/context'
+import { commands, page, userEvent, type Locator } from 'vitest/browser'
 import { expect } from 'vitest'
 
 /** A session's row in the sidebar (tree, Pinned, Recent or Active), by its exact title. */

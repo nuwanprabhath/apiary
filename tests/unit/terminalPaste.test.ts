@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pasteText, type PasteableTerminal } from '../../src/renderer/state/terminalPaste'
+import { pasteText, type PasteableTerminal } from '../../src/renderer/features/terminal/terminalPaste'
 
 /** Stands in for xterm's own `Terminal.paste()`: the one real write path, bracketing the text
  *  exactly the way xterm does when the running program has enabled bracketed-paste mode. */
@@ -36,5 +36,15 @@ describe('pasteText', () => {
     const term = new FakeTerminal()
     pasteText(term, '')
     expect(term.written).toEqual([])
+  })
+
+  it('strips an ESC in the clipboard so it cannot close the bracket early (SEC-6)', () => {
+    const term = new FakeTerminal()
+    term.bracketedPasteMode = true
+    pasteText(term, 'a\x1b[201~\r!echo pwned')
+    const closeMarker = '\x1b[201~'
+    // Exactly the one closing marker xterm itself adds around the whole (now ESC-free) payload —
+    // none from the payload, which would otherwise have closed the bracket early.
+    expect(term.written.join('').split(closeMarker).length - 1).toBe(1)
   })
 })

@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { log } from '../log/logger'
 
 /**
  * Full-text search over what was actually said in a session.
@@ -32,7 +33,11 @@ export interface SearchHit {
  * the index's size and the time the first pass takes, for material nobody searches for: what people
  * remember and search by turns up in what was said, not in the thousandth tool result.
  */
-const MAX_TEXT_PER_SESSION = 2 * 1024 * 1024
+export const MAX_TEXT_PER_SESSION = 2 * 1024 * 1024
+
+/** Above this, `put`'s synchronous FTS5 tokenisation (on the main thread) is worth a log line
+ *  (MAIN-24: measure before cutting anything here). */
+const PUT_SLOW_MS = 50
 
 /**
  * Turns what someone typed into an FTS5 MATCH expression.
@@ -136,7 +141,14 @@ export class SearchIndex {
       this.db.prepare('INSERT OR REPLACE INTO indexed (session_id, size, mtime) VALUES (?, ?, ?)')
         .run(sessionId, size, Math.floor(mtimeMs))
     })
+    const started = Date.now()
     write()
+    // MAIN-24: "measure before fixing" — put() tokenises up to 2MB of text synchronously on the
+    // main thread. Nothing narrows what it does yet; this only says when it is worth looking at.
+    const durationMs = Date.now() - started
+    if (durationMs > PUT_SLOW_MS) {
+      log.debug('search', 'slow index write', { sessionId, durationMs, textLength: text.length })
+    }
   }
 
   /** Replaces the indexed note for one session. An empty or absent note removes the entry. */
@@ -172,6 +184,28 @@ export class SearchIndex {
   /** Empties only the notes, for when note indexing is switched off. */
   clearNotes(): void {
     this.db.exec('DELETE FROM notes')
+  }
+
+  /**
+   * Replaces every indexed note in one commit (MAIN-7).
+   *
+   * `syncNoteIndex` used to call `clearNotes()` (its own commit) and then `putNote` per note
+   * (each its own commit) — N+1 commits on every refresh pass, and a window between the delete
+   * committing and the re-inserts landing where the search worker (a separate WAL reader) could
+   * observe an empty notes table and a concurrent note search would find nothing. Doing the whole
+   * resync inside one transaction removes both: nothing else reading the database ever sees a
+   * state this process did not intend to leave it in.
+   */
+  replaceNotes(entries: { sessionId: string; note: string }[]): void {
+    const write = this.db.transaction(() => {
+      this.db.exec('DELETE FROM notes')
+      const insert = this.db.prepare('INSERT INTO notes (session_id, body) VALUES (?, ?)')
+      for (const { sessionId, note } of entries) {
+        const trimmed = note.trim()
+        if (trimmed !== '') insert.run(sessionId, trimmed.slice(0, MAX_TEXT_PER_SESSION))
+      }
+    })
+    write()
   }
 
   /** How many notes are indexed — shown in Settings beside the transcript count. */

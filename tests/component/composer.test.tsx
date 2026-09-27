@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, until } from './helpers'
 import { message } from './fakeApiary'
@@ -74,5 +74,19 @@ describe('composer images', () => {
 
     await userEvent.click(thumb)
     await expect.element(page.getByTestId('image-lightbox-image')).toBeVisible()
+  })
+})
+
+describe('composer draft isolation', () => {
+  it('does not carry a draft from one session tab into another (UI-12)', async () => {
+    await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await userEvent.click(page.getByTestId('composer-input'))
+    await userEvent.type(page.getByTestId('composer-input'), 'meant only for the CSV session')
+
+    await userEvent.click(sidebarSession('Add worktree switcher'))
+    // The composer for the newly active session must not show the other session's draft — it is a
+    // fresh instance keyed by session id, not the same textarea carried over.
+    await expect.element(page.getByTestId('composer-input')).toHaveValue('')
   })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import type { FakeApiary } from './fakeApiary'
 import { until } from './helpers'
@@ -21,12 +21,12 @@ describe('settings', () => {
     const { fake } = await renderApp()
     await openSettings(fake)
     // Sessions first, since that is what the app is for.
-    await expect.element(page.getByTestId('settings-pane')).toHaveTextContent('Automatically import all sessions')
+    await expect.element(page.getByTestId('settings-pane')).toMatchTextContent('Automatically import all sessions')
     expect(page.getByTestId('claude-bin-input').elements()).toHaveLength(0)
 
     await userEvent.click(page.getByTestId('settings-nav-general'))
     await expect.element(page.getByTestId('claude-bin-input')).toBeVisible()
-    await expect.element(page.getByTestId('settings-pane')).not.toHaveTextContent('Automatically import all sessions')
+    await expect.element(page.getByTestId('settings-pane')).not.toMatchTextContent('Automatically import all sessions')
   })
 
   it('Escape closes the settings dialog', async () => {
@@ -47,7 +47,7 @@ describe('settings', () => {
     fake.emit('openImportDialog')
     await until(() => document.querySelector('[data-testid="import-dialog"]') !== null)
     await expect.element(page.getByTestId('import-auto-notice')).toBeVisible()
-    await expect.element(page.getByTestId('import-auto-notice')).toHaveTextContent(/Settings/i)
+    await expect.element(page.getByTestId('import-auto-notice')).toMatchTextContent(/Settings/i)
   })
 
   it('the periodic check is off unless it is switched on, and its interval only then appears', async () => {
@@ -79,9 +79,9 @@ describe('settings', () => {
 
     const preview = page.getByTestId('terminal-path-preview')
     await userEvent.fill(page.getByTestId('setting-terminal-path-segments'), '1')
-    await expect.element(preview).toHaveTextContent('~/.../pipeline-issues')
+    await expect.element(preview).toMatchTextContent('~/.../pipeline-issues')
 
     await userEvent.fill(page.getByTestId('setting-terminal-path-segments'), '2')
-    await expect.element(preview).toHaveTextContent('~/.../paratoo-fdcp.worktrees/pipeline-issues')
+    await expect.element(preview).toMatchTextContent('~/.../paratoo-fdcp.worktrees/pipeline-issues')
   })
 })

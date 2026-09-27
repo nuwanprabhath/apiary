@@ -109,7 +109,11 @@ test.beforeEach(async () => {
   for (const d of labProjectDirs()) rmSync(d, { recursive: true, force: true })
   // A first session made outside the app, so the folder is in the tree with a "+" to click.
   execFileSync('claude', ['-p', '--model', 'haiku', 'Reply with just the word: seed'], { cwd: lab, stdio: 'ignore' })
-  h = await launchApiary({ configRoot: CLAUDE_ROOT })
+  // claudeBin: null — leave the setting unset so the app finds the real `claude` on PATH, rather
+  // than the harness's default stand-in (TEST-9). `useHaiku` below points it at the haiku wrapper
+  // before any session is opened, but a launch that ever spawned claudeBin before that ran would
+  // hit the stand-in instead.
+  h = await launchApiary({ configRoot: CLAUDE_ROOT, claudeBin: null })
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
   await useHaiku()

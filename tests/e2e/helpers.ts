@@ -1,6 +1,6 @@
 import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 import type { ChildProcess } from 'node:child_process'
-import { mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync, chmodSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -25,6 +25,16 @@ export interface Harness {
   worktreeDir: string
   /** A second worktree of repoRoot, present only when `secondWorktree` was asked for. */
   worktreeDirB: string | null
+  /**
+   * The extras this harness was launched with (before `launchEnv`'s own process-env filtering and
+   * headless/theme/git defaults are applied) — everything `launchApiary` passed as fixture hooks
+   * (`APIARY_CODE_PATH`, `APIARY_GLAB_PATH`, `APIARY_FAKE_*`, and so on). A relaunch rebuilds its
+   * environment from this (TEST-8), so a relaunched app keeps behaving like the one it replaced
+   * instead of silently falling back to real VS Code / glab detection.
+   */
+  env: Record<string, string>
+  /** Extra Electron/Chromium switches this harness was launched with; a relaunch keeps them too. */
+  electronArgs: string[]
   /** Opens a second app window through the real File > New Window menu item. */
   newWindow(): Promise<Page>
   close(): Promise<void>
@@ -42,6 +52,28 @@ function headlessEnv(): Record<string, string> {
 }
 
 /**
+ * An isolated git identity and config, so the app's own git operations (`git merge --no-edit` in
+ * `branchOps.ts`, in particular) never touch the developer's real `~/.gitconfig` (TEST-9). Without
+ * this, a merge spec passes or fails depending on whether the machine running it has
+ * `commit.gpgsign` on — the specs work around this per call with `-c commit.gpgsign=false` for
+ * their *own* fixture-building git commands, but the app's merge runs with whatever the machine's
+ * global config says, since it is not the test process invoking git.
+ *
+ * `GIT_CONFIG_NOSYSTEM` additionally keeps a machine-wide `/etc/gitconfig` from leaking in.
+ */
+function isolatedGitEnv(home: string): Record<string, string> {
+  const gitconfig = join(home, '.gitconfig-e2e')
+  writeFileSync(gitconfig, [
+    '[user]', '\tname = Test', '\temail = test@example.com',
+    '[init]', '\tdefaultBranch = main',
+    '[commit]', '\tgpgsign = false',
+    '[tag]', '\tgpgsign = false',
+    '',
+  ].join('\n'))
+  return { GIT_CONFIG_GLOBAL: gitconfig, GIT_CONFIG_NOSYSTEM: '1' }
+}
+
+/**
  * The environment to launch Electron with.
  *
  * `ELECTRON_RUN_AS_NODE` has to go. Anything that runs Electron's binary as a plain Node
@@ -50,14 +82,14 @@ function headlessEnv(): Record<string, string> {
  * Node and `electron` exports no `BrowserWindow`. Cheap to rule out once, and the failure it
  * causes looks nothing like its cause.
  */
-function launchEnv(extra: Record<string, string>): Record<string, string> {
+function launchEnv(home: string, extra: Record<string, string>): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) {
     if (k !== 'ELECTRON_RUN_AS_NODE' && v !== undefined) env[k] = v
   }
   // The suite is written against the original look; a spec that wants the real first-run default
   // passes APIARY_DEFAULT_THEME: '' (see themes.spec.ts).
-  return { ...env, APIARY_DEFAULT_THEME: 'original', ...extra, ...headlessEnv() }
+  return { ...env, APIARY_DEFAULT_THEME: 'original', ...isolatedGitEnv(home), ...extra, ...headlessEnv() }
 }
 
 /** Resolves true once `proc` has exited, or false if it is still running after `ms`. */
@@ -87,6 +119,33 @@ async function closeApp(app: ElectronApplication): Promise<void> {
   console.warn(`[e2e] Apiary (pid ${String(proc.pid)}) was still running 5s after quitting, in ${where}; killing it`)
   proc.kill('SIGKILL')
   await exitedWithin(proc, 5000)
+}
+
+/**
+ * Starts a trace on a freshly launched (or relaunched) app's context, so a failure has more to
+ * show than a stack trace (TEST-10). Cheap to always run: tracing overhead is on the order of a
+ * few percent, and `stopTracingAndScreenshot` below discards it on a pass.
+ */
+async function startTracing(app: ElectronApplication): Promise<void> {
+  await app.context().tracing.start({ screenshots: true, snapshots: true })
+}
+
+/**
+ * Stops the current app's trace, keeping it (plus a screenshot) only if the test that owns it did
+ * not pass — a green run has nothing worth keeping, and every one of them would otherwise leave a
+ * `trace.zip` in `test-results/`. Called before the app closes, since both a trace and a
+ * screenshot need it still running. Not inside a test (a helper called from outside `test()`,
+ * or a harness whose test has already torn down) is treated as a pass: nothing to attach it to.
+ */
+async function stopTracingAndScreenshot(app: ElectronApplication, page: Page): Promise<void> {
+  let failed = false
+  try { failed = test.info().status !== test.info().expectedStatus } catch { /* not inside a test */ }
+  if (!failed) {
+    await app.context().tracing.stop().catch(() => {})
+    return
+  }
+  await app.context().tracing.stop({ path: test.info().outputPath('trace.zip') }).catch(() => {})
+  await page.screenshot({ path: test.info().outputPath('failure.png') }).catch(() => {})
 }
 
 function git(cwd: string, ...args: string[]): void {
@@ -152,10 +211,10 @@ export async function launchApiary(
      * labelled "Branch" and contradicted each other; see sidebarBranch.spec.ts.
      */
     staleBranchSession?: boolean
-    /** A stand-in `glab` for the merge-request plugin (see scripts/fixtures/fake-glab.sh). */
+    /** A stand-in `glab` for the merge-request plugin (see tests/fixtures/bin/fake-glab.sh). */
     glabPath?: string
     /**
-     * A stand-in `code` binary (see scripts/fixtures/fake-code.sh), substituted for real
+     * A stand-in `code` binary (see tests/fixtures/bin/fake-code.sh), substituted for real
      * detection so the "Open in VS Code" button's spawn never launches a real editor. Empty
      * string simulates VS Code not being found at all; omitted behaves the same way, so specs
      * that do not care about this feature never see the button.
@@ -184,6 +243,17 @@ export async function launchApiary(
     electronArgs?: string[]
     /** Start a fresh profile on the real first-run theme instead of the original look. */
     realDefaultTheme?: boolean
+    /**
+     * The `claudeBin` setting to seed the fresh profile with (TEST-9), so a spec that clicks
+     * Resume or New Session never spawns whatever `claude` happens to be on the machine running
+     * the suite. Omitted (the default): a generated stand-in that just execs the login shell —
+     * exactly what most specs used to set up by hand through the Settings UI, now the default
+     * for every harness instead of three separate copies of the same helper. `null`: leave the
+     * setting unset, so the app falls back to real `PATH` detection — for the opt-in `live/`
+     * specs, which need the genuine `claude`. A string: a caller-supplied path (already written
+     * and made executable by the caller), for a spec that wants its own stand-in from the start.
+     */
+    claudeBin?: string | null
   } = {},
 ): Promise<Harness> {
   // realpath the root up front: on macOS os.tmpdir() is under /var, a symlink to /private/var,
@@ -281,32 +351,57 @@ export async function launchApiary(
   }
 
   const vsCodeLog = join(home, 'vscode-log.txt')
+
+  // Seed the fresh profile's settings.json with a claudeBin stand-in *before* launch, so Resume
+  // and New Session never reach whatever `claude` happens to be on the machine running the suite
+  // (TEST-9) — the default for every harness, replacing three separate copies of a helper that
+  // set this up by hand through the Settings UI after launch. `${SHELL:-/bin/bash}` mirrors
+  // `resumeCommand.ts`'s own fallback, so this stays hermetic even where $SHELL is unset (CI).
+  const userDataDir = join(home, 'userdata')
+  let claudeBin: string | null
+  if (opts.claudeBin === null) {
+    claudeBin = null
+  } else if (opts.claudeBin !== undefined) {
+    claudeBin = opts.claudeBin
+  } else {
+    claudeBin = join(home, 'fake-claude.sh')
+    writeFileSync(claudeBin, '#!/bin/sh\nexec "${SHELL:-/bin/bash}" -l\n')
+    chmodSync(claudeBin, 0o755)
+  }
+  if (claudeBin !== null) {
+    mkdirSync(userDataDir, { recursive: true })
+    writeFileSync(join(userDataDir, 'settings.json'), JSON.stringify({ claudeBin }))
+  }
+
+  const electronArgs = opts.electronArgs ?? []
+  const env = launchEnv(home, {
+    ...(opts.realDefaultTheme === true ? { APIARY_DEFAULT_THEME: '' } : {}),
+    APIARY_CONFIG_ROOT: opts.configRoot ?? home,
+    APIARY_DB_PATH: join(home, 'apiary.db'),
+    APIARY_FAKE_LIVE: opts.fakeLiveSessionId ?? '',
+    APIARY_FAKE_UPDATE: opts.fakeUpdate ?? '',
+    APIARY_GLAB_PATH: opts.glabPath ?? '',
+    APIARY_FAKE_GLAB_STATE_FILE: join(home, 'glab-state'),
+    APIARY_FAKE_GLAB_EMPTY: opts.glabEmpty === true ? '1' : '',
+    APIARY_FAKE_GLAB_FAIL: opts.glabFails === true ? '1' : '',
+    APIARY_FAKE_GLAB_MERGED: opts.glabMerged === true ? '1' : '',
+    APIARY_FAKE_UPDATE_MODE: opts.updateMode ?? 'assisted',
+    // Empty when omitted — main/index.ts treats that as "VS Code not found" rather than
+    // falling back to real detection, so a spec that never mentions VS Code never sees the
+    // button and can never spawn a real editor by accident.
+    APIARY_CODE_PATH: opts.codePath ?? '',
+    APIARY_FAKE_CODE_LOG: vsCodeLog,
+  })
   const app = await electron.launch({
     // Every launch gets its own Chromium profile dir under the throwaway `home` this call
     // already created, instead of sharing Electron's OS-default userData directory (and thus
     // the developer's real Apiary profile) across every test run and relaunch.
-    args: [`--user-data-dir=${join(home, 'userdata')}`, ...(opts.electronArgs ?? []), '.'],
-    env: launchEnv({
-      ...(opts.realDefaultTheme === true ? { APIARY_DEFAULT_THEME: '' } : {}),
-      APIARY_CONFIG_ROOT: opts.configRoot ?? home,
-      APIARY_DB_PATH: join(home, 'apiary.db'),
-      APIARY_FAKE_LIVE: opts.fakeLiveSessionId ?? '',
-      APIARY_FAKE_UPDATE: opts.fakeUpdate ?? '',
-      APIARY_GLAB_PATH: opts.glabPath ?? '',
-      APIARY_FAKE_GLAB_STATE_FILE: join(home, 'glab-state'),
-      APIARY_FAKE_GLAB_EMPTY: opts.glabEmpty === true ? '1' : '',
-      APIARY_FAKE_GLAB_FAIL: opts.glabFails === true ? '1' : '',
-      APIARY_FAKE_GLAB_MERGED: opts.glabMerged === true ? '1' : '',
-      APIARY_FAKE_UPDATE_MODE: opts.updateMode ?? 'assisted',
-      // Empty when omitted — main/index.ts treats that as "VS Code not found" rather than
-      // falling back to real detection, so a spec that never mentions VS Code never sees the
-      // button and can never spawn a real editor by accident.
-      APIARY_CODE_PATH: opts.codePath ?? '',
-      APIARY_FAKE_CODE_LOG: vsCodeLog,
-    }),
+    args: [`--user-data-dir=${userDataDir}`, ...electronArgs, '.'],
+    env,
   })
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
+  await startTracing(app)
 
   return {
     app,
@@ -319,6 +414,8 @@ export async function launchApiary(
     repoRoot,
     worktreeDir,
     worktreeDirB,
+    env,
+    electronArgs,
     async newWindow(this: Harness) {
       // Driven through the actual menu item rather than by constructing a BrowserWindow here, so
       // the test exercises the path a user takes — including whatever the app does on the way.
@@ -338,6 +435,8 @@ export async function launchApiary(
       return opened
     },
     async close(this: Harness) {
+      // Capture a trace/screenshot before the app that could still produce them goes away.
+      await stopTracingAndScreenshot(this.app, this.page)
       // Likewise the current app: closing the one captured at launch left every relaunched
       // instance running until the worker exited.
       await closeApp(this.app)
@@ -390,21 +489,30 @@ export async function relaunchApiaryViaWindowClose(h: Harness): Promise<void> {
   await launchAgainst(h)
 }
 
-/** Relaunches into `h.app`/`h.page` against the same profile, config root and database. */
+/**
+ * Relaunches into `h.app`/`h.page` against the same profile, config root and database.
+ *
+ * Rebuilds the environment from `h.env` — the full environment the harness was launched (or last
+ * relaunched) with — rather than a fresh, much smaller set of variables (TEST-8). The previous
+ * version passed only `APIARY_CONFIG_ROOT`/`APIARY_DB_PATH`/`APIARY_FAKE_LIVE`, so a relaunched
+ * app saw an *undefined* `APIARY_CODE_PATH`/`APIARY_GLAB_PATH`/claudeBin setup and fell back to
+ * real VS Code/`glab`/`claude` detection on the developer's machine — behaviour that depends on
+ * what happens to be installed, in specs that never meant to test that. `extraEnv` still wins
+ * over everything `h.env` carries, and is folded into `h.env` itself so a *second* relaunch keeps
+ * whatever the first one asked for, exactly like `electronArgs` below.
+ */
 async function launchAgainst(h: Harness, extraEnv: Record<string, string> = {}): Promise<void> {
+  const env = { ...h.env, ...extraEnv }
   const app = await electron.launch({
-    args: [`--user-data-dir=${join(h.home, 'userdata')}`, '.'],
-    env: launchEnv({
-      APIARY_CONFIG_ROOT: h.home,
-      APIARY_DB_PATH: join(h.home, 'apiary.db'),
-      APIARY_FAKE_LIVE: '',
-      ...extraEnv,
-    }),
+    args: [`--user-data-dir=${join(h.home, 'userdata')}`, ...h.electronArgs, '.'],
+    env,
   })
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
+  await startTracing(app)
   h.app = app
   h.page = page
+  h.env = env
 }
 
 async function settleUiState(page: Page): Promise<void> {
@@ -554,15 +662,18 @@ export async function ptyResizeCallCount(app: ElectronApplication): Promise<numb
 }
 
 /**
- * A session row in the sidebar, by title.
+ * A session row in the sidebar (tree, Pinned or Recent), by title.
  *
- * Scoped to the sidebar deliberately: once a session is open it also appears in its column's tab
- * strip, so a bare `getByText(title)` matches twice and trips Playwright's strict mode. Anything
- * that means "the row in the list" — clicking one open, or asserting the list's contents — wants
- * this rather than a page-wide text match.
+ * Scoped to `[data-testid="session-item"]` (`SessionRow`'s own testid) rather than the whole
+ * `.sidebar`, for two reasons that both trip Playwright's strict mode on a bare `getByText`:
+ * once a session is open it also appears in its column's tab strip, and once it is *running* it
+ * also appears in the Active section — a second render with the same title
+ * (`data-testid="active-tab-row"`, not `SessionRow`). Active has its own locators everywhere that
+ * mean the Active row specifically; this one is for "the row in the list" — clicking one open, or
+ * asserting the list's contents.
  */
 export function sidebarSession(page: Page, title: string, options: { exact?: boolean } = {}): Locator {
-  return page.locator('.sidebar').getByText(title, { exact: options.exact ?? true })
+  return page.locator('.sidebar').getByTestId('session-item').getByText(title, { exact: options.exact ?? true })
 }
 
 /**

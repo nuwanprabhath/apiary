@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { BUILTIN_THEMES } from '../../src/shared/theme/builtins'
-import { validateTheme } from '../../src/shared/theme/validate'
+import { BUILTIN_THEMES } from '@shared/theme/builtins'
+import { validateTheme } from '@shared/theme/validate'
 
 describe('built-in themes', () => {
   // They are the generator's examples, so they must be exemplary: nothing for the validator to fix.

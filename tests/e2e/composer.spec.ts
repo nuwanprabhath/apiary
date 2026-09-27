@@ -1,30 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { writeFileSync, chmodSync, readdirSync } from 'node:fs'
+import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
 
 /** A 1x1 PNG, small enough to paste inline and still be a real image on disk. */
 const TINY_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
-
-/**
- * Points `claudeBin` at a script that just execs the login shell, the same stand-in newSession.spec
- * uses. It makes the session's process something a test can actually converse with: whatever the
- * composer types arrives at a real prompt, and its output comes back on screen — which is the only
- * way to prove the message was delivered *and* submitted, rather than left sitting in a buffer.
- */
-async function useFakeClaudeShell(h: Harness): Promise<void> {
-  const script = join(h.home, 'fake-claude.sh')
-  writeFileSync(script, '#!/bin/sh\nexec "$SHELL" -l\n')
-  chmodSync(script, 0o755)
-  await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
-  })
-  await h.page.getByTestId('settings-nav-general').click()
-  await h.page.getByTestId('claude-bin-input').fill(script)
-  await h.page.getByTestId('settings-save').click()
-  await expect(h.page.getByTestId('settings-dialog')).toHaveCount(0)
-}
 
 /** Pastes an image into the composer the way a real paste arrives: as a file on the event. */
 async function pasteImage(h: Harness, base64 = TINY_PNG): Promise<void> {
@@ -48,7 +29,6 @@ test.beforeEach(async () => {
 test.afterEach(async () => { await h.close() })
 
 test('the transcript has a chat box, and what you type reaches the running session', { tag: '@smoke' }, async () => {
-  await useFakeClaudeShell(h)
   await sidebarSession(h.page, 'Fix CSV export bug').click()
   await expect(h.page.getByTestId('composer')).toBeVisible()
   // Before resuming, the box says where a message would go rather than pretending to be connected.
@@ -67,7 +47,6 @@ test('the transcript has a chat box, and what you type reaches the running sessi
 })
 
 test('Enter sends and Shift+Enter makes a new line', async () => {
-  await useFakeClaudeShell(h)
   await sidebarSession(h.page, 'Fix CSV export bug').click()
 
   const input = h.page.getByTestId('composer-input')
@@ -81,7 +60,6 @@ test('Enter sends and Shift+Enter makes a new line', async () => {
 })
 
 test('a pasted image is written to disk and its path is what gets sent', async () => {
-  await useFakeClaudeShell(h)
   await sidebarSession(h.page, 'Fix CSV export bug').click()
 
   await pasteImage(h)

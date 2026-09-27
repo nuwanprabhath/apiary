@@ -1,0 +1,232 @@
+/*
+ * Design tokens.
+ *
+ * Every colour used anywhere in this stylesheet resolves through one of these — there are no
+ * literal colour values in the rules below, deliberately. That makes a future theme feature a
+ * matter of redefining this one block against a selector (e.g. `:root[data-theme="light"] { … }`)
+ * and toggling an attribute on <html>, without editing a single rule. Keep it that way: if you
+ * need a new colour, add a token here rather than inlining a hex value at the point of use.
+ *
+ * The terminal is included in that promise: xterm.js is canvas/DOM-rendered from a JS palette
+ * rather than CSS, so `TerminalView.tsx` reads these same custom properties off the document at
+ * mount and hands them to xterm. A theme therefore recolours the terminal too, for free.
+ */
+:root {
+  /* Surfaces, from furthest back to furthest forward. --bg-window is what shows in the gaps
+   * between the floating panels. */
+  --bg-window: #141517;
+  --bg: #1b1c1e;
+  --bg-panel: #212327;
+  --bg-terminal: #151618;
+  --bg-overlay: rgb(0 0 0 / 55%);
+
+  /* Lines and type. */
+  --border: #33363b;
+  --text: #e6e6e6;
+  --muted: #9aa0a6;
+
+  /* Accent, and the ink that stays legible on top of a filled accent surface. */
+  --accent: #d9a441;
+  --accent-contrast: #1b1c1e;
+
+  /* Interaction states. --selected marks a persistent selection, --hover a transient one. */
+  --selected: #2f3238;
+  --hover: rgb(90 93 94 / 31%);
+
+  /* Status. --danger-soft is the tint behind a destructive control on hover; --danger-bg the
+   * fill behind a whole error banner. */
+  --danger: #e0736d;
+  --danger-soft: rgb(224 115 109 / 18%);
+  --danger-bg: #3a2422;
+  --success: #58c06e;
+  --warning: #e3b341;
+  --info: #6cb6ff;
+
+  /* The Active section's status dot — one token per state's colour, plus the shape and the pulse
+   * timing shared by the two states that mean "something is happening right now" (running/waiting).
+   * idle/stopped are motionless, so they need no duration of their own. */
+  --status-running: var(--info);
+  --status-waiting: var(--warning);
+  --status-idle: var(--muted);
+  --status-stopped: var(--border);
+  /* The drawn size of an icon inside a control, for inline SVGs that carry no size of their own. */
+  --icon-size: 14px;
+  /* The search box's "still filtering" spinner, offset to clear the button beside it. */
+  --search-spinner-size: 12px;
+  --search-spinner-width: 2px;
+  --search-spinner-right: 26px;
+  --search-spinner-duration: 0.7s;
+  --status-dot-size: 8px;
+  --status-ring-width: 2px;
+  /* Three states, three motions — see the .status-dot rules for why they differ this much. */
+  --status-breathe-duration: 2s;
+  --status-breathe-min-opacity: 0.3;
+  --status-breathe-min-scale: 0.7;
+  --status-attention-duration: 1.4s;
+  --status-attention-spread: 7px;
+  --status-attention-scale: 1.35;
+
+  /* A `!<iid>` reference's resolved GitLab state (see MrRefText). --mr-opened/--mr-closed/
+   * --mr-locked reuse the general status tones; --mr-merged is its own, since a merged MR is
+   * neither an error nor a warning — it is the answer everyone hopes for. */
+  --mr-opened: var(--info);
+  --mr-merged: #b385f5;
+  --mr-closed: var(--danger);
+  --mr-locked: var(--muted);
+
+  /* Lift for anything that floats over the rest of the app (notifications, popovers). */
+  --shadow-overlay: 0 8px 28px rgb(0 0 0 / 45%);
+  /* The lifted-chip shadow (the active session/terminal tab): a hairline edge plus this drop,
+   * composed with a border colour that varies by state — see the .session-tab[data-active]
+   * and .terminal-tab-row[data-active] rules. */
+  --shadow-chip: 0 1px 3px rgb(0 0 0 / 28%);
+  /* The lightbox's own backdrop, darker than --bg-overlay because it sits behind a photo rather
+   * than behind UI chrome. */
+  --bg-lightbox: rgb(0 0 0 / 85%);
+
+  /*
+   * Stacking order for everything that leaves the normal document flow. One scale, so "does the
+   * git menu open above or below a dialog" is a comparison of two numbers here rather than a
+   * search through the file for whichever literal someone chose at the time. Kept in the order
+   * they stack, back to front:
+   *  - the theme's back effects canvas sits at the very bottom, under the whole app;
+   *  - --z-base lifts the app shell itself just enough to sit above that canvas;
+   *  - resizers and drop targets are UI chrome that must stay clickable over ordinary content,
+   *    but they still belong *inside* the window, under anything that floats free of it;
+   *  - the front effects canvas draws over the whole app but must never take the pointer, so it
+   *    still sits under every interactive floating surface;
+   *  - popovers (menus, hover cards, the layout picker) float over ordinary content and each
+   *    other's anchors, but a modal's backdrop must still be able to cover one left open;
+   *  - toasts must stay legible even while a modal is open, since a background failure can land
+   *    at any time;
+   *  - the lightbox is opened *from* a dialog or the transcript, so it outranks everything else.
+   */
+  --z-glass-tint: -1;
+  --z-effects-back: 0;
+  --z-base: 1;
+  --z-glass-rim: 2;
+  --z-terminal-list-resizer: 3;
+  --z-pane-dividers: 5;
+  --z-resizer: 6;
+  --z-pane-drop: 20;
+  --z-effects-front: 55;
+  --z-popover: 60;
+  --z-modal: 80;
+  --z-toast: 100;
+  --z-lightbox: 120;
+
+  /* The grab handles drawn in the gaps between panels: always faintly there, like VS Code's, so
+   * the resize affordance can be found without hunting for it; brighter under the pointer. */
+  --handle-color: rgb(154 160 166 / 45%);
+  --handle-color-hover: var(--muted);
+  --handle-color-active: var(--accent);
+
+  --scrollbar-thumb: rgb(121 121 121 / 40%);
+  --scrollbar-thumb-hover: rgb(100 100 100 / 70%);
+
+  /*
+   * Shape and size, for the same reason as the colours above: a theme is not only a palette.
+   * Every control in the app resolves its height, padding, corner and focus ring through these,
+   * so "buttons are too tall" or "corners are too round" is one edit here rather than a search
+   * through forty rules. The heights exist because the app had six near-identical button rules
+   * that each chose their own padding, which is exactly how a dialog ends up with a Cancel and
+   * a Save of visibly different heights.
+   */
+  /* Density scales the controls as one: a theme's compact/normal/roomy is this single number. */
+  --density: 1;
+  --control-height: calc(26px * var(--density));
+  --control-height-sm: calc(22px * var(--density));
+  /* The strip a hidden sidebar leaves behind: one icon button and its breathing room. */
+  --sidebar-rail-width: 40px;
+  --control-padding-x: 10px;
+  --control-gap: 6px;
+  /*
+   * Every corner follows the theme's panel radius (--radius-panel, set by a theme's shape.radius),
+   * so a rounder theme is rounder everywhere — a 6px button tucked into a 14px glass card looked
+   * square. The ratios reproduce the original look exactly at the default 8px: small 4, rows 5,
+   * controls 6, dialogs 10. Themes set --radius-control themselves (rounded, see cssVars.ts).
+   */
+  --radius-sm: calc(var(--radius-panel) * 0.5);
+  --radius-row: calc(var(--radius-panel) * 0.625);
+  /* Smaller than --radius-sm: for a mark drawn at miniature scale (the layout picker's zones), not a control. */
+  --radius-xs: 2px;
+  --radius-control: 6px;
+  --radius: var(--radius-control);
+  --radius-lg: calc(var(--radius-panel) * 1.25);
+
+  /*
+   * The floating-panel layout: the sidebar, each editor pane and each shell are cards with
+   * rounded corners on --bg-window, --panel-gap apart. Every gap is also its divider's resize
+   * target, with a pill-shaped handle centred in it.
+   */
+  --radius-panel: 8px;
+  --panel-gap: 6px;
+  --panel-shadow: 0 1px 3px rgb(0 0 0 / 30%), 0 0 var(--glow-size) var(--glow-color);
+  --handle-length: 18px;
+  --handle-thickness: 4px;
+
+  /*
+   * The surfaces a control is drawn on, named by role rather than by where they are used.
+   *
+   * A button's surface is a step *lighter* than the panel behind it, and a field's a step darker.
+   * That is not decoration: a button sits on top of the page and a field is cut into it, and
+   * getting it the wrong way round is why an outlined Cancel next to a filled Save looked shorter
+   * than it measured — both were 26px, but a button darker than its own panel reads as a hole
+   * rather than as a block, and a hole next to a solid fill does not look like the same size.
+   */
+  --control-bg: #2a2d32;
+  --control-bg-hover: var(--selected);
+  --control-bg-active: var(--border);
+  --control-border: var(--border);
+  --field-bg: var(--bg);
+
+  /* One focus style for the whole app — see the note on .search:focus for why it is not an
+   * outline. Controls and fields share it so focus looks the same wherever it lands. */
+  --focus-ring: 0 0 0 1px var(--accent);
+
+  /* The terminal's own palette: xterm paints from JS, so TerminalView reads these (and re-reads
+   * them when a theme changes). A theme may set any of them; these are the original look's. */
+  --term-foreground: var(--text);
+  --term-background: var(--bg-terminal);
+  --term-cursor: var(--text);
+  --term-selection: var(--selected);
+  --term-black: #1b1c1e;
+  --term-red: #e0736d;
+  --term-green: #58c06e;
+  --term-yellow: #e3b341;
+  --term-blue: #6cb6ff;
+  --term-magenta: #b385f5;
+  --term-cyan: #56c8d8;
+  --term-white: #d0d0d0;
+  --term-bright-black: #6b7075;
+  --term-bright-red: #ff8f88;
+  --term-bright-green: #7ee08f;
+  --term-bright-yellow: #f5cd6a;
+  --term-bright-blue: #94cbff;
+  --term-bright-magenta: #cda6ff;
+  --term-bright-cyan: #86e1ec;
+  --term-bright-white: #fff;
+
+  /* A theme's neon glow on the panels' edges (cssVars.ts); none unless a theme asks for it. */
+  --glow-color: transparent;
+  --glow-size: 0px;
+
+  /* Type. A theme picks a stack by name (data-ui-font / data-mono-font below), never a family
+   * string of its own. */
+  --font-ui: -apple-system, "Segoe UI", Ubuntu, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+
+:root[data-ui-font="inter"] { --font-ui: "Inter", -apple-system, sans-serif; }
+:root[data-ui-font="ibm-plex-sans"] { --font-ui: "IBM Plex Sans", -apple-system, sans-serif; }
+:root[data-ui-font="space-grotesk"] { --font-ui: "Space Grotesk", -apple-system, sans-serif; }
+:root[data-ui-font="orbitron"] { --font-ui: "Orbitron", -apple-system, sans-serif; }
+:root[data-ui-font="rajdhani"] { --font-ui: "Rajdhani", -apple-system, sans-serif; }
+:root[data-mono-font="jetbrains-mono"] { --font-mono: "JetBrains Mono", ui-monospace, monospace; }
+:root[data-mono-font="ibm-plex-mono"] { --font-mono: "IBM Plex Mono", ui-monospace, monospace; }
+:root[data-mono-font="fira-code"] { --font-mono: "Fira Code", ui-monospace, monospace; }
+:root[data-mono-font="vt323"] { --font-mono: "VT323", ui-monospace, monospace; }
+:root[data-mono-font="share-tech-mono"] { --font-mono: "Share Tech Mono", ui-monospace, monospace; }

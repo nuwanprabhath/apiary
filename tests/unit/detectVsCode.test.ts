@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { EventEmitter } from 'node:events'
+import type { ChildProcess } from 'node:child_process'
 import { detectVsCode, openInVsCode } from '../../src/main/vscode/detectVsCode'
+import { log } from '../../src/main/log/logger'
 
 describe('detectVsCode', () => {
   it('uses `code` on PATH when it runs', async () => {
@@ -59,5 +62,24 @@ describe('openInVsCode', () => {
   it('throws when spawning itself fails, so the caller can report it', () => {
     const spawn = (): never => { throw new Error('EACCES') }
     expect(() => openInVsCode('code', '/repo/work', { spawn: spawn })).toThrow('EACCES')
+  })
+
+  it('reports a missing binary instead of crashing the main process (MAIN-19)', () => {
+    // A launch failure (VS Code uninstalled since detectVsCode last ran) does not throw from
+    // `spawn` itself — it arrives later, asynchronously, as an 'error' event on the returned
+    // ChildProcess. With nothing listening for it, Node re-throws that as an uncaught exception.
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {})
+    try {
+      const child = new EventEmitter() as unknown as ChildProcess
+      const spawn = (): ChildProcess => child
+      expect(() => openInVsCode('code', '/repo/work', { spawn })).not.toThrow()
+      expect(() => (child as unknown as EventEmitter).emit('error', new Error('ENOENT'))).not.toThrow()
+      expect(warn).toHaveBeenCalledWith('vscode', 'launch failed', {
+        codePath: 'code',
+        error: 'ENOENT',
+      })
+    } finally {
+      warn.mockRestore()
+    }
   })
 })

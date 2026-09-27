@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { composerIsEmpty, sanitizeTitle, renameInClaude, renameTerminalInClaude } from '../../src/main/claudeRename'
+import { composerIsEmpty, sanitizeTitle, renameInClaude, renameTerminalInClaude } from '../../src/main/claude/claudeRename'
 import { renderScreen } from '../../src/main/pty/screen'
-import type { PtySessionInfo } from '../../src/shared/api'
+import type { PtySessionInfo } from '@shared/api'
 
 /**
  * Typing `/rename` into a user's terminal is only acceptable when it cannot disturb anything. The

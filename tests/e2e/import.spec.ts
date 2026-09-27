@@ -90,7 +90,11 @@ test('the scrollbar has arrow buttons that step by a line, not a page', async ()
     const before = await list.evaluate((el) => el.scrollTop)
     expect(before).toBe(300)
 
-    // The up arrow sits in the scrollbar gutter at the very top of the element.
+    // The up arrow sits in the scrollbar gutter at the very top of the element. A move before the
+    // click matters now: Electron 44's much newer Chromium no longer hit-tests a synthetic click
+    // on a custom `::-webkit-scrollbar-button` correctly unless a real pointer move landed there
+    // first (a bare `mouse.click()` used to be enough).
+    await h.page.mouse.move(box.x + box.width - 6, box.y + 6)
     await h.page.mouse.click(box.x + box.width - 6, box.y + 6)
     await expect.poll(async () => list.evaluate((el) => el.scrollTop)).toBeLessThan(before)
     const afterUp = await list.evaluate((el) => el.scrollTop)
@@ -98,6 +102,7 @@ test('the scrollbar has arrow buttons that step by a line, not a page', async ()
     expect(before - afterUp).toBeLessThan(box.height / 2)
 
     // ...and the down arrow at the bottom steps back the other way.
+    await h.page.mouse.move(box.x + box.width - 6, box.y + box.height - 6)
     await h.page.mouse.click(box.x + box.width - 6, box.y + box.height - 6)
     await expect.poll(async () => list.evaluate((el) => el.scrollTop)).toBeGreaterThan(afterUp)
   } finally {

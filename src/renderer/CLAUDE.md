@@ -1,0 +1,67 @@
+# src/renderer — the React UI
+
+Read with root CLAUDE.md; this covers xterm integration, terminal painting, controls and the parts
+of theming that live in CSS. No Node access here — everything reaches main only through
+`window.apiary` (`src/shared/ipc/contract.ts`'s `ApiaryApi`, implemented by `src/preload/index.ts`).
+See also [`src/main/pty/CLAUDE.md`](../main/pty/CLAUDE.md) for the pty side of the terminal, and
+[`src/shared/theme/CLAUDE.md`](../shared/theme/CLAUDE.md) for the theme data model.
+
+## Terminal key handling
+
+Key handling in the terminal goes through xterm's `attachCustomKeyEventHandler`. A DOM listener on
+the host element runs *after* xterm has already written to the PTY, so `preventDefault()` there
+cannot stop a key — which is how you end up copying a selection *and* sending SIGINT.
+
+## Terminals: painting and prompts
+
+- **The host paints the terminal's colour, xterm paints none** (`.terminal-host` background is
+  `--term-background`, `.xterm-viewport` transparent). xterm draws whole rows only; the sliver
+  under the last one used to show whatever was behind — a bar on glass. Rows are **bottom-anchored**
+  (`justify-content: flex-end`), so every pane ends its text the same distance from the edge.
+
+## Theming (renderer half)
+
+The theme data model, validation and effects live in `src/shared/theme/` — see that folder's
+`CLAUDE.md`. The renderer-only conventions:
+
+- **Anything floating is solid** on solid themes: dialogs, menus, hover cards, toasts paint the
+  panel colour over `--bg`, because a theme's translucent chrome let the transcript show through a
+  dialog. On glass they are panes at ≥ 94% tint (`--bg-popover`) — no blur.
+- **Corners come from the theme**: `--radius-sm`/`--radius-row`/`--radius-lg` in `styles.css` are
+  `calc()`s of `--radius-panel` (4/5/10 px at the default 8), `--radius-control` is set by the
+  theme. Never write a literal px radius above 3px in `styles.css` — Stylelint enforces this.
+- **There is no `backdrop-filter` anywhere, on purpose.** What shows through a glass pane is only
+  the window colour and the back effects canvas, so `ThemeEffects` draws that canvas blurred (at a
+  fraction of the window's resolution, scaled up) and saturated, rather than filtering per pane live.
+  A live backdrop filter per pane — the first version, with an SVG lens — re-ran on every frame and
+  hover and made the app lag by ~800 ms without GPU compositing. "Refraction" is now a lens-edge
+  glow in `--glass-rim`, drawn as a `::before` on each card (and on `.sidebar-frame`).
+- The active theme reaches a window before its first paint through a synchronous preload read
+  (`initialTheme`); components mounted later must ask `themeState()`, not trust that snapshot.
+
+## Conventions
+
+- **`styles.css` uses CSS custom properties for colour *and* for shape.** No literal colours (the
+  scrollbar arrow data-URI SVGs are the one documented exception), and no literal control heights,
+  paddings, corner radii or focus rings either — they are tokens at the top of the file for the
+  same reason: a theme is not only a palette.
+- **Controls go through the control layer**, not through a rule of their own. Every button that
+  looks like a button resolves one base rule; `.btn` is what new markup uses, with `.primary` and
+  `.danger` for the filled variants and `.small` for a compact one. The app previously had six
+  near-identical button rules with four different paddings between them, which is how a Cancel and
+  a Save ended up side by side at different heights — and a button belonging to none of them fell
+  through to Chromium's native macOS control, which is white and looks like another application's.
+  Checkboxes are drawn by the app for that second reason: `accent-color` alone only colours the
+  checked state, leaving the unchecked box white in a dark panel.
+
+## Sidebar virtualization: measured and rejected
+
+The 2026-09-26 review proposed `content-visibility: auto` on collapsed sidebar groups as a cheap
+step before full list virtualization (UI-9). It was tried and rejected after measuring: Chromium
+empties a skipped row's `element.innerText` while `content-visibility: auto` is hiding it, and
+`tests/e2e/nestedReorder.spec.ts` — which reads row text to assert drag-and-drop order — broke
+against real rows, not a test artifact. Anything that reads rendered text from an off-screen but
+still-mounted row (search-in-DOM, accessibility tooling, this kind of test) is incompatible with
+`content-visibility: auto` on that row. Full virtualization (unmounting instead of hiding) was
+judged not worth the complexity at the sidebar sizes actually seen; do not reach for
+`content-visibility` here again without solving the `innerText` problem first.

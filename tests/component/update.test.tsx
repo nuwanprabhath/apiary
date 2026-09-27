@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import type { FakeApiary } from './fakeApiary'
 import { until } from './helpers'
@@ -47,7 +47,7 @@ describe('the updater', () => {
     await renderApp({ update: { phase: 'available', availableVersion: '9.9.9', releaseUrl: 'https://example.invalid/9.9.9' } })
     const banner = page.getByTestId('update-banner')
     await expect.element(banner).toBeVisible()
-    await expect.element(banner).toHaveTextContent('9.9.9')
+    await expect.element(banner).toMatchTextContent('9.9.9')
     // Nothing modal: the session underneath is still there to be worked in.
     await expect.element(page.getByTestId('sidebar-refresh')).not.toHaveAttribute('disabled')
   })
@@ -84,7 +84,7 @@ describe('the updater', () => {
 
     await expect.element(page.getByTestId('settings-dialog')).toBeVisible()
     await expect.element(page.getByTestId('settings-nav-updates')).toHaveAttribute('data-active', 'true')
-    await expect.element(page.getByTestId('settings-pane')).toHaveTextContent('How Apiary keeps itself up to date')
+    await expect.element(page.getByTestId('settings-pane')).toMatchTextContent('How Apiary keeps itself up to date')
   })
 
   it('an unsigned build offers to download, and says why it cannot install by itself', async () => {
@@ -114,11 +114,11 @@ describe('the updater', () => {
     })
 
     const banner = page.getByTestId('update-banner')
-    await expect.element(banner.getByTestId('update-download')).toHaveTextContent('Download')
-    await expect.element(banner).toHaveTextContent('drag')
+    await expect.element(banner.getByTestId('update-download')).toMatchTextContent('Download')
+    await expect.element(banner).toMatchTextContent('drag')
 
     await userEvent.click(banner.getByTestId('update-download'))
-    await expect.element(banner).toHaveTextContent('has been downloaded')
+    await expect.element(banner).toMatchTextContent('has been downloaded')
     await expect.element(banner.getByTestId('update-open-downloaded')).toBeVisible()
     // It must never offer to restart into an update it cannot install.
     await expect.element(banner.getByTestId('update-install')).not.toBeInTheDocument()
@@ -141,10 +141,10 @@ describe('the updater', () => {
     })
 
     const banner = page.getByTestId('update-banner')
-    await expect.element(banner.getByTestId('update-download')).toHaveTextContent('Download and install')
+    await expect.element(banner.getByTestId('update-download')).toMatchTextContent('Download and install')
     await userEvent.click(banner.getByTestId('update-download'))
     await expect.element(banner.getByTestId('update-install')).toBeVisible()
-    await expect.element(banner).toHaveTextContent('ready to install')
+    await expect.element(banner).toMatchTextContent('ready to install')
   })
 
   it('skipping a version puts the banner away and keeps it away', async () => {
@@ -165,7 +165,7 @@ describe('the updater', () => {
     // silences the automatic offer, not the question.
     await openUpdateSettings(fake)
     await userEvent.click(page.getByTestId('update-check-now'))
-    await expect.element(page.getByTestId('update-version-row')).toHaveTextContent('Skipping 9.9.9')
+    await expect.element(page.getByTestId('update-version-row')).toMatchTextContent('Skipping 9.9.9')
   })
 
   it('dismissing is not skipping: the banner goes, the update is still there', async () => {
@@ -202,10 +202,10 @@ describe('the updater', () => {
     await openUpdateSettings(fake)
 
     const row = page.getByTestId('update-version-row')
-    await expect.element(row).toHaveTextContent('Version')
-    await expect.element(row).toHaveTextContent('Last checked')
+    await expect.element(row).toMatchTextContent('Version')
+    await expect.element(row).toMatchTextContent('Last checked')
     // The reason is on screen rather than implied by a missing button.
-    await expect.element(row).toHaveTextContent('Unsigned build')
+    await expect.element(row).toMatchTextContent('Unsigned build')
   })
 
   it('"Check now" answers inside the dialog, where the question was asked', async () => {
@@ -216,7 +216,7 @@ describe('the updater', () => {
     await openUpdateSettings(fake)
 
     await userEvent.click(page.getByTestId('update-check-now'))
-    await expect.element(page.getByTestId('update-check-result')).toHaveTextContent('9.9.9 is available')
+    await expect.element(page.getByTestId('update-check-result')).toMatchTextContent('9.9.9 is available')
   })
 
   it('a check that finds nothing says so, rather than leaving the button silent', async () => {
@@ -226,7 +226,7 @@ describe('the updater', () => {
     await openUpdateSettings(fake)
 
     await userEvent.click(page.getByTestId('update-check-now'))
-    await expect.element(page.getByTestId('update-check-result')).toHaveTextContent('is the latest version')
+    await expect.element(page.getByTestId('update-check-result')).toMatchTextContent('is the latest version')
   })
 
   it('a build with no updater does not offer a check it cannot run', async () => {
@@ -239,7 +239,7 @@ describe('the updater', () => {
     await openUpdateSettings(fake)
 
     await expect.element(page.getByTestId('update-check-now')).toHaveAttribute('disabled')
-    await expect.element(page.getByTestId('update-version-row')).toHaveTextContent('updates apply to installed builds only')
+    await expect.element(page.getByTestId('update-version-row')).toMatchTextContent('updates apply to installed builds only')
   })
 
   it('a downloaded .deb says how to install it, rather than talking about Applications', async () => {
@@ -273,10 +273,47 @@ describe('the updater', () => {
 
     const banner = page.getByTestId('update-banner')
     await expect.element(banner).toHaveAttribute('data-phase', 'downloaded')
-    await expect.element(banner).toHaveTextContent('root')
-    await expect.element(banner).not.toHaveTextContent('Applications')
+    await expect.element(banner).toMatchTextContent('root')
+    await expect.element(banner).not.toMatchTextContent('Applications')
     // And the button says what it will actually do.
-    await expect.element(page.getByTestId('update-open-downloaded')).toHaveTextContent('Show in folder')
+    await expect.element(page.getByTestId('update-open-downloaded')).toMatchTextContent('Show in folder')
     await expect.element(page.getByTestId('update-copy-command')).toBeVisible()
+  })
+
+  it('Settings reads the one shared updater subscription instead of opening a second (UI-20)', async () => {
+    // useUpdate.ts says "one subscription, shared by the banner and the Settings panel" — but the
+    // Settings dialog used to call the hook itself too, which fetched updateStatus() again and
+    // opened a second onUpdateChanged listener the moment the dialog mounted. The banner (App) is
+    // the only caller that should ever ask.
+    const { fake } = await renderApp()
+    const before = fake.callsTo('updateStatus').length
+    await openUpdateSettings(fake)
+    await expect.element(page.getByTestId('update-version-row')).toBeVisible()
+    expect(fake.callsTo('updateStatus').length).toBe(before)
+  })
+
+  it('a failed "Skip this version" is logged, not shown as a toast (UI-23)', async () => {
+    // "Skip" gives its own feedback by removing the banner once the status broadcast confirms it
+    // (or, on failure, by leaving the banner exactly as it was) — an "Unexpected error" toast on
+    // top of that would just be noise for a click whose outcome is already visible. The renderer's
+    // fireAndForget still has to make the failure findable, via the diagnostic log.
+    const { fake } = await renderApp({
+      update: {
+        phase: 'available',
+        availableVersion: '9.9.9',
+        capability: { kind: 'auto', reason: 'Signed build — updates install themselves.' },
+      },
+    })
+    fake.override('updateSkip', async () => { throw new Error('disk full') })
+
+    await userEvent.click(page.getByTestId('update-skip'))
+    await until(() => fake.callsTo('logWrite').length > 0)
+
+    const [level, scope, message] = fake.callsTo('logWrite')[0]
+    expect(level).toBe('warn')
+    expect(scope).toBe('update')
+    expect(message).toBe('background task failed')
+    // No toast for this one — the banner itself is still the feedback.
+    expect(page.getByTestId('notification').elements()).toHaveLength(0)
   })
 })

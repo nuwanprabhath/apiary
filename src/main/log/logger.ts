@@ -1,7 +1,10 @@
 import { appendFileSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { redact } from '@shared/redact'
+import { redact, redactString } from '@shared/redact'
+import type { LogLevel, LogStatusPayload } from '@shared/domain/log'
 import { filesToPrune, shouldRotate, type LogFile } from './rotation'
+
+export type { LogLevel } from '@shared/domain/log'
 
 /**
  * The diagnostic log.
@@ -27,8 +30,6 @@ import { filesToPrune, shouldRotate, type LogFile } from './rotation'
  *   feature the user was actually using.
  */
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
-
 export interface LoggerOptions {
   enabled: boolean
   /** Directory the log files live in. Created only when logging is switched on. */
@@ -39,12 +40,8 @@ export interface LoggerOptions {
   home?: string
 }
 
-export interface LogStatus {
-  enabled: boolean
-  dir: string
-  files: number
-  bytes: number
-}
+/** Kept as an alias: `LogStatusPayload` is the canonical (shared) name — see SHARED-2. */
+export type LogStatus = LogStatusPayload
 
 const ACTIVE = 'apiary.log'
 const PREFIX = 'apiary'
@@ -135,12 +132,16 @@ export class Logger {
     if (!this.enabled) return
     try {
       this.prepare()
+      // The redacted `fields` are spread *before* the four fixed keys, not after: `renderer:${scope}`
+      // messages (logWrite, ipc.ts) carry a caller-chosen `scope` and `message`, and if `fields`
+      // could win over these, a field literally named "msg" or "scope" would let unredacted text
+      // reach the log despite `redactString` running on the real ones right below (SEC-11).
       const entry = {
+        ...(redact(fields, { home: this.opts.home }) as LogFields),
         ts: new Date().toISOString(),
         level,
-        scope,
-        msg: message,
-        ...(redact(fields, { home: this.opts.home }) as LogFields),
+        scope: redactString(scope, { home: this.opts.home }),
+        msg: redactString(message, { home: this.opts.home }),
       }
       const line = `${JSON.stringify(entry)}\n`
       const bytes = Buffer.byteLength(line)

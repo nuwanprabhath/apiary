@@ -276,6 +276,55 @@ describe('the plugin registry', () => {
     registry.setEnabled('a', false)
     expect(await registry.refresh(ctx)).toEqual([])
   })
+
+  it('stamps an item with the plugin that produced it, ignoring whatever pluginId the plugin itself returned', async () => {
+    // MAIN-17: a plugin no longer has to know its own id as a string literal repeated at every
+    // item — and cannot make an item disagree with the plugin that actually produced it.
+    const registry = new PluginRegistry()
+    registry.register({
+      id: 'a',
+      name: 'a',
+      evaluate: async () => ({ ...barItem('some-other-id'), pluginId: undefined } as never),
+    })
+    const [item] = await registry.refresh(ctx)
+    expect(item.pluginId).toBe('a')
+  })
+
+  it('evicts a session nobody has asked about in a long time, without disturbing one still in use', async () => {
+    let now = 1000
+    const registry = new PluginRegistry({ ttlMs: 10_000, now: () => now })
+    const plugin = stubPlugin('a', barItem('a'))
+    registry.register(plugin)
+
+    const stale = { cwd: '/work/gone', branch: 'main' }
+    const fresh = { cwd: '/work/still-open', branch: 'main' }
+    await registry.refresh(stale)
+    await registry.refresh(fresh)
+
+    now += 11 * 60 * 1000 // past IDLE_EVICT_MS
+    registry.items(fresh) // "still in use": this is what keeps it alive
+    plugin.calls = 0
+
+    // The idle one is gone from the cache: asking about it again is a fresh lookup, not a hit.
+    registry.items(stale)
+    expect(plugin.calls).toBe(1)
+  })
+
+  it('dispose releases every plugin that has something to release', () => {
+    const registry = new PluginRegistry()
+    let released = false
+    registry.register({
+      id: 'a', name: 'a', evaluate: async () => null, dispose: () => { released = true },
+    })
+    registry.dispose()
+    expect(released).toBe(true)
+  })
+})
+
+describe('BUILTIN_PLUGINS and defaultEnabled (MAIN-17)', () => {
+  it('the GitLab plugin declares itself on by default', () => {
+    expect(createGitLabMrPlugin().defaultEnabled).toBe(true)
+  })
 })
 
 describe('plugin settings', () => {

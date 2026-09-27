@@ -1,8 +1,7 @@
-import { execFile, spawn as nodeSpawn, type ChildProcess } from 'node:child_process'
-import { promisify } from 'node:util'
+import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
-
-const run = promisify(execFile)
+import { log } from '../log/logger'
+import { createExec } from '../exec/run'
 
 /** Known install locations, checked in order, for platforms where `code` is not on PATH — the
  *  common case on macOS, where "Shell Command: Install 'code' command in PATH" is an opt-in menu
@@ -17,9 +16,13 @@ export interface DetectVsCodeOptions {
   exists?: (path: string) => boolean
 }
 
+/** MAIN-23: same wrapper the other git/exec call sites use. `code --version` takes no meaningful
+ *  cwd, so `process.cwd()` is passed through unconditionally — the same as before this migration,
+ *  when `run()` was called with no `cwd` option (Node's default `maxBuffer`, 1MB, is also
+ *  `createExec`'s default, so neither changes). */
+const execViaWrapper = createExec({ timeoutMs: 5000, scope: 'vscode-detect' })
 async function defaultExec(file: string, args: string[]): Promise<string> {
-  const { stdout } = await run(file, args, { timeout: 5000 })
-  return stdout
+  return execViaWrapper(file, args, process.cwd())
 }
 
 /**
@@ -64,5 +67,13 @@ export interface OpenInVsCodeOptions {
 export function openInVsCode(codePath: string, folder: string, options: OpenInVsCodeOptions = {}): void {
   const spawn = options.spawn ?? nodeSpawn
   const child = spawn(codePath, [folder], { detached: true, stdio: 'ignore', shell: false })
+  // `spawn` returns before the child process actually exists, so a missing or unexecutable binary
+  // (VS Code uninstalled since `detectVsCode` last ran, a stale APIARY_CODE_PATH) surfaces here,
+  // asynchronously, as an 'error' event — not as a thrown exception. With nothing listening for
+  // it, that event had no listener to run on and Node re-throws it as an uncaught exception on the
+  // main process (MAIN-19).
+  child.on?.('error', (error: Error) => {
+    log.warn('vscode', 'launch failed', { codePath, error: error.message })
+  })
   child.unref?.()
 }

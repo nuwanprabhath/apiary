@@ -1,5 +1,5 @@
 import { describe, it, beforeEach, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession } from './helpers'
 
@@ -16,7 +16,7 @@ describe('renaming a session', () => {
     await userEvent.keyboard('{Escape}')
 
     await expect.element(page.getByTestId('session-title-input')).not.toBeInTheDocument()
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Fix CSV export bug')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
   })
 
   it('blurring the input commits the rename, same as Enter', async () => {
@@ -26,7 +26,7 @@ describe('renaming a session', () => {
     await userEvent.click(page.getByTestId('content'), { position: { x: 20, y: 1 } })
 
     await expect.element(page.getByTestId('session-title-input')).not.toBeInTheDocument()
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Committed on blur')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Committed on blur')
   })
 
   it('opening the rename editor on a different session starts from that session\'s own title, not a leftover draft', async () => {
@@ -36,7 +36,7 @@ describe('renaming a session', () => {
     // switch to B.
     await userEvent.click(page.getByTestId('session-title-edit'))
     await userEvent.click(sidebarSession('Add worktree switcher'))
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Add worktree switcher')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Add worktree switcher')
 
     // B's own editor must start from B's title, not whatever was last open for A (the `key`ed
     // remount in App.tsx is what guarantees this).
@@ -46,7 +46,7 @@ describe('renaming a session', () => {
 
     // And switching back, A's own title is untouched by any of the above.
     await userEvent.click(sidebarSession('Fix CSV export bug'))
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Fix CSV export bug')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
     await expect.element(page.getByTestId('session-title-input')).not.toBeInTheDocument()
   })
 })

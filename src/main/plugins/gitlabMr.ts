@@ -1,11 +1,8 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import { createExec } from '../exec/run'
 import { parseGitLabRemote, newMergeRequestUrl, type GitLabRemote } from './gitlabRemote'
 import type {
   PluginBarItem, PluginContext, PluginSettingValues, SessionBarPlugin,
 } from './types'
-
-const run = promisify(execFile)
 
 /**
  * The merge-request button, the way the GitLab VS Code extension's works: if the branch you are on
@@ -41,7 +38,6 @@ interface GlabMr {
   target_branch?: string
 }
 
-const DEFAULT_TIMEOUT_MS = 8000
 
 /**
  * Picks the merge request a branch "has" when GitLab reports several.
@@ -68,12 +64,11 @@ export function pickMergeRequest(list: GlabMr[]): GlabMr | null {
  * `suggest` is reserved for the *offer* to create one, so a merged MR is `normal` — it is a thing
  * that exists, not something being proposed. The glyph is what separates the states.
  */
-export function itemForMergeRequest(mr: GlabMr): PluginBarItem {
+export function itemForMergeRequest(mr: GlabMr): Omit<PluginBarItem, 'pluginId'> {
   const state = mr.state === 'opened'
     ? (mr.draft === true ? 'Draft' : 'Open')
     : mr.state.charAt(0).toUpperCase() + mr.state.slice(1)
   return {
-    pluginId: 'gitlab-mr',
     id: 'mr',
     icon: iconForState(mr.state),
     // The number is the label because it is what gets quoted in chat, in commits and in standups.
@@ -96,10 +91,9 @@ export function itemForNewMergeRequest(
   remote: GitLabRemote,
   branch: string,
   targetBranch?: string | null,
-): PluginBarItem {
+): Omit<PluginBarItem, 'pluginId'> {
   const target = targetBranch?.trim() ?? ''
   return {
-    pluginId: 'gitlab-mr',
     id: 'mr-new',
     icon: 'plus',
     label: 'MR',
@@ -111,12 +105,11 @@ export function itemForNewMergeRequest(
   }
 }
 
-/** The `execFile`-backed `exec` every plugin call here defaults to; reused by the MR status cache
- *  so `git`/`glab` are shelled out to exactly one way rather than each caller building its own. */
-export async function defaultExec(file: string, args: string[], cwd: string): Promise<string> {
-  const { stdout } = await run(file, args, { cwd, timeout: DEFAULT_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024 })
-  return stdout
-}
+/** The `exec/run.ts`-backed `exec` every plugin call here defaults to; also reused by the MR
+ *  status cache (MAIN-23) so `git`/`glab` are shelled out to exactly one way, with one timeout and
+ *  buffer policy and one place that logs a slow or failed spawn, rather than each caller building
+ *  its own `promisify(execFile)`. */
+export const defaultExec = createExec({ timeoutMs: 8000, maxBuffer: 8 * 1024 * 1024, scope: 'gitlab-mr' })
 
 export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarPlugin {
   const glab = options.glabPath ?? 'glab'
@@ -124,6 +117,9 @@ export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarP
 
   return {
     id: 'gitlab-mr',
+    // On unless the user has actually said otherwise (AppServiceOptions.plugins still wins) — the
+    // literal `?? true` this replaces used to live in AppService's constructor instead of here.
+    defaultEnabled: true,
     name: 'GitLab merge request',
     description: 'Shows the merge request for the branch you are on, and opens it in a click. '
       + 'With no merge request yet, it opens GitLab\u2019s new-merge-request form with the branch '
@@ -142,7 +138,9 @@ export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarP
       },
     ],
 
-    async evaluate(ctx: PluginContext, settings: PluginSettingValues): Promise<PluginBarItem | null> {
+    async evaluate(
+      ctx: PluginContext, settings: PluginSettingValues,
+    ): Promise<Omit<PluginBarItem, 'pluginId'> | null> {
       const targetBranch = typeof settings.targetBranch === 'string' ? settings.targetBranch : ''
       // A detached HEAD has no branch to have an MR for, and nothing sensible to create one from.
       if (ctx.branch === null || ctx.branch === '') return null

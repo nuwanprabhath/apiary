@@ -22,7 +22,18 @@ import { defineConfig, globalIgnores } from 'eslint/config'
  * handlers, misused async callbacks in React props — need types.
  */
 export default defineConfig([
-  globalIgnores(['out/', 'dist/', 'release/', 'node_modules/', '.worktrees/', 'test-results/', 'playwright-report/', 'coverage/']),
+  globalIgnores([
+    'out/',
+    'dist/',
+    'release/',
+    'node_modules/',
+    '.worktrees/',
+    '.claude/',
+    'test-results/',
+    'playwright-report/',
+    'coverage/',
+    '.superpowers/',
+  ]),
 
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
@@ -44,6 +55,13 @@ export default defineConfig([
       'prefer-const': 'error',
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
+      // A switch over a union that misses a case fails at compile time instead of at the default
+      // branch nobody wrote.
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+      '@typescript-eslint/prefer-nullish-coalescing': 'error',
+      // Mostly the global `JSX` namespace, deprecated in favour of `React.JSX`/an explicit
+      // `import type { JSX } from 'react'` — React 19 drops the global outright.
+      '@typescript-eslint/no-deprecated': 'error',
       // A promise nobody awaits is how an IPC failure disappears without a trace; `void` marks the
       // ones that are fire-and-forget on purpose.
       '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: true }],
@@ -107,14 +125,22 @@ export default defineConfig([
     },
   },
 
-  // Shared: imported by both sides, so it may assume neither.
+  // Shared: imported by both sides, so it may assume neither. This is only half machine-checked
+  // without the two rules below: `@types/node` is part of both tsconfig programs (pulled in
+  // transitively through the vitest/globals and Playwright types), so `import 'node:fs'` or
+  // `process.env.X` here would otherwise pass both typecheck and lint, then crash the renderer at
+  // runtime the first time it ran (CLAUDE.md Conventions).
   {
     files: ['src/shared/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', {
         paths: [{ name: 'electron', message: 'Shared code runs in both processes; keep Electron out of it.' }],
-        patterns: [{ group: ['**/main/**', '**/renderer/**'], message: 'Shared code must not depend on either side.' }],
+        patterns: [
+          { group: ['**/main/**', '**/renderer/**'], message: 'Shared code must not depend on either side.' },
+          { group: ['node:*'], message: 'Shared code runs in the renderer too, which has no Node.' },
+        ],
       }],
+      'no-restricted-globals': ['error', 'process', 'Buffer', 'window', 'document', 'require', '__dirname'],
     },
   },
 
@@ -134,7 +160,7 @@ export default defineConfig([
 
   // End-to-end tests and the screenshot script, which drive the app with Playwright.
   {
-    files: ['tests/e2e/**/*.ts', 'scripts/*.spec.ts'],
+    files: ['tests/e2e/**/*.ts', 'scripts/**/*.spec.ts'],
     extends: [playwright.configs['flat/recommended']],
     languageOptions: { globals: globals.node },
     rules: {

@@ -8,9 +8,9 @@ import type { ThemeSpec } from '@shared/theme/spec'
 import { childEnv } from '../pty/childEnv'
 import { loginShell } from '../pty/resumeCommand'
 import { log } from '../log/logger'
+import { THEME_MODELS, type ThemeModel } from '@shared/theme/models'
 
-export const THEME_MODELS = ['sonnet', 'haiku', 'opus'] as const
-export type ThemeModel = typeof THEME_MODELS[number]
+export { THEME_MODELS, type ThemeModel } from '@shared/theme/models'
 
 const MAX_STDOUT = 64 * 1024
 

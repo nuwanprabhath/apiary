@@ -5,12 +5,12 @@
  * milliseconds where the same test end-to-end costs a launch.
  */
 import { createRoot, type Root } from 'react-dom/client'
-import { page } from '@vitest/browser/context'
+import { page } from 'vitest/browser'
 import { expect } from 'vitest'
-import { App } from '../../src/renderer/App'
-import { NotificationProvider } from '../../src/renderer/state/notifications'
-import { NotificationCenter } from '../../src/renderer/components/NotificationCenter'
-import { ErrorBoundary } from '../../src/renderer/components/ErrorBoundary'
+import { App } from '../../src/renderer/app/App'
+import { NotificationProvider } from '../../src/renderer/ui/notifications'
+import { NotificationCenter } from '../../src/renderer/ui/NotificationCenter'
+import { ErrorBoundary } from '../../src/renderer/ui/ErrorBoundary'
 import { applyTheme } from '../../src/renderer/theme/applyTheme'
 import '../../src/renderer/fonts'
 import '../../src/renderer/styles.css'
@@ -44,6 +44,12 @@ export async function renderApp(opts: FakeOptions = {}): Promise<Rendered> {
   // to reflow the page under a test that has already measured or hovered something — a hover
   // landed on a button that then moved out from under the pointer. Nothing starts until they have.
   await document.fonts.ready
+  // The tree itself arrives a tick later still: `useSessionTreeCache` fetches it from the (fake)
+  // bridge in a `useEffect`, so the sidebar first mounts with an empty list — before either its
+  // rows or the "no sessions imported yet" message exist. A test that queries the tree
+  // synchronously right after `renderApp` resolves (most of them do) needs that settled, not just
+  // the sidebar container's own visibility.
+  await expect.poll(() => document.querySelector('[data-testid="sidebar-list"]')?.children.length ?? 0).toBeGreaterThan(0)
   return { fake }
 }
 

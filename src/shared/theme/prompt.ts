@@ -1,6 +1,6 @@
 import {
   PALETTE_TOKENS, TERMINAL_COLORS, UI_FONTS, MONO_FONTS, EFFECT_KINDS, DENSITIES, MATERIALS, LIMITS,
-  type ThemeSpec,
+  type ThemeSpec, type EffectKind, type UiFont, type MonoFont,
 } from './spec'
 import { BUILTIN_THEMES } from './builtins'
 
@@ -12,7 +12,7 @@ import { BUILTIN_THEMES } from './builtins'
  * through `validateTheme` like anything else, and whatever the schema did not stop, that does.
  */
 
-const EFFECT_NOTES: Record<string, string> = {
+const EFFECT_NOTES: Record<EffectKind, string> = {
   'digital-rain': 'falling columns of glyphs behind the panels (Matrix)',
   'perspective-grid': 'a synthwave floor of lines rolling to a horizon, behind the panels',
   'starfield': 'drifting, twinkling stars behind the panels',
@@ -26,7 +26,7 @@ const EFFECT_NOTES: Record<string, string> = {
   'paper-grain': 'a still, faint paper texture over everything',
 }
 
-const FONT_NOTES: Record<string, string> = {
+const FONT_NOTES: Record<UiFont | MonoFont, string> = {
   'system': 'the platform UI font', 'inter': 'clean modern sans', 'ibm-plex-sans': 'technical, friendly sans',
   'space-grotesk': 'geometric, slightly quirky sans', 'orbitron': 'wide sci-fi display face (use for bold themes)',
   'rajdhani': 'condensed, angular sans', 'system-mono': 'the platform monospace', 'jetbrains-mono': 'modern coding mono',

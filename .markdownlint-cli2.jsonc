@@ -10,5 +10,5 @@
     "MD041": false
   },
   "globs": ["**/*.md"],
-  "ignores": ["node_modules", ".worktrees", "docs/superpowers", "out", "test-results", ".superpowers", ".agent-reports", "docs/install-prompt.md"]
+  "ignores": ["node_modules", ".worktrees", ".claude", "docs/superpowers", "out", "test-results", ".superpowers", ".agent-reports", "docs/install-prompt.md"]
 }

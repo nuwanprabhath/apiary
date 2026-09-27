@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp, type Rendered } from './renderApp'
 import { sidebarSession, box, mouse, until } from './helpers'
 
@@ -62,6 +62,25 @@ describe('look and feel', () => {
     const column = document.querySelector('[data-testid="column-resizer"]')!
     await userEvent.hover(column)
     await until(() => pillOf(column).opacity === '1')
+  })
+
+  it('UI-27: the sidebar and shell resizers are keyboard-operable separators', async () => {
+    await open()
+    const sidebarResizer = page.getByTestId('sidebar-resizer').element()
+    expect(sidebarResizer.getAttribute('role')).toBe('separator')
+    expect(sidebarResizer.getAttribute('aria-orientation')).toBe('vertical')
+    const before = box(page.getByTestId('sidebar')).width
+    sidebarResizer.focus()
+    await userEvent.keyboard('{ArrowRight}')
+    await until(() => box(page.getByTestId('sidebar')).width > before)
+
+    const bottomResizer = page.getByTestId('bottom-resizer').element()
+    expect(bottomResizer.getAttribute('role')).toBe('separator')
+    expect(bottomResizer.getAttribute('aria-orientation')).toBe('horizontal')
+    const beforeHeight = box(page.getByTestId('shell-card')).height
+    bottomResizer.focus()
+    await userEvent.keyboard('{ArrowUp}')
+    await until(() => box(page.getByTestId('shell-card')).height > beforeHeight)
   })
 
   it('a scrollbar shows while its list scrolls, and hides again when left alone', async () => {

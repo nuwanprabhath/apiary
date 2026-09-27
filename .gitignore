@@ -6,5 +6,11 @@ release/
 .DS_Store
 test-results/
 playwright-report/
+coverage/
 .worktrees/
 .agent-reports/
+.claude/worktrees/
+.claude/settings.local.json
+.superpowers/
+.vscode/
+!.vscode/extensions.json

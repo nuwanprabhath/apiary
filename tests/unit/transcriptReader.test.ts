@@ -1,7 +1,16 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { mkdtempSync, rmSync, writeFileSync, appendFileSync, utimesSync, createReadStream } from 'node:fs'
+import type * as NodeFs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+
+// Only `createReadStream` is wrapped in a spy (everything else passes through untouched); this
+// lets the incremental-indexing test below prove *how* a re-read happened (which byte it started
+// at), not just that the result was correct.
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeFs>()
+  return { ...actual, createReadStream: vi.fn(actual.createReadStream) }
+})
 import {
   indexTranscript,
   readTranscriptPage,
@@ -40,6 +49,24 @@ describe('indexTranscript', () => {
     expect(offsets).toHaveLength(4)
     expect(offsets[0]).toBe(0)
     expect(messageCount).toBe(2)
+  })
+
+  it('keeps byte offsets correct for every line after one bigger than the per-line cap (SEC-12)', async () => {
+    // The huge line's own type marker sits well inside the cap, so it is still counted as a
+    // message — but the line's *content* beyond the cap is dropped from the buffer used for the
+    // substring test, and this must not corrupt the byte offset of the line that follows it.
+    const hugeLine = JSON.stringify(userMsg('huge', 'x'.repeat(2_000_000)))
+    writeFileSync(file(), [hugeLine, JSON.stringify(userMsg('u2', 'after the huge line'))].join('\n') + '\n')
+
+    const { offsets, messageCount } = await indexTranscript(file())
+    expect(offsets).toHaveLength(2)
+    expect(offsets[0]).toBe(0)
+    expect(offsets[1]).toBe(Buffer.byteLength(hugeLine, 'utf8') + 1)
+    expect(messageCount).toBe(2)
+
+    // Proven end to end: the second message reads back correctly from its (correctly-offset) line.
+    const page = await readTranscriptPage(file())
+    expect(page.messages.map((m) => m.uuid)).toContain('u2')
   })
 })
 
@@ -90,6 +117,17 @@ describe('readTranscriptPage', () => {
     expect(page.earlierCursor).not.toBeNull()
   })
 
+  it('treats a NaN cursor as no cursor, rather than spinning forever (SEC-8)', async () => {
+    // `Math.min(NaN, n)` is `NaN`, and `windowStart === 0` never holds against it, so an
+    // unvalidated NaN cursor made the widening loop run forever, opening and closing the file on
+    // every pass. A renderer-supplied `beforeIndex` of NaN — or any non-integer, or a negative one
+    // — must resolve exactly as if it had been omitted.
+    write(Array.from({ length: 50 }, (_, i) => userMsg(`u${i}`, `msg ${i}`)))
+    const page = await readTranscriptPage(file(), { limit: 10, beforeIndex: NaN })
+    expect(page.messages).toHaveLength(10)
+    expect(page.messages[9].uuid).toBe('u49')
+  })
+
   it('pages backwards to the start and then reports no cursor', async () => {
     write(Array.from({ length: 25 }, (_, i) => userMsg(`u${i}`, `msg ${i}`)))
     const first = await readTranscriptPage(file(), { limit: 10 })
@@ -104,6 +142,14 @@ describe('readTranscriptPage', () => {
 
   it('skips corrupt lines and reports how many', async () => {
     write([userMsg('u1', 'ok'), '{not json', assistantMsg('a1', [{ type: 'text', text: 'fine' }])])
+    const page = await readTranscriptPage(file())
+    expect(page.messages.map((m) => m.uuid)).toEqual(['u1', 'a1'])
+    expect(page.skippedLines).toBe(1)
+  })
+
+  it('skips a line above the per-line cap instead of parsing it, so a pasted multi-MB blob cannot stall a page read (SEC-12)', async () => {
+    const hugeMessage = userMsg('huge', 'x'.repeat(2_000_000))
+    write([userMsg('u1', 'ok'), hugeMessage, assistantMsg('a1', [{ type: 'text', text: 'fine' }])])
     const page = await readTranscriptPage(file())
     expect(page.messages.map((m) => m.uuid)).toEqual(['u1', 'a1'])
     expect(page.skippedLines).toBe(1)
@@ -188,5 +234,66 @@ describe('readTranscriptPage', () => {
     // duplicates, no gaps.
     const reassembled = pages.slice().reverse().flat()
     expect(reassembled).toEqual(expectedUuids)
+  })
+})
+
+describe('indexTranscript incremental fast path (MAIN-24)', () => {
+  it('reads only the appended bytes of a live session, and pages identically to a full rescan', async () => {
+    write([userMsg('u1', 'm1')])
+    const first = await indexTranscript(file())
+    expect(first.messageCount).toBe(1)
+
+    appendFileSync(file(), `${JSON.stringify(userMsg('u2', 'm2'))}\n`)
+    // mtime granularity on some filesystems is coarser than this test runs in; force a change so
+    // the cache is not mistaken for still-fresh.
+    const future = new Date(Date.now() + 5000)
+    utimesSync(file(), future, future)
+
+    const spy = vi.mocked(createReadStream)
+    spy.mockClear()
+    const second = await indexTranscript(file())
+    expect(second.messageCount).toBe(2)
+    expect(second.offsets).toHaveLength(2)
+
+    // The fast path only opens a stream starting at the old file size, not at 0 — proof this was
+    // an incremental read of the appended bytes, not a full rescan.
+    const startOffsets = spy.mock.calls.map(([, opts]) => (opts as { start?: number } | undefined)?.start)
+    expect(startOffsets.length).toBeGreaterThan(0)
+    expect(startOffsets.every((s) => s !== undefined && s > 0)).toBe(true)
+
+    // Paging reads the appended message back correctly, exactly as a cold read would.
+    const page = await readTranscriptPage(file())
+    expect(page.messages.map((m) => m.uuid)).toEqual(['u1', 'u2'])
+  })
+
+  it('falls back to a full rescan when the file got smaller', async () => {
+    write([userMsg('u1', 'm1'), userMsg('u2', 'm2')])
+    await indexTranscript(file())
+
+    write([userMsg('u3', 'm3')])
+    const future = new Date(Date.now() + 5000)
+    utimesSync(file(), future, future)
+
+    const { messageCount, offsets } = await indexTranscript(file())
+    expect(messageCount).toBe(1)
+    expect(offsets).toHaveLength(1)
+    const page = await readTranscriptPage(file())
+    expect(page.messages.map((m) => m.uuid)).toEqual(['u3'])
+  })
+
+  it('caps the cache to the most recently used transcripts', async () => {
+    const files: string[] = []
+    for (let i = 0; i < 55; i++) {
+      const f = join(dir, `s${i}.jsonl`)
+      writeFileSync(f, `${JSON.stringify(userMsg(`u${i}`, 'm'))}\n`)
+      files.push(f)
+      await indexTranscript(f)
+    }
+
+    // The first files indexed should have been evicted; re-reading one must not throw and must
+    // still produce the right answer (a correctness check that eviction, not corruption, is what
+    // happened).
+    const { messageCount } = await indexTranscript(files[0])
+    expect(messageCount).toBe(1)
   })
 })

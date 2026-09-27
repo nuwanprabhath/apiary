@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 
 describe('the component harness', () => {
@@ -7,7 +7,7 @@ describe('the component harness', () => {
     const { fake } = await renderApp()
     await expect.element(page.getByText('Fix CSV export bug', { exact: true })).toBeVisible()
     await userEvent.click(page.getByText('Fix CSV export bug', { exact: true }))
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Fix CSV export bug')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
     expect(fake.callsTo('transcript')[0]?.[0]).toBe('11111111-1111-1111-1111-111111111111')
   })
 

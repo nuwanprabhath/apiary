@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { validateTheme } from '../../src/shared/theme/validate'
-import { themeToCssVars, ALL_THEME_VARS } from '../../src/shared/theme/cssVars'
-import { THEME_JSON_SCHEMA, buildThemePrompt } from '../../src/shared/theme/prompt'
-import { auroraColors } from '../../src/shared/theme/effects/aurora'
-import { parseColor, contrastRatio, composite } from '../../src/shared/theme/color'
+import { validateTheme } from '@shared/theme/validate'
+import { themeToCssVars, ALL_THEME_VARS } from '@shared/theme/cssVars'
+import { THEME_JSON_SCHEMA, buildThemePrompt } from '@shared/theme/prompt'
+import { auroraColors } from '@shared/theme/effects/aurora'
+import { parseColor, contrastRatio, composite } from '@shared/theme/color'
 
 /**
  * Glass: see-through panels over the window and its background effects. It loosens how

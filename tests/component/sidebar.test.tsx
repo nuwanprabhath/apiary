@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, until } from './helpers'
 
@@ -43,7 +43,7 @@ describe('sidebar', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     const item = page.getByTestId('session-item').getByText('Fix CSV export bug', { exact: true })
     await expect.element(item).toBeVisible()
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Fix CSV export bug')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
   })
 
   it('the Recent window is a validated setting', async () => {
@@ -73,7 +73,7 @@ describe('sidebar', () => {
     await until(() => page.getByTestId('session-item').elements().length === 4)
 
     await userEvent.click(sidebarSession('Fix CSV export bug'))
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Fix CSV export bug')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
 
     await userEvent.click(page.getByTestId('project-toggle').all()[0])
 

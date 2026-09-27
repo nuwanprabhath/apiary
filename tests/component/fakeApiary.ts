@@ -20,6 +20,7 @@ import type {
   TranscriptPage,
 } from '@shared/types'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
+import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
 
 export interface FakeSession {
   sessionId: string
@@ -131,28 +132,9 @@ export function message(
 
 const ref = (name: string): GitRefEntry => ({ name, relativeDate: '2 days ago', author: 'Test', shortSha: 'abc1234', subject: `tip of ${name}` })
 
-export const DEFAULT_SETTINGS: AppSettingsPayload = {
-  claudeBin: null,
-  autoImportAll: false,
-  autoImportIntervalMinutes: null,
-  revealActiveInSidebar: true,
-  searchChatContent: true,
-  searchSessionNotes: true,
-  recentSectionEnabled: true,
-  recentSectionHours: 24,
-  terminalShortenPath: true,
-  terminalPathSegments: 1,
-  terminalMinimalPrompt: true,
-  plugins: {},
-  pluginSettings: {},
-  updateAutomaticChecks: true,
-  updateCheckIntervalHours: 6,
-  updateAutoDownload: false,
-  updateAllowPrerelease: false,
-  diagnosticsEnabled: false,
-  logRetentionDays: 7,
-  logMaxSizeMb: 20,
-}
+// Shared with src/main/settings.ts (TEST-5): a hand-copy here was a checked-nowhere place for the
+// fake's defaults to drift from what main actually ships.
+export const DEFAULT_SETTINGS: AppSettingsPayload = DEFAULT_SETTINGS_PAYLOAD
 
 const DEFAULT_UPDATE: UpdateStatusPayload = {
   phase: 'idle',
@@ -243,6 +225,11 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     const s = find(id)
     const all = s?.messages ?? [message(`${id}-u`, 'user', 'fix the export'), message(`${id}-a`, 'assistant', 'done')]
     const end = beforeIndex ?? all.length
+    // NOTE (TEST-5): transcriptReader.ts's real page size is 200 (DEFAULT_LIMIT), not 50. Left as
+    // 50 here because tests/component/transcript.test.tsx's paging suite deliberately pins its own
+    // fixture size to this constant to exercise the paging *mechanism* cheaply; bumping this to
+    // 200 needs that fixture (and its message count) updated in the same change, which is better
+    // done together with the fuller fakeApiary-vs-real-main contract suite TEST-5 asks for.
     const start = Math.max(0, end - 50)
     return { messages: all.slice(start, end), earlierCursor: start > 0 ? start : null, skippedLines: 0 }
   }
@@ -253,7 +240,10 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
   }
 
   const impl: ApiaryApi = {
-    refresh: async () => { emit('treeChanged') },
+    // Real main sends mrStatusesInvalidated on refresh, not treeChanged (ipc.ts) — the caller
+    // re-fetches the tree from the invoke's own return value (Sidebar.tsx's reloadNow), not from
+    // an event.
+    refresh: async () => { emit('mrStatusesInvalidated') },
     tree: async () => tree(),
     searchContent: async (q) => state.sessions
       .filter((s) => (s.messages ?? []).some((m) => m.blocks.some((b) => 'text' in b && b.text.toLowerCase().includes(q.toLowerCase()))))
@@ -334,7 +324,14 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     onTreeChanged: on('treeChanged'),
     onOpenImportDialog: on('openImportDialog'),
     settingsGet: async () => state.settings,
-    settingsSet: async (s) => { state.settings = { ...state.settings, ...s } },
+    // A key the payload omits (or sends as `undefined`) must leave the current value alone —
+    // see mergeSettingsPayload (src/main/settings.ts) and CLAUDE.md "Settings arriving over IPC".
+    // A plain `{ ...state.settings, ...s }` spread keeps an explicit `undefined` value, which
+    // overwrites the field instead of leaving it — the bug that made session notes stop indexing.
+    settingsSet: async (s) => {
+      const kept = Object.fromEntries(Object.entries(s).filter(([, v]) => v !== undefined))
+      state.settings = { ...state.settings, ...kept }
+    },
     onOpenSettingsDialog: on('openSettingsDialog'),
     onToggleSidebar: on('toggleSidebar'),
     gitStatus: async (): Promise<GitStatus> => ({ branch: state.refs.current, ahead: 0, behind: 0, hasUpstream: false }),
@@ -345,10 +342,12 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     newSessionInWorktree: async () => newSession('/fixture/repo-c-wt'),
     gitCheckoutRemote: async (_k, _p, _r, local) => {
       state.refs = { ...state.refs, current: local, local: [...state.refs.local, ref(local)] }
+      emit('treeChanged')
     },
     gitCheckoutDetached: async (_k, _p, r) => { state.refs = { ...state.refs, current: `(detached at ${r})` }; emit('treeChanged') },
     gitCreateBranch: async (_k, _p, name) => {
       state.refs = { ...state.refs, current: name, local: [...state.refs.local, ref(name)] }
+      emit('treeChanged')
     },
     gitPull: async () => ({ commits: 0 }),
     gitUpdateBranch: async () => ({ commits: 0 }),
@@ -367,7 +366,13 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     pluginRunAction: async () => {},
     pluginList: async () => state.plugins,
     onPluginsChanged: on('pluginsChanged'),
-    setSessionNote: async (id, note) => { const s = find(id); if (s !== undefined) s.note = note === '' ? null : note; emit('treeChanged') },
+    // AppService.setSessionNote trims (appService.ts:567) before deciding empty-vs-not.
+    setSessionNote: async (id, note) => {
+      const trimmed = note.trim()
+      const s = find(id)
+      if (s !== undefined) s.note = trimmed === '' ? null : trimmed
+      emit('treeChanged')
+    },
     sessionNote: async (id) => find(id)?.note ?? '',
     saveImage: async () => '/fixture/images/pasted.png',
     readImage: async () => null,
@@ -401,7 +406,6 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
       Object.defineProperty(fake, name, { get: () => state.theme, enumerable: true })
       continue
     }
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- every member of `impl` is an arrow function, so there is no `this` to lose
     const original = impl[name] as (...args: unknown[]) => unknown
     Object.defineProperty(fake, name, {
       enumerable: true,

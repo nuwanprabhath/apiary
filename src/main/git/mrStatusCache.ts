@@ -1,10 +1,8 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import { createExec } from '../exec/run'
 import { log } from '../log/logger'
+import type { MrState } from '@shared/domain/git'
 
-const run = promisify(execFile)
-
-export type MrState = 'opened' | 'merged' | 'closed' | 'locked'
+export type { MrState } from '@shared/domain/git'
 
 interface CacheEntry {
   at: number
@@ -25,7 +23,6 @@ function ttlFor(state: MrState | null): number {
   if (state === null) return 60 * 1000
   return 2 * 60 * 1000
 }
-const DEFAULT_TIMEOUT_MS = 8000
 
 const cache = new Map<string, CacheEntry>()
 const inFlight = new Map<string, Promise<MrState | null>>()
@@ -47,10 +44,10 @@ export function resetMrStatusCache(): void {
   glabMissing = false
 }
 
-async function defaultExec(file: string, args: string[], cwd: string): Promise<string> {
-  const { stdout } = await run(file, args, { cwd, timeout: DEFAULT_TIMEOUT_MS, maxBuffer: 1024 * 1024 })
-  return stdout
-}
+// Shares `exec/run.ts`'s `createExec` with `plugins/gitlabMr.ts` (MAIN-23) rather than defining a
+// second `defaultExec` of its own with a different buffer size — this doc comment on the older
+// version claimed the two already shared one, which was not true until now.
+const defaultExec = createExec({ timeoutMs: 8000, maxBuffer: 1024 * 1024, scope: 'mr-status' })
 
 export interface ResolveMrStatusOptions {
   glabPath?: string

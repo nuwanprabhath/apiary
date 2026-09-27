@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { THEME_JSON_SCHEMA, buildThemePrompt, extractThemeJson, MAX_REQUEST_CHARS } from '../../src/shared/theme/prompt'
-import { PALETTE_TOKENS, EFFECT_KINDS, UI_FONTS, MONO_FONTS } from '../../src/shared/theme/spec'
-import { BUILTIN_THEMES } from '../../src/shared/theme/builtins'
+import { THEME_JSON_SCHEMA, buildThemePrompt, extractThemeJson, MAX_REQUEST_CHARS } from '@shared/theme/prompt'
+import { PALETTE_TOKENS, EFFECT_KINDS, UI_FONTS, MONO_FONTS } from '@shared/theme/spec'
+import { BUILTIN_THEMES } from '@shared/theme/builtins'
 
 describe('THEME_JSON_SCHEMA', () => {
   it('offers Claude exactly the names the validator accepts', () => {

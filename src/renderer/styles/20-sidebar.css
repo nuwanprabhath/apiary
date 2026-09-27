@@ -1,0 +1,463 @@
+
+.sidebar {
+  background: var(--bg-panel);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--panel-shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* The list under the search row is what scrolls, so the search row never scrolls away. */
+.sidebar-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar[hidden] { display: none; }
+
+/* What is left of the sidebar while it is hidden: one button, at the spot the hide button was. */
+.sidebar-rail {
+  background: var(--bg-panel);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--panel-shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+}
+
+.sidebar-resizer {
+  position: relative;
+  /* Above the panes: .content reaches half a gap into this track (see .content), and without this
+   * the first pane's padding would sit on top of the handle and swallow the drag. */
+  z-index: var(--z-resizer);
+  cursor: col-resize;
+  background: transparent;
+}
+
+/*
+ * The grab handle in every gap: a short column of grip dots in a column gap, a row of them in a
+ * row gap — VS Code's sash grip, which reads as "hold here" where a pill read as a scrollbar.
+ * The dots are a repeated radial gradient, so their colour stays in a token.
+ */
+/* The terminal list's edge is one too (TerminalListPanel). */
+.terminal-list-resizer { position: relative; flex: none; width: 6px; margin-left: -6px; z-index: var(--z-terminal-list-resizer); cursor: col-resize; }
+.sidebar-resizer::after, .column-resizer::after, .row-resizer::after, .bottom-resizer::after, .terminal-list-resizer::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background-color: transparent;
+  background-image: radial-gradient(circle, var(--handle-color) 1.4px, transparent 1.9px);
+  opacity: 0.8;
+  transition: opacity 0.12s;
+  pointer-events: none;
+}
+.sidebar-resizer::after, .column-resizer::after, .terminal-list-resizer::after {
+  width: var(--handle-thickness);
+  height: var(--handle-length);
+  background-size: var(--handle-thickness) calc(var(--handle-length) / 3);
+}
+.row-resizer::after, .bottom-resizer::after {
+  width: var(--handle-length);
+  height: var(--handle-thickness);
+  background-size: calc(var(--handle-length) / 3) var(--handle-thickness);
+}
+.sidebar-resizer:hover::after, .column-resizer:hover::after, .terminal-list-resizer:hover::after,
+.row-resizer:hover::after, .bottom-resizer:hover::after {
+  opacity: 1;
+  background-image: radial-gradient(circle, var(--handle-color-hover) 1.4px, transparent 1.9px);
+}
+.sidebar-resizer:active::after, .column-resizer:active::after, .terminal-list-resizer:active::after,
+.row-resizer:active::after, .bottom-resizer:active::after {
+  opacity: 1;
+  background-image: radial-gradient(circle, var(--handle-color-active) 1.4px, transparent 1.9px);
+}
+/*
+ * The hit area reaches a few pixels past the gap into the panels either side, as VS Code's sash
+ * does: a gap of a few pixels is too thin to find, and missing it drags the neighbouring panel's
+ * contents instead. 3px stays inside the scrollbar's transparent inset, so no thumb is covered.
+ */
+.sidebar-resizer::before, .column-resizer::before, .row-resizer::before, .bottom-resizer::before, .terminal-list-resizer::before {
+  content: '';
+  position: absolute;
+}
+.sidebar-resizer::before, .column-resizer::before, .terminal-list-resizer::before { inset: 0 -3px; }
+.row-resizer::before, .bottom-resizer::before { inset: -3px 0; }
+/* Mid-drag the pointer runs ahead of the gap; the cursor should not flicker back to an arrow. */
+body.resizing-col, body.resizing-col * { cursor: col-resize !important; }
+body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
+
+/* Holds the sidebar in its grid cell: glass themes paint their pane on this (see "Glass" below),
+ * because the sidebar itself scrolls and a pane drawn inside it would scroll away with the list. */
+.sidebar-frame { display: flex; min-width: 0; min-height: 0; position: relative; border-radius: var(--radius-panel); }
+.sidebar-frame[hidden] { display: none; }
+.sidebar-frame > .sidebar { flex: 1; min-width: 0; }
+
+.sidebar-header {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.search {
+  flex: 1;
+  min-height: var(--control-height);
+  padding: 0 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--control-border);
+  background: var(--field-bg);
+  color: var(--text);
+}
+/*
+ * Without this, a focused input shows both its own 1px border AND Chromium's default focus
+ * ring (which follows the OS accent color — orange here, so it visually reads as a second,
+ * slightly offset orange/white border rather than one clean outline). Owning the focus style
+ * completely — one ring, one color — removes the doubled-border look.
+ */
+.search:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+/* Wrapper that lets the clear button overlay the right-hand end of the field. The field keeps
+ * `flex: 1` behaviour by having the wrapper carry it instead. */
+.search-field { position: relative; display: flex; flex: 1; min-width: 0; }
+.search-field .search { width: 100%; padding-right: 26px; }
+
+.search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.search-clear:hover, .search-clear:focus-visible { background: var(--hover); color: var(--text); }
+.search-clear svg { width: 12px; height: 12px; display: block; }
+
+/*
+ * Shown while the typed query and the results on screen disagree — i.e. a large library is still
+ * being filtered. It sits to the left of the clear button rather than replacing it, so the two
+ * never fight over the same spot and clearing stays available while a search is in flight.
+ *
+ * This is the honest half of the search's contract: typing is always instant, and filtering a few
+ * thousand sessions may not be, so the box says so instead of appearing to have ignored you.
+ */
+.search-spinner {
+  position: absolute;
+  right: var(--search-spinner-right);
+  top: 50%;
+  width: var(--search-spinner-size);
+  height: var(--search-spinner-size);
+  margin-top: calc(var(--search-spinner-size) / -2);
+  border: var(--search-spinner-width) solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin var(--search-spinner-duration) linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Still visible, still meaningful — just not rotating. */
+  .search-spinner { animation: none; border-top-color: var(--accent); }
+}
+
+.icon-button { color: var(--muted); padding: 0 8px; }
+
+/* Refresh button's own icon spins for as long as the refresh it triggered is still in
+ * flight — otherwise a click has zero visual feedback, since the fetch usually resolves
+ * fast enough that nothing else on screen visibly changes. */
+.icon-button .spinner {
+  display: inline-block;
+  animation: spin 0.6s linear infinite;
+}
+/* An icon spinning forever is exactly the kind of motion prefers-reduced-motion asks apps to
+ * drop; it stays visible (still a spinner glyph, just not rotating) rather than disappearing. */
+@media (prefers-reduced-motion: reduce) {
+  .icon-button .spinner { animation: none; }
+}
+
+/*
+ * A fixed-width, icon-plus-label button, so triggering it never resizes it. The icon used to be
+ * swapped out entirely for a bare spinner glyph while a refresh was in flight, which visibly
+ * shrank the whole button (a single character is much narrower than "Refresh") — jarring, and
+ * easy to misread as the button itself having disappeared. The icon now just spins in place.
+ */
+.sidebar-refresh { gap: 5px; }
+.sidebar-hide,
+.sidebar-rail .icon-button { padding: 0 5px; flex: none; }
+/*
+ * An inline <svg> with a viewBox and no width/height has no intrinsic size, so inside a flex
+ * button it can collapse to nothing and leave a button that is visibly an empty box. Sized here,
+ * on the control layer, rather than per button — the Recent dismiss button was the one place that
+ * had never been given a size of its own, and it looked broken because of it. The two rules below
+ * are more specific and keep the larger glyphs they already had.
+ */
+.icon-button svg { width: var(--icon-size); height: var(--icon-size); flex: none; }
+.sidebar-hide svg,
+.sidebar-rail .icon-button svg { width: 16px; height: 16px; flex: none; }
+.sidebar-refresh svg { width: 14px; height: 14px; flex: none; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/*
+ * Claude is working, and wants nothing: a slow, even breath. No halo, no bounce — the dot should
+ * register as "alive" in peripheral vision and then be ignorable, because a row in this state is
+ * one the user has already decided not to look at.
+ */
+@keyframes status-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: var(--status-breathe-min-opacity); transform: scale(var(--status-breathe-min-scale)); }
+}
+
+/*
+ * Claude is asking something: a double knock. Two quick beats, each throwing off a halo, then a
+ * rest — the rhythm of a notification rather than a heartbeat, deliberately unlike the smooth
+ * breathing above so the two are told apart by movement alone and not only by hue. This is the
+ * one state the user is meant to notice from across the room, possibly on another screen.
+ */
+@keyframes status-attention {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 var(--pulse-color); }
+  12% { transform: scale(var(--status-attention-scale)); }
+  30% { transform: scale(1); box-shadow: 0 0 0 var(--status-attention-spread) transparent; }
+  32% { box-shadow: 0 0 0 0 var(--pulse-color); }
+  44% { transform: scale(var(--status-attention-scale)); }
+  62% { transform: scale(1); box-shadow: 0 0 0 var(--status-attention-spread) transparent; }
+  100% { transform: scale(1); box-shadow: 0 0 0 var(--status-attention-spread) transparent; }
+}
+
+.status-dot {
+  width: var(--status-dot-size);
+  height: var(--status-dot-size);
+  border-radius: 50%;
+  flex: none;
+}
+.status-dot[data-status="running"] {
+  background: var(--status-running);
+  animation: status-breathe var(--status-breathe-duration) ease-in-out infinite;
+}
+.status-dot[data-status="waiting"] {
+  background: var(--status-waiting);
+  --pulse-color: color-mix(in sRGB, var(--status-waiting) 70%, transparent);
+  animation: status-attention var(--status-attention-duration) ease-out infinite;
+}
+/* Idle is the absence of motion, which is the point: stillness is what makes the two animated
+   states legible as states rather than as decoration. */
+.status-dot[data-status="idle"] { background: var(--status-idle); }
+.status-dot[data-status="stopped"] {
+  background: transparent;
+  border: var(--status-ring-width) solid var(--status-idle);
+}
+
+/* Colour alone told `running` and `idle` apart once their animation stopped here (UI-29, WCAG
+ * 1.4.1) — this is one of several `prefers-reduced-motion` rules in the file now (see also
+ * `.icon-button .spinner`, `.toolbar-button .spinner`, `.spinner-dot` and `.notification`), each
+ * kept beside the rule it silences rather than collected in one place, the way `.search-spinner`
+ * already did above. */
+@media (prefers-reduced-motion: reduce) {
+  .status-dot[data-status="running"],
+  .status-dot[data-status="waiting"] {
+    animation: none;
+  }
+  /* With motion off, the one state that still has to stand out keeps a static halo — the row
+     highlight below is unaffected either way, so "needs you" never depends on movement alone. */
+  .status-dot[data-status="waiting"] {
+    box-shadow: 0 0 0 var(--status-ring-width) var(--pulse-color);
+  }
+  /* `running` keeps a shape cue too, not just its colour: an inset ring in the panel's own
+     background reads as a distinct mark even to someone who can't tell it from `idle` by hue. */
+  .status-dot[data-status="running"] {
+    box-shadow: inset 0 0 0 var(--status-ring-width) var(--bg-panel);
+  }
+}
+
+.tree { list-style: none; margin: 0; padding: 0; }
+
+.project-row, .session-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  padding: 5px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.project-row { font-weight: 600; flex: 1; min-width: 0; }
+.session-row:hover { background: var(--selected); }
+
+.project-row-wrap { display: flex; align-items: center; border-radius: var(--radius-sm); }
+.project-row-wrap:hover,
+.project-row-wrap:focus-within {
+  background: var(--selected);
+}
+/*
+ * UI-27: the row is itself a WAI-ARIA treeitem now (roving tabindex, one Tab stop per tree), so it
+ * can be focused directly rather than only ever via a descendant — `:focus-within` above already
+ * covers that case (it matches an element that is itself focused, not only a focused descendant),
+ * but a keyboard user still needs a visible ring, the same one every other control uses.
+ */
+.project-row-wrap:focus-visible,
+.session-row-wrap:focus-visible,
+.folder-group-header-wrap:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.project-row-wrap:hover .new-session-button,
+.new-session-button:focus-visible {
+  opacity: 1;
+}
+
+.new-session-button {
+  flex: none;
+  opacity: 0;
+  width: 22px;
+  height: 22px;
+  margin-right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+.new-session-button:hover,
+.new-session-button:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+.new-session-button svg { width: 16px; height: 16px; display: block; }
+
+/* Same hover-revealed treatment as "+", and the same box: the two sit side by side. */
+.project-row-wrap:hover .collapse-all-button,
+.collapse-all-button:focus-visible { opacity: 1; }
+.collapse-all-button { margin-right: 0; }
+.collapse-all-button svg { width: 14px; height: 14px; }
+
+/*
+ * Matches VS Code's own "twisty" chevron: a small right-pointing arrow that rotates 90deg to
+ * point down when its row is expanded, rather than swapping between two different glyphs.
+ */
+.chevron {
+  color: var(--muted);
+  width: 16px;
+  height: 16px;
+  flex: none;
+  transform: rotate(0deg);
+  transition: transform 120ms ease;
+}
+.chevron[data-expanded="true"] { transform: rotate(90deg); }
+.branch { color: var(--accent); font-weight: 400; font-size: 11px; }
+
+.session-row { padding-left: 26px; }
+.session-row[data-selected="true"] { background: var(--selected); }
+
+/*
+ * Same wrapper pattern as .project-row-wrap above, and for the same reason: a <button> (the
+ * session row itself) cannot contain another interactive element, so the delete button is a
+ * flex sibling instead of nested inside it. Within this wrapper .session-row no longer needs to
+ * claim the full row width itself — the wrapper does that — so it gets `flex: 1` here rather
+ * than the `width: 100%` the (still-standalone) pending-session-list rows keep using.
+ */
+.session-row-wrap { display: flex; align-items: center; border-radius: var(--radius-sm); }
+.session-row-wrap:hover,
+.session-row-wrap:focus-within,
+.session-row-wrap:has(.session-row[data-selected="true"]) {
+  background: var(--selected);
+}
+.session-row-wrap .session-row { width: auto; flex: 1; min-width: 0; }
+/* The age gives up its place to the row's buttons the moment the row is hovered — see .row-action. */
+.session-row-wrap:hover .session-time,
+.session-row-wrap:focus-within .session-time { display: none; }
+/* The wrapper already carries the hover/selected highlight; the row itself shouldn't double it. */
+.session-row-wrap .session-row:hover,
+.session-row-wrap .session-row[data-selected="true"] { background: none; }
+
+/*
+ * The three row buttons (pin, split, remove) share one shape and one reveal rule; only the
+ * remove button's hover colour differs. They are `display: none` until the row is hovered or
+ * something inside it has focus — not merely transparent — so that they and the session's age
+ * take turns occupying the same strip at the right-hand end of the row rather than each
+ * permanently reserving width from the title.
+ */
+.row-action {
+  flex: none;
+  display: none;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+.session-row-wrap:hover .row-action,
+.session-row-wrap:focus-within .row-action {
+  display: flex;
+}
+.row-action:hover,
+.row-action:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+.row-action svg { width: 14px; height: 14px; display: block; }
+.delete-session-button { margin-right: 6px; }
+.delete-session-button:hover,
+.delete-session-button:focus-visible {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+/* A pinned row keeps its pin showing at all times — the icon is the state, so hiding it until
+ * hover would leave nothing on screen to say the row is pinned. */
+.session-row-wrap[data-pinned="true"] .pin-session-button {
+  display: flex;
+  color: var(--accent);
+}
+
+.session-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-subtitle { color: var(--muted); }
+.session-time { color: var(--muted); font-size: 11px; }
+.missing { color: var(--danger); font-size: 11px; }
+
+/* A `!<iid>` reference whose GitLab status has resolved (see MrRefText). Unresolved references
+ * render as plain text alongside this, with no rule of their own — the point is that nothing here
+ * shifts layout while a lookup is still in flight. */
+.mr-ref { font-weight: 600; }
+.mr-ref[data-state="opened"] { color: var(--mr-opened); }
+.mr-ref[data-state="merged"] { color: var(--mr-merged); }
+.mr-ref[data-state="closed"] { color: var(--mr-closed); }
+.mr-ref[data-state="locked"] { color: var(--mr-locked); }
+
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex: none; }
+
+.pending-section { border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.pending-header { cursor: default; }
+.pending-list { list-style: none; margin: 0; padding: 0; }
+

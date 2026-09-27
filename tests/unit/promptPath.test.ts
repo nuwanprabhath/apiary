@@ -3,7 +3,7 @@ import { promptPathEnv, writeZshShim } from '../../src/main/pty/promptPath'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { previewPrompt } from '../../src/shared/promptPath'
+import { previewPrompt, clampSegments } from '@shared/promptPreview'
 
 describe('promptPathEnv', () => {
   it('adds nothing at all when the setting is off', () => {
@@ -25,6 +25,25 @@ describe('promptPathEnv', () => {
 
   it('rounds a fractional value rather than emitting one bash would ignore', () => {
     expect(promptPathEnv({ enabled: true, segments: 2.6 })).toEqual({ PROMPT_DIRTRIM: '3' })
+  })
+})
+
+describe('clampSegments', () => {
+  it('refuses zero or negative, which would leave a prompt with no path at all', () => {
+    expect(clampSegments(0)).toBe(1)
+    expect(clampSegments(-5)).toBe(1)
+  })
+
+  it('caps a number so large that nothing would be shortened', () => {
+    expect(clampSegments(999)).toBe(8)
+  })
+
+  it('rounds a fractional value rather than passing one through unrounded', () => {
+    expect(clampSegments(2.6)).toBe(3)
+  })
+
+  it('leaves an in-range integer alone', () => {
+    expect(clampSegments(3)).toBe(3)
   })
 })
 

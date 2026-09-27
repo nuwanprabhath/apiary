@@ -20,38 +20,14 @@
  *   against an allowlist of schemes before anything is opened.
  */
 
-/**
- * A setting a plugin declares.
- *
- * Plugins describe their settings rather than drawing them, for the same reason they describe
- * their buttons: the main process has no UI, and a plugin that could render into the settings
- * dialog could render anything. Settings has one Plugins section that draws whatever the plugins
- * declare, so a new plugin gets a working, consistent settings panel without touching the dialog —
- * and everything configurable about plugins is in one findable place rather than scattered
- * through sections named after individual integrations.
- */
-export type PluginSettingField =
-  | {
-    kind: 'string'
-    key: string
-    label: string
-    help?: string
-    placeholder?: string
-    default: string
-  }
-  | { kind: 'boolean'; key: string; label: string; help?: string; default: boolean }
-  | {
-    kind: 'number'
-    key: string
-    label: string
-    help?: string
-    default: number
-    min?: number
-    max?: number
-  }
+import type { PluginSettingField, PluginSettingValues, PluginBarItem } from '@shared/domain/plugins'
 
-/** A plugin's settings, as stored and as handed back to it. */
-export type PluginSettingValues = Record<string, string | number | boolean>
+// Canonical definitions moved to shared/domain/plugins.ts (MAIN-22 / SHARED-2): the renderer draws
+// these same shapes, so mirroring them here risked drifting apart. Re-exported so existing
+// `from './types'` imports in this directory are unaffected.
+export type {
+  PluginSettingField, PluginSettingValues, PluginIcon, PluginAction, PluginBarItem,
+} from '@shared/domain/plugins'
 
 /** Fills in anything the user has not set, so a plugin never has to check for absence. */
 export function withDefaults(
@@ -78,46 +54,16 @@ export interface PluginContext {
   branch: string | null
 }
 
-/** The icons the renderer can draw for a plugin. Adding one means adding it in both places. */
-export type PluginIcon =
-  | 'merge-request'
-  | 'merge-request-merged'
-  | 'merge-request-closed'
-  | 'link'
-  | 'plus'
-  | 'alert'
-
-/** What clicking a plugin's button does. */
-export type PluginAction =
-  /** Opens a URL in the user's browser. Only http(s) is ever opened. */
-  | { kind: 'open-url'; url: string }
-  /** Does nothing — for a button that is only reporting a state. */
-  | { kind: 'none' }
-
-export interface PluginBarItem {
-  /** Which plugin produced this, so ids cannot collide across plugins. */
-  pluginId: string
-  /** Unique within the plugin. */
-  id: string
-  icon: PluginIcon
-  /** Short text beside the icon — `!1255`, `New MR`. The bar is narrow; keep it to a few chars. */
-  label: string
-  /** The tooltip, which is where the sentence goes. */
-  title: string
-  action: PluginAction
-  /**
-   * Colours the button: `normal` for a thing that exists, `suggest` for an offer (no MR yet),
-   * `problem` for something that needs attention before the button can work.
-   */
-  tone?: 'normal' | 'suggest' | 'problem'
-}
-
 export interface SessionBarPlugin {
   id: string
   /** Shown in Settings, where the plugin is switched on and off. */
   name: string
   /** A sentence under the name saying what the plugin does. */
   description?: string
+  /** Whether a plugin nobody has configured starts on. Read once, at registration (MAIN-17) —
+   *  `AppServiceOptions.plugins` still wins when the user has actually set it. Defaults to `true`
+   *  so an existing plugin that does not set this keeps behaving as it always did. */
+  defaultEnabled?: boolean
   /** The settings this plugin declares; Settings draws them, and they come back to `evaluate`. */
   settings?: PluginSettingField[]
   /**
@@ -125,6 +71,14 @@ export interface SessionBarPlugin {
    *
    * May be slow (this one shells out to `glab`, which goes to the network), so the registry caches
    * and never blocks the bar on it. Throwing is allowed and contained: see the registry.
+   *
+   * Returns everything but `pluginId` (MAIN-17): the registry stamps that itself from `id` above,
+   * so an item can no longer disagree with the plugin that produced it.
    */
-  evaluate(ctx: PluginContext, settings: PluginSettingValues): Promise<PluginBarItem | null>
+  evaluate(
+    ctx: PluginContext, settings: PluginSettingValues,
+  ): Promise<Omit<PluginBarItem, 'pluginId'> | null>
+  /** Released when the app quits, or the plugin is otherwise torn down — for a plugin that ever
+   *  holds a timer, a socket or a subscription of its own. None of the current plugins need one. */
+  dispose?(): void
 }

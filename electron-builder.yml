@@ -17,6 +17,18 @@ files:
   # Packaged so the runtime can set the window icon from inside the asar (Linux/Windows —
   # macOS takes its icon from the bundle). See createWindow() in src/main/index.ts.
   - build/icon.png
+  # electron-builder's own npmRebuild runs before packaging and leaves node-pty a working
+  # node_modules/node-pty/build/Release/pty.node for the target's exact platform+arch (CLAUDE.md
+  # "The native-module ABI trap is gone" / "loaded first after a rebuild"), so its prebuilds/ (all
+  # platforms, unused once rebuilt), deps/ and src/ (raw source, only needed to compile) and
+  # scripts/ (install-time only) never run in the packaged app. better-sqlite3, by contrast, is
+  # never rebuilt from source here — it loads straight from prebuilds/<platform>-<arch>.node — so
+  # only its deps/ (the bundled SQLite amalgamation, ~9.5MB, build-time only) and src/ are safe to
+  # drop; its prebuilds/ stay (TEST-18).
+  - "!**/node_modules/node-pty/{prebuilds,deps,src,scripts}/**"
+  - "!**/node_modules/better-sqlite3/{deps,src}/**"
+  - "!**/node_modules/*/build/Release/{obj,obj.target,.deps}/**"
+  - "!**/node_modules/better-sqlite3/build/Release/test_extension.node"
 asarUnpack:
   - "**/node_modules/better-sqlite3/**"
   - "**/node_modules/node-pty/**"
@@ -26,6 +38,34 @@ asarUnpack:
   # silently fall back to running on the main thread, which is the freeze it exists to prevent.
   - "out/main/searchWorker.js"
 afterPack: build/afterPack.cjs
+# Electron fuses (SEC-3): a terminal host accumulates real macOS TCC grants (Documents, Desktop,
+# Full Disk Access), and any code that runs *as* the packaged Apiary binary inherits them. Nothing
+# in main relies on ELECTRON_RUN_AS_NODE, NODE_OPTIONS or --inspect (grep -rn confirms it; the
+# content-search worker is a worker_threads Worker, unaffected by any of these), so there is
+# nothing to break by turning them off. electron-builder 26 flips these at pack time, before
+# signing.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableCookieEncryption: true
+  # asarUnpack (better-sqlite3, node-pty, searchWorker.js) still resolves through
+  # app.asar.unpacked, which this fuse allows; it only blocks loading the *app* from outside the
+  # asar entirely.
+  onlyLoadAppFromAsar: true
+  # Advisory only until the build is signed (see CLAUDE.md "Releasing" / capability.ts): an
+  # unsigned build has no platform signature to anchor trust in either way, but this stops
+  # mattering on the day a Developer ID exists instead of requiring a second change then.
+  enableEmbeddedAsarIntegrityValidation: true
+  # Flipping fuses patches bytes into the Electron binary *after* Electron's own build already
+  # signed it, which invalidates that signature — @electron/fuses' own docs call this out
+  # (electron-builder normally re-signs afterwards with a real identity, which is what makes this
+  # "usually unneeded"). Apiary has no Developer ID (unsigned by design, see CLAUDE.md
+  # "Releasing"), so electron-builder finds no identity and skips signing entirely, leaving a
+  # binary whose signature no longer matches its content — which newer macOS kills at launch with
+  # SIGKILL "Code Signature Invalid" (measured on macOS 26). This re-applies a valid ad-hoc
+  # signature after the fuses are burned in, so the packaged app can actually start.
+  resetAdHocDarwinSignature: true
 # Where the app looks for updates, and the provider whose metadata electron-builder generates.
 # This block is what produces `latest-mac.yml` / `latest-linux.yml` beside the installers and
 # `app-update.yml` inside the package — without them, a built app has no feed to check and the

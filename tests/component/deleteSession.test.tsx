@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, sessionRow, clickRowAction } from './helpers'
 
@@ -16,7 +16,7 @@ describe('deleting a session', () => {
   it('deleting the currently-selected session clears the selection', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Fix CSV export bug')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
 
     await clickRowAction('Fix CSV export bug', 'delete-session-button')
     await userEvent.click(page.getByTestId('delete-session-confirm'))

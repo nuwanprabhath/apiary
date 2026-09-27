@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { until } from './helpers'
 
@@ -15,7 +15,7 @@ describe('diagnostics settings', () => {
     await userEvent.click(page.getByTestId('settings-nav-diagnostics'))
 
     const privacy = page.getByTestId('diagnostics-privacy')
-    await expect.element(privacy).toHaveTextContent('no prompts')
-    await expect.element(privacy).toHaveTextContent('~')
+    await expect.element(privacy).toMatchTextContent('no prompts')
+    await expect.element(privacy).toMatchTextContent('~')
   })
 })

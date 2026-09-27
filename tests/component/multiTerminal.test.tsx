@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, until } from './helpers'
 
@@ -21,7 +21,7 @@ describe('multi-terminal', () => {
     await userEvent.dblClick(page.getByTestId('terminal-tab-label'), NAME_START)
     await userEvent.fill(page.getByTestId('terminal-tab-rename-input'), 'Build watcher')
     await userEvent.keyboard('{Enter}')
-    await expect.element(page.getByTestId('terminal-tab-label')).toHaveTextContent('Build watcher')
+    await expect.element(page.getByTestId('terminal-tab-label')).toMatchTextContent('Build watcher')
   })
 
   it('F2 in a terminal renames that terminal, opening the list to do it in', async () => {
@@ -79,7 +79,7 @@ describe('multi-terminal', () => {
     await userEvent.click(within('terminal-tab-rename'))
     await userEvent.fill(page.getByTestId('terminal-tab-rename-input'), 'Dev server')
     await userEvent.keyboard('{Enter}')
-    await expect.element(within('terminal-tab-label')).toHaveTextContent('Dev server')
+    await expect.element(within('terminal-tab-label')).toMatchTextContent('Dev server')
 
     await userEvent.hover(row)
     await userEvent.click(within('terminal-tab-delete'))
@@ -105,7 +105,7 @@ describe('multi-terminal', () => {
     const row = page.getByTestId('terminal-tab-row')
     await userEvent.hover(row)
     await userEvent.click(row.getByTestId('terminal-tab-delete'))
-    await expect.element(page.getByTestId('shell-toggle')).toHaveTextContent('Show shell')
+    await expect.element(page.getByTestId('shell-toggle')).toMatchTextContent('Show shell')
     await expect.element(page.getByTestId('terminal-shell')).not.toBeInTheDocument()
   })
 

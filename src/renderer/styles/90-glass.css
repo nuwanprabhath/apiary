@@ -1,0 +1,40 @@
+/*
+ * Glass (a theme's `material: glass`). Each panel's own background goes transparent and a pane is
+ * drawn behind its content instead — the tint and a sheen — with a rim and lens-edge highlight
+ * over the content, so a tab strip at the top of a card does not hide it.
+ *
+ * There is deliberately no `backdrop-filter` anywhere here. What shows through a pane is only the
+ * window colour and the back effects canvas, and ThemeEffects already draws that canvas blurred
+ * and saturated for glass. A live backdrop filter per pane re-ran on every change underneath —
+ * every animation frame, every hover — and without GPU compositing that made the whole app lag
+ * by most of a second (tests/e2e/bench/themePerf.spec.ts measures it). Popovers float over text,
+ * not over the canvas, so they get a thick tint (--bg-popover) instead of a blur.
+ *
+ * The pane is a pseudo-element on each card (and on .sidebar-frame, because .sidebar scrolls).
+ */
+html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card) {
+  position: relative;
+  isolation: isolate;
+  --glass-tint: var(--bg-panel);
+}
+html[data-material="glass"] .session-card { --glass-tint: var(--bg); }
+html[data-material="glass"] :is(.sidebar, .sidebar-rail, .session-card, .shell-card) { background: transparent; }
+html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card)::before,
+html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card)::before {
+  z-index: var(--z-glass-tint);
+  background: var(--glass-sheen), var(--glass-tint);
+}
+html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card)::after {
+  z-index: var(--z-glass-rim);
+  box-shadow: var(--glass-rim);
+}
+html[data-material="glass"] :is(.modal, .context-menu, .git-menu, .hover-card, .notification, .layout-picker, .branch-switcher) {
+  background: var(--glass-sheen), var(--bg-popover);
+}

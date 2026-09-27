@@ -1,35 +1,50 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { basename, dirname, extname, join, resolve, sep } from 'node:path'
-import { randomUUID } from 'node:crypto'
-import { projectsDir } from './config'
-import { scanProjects } from './scanner/sessionScanner'
-import { encodeProjectDirName } from './scanner/projectDirName'
-import { resolveProject, clearResolverCache } from './git/worktreeResolver'
+import { mkdir, rename } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { extractMeta } from './scanner/sessionScanner'
+import { ClaudeProjectsSource, type SessionSource } from './sources/claudeProjects'
+import { resolveProject, clearResolverCache, resetResolverSpawnCount, resolverSpawnCount } from './git/worktreeResolver'
 import { SessionStore } from './store/sessionStore'
 import { buildTree } from './tree/buildTree'
 import { indexTranscript, readTranscriptPage } from './transcript/transcriptReader'
-import { detectLiveSessions } from './live/liveSessionDetector'
+import { detectLiveSessions } from './claude/live/liveSessionDetector'
 import { PtyManager } from './pty/ptyManager'
-import { SearchIndex } from './search/searchIndex'
-import { SearchClient } from './search/searchClient'
-import { runIndexPass, type IndexableSession } from './search/indexer'
-import { promptPathEnv, type PromptPathOptions } from './pty/promptPath'
-import { forkLabel } from '@shared/forkLabel'
+import { SessionResolver } from './sessions/sessionResolver'
+import { GitService } from './git/gitService'
+import { SearchService } from './search/searchService'
+import type { PromptPathOptions } from './pty/promptPath'
+import { TerminalService } from './terminals/terminalService'
 import { log } from './log/logger'
+import { memoize } from './util/memoize'
 import { PluginRegistry } from './plugins/registry'
-import { createGitLabMrPlugin, originUrl, defaultExec as defaultGitExec } from './plugins/gitlabMr'
-import { parseGitLabRemote } from './plugins/gitlabRemote'
+import { BUILTIN_PLUGINS } from './plugins/builtin'
 import type { PluginBarItem } from './plugins/types'
-import { resolveMrStatus, type MrState } from './git/mrStatusCache'
-import { buildResumeCommand, buildNewSessionCommand } from './pty/resumeCommand'
-import { openInVsCode as spawnVsCode } from './vscode/detectVsCode'
-import * as branchOps from './git/branchOps'
+import type { MrState } from './git/mrStatusCache'
+import { VsCodeService } from './vscode/vscodeService'
+import { ImageStore } from './media/imageStore'
 import type {
   ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo, CheckoutOutcome,
 } from '@shared/types'
 import type { StoredSession } from './store/sessionStore'
-import type { SessionMeta, GitStatus, GitRefs, FolderWorktree } from '@shared/types'
+import type { SessionMeta, ProjectInfo, GitStatus, GitRefs, FolderWorktree } from '@shared/types'
+
+/** What a refresh pass was asked to cover — see `refresh()`. */
+interface RefreshRequest {
+  /** A full rescan: every transcript is stat'd (unchanged ones are still skipped — see
+   *  `isUnchanged` below), and every distinct cwd the store knows about is re-resolved through
+   *  git, not just the ones with a changed file. This is what the Refresh button, the app menu
+   *  and the `refresh` IPC channel ask for, and what every caller gets by omitting `opts`
+   *  entirely — the behaviour this class had before MAIN-1. */
+  full: boolean
+  /** A scoped pass (MAIN-1): only these transcript paths are re-read, and only their cwds are
+   *  re-resolved. Ignored when `full` is true. */
+  paths: Set<string>
+}
+
+/** How many folders are resolved concurrently in one refresh pass (MAIN-1 step 7). Resolution is
+ *  a few sequential git spawns per folder; a small cap keeps a large library from serializing
+ *  entirely on process-spawn latency without opening hundreds of git processes at once. */
+const RESOLVE_CONCURRENCY = 8
 
 export interface AppServiceOptions {
   configRoot: string
@@ -63,68 +78,92 @@ export interface AppServiceOptions {
    * that were incomplete at the moment they were fetched, with nothing to prompt a re-query.
    */
   onIndexUpdated?: () => void
+  /** Where sessions come from (MAIN-18). Defaults to `ClaudeProjectsSource`, built from
+   *  `configRoot` — the only source that exists today. Injectable for tests and for a future
+   *  second source. */
+  source?: SessionSource
+  /**
+   * Injectable collaborators (TEST-6 / MAIN-14 step 1). Each defaults to today's construction, so
+   * every existing caller is unaffected; a test can now pass a fake `pty` or `store` instead of
+   * getting a real node-pty process or a real SQLite file. `plugins`, if supplied, is used as-is —
+   * the constructor then skips its own registration of the built-in plugins (MAIN-17), since a
+   * caller handing in a whole registry has already decided what is in it.
+   */
+  deps?: {
+    pty?: PtyManager
+    store?: SessionStore
+    plugins?: PluginRegistry
+  }
 }
-
-/**
- * Extensions for the image types worth accepting from a clipboard. The map is also the allow-list:
- * a media type absent from it is refused rather than written to disk under a guessed extension.
- */
-const IMAGE_EXTENSIONS: Record<string, string> = {
-  'image/png': '.png',
-  'image/jpeg': '.jpg',
-  'image/gif': '.gif',
-  'image/webp': '.webp',
-}
-
-/** Refuse anything larger. A clipboard image this big is a mistake, and the path is sent to a CLI. */
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024
-
-/**
- * Terminal bracketed-paste markers. Sending a multi-line prompt as a *paste* rather than as
- * keystrokes is what stops the receiving TUI treating the first newline as "submit" and firing off
- * a half-written message — the same mechanism a terminal uses when you paste into it by hand.
- */
-const PASTE_START = '\x1b[200~'
-const PASTE_END = '\x1b[201~'
 
 export class AppService {
-  readonly pty = new PtyManager()
+  readonly pty: PtyManager
   private store: SessionStore
   private options: AppServiceOptions
   private live = new Map<string, number>()
   private refreshPromise: Promise<void> | null = null
-  private pendingRefresh = false
+  /** Set while a pass is in flight, so the trigger that arrived mid-pass is not silently lost —
+   *  see `refresh()`. `full` always wins when merging two pending requests. */
+  private pendingRefresh: RefreshRequest | null = null
   private disposed = false
   private autoImportAll = false
-  /**
-   * The full-text index, created on first use. Lazy because it is only worth the file handle and
-   * the schema when content search is actually on, and it can be switched off in Settings.
-   */
-  private searchIndex: SearchIndex | null = null
-  /** Owns the worker thread the content search runs on — see `searchSessions`. */
-  private searchClient: SearchClient | null = null
-  private searchChatContent = true
-  private searchSessionNotes = true
-  private promptPath: PromptPathOptions = { enabled: false, segments: 2 }
   private readonly plugins: PluginRegistry
-  /** Set while a pass is running, so refreshes cannot stack passes on top of each other. */
-  private indexing = false
-  /** Resolved once at construction by `detectVsCode`; never re-probed per hover. */
-  private readonly vsCodePath: string | null
+  /** The trust boundary (MAIN-14 step 2) — see `sessions/sessionResolver.ts`. */
+  private readonly resolver: SessionResolver
+  /** Every `git*` operation (MAIN-14 step 3) — see `git/gitService.ts`. */
+  private readonly git: GitService
+  /** VS Code availability/open (MAIN-14 step 4) — see `vscode/vscodeService.ts`. */
+  private readonly vscode: VsCodeService
+  /** Pasted-image storage (MAIN-14 step 4) — see `media/imageStore.ts`. */
+  private readonly images: ImageStore
+  /** Content/note search, the index and its worker (MAIN-14 step 4) — see `search/searchService.ts`. */
+  private readonly search: SearchService
+  /** Resume/fork/new-session/shell/sendPrompt (MAIN-14 step 4) — see `terminals/terminalService.ts`. */
+  private readonly terminals: TerminalService
+  private readonly source: SessionSource
 
   constructor(options: AppServiceOptions) {
     this.options = options
-    this.store = new SessionStore(options.dbPath)
+    this.source = options.source ?? new ClaudeProjectsSource(options.configRoot)
+    this.pty = options.deps?.pty ?? new PtyManager()
+    this.store = options.deps?.store ?? new SessionStore(options.dbPath)
+    this.resolver = new SessionResolver({ store: this.store, pty: this.pty })
+    this.git = new GitService({ resolver: this.resolver, glabPath: options.glabPath })
+    this.vscode = new VsCodeService({ resolver: this.resolver, vsCodePath: options.vsCodePath ?? null })
+    this.images = new ImageStore({ dir: options.imagesDir ?? join(dirname(options.dbPath), 'pasted-images') })
+    this.search = new SearchService({
+      store: this.store,
+      dbPath: options.searchDbPath ?? join(dirname(options.dbPath), 'search.db'),
+      searchChatContent: options.searchChatContent,
+      searchSessionNotes: options.searchSessionNotes,
+      onIndexUpdated: options.onIndexUpdated,
+      isDisposed: () => this.disposed,
+    })
+    this.terminals = new TerminalService({
+      pty: this.pty,
+      resolver: this.resolver,
+      store: this.store,
+      claudeBin: options.claudeBin,
+      promptPath: options.promptPath,
+      zshPromptShim: options.zshPromptShim,
+    })
     this.autoImportAll = options.autoImportAll ?? false
-    this.searchChatContent = options.searchChatContent ?? true
-    this.searchSessionNotes = options.searchSessionNotes ?? true
-    this.promptPath = options.promptPath ?? { enabled: false, segments: 2 }
-    this.vsCodePath = options.vsCodePath ?? null
-    this.plugins = new PluginRegistry({ onChanged: () => options.onPluginsChanged?.() })
-    this.plugins.register(
-      createGitLabMrPlugin({ glabPath: options.glabPath }),
-      options.plugins?.['gitlab-mr'] ?? true,
-    )
+    if (options.deps?.plugins) {
+      // A caller handing in a whole registry has already decided what is registered in it —
+      // registering the built-in plugins on top would silently add a plugin a test's fake
+      // registry never asked for.
+      this.plugins = options.deps.plugins
+    } else {
+      this.plugins = new PluginRegistry({ onChanged: () => options.onPluginsChanged?.() })
+      // Registration itself has nothing plugin-specific left in it (MAIN-17): a new entry in
+      // `BUILTIN_PLUGINS` is a new plugin, with no change here. `options.plugins` (what the user
+      // has actually set) wins over the plugin's own `defaultEnabled` for someone who has never
+      // touched this plugin's setting at all.
+      for (const factory of BUILTIN_PLUGINS) {
+        const plugin = factory({ glabPath: options.glabPath })
+        this.plugins.register(plugin, options.plugins?.[plugin.id] ?? plugin.defaultEnabled ?? true)
+      }
+    }
     for (const [id, values] of Object.entries(options.pluginSettings ?? {})) {
       this.plugins.setSettings(id, values)
     }
@@ -158,17 +197,12 @@ export class AppService {
   private pluginContext(key: string, isPtyId: boolean): { cwd: string; branch: string | null } | null {
     let cwd: string
     try {
-      cwd = this.resolveShellCwd(key, isPtyId)
+      cwd = this.resolver.resolveShellCwd(key, isPtyId)
     } catch {
       return null
     }
-    return { cwd, branch: this.lastBranch.get(cwd) ?? null }
+    return { cwd, branch: this.git.lastBranchFor(cwd) }
   }
-
-  /** Which branch each folder was last seen on, filled in by `gitStatus`. */
-  private readonly lastBranch = new Map<string, string | null>()
-  /** Worktree paths `listWorktrees` reported — see there. */
-  private readonly listedWorktrees = new Set<string>()
 
   setPluginEnabled(pluginId: string, enabled: boolean): void {
     this.plugins.setEnabled(pluginId, enabled)
@@ -188,15 +222,7 @@ export class AppService {
    * setting's help text says the change applies to new terminals.
    */
   setPromptPath(options: PromptPathOptions): void {
-    // The exact answer to "I turned the setting on and my prompt is still long": what the app
-    // decided, and what it will actually put in the environment.
-    log.info('prompt', 'prompt trim configured', {
-      enabled: options.enabled,
-      segments: options.segments,
-      minimal: options.minimal ?? false,
-      env: promptPathEnv(options, this.options.zshPromptShim ?? null),
-    })
-    this.promptPath = options
+    this.terminals.setPromptPath(options)
   }
 
   /**
@@ -223,40 +249,103 @@ export class AppService {
    * pass from ever being scheduled once shutdown has started, so a
    * fire-and-forget rerun can never land after the store is closed.
    */
-  async refresh(): Promise<void> {
+  /**
+   * `opts` omitted (every pre-MAIN-1 caller: the Refresh button, the menu, the `refresh` IPC
+   * channel, `moveSession`) means a full rescan, exactly as before. `{ paths }` is a scoped pass
+   * — what the filesystem watcher now asks for: only those transcripts are re-read, and only
+   * their cwds are re-resolved through git, instead of every session in the library and every
+   * folder it has ever seen (MAIN-1).
+   */
+  private normalizeRefreshRequest(opts?: { full?: boolean; paths?: string[] }): RefreshRequest {
+    if (!opts || opts.full === true || !opts.paths || opts.paths.length === 0) {
+      return { full: true, paths: new Set() }
+    }
+    return { full: false, paths: new Set(opts.paths) }
+  }
+
+  async refresh(opts?: { full?: boolean; paths?: string[] }): Promise<void> {
+    const req = this.normalizeRefreshRequest(opts)
     if (this.refreshPromise) {
-      this.pendingRefresh = true
+      if (!this.pendingRefresh) {
+        this.pendingRefresh = req
+      } else if (this.pendingRefresh.full || req.full) {
+        this.pendingRefresh = { full: true, paths: new Set() }
+      } else {
+        for (const p of req.paths) this.pendingRefresh.paths.add(p)
+      }
       return this.refreshPromise
     }
-    this.refreshPromise = this.runRefreshLoop()
+    this.refreshPromise = this.runRefreshLoop(req)
     return this.refreshPromise
   }
 
-  private async runRefreshLoop(): Promise<void> {
+  private async runRefreshLoop(req: RefreshRequest): Promise<void> {
     try {
-      await this.runRefresh()
+      await this.runRefresh(req)
     } catch (e) {
       // A rejection must not wedge future refreshes: clear both the in-flight pointer and
       // any pending-rerun request, then propagate the failure to everyone awaiting this run
       // (the original caller and anyone who joined it) exactly as before this fix.
-      this.pendingRefresh = false
+      this.pendingRefresh = null
       this.refreshPromise = null
       throw e
     }
     if (this.pendingRefresh && !this.disposed) {
-      this.pendingRefresh = false
+      const next = this.pendingRefresh
+      this.pendingRefresh = null
       // Chain the rerun onto this same promise so every caller of this run — including one
       // that only joined an in-flight refresh — actually observes a pass that ran after their
       // trigger, not the stale snapshot the joined pass started with.
-      this.refreshPromise = this.runRefreshLoop()
+      this.refreshPromise = this.runRefreshLoop(next)
       return this.refreshPromise
     }
     this.refreshPromise = null
   }
 
-  private async runRefresh(): Promise<void> {
-    clearResolverCache()
-    const metas = await scanProjects(projectsDir(this.options.configRoot))
+  private async runRefresh(req: RefreshRequest): Promise<void> {
+    const started = Date.now()
+    // A full pass re-resolves every folder from scratch (a checkout done outside Apiary, a
+    // worktree removed); a scoped pass keeps the resolver's structural answers from earlier
+    // passes and only re-resolves the folders whose files actually changed.
+    if (req.full) clearResolverCache()
+    resetResolverSpawnCount()
+
+    let metas: SessionMeta[]
+    let filesSeen: number
+    let filesParsed = 0
+    if (req.full) {
+      // The store already knows every session's file size and mtime; skip re-reading (and
+      // re-parsing up to 128KB of) a file whose stat matches what is already on record. This is
+      // the same technique the search indexer already uses (indexer.ts).
+      const stamps = this.store.fileStamps()
+      const stats = { filesSeen: 0, filesParsed: 0 }
+      metas = await this.source.scan({
+        isUnchanged: (path, size, mtimeMs) => {
+          const stamp = stamps.get(path)
+          return stamp !== undefined && stamp.size === size && stamp.mtimeMs === mtimeMs
+        },
+        stats,
+      })
+      filesSeen = stats.filesSeen
+      filesParsed = stats.filesParsed
+    } else {
+      // Scoped: the watcher already told us exactly which files changed, so there is no directory
+      // to walk — each path is re-read directly, unconditionally (the watcher's own
+      // `awaitWriteFinish` is what decided this file is worth looking at again).
+      metas = []
+      filesSeen = req.paths.size
+      for (const path of req.paths) {
+        if (this.disposed) return
+        if (!path.endsWith('.jsonl')) continue
+        try {
+          metas.push(await extractMeta(path))
+          filesParsed += 1
+        } catch {
+          // Deleted between the watcher event and this read, or unreadable — a scoped pass simply
+          // leaves that session's row as it was; a later full pass reconciles it.
+        }
+      }
+    }
     // A pass can take a long time — resolving each folder is a few git calls, and a library of a
     // few hundred folders measured ~35s — and quitting waits for the pass in flight (see
     // `dispose()`). So it checks at every step whether shutdown has started, and stops: everything
@@ -273,6 +362,15 @@ export class AppService {
       byRawCwd.set(m.cwd, list)
     }
 
+    // On a full pass every distinct cwd the store already knows about is re-resolved, not just
+    // the ones with a changed file this pass — a folder's branch or worktree status can change
+    // with nobody ever touching a transcript in it. A scoped pass only re-resolves the cwds of
+    // the files that actually changed.
+    const cwdsToResolve = new Set(byRawCwd.keys())
+    if (req.full) {
+      for (const cwd of this.store.distinctCwds()) cwdsToResolve.add(cwd)
+    }
+
     // Resolve every distinct raw cwd to its canonical project path first, then
     // group by that canonical key. Two JSONL files that record the same
     // directory via different routes (e.g. one through a symlink) must land
@@ -280,23 +378,47 @@ export class AppService {
     // canonicalizes with realpath, so syncProject and syncSessions must be
     // keyed on ProjectInfo.path rather than the raw string read from the JSONL.
     const byCanonicalCwd = new Map<string, SessionMeta[]>()
-    const infoByCanonicalCwd = new Map<string, Awaited<ReturnType<typeof resolveProject>>>()
-    for (const [rawCwd, list] of byRawCwd) {
-      if (this.disposed) return
-      const info = await resolveProject(rawCwd)
-      infoByCanonicalCwd.set(info.path, info)
-      const existing = byCanonicalCwd.get(info.path) ?? []
-      existing.push(...list)
-      byCanonicalCwd.set(info.path, existing)
+    const infoByCanonicalCwd = new Map<string, ProjectInfo>()
+    const rawCwds = [...cwdsToResolve]
+    let cursor = 0
+    const resolveWorker = async (): Promise<void> => {
+      for (;;) {
+        if (this.disposed) return
+        const i = cursor
+        cursor += 1
+        if (i >= rawCwds.length) return
+        const rawCwd = rawCwds[i]
+        const info = await resolveProject(rawCwd)
+        infoByCanonicalCwd.set(info.path, info)
+        const list = byRawCwd.get(rawCwd)
+        const existing = byCanonicalCwd.get(info.path) ?? []
+        if (list) existing.push(...list)
+        byCanonicalCwd.set(info.path, existing)
+      }
     }
+    await Promise.all(
+      Array.from({ length: Math.min(RESOLVE_CONCURRENCY, rawCwds.length) }, resolveWorker),
+    )
 
     if (this.disposed) return
+    const entries: { info: ProjectInfo; metas: SessionMeta[] }[] = []
     for (const [canonicalCwd, list] of byCanonicalCwd) {
       const info = infoByCanonicalCwd.get(canonicalCwd)
       if (!info) continue
-      this.store.syncProject(info)
-      this.store.syncSessions(canonicalCwd, list)
+      entries.push({ info, metas: list })
     }
+    // One commit for the whole pass instead of two fsyncing transactions per project (MAIN-2).
+    this.store.syncAll(entries)
+
+    // "Measure before fixing" (CLAUDE.md): what MAIN-1 set out to cut down, on every pass.
+    log.info('refresh', 'pass', {
+      full: req.full,
+      files: filesSeen,
+      parsed: filesParsed,
+      folders: rawCwds.length,
+      gitSpawns: resolverSpawnCount(),
+      ms: Date.now() - started,
+    })
 
     if (this.disposed) return
     this.live = await (this.options.detectLive ?? detectLiveSessions)()
@@ -311,14 +433,43 @@ export class AppService {
     void this.updateSearchIndex()
   }
 
+  /**
+   * Re-resolves and syncs one folder's project row through git — without touching a single
+   * transcript or resolving any other folder (MAIN-4). Used after a git mutation that can change
+   * what the sidebar shows for this one folder (a checkout, a new branch), so the answer comes
+   * back in git time instead of waiting for (and paying for) a full-library rescan.
+   *
+   * Bypasses the resolver's cache deliberately: the mutation this follows is the reason the
+   * cached answer is now stale.
+   */
+  async refreshProject(cwd: string): Promise<void> {
+    const info = await resolveProject(cwd, { forceResolve: true })
+    this.store.syncProject(info)
+  }
+
+  /** Same as `refreshProject`, but for one of the cwd-carrying (`key`, `isPtyId`) IPC calls. */
+  async refreshProjectByKey(key: string, isPtyId: boolean): Promise<void> {
+    await this.refreshProject(this.resolver.resolveShellCwd(key, isPtyId))
+  }
+
+  /**
+   * `buildTree` calls `cwdExists` once per *session*, not once per distinct cwd (MAIN-10) — every
+   * window calls `tree()` on every `treeChanged` (after every watcher pass, every index update),
+   * so a library with many sessions per folder turned into that many synchronous `existsSync`
+   * calls per broadcast. Memoised per call here rather than in `buildTree` itself, which stays a
+   * pure function of whatever `cwdExists` it is handed.
+   */
   async tree(): Promise<ProjectNode[]> {
     return buildTree(
       this.store.visibleProjects(),
       this.store.visibleSessions(),
       new Set(this.live.keys()),
-      (path) => existsSync(path),
+      memoize(existsSync),
     )
   }
+
+  // Every search* method below is a one-line delegate to SearchService (MAIN-14 step 4) — kept
+  // here so ipc/handlers and appService.test.ts do not have to change what they call.
 
   /**
    * Session ids matched by anything other than their title: the conversation, the user's note, or
@@ -326,86 +477,16 @@ export class AppService {
    * the user wrote and costs nothing to keep indexed, so it stays searchable even for someone who
    * has turned transcript indexing off.
    */
-  /**
-   * Which sessions match `query` by conversation content or by note.
-   *
-   * Runs in a worker thread (`SearchClient`), not here. `better-sqlite3` is synchronous, so doing
-   * this inline put an FTS query on the thread that also routes window input — and a slow query
-   * therefore froze typing in every window rather than merely delaying results. See
-   * `searchWorker.ts`; the 7.7-second case that proved it is described in `searchIndex.ts`.
-   */
   async searchSessions(query: string): Promise<string[]> {
-    if (!this.searchChatContent && !this.searchSessionNotes) return []
-    this.searchClient ??= new SearchClient(this.searchDbPath())
-    const fromWorker = await this.searchClient.search(query, {
-      content: this.searchChatContent,
-      notes: this.searchSessionNotes,
-    })
-    if (fromWorker !== null) return fromWorker
-
-    // No worker available — search in-process rather than pretending nothing matched. This blocks
-    // the main thread, which is the very thing the worker exists to avoid, so it is a fallback and
-    // not a mode: `SearchClient` logs loudly when it cannot start one. It is also the path the
-    // integration tests take, since they run the source directly with no bundled worker beside it.
-    try {
-      const ids = new Set<string>()
-      if (this.searchChatContent) {
-        for (const hit of this.index().search(query)) ids.add(hit.sessionId)
-      }
-      if (this.searchSessionNotes) {
-        for (const hit of this.index().searchNotes(query)) ids.add(hit.sessionId)
-      }
-      return [...ids]
-    } catch {
-      // Search is an enhancement to the sidebar, never a reason for it to fail to load.
-      return []
-    }
-  }
-
-  private searchDbPath(): string {
-    return this.options.searchDbPath ?? join(dirname(this.options.dbPath), 'search.db')
-  }
-
-  /** The index, opened on first use. */
-  private index(): SearchIndex {
-    this.searchIndex ??= new SearchIndex(this.searchDbPath())
-    return this.searchIndex
+    return this.search.search(query)
   }
 
   setSearchChatContent(enabled: boolean): void {
-    // Anything that is not a boolean is a caller that does not know about this setting, not a
-    // request to turn it off. See the note on the settings merge in ipc.ts.
-    if (typeof enabled !== 'boolean') return
-    this.searchChatContent = enabled
+    this.search.setChatContentEnabled(enabled)
   }
 
-  /**
-   * Turns note indexing on or off.
-   *
-   * Switching it off empties the note index rather than merely ignoring it — a search index of
-   * things the user asked not to be searched should not sit on disk. Switching it back on
-   * repopulates from the session store, which is the record of the notes themselves; this is
-   * immediate and cheap, because a note is a line of text and no transcript has to be re-read.
-   */
   setSearchSessionNotes(enabled: boolean): void {
-    // Guarded before the comparison, because the damage here is not just a flag: switching off
-    // empties the note index, so a stray `undefined` would silently delete it.
-    if (typeof enabled !== 'boolean') return
-    if (enabled === this.searchSessionNotes) return
-    this.searchSessionNotes = enabled
-    try {
-      if (!enabled) this.index().clearNotes()
-      else this.syncNoteIndex()
-    } catch {
-      // The note index is derived data; failing to reshape it must not fail the settings save.
-    }
-  }
-
-  /** Rewrites the note index from the store — used when note indexing is switched back on. */
-  private syncNoteIndex(): void {
-    const index = this.index()
-    index.clearNotes()
-    for (const { sessionId, note } of this.store.sessionsWithNotes()) index.putNote(sessionId, note)
+    this.search.setSessionNotesEnabled(enabled)
   }
 
   /**
@@ -416,71 +497,36 @@ export class AppService {
    * is a note that appears not to work.
    */
   async setSessionNote(sessionId: string, note: string): Promise<void> {
-    this.requireSession(sessionId)
+    this.resolver.requireSession(sessionId)
     const trimmed = note.trim()
     this.store.setNote(sessionId, trimmed === '' ? null : trimmed)
-    if (this.searchSessionNotes) {
-      try {
-        this.index().putNote(sessionId, trimmed === '' ? null : trimmed)
-      } catch {
-        // Saved either way: the note lives in the session store, and a rebuild recovers the index.
-      }
-    }
-  }
-
-  /** The note for one session, for the editor to open with what is already there. */
-  sessionNote(sessionId: string): string {
-    return this.store.allSessions().find((s) => s.sessionId === sessionId)?.note ?? ''
-  }
-
-  /** Wipes the index so the next pass rebuilds it — the "Rebuild index" action in Settings. */
-  async rebuildSearchIndex(): Promise<void> {
-    if (!this.searchChatContent && !this.searchSessionNotes) return
-    this.index().clear()
-    // Notes come back from the store immediately; transcripts are the slow part and are left to
-    // the pass below.
-    if (this.searchSessionNotes) this.syncNoteIndex()
-    await this.updateSearchIndex()
-  }
-
-  /** How many sessions are indexed, for Settings to show that the index exists and is populated. */
-  searchIndexCount(): number {
-    return this.searchChatContent ? this.index().count() : 0
-  }
-
-  /** How many notes are indexed, shown beside the session count in Settings. */
-  searchNoteCount(): number {
-    return this.searchSessionNotes ? this.index().noteCount() : 0
+    this.search.putNoteIfEnabled(sessionId, trimmed === '' ? null : trimmed)
   }
 
   /**
-   * Brings the index up to date for every imported session.
+   * The note for one session, for the editor to open with what is already there.
    *
-   * Never awaited by `refresh()`: indexing is a background chore, and a rescan that waited for it
-   * would make the Refresh button as slow as the slowest thing in the index. The `indexing` guard
-   * means overlapping refreshes queue no work rather than racing each other over the same files.
+   * `getSession` is an indexed lookup by primary key; `allSessions().find(...)` (MAIN-10) mapped
+   * and scanned every row in the store to find one.
    */
+  sessionNote(sessionId: string): string {
+    return this.store.getSession(sessionId)?.note ?? ''
+  }
+
+  async rebuildSearchIndex(): Promise<void> {
+    return this.search.rebuild()
+  }
+
+  searchIndexCount(): number {
+    return this.search.indexCount()
+  }
+
+  searchNoteCount(): number {
+    return this.search.noteCount()
+  }
+
   async updateSearchIndex(): Promise<void> {
-    // Notes are kept in step by whoever changes them, but a pass is also where a note written
-    // before indexing was switched on gets picked up.
-    if (this.searchSessionNotes && !this.disposed) {
-      try { this.syncNoteIndex() } catch { /* Derived data; the next pass tries again. */ }
-    }
-    if (!this.searchChatContent || this.indexing || this.disposed) return
-    this.indexing = true
-    try {
-      const sessions: IndexableSession[] = this.store
-        .visibleSessions()
-        .map((s) => ({ sessionId: s.sessionId, file: s.filePath }))
-      const result = await runIndexPass(
-        this.index(), sessions, () => this.disposed || !this.searchChatContent,
-      )
-      if (result.indexed > 0 && !this.disposed) this.options.onIndexUpdated?.()
-    } catch {
-      // A failed pass leaves the index as it was; the next refresh tries again.
-    } finally {
-      this.indexing = false
-    }
+    return this.search.update()
   }
 
   async discovered(): Promise<StoredSession[]> {
@@ -510,8 +556,20 @@ export class AppService {
    * Callers may pass a raw (possibly symlinked) cwd, so each path is
    * canonicalized the same way `refresh()` keys project rows — otherwise the
    * flag would be written under a path no project row actually has.
+   *
+   * Each path must already name a project this store knows about (SEC-8): the renderer's own
+   * caller only ever offers back a `projectPath` this process handed it through `discovered()`,
+   * but the IPC boundary does not know that — and `resolveProject` runs `git` with `cwd` set to
+   * whatever it is given, which is exactly the "renderer supplies a filesystem path" pattern
+   * CLAUDE.md says main never accepts. `getProject` is the same check `newSessionInProject` uses
+   * for the identical reason.
    */
   async importSessions(sessionIds: string[], autoImportProjects: string[]): Promise<void> {
+    for (const path of autoImportProjects) {
+      if (this.store.getProject(path) === null) {
+        throw new Error(`Unknown project: ${path}`)
+      }
+    }
     this.store.setImported(sessionIds, true)
     for (const path of autoImportProjects) {
       const info = await resolveProject(path)
@@ -520,7 +578,7 @@ export class AppService {
   }
 
   async transcript(sessionId: string, beforeIndex?: number): Promise<TranscriptPage> {
-    const session = this.requireSession(sessionId)
+    const session = this.resolver.requireSession(sessionId)
     // Claude's own session files can be deleted out from under Apiary — most often by removing
     // the git worktree the session ran in, which takes its whole `~/.claude/projects/<slug>`
     // directory with it. Saying so in one sentence is far more use than the raw
@@ -546,7 +604,7 @@ export class AppService {
    * store knows about, never trusted purely because the renderer sent an id that looks right.
    */
   async renameSession(sessionId: string, title: string): Promise<void> {
-    this.requireSession(sessionId)
+    this.resolver.requireSession(sessionId)
     const trimmed = title.trim()
     this.store.setCustomTitle(sessionId, trimmed === '' ? null : trimmed)
   }
@@ -558,7 +616,7 @@ export class AppService {
    * being written to would make it unreachable from the UI while the process outlives it.
    */
   async removeSession(sessionId: string): Promise<void> {
-    this.requireSession(sessionId)
+    this.resolver.requireSession(sessionId)
     if (this.live.has(sessionId)) {
       throw new Error('This session is still running — close it before removing it.')
     }
@@ -571,7 +629,7 @@ export class AppService {
    * asked to change the directory a whole process tree is rooted in.
    */
   async moveSession(sessionId: string, targetProjectPath: string): Promise<void> {
-    const session = this.requireSession(sessionId)
+    const session = this.resolver.requireSession(sessionId)
     // Both sources of liveness, because neither one alone is current. `this.live` is the external
     // process scan, refreshed only by `refresh()` — so a session the user resumed *here* a moment
     // ago is not in it until the next rescan. `this.pty.has()` is this process's own ptys, which
@@ -593,8 +651,8 @@ export class AppService {
     if (!known) throw new Error(`Unknown project: ${targetProjectPath}`)
     const target = await resolveProject(known.path)
 
-    const targetDir = join(projectsDir(this.options.configRoot), encodeProjectDirName(target.path))
-    const targetFile = join(targetDir, `${sessionId}.jsonl`)
+    const targetFile = this.source.transcriptPathFor(target.path, sessionId)
+    const targetDir = dirname(targetFile)
     if (existsSync(targetFile)) {
       throw new Error(`A session already exists there: ${targetFile}`)
     }
@@ -611,367 +669,123 @@ export class AppService {
     return pid === undefined ? null : { sessionId, pid }
   }
 
-  /**
-   * Spawns `claude --resume` in the session's recorded cwd. Terminal id is the session id.
-   *
-   * **An already-running pty is attached to, never replaced.** The same session can legitimately
-   * be live in two windows at once (see `checkConflict`'s own comment on the class), and each
-   * window is a separate renderer that cannot see what another one has already started — this is
-   * exactly what surfaced restoring after a relaunch: both windows recorded the session as `live`
-   * at quit, both call `resume()` independently on mount, and without this check the second call
-   * would hit `spawn()`'s unconditional `kill()` and restart the pty out from under the first
-   * window mid-startup. `this.pty.has` is the same check `openShell` already makes for the
-   * equivalent shell-tab collision.
-   */
-  async resume(sessionId: string): Promise<void> {
-    if (this.pty.has(sessionId)) {
-      log.info('resume', 'attaching to a session that is already running', { sessionId })
-      return
-    }
-    const session = this.requireSession(sessionId)
-    const cwd = session.cwd
-    if (!cwd || !existsSync(cwd)) {
-      throw new Error(`The folder for this session no longer exists: ${cwd ?? 'unknown'}`)
-    }
-    this.pty.spawn({
-      id: sessionId,
-      cwd,
-      command: buildResumeCommand(sessionId, { claudeBin: this.options.claudeBin }),
-      tui: true,
-      // Claude takes the screen, so its own prompt is not bash's — but the shell is still there
-      // underneath and is what you are left looking at the moment Claude exits, which is where a
-      // 90-column worktree path greets you. This was missed when the setting was added: it reached
-      // the shell tabs and not the session's own terminal, so the setting looked broken to anyone
-      // who tried it on the terminal they actually use.
-      env: promptPathEnv(this.promptPath, this.options.zshPromptShim ?? null),
-    })
-  }
+  // resume, openShell*, newSessionIn*, forkSession and sendPrompt below are one-line delegates to
+  // TerminalService (MAIN-14 step 4) — kept here so ipc/handlers and appService.test.ts do not
+  // have to change what they call.
 
-  /**
-   * Resolves a session id or (when `isPtyId`) a still-pending session's pty id to its real,
-   * existing cwd — the one trust boundary every cwd-carrying IPC call (shells, and now git
-   * operations) goes through, so the renderer never gets to hand in a raw filesystem path.
-   */
-  private resolveShellCwd(key: string, isPtyId: boolean): string {
-    const cwd = isPtyId ? this.pty.getCwd(key) : this.requireSession(key).cwd
-    if (!cwd) throw new Error(`Unknown session: ${key}`)
-    if (!existsSync(cwd)) throw new Error(`The folder for this session no longer exists: ${cwd}`)
-    return cwd
+  async resume(sessionId: string): Promise<void> {
+    return this.terminals.resume(sessionId)
   }
 
   /** Whether VS Code was found on this machine at launch. Checked once; does not change at runtime. */
   vsCodeAvailable(): boolean {
-    return this.vsCodePath !== null
+    return this.vscode.available()
   }
 
   /** Opens the session's folder in VS Code. Rejects if VS Code was not found or the folder is gone. */
   async openInVsCode(key: string, isPtyId: boolean): Promise<void> {
-    if (this.vsCodePath === null) throw new Error('VS Code was not found on this machine')
-    const cwd = this.resolveShellCwd(key, isPtyId)
-    spawnVsCode(this.vsCodePath, cwd)
+    await this.vscode.open(key, isPtyId)
   }
 
-  /**
-   * Spawns a plain interactive shell in the session's cwd, keyed `shell:<id>:<tabId>` — more
-   * than one tab can exist per session; each is addressed by its own tabId.
-   *
-   * **An existing shell is attached to, never replaced.** Shell tab ids are minted per window and
-   * the first one is always `1`, so opening the shell for a session that is already open in
-   * another window asked for the id that window was using — and `spawn()` kills whatever is under
-   * an id before taking it. A build, a `tail -f`, an editor, anything running in the first
-   * window's shell died the moment the second window showed the same session, with nothing said.
-   * Attaching is now a real answer rather than a blank pane, because the pty keeps a replay buffer
-   * for a view that arrives late (see `PtyManager.replay`).
-   */
   async openShell(sessionId: string, tabId: string): Promise<void> {
-    const id = `shell:${sessionId}:${tabId}`
-    if (this.pty.has(id)) {
-      log.info('shell', 'attaching to a shell that is already running', { id })
-      return
-    }
-    const cwd = this.resolveShellCwd(sessionId, false)
-    this.pty.spawn({
-      id,
-      cwd,
-      command: 'exec "$SHELL" -l',
-      env: promptPathEnv(this.promptPath, this.options.zshPromptShim ?? null),
-    })
+    return this.terminals.openShell(sessionId, tabId)
   }
 
-  /**
-   * Same as `openShell`, but for a new session's pty before it has a real session id yet, keyed
-   * `shell:<ptyId>:<tabId>`.
-   */
   async openShellForPty(ptyId: string, tabId: string): Promise<void> {
-    const id = `shell:${ptyId}:${tabId}`
-    if (this.pty.has(id)) return
-    const cwd = this.resolveShellCwd(ptyId, true)
-    this.pty.spawn({
-      id,
-      cwd,
-      command: 'exec "$SHELL" -l',
-      env: promptPathEnv(this.promptPath, this.options.zshPromptShim ?? null),
-    })
+    return this.terminals.openShellForPty(ptyId, tabId)
   }
 
-  async gitStatus(key: string, isPtyId: boolean): Promise<GitStatus> {
-    const cwd = this.resolveShellCwd(key, isPtyId)
-    const status = await branchOps.status(cwd)
-    // Plugins are asked about a branch, and this is where the branch is already being read — so
-    // the bar's own polling is what keeps them current, with no second `git` call of their own.
-    this.lastBranch.set(cwd, status.branch)
-    return status
+  // Every git* method below is a one-line delegate to GitService (MAIN-14 step 3) — kept here so
+  // ipc/handlers and appService.test.ts do not have to change what they call.
+
+  async gitStatus(key: string, isPtyId: boolean): Promise<GitStatus | null> {
+    return this.git.status(key, isPtyId)
   }
 
   async gitListRefs(key: string, isPtyId: boolean): Promise<GitRefs> {
-    return branchOps.listRefs(this.resolveShellCwd(key, isPtyId))
+    return this.git.listRefs(key, isPtyId)
   }
 
-  /**
-   * Resolves each `!<iid>` reference named in a session's title or note against its GitLab
-   * remote, the way the session-bar plugin resolves its own button: through `glab`, never a
-   * stored token. No remote, no `glab`, a non-zero exit or a timeout all map every iid to `null`
-   * rather than throwing — an unresolved reference is meant to render exactly as if this call
-   * had never been made.
-   */
   async gitlabMrRefStatus(
     key: string, isPtyId: boolean, iids: number[],
   ): Promise<Record<number, MrState | null>> {
-    const cwd = this.resolveShellCwd(key, isPtyId)
-    const out: Record<number, MrState | null> = {}
-    const remoteUrl = await originUrl(cwd, defaultGitExec)
-    const remote = remoteUrl === null ? null : parseGitLabRemote(remoteUrl)
-    if (remote === null) {
-      for (const iid of iids) out[iid] = null
-      return out
-    }
-    await Promise.all(iids.map(async (iid) => {
-      out[iid] = await resolveMrStatus(cwd, remote.host, remote.project, iid, { glabPath: this.options.glabPath })
-    }))
-    return out
+    return this.git.mrRefStatus(key, isPtyId, iids)
   }
 
-  /**
-   * Checks out a branch, reporting the one failure that is not really a failure.
-   *
-   * Git refuses to check out a branch that another worktree already has, and says so in prose. On
-   * a repository with a worktree per ticket that is the *normal* answer, not an error: the branch
-   * exists and is up the road in another directory. Returning it as an outcome lets the UI offer
-   * the two things wanted at that point — update it where it lives, or open a session there —
-   * instead of printing git's sentence and leaving the user to go and find the folder.
-   *
-   * The worktree's path is looked up with `git worktree list --porcelain` rather than scraped out
-   * of the message. The message is English and quoted; the porcelain output is an interface. It
-   * also keeps the rule that a path the app later acts on is one the main process derived itself.
-   */
   async gitCheckoutBranch(key: string, isPtyId: boolean, name: string): Promise<CheckoutOutcome> {
-    const cwd = this.resolveShellCwd(key, isPtyId)
-    try {
-      await branchOps.checkoutBranch(cwd, name)
-      return { ok: true }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e)
-      if (!branchOps.isWorktreeConflict(message)) throw e
-      const worktreePath = await branchOps.worktreeForBranch(cwd, name)
-      log.info('git', 'checkout refused: branch is in another worktree', {
-        branch: name, cwd, worktreePath,
-      })
-      // Git said a worktree has it but the list does not agree — rather than invent an answer,
-      // let the original error through, which at least says what git said.
-      if (worktreePath === null) throw e
-      return { ok: false, conflict: { branch: name, worktreePath, label: basename(worktreePath) } }
-    }
-  }
-
-  /**
-   * Resolves the worktree holding `branch`, for the two follow-ups a conflict offers.
-   *
-   * The renderer names the *branch*, never the path: this is the same trust boundary every other
-   * cwd-carrying call goes through, and the answer is re-derived each time because a worktree can
-   * be removed between the refusal and the click.
-   */
-  private async requireWorktreeFor(key: string, isPtyId: boolean, branch: string): Promise<string> {
-    const cwd = this.resolveShellCwd(key, isPtyId)
-    const path = await branchOps.worktreeForBranch(cwd, branch)
-    if (path === null) {
-      throw new Error(`${branch} is no longer checked out in a worktree of this repository`)
-    }
-    if (!existsSync(path)) throw new Error(`That worktree no longer exists: ${path}`)
-    return path
+    return this.git.checkoutBranch(key, isPtyId, name)
   }
 
   /** Pulls `branch` in the worktree that has it, which is the only place it *can* be pulled. */
   async gitPullWorktree(
     key: string, isPtyId: boolean, branch: string,
   ): Promise<{ path: string; commits: number }> {
-    const path = await this.requireWorktreeFor(key, isPtyId, branch)
-    const { commits } = await branchOps.pull(path)
-    return { path, commits }
+    return this.git.pullWorktree(key, isPtyId, branch)
   }
 
   /** Starts a new Claude session in the worktree that has `branch`. */
   async newSessionInWorktree(
     key: string, isPtyId: boolean, branch: string,
   ): Promise<NewSessionInfo> {
-    return this.newSessionInFolder(await this.requireWorktreeFor(key, isPtyId, branch))
+    return this.newSessionInFolder(await this.git.requireWorktreeFor(key, isPtyId, branch))
   }
 
   async gitCheckoutRemote(key: string, isPtyId: boolean, remoteRef: string, localName: string): Promise<void> {
-    await branchOps.checkoutRemote(this.resolveShellCwd(key, isPtyId), remoteRef, localName)
+    await this.git.checkoutRemote(key, isPtyId, remoteRef, localName)
   }
 
   async gitCheckoutDetached(key: string, isPtyId: boolean, ref: string): Promise<void> {
-    await branchOps.checkoutDetached(this.resolveShellCwd(key, isPtyId), ref)
+    await this.git.checkoutDetached(key, isPtyId, ref)
   }
 
   async gitCreateBranch(key: string, isPtyId: boolean, name: string, from?: string): Promise<void> {
-    await branchOps.createBranch(this.resolveShellCwd(key, isPtyId), name, from)
+    await this.git.createBranch(key, isPtyId, name, from)
   }
 
   async gitPull(key: string, isPtyId: boolean): Promise<{ commits: number }> {
-    return branchOps.pull(this.resolveShellCwd(key, isPtyId))
+    return this.git.pull(key, isPtyId)
   }
 
   /** Fast-forwards any local branch from its upstream (the branch list's pull button). */
   async gitUpdateBranch(key: string, isPtyId: boolean, branch: string): Promise<{ commits: number }> {
-    return branchOps.updateBranch(this.resolveShellCwd(key, isPtyId), branch)
+    return this.git.updateBranch(key, isPtyId, branch)
   }
 
-  /**
-   * Fast-forwards a folder's branch from its upstream — the pull button on a folder's hover card.
-   * `path` comes from the renderer, so it is checked against a stored project row before git
-   * runs anywhere, the same rule `newSessionInProject` keeps.
-   */
   async gitPullFolder(path: string): Promise<{ commits: number }> {
-    return branchOps.pullFastForward(this.requireFolder(path))
+    return this.git.pullFolder(path)
   }
 
-  /**
-   * A sidebar folder named by the renderer, checked before anything acts on it: a stored project,
-   * or the repository a stored worktree belongs to (the heading the tree draws above its
-   * worktrees, which has no project row of its own until a session is started in it).
-   */
-  private requireFolder(path: string): string {
-    const project = this.store.getProject(path)
-    if (project) return project.path
-    if (this.store.isRepoRootOfWorktree(path)) return path
-    throw new Error(`Unknown project: ${path}`)
-  }
-
-  /**
-   * Every other worktree of a folder's repository, whether or not a session has ever been started
-   * in it — the folder menu's "Show all worktrees". `path` is checked against a stored project row
-   * like every renderer-supplied path; the worktrees reported are remembered, so starting a session
-   * in one (`newSessionInProject`) accepts a path the main process derived itself from git rather
-   * than one the renderer made up. Not a repository, or git failing, is simply no worktrees.
-   */
   async listWorktrees(path: string): Promise<FolderWorktree[]> {
-    const folder = this.requireFolder(path)
-    const all = await branchOps.listWorktrees(folder).catch(() => [])
-    const others = all.filter((w) => w.path !== folder && existsSync(w.path))
-    for (const w of others) this.listedWorktrees.add(w.path)
-    return others
+    return this.git.listWorktrees(path)
   }
 
   async gitPush(key: string, isPtyId: boolean): Promise<{ commits: number; published: boolean }> {
-    return branchOps.push(this.resolveShellCwd(key, isPtyId))
+    return this.git.push(key, isPtyId)
   }
 
   async gitMerge(key: string, isPtyId: boolean, ref: string): Promise<void> {
-    await branchOps.merge(this.resolveShellCwd(key, isPtyId), ref)
+    await this.git.merge(key, isPtyId, ref)
   }
 
   async gitFetch(key: string, isPtyId: boolean): Promise<void> {
-    await branchOps.fetch(this.resolveShellCwd(key, isPtyId))
+    await this.git.fetch(key, isPtyId)
   }
 
-  /**
-   * Starts a brand-new (non-`--resume`) session in a project the store already knows about.
-   * `path` comes from the renderer, so it is validated against a stored project row rather than
-   * trusted directly — an unknown path is rejected before it ever reaches `PtyManager`, the same
-   * invariant every other path-carrying IPC call preserves.
-   */
   async newSessionInProject(path: string): Promise<NewSessionInfo> {
-    const project = this.store.getProject(path)
-    if (project) return this.startNewSession(project.path)
-    // Neither a worktree `listWorktrees` found in git nor a repository heading has a project row
-    // yet. One is made first, so the auto-import flag `startNewSession` sets has a row to go on.
-    if (!this.listedWorktrees.has(path)) this.requireFolder(path)
-    const info = await resolveProject(path)
-    this.store.syncProject(info)
-    return this.startNewSession(info.path)
+    return this.terminals.newSessionInProject(path)
   }
 
   /**
    * Starts a brand-new session in an arbitrary folder. Only safe to call with a path the main
    * process obtained itself (the native folder-picker dialog) — never with a string handed in
-   * by the renderer. The folder may be entirely new to Apiary, so its project row is created
-   * (or refreshed) first.
+   * by the renderer.
    */
   async newSessionInFolder(path: string): Promise<NewSessionInfo> {
-    if (!existsSync(path)) throw new Error(`Folder does not exist: ${path}`)
-    const info = await resolveProject(path)
-    this.store.syncProject(info)
-    return this.startNewSession(info.path)
+    return this.terminals.newSessionInFolder(path)
   }
 
-  /**
-   * Forks a session: starts `claude --resume <id> --fork-session`, which replays the conversation
-   * so far into a *new* session rather than continuing the old one.
-   *
-   * Deliberately routed through the same `new:<uuid>` pty bookkeeping as starting a session from
-   * scratch, not through `resume()`. A fork's session id does not exist yet — Claude mints it and
-   * writes the JSONL itself — so there is nothing to key the terminal by until the watcher finds
-   * it, which is exactly the problem the pending-session machinery already solves. The one thing
-   * that differs is the label, and the renderer carries that across as a rename once the real id
-   * appears.
-   *
-   * The original is untouched, which is the point of forking rather than branching in place: the
-   * conversation you forked from is still there to go back to.
-   */
   forkSession(sessionId: string): NewSessionInfo {
-    const session = this.requireSession(sessionId)
-    const cwd = session.cwd
-    if (!cwd || !existsSync(cwd)) {
-      throw new Error(`The folder for this session no longer exists: ${cwd ?? 'unknown'}`)
-    }
-    this.store.setAutoImport(cwd, true)
-    const ptyId = `new:${randomUUID()}`
-    this.pty.spawn({
-      id: ptyId,
-      cwd,
-      command: buildResumeCommand(sessionId, { fork: true, claudeBin: this.options.claudeBin }),
-      tui: true,
-      env: promptPathEnv(this.promptPath, this.options.zshPromptShim ?? null),
-    })
-    return { ptyId, cwd, label: forkLabel(session.title ?? (basename(cwd) || cwd)) }
-  }
-
-  /**
-   * Spawns `claude` (no `--resume`) in `cwd`, keyed under a fresh `new:<uuid>` pty id — there is
-   * no session id yet, so it cannot be keyed like `resume()`/`openShell()` are. Also flips the
-   * project's `auto_import` flag so the session the watcher discovers once Claude writes its
-   * JSONL (and any future session started in this folder) shows up in the sidebar on its own,
-   * the same mechanism ticking a folder header in the import dialog already uses.
-   */
-  private startNewSession(cwd: string): NewSessionInfo {
-    if (!existsSync(cwd)) throw new Error(`Working directory does not exist: ${cwd}`)
-    this.store.setAutoImport(cwd, true)
-    const ptyId = `new:${randomUUID()}`
-    this.pty.spawn({
-      id: ptyId,
-      cwd,
-      command: buildNewSessionCommand({ claudeBin: this.options.claudeBin }),
-      tui: true,
-      env: promptPathEnv(this.promptPath, this.options.zshPromptShim ?? null),
-    })
-    return { ptyId, cwd, label: basename(cwd) || cwd }
-  }
-
-  private requireSession(sessionId: string): StoredSession {
-    const session = this.store.getSession(sessionId)
-    if (!session) throw new Error(`Unknown session: ${sessionId}`)
-    return session
+    return this.terminals.forkSession(sessionId)
   }
 
   /**
@@ -1000,104 +814,46 @@ export class AppService {
       await this.refreshPromise.catch(() => {})
     }
     this.store.close()
-    // `disposed` already tells a running index pass to stop between files, so this waits on
-    // nothing: the worst case is one file's read finishing against a handle about to close.
-    this.searchIndex?.close()
-    this.searchIndex = null
+    // Closes the index and the content-search worker thread's own SQLite handle (MAIN-20) — see
+    // `SearchService.close`.
+    await this.search.close()
+    // Releases any plugin holding something of its own (MAIN-17/MAIN-20). No current plugin needs
+    // this; it exists so a future one that does has somewhere to put its teardown.
+    this.plugins.dispose()
   }
 
   /** The configured `claude`, or null for "find it on PATH" — the theme generator runs the same one. */
   get claudeBin(): string | null {
-    return this.options.claudeBin ?? null
+    return this.terminals.getClaudeBin()
   }
 
   setClaudeBin(path: string | null): void {
-    this.options = { ...this.options, claudeBin: path ?? undefined }
+    this.terminals.setClaudeBin(path)
   }
 
   setAutoImportAll(enabled: boolean): void {
     this.autoImportAll = enabled
   }
 
-  /** Where pasted images live. Beside the database, so it travels with the rest of the app's data. */
-  private imagesDir(): string {
-    return this.options.imagesDir ?? join(dirname(this.options.dbPath), 'pasted-images')
-  }
-
   /**
-   * Writes an image pasted into the composer to disk and returns its absolute path.
-   *
-   * On disk rather than inlined into the message because the path is what actually reaches Claude:
-   * it reads the file itself. Kept in Apiary's own data directory rather than the session's working
-   * directory so that pasting a screenshot never leaves untracked files in someone's repository.
+   * Writes an image pasted into the composer to disk and returns its absolute path. See
+   * `media/imageStore.ts` for why it lives on disk, in Apiary's own data directory.
    */
   async saveImage(base64: string, mediaType: string): Promise<string> {
-    const extension = IMAGE_EXTENSIONS[mediaType]
-    if (extension === undefined) throw new Error(`Unsupported image type: ${mediaType}`)
-    const bytes = Buffer.from(base64, 'base64')
-    if (bytes.byteLength === 0) throw new Error('That image was empty.')
-    if (bytes.byteLength > MAX_IMAGE_BYTES) {
-      throw new Error(`That image is ${String(Math.round(bytes.byteLength / 1024 / 1024))}MB; the limit is 20MB.`)
-    }
-    const dir = this.imagesDir()
-    await mkdir(dir, { recursive: true })
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const path = join(dir, `${stamp}-${randomUUID().slice(0, 8)}${extension}`)
-    await writeFile(path, bytes)
-    return path
+    return this.images.save(base64, mediaType)
   }
 
   /**
-   * Reads one previously-saved image back as a data URL, for the thumbnails and the lightbox.
-   *
-   * Confined to the images directory, deliberately: the renderer supplies this path (it reads them
-   * out of transcript text), and an unconstrained "read this file as a data URL" call handed to the
-   * renderer would be a way to exfiltrate any file the app can see. Paths are resolved before the
-   * check so `..` cannot climb out.
+   * Reads one previously-saved image back as a data URL, for the thumbnails and the lightbox. See
+   * `media/imageStore.ts` for the confinement check.
    */
   async readImage(path: string): Promise<{ dataUrl: string } | null> {
-    const dir = resolve(this.imagesDir())
-    const full = resolve(path)
-    if (full !== dir && !full.startsWith(dir + sep)) return null
-    const mediaType = Object.entries(IMAGE_EXTENSIONS)
-      .find(([, ext]) => ext === extname(full).toLowerCase())?.[0]
-    if (mediaType === undefined) return null
-    try {
-      const bytes = await readFile(full)
-      return { dataUrl: `data:${mediaType};base64,${bytes.toString('base64')}` }
-    } catch {
-      // A pasted image the user has since deleted is not an error worth interrupting them over —
-      // the thumbnail simply doesn't render.
-      return null
-    }
+    return this.images.read(path)
   }
 
-  /**
-   * Delivers a composed prompt to a session's running `claude` process.
-   *
-   * Wrapped in bracketed-paste markers so the whole thing arrives as one paste: without them a
-   * multi-line message submits at its first newline, sending a fragment and leaving the rest to be
-   * interpreted as new prompts. The trailing carriage return is the actual "send".
-   *
-   * Both waits are load-bearing, and both were found by measuring a real `claude` rather than
-   * reasoning about it:
-   *
-   * - Before the paste, because sending a message resumes a stopped session first, and the pty
-   *   exists a good second before `claude` is listening. Written into that gap, the message is
-   *   swallowed by the terminal's line discipline instead (see `whenQuiet`) — it appears in the
-   *   input box, unsent, with its return turned into a newline, and needs an Enter by hand.
-   * - Before the return, because it only counts as "submit" once the TUI has taken the paste in.
-   *   Measured at ~20ms on an idle session but ~90ms on a busy one, so a fixed delay is a guess;
-   *   waiting for the TUI to stop drawing is the thing that was actually being guessed at.
-   */
+  /** Delivers a composed prompt to a session's running `claude` process. See
+   *  `terminals/terminalService.ts` for the bracketed-paste and settle-timing rationale. */
   async sendPrompt(ptyId: string, text: string): Promise<void> {
-    if (!this.pty.has(ptyId)) throw new Error('This session is not running.')
-    const normalised = text.replace(/\r\n/g, '\n').replace(/\s+$/, '')
-    if (normalised === '') return
-    await this.pty.whenQuiet(ptyId, { quietMs: 250, capMs: 20_000 })
-    const before = this.pty.outputCount(ptyId)
-    this.pty.write(ptyId, PASTE_START + normalised + PASTE_END)
-    await this.pty.whenQuiet(ptyId, { quietMs: 150, capMs: 1500, after: before })
-    this.pty.write(ptyId, '\r')
+    return this.terminals.sendPrompt(ptyId, text)
   }
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pullMessage, pushMessage, worktreePullMessage, updateBranchMessage } from '../../src/shared/gitMessages'
+import { pullMessage, pushMessage, worktreePullMessage, updateBranchMessage } from '@shared/gitMessages'
 
 describe('git messages', () => {
   it('says how many commits a pull brought, and when it brought none', () => {

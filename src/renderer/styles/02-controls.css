@@ -1,0 +1,184 @@
+/*
+ * Controls.
+ *
+ * One base rule for every button that looks like a button, rather than each corner of the app
+ * inventing its own. Before this existed there were six near-identical rules — `.icon-button`,
+ * `.modal-actions button`, `.resume-bar button`, `.crash-actions button`, `.notification-action`,
+ * `.settings-preset` — with four different paddings and two different backgrounds between them,
+ * and any button that belonged to none of them (the update banner's, Settings' "Check now")
+ * fell through to Chromium's native control, which on macOS is white and looks like it came
+ * from another application entirely.
+ *
+ * `.btn` is what new markup should use. The container-scoped selectors are kept beside it so
+ * existing dialogs need no churn, but they are aliases, not separate designs: every one of them
+ * resolves the same tokens, so a change to height, corner or colour lands everywhere at once.
+ *
+ * The variants are `.primary` (the one action the dialog is for) and `.danger` (the one that
+ * destroys something). Both are deliberately class names rather than separate rules per
+ * container, so `.btn.primary` in a banner and `.primary` in a modal footer are the same button.
+ */
+.composer-send,
+.btn,
+.icon-button,
+.modal-actions button,
+.resume-bar button,
+.crash-actions button,
+.notification-action,
+.settings-preset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--control-gap);
+  /* A min-height rather than symmetric padding: text and icon+text buttons then agree on a
+   * height whatever is inside them, which is what stops a Cancel and a Save sitting side by
+   * side at different sizes. */
+  min-height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  background: var(--control-bg);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.btn:hover:not(:disabled),
+.icon-button:hover:not(:disabled),
+.modal-actions button:hover:not(:disabled),
+.resume-bar button:hover:not(:disabled),
+.crash-actions button:hover:not(:disabled),
+.notification-action:hover,
+.settings-preset:hover { background: var(--control-bg-hover); color: var(--text); }
+
+.btn:active:not(:disabled),
+.icon-button:active:not(:disabled),
+.modal-actions button:active:not(:disabled),
+.resume-bar button:active:not(:disabled) { background: var(--control-bg-active); }
+
+.composer-send:disabled,
+.btn:disabled,
+.icon-button:disabled,
+.modal-actions button:disabled,
+.resume-bar button:disabled,
+.settings-preset:disabled { cursor: default; opacity: 0.5; }
+
+/* Filled variants. Both read as "this is the action", so they carry the accent's ink colour
+ * rather than the app's text colour. */
+.composer-send,
+.btn.primary,
+.modal-actions .primary,
+.resume-bar .primary,
+.crash-actions .primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+.composer-send:hover:not(:disabled),
+.btn.primary:hover:not(:disabled),
+.modal-actions .primary:hover:not(:disabled),
+.resume-bar .primary:hover:not(:disabled),
+.crash-actions .primary:hover:not(:disabled) { background: var(--accent); opacity: 0.9; color: var(--accent-contrast); }
+
+.btn.danger,
+.modal-actions .danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+.btn.danger:hover:not(:disabled),
+.modal-actions .danger:hover:not(:disabled) { background: var(--danger); opacity: 0.9; color: var(--accent-contrast); }
+
+.btn.small,
+.notification-action,
+.settings-preset { min-height: var(--control-height-sm); padding: 0 8px; font-size: 12px; }
+
+.btn svg { width: 14px; height: 14px; flex: none; }
+
+/*
+ * One focus style for everything focusable. Chromium's default ring follows the OS accent
+ * colour, which here reads as a second, slightly offset border in a colour the app never uses.
+ * See the longer note on `.search:focus`.
+ */
+.btn:focus-visible,
+.icon-button:focus-visible,
+.modal-actions button:focus-visible,
+.resume-bar button:focus-visible,
+.crash-actions button:focus-visible,
+.notification-action:focus-visible,
+.settings-preset:focus-visible,
+.toolbar-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/*
+ * Checkboxes.
+ *
+ * Drawn by the app rather than by the platform. `accent-color` alone only colours the *checked*
+ * fill: an unchecked native checkbox stays a white box with a grey border, which in a dark panel
+ * is the brightest thing on the screen and reads as a text field rather than as a switch. Taking
+ * the whole control over is the only way to make the unchecked state belong here too.
+ *
+ * The tick is a clipped square rather than an SVG or a font glyph, so it inherits the accent's
+ * ink colour and stays crisp at any pixel ratio without another asset to keep in step.
+ */
+input[type="checkbox"] {
+  appearance: none;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  display: inline-grid;
+  place-content: center;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  /* A checkbox is a field, not a button: it is filled in, so it belongs at the field's depth. */
+  background: var(--field-bg);
+  cursor: pointer;
+  transition: background-color 0.1s, border-color 0.1s;
+}
+input[type="checkbox"]:hover:not(:disabled) { border-color: var(--accent); }
+input[type="checkbox"]:checked, input[type="checkbox"]:indeterminate {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+input[type="checkbox"]:checked::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: var(--accent-contrast);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+/* The import dialog's folder rows: some of what is inside is picked, but not all. */
+input[type="checkbox"]:indeterminate::before {
+  content: "";
+  width: 9px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent-contrast);
+}
+input[type="checkbox"]:disabled { opacity: 0.45; cursor: default; }
+input[type="checkbox"]:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+input[type="radio"] { accent-color: var(--accent); }
+
+/*
+ * The last line of defence: a button that reaches the screen without one of the classes above
+ * still looks like it belongs to this app rather than to macOS. It is not a licence to skip the
+ * class — `.btn` is what carries hover, disabled and focus — only a guarantee that a missed one
+ * degrades to something quiet instead of to a white native control in the middle of a dark UI.
+ */
+button:not([class]) {
+  min-height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  background: var(--control-bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}

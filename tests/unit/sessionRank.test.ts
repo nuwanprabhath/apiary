@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { rankSessions } from '../../src/shared/sessionRank'
-import { filterTreeLocal, SEARCH_RESULT_CAP } from '../../src/shared/treeFilter'
-import type { ProjectNode, SessionNode } from '../../src/shared/types'
+import { rankSessions } from '@shared/sessionRank'
+import { filterTreeLocal, SEARCH_RESULT_CAP } from '@shared/treeFilter'
+import type { ProjectNode, SessionNode } from '@shared/types'
 
 const session = (over: Partial<SessionNode>): SessionNode => ({
   kind: 'session', sessionId: over.sessionId ?? 's', title: 'untitled', cwd: '/p',

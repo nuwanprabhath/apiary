@@ -1,0 +1,59 @@
+/* Settings → Themes. */
+.themes-section { display: flex; flex-direction: column; gap: 12px; }
+.theme-current {
+  display: flex; flex-direction: column; gap: 6px; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--bg);
+}
+.theme-current-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.theme-actions, .theme-name-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.theme-name-form .search { flex: 1; min-width: 160px; }
+.theme-swatches { display: inline-flex; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); flex: none; }
+.theme-swatch { width: 14px; height: 14px; }
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.theme-card-wrap { position: relative; }
+.theme-card {
+  width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-panel);
+  background: var(--control-bg); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.theme-card:hover { background: var(--control-bg-hover); }
+.theme-card[data-active="true"] { border-color: var(--accent); box-shadow: var(--focus-ring); }
+.theme-card-name { font-weight: 600; }
+.theme-card-effects { color: var(--muted); font-size: 11px; }
+.theme-card-actions { position: absolute; top: 6px; right: 6px; display: none; gap: 2px; }
+.theme-card-action { min-height: var(--control-height-sm); padding: 0 4px; }
+.theme-card-action svg { width: 12px; height: 12px; }
+.theme-card-wrap:hover .theme-card-actions, .theme-card-wrap:focus-within .theme-card-actions { display: flex; }
+.theme-intensity { align-items: center; justify-content: space-between; }
+.theme-intensity input[type="range"] { accent-color: var(--accent); width: 160px; }
+
+/*
+ * Anything that floats over the app is solid, whatever the theme. Themes may make panel chrome
+ * translucent so background effects show through it; a dialog or menu drawn in that same colour
+ * let the transcript behind it show through too. The panel colour is laid over the (always opaque)
+ * --bg, so floating surfaces keep the theme's tint without the transparency.
+ */
+.modal, .context-menu, .git-menu, .hover-card, .notification, .layout-picker, .branch-switcher {
+  background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg);
+}
+.theme-describe { display: flex; flex-direction: column; gap: 6px; }
+.theme-describe-label { display: flex; flex-direction: column; gap: 2px; }
+.theme-describe-input {
+  width: 100%; resize: vertical; min-height: 44px; padding: 8px 10px; font: inherit;
+  border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--field-bg); color: var(--text);
+}
+.theme-describe-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.theme-busy { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.spinner-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: status-breathe var(--status-breathe-duration) ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .spinner-dot { animation: none; }
+}
+.theme-error { color: var(--danger); margin: 0; }
+.theme-preview-bar {
+  display: flex; flex-direction: column; gap: 6px; padding: 10px 12px;
+  border: 1px solid var(--accent); border-radius: var(--radius-panel); background: var(--bg);
+}
+.theme-note { color: var(--warning); }
+.theme-actions-spacer { flex: 1; }
+.theme-model { min-height: var(--control-height); border: 1px solid var(--control-border); border-radius: var(--radius); background: var(--field-bg); color: var(--text); padding: 0 8px; font: inherit; }
+

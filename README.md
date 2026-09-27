@@ -123,43 +123,41 @@ as long as the build requirements below are met.
 
 ## Requirements
 
-- Node 22 or newer
-- `claude` on your `PATH`
+To run a prebuilt release:
+
 - macOS or Ubuntu 24.04
+- `claude` on your `PATH`
+
+To build from source, additionally:
+
+- Node 22 or newer (see [CONTRIBUTING.md](CONTRIBUTING.md) for the full dev setup)
 
 ## Development
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the contributor workflow. Quick reference:
+
     npm install
-    npm start          # run the app
-    npm test           # unit and integration tests
-    npm run test:e2e   # Playwright tests against the built renderer (off-screen; APIARY_HEADED=1 to watch)
-    npm run screenshot # regenerate docs/screenshot.png (the README image above)
+    npm start             # run the app
+    npm test               # unit and integration tests
+    npm run test:component # renderer tests in headless Chromium
+    npm run test:e2e       # Playwright tests against the built renderer (off-screen; APIARY_HEADED=1 to watch)
+    npm run test:e2e:smoke # the ~1 minute subset that also runs in CI
     npm run typecheck
+    npm run lint            # eslint, stylelint, markdownlint, shellcheck, madge
+    npm run screenshot      # regenerate docs/screenshot.png (the README image above)
 
 `npm run screenshot` launches the real app against a representative fixture (three
 project folders, a git worktree, a few sessions with human-sounding titles), opens
 three of them in a layout (placing one in the large pane through the layout picker) with
 a shell running under it, and resumes that one so the
 picture shows a live session rather than only transcripts, before overwriting
-`docs/screenshot.png` — see `scripts/screenshot.spec.ts`. The resumed session runs
-`scripts/fixtures/fake-claude.sh`, a stand-in that prints a fixed, believable Claude
+`docs/screenshot.png` — see `scripts/screenshot/screenshot.spec.ts`. The resumed session runs
+`scripts/screenshot/fake-claude.sh`, a stand-in that prints a fixed, believable Claude
 Code session: the real CLI needs an API key and a network and would render something
 different every run, neither of which belongs in a committed image. It's a Playwright
 script, not a test (it asserts nothing, and lives outside `tests/e2e` so
 `npm run test:e2e` never runs it); run it by hand whenever a change is significant
 enough that the README's picture of the app should catch up.
-
-`better-sqlite3` and `node-pty` are native modules, and Electron's Node ABI is
-not the same as your system Node's, so the same `node_modules` can't serve
-both without being rebuilt. `npm start` rebuilds them for Electron's ABI
-(`rebuild:electron`) before launching the app; `npm test` rebuilds them for
-Node's ABI (`rebuild:node`) before running Vitest, since tests run under
-plain Node, not Electron. `npm run test:e2e` also rebuilds for Electron first,
-because it drives the actual Electron build (`npm run build` output in `out/`)
-with Playwright. Whichever you run last is the ABI the modules are left in —
-running `npm test` right before `npm start` is harmless, since `start`
-rebuilds again first, but running `npm test` right before packaging (`npm run
-dist`) would leave the wrong ABI unless `dist` rebuilds too, which it does.
 
 `postinstall` runs `scripts/fix-node-pty-permissions.mjs` automatically after
 `npm install`. node-pty ships a small native helper binary, `spawn-helper`,
@@ -170,95 +168,8 @@ and harmlessly, every time dependencies are installed.
 
 ## Packaging
 
-Prebuilt artifacts for macOS (arm64) and Linux (x64) are attached to each
-[GitHub release](https://github.com/nuwanprabhath/apiary/releases), built by
-`.github/workflows/release.yml` on a `v*` tag push — see that file's own
-comments for why it builds each OS/arch natively on its own runner rather
-than cross-compiling, and why there's no automated x64 macOS build (GitHub's
-Intel Mac runner capacity has become unreliable enough that it isn't worth
-carrying). To build locally instead:
-
-    npm run dist
-
-On macOS this produces a `.dmg` for **your machine's own architecture only**
-(arm64 on Apple Silicon, x64 on Intel), under `release/`. On Linux it
-produces an `.AppImage` plus `.deb` (x64). The script rebuilds the native
-modules for Electron's ABI and runs `electron-vite build` before invoking
-`electron-builder`.
-
-`electron-builder.yml` itself declares both `arm64` and `x64` as mac dmg
-targets, but `npm run dist` deliberately scopes the actual build to the host
-arch (via `scripts/dist.mjs`) rather than building both by default. Building
-the *other* mac arch means `@electron/rebuild`/`electron-builder` cross-compile
-`better-sqlite3`'s native binding for that arch, which goes through
-node-gyp's Python toolchain — and on a modern Python (3.12+, which removed
-`distutils`) without `setuptools` installed, that cross-arch compile fails
-with `ModuleNotFoundError: No module named 'distutils'`. Rather than have
-`npm run dist` fail on a fresh machine for an arch nobody asked for, the
-default is host-arch-only, which works with no extra setup. `dist:mac:arm64`
-and `dist:mac:x64` go through the same `scripts/dist.mjs` dispatcher as
-`dist` (passing the requested arch as an argument), so they get the same
-single-arch `--config` narrowing rather than relying on electron-builder's
-own `--arm64`/`--x64` flags, which do **not** scope the build on their own —
-see the implementation note in `scripts/dist.mjs` for why. `dist:mac:all`
-and `dist:linux` invoke `electron-builder` directly against
-`electron-builder.yml`, since neither passes an arch flag that needs
-narrowing (`--arm64 --x64` matches the file's own `arch: [arm64, x64]`
-already; `--linux` doesn't touch `mac` at all).
-
-    npm run dist:mac:arm64   # arm64 only — verified, both locally and via CI, see below
-    npm run dist:mac:x64     # x64 only — requires setuptools/distutils on an arm64 host, see below
-    npm run dist:mac:all     # both, in one electron-builder invocation — not run on this machine (would hit the same x64 gap)
-    npm run dist:linux       # AppImage + deb (must run on Linux) — verified via CI, see below
-
-**`dist:mac:arm64` — verified.** Ran on this machine (Apple Silicon) after
-clearing `release/`; produced `release/Apiary-1.0.0-arm64.dmg` and
-`release/mac-arm64/Apiary.app`, with `release/builder-debug.yml` showing only
-an `arm64:` key (no `x64:`) — confirming the arch narrowing works the same
-way `dist` itself does. Also the artifact the release workflow's macOS leg
-produces and attaches to each GitHub release.
-
-**`dist:mac:x64` — fails on an arm64 dev machine**, for the same `distutils`
-reason as plain `dist`'s x64 leg (see above): `@electron/rebuild`
-cross-compiling `better-sqlite3` for x64 hits `node-gyp failed to rebuild ...
-ModuleNotFoundError: No module named 'distutils'` before electron-builder
-ever reaches the packaging step, and no x64 artifact is produced. This is a
-cross-compile toolchain gap, not a scripting bug — running this same script
-natively on an actual x64 Mac never hits it at all (nothing to cross-compile
-for), which is exactly why the release workflow originally built this leg on
-a native x64 GitHub runner rather than cross-compiling from the arm64 one —
-see that workflow's comments for why it's no longer in CI. Not fixed here:
-this machine's Python is managed by Homebrew (PEP 668), and installing
-`setuptools` system-wide requires overriding that guard, which is a
-machine-level choice left to whoever runs this, not something to do silently
-as part of this fix.
-
-Packaging has the same `spawn-helper` executable-bit problem as install does,
-but `postinstall` doesn't run during packaging and electron-builder's
-`asarUnpack` copy step (native modules can't load from inside an asar, so
-`better-sqlite3` and `node-pty` are unpacked) is itself a known way to drop
-the bit. `electron-builder.yml` wires an `afterPack` hook
-(`build/afterPack.cjs`) that reuses the same fix, applied to node-pty as it
-sits inside the packaged app's `app.asar.unpacked` directory, so packaged
-installs don't regress a bug already fixed for local installs.
-
-**Linux artifacts are verified.** `dist:linux` runs successfully on the
-release workflow's `ubuntu-24.04` runner and produces both a real
-`.AppImage` and `.deb`, attached to each GitHub release — the `linux:`
-section of `electron-builder.yml` has actually been exercised on Linux, not
-just configured. Installing and launching the result on a real Linux
-desktop (as opposed to just the CI runner successfully packaging it) has
-not been separately confirmed.
-
-**AppImage sandboxing on Ubuntu 24.04+.** The `.deb` ships a custom
-`afterInstall` script (`build/linux-after-install.sh`) that always sets the
-SUID bit on `chrome-sandbox`, so it works out of the box even where
-unprivileged user namespaces are restricted (Ubuntu 24.04's
-`kernel.apparmor_restrict_unprivileged_userns=1`). The AppImage can't use
-that fix — AppImages are mounted `nosuid`, so a SUID sandbox helper never
-works there regardless of permissions. On an affected system the AppImage
-will abort on launch with a `SUID sandbox helper binary ... not configured
-correctly` error; run it with `--no-sandbox`, or install the `.deb` instead.
+Building installers for distribution (`npm run dist` and friends) is maintainer-facing detail —
+see [docs/packaging.md](docs/packaging.md).
 
 ## How it works
 

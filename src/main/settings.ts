@@ -1,5 +1,9 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { readFileSync, mkdirSync } from 'node:fs'
+import { dirname, isAbsolute } from 'node:path'
+import type { AppSettingsPayload } from '@shared/domain/settings'
+import { writeJsonAtomic } from './fs/atomicWrite'
+import { clampSegments } from '@shared/promptPreview'
+import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
 
 export interface WindowBounds {
   x: number
@@ -18,114 +22,23 @@ export interface WindowBounds {
  */
 export const SETTINGS_VERSION = 1
 
-export interface AppSettings {
+/**
+ * The full stored shape: `AppSettingsPayload` (shared/domain/settings.ts) plus what only main
+ * needs. Kept as an extension rather than a hand-repeated copy (MAIN-22 / SHARED-2) — before this,
+ * every one of the 20 shared fields, and its doc comment, was spelled out twice.
+ */
+export interface AppSettings extends AppSettingsPayload {
   /** Which migrations have already been applied. Absent in files written before this existed. */
   schemaVersion: number
-  /** Explicit path to the claude binary, used when it is not on PATH. */
-  claudeBin: string | null
-  /** Import every discovered session automatically, instead of picking them by hand. */
-  autoImportAll: boolean
-  /** Minutes between automatic rescans, or null when periodic scanning is off. */
-  autoImportIntervalMinutes: number | null
-  /**
-   * Whether activating a tab scrolls the sidebar to that session and highlights it. On by default:
-   * with months of history in the tree, finding the row for the session you are looking at is
-   * otherwise a hunt. Off for anyone who would rather the sidebar stayed where they left it.
-   */
-  revealActiveInSidebar: boolean
-  /**
-   * Whether the search box also matches the *contents* of conversations, not just their titles.
-   * On by default; turning it off falls back to title-only search and stops the indexer running.
-   */
-  searchChatContent: boolean
-  /**
-   * Whether the notes people write on sessions are searchable. Separate from `searchChatContent`
-   * because it is a different bargain: a note is a line the user typed on purpose, so indexing it
-   * costs nothing and is what makes it findable later.
-   */
-  searchSessionNotes: boolean
-  /** Whether the Recent section (sessions active in the last `recentSectionHours`) is shown. */
-  recentSectionEnabled: boolean
-  /** How far back "recent" looks. Clamped to 1..168 by the settings dialog, same as the update-check interval. */
-  recentSectionHours: number
-  /**
-   * Trim the working directory in the prompt of shells Apiary starts, to the last
-   * `terminalPathSegments` folders. See pty/promptPath.ts — bash 4+ only, by design.
-   *
-   * One folder, not two. The paths this exists for look like
-   * `~/projects/thing.worktrees/pipeline-issues`, and keeping two of those keeps
-   * `thing.worktrees/pipeline-issues` — almost the whole thing. The last component is the one that
-   * says which worktree you are in; everything before it is what was in the way.
-   */
-  terminalShortenPath: boolean
-  terminalPathSegments: number
-  /**
-   * Show nothing but `$` as the prompt of shells Apiary starts — the path, user and host all go.
-   * On by default: a terminal pane is narrow, and the session's header already says where it is.
-   * A new field, so the default reaches existing installs too (nobody has a stored value for it).
-   * See pty/promptPath.ts for how it is done in bash and zsh.
-   */
-  terminalMinimalPrompt: boolean
-  /**
-   * Which session-bar plugins are on, by plugin id. A map rather than a field per plugin so
-   * adding one does not mean touching the settings shape — which is the point of plugins.
-   */
-  plugins: Record<string, boolean>
-  /**
-   * Each plugin's own settings, namespaced by plugin id. Plugins declare what they take (see
-   * plugins/types.ts) and Settings draws it, so nothing here needs a field per plugin.
-   */
-  pluginSettings: Record<string, Record<string, string | number | boolean>>
-  /**
-   * Update preferences. Checking is on by default — an app that can update itself and doesn't
-   * mention it is how people end up months behind — but nothing is ever downloaded or installed
-   * without the user saying so, which is what `updateAutoDownload: false` means.
-   */
-  updateAutomaticChecks: boolean
-  /** Hours between automatic checks. Clamped to 1..168 by the service. */
-  updateCheckIntervalHours: number
-  /** Fetch the update as soon as it is found, instead of after the user agrees. */
-  updateAutoDownload: boolean
-  /** Offer pre-release builds. */
-  updateAllowPrerelease: boolean
   /** A version the user chose to skip; the next release is offered as normal. */
   updateSkippedVersion: string | null
-  /**
-   * Write a diagnostic log to disk. **Off by default and off means nothing is written** — see
-   * main/log/logger.ts. It exists so a bug that only happens on someone else's machine leaves
-   * something to read.
-   */
-  diagnosticsEnabled: boolean
-  /** How long archived log files are kept. */
-  logRetentionDays: number
-  /** Total disk the logs may take, across every file. */
-  logMaxSizeMb: number
   windowBounds: WindowBounds | null
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  ...DEFAULT_SETTINGS_PAYLOAD,
   schemaVersion: SETTINGS_VERSION,
-  claudeBin: null,
-  autoImportAll: false,
-  autoImportIntervalMinutes: null,
-  revealActiveInSidebar: true,
-  searchChatContent: true,
-  searchSessionNotes: true,
-  recentSectionEnabled: true,
-  recentSectionHours: 24,
-  terminalShortenPath: true,
-  terminalPathSegments: 1,
-  terminalMinimalPrompt: true,
-  plugins: {},
-  pluginSettings: {},
-  updateAutomaticChecks: true,
-  updateCheckIntervalHours: 6,
-  updateAutoDownload: false,
-  updateAllowPrerelease: false,
   updateSkippedVersion: null,
-  diagnosticsEnabled: false,
-  logRetentionDays: 7,
-  logMaxSizeMb: 20,
   windowBounds: null,
 }
 
@@ -147,6 +60,23 @@ export const DEFAULT_SETTINGS: AppSettings = {
 export function clampRecentHours(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(n) && n >= 1 ? Math.min(168, Math.round(n)) : 1
+}
+
+/**
+ * Clamps an integer setting to `[min, max]`, falling back to `min` for anything that is not a
+ * finite number once coerced (SEC-8) — the same reasoning as `clampRecentHours`, generalised: a
+ * stale renderer build, devtools, or a hand-edited settings.json can hand any of several numeric
+ * settings (`updateCheckIntervalHours`, `logRetentionDays`, `logMaxSizeMb`,
+ * `autoImportIntervalMinutes`) a value nobody who used the dialog could have produced.
+ */
+export function clampIntSetting(value: unknown, min: number, max: number): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : min
+}
+
+/** As `clampIntSetting`, but `null` (a real value for some of these fields) passes through. */
+export function clampIntOrNullSetting(value: unknown, min: number, max: number): number | null {
+  return value === null ? null : clampIntSetting(value, min, max)
 }
 
 /**
@@ -192,8 +122,96 @@ export function loadSettings(file: string): AppSettings {
 export function saveSettings(file: string, settings: AppSettings): void {
   try {
     mkdirSync(dirname(file), { recursive: true })
-    writeFileSync(file, JSON.stringify(settings, null, 2))
+    writeJsonAtomic(file, settings)
   } catch {
     // A read-only home directory should not crash the app.
+  }
+}
+
+/**
+ * Merges a settings payload arriving over IPC into the current settings.
+ *
+ * The payload is typed as `AppSettingsPayload`, but it crosses a process boundary from a renderer
+ * that is not guaranteed to be the same build as this process — a dev reload, or an update that
+ * reloads the window — so it is treated here as a `Partial`: a key the sender has never heard of
+ * is simply absent. **A missing field means "leave it alone", never "off"**: assigning it straight
+ * across would write `undefined`, which is falsy — the feature would switch off in this process,
+ * its index wiped as a switch-off is meant to do, and `JSON.stringify` would drop the undefined
+ * key on the way to disk, so `settings.json` would still say the feature was on. Nothing about
+ * that is visible from the outside. This is the bug that made session notes stop being indexed;
+ * see CLAUDE.md "Settings arriving over IPC".
+ *
+ * `claudeBin` is the one exception: `null` is a real value there ("find it on PATH"), so it keeps
+ * the current value only when the field is missing altogether, not when it is `null`. A non-null
+ * value must be an absolute, bounded-length path (SEC-8) — it becomes the binary `resumeCommand`
+ * and the theme generator invoke, and is persisted and re-read on every launch — so a value that
+ * fails that check is dropped rather than merged, the same as a missing field.
+ *
+ * Several numeric fields are clamped rather than trusted as `keep` would leave them
+ * (`clampRecentHours`, `clampIntSetting`, `clampIntOrNullSetting`, `clampSegments`), since each is
+ * typed as a plain number or int but arrives from a renderer that is not guaranteed to have
+ * validated it. `pluginSettings` is filtered to plugin ids this build actually knows about and to
+ * string/number/boolean values only (SEC-8): the settings dialog only ever sends back what it was
+ * given, but the IPC boundary cannot assume the sender validated anything, and an unbounded object
+ * here would be persisted to disk and re-read by whatever the plugin's own settings code expects.
+ * `knownPluginIds` is passed in rather than looked up here, so this stays a pure function of its
+ * arguments — the caller already has `AppService.listPlugins()`.
+ */
+export function mergeSettingsPayload(
+  current: AppSettings,
+  next: Partial<AppSettingsPayload>,
+  knownPluginIds: ReadonlySet<string>,
+): AppSettings {
+  const keep = <T>(value: T | undefined, fallback: T): T => value ?? fallback
+  const cleanPluginSettings = (
+    raw: Record<string, Record<string, string | number | boolean>>,
+  ): Record<string, Record<string, string | number | boolean>> => Object.fromEntries(
+    Object.entries(raw)
+      .filter(([id]) => knownPluginIds.has(id))
+      .map(([id, values]) => [
+        id,
+        Object.fromEntries(
+          Object.entries(values).filter(([, v]) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'),
+        ),
+      ]),
+  )
+  return {
+    ...current,
+    claudeBin: next.claudeBin === undefined
+      ? current.claudeBin
+      : (next.claudeBin === null || (isAbsolute(next.claudeBin) && next.claudeBin.length <= 4096)
+        ? next.claudeBin
+        : current.claudeBin),
+    autoImportAll: keep(next.autoImportAll, current.autoImportAll),
+    autoImportIntervalMinutes: next.autoImportIntervalMinutes === undefined
+      ? current.autoImportIntervalMinutes
+      : clampIntOrNullSetting(next.autoImportIntervalMinutes, 1, 1440),
+    revealActiveInSidebar: keep(next.revealActiveInSidebar, current.revealActiveInSidebar),
+    searchChatContent: keep(next.searchChatContent, current.searchChatContent),
+    searchSessionNotes: keep(next.searchSessionNotes, current.searchSessionNotes),
+    recentSectionEnabled: keep(next.recentSectionEnabled, current.recentSectionEnabled),
+    recentSectionHours: next.recentSectionHours === undefined
+      ? current.recentSectionHours
+      : clampRecentHours(next.recentSectionHours),
+    terminalShortenPath: keep(next.terminalShortenPath, current.terminalShortenPath),
+    terminalPathSegments: next.terminalPathSegments === undefined
+      ? current.terminalPathSegments
+      : clampSegments(next.terminalPathSegments),
+    terminalMinimalPrompt: keep(next.terminalMinimalPrompt, current.terminalMinimalPrompt),
+    plugins: keep(next.plugins, current.plugins),
+    pluginSettings: next.pluginSettings === undefined ? current.pluginSettings : cleanPluginSettings(next.pluginSettings),
+    updateAutomaticChecks: keep(next.updateAutomaticChecks, current.updateAutomaticChecks),
+    updateCheckIntervalHours: next.updateCheckIntervalHours === undefined
+      ? current.updateCheckIntervalHours
+      : clampIntSetting(next.updateCheckIntervalHours, 1, 168),
+    updateAutoDownload: keep(next.updateAutoDownload, current.updateAutoDownload),
+    updateAllowPrerelease: keep(next.updateAllowPrerelease, current.updateAllowPrerelease),
+    diagnosticsEnabled: keep(next.diagnosticsEnabled, current.diagnosticsEnabled),
+    logRetentionDays: next.logRetentionDays === undefined
+      ? current.logRetentionDays
+      : clampIntSetting(next.logRetentionDays, 1, 90),
+    logMaxSizeMb: next.logMaxSizeMb === undefined
+      ? current.logMaxSizeMb
+      : clampIntSetting(next.logMaxSizeMb, 1, 500),
   }
 }

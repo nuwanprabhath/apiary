@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pickWindowAt, type WindowRect } from '../../src/main/windowAtPoint'
+import { pickWindowAt, type WindowRect } from '../../src/main/windows/windowAtPoint'
 
 const win = (id: number, over: Partial<WindowRect> = {}): WindowRect => ({
   id, x: 0, y: 0, width: 100, height: 100, visible: true, ...over,

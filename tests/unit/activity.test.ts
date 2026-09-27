@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { classifyActivity, describeActivityStatus } from '../../src/shared/activity'
+import { classifyActivity, describeActivityStatus } from '@shared/activity'
 
 /**
  * The classifier's contract, stated over screen text.

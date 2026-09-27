@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseColor, toHex8, contrastRatio, nudgeForContrast } from '../../src/shared/theme/color'
+import { parseColor, toHex8, contrastRatio, nudgeForContrast } from '@shared/theme/color'
 
 describe('parseColor', () => {
   it('reads the syntaxes a theme may use', () => {

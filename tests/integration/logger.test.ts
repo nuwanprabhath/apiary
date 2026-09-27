@@ -62,6 +62,26 @@ describe('a logger that is switched on', () => {
     expect(entry.token).toBe('[redacted-github-token]')
   })
 
+  it('redacts the message and scope themselves, not just structured fields (SEC-11)', () => {
+    // The renderer's logWrite handler passes both through as caller-chosen strings
+    // (`renderer:${scope}`, in ipc.ts), so a secret typed into either has to be caught too.
+    on({ home: '/Users/nuwan' })
+    logger.info('git', 'failed for /Users/nuwan/projects/p with ghp_abcdefghijklmnopqrstuvwxyz0123456789')
+
+    const [entry] = lines()
+    expect(entry.msg).toBe('failed for ~/projects/p with [redacted-github-token]')
+  })
+
+  it('never lets a field named "msg" or "scope" override the real ones', () => {
+    on()
+    logger.info('git', 'the real message', { msg: 'fake message', scope: 'fake-scope', level: 'fake-level' })
+
+    const [entry] = lines()
+    expect(entry.msg).toBe('the real message')
+    expect(entry.scope).toBe('git')
+    expect(entry.level).toBe('info')
+  })
+
   it('records several entries in order', () => {
     on()
     logger.warn('pty', 'first')

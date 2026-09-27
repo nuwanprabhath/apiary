@@ -1,6 +1,4 @@
 import { test, expect, type Page, type Locator } from '@playwright/test'
-import { writeFileSync, chmodSync } from 'node:fs'
-import { join } from 'node:path'
 import {
   launchApiary, importAll, relaunchApiary, countPtyResizeCalls, ptyResizeCallCount, type Harness,
 } from './helpers'
@@ -8,35 +6,18 @@ import { makeSession } from '../fixtures/makeSession'
 
 let h: Harness
 
-/**
- * Points `claudeBin` at a throwaway script that just execs the login shell, exactly like
- * `PtyManager`'s bottom-shell spawn does. A brand-new session has no interactive control over
- * the real `claude` CLI (its first-run "trust this folder" prompt repaints continuously, and
- * typed input goes to Claude's own prompt box, not a shell) — a shell stand-in is the only way
- * to prove *which directory the process actually launched in* by typing a command and reading
- * its output, the same technique the existing bottom-shell spec uses. This is exercised through
- * the real `claudeBin` setting (see settings.spec.ts), not a code path invented for the test.
- */
-async function useFakeClaudeShell(h: Harness): Promise<void> {
-  const script = join(h.home, 'fake-claude.sh')
-  writeFileSync(script, '#!/bin/sh\nexec "$SHELL" -l\n')
-  chmodSync(script, 0o755)
-
-  await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
-  })
-  // Settings open on the Sessions section; the claude binary lives under General.
-  await h.page.getByTestId('settings-nav-general').click()
-  await h.page.getByTestId('claude-bin-input').fill(script)
-  await h.page.getByTestId('settings-save').click()
-  await expect(h.page.getByTestId('settings-dialog')).toHaveCount(0)
-}
-
 test.beforeEach(async () => {
+  // `launchApiary`'s default `claudeBin` is exactly the stand-in this spec needs: a throwaway
+  // script that just execs the login shell, like `PtyManager`'s bottom-shell spawn does. A
+  // brand-new session has no interactive control over the real `claude` CLI (its first-run "trust
+  // this folder" prompt repaints continuously, and typed input goes to Claude's own prompt box,
+  // not a shell) — a shell stand-in is the only way to prove *which directory the process
+  // actually launched in* by typing a command and reading its output, the same technique the
+  // existing bottom-shell spec uses. This is exercised through the real `claudeBin` setting (see
+  // settings.spec.ts), not a code path invented for the test.
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
-  await useFakeClaudeShell(h)
 })
 
 test.afterEach(async () => { await h.close() })
@@ -262,7 +243,7 @@ test('reconciling a pending session into its real SessionNode keeps prior termin
   })
 
   // Wait for the watcher's debounced rescan (chokidar stabilityThreshold 500ms + 1s debounce in
-  // main/ipc.ts) to pick the new JSONL up and for reconciliation to fold it in.
+  // main/ipc/index.ts) to pick the new JSONL up and for reconciliation to fold it in.
   await expect(h.page.getByTestId('session-title')).toContainText('Reconciled marker session', {
     timeout: 15000,
   })

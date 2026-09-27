@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { readClaudeSession, ClaudeSessionTracker } from '../../src/main/claudeSessionTracker'
-import type { PtySessionInfo } from '../../src/shared/api'
+import { readClaudeSession, ClaudeSessionTracker } from '../../src/main/claude/claudeSessionTracker'
+import type { PtySessionInfo } from '@shared/api'
 
 /**
  * The file shape below is copied from a real Claude 2.1.281 `~/.claude/sessions/<pid>.json`,
