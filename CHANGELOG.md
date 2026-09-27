@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.26.1] - 2026-09-28
+
+### Fixed
+
+- The release workflow now installs Chromium before running the component tests. 1.26.0 was tagged
+  but never published: its verify stage failed on the missing browser, and the all-or-nothing release
+  built nothing. 1.26.1 is 1.26.0 plus this fix.
+
 ## [1.26.0] - 2026-09-28
 
 Everything below comes out of the 2026-09-26 codebase review (115 findings; see

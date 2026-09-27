@@ -80,6 +80,10 @@ jobs:
 
       - run: npm test
 
+      # Component tests run the renderer in headless Chromium, which `npm ci` does not download.
+      # No browser cache here on purpose: a release builds from a clean slate.
+      - run: npx playwright install --with-deps chromium
+
       - run: npm run test:component
 
   build:
