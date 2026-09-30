@@ -305,6 +305,30 @@ export class PtyManager {
     }
   }
 
+  /**
+   * Continues a program that suspended itself (SIGCONT to the pty's process group).
+   *
+   * Claude Code handles Ctrl+Z itself: it restores the terminal, prints "Claude Code has been
+   * suspended. Run `fg` to bring Claude Code back." and waits for SIGCONT. Under a shell with job
+   * control, `fg` sends that. Here it runs as `exec claude` with no shell in front of it, so there
+   * is no `fg` to type — and anything typed lands in its prompt once it does come back. Measured
+   * on Claude Code 2.1.284: the process is not even in the stopped state (`ps` shows `S`, not
+   * `T`), it is waiting, and a SIGCONT to its group brings it back with the draft intact.
+   *
+   * The group, not just the pid: the pty's process is the session leader (`exec`), so its pid is
+   * the group id, and anything it had started (a tool call's shell) is continued with it.
+   */
+  resume(id: string): void {
+    const child = this.processes.get(id)
+    if (!child) return
+    log.info('pty', 'resuming', { id })
+    try {
+      process.kill(-child.pid, 'SIGCONT')
+    } catch {
+      try { process.kill(child.pid, 'SIGCONT') } catch { /* already gone */ }
+    }
+  }
+
   kill(id: string): void {
     const child = this.processes.get(id)
     if (!child) return

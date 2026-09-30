@@ -27,6 +27,7 @@ export function settingsHandlers(deps: SettingsDeps): Pick<Handlers, HandledKeys
         autoImportAll: settings.autoImportAll,
         autoImportIntervalMinutes: settings.autoImportIntervalMinutes,
         revealActiveInSidebar: settings.revealActiveInSidebar,
+        systemTitleBar: settings.systemTitleBar,
         searchChatContent: settings.searchChatContent,
         searchSessionNotes: settings.searchSessionNotes,
         recentSectionEnabled: settings.recentSectionEnabled,

@@ -318,3 +318,108 @@
   font: inherit;
 }
 
+
+/*
+ * The layout's content cell: the pane grid, and the status bar under it. The bar sits outside
+ * `.content` so it never becomes a grid track the pane dividers would have to account for.
+ */
+/*
+ * The status bar: status-bar plugins' items (Claude usage first), right-aligned as VS Code's
+ * right-hand items are. Part of the window itself, not a card among the panes: the full width of
+ * the window along its bottom edge, under the sidebar too, set off by a line and nothing else.
+ */
+.status-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  flex: none;
+  height: var(--control-height-sm);
+  padding: 0 4px;
+  background: none;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+}
+.status-bar-spacer { flex: 1; }
+
+.status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.status-item:disabled { cursor: default; }
+.status-item:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.status-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.status-item svg { width: var(--icon-size); height: var(--icon-size); flex: none; }
+.status-item .spinner { animation: spin 0.8s linear infinite; }
+.status-item[data-tone="warning"] { background: var(--warning); color: var(--accent-contrast); }
+.status-item[data-tone="danger"] { background: var(--danger); color: var(--accent-contrast); }
+.status-item[data-stale="true"] .status-item-text { opacity: 0.75; }
+
+@media (prefers-reduced-motion: reduce) {
+  .status-item .spinner { animation: none; }
+}
+
+/* The hover detail: solid, like every floating surface (see src/renderer/CLAUDE.md). */
+.status-hover {
+  position: fixed;
+  z-index: var(--z-popover);
+  max-width: min(640px, calc(100vw - 16px));
+  padding: 8px 10px;
+  background: var(--bg-popover, var(--bg-panel));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.status-sections { display: flex; flex-direction: column; gap: 6px; }
+.status-heading { margin: 6px 0 0; font-size: 1em; }
+.status-heading:first-child { margin-top: 0; }
+.status-note { margin: 0; overflow-wrap: anywhere; }
+.status-table { border-collapse: collapse; }
+.status-table th, .status-table td { padding: 2px 8px; text-align: left; white-space: nowrap; }
+.status-table th { color: var(--muted); font-weight: 500; }
+.status-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.status-table tr.totals td { font-weight: 600; border-top: 1px solid var(--border); }
+
+.status-gauges { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.status-gauge-head { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.status-gauge-pct { font-weight: 600; font-variant-numeric: tabular-nums; }
+.status-gauge-track { height: 6px; background: var(--control-bg); border-radius: var(--radius-xs); overflow: hidden; }
+.status-gauge-fill { height: 100%; background: var(--success); }
+.status-gauge[data-tone="warning"] .status-gauge-fill { background: var(--warning); }
+.status-gauge[data-tone="danger"] .status-gauge-fill { background: var(--danger); }
+
+.status-bars-chart { display: flex; gap: 8px; height: 150px; }
+.status-bars-col { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.status-bars-value { font-size: 11px; height: 16px; }
+.status-bars-area { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.status-bars-bar { width: 60%; display: flex; flex-direction: column-reverse; border-radius: var(--radius-xs); overflow: hidden; }
+.status-bars-label { font-size: 11px; margin-top: 4px; }
+.status-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; color: var(--muted); }
+.status-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.status-swatch { width: 10px; height: 10px; border-radius: var(--radius-xs); }
+.status-bars-seg[data-series="series-1"], .status-swatch[data-series="series-1"] { background: var(--series-1); }
+.status-bars-seg[data-series="series-2"], .status-swatch[data-series="series-2"] { background: var(--series-2); }
+.status-bars-seg[data-series="series-3"], .status-swatch[data-series="series-3"] { background: var(--series-3); }
+.status-bars-seg[data-series="series-4"], .status-swatch[data-series="series-4"] { background: var(--series-4); }
+
+.status-line { width: 100%; height: 160px; }
+.status-line-area { fill: var(--series-1); opacity: 0.18; }
+.status-line-stroke { stroke: var(--series-1); stroke-width: 2; }
+.status-line-dot { fill: var(--series-1); }
+.status-line-hit { fill: transparent; }
+.status-line-label { fill: var(--muted); font-size: 11px; }
+
+.status-panel .status-sections { max-height: 70vh; overflow: auto; }

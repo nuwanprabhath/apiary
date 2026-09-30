@@ -35,3 +35,26 @@ solved, including for self-hosted instances. The consequence worth remembering: 
 GitLab credential, and the feature's setup instruction is `glab auth login`. The half that needs no
 API (offering to create an MR) is built from the git remote alone, so it survives `glab` being
 absent.
+
+## Status-bar plugins (`src/main/statusBar/`)
+
+A second kind of plugin, for the bar along the bottom of the window — the VS Code status bar
+equivalent. A session-bar plugin is asked about one folder and branch; a status-bar plugin is about
+the whole app, keeps its own schedule between `start()` and `stop()`, and answers `items()`
+synchronously from what it last learned (`StatusBarRegistry`, same fault containment as above).
+The same rule holds: everything is data (`src/shared/domain/statusBar.ts`) — an item's text, tone
+and icon from a closed set, and its hover detail and dashboard as typed sections (table, gauges,
+stacked bars, line, note) that `features/statusBar/StatusSections.tsx` draws. A new kind of content
+is a new section kind, drawn once there, never markup from a plugin.
+
+Both kinds share Settings → Plugins: `AppService.listPlugins()` lists both, and enabling or
+settings route to whichever registry owns the id. A new status-bar plugin is one factory in
+`statusBar/builtin.ts`.
+
+The first is **Claude usage** (`statusBar/claudeUsage/`), a port of the claude-usage-stats VS Code
+extension: the OAuth token Claude Code keeps (macOS Keychain, then `<config>/.credentials.json`)
+is sent only to Anthropic's usage endpoint and never logged; token and cost totals come from the
+transcripts. **The Keychain is read only when Apiary uses the real config root** — a Keychain read
+can put a macOS permission prompt on screen, so the test harness's fixture home never triggers one.
+`AppService` builds the registry but does not start it; `index.ts` calls `startStatusBar()`, so
+constructing an `AppService` in a test never starts a network poll.

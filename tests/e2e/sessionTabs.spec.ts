@@ -29,7 +29,8 @@ test('the bottom pane shrinks to fit a short window instead of overflowing off t
   // pane's bottom edge lands at (or above) the window's own bottom edge — never past it.
   await expect.poll(() => h.page.evaluate(() => {
     const pane = document.querySelector('.bottom-pane')?.getBoundingClientRect()
-    return window.innerHeight < 420 && pane !== undefined && pane.bottom <= window.innerHeight + 1
+    // `<=`: with Apiary's own title bar the page is the whole window, so it can be exactly 420 tall.
+    return window.innerHeight <= 420 && pane !== undefined && pane.bottom <= window.innerHeight + 1
   })).toBe(true)
   // The toolbar (and its Hide/Show shell button) must still be reachable even when squeezed.
   await expect(h.page.getByTestId('shell-toggle')).toBeVisible()

@@ -47,6 +47,12 @@ export interface RuntimeEnv {
   headless: boolean
   /** The Vite dev server origin, when running unbuilt. */
   rendererUrl: string | undefined
+  /** Answers the folder picker with this path instead of opening the native dialog — E2E only:
+   *  a native dialog cannot be driven by Playwright, and would land on the user's screen. */
+  pickFolder: string | undefined
+  /** Forces a window chrome (`custom`, `mac`, `system`) — E2E only, so the Windows/Linux title bar
+   *  and its menu can be driven on any machine. */
+  windowChrome: string | undefined
 }
 
 /** Parses every runtime override in one place. `argv`/`env`/`isPackaged` are passed in rather
@@ -66,5 +72,7 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackag
     fakeUpdateMode: test('APIARY_FAKE_UPDATE_MODE'),
     headless: test('APIARY_HEADLESS') === '1',
     rendererUrl: test('ELECTRON_RENDERER_URL'),
+    pickFolder: test('APIARY_PICK_FOLDER'),
+    windowChrome: test('APIARY_WINDOW_CHROME'),
   }
 }

@@ -1,5 +1,5 @@
-import { existsSync } from 'node:fs'
-import { basename } from 'node:path'
+import { existsSync, readdirSync } from 'node:fs'
+import { basename, join } from 'node:path'
 import * as branchOps from './branchOps'
 import { originUrl, defaultExec as defaultGitExec } from '../plugins/gitlabMr'
 import { parseGitLabRemote } from '../plugins/gitlabRemote'
@@ -7,6 +7,9 @@ import { resolveMrStatus, type MrState } from './mrStatusCache'
 import { log } from '../log/logger'
 import type { SessionResolver } from '../sessions/sessionResolver'
 import type { GitStatus, GitRefs, CheckoutOutcome, FolderWorktree } from '@shared/types'
+import {
+  worktreeNameProblem, type WorktreeCreateOptions, type WorktreeCreateRequest,
+} from '@shared/domain/git'
 
 export interface GitServiceDeps {
   resolver: SessionResolver
@@ -183,6 +186,44 @@ export class GitService {
     const others = all.filter((w) => w.path !== folder && existsSync(w.path))
     for (const w of others) this.resolver.rememberWorktree(w.path)
     return others
+  }
+
+  /**
+   * What the New worktree dialog offers for a sidebar folder. The folder must be one Apiary
+   * already knows (`requireFolder`); every path in the answer is derived from git's porcelain
+   * output, so the renderer never names where a worktree goes.
+   */
+  async worktreeCreateOptions(path: string): Promise<WorktreeCreateOptions> {
+    const folder = this.resolver.requireFolder(path)
+    const all = await branchOps.listWorktrees(folder)
+    // `git worktree list` always lists the main checkout first.
+    const parentDir = `${all[0]?.path ?? folder}.worktrees`
+    const existingNames = existsSync(parentDir) ? readdirSync(parentDir) : []
+    const { local, remote } = await branchOps.listBranchNames(folder)
+    const checkedOut = all.map((w) => w.branch).filter((b): b is string => b !== null)
+    return { parentDir, existingNames, local, remote, checkedOut }
+  }
+
+  /** Creates the worktree and returns its path. Checks everything the dialog checked, again. */
+  async createWorktree(path: string, request: WorktreeCreateRequest): Promise<string> {
+    const folder = this.resolver.requireFolder(path)
+    const options = await this.worktreeCreateOptions(folder)
+    const name = request.name.trim()
+    const problem = worktreeNameProblem(name, options.existingNames)
+    if (problem !== null) throw new Error(problem)
+    const choice = request.branch
+    if (choice.kind === 'local' && options.checkedOut.includes(choice.branch)) {
+      throw new Error(`Branch '${choice.branch}' is already checked out in another worktree. Git only allows a branch in one worktree at a time.`)
+    }
+    if (choice.kind === 'new' && options.local.includes(choice.branch.trim())) {
+      throw new Error(`A local branch named '${choice.branch.trim()}' already exists.`)
+    }
+    const target = join(options.parentDir, name)
+    const normalised = choice.kind === 'new' ? { ...choice, branch: choice.branch.trim() } : choice
+    await branchOps.addWorktree(folder, target, normalised, options.local)
+    log.info('git', 'worktree created', { kind: choice.kind })
+    this.resolver.rememberWorktree(target)
+    return target
   }
 
   async push(key: string, isPtyId: boolean): Promise<{ commits: number; published: boolean }> {

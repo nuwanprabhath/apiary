@@ -18,6 +18,8 @@ import { log } from './log/logger'
 import { memoize } from './util/memoize'
 import { PluginRegistry } from './plugins/registry'
 import { BUILTIN_PLUGINS } from './plugins/builtin'
+import { StatusBarRegistry } from './statusBar/registry'
+import { BUILTIN_STATUS_BAR_PLUGINS } from './statusBar/builtin'
 import type { PluginBarItem } from './plugins/types'
 import type { MrState } from './git/mrStatusCache'
 import { VsCodeService } from './vscode/vscodeService'
@@ -27,6 +29,7 @@ import type {
 } from '@shared/types'
 import type { StoredSession } from './store/sessionStore'
 import type { SessionMeta, ProjectInfo, GitStatus, GitRefs, FolderWorktree } from '@shared/types'
+import type { WorktreeCreateOptions, WorktreeCreateRequest } from '@shared/domain/git'
 
 /** What a refresh pass was asked to cover — see `refresh()`. */
 interface RefreshRequest {
@@ -72,6 +75,11 @@ export interface AppServiceOptions {
   vsCodePath?: string | null
   /** Called when a plugin's contribution to a bar changed, so windows can re-read it. */
   onPluginsChanged?: () => void
+  /** The status bar's items changed (a usage poll landed, a plugin was switched off). */
+  onStatusBarChanged?: () => void
+  /** Let the Claude usage plugin read the macOS Keychain: only against the real `~/.claude`,
+   *  never a test fixture's, since a Keychain read can put a permission prompt on screen. */
+  statusBarKeychain?: boolean
   /**
    * Called after an index pass that actually changed something. Indexing runs behind whatever the
    * user is doing, so a search typed while it was still running would otherwise sit on results
@@ -93,6 +101,7 @@ export interface AppServiceOptions {
     pty?: PtyManager
     store?: SessionStore
     plugins?: PluginRegistry
+    statusBar?: StatusBarRegistry
   }
 }
 
@@ -108,6 +117,8 @@ export class AppService {
   private disposed = false
   private autoImportAll = false
   private readonly plugins: PluginRegistry
+  /** The status-bar plugins (Claude usage first). Started by `startStatusBar`, not here. */
+  readonly statusBar: StatusBarRegistry
   /** The trust boundary (MAIN-14 step 2) — see `sessions/sessionResolver.ts`. */
   private readonly resolver: SessionResolver
   /** Every `git*` operation (MAIN-14 step 3) — see `git/gitService.ts`. */
@@ -164,9 +175,24 @@ export class AppService {
         this.plugins.register(plugin, options.plugins?.[plugin.id] ?? plugin.defaultEnabled ?? true)
       }
     }
-    for (const [id, values] of Object.entries(options.pluginSettings ?? {})) {
-      this.plugins.setSettings(id, values)
+    this.statusBar = options.deps?.statusBar ?? new StatusBarRegistry({ onChanged: () => options.onStatusBarChanged?.() })
+    // Like the session-bar plugins above: a caller that injected its own registries decided what
+    // is in them, so the built-ins are not added on top.
+    const builtinStatusBar = options.deps?.statusBar === undefined && options.deps?.plugins === undefined
+    for (const factory of builtinStatusBar ? BUILTIN_STATUS_BAR_PLUGINS : []) {
+      const plugin = factory({ configRoot: options.configRoot, useKeychain: options.statusBarKeychain ?? false })
+      this.statusBar.register(plugin, options.plugins?.[plugin.id] ?? plugin.defaultEnabled ?? true)
     }
+    for (const [id, values] of Object.entries(options.pluginSettings ?? {})) {
+      if (this.statusBar.has(id)) this.statusBar.setSettings(id, values)
+      else this.plugins.setSettings(id, values)
+    }
+  }
+
+  /** Starts the status-bar plugins' own schedules. Separate from construction so that building an
+   *  AppService (every integration test does) never starts a network poll. */
+  startStatusBar(): void {
+    this.statusBar.start()
   }
 
   /**
@@ -205,15 +231,18 @@ export class AppService {
   }
 
   setPluginEnabled(pluginId: string, enabled: boolean): void {
-    this.plugins.setEnabled(pluginId, enabled)
+    if (this.statusBar.has(pluginId)) this.statusBar.setEnabled(pluginId, enabled)
+    else this.plugins.setEnabled(pluginId, enabled)
   }
 
   setPluginSettings(pluginId: string, values: Record<string, string | number | boolean>): void {
-    this.plugins.setSettings(pluginId, values)
+    if (this.statusBar.has(pluginId)) this.statusBar.setSettings(pluginId, values)
+    else this.plugins.setSettings(pluginId, values)
   }
 
+  /** Session-bar and status-bar plugins together: Settings has one Plugins section for both. */
   listPlugins(): ReturnType<PluginRegistry['list']> {
-    return this.plugins.list()
+    return [...this.plugins.list(), ...this.statusBar.list()]
   }
 
   /**
@@ -755,6 +784,16 @@ export class AppService {
     return this.git.pullFolder(path)
   }
 
+  async worktreeCreateOptions(path: string): Promise<WorktreeCreateOptions> {
+    return this.git.worktreeCreateOptions(path)
+  }
+
+  /** New worktree, then a Claude session in it — Apiary's "open" for a fresh worktree. The path
+   *  comes back from git, never from the renderer, which is what makes `newSessionInFolder` safe. */
+  async createWorktree(path: string, request: WorktreeCreateRequest): Promise<NewSessionInfo> {
+    return this.terminals.newSessionInFolder(await this.git.createWorktree(path, request))
+  }
+
   async listWorktrees(path: string): Promise<FolderWorktree[]> {
     return this.git.listWorktrees(path)
   }
@@ -807,6 +846,7 @@ export class AppService {
     // `this.pendingRefresh && !this.disposed` in the same tick will see this and stop
     // scheduling further passes, so no fire-and-forget rerun can start after this point.
     this.disposed = true
+    this.statusBar.stop()
     await this.pty.killAll()
     // Let any refresh already in flight (or its already-chained rerun) finish before closing
     // the database — otherwise it could try to write through a closed better-sqlite3 handle.

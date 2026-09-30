@@ -36,6 +36,8 @@ test('starts a session in a worktree no session has run in', async () => {
 
   await folder('repo-quiet').hover()
   await folder('repo-quiet').getByTestId('new-session-button').click()
+  // A worktree is a git folder: its "+" offers a session here or a new worktree.
+  await h.page.getByTestId('context-menu-new-session').click()
   await expect(h.page.getByTestId('terminal-session')).toBeVisible()
   await expect(h.page.getByTestId('notification').filter({ hasText: 'Could not start' })).toHaveCount(0)
 })

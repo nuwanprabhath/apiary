@@ -149,3 +149,28 @@
 }
 
 .error-banner { margin: 0; padding: 8px 16px; background: var(--danger-bg); color: var(--danger); }
+
+/*
+ * Shown over a Claude Code terminal while Claude is suspended (Ctrl+Z). An overlay, not a row in
+ * the pane's flex column: taking height from the terminal would refit it and resize the pty,
+ * which a suspended program cannot answer — Claude repaints at the new size once continued.
+ * Solid, like every other floating thing (see 90-glass.css).
+ */
+.terminal-suspended-bar {
+  position: absolute;
+  left: var(--control-gap);
+  right: var(--control-gap);
+  bottom: var(--control-gap);
+  z-index: var(--z-pane-drop);
+  display: flex;
+  align-items: center;
+  gap: var(--control-gap);
+  padding: var(--control-gap) var(--control-padding-x);
+  background: var(--bg-popover, var(--bg-panel));
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text);
+}
+
+.terminal-suspended-hint { color: var(--muted); }

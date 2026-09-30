@@ -11,6 +11,7 @@ type HandledKeys =
   | 'gitStatus' | 'gitListRefs' | 'gitlabMrRefStatus' | 'gitCheckoutBranch' | 'gitPullWorktree'
   | 'newSessionInWorktree' | 'gitCheckoutRemote' | 'gitCheckoutDetached' | 'gitCreateBranch' | 'gitPull'
   | 'gitUpdateBranch' | 'gitPullFolder' | 'listWorktrees' | 'gitPush' | 'gitMerge' | 'gitFetch'
+  | 'worktreeCreateOptions' | 'worktreeCreate'
   | 'vsCodeAvailable' | 'openInVsCode'
 
 export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
@@ -81,6 +82,8 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
       return outcome
     },
     listWorktrees: (_e, path) => service.listWorktrees(path),
+    worktreeCreateOptions: (_e, path) => service.worktreeCreateOptions(path),
+    worktreeCreate: (_e, path, request) => service.createWorktree(path, request),
     gitPush: (_e, key, isPtyId) => service.gitPush(key, isPtyId),
     gitMerge: async (_e, key, isPtyId, ref) => {
       await service.gitMerge(key, isPtyId, ref)

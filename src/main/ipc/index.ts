@@ -1,3 +1,4 @@
+import type { WebContents } from 'electron'
 import { CHANNELS } from '@shared/api'
 import type { AppService } from '../appService'
 import type { UpdateService } from '../update/updateService'
@@ -19,6 +20,7 @@ import { tabsHandlers } from './handlers/tabs'
 import { pluginsHandlers } from './handlers/plugins'
 import { updateHandlers } from './handlers/update'
 import { logHandlers } from './handlers/log'
+import { appChromeHandlers } from './handlers/appChrome'
 import { themeHandlers, type ThemeDeps } from './handlers/theme'
 
 /**
@@ -51,6 +53,9 @@ export interface IpcDeps {
    *  know about webContents ids at all. Populated in `main/index.ts`, next to where a window's
    *  number is minted. */
   windowNumberFor?: (webContentsId: number) => number | null
+  /** The native folder picker, over the asking window. Resolves null when cancelled. Injected so
+   *  this module does not own the dialog (or its E2E stand-in, `APIARY_PICK_FOLDER`). */
+  pickFolder?: (sender: WebContents) => Promise<string | null>
   /** Where the app's own renderer is expected to be loaded from (SEC-8 step 8) — null when not
    *  configured, which does not enforce anything. */
   trustedRenderer?: TrustedRendererConfig | null
@@ -73,7 +78,7 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
   const { service, configRoot } = deps
 
   const terminals = terminalsHandlers({ service, configRoot })
-  const sessions = sessionsHandlers({ service, renameDeps: terminals.renameDeps })
+  const sessions = sessionsHandlers({ service, renameDeps: terminals.renameDeps, pickFolder: deps.pickFolder })
   const git = gitHandlers({ service })
   const settingsIpc = settingsHandlers(deps)
   const tabs = tabsHandlers(deps)
@@ -81,6 +86,7 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
   const update = updateHandlers(deps)
   const logIpc = logHandlers()
   const theme = themeHandlers(deps.theme)
+  const appChrome = appChromeHandlers()
 
   const handlers: Handlers = {
     ...sessions,
@@ -92,12 +98,14 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
     ...update,
     ...logIpc.handlers,
     ...theme.handlers,
+    ...appChrome.handlers,
   }
   const listeners: Listeners = {
     ...terminals.listeners,
     ...tabs.listeners,
     ...logIpc.listeners,
     ...theme.listeners,
+    ...appChrome.listeners,
   }
 
   const disposeRegistry = registerAll(handlers, listeners, deps.trustedRenderer ?? null)

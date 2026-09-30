@@ -314,6 +314,16 @@
   margin: 0;
 }
 .folder-group-header-wrap:hover .collapse-all-button { opacity: 1; }
+/* The group's "+" (start a session in a picked folder, filed here): same overlay treatment, one
+ * button's width left of collapse-all, so neither shifts the count column. */
+.folder-group-header-wrap [data-testid="group-new-session-button"] {
+  position: absolute;
+  top: 50%;
+  right: calc(12px + 22px + 4px);
+  transform: translateY(-50%);
+  margin: 0;
+}
+.folder-group-header-wrap:hover [data-testid="group-new-session-button"] { opacity: 1; }
 .folder-group-header-wrap:hover .folder-group-header .pinned-count { visibility: hidden; }
 .folder-group-header-wrap:hover { background: var(--hover); }
 
@@ -492,3 +502,13 @@ button.layout-thumb:hover .layout-zone, button.layout-thumb:focus-visible .layou
 .pane-filler .session-row { width: 100%; }
 .pane-filler-close { align-self: flex-start; }
 
+
+/* The New worktree dialog borrows the branch switcher's list and search styles; these are its own. */
+.new-worktree-title { margin: 0 0 var(--control-gap); font-size: 1em; }
+
+.new-worktree-hint {
+  margin: var(--control-gap) 0;
+  color: var(--muted);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}

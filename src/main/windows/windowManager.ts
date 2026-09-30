@@ -1,3 +1,4 @@
+import { isWindowChrome, type WindowChrome } from '@shared/domain/windowChrome'
 import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'node:path'
 import { boundsAreOnScreen } from './windowBounds'
@@ -40,6 +41,8 @@ export interface WindowManagerDeps {
   rendererUrl: string | undefined
   /** Whether the app has started quitting — read by the `closed` handler; see its own comment. */
   isQuitting: () => boolean
+  /** `APIARY_WINDOW_CHROME`, test-only: overrides which title bar windows get. */
+  chromeOverride?: string
 }
 
 /**
@@ -134,8 +137,13 @@ export class WindowManager {
               : {}),
         })
 
+    const override = this.deps.chromeOverride
+    const chrome = isWindowChrome(override)
+      ? override
+      : windowChromeFor(process.platform, this.deps.settingsService.get().systemTitleBar)
     const win = new BrowserWindow({
       ...bounds,
+      ...chromeOptions(chrome),
       minWidth: detached ? 520 : 900,
       minHeight: 400,
       show: false,
@@ -164,7 +172,10 @@ export class WindowManager {
         ...(headless ? { backgroundThrottling: false } : {}),
       },
     })
-    log.info('window', 'created', { number: windowNumber, detached, at: opts.at !== undefined })
+    log.info('window', 'created', { number: windowNumber, detached, at: opts.at !== undefined, chrome })
+    // The menu is still the application menu — its accelerators keep working — but on a custom
+    // title bar it is drawn by the renderer (see TitleBar.tsx), not as a GTK/Win32 bar above it.
+    if (chrome === 'custom') win.setMenuBarVisibility(false)
     guardNavigation(win.webContents, (url) => shell.openExternal(url))
     // Captured now, not read back off `win.webContents` in the `closed` handler below: by the time
     // `closed` fires the window (and its webContents) has already been destroyed, and touching
@@ -233,7 +244,7 @@ export class WindowManager {
     // The window's number reaches the renderer through the URL rather than the preload bridge: it is
     // needed before anything else to pick which stored layout to load, and a query string is
     // available synchronously at first render.
-    const query: Record<string, string> = { w: String(windowNumber) }
+    const query: Record<string, string> = { w: String(windowNumber), chrome }
     if (opts.detach !== undefined) {
       query.detach = opts.detach.key
       // The rest of the tab rides alongside the key: which process it runs under and which shells
@@ -257,4 +268,23 @@ export class WindowManager {
     }
     return windowNumber
   }
+}
+
+/** Which title bar a new window gets — see `WindowChrome`. */
+export function windowChromeFor(platform: NodeJS.Platform, systemTitleBar: boolean): WindowChrome {
+  if (systemTitleBar) return 'system'
+  return platform === 'darwin' ? 'mac' : 'custom'
+}
+
+/** Title-bar height the renderer's bar is drawn at; the overlay's controls are sized to match. */
+export const TITLE_BAR_HEIGHT = 32
+
+function chromeOptions(chrome: WindowChrome): Electron.BrowserWindowConstructorOptions {
+  if (chrome === 'mac') return { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 12, y: 10 } }
+  if (chrome === 'custom') {
+    // Neutral until the renderer reports its theme's colours (setTitleBarColors) — a fraction of
+    // a second after the first paint.
+    return { titleBarStyle: 'hidden', titleBarOverlay: { color: '#1b1c1e', symbolColor: '#e6e6e6', height: TITLE_BAR_HEIGHT } }
+  }
+  return {}
 }

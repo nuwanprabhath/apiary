@@ -10,6 +10,8 @@ import { Sidebar } from '../features/sidebar/Sidebar'
 import { SessionColumn, type TerminalTab } from '../features/pane/SessionColumn'
 import { ConflictDialog } from '../features/dialogs/ConflictDialog'
 import { DeleteSessionDialog } from '../features/dialogs/DeleteSessionDialog'
+import { NewWorktreeDialog } from '../features/git/NewWorktreeDialog'
+import { StatusBar } from '../features/statusBar/StatusBar'
 import { MoveSessionDialog } from '../features/dialogs/MoveSessionDialog'
 import { ImportDialog } from '../features/dialogs/ImportDialog'
 import { SettingsDialog } from '../features/settings/SettingsDialog'
@@ -30,7 +32,8 @@ import { LayoutPicker } from '../features/layout/LayoutPicker'
 import { LayoutMenuButton } from '../features/layout/LayoutMenuButton'
 import { PaneDividers } from '../features/layout/PaneDividers'
 import { PaneFiller } from '../features/pane/PaneFiller'
-import { detachedKey, detachedTransfer, restoredWindow, windowNumber as getWindowNumber } from '../state/windowParams'
+import { detachedKey, detachedTransfer, restoredWindow, windowChrome, windowNumber as getWindowNumber } from '../state/windowParams'
+import { TitleBar } from '../features/titleBar/TitleBar'
 import { useThemeState, useAppliedTheme } from '../theme/useTheme'
 import { ThemeEffects } from '../theme/ThemeEffects'
 import { useUpdate } from '../features/update/useUpdate'
@@ -1437,6 +1440,29 @@ export function App(): JSX.Element {
   }, [])
 
   const onNewSessionSidebar = useCallback((path: string) => { void onNewSession(path) }, [onNewSession])
+  /** Resolves the new session's folder, so the sidebar can file it into the group it came from. */
+  const onNewSessionInPickedFolder = useCallback(async (): Promise<string | null> => {
+    try {
+      const info = await window.apiary.newSessionInPickedFolder()
+      if (info === null) return null
+      addPending(info, await window.apiary.tree())
+      return info.cwd
+    } catch (e) {
+      notifyError(e, 'Could not start a new session')
+      return null
+    }
+  }, [addPending, notifyError])
+  const [newWorktreeFor, setNewWorktreeFor] = useState<{ path: string; label: string } | null>(null)
+  const onNewWorktreeSidebar = useCallback((path: string, label: string) => { setNewWorktreeFor({ path, label }) }, [])
+  const onWorktreeCreated = useCallback(async (info: NewSessionInfo) => {
+    setNewWorktreeFor(null)
+    notify({ message: `Worktree created at ${info.cwd} — starting Claude there` })
+    try {
+      addPending(info, await window.apiary.tree())
+    } catch (e) {
+      notifyError(e, 'Could not open the new worktree\'s session')
+    }
+  }, [addPending, notify, notifyError])
 
   const onSessionDroppedSidebar = useCallback((session: SessionNode, toPath: string) => {
     setMoveTarget({ session, toPath })
@@ -1453,6 +1479,13 @@ export function App(): JSX.Element {
 
   const onFocusTabSidebar = useCallback((w: number, key: string) => { void window.apiary.focusTab(w, key) }, [])
 
+  // Read once: it decides the layout from the first paint, and does not change for this window.
+  const [chrome] = useState(windowChrome)
+  // The title bar names what is in front, as an editor's names the open file.
+  const windowTitle = activeKey !== null
+    ? openSessions.get(activeKey)?.title ?? pendingTabInfo.get(activeKey)?.label ?? null
+    : null
+
   return (
     <LayoutContext.Provider value={layoutActions}>
     <LayoutStateContext.Provider value={layoutState}>
@@ -1464,6 +1497,7 @@ export function App(): JSX.Element {
       lowPower={!gpuCompositing}
     />
     <div className="app-shell">
+      <TitleBar chrome={chrome} title={windowTitle !== null ? `${windowTitle} — Apiary` : 'Apiary'} />
       {updateStatus !== null && (
         <UpdateBanner status={updateStatus} onOpenSettings={() => setSettingsSection('updates')} />
       )}
@@ -1524,6 +1558,8 @@ export function App(): JSX.Element {
         collapsed={sidebarCollapsed}
         onCollapsedChange={setCollapsed}
         onNewSession={onNewSessionSidebar}
+        onNewWorktree={onNewWorktreeSidebar}
+        onNewSessionInPickedFolder={onNewSessionInPickedFolder}
         onDeleteSession={setDeleteTarget}
         onSessionDropped={onSessionDroppedSidebar}
         pinned={ui.pinned}
@@ -1708,6 +1744,14 @@ export function App(): JSX.Element {
         />
       )}
 
+      {newWorktreeFor !== null && (
+        <NewWorktreeDialog
+          folderPath={newWorktreeFor.path}
+          folderLabel={newWorktreeFor.label}
+          onClose={() => { setNewWorktreeFor(null) }}
+          onCreated={(info) => { void onWorktreeCreated(info) }}
+        />
+      )}
       {deleteTarget !== null && (
         <DeleteSessionDialog
           title={deleteTarget.title}
@@ -1763,6 +1807,9 @@ export function App(): JSX.Element {
         />
       )}
       </div>
+      {/* Part of the window, not a card in the pane grid: the whole width under the sidebar and
+       *  the panes alike, as VS Code's status bar is. */}
+      <StatusBar onOpenSettings={setSettingsSection} />
     </div>
     </LayoutStateContext.Provider>
     </LayoutContext.Provider>

@@ -441,6 +441,8 @@
   width: min(420px, calc(100vw - 32px));
   pointer-events: none;
 }
+/* Clear of the status bar along the window's bottom edge, when there is one to clear. */
+body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-height-sm)); }
 .notification {
   pointer-events: auto;
   display: flex;

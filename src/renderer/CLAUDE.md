@@ -65,3 +65,19 @@ still-mounted row (search-in-DOM, accessibility tooling, this kind of test) is i
 `content-visibility: auto` on that row. Full virtualization (unmounting instead of hiding) was
 judged not worth the complexity at the sidebar sizes actually seen; do not reach for
 `content-visibility` here again without solving the `innerText` problem first.
+
+## The title bar (`features/titleBar/`)
+
+Windows and Linux get Apiary's own title bar and menu bar, in the theme's colours; the OS still
+draws minimise/maximise/close over its right end (Electron's `titleBarOverlay`), coloured from the
+theme on every theme change (`setTitleBarColors`). A Mac keeps its system menu bar and gets a
+themed strip beside the traffic lights (`titleBarStyle: 'hiddenInset'`). Which one a window has is
+decided by main and carried in its URL (`chrome=`, `WindowChrome`), because it decides the layout
+from the first paint. "Use the system title bar" (Settings → General) turns it all off.
+
+- **There is one menu.** `MenuBar` draws main's real application menu (`appMenu`) and runs items
+  through it (`appMenuInvoke`), so every command, label and shortcut lives in `main/app/menu.ts`.
+  The application menu is set before any window opens; a window asking earlier would draw nothing.
+- **Focus goes back before an item runs**, or Edit → Paste would paste into the menu.
+- **The page is the whole window** under a custom bar or hiddenInset: `window.innerHeight` equals the
+  window's height (an e2e assumption `sessionTabs.spec.ts` had to drop).

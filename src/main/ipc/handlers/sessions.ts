@@ -1,4 +1,4 @@
-import { clipboard } from 'electron'
+import { clipboard, type WebContents } from 'electron'
 import { CHANNELS } from '@shared/api'
 import { UNTITLED_SESSION } from '@shared/types'
 import type { AppService } from '../../appService'
@@ -13,13 +13,14 @@ export interface SessionsDeps {
   /** Shared with `handlers/terminals.ts`'s `renameTerminalInClaude`, so both go through the same
    *  Claude session tracker rather than each keeping their own. */
   renameDeps: () => RenameDeps
+  pickFolder?: (sender: WebContents) => Promise<string | null>
 }
 
 type HandledKeys =
   | 'refresh' | 'tree' | 'searchContent' | 'discovered' | 'importSessions' | 'transcript' | 'checkConflict'
   | 'resume' | 'renameSession' | 'removeSession' | 'moveSession' | 'setSessionNote' | 'sessionNote'
   | 'searchRebuild' | 'searchStatus' | 'saveImage' | 'readImage' | 'newSessionInProject' | 'forkSession'
-  | 'copyToClipboard'
+  | 'copyToClipboard' | 'newSessionInPickedFolder'
 
 /** The project tree, sessions and search — everything that is not a terminal, a git action or a
  *  tab move. */
@@ -36,6 +37,12 @@ export function sessionsHandlers(deps: SessionsDeps): Pick<Handlers, HandledKeys
       return service.refresh()
     },
     tree: () => service.tree(),
+    // The path comes from the OS dialog, never from the renderer — which is what makes
+    // `newSessionInFolder` (any folder, even one new to Apiary) safe to call with it.
+    newSessionInPickedFolder: async (e) => {
+      const folder = deps.pickFolder === undefined ? null : await deps.pickFolder(e.sender)
+      return folder === null ? null : service.newSessionInFolder(folder)
+    },
     searchContent: (_e, query) => service.searchSessions(query),
     discovered: async () =>
       (await service.discovered()).map((s) => ({

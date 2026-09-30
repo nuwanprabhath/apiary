@@ -124,6 +124,12 @@ test.afterEach(async () => {
   for (const d of labProjectDirs()) rmSync(d, { recursive: true, force: true })
 })
 
+/** "+" on the lab folder, a git repository: its menu's "New Claude session here". */
+async function newSessionInLab(): Promise<void> {
+  await labFolder().getByTestId('new-session-button').click()
+  await h.page.getByTestId('context-menu-new-session').click()
+}
+
 function labFolder(): Locator {
   const name = lab.split('/').pop() ?? ''
   return h.page.locator(`li[data-testid="project-group"]:has(> div > button[data-testid="project-toggle"] .project-label:text-is("${name}"))`)
@@ -132,7 +138,7 @@ function labFolder(): Locator {
 const activeRows = (): Locator => h.page.getByTestId('active-section').getByTestId('active-tab-row')
 
 test('a new session resolves to its real id once Claude writes it — no new:<uuid> left anywhere', async () => {
-  await labFolder().getByTestId('new-session-button').click()
+  await newSessionInLab()
   await ask('Reply with just the word: alpha')
 
   await expect(h.page.getByTestId('session-title')).not.toContainText('New session', { timeout: 30_000 })
@@ -140,7 +146,7 @@ test('a new session resolves to its real id once Claude writes it — no new:<uu
 })
 
 test('/clear moves the tab to the new session Claude starts', async () => {
-  await labFolder().getByTestId('new-session-button').click()
+  await newSessionInLab()
   await ask('Reply with just the word: before')
   await expect(h.page.getByTestId('session-title')).not.toContainText('New session', { timeout: 30_000 })
   const before = await h.page.getByTestId('session-title').innerText()
@@ -158,7 +164,7 @@ test('/clear moves the tab to the new session Claude starts', async () => {
 
 test('/resume inside a new session becomes the resumed session\'s tab — the reported new:<uuid> case', async () => {
   // The seed session is the one to resume into.
-  await labFolder().getByTestId('new-session-button').click()
+  await newSessionInLab()
   await say('/resume')
   await expect(terminal()).toContainText(/seed/i, { timeout: 30_000 })
   await h.page.keyboard.press('Enter')
@@ -169,7 +175,7 @@ test('/resume inside a new session becomes the resumed session\'s tab — the re
 })
 
 test('a fork from the tab menu resolves to its own session', async () => {
-  await labFolder().getByTestId('new-session-button').click()
+  await newSessionInLab()
   await ask('Reply with just the word: parent')
   await expect(h.page.getByTestId('session-title')).not.toContainText('New session', { timeout: 30_000 })
 
@@ -191,7 +197,7 @@ test('a fork from the tab menu resolves to its own session', async () => {
 
 
 test('a fork nobody has typed in is named in Active, and renaming it resolves the tab — the reported case', async () => {
-  await labFolder().getByTestId('new-session-button').click()
+  await newSessionInLab()
   await ask('Reply with just the word: parent')
   await expect(h.page.getByTestId('session-title')).not.toContainText('New session', { timeout: 30_000 })
 
@@ -222,7 +228,7 @@ test('a fork nobody has typed in is named in Active, and renaming it resolves th
 })
 
 test('renaming in Apiary renames the session in Claude too — what VS Code and /resume read', async () => {
-  await labFolder().getByTestId('new-session-button').click()
+  await newSessionInLab()
   await ask('Reply with just the word: named')
   await expect(h.page.getByTestId('session-title')).not.toContainText('New session', { timeout: 30_000 })
 
@@ -245,7 +251,7 @@ test('renaming in Apiary renames the session in Claude too — what VS Code and 
 })
 
 test('a session made with /fork in the terminal appears in the sidebar', async () => {
-  await labFolder().getByTestId('new-session-button').click()
+  await newSessionInLab()
   await ask('Reply with just the word: forkme')
   await expect(h.page.getByTestId('session-title')).not.toContainText('New session', { timeout: 30_000 })
   const rows = labFolder().getByTestId('session-item')

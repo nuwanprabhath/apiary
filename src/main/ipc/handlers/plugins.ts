@@ -7,6 +7,7 @@ export interface PluginsDeps {
 }
 
 type HandledKeys = 'pluginBarItems' | 'pluginBarRefresh' | 'pluginRunAction' | 'pluginList'
+  | 'statusBarItems' | 'statusBarRefresh' | 'statusBarPanel'
 
 export function pluginsHandlers(deps: PluginsDeps): Pick<Handlers, HandledKeys> {
   const { service } = deps
@@ -15,6 +16,9 @@ export function pluginsHandlers(deps: PluginsDeps): Pick<Handlers, HandledKeys> 
     pluginBarItems: (_e, key, isPtyId) => service.pluginBarItems(key, isPtyId),
     pluginBarRefresh: (_e, key, isPtyId) => service.refreshPluginBar(key, isPtyId),
     pluginList: () => service.listPlugins(),
+    statusBarItems: () => service.statusBar.items(),
+    statusBarRefresh: (_e, pluginId) => service.statusBar.refresh(pluginId),
+    statusBarPanel: (_e, pluginId, itemId) => service.statusBar.panel(pluginId, itemId),
     pluginRunAction: async (_e, item) => {
       if (item.action.kind !== 'open-url') return
       /*

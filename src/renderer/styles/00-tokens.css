@@ -73,6 +73,11 @@
   --mr-merged: #b385f5;
   --mr-closed: var(--danger);
   --mr-locked: var(--muted);
+  /* Chart series (the status bar's usage dashboard): from the palette, so a theme recolours them. */
+  --series-1: var(--info);
+  --series-2: var(--mr-merged);
+  --series-3: var(--warning);
+  --series-4: var(--success);
 
   /* Lift for anything that floats over the rest of the app (notifications, popovers). */
   --shadow-overlay: 0 8px 28px rgb(0 0 0 / 45%);
@@ -135,6 +140,9 @@
   /* Density scales the controls as one: a theme's compact/normal/roomy is this single number. */
   --density: 1;
   --control-height: calc(26px * var(--density));
+  /* The themed title bar (TitleBar.tsx). The OS window controls drawn over it are this tall too
+   * (main's TITLE_BAR_HEIGHT) — change both together. */
+  --title-bar-height: 32px;
   --control-height-sm: calc(22px * var(--density));
   /* The strip a hidden sidebar leaves behind: one icon button and its breathing room. */
   --sidebar-rail-width: 40px;

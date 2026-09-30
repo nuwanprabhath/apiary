@@ -79,9 +79,11 @@ export function buildMenu(
           click: onToggleSidebar,
         },
         {
-          // The way back from any theme. It lives in the application menu, which is drawn by the
-          // OS and cannot be restyled or hidden by a theme, and its shortcut works however
-          // unreadable a theme has made the window.
+          // The way back from any theme. Its shortcut works however unreadable a theme has made the
+          // window: it is an application-menu accelerator, handled by Electron before the page.
+          // On Windows and Linux that menu is drawn by Apiary in the theme (TitleBar.tsx), but its
+          // colours pass the same readability check as everything else, and "Use the system title
+          // bar" and `--safe-theme` both still bring back an OS-drawn way out.
           id: 'reset-theme',
           label: 'Reset Theme',
           accelerator: 'CmdOrCtrl+Alt+Shift+T',

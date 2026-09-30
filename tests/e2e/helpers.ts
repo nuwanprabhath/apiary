@@ -254,6 +254,10 @@ export async function launchApiary(
      * and made executable by the caller), for a spec that wants its own stand-in from the start.
      */
     claudeBin?: string | null
+    /** What the native folder picker answers (`APIARY_PICK_FOLDER`) — the dialog itself cannot be driven. */
+    pickFolder?: string
+    /** Which title bar windows get (`APIARY_WINDOW_CHROME`): drives the custom one on any OS. */
+    windowChrome?: 'custom' | 'mac' | 'system'
   } = {},
 ): Promise<Harness> {
   // realpath the root up front: on macOS os.tmpdir() is under /var, a symlink to /private/var,
@@ -390,6 +394,8 @@ export async function launchApiary(
     // falling back to real detection, so a spec that never mentions VS Code never sees the
     // button and can never spawn a real editor by accident.
     APIARY_CODE_PATH: opts.codePath ?? '',
+    ...(opts.pickFolder !== undefined ? { APIARY_PICK_FOLDER: opts.pickFolder } : {}),
+    ...(opts.windowChrome !== undefined ? { APIARY_WINDOW_CHROME: opts.windowChrome } : {}),
     APIARY_FAKE_CODE_LOG: vsCodeLog,
   })
   const app = await electron.launch({

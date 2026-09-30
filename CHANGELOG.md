@@ -4,6 +4,52 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.27.0] - 2026-09-30
+
+### Added
+
+- Ctrl+Z in a Claude Code terminal now asks before suspending Claude ("Don't suspend" is the
+  default, so an Enter out of habit keeps it running), and says that Claude's own undo is Ctrl+_.
+  Shell terminals are unchanged: Ctrl+Z goes straight to the shell.
+- A suspended Claude Code gets a Resume bar (or press Enter) that brings it back with the draft in
+  its prompt intact. Typing `fg`, as Claude suggests, could not work: it runs with no shell in front
+  of it. Keys typed while it is suspended are no longer passed on, so they cannot end up in the
+  prompt, and Ctrl+C cannot kill it by accident.
+- "+" on a git folder (a repository or one of its worktrees) now offers two things: a new Claude
+  session there, as before, or **New worktree…**. That asks for a folder name (created as
+  `<repo>.worktrees/<name>`, the same layout as the simple-worktrees VS Code extension), then the
+  branch to check out: an existing local branch (one already checked out elsewhere is shown but not
+  offered), a remote branch (tracked by a new local branch, or reusing the local one of that name),
+  or a new branch from a base of your choice. Claude then starts in the new worktree. "+" on a
+  folder that is not a git repository still starts a session straight away.
+- A group you made in the sidebar has a "+" of its own: it opens a folder picker, starts a Claude
+  session in the folder you choose — any folder, including one Apiary has never seen — and files
+  that folder under the group. Before, a session could only be started in a folder that already
+  had one, or in a worktree.
+- A status bar along the bottom of the window, and the first thing on it: **Claude usage**,
+  the claude-usage-stats VS Code extension brought into Apiary. It shows the 5-hour and 7-day limits
+  (`5h 10% (2:20 pm) · 7d 2%`), turns amber and then red at the warning and danger levels, marks a
+  value as stale when a refresh fails, and has a refresh button. Hover for today's, this week's and
+  this month's tokens and estimated cost beside the limits; click for a dashboard with limit gauges,
+  the last 7 days as a stacked chart, a per-model table and the monthly trend. Its refresh interval
+  and warning levels are in Settings → Plugins. The bar takes plugins, so more can be added the way
+  session-bar plugins are.
+- The title bar and menu bar follow the theme, as VS Code's do. On Linux and Windows, Apiary draws
+  its own title bar with File / Edit / View / Window / Help in the theme's colours, and the system
+  still draws minimise, maximise and close over it in matching colours; the title names the session
+  in front. On macOS the menus stay in the system menu bar and the strip beside the traffic lights
+  follows the theme. The menus are the same menus, with the same shortcuts. Settings → General →
+  "Use the system title bar" goes back to the operating system's own, for a window manager that does
+  not get on with a custom one.
+
+### Fixed
+
+- Switching branch no longer fails with "fatal: only one reference expected, 2 given" on git older
+  than 2.44 (Ubuntu 24.04 ships 2.43). 1.26.0 passed `--end-of-options` to `git checkout`, which
+  those versions count as a second ref, so every switch failed before git could say the branch was
+  checked out in another worktree. Refs that look like options are now refused by Apiary itself,
+  and a branch held by another worktree gets its proper message again.
+
 ## [1.26.1] - 2026-09-28
 
 ### Fixed

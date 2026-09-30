@@ -6,6 +6,8 @@ import '@xterm/xterm/css/xterm.css'
 import { ContextMenu, type ContextMenuItem } from '../../ui/ContextMenu'
 import { pasteText } from './terminalPaste'
 import { ptyBus } from '../../state/ptyBus'
+import { isClaudeSuspended, isSuspendChord } from '@shared/claudeSuspend'
+import { SuspendConfirmDialog } from './SuspendConfirmDialog'
 
 interface Props {
   ptyId: string
@@ -18,6 +20,12 @@ interface Props {
   visible?: boolean
   /** F2 on this terminal: rename it. Absent where a terminal has no name to change. */
   onRenameKey?: () => void
+  /**
+   * This terminal runs Claude Code (a session's own terminal, not a shell). Ctrl+Z then asks
+   * before suspending, and a suspended Claude gets a Resume bar — see SuspendConfirmDialog and
+   * `PtyManager.resume` for why this terminal cannot use `fg`.
+   */
+  claude?: boolean
 }
 
 /**
@@ -64,7 +72,7 @@ function fontFromTokens(): string {
   return value !== '' ? value : 'ui-monospace, "SF Mono", Menlo, Consolas, monospace'
 }
 
-function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey }: Props): JSX.Element {
+function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude = false }: Props): JSX.Element {
   const host = useRef<HTMLDivElement | null>(null)
   // Read through a ref by the key handler, which is installed once per pty: a callback captured
   // at mount would rename whichever terminal list was current when the terminal was created.
@@ -77,6 +85,22 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey }: Props)
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(
     null,
   )
+  // Read by the key and input handlers, which are installed once per pty.
+  const claudeRef = useRef(claude)
+  claudeRef.current = claude
+  const [confirmingSuspend, setConfirmingSuspend] = useState(false)
+  const [suspended, setSuspended] = useState(false)
+  const suspendedRef = useRef(false)
+
+  const resume = (): void => {
+    suspendedRef.current = false
+    setSuspended(false)
+    window.apiary.ptyResume(ptyId)
+    termRef.current?.focus()
+  }
+  // Called from handlers installed once per pty; always the current closure.
+  const resumeRef = useRef(resume)
+  resumeRef.current = resume
 
   useEffect(() => {
     if (host.current === null) return
@@ -167,7 +191,37 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey }: Props)
       // Keep the terminal on screen so the exit status is readable.
       term.write(`\r\n[process exited with code ${String(code)}]\r\n`)
     })
-    const disposeInput = term.onData((data) => window.apiary.ptyWrite(ptyId, data))
+    const disposeInput = term.onData((data) => {
+      // A suspended Claude reads nothing until it is continued, and whatever reaches the pty
+      // meanwhile is typed into its prompt afterwards — `fg`, most likely, since that is what it
+      // tells you to type. Ctrl+C would kill it outright. So nothing is passed on; Enter resumes.
+      if (claudeRef.current && suspendedRef.current) {
+        if (data === '\r') resumeRef.current()
+        return
+      }
+      window.apiary.ptyWrite(ptyId, data)
+    })
+
+    // Watch for Claude Code's own "has been suspended" screen, whoever caused it — the Suspend
+    // button below, or a Ctrl+Z that reached it some other way. Checked once per frame at most.
+    let suspendCheck: number | null = null
+    const disposeParsed = term.onWriteParsed(() => {
+      if (!claudeRef.current || suspendCheck !== null) return
+      suspendCheck = requestAnimationFrame(() => {
+        suspendCheck = null
+        if (disposed) return
+        const buffer = term.buffer.active
+        const lines: string[] = []
+        for (let i = 0; i < term.rows; i++) {
+          lines.push(buffer.getLine(buffer.baseY + i)?.translateToString(true) ?? '')
+        }
+        const now = isClaudeSuspended(lines)
+        if (now !== suspendedRef.current) {
+          suspendedRef.current = now
+          setSuspended(now)
+        }
+      })
+    })
 
     /**
      * Copy/paste, via xterm's own hook rather than a DOM listener.
@@ -192,6 +246,13 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey }: Props)
         && onRenameKeyRef.current !== undefined
       ) {
         onRenameKeyRef.current()
+        return false
+      }
+      // Ctrl+Z is "undo" everywhere else people type, and Claude Code takes it as "suspend".
+      // Asked first, with "don't" as the default; see SuspendConfirmDialog.
+      if (claudeRef.current && !suspendedRef.current && isSuspendChord(e)) {
+        e.preventDefault()
+        setConfirmingSuspend(true)
         return false
       }
       if (!e.ctrlKey && !e.metaKey) return true
@@ -284,6 +345,8 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey }: Props)
       offData()
       offExit()
       disposeInput.dispose()
+      disposeParsed.dispose()
+      if (suspendCheck !== null) cancelAnimationFrame(suspendCheck)
       termRef.current = null
       term.dispose()
       // The PTY deliberately keeps running so the session survives a tab switch.
@@ -371,6 +434,25 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey }: Props)
         ref={host}
         onContextMenu={handleContextMenu}
       />
+      {suspended && (
+        <div className="terminal-suspended-bar" data-testid="terminal-suspended" role="status">
+          <span>Claude Code is suspended. Your draft is kept.</span>
+          <button className="btn small primary" data-testid="terminal-resume" onClick={resume}>
+            Resume
+          </button>
+          <span className="terminal-suspended-hint">or press Enter</span>
+        </div>
+      )}
+      {confirmingSuspend && (
+        <SuspendConfirmDialog
+          onKeepRunning={() => { setConfirmingSuspend(false) }}
+          onSuspend={() => {
+            setConfirmingSuspend(false)
+            window.apiary.ptyWrite(ptyId, '\x1a')
+            termRef.current?.focus()
+          }}
+        />
+      )}
       <ContextMenu
         testId="terminal-menu"
         items={contextMenuItems}
@@ -396,6 +478,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey }: Props)
 export function terminalViewPropsEqual(prev: Props, next: Props): boolean {
   return prev.ptyId === next.ptyId && prev.testId === next.testId
     && (prev.visible ?? true) === (next.visible ?? true)
+    && (prev.claude ?? false) === (next.claude ?? false)
 }
 
 export const TerminalView = memo(TerminalViewImpl, terminalViewPropsEqual)

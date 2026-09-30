@@ -20,6 +20,25 @@ function collect(m: PtyManager, id: string, until: RegExp, timeoutMs = 10000): P
 }
 
 describe('PtyManager', () => {
+  it('continues a program that stopped itself, the way Claude Code waits after Ctrl+Z', async () => {
+    // Claude runs as `exec claude` with no shell in front of it, so nothing can `fg` it; resume()
+    // is what the terminal's Resume bar sends instead.
+    const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
+    try {
+      manager = new PtyManager()
+      const m = manager
+      const stopped = collect(m, 'stop', /STOPPING/)
+      m.spawn({ id: 'stop', cwd: dir, command: 'echo STOPPING; kill -STOP $$; echo APIARY_BACK' })
+      await stopped
+      const back = collect(m, 'stop', /APIARY_BACK/)
+      await new Promise((r) => { setTimeout(r, 300) })
+      m.resume('stop')
+      expect(await back).toMatch(/APIARY_BACK/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('spawns a process in the requested cwd and streams its output', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
     try {

@@ -12,7 +12,8 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
  */
 export type LogScope =
   | 'app' | 'git' | 'ipc' | 'mr-status' | 'navigation' | 'process' | 'prompt' | 'pty' | 'refresh'
-  | 'rename' | 'resume' | 'search' | 'session-tracker' | 'settings' | 'shell' | 'tabs' | 'theme'
+  | 'rename' | 'resume' | 'search' | 'session-tracker' | 'settings' | 'shell' | 'status-bar' | 'tabs' | 'theme'
+  | 'usage'
   | 'update' | 'vscode' | 'window'
 
 /** Where the diagnostic logs are and how much room they take, for the Diagnostics section. */

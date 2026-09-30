@@ -56,3 +56,70 @@
   background: var(--border);
 }
 .update-progress-fill { height: 100%; background: var(--accent); transition: width 120ms linear; }
+
+/*
+ * The themed title bar (TitleBar.tsx): the window's own, drawn in the theme instead of by the OS.
+ * The whole strip drags the window; the menu buttons opt out. On Windows and Linux the OS still
+ * draws minimise/maximise/close over its right end (Electron's titleBarOverlay), and Chromium
+ * reports where that leaves room for us through the `titlebar-area-*` environment variables; on a
+ * Mac the traffic lights sit at its left, 78px in.
+ */
+.title-bar {
+  display: flex;
+  align-items: stretch;
+  flex: none;
+  position: relative;
+  height: var(--title-bar-height);
+  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+  background: var(--bg-window);
+  color: var(--text);
+  font-size: 12px;
+  user-select: none;
+  /* stylelint-disable-next-line property-no-unknown -- Electron's drag region; no standard name */
+  -webkit-app-region: drag;
+}
+.title-bar[data-chrome="mac"] { padding-left: 78px; }
+.title-bar-title {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  max-width: 40%;
+  transform: translateX(-50%);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.menu-bar {
+  display: flex;
+  align-items: stretch;
+  padding-left: 4px;
+  /* stylelint-disable-next-line property-no-unknown -- Electron's drag region; no standard name */
+  -webkit-app-region: no-drag;
+}
+.menu-bar-item {
+  display: flex;
+  align-items: center;
+  margin: 4px 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: default;
+}
+.menu-bar-item:hover, .menu-bar-item[data-open="true"] { background: var(--hover); }
+.menu-bar-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* A menu bar dropdown: the shared context-menu look, with a column for shortcuts. */
+.menu-dropdown { list-style: none; margin: 0; min-width: 240px; font-size: 12px; }
+.menu-dropdown-item { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 6px; }
+.menu-dropdown-check svg { width: 12px; height: 12px; display: block; }
+.menu-dropdown-accel { padding-left: 24px; color: var(--muted); }
+.menu-dropdown [role="separator"] { height: 1px; margin: 4px 6px; background: var(--border); }

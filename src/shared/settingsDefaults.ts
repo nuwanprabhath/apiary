@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS_PAYLOAD: AppSettingsPayload = {
   autoImportAll: false,
   autoImportIntervalMinutes: null,
   revealActiveInSidebar: true,
+  systemTitleBar: false,
   searchChatContent: true,
   searchSessionNotes: true,
   recentSectionEnabled: true,

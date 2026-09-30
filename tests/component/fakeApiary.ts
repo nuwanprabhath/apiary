@@ -11,6 +11,7 @@
  * process would have done with it. What only the real app can prove (processes, persistence
  * across a relaunch, several windows) stays in tests/e2e.
  */
+import type { StatusBarItem, StatusBarPanel } from '../../src/shared/domain/statusBar'
 import type {
   ActiveTabPayload, ApiaryApi, AppSettingsPayload, DiscoveredSession, LogStatusPayload,
   PluginBarItemPayload, PluginInfoPayload, SavedTheme, ThemeOptions, ThemeState, UpdateStatusPayload,
@@ -58,6 +59,10 @@ export interface FakeOptions {
   vsCode?: boolean
   /** What `listWorktrees` answers, by folder path. A folder with no entry has no other worktrees. */
   worktrees?: Record<string, FolderWorktree[]>
+  /** The status bar's items. Default: none (the real Claude usage plugin reads a network). */
+  statusBar?: StatusBarItem[]
+  /** The dashboard `statusBarPanel` answers for any item. */
+  statusBarPanel?: StatusBarPanel | null
 }
 
 export interface FakeCall { name: string; args: unknown[] }
@@ -79,7 +84,7 @@ export type FakeEvent =
   | 'activeTabsChanged' | 'selectTab' | 'themeChanged' | 'tabAdopt' | 'tabClaimed'
   | 'requestLayoutFlush' | 'newSessionStarted' | 'ptySessionsChanged' | 'mrStatusesInvalidated'
   | 'ptyData' | 'ptyExit' | 'treeChanged' | 'openImportDialog' | 'openSettingsDialog'
-  | 'toggleSidebar' | 'pluginsChanged' | 'updateChanged'
+  | 'toggleSidebar' | 'pluginsChanged' | 'updateChanged' | 'statusBarChanged'
 
 export interface FakeState {
   projects: FakeProject[]
@@ -95,6 +100,8 @@ export interface FakeState {
   log: LogStatusPayload
   vsCode: boolean
   worktrees: Record<string, FolderWorktree[]>
+  statusBar: StatusBarItem[]
+  statusBarPanel: StatusBarPanel | null
 }
 
 const DAY = 24 * 60 * 60 * 1000
@@ -178,6 +185,8 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     log: { enabled: false, dir: '/fixture/logs', files: 0, bytes: 0 },
     vsCode: opts.vsCode ?? false,
     worktrees: opts.worktrees ?? {},
+    statusBar: opts.statusBar ?? [],
+    statusBarPanel: opts.statusBarPanel ?? null,
   }
 
   const calls: FakeCall[] = []
@@ -299,6 +308,8 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     openShell: async () => {},
     openShellForPty: async () => {},
     newSessionInProject: async (path) => newSession(path),
+    // Main answers with the folder the native picker returned; the fake "picks" /fixture/picked.
+    newSessionInPickedFolder: async () => newSession('/fixture/picked'),
     forkSession: async (id) => ({ ...newSession(find(id)?.projectPath ?? '/fixture'), label: `fork: ${find(id)?.title ?? id}` }),
     logStatus: async () => state.log,
     logReveal: async () => state.log.dir,
@@ -314,6 +325,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     ptyWrite: () => {},
     ptyResize: () => {},
     ptyKill: () => {},
+    ptyResume: () => {},
     ptySnapshot: async () => null,
     ptySessions: async () => ({}),
     onPtySessionsChanged: on('ptySessionsChanged'),
@@ -353,6 +365,36 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     gitUpdateBranch: async () => ({ commits: 0 }),
     gitPullFolder: async () => { emit('treeChanged'); return { commits: 0 } },
     listWorktrees: async (path) => state.worktrees[path] ?? [],
+    statusBarItems: async () => state.statusBar,
+    statusBarRefresh: async () => {},
+    statusBarPanel: async () => state.statusBarPanel,
+    onStatusBarChanged: on('statusBarChanged'),
+    // A small stand-in for main's application menu, in the shape serializeMenu produces.
+    appMenu: async () => [
+      { label: 'File', kind: 'submenu', enabled: true, submenu: [
+        { label: 'New Window', kind: 'normal', enabled: true, accelerator: 'Ctrl+N' },
+        { label: '', kind: 'separator', enabled: true },
+        { label: 'Settings...', kind: 'normal', enabled: true, accelerator: 'Ctrl+,' },
+      ] },
+      { label: 'View', kind: 'submenu', enabled: true, submenu: [
+        { label: 'Toggle Sidebar', kind: 'normal', enabled: true, accelerator: 'Ctrl+Shift+B' },
+        { label: 'Appearance', kind: 'submenu', enabled: true, submenu: [
+          { label: 'Full Screen', kind: 'checkbox', enabled: true, checked: false, accelerator: 'F11' },
+        ] },
+      ] },
+    ],
+    appMenuInvoke: async () => {},
+    setTitleBarColors: () => {},
+    // Mirrors main: branches come from the fixture's refs, the new folder goes in
+    // `<folder>.worktrees/`, and a Claude session is started in it.
+    worktreeCreateOptions: async (path) => ({
+      parentDir: `${path}.worktrees`,
+      existingNames: [],
+      local: state.refs.local.map((r) => r.name),
+      remote: state.refs.remote.map((r) => r.name),
+      checkedOut: state.refs.current !== null ? [state.refs.current] : [],
+    }),
+    worktreeCreate: async (path, request) => newSession(`${path}.worktrees/${request.name.trim()}`),
     gitPush: async () => ({ commits: 0, published: false }),
     gitMerge: async () => { emit('treeChanged') },
     gitFetch: async () => { emit('treeChanged') },

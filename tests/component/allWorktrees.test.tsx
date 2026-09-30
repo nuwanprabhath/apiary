@@ -40,7 +40,9 @@ describe('show all worktrees', () => {
     // The worktree that already had sessions is still listed once, not twice.
     expect([...document.querySelectorAll('.project-label')].filter((el) => el.textContent === 'repo-c-wt')).toHaveLength(1)
 
+    // A worktree is a git folder, so its "+" asks: a session here, or another worktree.
     await userEvent.click(quiet.querySelector<HTMLElement>('[data-testid="new-session-button"]')!)
+    await userEvent.click(page.getByTestId('context-menu-new-session'))
     await until(() => fake.callsTo('newSessionInProject').length === 1)
     expect(fake.callsTo('newSessionInProject')[0]).toEqual(['/fixture/repo-quiet'])
 

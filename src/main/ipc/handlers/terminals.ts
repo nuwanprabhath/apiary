@@ -13,7 +13,7 @@ export interface TerminalsDeps {
 }
 
 type HandledKeys = 'openShell' | 'openShellForPty' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
-type ListenedKeys = 'ptyWrite' | 'ptyResize' | 'ptyKill' | 'renameTerminalInClaude'
+type ListenedKeys = 'ptyWrite' | 'ptyResize' | 'ptyKill' | 'ptyResume' | 'renameTerminalInClaude'
 
 /**
  * Terminals and ptys, plus the Claude session tracker (which session tab a Claude terminal is on
@@ -68,6 +68,7 @@ export function terminalsHandlers(deps: TerminalsDeps): {
       ptyWrite: (_e, id, data) => service.pty.write(id, data),
       ptyResize: (_e, id, cols, rows) => service.pty.resize(id, cols, rows),
       ptyKill: (_e, id) => service.pty.kill(id),
+      ptyResume: (_e, id) => { service.pty.resume(id) },
       renameTerminalInClaude: (_e, ptyId, title) => {
         log.info('rename', 'terminal renamed before it had a session', { ptyId })
         void renameTerminalInClaude(renameDeps(), ptyId, title).catch(() => { /* best effort */ })

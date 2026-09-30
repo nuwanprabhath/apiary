@@ -168,6 +168,7 @@ async function start(): Promise<void> {
     dirname,
     rendererUrl: env.rendererUrl,
     isQuitting,
+    ...(env.windowChrome !== undefined ? { chromeOverride: env.windowChrome } : {}),
   })
   const settings = settingsService.get()
   // Before anything else that might be worth recording. Off unless the user switched it on.
@@ -206,6 +207,8 @@ async function start(): Promise<void> {
     glabPath: env.glabPath === '' ? undefined : env.glabPath,
     vsCodePath,
     onPluginsChanged: () => { broadcast(CHANNELS.pluginsChanged) },
+    onStatusBarChanged: () => { broadcast(CHANNELS.statusBarChanged) },
+    statusBarKeychain: process.platform === 'darwin' && env.configRoot === undefined,
     onIndexUpdated: () => { broadcast(CHANNELS.treeChanged) },
     detectLive: fakeLive !== undefined && fakeLive !== ''
       ? async () => new Map([[fakeLive, 4242]])
@@ -217,6 +220,13 @@ async function start(): Promise<void> {
   themeGenerator = new ThemeGenerator({ claudeBin: () => service?.claudeBin ?? null })
   const ipc = registerIpc({
     service, configRoot, settings: settingsService,
+    pickFolder: async (sender) => {
+      if (env.pickFolder !== undefined) return env.pickFolder
+      const win = BrowserWindow.fromWebContents(sender)
+      const options = { properties: ['openDirectory' as const], title: 'Start a Claude session in…' }
+      const result = win !== null ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+      return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+    },
     onAutoImportIntervalChange: setAutoImportInterval,
     updater,
     sessionLayoutStore, layoutFlushCoordinator,
@@ -245,22 +255,8 @@ async function start(): Promise<void> {
     await service.importAllDiscovered()
   }
   setAutoImportInterval(settings.autoImportIntervalMinutes)
-  const stored = loadSessionLayout(sessionLayoutFile)
-  const records = stored.windows
-    .map((r) => pruneStaleLive(r, (id) => service!.sessionIsResumable(id)))
-    .filter((r) => r.layout.panes.some((p) => p.tabs.length > 0))
-  if (records.length === 0) {
-    windowManager.create()
-  } else {
-    // Advanced to the highest recorded window number before restore begins, so a freshly opened
-    // window after restore does not collide with a recorded number.
-    windowManager.advanceOpenedTo(Math.max(0, ...records.map((r) => r.number)))
-    for (const record of records) {
-      windowManager.create({ restore: record }) // never combined with { detach } — restored
-      // windows are only ever opened here, never through the drag/tear-off or registerIpc code
-      // paths.
-    }
-  }
+  // Before any window: a window with the themed title bar asks for this menu as it first renders
+  // (see TitleBar.tsx), and on Linux a menu attached after a window exists can re-show its GTK bar.
   Menu.setApplicationMenu(
     buildMenu(
       () => windowManager?.front()?.webContents.send(CHANNELS.openImportDialog),
@@ -283,8 +279,25 @@ async function start(): Promise<void> {
       () => { resetTheme('menu') },
     ),
   )
+  const stored = loadSessionLayout(sessionLayoutFile)
+  const records = stored.windows
+    .map((r) => pruneStaleLive(r, (id) => service!.sessionIsResumable(id)))
+    .filter((r) => r.layout.panes.some((p) => p.tabs.length > 0))
+  if (records.length === 0) {
+    windowManager.create()
+  } else {
+    // Advanced to the highest recorded window number before restore begins, so a freshly opened
+    // window after restore does not collide with a recorded number.
+    windowManager.advanceOpenedTo(Math.max(0, ...records.map((r) => r.number)))
+    for (const record of records) {
+      windowManager.create({ restore: record }) // never combined with { detach } — restored
+      // windows are only ever opened here, never through the drag/tear-off or registerIpc code
+      // paths.
+    }
+  }
   // Started after the window exists, so the first status push has somewhere to land.
   updater?.start()
+  service.startStatusBar()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) windowManager!.create()
   })

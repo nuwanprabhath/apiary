@@ -1,4 +1,5 @@
 import { type JSX, useState } from 'react'
+import { ContextMenu } from '../../ui/ContextMenu'
 import type { ProjectNode, SessionNode } from '@shared/types'
 import { SessionRow } from './SessionRow'
 import { HoverCard } from '../../ui/HoverCard'
@@ -25,6 +26,8 @@ interface Props {
   onSelect: (session: SessionNode) => void
   /** Starts a brand-new Claude Code session in this project's folder. */
   onNewSession: (path: string) => void
+  /** Opens the New worktree dialog for a git folder. Absent: "+" only starts a session. */
+  onNewWorktree?: (path: string, label: string) => void
   /** Asks to remove a session from view (confirmation, if any, is the caller's concern). */
   onDeleteSession: (session: SessionNode) => void
   /** Opens the session in a column of its own beside the current one. */
@@ -69,7 +72,7 @@ interface Props {
 }
 
 export function SessionTree({
-  nodes, depth = 0, collapsed, onToggle, selectedId, onSelect, onNewSession, onDeleteSession,
+  nodes, depth = 0, collapsed, onToggle, selectedId, onSelect, onNewSession, onNewWorktree, onDeleteSession,
   onSplitSession, pinned, onTogglePin, onEditNote, onReorderFolder, onFolderMenu,
   onSessionMenu, orderFolders, onCollapseBeneath, onSessionDrop, level = 1, rovingTabIndex,
 }: Props): JSX.Element {
@@ -97,6 +100,7 @@ export function SessionTree({
               rearrangeable={rearrangeable}
               onToggle={onToggle}
               onNewSession={onNewSession}
+              onNewWorktree={onNewWorktree}
               onReorderFolder={onReorderFolder}
               onFolderMenu={onFolderMenu}
               onCollapseBeneath={
@@ -137,6 +141,7 @@ export function SessionTree({
                     selectedId={selectedId}
                     onSelect={onSelect}
                     onNewSession={onNewSession}
+              onNewWorktree={onNewWorktree}
                     onDeleteSession={onDeleteSession}
                     onSplitSession={onSplitSession}
                     pinned={pinned}
@@ -168,6 +173,7 @@ interface FolderHeaderProps {
   rearrangeable: boolean
   onToggle: (path: string) => void
   onNewSession: (path: string) => void
+  onNewWorktree?: (path: string, label: string) => void
   onReorderFolder?: (path: string, beforePath: string) => void
   onFolderMenu?: (path: string, x: number, y: number) => void
   /** Present only on a folder that has folders beneath it. */
@@ -186,9 +192,14 @@ interface FolderHeaderProps {
  * nothing but the label on screen, meant going and finding it.
  */
 function FolderHeader({
-  node, depth, level, isOpen, rearrangeable, onToggle, onNewSession, onReorderFolder, onFolderMenu,
+  node, depth, level, isOpen, rearrangeable, onToggle, onNewSession, onNewWorktree, onReorderFolder, onFolderMenu,
   onCollapseBeneath, onSessionDrop, tabIndex,
 }: FolderHeaderProps): JSX.Element {
+  // "+" on a git folder is a choice — a session here, or a new worktree of this repository (the
+  // simple-worktrees extension's "+"). Anywhere else it only ever meant one thing, and still
+  // starts the session straight away.
+  const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
+  const isGit = node.branch !== null || node.isWorktree || node.children.some((c) => c.isWorktree)
   const card = useHoverCard<HTMLDivElement>()
   const { notify, notifyError } = useNotifications()
   // Highlights the row while a session is dragged over it — a folder drag has its own dropEffect
@@ -319,15 +330,31 @@ function FolderHeader({
         data-testid="new-session-button"
         title={`New Claude Code session in ${node.label}`}
         aria-label={`New Claude Code session in ${node.label}`}
+        aria-haspopup={isGit && onNewWorktree !== undefined ? 'menu' : undefined}
         onClick={(e) => {
           e.stopPropagation()
-          onNewSession(node.path)
+          if (!isGit || onNewWorktree === undefined) {
+            onNewSession(node.path)
+            return
+          }
+          const r = e.currentTarget.getBoundingClientRect()
+          setPlusMenu({ x: r.left, y: r.bottom + 2 })
         }}
       >
         <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
         </svg>
       </button>
+      {/* Mounted only while open: one per folder row otherwise, each with its own hooks. */}
+      {plusMenu !== null && <ContextMenu
+        testId="new-in-folder-menu"
+        position={plusMenu}
+        onClose={() => { setPlusMenu(null) }}
+        items={[
+          { id: 'new-session', label: 'New Claude session here', run: () => { onNewSession(node.path) } },
+          { id: 'new-worktree', label: 'New worktree…', run: () => { onNewWorktree?.(node.path, node.label) } },
+        ]}
+     />}
     </div>
   )
 }

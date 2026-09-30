@@ -12,6 +12,8 @@ or a stand-in binary, and none of them must be usable to redirect a real install
 | `APIARY_FAKE_LIVE` | test harness | reports a session id as "live" with no real Claude process |
 | `APIARY_CODE_PATH` | test harness | substitutes a fake `code` binary (empty = "not found") |
 | `APIARY_GLAB_PATH` | test harness | points the GitLab plugin's `glab` calls at a stand-in binary |
+| `APIARY_PICK_FOLDER` | test harness | answers the native folder picker (a group's "+") with this path instead of opening the dialog |
+| `APIARY_WINDOW_CHROME` | test harness | forces a window's title bar: `custom` (Windows/Linux themed bar and menus), `mac` or `system` |
 | `APIARY_DEFAULT_THEME=original` | test harness | starts a fresh profile on the pre-Liquid-Glass theme |
 | `APIARY_FAKE_UPDATE`, `APIARY_FAKE_UPDATE_MODE` | test harness | drives the update banner with no network |
 | `APIARY_HEADLESS` | test harness | keeps every window off-screen |

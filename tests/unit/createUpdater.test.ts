@@ -31,6 +31,8 @@ const { createFakeUpdateBackend } = await import('../../src/main/update/fakeBack
 function baseEnv(): Parameters<typeof createUpdater>[1] {
   return {
     configRoot: undefined,
+    pickFolder: undefined,
+    windowChrome: undefined,
     dbPath: undefined,
     fakeLive: undefined,
     codePathOverride: undefined,

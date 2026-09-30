@@ -567,6 +567,7 @@ export function SessionColumn(props: Props): JSX.Element {
                     ptyId={keyFor(tab.key)}
                     testId={visible ? 'terminal-session' : `terminal-session-${tab.key}`}
                     visible={visible}
+                    claude
                   />
                 </div>
               )

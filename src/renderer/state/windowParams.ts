@@ -1,3 +1,4 @@
+import { isWindowChrome, type WindowChrome } from '@shared/domain/windowChrome'
 import { isTabTransfer, isWindowLayoutReport, type TabTransfer, type WindowLayoutReport } from '@shared/types'
 
 /**
@@ -66,5 +67,19 @@ export function restoredWindow(): WindowLayoutReport | null {
     return isWindowLayoutReport(parsed) ? parsed : null
   } catch {
     return null
+  }
+}
+
+/**
+ * How this window's title bar is drawn (see `WindowChrome`). Read from the URL, like the window
+ * number, because it decides the layout from the first paint. A window opened without it — a
+ * test harness mounting the renderer directly — draws none of its own.
+ */
+export function windowChrome(): WindowChrome {
+  try {
+    const value = new URLSearchParams(window.location.search).get('chrome')
+    return isWindowChrome(value) ? value : 'system'
+  } catch {
+    return 'system'
   }
 }

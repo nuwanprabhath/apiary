@@ -19,6 +19,12 @@ export interface AppSettingsPayload {
    */
   revealActiveInSidebar: boolean
   /**
+   * Use the operating system's own title bar and menu bar instead of Apiary's themed ones. Off by
+   * default; for a window manager that does not get on with a custom title bar (some tiling ones).
+   * Read when a window opens, so it applies to windows opened after the change (or a restart).
+   */
+  systemTitleBar: boolean
+  /**
    * Whether the search box also matches the *contents* of conversations, not just their titles.
    * On by default; turning it off falls back to title-only search and stops the indexer running.
    */

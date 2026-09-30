@@ -130,13 +130,25 @@ function assertSafeRefName(name: string): void {
   }
 }
 
+/**
+ * Rejects a ref that git could read as a flag. A ref starting with "-", fetched from a hostile
+ * remote, is a valid ref even though `git branch`/`git tag` refuse to *create* one that way.
+ *
+ * Checked here rather than with `--end-of-options`: before git 2.44, `checkout` (which keeps
+ * `--` for itself) did not understand `--end-of-options` and counted it as a second ref, so every
+ * branch switch failed with "fatal: only one reference expected, 2 given" on Ubuntu 24.04's git
+ * 2.43. No ref Apiary offers starts with "-", so refusing those loses nothing.
+ */
+function assertNotOption(ref: string): void {
+  if (ref.startsWith('-')) throw new Error(`Refusing a ref that looks like an option: "${ref}"`)
+}
+
 export async function checkoutBranch(cwd: string, name: string): Promise<void> {
-  // `--end-of-options` guarantees `name` cannot be parsed as a flag (a ref that starts with "-",
-  // fetched from a hostile remote, is a valid ref even though `git branch`/`git tag` refuse to
-  // *create* one that way); the trailing `--` guarantees it cannot fall back to being read as a
-  // pathspec either, which is what "git checkout <name>" does when no such ref exists — and
-  // silently discards local edits to a file of that name (SEC-9).
-  await git(cwd, ['checkout', '--end-of-options', name, '--'])
+  assertNotOption(name)
+  // The trailing `--` guarantees `name` cannot fall back to being read as a pathspec, which is
+  // what "git checkout <name>" does when no such ref exists — and silently discards local edits
+  // to a file of that name (SEC-9).
+  await git(cwd, ['checkout', name, '--'])
 }
 
 /** One entry of `git worktree list --porcelain`. `branch` is null for a detached worktree. */
@@ -202,17 +214,60 @@ export function isWorktreeConflict(message: string): boolean {
 
 export async function checkoutRemote(cwd: string, remoteRef: string, localName: string): Promise<void> {
   assertSafeRefName(localName)
-  await git(cwd, ['checkout', '-b', localName, '--track', '--end-of-options', remoteRef, '--'])
+  assertNotOption(remoteRef)
+  await git(cwd, ['checkout', '-b', localName, '--track', remoteRef, '--'])
 }
 
 export async function checkoutDetached(cwd: string, ref: string): Promise<void> {
-  await git(cwd, ['checkout', '--detach', '--end-of-options', ref, '--'])
+  assertNotOption(ref)
+  await git(cwd, ['checkout', '--detach', ref, '--'])
 }
 
 export async function createBranch(cwd: string, name: string, from?: string): Promise<void> {
   assertSafeRefName(name)
   if (from !== undefined) assertSafeRefName(from)
-  await git(cwd, from ? ['checkout', '-b', name, '--end-of-options', from, '--'] : ['checkout', '-b', name])
+  await git(cwd, from ? ['checkout', '-b', name, from, '--'] : ['checkout', '-b', name])
+}
+
+/** Local and remote-tracking branch names, newest first, without `origin/HEAD`-style aliases. */
+export async function listBranchNames(cwd: string): Promise<{ local: string[]; remote: string[] }> {
+  const [local, remote] = await Promise.all([
+    git(cwd, ['for-each-ref', '--sort=-committerdate', '--format=%(refname:short)', 'refs/heads/']),
+    git(cwd, ['for-each-ref', '--sort=-committerdate', '--format=%(refname:short)', 'refs/remotes/']),
+  ])
+  const lines = (raw: string): string[] => raw.split('\n').map((l) => l.trim()).filter((l) => l !== '')
+  return { local: lines(local), remote: lines(remote).filter((r) => !r.endsWith('/HEAD')) }
+}
+
+/**
+ * `git worktree add` for each way the New worktree dialog can pick a branch — the same three the
+ * simple-worktrees extension offers. A remote branch reuses a local branch of the same name when
+ * one exists (checking out `origin/x` twice as two tracking branches is never what was meant),
+ * and otherwise creates a local branch tracking it.
+ */
+export async function addWorktree(
+  cwd: string,
+  target: string,
+  choice: { kind: 'local'; branch: string } | { kind: 'remote'; ref: string } | { kind: 'new'; branch: string; from?: string },
+  localBranches: readonly string[],
+): Promise<void> {
+  if (choice.kind === 'local') {
+    assertNotOption(choice.branch)
+    await git(cwd, ['worktree', 'add', target, choice.branch])
+  } else if (choice.kind === 'remote') {
+    assertNotOption(choice.ref)
+    const localName = choice.ref.split('/').slice(1).join('/')
+    if (localName !== '' && localBranches.includes(localName)) {
+      await git(cwd, ['worktree', 'add', target, localName])
+    } else {
+      assertSafeRefName(localName)
+      await git(cwd, ['worktree', 'add', '--track', '-b', localName, target, choice.ref])
+    }
+  } else {
+    assertSafeRefName(choice.branch)
+    if (choice.from !== undefined) assertNotOption(choice.from)
+    await git(cwd, ['worktree', 'add', '-b', choice.branch, target, ...(choice.from !== undefined ? [choice.from] : [])])
+  }
 }
 
 /** Plain `git pull`, reporting how many commits HEAD moved by — git's own output is not shown, so
@@ -312,7 +367,8 @@ export async function push(cwd: string): Promise<{ commits: number; published: b
  *  merge back would throw away the one state from which that is possible. The thrown error
  *  carries git's own "CONFLICT (content): ..." text, which arrives on stdout — see `git()`. */
 export async function merge(cwd: string, ref: string): Promise<void> {
-  await git(cwd, ['merge', '--no-edit', '--end-of-options', ref])
+  assertNotOption(ref)
+  await git(cwd, ['merge', '--no-edit', ref])
 }
 
 /** Fetches from all remotes and prunes stale remote-tracking refs. */

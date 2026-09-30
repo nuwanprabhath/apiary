@@ -17,8 +17,9 @@
 import { type Guard, str, bool, num, any, obj, opt, nullable, arr, tuple } from './guards'
 import { isTabTransfer, type TabTransfer, type ReportedTab, type WindowLayoutReport, type ActiveTabPayload } from '../domain/tabs'
 import type {
-  CheckoutOutcome, FolderWorktree, GitStatus, GitRefs, MrState,
+  CheckoutOutcome, FolderWorktree, GitStatus, GitRefs, MrState, WorktreeCreateOptions, WorktreeCreateRequest,
 } from '../domain/git'
+import { isWorktreeCreateRequest } from '../domain/git'
 import type {
   ProjectNode, DiscoveredSession, ResumeConflict, NewSessionInfo,
 } from '../domain/session'
@@ -28,6 +29,8 @@ import type { LogLevel, LogScope, LogStatusPayload } from '../domain/log'
 import type { UpdateStatusPayload } from '../domain/update'
 import type { PluginInfoPayload, PluginBarItem as PluginBarItemPayload } from '../domain/plugins'
 import type { PtySessionInfo, PtySnapshot } from '../domain/pty'
+import type { StatusBarItem, StatusBarPanel } from '../domain/statusBar'
+import type { AppMenuNode } from '../domain/windowChrome'
 import type { ThemeSpec } from '../theme/spec'
 import type { SavedTheme, ThemeOptions, ThemeGenerateResult, ThemeState } from '../theme/state'
 
@@ -89,6 +92,8 @@ export const IPC = {
     'apiary:move-session', tuple(str, str),
   ),
   newSessionInProject: invoke<[path: string], NewSessionInfo>('apiary:new-session-in-project', tuple(str)),
+  /** Asks for a folder with the native picker and starts a session there; null when cancelled. */
+  newSessionInPickedFolder: invoke<[], NewSessionInfo | null>('apiary:new-session-in-picked-folder', tuple()),
   forkSession: invoke<[sessionId: string], NewSessionInfo>('apiary:fork-session', tuple(str)),
   newSessionStarted: event<[info: NewSessionInfo]>('apiary:new-session-started'),
   treeChanged: event('apiary:tree-changed'),
@@ -126,6 +131,8 @@ export const IPC = {
   ptyWrite: send<[id: string, data: string]>('apiary:pty-write', tuple(str, str)),
   ptyResize: send<[id: string, cols: number, rows: number]>('apiary:pty-resize', tuple(str, num, num)),
   ptyKill: send<[id: string]>('apiary:pty-kill', tuple(str)),
+  /** Sends SIGCONT to a pty's process group: brings back a Claude Code suspended with Ctrl+Z. */
+  ptyResume: send<[id: string]>('apiary:pty-resume', tuple(str)),
   ptyData: event<[id: string, data: string]>('apiary:pty-data'),
   ptySnapshot: invoke<[id: string], PtySnapshot | null>('apiary:pty-snapshot', tuple(str)),
   ptySessions: invoke<[], Record<string, PtySessionInfo>>('apiary:pty-sessions', tuple()),
@@ -173,6 +180,26 @@ export const IPC = {
   ),
   gitPullFolder: invoke<[path: string], { commits: number }>('apiary:git-pull-folder', tuple(str)),
   listWorktrees: invoke<[path: string], FolderWorktree[]>('apiary:list-worktrees', tuple(str)),
+  /** What the status-bar plugins show now. Answered from what each already holds — never waits. */
+  statusBarItems: invoke<[], StatusBarItem[]>('apiary:status-bar-items', tuple()),
+  statusBarRefresh: invoke<[pluginId: string], void>('apiary:status-bar-refresh', tuple(str)),
+  /** The dashboard behind an item; null when the plugin has none (or is off). */
+  statusBarPanel: invoke<[pluginId: string, itemId: string], StatusBarPanel | null>(
+    'apiary:status-bar-panel', tuple(str, str),
+  ),
+  statusBarChanged: event('apiary:status-bar-changed'),
+  /** The application menu, for the themed title bar to draw on Windows and Linux. */
+  appMenu: invoke<[], AppMenuNode[]>('apiary:app-menu', tuple()),
+  /** Runs the menu item at this path (indices into `appMenu`'s answer). */
+  appMenuInvoke: invoke<[path: number[]], void>('apiary:app-menu-invoke', tuple(arr(num))),
+  /** The theme's colours for the OS-drawn window controls over the title bar (`#rrggbb`). */
+  setTitleBarColors: send<[background: string, symbol: string]>('apiary:set-title-bar-colors', tuple(str, str)),
+  /** Branches and naming facts for the "New worktree" dialog on a sidebar folder. */
+  worktreeCreateOptions: invoke<[path: string], WorktreeCreateOptions>('apiary:worktree-create-options', tuple(str)),
+  /** Creates `<main>.worktrees/<name>` on the chosen branch, then starts a Claude session in it. */
+  worktreeCreate: invoke<[path: string, request: WorktreeCreateRequest], NewSessionInfo>(
+    'apiary:worktree-create', tuple(str, isWorktreeCreateRequest),
+  ),
   gitPush: invoke<[key: string, isPtyId: boolean], { commits: number; published: boolean }>(
     'apiary:git-push', tuple(str, bool),
   ),

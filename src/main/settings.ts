@@ -187,6 +187,7 @@ export function mergeSettingsPayload(
       ? current.autoImportIntervalMinutes
       : clampIntOrNullSetting(next.autoImportIntervalMinutes, 1, 1440),
     revealActiveInSidebar: keep(next.revealActiveInSidebar, current.revealActiveInSidebar),
+    systemTitleBar: keep(next.systemTitleBar, current.systemTitleBar),
     searchChatContent: keep(next.searchChatContent, current.searchChatContent),
     searchSessionNotes: keep(next.searchSessionNotes, current.searchSessionNotes),
     recentSectionEnabled: keep(next.recentSectionEnabled, current.recentSectionEnabled),

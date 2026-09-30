@@ -81,6 +81,10 @@ interface Props {
   onCollapsedChange: (next: Set<string>) => void
   /** Starts a brand-new Claude Code session in a project's folder. */
   onNewSession: (path: string) => void
+  /** Opens the New worktree dialog for a git folder's "+". */
+  onNewWorktree?: (path: string, label: string) => void
+  /** A group's "+": pick a folder, start a session there. Resolves the folder, or null. */
+  onNewSessionInPickedFolder?: () => Promise<string | null>
   /** Asks to remove a session from view. */
   onDeleteSession: (session: SessionNode) => void
   /** Opens a session in a column of its own beside the current one. */
@@ -190,7 +194,7 @@ export function Sidebar(props: Props): JSX.Element {
 
 function SidebarInner({
   hidden = false, onHide, hideTitle = 'Hide sidebar',
-  selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onDeleteSession,
+  selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onNewWorktree, onNewSessionInPickedFolder, onDeleteSession,
   onSplitSession, pinned, onTogglePin, onEditNote, onForkSession, pinnedCollapsed,
   onPinnedCollapsedChange,
   pending, onSelectPending, onStopPending, revealId, groupState, onGroupStateChange, onReorderPinned,
@@ -715,6 +719,7 @@ function SidebarInner({
     selectedId,
     onSelect,
     onNewSession,
+    onNewWorktree,
     onDeleteSession,
     onSplitSession,
     pinned: pinnedSet,
@@ -1179,6 +1184,27 @@ function SidebarInner({
                       <ChevronIcon expanded={open} />
                       <span className="folder-group-label">{group.name}</span>
                       <span className="pinned-count">{folders.length}</span>
+                    </button>
+                  )}
+                  {renamingGroup !== group.id && onNewSessionInPickedFolder !== undefined && (
+                    <button
+                      className="new-session-button"
+                      data-testid="group-new-session-button"
+                      title={`New Claude Code session in a folder, filed under ${group.name}`}
+                      aria-label={`New Claude Code session in a folder, filed under ${group.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        // A group is the user's own arrangement, not a folder, so its "+" asks
+                        // which folder — any folder, even one Apiary has never seen — and files
+                        // it here once the session has started.
+                        void onNewSessionInPickedFolder().then((folder) => {
+                          if (folder !== null) assignFolder(folder, group.id)
+                        })
+                      }}
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                      </svg>
                     </button>
                   )}
                   {folders.length > 0 && renamingGroup !== group.id && (

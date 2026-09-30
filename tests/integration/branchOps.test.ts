@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
-  status, listRefs, checkoutBranch, checkoutRemote, checkoutDetached, createBranch, pull, pullFastForward, push, merge, fetch, parseWorktreeList, isWorktreeConflict, worktreeForBranch, listWorktrees, updateBranch,
+  status, listRefs, checkoutBranch, checkoutRemote, checkoutDetached, createBranch, pull, pullFastForward, push, merge, fetch, parseWorktreeList, isWorktreeConflict, worktreeForBranch, listWorktrees, updateBranch, addWorktree, listBranchNames,
   branchOpsSpawnCount, resetBranchOpsSpawnCount,
 } from '../../src/main/git/branchOps'
 import type { GitStatus } from '@shared/types'
@@ -151,12 +151,20 @@ describe('checkoutBranch / createBranch', () => {
   })
 
   // SEC-9: a name that starts with "-" is not a name `git branch`/`git tag` will *create`, but a
-  // remote can still hand back a ref that starts with one, and with no `--end-of-options` a
-  // checkout of it would be parsed as a flag instead of a ref name.
+  // remote can still hand back a ref that starts with one, and a checkout of it would be parsed
+  // as a flag instead of a ref name.
   it('rejects a ref name that looks like a flag, rather than parsing it as one', async () => {
-    await expect(checkoutBranch(repo, '--orphan=x')).rejects.toThrow(/invalid reference|unknown option/i)
+    await expect(checkoutBranch(repo, '--orphan=x')).rejects.toThrow(/looks like an option/i)
     // No orphan branch was created — the option was never interpreted as one.
     expect((await requireStatus(repo)).branch).toBe('main')
+  })
+
+  // git before 2.44 (Ubuntu 24.04 ships 2.43) reads `checkout --end-of-options <ref> --` as two
+  // refs and fails every branch switch with "only one reference expected, 2 given". This git is
+  // newer and would not show it, so the guard is on what the module passes.
+  it('never passes --end-of-options, which older git checkout counts as a ref', () => {
+    const source = readFileSync(new URL('../../src/main/git/branchOps.ts', import.meta.url), 'utf8')
+    expect(source.match(/'--end-of-options'/g)).toBeNull()
   })
 
   it('rejects a ref name that is also a real file, rather than falling back to a pathspec checkout', async () => {
@@ -559,5 +567,56 @@ describe('updateBranch — the branch list\'s pull button', () => {
     expect((await updateBranch(repo, 'feature/x')).commits).toBe(2)
     expect(git(wt, 'rev-parse', 'HEAD').trim()).toBe(git(repo, 'rev-parse', 'origin/feature/x').trim())
     git(repo, 'worktree', 'remove', '--force', wt)
+  })
+})
+
+describe('addWorktree — the New worktree dialog', () => {
+  const wtDir = (): string => `${repo}.worktrees`
+  afterEach(() => { rmSync(wtDir(), { recursive: true, force: true }) })
+
+  it('checks out an existing local branch in a new folder', async () => {
+    git(repo, 'branch', 'feature')
+    const target = join(wtDir(), 'feature-wt')
+    await addWorktree(repo, target, { kind: 'local', branch: 'feature' }, ['main', 'feature'])
+    expect((await requireStatus(target)).branch).toBe('feature')
+  })
+
+  it('creates a new branch from a chosen base, or from HEAD', async () => {
+    git(repo, 'branch', 'base')
+    commit(repo, 'b.txt', 'on main only')
+    const fromBase = join(wtDir(), 'from-base')
+    await addWorktree(repo, fromBase, { kind: 'new', branch: 'topic', from: 'base' }, ['main', 'base'])
+    expect((await requireStatus(fromBase)).branch).toBe('topic')
+    expect(git(fromBase, 'log', '--oneline').trim().split('\n')).toHaveLength(1)
+
+    const fromHead = join(wtDir(), 'from-head')
+    await addWorktree(repo, fromHead, { kind: 'new', branch: 'topic2' }, ['main', 'base', 'topic'])
+    expect(git(fromHead, 'log', '--oneline').trim().split('\n')).toHaveLength(2)
+  })
+
+  it('a remote branch gets a local branch tracking it — or reuses the local one of that name', async () => {
+    const remote = mkdtempSync(join(tmpdir(), 'apiary-branchops-remote-wt-'))
+    try {
+      git(remote, 'init', '-q', '--bare', '-b', 'main')
+      git(repo, 'remote', 'add', 'origin', remote)
+      git(repo, 'checkout', '-q', '-b', 'shared')
+      git(repo, 'push', '-q', 'origin', 'shared', 'main')
+      git(repo, 'checkout', '-q', 'main')
+      git(repo, 'branch', '-D', 'shared')
+      git(repo, 'fetch', '-q')
+      expect((await listBranchNames(repo)).remote).toEqual(expect.arrayContaining(['origin/shared', 'origin/main']))
+
+      const tracking = join(wtDir(), 'shared')
+      await addWorktree(repo, tracking, { kind: 'remote', ref: 'origin/shared' }, ['main'])
+      const s = await requireStatus(tracking)
+      expect(s.branch).toBe('shared')
+      expect(s.hasUpstream).toBe(true)
+    } finally {
+      rmSync(remote, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses a ref that looks like an option', async () => {
+    await expect(addWorktree(repo, join(wtDir(), 'x'), { kind: 'local', branch: '--orphan=x' }, [])).rejects.toThrow(/looks like an option/)
   })
 })
