@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.29.1] - 2026-10-01
+
+### Fixed
+
+- CI's end-to-end smoke run no longer fails at random with `spawn ETXTBSY`. Electron 44 unpacks
+  its binary the first time it is asked for, and two test workers asked at once; Playwright now
+  asks once before the workers start. No change to the app itself.
+
 ## [1.29.0] - 2026-10-01
 
 ### Added

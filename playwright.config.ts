@@ -16,6 +16,8 @@ import { defineConfig } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './tests/e2e',
+  // Fetches Electron's binary once, before the workers race to (see the file).
+  globalSetup: './tests/e2e/globalSetup.ts',
   timeout: 60000,
   expect: { timeout: 15000 },
   // A CI runner has fewer cores, and each worker is a whole Electron app.
