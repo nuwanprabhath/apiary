@@ -1,5 +1,8 @@
-import type { PtyId } from '@shared/domain/ids'
-import type { JSX } from 'react'
+import { asSessionId, type PtyId } from '@shared/domain/ids'
+import { type JSX, useCallback } from 'react'
+import type { ChatDecision } from '@shared/domain/chat'
+import { useChat, useChatMode } from '../../state/useChat'
+import { useNotifications } from '../../ui/notifications'
 import type { SessionNode } from '@shared/types'
 import type { Column, OpenTab } from '../layout/columns'
 import { Transcript } from '../transcript/Transcript'
@@ -26,6 +29,16 @@ export function SessionBody({
   onSetView: (key: string, view: OpenTab['view']) => void
   onOpenImage: (src: string) => void
 }): JSX.Element {
+  const chatMode = useChatMode()
+  const chat = useChat(activeSession?.sessionId ?? '')
+  const { notifyError } = useNotifications()
+  // Answers go to the chat's own session, which `/clear` may have moved on from the tab's.
+  const sessionId = chat?.sessionId ?? activeSession?.sessionId ?? null
+  const onDecide = useCallback((requestId: string, decision: ChatDecision) => {
+    if (sessionId === null) return
+    void window.apiary.chatRespond(asSessionId(sessionId), requestId, decision)
+      .catch((e: unknown) => { notifyError(e, 'Could not answer Claude') })
+  }, [sessionId, notifyError])
   return (
     <div
       className="centre-pane"
@@ -42,6 +55,9 @@ export function SessionBody({
             session={activeSession}
             visible={activeView === 'transcript'}
             onOpenImage={onOpenImage}
+            chatMode={chatMode}
+            chat={chat}
+            onDecide={onDecide}
           />
           {/* The chat box belongs to the transcript rather than the terminal: this is the
             * reading view, and being able to reply without switching to the raw terminal is
@@ -54,6 +70,8 @@ export function SessionBody({
             onResume={() => onResumeAsync(activeSession)}
             onShowSession={() => onSetView(activeSession.sessionId, 'terminal')}
             onOpenImage={onOpenImage}
+            chatMode={chatMode}
+            chat={chat}
           />
         </div>
       )}

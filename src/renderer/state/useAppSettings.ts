@@ -15,6 +15,8 @@ export interface AppSettingsMirror {
   recentSectionHours: number
   searchChatContent: boolean
   searchSessionNotes: boolean
+  /** The transcript's message box drives a chat (see `AppSettingsPayload.transcriptChat`). */
+  transcriptChat: boolean
   /** Re-reads every field from main — call after the Settings dialog closes. */
   reload: () => void
 }
@@ -25,6 +27,7 @@ export function useAppSettings(): AppSettingsMirror {
   const [recentSectionHours, setRecentSectionHours] = useState(24)
   const [searchChatContent, setSearchChatContent] = useState(true)
   const [searchSessionNotes, setSearchSessionNotes] = useState(true)
+  const [transcriptChat, setTranscriptChat] = useState(false)
 
   const reload = useCallback(() => {
     void window.apiary.settingsGet()
@@ -34,6 +37,7 @@ export function useAppSettings(): AppSettingsMirror {
         setRecentSectionHours(s.recentSectionHours)
         setSearchChatContent(s.searchChatContent)
         setSearchSessionNotes(s.searchSessionNotes)
+        setTranscriptChat(s.transcriptChat)
       })
       .catch(() => {
         // Defaults are already in place; a settings read failing is not worth interrupting anyone.
@@ -43,6 +47,6 @@ export function useAppSettings(): AppSettingsMirror {
 
   return {
     revealActiveInSidebar, recentSectionEnabled, recentSectionHours,
-    searchChatContent, searchSessionNotes, reload,
+    searchChatContent, searchSessionNotes, transcriptChat, reload,
   }
 }

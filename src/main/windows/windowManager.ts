@@ -43,7 +43,20 @@ export interface WindowManagerDeps {
   isQuitting: () => boolean
   /** `APIARY_WINDOW_CHROME`, test-only: overrides which title bar windows get. */
   chromeOverride?: string
+  /** How long a closed window's layout record outlives it while other windows stay open — see
+   *  `CLOSE_GRACE_MS`. Injectable so tests need not wait out the real one. */
+  closeGraceMs?: number
 }
+
+/**
+ * How long a window closed while others are still open keeps its saved layout. Ubuntu's dock
+ * "Quit" (and closing each window's X in turn) closes the windows one at a time with no app-level
+ * quit first, so every window but the last used to count as "closed by the user" and lose its
+ * record — two windows quit that way came back as one. Windows that all close within this long of
+ * each other are a quit, and all come back; one closed while the app carries on is dropped once
+ * it has passed.
+ */
+export const CLOSE_GRACE_MS = 3000
 
 /**
  * Window creation, numbering, focus tracking and the one window's persisted bounds (MAIN-15 step
@@ -71,12 +84,20 @@ export class WindowManager {
    *  the `?w=` URL already use for that window. Populated and cleared right alongside the window
    *  itself in `create()`, the same lifecycle `sessionLayoutStore`'s per-window bookkeeping follows. */
   private readonly windowNumberByWebContentsId = new Map<number, number>()
+  /** Closed windows whose layout record is waiting out `CLOSE_GRACE_MS` before it is removed. */
+  private readonly pendingRemovals = new Map<number, NodeJS.Timeout>()
 
   constructor(deps: WindowManagerDeps) {
     this.deps = deps
   }
 
   /** The window the menu and native dialogs act on — whichever one is currently in front. */
+  /** Every window has closed: those still in their grace period went with the rest, as a quit. */
+  private cancelPendingRemovals(): void {
+    for (const timer of this.pendingRemovals.values()) clearTimeout(timer)
+    this.pendingRemovals.clear()
+  }
+
   front(): BrowserWindow | null {
     return this.mainWindow
   }
@@ -229,8 +250,17 @@ export class WindowManager {
       // persisting — there would be nothing to restore. So the last window out leaves its record
       // behind, and whatever comes next (a quit, or on macOS a new window from the dock reporting
       // its own layout) overwrites it.
-      if (!isQuitting() && BrowserWindow.getAllWindows().length > 0) {
-        sessionLayoutStore?.removeWindow(windowNumber)
+      //
+      // Nor is it removed at once when other windows remain: see `CLOSE_GRACE_MS`. If the rest
+      // close before the grace runs out, this was one step of a quit and every pending record stays.
+      if (BrowserWindow.getAllWindows().length === 0) {
+        this.cancelPendingRemovals()
+      } else if (!isQuitting()) {
+        this.pendingRemovals.set(windowNumber, setTimeout(() => {
+          this.pendingRemovals.delete(windowNumber)
+          if (isQuitting() || BrowserWindow.getAllWindows().length === 0) return
+          sessionLayoutStore?.removeWindow(windowNumber)
+        }, this.deps.closeGraceMs ?? CLOSE_GRACE_MS))
       }
       tabRegistry?.unregisterWindow(windowNumber)
       this.windowNumberByWebContentsId.delete(webContentsId)

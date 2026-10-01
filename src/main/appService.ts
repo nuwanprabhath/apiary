@@ -19,6 +19,8 @@ import type { PluginBarItem } from './plugins/types'
 import type { PtyId, SessionId, TerminalRef } from '@shared/domain/ids'
 import type { MrState } from './git/mrStatusCache'
 import { VsCodeService } from './vscode/vscodeService'
+import { ChatManager, type SpawnChat } from './chat/chatManager'
+import type { ChatDecision, ChatEffort, ChatModel, ChatPermissionMode, ChatState } from '@shared/domain/chat'
 import { ImageStore } from './media/imageStore'
 import type {
   ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo, CheckoutOutcome,
@@ -55,6 +57,10 @@ export interface AppServiceOptions {
   onPluginsChanged?: () => void
   /** The status bar's items changed (a usage poll landed, a plugin was switched off). */
   onStatusBarChanged?: () => void
+  /** A session in chat mode changed (see `shared/domain/chat.ts`). */
+  onChatChanged?: (state: ChatState) => void
+  /** Test-only: starts chat processes instead of a login shell running `claude`. */
+  chatSpawn?: SpawnChat
   /** Let the Claude usage plugin read the macOS Keychain: only against the real `~/.claude`,
    *  never a test fixture's, since a Keychain read can put a permission prompt on screen. */
   statusBarKeychain?: boolean
@@ -102,6 +108,7 @@ export class AppService {
   private readonly search: SearchService
   /** Resume/fork/new-session/shell/sendPrompt (MAIN-14 step 4) — see `terminals/terminalService.ts`. */
   private readonly terminals: TerminalService
+  private readonly chats: ChatManager
   private readonly source: SessionSource
   /** Refresh loop, the live map, tree/discovered/import (MAIN-14 step 5) — see `sessions/sessionCatalog.ts`. */
   private readonly catalog: SessionCatalog
@@ -131,6 +138,14 @@ export class AppService {
       claudeBin: options.claudeBin,
       promptPath: options.promptPath,
       zshPromptShim: options.zshPromptShim,
+    })
+    this.chats = new ChatManager({
+      claudeBin: () => this.terminals.getClaudeBin() ?? undefined,
+      onChange: (state) => {
+        if (state.previousSessionId !== null && !this.chatAdopted.has(state.sessionId)) this.chatAdoptions.add(state.sessionId)
+        options.onChatChanged?.(state)
+      },
+      spawn: options.chatSpawn,
     })
     this.catalog = new SessionCatalog({
       store: this.store,
@@ -241,7 +256,27 @@ export class AppService {
 
   /** Rescans and refreshes live-session state; see `sessions/sessionCatalog.ts` for the state machine. */
   async refresh(opts?: { full?: boolean; paths?: string[] }): Promise<void> {
-    return this.catalog.refresh(opts)
+    await this.catalog.refresh(opts)
+    this.adoptChatSessions()
+  }
+
+  /**
+   * Sessions a chat moved onto with `/clear`, waiting for their file to be scanned. They belong in
+   * the library as much as the session they continue — the window's tab follows the chat onto
+   * them — but a folder without auto-import would otherwise leave them undiscovered-only.
+   */
+  private readonly chatAdoptions = new Set<string>()
+  /** Adopted already: every later state of that chat still names the session it left, and an
+   *  adoption must not undo the user archiving the session afterwards. */
+  private readonly chatAdopted = new Set<string>()
+
+  private adoptChatSessions(): void {
+    for (const id of [...this.chatAdoptions]) {
+      if (this.store.getSession(id) === null) continue
+      this.store.setImported([id], true)
+      this.chatAdoptions.delete(id)
+      this.chatAdopted.add(id)
+    }
   }
 
   /** One folder's project row re-resolved through git (MAIN-4); see SessionCatalog. */
@@ -349,6 +384,9 @@ export class AppService {
   }
 
   async checkConflict(sessionId: SessionId): Promise<ResumeConflict | null> {
+    // A chat this app is running is not "someone else's" process: opening the session in a
+    // terminal stops it (see `resume`), so it must not raise the conflict dialog.
+    if (this.chats.has(sessionId)) return null
     return this.catalog.checkConflict(sessionId)
   }
 
@@ -357,8 +395,49 @@ export class AppService {
   // have to change what they call.
 
   async resume(sessionId: string): Promise<void> {
+    // One process per session: two `claude`s on one session would both append to its JSONL.
+    if (this.chats.has(sessionId)) await this.chats.stop(sessionId)
     return this.terminals.resume(sessionId)
   }
+
+  // Chat mode (`main/chat/`): the session driven over stream-json, as the VS Code extension does.
+
+  chatState(sessionId: SessionId): ChatState | null {
+    return this.chats.state(sessionId)
+  }
+
+  /**
+   * Starts `sessionId` in chat mode, or returns the chat already running. A session running in a
+   * terminal is refused unless `takeOver` — then that terminal's `claude` is stopped first, and
+   * the chat resumes the same conversation.
+   */
+  async chatStart(
+    sessionId: SessionId,
+    opts: { takeOver: boolean; model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort },
+  ): Promise<ChatState> {
+    const existing = this.chats.state(sessionId)
+    if (existing !== null && existing.status !== 'exited') return existing
+    if (this.pty.has(sessionId)) {
+      if (!opts.takeOver) throw new Error('This session is running in its terminal')
+      await this.pty.killAndWait(sessionId)
+    }
+    const session = this.resolver.requireSession(sessionId)
+    const cwd = session.cwd
+    if (!cwd || !existsSync(cwd)) {
+      throw new Error(`The folder for this session no longer exists: ${cwd ?? 'unknown'}`)
+    }
+    return this.chats.start(sessionId, cwd, { model: opts.model, permissionMode: opts.permissionMode, effort: opts.effort })
+  }
+
+  chatSend(sessionId: SessionId, text: string): void { this.chats.send(sessionId, text) }
+  chatInterrupt(sessionId: SessionId): void { this.chats.interrupt(sessionId) }
+  chatRespond(sessionId: SessionId, requestId: string, decision: ChatDecision): void {
+    this.chats.respond(sessionId, requestId, decision)
+  }
+  chatSetPermissionMode(sessionId: SessionId, mode: ChatPermissionMode): void { this.chats.setPermissionMode(sessionId, mode) }
+  chatSetModel(sessionId: SessionId, model: ChatModel): void { this.chats.setModel(sessionId, model) }
+  chatSetEffort(sessionId: SessionId, effort: ChatEffort): void { this.chats.setEffort(sessionId, effort) }
+  async chatStop(sessionId: SessionId): Promise<void> { await this.chats.stop(sessionId) }
 
   /** Whether VS Code was found on this machine at launch. Checked once; does not change at runtime. */
   vsCodeAvailable(): boolean {
@@ -491,6 +570,7 @@ export class AppService {
     // scheduling further passes, so no fire-and-forget rerun can start after this point.
     this.disposed = true
     this.statusBar.stop()
+    await this.chats.stopAll()
     await this.pty.killAll()
     // Let any refresh already in flight (or its already-chained rerun) finish before closing
     // the database — otherwise it could try to write through a closed better-sqlite3 handle.

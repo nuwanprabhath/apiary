@@ -25,6 +25,12 @@ export interface AppSettingsPayload {
    */
   systemTitleBar: boolean
   /**
+   * The transcript's message box drives the session as a chat, the way the VS Code extension does:
+   * replies stream into the transcript, tools ask for permission there, and the view stays put.
+   * Off: the message goes to the session's terminal, which is brought to the front.
+   */
+  transcriptChat: boolean
+  /**
    * Whether the search box also matches the *contents* of conversations, not just their titles.
    * On by default; turning it off falls back to title-only search and stops the indexer running.
    */

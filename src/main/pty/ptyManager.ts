@@ -357,8 +357,15 @@ export class PtyManager {
    * is (and isn't) based on.
    */
   async killAll(timeoutMs = PTY_KILL_TIMEOUT_MS): Promise<void> {
-    const children = [...this.processes.entries()]
-    await Promise.all(children.map(([id, child]) => new Promise<void>((resolve) => {
+    await Promise.all([...this.processes.keys()].map((id) => this.killAndWait(id, timeoutMs)))
+  }
+
+  /** `kill(id)`, resolving once the process has really exited (or after `timeoutMs` regardless) —
+   *  for a caller about to start another process on the same session (chat mode taking over). */
+  killAndWait(id: string, timeoutMs = PTY_KILL_TIMEOUT_MS): Promise<void> {
+    const child = this.processes.get(id)
+    if (!child) return Promise.resolve()
+    return new Promise<void>((resolve) => {
       let settled = false
       const done = (): void => {
         if (settled) return
@@ -371,6 +378,6 @@ export class PtyManager {
         done()
       })
       this.kill(id)
-    })))
+    })
   }
 }

@@ -47,3 +47,21 @@ resolves what needs Electron and starts things in order). `AppService` is a faca
 `live` map) and `sessions/sessionActions.ts` (rename/note/remove/move) plus the git, search,
 terminal, image and VS Code services. **The refresh reentrancy states and who owns `live` are
 documented at the top of `sessionCatalog.ts`; read that before touching either.**
+
+## Chat mode (`chat/`)
+
+The "Chat in the transcript" setting runs a session the way the VS Code extension does: `claude`
+with `--input-format stream-json`, `--output-format stream-json` and `--permission-prompt-tool stdio`, through
+the login shell like a terminal (`pty/resumeCommand.ts`'s `buildChatCommand`). The protocol is in
+`chat/protocol.ts`, written from what `claude` 2.1.286 actually printed — read its header before
+changing anything. Three rules:
+
+- **One process per session.** Two `claude`s on one session both append to its JSONL.
+  `AppService.chatStart` stops a terminal's claude first (`takeOver`, `PtyManager.killAndWait`);
+  `resume` stops a chat first; `checkConflict` does not report Apiary's own chat as a conflict.
+- **The JSONL stays the record.** Streamed messages carry the same uuids the file gets;
+  `ChatState.live` only covers the gap until the transcript has read them (`mergeLive`).
+- **A turn owes an answer per message sent.** Claude queues a message sent mid-turn, so one
+  `result` does not make the chat idle while another is owed (`ChatSession.owed`).
+
+`tests/fixtures/fake-claude-chat.mjs` speaks the same protocol for integration and e2e tests.

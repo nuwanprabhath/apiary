@@ -117,6 +117,10 @@ export type WorkspaceAction =
   | { type: 'openSessions/refresh'; known: Map<string, SessionNode> }
   /** A session's process was started: it now reads as resumed. */
   | { type: 'resumed/add'; key: string }
+  /** A chat moved onto a new session (`/clear`): its tabs follow, nothing about a terminal does. */
+  | { type: 'chat/follow'; from: string; to: SessionNode }
+  /** The session's terminal claude is gone because the session now runs as a chat. */
+  | { type: 'resumed/remove'; key: string }
   /** SessionColumn's shell-tab and active-terminal maps are edited through updaters, as they were
    *  when they were `useState`s there. */
   | { type: 'shellTabs/update'; update: (prev: Map<string, TerminalTab[]>) => Map<string, TerminalTab[]> }
@@ -388,6 +392,25 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
 
     case 'resumed/add':
       return state.resumed.has(action.key) ? state : { ...state, resumed: new Set([...state.resumed, action.key]) }
+
+    case 'chat/follow': {
+      const { from, to } = action
+      if (!state.layout.panes.some((c) => c.tabs.some((t) => t.key === from))) return state
+      const openSessions = new Map(state.openSessions)
+      openSessions.delete(from)
+      openSessions.set(to.sessionId, to)
+      const layout = updateColumns(state.layout, state.activeColumnId, (c) => rekeyTab(c, from, to.sessionId))
+      return { ...state, openSessions, layout }
+    }
+
+    case 'resumed/remove': {
+      if (!state.resumed.has(action.key)) return state
+      const resumed = new Set(state.resumed)
+      resumed.delete(action.key)
+      // With no terminal left, a tab showing it would show nothing: back to the transcript.
+      const layout = updateColumns(state.layout, state.activeColumnId, (c) => setTabView(c, action.key, 'transcript'))
+      return { ...state, resumed, layout }
+    }
 
     case 'shellTabs/update': {
       const shellTabs = action.update(state.shellTabs)

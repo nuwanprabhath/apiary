@@ -2,7 +2,8 @@ import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  launchApiary, importAll, sidebarSession, relaunchApiary, relaunchApiaryViaWindowClose, type Harness,
+  launchApiary, importAll, sidebarSession, relaunchApiary, relaunchApiaryViaWindowClose,
+  relaunchApiaryClosingEachWindow, type Harness,
 } from './helpers'
 
 let h: Harness
@@ -87,4 +88,47 @@ test('a shell listed from before a relaunch starts again when shown, rather than
   // Still the one terminal it was, not a second one added beside a dead first.
   await h.page.getByTestId('terminal-list-toggle').click()
   await expect(h.page.getByTestId('terminal-tab-row')).toHaveCount(1)
+})
+
+/** Two windows, each with its own session open, both reported to the store. */
+async function twoWindows(): Promise<void> {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  const second = await h.newWindow()
+  await sidebarSession(second, 'Add worktree switcher').click()
+  await expect(second.getByTestId('session-title')).toHaveText('Add worktree switcher')
+  const layoutFile = join(h.home, 'userdata', 'session-layout.json')
+  await expect.poll(() => {
+    try {
+      const data = JSON.parse(readFileSync(layoutFile, 'utf8')) as
+        { windows: { layout: { panes: { tabs: unknown[] }[] } }[] }
+      return data.windows.filter((w) => w.layout.panes.some((p) => p.tabs.length > 0)).length
+    } catch {
+      return 0
+    }
+  }, { timeout: 10000 }).toBe(2)
+}
+
+const titlesAcrossWindows = async (): Promise<string[]> => {
+  const titles: string[] = []
+  for (const page of h.app.windows()) {
+    await page.locator('html[data-ready="true"]').waitFor({ state: 'attached' })
+    titles.push(...await page.getByTestId('session-title').allTextContents())
+  }
+  return titles.sort()
+}
+
+test('two windows quit one after another, as Ubuntu\'s dock Quit does, both come back', async () => {
+  // The dock closes the windows in turn with no app-level quit first, so every window but the last
+  // used to count as "closed by the user" and lose its record: two windows came back as one.
+  await twoWindows()
+  await relaunchApiaryClosingEachWindow(h)
+  await expect.poll(() => h.app.windows().length).toBe(2)
+  await expect.poll(titlesAcrossWindows).toEqual(['Add worktree switcher', 'Fix CSV export bug'])
+})
+
+test('a window closed while the app carries on is not reopened', async () => {
+  await twoWindows()
+  // Longer than the close grace (CLOSE_GRACE_MS): the first window was closed on purpose.
+  await relaunchApiaryClosingEachWindow(h, 4500)
+  await expect.poll(() => h.app.windows().length).toBe(1)
 })

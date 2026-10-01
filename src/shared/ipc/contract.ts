@@ -31,6 +31,10 @@ import type { UpdateStatusPayload } from '../domain/update'
 import type { PluginInfoPayload, PluginBarItem as PluginBarItemPayload } from '../domain/plugins'
 import type { PtySessionInfo, PtySnapshot } from '../domain/pty'
 import type { StatusBarItem, StatusBarPanel } from '../domain/statusBar'
+import {
+  isChatDecision, isChatEffort, isChatModel, isChatPermissionMode,
+  type ChatDecision, type ChatEffort, type ChatModel, type ChatPermissionMode, type ChatState,
+} from '../domain/chat'
 import type { AppMenuNode } from '../domain/windowChrome'
 import type { ThemeSpec } from '../theme/spec'
 import type { SavedTheme, ThemeOptions, ThemeGenerateResult, ThemeState } from '../theme/state'
@@ -42,6 +46,20 @@ import type { SavedTheme, ThemeOptions, ThemeGenerateResult, ThemeState } from '
 const sessionIdArg: Guard<SessionId> = (v): v is SessionId => typeof v === 'string'
 const ptyIdArg: Guard<PtyId> = (v): v is PtyId => typeof v === 'string'
 const terminalRefArg: Guard<TerminalRef> = isTerminalRef
+
+type ChatStartOptions = { takeOver: boolean; model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort }
+const chatStartOptions: Guard<ChatStartOptions> = (v): v is ChatStartOptions => {
+  if (v === null || typeof v !== 'object') return false
+  const o = v as Record<string, unknown>
+  return typeof o.takeOver === 'boolean'
+    && (o.model === undefined || isChatModel(o.model))
+    && (o.permissionMode === undefined || isChatPermissionMode(o.permissionMode))
+    && (o.effort === undefined || isChatEffort(o.effort))
+}
+const chatDecisionArg: Guard<ChatDecision> = isChatDecision
+const chatModelArg: Guard<ChatModel> = isChatModel
+const chatModeArg: Guard<ChatPermissionMode> = isChatPermissionMode
+const chatEffortArg: Guard<ChatEffort> = isChatEffort
 
 interface Invoke<A extends unknown[], R> { kind: 'invoke'; channel: string; args: Guard<A>; _r?: R }
 interface Send<A extends unknown[]> { kind: 'send'; channel: string; args: Guard<A> }
@@ -201,6 +219,23 @@ export const IPC = {
     'apiary:status-bar-panel', tuple(str, str),
   ),
   statusBarChanged: event('apiary:status-bar-changed'),
+  // Chat mode (main/chat/): a session driven over stream-json, as the VS Code extension does.
+  chatState: invoke<[sessionId: SessionId], ChatState | null>('apiary:chat-state', tuple(sessionIdArg)),
+  chatStart: invoke<[sessionId: SessionId, opts: ChatStartOptions], ChatState>(
+    'apiary:chat-start', tuple(sessionIdArg, chatStartOptions),
+  ),
+  chatSend: invoke<[sessionId: SessionId, text: string], void>('apiary:chat-send', tuple(sessionIdArg, str)),
+  chatInterrupt: invoke<[sessionId: SessionId], void>('apiary:chat-interrupt', tuple(sessionIdArg)),
+  chatRespond: invoke<[sessionId: SessionId, requestId: string, decision: ChatDecision], void>(
+    'apiary:chat-respond', tuple(sessionIdArg, str, chatDecisionArg),
+  ),
+  chatSetPermissionMode: invoke<[sessionId: SessionId, mode: ChatPermissionMode], void>(
+    'apiary:chat-set-permission-mode', tuple(sessionIdArg, chatModeArg),
+  ),
+  chatSetModel: invoke<[sessionId: SessionId, model: ChatModel], void>('apiary:chat-set-model', tuple(sessionIdArg, chatModelArg)),
+  chatSetEffort: invoke<[sessionId: SessionId, effort: ChatEffort], void>('apiary:chat-set-effort', tuple(sessionIdArg, chatEffortArg)),
+  chatStop: invoke<[sessionId: SessionId], void>('apiary:chat-stop', tuple(sessionIdArg)),
+  chatChanged: event<[state: ChatState]>('apiary:chat-changed'),
   /** The application menu, for the themed title bar to draw on Windows and Linux. */
   appMenu: invoke<[], AppMenuNode[]>('apiary:app-menu', tuple()),
   /** Runs the menu item at this path (indices into `appMenu`'s answer). */

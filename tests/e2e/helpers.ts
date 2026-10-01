@@ -263,6 +263,8 @@ export async function launchApiary(
     pickFolder?: string
     /** Which title bar windows get (`APIARY_WINDOW_CHROME`): drives the custom one on any OS. */
     windowChrome?: 'custom' | 'mac' | 'system'
+    /** Further settings to seed the fresh profile with, alongside `claudeBin`. */
+    settings?: Record<string, unknown>
   } = {},
 ): Promise<Harness> {
   // realpath the root up front: on macOS os.tmpdir() is under /var, a symlink to /private/var,
@@ -379,7 +381,7 @@ export async function launchApiary(
   }
   if (claudeBin !== null) {
     mkdirSync(userDataDir, { recursive: true })
-    writeFileSync(join(userDataDir, 'settings.json'), JSON.stringify({ claudeBin }))
+    writeFileSync(join(userDataDir, 'settings.json'), JSON.stringify({ claudeBin, ...opts.settings }))
   }
 
   const electronArgs = opts.electronArgs ?? []
@@ -499,6 +501,31 @@ export async function relaunchApiaryViaWindowClose(h: Harness): Promise<void> {
     // gone before it is sent. `app.close()` below is what actually waits for the exit.
   }).catch(() => {
     // The process exited before the evaluate could answer — which is the successful case.
+  })
+  await closeApp(h.app).catch(() => {})
+  await launchAgainst(h)
+}
+
+/**
+ * Quits the way Ubuntu's dock "Quit" does (and closing each window's X in turn): the windows close
+ * one after another, each waiting for the last to be gone, with no app-level quit until none are
+ * left. `gapMs` is the pause between closes — a few ms for the dock, longer for someone who closed
+ * one window and carried on. Then relaunches against the same profile.
+ */
+export async function relaunchApiaryClosingEachWindow(h: Harness, gapMs = 0): Promise<void> {
+  for (const page of h.app.windows()) await settleUiState(page)
+  await h.app.evaluate(async ({ app, BrowserWindow }, gap) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      await new Promise<void>((resolve) => {
+        win.once('closed', () => { resolve() })
+        win.close()
+      })
+      await new Promise((resolve) => setTimeout(resolve, gap))
+    }
+    // Linux and Windows quit on `window-all-closed` already; a Mac stays running without this.
+    app.quit()
+  }, gapMs).catch(() => {
+    // The process exited before the evaluate could answer — the successful case.
   })
   await closeApp(h.app).catch(() => {})
   await launchAgainst(h)

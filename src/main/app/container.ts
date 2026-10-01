@@ -100,6 +100,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     vsCodePath: inputs.vsCodePath,
     onPluginsChanged: () => { broadcast(CHANNELS.pluginsChanged) },
     onStatusBarChanged: () => { broadcast(CHANNELS.statusBarChanged) },
+    onChatChanged: (state) => { broadcast(CHANNELS.chatChanged, state) },
     statusBarKeychain: inputs.statusBarKeychain,
     onIndexUpdated: () => { broadcast(CHANNELS.treeChanged) },
     detectLive: fakeLive !== undefined && fakeLive !== ''

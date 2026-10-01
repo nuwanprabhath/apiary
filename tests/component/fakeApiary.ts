@@ -24,6 +24,7 @@ import { BUILTIN_THEMES } from '@shared/theme/builtins'
 import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
 import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 import { asPtyId, asSessionId } from '@shared/domain/ids'
+import { emptyChatState, type ChatState } from '@shared/domain/chat'
 import { STANDARD_SESSIONS as STD } from '../fixtures/standard'
 
 export interface FakeSession {
@@ -87,7 +88,7 @@ export type FakeEvent =
   | 'activeTabsChanged' | 'selectTab' | 'themeChanged' | 'tabAdopt' | 'tabClaimed'
   | 'requestLayoutFlush' | 'newSessionStarted' | 'ptySessionsChanged' | 'mrStatusesInvalidated'
   | 'ptyData' | 'ptyExit' | 'treeChanged' | 'openImportDialog' | 'openSettingsDialog'
-  | 'toggleSidebar' | 'pluginsChanged' | 'updateChanged' | 'statusBarChanged'
+  | 'toggleSidebar' | 'pluginsChanged' | 'updateChanged' | 'statusBarChanged' | 'chatChanged'
 
 export interface FakeState {
   projects: FakeProject[]
@@ -106,6 +107,8 @@ export interface FakeState {
   vsCode: boolean
   worktrees: Record<string, FolderWorktree[]>
   statusBar: StatusBarItem[]
+  /** Chat mode, by session id: what `chatState` answers and the `chat*` calls change. */
+  chats: Map<string, ChatState>
   statusBarPanel: StatusBarPanel | null
 }
 
@@ -192,6 +195,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     vsCode: opts.vsCode ?? false,
     worktrees: opts.worktrees ?? {},
     statusBar: opts.statusBar ?? [],
+    chats: new Map(),
     statusBarPanel: opts.statusBarPanel ?? null,
   }
 
@@ -207,7 +211,9 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
   }
   const emit = (event: FakeEvent, ...args: unknown[]): void => {
     for (const cb of [...(listeners.get(event) ?? [])]) cb(...args)
-  }
+  }  /** Records a chat's new state and tells the renderer, as main's ChatManager does. */
+  const setChat = (next: ChatState): void => { state.chats.set(next.sessionId, next); emit('chatChanged', next) }
+
 
   const sessionNode = (s: FakeSession): SessionNode => ({
     kind: 'session',
@@ -375,6 +381,27 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     statusBarRefresh: async () => {},
     statusBarPanel: async () => state.statusBarPanel,
     onStatusBarChanged: on('statusBarChanged'),
+    // Chat mode: just enough of main's ChatManager for the renderer to drive. A test plays Claude's
+    // side itself with `fake.emit('chatChanged', state)` (see chatState helpers in chat tests).
+    chatState: async (id) => state.chats.get(id) ?? null,
+    chatStart: async (id) => {
+      const existing = state.chats.get(id)
+      if (existing !== undefined && existing.status !== 'exited') return existing
+      const started: ChatState = { ...emptyChatState(id), status: 'idle' }
+      setChat(started)
+      return started
+    },
+    chatSend: async (id) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, status: 'busy' }) },
+    chatInterrupt: async () => {},
+    chatRespond: async (id, requestId) => {
+      const c = state.chats.get(id)
+      if (c !== undefined) setChat({ ...c, permissions: c.permissions.filter((p) => p.requestId !== requestId) })
+    },
+    chatSetPermissionMode: async (id, mode) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, permissionMode: mode }) },
+    chatSetModel: async (id, model) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, model }) },
+    chatSetEffort: async (id, effort) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, effort }) },
+    chatStop: async (id) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, status: 'exited' }) },
+    onChatChanged: on('chatChanged'),
     // A small stand-in for main's application menu, in the shape serializeMenu produces.
     appMenu: async () => [
       { label: 'File', kind: 'submenu', enabled: true, submenu: [

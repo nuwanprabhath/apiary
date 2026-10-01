@@ -11,7 +11,7 @@ import { ImageThumbnail, TranscriptImageFile, IMAGE_PATH_LINE } from './Transcri
  * pasted into the chat box arrives in the transcript as a line of prose plus a path. Showing the
  * picture back is what makes the sent message look like the message that was written.
  */
-function TextBlock(
+export function TextBlock(
   { text, onOpenImage }: { text: string; onOpenImage: (src: string) => void },
 ): JSX.Element {
   // UI-8: re-deriving this by splitting `text` and running the image regex on every render was

@@ -214,7 +214,12 @@ function mapBlocks(_role: 'user' | 'assistant', content: unknown): TranscriptBlo
   return blocks
 }
 
-function toMessage(entry: Record<string, unknown>): TranscriptMessage | null {
+/**
+ * One JSONL entry as a transcript message, or null for anything that is not a user or assistant
+ * turn. Exported for chat mode (`main/chat/protocol.ts`): `claude`'s stream-json output carries
+ * the very same entries, uuid and all, before they reach the file.
+ */
+export function toMessage(entry: Record<string, unknown>): TranscriptMessage | null {
   const role = entry.type
   if (role !== 'user' && role !== 'assistant') return null
   const message = entry.message as { content?: unknown } | undefined

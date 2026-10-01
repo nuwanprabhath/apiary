@@ -112,3 +112,26 @@ describe('workspaceReducer: window-level actions', () => {
     expect(s2.activeTerminal.get('k')).toBe('1')
   })
 })
+
+describe('workspaceReducer: a session taken over by a chat', () => {
+  it('is no longer resumed, and its tab goes back to the transcript', () => {
+    let state = workspaceReducer(twoPanes(), { type: 'resumed/add', key: 'a' })
+    state = workspaceReducer(state, { type: 'tab/showView', key: 'a', view: 'terminal' })
+    const next = workspaceReducer(state, { type: 'resumed/remove', key: 'a' })
+    expect(next.resumed.has('a')).toBe(false)
+    expect(next.layout.panes.flatMap((p) => p.tabs).find((t) => t.key === 'a')?.view).toBe('transcript')
+    expect(workspaceReducer(next, { type: 'resumed/remove', key: 'a' })).toBe(next)
+  })
+})
+
+describe('workspaceReducer: a chat that /clear moved onto a new session', () => {
+  it('takes its tab to the new session, leaving terminals alone', () => {
+    const state = workspaceReducer(twoPanes(), { type: 'resumed/add', key: 'b' })
+    const next = workspaceReducer(state, { type: 'chat/follow', from: 'a', to: session('a2') })
+    expect(next.layout.panes.flatMap((p) => p.tabs).map((t) => t.key)).toEqual(['a2', 'b'])
+    expect(next.openSessions.has('a2')).toBe(true)
+    expect(next.openSessions.has('a')).toBe(false)
+    expect(next.resumed).toBe(state.resumed)
+    expect(workspaceReducer(next, { type: 'chat/follow', from: 'zzz', to: session('q') })).toBe(next)
+  })
+})

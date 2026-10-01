@@ -4,6 +4,7 @@ import type { SessionNode } from '@shared/types'
 import type { OpenTab } from '../layout/columns'
 import { EditableSessionTitle } from './EditableSessionTitle'
 import { ResumeBar } from './ResumeBar'
+import { useChat } from '../../state/useChat'
 import type { PendingTabInfo } from './paneTypes'
 
 /** The title (editable), folder path and — for a resolved session — the resume bar. */
@@ -20,6 +21,7 @@ export function SessionHeader({
   onSetView: (key: string, view: OpenTab['view']) => void
   onResume: (session: SessionNode) => void
 }): JSX.Element {
+  const chat = useChat(activeSession?.sessionId ?? '')
   return (
     <>
       <header className="session-header">
@@ -53,6 +55,7 @@ export function SessionHeader({
           hasTerminal={hasTerminal}
           onView={(v) => onSetView(activeSession.sessionId, v)}
           onResume={() => onResume(activeSession)}
+          chatRunning={chat !== null && chat.status !== 'exited'}
         />
       )}
     </>

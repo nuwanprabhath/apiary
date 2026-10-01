@@ -1,5 +1,8 @@
 import { type JSX, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SessionNode, TranscriptMessage } from '@shared/types'
+import type { ChatDecision, ChatState } from '@shared/domain/chat'
+import { chatItems, mergeLive } from '@shared/chatTimeline'
+import { ChatTimeline } from '../chat/ChatTimeline'
 import { MessageRow } from './MessageRow'
 import { mergeLatestPage } from '../../state/transcriptMerge'
 import { describeError, type DescribedError } from '../../ui/errors'
@@ -20,9 +23,15 @@ interface TranscriptProps {
   visible?: boolean
   /** Opens an image full size. Owned by the column, so the composer's images use the same one. */
   onOpenImage: (src: string) => void
+  /** Draw it as a chat (the "Chat in the transcript" setting), with `chat`'s live part on top. */
+  chatMode?: boolean
+  chat?: ChatState | null
+  onDecide?: (requestId: string, decision: ChatDecision) => void
 }
 
-export function Transcript({ session, visible = true, onOpenImage }: TranscriptProps): JSX.Element {
+export function Transcript({
+  session, visible = true, onOpenImage, chatMode = false, chat = null, onDecide,
+}: TranscriptProps): JSX.Element {
   const [messages, setMessages] = useState<TranscriptMessage[]>([])
   const [cursor, setCursor] = useState<number | null>(null)
   const [skipped, setSkipped] = useState(0)
@@ -236,6 +245,22 @@ export function Transcript({ session, visible = true, onOpenImage }: TranscriptP
     [messages, showSidechain],
   )
 
+  // Chat view: the file's messages plus whatever the chat has streamed that the file has not caught
+  // up with yet (matched by uuid, so nothing shows twice).
+  const items = useMemo(() => {
+    if (!chatMode) return []
+    const live = (chat?.live ?? []).filter((m) => showSidechain || !m.isSidechain)
+    return chatItems(mergeLive(visibleMessages, live))
+  }, [chatMode, chat?.live, visibleMessages, showSidechain])
+
+  // A streamed word, a permission prompt or the working line appearing keeps the view at the
+  // bottom — the same rule a new message from the file follows: only if you were already there.
+  useLayoutEffect(() => {
+    if (!chatMode || chat === null || !stickToBottomRef.current) return
+    const el = containerRef.current
+    if (el !== null) el.scrollTop = el.scrollHeight
+  }, [chatMode, chat])
+
   if (error !== null) {
     // Shown in place rather than as a notification: the pane has nothing else to display, and a
     // toast over an empty pane would leave the user staring at a blank area once it was
@@ -294,16 +319,18 @@ export function Transcript({ session, visible = true, onOpenImage }: TranscriptP
 
       {loading && <p className="empty">Loading transcript...</p>}
 
-      {visibleMessages.map((m, i) => (
-        <MessageRow
-          // eslint-disable-next-line @eslint-react/no-array-index-key -- falls back to the index only for the rare message with no uuid; the uuid is the real, stable key
-          key={m.uuid.length > 0 ? m.uuid : String(i)}
-          message={m}
-          onOpenImage={onOpenImage}
-        />
-      ))}
+      {chatMode
+        ? <ChatTimeline items={items} chat={chat} onOpenImage={onOpenImage} onDecide={(id, d) => { onDecide?.(id, d) }} />
+        : visibleMessages.map((m, i) => (
+          <MessageRow
+            // eslint-disable-next-line @eslint-react/no-array-index-key -- falls back to the index only for the rare message with no uuid; the uuid is the real, stable key
+            key={m.uuid.length > 0 ? m.uuid : String(i)}
+            message={m}
+            onOpenImage={onOpenImage}
+          />
+        ))}
 
-      {!loading && visibleMessages.length === 0 && (
+      {!loading && visibleMessages.length === 0 && (chat?.live.length ?? 0) === 0 && (
         <p className="empty" data-testid="transcript-empty">This session has no messages yet.</p>
       )}
     </div>

@@ -11,7 +11,7 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
  * logs ad hoc detail scopes (`mr-status`, `session-tracker`) that are already covered here.
  */
 export type LogScope =
-  | 'app' | 'git' | 'ipc' | 'mr-status' | 'navigation' | 'process' | 'prompt' | 'pty' | 'refresh'
+  | 'app' | 'chat' | 'git' | 'ipc' | 'mr-status' | 'navigation' | 'process' | 'prompt' | 'pty' | 'refresh'
   | 'rename' | 'resume' | 'search' | 'session-tracker' | 'settings' | 'shell' | 'status-bar' | 'tabs' | 'theme'
   | 'usage'
   | 'update' | 'vscode' | 'window'

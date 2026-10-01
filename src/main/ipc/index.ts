@@ -18,6 +18,7 @@ import { gitHandlers } from './handlers/git'
 import { settingsHandlers } from './handlers/settings'
 import { tabsHandlers } from './handlers/tabs'
 import { pluginsHandlers } from './handlers/plugins'
+import { chatHandlers } from './handlers/chat'
 import { updateHandlers } from './handlers/update'
 import { logHandlers } from './handlers/log'
 import { appChromeHandlers } from './handlers/appChrome'
@@ -83,6 +84,7 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
   const settingsIpc = settingsHandlers(deps)
   const tabs = tabsHandlers(deps)
   const plugins = pluginsHandlers({ service })
+  const chat = chatHandlers({ service })
   const update = updateHandlers(deps)
   const logIpc = logHandlers()
   const theme = themeHandlers(deps.theme)
@@ -95,6 +97,7 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
     ...settingsIpc,
     ...tabs.handlers,
     ...plugins,
+    ...chat,
     ...update,
     ...logIpc.handlers,
     ...theme.handlers,

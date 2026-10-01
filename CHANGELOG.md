@@ -4,6 +4,42 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.29.0] - 2026-10-01
+
+### Added
+
+- **Chat in the transcript**, like the VS Code extension (Settings → General, off by default).
+  A message sent from a session's transcript runs it as a chat instead of typing into its
+  terminal, and the view stays on the transcript:
+  - replies stream in as they are written, under a working line with Claude's changing words,
+    how long it has been working, and Esc (or Stop) to interrupt;
+  - each tool call is one row with its input and output together (the command and what it
+    printed, the file, the pattern), and a dot that turns green or red when it finishes;
+  - thinking shows as "Thought for 4s · 512 tokens" (or "Thought" for older turns);
+  - permission prompts are answered right there — Yes, Yes and don't ask again, or No with a note
+    for Claude;
+  - your latest message stays pinned at the top while you scroll;
+  - the message box shows the model Claude is really running and its effort ("Opus 5.5 Medium") —
+    click it for Claude's own model list and an effort scale — a ring with how much of the context
+    is used, and the permission mode (Manual, Edit automatically, Plan, Auto) as a button that
+    opens a menu saying what each one does; you can queue a message while Claude works;
+  - a "/" button searches Claude's slash commands — built-in ones like `/compact` and `/context`,
+    and your skills and plugin commands — and runs the one you pick (one that takes arguments goes
+    into the message box to finish). After `/clear`, the tab follows Claude to the new session it
+    starts.
+
+  It is the same conversation either way: the transcript is still read from the session's own
+  file, and a session runs as a chat or in its terminal, never both: sending from a transcript whose
+  terminal is running moves it to the chat, and "Continue in terminal" moves it back to Claude
+  Code's own terminal.
+
+### Fixed
+
+- Quitting from Ubuntu's dock (or closing each window in turn) brings every window back next
+  time, not only the last one closed. Windows closing one after another were each taken as "closed
+  by the user"; a window now keeps its saved layout for a few seconds after closing, and only loses
+  it if the app carries on running.
+
 ## [1.28.0] - 2026-10-01
 
 The rest of the 2026-09-26 codebase review's follow-up list (all but update-feed signing).

@@ -38,6 +38,8 @@ import { useLaunchRestore } from '../features/workspace/useLaunchRestore'
 import { useLayoutReporting } from '../features/workspace/useLayoutReporting'
 import { useOpenSessionRows } from '../features/workspace/useOpenSessionRows'
 import { useTabTransfer } from '../features/workspace/useTabTransfer'
+import { ChatModeContext } from '../state/useChat'
+import { useChatTakeover } from '../features/workspace/useChatTakeover'
 import { UpdateBanner } from '../features/update/UpdateBanner'
 import { useNotifications } from '../ui/notifications'
 import { ErrorBoundary } from '../ui/ErrorBoundary'
@@ -101,7 +103,7 @@ function AppWindow({ detached, arrival, restored }: {
    */
   const {
     revealActiveInSidebar, recentSectionEnabled, recentSectionHours,
-    searchChatContent, searchSessionNotes, reload: loadUiSettings,
+    searchChatContent, searchSessionNotes, transcriptChat, reload: loadUiSettings,
   } = useAppSettings()
   const {
     ui, updateUi: setUi, toggleSidebar, togglePin, unpin, setCollapsed, setGroupState,
@@ -134,6 +136,7 @@ function AppWindow({ detached, arrival, restored }: {
   useLayoutReporting(detached)
   useOpenSessionRows()
   const { transferFor } = useTabTransfer()
+  useChatTakeover()
   const [treeNonce, setTreeNonce] = useState(0)
   /** The `.layout` grid element — UI-6 writes the live sidebar width straight to its style during a drag. */
   const layoutRef = useRef<HTMLDivElement | null>(null)
@@ -587,6 +590,7 @@ function AppWindow({ detached, arrival, restored }: {
   }, [])
 
   return (
+    <ChatModeContext value={transcriptChat}>
     <DialogOpenContext value={openDialog}>
     <LayoutContext value={layoutActions}>
     <LayoutStateContext value={layoutState}>
@@ -803,5 +807,6 @@ function AppWindow({ detached, arrival, restored }: {
     </LayoutStateContext>
     </LayoutContext>
     </DialogOpenContext>
+    </ChatModeContext>
   )
 }
