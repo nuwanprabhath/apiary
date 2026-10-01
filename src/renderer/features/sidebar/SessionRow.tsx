@@ -1,4 +1,4 @@
-import { type JSX, useEffect, useState } from 'react'
+import { type JSX, memo, useEffect, useState } from 'react'
 import type { SessionNode } from '@shared/types'
 import { CloseIcon, NoteIcon, PinIcon, SplitIcon, TrashIcon } from '../../ui/icons'
 import { HoverCard } from '../../ui/HoverCard'
@@ -82,7 +82,7 @@ interface Props {
  * `.session-row-wrap:hover .session-time` in styles.css). The buttons are siblings of the row
  * rather than children of it because a <button> cannot contain another interactive element.
  */
-export function SessionRow({
+function SessionRowView({
   session, selected, pinned, onSelect, onSplit, onDelete, onTogglePin, onEditNote, onMenu,
   folderBranch, subtitle, onDismiss, treeTabIndex = -1, treeLevel = 1,
 }: Props): JSX.Element {
@@ -177,7 +177,7 @@ export function SessionRow({
           missing={!session.cwdExists}
           canOpenInVsCode={canOpenInVsCode}
           onOpenInVsCode={() => {
-            window.apiary.openInVsCode(session.sessionId, false).catch((e: unknown) => {
+            window.apiary.openInVsCode({ kind: 'session', id: session.sessionId }).catch((e: unknown) => {
               notifyError(e, 'Could not open VS Code')
             })
           }}
@@ -277,3 +277,11 @@ export function SessionRow({
     </div>
   )
 }
+
+/**
+ * Memoized (UI-4): a sidebar render caused by something the row does not show — an activity
+ * broadcast changing `activeTabs`, a search keystroke settling — hands every row the same props
+ * (callbacks come from `Sidebar`'s `rowActions`, which only changes when one of them does), so
+ * only a row whose own session, selection or tab stop changed re-renders.
+ */
+export const SessionRow = memo(SessionRowView)

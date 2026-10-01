@@ -9,7 +9,7 @@
  * hook returns while its provider is exercised the way the app exercises it, mounting only the
  * provider (or a probe that receives the same values App wires up), not the whole renderer.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { createRoot } from 'react-dom/client'
 import type { ReactNode } from 'react'
 import {
@@ -40,11 +40,14 @@ describe('context stability (UI-5)', () => {
     }
 
     const { unmount } = mount(<NotificationProvider><Probe /></NotificationProvider>)
-    await new Promise((r) => { setTimeout(r, 0) })
+    // React 19 renders a fresh root a little later than one macrotask; wait for the first commit.
+    await vi.waitFor(() => { expect(itemsSeen.size).toBe(1) })
 
     for (let i = 0; i < 5; i++) {
       notify({ message: `toast ${i}`, timeoutMs: null })
-      await new Promise((r) => { setTimeout(r, 0) })
+      // React 19 may commit a state update later than a bare `setTimeout(0)`, so wait for this
+      // toast's render rather than for one macrotask.
+      await vi.waitFor(() => { expect(itemsSeen.size).toBe(i + 2) })
     }
 
     // Measured against the pre-UI-5 code (`items` folded into the same object
@@ -69,14 +72,15 @@ describe('context stability (UI-5)', () => {
     }
 
     const { unmount } = mount(<NotificationProvider><ActionsOnlyProbe /></NotificationProvider>)
-    await new Promise((r) => { setTimeout(r, 0) })
+    await vi.waitFor(() => { expect(renderCount).toBe(1) })
     const before = renderCount
     expect(before).toBe(1)
 
     notify({ message: 'noisy toast 1', timeoutMs: null })
     notify({ message: 'noisy toast 2', timeoutMs: null })
     notify({ message: 'noisy toast 3', timeoutMs: null })
-    await new Promise((r) => { setTimeout(r, 0) })
+    // A negative assertion: give React 19's scheduler ample time to (not) re-render.
+    await new Promise((r) => { setTimeout(r, 100) })
 
     // Measured against the pre-UI-5 code: 2 renders (1 initial + 1 batched re-render for the
     // three notify() calls). After the split: still 1 — a component that only reads actions is

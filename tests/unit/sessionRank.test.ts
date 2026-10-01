@@ -1,10 +1,11 @@
+import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import { rankSessions } from '@shared/sessionRank'
 import { filterTreeLocal, SEARCH_RESULT_CAP } from '@shared/treeFilter'
 import type { ProjectNode, SessionNode } from '@shared/types'
 
 const session = (over: Partial<SessionNode>): SessionNode => ({
-  kind: 'session', sessionId: over.sessionId ?? 's', title: 'untitled', cwd: '/p',
+  kind: 'session', sessionId: asSessionId(over.sessionId ?? 's'), title: 'untitled', cwd: '/p',
   gitBranch: null, lastActiveAtMs: 0, messageCount: null, isLive: false, cwdExists: true,
   note: null, ...over,
 })
@@ -17,9 +18,9 @@ const project = (sessions: SessionNode[], over: Partial<ProjectNode> = {}): Proj
 describe('rankSessions', () => {
   it('ranks an exact title match above a mere prefix, which ranks above a subsequence', () => {
     const tree = [project([
-      session({ sessionId: 'sub', title: 'refactor csv export logic' }),
-      session({ sessionId: 'prefix', title: 'csv something else' }),
-      session({ sessionId: 'exact', title: 'csv' }),
+      session({ sessionId: asSessionId('sub'), title: 'refactor csv export logic' }),
+      session({ sessionId: asSessionId('prefix'), title: 'csv something else' }),
+      session({ sessionId: asSessionId('exact'), title: 'csv' }),
     ])]
     const ranked = rankSessions(tree, 'csv', new Set())
     expect(ranked.map((r) => r.session.sessionId)).toEqual(['exact', 'prefix', 'sub'])
@@ -28,8 +29,8 @@ describe('rankSessions', () => {
   it('ranks a path/branch match below a title match but above a content-only match', () => {
     const tree = [project(
       [
-        session({ sessionId: 'content-only', title: 'unrelated' }),
-        session({ sessionId: 'by-path', title: 'also unrelated', cwd: '/p/csv-tool' }),
+        session({ sessionId: asSessionId('content-only'), title: 'unrelated' }),
+        session({ sessionId: asSessionId('by-path'), title: 'also unrelated', cwd: '/p/csv-tool' }),
       ],
       { path: '/p/csv-tool' },
     )]
@@ -39,8 +40,8 @@ describe('rankSessions', () => {
 
   it('breaks ties within a tier by lastActiveAtMs descending', () => {
     const tree = [project([
-      session({ sessionId: 'older', title: 'csv one', lastActiveAtMs: 1 }),
-      session({ sessionId: 'newer', title: 'csv two', lastActiveAtMs: 2 }),
+      session({ sessionId: asSessionId('older'), title: 'csv one', lastActiveAtMs: 1 }),
+      session({ sessionId: asSessionId('newer'), title: 'csv two', lastActiveAtMs: 2 }),
     ])]
     expect(rankSessions(tree, 'csv', new Set()).map((r) => r.session.sessionId))
       .toEqual(['newer', 'older'])
@@ -68,9 +69,9 @@ describe('the search pipeline (filterTreeLocal -> rankSessions -> cap)', () => {
     // entirely, and this assertion would see some decoy in its place — which is exactly what
     // failed before this fix, since `filterTreeLocal` used to cap first.
     const decoys = Array.from({ length: 250 }, (_, i) => session({
-      sessionId: `decoy-${i}`, title: `unrelated csv thing ${i}`, lastActiveAtMs: 250 - i,
+      sessionId: asSessionId(`decoy-${i}`), title: `unrelated csv thing ${i}`, lastActiveAtMs: 250 - i,
     }))
-    const best = session({ sessionId: 'best', title: 'csv', lastActiveAtMs: 0 })
+    const best = session({ sessionId: asSessionId('best'), title: 'csv', lastActiveAtMs: 0 })
     const tree = [project([...decoys, best])]
 
     const { tree: filtered, totalMatches } = filterTreeLocal(tree, 'csv', new Set())

@@ -6,7 +6,15 @@ const shared = { '@shared': resolve('src/shared') }
 
 export default defineConfig({
   main: {
-    resolve: { alias: shared },
+    resolve: {
+      alias: {
+        ...shared,
+        // @xterm/headless 6.0.0 ships a package.json whose "module" field points at a file that
+        // does not exist (`lib/xterm.mjs`), so Vite cannot resolve the package entry. Point it at
+        // the real ESM build until upstream fixes the manifest.
+        '@xterm/headless': resolve('node_modules/@xterm/headless/lib-headless/xterm-headless.mjs'),
+      },
+    },
     build: {
       // `@xterm/headless` is bundled rather than externalised. It is CommonJS, and the main bundle
       // is ESM: left external, `import { Terminal } from '@xterm/headless'` becomes a Node ESM

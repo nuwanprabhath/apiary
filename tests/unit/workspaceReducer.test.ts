@@ -1,3 +1,4 @@
+import { asSessionId, asPtyId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import type { ProjectNode, SessionNode } from '@shared/types'
 import { initialLayout, type Layout } from '../../src/renderer/features/layout/layout'
@@ -7,7 +8,7 @@ import {
 
 function session(id: string, cwd = '/repo'): SessionNode {
   return {
-    kind: 'session', sessionId: id, title: id, cwd, cwdExists: true, isLive: false,
+    kind: 'session', sessionId: asSessionId(id), title: id, cwd, cwdExists: true, isLive: false,
     gitBranch: null, lastActiveAtMs: null, messageCount: null, note: null,
   }
 }
@@ -129,7 +130,7 @@ describe('workspaceReducer: pending/add', () => {
     const state = baseState()
     const next = workspaceReducer(state, {
       type: 'pending/add',
-      info: { ptyId: 'new:1', cwd: '/repo', label: 'new session' },
+      info: { ptyId: asPtyId('new:1'), cwd: '/repo', label: 'new session' },
       nodes: [],
     })
     expect(next.pending.get('new:1')?.titleOverride).toBeNull()
@@ -145,7 +146,7 @@ describe('workspaceReducer: pending/add', () => {
     state = { ...state, activeColumnId: second }
     const next = workspaceReducer(state, {
       type: 'pending/add',
-      info: { ptyId: 'new:fork', cwd: '/repo', label: 'fork' },
+      info: { ptyId: asPtyId('new:fork'), cwd: '/repo', label: 'fork' },
       nodes: [],
       titleOverride: 'fork: orig',
       after: 'orig',
@@ -162,7 +163,7 @@ describe('workspaceReducer: pending/add', () => {
       children: [], sessions: [session('existing')],
     }]
     const next = workspaceReducer(state, {
-      type: 'pending/add', info: { ptyId: 'new:1', cwd: '/repo', label: 'x' }, nodes,
+      type: 'pending/add', info: { ptyId: asPtyId('new:1'), cwd: '/repo', label: 'x' }, nodes,
     })
     expect(next.pending.get('new:1')?.knownSessionIds.has('existing')).toBe(true)
   })
@@ -172,15 +173,15 @@ describe('workspaceReducer: pending/title', () => {
   it('records a title override for a still-pending session', () => {
     let state = baseState()
     state = workspaceReducer(state, {
-      type: 'pending/add', info: { ptyId: 'new:1', cwd: '/repo', label: 'x' }, nodes: [],
+      type: 'pending/add', info: { ptyId: asPtyId('new:1'), cwd: '/repo', label: 'x' }, nodes: [],
     })
-    const next = workspaceReducer(state, { type: 'pending/title', ptyId: 'new:1', title: 'renamed' })
+    const next = workspaceReducer(state, { type: 'pending/title', ptyId: asPtyId('new:1'), title: 'renamed' })
     expect(next.pending.get('new:1')?.titleOverride).toBe('renamed')
   })
 
   it('is a no-op for a ptyId with no pending entry', () => {
     const state = baseState()
-    const next = workspaceReducer(state, { type: 'pending/title', ptyId: 'new:1', title: 'x' })
+    const next = workspaceReducer(state, { type: 'pending/title', ptyId: asPtyId('new:1'), title: 'x' })
     expect(next).toBe(state)
   })
 })
@@ -189,11 +190,11 @@ describe('workspaceReducer: session/follow (reconcile + rekey)', () => {
   it('folds a resolved pending session into the normal bookkeeping, keeping the tab on terminal view', () => {
     let state = baseState()
     state = workspaceReducer(state, {
-      type: 'pending/add', info: { ptyId: 'new:1', cwd: '/repo', label: 'x' }, nodes: [],
+      type: 'pending/add', info: { ptyId: asPtyId('new:1'), cwd: '/repo', label: 'x' }, nodes: [],
     })
     const found = session('real-1')
     const next = workspaceReducer(state, {
-      type: 'session/follow', from: 'new:1', to: found, ptyId: 'new:1', titleOverride: null,
+      type: 'session/follow', from: 'new:1', to: found, ptyId: asPtyId('new:1'), titleOverride: null,
     })
     expect(next.ptyOverrides.get('real-1')).toBe('new:1')
     expect(next.resumed.has('real-1')).toBe(true)
@@ -206,11 +207,11 @@ describe('workspaceReducer: session/follow (reconcile + rekey)', () => {
   it('applies a title override typed in while still pending', () => {
     let state = baseState()
     state = workspaceReducer(state, {
-      type: 'pending/add', info: { ptyId: 'new:1', cwd: '/repo', label: 'x' }, nodes: [],
+      type: 'pending/add', info: { ptyId: asPtyId('new:1'), cwd: '/repo', label: 'x' }, nodes: [],
     })
     const found = session('real-1')
     const next = workspaceReducer(state, {
-      type: 'session/follow', from: 'new:1', to: found, ptyId: 'new:1', titleOverride: 'my title',
+      type: 'session/follow', from: 'new:1', to: found, ptyId: asPtyId('new:1'), titleOverride: 'my title',
     })
     expect(next.openSessions.get('real-1')?.title).toBe('my title')
   })
@@ -221,7 +222,7 @@ describe('workspaceReducer: session/follow (reconcile + rekey)', () => {
     state = { ...state, resumed: new Set(['new:1']) }
     const target = session('existing-session')
     const next = workspaceReducer(state, {
-      type: 'session/follow', from: 'new:1', to: target, ptyId: 'new:1', titleOverride: null,
+      type: 'session/follow', from: 'new:1', to: target, ptyId: asPtyId('new:1'), titleOverride: null,
     })
     expect(next.resumed.has('new:1')).toBe(false)
     expect(next.resumed.has('existing-session')).toBe(true)
@@ -236,7 +237,7 @@ describe('workspaceReducer: session/follow (reconcile + rekey)', () => {
     const state = baseState()
     const target = session('same-id')
     const next = workspaceReducer(state, {
-      type: 'session/follow', from: 'same-id', to: target, ptyId: 'same-id', titleOverride: null,
+      type: 'session/follow', from: 'same-id', to: target, ptyId: asPtyId('same-id'), titleOverride: null,
     })
     expect(next.ptyOverrides.has('same-id')).toBe(false)
   })
@@ -246,7 +247,7 @@ describe('workspaceReducer: pty/exited', () => {
   it('drops a pending entry whose pty exited before ever resolving', () => {
     let state = baseState()
     state = workspaceReducer(state, {
-      type: 'pending/add', info: { ptyId: 'new:1', cwd: '/repo', label: 'x' }, nodes: [],
+      type: 'pending/add', info: { ptyId: asPtyId('new:1'), cwd: '/repo', label: 'x' }, nodes: [],
     })
     const next = workspaceReducer(state, { type: 'pty/exited', id: 'new:1' })
     expect(next.pending.has('new:1')).toBe(false)

@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { PluginRegistry } from '../../src/main/plugins/registry'
 import { createGitLabMrPlugin, pickMergeRequest } from '../../src/main/plugins/gitlabMr'
-import type { PluginBarItem, SessionBarPlugin } from '../../src/main/plugins/types'
+import { originUrl, type RemoteExec } from '../../src/main/plugins/remote'
+import type {
+  PluginBarItem, PluginContext, PluginTarget, SessionBarPlugin,
+} from '../../src/main/plugins/types'
 
 /** A `glab`/`git` stand-in: answers are looked up by the command being run. */
 function fakeExec(answers: Record<string, string | Error>) {
@@ -19,6 +22,11 @@ function fakeExec(answers: Record<string, string | Error>) {
 
 const REMOTE = 'git@gitlab.com:ternandsparrow/paratoo-fdcp.git'
 const ctx = { cwd: '/work/repo', branch: 'camera-trap-dropdown' }
+
+/** What the registry builds for a real evaluation: the target plus a remote lookup (via the fake exec). */
+function withRemote(target: PluginTarget, exec: RemoteExec): PluginContext {
+  return { ...target, remoteUrl: () => originUrl(target.cwd, exec) }
+}
 
 function mr(over: Partial<{ iid: number; state: string; title: string; draft: boolean }> = {}) {
   return {
@@ -58,7 +66,7 @@ describe('the GitLab merge-request plugin', () => {
       'git remote get-url': REMOTE,
       'glab mr list': JSON.stringify([mr()]),
     })
-    const item = await createGitLabMrPlugin({ exec }).evaluate(ctx, {})
+    const item = await createGitLabMrPlugin({ exec }).evaluate(withRemote(ctx, exec), {})
 
     expect(item?.label).toBe('!1255')
     expect(item?.action).toEqual({
@@ -73,7 +81,7 @@ describe('the GitLab merge-request plugin', () => {
     // a merged branch answers `[]` by default and `[{state: "merged"}]` with --all. Without the
     // flag the button flips to "create one" the moment an MR lands, inviting a duplicate.
     const { exec, calls } = fakeExec({ 'git remote get-url': REMOTE, 'glab mr list': '[]' })
-    await createGitLabMrPlugin({ exec }).evaluate(ctx, {})
+    await createGitLabMrPlugin({ exec }).evaluate(withRemote(ctx, exec), {})
     expect(calls.find((c) => c.includes('mr'))).toContain('--all')
   })
 
@@ -82,7 +90,7 @@ describe('the GitLab merge-request plugin', () => {
       'git remote get-url': REMOTE,
       'glab mr list': JSON.stringify([mr({ iid: 1268, state: 'merged' })]),
     })
-    const item = await createGitLabMrPlugin({ exec }).evaluate(ctx, {})
+    const item = await createGitLabMrPlugin({ exec }).evaluate(withRemote(ctx, exec), {})
 
     expect(item?.label).toBe('!1268')
     expect(item?.icon).toBe('merge-request-merged')
@@ -96,7 +104,7 @@ describe('the GitLab merge-request plugin', () => {
       'git remote get-url': REMOTE,
       'glab mr list': JSON.stringify([mr({ state: 'closed' })]),
     })
-    const item = await createGitLabMrPlugin({ exec }).evaluate(ctx, {})
+    const item = await createGitLabMrPlugin({ exec }).evaluate(withRemote(ctx, exec), {})
 
     expect(item?.icon).toBe('merge-request-closed')
     expect(item?.title).toContain('Closed')
@@ -107,7 +115,7 @@ describe('the GitLab merge-request plugin', () => {
       'git remote get-url': REMOTE,
       'glab mr list': JSON.stringify([mr({ draft: true })]),
     })
-    expect((await createGitLabMrPlugin({ exec }).evaluate(ctx, {}))?.title).toContain('Draft')
+    expect((await createGitLabMrPlugin({ exec }).evaluate(withRemote(ctx, exec), {}))?.title).toContain('Draft')
   })
 
   it('asks about the branch it was given, not whatever glab thinks is current', async () => {
@@ -115,14 +123,14 @@ describe('the GitLab merge-request plugin', () => {
       'git remote get-url': REMOTE,
       'glab mr list': '[]',
     })
-    await createGitLabMrPlugin({ exec }).evaluate(ctx, {})
+    await createGitLabMrPlugin({ exec }).evaluate(withRemote(ctx, exec), {})
     expect(calls.some((c) => c.includes('--source-branch') && c.includes('camera-trap-dropdown')))
       .toBe(true)
   })
 
   it('offers to create one when the branch has none', async () => {
     const { exec } = fakeExec({ 'git remote get-url': REMOTE, 'glab mr list': '[]' })
-    const item = await createGitLabMrPlugin({ exec }).evaluate(ctx, {})
+    const item = await createGitLabMrPlugin({ exec }).evaluate(withRemote(ctx, exec), {})
 
     expect(item?.label).toBe('MR')
     expect(item?.action).toEqual({
@@ -138,22 +146,22 @@ describe('the GitLab merge-request plugin', () => {
       'git remote get-url': REMOTE,
       'glab mr list': new Error('spawn glab ENOENT'),
     })
-    expect((await createGitLabMrPlugin({ exec }).evaluate(ctx, {}))?.id).toBe('mr-new')
+    expect((await createGitLabMrPlugin({ exec }).evaluate(withRemote(ctx, exec), {}))?.id).toBe('mr-new')
   })
 
   it('shows nothing at all for a repository that is not on GitLab', async () => {
     const { exec } = fakeExec({ 'git remote get-url': 'git@github.com:someone/thing.git' })
-    expect(await createGitLabMrPlugin({ exec }).evaluate(ctx, {})).toBeNull()
+    expect(await createGitLabMrPlugin({ exec }).evaluate(withRemote(ctx, exec), {})).toBeNull()
   })
 
   it('shows nothing for a folder with no git remote', async () => {
     const { exec } = fakeExec({ 'git remote get-url': new Error('not a git repository') })
-    expect(await createGitLabMrPlugin({ exec }).evaluate(ctx, {})).toBeNull()
+    expect(await createGitLabMrPlugin({ exec }).evaluate(withRemote(ctx, exec), {})).toBeNull()
   })
 
   it('shows nothing on a detached HEAD, which has no branch to have an MR for', async () => {
     const { exec, calls } = fakeExec({ 'git remote get-url': REMOTE })
-    expect(await createGitLabMrPlugin({ exec }).evaluate({ cwd: '/work/repo', branch: null }, {}))
+    expect(await createGitLabMrPlugin({ exec }).evaluate(withRemote({ cwd: '/work/repo', branch: null }, exec), {}))
       .toBeNull()
     // And it does not go looking, either.
     expect(calls).toEqual([])
@@ -161,7 +169,7 @@ describe('the GitLab merge-request plugin', () => {
 
   it('survives glab returning something that is not a merge request list', async () => {
     const { exec } = fakeExec({ 'git remote get-url': REMOTE, 'glab mr list': 'not json at all' })
-    expect((await createGitLabMrPlugin({ exec }).evaluate(ctx, {}))?.id).toBe('mr-new')
+    expect((await createGitLabMrPlugin({ exec }).evaluate(withRemote(ctx, exec), {}))?.id).toBe('mr-new')
   })
 })
 
@@ -331,7 +339,7 @@ describe('plugin settings', () => {
   it('targets the branch the setting names, when creating a merge request', async () => {
     const { exec } = fakeExec({ 'git remote get-url': REMOTE, 'glab mr list': '[]' })
     const item = await createGitLabMrPlugin({ exec })
-      .evaluate(ctx, { targetBranch: 'dev/1.0.12' })
+      .evaluate(withRemote(ctx, exec), { targetBranch: 'dev/1.0.12' })
 
     const url = new URL((item?.action as { url: string }).url)
     expect(url.searchParams.get('merge_request[target_branch]')).toBe('dev/1.0.12')
@@ -345,7 +353,7 @@ describe('plugin settings', () => {
     // empty string as the answer rather than falling back to the project's default branch.
     const { exec } = fakeExec({ 'git remote get-url': REMOTE, 'glab mr list': '[]' })
     for (const blank of ['', '   ']) {
-      const item = await createGitLabMrPlugin({ exec }).evaluate(ctx, { targetBranch: blank })
+      const item = await createGitLabMrPlugin({ exec }).evaluate(withRemote(ctx, exec), { targetBranch: blank })
       expect((item?.action as { url: string }).url).not.toContain('target_branch')
     }
   })
@@ -450,5 +458,24 @@ describe('changing a setting while the bar is on screen', () => {
 
     expect(await second).toEqual(await first)
     expect((await second).map((i) => i.pluginId)).toEqual(['slow'])
+  })
+})
+
+describe('PluginContext.remoteUrl (MAIN-17)', () => {
+  it('is looked up once per evaluation however many plugins ask', async () => {
+    const remoteUrl = vi.fn(async () => REMOTE)
+    const seen: (string | null)[] = []
+    const registry = new PluginRegistry({ remoteUrl })
+    for (const id of ['a', 'b']) {
+      registry.register({
+        id,
+        name: id,
+        evaluate: async (c) => { seen.push(await c.remoteUrl(), await c.remoteUrl()); return null },
+      })
+    }
+    await registry.refresh(ctx)
+    expect(seen).toEqual([REMOTE, REMOTE, REMOTE, REMOTE])
+    expect(remoteUrl).toHaveBeenCalledTimes(1)
+    expect(remoteUrl).toHaveBeenCalledWith('/work/repo')
   })
 })

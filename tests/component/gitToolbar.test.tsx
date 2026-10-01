@@ -92,7 +92,7 @@ describe('the git toolbar', () => {
     // a second concurrent checkout.
     let calls = 0
     let resolveCheckout: (() => void) | null = null
-    fake.override('gitCheckoutBranch', async (_key, _isPtyId, name) => {
+    fake.override('gitCheckoutBranch', async (_terminal, name) => {
       calls += 1
       await new Promise<void>((resolve) => { resolveCheckout = resolve })
       fake.state.refs = { ...fake.state.refs, current: name }
@@ -164,7 +164,7 @@ describe('the git toolbar', () => {
     // error routed only to the parent would be invisible. (A branch held by another worktree is not
     // this case; it is an outcome with actions, see the worktree tests below.)
     const fake = await open()
-    fake.override('gitCreateBranch', async (_key, _isPtyId, name) => {
+    fake.override('gitCreateBranch', async (_terminal, name) => {
       if (fake.state.refs.local.some((r) => r.name === name)) {
         throw new Error(`fatal: A branch named '${name}' already exists`)
       }
@@ -213,7 +213,7 @@ describe('the git toolbar', () => {
     // that refusal is the normal answer, not a failure — and being shown git's sentence and left to
     // go and find that directory by hand is the slow part.
     const fake = await open()
-    fake.override('gitCheckoutBranch', async (_key, _isPtyId, name) => (
+    fake.override('gitCheckoutBranch', async (_terminal, name) => (
       name === 'feature/wt'
         ? { ok: false, conflict: { branch: 'feature/wt', worktreePath: '/fixture/repo-c-wt', label: 'repo-c-wt' } }
         : { ok: true }
@@ -235,7 +235,7 @@ describe('the git toolbar', () => {
 
   it('opening a session in that worktree starts it in the worktree, not the repo root', async () => {
     const fake = await open()
-    fake.override('gitCheckoutBranch', async (_key, _isPtyId, name) => (
+    fake.override('gitCheckoutBranch', async (_terminal, name) => (
       name === 'feature/wt'
         ? { ok: false, conflict: { branch: 'feature/wt', worktreePath: '/fixture/repo-c-wt', label: 'repo-c-wt' } }
         : { ok: true }
@@ -257,7 +257,7 @@ describe('the git toolbar', () => {
       ['33333333-3333-3333-3333-333333333333', { status: { branch: 'main', ahead: 0, behind: 0, hasUpstream: false } }],
       ['44444444-4444-4444-4444-444444444444', { status: { branch: 'feature/wt', ahead: 0, behind: 0, hasUpstream: false } }],
     ])
-    fake.override('gitStatus', (key) => new Promise<GitStatus>((resolve) => {
+    fake.override('gitStatus', ({ id: key }) => new Promise<GitStatus>((resolve) => {
       const entry = responses.get(key)
       if (entry === undefined) { resolve({ branch: null, ahead: 0, behind: 0, hasUpstream: false }); return }
       // "Repo root session"'s request is held open until the test resolves it by hand, standing in
@@ -293,7 +293,7 @@ describe('the git toolbar', () => {
       ['33333333-3333-3333-3333-333333333333', { current: 'main', local: [ref('main')], remote: [], tags: [] }],
       ['44444444-4444-4444-4444-444444444444', { current: 'feature/wt', local: [ref('feature/wt')], remote: [], tags: [] }],
     ])
-    fake.override('gitListRefs', async (key) => refsByKey.get(key) ?? { current: null, local: [], remote: [], tags: [] })
+    fake.override('gitListRefs', async ({ id: key }) => refsByKey.get(key) ?? { current: null, local: [], remote: [], tags: [] })
 
     // Both tabs opened up front, the way another window's Active row would find one already open —
     // `onSelectTab` (below) only re-focuses a tab that exists here, it does not open one.

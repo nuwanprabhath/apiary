@@ -1,4 +1,4 @@
-import { type JSX, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { type JSX, createContext, useCallback, use, useEffect, useMemo, useRef, useState } from 'react'
 import { describeError } from './errors'
 
 export type NotificationKind = 'error' | 'warning' | 'info' | 'success'
@@ -149,21 +149,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   )
 
   return (
-    <NotificationsContext.Provider value={api}>
-      <NotificationItemsContext.Provider value={items}>{children}</NotificationItemsContext.Provider>
-    </NotificationsContext.Provider>
+    <NotificationsContext value={api}>
+      <NotificationItemsContext value={items}>{children}</NotificationItemsContext>
+    </NotificationsContext>
   )
 }
 
 export function useNotifications(): NotificationsApi {
-  const api = useContext(NotificationsContext)
+  const api = use(NotificationsContext)
   if (api === null) throw new Error('useNotifications must be used inside a NotificationProvider')
   return api
 }
 
 /** The live toast list — only `NotificationCenter` needs this, and only it should re-render on it. */
 export function useNotificationItems(): Notification[] {
-  const items = useContext(NotificationItemsContext)
+  const items = use(NotificationItemsContext)
   if (items === null) throw new Error('useNotificationItems must be used inside a NotificationProvider')
   return items
 }

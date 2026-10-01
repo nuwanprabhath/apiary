@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, realpathSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { git, commitFile as commit, initRepo, setIdentity } from '../fixtures/gitRepo'
 import {
   status, listRefs, checkoutBranch, checkoutRemote, checkoutDetached, createBranch, pull, pullFastForward, push, merge, fetch, parseWorktreeList, isWorktreeConflict, worktreeForBranch, listWorktrees, updateBranch, addWorktree, listBranchNames,
   branchOpsSpawnCount, resetBranchOpsSpawnCount,
@@ -19,21 +19,10 @@ async function requireStatus(cwd: string): Promise<GitStatus> {
 
 let repo: string
 
-const git = (cwd: string, ...args: string[]) =>
-  execFileSync('git', args, { cwd, stdio: 'pipe' }).toString()
-
-function commit(repoPath: string, file: string, message: string): void {
-  writeFileSync(join(repoPath, file), message)
-  git(repoPath, 'add', '.')
-  git(repoPath, '-c', 'commit.gpgsign=false', 'commit', '-qm', message)
-}
 
 beforeEach(() => {
   repo = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-branchops-')))
-  git(repo, 'init', '-q', '-b', 'main')
-  git(repo, 'config', 'user.email', 'test@example.com')
-  git(repo, 'config', 'user.name', 'Test')
-  commit(repo, 'README.md', 'init')
+  initRepo(repo)
 })
 afterEach(() => { rmSync(repo, { recursive: true, force: true }) })
 
@@ -208,8 +197,7 @@ describe('pull / push', () => {
 
     const clone = mkdtempSync(join(tmpdir(), 'apiary-branchops-clone-'))
     git(tmpdir(), 'clone', '-q', remote, clone)
-    git(clone, 'config', 'user.email', 'test@example.com')
-    git(clone, 'config', 'user.name', 'Test')
+    setIdentity(clone, 'test@example.com', 'Test')
     commit(clone, 'from-clone.txt', 'pushed from clone')
     commit(clone, 'from-clone-2.txt', 'second from clone')
     git(clone, 'push', '-q')
@@ -255,8 +243,7 @@ describe('pull / push', () => {
     // same file — guarantees a real merge conflict (not just a fast-forward) on the eventual pull.
     const other = mkdtempSync(join(tmpdir(), 'apiary-branchops-other-'))
     git(tmpdir(), 'clone', '-q', remote, other)
-    git(other, 'config', 'user.email', 'test@example.com')
-    git(other, 'config', 'user.name', 'Test')
+    setIdentity(other, 'test@example.com', 'Test')
     writeFileSync(join(other, 'README.md'), 'change from other clone')
     git(other, 'add', '.')
     git(other, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'conflicting change from other')
@@ -297,8 +284,7 @@ describe('merge', () => {
     // Create a conflicting branch in another clone
     const other = mkdtempSync(join(tmpdir(), 'apiary-branchops-merge-other-'))
     git(tmpdir(), 'clone', '-q', remote, other)
-    git(other, 'config', 'user.email', 'test@example.com')
-    git(other, 'config', 'user.name', 'Test')
+    setIdentity(other, 'test@example.com', 'Test')
     writeFileSync(join(other, 'README.md'), 'change from other')
     git(other, 'add', '.')
     git(other, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'conflicting commit from other')
@@ -340,8 +326,7 @@ describe('pullFastForward', () => {
     git(repo, 'push', '-q', '-u', 'origin', 'main')
     other = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-ff-other-')))
     git(other, 'clone', '-q', remote, '.')
-    git(other, 'config', 'user.email', 'other@example.com')
-    git(other, 'config', 'user.name', 'Other')
+    setIdentity(other, 'other@example.com', 'Other')
   })
   afterEach(() => {
     rmSync(remote, { recursive: true, force: true })
@@ -378,7 +363,7 @@ describe('pullFastForward', () => {
     writeFileSync(join(repo, 'README.md'), 'my unsaved edit')
 
     await expect(pullFastForward(repo)).rejects.toThrow()
-    expect(execFileSync('cat', [join(repo, 'README.md')]).toString()).toBe('my unsaved edit')
+    expect(readFileSync(join(repo, 'README.md'), 'utf8')).toBe('my unsaved edit')
   })
 })
 
@@ -392,8 +377,7 @@ describe('fetch', () => {
     // Create a new commit in another clone and push it
     const other = mkdtempSync(join(tmpdir(), 'apiary-branchops-fetch-other-'))
     git(tmpdir(), 'clone', '-q', remote, other)
-    git(other, 'config', 'user.email', 'test@example.com')
-    git(other, 'config', 'user.name', 'Test')
+    setIdentity(other, 'test@example.com', 'Test')
     commit(other, 'new-file.txt', 'new commit in other')
     git(other, 'push', '-q')
 
@@ -525,8 +509,7 @@ describe('updateBranch — the branch list\'s pull button', () => {
     // Someone else pushes two commits to feature/x.
     other = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-branchops-other-')))
     git(other, 'clone', '-q', remote, '.')
-    git(other, 'config', 'user.email', 'o@example.com')
-    git(other, 'config', 'user.name', 'Other')
+    setIdentity(other, 'o@example.com', 'Other')
     git(other, 'checkout', '-q', 'feature/x')
     commit(other, 'b.txt', 'theirs 1')
     commit(other, 'c.txt', 'theirs 2')

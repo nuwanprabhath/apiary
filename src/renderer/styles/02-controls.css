@@ -9,9 +9,9 @@
  * fell through to Chromium's native control, which on macOS is white and looks like it came
  * from another application entirely.
  *
- * `.btn` is what new markup should use. The container-scoped selectors are kept beside it so
- * existing dialogs need no churn, but they are aliases, not separate designs: every one of them
- * resolves the same tokens, so a change to height, corner or colour lands everywhere at once.
+ * `.btn` is what every button uses (dialogs, banners, notifications, Settings presets): the
+ * per-container selectors are gone, so a change to height, corner or colour lands everywhere at
+ * once and a new container needs no CSS to get a correct button.
  *
  * The variants are `.primary` (the one action the dialog is for) and `.danger` (the one that
  * destroys something). Both are deliberately class names rather than separate rules per
@@ -19,12 +19,7 @@
  */
 .composer-send,
 .btn,
-.icon-button,
-.modal-actions button,
-.resume-bar button,
-.crash-actions button,
-.notification-action,
-.settings-preset {
+.icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -45,59 +40,34 @@
   transition: background-color 0.1s, color 0.1s, border-color 0.1s;
 }
 
-.btn:hover:not(:disabled),
-.icon-button:hover:not(:disabled),
-.modal-actions button:hover:not(:disabled),
-.resume-bar button:hover:not(:disabled),
-.crash-actions button:hover:not(:disabled),
-.notification-action:hover,
-.settings-preset:hover { background: var(--control-bg-hover); color: var(--text); }
-
-.btn:active:not(:disabled),
-.icon-button:active:not(:disabled),
-.modal-actions button:active:not(:disabled),
-.resume-bar button:active:not(:disabled) { background: var(--control-bg-active); }
-
-.composer-send:disabled,
-.btn:disabled,
-.icon-button:disabled,
-.modal-actions button:disabled,
-.resume-bar button:disabled,
-.settings-preset:disabled { cursor: default; opacity: 0.5; }
+/* Rules below run from least to most specific (variant, then state), which is what
+ * `no-descending-specificity` checks: a state rule never sits before a plainer rule for the
+ * same element, so the cascade does not depend on source order alone. */
 
 /* Filled variants. Both read as "this is the action", so they carry the accent's ink colour
  * rather than the app's text colour. */
 .composer-send,
-.btn.primary,
-.modal-actions .primary,
-.resume-bar .primary,
-.crash-actions .primary {
+.btn.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-contrast);
   font-weight: 600;
 }
-.composer-send:hover:not(:disabled),
-.btn.primary:hover:not(:disabled),
-.modal-actions .primary:hover:not(:disabled),
-.resume-bar .primary:hover:not(:disabled),
-.crash-actions .primary:hover:not(:disabled) { background: var(--accent); opacity: 0.9; color: var(--accent-contrast); }
 
-.btn.danger,
-.modal-actions .danger {
+.btn.danger {
   background: var(--danger);
   border-color: var(--danger);
   color: var(--accent-contrast);
   font-weight: 600;
 }
-.btn.danger:hover:not(:disabled),
-.modal-actions .danger:hover:not(:disabled) { background: var(--danger); opacity: 0.9; color: var(--accent-contrast); }
 
-.btn.small,
-.notification-action,
-.settings-preset { min-height: var(--control-height-sm); padding: 0 8px; font-size: 12px; }
+.btn.small { min-height: var(--control-height-sm); padding: 0 8px; font-size: 12px; }
 
 .btn svg { width: 14px; height: 14px; flex: none; }
+
+.composer-send:disabled,
+.btn:disabled,
+.icon-button:disabled { cursor: default; opacity: 0.5; }
 
 /*
  * One focus style for everything focusable. Chromium's default ring follows the OS accent
@@ -106,15 +76,20 @@
  */
 .btn:focus-visible,
 .icon-button:focus-visible,
-.modal-actions button:focus-visible,
-.resume-bar button:focus-visible,
-.crash-actions button:focus-visible,
-.notification-action:focus-visible,
-.settings-preset:focus-visible,
 .toolbar-button:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+.btn:hover:not(:disabled),
+.icon-button:hover:not(:disabled) { background: var(--control-bg-hover); color: var(--text); }
+
+.btn:active:not(:disabled),
+.icon-button:active:not(:disabled) { background: var(--control-bg-active); }
+
+.composer-send:hover:not(:disabled),
+.btn.primary:hover:not(:disabled) { background: var(--accent); opacity: 0.9; color: var(--accent-contrast); }
+.btn.danger:hover:not(:disabled) { background: var(--danger); opacity: 0.9; color: var(--accent-contrast); }
 
 /*
  * Checkboxes.
@@ -142,7 +117,6 @@ input[type="checkbox"] {
   cursor: pointer;
   transition: background-color 0.1s, border-color 0.1s;
 }
-input[type="checkbox"]:hover:not(:disabled) { border-color: var(--accent); }
 input[type="checkbox"]:checked, input[type="checkbox"]:indeterminate {
   background: var(--accent);
   border-color: var(--accent);
@@ -164,6 +138,7 @@ input[type="checkbox"]:indeterminate::before {
 }
 input[type="checkbox"]:disabled { opacity: 0.45; cursor: default; }
 input[type="checkbox"]:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+input[type="checkbox"]:hover:not(:disabled) { border-color: var(--accent); }
 input[type="radio"] { accent-color: var(--accent); }
 
 /*

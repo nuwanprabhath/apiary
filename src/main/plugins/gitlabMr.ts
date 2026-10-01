@@ -145,7 +145,7 @@ export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarP
       // A detached HEAD has no branch to have an MR for, and nothing sensible to create one from.
       if (ctx.branch === null || ctx.branch === '') return null
 
-      const remoteUrl = await originUrl(ctx.cwd, exec)
+      const remoteUrl = await ctx.remoteUrl()
       if (remoteUrl === null) return null
       const remote = parseGitLabRemote(remoteUrl)
       if (remote === null) return null
@@ -176,19 +176,5 @@ export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarP
         ? itemForNewMergeRequest(remote, ctx.branch, targetBranch)
         : itemForMergeRequest(mr)
     },
-  }
-}
-
-/** The `origin` remote's URL, or null when there is no remote (or no git). */
-export async function originUrl(
-  cwd: string,
-  exec: (file: string, args: string[], cwd: string) => Promise<string>,
-): Promise<string | null> {
-  try {
-    const stdout = await exec('git', ['remote', 'get-url', 'origin'], cwd)
-    const url = stdout.trim()
-    return url === '' ? null : url
-  } catch {
-    return null
   }
 }

@@ -14,7 +14,7 @@ describe('mrStatusStore', () => {
   it('unions two consumers subscribing to the same session in one tick into a single request', async () => {
     const { fake } = await renderApp()
     const calls: number[][] = []
-    fake.override('gitlabMrRefStatus', async (_key, _isPtyId, iids) => {
+    fake.override('gitlabMrRefStatus', async (_terminal, iids) => {
       calls.push(iids)
       return {}
     })

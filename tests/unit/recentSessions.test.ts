@@ -1,3 +1,4 @@
+import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import { selectRecent, pruneDismissed, dismissRecent } from '../../src/renderer/features/sidebar/model/recentSessions'
 import type { SessionNode } from '@shared/types'
@@ -6,7 +7,7 @@ const HOUR = 3600_000
 
 function session(id: string, lastActiveAtMs: number | null): SessionNode {
   return {
-    kind: 'session', sessionId: id, title: id, cwd: '/x', gitBranch: null,
+    kind: 'session', sessionId: asSessionId(id), title: id, cwd: '/x', gitBranch: null,
     lastActiveAtMs, messageCount: 1, isLive: false, cwdExists: true, note: null,
   }
 }

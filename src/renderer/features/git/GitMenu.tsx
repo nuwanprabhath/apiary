@@ -18,7 +18,7 @@ interface Props {
   items: GitMenuItem[]
   onClose: () => void
   /** The toolbar this menu belongs to. It opens upward from that element's top edge. */
-  anchorRef: React.RefObject<HTMLElement>
+  anchorRef: React.RefObject<HTMLElement | null>
 }
 
 /**

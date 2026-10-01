@@ -1,3 +1,4 @@
+import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import { fuzzyScore } from '@shared/fuzzy'
 import { filterTreeLocal } from '@shared/treeFilter'
@@ -20,7 +21,7 @@ const proj = (path: string, sessions: ProjectNode['sessions'] = []): ProjectNode
 describe('filterTreeLocal', () => {
   it('keeps a project whose session title matches', () => {
     const tree = [proj('/p/app', [{
-      kind: 'session', sessionId: 's1', title: 'Fix CSV export', cwd: '/p/app',
+      kind: 'session', sessionId: asSessionId('s1'), title: 'Fix CSV export', cwd: '/p/app',
       gitBranch: null, lastActiveAtMs: 1, messageCount: null, isLive: false, cwdExists: true, note: null,
     }])]
     expect(filterTreeLocal(tree, 'csv', new Set()).tree[0].sessions).toHaveLength(1)
@@ -28,8 +29,8 @@ describe('filterTreeLocal', () => {
 
   it('keeps a whole project when the project label matches', () => {
     const tree = [proj('/p/app', [
-      { kind: 'session', sessionId: 's1', title: 'Fix CSV export', cwd: '/p/app', gitBranch: null, lastActiveAtMs: 1, messageCount: null, isLive: false, cwdExists: true, note: null },
-      { kind: 'session', sessionId: 's2', title: 'Add worktree switcher', cwd: '/p/app', gitBranch: null, lastActiveAtMs: 1, messageCount: null, isLive: false, cwdExists: true, note: null },
+      { kind: 'session', sessionId: asSessionId('s1'), title: 'Fix CSV export', cwd: '/p/app', gitBranch: null, lastActiveAtMs: 1, messageCount: null, isLive: false, cwdExists: true, note: null },
+      { kind: 'session', sessionId: asSessionId('s2'), title: 'Add worktree switcher', cwd: '/p/app', gitBranch: null, lastActiveAtMs: 1, messageCount: null, isLive: false, cwdExists: true, note: null },
     ])]
     expect(filterTreeLocal(tree, 'app', new Set()).tree[0].sessions).toHaveLength(2)
   })
@@ -38,7 +39,7 @@ describe('filterTreeLocal', () => {
     const wt: ProjectNode = {
       kind: 'project', path: '/p/wt', label: 'wt', branch: 'species-list', isWorktree: true,
       children: [], sessions: [{
-        kind: 'session', sessionId: 's3', title: 'Bump deps', cwd: '/p/wt', gitBranch: null,
+        kind: 'session', sessionId: asSessionId('s3'), title: 'Bump deps', cwd: '/p/wt', gitBranch: null,
         lastActiveAtMs: 1, messageCount: null, isLive: false, cwdExists: true, note: null,
       }],
     }
@@ -56,7 +57,7 @@ describe('filterTreeLocal', () => {
 
   it('returns nothing when nothing matches', () => {
     const tree = [proj('/p/app', [{
-      kind: 'session', sessionId: 's1', title: 'Fix CSV export', cwd: '/p/app',
+      kind: 'session', sessionId: asSessionId('s1'), title: 'Fix CSV export', cwd: '/p/app',
       gitBranch: null, lastActiveAtMs: 1, messageCount: null, isLive: false, cwdExists: true, note: null,
     }])]
     expect(filterTreeLocal(tree, 'zzzz', new Set()).tree).toHaveLength(0)
@@ -64,7 +65,7 @@ describe('filterTreeLocal', () => {
 
   it('keeps a session matched only by content, not title', () => {
     const tree = [proj('/p/app', [{
-      kind: 'session', sessionId: 's1', title: 'Bump deps', cwd: '/p/app',
+      kind: 'session', sessionId: asSessionId('s1'), title: 'Bump deps', cwd: '/p/app',
       gitBranch: null, lastActiveAtMs: 1, messageCount: null, isLive: false, cwdExists: true, note: null,
     }])]
     expect(filterTreeLocal(tree, 'csv', new Set(['s1'])).tree[0].sessions).toHaveLength(1)
@@ -75,7 +76,7 @@ describe('filterTreeLocal', () => {
     // first rather than the best ones; that job now belongs to the caller, after ranking. See
     // `tests/unit/sessionRank.test.ts`'s "search pipeline" tests for the ranked-then-capped case.
     const sessions = Array.from({ length: 250 }, (_, i) => ({
-      kind: 'session' as const, sessionId: `s${i}`, title: `Fix CSV ${i}`, cwd: '/p/app',
+      kind: 'session' as const, sessionId: asSessionId(`s${i}`), title: `Fix CSV ${i}`, cwd: '/p/app',
       gitBranch: null, lastActiveAtMs: 250 - i, messageCount: null, isLive: false, cwdExists: true, note: null,
     }))
     const { tree, totalMatches } = filterTreeLocal([proj('/p/app', sessions)], 'csv', new Set())

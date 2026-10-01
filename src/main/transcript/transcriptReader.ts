@@ -1,8 +1,9 @@
 import { createReadStream } from 'node:fs'
 import { open, stat } from 'node:fs/promises'
 import type { TranscriptBlock, TranscriptMessage, TranscriptPage } from '@shared/types'
+import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 
-const DEFAULT_LIMIT = 200
+const DEFAULT_LIMIT = TRANSCRIPT_PAGE_SIZE
 
 /**
  * A line longer than this is skipped rather than `JSON.parse`d (SEC-12): a multi-hundred-MB line

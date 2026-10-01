@@ -1,3 +1,4 @@
+import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
 import type { AppService } from '../../../src/main/appService'
@@ -24,8 +25,8 @@ describe('multi-tab shells', () => {
     await service.refresh()
     await service.importSessions(['11111111-1111-1111-1111-111111111111'], [])
 
-    await service.openShell('11111111-1111-1111-1111-111111111111', '1')
-    await service.openShell('11111111-1111-1111-1111-111111111111', '2')
+    await service.openShell(asSessionId('11111111-1111-1111-1111-111111111111'), '1')
+    await service.openShell(asSessionId('11111111-1111-1111-1111-111111111111'), '2')
     expect(service.pty.has('shell:11111111-1111-1111-1111-111111111111:1')).toBe(true)
     expect(service.pty.has('shell:11111111-1111-1111-1111-111111111111:2')).toBe(true)
   })
@@ -42,10 +43,10 @@ describe('multi-tab shells', () => {
     await service.importSessions(['22222222-2222-2222-2222-222222222222'], [])
     const id = 'shell:22222222-2222-2222-2222-222222222222:1'
 
-    await service.openShell('22222222-2222-2222-2222-222222222222', '1')
+    await service.openShell(asSessionId('22222222-2222-2222-2222-222222222222'), '1')
     // Something running in that shell, which must survive the second window opening it.
     service.pty.write(id, 'MARKER=alive\n')
-    await service.openShell('22222222-2222-2222-2222-222222222222', '1')
+    await service.openShell(asSessionId('22222222-2222-2222-2222-222222222222'), '1')
 
     service.pty.write(id, 'echo "still:$MARKER"\n')
     const seen = await new Promise<string>((resolve) => {

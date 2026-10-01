@@ -1,3 +1,4 @@
+import { terminalRef } from '@shared/domain/ids'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { realpathSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -37,7 +38,7 @@ describe('checking out a branch another worktree already has', () => {
     const id = '88888888-8888-8888-8888-888888888888'
     const { dir, worktree } = await repoWithWorktree('dev/1.0.12', id)
     try {
-      const outcome = await service.gitCheckoutBranch(id, false, 'dev/1.0.12')
+      const outcome = await service.gitCheckoutBranch(terminalRef(id, false), 'dev/1.0.12')
 
       expect(outcome.ok).toBe(false)
       if (outcome.ok) throw new Error('expected a conflict')
@@ -55,7 +56,7 @@ describe('checking out a branch another worktree already has', () => {
     const id = '99999999-9999-9999-9999-999999999999'
     const { dir, worktree } = await repoWithWorktree('dev/1.0.13', id)
     try {
-      await expect(service.gitCheckoutBranch(id, false, 'no-such-branch')).rejects.toThrow()
+      await expect(service.gitCheckoutBranch(terminalRef(id, false), 'no-such-branch')).rejects.toThrow()
     } finally {
       git(dir, 'worktree', 'remove', '--force', worktree)
       rmSync(dir, { recursive: true, force: true })
@@ -66,7 +67,7 @@ describe('checking out a branch another worktree already has', () => {
     const id = 'aaaaaaaa-8888-8888-8888-888888888888'
     const { dir, worktree } = await repoWithWorktree('dev/1.0.14', id)
     try {
-      const info = await service.newSessionInWorktree(id, false, 'dev/1.0.14')
+      const info = await service.newSessionInWorktree(terminalRef(id, false), 'dev/1.0.14')
       expect(info.cwd).toBe(worktree)
       expect(service.pty.has(info.ptyId)).toBe(true)
     } finally {
@@ -81,7 +82,7 @@ describe('checking out a branch another worktree already has', () => {
     const { dir, worktree } = await repoWithWorktree('dev/1.0.15', id)
     git(dir, 'worktree', 'remove', '--force', worktree)
     try {
-      await expect(service.gitPullWorktree(id, false, 'dev/1.0.15'))
+      await expect(service.gitPullWorktree(terminalRef(id, false), 'dev/1.0.15'))
         .rejects.toThrow(/no longer checked out/)
     } finally {
       rmSync(dir, { recursive: true, force: true })

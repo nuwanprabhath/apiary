@@ -1,3 +1,4 @@
+import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -14,7 +15,7 @@ const project = (path: string): ProjectInfo => ({
 })
 
 const meta = (id: string, cwd: string, over: Partial<SessionMeta> = {}): SessionMeta => ({
-  sessionId: id,
+  sessionId: asSessionId(id),
   filePath: `${cwd}/.jsonl/${id}.jsonl`,
   fileMtimeMs: 1000,
   fileSize: 500,

@@ -22,6 +22,9 @@ import type {
 } from '@shared/types'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
 import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
+import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
+import { asPtyId, asSessionId } from '@shared/domain/ids'
+import { STANDARD_SESSIONS as STD } from '../fixtures/standard'
 
 export interface FakeSession {
   sessionId: string
@@ -90,6 +93,8 @@ export interface FakeState {
   projects: FakeProject[]
   sessions: FakeSession[]
   imported: Set<string>
+  /** Removed from the tree (main archives; the session stays discovered and imported). */
+  archived: Set<string>
   settings: AppSettingsPayload
   theme: ThemeState
   refs: GitRefs
@@ -116,19 +121,19 @@ export const FIXTURE_PROJECTS: FakeProject[] = [
 
 export const FIXTURE_SESSIONS: FakeSession[] = [
   {
-    sessionId: '11111111-1111-1111-1111-111111111111',
-    title: 'Fix CSV export bug',
+    sessionId: STD.csv.id,
+    title: STD.csv.title,
     projectPath: '/fixture/work-a',
     gitBranch: 'main',
     messages: [
-      message('u1', 'user', 'the export is empty'),
+      message('u1', 'user', STD.csv.firstPrompt),
       message('side1', 'assistant', 'subagent side note', { isSidechain: true }),
       message('a1', 'assistant', 'done'),
     ],
   },
-  { sessionId: '22222222-2222-2222-2222-222222222222', title: 'Add worktree switcher', projectPath: '/fixture/work-b', gitBranch: 'main' },
-  { sessionId: '33333333-3333-3333-3333-333333333333', title: 'Repo root session', projectPath: '/fixture/repo-c', gitBranch: 'main' },
-  { sessionId: '44444444-4444-4444-4444-444444444444', title: 'Worktree session', projectPath: '/fixture/repo-c-wt', gitBranch: 'feature/wt' },
+  { sessionId: STD.switcher.id, title: STD.switcher.title, projectPath: '/fixture/work-b', gitBranch: 'main' },
+  { sessionId: STD.repoRoot.id, title: STD.repoRoot.title, projectPath: '/fixture/repo-c', gitBranch: 'main' },
+  { sessionId: STD.worktree.id, title: STD.worktree.title, projectPath: '/fixture/repo-c-wt', gitBranch: 'feature/wt' },
 ]
 
 export function message(
@@ -167,6 +172,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     projects: opts.projects ?? FIXTURE_PROJECTS,
     sessions,
     imported: new Set(opts.imported === 'none' ? [] : sessions.map((s) => s.sessionId)),
+    archived: new Set(),
     settings: { ...DEFAULT_SETTINGS, ...opts.settings },
     theme: {
       activeId: null, active: null, saved: [], builtins: [...BUILTIN_THEMES], options: { ...THEME_OPTIONS }, safeMode: false,
@@ -205,7 +211,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
 
   const sessionNode = (s: FakeSession): SessionNode => ({
     kind: 'session',
-    sessionId: s.sessionId,
+    sessionId: asSessionId(s.sessionId),
     title: s.title,
     cwd: s.projectPath,
     gitBranch: s.gitBranch ?? null,
@@ -216,7 +222,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     note: s.note ?? null,
   })
   const tree = (): ProjectNode[] => {
-    const shown = state.sessions.filter((s) => state.imported.has(s.sessionId))
+    const shown = state.sessions.filter((s) => state.imported.has(s.sessionId) && !state.archived.has(s.sessionId))
     const node = (p: FakeProject): ProjectNode => ({
       kind: 'project',
       path: p.path,
@@ -234,18 +240,14 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     const s = find(id)
     const all = s?.messages ?? [message(`${id}-u`, 'user', 'fix the export'), message(`${id}-a`, 'assistant', 'done')]
     const end = beforeIndex ?? all.length
-    // NOTE (TEST-5): transcriptReader.ts's real page size is 200 (DEFAULT_LIMIT), not 50. Left as
-    // 50 here because tests/component/transcript.test.tsx's paging suite deliberately pins its own
-    // fixture size to this constant to exercise the paging *mechanism* cheaply; bumping this to
-    // 200 needs that fixture (and its message count) updated in the same change, which is better
-    // done together with the fuller fakeApiary-vs-real-main contract suite TEST-5 asks for.
-    const start = Math.max(0, end - 50)
+    // The same page size as transcriptReader.ts (TEST-5; the contract suite pins the two together).
+    const start = Math.max(0, end - TRANSCRIPT_PAGE_SIZE)
     return { messages: all.slice(start, end), earlierCursor: start > 0 ? start : null, skippedLines: 0 }
   }
   let nextPty = 0
   const newSession = (cwd: string): NewSessionInfo => {
     nextPty += 1
-    return { ptyId: `new:fake-${String(nextPty)}`, cwd, label: `New session · ${cwd.split('/').pop() ?? cwd}` }
+    return { ptyId: asPtyId(`new:fake-${String(nextPty)}`), cwd, label: `New session · ${cwd.split('/').pop() ?? cwd}` }
   }
 
   const impl: ApiaryApi = {
@@ -258,7 +260,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
       .filter((s) => (s.messages ?? []).some((m) => m.blocks.some((b) => 'text' in b && b.text.toLowerCase().includes(q.toLowerCase()))))
       .map((s) => s.sessionId),
     discovered: async (): Promise<DiscoveredSession[]> => state.sessions.map((s) => ({
-      sessionId: s.sessionId, projectPath: s.projectPath, title: s.title,
+      sessionId: asSessionId(s.sessionId), projectPath: s.projectPath, title: s.title,
       lastActiveAtMs: s.lastActiveAtMs ?? Date.now() - 22 * DAY, imported: state.imported.has(s.sessionId),
     })),
     importSessions: async (ids) => { for (const id of ids) state.imported.add(id) },
@@ -303,7 +305,9 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     themeSetOptions: async (o) => { state.theme = { ...state.theme, options: { ...state.theme.options, ...o } }; emit('themeChanged', state.theme) },
     onThemeChanged: on('themeChanged'),
     renameTerminalInClaude: () => {},
-    removeSession: async (id) => { state.imported.delete(id); emit('treeChanged') },
+    // As in main (AppService.removeSession): archived, not un-imported, so the import dialog does
+    // not offer it again as new.
+    removeSession: async (id) => { state.archived.add(id); emit('treeChanged') },
     moveSession: async (id, target) => { const s = find(id); if (s !== undefined) s.projectPath = target; emit('treeChanged') },
     openShell: async () => {},
     openShellForPty: async () => {},
@@ -326,6 +330,8 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     ptyResize: () => {},
     ptyKill: () => {},
     ptyResume: () => {},
+    ptyAttach: () => {},
+    ptyDetach: () => {},
     ptySnapshot: async () => null,
     ptySessions: async () => ({}),
     onPtySessionsChanged: on('ptySessionsChanged'),
@@ -349,15 +355,15 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     gitStatus: async (): Promise<GitStatus> => ({ branch: state.refs.current, ahead: 0, behind: 0, hasUpstream: false }),
     gitListRefs: async () => state.refs,
     gitlabMrRefStatus: async () => ({}),
-    gitCheckoutBranch: async (_k, _p, name) => { state.refs = { ...state.refs, current: name }; emit('treeChanged'); return { ok: true } },
+    gitCheckoutBranch: async (_k, name) => { state.refs = { ...state.refs, current: name }; emit('treeChanged'); return { ok: true } },
     gitPullWorktree: async () => { emit('treeChanged'); return { path: '/fixture/repo-c-wt', commits: 0 } },
     newSessionInWorktree: async () => newSession('/fixture/repo-c-wt'),
-    gitCheckoutRemote: async (_k, _p, _r, local) => {
+    gitCheckoutRemote: async (_k, _r, local) => {
       state.refs = { ...state.refs, current: local, local: [...state.refs.local, ref(local)] }
       emit('treeChanged')
     },
-    gitCheckoutDetached: async (_k, _p, r) => { state.refs = { ...state.refs, current: `(detached at ${r})` }; emit('treeChanged') },
-    gitCreateBranch: async (_k, _p, name) => {
+    gitCheckoutDetached: async (_k, r) => { state.refs = { ...state.refs, current: `(detached at ${r})` }; emit('treeChanged') },
+    gitCreateBranch: async (_k, name) => {
       state.refs = { ...state.refs, current: name, local: [...state.refs.local, ref(name)] }
       emit('treeChanged')
     },

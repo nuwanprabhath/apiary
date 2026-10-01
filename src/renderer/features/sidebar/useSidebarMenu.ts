@@ -1,0 +1,157 @@
+import { asSessionId, type SessionId } from '@shared/domain/ids'
+import { useState } from 'react'
+import type { ProjectNode } from '@shared/types'
+import type { ContextMenuItem } from '../../ui/ContextMenu'
+import { useNotifications } from '../../ui/notifications'
+import { useLayoutActions } from '../layout/layoutContext'
+import { deleteGroup, moveGroup, type GroupState } from './model/groups'
+import { flattenSessions } from './treeUtils'
+import type { GroupActions } from './useGroupActions'
+
+/** Which menu is open, if any: a right-click on a folder, a group's header or a session row. */
+export interface SidebarMenu { kind: 'folder' | 'group' | 'session'; id: string; x: number; y: number }
+
+/** The sidebar's one context menu: what is open (`menu`/`setMenu`) and the items it shows. */
+export function useSidebarMenu({
+  tree, rawTree, pinned, groupState, showAllWorktrees, onToggleAllWorktrees, onForkSession, onReorderPinned, groups,
+}: {
+  tree: ProjectNode[]
+  rawTree: ProjectNode[]
+  pinned: string[]
+  groupState: GroupState
+  showAllWorktrees: string[]
+  onToggleAllWorktrees: (path: string) => void
+  onForkSession: (sessionId: SessionId) => void
+  onReorderPinned: (id: string, beforeId: string) => void
+  groups: GroupActions
+}): { menu: SidebarMenu | null; setMenu: (menu: SidebarMenu | null) => void; menuItems: () => ContextMenuItem[] } {
+  const { notify, notifyError } = useNotifications()
+  const { requestPicker } = useLayoutActions()
+  const [menu, setMenu] = useState<SidebarMenu | null>(null)
+  const {
+    patchGroups, assignFolder, startNewGroup, setRenamingGroup, setRenameDraft, folderSiblings, reorderFolder,
+  } = groups
+
+  const menuItems = (): ContextMenuItem[] => {
+    if (menu === null) return []
+    if (menu.kind === 'session') {
+      const session = flattenSessions(tree).get(menu.id)
+      // A pinned session can be reordered from its context menu, the keyboard-reachable
+      // equivalent of dragging it in the Pinned section — see the drop handler there.
+      const pinnedIndex = pinned.indexOf(menu.id)
+      return [
+        {
+          id: 'fork-session',
+          label: 'Fork session',
+          run: () => onForkSession(asSessionId(menu.id)),
+        },
+        {
+          id: 'arrange',
+          label: 'Arrange…',
+          disabled: session === undefined,
+          run: () => { if (session !== undefined) requestPicker({ kind: 'session', session }, { x: menu.x, y: menu.y }) },
+        },
+        ...(pinnedIndex === -1 ? [] : [
+          {
+            id: 'pinned-move-up',
+            label: 'Move up in Pinned',
+            separator: true,
+            disabled: pinnedIndex <= 0,
+            run: () => { onReorderPinned(menu.id, pinned[pinnedIndex - 1]) },
+          },
+          {
+            id: 'pinned-move-down',
+            label: 'Move down in Pinned',
+            disabled: pinnedIndex >= pinned.length - 1,
+            run: () => { onReorderPinned(pinned[pinnedIndex + 1], menu.id) },
+          },
+        ]),
+      ]
+    }
+    if (menu.kind === 'folder') {
+      const current = groupState.assignments[menu.id]
+      const showingAll = showAllWorktrees.includes(menu.id)
+      const folder = menu.id
+      const siblings = folderSiblings(menu.id)
+      const folderIndex = siblings?.indexOf(menu.id) ?? -1
+      return [
+        {
+          id: 'folder-move-up',
+          label: 'Move up',
+          disabled: siblings === null || folderIndex <= 0,
+          run: () => { if (siblings !== null && folderIndex > 0) reorderFolder(menu.id, siblings[folderIndex - 1]) },
+        },
+        {
+          id: 'folder-move-down',
+          label: 'Move down',
+          separator: true,
+          disabled: siblings === null || folderIndex === -1 || folderIndex >= siblings.length - 1,
+          run: () => { if (siblings !== null && folderIndex !== -1) reorderFolder(siblings[folderIndex + 1], menu.id) },
+        },
+        {
+          id: 'show-all-worktrees',
+          label: 'Show all worktrees',
+          checked: showingAll,
+          run: () => {
+            onToggleAllWorktrees(folder)
+            if (showingAll) return
+            // Said out loud when there is nothing to add, or the tick would appear to do nothing.
+            void window.apiary.listWorktrees(folder).then((list) => {
+              const withSessions = new Set(rawTree.find((n) => n.path === folder)?.children.map((c) => c.path))
+              if (list.every((w) => withSessions.has(w.path))) {
+                const label = rawTree.find((n) => n.path === folder)?.label ?? folder
+                notify({
+                  message: list.length === 0
+                    ? `${label} has no other worktrees`
+                    : `Every worktree of ${label} already has sessions`,
+                })
+              }
+            }).catch((e: unknown) => { notifyError(e, 'Could not list the worktrees') })
+          },
+        },
+        { id: 'new-group', label: 'New group from this folder…', separator: true, run: () => startNewGroup(menu.id) },
+        ...groupState.groups
+          .filter((g) => g.id !== current)
+          .map((g) => ({ id: `move-${g.id}`, label: `Add to “${g.name}”`, run: () => assignFolder(menu.id, g.id) })),
+        {
+          id: 'remove-from-group',
+          label: 'Remove from group',
+          disabled: current === undefined,
+          separator: true,
+          run: () => assignFolder(menu.id, null),
+        },
+      ]
+    }
+    const index = groupState.groups.findIndex((g) => g.id === menu.id)
+    return [
+      {
+        id: 'rename-group',
+        label: 'Rename group…',
+        run: () => {
+          setRenamingGroup(menu.id)
+          setRenameDraft(groupState.groups[index]?.name ?? '')
+        },
+      },
+      { id: 'group-up', label: 'Move group up', disabled: index <= 0, run: () => patchGroups({ groups: moveGroup(groupState.groups, menu.id, -1) }) },
+      {
+        id: 'group-down',
+        label: 'Move group down',
+        disabled: index === -1 || index >= groupState.groups.length - 1,
+        run: () => patchGroups({ groups: moveGroup(groupState.groups, menu.id, 1) }),
+      },
+      {
+        id: 'delete-group',
+        label: 'Delete group',
+        separator: true,
+        // The folders inside come back out as ungrouped: deleting a heading must never look like
+        // deleting the things filed under it.
+        run: () => {
+          const next = deleteGroup(groupState.groups, groupState.assignments, menu.id)
+          patchGroups({ groups: next.groups, assignments: next.assignments })
+        },
+      },
+    ]
+  }
+
+  return { menu, setMenu, menuItems }
+}

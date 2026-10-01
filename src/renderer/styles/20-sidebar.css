@@ -209,8 +209,6 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  * are more specific and keep the larger glyphs they already had.
  */
 .icon-button svg { width: var(--icon-size); height: var(--icon-size); flex: none; }
-.sidebar-hide svg,
-.sidebar-rail .icon-button svg { width: 16px; height: 16px; flex: none; }
 .sidebar-refresh svg { width: 14px; height: 14px; flex: none; }
 
 @keyframes spin {
@@ -305,9 +303,18 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 }
 
 .project-row { font-weight: 600; flex: 1; min-width: 0; }
+.session-row { padding-left: 26px; }
 .session-row:hover { background: var(--selected); }
 
 .project-row-wrap { display: flex; align-items: center; border-radius: var(--radius-sm); }
+/*
+ * Same wrapper pattern as .project-row-wrap above, and for the same reason: a <button> (the
+ * session row itself) cannot contain another interactive element, so the delete button is a
+ * flex sibling instead of nested inside it. Within this wrapper .session-row no longer needs to
+ * claim the full row width itself — the wrapper does that — so it gets `flex: 1` here rather
+ * than the `width: 100%` the (still-standalone) pending-session-list rows keep using.
+ */
+.session-row-wrap { display: flex; align-items: center; border-radius: var(--radius-sm); }
 .project-row-wrap:hover,
 .project-row-wrap:focus-within {
   background: var(--selected);
@@ -324,11 +331,6 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   outline: none;
   box-shadow: var(--focus-ring);
 }
-.project-row-wrap:hover .new-session-button,
-.new-session-button:focus-visible {
-  opacity: 1;
-}
-
 .new-session-button {
   flex: none;
   opacity: 0;
@@ -345,18 +347,20 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   cursor: pointer;
   padding: 0;
 }
+.new-session-button svg { width: 16px; height: 16px; display: block; }
 .new-session-button:hover,
 .new-session-button:focus-visible {
   background: var(--hover);
   color: var(--text);
 }
-.new-session-button svg { width: 16px; height: 16px; display: block; }
+.new-session-button:focus-visible { opacity: 1; }
+.project-row-wrap:hover .new-session-button { opacity: 1; }
 
 /* Same hover-revealed treatment as "+", and the same box: the two sit side by side. */
-.project-row-wrap:hover .collapse-all-button,
-.collapse-all-button:focus-visible { opacity: 1; }
 .collapse-all-button { margin-right: 0; }
 .collapse-all-button svg { width: 14px; height: 14px; }
+.collapse-all-button:focus-visible { opacity: 1; }
+.project-row-wrap:hover .collapse-all-button { opacity: 1; }
 
 /*
  * Matches VS Code's own "twisty" chevron: a small right-pointing arrow that rotates 90deg to
@@ -373,23 +377,14 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .chevron[data-expanded="true"] { transform: rotate(90deg); }
 .branch { color: var(--accent); font-weight: 400; font-size: 11px; }
 
-.session-row { padding-left: 26px; }
 .session-row[data-selected="true"] { background: var(--selected); }
-
-/*
- * Same wrapper pattern as .project-row-wrap above, and for the same reason: a <button> (the
- * session row itself) cannot contain another interactive element, so the delete button is a
- * flex sibling instead of nested inside it. Within this wrapper .session-row no longer needs to
- * claim the full row width itself — the wrapper does that — so it gets `flex: 1` here rather
- * than the `width: 100%` the (still-standalone) pending-session-list rows keep using.
- */
-.session-row-wrap { display: flex; align-items: center; border-radius: var(--radius-sm); }
 .session-row-wrap:hover,
 .session-row-wrap:focus-within,
 .session-row-wrap:has(.session-row[data-selected="true"]) {
   background: var(--selected);
 }
 .session-row-wrap .session-row { width: auto; flex: 1; min-width: 0; }
+.session-time { color: var(--muted); font-size: 11px; }
 /* The age gives up its place to the row's buttons the moment the row is hovered — see .row-action. */
 .session-row-wrap:hover .session-time,
 .session-row-wrap:focus-within .session-time { display: none; }
@@ -418,16 +413,20 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   cursor: pointer;
   padding: 0;
 }
-.session-row-wrap:hover .row-action,
-.session-row-wrap:focus-within .row-action {
-  display: flex;
-}
 .row-action:hover,
 .row-action:focus-visible {
   background: var(--hover);
   color: var(--text);
 }
+.session-row-wrap:hover .row-action,
+.session-row-wrap:focus-within .row-action {
+  display: flex;
+}
 .row-action svg { width: 14px; height: 14px; display: block; }
+/* Declared after the other sidebar `svg` size rules because it is the most specific of them
+ * (`no-descending-specificity`); none of them match the same element. */
+.sidebar-hide svg,
+.sidebar-rail .icon-button svg { width: 16px; height: 16px; flex: none; }
 .delete-session-button { margin-right: 6px; }
 .delete-session-button:hover,
 .delete-session-button:focus-visible {
@@ -443,7 +442,6 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 
 .session-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-subtitle { color: var(--muted); }
-.session-time { color: var(--muted); font-size: 11px; }
 .missing { color: var(--danger); font-size: 11px; }
 
 /* A `!<iid>` reference whose GitLab status has resolved (see MrRefText). Unresolved references

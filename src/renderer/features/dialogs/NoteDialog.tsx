@@ -69,7 +69,7 @@ export function NoteDialog({ sessionTitle, initial, onSave, onClose }: Props): J
         <div className="modal-actions">
           {initial !== '' && (
             <button
-              className="note-dialog-remove"
+              className="btn note-dialog-remove"
               data-testid="note-remove"
               // Saving an empty note is what removes it, so this is the same action with the box
               // cleared — no separate delete path to keep in step with the index.
@@ -79,8 +79,8 @@ export function NoteDialog({ sessionTitle, initial, onSave, onClose }: Props): J
             </button>
           )}
           <span className="modal-actions-spacer" />
-          <button data-testid="note-cancel" onClick={onClose}>Cancel</button>
-          <button className="primary" data-testid="note-save" onClick={save}>Save</button>
+          <button className="btn" data-testid="note-cancel" onClick={onClose}>Cancel</button>
+          <button className="btn primary" data-testid="note-save" onClick={save}>Save</button>
         </div>
       </Modal>
     </ErrorBoundary>

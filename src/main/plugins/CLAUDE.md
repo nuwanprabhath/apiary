@@ -12,6 +12,16 @@ closed list (today, "open this URL"). No markup crosses the boundary, so a plugi
 arbitrary content in the window, and the URL is re-checked in the main process before
 `shell.openExternal` sees it.
 
+**The context carries the folder's remote, so a plugin never shells out to git itself.**
+`PluginContext` is `{ cwd, branch, remoteUrl() }`; `remoteUrl()` resolves the `origin` URL (or
+null) and the registry memoises it for one evaluation, so two plugins on one folder spawn
+`git remote get-url` once. Plugins still return data only — the context is an input, not a
+capability to act. The built-in GitLab plugin asks `ctx.remoteUrl()` and parses it with
+`parseGitLabRemote`. Code that resolves inline references (the `!123` badge,
+`GitService.mrRefStatus`) uses the same seam outside a plugin: `resolveRemote(cwd, parse)` in
+`plugins/remote.ts`, with the provider's parser. A GitHub plugin or `#123` resolver is a new parser
+plus a plugin file, with no new git calls.
+
 Two things the registry guarantees, both learned from what the bar is for:
 
 - **A plugin that throws contributes nothing and disturbs nothing else.** The bar carries git state

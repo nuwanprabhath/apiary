@@ -1,5 +1,6 @@
 import { openInVsCode as spawnVsCode } from './detectVsCode'
 import type { SessionResolver } from '../sessions/sessionResolver'
+import type { TerminalRef } from '@shared/domain/ids'
 
 export interface VsCodeServiceDeps {
   resolver: SessionResolver
@@ -27,9 +28,9 @@ export class VsCodeService {
   }
 
   /** Opens the session's folder in VS Code. Rejects if VS Code was not found or the folder is gone. */
-  async open(key: string, isPtyId: boolean): Promise<void> {
+  async open(terminal: TerminalRef): Promise<void> {
     if (this.vsCodePath === null) throw new Error('VS Code was not found on this machine')
-    const cwd = this.resolver.resolveShellCwd(key, isPtyId)
+    const cwd = this.resolver.resolveShellCwd(terminal)
     spawnVsCode(this.vsCodePath, cwd)
   }
 }

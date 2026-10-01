@@ -1,5 +1,5 @@
-import { mkdtempSync, rmSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { mkdtempSync, rmSync, mkdirSync, realpathSync } from 'node:fs'
+import { git as sharedGit, initRepo } from '../../fixtures/gitRepo'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { vi } from 'vitest'
@@ -36,18 +36,14 @@ export async function teardownServiceFixture(fixture: ServiceFixture): Promise<v
   rmSync(fixture.workdir, { recursive: true, force: true })
 }
 
+/** Trimmed output, unlike the shared builder's raw `git` (callers here compare exact strings). */
 export function git(cwd: string, ...args: string[]): string {
-  return execFileSync('git', args, { cwd, stdio: 'pipe' }).toString().trim()
+  return sharedGit(cwd, ...args).trim()
 }
 
 export function makeGitWorkdir(): string {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-work-git-')))
-  git(dir, 'init', '-q', '-b', 'main')
-  git(dir, 'config', 'user.email', 'test@example.com')
-  git(dir, 'config', 'user.name', 'Test')
-  writeFileSync(join(dir, 'README.md'), 'hi')
-  git(dir, 'add', '.')
-  git(dir, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'init')
+  initRepo(dir, { readme: 'hi' })
   return dir
 }
 

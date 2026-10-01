@@ -1,13 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, realpathSync, symlinkSync } from 'node:fs'
+import { mkdtempSync, rmSync, mkdirSync, realpathSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { git, initRepo } from '../fixtures/gitRepo'
 import { resolveProject, clearResolverCache } from '../../src/main/git/worktreeResolver'
 
 let base: string
-const git = (cwd: string, ...args: string[]) =>
-  execFileSync('git', args, { cwd, stdio: 'pipe' }).toString()
 
 beforeEach(() => {
   // realpath: on macOS os.tmpdir() is under /var, a symlink to /private/var, while git
@@ -19,15 +17,7 @@ beforeEach(() => {
 afterEach(() => { rmSync(base, { recursive: true, force: true }) })
 
 function makeRepo(): string {
-  const repo = join(base, 'repo')
-  mkdirSync(repo)
-  git(repo, 'init', '-q', '-b', 'main')
-  git(repo, 'config', 'user.email', 'test@example.com')
-  git(repo, 'config', 'user.name', 'Test')
-  writeFileSync(join(repo, 'README.md'), 'hi')
-  git(repo, 'add', '.')
-  git(repo, 'commit', '-qm', 'init')
-  return repo
+  return initRepo(join(base, 'repo'), { readme: 'hi' })
 }
 
 describe('resolveProject', () => {

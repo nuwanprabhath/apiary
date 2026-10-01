@@ -1,5 +1,6 @@
 import { type JSX, useCallback, useEffect, useRef, useState } from 'react'
 import type { PluginBarItemPayload } from '@shared/api'
+import type { TerminalRef } from '@shared/domain/ids'
 import { MergeRequestIcon, LinkIcon, PlusIcon, AlertIcon } from '../../ui/icons'
 import type { ToolbarButtonSpec } from './Toolbar'
 
@@ -28,7 +29,7 @@ const ICONS: Record<PluginBarItemPayload['icon'], JSX.Element> = {
  * which merge request is the relevant one — and whenever the main process says a background lookup
  * came back with something different.
  */
-export function usePluginBar(key: string | null, isPtyId: boolean, branch: string | null): {
+export function usePluginBar(terminal: TerminalRef | null, branch: string | null): {
   items: PluginBarItemPayload[]
   refresh: () => void
 } {
@@ -38,25 +39,25 @@ export function usePluginBar(key: string | null, isPtyId: boolean, branch: strin
   const requestKey = useRef<string | null>(null)
 
   const load = useCallback(() => {
-    if (key === null) { setItems([]); return }
-    requestKey.current = key
-    void window.apiary.pluginBarItems(key, isPtyId)
-      .then((result) => { if (requestKey.current === key) setItems(result) })
+    if (terminal === null) { setItems([]); return }
+    requestKey.current = terminal.id
+    void window.apiary.pluginBarItems(terminal)
+      .then((result) => { if (requestKey.current === terminal.id) setItems(result) })
       // A plugin bar that cannot be read is an empty plugin bar, never an error in front of the
       // session: nothing here is load-bearing.
-      .catch(() => { if (requestKey.current === key) setItems([]) })
-  }, [key, isPtyId])
+      .catch(() => { if (requestKey.current === terminal.id) setItems([]) })
+  }, [terminal])
 
   useEffect(load, [load, branch])
   useEffect(() => window.apiary.onPluginsChanged(load), [load])
 
   const refresh = useCallback(() => {
-    if (key === null) return
-    requestKey.current = key
-    void window.apiary.pluginBarRefresh(key, isPtyId)
-      .then((result) => { if (requestKey.current === key) setItems(result) })
+    if (terminal === null) return
+    requestKey.current = terminal.id
+    void window.apiary.pluginBarRefresh(terminal)
+      .then((result) => { if (requestKey.current === terminal.id) setItems(result) })
       .catch(() => { /* as above */ })
-  }, [key, isPtyId])
+  }, [terminal])
 
   return { items, refresh }
 }

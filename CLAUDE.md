@@ -1,6 +1,6 @@
 # Working on Apiary
 
-Apiary is an Electron 38 + React 18 + strict-TS desktop app for browsing, searching and resuming
+Apiary is an Electron 38 + React 19 + strict-TS desktop app for browsing, searching and resuming
 Claude Code sessions across folders and git worktrees. This file is the map, the rules and the
 commands. The "why" for any one subsystem lives next to its code — a nested `CLAUDE.md` in that
 directory, or a `docs/architecture/*.md` for anything that spans main and renderer — and loads
@@ -11,7 +11,7 @@ for the full index. Nothing below is deleted history: it moved.
 
 - **`src/main/`** — the Electron main process. Owns the SQLite store, the PTYs, the filesystem
   watcher, git commands and the search index. Everything that touches the machine lives here.
-- **`src/renderer/`** — React 18 UI. No Node access: it reaches the main process only through the
+- **`src/renderer/`** — React 19 UI. No Node access: it reaches the main process only through the
   typed bridge `window.apiary` (`ApiaryApi`), implemented by `src/preload/index.ts`.
 - **`src/shared/`** — types and IPC channel names, imported by both sides, no Node and no DOM.
   `shared/ipc/contract.ts` is the one declarative source of truth for every channel (name, argument
@@ -51,6 +51,7 @@ for the full index. Nothing below is deleted history: it moved.
 | Component (renderer, headless Chromium) | `npm run test:component` |
 | E2E (builds first, then Playwright) | `npm run test:e2e` |
 | E2E smoke only (~1 min, what CI runs) | `npm run test:e2e:smoke` |
+| Packaged-app smoke (opt-in; `electron-builder --dir`, launches the packaged binary; macOS skips unless `codesign --verify` passes; not in CI) | `npm run test:packaged` |
 | Watch mode (unit/integration) | `npm run test:watch` |
 | Dependency audit gate | `npm run audit` |
 | Regenerate README screenshot | `npm run screenshot` |

@@ -46,12 +46,22 @@ export function withDefaults(
   return out
 }
 
-/** What a plugin is told about the session whose bar it is contributing to. */
-export interface PluginContext {
+/** Which session's bar is being asked about: a folder and a branch, resolved in main. */
+export interface PluginTarget {
   /** Absolute working directory, resolved in the main process. */
   cwd: string
   /** Current branch, or null on a detached HEAD or outside a repository. */
   branch: string | null
+}
+
+/** What a plugin is told about the session whose bar it is contributing to. */
+export interface PluginContext extends PluginTarget {
+  /**
+   * The folder's `origin` remote URL, or null when there is none (MAIN-17). Asked of the context
+   * rather than shelled out for by each plugin, so two plugins evaluating one folder spawn
+   * `git remote get-url` once: the registry memoises it for the length of one evaluation.
+   */
+  remoteUrl(): Promise<string | null>
 }
 
 export interface SessionBarPlugin {

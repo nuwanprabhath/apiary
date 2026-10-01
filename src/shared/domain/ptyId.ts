@@ -7,16 +7,17 @@
  *
  * This is deliberately the small, safe half of MAIN-21: the mint/parse helpers, unifying eight call
  * sites into one definition each, with no behaviour change (ids are byte-identical to before,
- * since `session-layout.json` on disk already contains them). The larger step MAIN-21 also
- * describes — branded `SessionId`/`PtyId` types and replacing the 17 `(key, isPtyId)` `ApiaryApi`
- * parameter pairs with one `TerminalRef` — depends on the IPC registrar work (MAIN-11) and is not
- * done here.
+ * since `session-layout.json` on disk already contains them). The branded `SessionId`/`PtyId`
+ * types and `TerminalRef` (which replaced the 17 `(key, isPtyId)` `ApiaryApi` parameter pairs)
+ * live in `ids.ts`; the helpers here mint and parse `PtyId`s.
  */
+
+import { asPtyId, type PtyId } from './ids'
 
 /** A pty for a session that has no real session id yet (a brand-new or forked session, before
  *  Claude's JSONL exists). Minted once per new pty; never reused. */
-export function newPendingPtyId(uuid: string): string {
-  return `new:${uuid}`
+export function newPendingPtyId(uuid: string): PtyId {
+  return asPtyId(`new:${uuid}`)
 }
 
 /** Whether `id` is a pending pty id rather than a real session id. */
@@ -25,8 +26,8 @@ export function isPendingPtyId(id: string): boolean {
 }
 
 /** The pty id of a shell tab under `owner` (a session id or a pending pty id), numbered `terminalId`. */
-export function shellPtyId(owner: string, terminalId: string | number): string {
-  return `shell:${owner}:${String(terminalId)}`
+export function shellPtyId(owner: string, terminalId: string | number): PtyId {
+  return asPtyId(`shell:${owner}:${String(terminalId)}`)
 }
 
 /**

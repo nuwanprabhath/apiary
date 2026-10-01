@@ -1,3 +1,4 @@
+import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import { buildTree } from '../../src/main/tree/buildTree'
 import type { StoredProject, StoredSession } from '../../src/main/store/sessionStore'
@@ -8,7 +9,7 @@ const proj = (path: string, over: Partial<StoredProject> = {}): StoredProject =>
 })
 
 const sess = (id: string, projectPath: string, over: Partial<StoredSession> = {}): StoredSession => ({
-  sessionId: id, projectPath, title: `Title ${id}`, firstPrompt: null,
+  sessionId: asSessionId(id), projectPath, title: `Title ${id}`, firstPrompt: null,
   cwd: projectPath, gitBranch: 'main', startedAtMs: 1, lastActiveAtMs: 1,
   messageCount: null, filePath: `/x/${id}.jsonl`, fileMtimeMs: 1, fileSize: 1,
   imported: true, archived: false, note: null, ...over,

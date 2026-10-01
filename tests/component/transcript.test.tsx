@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import type { TranscriptMessage, TranscriptPage } from '@shared/types'
+import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 import { renderApp } from './renderApp'
 import { message, type FakeSession } from './fakeApiary'
 import { sidebarSession, until } from './helpers'
@@ -83,14 +84,18 @@ describe('transcript', () => {
   })
 
   describe('paging a long session', () => {
-    // A dedicated session, long enough (62 messages, over the fake's 50-per-page limit) that
+    // A dedicated session, long enough (TOTAL messages, over the one-page limit) that
     // "Load earlier messages" is actually offered and a second page is available to fetch. Each
     // pad turn's text embeds its own index (see makeSession, which this mirrors) so a duplicated
     // page shows up as a message whose text is rendered twice, not as two indistinguishable blobs.
+    // One short of two full pages: the first page is TRANSCRIPT_PAGE_SIZE (what main pages by, see
+    // the contract suite), leaving EARLIER messages for the second.
+    const EARLIER = 12
+    const TOTAL = TRANSCRIPT_PAGE_SIZE + EARLIER
     const LONG_SESSION_ID = '55555555-5555-5555-5555-555555555555'
     const longSessionMessages = (): TranscriptMessage[] => {
       const msgs = [message('u0', 'user', 'start of the long session')]
-      for (let i = 0; i < 61; i++) msgs.push(message(`a${String(i)}`, 'assistant', `pad-${String(i)} ${'x'.repeat(50)}`))
+      for (let i = 0; i < TOTAL - 1; i++) msgs.push(message(`a${String(i)}`, 'assistant', `pad-${String(i)} ${'x'.repeat(50)}`))
       return msgs
     }
     const longSession = (): FakeSession => ({
@@ -100,36 +105,36 @@ describe('transcript', () => {
       gitBranch: 'main',
       messages: longSessionMessages(),
     })
-    // Mirrors the fake's own 50-per-page slicing (see fakeApiary.ts's `transcript`), so a
+    // Mirrors the fake's own page slicing (see fakeApiary.ts's `transcript`), so a
     // manually-resolved page here behaves exactly like the fake's real one would.
     const pageOf = (all: TranscriptMessage[], beforeIndex?: number): TranscriptPage => {
       const end = beforeIndex ?? all.length
-      const start = Math.max(0, end - 50)
+      const start = Math.max(0, end - TRANSCRIPT_PAGE_SIZE)
       return { messages: all.slice(start, end), earlierCursor: start > 0 ? start : null, skippedLines: 0 }
     }
 
     it('"Load earlier messages" appears and loads a distinct earlier page', async () => {
       await renderApp({ sessions: [longSession()] })
       await userEvent.click(sidebarSession('Long paging session'))
-      // Initial page holds the most recent 50 of 62 messages, so the very first user message
+      // Initial page holds the most recent page of the messages, so the very first user message
       // (dropped from the initial page) is not yet on screen.
-      await until(() => page.getByTestId('message').elements().length === 50)
+      await until(() => page.getByTestId('message').elements().length === TRANSCRIPT_PAGE_SIZE)
       expect(page.getByText('start of the long session', { exact: true }).elements()).toHaveLength(0)
 
       const button = page.getByTestId('load-earlier')
       await expect.element(button).toBeVisible()
       await userEvent.click(button)
 
-      await until(() => page.getByTestId('message').elements().length === 62)
+      await until(() => page.getByTestId('message').elements().length === TOTAL)
       expect(page.getByText('start of the long session', { exact: true }).elements()).toHaveLength(1)
-      // All 62 messages loaded: nothing earlier remains, so the button disappears.
+      // All messages loaded: nothing earlier remains, so the button disappears.
       await expect.element(button).not.toBeInTheDocument()
     })
 
     it('button disables itself while a paging fetch is in flight', async () => {
       const { fake } = await renderApp({ sessions: [longSession()] })
       await userEvent.click(sidebarSession('Long paging session'))
-      await until(() => page.getByTestId('message').elements().length === 50)
+      await until(() => page.getByTestId('message').elements().length === TRANSCRIPT_PAGE_SIZE)
 
       // Held open until this test releases it — an in-process fetch resolves before Playwright
       // could ever observe the disabled state otherwise.
@@ -144,14 +149,14 @@ describe('transcript', () => {
 
       // Once the (single, since only one earlier page exists) fetch resolves, the button is
       // removed entirely rather than staying enabled with nothing left to load.
-      resolveFetch!(pageOf(longSessionMessages(), 12))
+      resolveFetch!(pageOf(longSessionMessages(), EARLIER))
       await expect.element(button).not.toBeInTheDocument()
     })
 
     it('a second rapid click while a page is in flight does not duplicate messages', async () => {
       const { fake } = await renderApp({ sessions: [longSession()] })
       await userEvent.click(sidebarSession('Long paging session'))
-      await until(() => page.getByTestId('message').elements().length === 50)
+      await until(() => page.getByTestId('message').elements().length === TRANSCRIPT_PAGE_SIZE)
 
       let resolveFetch: ((p: TranscriptPage) => void) | null = null
       fake.override('transcript', () => new Promise((resolve) => { resolveFetch = resolve }))
@@ -163,15 +168,15 @@ describe('transcript', () => {
       const button = page.getByTestId('load-earlier').element() as HTMLButtonElement
       button.click()
       button.click()
-      resolveFetch!(pageOf(longSessionMessages(), 12))
+      resolveFetch!(pageOf(longSessionMessages(), EARLIER))
 
-      await until(() => page.getByTestId('message').elements().length === 62)
+      await until(() => page.getByTestId('message').elements().length === TOTAL)
       // The earliest message (part of the earlier page) must appear exactly once, not twice — a
       // duplicated fetch would prepend the same page a second time.
       expect(page.getByText('start of the long session', { exact: true }).elements()).toHaveLength(1)
       expect(page.getByText(/^pad-0 /).elements()).toHaveLength(1)
       // Only one fetch was actually dispatched — the second click was a no-op.
-      expect(fake.callsTo('transcript').filter((args) => args[1] === 12)).toHaveLength(1)
+      expect(fake.callsTo('transcript').filter((args) => args[1] === EARLIER)).toHaveLength(1)
     })
   })
 

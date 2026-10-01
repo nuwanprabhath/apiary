@@ -78,7 +78,7 @@ export function NotificationCenter(): JSX.Element | null {
               <div className="notification-actions">
                 {n.action !== null && (
                   <button
-                    className="notification-action"
+                    className="btn small"
                     data-testid="notification-action"
                     onClick={() => { n.action?.run(); dismiss(n.id) }}
                   >
@@ -88,7 +88,7 @@ export function NotificationCenter(): JSX.Element | null {
                 {n.detail !== null && (
                   <>
                     <button
-                      className="notification-action"
+                      className="btn small"
                       data-testid="notification-detail-toggle"
                       aria-expanded={expanded.has(n.id)}
                       onClick={() => toggleDetail(n.id)}
@@ -96,7 +96,7 @@ export function NotificationCenter(): JSX.Element | null {
                       {expanded.has(n.id) ? 'Hide details' : 'Details'}
                     </button>
                     <button
-                      className="notification-action"
+                      className="btn small"
                       data-testid="notification-copy"
                       onClick={() => { void window.apiary.copyToClipboard(`${n.message}\n\n${n.detail ?? ''}`) }}
                     >

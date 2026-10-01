@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, use } from 'react'
 import type { SessionNode } from '@shared/types'
 import type { PresetId } from './layout'
 
@@ -61,9 +61,9 @@ export const LayoutStateContext = createContext<LayoutState>({
 })
 
 export function useLayoutActions(): LayoutActions {
-  return useContext(LayoutContext)
+  return use(LayoutContext)
 }
 
 export function useLayoutState(): LayoutState {
-  return useContext(LayoutStateContext)
+  return use(LayoutStateContext)
 }

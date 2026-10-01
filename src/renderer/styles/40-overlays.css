@@ -161,11 +161,10 @@
   cursor: pointer;
 }
 .branch-switcher-copy svg { width: 14px; height: 14px; }
-.branch-switcher-item:hover .branch-switcher-copy,
-.branch-switcher-item:focus-within .branch-switcher-copy,
-.branch-switcher-copy[data-copied="true"] { display: flex; }
 .branch-switcher-copy:hover { background: var(--border); color: var(--text); }
-.branch-switcher-copy[data-copied="true"] { color: var(--accent); }
+.branch-switcher-copy[data-copied="true"] { color: var(--accent); display: flex; }
+.branch-switcher-item:hover .branch-switcher-copy,
+.branch-switcher-item:focus-within .branch-switcher-copy { display: flex; }
 /* The pull button sits just left of copy, and stays up while it runs. */
 .branch-switcher-pull { right: 32px; }
 .branch-switcher-pull[data-busy="true"] { display: flex; opacity: 0.6; cursor: progress; }
@@ -246,7 +245,6 @@
 .terminal-tab-row[data-keyboard-focused="true"][data-active="true"] {
   box-shadow: 0 0 0 1px var(--muted), var(--shadow-chip);
 }
-.terminal-tab-label:focus-visible { outline: none; }
 .terminal-tab-label {
   flex: 1;
   min-width: 0;
@@ -264,6 +262,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.terminal-tab-label:focus-visible { outline: none; }
 .terminal-tab-rename-input {
   flex: 1;
   min-width: 0;
@@ -594,8 +593,9 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
   cursor: pointer;
   font: inherit;
 }
-.git-menu-item:hover:not(:disabled), .git-menu-item:focus-visible { background: var(--selected); }
 .git-menu-item:disabled { color: var(--muted); cursor: default; }
+.git-menu-item:focus-visible { background: var(--selected); }
+.git-menu-item:hover:not(:disabled) { background: var(--selected); }
 .git-menu-label { flex: 1; }
 .git-menu-arrow { width: 14px; height: 14px; flex: none; color: var(--muted); }
 

@@ -140,7 +140,7 @@ export interface HoverCardOptions {
 export function useHoverCard<T extends HTMLElement>(options: HoverCardOptions = {}): {
   /** The row's rectangle while the card is up; null when it is not. */
   anchor: DOMRect | null
-  ref: React.MutableRefObject<T | null>
+  ref: React.RefObject<T | null>
   /** For the row's `mouseenter`. */
   arm: () => void
   /** For the card's `mouseenter`. */

@@ -26,6 +26,14 @@ Three layers, and a test goes in the cheapest one that can prove what it claims:
     do the same or component tests will pass against behaviour the app does not have.
   - `expect.element` on an element not there yet used to overflow the stack printing the whole
     page; `vitest.component.config.ts` sets `DEBUG_PRINT_LIMIT=0` and a 5 s poll for that.
+- **Contract** (`tests/contract/bridgeContract.ts`, no layer of its own): one behavioural spec of
+  `window.apiary`, run twice — against `fakeApiary` (`component/contract.test.tsx`) and against the
+  real preload plus the real main handlers over an in-process loopback with temp dirs and real git
+  (`integration/contract.test.ts`, so it is part of `npm test`). It is what keeps the fake honest:
+  when you change what a call does or which event follows it, change the clause, and both sides
+  must pass. Clauses speak in ids, titles and counts, never absolute paths. Shared fixture data
+  lives in `tests/fixtures/standard.ts` (the four standard sessions) and git repo builders in
+  `tests/fixtures/gitRepo.ts`; do not hand-roll `git init` in a test.
 - **End-to-end** (`npm run test:e2e`, Playwright + Electron): only what needs the real app —
   processes and ptys, several windows, a relaunch, real git, the watcher, native menus. Every spec
   keeps at least one test proving its feature's real wiring. `npm run test:e2e` always runs
@@ -72,6 +80,11 @@ Three layers, and a test goes in the cheapest one that can prove what it claims:
 - `APIARY_BENCH=1 npm run test:e2e -- tests/e2e/bench/` (`APIARY_BENCH_GPU=off` for software
   compositing) — measures theme performance. See
   [src/shared/theme/CLAUDE.md](../src/shared/theme/CLAUDE.md).
+- `npm run test:packaged` — packages the app with `electron-builder --dir` (host platform, no
+  installers, no publishing) and runs `tests/packaged/` (its own `playwright.packaged.config.ts`)
+  against the packaged binary: window, sidebar sessions, a shell that echoes (node-pty from the asar
+  unpack), clean quit. `APIARY_E2E_EXECUTABLE` makes the e2e harness launch that binary. On macOS
+  it skips unless `codesign --verify --deep --strict` passes. `-- --skip-pack` reuses `release/`.
 - `scripts/capture-activity-fixtures.mjs` — records new activity-classifier fixtures against a real
   `claude --model haiku`. Never run in CI. See
   [docs/architecture/activity.md](../docs/architecture/activity.md).

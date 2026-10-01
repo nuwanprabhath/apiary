@@ -5827,3 +5827,33 @@ In priority order:
    allowlist entry — the latter is expected to resolve itself once **TEST-17**'s deferred xterm 6
    upgrade lands.
 9. **TEST-17**'s remaining majors: React 19, xterm 6, TypeScript 7, marked 18, chokidar 5.
+
+### Follow-up status (1.28.0)
+
+1. **Done.** The `workspaceReducer` runs `App.tsx` through `features/workspace/WorkspaceProvider.tsx`;
+   the pending, follow/rekey, pty-lifecycle, launch-restore, layout-reporting and tab-transfer
+   effects are named hooks beside it; dialogs live in `features/dialogs/DialogHost.tsx`, opened
+   through `useDialogActions()`; `useResizeDrag` and `PaneGrid` (UI-1 step 6). Sidebar and
+   SessionColumn are split into sections and hooks and memoised (UI-19, UI-21, UI-4), with
+   `appPropStability.test.tsx` as the evidence. `App.tsx` is 807 lines, not the ~250 aimed for:
+   what remains is the Sidebar/SessionColumn wiring and resume/conflict handling.
+2. **Done.** `sessions/sessionCatalog.ts` (owns `live` and the refresh state machine, with the design
+   note at its top) and `sessions/sessionActions.ts`; `app/container.ts`'s `createContainer`.
+   `AppService` keeps thin delegates, so the IPC handlers and integration tests did not move.
+3. **Done.** `tests/contract/bridgeContract.ts` runs against the fake (component project) and the
+   real preload + `registerIpc` (integration project); it found and fixed two fake-side drifts
+   (transcript page size, `removeSession` un-importing). Git and session fixtures are in
+   `tests/fixtures/`; the ~60 test files still using session-title literals were left as they are.
+4. **Done.** Buttons go through `.btn`; `no-descending-specificity` is on, with no disables.
+5. **Done.** `PluginContext.remoteUrl()` (memoised per evaluation) and `plugins/remote.ts`'s
+   `resolveRemote`; branded `SessionId`/`PtyId` in `shared/domain/ids.ts` and one `TerminalRef`
+   replacing all 17 `(key, isPtyId)` pairs. Not done: MAIN-17's generic `pluginRefStatus` channel
+   and per-plugin TTLs; tab keys stay `string` (a key is either kind of id).
+6. **Done.** `windows/ptyAttachments.ts`: a window attaches the ptys its terminals show and gets
+   only their `ptyData`; exit and session-list events are still broadcast.
+7. **Not started** — still needs the maintainer's signing setup.
+8. **Done.** `npm run test:packaged` (opt-in, not in CI; macOS only after `codesign --verify`).
+   TEST-14's allowlist entry is gone with xterm 6.
+9. **Done but for TypeScript 7.** React 19, xterm 6, marked 18, chokidar 5; TypeScript 6.0.
+   TypeScript 7 ships no JS API and typescript-eslint's peer range stops below 6.1 — revisit when
+   typescript-eslint supports it.

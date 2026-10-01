@@ -27,8 +27,8 @@ export function MoveSessionDialog({ sessionTitle, fromPath, toPath, onCancel, on
           <br /><code>{toPath}</code>
         </p>
         <div className="modal-actions">
-          <button data-testid="move-session-cancel" onClick={onCancel}>Cancel</button>
-          <button className="primary" data-testid="move-session-confirm" onClick={onConfirm}>Move</button>
+          <button className="btn" data-testid="move-session-cancel" onClick={onCancel}>Cancel</button>
+          <button className="btn primary" data-testid="move-session-confirm" onClick={onConfirm}>Move</button>
         </div>
       </Modal>
     </ErrorBoundary>

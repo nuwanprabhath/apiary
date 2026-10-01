@@ -4,6 +4,39 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.28.0] - 2026-10-01
+
+The rest of the 2026-09-26 codebase review's follow-up list (all but update-feed signing).
+
+### Changed
+
+- A terminal's output now goes only to the windows showing it, instead of to every window.
+- React 19, xterm 6, marked 18, chokidar 5 and TypeScript 6. TypeScript 7 waits on
+  typescript-eslint, which does not support it yet.
+- Dialog, resume-bar, crash-screen and notification buttons all use the one shared button style;
+  notification and settings preset buttons now look pressed when clicked like every other button.
+- Internals, no change in behaviour: the window's session bookkeeping is one reducer behind a
+  provider, with its effects in named hooks and every dialog in a `DialogHost`; the sidebar and the
+  session pane are split into sections and hooks (`App.tsx` 1,817 → 807 lines, `Sidebar.tsx`
+  1,259 → 463, `SessionColumn.tsx` 818 → 263); the main process's session catalogue and session
+  actions are their own modules, built by one `createContainer`; session and terminal ids are
+  distinct types, and the git and plugin calls take one terminal reference instead of a key and a
+  flag; session-bar plugins ask Apiary for the folder's remote instead of running git themselves.
+
+### Fixed
+
+- "Remove note" is drawn in the danger colour it was always meant to have.
+- The Claude usage status item never reads the macOS Keychain for a `CLAUDE_CONFIG_DIR` install,
+  whose credentials Claude Code keeps under a different entry.
+
+### Tests
+
+- One behavioural contract runs against both the component tests' fake API and the real main
+  process, so the two cannot drift apart unnoticed; the shared git-repo and session fixtures live
+  in `tests/fixtures/`.
+- `npm run test:packaged`: an opt-in smoke test of the packaged app (on macOS only after
+  `codesign --verify` passes).
+
 ## [1.27.0] - 2026-09-30
 
 ### Added

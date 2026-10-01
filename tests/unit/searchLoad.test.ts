@@ -1,3 +1,4 @@
+import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import { filterTreeLocal, SEARCH_RESULT_CAP } from '@shared/treeFilter'
 import { rankSessions } from '@shared/sessionRank'
@@ -16,7 +17,7 @@ function buildSyntheticTree(): ProjectNode[] {
     for (let s = 0; s < perProject && remaining > 0; s++, remaining--) {
       sessions.push({
         kind: 'session',
-        sessionId: `p${p}-s${s}`,
+        sessionId: asSessionId(`p${p}-s${s}`),
         // Every 37th session mentions "csv" so a 3-character query has a small, known hit set.
         title: s % 37 === 0 ? `Fix CSV export bug ${p}-${s}` : `Session ${p}-${s} routine work`,
         cwd: `/synthetic/project-${p}`,

@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { ProjectInfo, SessionMeta } from '@shared/types'
+import { asSessionId } from '@shared/domain/ids'
 import { SCHEMA } from './schema'
 
 export interface StoredProject extends ProjectInfo {
@@ -42,7 +43,7 @@ const toProject = (r: ProjectRow): StoredProject => ({
 })
 
 const toSession = (r: SessionRow): StoredSession => ({
-  sessionId: r.session_id,
+  sessionId: asSessionId(r.session_id),
   projectPath: r.project_path,
   // A user-set title always wins over whatever the scanner most recently read from the JSONL
   // (its own `ai-title`, or none at all) — otherwise the very next rescan would silently revert

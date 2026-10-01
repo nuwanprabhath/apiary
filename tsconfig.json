@@ -15,8 +15,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["vitest/globals", "@vitest/browser-playwright", "@vitest/browser/matchers"],
-    "paths": { "@shared/*": ["./src/shared/*"] },
-    "baseUrl": "."
+    "paths": { "@shared/*": ["./src/shared/*"] }
   },
-  "include": ["src/renderer", "src/shared", "src/preload", "tests/e2e", "tests/component"]
+  "include": ["src/renderer", "src/shared", "src/preload", "tests/e2e", "tests/component", "tests/contract"]
 }

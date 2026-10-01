@@ -1,3 +1,4 @@
+import { terminalRef } from '@shared/domain/ids'
 import { describe, it, expect, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -29,7 +30,7 @@ describe('VsCodeService', () => {
   it('open() rejects when VS Code was not found', async () => {
     const resolver = new SessionResolver({ store: {} as SessionStore, pty: {} as PtyManager })
     const service = new VsCodeService({ resolver, vsCodePath: null })
-    await expect(service.open('s1', true)).rejects.toThrow('VS Code was not found on this machine')
+    await expect(service.open(terminalRef('s1', true))).rejects.toThrow('VS Code was not found on this machine')
   })
 
   it('open() resolves the cwd through the resolver and spawns VS Code there', async () => {
@@ -38,7 +39,7 @@ describe('VsCodeService', () => {
       const pty = { getCwd: () => dir } as unknown as PtyManager
       const resolver = new SessionResolver({ store: {} as SessionStore, pty })
       const service = new VsCodeService({ resolver, vsCodePath: '/usr/bin/code' })
-      await service.open('new:1', true)
+      await service.open(terminalRef('new:1', true))
       expect(openInVsCode).toHaveBeenCalledWith('/usr/bin/code', dir)
     } finally {
       rmSync(dir, { recursive: true, force: true })

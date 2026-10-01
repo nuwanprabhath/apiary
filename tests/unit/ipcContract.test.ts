@@ -55,6 +55,8 @@ describe('the IPC contract', () => {
       ptyResize: 'apiary:pty-resize',
       ptyKill: 'apiary:pty-kill',
       ptyResume: 'apiary:pty-resume',
+      ptyAttach: 'apiary:pty-attach',
+      ptyDetach: 'apiary:pty-detach',
       ptyData: 'apiary:pty-data',
       ptySnapshot: 'apiary:pty-snapshot',
       ptySessions: 'apiary:pty-sessions',
@@ -133,9 +135,12 @@ describe('the IPC contract', () => {
   })
 
   it('rejects an argument list that is too long, and the declared shape', () => {
-    expect(IPC.gitStatus.args(['a', true])).toBe(true)
-    expect(IPC.gitStatus.args(['a', true, 'extra'])).toBe(false)
-    expect(IPC.gitStatus.args(['a', 'not-a-bool'])).toBe(false)
+    expect(IPC.gitStatus.args([{ kind: 'pty', id: 'a' }])).toBe(true)
+    expect(IPC.gitStatus.args([{ kind: 'session', id: 'a' }, 'extra'])).toBe(false)
+    expect(IPC.gitStatus.args(['a', true])).toBe(false)
+    // A TerminalRef replaced the old (key, isPtyId) pair: a kind and an id, nothing else.
+    expect(IPC.gitStatus.args([{ kind: 'other', id: 'a' }])).toBe(false)
+    expect(IPC.gitStatus.args([{ kind: 'session', id: 5 }])).toBe(false)
     expect(IPC.transcript.args(['a'])).toBe(true) // beforeIndex is optional
     expect(IPC.transcript.args(['a', 5])).toBe(true)
     expect(IPC.transcript.args(['a', 'nope'])).toBe(false)

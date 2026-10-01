@@ -1,7 +1,7 @@
 
 .resume-bar { display: flex; gap: 6px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); }
-.resume-bar button[data-active="true"] { background: var(--selected); border-color: var(--accent); }
-.resume-bar button:disabled { cursor: not-allowed; }
+.resume-bar .btn[data-active="true"] { background: var(--selected); border-color: var(--accent); }
+.resume-bar .btn:disabled { cursor: not-allowed; }
 .spacer { flex: 1; }
 
 /*

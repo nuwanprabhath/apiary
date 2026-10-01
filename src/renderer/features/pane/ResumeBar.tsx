@@ -13,7 +13,7 @@ export function ResumeBar({ session, view, hasTerminal, onView, onResume }: Prop
   return (
     <div className="resume-bar">
       <button
-        data-testid="view-transcript"
+        className="btn" data-testid="view-transcript"
         data-active={view === 'transcript'}
         onClick={() => onView('transcript')}
       >
@@ -21,7 +21,7 @@ export function ResumeBar({ session, view, hasTerminal, onView, onResume }: Prop
       </button>
       {hasTerminal && (
         <button
-          data-testid="view-terminal"
+          className="btn" data-testid="view-terminal"
           data-active={view === 'terminal'}
           onClick={() => onView('terminal')}
         >
@@ -32,7 +32,7 @@ export function ResumeBar({ session, view, hasTerminal, onView, onResume }: Prop
       <span className="spacer" />
       {!hasTerminal && (
         <button
-          className="primary"
+          className="btn primary"
           data-testid="resume-button"
           data-cwd-exists={session.cwdExists}
           disabled={!session.cwdExists}

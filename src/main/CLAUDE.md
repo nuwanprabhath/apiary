@@ -37,3 +37,13 @@ missing field as "unchanged" rather than as `false`. Getting it wrong once cost 
 because the failure hides itself — the feature switched off in memory, its index was wiped as a
 switch-off is meant to do, and `JSON.stringify` dropped the undefined key so the file on disk still
 said the feature was on.
+
+## Composition and the session services
+
+`app/container.ts`'s `createContainer(env, paths, inputs)` is the one place every long-lived
+main-process object is constructed (pure construction: no windows, timers or refresh; `index.ts`
+resolves what needs Electron and starts things in order). `AppService` is a facade over
+`sessions/sessionResolver.ts` (trust boundary), `sessions/sessionCatalog.ts` (refresh loop and the
+`live` map) and `sessions/sessionActions.ts` (rename/note/remove/move) plus the git, search,
+terminal, image and VS Code services. **The refresh reentrancy states and who owns `live` are
+documented at the top of `sessionCatalog.ts`; read that before touching either.**

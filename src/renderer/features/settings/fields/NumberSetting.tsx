@@ -54,7 +54,7 @@ export function NumberSetting(
           {presets.map((p) => (
             <button
               key={p.value}
-              className="settings-preset"
+              className="btn small settings-preset"
               data-testid={p.testId}
               data-active={value === p.value}
               onClick={() => { onChange(p.value) }}

@@ -1,10 +1,11 @@
 import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 import type { ChildProcess } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync, chmodSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { makeSession, type FixtureOptions } from '../fixtures/makeSession'
+import { git, makeRepoWithWorktree } from '../fixtures/gitRepo'
+import { STANDARD_SESSIONS as STD } from '../fixtures/standard'
 
 export interface Harness {
   app: ElectronApplication
@@ -92,6 +93,31 @@ function launchEnv(home: string, extra: Record<string, string>): Record<string, 
   return { ...env, APIARY_DEFAULT_THEME: 'original', ...isolatedGitEnv(home), ...extra, ...headlessEnv() }
 }
 
+/**
+ * What to launch: the built app in `out/` through Electron, or — when `APIARY_E2E_EXECUTABLE` is
+ * set (only by the opt-in packaged smoke, `npm run test:packaged`, TEST-7) — that packaged binary,
+ * which has the app baked in and so takes no `'.'` argument.
+ */
+function launchTarget(userDataDir: string, electronArgs: string[]): { args: string[]; executablePath?: string } {
+  const executablePath = process.env.APIARY_E2E_EXECUTABLE
+  const args = [`--user-data-dir=${userDataDir}`, ...electronArgs]
+  if (executablePath === undefined || executablePath === '') return { args: [...args, '.'] }
+  return { args, executablePath }
+}
+
+/**
+ * A packaged app ignores every `APIARY_*` hook (see `readTestEnv`), so the ones above isolate
+ * nothing there: no fixture config root, no headless window. What it does honour is the same
+ * thing a real install does: `CLAUDE_CONFIG_DIR` for the Claude config root, and `HOME`. Point
+ * both at the throwaway home (its database already lands in the `--user-data-dir`), so the
+ * packaged smoke never reads the developer's `~/.claude` or writes outside the temp tree.
+ */
+function packagedIsolationEnv(home: string, configRoot: string): Record<string, string> {
+  const exe = process.env.APIARY_E2E_EXECUTABLE
+  if (exe === undefined || exe === '') return {}
+  return { HOME: home, CLAUDE_CONFIG_DIR: configRoot }
+}
+
 /** Resolves true once `proc` has exited, or false if it is still running after `ms`. */
 function exitedWithin(proc: ChildProcess, ms: number): Promise<boolean> {
   if (proc.exitCode !== null || proc.signalCode !== null) return Promise.resolve(true)
@@ -146,27 +172,6 @@ async function stopTracingAndScreenshot(app: ElectronApplication, page: Page): P
   }
   await app.context().tracing.stop({ path: test.info().outputPath('trace.zip') }).catch(() => {})
   await page.screenshot({ path: test.info().outputPath('failure.png') }).catch(() => {})
-}
-
-function git(cwd: string, ...args: string[]): void {
-  execFileSync('git', args, { cwd, stdio: 'pipe' })
-}
-
-/** Builds a real git repo plus a real worktree of it, so the tree exercises actual nesting. */
-function makeRepoWithWorktree(home: string): { repoRoot: string; worktreeDir: string } {
-  const repoRoot = join(home, 'repo-c')
-  mkdirSync(repoRoot)
-  git(repoRoot, 'init', '-q', '-b', 'main')
-  git(repoRoot, 'config', 'user.email', 'test@example.com')
-  git(repoRoot, 'config', 'user.name', 'Test')
-  writeFileSync(join(repoRoot, 'README.md'), 'hi')
-  git(repoRoot, 'add', '.')
-  git(repoRoot, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'init')
-
-  const worktreeDir = join(home, 'repo-c-wt')
-  git(repoRoot, 'worktree', 'add', '-q', '-b', 'feature/wt', worktreeDir)
-
-  return { repoRoot, worktreeDir }
 }
 
 /**
@@ -283,13 +288,13 @@ export async function launchApiary(
   }
 
   makeSession(projects, '-work-a', {
-    sessionId: '11111111-1111-1111-1111-111111111111',
+    sessionId: STD.csv.id,
     cwd: workdir,
-    title: 'Fix CSV export bug',
-    firstPrompt: 'the export is empty',
+    title: STD.csv.title,
+    firstPrompt: STD.csv.firstPrompt,
     extraLines: [
       JSON.stringify({
-        sessionId: '11111111-1111-1111-1111-111111111111',
+        sessionId: STD.csv.id,
         cwd: workdir,
         gitBranch: 'main',
         isSidechain: true,
@@ -302,21 +307,21 @@ export async function launchApiary(
     ],
   })
   makeSession(projects, '-work-b', {
-    sessionId: '22222222-2222-2222-2222-222222222222',
+    sessionId: STD.switcher.id,
     cwd: workdirB,
-    title: 'Add worktree switcher',
+    title: STD.switcher.title,
   })
   makeSession(projects, '-repo-c', {
-    sessionId: '33333333-3333-3333-3333-333333333333',
+    sessionId: STD.repoRoot.id,
     cwd: repoRoot,
     gitBranch: 'main',
-    title: opts.sessionTitle ?? 'Repo root session',
+    title: opts.sessionTitle ?? STD.repoRoot.title,
   })
   makeSession(projects, '-repo-c-wt', {
-    sessionId: '44444444-4444-4444-4444-444444444444',
+    sessionId: STD.worktree.id,
     cwd: worktreeDir,
     gitBranch: 'feature/wt',
-    title: 'Worktree session',
+    title: STD.worktree.title,
   })
 
   if (worktreeDirB !== null) {
@@ -397,12 +402,13 @@ export async function launchApiary(
     ...(opts.pickFolder !== undefined ? { APIARY_PICK_FOLDER: opts.pickFolder } : {}),
     ...(opts.windowChrome !== undefined ? { APIARY_WINDOW_CHROME: opts.windowChrome } : {}),
     APIARY_FAKE_CODE_LOG: vsCodeLog,
+    ...packagedIsolationEnv(home, opts.configRoot ?? home),
   })
   const app = await electron.launch({
     // Every launch gets its own Chromium profile dir under the throwaway `home` this call
     // already created, instead of sharing Electron's OS-default userData directory (and thus
     // the developer's real Apiary profile) across every test run and relaunch.
-    args: [`--user-data-dir=${userDataDir}`, ...electronArgs, '.'],
+    ...launchTarget(userDataDir, electronArgs),
     env,
   })
   const page = await app.firstWindow()
@@ -438,6 +444,9 @@ export async function launchApiary(
       })
       const opened = await this.app.waitForEvent('window')
       await opened.waitForLoadState('domcontentloaded')
+      // Loaded is not listening: a tab handed to the window before its effects have subscribed
+      // is lost. App marks the document once they all have (see `data-ready` in App.tsx).
+      await opened.locator('html[data-ready="true"]').waitFor({ state: 'attached' })
       return opened
     },
     async close(this: Harness) {
@@ -510,7 +519,7 @@ export async function relaunchApiaryViaWindowClose(h: Harness): Promise<void> {
 async function launchAgainst(h: Harness, extraEnv: Record<string, string> = {}): Promise<void> {
   const env = { ...h.env, ...extraEnv }
   const app = await electron.launch({
-    args: [`--user-data-dir=${join(h.home, 'userdata')}`, ...h.electronArgs, '.'],
+    ...launchTarget(join(h.home, 'userdata'), h.electronArgs),
     env,
   })
   const page = await app.firstWindow()

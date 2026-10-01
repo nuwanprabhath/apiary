@@ -1,3 +1,4 @@
+import { terminalRef } from '@shared/domain/ids'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -20,9 +21,8 @@ vi.mock('../../src/main/git/branchOps', () => ({
   merge: vi.fn(),
   fetch: vi.fn(),
 }))
-vi.mock('../../src/main/plugins/gitlabMr', () => ({
-  originUrl: vi.fn(async () => null),
-  defaultExec: vi.fn(),
+vi.mock('../../src/main/plugins/remote', () => ({
+  resolveRemote: vi.fn(async () => null),
 }))
 
 import * as branchOps from '../../src/main/git/branchOps'
@@ -58,13 +58,13 @@ describe('GitService', () => {
 
   it('status() records the branch for lastBranchFor()', async () => {
     vi.mocked(branchOps.status).mockResolvedValue({ branch: 'main', ahead: 0, behind: 0, dirty: false } as never)
-    await git.status('s1', true)
+    await git.status(terminalRef('s1', true))
     expect(git.lastBranchFor(cwd)).toBe('main')
   })
 
   it('status() records a null branch when the folder is not a repo', async () => {
     vi.mocked(branchOps.status).mockResolvedValue(null)
-    await git.status('s1', true)
+    await git.status(terminalRef('s1', true))
     expect(git.lastBranchFor(cwd)).toBeNull()
   })
 
@@ -74,14 +74,14 @@ describe('GitService', () => {
 
   it('checkoutBranch() returns ok on success', async () => {
     vi.mocked(branchOps.checkoutBranch).mockResolvedValue(undefined)
-    await expect(git.checkoutBranch('s1', true, 'feature')).resolves.toEqual({ ok: true })
+    await expect(git.checkoutBranch(terminalRef('s1', true), 'feature')).resolves.toEqual({ ok: true })
   })
 
   it('checkoutBranch() reports a worktree conflict as an outcome, not a throw', async () => {
     vi.mocked(branchOps.checkoutBranch).mockRejectedValue(new Error("branch 'feature' is checked out elsewhere"))
     vi.mocked(branchOps.isWorktreeConflict).mockReturnValue(true)
     vi.mocked(branchOps.worktreeForBranch).mockResolvedValue('/other/worktree')
-    const result = await git.checkoutBranch('s1', true, 'feature')
+    const result = await git.checkoutBranch(terminalRef('s1', true), 'feature')
     expect(result).toEqual({
       ok: false,
       conflict: { branch: 'feature', worktreePath: '/other/worktree', label: 'worktree' },
@@ -91,17 +91,17 @@ describe('GitService', () => {
   it('checkoutBranch() rethrows a non-conflict failure', async () => {
     vi.mocked(branchOps.checkoutBranch).mockRejectedValue(new Error('boom'))
     vi.mocked(branchOps.isWorktreeConflict).mockReturnValue(false)
-    await expect(git.checkoutBranch('s1', true, 'feature')).rejects.toThrow('boom')
+    await expect(git.checkoutBranch(terminalRef('s1', true), 'feature')).rejects.toThrow('boom')
   })
 
   it('mrRefStatus() maps every iid to null when there is no GitLab remote', async () => {
-    const out = await git.mrRefStatus('s1', true, [1, 2])
+    const out = await git.mrRefStatus(terminalRef('s1', true), [1, 2])
     expect(out).toEqual({ 1: null, 2: null })
   })
 
   it('requireWorktreeFor() throws when git reports no worktree for the branch', async () => {
     vi.mocked(branchOps.worktreeForBranch).mockResolvedValue(null)
-    await expect(git.requireWorktreeFor('s1', true, 'feature'))
+    await expect(git.requireWorktreeFor(terminalRef('s1', true), 'feature'))
       .rejects.toThrow('feature is no longer checked out in a worktree of this repository')
   })
 

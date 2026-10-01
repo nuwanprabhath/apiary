@@ -24,9 +24,9 @@ export function ConflictDialog({ conflict, onFork, onOpenAnyway, onCancel }: Pro
           Forking starts a new session from this point and leaves the original untouched.
         </p>
         <div className="modal-actions">
-          <button data-testid="conflict-cancel" onClick={onCancel}>Cancel</button>
-          <button data-testid="conflict-open" onClick={onOpenAnyway}>Open anyway</button>
-          <button className="primary" data-testid="conflict-fork" onClick={onFork}>Fork</button>
+          <button className="btn" data-testid="conflict-cancel" onClick={onCancel}>Cancel</button>
+          <button className="btn" data-testid="conflict-open" onClick={onOpenAnyway}>Open anyway</button>
+          <button className="btn primary" data-testid="conflict-fork" onClick={onFork}>Fork</button>
         </div>
       </Modal>
     </ErrorBoundary>

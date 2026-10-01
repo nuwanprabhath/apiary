@@ -10,6 +10,7 @@ import { promptPathEnv, type PromptPathOptions } from '../pty/promptPath'
 import { forkLabel } from '@shared/forkLabel'
 import { stripPasteControls } from '@shared/pasteSafe'
 import { newPendingPtyId, shellPtyId } from '@shared/domain/ptyId'
+import type { PtyId, SessionId } from '@shared/domain/ids'
 import { log } from '../log/logger'
 import type { NewSessionInfo } from '@shared/types'
 
@@ -137,13 +138,13 @@ export class TerminalService {
    * Attaching is now a real answer rather than a blank pane, because a view that arrives late is
    * caught up from a rendered snapshot (see `PtyManager.snapshot`), not a raw byte replay.
    */
-  async openShell(sessionId: string, tabId: string): Promise<void> {
+  async openShell(sessionId: SessionId, tabId: string): Promise<void> {
     const id = shellPtyId(sessionId, tabId)
     if (this.pty.has(id)) {
       log.info('shell', 'attaching to a shell that is already running', { id })
       return
     }
-    const cwd = this.resolver.resolveShellCwd(sessionId, false)
+    const cwd = this.resolver.resolveShellCwd({ kind: 'session', id: sessionId })
     this.pty.spawn({
       id,
       cwd,
@@ -156,10 +157,10 @@ export class TerminalService {
    * Same as `openShell`, but for a new session's pty before it has a real session id yet, keyed
    * `shell:<ptyId>:<tabId>`.
    */
-  async openShellForPty(ptyId: string, tabId: string): Promise<void> {
+  async openShellForPty(ptyId: PtyId, tabId: string): Promise<void> {
     const id = shellPtyId(ptyId, tabId)
     if (this.pty.has(id)) return
-    const cwd = this.resolver.resolveShellCwd(ptyId, true)
+    const cwd = this.resolver.resolveShellCwd({ kind: 'pty', id: ptyId })
     this.pty.spawn({
       id,
       cwd,

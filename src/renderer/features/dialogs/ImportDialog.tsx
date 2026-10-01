@@ -1,3 +1,4 @@
+import type { SessionId } from '@shared/domain/ids'
 import { type JSX, useCallback, useEffect, useMemo, useState } from 'react'
 import type { DiscoveredSession } from '@shared/api'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
@@ -45,7 +46,7 @@ function groupByProject(rows: DiscoveredSession[]): Map<string, DiscoveredSessio
 export function ImportDialog({ onClose, onImported, width, onWidthChange }: Props): JSX.Element {
   const { notifyError } = useNotifications()
   const [rows, setRows] = useState<DiscoveredSession[]>([])
-  const [picked, setPicked] = useState<Set<string>>(() => new Set())
+  const [picked, setPicked] = useState<Set<SessionId>>(() => new Set())
   const [autoProjects, setAutoProjects] = useState<Set<string>>(() => new Set())
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
@@ -124,7 +125,7 @@ export function ImportDialog({ onClose, onImported, width, onWidthChange }: Prop
 
   const groups = useMemo(() => groupByProject(filtered), [filtered])
 
-  const toggleSession = (id: string): void => {
+  const toggleSession = (id: SessionId): void => {
     const next = new Set(picked)
     if (next.has(id)) next.delete(id)
     else next.add(id)
@@ -278,9 +279,9 @@ export function ImportDialog({ onClose, onImported, width, onWidthChange }: Prop
 
         <div className="modal-actions">
           <span className="muted" data-testid="import-count">{picked.size} selected</span>
-          <button data-testid="import-cancel" onClick={onClose}>Cancel</button>
+          <button className="btn" data-testid="import-cancel" onClick={onClose}>Cancel</button>
           <button
-            className="primary"
+            className="btn primary"
             data-testid="import-confirm"
             disabled={busy}
             onClick={() => { void confirm() }}

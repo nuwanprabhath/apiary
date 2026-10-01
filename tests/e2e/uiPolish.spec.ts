@@ -1,3 +1,4 @@
+import type { SessionId } from '@shared/domain/ids'
 import { test, expect } from '@playwright/test'
 import { appendFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -106,7 +107,7 @@ test('the transcript catches up to the newest message when you switch back to it
   // Nothing on screen shows the hidden transcript catching up, so ask the main process, through
   // the renderer's own bridge, until the transcript it serves has the new turn — then switch back.
   await expect.poll(() => h.page.evaluate(async () => {
-    const page = await window.apiary.transcript('11111111-1111-1111-1111-111111111111')
+    const page = await window.apiary.transcript('11111111-1111-1111-1111-111111111111' as SessionId)
     return page.messages.some((m) => m.uuid === 'arrived-while-hidden')
   }), { timeout: 20000 }).toBe(true)
 

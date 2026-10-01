@@ -2,6 +2,7 @@ import { CHANNELS } from '@shared/api'
 import type { AppService } from '../../appService'
 import { broadcast } from '../../windows/broadcast'
 import type { Handlers } from '../registrar'
+import type { TerminalRef } from '@shared/domain/ids'
 
 export interface GitDeps {
   service: AppService
@@ -31,48 +32,48 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
    * listening for `treeChanged` (the plugin bar, MR-status invalidation) still hears about it.
    */
   const afterGitMutation = async (
-    key: string, isPtyId: boolean, branchMayChange: boolean,
+    terminal: TerminalRef, branchMayChange: boolean,
   ): Promise<void> => {
-    if (branchMayChange) await service.refreshProjectByKey(key, isPtyId)
+    if (branchMayChange) await service.refreshProjectByKey(terminal)
     broadcast(CHANNELS.treeChanged)
   }
 
   return {
-    gitStatus: (_e, key, isPtyId) => service.gitStatus(key, isPtyId),
-    gitListRefs: (_e, key, isPtyId) => service.gitListRefs(key, isPtyId),
-    gitlabMrRefStatus: (_e, key, isPtyId, iids) =>
+    gitStatus: (_e, terminal) => service.gitStatus(terminal),
+    gitListRefs: (_e, terminal) => service.gitListRefs(terminal),
+    gitlabMrRefStatus: (_e, terminal, iids) =>
       // `iids` builds a `projects/.../merge_requests/<iid>` glab argument (mrStatusCache.ts); a
       // non-integer would be a nonsense lookup rather than a dangerous one, but there is no reason
       // to pass one through, and the cap keeps one call from asking `glab` about an unbounded list.
-      service.gitlabMrRefStatus(key, isPtyId, iids.filter((iid) => Number.isSafeInteger(iid)).slice(0, 50)),
-    gitCheckoutBranch: async (_e, key, isPtyId, name) => {
-      const outcome = await service.gitCheckoutBranch(key, isPtyId, name)
+      service.gitlabMrRefStatus(terminal, iids.filter((iid) => Number.isSafeInteger(iid)).slice(0, 50)),
+    gitCheckoutBranch: async (_e, terminal, name) => {
+      const outcome = await service.gitCheckoutBranch(terminal, name)
       // Skipped when nothing was actually checked out (the worktree-conflict outcome).
-      if (outcome.ok) await afterGitMutation(key, isPtyId, true)
+      if (outcome.ok) await afterGitMutation(terminal, true)
       return outcome
     },
-    gitPullWorktree: async (_e, key, isPtyId, branch) => {
-      const outcome = await service.gitPullWorktree(key, isPtyId, branch)
+    gitPullWorktree: async (_e, terminal, branch) => {
+      const outcome = await service.gitPullWorktree(terminal, branch)
       // A fast-forward pull cannot change which branch is checked out, only its commit — nothing
       // `tree()` shows, so no re-resolve, just the broadcast every mutation sends.
-      await afterGitMutation(key, isPtyId, false)
+      await afterGitMutation(terminal, false)
       return outcome
     },
-    newSessionInWorktree: (_e, key, isPtyId, branch) => service.newSessionInWorktree(key, isPtyId, branch),
-    gitCheckoutRemote: async (_e, key, isPtyId, remoteRef, localName) => {
-      await service.gitCheckoutRemote(key, isPtyId, remoteRef, localName)
-      await afterGitMutation(key, isPtyId, true)
+    newSessionInWorktree: (_e, terminal, branch) => service.newSessionInWorktree(terminal, branch),
+    gitCheckoutRemote: async (_e, terminal, remoteRef, localName) => {
+      await service.gitCheckoutRemote(terminal, remoteRef, localName)
+      await afterGitMutation(terminal, true)
     },
-    gitCheckoutDetached: async (_e, key, isPtyId, ref) => {
-      await service.gitCheckoutDetached(key, isPtyId, ref)
-      await afterGitMutation(key, isPtyId, true)
+    gitCheckoutDetached: async (_e, terminal, ref) => {
+      await service.gitCheckoutDetached(terminal, ref)
+      await afterGitMutation(terminal, true)
     },
-    gitCreateBranch: async (_e, key, isPtyId, name, from) => {
-      await service.gitCreateBranch(key, isPtyId, name, from)
-      await afterGitMutation(key, isPtyId, true)
+    gitCreateBranch: async (_e, terminal, name, from) => {
+      await service.gitCreateBranch(terminal, name, from)
+      await afterGitMutation(terminal, true)
     },
-    gitPull: (_e, key, isPtyId) => service.gitPull(key, isPtyId),
-    gitUpdateBranch: (_e, key, isPtyId, branch) => service.gitUpdateBranch(key, isPtyId, branch),
+    gitPull: (_e, terminal) => service.gitPull(terminal),
+    gitUpdateBranch: (_e, terminal, branch) => service.gitUpdateBranch(terminal, branch),
     gitPullFolder: async (_e, path) => {
       const outcome = await service.gitPullFolder(path)
       // New commits can only move the folder's branch forward, never change which one is checked
@@ -84,18 +85,18 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
     listWorktrees: (_e, path) => service.listWorktrees(path),
     worktreeCreateOptions: (_e, path) => service.worktreeCreateOptions(path),
     worktreeCreate: (_e, path, request) => service.createWorktree(path, request),
-    gitPush: (_e, key, isPtyId) => service.gitPush(key, isPtyId),
-    gitMerge: async (_e, key, isPtyId, ref) => {
-      await service.gitMerge(key, isPtyId, ref)
+    gitPush: (_e, terminal) => service.gitPush(terminal),
+    gitMerge: async (_e, terminal, ref) => {
+      await service.gitMerge(terminal, ref)
       // A merge moves commits onto the current branch, never changes which one is current.
-      await afterGitMutation(key, isPtyId, false)
+      await afterGitMutation(terminal, false)
     },
-    gitFetch: async (_e, key, isPtyId) => {
-      await service.gitFetch(key, isPtyId)
+    gitFetch: async (_e, terminal) => {
+      await service.gitFetch(terminal)
       // Fetch only updates remote-tracking refs; the checked-out branch cannot change.
-      await afterGitMutation(key, isPtyId, false)
+      await afterGitMutation(terminal, false)
     },
     vsCodeAvailable: () => service.vsCodeAvailable(),
-    openInVsCode: (_e, key, isPtyId) => service.openInVsCode(key, isPtyId),
+    openInVsCode: (_e, terminal) => service.openInVsCode(terminal),
   }
 }

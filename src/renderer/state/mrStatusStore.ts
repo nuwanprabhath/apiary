@@ -1,4 +1,5 @@
 import type { MrState } from '../features/sidebar/mrRefText'
+import { asSessionId } from '@shared/domain/ids'
 
 /**
  * One shared timer, one shared `onMrStatusesInvalidated` listener, and one `gitlabMrRefStatus`
@@ -62,7 +63,7 @@ function scheduleFetch(sessionId: string): void {
     entry.fetchScheduled = false
     const iids = [...new Set([...entry.consumers.values()].flatMap((c) => c.iids))]
     if (iids.length === 0) return
-    void window.apiary.gitlabMrRefStatus(sessionId, false, iids)
+    void window.apiary.gitlabMrRefStatus({ kind: 'session', id: asSessionId(sessionId) }, iids)
       .then((result) => {
         entry.statuses = result
         for (const c of entry.consumers.values()) c.listener(result)

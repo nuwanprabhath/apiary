@@ -1,11 +1,12 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import * as branchOps from './branchOps'
-import { originUrl, defaultExec as defaultGitExec } from '../plugins/gitlabMr'
+import { resolveRemote } from '../plugins/remote'
 import { parseGitLabRemote } from '../plugins/gitlabRemote'
 import { resolveMrStatus, type MrState } from './mrStatusCache'
 import { log } from '../log/logger'
 import type { SessionResolver } from '../sessions/sessionResolver'
+import type { TerminalRef } from '@shared/domain/ids'
 import type { GitStatus, GitRefs, CheckoutOutcome, FolderWorktree } from '@shared/types'
 import {
   worktreeNameProblem, type WorktreeCreateOptions, type WorktreeCreateRequest,
@@ -49,15 +50,15 @@ export class GitService {
 
   /** Null means `cwd` is not (or is no longer) a git repository — an outcome, not a failure: see
    *  MAIN-9. Anything else `git` gets wrong there still rejects. */
-  async status(key: string, isPtyId: boolean): Promise<GitStatus | null> {
-    const cwd = this.resolver.resolveShellCwd(key, isPtyId)
+  async status(terminal: TerminalRef): Promise<GitStatus | null> {
+    const cwd = this.resolver.resolveShellCwd(terminal)
     const status = await branchOps.status(cwd)
     this.lastBranch.set(cwd, status?.branch ?? null)
     return status
   }
 
-  async listRefs(key: string, isPtyId: boolean): Promise<GitRefs> {
-    return branchOps.listRefs(this.resolver.resolveShellCwd(key, isPtyId))
+  async listRefs(terminal: TerminalRef): Promise<GitRefs> {
+    return branchOps.listRefs(this.resolver.resolveShellCwd(terminal))
   }
 
   /**
@@ -68,12 +69,11 @@ export class GitService {
    * had never been made.
    */
   async mrRefStatus(
-    key: string, isPtyId: boolean, iids: number[],
+    terminal: TerminalRef, iids: number[],
   ): Promise<Record<number, MrState | null>> {
-    const cwd = this.resolver.resolveShellCwd(key, isPtyId)
+    const cwd = this.resolver.resolveShellCwd(terminal)
     const out: Record<number, MrState | null> = {}
-    const remoteUrl = await originUrl(cwd, defaultGitExec)
-    const remote = remoteUrl === null ? null : parseGitLabRemote(remoteUrl)
+    const remote = await resolveRemote(cwd, parseGitLabRemote)
     if (remote === null) {
       for (const iid of iids) out[iid] = null
       return out
@@ -97,8 +97,8 @@ export class GitService {
    * of the message. The message is English and quoted; the porcelain output is an interface. It
    * also keeps the rule that a path the app later acts on is one the main process derived itself.
    */
-  async checkoutBranch(key: string, isPtyId: boolean, name: string): Promise<CheckoutOutcome> {
-    const cwd = this.resolver.resolveShellCwd(key, isPtyId)
+  async checkoutBranch(terminal: TerminalRef, name: string): Promise<CheckoutOutcome> {
+    const cwd = this.resolver.resolveShellCwd(terminal)
     try {
       await branchOps.checkoutBranch(cwd, name)
       return { ok: true }
@@ -123,8 +123,8 @@ export class GitService {
    * cwd-carrying call goes through, and the answer is re-derived each time because a worktree can
    * be removed between the refusal and the click.
    */
-  async requireWorktreeFor(key: string, isPtyId: boolean, branch: string): Promise<string> {
-    const cwd = this.resolver.resolveShellCwd(key, isPtyId)
+  async requireWorktreeFor(terminal: TerminalRef, branch: string): Promise<string> {
+    const cwd = this.resolver.resolveShellCwd(terminal)
     const path = await branchOps.worktreeForBranch(cwd, branch)
     if (path === null) {
       throw new Error(`${branch} is no longer checked out in a worktree of this repository`)
@@ -135,32 +135,32 @@ export class GitService {
 
   /** Pulls `branch` in the worktree that has it, which is the only place it *can* be pulled. */
   async pullWorktree(
-    key: string, isPtyId: boolean, branch: string,
+    terminal: TerminalRef, branch: string,
   ): Promise<{ path: string; commits: number }> {
-    const path = await this.requireWorktreeFor(key, isPtyId, branch)
+    const path = await this.requireWorktreeFor(terminal, branch)
     const { commits } = await branchOps.pull(path)
     return { path, commits }
   }
 
-  async checkoutRemote(key: string, isPtyId: boolean, remoteRef: string, localName: string): Promise<void> {
-    await branchOps.checkoutRemote(this.resolver.resolveShellCwd(key, isPtyId), remoteRef, localName)
+  async checkoutRemote(terminal: TerminalRef, remoteRef: string, localName: string): Promise<void> {
+    await branchOps.checkoutRemote(this.resolver.resolveShellCwd(terminal), remoteRef, localName)
   }
 
-  async checkoutDetached(key: string, isPtyId: boolean, ref: string): Promise<void> {
-    await branchOps.checkoutDetached(this.resolver.resolveShellCwd(key, isPtyId), ref)
+  async checkoutDetached(terminal: TerminalRef, ref: string): Promise<void> {
+    await branchOps.checkoutDetached(this.resolver.resolveShellCwd(terminal), ref)
   }
 
-  async createBranch(key: string, isPtyId: boolean, name: string, from?: string): Promise<void> {
-    await branchOps.createBranch(this.resolver.resolveShellCwd(key, isPtyId), name, from)
+  async createBranch(terminal: TerminalRef, name: string, from?: string): Promise<void> {
+    await branchOps.createBranch(this.resolver.resolveShellCwd(terminal), name, from)
   }
 
-  async pull(key: string, isPtyId: boolean): Promise<{ commits: number }> {
-    return branchOps.pull(this.resolver.resolveShellCwd(key, isPtyId))
+  async pull(terminal: TerminalRef): Promise<{ commits: number }> {
+    return branchOps.pull(this.resolver.resolveShellCwd(terminal))
   }
 
   /** Fast-forwards any local branch from its upstream (the branch list's pull button). */
-  async updateBranch(key: string, isPtyId: boolean, branch: string): Promise<{ commits: number }> {
-    return branchOps.updateBranch(this.resolver.resolveShellCwd(key, isPtyId), branch)
+  async updateBranch(terminal: TerminalRef, branch: string): Promise<{ commits: number }> {
+    return branchOps.updateBranch(this.resolver.resolveShellCwd(terminal), branch)
   }
 
   /**
@@ -226,15 +226,15 @@ export class GitService {
     return target
   }
 
-  async push(key: string, isPtyId: boolean): Promise<{ commits: number; published: boolean }> {
-    return branchOps.push(this.resolver.resolveShellCwd(key, isPtyId))
+  async push(terminal: TerminalRef): Promise<{ commits: number; published: boolean }> {
+    return branchOps.push(this.resolver.resolveShellCwd(terminal))
   }
 
-  async merge(key: string, isPtyId: boolean, ref: string): Promise<void> {
-    await branchOps.merge(this.resolver.resolveShellCwd(key, isPtyId), ref)
+  async merge(terminal: TerminalRef, ref: string): Promise<void> {
+    await branchOps.merge(this.resolver.resolveShellCwd(terminal), ref)
   }
 
-  async fetch(key: string, isPtyId: boolean): Promise<void> {
-    await branchOps.fetch(this.resolver.resolveShellCwd(key, isPtyId))
+  async fetch(terminal: TerminalRef): Promise<void> {
+    await branchOps.fetch(this.resolver.resolveShellCwd(terminal))
   }
 }

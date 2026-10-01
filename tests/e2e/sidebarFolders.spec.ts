@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
+import { git, cloneInto, commitFile } from '../fixtures/gitRepo'
 import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
 
 /**
@@ -69,20 +69,14 @@ test('a folder\'s card pulls the latest of its branch into that worktree', async
   const row = h.page.locator('.project-row-wrap[data-depth="0"]').first()
   const path = await row.getAttribute('data-folder-path')
   if (path === null) throw new Error('folder row has no path')
-  const git = (cwd: string, ...args: string[]): string =>
-    execFileSync('git', ['-c', 'commit.gpgsign=false', ...args], { cwd, stdio: 'pipe' }).toString().trim()
-  const branch = git(path, 'rev-parse', '--abbrev-ref', 'HEAD')
+  const branch = git(path, 'rev-parse', '--abbrev-ref', 'HEAD').trim()
   const remote = mkdtempSync(join(h.home, 'upstream-'))
   git(remote, 'init', '-q', '--bare')
   git(path, 'remote', 'add', 'origin', remote)
   git(path, 'push', '-q', '-u', 'origin', branch)
   const teammate = mkdtempSync(join(h.home, 'teammate-'))
-  git(teammate, 'clone', '-q', remote, '.')
-  git(teammate, 'config', 'user.email', 't@example.com')
-  git(teammate, 'config', 'user.name', 'Teammate')
-  writeFileSync(join(teammate, 'from-teammate.txt'), 'hello')
-  git(teammate, 'add', '.')
-  git(teammate, 'commit', '-qm', 'teammate work')
+  cloneInto(remote, teammate, { email: 't@example.com', name: 'Teammate' })
+  commitFile(teammate, 'from-teammate.txt', 'teammate work', 'hello')
   git(teammate, 'push', '-q')
 
   await row.hover()
@@ -93,7 +87,7 @@ test('a folder\'s card pulls the latest of its branch into that worktree', async
   await pull.click()
 
   await expect(h.page.getByTestId('notification-message').last()).toContainText(/Pulled 1 commit into/)
-  expect(git(path, 'log', '-1', '--format=%s')).toBe('teammate work')
+  expect(git(path, 'log', '-1', '--format=%s').trim()).toBe('teammate work')
 
   // A second pull has nothing to bring, and says so rather than claiming another success.
   await row.hover()

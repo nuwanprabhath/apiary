@@ -251,7 +251,7 @@ export function Transcript({ session, visible = true, onOpenImage }: TranscriptP
         )}
         <div className="crash-actions">
           <button
-            className="primary"
+            className="btn primary"
             data-testid="transcript-retry"
             onClick={() => { setReloadNonce((n) => n + 1) }}
           >

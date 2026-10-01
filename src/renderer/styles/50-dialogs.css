@@ -248,8 +248,9 @@
   cursor: pointer;
   font: inherit;
 }
-.context-menu-item:hover:not(:disabled), .context-menu-item:focus-visible { background: var(--hover); }
 .context-menu-item:disabled { color: var(--muted); cursor: default; }
+.context-menu-item:focus-visible { background: var(--hover); }
+.context-menu-item:hover:not(:disabled) { background: var(--hover); }
 /* A toggle's tick. Always takes its space, so a menu mixing toggles and actions keeps its labels
    lined up whether the toggle is on or off. */
 .context-menu-check { width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; }
@@ -422,9 +423,9 @@
   color: var(--muted);
   cursor: pointer;
 }
-.hover-card-copy:hover:not(:disabled) { background: var(--hover); color: var(--text); }
-/* The pull button while its pull is in flight — the same treatment as .settings-preset:disabled. */
+/* The pull button while its pull is in flight — the same treatment as .btn:disabled. */
 .hover-card-copy:disabled { cursor: default; opacity: 0.5; }
+.hover-card-copy:hover:not(:disabled) { background: var(--hover); color: var(--text); }
 .hover-card-copy svg { width: 12px; height: 12px; display: block; }
 
 /* A plugin's button when it is offering something that does not exist yet — "no MR, make one".

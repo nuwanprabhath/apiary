@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { addBareRemote, git, setIdentity, commitFile } from '../fixtures/gitRepo'
 import { launchApiary, importAll, type Harness, sidebarSession } from './helpers'
 
 /**
@@ -34,8 +33,7 @@ test('shows the current branch and lets you copy it', { tag: '@serial' }, async 
 
 test('pull and push succeed against a real remote and refresh the branch button', { tag: '@smoke' }, async () => {
   const remote = h.repoRoot + '-remote.git'
-  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', remote])
-  execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: h.repoRoot })
+  addBareRemote(h.repoRoot, remote)
 
   // Both commands are silent on success at the git level, so the toolbar says so instead —
   // and the absence of an error notification is what proves nothing went wrong.
@@ -50,18 +48,16 @@ test('pull and push succeed against a real remote and refresh the branch button'
 
 test('a branch row pulls that branch from its upstream, without checking it out', async () => {
   const remote = h.repoRoot + '-remote.git'
-  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', remote])
-  execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: h.repoRoot })
+  addBareRemote(h.repoRoot, remote)
   execFileSync('git', ['push', '-q', '-u', 'origin', 'main'], { cwd: h.repoRoot })
   execFileSync('git', ['branch', 'feature/behind'], { cwd: h.repoRoot })
   execFileSync('git', ['push', '-q', '-u', 'origin', 'feature/behind'], { cwd: h.repoRoot })
   // Someone else pushes a commit to feature/behind.
   const other = h.repoRoot + '-other'
-  execFileSync('git', ['clone', '-q', '-b', 'feature/behind', remote, other])
-  writeFileSync(join(other, 'theirs.txt'), 'theirs')
-  execFileSync('git', ['add', '.'], { cwd: other })
-  execFileSync('git', ['-c', 'user.email=o@example.com', '-c', 'user.name=Other', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'theirs'], { cwd: other })
-  execFileSync('git', ['push', '-q', 'origin', 'feature/behind'], { cwd: other })
+  git(h.repoRoot, 'clone', '-q', '-b', 'feature/behind', remote, other)
+  setIdentity(other, 'o@example.com', 'Other')
+  commitFile(other, 'theirs.txt', 'theirs')
+  git(other, 'push', '-q', 'origin', 'feature/behind')
 
   await h.page.getByTestId('toolbar-branch-button').click()
   await h.page.getByTestId('branch-switcher-search').fill('behind')

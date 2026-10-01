@@ -1,3 +1,4 @@
+import { ptyIdOfSession, type PtyId } from '@shared/domain/ids'
 /**
  * The pure state transitions behind an App window's open tabs, terminals and pane layout.
  *
@@ -14,7 +15,10 @@ import {
   openTab, openTabAfter, closeTab, setTabView, rekeyTab, moveTabToColumn, adoptTab,
   findColumnWithTab, type Column, type OpenTab,
 } from '../layout/columns'
-import { tidyLayout, openBeside, type Layout, type PresetId } from '../layout/layout'
+import {
+  tidyLayout, openBeside, placeInZone, applyPreset, closePane, swapPanes,
+  type Layout, type PresetId,
+} from '../layout/layout'
 
 /** A shell terminal tab, as SessionColumn keys it — duplicated here rather than imported from a
  *  component module, since a state module importing a component would invert the dependency this
@@ -66,7 +70,7 @@ export type WorkspaceAction =
   }
   /** A rename typed in before a pending session had a real id yet. Ports the state half of
    *  `setPendingTitle` (the `renameTerminalInClaude` IPC call is the caller's job). */
-  | { type: 'pending/title'; ptyId: string; title: string }
+  | { type: 'pending/title'; ptyId: PtyId; title: string }
   /**
    * A still-pending pty's session was found by matching its cwd against the tree (the reconciler),
    * or a live pty's tab was found to be on a different session than it is keyed by (the rekey
@@ -75,7 +79,7 @@ export type WorkspaceAction =
    * id (reconcile) or the tab's current key (rekey); they are the same case a resolving pending
    * session and a live rekey both are — a tab following the session its terminal is actually on.
    */
-  | { type: 'session/follow'; from: string; to: SessionNode; ptyId: string; titleOverride: string | null }
+  | { type: 'session/follow'; from: string; to: SessionNode; ptyId: PtyId; titleOverride: string | null }
   /** A pty exited. Ports the `onPtyExit` handler: drops the pending entry, closes a still-`new:`
    *  tab (a real session's tab survives and reads as stopped), and drops any shell terminal that
    *  was running under this pty id. */
@@ -86,6 +90,37 @@ export type WorkspaceAction =
   /** A session was removed from the library. Ports `confirmDelete`'s tab/session bookkeeping
    *  (unpinning is `ui` state and stays the caller's job). */
   | { type: 'session/removed'; sessionId: string }
+  /** Focuses a pane without touching its tabs. */
+  | { type: 'column/focus'; columnId: string }
+  /** Opens a bare key (a pending pty id) in the active column, or the first when the active one
+   *  is gone — without moving focus. Ports the sidebar's "select pending". */
+  | { type: 'tab/open'; key: string }
+  /** Focuses an already-open key where it is — a no-op when it is not open in this window. Ports
+   *  `onSelectTab` (another window's Active row was clicked). */
+  | { type: 'tab/focus'; key: string }
+  /** Closes a key in every column — a tab another window took (`onTabClaimed`). */
+  | { type: 'tab/closeEverywhere'; key: string }
+  /** Sets a key's view in every column that has it (resume → terminal; launch restore). */
+  | { type: 'tab/showView'; key: string; view: OpenTab['view'] }
+  /** The tab bar's split button: the tab copied into a pane beside the active one. */
+  | { type: 'tab/split'; key: string }
+  /** The layout picker's "Arrange": place a key (a session, optionally with its row) in a zone. */
+  | { type: 'layout/place'; key: string; preset: PresetId; zone: number; paneId?: string; session?: SessionNode }
+  | { type: 'layout/apply'; preset: PresetId }
+  | { type: 'layout/closePane'; columnId: string }
+  | { type: 'layout/swap'; from: string; to: string }
+  /** Remembers the row behind an open tab (a rename, a drop onto an empty pane, ...). */
+  | { type: 'openSessions/set'; session: SessionNode }
+  /** Fills in rows for tabs this window has no row for yet (a tab adopted as a bare key). */
+  | { type: 'openSessions/merge'; nodes: SessionNode[] }
+  /** Keeps rows behind open tabs current from a fresh tree (`known` is every session by id). */
+  | { type: 'openSessions/refresh'; known: Map<string, SessionNode> }
+  /** A session's process was started: it now reads as resumed. */
+  | { type: 'resumed/add'; key: string }
+  /** SessionColumn's shell-tab and active-terminal maps are edited through updaters, as they were
+   *  when they were `useState`s there. */
+  | { type: 'shellTabs/update'; update: (prev: Map<string, TerminalTab[]>) => Map<string, TerminalTab[]> }
+  | { type: 'activeTerminal/update'; update: (prev: Map<string, string>) => Map<string, string> }
 
 function targetColumnId(state: WorkspaceState, preferred?: string): string | undefined {
   const columns = state.layout.panes
@@ -119,7 +154,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         ))
         return { ...state, openSessions, layout, activeColumnId: existing.id }
       }
-      const targetId = targetColumnId(state)
+      const targetId = targetColumnId(state, state.activeColumnId ?? undefined)
       const layout = updateColumns(state.layout, state.activeColumnId, (c) => (
         c.id === targetId ? openTab(c, action.session.sessionId) : c
       ))
@@ -207,7 +242,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       const node = titleOverride !== null ? { ...to, title: titleOverride } : to
       const ptyOverrides = new Map(state.ptyOverrides)
       ptyOverrides.delete(from)
-      if (ptyId !== to.sessionId) ptyOverrides.set(to.sessionId, ptyId)
+      if (ptyId !== ptyIdOfSession(to.sessionId)) ptyOverrides.set(to.sessionId, ptyId)
       const resumed = new Set(state.resumed)
       resumed.delete(from)
       resumed.add(to.sessionId)
@@ -259,6 +294,109 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         ? dropKey(state.openSessions, sessionId)
         : state.openSessions
       return { ...state, layout, openSessions }
+    }
+
+    case 'column/focus':
+      return state.activeColumnId === action.columnId ? state : { ...state, activeColumnId: action.columnId }
+
+    case 'tab/open': {
+      const targetId = targetColumnId(state, state.activeColumnId ?? undefined)
+      const layout = updateColumns(state.layout, state.activeColumnId, (c) => (
+        c.id === targetId ? openTab(c, action.key) : c
+      ))
+      return { ...state, layout }
+    }
+
+    case 'tab/focus': {
+      const existing = findColumnWithTab(state.layout.panes, action.key)
+      if (existing === null) return state
+      const layout = updateColumns(state.layout, state.activeColumnId, (c) => (
+        c.id === existing.id ? openTab(c, action.key) : c
+      ))
+      return { ...state, layout, activeColumnId: existing.id }
+    }
+
+    case 'tab/closeEverywhere': {
+      const layout = updateColumns(state.layout, state.activeColumnId, (c) => closeTab(c, action.key))
+      return { ...state, layout }
+    }
+
+    case 'tab/showView': {
+      const layout = updateColumns(state.layout, state.activeColumnId, (c) => setTabView(c, action.key, action.view))
+      return { ...state, layout }
+    }
+
+    case 'tab/split': {
+      const tab = state.layout.panes.flatMap((c) => c.tabs).find((t) => t.key === action.key)
+      if (tab === undefined) return state
+      const result = openBeside(state.layout, state.activeColumnId, { ...tab })
+      return { ...state, layout: tidyLayout(result.layout, result.paneId), activeColumnId: result.paneId }
+    }
+
+    case 'layout/place': {
+      const openSessions = action.session === undefined
+        ? state.openSessions
+        : new Map(state.openSessions).set(action.session.sessionId, action.session)
+      const result = placeInZone(state.layout, action.preset, action.zone, action.key, action.paneId)
+      return { ...state, openSessions, layout: tidyLayout(result.layout, result.paneId), activeColumnId: result.paneId }
+    }
+
+    case 'layout/apply': {
+      const layout = tidyLayout(applyPreset(state.layout, action.preset), state.activeColumnId)
+      return layout === state.layout ? state : { ...state, layout }
+    }
+
+    case 'layout/closePane': {
+      const layout = tidyLayout(closePane(state.layout, action.columnId, state.activeColumnId), state.activeColumnId)
+      return layout === state.layout ? state : { ...state, layout }
+    }
+
+    case 'layout/swap': {
+      const layout = tidyLayout(swapPanes(state.layout, action.from, action.to), state.activeColumnId)
+      return layout === state.layout ? state : { ...state, layout }
+    }
+
+    case 'openSessions/set':
+      return { ...state, openSessions: new Map(state.openSessions).set(action.session.sessionId, action.session) }
+
+    case 'openSessions/merge': {
+      if (action.nodes.length === 0) return state
+      const openSessions = new Map(state.openSessions)
+      for (const node of action.nodes) openSessions.set(node.sessionId, node)
+      return { ...state, openSessions }
+    }
+
+    case 'openSessions/refresh': {
+      if (state.openSessions.size === 0) return state
+      let changed = false
+      const next = new Map(state.openSessions)
+      for (const [id, current] of state.openSessions) {
+        const fresh = action.known.get(id) ?? null
+        if (fresh === null) continue
+        if (
+          fresh.title !== current.title ||
+          fresh.isLive !== current.isLive ||
+          fresh.cwd !== current.cwd ||
+          fresh.cwdExists !== current.cwdExists
+        ) {
+          next.set(id, fresh)
+          changed = true
+        }
+      }
+      return changed ? { ...state, openSessions: next } : state
+    }
+
+    case 'resumed/add':
+      return state.resumed.has(action.key) ? state : { ...state, resumed: new Set([...state.resumed, action.key]) }
+
+    case 'shellTabs/update': {
+      const shellTabs = action.update(state.shellTabs)
+      return shellTabs === state.shellTabs ? state : { ...state, shellTabs }
+    }
+
+    case 'activeTerminal/update': {
+      const activeTerminal = action.update(state.activeTerminal)
+      return activeTerminal === state.activeTerminal ? state : { ...state, activeTerminal }
     }
 
     default:

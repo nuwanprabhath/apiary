@@ -1,3 +1,4 @@
+import { ptyIdOfSession, type PtyId } from '@shared/domain/ids'
 import { type JSX, useCallback, useRef, useState } from 'react'
 import type { SessionNode } from '@shared/types'
 import { useNotifications } from '../../ui/notifications'
@@ -21,7 +22,7 @@ const MODELS = ['default', 'opus', 'sonnet', 'haiku'] as const
 interface Props {
   session: SessionNode
   /** The pty this session's `claude` runs under, or null while it has none. */
-  ptyId: string | null
+  ptyId: PtyId | null
   /** Whether that process is actually running — false means the session needs resuming first. */
   running: boolean
   /** Resumes the session; resolves once the pty exists. */
@@ -83,12 +84,12 @@ export function Composer({
     if (body === '' && attachments.length === 0) return
     setSending(true)
     try {
-      let target = ptyId
+      let target: PtyId | null = ptyId
       if (!running || target === null) {
         // Resuming is what makes there be anything to type into. Doing it here rather than making
         // the user find the Resume button first is the whole point of a chat box.
         await onResume()
-        target = session.sessionId
+        target = ptyIdOfSession(session.sessionId)
       }
       // Claude reads an image from its path, so that is what the message carries. One per line,
       // under the prose, so the wording still reads as the sentence it was written as.

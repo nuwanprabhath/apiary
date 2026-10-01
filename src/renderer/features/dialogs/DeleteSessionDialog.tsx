@@ -29,8 +29,8 @@ export function DeleteSessionDialog({ title, onCancel, onConfirm }: Props): JSX.
           be brought back later from <strong>File &gt; Import Claude Sessions</strong>.
         </p>
         <div className="modal-actions">
-          <button data-testid="delete-session-cancel" onClick={onCancel}>Cancel</button>
-          <button className="danger" data-testid="delete-session-confirm" onClick={onConfirm}>Remove</button>
+          <button className="btn" data-testid="delete-session-cancel" onClick={onCancel}>Cancel</button>
+          <button className="btn danger" data-testid="delete-session-confirm" onClick={onConfirm}>Remove</button>
         </div>
       </Modal>
     </ErrorBoundary>

@@ -141,7 +141,7 @@ export function useFlatTreeNav<E extends HTMLElement = HTMLDivElement>(
   keys: string[],
   handlers: TreeKeyHandlers,
 ): {
-  ref: RefObject<E>
+  ref: RefObject<E | null>
   onKeyDown: (e: React.KeyboardEvent) => void
   onFocus: (e: React.FocusEvent) => void
   tabIndexFor: (key: string) => number

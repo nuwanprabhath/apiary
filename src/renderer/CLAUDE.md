@@ -81,3 +81,27 @@ from the first paint. "Use the system title bar" (Settings → General) turns it
 - **Focus goes back before an item runs**, or Edit → Paste would paste into the menu.
 - **The page is the whole window** under a custom bar or hiddenInset: `window.innerHeight` equals the
   window's height (an e2e assumption `sessionTabs.spec.ts` had to drop).
+
+## Shape of the big components (UI-1, UI-19, UI-21)
+
+`app/App.tsx` is providers, the grid and the `columns.map`; what it used to own lives in hooks:
+workspace state in `features/workspace/` (reducer, provider, effect hooks), dialogs in
+`features/dialogs/` (`useDialogs` state, `DialogHost` rendering, and `useDialogActions()` so the
+sidebar opens delete/move/note/worktree dialogs itself rather than through props), the two resizers
+in `features/layout/useResizeDrag.ts`, and the pane-divider positions in `features/layout/PaneGrid.tsx`.
+
+- **`features/sidebar/Sidebar.tsx`** is the search box, the data every section reads, and the
+  composition. Each section is a component (`ActiveSection`, `PinnedSection`, `RecentSection`,
+  `PendingSection`, `SearchResults`, `FolderGroup`) that owns its own `useFlatTreeNav`; the
+  group arrangement (`useGroupActions`), the one context menu (`useSidebarMenu`), the main
+  folder/session tree's keyboard model (`useMainTreeNav`) and scroll-to-reveal (`useRevealSession`)
+  are hooks. Rows take their callbacks as one stable `RowActions` object (`rowActions.ts`).
+- **`features/pane/SessionColumn.tsx`** composes `SessionHeader`, `SessionBody` and `ShellPane`;
+  git state is `useGitStatus` + `useGitActions`, shell terminals are `useShellTerminals` (they read
+  and write the workspace through context, so no setter is a prop) and `useSessionKeys` maps a tab
+  to the id its ptys hang off.
+- **`Sidebar`, `SessionColumn` and `SessionRow` are `React.memo`.** That only works while App's props
+  to them stay referentially stable, so a new handler passed to either must be a `useCallback`/
+  `useMemo` in App (or read from context). `tests/component/appPropStability.test.tsx` fails when
+  one stops being stable; it finds the components by their inner function names (`SidebarShell`,
+  `SessionColumnView`, `SessionRowView`), so keep those names.

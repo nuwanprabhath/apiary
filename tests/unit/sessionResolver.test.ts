@@ -1,3 +1,4 @@
+import { terminalRef } from '@shared/domain/ids'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -72,24 +73,24 @@ describe('SessionResolver', () => {
 
     it('resolves a pty id through PtyManager.getCwd when isPtyId is true', () => {
       const resolver = new SessionResolver({ store: fakeStore({}), pty: fakePty({ 'new:1': realDir }) })
-      expect(resolver.resolveShellCwd('new:1', true)).toBe(realDir)
+      expect(resolver.resolveShellCwd(terminalRef('new:1', true))).toBe(realDir)
     })
 
     it('resolves a session id through the store when isPtyId is false', () => {
       const session = { sessionId: 's1', cwd: realDir } as StoredSession
       const resolver = new SessionResolver({ store: fakeStore({ sessions: { s1: session } }), pty: fakePty({}) })
-      expect(resolver.resolveShellCwd('s1', false)).toBe(realDir)
+      expect(resolver.resolveShellCwd(terminalRef('s1', false))).toBe(realDir)
     })
 
     it('throws "Unknown session" when the pty id has no cwd', () => {
       const resolver = new SessionResolver({ store: fakeStore({}), pty: fakePty({}) })
-      expect(() => resolver.resolveShellCwd('new:1', true)).toThrow('Unknown session: new:1')
+      expect(() => resolver.resolveShellCwd(terminalRef('new:1', true))).toThrow('Unknown session: new:1')
     })
 
     it('throws when the resolved cwd no longer exists on disk', () => {
       const session = { sessionId: 's1', cwd: '/definitely/not/a/real/path' } as StoredSession
       const resolver = new SessionResolver({ store: fakeStore({ sessions: { s1: session } }), pty: fakePty({}) })
-      expect(() => resolver.resolveShellCwd('s1', false))
+      expect(() => resolver.resolveShellCwd(terminalRef('s1', false)))
         .toThrow('The folder for this session no longer exists: /definitely/not/a/real/path')
     })
   })

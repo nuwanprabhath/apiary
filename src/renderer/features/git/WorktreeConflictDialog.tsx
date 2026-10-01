@@ -38,14 +38,14 @@ export function WorktreeConflictDialog(
         </p>
         <p className="muted" data-testid="worktree-conflict-path">{conflict.worktreePath}</p>
         <div className="modal-actions">
-          <button data-testid="worktree-conflict-cancel" disabled={busy} onClick={onCancel}>
+          <button className="btn" data-testid="worktree-conflict-cancel" disabled={busy} onClick={onCancel}>
             Cancel
           </button>
-          <button data-testid="worktree-conflict-session" disabled={busy} onClick={onOpenSession}>
+          <button className="btn" data-testid="worktree-conflict-session" disabled={busy} onClick={onOpenSession}>
             New session there
           </button>
           <button
-            className="primary"
+            className="btn primary"
             data-testid="worktree-conflict-pull"
             disabled={busy}
             onClick={onPull}

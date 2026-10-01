@@ -66,7 +66,6 @@
 .pane-drop[data-over="true"] .pane-drop-label { color: var(--text); }
 /* The empty part of a strip that can move its pane says so. */
 .session-tab-strip[draggable="true"] { cursor: grab; }
-.session-tab-strip[draggable="true"] .session-tab { cursor: default; }
 
 .session-card {
   display: flex;
@@ -182,10 +181,9 @@
   background: var(--bg);
   box-shadow: 0 0 0 1px var(--border), var(--shadow-chip);
 }
+.session-tab-strip[draggable="true"] .session-tab { cursor: default; }
 /* Keyboard focus, and only keyboard focus: a quiet ring, not the OS accent around the whole tab
  * on every click. */
-.session-tab-label:focus-visible { outline: none; }
-.session-tab:has(.session-tab-label:focus-visible) { box-shadow: 0 0 0 1px var(--muted); }
 .session-tab-label {
   display: flex;
   align-items: center;
@@ -200,6 +198,8 @@
   font: inherit;
   padding: 4px 4px 4px 10px;
 }
+.session-tab-label:focus-visible { outline: none; }
+.session-tab:has(.session-tab-label:focus-visible) { box-shadow: 0 0 0 1px var(--muted); }
 .session-tab[data-active="true"] .session-tab-label { color: var(--text); }
 .session-tab-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -221,9 +221,9 @@
 /* Always visible, never hover-revealed. A close button that appears only on the tab you are
    pointing at means closing a tab is a two-step hunt, and on the tabs it was hidden on the only
    way to close one at all was the right-click menu — which is not where anyone looks first. */
+.session-tab-close:hover { background: var(--hover); color: var(--text); }
 .session-tab:hover .session-tab-close,
 .session-tab[data-active="true"] .session-tab-close { color: var(--text); }
-.session-tab-close:hover { background: var(--hover); color: var(--text); }
 .session-tab-close svg { width: 12px; height: 12px; display: block; }
 
 /* The per-tab layout button: present on the tab under the pointer and on the active tab only, so
@@ -242,10 +242,10 @@
   background: none;
   color: var(--muted);
 }
-.session-tab:hover .session-tab-layout,
-.session-tab[data-active="true"] .session-tab-layout,
-.session-tab-layout:focus-visible { display: flex; }
 .session-tab-layout:hover { background: var(--hover); color: var(--text); }
+.session-tab-layout:focus-visible { display: flex; }
+.session-tab:hover .session-tab-layout,
+.session-tab[data-active="true"] .session-tab-layout { display: flex; }
 .session-tab-layout svg { width: 12px; height: 12px; display: block; }
 
 .session-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
@@ -267,16 +267,13 @@
   cursor: pointer;
   padding: 0;
 }
-.session-title-heading:hover .title-edit-button,
-.title-edit-button:focus-visible {
-  opacity: 1;
-}
 .title-edit-button:hover,
 .title-edit-button:focus-visible {
   background: var(--hover);
   color: var(--text);
 }
-.title-edit-button svg { width: 14px; height: 14px; display: block; }
+.title-edit-button:focus-visible { opacity: 1; }
+.session-title-heading:hover .title-edit-button { opacity: 1; }
 
 .title-edit-input {
   font: inherit;
@@ -356,8 +353,8 @@
   white-space: nowrap;
 }
 .status-item:disabled { cursor: default; }
-.status-item:hover:not(:disabled) { background: var(--hover); color: var(--text); }
 .status-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.status-item:hover:not(:disabled) { background: var(--hover); color: var(--text); }
 .status-item svg { width: var(--icon-size); height: var(--icon-size); flex: none; }
 .status-item .spinner { animation: spin 0.8s linear infinite; }
 .status-item[data-tone="warning"] { background: var(--warning); color: var(--accent-contrast); }

@@ -20,21 +20,7 @@ window.apiary = createFakeApiary()
  * copy whose listeners and `afterEach` actually run. `window` is the one thing both copies agree
  * on: it is the real browser page they share.
  */
-// xterm's own internal Viewport keeps a ResizeObserver on the terminal element (separate from
-// TerminalView's own one), and a resize batch the browser already queued for this frame — a
-// pane closing, a divider drag settling — can still be delivered to it after the terminal (or
-// its renderer) has gone away, reading `_renderService.dimensions` off a renderer that no
-// longer exists. Measured stack: `Viewport.syncScrollArea` -> `RenderService.dimensions`, an
-// uncaught TypeError with no visible symptom, since the view producing it is already gone.
-// Deferring `TerminalView`'s own `term.dispose()` by a frame did not avoid it when tried, so the
-// race is inside xterm itself rather than in our teardown order; tracked as a TEST-14 remainder,
-// candidate fix the xterm 5 -> 6 upgrade (TEST-17).
 const DEFAULT_ALLOWED: RegExp[] = [
-  // Vitest's browser error-catcher rethrows with its own stack, so only the message survives —
-  // "reading 'dimensions'" is specific enough to this xterm signature on its own (confirmed by
-  // reproducing it standalone with the original stack intact: `Viewport.syncScrollArea` ->
-  // `RenderService.dimensions`).
-  /reading 'dimensions'/,
   // React logs a caught render error as *two* separate console.error calls: the error itself
   // (which a test allows with its own pattern, e.g. `expectConsoleError(/DELIBERATE_.../)`), and
   // this second, generic one carrying only the component stack and no part of the error's own

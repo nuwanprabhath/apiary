@@ -14,7 +14,8 @@
  * Pure data plus guards, deliberately: the preload is sandboxed and must stay free of Node
  * imports, so nothing in this file (or `guards.ts`) may import `electron` or `node:*`.
  */
-import { type Guard, str, bool, num, any, obj, opt, nullable, arr, tuple } from './guards'
+import { type Guard, str, num, any, obj, opt, nullable, arr, tuple } from './guards'
+import { isTerminalRef, type PtyId, type SessionId, type TerminalRef } from '../domain/ids'
 import { isTabTransfer, type TabTransfer, type ReportedTab, type WindowLayoutReport, type ActiveTabPayload } from '../domain/tabs'
 import type {
   CheckoutOutcome, FolderWorktree, GitStatus, GitRefs, MrState, WorktreeCreateOptions, WorktreeCreateRequest,
@@ -33,6 +34,14 @@ import type { StatusBarItem, StatusBarPanel } from '../domain/statusBar'
 import type { AppMenuNode } from '../domain/windowChrome'
 import type { ThemeSpec } from '../theme/spec'
 import type { SavedTheme, ThemeOptions, ThemeGenerateResult, ThemeState } from '../theme/state'
+
+// Boundary guards for branded ids (MAIN-21): the one place a string arriving over IPC becomes a
+// `SessionId`/`PtyId`/`TerminalRef`, so handlers receive branded values with no cast of their own.
+// The wire is unchanged — the ids are still plain strings; only `TerminalRef` is a (tiny) object,
+// replacing what used to be a `key, isPtyId` argument pair.
+const sessionIdArg: Guard<SessionId> = (v): v is SessionId => typeof v === 'string'
+const ptyIdArg: Guard<PtyId> = (v): v is PtyId => typeof v === 'string'
+const terminalRefArg: Guard<TerminalRef> = isTerminalRef
 
 interface Invoke<A extends unknown[], R> { kind: 'invoke'; channel: string; args: Guard<A>; _r?: R }
 interface Send<A extends unknown[]> { kind: 'send'; channel: string; args: Guard<A> }
@@ -75,37 +84,37 @@ export const IPC = {
   tree: invoke<[], ProjectNode[]>('apiary:tree', tuple()),
   searchContent: invoke<[query: string], string[]>('apiary:search-content', tuple(str)),
   discovered: invoke<[], DiscoveredSession[]>('apiary:discovered', tuple()),
-  importSessions: invoke<[sessionIds: string[], autoImportProjects: string[]], void>(
-    'apiary:import', tuple(arr(str), arr(str)),
+  importSessions: invoke<[sessionIds: SessionId[], autoImportProjects: string[]], void>(
+    'apiary:import', tuple(arr(sessionIdArg), arr(str)),
   ),
-  transcript: invoke<[sessionId: string, beforeIndex?: number], TranscriptPage>(
-    'apiary:transcript', tuple(str, opt(num)),
+  transcript: invoke<[sessionId: SessionId, beforeIndex?: number], TranscriptPage>(
+    'apiary:transcript', tuple(sessionIdArg, opt(num)),
   ),
-  checkConflict: invoke<[sessionId: string], ResumeConflict | null>('apiary:check-conflict', tuple(str)),
-  resume: invoke<[sessionId: string], void>('apiary:resume', tuple(str)),
-  renameSession: invoke<[sessionId: string, title: string], void>('apiary:rename-session', tuple(str, str)),
-  renameTerminalInClaude: send<[ptyId: string, title: string]>(
-    'apiary:rename-terminal-in-claude', tuple(str, str),
+  checkConflict: invoke<[sessionId: SessionId], ResumeConflict | null>('apiary:check-conflict', tuple(sessionIdArg)),
+  resume: invoke<[sessionId: SessionId], void>('apiary:resume', tuple(sessionIdArg)),
+  renameSession: invoke<[sessionId: SessionId, title: string], void>('apiary:rename-session', tuple(sessionIdArg, str)),
+  renameTerminalInClaude: send<[ptyId: PtyId, title: string]>(
+    'apiary:rename-terminal-in-claude', tuple(ptyIdArg, str),
   ),
-  removeSession: invoke<[sessionId: string], void>('apiary:remove-session', tuple(str)),
-  moveSession: invoke<[sessionId: string, targetProjectPath: string], void>(
-    'apiary:move-session', tuple(str, str),
+  removeSession: invoke<[sessionId: SessionId], void>('apiary:remove-session', tuple(sessionIdArg)),
+  moveSession: invoke<[sessionId: SessionId, targetProjectPath: string], void>(
+    'apiary:move-session', tuple(sessionIdArg, str),
   ),
   newSessionInProject: invoke<[path: string], NewSessionInfo>('apiary:new-session-in-project', tuple(str)),
   /** Asks for a folder with the native picker and starts a session there; null when cancelled. */
   newSessionInPickedFolder: invoke<[], NewSessionInfo | null>('apiary:new-session-in-picked-folder', tuple()),
-  forkSession: invoke<[sessionId: string], NewSessionInfo>('apiary:fork-session', tuple(str)),
+  forkSession: invoke<[sessionId: SessionId], NewSessionInfo>('apiary:fork-session', tuple(sessionIdArg)),
   newSessionStarted: event<[info: NewSessionInfo]>('apiary:new-session-started'),
   treeChanged: event('apiary:tree-changed'),
   openImportDialog: event('apiary:open-import-dialog'),
-  setSessionNote: invoke<[sessionId: string, note: string], void>('apiary:set-session-note', tuple(str, str)),
-  sessionNote: invoke<[sessionId: string], string>('apiary:session-note', tuple(str)),
+  setSessionNote: invoke<[sessionId: SessionId, note: string], void>('apiary:set-session-note', tuple(sessionIdArg, str)),
+  sessionNote: invoke<[sessionId: SessionId], string>('apiary:session-note', tuple(sessionIdArg)),
   searchRebuild: invoke<[], void>('apiary:search-rebuild', tuple()),
   searchStatus: invoke<[], { indexed: number; notes: number }>('apiary:search-status', tuple()),
   saveImage: invoke<[base64: string, mediaType: string], string>('apiary:save-image', tuple(str, str)),
   readImage: invoke<[path: string], { dataUrl: string } | null>('apiary:read-image', tuple(str)),
   vsCodeAvailable: invoke<[], boolean>('apiary:vscode-available', tuple()),
-  openInVsCode: invoke<[key: string, isPtyId: boolean], void>('apiary:open-in-vscode', tuple(str, bool)),
+  openInVsCode: invoke<[terminal: TerminalRef], void>('apiary:open-in-vscode', tuple(terminalRefArg)),
   copyToClipboard: invoke<[text: string], void>('apiary:copy-to-clipboard', tuple(str)),
 
   // Themes.
@@ -126,20 +135,24 @@ export const IPC = {
   themeGenerateCancel: send<[]>('apiary:theme-generate-cancel', tuple()),
 
   // Terminals and ptys.
-  openShell: invoke<[sessionId: string, tabId: string], void>('apiary:open-shell', tuple(str, str)),
-  openShellForPty: invoke<[ptyId: string, tabId: string], void>('apiary:open-shell-for-pty', tuple(str, str)),
-  ptyWrite: send<[id: string, data: string]>('apiary:pty-write', tuple(str, str)),
-  ptyResize: send<[id: string, cols: number, rows: number]>('apiary:pty-resize', tuple(str, num, num)),
-  ptyKill: send<[id: string]>('apiary:pty-kill', tuple(str)),
+  openShell: invoke<[sessionId: SessionId, tabId: string], void>('apiary:open-shell', tuple(sessionIdArg, str)),
+  openShellForPty: invoke<[ptyId: PtyId, tabId: string], void>('apiary:open-shell-for-pty', tuple(ptyIdArg, str)),
+  ptyWrite: send<[id: PtyId, data: string]>('apiary:pty-write', tuple(ptyIdArg, str)),
+  ptyResize: send<[id: PtyId, cols: number, rows: number]>('apiary:pty-resize', tuple(ptyIdArg, num, num)),
+  ptyKill: send<[id: PtyId]>('apiary:pty-kill', tuple(ptyIdArg)),
   /** Sends SIGCONT to a pty's process group: brings back a Claude Code suspended with Ctrl+Z. */
-  ptyResume: send<[id: string]>('apiary:pty-resume', tuple(str)),
-  ptyData: event<[id: string, data: string]>('apiary:pty-data'),
-  ptySnapshot: invoke<[id: string], PtySnapshot | null>('apiary:pty-snapshot', tuple(str)),
+  ptyResume: send<[id: PtyId]>('apiary:pty-resume', tuple(ptyIdArg)),
+  /** A `TerminalView` mounted for this pty in the sending window; `ptyData` goes only to attached
+   *  windows. Sent before `ptySnapshot` so no output falls between the two. */
+  ptyAttach: send<[id: PtyId]>('apiary:pty-attach', tuple(ptyIdArg)),
+  ptyDetach: send<[id: PtyId]>('apiary:pty-detach', tuple(ptyIdArg)),
+  ptyData: event<[id: PtyId, data: string]>('apiary:pty-data'),
+  ptySnapshot: invoke<[id: PtyId], PtySnapshot | null>('apiary:pty-snapshot', tuple(ptyIdArg)),
   ptySessions: invoke<[], Record<string, PtySessionInfo>>('apiary:pty-sessions', tuple()),
   ptySessionsChanged: event<[sessions: Record<string, PtySessionInfo>]>('apiary:pty-sessions-changed'),
-  ptyRunning: invoke<[ids: string[]], string[]>('apiary:pty-running', tuple(arr(str))),
-  ptyExit: event<[id: string, exitCode: number]>('apiary:pty-exit'),
-  sendPrompt: invoke<[ptyId: string, text: string], void>('apiary:send-prompt', tuple(str, str)),
+  ptyRunning: invoke<[ids: PtyId[]], PtyId[]>('apiary:pty-running', tuple(arr(ptyIdArg))),
+  ptyExit: event<[id: PtyId, exitCode: number]>('apiary:pty-exit'),
+  sendPrompt: invoke<[ptyId: PtyId, text: string], void>('apiary:send-prompt', tuple(ptyIdArg, str)),
 
   // Settings.
   settingsGet: invoke<[], AppSettingsPayload>('apiary:settings-get', tuple()),
@@ -151,32 +164,32 @@ export const IPC = {
   toggleSidebar: event('apiary:toggle-sidebar'),
 
   // Git.
-  gitStatus: invoke<[key: string, isPtyId: boolean], GitStatus | null>('apiary:git-status', tuple(str, bool)),
-  gitListRefs: invoke<[key: string, isPtyId: boolean], GitRefs>('apiary:git-list-refs', tuple(str, bool)),
-  gitlabMrRefStatus: invoke<[key: string, isPtyId: boolean, iids: number[]], Record<number, MrState | null>>(
-    'apiary:gitlab-mr-ref-status', tuple(str, bool, arr(num)),
+  gitStatus: invoke<[terminal: TerminalRef], GitStatus | null>('apiary:git-status', tuple(terminalRefArg)),
+  gitListRefs: invoke<[terminal: TerminalRef], GitRefs>('apiary:git-list-refs', tuple(terminalRefArg)),
+  gitlabMrRefStatus: invoke<[terminal: TerminalRef, iids: number[]], Record<number, MrState | null>>(
+    'apiary:gitlab-mr-ref-status', tuple(terminalRefArg, arr(num)),
   ),
-  gitCheckoutBranch: invoke<[key: string, isPtyId: boolean, name: string], CheckoutOutcome>(
-    'apiary:git-checkout-branch', tuple(str, bool, str),
+  gitCheckoutBranch: invoke<[terminal: TerminalRef, name: string], CheckoutOutcome>(
+    'apiary:git-checkout-branch', tuple(terminalRefArg, str),
   ),
-  gitPullWorktree: invoke<[key: string, isPtyId: boolean, branch: string], { path: string; commits: number }>(
-    'apiary:git-pull-worktree', tuple(str, bool, str),
+  gitPullWorktree: invoke<[terminal: TerminalRef, branch: string], { path: string; commits: number }>(
+    'apiary:git-pull-worktree', tuple(terminalRefArg, str),
   ),
-  newSessionInWorktree: invoke<[key: string, isPtyId: boolean, branch: string], NewSessionInfo>(
-    'apiary:new-session-in-worktree', tuple(str, bool, str),
+  newSessionInWorktree: invoke<[terminal: TerminalRef, branch: string], NewSessionInfo>(
+    'apiary:new-session-in-worktree', tuple(terminalRefArg, str),
   ),
-  gitCheckoutRemote: invoke<[key: string, isPtyId: boolean, remoteRef: string, localName: string], void>(
-    'apiary:git-checkout-remote', tuple(str, bool, str, str),
+  gitCheckoutRemote: invoke<[terminal: TerminalRef, remoteRef: string, localName: string], void>(
+    'apiary:git-checkout-remote', tuple(terminalRefArg, str, str),
   ),
-  gitCheckoutDetached: invoke<[key: string, isPtyId: boolean, ref: string], void>(
-    'apiary:git-checkout-detached', tuple(str, bool, str),
+  gitCheckoutDetached: invoke<[terminal: TerminalRef, ref: string], void>(
+    'apiary:git-checkout-detached', tuple(terminalRefArg, str),
   ),
-  gitCreateBranch: invoke<[key: string, isPtyId: boolean, name: string, from?: string], void>(
-    'apiary:git-create-branch', tuple(str, bool, str, opt(str)),
+  gitCreateBranch: invoke<[terminal: TerminalRef, name: string, from?: string], void>(
+    'apiary:git-create-branch', tuple(terminalRefArg, str, opt(str)),
   ),
-  gitPull: invoke<[key: string, isPtyId: boolean], { commits: number }>('apiary:git-pull', tuple(str, bool)),
-  gitUpdateBranch: invoke<[key: string, isPtyId: boolean, branch: string], { commits: number }>(
-    'apiary:git-update-branch', tuple(str, bool, str),
+  gitPull: invoke<[terminal: TerminalRef], { commits: number }>('apiary:git-pull', tuple(terminalRefArg)),
+  gitUpdateBranch: invoke<[terminal: TerminalRef, branch: string], { commits: number }>(
+    'apiary:git-update-branch', tuple(terminalRefArg, str),
   ),
   gitPullFolder: invoke<[path: string], { commits: number }>('apiary:git-pull-folder', tuple(str)),
   listWorktrees: invoke<[path: string], FolderWorktree[]>('apiary:list-worktrees', tuple(str)),
@@ -200,11 +213,11 @@ export const IPC = {
   worktreeCreate: invoke<[path: string, request: WorktreeCreateRequest], NewSessionInfo>(
     'apiary:worktree-create', tuple(str, isWorktreeCreateRequest),
   ),
-  gitPush: invoke<[key: string, isPtyId: boolean], { commits: number; published: boolean }>(
-    'apiary:git-push', tuple(str, bool),
+  gitPush: invoke<[terminal: TerminalRef], { commits: number; published: boolean }>(
+    'apiary:git-push', tuple(terminalRefArg),
   ),
-  gitMerge: invoke<[key: string, isPtyId: boolean, ref: string], void>('apiary:git-merge', tuple(str, bool, str)),
-  gitFetch: invoke<[key: string, isPtyId: boolean], void>('apiary:git-fetch', tuple(str, bool)),
+  gitMerge: invoke<[terminal: TerminalRef, ref: string], void>('apiary:git-merge', tuple(terminalRefArg, str)),
+  gitFetch: invoke<[terminal: TerminalRef], void>('apiary:git-fetch', tuple(terminalRefArg)),
   mrStatusesInvalidated: event('apiary:mr-statuses-invalidated'),
 
   // Update.
@@ -220,11 +233,11 @@ export const IPC = {
   updateChanged: event<[status: UpdateStatusPayload]>('apiary:update-changed'),
 
   // Session-bar plugins.
-  pluginBarItems: invoke<[key: string, isPtyId: boolean], PluginBarItemPayload[]>(
-    'apiary:plugin-bar-items', tuple(str, bool),
+  pluginBarItems: invoke<[terminal: TerminalRef], PluginBarItemPayload[]>(
+    'apiary:plugin-bar-items', tuple(terminalRefArg),
   ),
-  pluginBarRefresh: invoke<[key: string, isPtyId: boolean], PluginBarItemPayload[]>(
-    'apiary:plugin-bar-refresh', tuple(str, bool),
+  pluginBarRefresh: invoke<[terminal: TerminalRef], PluginBarItemPayload[]>(
+    'apiary:plugin-bar-refresh', tuple(terminalRefArg),
   ),
   pluginRunAction: invoke<[item: PluginBarItemPayload], void>('apiary:plugin-run-action', tuple(obj)),
   pluginList: invoke<[], PluginInfoPayload[]>('apiary:plugin-list', tuple()),

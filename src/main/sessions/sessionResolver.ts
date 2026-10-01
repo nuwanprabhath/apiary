@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import type { SessionStore, StoredSession } from '../store/sessionStore'
 import type { PtyManager } from '../pty/ptyManager'
+import type { TerminalRef } from '@shared/domain/ids'
 
 export interface SessionResolverDeps {
   store: SessionStore
@@ -48,13 +49,13 @@ export class SessionResolver {
   }
 
   /**
-   * Resolves a session id or (when `isPtyId`) a still-pending session's pty id to its real,
+   * Resolves a session id or (for a `pty` ref) a still-pending session's pty id to its real,
    * existing cwd — the one trust boundary every cwd-carrying IPC call (shells, and now git
    * operations) goes through, so the renderer never gets to hand in a raw filesystem path.
    */
-  resolveShellCwd(key: string, isPtyId: boolean): string {
-    const cwd = isPtyId ? this.pty.getCwd(key) : this.requireSession(key).cwd
-    if (!cwd) throw new Error(`Unknown session: ${key}`)
+  resolveShellCwd(terminal: TerminalRef): string {
+    const cwd = terminal.kind === 'pty' ? this.pty.getCwd(terminal.id) : this.requireSession(terminal.id).cwd
+    if (!cwd) throw new Error(`Unknown session: ${terminal.id}`)
     if (!existsSync(cwd)) throw new Error(`The folder for this session no longer exists: ${cwd}`)
     return cwd
   }

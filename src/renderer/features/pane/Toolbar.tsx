@@ -11,7 +11,7 @@ export interface ToolbarButtonSpec {
   active?: boolean
   disabled?: boolean
   /** Set when something opens from this button and needs its box to position against. */
-  buttonRef?: RefObject<HTMLButtonElement>
+  buttonRef?: RefObject<HTMLButtonElement | null>
   /**
    * Colours a plugin's button: `suggest` for an offer (create a merge request), `problem` for
    * something needing attention. Plain buttons leave it unset.

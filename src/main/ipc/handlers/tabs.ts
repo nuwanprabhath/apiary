@@ -1,4 +1,4 @@
-import { app, BrowserWindow, type Event } from 'electron'
+import { app, BrowserWindow, webContents, type Event, type WebContents } from 'electron'
 import { CHANNELS, type TabTransfer } from '@shared/api'
 import type { AppService } from '../../appService'
 import { log } from '../../log/logger'
@@ -7,6 +7,7 @@ import { classifyActivity } from '@shared/activity'
 import { resolveReportLayout } from '../../windows/reportLayoutGuard'
 import { TabMover } from '../../windows/tabMover'
 import { ActivityBroadcaster } from '../../terminals/activityBroadcaster'
+import { PtyAttachments } from '../../windows/ptyAttachments'
 import { PtyDataCoalescer } from '../../terminals/ptyDataCoalescer'
 import { type TabRegistry, focusTab, type OpenTab } from '../../windows/tabRegistry'
 import type { SessionLayoutStore } from '../../windows/sessionLayoutStore'
@@ -27,7 +28,7 @@ export interface TabsDeps {
 }
 
 type HandledKeys = 'reportLayout' | 'activeTabs' | 'focusTab' | 'tabDropped' | 'tabAdoptHere' | 'tabDetach'
-type ListenedKeys = 'reportTabs'
+type ListenedKeys = 'reportTabs' | 'ptyAttach' | 'ptyDetach'
 
 /**
  * Tabs, layout reporting and cross-window tab moves — see CLAUDE.md "Windows, and what belongs to
@@ -66,8 +67,21 @@ export function tabsHandlers(deps: TabsDeps): {
   // Neither `PtyManager` nor `TabRegistry` can unsubscribe a listener today (MAIN-20, not in
   // scope here) — these subscriptions outlive a `dispose()` exactly as they did before this file
   // existed; a second `registerIpc` call in the same process (tests aside) would double them up.
+  const attachments = new PtyAttachments((wcId) => webContents.fromId(wcId) ?? null)
+  const watched = new WeakSet<WebContents>()
+  /** Drops a window's attachments when it goes away or reloads (a reloaded renderer re-attaches
+   *  as its views mount). Registered once per webContents, on its first attach. */
+  const watchLifetime = (wc: WebContents): void => {
+    if (watched.has(wc)) return
+    watched.add(wc)
+    const id = wc.id
+    wc.once('destroyed', () => { attachments.detachWindow(id) })
+    wc.on('did-start-navigation', (details) => {
+      if (details.isMainFrame && !details.isSameDocument) attachments.detachWindow(id)
+    })
+  }
   const ptyCoalescer = new PtyDataCoalescer({
-    onFlush: (id, data) => broadcast(CHANNELS.ptyData, id, data),
+    onFlush: (id, data) => { attachments.sendTo(id, CHANNELS.ptyData, id, data) },
   })
   service.pty.onData((id, data) => ptyCoalescer.push(id, data))
   service.pty.onExit((id, code) => broadcast(CHANNELS.ptyExit, id, code))
@@ -150,6 +164,11 @@ export function tabsHandlers(deps: TabsDeps): {
       },
     },
     listeners: {
+      ptyAttach: (e, id) => {
+        watchLifetime(e.sender)
+        attachments.attach(e.sender.id, id)
+      },
+      ptyDetach: (e, id) => { attachments.detach(e.sender.id, id) },
       reportTabs: (e, tabs) => {
         const windowNumber = windowNumberFor?.(e.sender.id) ?? null
         if (windowNumber === null || !tabRegistry) return

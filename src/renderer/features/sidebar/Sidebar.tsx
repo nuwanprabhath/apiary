@@ -1,70 +1,36 @@
-import { type JSX, useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { PtyId, SessionId } from '@shared/domain/ids'
+import { type JSX, memo, useCallback, useDeferredValue, useMemo, useRef, useState } from 'react'
 import type { ProjectNode, SessionNode } from '@shared/types'
-import { UNTITLED_SESSION } from '@shared/types'
 import type { ActiveTabPayload } from '@shared/api'
-import { describeActivityStatus } from '@shared/activity'
 import { useTree } from '../../state/useTree'
 import { rankSessions } from '@shared/sessionRank'
 import { SEARCH_RESULT_CAP } from '@shared/treeFilter'
 import { SessionTree } from './SessionTree'
-import { SessionRow } from './SessionRow'
-import { MrRefText } from './mrRefText'
-import { useMrStatuses } from './useMrStatuses'
-import { ContextMenu, type ContextMenuItem } from '../../ui/ContextMenu'
-import {
-  groupFolders, orderFolders, moveFolder, moveGroup, moveGroupBefore, deleteGroup, newGroupId,
-  type GroupState,
-} from './model/groups'
+import { ContextMenu } from '../../ui/ContextMenu'
+import { groupFolders, orderFolders, type GroupState } from './model/groups'
 import { selectRecent, type DismissedMap } from './model/recentSessions'
-import { CloseIcon, CollapseAllIcon, NoteIcon, RefreshIcon, SidebarIcon } from '../../ui/icons'
+import { RefreshIcon, SidebarIcon } from '../../ui/icons'
 import { SearchField } from './SearchField'
 import { useNotifications } from '../../ui/notifications'
 import { describeRefresh } from './model/refreshSummary'
-import { useLayoutActions } from '../layout/layoutContext'
-import { ActivityLegend } from './ActivityLegend'
+import { useDialogActions } from '../dialogs/useDialogs'
 import { withAllWorktrees } from './model/allWorktrees'
 import { useAllWorktrees } from './model/useAllWorktrees'
-import { ChevronIcon } from '../../ui/icons/ChevronIcon'
-import { SectionHeader } from './SectionHeader'
 import { ErrorBoundary } from '../../ui/ErrorBoundary'
-import { onTreeKeyDown, rovingTabIndex, useFlatTreeNav } from '../../ui/Tree'
+import { ActiveSection } from './ActiveSection'
+import { PinnedSection } from './PinnedSection'
+import { RecentSection } from './RecentSection'
+import { PendingSection, type PendingSessionSummary } from './PendingSection'
+import { SearchResults } from './SearchResults'
+import { FolderGroup, type SharedTreeProps } from './FolderGroup'
+import type { RowActions } from './rowActions'
+import { countSessions, flattenSessions, folderBranches } from './treeUtils'
+import { useRevealSession } from './useRevealSession'
+import { useGroupActions } from './useGroupActions'
+import { useSidebarMenu } from './useSidebarMenu'
+import { useMainTreeNav } from './useMainTreeNav'
 
-/** How many sessions the tree holds, at any depth. */
-function countSessions(nodes: ProjectNode[]): number {
-  return nodes.reduce((n, node) => n + node.sessions.length + countSessions(node.children), 0)
-}
-
-/** Every session anywhere in the tree, flattened, so pinned ids can be resolved back to rows. */
-function flattenSessions(nodes: ProjectNode[], into = new Map<string, SessionNode>()): Map<string, SessionNode> {
-  for (const node of nodes) {
-    for (const s of node.sessions) into.set(s.sessionId, s)
-    flattenSessions(node.children, into)
-  }
-  return into
-}
-
-/**
- * Each session's *folder* branch, by session id.
- *
- * The pinned section draws rows outside the tree that holds them, so the project node — and with
- * it the branch its worktree is on — is not to hand. The lookup is built alongside the flatten.
- */
-function folderBranches(nodes: ProjectNode[], into = new Map<string, string | null>()): Map<string, string | null> {
-  for (const node of nodes) {
-    for (const s of node.sessions) into.set(s.sessionId, node.branch)
-    folderBranches(node.children, into)
-  }
-  return into
-}
-
-/** A new-session pty still awaiting its first JSONL — see `PendingSession` in App.tsx. Listed so
- *  a pending session other than the one currently shown can still be reached and switched back to,
- *  rather than being silently unreachable while it resolves in the background. */
-export interface PendingSessionSummary {
-  ptyId: string
-  label: string
-  cwd: string
-}
+export type { PendingSessionSummary }
 
 interface Props {
   /** Folded away to the rail. Kept mounted meanwhile — see App. */
@@ -81,21 +47,15 @@ interface Props {
   onCollapsedChange: (next: Set<string>) => void
   /** Starts a brand-new Claude Code session in a project's folder. */
   onNewSession: (path: string) => void
-  /** Opens the New worktree dialog for a git folder's "+". */
-  onNewWorktree?: (path: string, label: string) => void
   /** A group's "+": pick a folder, start a session there. Resolves the folder, or null. */
   onNewSessionInPickedFolder?: () => Promise<string | null>
-  /** Asks to remove a session from view. */
-  onDeleteSession: (session: SessionNode) => void
   /** Opens a session in a column of its own beside the current one. */
   onSplitSession: (session: SessionNode) => void
   /** Session ids the user has pinned, most recently pinned first. */
   pinned: string[]
   onTogglePin: (session: SessionNode) => void
-  /** Opens the note editor for a session. */
-  onEditNote: (session: SessionNode) => void
   /** Starts a fork of a session: a new conversation seeded with this one's. */
-  onForkSession: (sessionId: string) => void
+  onForkSession: (sessionId: SessionId) => void
   /** Whether the pinned section is collapsed — persisted, like the folder collapse state. */
   pinnedCollapsed: boolean
   onPinnedCollapsedChange: (next: boolean) => void
@@ -104,9 +64,9 @@ interface Props {
    * actually switch to. */
   pending: PendingSessionSummary[]
   /** Switches the main pane to a pending session's terminal. */
-  onSelectPending: (ptyId: string) => void
+  onSelectPending: (ptyId: PtyId) => void
   /** Ends a pending session's Claude — the row's stop button. */
-  onStopPending?: (ptyId: string) => void
+  onStopPending?: (ptyId: PtyId) => void
   /**
    * A session to scroll into view, set when its tab is activated (Settings > Sidebar). Changing
    * this is the whole signal: it is deliberately not the same as `selectedId`, so that merely
@@ -137,45 +97,9 @@ interface Props {
   searchChatContent: boolean
   /** Search the notes people write on sessions — Settings > Search. */
   searchSessionNotes: boolean
-  /** A session row was dropped on a folder — the drag-to-move gesture. Resolved here to the
-   *  `SessionNode` the tree already holds, so the caller only ever deals in sessions, not ids. */
-  onSessionDropped: (session: SessionNode, toPath: string) => void
   /** Top-level folders listing every worktree, sessions or not — see `UiState.showAllWorktrees`. */
   showAllWorktrees: string[]
   onToggleAllWorktrees: (path: string) => void
-}
-
-/**
- * The chain of folder paths leading to a session, outermost first.
- *
- * Revealing a session means nothing while the folder holding it is collapsed — the row does not
- * exist to scroll to. These are the folders that have to be opened for it to.
- */
-/** Every folder path in the tree, at every depth — the full list ordering is resolved against. */
-function allFolderPaths(nodes: ProjectNode[]): string[] {
-  return nodes.flatMap((n) => [n.path, ...allFolderPaths(n.children)])
-}
-
-function pathsToSession(nodes: ProjectNode[], id: string, trail: string[] = []): string[] | null {
-  for (const node of nodes) {
-    const here = [...trail, node.path]
-    if (node.sessions.some((s) => s.sessionId === id)) return here
-    const deeper = pathsToSession(node.children, id, here)
-    if (deeper) return deeper
-  }
-  return null
-}
-
-/**
- * An Active row's title, with any `!<iid>` in it resolved to its merge-request state.
- *
- * Its own component because the lookup is a hook, and the rows are produced in a `map` inside
- * `Sidebar` where a hook cannot go. Active is the section meant to be read at a glance without
- * opening anything, so it is the last place that should be showing a staler title than the tree.
- */
-function ActiveTabTitle({ sessionId, title }: { sessionId: string; title: string }): JSX.Element {
-  const statuses = useMrStatuses(sessionId, title)
-  return <span className="session-title"><MrRefText text={title} statuses={statuses} /></span>
 }
 
 /**
@@ -183,8 +107,12 @@ function ActiveTabTitle({ sessionId, title }: { sessionId: string; title: string
  * so a render error anywhere in it — an unexpected title shape, a malformed group — replaced the
  * *entire window*, panes and terminals included, with the crash pane, although nothing about the
  * open sessions had actually broken. A fault in the tree now stays in the tree.
+ *
+ * The sections (Active, Pinned, Recent, Unnamed, search results, groups) are components of their
+ * own and the group/menu/tree-navigation state is in hooks next to them (UI-19); this is the
+ * search box, the data they all read, and the composition.
  */
-export function Sidebar(props: Props): JSX.Element {
+function SidebarShell(props: Props): JSX.Element {
   return (
     <ErrorBoundary label="The sidebar">
       <SidebarInner {...props} />
@@ -192,15 +120,19 @@ export function Sidebar(props: Props): JSX.Element {
   )
 }
 
+/** Memoized (UI-4): App's props to it are stable (tests/component/appPropStability.test.tsx), so a
+ *  render of App that changes nothing the sidebar shows — a theme change, a notification — skips it. */
+export const Sidebar = memo(SidebarShell)
+
 function SidebarInner({
   hidden = false, onHide, hideTitle = 'Hide sidebar',
-  selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onNewWorktree, onNewSessionInPickedFolder, onDeleteSession,
-  onSplitSession, pinned, onTogglePin, onEditNote, onForkSession, pinnedCollapsed,
+  selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onNewSessionInPickedFolder,
+  onSplitSession, pinned, onTogglePin, onForkSession, pinnedCollapsed,
   onPinnedCollapsedChange,
   pending, onSelectPending, onStopPending, revealId, groupState, onGroupStateChange, onReorderPinned,
   recentSectionEnabled, recentSectionHours, dismissedRecent, recentCollapsed,
   onRecentCollapsedChange, onDismissRecent, activeTabs, onFocusTab,
-  searchChatContent, searchSessionNotes, onSessionDropped, showAllWorktrees, onToggleAllWorktrees,
+  searchChatContent, searchSessionNotes, showAllWorktrees, onToggleAllWorktrees,
 }: Props): JSX.Element {
   /** The settled query — `SearchField` publishes it once typing pauses, never per keystroke. */
   const [query, setQuery] = useState('')
@@ -217,59 +149,17 @@ function SidebarInner({
     searchChatContent, searchSessionNotes,
   })
   const { notify, notifyError } = useNotifications()
-  const { requestPicker } = useLayoutActions()
+  // Dialogs are asked for directly, not through props App threads down (UI-1 step 5).
+  const {
+    deleteSession: onDeleteSession, moveSession: onSessionDropped, editNote: onEditNote, newWorktree: onNewWorktree,
+  } = useDialogActions()
   const [refreshing, setRefreshing] = useState(false)
   // UI-11: bumped by the explicit Refresh button so a worktree added or removed on disk without
   // also changing which folders have sessions still reaches `useAllWorktrees` — see there.
   const [worktreeRefreshNonce, setWorktreeRefreshNonce] = useState(0)
   const listRef = useRef<HTMLDivElement | null>(null)
 
-  /**
-   * Scrolls a revealed session's row into view, opening the folders above it first.
-   *
-   * Re-runs on tree and collapse changes as well as on `revealId`, because the row usually is not
-   * rendered at the moment the reveal is asked for: the tree arrives asynchronously, and a folder
-   * may need opening before the row exists at all. Each pass does the next thing it can and lets
-   * the resulting render bring it back.
-   *
-   * `scrolledTo` is what stops it fighting the user: once a session has been scrolled to, later
-   * renders leave the list alone, so a tree refresh while you are scrolling by hand does not yank
-   * you back. `block: 'nearest'` likewise leaves an already-visible row exactly where it is.
-   */
-  const scrolledTo = useRef<string | null>(null)
-  /**
-   * Which session the folders have already been opened for.
-   *
-   * Separate from `scrolledTo`, and the reason a folder can be collapsed at all. The expand step
-   * re-runs on every `collapsed` change, and collapsing a folder *is* a `collapsed` change — so
-   * with only the scroll latch to stop it, a click on the chevron of the folder holding the open
-   * session was undone by the very render it caused. The folder shut and sprang back open, which
-   * is exactly what "clicking B or C won't collapse that folder" looked like from outside, and
-   * why turning the setting off appeared to fix it.
-   *
-   * Revealing is a response to the *selection changing*, not a standing rule that the selected
-   * session's folders stay open. Once this has opened them for a given id, the user's own
-   * collapsing wins until a different session is revealed. The scroll below still retries, since
-   * it is what has to wait for the row to exist.
-   */
-  const expandedFor = useRef<string | null>(null)
-  useLayoutEffect(() => {
-    if (revealId === null || scrolledTo.current === revealId) return
-
-    const chain = pathsToSession(tree, revealId)
-    if (chain !== null && expandedFor.current !== revealId && chain.some((path) => collapsed.has(path))) {
-      expandedFor.current = revealId
-      const next = new Set(collapsed)
-      for (const path of chain) next.delete(path)
-      onCollapsedChange(next)
-      return
-    }
-
-    const row = listRef.current?.querySelector(`[data-session-id="${CSS.escape(revealId)}"]`)
-    if (!row) return
-    row.scrollIntoView({ block: 'nearest' })
-    scrolledTo.current = revealId
-  }, [revealId, tree, collapsed, onCollapsedChange])
+  useRevealSession(revealId, tree, collapsed, onCollapsedChange, listRef)
 
   const isEmpty = useMemo(() => !loading && tree.length === 0, [loading, tree])
 
@@ -288,15 +178,10 @@ function SidebarInner({
 
   /** Keys of every tab the Active section is already showing, so Recent never repeats one. */
   const activeIds = useMemo(() => new Set(activeTabs.map((t) => t.key)), [activeTabs])
-  /** The Active header's rect while the pointer (or focus) is on it — see ActivityLegend. */
-  const [legendAnchor, setLegendAnchor] = useState<DOMRect | null>(null)
 
   /**
    * Every session known anywhere, unfiltered — what the Active section resolves its titles
-   * against. Using the search-filtered `sessionsById` here would turn a row for a tab open in
-   * *another* window into a bare, unreadable session id the moment this window's own search box
-   * happens to exclude that tab's project, which defeats the whole point of resolving a title in
-   * the first place.
+   * against (see ActiveSection), and what a dropped row is resolved to.
    */
   const activeSessionsById = useMemo(() => flattenSessions(rawTree), [rawTree])
 
@@ -310,53 +195,6 @@ function SidebarInner({
       Array.from(sessionsById.values()), pinnedSet, activeIds, dismissedRecent, Date.now(), recentSectionHours,
     )
   }, [sessionsById, pinnedSet, activeIds, dismissedRecent, recentSectionEnabled, recentSectionHours])
-
-  /**
-   * UI-27: Active, Pinned and Recent are each their own flat WAI-ARIA tree — unrelated collections
-   * (open tabs across every window; a manually curated shortlist; a time-ordered one), not part of
-   * the folder/session hierarchy the way a group is, so folding them into that one tree would claim
-   * a relationship none of them has. `useFlatTreeNav` is the same roving-tabindex machinery the
-   * combined tree above builds by hand, packaged once since these three (and the flat search
-   * results below) only ever have leaves.
-   */
-  const activeKeyOf = (t: ActiveTabPayload): string => `${String(t.windowNumber)}:${t.key}`
-  const activeByKey = useMemo(() => new Map(activeTabs.map((t) => [activeKeyOf(t), t])), [activeTabs])
-  const activeTree = useFlatTreeNav(activeTabs.map(activeKeyOf), {
-    onEnter: (current) => {
-      const t = current.dataset.treeKey === undefined ? undefined : activeByKey.get(current.dataset.treeKey)
-      if (t !== undefined) onFocusTab(t.windowNumber, t.key)
-    },
-  })
-
-  const pinnedById = useMemo(() => new Map(pinnedSessions.map((s) => [s.sessionId, s])), [pinnedSessions])
-  const pinnedTree = useFlatTreeNav(pinnedSessions.map((s) => s.sessionId), {
-    onEnter: (current) => {
-      const s = current.dataset.treeKey === undefined ? undefined : pinnedById.get(current.dataset.treeKey)
-      if (s !== undefined) onSelect(s)
-    },
-    onShiftEnter: (current) => {
-      const s = current.dataset.treeKey === undefined ? undefined : pinnedById.get(current.dataset.treeKey)
-      if (s !== undefined) onSplitSession(s)
-    },
-    onContextMenuKey: (current, at) => {
-      if (current.dataset.treeKey !== undefined) setMenu({ kind: 'session', id: current.dataset.treeKey, x: at.x, y: at.y })
-    },
-  })
-
-  const recentById = useMemo(() => new Map(recentSessions.map((s) => [s.sessionId, s])), [recentSessions])
-  const recentTree = useFlatTreeNav(recentSessions.map((s) => s.sessionId), {
-    onEnter: (current) => {
-      const s = current.dataset.treeKey === undefined ? undefined : recentById.get(current.dataset.treeKey)
-      if (s !== undefined) onSelect(s)
-    },
-    onShiftEnter: (current) => {
-      const s = current.dataset.treeKey === undefined ? undefined : recentById.get(current.dataset.treeKey)
-      if (s !== undefined) onSplitSession(s)
-    },
-    onContextMenuKey: (current, at) => {
-      if (current.dataset.treeKey !== undefined) setMenu({ kind: 'session', id: current.dataset.treeKey, x: at.x, y: at.y })
-    },
-  })
 
   const toggle = (path: string): void => {
     const next = new Set(collapsed)
@@ -411,309 +249,27 @@ function SidebarInner({
       .slice(0, SEARCH_RESULT_CAP),
     [tree, settledQuery, matchedByContent, pinnedSet],
   )
-  const rankedById = useMemo(
-    () => new Map(rankedResults.map(({ session }) => [session.sessionId, session])),
-    [rankedResults],
-  )
-  const flatResultsTree = useFlatTreeNav<HTMLUListElement>(rankedResults.map(({ session }) => session.sessionId), {
-    onEnter: (current) => {
-      const s = current.dataset.treeKey === undefined ? undefined : rankedById.get(current.dataset.treeKey)
-      if (s !== undefined) onSelect(s)
-    },
-    onShiftEnter: (current) => {
-      const s = current.dataset.treeKey === undefined ? undefined : rankedById.get(current.dataset.treeKey)
-      if (s !== undefined) onSplitSession(s)
-    },
-    onContextMenuKey: (current, at) => {
-      if (current.dataset.treeKey !== undefined) setMenu({ kind: 'session', id: current.dataset.treeKey, x: at.x, y: at.y })
-    },
+
+  const groups = useGroupActions(groupState, onGroupStateChange, tree, arranged)
+  const { menu, setMenu, menuItems } = useSidebarMenu({
+    tree, rawTree, pinned, groupState, showAllWorktrees, onToggleAllWorktrees, onForkSession, onReorderPinned, groups,
+  })
+  const mainTree = useMainTreeNav({
+    arranged, collapsed, onCollapsedChange, groupState, patchGroups: groups.patchGroups, sessionsById,
+    onSelect, onSplitSession, setMenu,
   })
 
-  /** Which menu is open, if any: a right-click on a folder, or on a group's header. */
-  const [menu, setMenu] = useState<
-    { kind: 'folder' | 'group' | 'session'; id: string; x: number; y: number } | null
-  >(null)
-  /** The group a folder is currently being dragged over, so the whole section can light up. */
-  const [dropIntoGroup, setDropIntoGroup] = useState<string | null>(null)
-  /** A group whose name is being edited in place, instead of through a modal. */
-  const [renamingGroup, setRenamingGroup] = useState<string | null>(null)
-  const [renameDraft, setRenameDraft] = useState('')
-
-  const patchGroups = (next: Partial<GroupState>): void => {
-    onGroupStateChange({ ...groupState, ...next })
-  }
-
-  const assignFolder = (path: string, groupId: string | null): void => {
-    const assignments = { ...groupState.assignments }
-    if (groupId === null) delete assignments[path]
-    else assignments[path] = groupId
-    patchGroups({ assignments })
-  }
-
-  const startNewGroup = (withFolder: string): void => {
-    const group = { id: newGroupId(), name: 'New group' }
-    onGroupStateChange({
-      ...groupState,
-      groups: [...groupState.groups, group],
-      assignments: { ...groupState.assignments, [withFolder]: group.id },
-    })
-    // Straight into rename, so naming it is the same gesture as making it rather than a second one.
-    setRenamingGroup(group.id)
-    setRenameDraft('New group')
-  }
-
-  const commitRename = (id: string): void => {
-    const name = renameDraft.trim()
-    setRenamingGroup(null)
-    if (name === '') return
-    patchGroups({ groups: groupState.groups.map((g) => (g.id === id ? { ...g, name } : g)) })
-  }
-
-  /**
-   * UI-27 step 3: the folder a path sits among at its own level, in the order `SessionTree` would
-   * actually render them (`orderFolders` applied) — a top-level folder's siblings are its own
-   * group's `folders` list or `arranged.ungrouped`, never the whole tree, matching what dragging it
-   * onto a neighbour already does.
-   */
-  const folderSiblings = (path: string): string[] | null => {
-    for (const { folders } of arranged.groups) {
-      const ids = orderFolders(folders, (n) => n.path, groupState.folderOrder).map((n) => n.path)
-      if (ids.includes(path)) return ids
-    }
-    const ids = orderFolders(arranged.ungrouped, (n) => n.path, groupState.folderOrder).map((n) => n.path)
-    return ids.includes(path) ? ids : null
-  }
-
-  const menuItems = (): ContextMenuItem[] => {
-    if (menu === null) return []
-    if (menu.kind === 'session') {
-      const session = flattenSessions(tree).get(menu.id)
-      // A pinned session can be reordered from its context menu, the keyboard-reachable
-      // equivalent of dragging it in the Pinned section — see the drop handler above.
-      const pinnedIndex = pinned.indexOf(menu.id)
-      return [
-        {
-          id: 'fork-session',
-          label: 'Fork session',
-          run: () => onForkSession(menu.id),
-        },
-        {
-          id: 'arrange',
-          label: 'Arrange…',
-          disabled: session === undefined,
-          run: () => { if (session !== undefined) requestPicker({ kind: 'session', session }, { x: menu.x, y: menu.y }) },
-        },
-        ...(pinnedIndex === -1 ? [] : [
-          {
-            id: 'pinned-move-up',
-            label: 'Move up in Pinned',
-            separator: true,
-            disabled: pinnedIndex <= 0,
-            run: () => { onReorderPinned(menu.id, pinned[pinnedIndex - 1]) },
-          },
-          {
-            id: 'pinned-move-down',
-            label: 'Move down in Pinned',
-            disabled: pinnedIndex >= pinned.length - 1,
-            run: () => { onReorderPinned(pinned[pinnedIndex + 1], menu.id) },
-          },
-        ]),
-      ]
-    }
-    if (menu.kind === 'folder') {
-      const current = groupState.assignments[menu.id]
-      const showingAll = showAllWorktrees.includes(menu.id)
-      const folder = menu.id
-      const siblings = folderSiblings(menu.id)
-      const folderIndex = siblings?.indexOf(menu.id) ?? -1
-      return [
-        {
-          id: 'folder-move-up',
-          label: 'Move up',
-          disabled: siblings === null || folderIndex <= 0,
-          run: () => { if (siblings !== null && folderIndex > 0) reorderFolder(menu.id, siblings[folderIndex - 1]) },
-        },
-        {
-          id: 'folder-move-down',
-          label: 'Move down',
-          separator: true,
-          disabled: siblings === null || folderIndex === -1 || folderIndex >= siblings.length - 1,
-          run: () => { if (siblings !== null && folderIndex !== -1) reorderFolder(siblings[folderIndex + 1], menu.id) },
-        },
-        {
-          id: 'show-all-worktrees',
-          label: 'Show all worktrees',
-          checked: showingAll,
-          run: () => {
-            onToggleAllWorktrees(folder)
-            if (showingAll) return
-            // Said out loud when there is nothing to add, or the tick would appear to do nothing.
-            void window.apiary.listWorktrees(folder).then((list) => {
-              const withSessions = new Set(rawTree.find((n) => n.path === folder)?.children.map((c) => c.path))
-              if (list.every((w) => withSessions.has(w.path))) {
-                const label = rawTree.find((n) => n.path === folder)?.label ?? folder
-                notify({
-                  message: list.length === 0
-                    ? `${label} has no other worktrees`
-                    : `Every worktree of ${label} already has sessions`,
-                })
-              }
-            }).catch((e: unknown) => { notifyError(e, 'Could not list the worktrees') })
-          },
-        },
-        { id: 'new-group', label: 'New group from this folder…', separator: true, run: () => startNewGroup(menu.id) },
-        ...groupState.groups
-          .filter((g) => g.id !== current)
-          .map((g) => ({ id: `move-${g.id}`, label: `Add to “${g.name}”`, run: () => assignFolder(menu.id, g.id) })),
-        {
-          id: 'remove-from-group',
-          label: 'Remove from group',
-          disabled: current === undefined,
-          separator: true,
-          run: () => assignFolder(menu.id, null),
-        },
-      ]
-    }
-    const index = groupState.groups.findIndex((g) => g.id === menu.id)
-    return [
-      {
-        id: 'rename-group',
-        label: 'Rename group…',
-        run: () => {
-          setRenamingGroup(menu.id)
-          setRenameDraft(groupState.groups[index]?.name ?? '')
-        },
-      },
-      { id: 'group-up', label: 'Move group up', disabled: index <= 0, run: () => patchGroups({ groups: moveGroup(groupState.groups, menu.id, -1) }) },
-      {
-        id: 'group-down',
-        label: 'Move group down',
-        disabled: index === -1 || index >= groupState.groups.length - 1,
-        run: () => patchGroups({ groups: moveGroup(groupState.groups, menu.id, 1) }),
-      },
-      {
-        id: 'delete-group',
-        label: 'Delete group',
-        separator: true,
-        // The folders inside come back out as ungrouped: deleting a heading must never look like
-        // deleting the things filed under it.
-        run: () => {
-          const next = deleteGroup(groupState.groups, groupState.assignments, menu.id)
-          patchGroups({ groups: next.groups, assignments: next.assignments })
-        },
-      },
-    ]
-  }
-
-  /** The folders a group can hold: groups are a top-level arrangement, worktrees are not in them. */
-  const topLevelPaths = new Set(tree.map((n) => n.path))
-
-  const reorderFolder = (path: string, beforePath: string): void => {
-    patchGroups({
-      folderOrder: moveFolder(groupState.folderOrder, allFolderPaths(tree), path, beforePath),
-    })
-    // Dropping a top-level folder onto another files it into that one's group too, which is the
-    // other half of what dragging it means. Nested folders (a repository's worktrees) are not in
-    // groups at all, so this only applies where both are top level.
-    if (!topLevelPaths.has(path) || !topLevelPaths.has(beforePath)) return
-    const target = groupState.assignments[beforePath]
-    if (target !== groupState.assignments[path]) assignFolder(path, target ?? null)
-  }
-
-  /**
-   * UI-27 steps 1-2: the folder/session hierarchy as one WAI-ARIA tree (group headers included —
-   * a group is a treeitem whose children are the folders filed into it, same as a folder is a
-   * treeitem whose children are its sessions and sub-worktrees). One tree rather than one per
-   * group: a group is part of the same hierarchy the folders and sessions are, not an unrelated
-   * list the way Active/Pinned/Recent are (see those sections below, each its own flat tree).
-   *
-   * `mainTreeFocusKey` is which item currently holds the tree's one Tab stop — `null` until a real
-   * focus event names one, at which point it behaves exactly like a roving tabindex the user has
-   * already moved through. Until then, the very first item (the first group's header, or the first
-   * ungrouped folder) is it, computed from data already at hand rather than a DOM query.
-   */
-  const mainTreeRef = useRef<HTMLDivElement | null>(null)
-  const [mainTreeFocusKey, setMainTreeFocusKey] = useState<string | null>(null)
-  const firstMainTreeKey = arranged.groups.length > 0
-    ? `group:${arranged.groups[0].group.id}`
-    : arranged.ungrouped.length > 0 ? `folder:${arranged.ungrouped[0].path}` : null
-  const mainTreeTabIndex = (kind: 'group' | 'folder' | 'session', key: string): number =>
-    rovingTabIndex(mainTreeFocusKey, firstMainTreeKey, `${kind}:${key}`)
-
-  const toggleFolderOpen = (path: string, open: boolean): void => {
-    const next = new Set(collapsed)
-    if (open) next.delete(path); else next.add(path)
-    onCollapsedChange(next)
-  }
-  const toggleGroupOpen = (groupId: string, open: boolean): void => {
-    patchGroups({
-      collapsed: open
-        ? groupState.collapsed.filter((id) => id !== groupId)
-        : [...groupState.collapsed, groupId],
-    })
-  }
-
-  const onMainTreeFocus = (e: React.FocusEvent): void => {
-    const item = (e.target as HTMLElement).closest('[role="treeitem"]')
-    const kind = item?.getAttribute('data-tree-kind')
-    const key = item?.getAttribute('data-tree-key')
-    if (kind !== null && kind !== undefined && key !== null && key !== undefined) {
-      setMainTreeFocusKey(`${kind}:${key}`)
-    }
-  }
-
-  const onMainTreeKeyDown = (e: React.KeyboardEvent): void => {
-    const root = mainTreeRef.current
-    if (root === null) return
-    onTreeKeyDown(e, root, {
-      onEnter: (current) => {
-        const kind = current.dataset.treeKind
-        const key = current.dataset.treeKey
-        if (key === undefined) return
-        if (kind === 'session') {
-          const session = sessionsById.get(key)
-          if (session !== undefined) onSelect(session)
-        } else if (kind === 'folder') {
-          toggleFolderOpen(key, current.getAttribute('aria-expanded') !== 'true')
-        } else if (kind === 'group') {
-          toggleGroupOpen(key, current.getAttribute('aria-expanded') !== 'true')
-        }
-      },
-      onShiftEnter: (current) => {
-        if (current.dataset.treeKind !== 'session' || current.dataset.treeKey === undefined) return
-        const session = sessionsById.get(current.dataset.treeKey)
-        if (session !== undefined) onSplitSession(session)
-      },
-      onArrowRight: (current, movedToChild) => {
-        if (movedToChild) return
-        const kind = current.dataset.treeKind
-        const key = current.dataset.treeKey
-        if (key === undefined) return
-        if (kind === 'folder' && current.getAttribute('aria-expanded') === 'false') toggleFolderOpen(key, true)
-        else if (kind === 'group' && current.getAttribute('aria-expanded') === 'false') toggleGroupOpen(key, true)
-      },
-      onArrowLeft: (current) => {
-        const kind = current.dataset.treeKind
-        const key = current.dataset.treeKey
-        if (key === undefined) return
-        if (kind === 'folder' && current.getAttribute('aria-expanded') === 'true') toggleFolderOpen(key, false)
-        else if (kind === 'group' && current.getAttribute('aria-expanded') === 'true') toggleGroupOpen(key, false)
-        // Otherwise onTreeKeyDown has already moved focus to the parent, if there is one.
-      },
-      onContextMenuKey: (current, at) => {
-        const kind = current.dataset.treeKind
-        const key = current.dataset.treeKey
-        if (key === undefined) return
-        if (kind === 'session') setMenu({ kind: 'session', id: key, x: at.x, y: at.y })
-        // Matches FolderHeader's own onContextMenu: only a depth-0 folder has a menu at all.
-        else if (kind === 'folder' && current.dataset.depth === '0') setMenu({ kind: 'folder', id: key, x: at.x, y: at.y })
-        else if (kind === 'group') setMenu({ kind: 'group', id: key, x: at.x, y: at.y })
-      },
-    })
-  }
+  const onSessionMenu = useCallback((node: SessionNode, x: number, y: number) => {
+    setMenu({ kind: 'session', id: node.sessionId, x, y })
+  }, [setMenu])
+  /** What every session row can do, in one object that only changes when one of them does — the
+   *  rows take it as spread props, so they can skip a render this sidebar did not change for. */
+  const rowActions: RowActions = useMemo(() => ({
+    onSelect, onSplit: onSplitSession, onDelete: onDeleteSession, onTogglePin, onEditNote, onMenu: onSessionMenu,
+  }), [onSelect, onSplitSession, onDeleteSession, onTogglePin, onEditNote, onSessionMenu])
 
   /** The tree props every level shares, so the grouped and ungrouped renders cannot drift apart. */
-  const treeProps = {
+  const treeProps: SharedTreeProps = {
     collapsed,
     onToggle: toggle,
     selectedId,
@@ -725,18 +281,17 @@ function SidebarInner({
     pinned: pinnedSet,
     onTogglePin,
     onEditNote,
-    onReorderFolder: reorderFolder,
-    onFolderMenu: (path: string, x: number, y: number) => setMenu({ kind: 'folder', id: path, x, y }),
-    onSessionMenu: (s: SessionNode, x: number, y: number) =>
-      setMenu({ kind: 'session', id: s.sessionId, x, y }),
+    onReorderFolder: groups.reorderFolder,
+    onFolderMenu: (path, x, y) => setMenu({ kind: 'folder', id: path, x, y }),
+    onSessionMenu,
     // Resolved against the unfiltered tree — a session being dragged is on screen and therefore in
     // `tree` too, but there is no reason to make this depend on the search box being empty.
-    onSessionDrop: (sessionId: string, folderPath: string) => {
+    onSessionDrop: (sessionId, folderPath) => {
       const session = activeSessionsById.get(sessionId)
       if (session !== undefined) onSessionDropped(session, folderPath)
     },
     orderFolders: (nodes: ProjectNode[]) => orderFolders(nodes, (n) => n.path, groupState.folderOrder),
-    onCollapseBeneath: (path: string, beneath: string[]) => {
+    onCollapseBeneath: (path, beneath) => {
       const next = new Set(collapsed)
       for (const p of beneath) next.add(p)
       // Opened, if it was not: collapsing what is inside a closed folder would look like nothing
@@ -744,7 +299,7 @@ function SidebarInner({
       next.delete(path)
       onCollapsedChange(next)
     },
-    rovingTabIndex: mainTreeTabIndex,
+    rovingTabIndex: mainTree.tabIndexFor,
   }
 
   return (
@@ -825,422 +380,72 @@ function SidebarInner({
       )}
 
       {activeTabs.length > 0 && (
-        <section className="active-section" data-testid="active-section" aria-label="Active sessions">
-          {/* Focusable, and it answers hover as well as focus: the legend below is the only place
-              the four dots are ever explained, so it has to be reachable without a pointer. */}
-          <div
-            className="pinned-header active-header"
-            data-testid="active-header"
-            tabIndex={0}
-            onPointerEnter={(e) => { setLegendAnchor(e.currentTarget.getBoundingClientRect()) }}
-            onPointerLeave={() => { setLegendAnchor(null) }}
-            onFocus={(e) => { setLegendAnchor(e.currentTarget.getBoundingClientRect()) }}
-            onBlur={() => { setLegendAnchor(null) }}
-          >
-            <span className="pinned-label">Active</span>
-            <span className="pinned-count">{activeTabs.length}</span>
-          </div>
-          {legendAnchor !== null && <ActivityLegend anchor={legendAnchor} />}
-          {/* UI-27: its own flat WAI-ARIA tree — a list of open tabs across every window, not part
-           *  of the folder/session hierarchy, so it gets no expand/collapse and Enter just raises
-           *  the tab's own window (`onFocusTab`), same as a click. */}
-          <div
-            role="tree"
-            aria-label="Active sessions"
-            ref={activeTree.ref}
-            onKeyDown={activeTree.onKeyDown}
-            onFocus={activeTree.onFocus}
-          >
-          {activeTabs.map((t) => {
-            const session = activeSessionsById.get(t.key)
-            const key = activeKeyOf(t)
-            return (
-              // A wrapper, like a session row's: the row is a <button>, and a button cannot hold the
-              // note button beside it.
-              <div
-                key={key}
-                className="session-row-wrap active-row-wrap"
-                role="treeitem"
-                // Stable, like the other rows' — an unresolved tab's title changes once Claude
-                // writes it, and that must not also change the treeitem's own accessible name.
-                aria-label={session?.title ?? t.label ?? UNTITLED_SESSION}
-                aria-level={1}
-                data-tree-kind="active"
-                data-tree-key={key}
-                tabIndex={activeTree.tabIndexFor(key)}
-              >
-                <button
-                  className="session-row active-tab-row"
-                  data-testid="active-tab-row"
-                  onClick={() => onFocusTab(t.windowNumber, t.key)}
-                  title={`Window ${String(t.windowNumber)}`}
-                  // UI-27: the wrap above is the treeitem; Enter on it already raises this tab's
-                  // window, so this stays clickable but is not a second Tab stop.
-                  tabIndex={-1}
-                >
-                  <span
-                    className="status-dot"
-                    data-testid="active-status-dot"
-                    data-status={t.status}
-                    role="img"
-                    aria-label={describeActivityStatus(t.status)}
-                  />
-                  <ActiveTabTitle sessionId={t.key} title={session?.title ?? t.label ?? UNTITLED_SESSION} />
-                  <span className="active-window-number">W{t.windowNumber}</span>
-                </button>
-                {/* A tab still waiting for its session id has no session to attach a note to yet. */}
-                {session !== undefined && (
-                  <button
-                    className="row-action note-session-button"
-                    data-testid="active-note-button"
-                    data-has-note={session.note !== null && session.note !== ''}
-                    title={session.note !== null && session.note !== '' ? 'Edit note' : 'Add a note'}
-                    aria-label={`Edit the note on ${session.title}`}
-                    onClick={(e) => { e.stopPropagation(); onEditNote(session) }}
-                  >
-                    <NoteIcon filled={session.note !== null && session.note !== ''} />
-                  </button>
-                )}
-              </div>
-            )
-          })}
-          </div>
-        </section>
+        <ActiveSection
+          activeTabs={activeTabs}
+          sessionsById={activeSessionsById}
+          onFocusTab={onFocusTab}
+          onEditNote={onEditNote}
+        />
       )}
 
       {pinnedSessions.length > 0 && (
-        <section className="pinned-section" data-testid="pinned-section">
-          <SectionHeader
-            testId="pinned-toggle"
-            label="Pinned"
-            count={pinnedSessions.length}
-            expanded={!pinnedCollapsed}
-            onToggle={() => onPinnedCollapsedChange(!pinnedCollapsed)}
-          />
-          {/* UI-27: its own flat tree — a manually curated shortlist, not part of the folder
-           *  hierarchy any more than Active or Recent are. */}
-          {!pinnedCollapsed && (
-          <div role="tree" aria-label="Pinned sessions" ref={pinnedTree.ref} onKeyDown={pinnedTree.onKeyDown} onFocus={pinnedTree.onFocus}>
-          {pinnedSessions.map((s) => (
-            <div
-              key={s.sessionId}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.effectAllowed = 'move'
-                e.dataTransfer.setData('application/x-apiary-pinned', s.sessionId)
-              }}
-              onDragOver={(e) => {
-                if (!e.dataTransfer.types.includes('application/x-apiary-pinned')) return
-                e.preventDefault()
-                e.dataTransfer.dropEffect = 'move'
-              }}
-              onDrop={(e) => {
-                const dragged = e.dataTransfer.getData('application/x-apiary-pinned')
-                if (dragged === '' || dragged === s.sessionId) return
-                e.preventDefault()
-                onReorderPinned(dragged, s.sessionId)
-              }}
-            >
-              <SessionRow
-                session={s}
-                selected={s.sessionId === selectedId}
-                pinned
-                onSelect={onSelect}
-                onSplit={onSplitSession}
-                onDelete={onDeleteSession}
-                onTogglePin={onTogglePin}
-                onEditNote={onEditNote}
-                onMenu={(node, x, y) => setMenu({ kind: 'session', id: node.sessionId, x, y })}
-                folderBranch={branchOfSession.get(s.sessionId) ?? null}
-                treeTabIndex={pinnedTree.tabIndexFor(s.sessionId)}
-              />
-            </div>
-          ))}
-          </div>
-          )}
-        </section>
+        <PinnedSection
+          sessions={pinnedSessions}
+          selectedId={selectedId}
+          folderBranches={branchOfSession}
+          collapsed={pinnedCollapsed}
+          onCollapsedChange={onPinnedCollapsedChange}
+          onReorderPinned={onReorderPinned}
+          actions={rowActions}
+        />
       )}
 
       {recentSessions.length > 0 && (
-        <section className="recent-section" data-testid="recent-section">
-          <SectionHeader
-            testId="recent-toggle"
-            label="Recent"
-            count={recentSessions.length}
-            expanded={!recentCollapsed}
-            onToggle={() => onRecentCollapsedChange(!recentCollapsed)}
-          />
-          {/* UI-27: its own flat tree — time-ordered, not part of the folder hierarchy. */}
-          {!recentCollapsed && (
-          <div role="tree" aria-label="Recent sessions" ref={recentTree.ref} onKeyDown={recentTree.onKeyDown} onFocus={recentTree.onFocus}>
-          {recentSessions.map((s) => (
-            <div key={s.sessionId} className="recent-row-wrap">
-              <SessionRow
-                session={s}
-                selected={s.sessionId === selectedId}
-                pinned={false}
-                onSelect={onSelect}
-                onSplit={onSplitSession}
-                onDelete={onDeleteSession}
-                onTogglePin={onTogglePin}
-                onEditNote={onEditNote}
-                onMenu={(node, x, y) => setMenu({ kind: 'session', id: node.sessionId, x, y })}
-                folderBranch={branchOfSession.get(s.sessionId) ?? null}
-                onDismiss={onDismissRecent}
-                treeTabIndex={recentTree.tabIndexFor(s.sessionId)}
-              />
-            </div>
-          ))}
-          </div>
-          )}
-        </section>
+        <RecentSection
+          sessions={recentSessions}
+          selectedId={selectedId}
+          folderBranches={branchOfSession}
+          collapsed={recentCollapsed}
+          onCollapsedChange={onRecentCollapsedChange}
+          onDismiss={onDismissRecent}
+          actions={rowActions}
+        />
       )}
 
       {pending.length > 0 && (
-        // Claude sessions started here that Claude has not named yet: it writes a session — and
-        // its title — only once there is a first message, so until then all there is to show is
-        // the folder. Only the ones with no tab in any window are listed (an open one is in
-        // Active); they used to sit here unlabelled, which read as mystery rows.
-        <section className="pending-section" data-testid="pending-section">
-          <div
-            className="pinned-header pending-header"
-            title="Claude sessions started here that are not showing in any window. Claude names a session once it has a first message."
-          >
-            <span className="pinned-label">Unnamed, running</span>
-            <span className="pinned-count">{pending.length}</span>
-          </div>
-          <ul className="pending-list" data-testid="pending-list">
-            {pending.map((p) => (
-              <li key={p.ptyId} className="session-row-wrap">
-                <button
-                  className="session-row pending-row"
-                  data-testid="pending-session-item"
-                  onClick={() => onSelectPending(p.ptyId)}
-                  title={p.cwd}
-                >
-                  <span className="live-dot" aria-label="running" />
-                  <span className="session-title">New session &middot; {p.label}</span>
-                </button>
-                {onStopPending !== undefined && (
-                  <button
-                    className="row-action pending-stop"
-                    data-testid="pending-stop"
-                    title="Stop this Claude"
-                    aria-label={`Stop new session in ${p.label}`}
-                    onClick={() => onStopPending(p.ptyId)}
-                  >
-                    <CloseIcon />
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
+        <PendingSection pending={pending} onSelect={onSelectPending} onStop={onStopPending} />
       )}
 
       {tree.length > 0 && searching && (
-        // UI-27: its own flat tree — a ranked search result is not a folder listing.
-        <ul
-          className="tree flat-results"
-          data-testid="flat-results"
-          role="tree"
-          aria-label="Search results"
-          ref={flatResultsTree.ref}
-          onKeyDown={flatResultsTree.onKeyDown}
-          onFocus={flatResultsTree.onFocus}
-        >
-          {rankedResults.map(({ session, worktreeLabel }) => (
-            <li key={session.sessionId}>
-              <SessionRow
-                session={session}
-                selected={session.sessionId === selectedId}
-                pinned={pinnedSet.has(session.sessionId)}
-                onSelect={onSelect}
-                onSplit={onSplitSession}
-                onDelete={onDeleteSession}
-                onTogglePin={onTogglePin}
-                onEditNote={onEditNote}
-                onMenu={(node, x, y) => setMenu({ kind: 'session', id: node.sessionId, x, y })}
-                subtitle={worktreeLabel}
-                treeTabIndex={flatResultsTree.tabIndexFor(session.sessionId)}
-              />
-            </li>
-          ))}
-        </ul>
+        <SearchResults results={rankedResults} selectedId={selectedId} pinned={pinnedSet} actions={rowActions} />
       )}
 
       {tree.length > 0 && !searching && (
         // UI-27 steps 1-2: the whole folder/session/group hierarchy is one WAI-ARIA tree —
-        // see the note above `mainTreeRef`.
+        // see `useMainTreeNav`.
         <div
           role="tree"
           aria-label="Sessions"
-          ref={mainTreeRef}
-          onKeyDown={onMainTreeKeyDown}
-          onFocus={onMainTreeFocus}
+          ref={mainTree.ref}
+          onKeyDown={mainTree.onKeyDown}
+          onFocus={mainTree.onFocus}
         >
-          {arranged.groups.map(({ group, folders }) => {
-            const open = !groupsCollapsed.has(group.id)
-            return (
-              <section
-                className="folder-group"
-                data-testid="folder-group"
-                key={group.id}
-                data-drop-into={dropIntoGroup === group.id}
-                // The drop target is the whole section, not just its heading: an empty group is
-                // a heading and a line of placeholder text, and aiming at the heading alone meant
-                // the one case that needs dragging most — filing the first folder into a new,
-                // empty group — had almost nothing to aim at.
-                onDragOver={(e) => {
-                  if (!e.dataTransfer.types.includes('application/x-apiary-folder')) return
-                  e.preventDefault()
-                  e.dataTransfer.dropEffect = 'move'
-                  setDropIntoGroup(group.id)
-                }}
-                onDragLeave={(e) => {
-                  // Only when the pointer has left the section itself, not merely moved onto a
-                  // row inside it, which fires dragleave for the child on the way past.
-                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-                    setDropIntoGroup((current) => (current === group.id ? null : current))
-                  }
-                }}
-                onDrop={(e) => {
-                  setDropIntoGroup(null)
-                  const dragged = e.dataTransfer.getData('application/x-apiary-folder')
-                  // Only a top-level folder can be filed into a group: a worktree belongs to its
-                  // repository, and dropping one on the group's whitespace must not quietly move
-                  // it out from under the repository it is part of.
-                  if (dragged === '' || !topLevelPaths.has(dragged)) return
-                  e.preventDefault()
-                  assignFolder(dragged, group.id)
-                }}
-              >
-                <div
-                  className="folder-group-header-wrap"
-                  data-group-id={group.id}
-                  role="treeitem"
-                  // Stable, like the folder and session rows' — a renaming group swaps its header
-                  // for an input, which must not also change the treeitem's own accessible name.
-                  aria-label={group.name}
-                  aria-expanded={open}
-                  aria-level={1}
-                  data-tree-kind="group"
-                  data-tree-key={group.id}
-                  tabIndex={mainTreeTabIndex('group', group.id)}
-                  // Groups reorder by dragging their headings, the same gesture as everything else
-                  // in this sidebar; the menu keeps Move up/down for keyboard and precision.
-                  draggable={renamingGroup !== group.id}
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = 'move'
-                    e.dataTransfer.setData('application/x-apiary-group', group.id)
-                  }}
-                  onDragOver={(e) => {
-                    if (!e.dataTransfer.types.includes('application/x-apiary-group')) return
-                    e.preventDefault()
-                    e.dataTransfer.dropEffect = 'move'
-                  }}
-                  onDrop={(e) => {
-                    const dragged = e.dataTransfer.getData('application/x-apiary-group')
-                    if (dragged === '' || dragged === group.id) return
-                    e.preventDefault()
-                    e.stopPropagation() // Not also a folder drop into this group.
-                    patchGroups({ groups: moveGroupBefore(groupState.groups, dragged, group.id) })
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault()
-                    setMenu({ kind: 'group', id: group.id, x: e.clientX, y: e.clientY })
-                  }}
-                >
-                  {renamingGroup === group.id ? (
-                    <input
-                      className="search folder-group-rename"
-                      data-testid="folder-group-rename"
-                      autoFocus
-                      value={renameDraft}
-                      onChange={(e) => setRenameDraft(e.target.value)}
-                      onBlur={() => commitRename(group.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') commitRename(group.id)
-                        // Stopped rather than left to bubble: this rename can be in progress while
-                        // some other layer is open on the shared Escape stack (UI-13), and Escape
-                        // should cancel just the rename, not also close that layer.
-                        if (e.key === 'Escape') { e.stopPropagation(); setRenamingGroup(null) }
-                      }}
-                    />
-                  ) : (
-                    <button
-                      className="folder-group-header"
-                      data-testid="folder-group-toggle"
-                      aria-expanded={open}
-                      // UI-27: the wrap above is the treeitem, whose Enter/ArrowRight/ArrowLeft
-                      // already toggle the same state.
-                      tabIndex={-1}
-                      onClick={() => patchGroups({
-                        collapsed: open
-                          ? [...groupState.collapsed, group.id]
-                          : groupState.collapsed.filter((id) => id !== group.id),
-                      })}
-                    >
-                      <ChevronIcon expanded={open} />
-                      <span className="folder-group-label">{group.name}</span>
-                      <span className="pinned-count">{folders.length}</span>
-                    </button>
-                  )}
-                  {renamingGroup !== group.id && onNewSessionInPickedFolder !== undefined && (
-                    <button
-                      className="new-session-button"
-                      data-testid="group-new-session-button"
-                      title={`New Claude Code session in a folder, filed under ${group.name}`}
-                      aria-label={`New Claude Code session in a folder, filed under ${group.name}`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        // A group is the user's own arrangement, not a folder, so its "+" asks
-                        // which folder — any folder, even one Apiary has never seen — and files
-                        // it here once the session has started.
-                        void onNewSessionInPickedFolder().then((folder) => {
-                          if (folder !== null) assignFolder(folder, group.id)
-                        })
-                      }}
-                    >
-                      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                      </svg>
-                    </button>
-                  )}
-                  {folders.length > 0 && renamingGroup !== group.id && (
-                    <button
-                      className="new-session-button collapse-all-button"
-                      data-testid="group-collapse-all-button"
-                      title={`Collapse all folders in ${group.name}`}
-                      aria-label={`Collapse all folders in ${group.name}`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        // Every folder in the group, at every depth, and the group itself opened —
-                        // what the folder rows' own button does one level down: the click asks to
-                        // see the list of folders, closed.
-                        const next = new Set(collapsed)
-                        for (const p of allFolderPaths(folders)) next.add(p)
-                        onCollapsedChange(next)
-                        if (!open) {
-                          patchGroups({ collapsed: groupState.collapsed.filter((id) => id !== group.id) })
-                        }
-                      }}
-                    >
-                      <CollapseAllIcon />
-                    </button>
-                  )}
-                </div>
-                {/* level=2: nested one deeper than the group header owning it (level 1) — see the
-                 *  note on `SessionTree`'s `level` prop for why this is kept apart from `depth`. */}
-                {open && folders.length > 0 && <SessionTree nodes={folders} {...treeProps} level={2} />}
-                {open && folders.length === 0 && (
-                  <p className="folder-group-empty muted" data-testid="folder-group-empty">
-                    Drag a folder here.
-                  </p>
-                )}
-              </section>
-            )
-          })}
+          {arranged.groups.map(({ group, folders }) => (
+            <FolderGroup
+              key={group.id}
+              group={group}
+              folders={folders}
+              open={!groupsCollapsed.has(group.id)}
+              groupState={groupState}
+              groups={groups}
+              collapsed={collapsed}
+              onCollapsedChange={onCollapsedChange}
+              treeProps={treeProps}
+              tabIndex={mainTree.tabIndexFor('group', group.id)}
+              onMenu={(x, y) => setMenu({ kind: 'group', id: group.id, x, y })}
+              onNewSessionInPickedFolder={onNewSessionInPickedFolder}
+            />
+          ))}
 
           {arranged.ungrouped.length > 0 && <SessionTree nodes={arranged.ungrouped} {...treeProps} />}
         </div>

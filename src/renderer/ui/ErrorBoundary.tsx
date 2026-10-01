@@ -58,7 +58,7 @@ export class ErrorBoundary extends Component<Props, State> {
         )}
         <div className="crash-actions">
           <button
-            className="primary"
+            className="btn primary"
             data-testid="crash-retry"
             onClick={() => this.setState({ message: null, detail: null })}
           >

@@ -1,8 +1,9 @@
 /** Session and project-tree types shared by main (the source of truth) and the renderer (the sidebar). */
+import type { PtyId, SessionId } from './ids'
 
 /** Metadata extracted from a session JSONL without parsing the whole file. */
 export interface SessionMeta {
-  sessionId: string
+  sessionId: SessionId
   filePath: string
   fileMtimeMs: number
   fileSize: number
@@ -26,7 +27,7 @@ export interface ProjectInfo {
 
 export interface SessionNode {
   kind: 'session'
-  sessionId: string
+  sessionId: SessionId
   title: string
   cwd: string
   /** Branch recorded in the session's JSONL, shown in the row's tooltip. */
@@ -55,7 +56,7 @@ export interface ProjectNode {
 }
 
 export interface DiscoveredSession {
-  sessionId: string
+  sessionId: SessionId
   projectPath: string
   title: string
   lastActiveAtMs: number | null
@@ -63,7 +64,7 @@ export interface DiscoveredSession {
 }
 
 export interface ResumeConflict {
-  sessionId: string
+  sessionId: SessionId
   pid: number
 }
 
@@ -73,7 +74,7 @@ export interface ResumeConflict {
  * was started in, used to match it up with the real `SessionNode` once Claude writes its JSONL.
  */
 export interface NewSessionInfo {
-  ptyId: string
+  ptyId: PtyId
   cwd: string
   label: string
 }

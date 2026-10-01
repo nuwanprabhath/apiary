@@ -1,6 +1,6 @@
 {
   "name": "apiary",
-  "version": "1.27.0",
+  "version": "1.28.0",
   "private": true,
   "type": "module",
   "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",
@@ -30,6 +30,7 @@
     "test:component:coverage": "vitest run --config vitest.component.config.ts --coverage",
     "test:e2e": "npm run build && playwright test",
     "test:e2e:smoke": "npm run build && playwright test --grep @smoke --no-deps",
+    "test:packaged": "node scripts/test-packaged.mjs",
     "screenshot": "npm run build && playwright test --config=playwright.screenshot.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "npm run lint:js && npm run lint:css && npm run lint:md && npm run lint:sh && npm run lint:cycles",
@@ -49,7 +50,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
-    "chokidar": "^4.0.1",
+    "chokidar": "^5.0.0",
     "electron-updater": "^6.8.9",
     "node-pty": "^1.1.0"
   },
@@ -71,17 +72,17 @@
     "@fontsource/vt323": "^5.3.0",
     "@playwright/test": "^1.63.0",
     "@types/better-sqlite3": "^7.6.11",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/browser": "^5.0.2",
     "@vitest/browser-playwright": "^5.0.2",
     "@vitest/coverage-v8": "^5.0.2",
     "@vitest/eslint-plugin": "^1.6.27",
-    "@xterm/addon-fit": "^0.10.0",
-    "@xterm/addon-serialize": "^0.13.0",
-    "@xterm/headless": "^5.5.0",
-    "@xterm/xterm": "^5.5.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-serialize": "^0.14.0",
+    "@xterm/headless": "^6.0.0",
+    "@xterm/xterm": "^6.0.0",
     "dompurify": "^3.4.16",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
@@ -96,13 +97,13 @@
     "lint-staged": "^16.4.0",
     "madge": "^8.0.0",
     "markdownlint-cli2": "^0.23.3",
-    "marked": "^15.0.12",
+    "marked": "^18.0.14",
     "playwright": "^1.63.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "stylelint": "^17.15.0",
     "stylelint-config-standard": "^40.0.0",
-    "typescript": "^5.6.3",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.1",
     "vite": "^7.2.0",
     "vitest": "^5.0.2"
@@ -112,5 +113,10 @@
     "*.css": "stylelint --fix --max-warnings 0",
     "*.md": "markdownlint-cli2 --fix",
     "*.sh": "shellcheck"
+  },
+  "overrides": {
+    "madge": {
+      "typescript": "$typescript"
+    }
   }
 }

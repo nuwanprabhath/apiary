@@ -14,8 +14,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["node", "vitest/globals"],
-    "paths": { "@shared/*": ["./src/shared/*"] },
-    "baseUrl": "."
+    "paths": { "@shared/*": ["./src/shared/*"] }
   },
   "include": ["src/main", "src/shared", "tests", "src/renderer/env.d.ts"],
   "exclude": ["tests/e2e", "tests/component"]

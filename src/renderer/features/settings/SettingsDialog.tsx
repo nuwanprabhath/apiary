@@ -133,9 +133,9 @@ export function SettingsDialog(
         </div>
 
         <div className="modal-actions">
-          <button data-testid="settings-cancel" onClick={onClose}>Cancel</button>
+          <button className="btn" data-testid="settings-cancel" onClick={onClose}>Cancel</button>
           <button
-            className="primary"
+            className="btn primary"
             data-testid="settings-save"
             disabled={draft === null || saving}
             onClick={() => { void save() }}

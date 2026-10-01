@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
+import { git, commitFile } from '../fixtures/gitRepo'
 import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
 
 /**
@@ -24,11 +24,9 @@ test.afterEach(async () => { await h.close() })
 
 test('Branch > Merge merges a branch you pick into the current one', async () => {
   // A branch with a commit the current branch does not have, so the merge is a real one.
-  execFileSync('git', ['checkout', '-q', '-b', 'feature/mergeable'], { cwd: h.repoRoot })
-  execFileSync('bash', ['-c', 'echo merged-content > merged.txt'], { cwd: h.repoRoot })
-  execFileSync('git', ['add', '.'], { cwd: h.repoRoot })
-  execFileSync('git', ['-c', 'commit.gpgsign=false', 'commit', '-qm', 'a commit to merge'], { cwd: h.repoRoot })
-  execFileSync('git', ['checkout', '-q', 'main'], { cwd: h.repoRoot })
+  git(h.repoRoot, 'checkout', '-q', '-b', 'feature/mergeable')
+  commitFile(h.repoRoot, 'merged.txt', 'a commit to merge', 'merged-content\n')
+  git(h.repoRoot, 'checkout', '-q', 'main')
 
   await h.page.getByTestId('toolbar-git-menu').click()
   await h.page.getByTestId('git-menu-branch').click()
@@ -48,22 +46,18 @@ test('Branch > Merge merges a branch you pick into the current one', async () =>
   await expect(h.page.getByTestId('branch-switcher')).toHaveCount(0)
 
   // The merge really happened, on disk, on the branch we were on.
-  const log = execFileSync('git', ['log', '--oneline', 'main'], { cwd: h.repoRoot }).toString()
+  const log = git(h.repoRoot, 'log', '--oneline', 'main')
   expect(log).toContain('a commit to merge')
   // And we are still on main, not moved onto the branch that was merged in.
-  const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: h.repoRoot }).toString().trim()
+  const branch = git(h.repoRoot, 'rev-parse', '--abbrev-ref', 'HEAD').trim()
   expect(branch).toBe('main')
 })
 
 test('a conflicting merge reports the conflict and leaves the repo mid-merge to resolve', async () => {
-  execFileSync('git', ['checkout', '-q', '-b', 'feature/conflicting'], { cwd: h.repoRoot })
-  execFileSync('bash', ['-c', 'echo from-branch > README.md'], { cwd: h.repoRoot })
-  execFileSync('git', ['add', '.'], { cwd: h.repoRoot })
-  execFileSync('git', ['-c', 'commit.gpgsign=false', 'commit', '-qm', 'branch edit'], { cwd: h.repoRoot })
-  execFileSync('git', ['checkout', '-q', 'main'], { cwd: h.repoRoot })
-  execFileSync('bash', ['-c', 'echo from-main > README.md'], { cwd: h.repoRoot })
-  execFileSync('git', ['add', '.'], { cwd: h.repoRoot })
-  execFileSync('git', ['-c', 'commit.gpgsign=false', 'commit', '-qm', 'main edit'], { cwd: h.repoRoot })
+  git(h.repoRoot, 'checkout', '-q', '-b', 'feature/conflicting')
+  commitFile(h.repoRoot, 'README.md', 'branch edit', 'from-branch\n')
+  git(h.repoRoot, 'checkout', '-q', 'main')
+  commitFile(h.repoRoot, 'README.md', 'main edit', 'from-main\n')
 
   await h.page.getByTestId('toolbar-git-menu').click()
   await h.page.getByTestId('git-menu-branch').click()
@@ -77,6 +71,6 @@ test('a conflicting merge reports the conflict and leaves the repo mid-merge to 
   await expect(h.page.getByTestId('branch-switcher-error')).toContainText(/conflict/i)
 
   // Deliberately not aborted: the shell below is where this gets resolved.
-  const status = execFileSync('git', ['status', '--porcelain'], { cwd: h.repoRoot }).toString()
+  const status = git(h.repoRoot, 'status', '--porcelain')
   expect(status).toMatch(/^(UU|AA)/m)
 })

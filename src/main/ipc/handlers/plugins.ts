@@ -13,8 +13,8 @@ export function pluginsHandlers(deps: PluginsDeps): Pick<Handlers, HandledKeys> 
   const { service } = deps
 
   return {
-    pluginBarItems: (_e, key, isPtyId) => service.pluginBarItems(key, isPtyId),
-    pluginBarRefresh: (_e, key, isPtyId) => service.refreshPluginBar(key, isPtyId),
+    pluginBarItems: (_e, terminal) => service.pluginBarItems(terminal),
+    pluginBarRefresh: (_e, terminal) => service.refreshPluginBar(terminal),
     pluginList: () => service.listPlugins(),
     statusBarItems: () => service.statusBar.items(),
     statusBarRefresh: (_e, pluginId) => service.statusBar.refresh(pluginId),

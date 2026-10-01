@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveConfigRoot, projectsDir } from '../../src/main/app/config'
+import { resolveConfigRoot, projectsDir, readsClaudeKeychain } from '../../src/main/app/config'
 
 describe('resolveConfigRoot', () => {
   it('defaults to ~/.claude', () => {
@@ -18,5 +18,18 @@ describe('resolveConfigRoot', () => {
 describe('projectsDir', () => {
   it('points at the projects subdirectory', () => {
     expect(projectsDir('/home/nuwan/.claude')).toBe('/home/nuwan/.claude/projects')
+  })
+})
+
+describe('readsClaudeKeychain', () => {
+  it('reads the Keychain only on a Mac, for the default config root', () => {
+    expect(readsClaudeKeychain('darwin', undefined, {})).toBe(true)
+    expect(readsClaudeKeychain('darwin', undefined, { CLAUDE_CONFIG_DIR: '  ' })).toBe(true)
+    expect(readsClaudeKeychain('linux', undefined, {})).toBe(false)
+  })
+
+  it('never for a test config root or a CLAUDE_CONFIG_DIR install (the packaged smoke sets the latter)', () => {
+    expect(readsClaudeKeychain('darwin', '/tmp/fixture', {})).toBe(false)
+    expect(readsClaudeKeychain('darwin', undefined, { CLAUDE_CONFIG_DIR: '/tmp/home/.claude' })).toBe(false)
   })
 })

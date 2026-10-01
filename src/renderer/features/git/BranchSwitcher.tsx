@@ -1,5 +1,6 @@
 import { type JSX, useEffect, useMemo, useRef, useState } from 'react'
 import type { GitRefEntry, GitRefs, WorktreeConflict } from '@shared/types'
+import type { TerminalRef } from '@shared/domain/ids'
 import { exactRefMatch } from './branchSelection'
 import { CopyIcon, CheckIcon, ArrowDownIcon } from '../../ui/icons'
 import { updateBranchMessage } from '@shared/gitMessages'
@@ -7,8 +8,7 @@ import { describeError } from '../../ui/errors'
 import { Modal } from '../../ui/Modal'
 
 interface Props {
-  shellKey: string
-  isPtyId: boolean
+  terminal: TerminalRef
   onClose: () => void
   onCheckedOut: () => void
   onError: (message: string) => void
@@ -65,7 +65,7 @@ function onListKeyDown(e: React.KeyboardEvent, container: HTMLElement): void {
 }
 
 export function BranchSwitcher({
-  shellKey, isPtyId, onClose, onCheckedOut, onError, onWorktreeConflict, mode = 'checkout',
+  terminal, onClose, onCheckedOut, onError, onWorktreeConflict, mode = 'checkout',
   currentBranch = null,
   startAt = 'list',
   onNotice,
@@ -118,11 +118,11 @@ export function BranchSwitcher({
   const updateBranch = async (name: string): Promise<void> => {
     setErrorMessage(null)
     try {
-      const { commits } = await window.apiary.gitUpdateBranch(shellKey, isPtyId, name)
+      const { commits } = await window.apiary.gitUpdateBranch(terminal, name)
       onNotice?.(updateBranchMessage(name, commits))
       onBranchUpdated?.()
       // The row's date, author and subject are the branch tip's, which may just have moved.
-      void window.apiary.gitListRefs(shellKey, isPtyId).then(setRefs).catch(() => {})
+      void window.apiary.gitListRefs(terminal).then(setRefs).catch(() => {})
     } catch (e) {
       setErrorMessage(describeError(e).message)
     }
@@ -130,15 +130,15 @@ export function BranchSwitcher({
 
   useEffect(() => {
     let cancelled = false
-    void window.apiary.gitListRefs(shellKey, isPtyId)
+    void window.apiary.gitListRefs(terminal)
       .then((r) => { if (!cancelled) setRefs(r) })
       .catch((e: Error) => { if (!cancelled) onErrorRef.current(e.message) })
     return () => { cancelled = true }
-    // Deliberately keyed on [shellKey, isPtyId] only, not `query`: re-fetching on every keystroke
+    // Deliberately keyed on [terminal] only, not `query`: re-fetching on every keystroke
     // of the search would be pointless work for a list that is filtered client-side. If the active
     // tab changes under an open modal (another window switches it), this now re-lists for the new
-    // shellKey instead of quietly going on showing the old repo's refs.
-  }, [shellKey, isPtyId])
+    // terminal instead of quietly going on showing the old repo's refs.
+  }, [terminal])
 
   // UI-25: onto the shared Modal primitive, which registers Escape on the stack (UI-13) itself —
   // "dismisses the whole popup, from any step" is now Modal's own onClose contract, not something
@@ -161,7 +161,7 @@ export function BranchSwitcher({
     : null
 
   const checkout = (name: string): Promise<void> => run(async () => {
-    const outcome = await window.apiary.gitCheckoutBranch(shellKey, isPtyId, name)
+    const outcome = await window.apiary.gitCheckoutBranch(terminal, name)
     if (!outcome.ok) {
       // Not an error, and not this popover's to solve: hand the conflict up and get out of the
       // way, so the choice is made in a dialog rather than inside a branch list.
@@ -175,13 +175,13 @@ export function BranchSwitcher({
 
   const checkoutRemote = (remoteRef: string): Promise<void> => run(async () => {
     const localName = remoteRef.slice(remoteRef.indexOf('/') + 1)
-    await window.apiary.gitCheckoutRemote(shellKey, isPtyId, remoteRef, localName)
+    await window.apiary.gitCheckoutRemote(terminal, remoteRef, localName)
     onCheckedOut()
     onClose()
   })
 
   const checkoutDetached = (ref: string): Promise<void> => run(async () => {
-    await window.apiary.gitCheckoutDetached(shellKey, isPtyId, ref)
+    await window.apiary.gitCheckoutDetached(terminal, ref)
     onCheckedOut()
     onClose()
   })
@@ -191,7 +191,7 @@ export function BranchSwitcher({
   // right: the popup stays open with git's own CONFLICT text in it rather than closing over a repo
   // the user now has to notice is halfway through something.
   const mergeRef = (ref: string): Promise<void> => run(async () => {
-    await window.apiary.gitMerge(shellKey, isPtyId, ref)
+    await window.apiary.gitMerge(terminal, ref)
     onCheckedOut()
     onClose()
   })
@@ -209,7 +209,7 @@ export function BranchSwitcher({
     const name = nameDraft.trim()
     if (name === '') return Promise.resolve()
     return run(async () => {
-      await window.apiary.gitCreateBranch(shellKey, isPtyId, name, from)
+      await window.apiary.gitCreateBranch(terminal, name, from)
       onCheckedOut()
       onClose()
     })
@@ -241,8 +241,8 @@ export function BranchSwitcher({
           onKeyDown={(e) => { if (e.key === 'Enter') void createBranch(step.from) }}
         />
         <div className="modal-actions">
-          <button data-testid="branch-switcher-cancel" onClick={() => { setErrorMessage(null); setStep({ kind: 'list' }) }}>Back</button>
-          <button className="primary" data-testid="branch-switcher-confirm" disabled={busy || nameDraft.trim() === ''} onClick={() => { void createBranch(step.from) }}>
+          <button className="btn" data-testid="branch-switcher-cancel" onClick={() => { setErrorMessage(null); setStep({ kind: 'list' }) }}>Back</button>
+          <button className="btn primary" data-testid="branch-switcher-confirm" disabled={busy || nameDraft.trim() === ''} onClick={() => { void createBranch(step.from) }}>
             Create branch
           </button>
         </div>

@@ -1,3 +1,4 @@
+import type { PtyId } from '@shared/domain/ids'
 import { type JSX, memo, useEffect, useRef, useState } from 'react'
 import { Terminal, type ITheme } from '@xterm/xterm'
 import { THEME_CHANGE_EVENT } from '../../theme/applyTheme'
@@ -10,7 +11,7 @@ import { isClaudeSuspended, isSuspendChord } from '@shared/claudeSuspend'
 import { SuspendConfirmDialog } from './SuspendConfirmDialog'
 
 interface Props {
-  ptyId: string
+  ptyId: PtyId
   testId: string
   /**
    * Whether this terminal is the one currently on screen. Terminals are hidden rather than
@@ -149,6 +150,9 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
     let lastCols = term.cols
     let lastRows = term.rows
 
+    // Declared before the snapshot is requested: main sends `ptyData` only to attached windows,
+    // and IPC from one renderer is ordered, so nothing falls between attach and snapshot.
+    window.apiary.ptyAttach(ptyId)
     const offData = ptyBus.onData(ptyId, (data) => {
       if (caughtUp) term.write(data)
       else queued.push(data)
@@ -344,6 +348,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       if (rafId !== null) cancelAnimationFrame(rafId)
       offData()
       offExit()
+      window.apiary.ptyDetach(ptyId)
       disposeInput.dispose()
       disposeParsed.dispose()
       if (suspendCheck !== null) cancelAnimationFrame(suspendCheck)

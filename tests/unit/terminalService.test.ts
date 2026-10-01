@@ -1,3 +1,4 @@
+import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -81,7 +82,7 @@ describe('TerminalService', () => {
       const store = fakeStore({ sessions: { [SID]: { sessionId: SID, cwd: realDir } as StoredSession } })
       const { pty, spawned } = fakePty(new Set([`shell:${SID}:1`]))
       const terminals = new TerminalService({ pty, resolver: new SessionResolver({ store, pty }), store })
-      await terminals.openShell(SID, '1')
+      await terminals.openShell(asSessionId(SID), '1')
       expect(spawned).toHaveLength(0)
     })
 
@@ -89,7 +90,7 @@ describe('TerminalService', () => {
       const store = fakeStore({ sessions: { [SID]: { sessionId: SID, cwd: realDir } as StoredSession } })
       const { pty, spawned } = fakePty()
       const terminals = new TerminalService({ pty, resolver: new SessionResolver({ store, pty }), store })
-      await terminals.openShell(SID, '1')
+      await terminals.openShell(asSessionId(SID), '1')
       expect(spawned[0]).toMatchObject({ id: `shell:${SID}:1`, cwd: realDir, command: 'exec "$SHELL" -l' })
     })
   })

@@ -1,3 +1,4 @@
+import { asSessionId, asPtyId } from '@shared/domain/ids'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdirSync, realpathSync, symlinkSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -245,7 +246,7 @@ describe('AppService', () => {
   })
 
   it('refuses to open a shell for an unknown pty id', async () => {
-    await expect(service.openShellForPty('new:does-not-exist', '1')).rejects.toThrow(/unknown session/i)
+    await expect(service.openShellForPty(asPtyId('new:does-not-exist'), '1')).rejects.toThrow(/unknown session/i)
   })
 
   it('renames a session, and the rename survives a rescan', async () => {
@@ -349,7 +350,7 @@ describe('AppService', () => {
       })
       await liveService.refresh()
       await liveService.importSessions(['11111111-1111-1111-1111-111111111111'], [])
-      const conflict = await liveService.checkConflict('11111111-1111-1111-1111-111111111111')
+      const conflict = await liveService.checkConflict(asSessionId('11111111-1111-1111-1111-111111111111'))
       expect(conflict).toEqual({ sessionId: '11111111-1111-1111-1111-111111111111', pid: 4242 })
       const tree = await liveService.tree()
       expect(tree[0].sessions[0].isLive).toBe(true)

@@ -1,3 +1,4 @@
+import { terminalRef } from '@shared/domain/ids'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { realpathSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -28,11 +29,11 @@ describe('git operations', () => {
     await service.refresh()
     await service.importSessions(['66666666-6666-6666-6666-666666666666'], [])
 
-    const s = await service.gitStatus('66666666-6666-6666-6666-666666666666', false)
+    const s = await service.gitStatus(terminalRef('66666666-6666-6666-6666-666666666666', false))
     if (s === null) throw new Error('expected a git status')
     expect(s.branch).toBe('main')
 
-    await expect(service.gitStatus('does-not-exist', false)).rejects.toThrow(/unknown session/i)
+    await expect(service.gitStatus(terminalRef('does-not-exist', false))).rejects.toThrow(/unknown session/i)
     rmSync(gitDir, { recursive: true, force: true })
   })
 
@@ -44,14 +45,14 @@ describe('git operations', () => {
     await service.refresh()
     await service.importSessions(['99999999-9999-9999-9999-999999999999'], [])
 
-    await expect(service.gitStatus('99999999-9999-9999-9999-999999999999', false)).resolves.toBeNull()
+    await expect(service.gitStatus(terminalRef('99999999-9999-9999-9999-999999999999', false))).resolves.toBeNull()
     rmSync(plainDir, { recursive: true, force: true })
   })
 
   it('resolves a pty id to its cwd for gitStatus (the new-session path)', async () => {
     const gitDir = makeGitWorkdir()
     const info = await service.newSessionInFolder(gitDir)
-    const s = await service.gitStatus(info.ptyId, true)
+    const s = await service.gitStatus(terminalRef(info.ptyId, true))
     if (s === null) throw new Error('expected a git status')
     expect(s.branch).toBe('main')
     rmSync(gitDir, { recursive: true, force: true })
@@ -65,8 +66,8 @@ describe('git operations', () => {
     await service.refresh()
     await service.importSessions(['77777777-7777-7777-7777-777777777777'], [])
 
-    await service.gitCreateBranch('77777777-7777-7777-7777-777777777777', false, 'feature/y')
-    const s = await service.gitStatus('77777777-7777-7777-7777-777777777777', false)
+    await service.gitCreateBranch(terminalRef('77777777-7777-7777-7777-777777777777', false), 'feature/y')
+    const s = await service.gitStatus(terminalRef('77777777-7777-7777-7777-777777777777', false))
     if (s === null) throw new Error('expected a git status')
     expect(s.branch).toBe('feature/y')
     rmSync(gitDir, { recursive: true, force: true })
@@ -83,12 +84,12 @@ describe('git operations', () => {
     expect(before[0]?.branch).toBe('main')
 
     git(gitDir, 'branch', 'feature/z')
-    await service.gitCheckoutBranch(sessionId, false, 'feature/z')
+    await service.gitCheckoutBranch(terminalRef(sessionId, false), 'feature/z')
     // MAIN-4: checking out a branch updates the project's branch through a single, targeted
     // re-resolve of this one folder — not a full-library rescan of every transcript. The `branch`
     // column is only ever written by `resolveProject`, so this is what the ipc.ts handler now
     // calls in place of `await service.refresh()`.
-    await service.refreshProjectByKey(sessionId, false)
+    await service.refreshProjectByKey(terminalRef(sessionId, false))
 
     const after = await service.tree()
     expect(after[0]?.branch).toBe('feature/z')
@@ -104,8 +105,8 @@ describe('git operations', () => {
 
     const logSpy = vi.spyOn(log, 'info')
     git(gitDir, 'branch', 'feature/w')
-    await service.gitCheckoutBranch(sessionId, false, 'feature/w')
-    await service.refreshProjectByKey(sessionId, false)
+    await service.gitCheckoutBranch(terminalRef(sessionId, false), 'feature/w')
+    await service.refreshProjectByKey(terminalRef(sessionId, false))
     // Nothing under 'refresh'/'pass' is logged, because refreshProjectByKey never calls
     // runRefresh at all — it only resolves and syncs the one folder.
     expect(logSpy.mock.calls.some(([scope]) => scope === 'refresh')).toBe(false)

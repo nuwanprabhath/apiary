@@ -1,3 +1,4 @@
+import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { existsSync, writeFileSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -55,7 +56,7 @@ describe('composer: images and prompt delivery', () => {
     })
     await service.refresh()
     await service.importSessions(['11111111-1111-1111-1111-111111111111'], [])
-    await service.openShell('11111111-1111-1111-1111-111111111111', '1')
+    await service.openShell(asSessionId('11111111-1111-1111-1111-111111111111'), '1')
     const ptyId = 'shell:11111111-1111-1111-1111-111111111111:1'
 
     const chunks: string[] = []
@@ -122,7 +123,7 @@ describe('composer: images and prompt delivery', () => {
     })
     await service.refresh()
     await service.importSessions(['22222222-2222-2222-2222-222222222222'], [])
-    await service.openShell('22222222-2222-2222-2222-222222222222', '1')
+    await service.openShell(asSessionId('22222222-2222-2222-2222-222222222222'), '1')
     const ptyId = 'shell:22222222-2222-2222-2222-222222222222:1'
 
     // A hostile payload that tries to close the bracketed paste itself, so what follows would run

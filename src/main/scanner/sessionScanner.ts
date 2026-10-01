@@ -1,6 +1,7 @@
 import { readdir, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { SessionMeta } from '@shared/types'
+import { asSessionId } from '@shared/domain/ids'
 import { readHeadLines, readTailLines } from './boundaryRead'
 
 interface Entry { type?: string; [key: string]: unknown }
@@ -80,7 +81,7 @@ export async function extractMeta(filePath: string): Promise<SessionMeta> {
   const customTitle = latestCustomTitle(tail) ?? latestCustomTitle(head)
 
   return {
-    sessionId: basename(filePath, '.jsonl'),
+    sessionId: asSessionId(basename(filePath, '.jsonl')),
     filePath,
     fileMtimeMs: info.mtimeMs,
     fileSize: info.size,

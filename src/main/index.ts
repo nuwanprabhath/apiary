@@ -1,21 +1,20 @@
 import { app, BrowserWindow, Menu, dialog, session } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { AppService } from './appService'
+import { type AppService } from './appService'
 import { registerIpc } from './ipc'
-import { createSessionLayoutStore, loadSessionLayout, type SessionLayoutStore } from './windows/sessionLayoutStore'
-import { createLayoutFlushCoordinator, type LayoutFlushCoordinator } from './windows/layoutFlushCoordinator'
-import { TabRegistry } from './windows/tabRegistry'
+import { loadSessionLayout, type SessionLayoutStore } from './windows/sessionLayoutStore'
+import { type LayoutFlushCoordinator } from './windows/layoutFlushCoordinator'
+import type { TabRegistry } from './windows/tabRegistry'
 import { pruneStaleLive } from './windows/sessionLayoutRestore'
-import { resolveConfigRoot } from './app/config'
+import { readsClaudeKeychain, resolveConfigRoot } from './app/config'
+import { createContainer, containerPaths } from './app/container'
 import { buildMenu } from './app/menu'
-import { ThemeStore, DEFAULT_THEME_ID } from './theme/themeStore'
 import { writeZshShim } from './pty/promptPath'
-import { ThemeGenerator } from './theme/themeGenerator'
+import type { ThemeGenerator } from './theme/themeGenerator'
 import { CHANNELS } from '@shared/api'
-import { SettingsService } from './settings/settingsService'
+import { type SettingsService } from './settings/settingsService'
 import type { UpdateService } from './update/updateService'
-import { createUpdater } from './update/createUpdater'
 import { log } from './log/logger'
 import { configureLogging } from './log/configure'
 import { detectVsCode } from './vscode/detectVsCode'
@@ -23,7 +22,7 @@ import { parseRuntimeEnv, type RuntimeEnv } from './app/env'
 import { installPermissionGuards } from './app/permissions'
 import { broadcast } from './windows/broadcast'
 import { fireAndForget } from './log/fireAndForget'
-import { WindowManager } from './windows/windowManager'
+import type { WindowManager } from './windows/windowManager'
 import { installQuitDeferral } from './app/lifecycle'
 
 const dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -148,28 +147,34 @@ async function start(): Promise<void> {
   // Before any window is created: Electron's default is to grant every permission a page asks
   // for, and that default applies to any request made before a handler is registered (SEC-10).
   installPermissionGuards(session.defaultSession)
-  // Test-only overrides so E2E can run against fixture data.
-  const configRoot = env.configRoot ?? resolveConfigRoot()
-  const dbPath = env.dbPath ?? join(app.getPath('userData'), 'apiary.db')
-  const fakeLive = env.fakeLive
-  const settingsFile = join(app.getPath('userData'), 'settings.json')
-  const sessionLayoutFile = join(app.getPath('userData'), 'session-layout.json')
-  sessionLayoutStore = createSessionLayoutStore(sessionLayoutFile)
-  layoutFlushCoordinator = createLayoutFlushCoordinator()
-  tabRegistry = new TabRegistry()
-  // Reads the file once, migrates it and writes the migration back — see `SettingsService`'s own
-  // doc comment (MAIN-16). Every later read/write in this process goes through this one instance.
-  settingsService = new SettingsService(settingsFile)
-  windowManager = new WindowManager({
-    settingsService,
-    sessionLayoutStore,
-    tabRegistry,
-    headless,
+  const userData = app.getPath('userData')
+  const paths = containerPaths(env, userData, resolveConfigRoot)
+  // Test-only, like APIARY_GLAB_PATH: substitutes a fake `code` binary for E2E, and an empty
+  // string simulates VS Code not being found at all. Undefined (never set outside tests) means
+  // run the real detection.
+  const codePathOverride = env.codePathOverride
+  const vsCodePath = codePathOverride === undefined
+    ? await detectVsCode()
+    : (codePathOverride === '' ? null : codePathOverride)
+  // Everything long-lived is built in `app/container.ts` (MAIN-15 step 5); what is left in this
+  // function is the order things start in.
+  const container = createContainer(env, paths, {
+    vsCodePath,
+    // Rewritten every launch, so a new Apiary's shim replaces an old one's.
+    zshPromptShim: writeZshShim(join(userData, 'prompt-shim', 'zsh')),
     dirname,
-    rendererUrl: env.rendererUrl,
+    statusBarKeychain: readsClaudeKeychain(process.platform, env.configRoot),
     isQuitting,
-    ...(env.windowChrome !== undefined ? { chromeOverride: env.windowChrome } : {}),
   })
+  const { configRoot } = paths
+  settingsService = container.settingsService
+  sessionLayoutStore = container.sessionLayoutStore
+  layoutFlushCoordinator = container.layoutFlushCoordinator
+  tabRegistry = container.tabRegistry
+  windowManager = container.windowManager
+  service = container.service
+  updater = container.updater
+  themeGenerator = container.themeGenerator
   const settings = settingsService.get()
   // Before anything else that might be worth recording. Off unless the user switched it on.
   configureLogging(settings)
@@ -180,44 +185,8 @@ async function start(): Promise<void> {
     electron: process.versions.electron,
     packaged: app.isPackaged,
   })
-  // Test-only, like APIARY_GLAB_PATH: substitutes a fake `code` binary for E2E, and an empty
-  // string simulates VS Code not being found at all. Undefined (never set outside tests) means
-  // run the real detection.
-  const codePathOverride = env.codePathOverride
-  const vsCodePath = codePathOverride === undefined
-    ? await detectVsCode()
-    : (codePathOverride === '' ? null : codePathOverride)
-  service = new AppService({
-    configRoot,
-    dbPath,
-    claudeBin: settings.claudeBin ?? undefined,
-    autoImportAll: settings.autoImportAll,
-    searchChatContent: settings.searchChatContent,
-    searchSessionNotes: settings.searchSessionNotes,
-    promptPath: {
-      enabled: settings.terminalShortenPath,
-      segments: settings.terminalPathSegments,
-      minimal: settings.terminalMinimalPrompt,
-    },
-    // Rewritten every launch, so a new Apiary's shim replaces an old one's.
-    zshPromptShim: writeZshShim(join(app.getPath('userData'), 'prompt-shim', 'zsh')),
-    plugins: settings.plugins,
-    pluginSettings: settings.pluginSettings,
-    // Test-only, like APIARY_FAKE_LIVE: points the merge-request plugin at a stand-in `glab`.
-    glabPath: env.glabPath === '' ? undefined : env.glabPath,
-    vsCodePath,
-    onPluginsChanged: () => { broadcast(CHANNELS.pluginsChanged) },
-    onStatusBarChanged: () => { broadcast(CHANNELS.statusBarChanged) },
-    statusBarKeychain: process.platform === 'darwin' && env.configRoot === undefined,
-    onIndexUpdated: () => { broadcast(CHANNELS.treeChanged) },
-    detectLive: fakeLive !== undefined && fakeLive !== ''
-      ? async () => new Map([[fakeLive, 4242]])
-      : undefined,
-  })
-  updater = createUpdater(settingsService, env)
   // Before any window exists: each window asks for its theme synchronously as it loads.
   const safeTheme = env.safeTheme
-  themeGenerator = new ThemeGenerator({ claudeBin: () => service?.claudeBin ?? null })
   const ipc = registerIpc({
     service, configRoot, settings: settingsService,
     pickFolder: async (sender) => {
@@ -240,7 +209,7 @@ async function start(): Promise<void> {
     theme: {
       // APIARY_DEFAULT_THEME=original is test-only: the E2E suite is written against the original
       // look, so a fresh profile there starts on it rather than on the default theme.
-      store: new ThemeStore(join(app.getPath('userData'), 'themes.json'), env.defaultThemeOriginal ? null : DEFAULT_THEME_ID),
+      store: container.themeStore,
       safeMode: safeTheme,
       generator: themeGenerator,
     },
@@ -279,7 +248,7 @@ async function start(): Promise<void> {
       () => { resetTheme('menu') },
     ),
   )
-  const stored = loadSessionLayout(sessionLayoutFile)
+  const stored = loadSessionLayout(paths.sessionLayoutFile)
   const records = stored.windows
     .map((r) => pruneStaleLive(r, (id) => service!.sessionIsResumable(id)))
     .filter((r) => r.layout.panes.some((p) => p.tabs.length > 0))
