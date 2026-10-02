@@ -1,6 +1,7 @@
 
 .resume-bar { display: flex; gap: 6px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); }
 .resume-bar .btn[data-active="true"] { background: var(--selected); border-color: var(--accent); }
+.resume-handoff { display: flex; gap: 6px; align-items: center; min-width: 0; font-size: 12px; }
 .resume-bar .btn:disabled { cursor: not-allowed; }
 .spacer { flex: 1; }
 

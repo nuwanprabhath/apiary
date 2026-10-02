@@ -61,7 +61,11 @@ changing anything. Three rules:
   `resume` stops a chat first; `checkConflict` does not report Apiary's own chat as a conflict.
 - **The JSONL stays the record.** Streamed messages carry the same uuids the file gets;
   `ChatState.live` only covers the gap until the transcript has read them (`mergeLive`).
-- **A turn owes an answer per message sent.** Claude queues a message sent mid-turn, so one
-  `result` does not make the chat idle while another is owed (`ChatSession.owed`).
+- **A message sent mid-turn joins that turn.** Claude takes it in at the next tool result and
+  answers it in the same turn — one `result` for both (measured on 2.1.286). It is replayed
+  (`isReplay`) when taken in, which is what moves it out of `ChatState.queued`; the file records it
+  as an `attachment` of type `queued_command` whose `source_uuid` is the replayed uuid
+  (`transcriptReader.ts`'s `queuedMessage`). A turn can also start with nothing sent — a
+  background task finishing — so the first streamed message marks the chat busy, not `send`.
 
 `tests/fixtures/fake-claude-chat.mjs` speaks the same protocol for integration and e2e tests.

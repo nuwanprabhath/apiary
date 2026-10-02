@@ -101,6 +101,7 @@
  * this is the thing you type into, and it should never scroll away mid-sentence.
  */
 .composer {
+  position: relative;
   flex: none;
   border-top: 1px solid var(--border);
   background: var(--bg-panel);
@@ -139,9 +140,26 @@
 .composer-attachment-remove:hover { color: var(--danger); border-color: var(--danger); }
 .composer-attachment-remove svg { width: 10px; height: 10px; display: block; }
 
+/* The composer's top border is the handle: drag it up to make the box taller (Composer). It has
+   the row of grip dots every other resizable edge has (20-sidebar.css), so it reads as one. It lies
+   over the border and the padding above the content, never over the content — an attachment's
+   remove button reaches up into that padding. */
+.composer-resize {
+  position: absolute;
+  top: -5px;
+  right: 0;
+  left: 0;
+  z-index: var(--z-base);
+  height: 7px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
 .composer-input {
+  display: block;
   width: 100%;
-  resize: vertical;
+  /* Sized by Composer: it grows with what is typed, and the handle above sets its height. */
+  resize: none;
   min-height: 58px;
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
@@ -165,7 +183,15 @@
   font: inherit;
   font-size: 12px;
 }
-.composer-hint { margin-left: auto; font-size: 12px; }
+.composer-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* Sizing, colour and disabled state come from the control layer: `.composer-send` is listed
    there beside `.btn.primary`, and only its wider padding is its own. */
 .composer-send { padding: 0 14px; }
@@ -235,8 +261,12 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-overlay);
+  /* The menu takes focus when it opens; the browser's default ring drew a light frame round it. */
+  outline: none;
 }
 .context-menu-item {
+  /* Keyboard focus is shown by the hover background below, not the browser's default ring. */
+  outline: none;
   display: block;
   width: 100%;
   border: 0;

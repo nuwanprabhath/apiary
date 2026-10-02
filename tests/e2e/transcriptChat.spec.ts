@@ -28,7 +28,7 @@ test('a message sent from the transcript is answered there, tools and all, witho
   await h.page.getByTestId('composer-input').fill('hello from the chat')
   await h.page.getByTestId('composer-input').press('Enter')
   await expect(h.page.getByTestId('chat-text').last()).toContainText('You said: hello from the chat')
-  await expect(h.page.getByTestId('chat-sticky-prompt')).toContainText('hello from the chat')
+  await expect(h.page.getByTestId('chat-user').last()).toContainText('hello from the chat')
 
   await h.page.getByTestId('composer-input').fill('this needs permission')
   await h.page.getByTestId('composer-input').press('Enter')
@@ -74,7 +74,12 @@ test('a session moves from its terminal to the chat and back again', async () =>
   await h.page.getByTestId('resume-button').click()
   await expect(h.page.getByTestId('view-terminal')).toHaveAttribute('data-active', 'true')
 
-  // Sending from the transcript moves it to the chat: the terminal's claude is stopped.
+  // Sending from the transcript moves it to the chat once the terminal's claude is idle (a busy
+  // one keeps the session, and gets the message typed into it): the terminal's claude is stopped.
+  await expect.poll(() => h.page.evaluate(
+    async (id) => window.apiary.terminalBusy(id),
+    STANDARD_SESSIONS.csv.id,
+  ), { timeout: 10000 }).toEqual({ busy: false, backgroundTasks: 0 })
   await h.page.getByTestId('view-transcript').click()
   await h.page.getByTestId('composer-input').fill('over to the chat')
   await h.page.getByTestId('composer-input').press('Enter')
@@ -110,5 +115,29 @@ test('the / menu runs Claude\'s commands, and /clear takes the tab on to the new
   await h.page.getByTestId('composer-input').press('Enter')
   await expect(h.page.getByTestId('chat-text').last()).toContainText('You said: fresh start')
   await expect(h.page.getByTestId('session-title')).not.toHaveText('Fix CSV export bug', { timeout: 15000 })
-  await expect(h.page.getByTestId('chat-sticky-prompt')).toHaveText('fresh start')
+  await expect(h.page.getByTestId('chat-user').last()).toHaveText('fresh start')
+})
+
+test('a message sent mid-turn waits as queued and is answered in that turn; a background task shows above the box and its finishing starts a turn', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await expect(h.page.getByTestId('chat-timeline')).toBeVisible()
+
+  await h.page.getByTestId('composer-input').fill('a slow answer please')
+  await h.page.getByTestId('composer-input').press('Enter')
+  await expect(h.page.getByTestId('chat-streaming')).toContainText('word1')
+  await h.page.getByTestId('composer-input').fill('and one more thing')
+  await h.page.getByTestId('composer-input').press('Enter')
+  await expect(h.page.getByTestId('chat-queued')).toContainText('and one more thing')
+  await expect(h.page.getByTestId('chat-text').last()).toContainText('You said: and one more thing', { timeout: 20000 })
+  await expect(h.page.getByTestId('chat-queued')).toHaveCount(0)
+  await expect(h.page.getByTestId('chat-user').filter({ hasText: 'and one more thing' })).toHaveCount(1)
+  await expect(h.page.getByTestId('composer-send')).toBeVisible()
+
+  await h.page.getByTestId('composer-input').fill('run something in the background')
+  await h.page.getByTestId('composer-input').press('Enter')
+  await expect(h.page.getByTestId('chat-status-tasks')).toContainText('1 background task running')
+  // Nothing more is sent: the task finishing starts the next turn, and the line clears.
+  await expect(h.page.getByTestId('chat-text').last()).toContainText('The background task finished.')
+  await expect(h.page.getByTestId('chat-status-tasks')).toHaveCount(0)
+  await expect(h.page.getByTestId('chat-status-turn')).toContainText('for 1s')
 })

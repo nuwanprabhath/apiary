@@ -85,17 +85,40 @@ describe('ChatManager', () => {
     expect(textOf(done)).toContain('[Request interrupted by user]')
   }, 20000)
 
-  it('a message sent while Claude is still answering keeps the chat busy until both are answered', async () => {
+  it('a message sent while Claude is still answering waits as queued, then joins that turn and keeps it busy until answered', async () => {
     const { states, until } = start()
     manager!.send(SESSION, 'first')
     await until((s) => (s.streaming?.text ?? '') !== '')
     manager!.send(SESSION, 'second')
+    // Shown as waiting until Claude takes it in…
+    expect(manager!.state(SESSION)?.queued.map((q) => q.text)).toEqual(['second'])
     const done = await until((s) => s.status === 'idle' && textOf(s).includes('You said: second'))
-    expect(textOf(done)).toContain('You said: first')
+    // …then it is part of the conversation, where Claude read it, and no longer waiting.
+    expect(textOf(done)).toEqual(['first', 'You said: first', 'second', 'You said: second'])
+    expect(done.queued).toEqual([])
     // Between the first answer and the second, it never looked finished.
     const firstAnswered = states.findIndex((s) => textOf(s).includes('You said: first'))
     const secondAnswered = states.findIndex((s) => textOf(s).includes('You said: second'))
     expect(states.slice(firstAnswered, secondAnswered).every((s) => s.status === 'busy')).toBe(true)
+  }, 20000)
+
+  it('knows how full the context is from the start, before any turn has ended', async () => {
+    const { until } = start()
+    const known = await until((s) => s.contextWindow !== null)
+    expect(known).toMatchObject({ contextUsed: 4010, contextWindow: 200000 })
+  }, 20000)
+
+  it('reports background tasks, and a turn a finished task starts on its own is busy, then says how long it took', async () => {
+    const { states, until } = start()
+    manager!.send(SESSION, 'run it in the background')
+    const started = await until((s) => s.status === 'idle' && (s.backgroundTasks?.length ?? 0) === 1)
+    expect(started.backgroundTasks?.[0].description).toBe('Sleep, then say done')
+    expect(started.lastTurn?.durationMs).toBe(1234)
+    const idleAt = states.length
+    // Nothing is sent: the task finishing is what starts the next turn.
+    const done = await until((s) => s.status === 'idle' && textOf(s).includes('The background task finished.'))
+    expect(done.backgroundTasks).toEqual([])
+    expect(states.slice(idleAt).some((s) => s.status === 'busy' && s.turnStartedAt !== null)).toBe(true)
   }, 20000)
 
   it('stopping ends the process cleanly, with no error', async () => {

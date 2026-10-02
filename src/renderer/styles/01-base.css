@@ -1,6 +1,22 @@
 
 * { box-sizing: border-box; }
 
+/*
+ * One focus ring, the app's, everywhere. Chromium draws its own on any focused element the app
+ * has not styled — `outline: auto` in the OS accent colour, which on a Mac or Ubuntu set to orange
+ * reads as a white-and-orange double border. It showed wherever focus landed after a key press
+ * (Enter or Escape closing a dialog or menu hands focus back to the "+" or row that opened it),
+ * and had been patched away one element at a time (`.search:focus`, the tab rename field, the
+ * context menu) while new elements kept arriving without it.
+ *
+ * So the platform ring is off for every element, and keyboard focus (`:focus-visible` — never a
+ * mouse click) gets the app's ring instead: one 1px accent line, the one fields and buttons have.
+ * `:where()` keeps that at zero specificity, so any element's own focus style still wins.
+ * `tests/component/focusRing.test.tsx` focuses every focusable element and checks.
+ */
+:focus { outline: none; }
+:where(:focus-visible) { box-shadow: var(--focus-ring); }
+
 body { margin: 0; background: var(--bg-window); color: var(--text); }
 
 /* See the comment on the sidebar/bottom-pane resize effects in App.tsx. */

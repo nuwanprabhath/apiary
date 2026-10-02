@@ -33,7 +33,7 @@ import type { PtySessionInfo, PtySnapshot } from '../domain/pty'
 import type { StatusBarItem, StatusBarPanel } from '../domain/statusBar'
 import {
   isChatDecision, isChatEffort, isChatModel, isChatPermissionMode,
-  type ChatDecision, type ChatEffort, type ChatModel, type ChatPermissionMode, type ChatState,
+  type ChatDecision, type ChatEffort, type ChatModel, type ChatPermissionMode, type ChatState, type TerminalBusy,
 } from '../domain/chat'
 import type { AppMenuNode } from '../domain/windowChrome'
 import type { ThemeSpec } from '../theme/spec'
@@ -235,6 +235,9 @@ export const IPC = {
   chatSetModel: invoke<[sessionId: SessionId, model: ChatModel], void>('apiary:chat-set-model', tuple(sessionIdArg, chatModelArg)),
   chatSetEffort: invoke<[sessionId: SessionId, effort: ChatEffort], void>('apiary:chat-set-effort', tuple(sessionIdArg, chatEffortArg)),
   chatStop: invoke<[sessionId: SessionId], void>('apiary:chat-stop', tuple(sessionIdArg)),
+  /** Whether the session's terminal claude is mid-turn or has background tasks still running —
+   *  when it is, the chat sends into that terminal rather than stopping it to take over. */
+  terminalBusy: invoke<[sessionId: SessionId], TerminalBusy>('apiary:terminal-busy', tuple(sessionIdArg)),
   chatChanged: event<[state: ChatState]>('apiary:chat-changed'),
   /** The application menu, for the themed title bar to draw on Windows and Linux. */
   appMenu: invoke<[], AppMenuNode[]>('apiary:app-menu', tuple()),

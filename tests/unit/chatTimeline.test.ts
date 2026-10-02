@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { TranscriptMessage } from '../../src/shared/domain/transcript'
-import { chatItems, describeTool, lastPrompt, mergeLive } from '../../src/shared/chatTimeline'
+import { chatItems, describeTool, lastPrompt, latestTurn, mergeLive, runningBackgroundTasks } from '../../src/shared/chatTimeline'
 
 const msg = (uuid: string, role: 'user' | 'assistant', blocks: TranscriptMessage['blocks']): TranscriptMessage =>
   ({ uuid, role, timestampMs: null, isSidechain: false, blocks })
@@ -43,5 +43,47 @@ describe('chat timeline', () => {
     expect(describeTool('Read', { file_path: '/repo/src/app.ts' })).toEqual({ title: 'app.ts', input: '/repo/src/app.ts' })
     expect(describeTool('Grep', { pattern: 'TODO', path: 'src' })).toEqual({ title: 'TODO', input: 'TODO  in src' })
     expect(describeTool('Mystery', { a: 1 }).input).toBe('{\n  "a": 1\n}')
+  })
+
+  it('shows a background task reporting back as a notice, not as something you asked', () => {
+    const notification = '<task-notification>\n<task-id>b1</task-id>\n<tool-use-id>t9</tool-use-id>\n<status>completed</status>\n<summary>Background command "Sleep" completed (exit code 0)</summary>\n</task-notification>'
+    const items = chatItems([...CONVERSATION.slice(0, 1), msg('n1', 'user', [{ type: 'text', text: notification }])])
+    expect(items.map((i) => i.kind)).toEqual(['user', 'notice'])
+    expect(items[1]).toMatchObject({ text: 'Background command "Sleep" completed (exit code 0)', status: 'completed' })
+    // The prompt pinned at the top stays the one you wrote.
+    expect(lastPrompt(items)).toMatchObject({ text: 'list the files' })
+  })
+
+  it('shows a slash command as you typed it, and drops the caveat Claude Code adds before it', () => {
+    const items = chatItems([
+      msg('c0', 'user', [{ type: 'text', text: '<local-command-caveat>Caveat: the messages below…</local-command-caveat>' }]),
+      msg('c1', 'user', [{ type: 'text', text: '<command-name>/model</command-name>\n<command-message>model</command-message>\n<command-args>opus</command-args>' }]),
+      msg('c2', 'user', [{ type: 'text', text: '<local-command-stdout>Set model to Opus 5.5</local-command-stdout>' }]),
+    ])
+    expect(items).toMatchObject([{ kind: 'user', text: '/model opus' }, { kind: 'notice', text: 'Set model to Opus 5.5' }])
+  })
+
+  it('knows which background tasks are still running from the session file', () => {
+    const started = (id: string, task: string): TranscriptMessage[] => [
+      msg(`a-${id}`, 'assistant', [{ type: 'tool_use', id, name: 'Bash', input: { command: 'sleep 9', description: `Task ${task}`, run_in_background: true } }]),
+      msg(`r-${id}`, 'user', [{ type: 'tool_result', toolUseId: id, content: `Command running in background with ID: ${task}. Output is being written to: /tmp/x`, isError: false }]),
+    ]
+    const done = (...tasks: string[]): TranscriptMessage =>
+      msg(`n-${tasks.join()}`, 'user', [{ type: 'text', text: `<task-notification>\n${tasks.map((t) => `<task-id>${t}</task-id>`).join('\n')}\n<status>completed</status>\n</task-notification>` }])
+    const file = [...started('t1', 'b1'), ...started('t2', 'b2'), ...started('t3', 'b3'), done('b1')]
+    expect(runningBackgroundTasks(file)).toEqual([{ taskId: 'b2', description: 'Task b2' }, { taskId: 'b3', description: 'Task b3' }])
+    // On resume Claude Code reports every task the previous process left behind, in one notification.
+    expect(runningBackgroundTasks([...file, done('b2', 'b3')])).toEqual([])
+    // An ordinary command is not a background task.
+    expect(runningBackgroundTasks(CONVERSATION)).toEqual([])
+  })
+
+  it('says how the latest turn ended, and the recap after it, until you send something', () => {
+    const turnEnd = (uuid: string, ms: number, at: number): TranscriptMessage =>
+      ({ ...msg(uuid, 'assistant', [{ type: 'turn_end', durationMs: ms }]), timestampMs: at })
+    const recap = msg('rc', 'assistant', [{ type: 'recap', text: 'You were listing files.' }])
+    expect(latestTurn([...CONVERSATION, turnEnd('t1', 33000, 1000), recap])).toEqual({ durationMs: 33000, endedAtMs: 1000, recap: 'You were listing files.' })
+    expect(latestTurn([...CONVERSATION, turnEnd('t1', 33000, 1000)]).recap).toBeNull()
+    expect(latestTurn([turnEnd('t1', 33000, 1000), msg('u9', 'user', [{ type: 'text', text: 'next' }])]).durationMs).toBeNull()
   })
 })

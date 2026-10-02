@@ -20,7 +20,9 @@ import type { PtyId, SessionId, TerminalRef } from '@shared/domain/ids'
 import type { MrState } from './git/mrStatusCache'
 import { VsCodeService } from './vscode/vscodeService'
 import { ChatManager, type SpawnChat } from './chat/chatManager'
-import type { ChatDecision, ChatEffort, ChatModel, ChatPermissionMode, ChatState } from '@shared/domain/chat'
+import type { ChatDecision, ChatEffort, ChatModel, ChatPermissionMode, ChatState, TerminalBusy } from '@shared/domain/chat'
+import { classifyActivity } from '@shared/activity'
+import { runningBackgroundTasks } from '@shared/chatTimeline'
 import { ImageStore } from './media/imageStore'
 import type {
   ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo, CheckoutOutcome,
@@ -438,6 +440,20 @@ export class AppService {
   chatSetModel(sessionId: SessionId, model: ChatModel): void { this.chats.setModel(sessionId, model) }
   chatSetEffort(sessionId: SessionId, effort: ChatEffort): void { this.chats.setEffort(sessionId, effort) }
   async chatStop(sessionId: SessionId): Promise<void> { await this.chats.stop(sessionId) }
+
+  /**
+   * Whether stopping the session's terminal would cost anything: Claude mid-turn (read from the
+   * rendered screen, as the activity dots are), or background tasks it started that have not
+   * reported back (read from the session file) — they are its children and die with it. The
+   * chat takes over only a terminal with neither.
+   */
+  async terminalBusy(sessionId: SessionId): Promise<TerminalBusy> {
+    if (!this.pty.has(sessionId)) return { busy: false, backgroundTasks: 0 }
+    const status = classifyActivity(this.pty.screen(sessionId), this.pty.lastOutputAt(sessionId), Date.now(), true)
+    const session = this.resolver.requireSession(sessionId)
+    const page = await readTranscriptPage(session.filePath).catch(() => null)
+    return { busy: status !== 'idle', backgroundTasks: page === null ? 0 : runningBackgroundTasks(page.messages).length }
+  }
 
   /** Whether VS Code was found on this machine at launch. Checked once; does not change at runtime. */
   vsCodeAvailable(): boolean {

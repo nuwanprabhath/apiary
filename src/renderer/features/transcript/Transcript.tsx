@@ -1,17 +1,22 @@
 import { type JSX, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SessionNode, TranscriptMessage } from '@shared/types'
 import type { ChatDecision, ChatState } from '@shared/domain/chat'
-import { chatItems, mergeLive } from '@shared/chatTimeline'
+import { chatItems, latestTurn, mergeLive, runningBackgroundTasks } from '@shared/chatTimeline'
 import { ChatTimeline } from '../chat/ChatTimeline'
+import { ChatStatus, type ChatStatusInfo } from '../chat/ChatStatus'
+import { useCopyOnSelect } from '../chat/useCopyOnSelect'
 import { MessageRow } from './MessageRow'
 import { mergeLatestPage } from '../../state/transcriptMerge'
 import { describeError, type DescribedError } from '../../ui/errors'
 
-// How close to the bottom (in pixels) the user has to be scrolled for a live update to be
-// allowed to auto-scroll them further. Comfortably larger than one message row so that "reading
-// the last message but not pixel-perfect at the very bottom" still counts as "at the bottom",
-// while a deliberate scroll up to read history does not.
-const STICKY_BOTTOM_THRESHOLD_PX = 64
+// How close to the bottom (in pixels) counts as being at it, for following new content again.
+// Deliberately tight: this used to be 64px, and a trackpad scrolls up a few pixels per event — so
+// the first events of a scroll up still counted as "at the bottom", and the next streamed word
+// (every 40ms in a chat) pulled the view back down. Leaving the bottom is now decided by the
+// direction you scroll (see handleScroll), and only coming back all the way re-attaches.
+const STICKY_BOTTOM_THRESHOLD_PX = 4
+// Scrolled up further than this, the "Jump to latest" button shows.
+const JUMP_BUTTON_THRESHOLD_PX = 240
 
 interface TranscriptProps {
   session: SessionNode
@@ -27,10 +32,13 @@ interface TranscriptProps {
   chatMode?: boolean
   chat?: ChatState | null
   onDecide?: (requestId: string, decision: ChatDecision) => void
+  /** Whether the session's claude is running in its terminal — background tasks are only still
+   *  running while their process is. */
+  terminalRunning?: boolean
 }
 
 export function Transcript({
-  session, visible = true, onOpenImage, chatMode = false, chat = null, onDecide,
+  session, visible = true, onOpenImage, chatMode = false, chat = null, onDecide, terminalRunning = false,
 }: TranscriptProps): JSX.Element {
   const [messages, setMessages] = useState<TranscriptMessage[]>([])
   const [cursor, setCursor] = useState<number | null>(null)
@@ -160,12 +168,33 @@ export function Transcript({
 
   // Tracks whether the user is currently at (or very near) the bottom, so a live refresh knows
   // whether it's allowed to auto-scroll. Read live-refresh's comment for how this is used.
+  //
+  // Moving up at all leaves the bottom; only reaching it again re-attaches. Content growing never
+  // moves `scrollTop`, and content shrinking under you while you sit at the bottom leaves you at
+  // the bottom, so a move up is always you (or "go to this message", which is also you).
+  const lastScrollTopRef = useRef(0)
+  const [showJump, setShowJump] = useState(false)
   const handleScroll = useCallback(() => {
     const el = containerRef.current
     if (el === null) return
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    stickToBottomRef.current = distanceFromBottom <= STICKY_BOTTOM_THRESHOLD_PX
+    const movedUp = el.scrollTop < lastScrollTopRef.current - 1
+    lastScrollTopRef.current = el.scrollTop
+    if (distanceFromBottom <= STICKY_BOTTOM_THRESHOLD_PX) stickToBottomRef.current = true
+    else if (movedUp) stickToBottomRef.current = false
+    setShowJump(!stickToBottomRef.current && distanceFromBottom > JUMP_BUTTON_THRESHOLD_PX)
   }, [])
+  // A wheel or key turned upwards says "stop following" before the scroll event even lands — the
+  // first notch would otherwise race a streamed word that puts the view straight back down.
+  const stopFollowing = useCallback(() => { stickToBottomRef.current = false }, [])
+  const jumpToLatest = useCallback(() => {
+    const el = containerRef.current
+    if (el === null) return
+    stickToBottomRef.current = true
+    el.scrollTop = el.scrollHeight
+    setShowJump(false)
+  }, [])
+  const { onContextMenu, menu: copyMenu } = useCopyOnSelect(containerRef)
 
   // Live updates: `onTreeChanged` fires (debounced ~1s in the main process) whenever any session
   // file on disk changed, with no per-session payload — so on every firing we just re-fetch this
@@ -253,6 +282,23 @@ export function Transcript({
     return chatItems(mergeLive(visibleMessages, live))
   }, [chatMode, chat?.live, visibleMessages, showSidechain])
 
+  // The line above the message box: background tasks still running (claude's own list while it
+  // runs as a chat, else the file's, while its terminal runs), and how the latest turn ended.
+  const status = useMemo((): ChatStatusInfo => {
+    if (!chatMode) return { tasks: [], turn: null, recap: null }
+    const chatRunning = chat !== null && chat.status !== 'exited'
+    const tasks = chatRunning && chat.backgroundTasks !== null
+      ? chat.backgroundTasks
+      : chatRunning || terminalRunning ? runningBackgroundTasks(messages) : []
+    if (chat?.status === 'busy') return { tasks, turn: null, recap: null }
+    const fromFile = latestTurn(messages)
+    const live = chat?.lastTurn ?? null
+    const turn = live !== null && (fromFile.endedAtMs === null || live.endedAt >= fromFile.endedAtMs)
+      ? { durationMs: live.durationMs, endedAtMs: live.endedAt }
+      : fromFile.durationMs !== null ? { durationMs: fromFile.durationMs, endedAtMs: fromFile.endedAtMs } : null
+    return { tasks, turn, recap: fromFile.recap }
+  }, [chatMode, chat, messages, terminalRunning])
+
   // A streamed word, a permission prompt or the working line appearing keeps the view at the
   // bottom — the same rule a new message from the file follows: only if you were already there.
   useLayoutEffect(() => {
@@ -288,7 +334,16 @@ export function Transcript({
   }
 
   return (
-    <div className="transcript" data-testid="transcript" ref={containerRef} onScroll={handleScroll}>
+    <>
+    <div
+      className="transcript"
+      data-testid="transcript"
+      ref={containerRef}
+      onScroll={handleScroll}
+      onWheel={(e) => { if (e.deltaY < 0) stopFollowing() }}
+      onKeyDown={(e) => { if (['ArrowUp', 'PageUp', 'Home'].includes(e.key)) stopFollowing() }}
+      onContextMenu={onContextMenu}
+    >
       <div className="transcript-toolbar">
         <label className="checkbox">
           <input
@@ -333,6 +388,15 @@ export function Transcript({
       {!loading && visibleMessages.length === 0 && (chat?.live.length ?? 0) === 0 && (
         <p className="empty" data-testid="transcript-empty">This session has no messages yet.</p>
       )}
+
+      {showJump && (
+        <button className="chat-jump" data-testid="transcript-jump" onClick={jumpToLatest}>
+          Jump to latest ↓
+        </button>
+      )}
     </div>
+    {chatMode && <ChatStatus tasks={status.tasks} turn={status.turn} recap={status.recap} />}
+    {copyMenu}
+    </>
   )
 }

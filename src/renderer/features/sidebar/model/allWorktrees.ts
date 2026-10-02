@@ -30,3 +30,37 @@ export function withAllWorktrees(tree: ProjectNode[], extras: ReadonlyMap<string
     }
   })
 }
+
+/**
+ * The top-level folder each made worktree belongs under, with the worktree paths made there: the
+ * folder it was made from, or the folder whose worktree that was. A folder no longer in the tree
+ * adds nothing.
+ */
+export function createdWorktreeRoots(
+  created: readonly { folder: string; path: string }[], tree: readonly ProjectNode[],
+): Map<string, Set<string>> {
+  const roots = new Map<string, Set<string>>()
+  for (const w of created) {
+    const root = tree.find((n) => n.path === w.folder || n.children.some((c) => c.path === w.folder))
+    if (root === undefined) continue
+    const paths = roots.get(root.path) ?? new Set<string>()
+    paths.add(w.path)
+    roots.set(root.path, paths)
+  }
+  return roots
+}
+
+/** What git listed, cut down to what is wanted: every worktree of a folder showing all of them,
+ *  only the made ones of any other. */
+export function onlyWanted(
+  listed: ReadonlyMap<string, FolderWorktree[]>, showAll: readonly string[], created: ReadonlyMap<string, Set<string>>,
+): ReadonlyMap<string, FolderWorktree[]> {
+  const out = new Map<string, FolderWorktree[]>()
+  for (const [folder, worktrees] of listed) {
+    if (showAll.includes(folder)) { out.set(folder, worktrees); continue }
+    const made = created.get(folder)
+    const kept = made === undefined ? [] : worktrees.filter((w) => made.has(w.path))
+    if (kept.length > 0) out.set(folder, kept)
+  }
+  return out
+}

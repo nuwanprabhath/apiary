@@ -1,6 +1,7 @@
 import {
   isChatEffort, type ChatCommand, type ChatDecision, type ChatEffort, type ChatModelInfo, type ChatPermissionRequest, type ChatState,
 } from '@shared/domain/chat'
+import type { BackgroundTask } from '@shared/chatTimeline'
 import { toMessage } from '../transcript/transcriptReader'
 
 /**
@@ -153,6 +154,31 @@ function windowOf(result: Line): number | null {
 
 const NOT_THINKING = { thinking: false, thinkingSince: null, thinkingTokens: null } as const
 
+/**
+ * Busy, from the first sign of a turn. Not every turn is one we started: when a background task
+ * finishes, claude tells Claude and a turn starts on its own, with nothing sent.
+ */
+function working(state: ChatState, now: number): ChatState {
+  if (state.status === 'busy' || state.status === 'exited') return state
+  return { ...state, status: 'busy', turnStartedAt: state.turnStartedAt ?? now }
+}
+
+function backgroundTasksOf(tasks: unknown[]): BackgroundTask[] {
+  return tasks.flatMap((t: unknown): BackgroundTask[] => {
+    if (t === null || typeof t !== 'object') return []
+    const r = t as Record<string, unknown>
+    if (typeof r.task_id !== 'string') return []
+    return [{ taskId: r.task_id, description: typeof r.description === 'string' ? r.description : '' }]
+  })
+}
+
+/** What claude's answer to `get_context_usage` says: tokens in context, and the window's size. */
+export function contextUsageOf(response: unknown): { used: number; window: number } | null {
+  const r = (response ?? {}) as { totalTokens?: unknown; maxTokens?: unknown }
+  if (typeof r.totalTokens !== 'number' || typeof r.maxTokens !== 'number' || r.maxTokens <= 0) return null
+  return { used: r.totalTokens, window: r.maxTokens }
+}
+
 /** The next state after one line of `claude`'s output. Unknown lines leave it as it was. */
 export function reduce(state: ChatState, event: Line, now: number = Date.now()): ChatState {
   switch (event.type) {
@@ -160,6 +186,9 @@ export function reduce(state: ChatState, event: Line, now: number = Date.now()):
       // Claude's own running estimate while it thinks (the thinking text itself is not sent).
       if (event.subtype === 'thinking_tokens' && state.streaming?.thinking === true && typeof event.estimated_tokens === 'number') {
         return { ...state, streaming: { ...state.streaming, thinkingTokens: event.estimated_tokens } }
+      }
+      if (event.subtype === 'background_tasks_changed' && Array.isArray(event.tasks)) {
+        return { ...state, backgroundTasks: backgroundTasksOf(event.tasks) }
       }
       if (event.subtype === 'init') {
         return {
@@ -173,7 +202,7 @@ export function reduce(state: ChatState, event: Line, now: number = Date.now()):
       const e = event.event as Line | undefined
       // Subagents stream too; only the main conversation's own reply is shown as it is written.
       if (e === undefined || event.parent_tool_use_id) return state
-      if (e.type === 'message_start') return { ...state, streaming: { text: '', ...NOT_THINKING } }
+      if (e.type === 'message_start') return { ...working(state, now), streaming: { text: '', ...NOT_THINKING } }
       if (e.type === 'content_block_start') {
         const block = e.content_block as Line | undefined
         const text = state.streaming?.text ?? ''
@@ -197,7 +226,13 @@ export function reduce(state: ChatState, event: Line, now: number = Date.now()):
       const message = toMessage(event)
       if (message === null || message.uuid === '' || state.live.some((m) => m.uuid === message.uuid)) return state
       const live = [...state.live, message].slice(-MAX_LIVE)
-      if (event.type === 'user') return { ...state, live }
+      if (event.type === 'user') {
+        // A message we sent, now read: claude replays it (`isReplay`) at the point it took it in.
+        if (event.isReplay !== true) return { ...state, live }
+        const text = message.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n')
+        const at = state.queued.findIndex((q) => q.text === text)
+        return { ...state, live, queued: at < 0 ? state.queued : state.queued.filter((_, i) => i !== at) }
+      }
       // A whole block has arrived, so what was being streamed for it is now in `live`. A thinking
       // block keeps how long it took, which the session file never records.
       const used = contextOf(event.message as Line | undefined)
@@ -205,7 +240,7 @@ export function reduce(state: ChatState, event: Line, now: number = Date.now()):
       const thoughts = message.blocks.some((b) => b.type === 'thinking') && since !== null
         ? { ...state.thoughts, [message.uuid]: { seconds: Math.max(1, Math.round((now - since) / 1000)), tokens: state.streaming?.thinkingTokens ?? null } }
         : state.thoughts
-      return { ...state, live, thoughts, streaming: null, contextUsed: used ?? state.contextUsed }
+      return { ...working(state, now), live, thoughts, streaming: null, contextUsed: used ?? state.contextUsed }
     }
     case 'control_request': {
       const prompt = permissionRequestOf(event)
@@ -214,15 +249,27 @@ export function reduce(state: ChatState, event: Line, now: number = Date.now()):
     }
     case 'control_cancel_request':
       return { ...state, permissions: state.permissions.filter((p) => p.requestId !== event.request_id) }
-    case 'result':
+    case 'result': {
+      // A local command (`/context`) is answered without being replayed, so it would sit in the
+      // queue for good; the turn that answered it is this one.
+      const queued = state.queued.filter((q) => !q.text.startsWith('/'))
+      const more = queued.length > 0 && state.status !== 'exited'
+      const startedAt = state.turnStartedAt
       return {
         ...state,
-        status: state.status === 'exited' ? 'exited' : 'idle',
+        status: state.status === 'exited' ? 'exited' : more ? 'busy' : 'idle',
         streaming: null,
-        turnStartedAt: null,
+        // Still owed an answer: the next turn starts now, for the working line's clock.
+        turnStartedAt: more ? now : null,
         permissions: [],
+        queued,
         contextWindow: windowOf(event) ?? state.contextWindow,
+        lastTurn: {
+          durationMs: typeof event.duration_ms === 'number' ? event.duration_ms : startedAt !== null ? now - startedAt : 0,
+          endedAt: now,
+        },
       }
+    }
     default:
       return state
   }

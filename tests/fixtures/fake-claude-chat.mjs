@@ -4,8 +4,11 @@
 // tests only — never real tokens.
 //
 // Per user message it streams a reply, word by word. A message containing "permission" first asks
-// to run a Bash command and waits for the answer; "slow" streams long enough to be interrupted.
-// The session id comes from `--resume <id>`.
+// to run a Bash command and waits for the answer; "slow" streams long enough to be interrupted;
+// "background" starts a background task that finishes a moment after the turn, which (as in the
+// real one) starts a turn of its own. A message sent mid-turn joins that turn: it is replayed
+// before the turn's end and answered in it, with one `result` for both. The session id comes from
+// `--resume <id>`.
 import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
 import { appendFileSync, mkdirSync } from 'node:fs'
@@ -29,6 +32,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let initialised = false
 let interrupted = false
+// Messages sent while a turn is running, waiting for it to take them in.
+let busy = false
+const absorbed = []
+const replay = (text) => out({
+  type: 'user', uuid: randomUUID(), session_id: sessionId, isReplay: true, timestamp: new Date().toISOString(),
+  message: { role: 'user', content: [{ type: 'text', text }] },
+})
 let mode = args.includes('--permission-mode') ? args[args.indexOf('--permission-mode') + 1] : 'default'
 const waiting = new Map()
 const MODELS = [
@@ -79,8 +89,28 @@ async function turn(text) {
     initialised = true
     out({ type: 'system', subtype: 'init', session_id: sessionId, model, permissionMode: mode })
   }
-  out({ type: 'user', uuid: randomUUID(), session_id: sessionId, message: { role: 'user', content: [{ type: 'text', text }] } })
-  if (text.includes('permission')) {
+  replay(text)
+  if (text.includes('background')) {
+    const toolUseId = `toolu_${randomUUID()}`
+    const taskId = `bfake${String(Date.now() % 100000)}`
+    const description = 'Sleep, then say done'
+    assistant([{ type: 'tool_use', id: toolUseId, name: 'Bash', input: { command: 'sleep 1; echo done', description, run_in_background: true } }])
+    out({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: taskId, task_type: 'local_bash', description }] })
+    out({
+      type: 'user', uuid: randomUUID(), session_id: sessionId,
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content: `Command running in background with ID: ${taskId}. Output is being written to: /tmp/${taskId}.output`, is_error: false }] },
+    })
+    await stream('Started it in the background.')
+    setTimeout(() => {
+      queue = queue.then(async () => {
+        out({ type: 'system', subtype: 'background_tasks_changed', tasks: [] })
+        out({ type: 'system', subtype: 'task_notification', task_id: taskId, tool_use_id: toolUseId, status: 'completed', summary: `Background command "${description}" completed (exit code 0)` })
+        out({ type: 'system', subtype: 'init', session_id: sessionId, model, permissionMode: mode })
+        await stream('The background task finished.')
+        result()
+      })
+    }, 1500)
+  } else if (text.includes('permission')) {
     const toolUseId = `toolu_${randomUUID()}`
     const input = { command: 'echo fake-ran', description: 'Print a marker' }
     assistant([{ type: 'tool_use', id: toolUseId, name: 'Bash', input }])
@@ -103,12 +133,23 @@ async function turn(text) {
       : `You said: ${text}`
     const finished = await stream(reply)
     if (!finished) {
+      absorbed.length = 0
       out({ type: 'user', uuid: randomUUID(), session_id: sessionId, message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] } })
       out({ type: 'result', subtype: 'error_during_execution', is_error: true, session_id: sessionId, modelUsage: {} })
       return
     }
   }
-  out({ type: 'result', subtype: 'success', is_error: false, session_id: sessionId, modelUsage: { 'claude-fake-1': { contextWindow: 200000 } } })
+  // Whatever was sent meanwhile is taken in now and answered in this same turn.
+  while (absorbed.length > 0) {
+    const next = absorbed.shift()
+    replay(next)
+    await stream(`You said: ${next}`)
+  }
+  result()
+}
+
+function result() {
+  out({ type: 'result', subtype: 'success', is_error: false, session_id: sessionId, duration_ms: 1234, modelUsage: { 'claude-fake-1': { contextWindow: 200000 } } })
 }
 
 // As the real claude does: SIGTERM ends it with exit code 143, not death by the signal.
@@ -120,7 +161,9 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   try { msg = JSON.parse(line) } catch { return }
   if (msg.type === 'user') {
     const text = msg.message.content.map((b) => b.text ?? '').join('')
-    queue = queue.then(() => turn(text))
+    if (busy && !text.startsWith('/')) { absorbed.push(text); return }
+    busy = true
+    queue = queue.then(() => turn(text)).finally(() => { busy = false })
   } else if (msg.type === 'control_request') {
     const req = msg.request
     let response = {}
@@ -140,6 +183,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       }
     }
     if (req.subtype === 'get_settings') response = { effective: { effortLevel: effort }, applied: { model, effort: null } }
+    if (req.subtype === 'get_context_usage') response = { totalTokens: 4010, maxTokens: 200000, rawMaxTokens: 200000, percentage: 2, categories: [] }
     out({ type: 'control_response', response: { subtype: 'success', request_id: msg.request_id, response } })
   } else if (msg.type === 'control_response') {
     waiting.get(msg.response.request_id)?.(msg.response.response)

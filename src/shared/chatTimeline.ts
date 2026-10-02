@@ -13,8 +13,42 @@ export type ChatItem =
   | { kind: 'thinking'; key: string; uuid: string; text: string }
   | { kind: 'tool'; key: string; name: string; input: unknown; result: { content: string; isError: boolean } | null }
   | { kind: 'interrupted'; key: string }
+  /** Something Claude Code itself put in the conversation as "you": a background task finishing
+   *  (`<task-notification>`), a local command's output. Shown as a quiet line, never as a prompt. */
+  | { kind: 'notice'; key: string; text: string; status: string | null }
 
 const INTERRUPTED = /^\[Request interrupted by user[^\]]*\]$/
+
+/** The text inside `<name>…</name>`, for the fixed tag names below (never user input). */
+function tag(name: string, text: string): string | null {
+  const m = new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(text)
+  return m === null ? null : m[1].trim()
+}
+
+/**
+ * A user message Claude Code wrote rather than you, as what the chat shows for it — or null for
+ * one you wrote. `<task-notification>` is a background task reporting back; a slash command is
+ * recorded as tags (`<command-name>`, `<command-args>`) and its output as `<local-command-stdout>`;
+ * the caveat it adds before them is noise.
+ */
+function synthetic(text: string): { kind: 'notice'; text: string; status: string | null } | { kind: 'command'; text: string } | { kind: 'skip' } | null {
+  if (!text.startsWith('<')) return null
+  if (text.startsWith('<task-notification>')) {
+    return { kind: 'notice', text: tag('summary', text) ?? 'A background task finished', status: tag('status', text) }
+  }
+  if (text.startsWith('<local-command-caveat>')) return { kind: 'skip' }
+  if (text.startsWith('<command-name>') || text.startsWith('<command-message>')) {
+    const name = tag('command-name', text)
+    if (name === null) return { kind: 'skip' }
+    const args = tag('command-args', text) ?? ''
+    return { kind: 'command', text: args === '' ? name : `${name} ${args}` }
+  }
+  if (text.startsWith('<local-command-stdout>') || text.startsWith('<local-command-stderr>')) {
+    const out = tag('local-command-stdout', text) ?? tag('local-command-stderr', text) ?? ''
+    return out === '' ? { kind: 'skip' } : { kind: 'notice', text: out, status: null }
+  }
+  return null
+}
 
 /** `persisted` (read from the file) followed by whichever `live` messages it does not have yet. */
 export function mergeLive(persisted: TranscriptMessage[], live: TranscriptMessage[]): TranscriptMessage[] {
@@ -34,8 +68,11 @@ export function chatItems(messages: TranscriptMessage[]): ChatItem[] {
     if (m.role === 'user') {
       const text = m.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim()
       const images = m.blocks.flatMap((b) => (b.type === 'image' ? [b.dataUrl] : []))
+      const made = synthetic(text)
       if (INTERRUPTED.test(text)) items.push({ kind: 'interrupted', key: m.uuid })
-      else if (text !== '' || images.length > 0) items.push({ kind: 'user', key: m.uuid, text, images })
+      else if (made?.kind === 'notice') items.push({ kind: 'notice', key: m.uuid, text: made.text, status: made.status })
+      else if (made?.kind === 'command') items.push({ kind: 'user', key: m.uuid, text: made.text, images })
+      else if (made === null && (text !== '' || images.length > 0)) items.push({ kind: 'user', key: m.uuid, text, images })
       continue
     }
     m.blocks.forEach((b, i) => {
@@ -55,6 +92,62 @@ export function lastPrompt(items: ChatItem[]): Extract<ChatItem, { kind: 'user' 
     if (item.kind === 'user') return item
   }
   return null
+}
+
+/** A background task Claude started and has not heard back from. */
+export interface BackgroundTask {
+  taskId: string
+  description: string
+}
+
+const STARTED_IN_BACKGROUND = /running in background with ID: ([A-Za-z0-9_-]+)/
+
+/**
+ * The background tasks still running, as far as the session file says: a call made with
+ * `run_in_background` whose result names the task, with no `<task-notification>` for that task
+ * since. A task that ended with its process is reported too — Claude Code writes one notification
+ * for all of them ("didn't finish before the previous session ended") when the session resumes —
+ * but one that ended while nothing was running stays listed until then, so callers only ask while
+ * the session's claude is running.
+ */
+export function runningBackgroundTasks(messages: TranscriptMessage[]): BackgroundTask[] {
+  const calls = new Map<string, string>()
+  const started = new Map<string, BackgroundTask>()
+  for (const m of messages) {
+    for (const b of m.blocks) {
+      if (b.type === 'tool_use') {
+        const input = b.input as Record<string, unknown> | null
+        if (input !== null && typeof input === 'object' && input.run_in_background === true) {
+          calls.set(b.id, field(input, 'description') ?? field(input, 'command') ?? b.name)
+        }
+      } else if (b.type === 'tool_result' && calls.has(b.toolUseId)) {
+        const id = STARTED_IN_BACKGROUND.exec(b.content)?.[1]
+        if (id !== undefined) started.set(id, { taskId: id, description: calls.get(b.toolUseId) ?? '' })
+      } else if (b.type === 'text' && b.text.startsWith('<task-notification>')) {
+        for (const done of b.text.matchAll(/<task-id>([^<]+)<\/task-id>/g)) started.delete(done[1].trim())
+      }
+    }
+  }
+  return [...started.values()]
+}
+
+/**
+ * What the line above the message box says about the latest turn: how long it took and when it
+ * ended (Claude Code's `turn_duration`), and the recap it wrote, when one came after it — each
+ * only if nothing you sent has come since.
+ */
+export function latestTurn(messages: TranscriptMessage[]): { durationMs: number | null; endedAtMs: number | null; recap: string | null } {
+  let durationMs: number | null = null
+  let endedAtMs: number | null = null
+  let recap: string | null = null
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    const block = m.blocks[0] as TranscriptMessage['blocks'][number] | undefined
+    if (block?.type === 'recap') { recap ??= block.text; continue }
+    if (block?.type === 'turn_end') { durationMs = block.durationMs; endedAtMs = m.timestampMs; break }
+    if (m.role === 'user' && m.blocks.some((b) => b.type === 'text' && !b.text.startsWith('<'))) break
+  }
+  return { durationMs, endedAtMs, recap }
 }
 
 function field(input: unknown, name: string): string | null {

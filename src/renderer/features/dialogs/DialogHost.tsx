@@ -35,7 +35,8 @@ export function DialogHost({
   onFork: (sessionId: string) => void
   onOpenAnyway: (session: SessionNode) => void
   onConfirmDelete: (session: SessionNode) => void
-  onWorktreeCreated: (info: NewSessionInfo) => void
+  /** `folder` is the folder the worktree was made from. */
+  onWorktreeCreated: (info: NewSessionInfo, folder: string) => void
   importWidth: number
   onImportWidthChange: (width: number) => void
   onImported: () => void
@@ -90,7 +91,7 @@ export function DialogHost({
           folderPath={newWorktreeFor.path}
           folderLabel={newWorktreeFor.label}
           onClose={() => { close('newWorktree') }}
-          onCreated={(info) => { close('newWorktree'); onWorktreeCreated(info) }}
+          onCreated={(info) => { close('newWorktree'); onWorktreeCreated(info, newWorktreeFor.path) }}
         />
       )}
       {deleteTarget !== null && (

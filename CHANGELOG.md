@@ -4,6 +4,83 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.30.0] - 2026-10-02
+
+### Added
+
+- **Chat in the transcript: what Claude Code's terminal shows under its last reply**, on a line
+  above the message box: background tasks still running ("1 background task running · Run the
+  e2e suite"), how long the last turn took and when it finished ("✻ Brewed for 33s · done 9:23
+  am"), and the recap Claude Code writes when you come back to a session. Background tasks show
+  for a session running in its terminal too, read from the session's file.
+- **Copy by selecting**, in the transcript, as in the terminal: let go of the mouse over a
+  selection and it is copied, with a short "Copied N chars" note. Right-click offers Copy as well.
+- **The message box grows with what you type**, up to 40% of the window, so a long message can
+  be read whole before you send it. Drag its top edge — marked with the same grip dots as every
+  other edge you can drag — to make it taller; double-click the edge to go back to fitting the
+  text.
+- **A worktree made with "New worktree…" is in the sidebar straight away**, under the folder it
+  was made from, with its branch — before anything has been sent in it, and after a restart. It
+  used to appear only once its first message was sent, since until then no transcript names it.
+- **Jump to latest**: scrolled up while Claude works, a button takes you back down to what is
+  arriving.
+
+### Changed
+
+- **Moving between the chat and the terminal never stops Claude part-way.** "Continue in
+  terminal" waits until the chat has finished its turn and its background tasks have ended
+  (they run inside the chat's claude and would end with it); the bar says what it is waiting for,
+  with Switch now and Cancel. And a message sent from the transcript while the session's terminal
+  is working, or has background shells running, is typed into that terminal instead of stopping
+  it — the transcript shows it arrive. Only an idle terminal is handed over to the chat.
+- Tool calls show the first three lines of their input and of their output; "Show all N lines",
+  or a click on the box, opens the rest. Both boxes are drawn on the terminal's dark background,
+  as the extension draws them on the editor's, and wrap long lines instead of scrolling sideways.
+- Your latest message is pinned at the top only once it has scrolled out of view — it no longer
+  shows twice while the message itself is on screen. It is drawn solid, so the conversation no
+  longer shows through it on glass themes, and going back to the message (click the pin) lands
+  it below the pin rather than under it.
+- Claude's replies in the chat are laid out as densely as in the extension. Lists took about
+  twice their height: each item, and each nested list, was followed by a blank line (the
+  whitespace between list elements was being drawn as line breaks). Spacing between paragraphs,
+  list items and headings is tighter too.
+- The "/" commands button is the same size as the context ring beside it.
+- A message sent while Claude works shows as **Queued** at the bottom until Claude takes it in,
+  then moves into the conversation where Claude read it.
+- A background task finishing (`<task-notification>`) shows as a quiet line saying what finished,
+  not as a message from you in raw tags, and is never the message pinned at the top. A slash
+  command reads as you typed it (`/model opus`), and its output as a quiet line.
+
+### Fixed
+
+- **Scrolling up while Claude works stays where you scrolled.** The transcript followed new
+  content whenever you were within 64px of the bottom; a trackpad scrolls a few pixels at a time,
+  so the first steps up still counted as "at the bottom" and the next streamed word pulled the
+  view down again. Any move up now stops following; reaching the bottom again resumes it.
+- **A message sent while Claude was working stayed at the bottom of the chat for good**, under
+  newer messages, and the chat could stay "working" after Claude had finished. Claude takes such a
+  message into the turn in progress and answers both in one turn; the session file records it in
+  a different form (a queued command) from the one the chat had shown. The transcript now reads
+  that form, and puts the message where Claude read it.
+- A turn Claude starts on its own — after a background task finishes — shows Claude working, with
+  Stop, instead of the chat looking idle while replies arrive.
+- The context ring shows from the start of a chat, including the first, long turn; it used to
+  wait for a turn to finish to learn the context window's size (it now asks Claude, as the
+  extension does).
+- The model button says "Opus 5.5", not "Opus", with Claude Code versions that name the model by
+  family alone in their model list.
+- "Default model" no longer spills out of the model button when the row is narrow.
+- Tool boxes are solid, and no longer use a fade mask: faint text from elsewhere in the
+  conversation that appeared and vanished inside them was most likely that mask and the
+  see-through boxes being repainted while scrolling.
+- **No more white-and-orange focus borders, anywhere.** They were Chromium's own focus ring, drawn
+  in the OS accent colour on any element the app had not styled itself — sidebar folders and
+  sessions, the "+" and row buttons, tabs, the chat's controls, menus: 23 kinds of element. It
+  appeared wherever focus landed after a key press, such as Escape or Enter closing a dialog and
+  handing focus back to what opened it. It had been patched away one element at a time; it is now
+  off for every element, and keyboard focus shows the app's own single accent line instead. A test
+  checks every focusable element on screen, so a new one cannot bring it back.
+
 ## [1.29.1] - 2026-10-01
 
 ### Fixed

@@ -1,4 +1,4 @@
-import { type JSX, memo, useState } from 'react'
+import { type JSX, memo, useEffect, useRef, useState } from 'react'
 import type { ChatDecision, ChatState } from '@shared/domain/chat'
 import { lastPrompt, type ChatItem } from '@shared/chatTimeline'
 import { TextBlock } from '../transcript/MessageRow'
@@ -61,7 +61,55 @@ function Item({ item, chat, onOpenImage }: { item: ChatItem; chat: ChatState | n
       return <ToolCall name={item.name} input={item.input} result={item.result} />
     case 'interrupted':
       return <div className="chat-interrupted" data-testid="chat-interrupted">Interrupted — tell Claude what to do instead.</div>
+    case 'notice':
+      return (
+        <div className="chat-row chat-notice" data-testid="chat-notice" data-status={item.status ?? ''}>
+          <span className="chat-dot" aria-hidden="true" />
+          <div className="chat-row-body">{item.text}</div>
+        </div>
+      )
   }
+}
+
+/**
+ * The latest prompt, pinned to the top once the message itself has scrolled out above — the
+ * extension's way of keeping what you are reading in the light of what you asked. While the
+ * message is on screen there is nothing to pin: it would only show the same words twice.
+ *
+ * The pin has no height of its own (the box hangs out of a zero-height sticky row), so it coming
+ * and going never moves the conversation under it.
+ */
+function StickyPrompt({ prompt }: { prompt: { key: string; text: string } }): JSX.Element {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [above, setAbove] = useState(false)
+  useEffect(() => {
+    const root = ref.current?.closest('.transcript') ?? null
+    const target = root?.querySelector(`[data-key="${CSS.escape(prompt.key)}"]`) ?? null
+    if (root === null || target === null) { setAbove(false); return }
+    const observer = new IntersectionObserver(([entry]) => {
+      const rootTop = entry.rootBounds?.top ?? 0
+      setAbove(!entry.isIntersecting && entry.boundingClientRect.top < rootTop)
+    }, { root })
+    observer.observe(target)
+    return () => { observer.disconnect() }
+  }, [prompt.key])
+  return (
+    <div className="chat-sticky" ref={ref}>
+      {above && (
+        <button
+          className="chat-sticky-prompt"
+          data-testid="chat-sticky-prompt"
+          title="Go to this message"
+          onClick={() => {
+            const target = ref.current?.closest('.transcript')?.querySelector(`[data-key="${CSS.escape(prompt.key)}"]`)
+            target?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+          }}
+        >
+          {prompt.text}
+        </button>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -76,21 +124,7 @@ export function ChatTimeline({ items, chat, onOpenImage, onDecide }: Props): JSX
   const busy = chat?.status === 'busy'
   return (
     <div className="chat-timeline" data-testid="chat-timeline">
-      {prompt !== null && (
-        // Stays at the top while the conversation scrolls under it, so whatever you are reading is
-        // always in the light of what you asked. Clicking it goes back to where you asked it.
-        <button
-          className="chat-sticky-prompt"
-          data-testid="chat-sticky-prompt"
-          title="Go to this message"
-          onClick={(e) => {
-            const target = e.currentTarget.closest('.chat-timeline')?.querySelector(`[data-key="${CSS.escape(prompt.key)}"]`)
-            target?.scrollIntoView({ block: 'start', behavior: 'smooth' })
-          }}
-        >
-          {prompt.text}
-        </button>
-      )}
+      {prompt !== null && <StickyPrompt prompt={prompt} />}
       {items.map((item) => <Item key={item.key} item={item} chat={chat} onOpenImage={onOpenImage} />)}
       {streaming !== null && streaming.text !== '' && (
         <div className="chat-row chat-text chat-streaming" data-testid="chat-streaming">
@@ -98,6 +132,14 @@ export function ChatTimeline({ items, chat, onOpenImage, onDecide }: Props): JSX
           <div className="chat-row-body"><MarkdownText text={streaming.text} /></div>
         </div>
       )}
+      {chat?.queued.map((q) => (
+        // Sent, and waiting for Claude to reach a point where it reads it: then it joins the
+        // conversation above, where Claude took it in.
+        <div key={q.id} className="chat-user chat-queued" data-testid="chat-queued">
+          <MarkdownText text={q.text} />
+          <span className="chat-queued-label">Queued</span>
+        </div>
+      ))}
       {chat?.permissions.map((p) => (
         <PermissionCard key={p.requestId} request={p} onDecide={(d) => { onDecide(p.requestId, d) }} />
       ))}

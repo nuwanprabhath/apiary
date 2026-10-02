@@ -5,26 +5,45 @@
  */
 .chat-timeline { display: flex; flex-direction: column; gap: 10px; padding-bottom: 8px; }
 
-/* A text block keeps your line breaks (pre-wrap) — but only inside its paragraphs: between them,
-   pre-wrap also drew the newline the markdown renderer leaves after each block, a blank line under
-   every message. The rows set their own spacing, so the block's margin goes too. */
+/* A text block keeps your line breaks (pre-wrap) — but only inside its paragraphs. Anywhere else
+   pre-wrap also draws the newlines the markdown renderer leaves between elements: under every
+   block, and — inside a list — between every item and its nested list, which spread a list over
+   three times its height. The rows set their own spacing, so the block's margin goes too. */
 .chat-timeline .text-block { margin-bottom: 0; white-space: normal; }
-.chat-timeline .text-block > * { white-space: pre-wrap; }
+.chat-timeline .text-block p { white-space: pre-wrap; }
 
-/* The latest prompt, kept in view. `top` cancels the transcript's own top padding so nothing
-   scrolls visibly above it. */
-.chat-sticky-prompt {
+/* As dense as the extension: Claude's replies are mostly lists and short paragraphs, read while
+   scrolling. Tighter than the plain transcript's spacing, which is laid out as separate messages. */
+.chat-timeline .markdown { line-height: 1.45; }
+.chat-timeline .markdown :is(p, ul, ol, pre, blockquote, table) { margin-bottom: 6px; }
+.chat-timeline .markdown :is(h1, h2, h3, h4, h5, h6) { margin: 10px 0 4px; }
+.chat-timeline .markdown li { margin-bottom: 1px; }
+.chat-timeline .markdown li > :is(ul, ol) { margin-top: 1px; margin-bottom: 0; }
+.chat-timeline .markdown li > p { margin-bottom: 2px; }
+.chat-timeline .markdown > :last-child { margin-bottom: 0; }
+
+/* The latest prompt, pinned once it has scrolled out above (ChatTimeline's StickyPrompt). The row
+   is sticky but has no height, and the box hangs out of it, so it appearing never shifts the
+   conversation. `top` cancels the transcript's own top padding. The box is solid whatever the
+   theme: a glass theme's panel colour let the conversation scrolling under it show through. */
+.chat-sticky {
   position: sticky;
   top: -12px;
   z-index: var(--z-base);
+  height: 0;
+  margin-top: -10px;
+}
+.chat-sticky-prompt {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
   display: block;
-  width: 100%;
-  margin: -12px 0 2px;
   padding: 8px 12px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--bg-panel);
+  background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg);
   box-shadow: var(--shadow-chip);
   color: var(--text);
   font: inherit;
@@ -34,9 +53,11 @@
   cursor: pointer;
 }
 .chat-sticky-prompt:hover { border-color: var(--control-border); }
-.chat-sticky-prompt:focus-visible { outline: var(--focus-ring); }
+.chat-sticky-prompt:focus-visible { box-shadow: var(--focus-ring); }
 
 .chat-user {
+  /* Room for the pinned prompt, so going back to a message never lands it underneath. */
+  scroll-margin-top: 48px;
   margin-top: 6px;
   padding: 8px 12px;
   border: 1px solid var(--border);
@@ -103,6 +124,10 @@
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  /* Both boxes on the terminal's own background, as the extension draws them on the editor's —
+     solid, so nothing scrolling behind a translucent theme shows through the text. */
+  background: var(--term-background);
+  color: var(--term-foreground);
 }
 .chat-io-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); }
 .chat-io-row + .chat-io-row { border-top: 1px solid var(--border); }
@@ -112,19 +137,20 @@
   font-family: var(--font-mono);
   font-size: 11px;
 }
-.chat-io-out { min-width: 0; background: var(--field-bg); }
+.chat-io-body { min-width: 0; }
 .chat-io-text {
   margin: 0;
   padding: 6px 10px 6px 0;
-  overflow-x: auto;
   font-family: var(--font-mono);
   font-size: 12px;
-  white-space: pre;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
-.chat-io-out .chat-io-text { padding-left: 10px; }
-.chat-io-text[data-clipped="true"] { mask-image: linear-gradient(to bottom, var(--text) 60%, transparent); }
+/* Three lines, however long they are — a clipped box is the same height as its first three. */
+.chat-io-text[data-clipped="true"] { max-height: calc(3 * 1.5em + 6px); overflow: hidden; cursor: pointer; }
 .chat-io-more {
-  margin: 0 0 6px 10px;
+  margin: 0 0 6px;
   padding: 0;
   border: 0;
   background: none;
@@ -133,6 +159,20 @@
   font-size: 12px;
   cursor: pointer;
 }
+
+/* A message sent while Claude works, until Claude reads it. */
+.chat-queued { position: relative; border-style: dashed; color: var(--muted); }
+.chat-queued-label {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Claude Code speaking for itself: a background task reporting back, a command's output. */
+.chat-notice .chat-row-body { color: var(--muted); font-size: 12px; white-space: pre-wrap; }
+.chat-notice[data-status="failed"] .chat-row-body { color: var(--danger); }
 
 .chat-interrupted, .chat-error { padding-left: 18px; color: var(--muted); font-style: italic; }
 .chat-error { color: var(--danger); font-style: normal; }
@@ -169,6 +209,8 @@
 .chat-model { position: relative; }
 .chat-model-pill {
   display: inline-flex;
+  flex: none;
+  white-space: nowrap;
   gap: 6px;
   align-items: center;
   height: var(--control-height-sm);
@@ -181,7 +223,7 @@
   cursor: pointer;
 }
 .chat-model-pill:hover { background: var(--control-bg-hover); }
-.chat-model-pill:focus-visible { outline: var(--focus-ring); }
+.chat-model-pill:focus-visible { box-shadow: var(--focus-ring); }
 .chat-model-effort { color: var(--muted); }
 
 .chat-model-menu {
@@ -247,7 +289,7 @@
   cursor: pointer;
 }
 .chat-effort-dot[data-on="true"] { width: 16px; height: 16px; background: var(--text); }
-.chat-effort-dot:focus-visible { outline: var(--focus-ring); }
+.chat-effort-dot:focus-visible { box-shadow: var(--focus-ring); }
 
 /* How full the context is: a ring with the percentage inside. */
 .chat-context { display: inline-flex; width: 26px; height: 26px; }
@@ -278,13 +320,15 @@
   font: inherit;
   cursor: pointer;
 }
-.chat-icon-button { width: var(--control-height-sm); padding: 0; justify-content: center; }
+/* The "/" button matches the context ring beside it (26px), so the row reads as a set. */
+.chat-icon-button { width: 26px; height: 26px; padding: 0; justify-content: center; }
+.chat-icon-button svg { width: 20px; height: 20px; }
 .chat-mode-button:hover, .chat-icon-button:hover, .chat-mode-button[aria-expanded="true"], .chat-icon-button[aria-expanded="true"] {
   border-color: var(--control-border);
   background: var(--control-bg-hover);
 }
-.chat-mode-button:focus-visible, .chat-icon-button:focus-visible { outline: var(--focus-ring); }
-.chat-mode-button svg, .chat-icon-button svg, .chat-menu-icon svg { width: var(--icon-size); height: var(--icon-size); }
+.chat-mode-button:focus-visible, .chat-icon-button:focus-visible { box-shadow: var(--focus-ring); }
+.chat-mode-button svg, .chat-menu-icon svg { width: var(--icon-size); height: var(--icon-size); }
 
 .chat-menu {
   position: absolute;
@@ -331,10 +375,51 @@
   color: var(--text);
   font: inherit;
 }
-.chat-command-search:focus-visible { outline: var(--focus-ring); }
+.chat-command-search:focus-visible { box-shadow: var(--focus-ring); }
 .chat-command-list { overflow-y: auto; }
 .chat-command-option[aria-selected="true"] { background: var(--hover); }
 .chat-command-name { flex: none; font-family: var(--font-mono); }
 .chat-command-hint { flex: none; color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
 .chat-command-desc { overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .chat-command-empty { margin: 6px 8px; color: var(--muted); }
+
+/* Between the conversation and the message box (ChatStatus): the last turn, the recap, and the
+   background tasks still running — what Claude Code's terminal prints under its last reply. */
+.chat-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 4px 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.chat-status-line { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+.chat-status-glyph { flex: none; width: 12px; text-align: center; }
+.chat-status-recap { font-style: italic; }
+.chat-status-tasks { color: var(--text); }
+.chat-status-tasks .chat-status-glyph { color: var(--accent); }
+.chat-status-detail { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.chat-status-spin { animation: chat-spin 1.6s linear infinite; }
+@keyframes chat-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .chat-status-spin { animation: none; }
+}
+
+/* "Jump to the latest", while you read further up and more is arriving (Transcript). */
+.chat-jump {
+  position: sticky;
+  bottom: 8px;
+  z-index: var(--z-base);
+  align-self: center;
+  margin-top: -32px;
+  padding: 4px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-control);
+  background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg);
+  box-shadow: var(--shadow-chip);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chat-jump:hover { background: linear-gradient(var(--control-bg-hover), var(--control-bg-hover)), var(--bg); }

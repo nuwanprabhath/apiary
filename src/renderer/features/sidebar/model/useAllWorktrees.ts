@@ -9,6 +9,8 @@ import type { FolderWorktree, ProjectNode } from '@shared/types'
  */
 export function useAllWorktrees(
   paths: string[], tree: ProjectNode[], refreshNonce = 0,
+  /** Changes when a worktree is made, so git is asked again even if `paths` stayed the same. */
+  madeSignature = '',
 ): ReadonlyMap<string, FolderWorktree[]> {
   const [found, setFound] = useState<ReadonlyMap<string, FolderWorktree[]>>(() => new Map())
   const key = paths.join('\n')
@@ -31,6 +33,6 @@ export function useAllWorktrees(
       return [p, list] as const
     })).then((entries) => { if (!cancelled) setFound(new Map(entries)) })
     return () => { cancelled = true }
-  }, [key, treePathsSignature, refreshNonce])
+  }, [key, treePathsSignature, refreshNonce, madeSignature])
   return found
 }

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { launchApiary, importAll, type Harness } from './helpers'
+import { launchApiary, importAll, relaunchApiary, type Harness } from './helpers'
 
 /**
  * "+" on a git folder → New worktree…, against real git: the folder goes in `<repo>.worktrees/`
@@ -45,4 +45,10 @@ test('creates a worktree on a new branch and starts Claude in it', async () => {
   const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: target }).toString().trim()
   expect(branch).toBe('species-list')
   await expect(h.page.getByTestId('terminal-session')).toBeVisible()
+  // In the sidebar under its folder at once — no message sent, so no transcript names it yet —
+  // and still there after a relaunch.
+  await expect(folder('species-list')).toBeVisible()
+  await expect(folder('species-list').locator('.branch')).toHaveText('species-list')
+  await relaunchApiary(h)
+  await expect(folder('species-list')).toBeVisible()
 })

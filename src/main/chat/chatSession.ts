@@ -4,7 +4,7 @@ import {
   emptyChatState, type ChatDecision, type ChatEffort, type ChatModel, type ChatPermissionMode, type ChatState,
 } from '@shared/domain/chat'
 import {
-  appliedOf, commandsOf, modelsOf, controlLine, parseLine, permissionReply, permissionRequestOf, reduce, userLine, type Line, type PendingPermission,
+  appliedOf, commandsOf, contextUsageOf, modelsOf, controlLine, parseLine, permissionReply, permissionRequestOf, reduce, userLine, type Line, type PendingPermission,
 } from './protocol'
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
@@ -26,9 +26,6 @@ export class ChatSession {
   private buffer = ''
   private stderr = ''
   private emitTimer: NodeJS.Timeout | null = null
-  /** Messages sent and not yet answered: Claude queues a message sent mid-turn and answers it
-   *  next, so one turn's `result` does not make the chat idle while another is still owed. */
-  private owed = 0
   /** Set by `stop()`: an exit we asked for is never an error, whatever code claude exits with
    *  (it exits 143 on SIGTERM rather than dying of the signal). */
   private stopping = false
@@ -56,6 +53,8 @@ export class ChatSession {
       const models = modelsOf(r.response)
       const commands = commandsOf(r.response)
       this.update({ ...this.state, models: models ?? this.state.models, commands: commands ?? this.state.commands }, true)
+      // The ring shows from the start: a resumed session's context is already full of it.
+      this.refreshContext()
     }).catch(() => {})
     this.exited = new Promise((resolve) => {
       child.on('exit', (code, signal) => {
@@ -103,8 +102,22 @@ export class ChatSession {
 
   send(text: string): void {
     this.write(userLine(text))
-    this.owed++
-    this.update({ ...this.state, status: 'busy', error: null, turnStartedAt: this.state.turnStartedAt ?? Date.now() }, true)
+    this.update({
+      ...this.state,
+      status: 'busy',
+      error: null,
+      turnStartedAt: this.state.turnStartedAt ?? Date.now(),
+      queued: [...this.state.queued, { id: randomUUID(), text }],
+    }, true)
+  }
+
+  /** Re-reads how full the context is — at the start, and after every turn. The window's size is
+   *  only otherwise known from a turn's `result`, which a long first turn keeps the ring waiting for. */
+  private refreshContext(): void {
+    void this.request({ subtype: 'get_context_usage' }).then((r) => {
+      const usage = r.subtype === 'success' ? contextUsageOf(r.response) : null
+      if (usage !== null) this.update({ ...this.state, contextUsed: usage.used, contextWindow: usage.window }, true)
+    }).catch(() => {})
   }
 
   interrupt(): void { this.write(controlLine(randomUUID(), { subtype: 'interrupt' })) }
@@ -173,6 +186,7 @@ export class ChatSession {
           urgent = true
         }
         this.refreshApplied()
+        this.refreshContext()
       }
       const prompt = permissionRequestOf(event)
       if (prompt !== null) this.pending.set(prompt.request.requestId, prompt.pending)
@@ -181,10 +195,7 @@ export class ChatSession {
       // A permission prompt or the end of a turn is shown at once; streamed text can wait a frame.
       if (prompt !== null || event.type === 'result' || event.type === 'system') urgent = true
       next = reduce(next, event)
-      if (event.type === 'result') {
-        this.owed = Math.max(0, this.owed - 1)
-        if (this.owed > 0) next = { ...next, status: 'busy', turnStartedAt: Date.now() }
-      }
+      if (event.type === 'result') this.refreshContext()
     }
     if (next !== this.state) this.update(next, urgent)
   }

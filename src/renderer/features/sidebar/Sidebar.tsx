@@ -14,7 +14,7 @@ import { SearchField } from './SearchField'
 import { useNotifications } from '../../ui/notifications'
 import { describeRefresh } from './model/refreshSummary'
 import { useDialogActions } from '../dialogs/useDialogs'
-import { withAllWorktrees } from './model/allWorktrees'
+import { createdWorktreeRoots, onlyWanted, withAllWorktrees } from './model/allWorktrees'
 import { useAllWorktrees } from './model/useAllWorktrees'
 import { ErrorBoundary } from '../../ui/ErrorBoundary'
 import { ActiveSection } from './ActiveSection'
@@ -99,6 +99,9 @@ interface Props {
   searchSessionNotes: boolean
   /** Top-level folders listing every worktree, sessions or not — see `UiState.showAllWorktrees`. */
   showAllWorktrees: string[]
+  /** Worktrees made with "New worktree", listed under their folder even before a session — see
+   *  `UiState.createdWorktrees`. */
+  createdWorktrees: { folder: string; path: string }[]
   onToggleAllWorktrees: (path: string) => void
 }
 
@@ -132,7 +135,7 @@ function SidebarInner({
   pending, onSelectPending, onStopPending, revealId, groupState, onGroupStateChange, onReorderPinned,
   recentSectionEnabled, recentSectionHours, dismissedRecent, recentCollapsed,
   onRecentCollapsedChange, onDismissRecent, activeTabs, onFocusTab,
-  searchChatContent, searchSessionNotes, showAllWorktrees, onToggleAllWorktrees,
+  searchChatContent, searchSessionNotes, showAllWorktrees, createdWorktrees, onToggleAllWorktrees,
 }: Props): JSX.Element {
   /** The settled query — `SearchField` publishes it once typing pauses, never per keystroke. */
   const [query, setQuery] = useState('')
@@ -212,7 +215,19 @@ function SidebarInner({
   // Keyed on the deferred query so what is on screen is always internally consistent: the flat
   // results list appears with the results, not a moment before them.
   const searching = deferredQuery.trim() !== ''
-  const extraWorktrees = useAllWorktrees(showAllWorktrees, rawTree, worktreeRefreshNonce)
+  // The folders to ask git about: those showing all their worktrees, and those a worktree was
+  // made from (the top-level folder, when it was made from one of its worktrees). From the second
+  // kind only the made ones are added.
+  const createdRoots = useMemo(() => createdWorktreeRoots(createdWorktrees, rawTree), [createdWorktrees, rawTree])
+  const asked = useMemo(
+    () => [...new Set([...showAllWorktrees, ...createdRoots.keys()])],
+    [showAllWorktrees, createdRoots],
+  )
+  const listed = useAllWorktrees(asked, rawTree, worktreeRefreshNonce, createdWorktrees.map((w) => w.path).join('\n'))
+  const extraWorktrees = useMemo(
+    () => onlyWanted(listed, showAllWorktrees, createdRoots),
+    [listed, showAllWorktrees, createdRoots],
+  )
   const arranged = useMemo(
     () => groupFolders(
       withAllWorktrees(tree, extraWorktrees), (n) => n.path,

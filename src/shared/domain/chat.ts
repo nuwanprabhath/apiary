@@ -1,4 +1,5 @@
 import type { TranscriptMessage } from './transcript'
+import type { BackgroundTask } from '../chatTimeline'
 
 /**
  * Chat mode: a session driven the way the VS Code extension drives Claude — `claude` reading and
@@ -120,6 +121,24 @@ export interface ChatState {
   previousSessionId: string | null
   /** The slash commands claude offers (its `initialize` answer); null until it has said. */
   commands: ChatCommand[] | null
+  /**
+   * Messages sent and not yet read by Claude, oldest first. Sent mid-turn, a message waits until
+   * Claude reaches a point it can take it (after the tool call in flight), then joins that same
+   * turn — claude replays it then, which is when it leaves this list and enters the conversation.
+   */
+  queued: { id: string; text: string }[]
+  /** The background tasks claude reports running (`background_tasks_changed`); null until it has. */
+  backgroundTasks: BackgroundTask[] | null
+  /** How long the latest finished turn took, and when it finished. */
+  lastTurn: { durationMs: number; endedAt: number } | null
+}
+
+/** What `terminalBusy` says about a session's terminal: nothing to lose by stopping it, or not. */
+export interface TerminalBusy {
+  /** Claude is working, or waiting on a question, in the terminal. */
+  busy: boolean
+  /** Background tasks of that claude still running; they end with it. */
+  backgroundTasks: number
 }
 
 export interface ChatCommand {
@@ -147,19 +166,30 @@ export function emptyChatState(sessionId: string): ChatState {
     error: null,
     previousSessionId: null,
     commands: null,
+    queued: [],
+    backgroundTasks: null,
+    lastTurn: null,
   }
 }
 
 /**
- * The name a model goes by, as the picker shows it: claude's own `displayName` for the entry that
- * runs it (the list's `default` alias aside), else the id tidied up — `claude-haiku-4-5-20251001`
- * reads "Haiku 4.5".
+ * The name a model goes by, as the pill shows it — always with its version ("Opus 5.5"). claude's
+ * own `displayName` when that has one; some versions name an alias by family alone ("Opus"), and
+ * then the version comes from the model the entry runs (`resolvedModel`), or its description
+ * ("Opus 5.5 · Best for…"), or the id itself tidied up (`claude-haiku-4-5-20251001` → "Haiku 4.5").
  */
 export function modelLabel(model: string | null, models: readonly ChatModelInfo[] | null): string {
   if (model === null) return 'Default model'
   const named = models?.find((m) => m.value !== 'default' && (m.resolvedModel === model || m.value === model))
     ?? models?.find((m) => m.value === model)
-  if (named !== undefined) return named.displayName
+  if (named === undefined) return tidyModelId(model)
+  if (named.value !== 'default' && /\d/.test(named.displayName)) return named.displayName
+  if (named.resolvedModel !== undefined) return tidyModelId(named.resolvedModel)
+  const described = /^([A-Za-z]+ \d+(?:\.\d+)*) ·/.exec(named.description)
+  return described?.[1] ?? tidyModelId(model)
+}
+
+function tidyModelId(model: string): string {
   const parts = model.replace(/^claude-/, '').replace(/-\d{8}$/, '').replace(/\[.*\]$/, '').split('-')
   const name = parts.filter((p) => !/^\d+$/.test(p))
   const version = parts.filter((p) => /^\d+$/.test(p))

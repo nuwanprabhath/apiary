@@ -72,8 +72,10 @@ function ToolUseBlock({ name, input }: { name: string; input: unknown }): JSX.El
 // message and callback had not changed at all.
 export const MessageRow = memo(function MessageRow(
   { message, onOpenImage }: { message: TranscriptMessage; onOpenImage: (src: string) => void },
-): JSX.Element {
+): JSX.Element | null {
   const [showThinking, setShowThinking] = useState(false)
+  // A turn's end and a recap are the chat view's (ChatStatus); this view has no place for them.
+  if (message.blocks.every((b) => b.type === 'turn_end' || b.type === 'recap')) return null
 
   return (
     <article
@@ -117,7 +119,8 @@ export const MessageRow = memo(function MessageRow(
                   isError={block.isError}
                 />
               )
-            default:
+            case 'turn_end':
+            case 'recap':
               return null
           }
         })}

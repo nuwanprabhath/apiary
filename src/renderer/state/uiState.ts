@@ -46,6 +46,13 @@ export interface UiState {
    * menu's "Show all worktrees", so a session can be started in a worktree Claude has never run in.
    */
   showAllWorktrees: string[]
+  /**
+   * Worktrees made with Apiary's "New worktree", and the folder each was made from. Listed under
+   * that folder from the moment they exist: no session has run in one yet, so nothing in
+   * `~/.claude/projects` names it, and it would otherwise be missing from the tree just after
+   * being made.
+   */
+  createdWorktrees: { folder: string; path: string }[]
   selectedSessionId: string | null
   sidebarWidth: number
   /** Whether this window's sidebar is folded away to a rail, leaving the sessions the width. */
@@ -73,7 +80,7 @@ export interface UiState {
  */
 const SHARED_FIELDS = [
   'pinned', 'pinnedCollapsed', 'groups', 'groupAssignments', 'groupsCollapsed', 'folderOrder',
-  'dismissedRecent', 'recentCollapsed', 'showAllWorktrees',
+  'dismissedRecent', 'recentCollapsed', 'showAllWorktrees', 'createdWorktrees',
 ] as const
 
 type SharedField = typeof SHARED_FIELDS[number]
@@ -125,6 +132,7 @@ export const DEFAULT_UI_STATE: UiState = {
   groupsCollapsed: [],
   folderOrder: [],
   showAllWorktrees: [],
+  createdWorktrees: [],
   pinned: [],
   pinnedCollapsed: false,
   dismissedRecent: {},

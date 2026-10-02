@@ -24,7 +24,7 @@ import { BUILTIN_THEMES } from '@shared/theme/builtins'
 import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
 import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 import { asPtyId, asSessionId } from '@shared/domain/ids'
-import { emptyChatState, type ChatState } from '@shared/domain/chat'
+import { emptyChatState, type ChatState, type TerminalBusy } from '@shared/domain/chat'
 import { STANDARD_SESSIONS as STD } from '../fixtures/standard'
 
 export interface FakeSession {
@@ -109,6 +109,8 @@ export interface FakeState {
   statusBar: StatusBarItem[]
   /** Chat mode, by session id: what `chatState` answers and the `chat*` calls change. */
   chats: Map<string, ChatState>
+  /** What `terminalBusy` answers, by session id; not busy when absent. */
+  terminalBusy: Map<string, TerminalBusy>
   statusBarPanel: StatusBarPanel | null
 }
 
@@ -196,6 +198,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     worktrees: opts.worktrees ?? {},
     statusBar: opts.statusBar ?? [],
     chats: new Map(),
+    terminalBusy: new Map(),
     statusBarPanel: opts.statusBarPanel ?? null,
   }
 
@@ -401,6 +404,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     chatSetModel: async (id, model) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, model }) },
     chatSetEffort: async (id, effort) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, effort }) },
     chatStop: async (id) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, status: 'exited' }) },
+    terminalBusy: async (id) => state.terminalBusy.get(id) ?? { busy: false, backgroundTasks: 0 },
     onChatChanged: on('chatChanged'),
     // A small stand-in for main's application menu, in the shape serializeMenu produces.
     appMenu: async () => [
@@ -427,7 +431,12 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
       remote: state.refs.remote.map((r) => r.name),
       checkedOut: state.refs.current !== null ? [state.refs.current] : [],
     }),
-    worktreeCreate: async (path, request) => newSession(`${path}.worktrees/${request.name.trim()}`),
+    worktreeCreate: async (path, request) => {
+      // As git would: the folder's worktree list includes it from now on.
+      const made = `${path}.worktrees/${request.name.trim()}`
+      state.worktrees[path] = [...(state.worktrees[path] ?? []), { path: made, branch: request.branch.kind === 'remote' ? request.branch.ref.replace(/^[^/]+\//, '') : request.branch.branch }]
+      return newSession(made)
+    },
     gitPush: async () => ({ commits: 0, published: false }),
     gitMerge: async () => { emit('treeChanged') },
     gitFetch: async () => { emit('treeChanged') },

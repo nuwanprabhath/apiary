@@ -1,5 +1,5 @@
 import { asSessionId, ptyIdOfSession, type PtyId } from '@shared/domain/ids'
-import { type JSX, useCallback, useRef, useState } from 'react'
+import { type JSX, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import {
   isChatPermissionMode,
   type ChatEffort, type ChatPermissionMode, type ChatState,
@@ -21,6 +21,22 @@ interface Attachment {
    * silently blocked and renders as a zero-size box. A data URL also needs no revoking.
    */
   previewUrl: string
+}
+
+/** The box's height when empty, and how tall it grows with what is typed (a share of the window)
+ *  before it scrolls instead — unless dragged taller, up to `MAX_SHARE`. */
+const MIN_HEIGHT = 58
+const GROW_SHARE = 0.4
+const MAX_SHARE = 0.75
+const HEIGHT_KEY = 'apiary.composerHeight'
+
+function savedHeight(): number | null {
+  try {
+    const n = Number(localStorage.getItem(HEIGHT_KEY))
+    return Number.isFinite(n) && n >= MIN_HEIGHT ? n : null
+  } catch {
+    return null
+  }
 }
 
 /** Model choices offered by the picker. `null` means "leave whatever the session is using". */
@@ -75,6 +91,46 @@ export function Composer({
   const busy = chat?.status === 'busy'
   const mode = chatRunning ? shownMode(chat.permissionMode) : startMode
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  // The height the box was dragged to, which it never shrinks below; null to fit what is typed.
+  const [dragged, setDragged] = useState<number | null>(savedHeight)
+  const [dragging, setDragging] = useState(false)
+
+  // Fits the box to its text, so a long message can be read whole before it is sent: from the
+  // dragged height (or the minimum) up to a share of the window, scrolling only past that.
+  useLayoutEffect(() => {
+    const el = textareaRef.current
+    if (el === null) return
+    const floor = dragged ?? MIN_HEIGHT
+    const cap = Math.max(floor, window.innerHeight * GROW_SHARE)
+    el.style.height = 'auto'
+    el.style.height = `${String(Math.min(cap, Math.max(floor, el.scrollHeight + 2)))}px`
+  }, [text, dragged])
+
+  const startResize = useCallback((e: React.PointerEvent<HTMLDivElement>): void => {
+    const el = textareaRef.current
+    if (el === null) return
+    e.preventDefault()
+    const startY = e.clientY
+    const startHeight = el.getBoundingClientRect().height
+    const handle = e.currentTarget
+    handle.setPointerCapture(e.pointerId)
+    setDragging(true)
+    let latest = startHeight
+    const move = (ev: PointerEvent): void => {
+      latest = Math.round(Math.min(window.innerHeight * MAX_SHARE, Math.max(MIN_HEIGHT, startHeight + startY - ev.clientY)))
+      setDragged(latest)
+    }
+    const up = (): void => {
+      handle.removeEventListener('pointermove', move)
+      handle.removeEventListener('pointerup', up)
+      handle.removeEventListener('pointercancel', up)
+      setDragging(false)
+      try { localStorage.setItem(HEIGHT_KEY, String(latest)) } catch { /* only a convenience */ }
+    }
+    handle.addEventListener('pointermove', move)
+    handle.addEventListener('pointerup', up)
+    handle.addEventListener('pointercancel', up)
+  }, [])
 
   const addImages = useCallback(async (files: File[]): Promise<void> => {
     for (const file of files) {
@@ -117,7 +173,20 @@ export function Composer({
         // The chat takes the session over from its terminal if one is running: a session runs in
         // one place at a time (main stops the terminal's claude first), and the conversation
         // carries on from the same file. Nothing switches views — the reply streams in above.
+        //
+        // Never at a cost, though. A terminal mid-turn, or with background tasks still running
+        // (its children: they die with it), keeps the session — the message is typed into it, and
+        // the transcript, which reads the same file, shows it arrive. Claude Code queues a message
+        // typed while it works, as the chat does.
         const sessionId = asSessionId(chat?.sessionId ?? session.sessionId)
+        if (!chatRunning && running && ptyId !== null) {
+          const terminal = await window.apiary.terminalBusy(asSessionId(session.sessionId))
+          if (terminal.busy || terminal.backgroundTasks > 0) {
+            await window.apiary.sendPrompt(ptyId, lines.join('\n'))
+            if (command === undefined) { setText(''); setAttachments([]) }
+            return
+          }
+        }
         if (!chatRunning) {
           await window.apiary.chatStart(sessionId, {
             takeOver: true,
@@ -187,10 +256,26 @@ export function Composer({
     ? (running ? 'Goes to the running session' : 'Sending will resume this session first')
     : chatRunning
       ? ''
-      : running ? 'Running in its terminal — sending moves it here' : 'Sending resumes this session as a chat'
+      : running
+        ? 'Running in its terminal — sending moves it here once Claude is idle'
+        : 'Sending resumes this session as a chat'
 
   return (
     <div className="composer" data-testid="composer">
+      <div
+        className="composer-resize"
+        data-testid="composer-resize"
+        data-dragging={dragging}
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize the message box"
+        title="Drag to resize · double-click to fit the text again"
+        onPointerDown={startResize}
+        onDoubleClick={() => {
+          setDragged(null)
+          try { localStorage.removeItem(HEIGHT_KEY) } catch { /* only a convenience */ }
+        }}
+      />
       {attachments.length > 0 && (
         <div className="composer-attachments" data-testid="composer-attachments">
           {attachments.map((a) => (

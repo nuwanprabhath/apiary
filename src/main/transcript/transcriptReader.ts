@@ -60,6 +60,13 @@ function remember(filePath: string, entry: Index): void {
   }
 }
 
+/** Whether a raw line is a message someone wrote — by substring, without parsing. A message sent
+ *  mid-turn counts (it is recorded as a `queued_command` attachment); turn ends and recaps, which
+ *  `toMessage` also returns, do not: this is the count the session list shows. */
+function countsAsMessage(line: string): boolean {
+  return line.includes('"type":"user"') || line.includes('"type":"assistant"') || line.includes('"queued_command"')
+}
+
 /**
  * Records the byte offset of every non-empty line from `startByte` onward, and counts message
  * lines by substring test. No JSON parsing, so this stays cheap on multi-megabyte files.
@@ -101,7 +108,7 @@ async function scanFrom(
         pending = ''
         if (line.length > 0) {
           offsets.push(lineStart)
-          if (line.includes('"type":"user"') || line.includes('"type":"assistant"')) messageCount++
+          if (countsAsMessage(line)) messageCount++
         }
         position = lineStart + pendingBytes + 1
         lineStart = position
@@ -114,7 +121,7 @@ async function scanFrom(
     stream.on('end', () => {
       if (pending.length > 0) {
         offsets.push(lineStart)
-        if (pending.includes('"type":"user"') || pending.includes('"type":"assistant"')) messageCount++
+        if (countsAsMessage(pending)) messageCount++
         endsWithNewline = false
       }
       resolve()
@@ -221,17 +228,42 @@ function mapBlocks(_role: 'user' | 'assistant', content: unknown): TranscriptBlo
  */
 export function toMessage(entry: Record<string, unknown>): TranscriptMessage | null {
   const role = entry.type
+  const ts = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : NaN
+  const base = { uuid: asString(entry.uuid, ''), timestampMs: Number.isNaN(ts) ? null : ts, isSidechain: entry.isSidechain === true }
+  if (role === 'attachment') return queuedMessage(entry, base)
+  if (role === 'system') return systemEvent(entry, base)
   if (role !== 'user' && role !== 'assistant') return null
   const message = entry.message as { content?: unknown } | undefined
   if (!message) return null
-  const ts = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : NaN
-  return {
-    uuid: asString(entry.uuid, ''),
-    role,
-    timestampMs: Number.isNaN(ts) ? null : ts,
-    isSidechain: entry.isSidechain === true,
-    blocks: mapBlocks(role, message.content),
+  return { ...base, role, blocks: mapBlocks(role, message.content) }
+}
+
+type MessageBase = Pick<TranscriptMessage, 'uuid' | 'timestampMs' | 'isSidechain'>
+
+/**
+ * A message you sent while Claude was mid-turn. Claude Code folds it into the turn in progress and
+ * records it, not as a `user` entry, but as an `attachment` of type `queued_command` — where it was
+ * read, after the tool result it followed. Its `source_uuid` is the uuid the message had when it
+ * was sent (and the one chat mode's stream replays it under), so it is filed under that one: the
+ * live copy and this one are then the same message rather than two.
+ */
+function queuedMessage(entry: Record<string, unknown>, base: MessageBase): TranscriptMessage | null {
+  const a = entry.attachment as { type?: unknown; prompt?: unknown; source_uuid?: unknown } | undefined
+  if (a?.type !== 'queued_command') return null
+  const blocks = mapBlocks('user', a.prompt)
+  if (blocks.length === 0) return null
+  return { ...base, uuid: asString(a.source_uuid, base.uuid), role: 'user', blocks }
+}
+
+/** The two `system` entries the chat view shows: a turn's duration and a recap. */
+function systemEvent(entry: Record<string, unknown>, base: MessageBase): TranscriptMessage | null {
+  if (entry.subtype === 'turn_duration' && typeof entry.durationMs === 'number') {
+    return { ...base, role: 'assistant', blocks: [{ type: 'turn_end', durationMs: entry.durationMs }] }
   }
+  if (entry.subtype === 'away_summary' && typeof entry.content === 'string' && entry.content.trim() !== '') {
+    return { ...base, role: 'assistant', blocks: [{ type: 'recap', text: entry.content }] }
+  }
+  return null
 }
 
 async function readRange(filePath: string, start: number, end: number): Promise<string> {

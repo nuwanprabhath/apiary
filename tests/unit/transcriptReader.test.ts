@@ -71,6 +71,41 @@ describe('indexTranscript', () => {
 })
 
 describe('readTranscriptPage', () => {
+  it('reads a message sent mid-turn where Claude took it in, under the uuid it was sent with', async () => {
+    // As claude 2.1.286 wrote it: not a `user` entry but a `queued_command` attachment, placed
+    // after the tool result it followed; `source_uuid` is the uuid the stream replayed it under.
+    write([
+      userMsg('u1', 'run the tests'),
+      assistantMsg('a1', [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'npm test' } }]),
+      { type: 'user', uuid: 'r1', timestamp: '2026-09-01T10:02:00.000Z', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }] } },
+      {
+        type: 'attachment', uuid: 'att1', timestamp: '2026-09-01T10:01:30.000Z', isSidechain: false,
+        attachment: { type: 'queued_command', prompt: [{ type: 'text', text: 'and lint too' }], source_uuid: 'sent-1' },
+      },
+      { type: 'attachment', uuid: 'att2', attachment: { type: 'deferred_tools_delta', addedNames: [] } },
+    ])
+    const page = await readTranscriptPage(file())
+    expect(page.messages.map((m) => m.uuid)).toEqual(['u1', 'a1', 'r1', 'sent-1'])
+    expect(page.messages[3]).toMatchObject({ role: 'user', blocks: [{ type: 'text', text: 'and lint too' }] })
+    expect((await indexTranscript(file())).messageCount).toBe(4)
+  })
+
+  it('reads a turn\'s duration and a recap, without counting them as messages', async () => {
+    write([
+      userMsg('u1', 'hi'),
+      { type: 'system', subtype: 'turn_duration', durationMs: 33000, uuid: 'td', timestamp: '2026-09-01T10:03:00.000Z' },
+      { type: 'system', subtype: 'away_summary', content: 'You were fixing the build.', uuid: 'rc', timestamp: '2026-09-01T11:00:00.000Z' },
+      { type: 'system', subtype: 'api_error', uuid: 'e1' },
+    ])
+    const page = await readTranscriptPage(file())
+    expect(page.messages.map((m) => m.blocks)).toEqual([
+      [{ type: 'text', text: 'hi' }],
+      [{ type: 'turn_end', durationMs: 33000 }],
+      [{ type: 'recap', text: 'You were fixing the build.' }],
+    ])
+    expect((await indexTranscript(file())).messageCount).toBe(1)
+  })
+
   it('returns user and assistant messages in file order', async () => {
     write([userMsg('u1', 'the export is empty'), assistantMsg('a1', [{ type: 'text', text: 'checking' }])])
     const page = await readTranscriptPage(file())

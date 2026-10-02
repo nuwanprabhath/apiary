@@ -58,6 +58,7 @@ export function SessionBody({
             chatMode={chatMode}
             chat={chat}
             onDecide={onDecide}
+            terminalRunning={running}
           />
           {/* The chat box belongs to the transcript rather than the terminal: this is the
             * reading view, and being able to reply without switching to the raw terminal is

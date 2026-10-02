@@ -45,7 +45,8 @@
  */
 /* The terminal list's edge is one too (TerminalListPanel). */
 .terminal-list-resizer { position: relative; flex: none; width: 6px; margin-left: -6px; z-index: var(--z-terminal-list-resizer); cursor: col-resize; }
-.sidebar-resizer::after, .column-resizer::after, .row-resizer::after, .bottom-resizer::after, .terminal-list-resizer::after {
+.sidebar-resizer::after, .column-resizer::after, .row-resizer::after, .bottom-resizer::after, .terminal-list-resizer::after,
+.composer-resize::after {
   content: '';
   position: absolute;
   left: 50%;
@@ -62,18 +63,18 @@
   height: var(--handle-length);
   background-size: var(--handle-thickness) calc(var(--handle-length) / 3);
 }
-.row-resizer::after, .bottom-resizer::after {
+.row-resizer::after, .bottom-resizer::after, .composer-resize::after {
   width: var(--handle-length);
   height: var(--handle-thickness);
   background-size: calc(var(--handle-length) / 3) var(--handle-thickness);
 }
 .sidebar-resizer:hover::after, .column-resizer:hover::after, .terminal-list-resizer:hover::after,
-.row-resizer:hover::after, .bottom-resizer:hover::after {
+.row-resizer:hover::after, .bottom-resizer:hover::after, .composer-resize:hover::after {
   opacity: 1;
   background-image: radial-gradient(circle, var(--handle-color-hover) 1.4px, transparent 1.9px);
 }
 .sidebar-resizer:active::after, .column-resizer:active::after, .terminal-list-resizer:active::after,
-.row-resizer:active::after, .bottom-resizer:active::after {
+.row-resizer:active::after, .bottom-resizer:active::after, .composer-resize[data-dragging="true"]::after {
   opacity: 1;
   background-image: radial-gradient(circle, var(--handle-color-active) 1.4px, transparent 1.9px);
 }

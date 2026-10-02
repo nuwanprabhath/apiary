@@ -107,7 +107,7 @@ function AppWindow({ detached, arrival, restored }: {
   } = useAppSettings()
   const {
     ui, updateUi: setUi, toggleSidebar, togglePin, unpin, setCollapsed, setGroupState,
-    reorderPinned, toggleAllWorktrees, setPinnedCollapsed, setRecentCollapsed, dismissRecent,
+    reorderPinned, toggleAllWorktrees, rememberCreatedWorktree, setPinnedCollapsed, setRecentCollapsed, dismissRecent,
     setSidebarWidth, setBottomHeight, setTerminalListWidth, setImportDialogWidth,
   } = useUiState(recentSectionHours)
   /** The theme, applied by the hook itself; kept here for the effects layer. */
@@ -555,14 +555,15 @@ function AppWindow({ detached, arrival, restored }: {
       return null
     }
   }, [addPending, notifyError])
-  const onWorktreeCreated = useCallback(async (info: NewSessionInfo) => {
+  const onWorktreeCreated = useCallback(async (info: NewSessionInfo, folder: string) => {
+    rememberCreatedWorktree(folder, info.cwd)
     notify({ message: `Worktree created at ${info.cwd} — starting Claude there` })
     try {
       addPending(info, await window.apiary.tree())
     } catch (e) {
       notifyError(e, 'Could not open the new worktree\'s session')
     }
-  }, [addPending, notify, notifyError])
+  }, [addPending, notify, notifyError, rememberCreatedWorktree])
 
   const onOpenSettings = useCallback((section: string) => { openDialog({ kind: 'settings', section }) }, [openDialog])
 
@@ -656,6 +657,7 @@ function AppWindow({ detached, arrival, restored }: {
         onGroupStateChange={setGroupState}
         onReorderPinned={reorderPinned}
         showAllWorktrees={ui.showAllWorktrees}
+        createdWorktrees={ui.createdWorktrees}
         onToggleAllWorktrees={toggleAllWorktrees}
         onSelect={onSelect}
         onSplitSession={onSplitSession}
@@ -792,7 +794,7 @@ function AppWindow({ detached, arrival, restored }: {
         onFork={(id) => { void forkSession(asSessionId(id)) }}
         onOpenAnyway={(session) => { void startResume(session) }}
         onConfirmDelete={(session) => { void confirmDelete(session) }}
-        onWorktreeCreated={(info) => { void onWorktreeCreated(info) }}
+        onWorktreeCreated={(info, folder) => { void onWorktreeCreated(info, folder) }}
         importWidth={ui.importDialogWidth}
         onImportWidthChange={setImportDialogWidth}
         onImported={() => { setTreeNonce((n) => n + 1) }}

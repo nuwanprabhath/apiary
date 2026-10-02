@@ -18,6 +18,7 @@ export interface UiStateActions {
   setGroupState: (next: GroupState) => void
   reorderPinned: (id: string, beforeId: string) => void
   toggleAllWorktrees: (path: string) => void
+  rememberCreatedWorktree: (folder: string, path: string) => void
   setPinnedCollapsed: (next: boolean) => void
   setRecentCollapsed: (next: boolean) => void
   dismissRecent: (session: SessionNode) => void
@@ -27,6 +28,8 @@ export interface UiStateActions {
   setImportDialogWidth: (width: number) => void
 }
 
+
+const MAX_CREATED_WORKTREES = 50
 /**
  * Owns the per-window/shared `ui` blob: load, the synchronous save, cross-window shared-state
  * sync, and the dismissed-Recent prune — plus narrow actions for every place App.tsx mutated it
@@ -120,6 +123,15 @@ export function useUiState(recentSectionHours: number): UiStateActions {
     }))
   }, [])
 
+  const rememberCreatedWorktree = useCallback((folder: string, path: string) => {
+    setUi((prev) => ({
+      ...prev,
+      // The newest first, and only so many: once a session has run in one the tree finds it on its
+      // own, and one since removed is simply not listed by git any more.
+      createdWorktrees: [{ folder, path }, ...prev.createdWorktrees.filter((w) => w.path !== path)].slice(0, MAX_CREATED_WORKTREES),
+    }))
+  }, [])
+
   const setPinnedCollapsed = useCallback((next: boolean) => {
     setUi((prev) => ({ ...prev, pinnedCollapsed: next }))
   }, [])
@@ -153,7 +165,7 @@ export function useUiState(recentSectionHours: number): UiStateActions {
 
   return {
     ui, updateUi: setUi, toggleSidebar, togglePin, unpin, setCollapsed, setGroupState, reorderPinned,
-    toggleAllWorktrees, setPinnedCollapsed, setRecentCollapsed, dismissRecent,
+    toggleAllWorktrees, rememberCreatedWorktree, setPinnedCollapsed, setRecentCollapsed, dismissRecent,
     setSidebarWidth, setBottomHeight, setTerminalListWidth, setImportDialogWidth,
   }
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { ProjectNode } from '@shared/types'
-import { withAllWorktrees } from '../../src/renderer/features/sidebar/model/allWorktrees'
+import { createdWorktreeRoots, onlyWanted, withAllWorktrees } from '../../src/renderer/features/sidebar/model/allWorktrees'
 
 function folder(path: string, over: Partial<ProjectNode> = {}): ProjectNode {
   return {
@@ -39,5 +39,28 @@ describe('withAllWorktrees', () => {
     expect(out[0]).toBe(repo)
     expect(out[1]).toBe(other)
     expect(withAllWorktrees(tree, new Map())).toBe(tree)
+  })
+})
+
+describe('worktrees made in Apiary', () => {
+  const repo = folder('/r/app', { children: [folder('/r/app-b', { isWorktree: true })] })
+  const listed = new Map([['/r/app', [
+    { path: '/r/app-b', branch: 'b' }, { path: '/r/app.worktrees/new', branch: 'new' }, { path: '/r/app-old', branch: 'old' },
+  ]]])
+
+  it('belong under the top-level folder, whether made from it or from one of its worktrees', () => {
+    const roots = createdWorktreeRoots([
+      { folder: '/r/app', path: '/r/app.worktrees/new' },
+      { folder: '/r/app-b', path: '/r/app.worktrees/other' },
+      { folder: '/gone', path: '/gone.worktrees/x' },
+    ], [repo])
+    expect([...roots]).toEqual([['/r/app', new Set(['/r/app.worktrees/new', '/r/app.worktrees/other'])]])
+  })
+
+  it('are the only ones added to a folder that is not showing all its worktrees', () => {
+    const roots = new Map([['/r/app', new Set(['/r/app.worktrees/new'])]])
+    expect(onlyWanted(listed, [], roots).get('/r/app')?.map((w) => w.path)).toEqual(['/r/app.worktrees/new'])
+    expect(onlyWanted(listed, ['/r/app'], roots).get('/r/app')).toHaveLength(3)
+    expect(onlyWanted(listed, [], new Map()).size).toBe(0)
   })
 })

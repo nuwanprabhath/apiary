@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { emptyChatState, type ChatState } from '../../src/shared/domain/chat'
 import {
-  parseLine, permissionReply, permissionRequestOf, reduce, userLine, controlLine, type Line,
+  contextUsageOf, parseLine, permissionReply, permissionRequestOf, reduce, userLine, controlLine, type Line,
 } from '../../src/main/chat/protocol'
 
 /** The shape of a real turn, as `claude` 2.1.286 printed it: a Write that needed permission. */
@@ -115,5 +115,32 @@ describe('chat protocol', () => {
     expect(parseLine('Welcome to Ubuntu')).toBeNull()
     expect(parseLine('{"type":"result"')).toBeNull()
     expect(parseLine('{"type":"result"}')).toEqual({ type: 'result' })
+  })
+
+  it('keeps a message sent mid-turn queued until claude replays it, and ends that turn idle with one result', () => {
+    const sent = { ...run(TURN.slice(0, 3)), queued: [{ id: 'q1', text: 'and lint too' }] }
+    const replayed = reduce(sent, { type: 'user', uuid: 'q-uuid', isReplay: true, message: { role: 'user', content: [{ type: 'text', text: 'and lint too' }] } })
+    expect(replayed.queued).toEqual([])
+    expect(replayed.live.map((m) => m.uuid)).toContain('q-uuid')
+    expect(reduce(replayed, { type: 'result', duration_ms: 4200 }, 5000)).toMatchObject({ status: 'idle', lastTurn: { durationMs: 4200, endedAt: 5000 } })
+    // Still waiting at the end of a turn, a message starts the next one.
+    expect(reduce(sent, { type: 'result' }, 5000)).toMatchObject({ status: 'busy', turnStartedAt: 5000 })
+  })
+
+  it('is busy from the first streamed message of a turn nobody sent — a background task finishing', () => {
+    const idle = { ...emptyChatState('s'), status: 'idle' as const }
+    const s = reduce(idle, { type: 'stream_event', event: { type: 'message_start' } }, 7000)
+    expect(s).toMatchObject({ status: 'busy', turnStartedAt: 7000 })
+  })
+
+  it('tracks the background tasks claude reports', () => {
+    const s = reduce(emptyChatState('s'), { type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'b1', task_type: 'local_bash', description: 'Sleep' }] })
+    expect(s.backgroundTasks).toEqual([{ taskId: 'b1', description: 'Sleep' }])
+    expect(reduce(s, { type: 'system', subtype: 'background_tasks_changed', tasks: [] }).backgroundTasks).toEqual([])
+  })
+
+  it('reads the context from get_context_usage', () => {
+    expect(contextUsageOf({ totalTokens: 27682, maxTokens: 200000, percentage: 14 })).toEqual({ used: 27682, window: 200000 })
+    expect(contextUsageOf({})).toBeNull()
   })
 })
