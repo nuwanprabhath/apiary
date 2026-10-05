@@ -137,7 +137,7 @@ To run a prebuilt release:
 
 To build from source, additionally:
 
-- Node 22 or newer (see [CONTRIBUTING.md](CONTRIBUTING.md) for the full dev setup)
+- Node 22.22.1 or newer (see [CONTRIBUTING.md](CONTRIBUTING.md) for the full dev setup)
 
 ## Development
 

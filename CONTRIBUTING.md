@@ -8,7 +8,7 @@ past initial setup.
 ## Setup
 
 ```sh
-nvm use            # or any Node >=22 — see .nvmrc
+nvm use            # or any Node >=22.22.1 — see .nvmrc
 npm ci
 npm start          # run the app
 ```
