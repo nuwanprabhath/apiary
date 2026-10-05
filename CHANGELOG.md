@@ -4,6 +4,12 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.31.3] - 2026-10-05
+
+### Changed
+
+- **Dependencies.** @types/better-sqlite3 9.6.0 (matching better-sqlite3 13) and globals 17.13.0.
+
 ## [1.31.2] - 2026-10-05
 
 ### Changed
