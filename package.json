@@ -59,7 +59,7 @@
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@electron/rebuild": "^4.2.0",
-    "@eslint-react/eslint-plugin": "^5.20.8",
+    "@eslint-react/eslint-plugin": "^5.23.3",
     "@eslint/js": "^10.0.1",
     "@fontsource/fira-code": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
