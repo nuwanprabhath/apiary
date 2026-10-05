@@ -66,7 +66,7 @@ jobs:
 
       - run: npm ci
 
-      # `npm audit --audit-level=low` as a pre-release gate, dev dependencies included (see
+      # `npm audit` at every severity (scripts/audit.mjs) as a pre-release gate, dev dependencies included (see
       # SEC-1: `--omit=dev` hid Electron's own CVEs). Runs before any build spends time.
       - run: npm run audit
 

@@ -110,9 +110,10 @@ patch or minor per SemVer; the maintainer decides major bumps.
   `Co-Authored-By: ... Claude/Anthropic/...` and `Generated with [Claude`).
 - **Ask before pushing, tagging or releasing.** A `v*` tag triggers `.github/workflows/release.yml`;
   the maintainer tests builds by hand first.
-- `npm run audit` (`npm audit --audit-level=low`, dev dependencies included — Electron itself is
-  one) is a gate in both `ci.yml` and `release.yml`, ahead of build and test. Run it locally before
-  tagging too.
+- `npm run audit` (`scripts/audit.mjs`: `npm audit` at every severity, dev dependencies included —
+  Electron itself is one) is a gate in both `ci.yml` and `release.yml`, ahead of build and test.
+  Run it locally before tagging too. An advisory with no fixed version that cannot reach us may be
+  allowed there, with a reason and a review-by date after which the gate fails again.
 
 ## Hard rules (each links to where the reason lives)
 

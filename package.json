@@ -40,7 +40,7 @@
     "lint:sh": "node scripts/lint-sh.mjs",
     "lint:cycles": "madge --circular --extensions ts,tsx --ts-config tsconfig.json src",
     "lint:fix": "eslint . --fix && stylelint \"src/**/*.css\" --fix && markdownlint-cli2 --fix",
-    "audit": "npm audit --audit-level=low",
+    "audit": "node scripts/audit.mjs",
     "dist": "npm run build && node scripts/dist.mjs",
     "dist:mac:arm64": "npm run build && node scripts/dist.mjs arm64",
     "dist:mac:x64": "npm run build && node scripts/dist.mjs x64",

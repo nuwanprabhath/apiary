@@ -56,6 +56,13 @@ All notable changes to Apiary are documented here. Format follows
 - **Pet speech bubbles and thought clouds are solid**, like menus, so they stay readable on glass
   themes.
 
+### Security
+
+- **Dependency audit.** `http-cache-semantics` updated past GHSA-ch52-4w7c-c8xp. The audit gate
+  (`npm run audit`) can now allow an advisory that has no fixed version and cannot reach us, with
+  a reason and a review-by date. The only one is `braces` (GHSA-vfj7-8cjw-p6xm), used by the
+  Markdown and CSS linters on our own globs, until 2026-12-31.
+
 ## [1.30.0] - 2026-10-02
 
 ### Added

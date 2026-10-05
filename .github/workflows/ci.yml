@@ -35,7 +35,7 @@ jobs:
       # --ignore-scripts: nothing here needs node-pty or better-sqlite3 compiled.
       - run: npm ci --ignore-scripts
 
-      # `npm audit --audit-level=low` as a pre-merge gate, before build/test spend any time —
+      # `npm audit` at every severity (scripts/audit.mjs) as a pre-merge gate, before build/test spend any time —
       # every dependency in the tree, dev included (see SEC-1: `--omit=dev` hid Electron's CVEs).
       - run: npm run audit
 
