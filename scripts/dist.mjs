@@ -29,9 +29,9 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import yaml from 'js-yaml';
+import { load } from 'js-yaml';
 
-const config = yaml.load(readFileSync('electron-builder.yml', 'utf8'));
+const config = load(readFileSync('electron-builder.yml', 'utf8'));
 
 if (process.platform === 'darwin') {
   const requestedArch = process.argv[2] ?? process.arch;

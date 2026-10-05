@@ -10,7 +10,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import yaml from 'js-yaml'
+import { dump, load } from 'js-yaml'
 
 // Playwright attaches to Electron through `--inspect`, which the shipped build's
 // `enableNodeCliInspectArguments: false` fuse (SEC-3) turns off. So the smoke packages a copy of the
@@ -36,12 +36,12 @@ const candidates = {
 
 if (!skipPack) {
   run('npx', ['electron-vite', 'build'])
-  const config = yaml.load(readFileSync('electron-builder.yml', 'utf8'))
+  const config = load(readFileSync('electron-builder.yml', 'utf8'))
   config.directories = { ...config.directories, output: OUT }
   config.electronFuses = { ...config.electronFuses, enableNodeCliInspectArguments: true }
   const dir = mkdtempSync(join(tmpdir(), 'apiary-packaged-'))
   const file = join(dir, 'electron-builder.yml')
-  writeFileSync(file, yaml.dump(config))
+  writeFileSync(file, dump(config))
   try {
     run('npx', ['electron-builder', '--config', file, '--dir', '--publish', 'never'])
   } finally {

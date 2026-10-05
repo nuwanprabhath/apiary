@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.31.2] - 2026-10-05
+
+### Changed
+
+- **Dependencies.** js-yaml 5.4.2 (the build scripts use its named exports; the packaging config
+  reads the same), typescript-eslint 8.71.0 and @eslint-react/eslint-plugin 5.23.3.
+- **TypeScript stays on 6** until typescript-eslint supports TypeScript 7; Dependabot no longer
+  offers the major update.
+
 ## [1.31.1] - 2026-10-05
 
 ### Changed
