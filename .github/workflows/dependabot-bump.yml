@@ -1,0 +1,93 @@
+# Gives every Dependabot PR its own patch version and CHANGELOG section (CLAUDE.md, "Versioning,
+# changelog, commits"), so it can be squash-merged from GitHub as it stands. The work is in
+# scripts/dependabot-bump.mjs (tested by tests/integration/dependabotBump.test.ts); this file finds
+# the PRs, pushes the result, retitles the PR and starts CI.
+#
+# - A Dependabot PR is opened or updated: bump that PR.
+# - main moves (a PR merged): bump every open Dependabot PR again, since main's version and the top
+#   of CHANGELOG.md just changed under them.
+#
+# The PR title becomes the versioned subject ("chore(deps): 1.31.6 — bump ..."): a squash merge of
+# a PR with more than one commit takes the PR title (squash_merge_commit_title COMMIT_OR_PR_TITLE).
+#
+# `pull_request_target` runs this file from main with a write token, which is what lets it push to
+# Dependabot's branch. It never runs anything from the PR: no checkout of the PR as the working
+# script, no npm. The script is copied out of main's checkout before any PR commit is touched, and
+# the PR's commits are only cherry-picked as data. Only Dependabot's own PRs are processed.
+#
+# A push made with GITHUB_TOKEN starts no workflows, so CI is started on the bumped branch with
+# `workflow_dispatch` (ci.yml accepts it for this reason).
+name: Dependabot bump
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+# One at a time: two runs force-pushing the same branch would race.
+concurrency:
+  group: dependabot-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      (github.event.pull_request.user.login == 'dependabot[bot]' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Bump Dependabot PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          script="$RUNNER_TEMP/dependabot-bump.mjs"
+          cp scripts/dependabot-bump.mjs "$script"
+
+          if [ -n "$PR" ]; then
+            prs="$PR"
+          else
+            prs=$(gh pr list --author app/dependabot --state open --json number -q '.[].number')
+          fi
+
+          for pr in $prs; do
+            branch=$(gh pr view "$pr" --json headRefName -q .headRefName)
+            case "$branch" in dependabot/*) ;; *) echo "#$pr: not a Dependabot branch, skipped"; continue ;; esac
+            git fetch -q --force origin main "+refs/heads/$branch:refs/remotes/origin/$branch"
+
+            result=$(node "$script" origin/main "origin/$branch")
+            echo "#$pr: $result"
+            action=$(jq -r .action <<<"$result")
+            old=$(jq -r '.old // empty' <<<"$result")
+
+            case "$action" in
+              bumped)
+                git push --force-with-lease="refs/heads/$branch:$old" origin "HEAD:refs/heads/$branch"
+                gh pr edit "$pr" --title "$(jq -r .subject <<<"$result")"
+                gh workflow run ci.yml --ref "$branch"
+                ;;
+              strip)
+                git push --force-with-lease="refs/heads/$branch:$old" origin "$(jq -r .sha <<<"$result"):refs/heads/$branch"
+                ;;
+            esac
+            git checkout -q --detach origin/main
+          done

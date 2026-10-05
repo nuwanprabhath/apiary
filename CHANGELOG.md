@@ -4,6 +4,17 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.31.5] - 2026-10-05
+
+### Changed
+
+- **Dependabot sends one batch a week.** All npm minor and patch updates come as one PR, all
+  GitHub action updates as another, and each npm major on its own. A release must be a week old
+  before it is offered.
+- **Dependabot PRs can be merged as they stand.** A workflow (`dependabot-bump.yml`) adds the
+  version bump and CHANGELOG section to each one, titles it with the version, and starts CI on it.
+  When main moves, it redoes the bump on every open Dependabot PR.
+
 ## [1.31.4] - 2026-10-05
 
 ### Changed

@@ -12,6 +12,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Started by dependabot-bump.yml on a branch it just pushed: a GITHUB_TOKEN push starts no
+  # workflows, so the bumped commit would otherwise have no CI.
+  workflow_dispatch:
 
 permissions:
   contents: read

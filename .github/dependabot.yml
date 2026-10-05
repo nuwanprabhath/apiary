@@ -1,26 +1,23 @@
+# One batch a week: a PR for every npm minor and patch update together, a PR for all GitHub action
+# updates, and a PR of its own for each npm major (those need reading: a peer range, an engine
+# floor, an API change). .github/workflows/dependabot-bump.yml then gives each PR its version and
+# CHANGELOG section, so it can be squash-merged as it stands.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: "/"
     schedule:
       interval: weekly
+      day: monday
+    # A release must be a week old before it is offered: fewer "5.4.1, then 5.4.2" PRs, and a
+    # broken or compromised release is usually pulled within days.
+    cooldown:
+      default-days: 7
+    # Room for the whole week's batch at once; the default of 5 trickles the rest in as PRs close.
+    open-pull-requests-limit: 10
     groups:
-      electron:
-        patterns:
-          - "electron*"
-          - "@electron/*"
-      vitest:
-        patterns:
-          - "vitest*"
-          - "@vitest/*"
-      eslint:
-        patterns:
-          - "eslint*"
-          - "@typescript-eslint/*"
-      build:
-        patterns:
-          - "vite*"
-          - "@vitejs/*"
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     ignore:
       # electron-vite 5 (the latest) peers on vite ^5 || ^6 || ^7, and @vitejs/plugin-react 6
       # needs vite 8. Lift this once electron-vite supports Vite 8.
@@ -37,3 +34,10 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      # Pinned-SHA swaps, almost always only the action's Node runtime: one PR for all of them.
+      actions:
+        patterns: ["*"]

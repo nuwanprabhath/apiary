@@ -110,6 +110,10 @@ patch or minor per SemVer; the maintainer decides major bumps.
   `Co-Authored-By: ... Claude/Anthropic/...` and `Generated with [Claude`).
 - **Ask before pushing, tagging or releasing.** A `v*` tag triggers `.github/workflows/release.yml`;
   the maintainer tests builds by hand first.
+- **Dependabot PRs get their bump from CI**: `.github/workflows/dependabot-bump.yml` (logic in
+  `scripts/dependabot-bump.mjs`) adds the next patch version and a CHANGELOG section to each one
+  and retitles it, so it can be squash-merged from GitHub. Don't hand-bump a Dependabot PR; push
+  your own commit to it and the workflow leaves it alone from then on.
 - `npm run audit` (`scripts/audit.mjs`: `npm audit` at every severity, dev dependencies included —
   Electron itself is one) is a gate in both `ci.yml` and `release.yml`, ahead of build and test.
   Run it locally before tagging too. An advisory with no fixed version that cannot reach us may be
