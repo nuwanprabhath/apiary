@@ -9,9 +9,9 @@ All notable changes to Apiary are documented here. Format follows
 ### Changed
 
 - **Developing Apiary needs Node 22.22.1 or newer** (was any Node 22), for lint-staged 17.
-- **Dependencies.** Electron 44.5.1, Vitest 5.0.3, esbuild 0.28.2 and lint-staged 17.6.0. The CI and release workflows
-  use the current GitHub actions: checkout 7, setup-node 7, cache 6, upload-artifact 7 and
-  download-artifact 8.
+- **Dependencies.** Electron 44.5.1, Vitest 5.0.3, esbuild 0.28.2 and lint-staged 17.6.0. The CI
+  and release workflows use the current GitHub actions: checkout 7, setup-node 7, cache 6,
+  upload-artifact 7, download-artifact 8 and action-gh-release 3.
 - **Vite stays on 7** until electron-vite supports Vite 8; Dependabot no longer offers the major
   update.
 
