@@ -13,6 +13,8 @@ or a stand-in binary, and none of them must be usable to redirect a real install
 | `APIARY_CODE_PATH` | test harness | substitutes a fake `code` binary (empty = "not found") |
 | `APIARY_GLAB_PATH` | test harness | points the GitLab plugin's `glab` calls at a stand-in binary |
 | `APIARY_PICK_FOLDER` | test harness | answers the native folder picker (a group's "+") with this path instead of opening the dialog |
+| `APIARY_PET_EXPORT_PATH` | test harness | answers the pet export save dialog with this path |
+| `APIARY_PET_IMPORT_PATH` | test harness | answers the pet import open dialog with this path |
 | `APIARY_WINDOW_CHROME` | test harness | forces a window's title bar: `custom` (Windows/Linux themed bar and menus), `mac` or `system` |
 | `APIARY_DEFAULT_THEME=original` | test harness | starts a fresh profile on the pre-Liquid-Glass theme |
 | `APIARY_FAKE_UPDATE`, `APIARY_FAKE_UPDATE_MODE` | test harness | drives the update banner with no network |
@@ -37,6 +39,7 @@ or a stand-in binary, and none of them must be usable to redirect a real install
 | `settings.json` | `main/settings.ts` |
 | `session-layout.json` | `main/windows/sessionLayoutStore.ts` |
 | `themes.json` | `main/theme/` (`ThemeStore`) |
+| `pets.json` | `main/pets/` (`PetStore`) — whether pets are on, every installed pet and where it stands |
 | `prompt-shim/zsh` | `main/pty/promptPath.ts` (written at startup) |
 | `pasted-images/` | `main/` `ImageStore` (chat image attachments) |
 | `logs/` | `main/log/` — only exists once Diagnostics is switched on |

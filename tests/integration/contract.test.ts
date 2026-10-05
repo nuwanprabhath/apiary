@@ -68,6 +68,8 @@ vi.mock('electron', () => ({
 const { registerIpc } = await import('../../src/main/ipc')
 const { ThemeStore } = await import('../../src/main/theme/themeStore')
 const { ThemeGenerator } = await import('../../src/main/theme/themeGenerator')
+const { PetStore } = await import('../../src/main/pets/petStore')
+const { PetService } = await import('../../src/main/pets/petService')
 const { SettingsService } = await import('../../src/main/settings/settingsService')
 await import('../../src/preload/index')
 
@@ -111,6 +113,10 @@ defineBridgeContract('real preload + main handlers (loopback)', async ({ importe
       safeMode: false,
       generator: new ThemeGenerator({ claudeBin: () => null }),
     },
+    pets: (() => {
+      const store = new PetStore(join(home, 'pets.json'))
+      return { store, service: new PetService({ store, claudeBin: () => null, onChanged: () => {} }), actions: async () => [] }
+    })(),
   })
   if (exposedApi === null) throw new Error('the preload did not expose window.apiary')
   const api = exposedApi

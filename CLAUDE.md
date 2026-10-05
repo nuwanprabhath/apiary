@@ -35,6 +35,7 @@ for the full index. Nothing below is deleted history: it moved.
 | Settings | `main/settings.ts`, `main/ipc/handlers/settings.ts` ([CLAUDE.md](src/main/CLAUDE.md)) | `shared/domain/settings.ts`, `shared/settingsDefaults.ts` | `features/settings/` | `unit/settings*`, `component/settings*`, `e2e/settings.spec.ts` |
 | Status bar (plugins; Claude usage) | `main/statusBar/` ([CLAUDE.md](src/main/plugins/CLAUDE.md)) | `shared/domain/statusBar.ts` | `features/statusBar/`, `state/useStatusBar.ts` | `unit/claudeUsage.test.ts`, `unit/statusBarRegistry.test.ts`, `component/statusBar*`, `e2e/statusBar.spec.ts` |
 | Chat mode (transcript as a chat) | `main/chat/` ([CLAUDE.md](src/main/CLAUDE.md)) | `shared/domain/chat.ts`, `shared/chatTimeline.ts` | `features/chat/`, `state/useChat.ts`, `features/transcript/Composer.tsx` | `unit/chat*`, `integration/chatManager.test.ts`, `component/transcriptChat*`, `e2e/transcriptChat.spec.ts` |
+| Pets | `main/pets/`, `main/claude/claudeOneShot.ts` | `shared/pets/*` ([CLAUDE.md](src/shared/pets/CLAUDE.md)) | `features/pets/`, `features/settings/sections/PetsSection.tsx` | `unit/pet*`, `integration/petService*`, `component/pet*`, `e2e/pets.spec.ts` |
 | Updater | `main/update/` ([CLAUDE.md](src/main/update/CLAUDE.md)) | `shared/domain/update.ts` | `features/update/` | `unit/updateService*`, `e2e/update.spec.ts` |
 | Diagnostic log | `main/log/` ([CLAUDE.md](src/main/log/CLAUDE.md)) | `shared/redact.ts` | `features/settings/sections/DiagnosticsSection.tsx` | `e2e/diagnostics.spec.ts` |
 | git (branch, worktrees, MR status) | `main/git/` | `shared/domain/git.ts` | `features/git/` | `integration/branchOps*`, `integration/worktreeResolver*`, `e2e/{gitToolbar,gitMenu,mrStatus,allWorktrees}.spec.ts` |
@@ -127,6 +128,7 @@ patch or minor per SemVer; the maintainer decides major bumps.
   heuristic; fixtures are recordings, not inventions.** → [`docs/architecture/activity.md`](docs/architecture/activity.md)
 - **A rescan never writes `cwd_override` or `project_path`.** → [`src/main/store/CLAUDE.md`](src/main/store/CLAUDE.md)
 - **Every layout change goes through `tidyLayout`.** → [`src/renderer/state/CLAUDE.md`](src/renderer/state/CLAUDE.md)
+- **A pet is data, never code; `validatePet` is the only way in.** → [`src/shared/pets/CLAUDE.md`](src/shared/pets/CLAUDE.md)
 - **A theme is data, never code; `validateTheme` is the only way in; no `backdrop-filter`; no
   literal `border-radius` above 3px in `styles.css`.** → [`src/shared/theme/CLAUDE.md`](src/shared/theme/CLAUDE.md)
 - **Settings: a missing field over IPC means "unchanged", never `false`; changing a default needs a
@@ -221,7 +223,8 @@ second before its program existed. Read the actual state (`apiary.db`, `getBound
   [`src/main/log/CLAUDE.md`](src/main/log/CLAUDE.md),
   [`src/renderer/CLAUDE.md`](src/renderer/CLAUDE.md),
   [`src/renderer/state/CLAUDE.md`](src/renderer/state/CLAUDE.md),
-  [`src/shared/theme/CLAUDE.md`](src/shared/theme/CLAUDE.md), [`tests/CLAUDE.md`](tests/CLAUDE.md).
+  [`src/shared/theme/CLAUDE.md`](src/shared/theme/CLAUDE.md),
+  [`src/shared/pets/CLAUDE.md`](src/shared/pets/CLAUDE.md), [`tests/CLAUDE.md`](tests/CLAUDE.md).
 - **`docs/architecture/`** — topics spanning main and renderer: see its
   [README](docs/architecture/README.md) for the index.
 - **`docs/testing.md`**, **`docs/debugging.md`**, **`docs/packaging.md`**, **`docs/environment.md`**
@@ -231,5 +234,8 @@ second before its program existed. Read the actual state (`apiary.db`, `getBound
 - **`docs/history/`** and **`docs/superpowers/`** — historical/in-flight specs and plans. Where
   these disagree with the code or this file, the code wins; do not treat their "Global Constraints"
   as current rules.
+- **`.claude/skills/`** — project skills: `verify-apiary` (drive the real built app off-screen and
+  capture proof; run `.claude/skills/verify-apiary/verify.sh doctor` first), `blast-radius` (what
+  a change breaks outside its diff), `correct` (make a repeated mistake impossible).
 - **`CONTRIBUTING.md`** — the human-oriented onboarding path (this file is written for agents), and
   the full linter-by-linter breakdown behind the "5 linters" row in "Commands" above.

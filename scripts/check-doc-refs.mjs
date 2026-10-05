@@ -54,6 +54,8 @@ const ALLOWLIST = new Set([
   'settings.json',
   'session-layout.json',
   'themes.json',
+  'pets.json',
+  '.apiarypet.json', // the extension of an exported pet file, not a repo file
   'apiary.db',
   'search.db',
   'tests/unit/x.test.ts',

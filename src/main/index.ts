@@ -12,6 +12,7 @@ import { createContainer, containerPaths } from './app/container'
 import { buildMenu } from './app/menu'
 import { writeZshShim } from './pty/promptPath'
 import type { ThemeGenerator } from './theme/themeGenerator'
+import type { PetService } from './pets/petService'
 import { CHANNELS } from '@shared/api'
 import { type SettingsService } from './settings/settingsService'
 import type { UpdateService } from './update/updateService'
@@ -60,6 +61,7 @@ let layoutFlushCoordinator: LayoutFlushCoordinator | null = null
 let tabRegistry: TabRegistry | null = null
 let updater: UpdateService | null = null
 let themeGenerator: ThemeGenerator | null = null
+let petService: PetService | null = null
 let resetTheme: (route: string) => void = () => {}
 let autoImportTimer: NodeJS.Timeout | null = null
 
@@ -175,6 +177,7 @@ async function start(): Promise<void> {
   service = container.service
   updater = container.updater
   themeGenerator = container.themeGenerator
+  petService = container.petService
   const settings = settingsService.get()
   // Before anything else that might be worth recording. Off unless the user switched it on.
   configureLogging(settings)
@@ -212,6 +215,13 @@ async function start(): Promise<void> {
       store: container.themeStore,
       safeMode: safeTheme,
       generator: themeGenerator,
+    },
+    pets: {
+      store: container.petStore,
+      service: container.petService,
+      actions: (keys) => container.service.latestActions(keys),
+      ...(env.petExportPath !== undefined ? { exportPath: env.petExportPath } : {}),
+      ...(env.petImportPath !== undefined ? { importPath: env.petImportPath } : {}),
     },
   })
   resetTheme = ipc.resetTheme
@@ -301,6 +311,8 @@ async function shutdown(): Promise<void> {
     // (themeGenerator.ts) — nothing on this path used to stop it, so it kept running, and
     // spending tokens, after Apiary had already quit (MAIN-20).
     themeGenerator?.cancel()
+    // The pets' `claude -p` calls likewise.
+    petService?.dispose()
     updater?.stop()
     // The renderer keeps its UI state (selected session, sidebar width, pins) in localStorage, and
     // Chromium commits that to disk on a batching timer rather than on write. Quitting shortly

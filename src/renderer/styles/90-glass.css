@@ -38,3 +38,7 @@ html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .s
 html[data-material="glass"] :is(.modal, .context-menu, .git-menu, .hover-card, .notification, .layout-picker, .branch-switcher) {
   background: var(--glass-sheen), var(--bg-popover);
 }
+/* A pet's bubble and chat float too; the bubble's tail and thought circles are part of it. */
+html[data-material="glass"] :is(.pet-bubble, .pet-bubble::before, .pet-bubble::after, .pet-chat) {
+  background: var(--bg-popover);
+}

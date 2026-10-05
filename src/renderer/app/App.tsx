@@ -10,6 +10,8 @@ import { SessionColumn } from '../features/pane/SessionColumn'
 import { DialogHost } from '../features/dialogs/DialogHost'
 import { DialogOpenContext, useDialogs } from '../features/dialogs/useDialogs'
 import { StatusBar } from '../features/statusBar/StatusBar'
+import { PetLayer, petsOut } from '../features/pets/PetLayer'
+import { usePets } from '../features/pets/usePets'
 import { findColumnWithTab, type OpenTab } from '../features/layout/columns'
 import { presetDef, type PresetId } from '../features/layout/layout'
 import {
@@ -124,6 +126,7 @@ function AppWindow({ detached, arrival, restored }: {
   }, [])
   const updateStatus = useUpdate()
   const activeTabs = useActiveTabs()
+  const pets = usePets()
   /** Every dialog's state; rendered by `DialogHost` below. */
   const dialogs = useDialogs()
   const { open: openDialog } = dialogs
@@ -575,6 +578,9 @@ function AppWindow({ detached, arrival, restored }: {
 
   const onFocusTabSidebar = useCallback((w: number, key: string) => { void window.apiary.focusTab(w, key) }, [])
 
+  // The pets' hourly lines mention what the open sessions are about — by title only.
+  const titleOf = useCallback((key: string) => openSessions.get(key)?.title ?? pendingTabInfo.get(key)?.label ?? null, [openSessions, pendingTabInfo])
+
   // Read once: it decides the layout from the first paint, and does not change for this window.
   const [chrome] = useState(windowChrome)
   // The title bar names what is in front, as an editor's names the open file.
@@ -804,7 +810,8 @@ function AppWindow({ detached, arrival, restored }: {
       </div>
       {/* Part of the window, not a card in the pane grid: the whole width under the sidebar and
        *  the panes alike, as VS Code's status bar is. */}
-      <StatusBar onOpenSettings={onOpenSettings} />
+      <StatusBar onOpenSettings={onOpenSettings} keep={petsOut(pets)} />
+      <PetLayer state={pets} sidebarHidden={ui.sidebarHidden} tabs={activeTabs} titleOf={titleOf} onOpenSettings={onOpenSettings} />
     </div>
     </LayoutStateContext>
     </LayoutContext>

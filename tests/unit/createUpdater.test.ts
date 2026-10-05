@@ -32,6 +32,8 @@ function baseEnv(): Parameters<typeof createUpdater>[1] {
   return {
     configRoot: undefined,
     pickFolder: undefined,
+    petExportPath: undefined,
+    petImportPath: undefined,
     windowChrome: undefined,
     dbPath: undefined,
     fakeLive: undefined,

@@ -7,6 +7,8 @@ import { TabRegistry } from '../windows/tabRegistry'
 import { WindowManager } from '../windows/windowManager'
 import { ThemeStore, DEFAULT_THEME_ID } from '../theme/themeStore'
 import { ThemeGenerator } from '../theme/themeGenerator'
+import { PetStore } from '../pets/petStore'
+import { PetService } from '../pets/petService'
 import { createUpdater } from '../update/createUpdater'
 import type { UpdateService } from '../update/updateService'
 import { broadcast } from '../windows/broadcast'
@@ -33,6 +35,7 @@ export interface ContainerPaths {
   settingsFile: string
   sessionLayoutFile: string
   themesFile: string
+  petsFile: string
 }
 
 export interface ContainerInputs {
@@ -59,6 +62,8 @@ export interface Container {
   updater: UpdateService | null
   themeStore: ThemeStore
   themeGenerator: ThemeGenerator
+  petStore: PetStore
+  petService: PetService
 }
 
 export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: ContainerInputs): Container {
@@ -112,9 +117,15 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   // APIARY_DEFAULT_THEME=original is test-only: the E2E suite is written against the original
   // look, so a fresh profile there starts on it rather than on the default theme.
   const themeStore = new ThemeStore(paths.themesFile, env.defaultThemeOriginal ? null : DEFAULT_THEME_ID)
+  const petStore = new PetStore(paths.petsFile)
+  const petService: PetService = new PetService({
+    store: petStore,
+    claudeBin: () => service.claudeBin,
+    onChanged: () => { broadcast(CHANNELS.petsChanged, petService.state()) },
+  })
   return {
     paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry,
-    windowManager, service, updater, themeStore, themeGenerator,
+    windowManager, service, updater, themeStore, themeGenerator, petStore, petService,
   }
 }
 
@@ -128,5 +139,6 @@ export function containerPaths(
     settingsFile: join(userData, 'settings.json'),
     sessionLayoutFile: join(userData, 'session-layout.json'),
     themesFile: join(userData, 'themes.json'),
+    petsFile: join(userData, 'pets.json'),
   }
 }

@@ -42,6 +42,7 @@ describe('containerPaths', () => {
       settingsFile: '/u/settings.json',
       sessionLayoutFile: '/u/session-layout.json',
       themesFile: '/u/themes.json',
+      petsFile: '/u/pets.json',
     })
     const real = containerPaths(parseRuntimeEnv({}, [], false), '/u', () => '/real/.claude')
     expect(real.configRoot).toBe('/real/.claude')

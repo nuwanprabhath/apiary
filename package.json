@@ -1,6 +1,6 @@
 {
   "name": "apiary",
-  "version": "1.30.0",
+  "version": "1.31.0",
   "private": true,
   "type": "module",
   "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",
@@ -52,7 +52,8 @@
     "better-sqlite3": "^13.0.3",
     "chokidar": "^5.0.0",
     "electron-updater": "^6.8.9",
-    "node-pty": "^1.1.0"
+    "node-pty": "^1.1.0",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.3",
@@ -74,6 +75,7 @@
     "@types/better-sqlite3": "^7.6.11",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/browser": "^5.0.2",
     "@vitest/browser-playwright": "^5.0.2",
@@ -109,7 +111,7 @@
     "vitest": "^5.0.2"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,mjs,cjs}": "eslint --fix --max-warnings 0",
+    "*.{ts,tsx,js,mjs,cjs}": "eslint --fix --max-warnings 0 --no-warn-ignored",
     "*.css": "stylelint --fix --max-warnings 0",
     "*.md": "markdownlint-cli2 --fix",
     "*.sh": "shellcheck"

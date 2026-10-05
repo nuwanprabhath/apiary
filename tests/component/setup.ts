@@ -1,10 +1,19 @@
 import { afterEach, beforeEach } from 'vitest'
 import { createFakeApiary } from './fakeApiary'
 import { unmountApp } from './renderApp'
+import { drawPetsFlat } from '../../src/renderer/features/pets/render3d/usePetImages'
 
 // Installed before any test file imports the renderer, for code that reads the bridge as a module
 // loads; `renderApp` replaces it with the test's own fake.
 window.apiary = createFakeApiary()
+// Pets are drawn flat here unless a test is about the 3D renderer (see `drawPetsFlat`).
+drawPetsFlat(true)
+// ...and stand still in the window: the tests about pets in the layer are about what they do, not
+// how they move, and a minute of breathing and walking in software compositing starved the drag
+// tests running beside them. (petSprite.test.tsx draws pets outside the layer, animations on.)
+const stillPets = document.createElement('style')
+stillPets.textContent = '.pet-layer .pet, .pet-layer .pet * { animation: none !important; transition: none !important; }'
+document.head.append(stillPets)
 
 /**
  * Console errors, window errors and unhandled rejections are otherwise invisible noise: Vitest

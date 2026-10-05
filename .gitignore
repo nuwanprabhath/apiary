@@ -14,3 +14,5 @@ coverage/
 .superpowers/
 .vscode/
 !.vscode/extensions.json
+.verify/
+.claude/skills/verify-apiary/drives/local/

@@ -150,6 +150,8 @@ function SessionColumnView(props: Props): JSX.Element {
       className="session-column"
       data-testid="session-column"
       data-column-id={column.id}
+      // Which session is in front here — the pets walk under it to point at it (features/pets).
+      data-session-key={activeKey ?? undefined}
       style={{ gridArea }}
       data-active={isActive}
       data-placeholder={column.placeholder === true}

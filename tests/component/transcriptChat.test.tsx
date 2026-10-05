@@ -339,4 +339,15 @@ describe('transcript chat', () => {
     const grip = getComputedStyle(document.querySelector('[data-testid="composer-resize"]')!, '::after')
     expect(grip.backgroundImage).toContain('radial-gradient')
   })
+
+  it('the grip sits in the gap between the panel\'s top line and the message box, not on the line', async () => {
+    await openChat()
+    const composer = document.querySelector('[data-testid="composer"]')!.getBoundingClientRect()
+    const input = document.querySelector('[data-testid="composer-input"]')!.getBoundingClientRect()
+    const handle = document.querySelector('[data-testid="composer-resize"]')!.getBoundingClientRect()
+    // The dots are centred in the handle (`::after`, translate -50%), so the handle's middle is theirs.
+    const dots = handle.top + handle.height / 2
+    const gapTop = composer.top + 1 // below the 1px top border
+    expect(Math.abs(dots - (gapTop + input.top) / 2)).toBeLessThanOrEqual(1)
+  })
 })

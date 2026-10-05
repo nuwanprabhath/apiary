@@ -6,6 +6,7 @@ import { SidebarSection } from './sections/SidebarSection'
 import { ThemesSectionEntry } from './sections/ThemesSectionEntry'
 import { TerminalSection } from './sections/TerminalSection'
 import { PluginsSection } from './sections/PluginsSection'
+import { PetsSection } from './sections/PetsSection'
 import { UpdatesSection } from './sections/UpdatesSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { DiagnosticsSection } from './sections/DiagnosticsSection'
@@ -70,6 +71,12 @@ export const SECTIONS: Section[] = [
     label: 'Terminal',
     blurb: 'The shells Apiary starts for a session.',
     Component: ({ draft, patch }) => <TerminalSection draft={draft} patch={patch} />,
+  },
+  {
+    id: 'pets',
+    label: 'Pets',
+    blurb: 'Little characters that keep you company along the edge of the window.',
+    Component: () => <PetsSection />,
   },
   {
     id: 'plugins',

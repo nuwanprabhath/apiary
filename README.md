@@ -7,10 +7,17 @@ Apiary reads the session files Claude Code already writes to `~/.claude/projects
 worktrees under their parent repository, and lets you read any conversation or
 resume it in an embedded terminal in the correct working directory.
 
-![Apiary in its default Liquid Glass theme: a searchable sidebar with an Active section listing open sessions, Pinned and grouped sessions below it, and three sessions arranged in a layout on the right — a live Claude Code session in the large pane, two transcripts stacked beside it, and a shell with a minimal `$` prompt running under the live one](docs/screenshot.png)
+![Apiary in its default Liquid Glass theme: a searchable sidebar with an Active section listing open sessions, Pinned and grouped sessions below it, and three sessions arranged in a layout on the right — a live Claude Code session in the large pane, two transcripts stacked beside it, and a shell with a minimal `$` prompt running under the live one — with three fuzzy pets on the status bar along the bottom](docs/screenshot.png)
 
 ## Features
 
+- **Pets** — fuzzy little 3D characters that live along the status bar, and up the sidebar's rail
+  when it's folded away. They wander, nap, read and dance, play catch and tennis, have picnics,
+  go fishing and parachute off the rail. They peek at what Claude is doing and say what they
+  think of it, and run over to point at a session when it finishes. Drag one anywhere, right-click to resize it, click to
+  chat. The first is hatched for you by Claude; describe more in Settings → Pets, or import one a
+  friend exported. Off until you turn it on; each pet is drawn once, in the background, so it
+  never slows the window down.
 - **Grouped, searchable sidebar** — every session grouped by the folder it started
   in, with git worktrees nested under their parent repository. Fuzzy-search by
   title narrows both sessions and folders as you type.

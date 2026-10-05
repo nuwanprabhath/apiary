@@ -14,7 +14,7 @@
  * Pure data plus guards, deliberately: the preload is sandboxed and must stay free of Node
  * imports, so nothing in this file (or `guards.ts`) may import `electron` or `node:*`.
  */
-import { type Guard, str, num, any, obj, opt, nullable, arr, tuple } from './guards'
+import { type Guard, str, num, bool, any, obj, opt, nullable, arr, tuple } from './guards'
 import { isTerminalRef, type PtyId, type SessionId, type TerminalRef } from '../domain/ids'
 import { isTabTransfer, type TabTransfer, type ReportedTab, type WindowLayoutReport, type ActiveTabPayload } from '../domain/tabs'
 import type {
@@ -38,6 +38,8 @@ import {
 import type { AppMenuNode } from '../domain/windowChrome'
 import type { ThemeSpec } from '../theme/spec'
 import type { SavedTheme, ThemeOptions, ThemeGenerateResult, ThemeState } from '../theme/state'
+import type { PetPatch, PetRecord, PetsState } from '../pets/state'
+import type { VoiceContext } from '../pets/prompt'
 
 // Boundary guards for branded ids (MAIN-21): the one place a string arriving over IPC becomes a
 // `SessionId`/`PtyId`/`TerminalRef`, so handlers receive branded values with no cast of their own.
@@ -151,6 +153,28 @@ export const IPC = {
     'apiary:theme-generate', tuple(str, any),
   ),
   themeGenerateCancel: send<[]>('apiary:theme-generate-cancel', tuple()),
+
+  // Pets. Everything sent is re-checked in main (handlers/pets.ts): a patch field by field, a
+  // voice context clamped, and a pet only ever reaches the store through `validatePet`.
+  petsState: invoke<[], PetsState>('apiary:pets-state', tuple()),
+  petsChanged: event<[state: PetsState]>('apiary:pets-changed'),
+  petsSetEnabled: invoke<[on: boolean], void>('apiary:pets-set-enabled', tuple(bool)),
+  petGenerate: invoke<[description: string | null, model: string | null], PetRecord>(
+    'apiary:pet-generate', tuple(nullable(str), nullable(str)),
+  ),
+  petGenerateCancel: send<[]>('apiary:pet-generate-cancel', tuple()),
+  petUpdate: invoke<[id: string, patch: PetPatch], PetRecord>('apiary:pet-update', tuple(str, obj)),
+  petDelete: invoke<[id: string], void>('apiary:pet-delete', tuple(str)),
+  /** Saves the pet to a file the user picks; false when they cancel. */
+  petExport: invoke<[id: string], boolean>('apiary:pet-export', tuple(str)),
+  /** Adds a pet from a file the user picks; null when they cancel. */
+  petImport: invoke<[], PetRecord | null>('apiary:pet-import', tuple()),
+  petChat: invoke<[id: string, text: string], string>('apiary:pet-chat', tuple(str, str)),
+  petVoice: invoke<[id: string, context: VoiceContext], boolean>('apiary:pet-voice', tuple(str, obj)),
+  /** What these working sessions are doing: tool and label only (shared/pets/actions.ts). */
+  petClaudeActions: invoke<[keys: string[]], { key: string; action: string }[]>('apiary:pet-claude-actions', tuple(arr(str))),
+  /** A pet's one-line remark on what Claude is doing; null when it is not time for another. */
+  petComment: invoke<[id: string, action: string], string | null>('apiary:pet-comment', tuple(str, str)),
 
   // Terminals and ptys.
   openShell: invoke<[sessionId: SessionId, tabId: string], void>('apiary:open-shell', tuple(sessionIdArg, str)),

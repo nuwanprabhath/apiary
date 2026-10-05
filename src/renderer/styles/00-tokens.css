@@ -98,6 +98,8 @@
    *  - --z-base lifts the app shell itself just enough to sit above that canvas;
    *  - resizers and drop targets are UI chrome that must stay clickable over ordinary content,
    *    but they still belong *inside* the window, under anything that floats free of it;
+   *  - pets (features/pets) walk over the rail and the status bar's edge, above the app but
+   *    under anything that floats — a menu or dialog is never hidden behind one;
    *  - the front effects canvas draws over the whole app but must never take the pointer, so it
    *    still sits under every interactive floating surface;
    *  - popovers (menus, hover cards, the layout picker) float over ordinary content and each
@@ -114,6 +116,7 @@
   --z-pane-dividers: 5;
   --z-resizer: 6;
   --z-pane-drop: 20;
+  --z-pets: 50;
   --z-effects-front: 55;
   --z-popover: 60;
   --z-modal: 80;

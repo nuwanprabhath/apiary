@@ -68,9 +68,14 @@ test('switching it on starts a log, and the folder is shown and can be emptied',
   await expect(h.page.getByTestId('log-folder-path')).toHaveText(logDir())
   await expect(h.page.getByTestId('log-folder-size')).toContainText('file')
 
+  const clearedAt = new Date().toISOString()
   await h.page.getByTestId('log-clear').click()
   await expect(h.page.getByTestId('log-folder-size')).toContainText('No log files yet')
-  expect(readdirSync(logDir())).toHaveLength(0)
+  // Emptied: nothing from before the clear is left. Logging is still on, so a line can land
+  // straight afterwards (a git poll for the open session finishing late did, under load) —
+  // that one is new, not left over.
+  const left = readdirSync(logDir()).flatMap((f) => readFileSync(join(logDir(), f), 'utf8').trim().split('\n').filter((l) => l !== ''))
+  expect(left.filter((l) => (JSON.parse(l) as { ts: string }).ts < clearedAt)).toEqual([])
 })
 
 test('switching it back off stops the writing', async () => {

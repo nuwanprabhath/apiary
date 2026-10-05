@@ -50,6 +50,10 @@ export interface RuntimeEnv {
   /** Answers the folder picker with this path instead of opening the native dialog — E2E only:
    *  a native dialog cannot be driven by Playwright, and would land on the user's screen. */
   pickFolder: string | undefined
+  /** Answers the pet export dialog with this path (test only). */
+  petExportPath: string | undefined
+  /** Answers the pet import dialog with this path (test only). */
+  petImportPath: string | undefined
   /** Forces a window chrome (`custom`, `mac`, `system`) — E2E only, so the Windows/Linux title bar
    *  and its menu can be driven on any machine. */
   windowChrome: string | undefined
@@ -73,6 +77,8 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackag
     headless: test('APIARY_HEADLESS') === '1',
     rendererUrl: test('ELECTRON_RENDERER_URL'),
     pickFolder: test('APIARY_PICK_FOLDER'),
+    petExportPath: test('APIARY_PET_EXPORT_PATH'),
+    petImportPath: test('APIARY_PET_IMPORT_PATH'),
     windowChrome: test('APIARY_WINDOW_CHROME'),
   }
 }

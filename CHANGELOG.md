@@ -4,6 +4,58 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.31.0] - 2026-10-05
+
+### Added
+
+- **Pets.** Small, bright, fuzzy 3D characters that live along the edge of the window: on the
+  status bar, and up the sidebar's rail when it is collapsed.
+  - **How they look.** Plush felt with real depth, rim-lit fibres and glossy eyes that catch the
+    light. Each one is rendered once, in the background, and kept for next time.
+  - **What they do.** They wander and run, sit and read, nap with a little Zzz, and visit each
+    other to say hello. They watch while Claude works, celebrate when it finishes, and nudge you
+    when a session is waiting on you.
+  - **What they say.** Now and then a pet says something in its own voice, or thinks it in a
+    cloud.
+  - **Getting around.** Drag a pet anywhere along the bar or the rail. Right-click it to resize it
+    (Small to Extra large, up to 128 pixels tall), put it to sleep, or put it away. Click it to chat.
+  - **Turning them on.** Go to Settings → Pets. The first pet is hatched for you, designed by
+    Claude. You can describe more ("a sleepy green frog in a tiny crown") or ask for a surprise.
+    Up to three can be out at once.
+  - **Models.** Each pet has a model of its own, Haiku by default. It is used about once an hour
+    to write the pet's lines, and whenever you chat with it.
+  - **Sharing.** Pets export to a `.apiarypet.json` file that someone else can import.
+  - **Your attention, when it's due.** When a session finishes, a pet runs over under its pane
+    and points at it, waving.
+  - **Interest in the work.** While Claude works, a curious pet wanders over, looks, and says
+    what it makes of what Claude is doing. Its model is told only the action ("Edit:
+    csvWriter.ts"), never commands, output or anything said.
+  - **Hobbies.** A pet can type on a laptop, lift dumbbells, eat a donut, sip juice, skip rope,
+    paint a picture at an easel or skateboard along the bar, with real 3D props.
+  - **Side-on when it suits.** Pets turn side-on to walk, run, drive, skate, type, eat, drink, fish
+    and paint, and face you for everything else.
+  - **Together.** A few times an hour they put on something special for a minute: a game of
+    catch, tennis, sharing a snack, a picnic, fishing at a pond, reading under a tree (a friend
+    may join), a drive in a little car, or a parachute jump off the rail. Other pets keep out of
+    their way.
+- **A pet is data, not code.** It chooses from Apiary's own parts and colours, so an imported pet
+  can never put anything else in the window.
+- **Pets cost the window almost nothing.** They are rendered in 3D only once, in a background
+  worker, and kept for the next launch. They decide what to do in another worker, and every
+  movement runs on the GPU compositor. Three pets touch the page about 30 times in five
+  seconds. With pets off, or none out, nothing runs at all.
+- **Project skills for agents working on Apiary** (`.claude/skills/`). `verify-apiary` drives the
+  real built app in an isolated, off-screen instance and saves screenshots and measured state as
+  proof, with a feature map of how to drive each feature. `blast-radius` checks what a change
+  could break outside its diff. `correct` turns a repeated mistake into a check that fails.
+
+### Fixed
+
+- **The message box's grip dots** now sit in the gap between the panel's top line and the box,
+  not on top of the line.
+- **Pet speech bubbles and thought clouds are solid**, like menus, so they stay readable on glass
+  themes.
+
 ## [1.30.0] - 2026-10-02
 
 ### Added

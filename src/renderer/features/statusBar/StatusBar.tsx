@@ -40,6 +40,8 @@ function Icon({ icon, busy }: { icon: StatusIcon; busy: boolean }): JSX.Element 
 interface Props {
   /** Opens Settings at a section — the dashboard's "Settings…" goes to Plugins. */
   onOpenSettings: (section: string) => void
+  /** Drawn even with no items: pets are out and stand on it. */
+  keep?: boolean
 }
 
 /**
@@ -47,7 +49,7 @@ interface Props {
  * usage limits first), drawn as VS Code draws its status bar. Hover an item for its detail, click
  * for its action. Nothing here knows what any item is about.
  */
-export function StatusBar({ onOpenSettings }: Props): JSX.Element | null {
+export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element | null {
   const items = useStatusBar()
   const [panel, setPanel] = useState<{ item: StatusBarItem; data: StatusBarPanel | null } | null>(null)
 
@@ -72,10 +74,11 @@ export function StatusBar({ onOpenSettings }: Props): JSX.Element | null {
     return off
   }, [panel])
 
-  if (items.length === 0) return null
+  if (items.length === 0 && !keep) return null
   return (
     <footer className="status-bar" data-testid="status-bar" aria-label="Status bar">
-      <span className="status-bar-spacer" />
+      {/* The free stretch left of the items: the floor pets walk on (features/pets). */}
+      <span className="status-bar-spacer" data-testid="status-bar-floor" />
       {items.map((item) => (
         <StatusBarButton
           key={`${item.pluginId}:${item.id}`}

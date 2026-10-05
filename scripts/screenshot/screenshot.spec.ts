@@ -1,6 +1,23 @@
 import { test, expect } from '@playwright/test'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { launchApiary, importAll, clickRowAction, sidebarSession, type Harness } from '../../tests/e2e/helpers'
+import { launchApiary, relaunchApiary, importAll, clickRowAction, sidebarSession, type Harness } from '../../tests/e2e/helpers'
+import { STARTER_PET } from '../../src/shared/pets/builtins'
+
+/** Three pets, made by hand rather than by Claude so the picture is the same every time. */
+const PETS = [
+  { ...STARTER_PET },
+  {
+    ...STARTER_PET, name: 'Fern',
+    body: { shape: 'bean', color: '#6fdc1e', accent: '#e4ff9a', texture: 'fuzzy' },
+    eyes: { style: 'round', color: '#0a0a0a' }, arms: 'noodle', legs: 'feet', accessories: [{ kind: 'crown', color: '#ffcc33' }],
+  },
+  {
+    ...STARTER_PET, name: 'Rosie',
+    body: { shape: 'heart', color: '#ff1fa8', accent: '#ffa3dc', texture: 'fuzzy' },
+    eyes: { style: 'round', color: '#0a0a0a' }, arms: 'mitten', accessories: [{ kind: 'sunglasses', color: '#0b0b0b' }],
+  },
+]
 
 /**
  * Not a test — a one-off Playwright script that launches the real app against a representative
@@ -13,7 +30,7 @@ import { launchApiary, importAll, clickRowAction, sidebarSession, type Harness }
  * discovers this file, and it asserts nothing anyway — its only job is the PNG it writes.
  */
 test('capture the README screenshot', async () => {
-  test.setTimeout(60000)
+  test.setTimeout(180000)
   // The test suite runs the app off-screen so it doesn't take the machine over for minutes at a
   // time; this one is the exception, because a picture of the app is the entire output.
   process.env.APIARY_HEADED = '1'
@@ -28,6 +45,14 @@ test('capture the README screenshot', async () => {
     // original look.
     realDefaultTheme: true,
   })
+  // Pets out, standing along the bottom-left. Written straight into the profile and the app
+  // relaunched to read it — no `claude` call, and `voicedAt` now, so none asks for new lines.
+  const userData = await h.app.evaluate(({ app }) => app.getPath('userData'))
+  writeFileSync(join(userData, 'pets.json'), JSON.stringify({
+    version: 1, enabled: true,
+    pets: PETS.map((spec, i) => ({ id: `pet-${String(i)}`, spec, model: 'haiku', size: 92, active: true, place: { region: 'bar', at: 0.04 + i * 0.07 }, createdAt: 0, voicedAt: Date.now() })),
+  }))
+  await relaunchApiary(h)
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
 
@@ -99,6 +124,15 @@ test('capture the README screenshot', async () => {
     // one instead of publishing whoever happened to run this script's login name.
     await h.page.keyboard.type('export PS1="$ "; clear\n')
   }
+  // The pets in 3D, not the moment before they are drawn.
+  await expect(h.page.locator('.pet-sprite[data-render="3d"]')).toHaveCount(PETS.length, { timeout: 30000 })
+  // ...and caught standing apart, not mid-stroll past one another.
+  await expect.poll(() => h.page.evaluate(() => {
+    const pets = [...document.querySelectorAll('[data-testid="pet"]')]
+    if (pets.some((p) => /walk|run/.test(p.querySelector('.pet-sprite')?.getAttribute('data-activity') ?? ''))) return false
+    const boxes = pets.map((p) => p.getBoundingClientRect()).sort((a, b) => a.left - b.left)
+    return boxes.every((b, i) => i === 0 || b.left >= boxes[i - 1].left + boxes[i - 1].width * 0.9)
+  }), { timeout: 90000 }).toBe(true)
   // Give each shell a moment to apply the new prompt and settle, and move the pointer off the
   // panes so no hover card or picker is caught in the picture.
   await h.page.mouse.move(2, 2)

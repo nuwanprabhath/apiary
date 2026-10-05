@@ -60,6 +60,8 @@ const subscribed = new Set<string>()
 const { registerIpc } = await import('../../src/main/ipc')
 const { ThemeStore } = await import('../../src/main/theme/themeStore')
 const { ThemeGenerator } = await import('../../src/main/theme/themeGenerator')
+const { PetStore } = await import('../../src/main/pets/petStore')
+const { PetService } = await import('../../src/main/pets/petService')
 const { SettingsService } = await import('../../src/main/settings/settingsService')
 await import('../../src/preload/index')
 
@@ -87,6 +89,10 @@ beforeEach(async () => {
       safeMode: false,
       generator: new ThemeGenerator({ claudeBin: () => null }),
     },
+    pets: (() => {
+      const store = new PetStore(join(home, 'pets.json'))
+      return { store, service: new PetService({ store, claudeBin: () => null, onChanged: () => {} }), actions: async () => [] }
+    })(),
   })
   disposeIpc = ipc.dispose
 })

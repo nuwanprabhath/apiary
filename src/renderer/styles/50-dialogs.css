@@ -123,6 +123,7 @@
 .composer-attachment-preview:hover { border-color: var(--accent); }
 .composer-attachment-remove {
   position: absolute;
+  z-index: calc(var(--z-base) + 1); /* above .composer-resize */
   top: -6px;
   right: -6px;
   width: 18px;
@@ -140,17 +141,18 @@
 .composer-attachment-remove:hover { color: var(--danger); border-color: var(--danger); }
 .composer-attachment-remove svg { width: 10px; height: 10px; display: block; }
 
-/* The composer's top border is the handle: drag it up to make the box taller (Composer). It has
-   the row of grip dots every other resizable edge has (20-sidebar.css), so it reads as one. It lies
-   over the border and the padding above the content, never over the content — an attachment's
-   remove button reaches up into that padding. */
+/* The composer's top edge is the handle: drag it up to make the box taller (Composer). It has the
+   row of grip dots every other resizable edge has (20-sidebar.css), so it reads as one. It fills
+   the padding between the panel's top line and the message box, so the dots sit in that gap rather
+   than on the line (1.31.0). An attachment's remove button reaches up into the same padding and is
+   lifted above the handle, so the ✕ still takes the click. */
 .composer-resize {
   position: absolute;
-  top: -5px;
+  top: 0;
   right: 0;
   left: 0;
   z-index: var(--z-base);
-  height: 7px;
+  height: 8px; /* the composer's top padding */
   cursor: ns-resize;
   touch-action: none;
 }

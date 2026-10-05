@@ -21,6 +21,8 @@ import type {
   TranscriptPage,
 } from '@shared/types'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
+import { STARTER_PET } from '@shared/pets/builtins'
+import { MAX_ACTIVE_PETS, PET_SIZES, type PetRecord, type PetsState } from '@shared/pets/state'
 import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
 import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 import { asPtyId, asSessionId } from '@shared/domain/ids'
@@ -89,6 +91,7 @@ export type FakeEvent =
   | 'requestLayoutFlush' | 'newSessionStarted' | 'ptySessionsChanged' | 'mrStatusesInvalidated'
   | 'ptyData' | 'ptyExit' | 'treeChanged' | 'openImportDialog' | 'openSettingsDialog'
   | 'toggleSidebar' | 'pluginsChanged' | 'updateChanged' | 'statusBarChanged' | 'chatChanged'
+  | 'petsChanged'
 
 export interface FakeState {
   projects: FakeProject[]
@@ -112,9 +115,21 @@ export interface FakeState {
   /** What `terminalBusy` answers, by session id; not busy when absent. */
   terminalBusy: Map<string, TerminalBusy>
   statusBarPanel: StatusBarPanel | null
+  /** Pets: what `petsState` answers; the pet calls change it and emit `petsChanged`. */
+  pets: PetsState
+  /** What `petChat` answers. */
+  petReply: string
+  /** What `petClaudeActions` reports for each session key, and what `petComment` answers. */
+  petActions: Record<string, string>
+  petComment: string | null
 }
 
 const DAY = 24 * 60 * 60 * 1000
+
+/** A pet as main would store it: the starter pet, out, with no place yet. */
+export function fakePet(id: string, over: Partial<PetRecord> = {}): PetRecord {
+  return { id, spec: STARTER_PET, model: 'haiku', size: PET_SIZES.default, active: true, place: null, createdAt: 0, voicedAt: 0, ...over }
+}
 
 /** The e2e harness's layout: two plain folders, and a repository with one worktree under it. */
 export const FIXTURE_PROJECTS: FakeProject[] = [
@@ -200,6 +215,10 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     chats: new Map(),
     terminalBusy: new Map(),
     statusBarPanel: opts.statusBarPanel ?? null,
+    pets: { enabled: false, pets: [], generating: false },
+    petReply: 'Hehe, hi!',
+    petActions: {},
+    petComment: null,
   }
 
   const calls: FakeCall[] = []
@@ -215,6 +234,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
   const emit = (event: FakeEvent, ...args: unknown[]): void => {
     for (const cb of [...(listeners.get(event) ?? [])]) cb(...args)
   }  /** Records a chat's new state and tells the renderer, as main's ChatManager does. */
+  const setPets = (next: PetsState): void => { state.pets = next; emit('petsChanged', next) }
   const setChat = (next: ChatState): void => { state.chats.set(next.sessionId, next); emit('chatChanged', next) }
 
 
@@ -313,6 +333,37 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     },
     themeSetOptions: async (o) => { state.theme = { ...state.theme, options: { ...state.theme.options, ...o } }; emit('themeChanged', state.theme) },
     onThemeChanged: on('themeChanged'),
+    petsState: async () => state.pets,
+    onPetsChanged: on('petsChanged'),
+    petsSetEnabled: async (enabled) => {
+      setPets({ ...state.pets, enabled, pets: enabled && state.pets.pets.length === 0 ? [fakePet('pet-1')] : state.pets.pets })
+    },
+    petGenerate: async (description) => {
+      const pet = { ...fakePet(`pet-${String(state.pets.pets.length + 1)}`), active: state.pets.pets.filter((p) => p.active).length < MAX_ACTIVE_PETS }
+      if (description !== null) pet.spec = { ...pet.spec, tagline: description }
+      setPets({ ...state.pets, pets: [...state.pets.pets, pet] })
+      return pet
+    },
+    petGenerateCancel: () => {},
+    petUpdate: async (id, patch) => {
+      const pets = state.pets.pets.map((p) => (p.id === id ? {
+        ...p,
+        ...(patch.size !== undefined ? { size: Math.min(PET_SIZES.max, Math.max(PET_SIZES.min, patch.size)) } : {}),
+        ...(patch.active !== undefined ? { active: patch.active } : {}),
+        ...(patch.place !== undefined ? { place: patch.place } : {}),
+        ...(patch.model !== undefined ? { model: patch.model } : {}),
+        ...(patch.name !== undefined ? { spec: { ...p.spec, name: patch.name } } : {}),
+      } : p))
+      setPets({ ...state.pets, pets })
+      return pets.find((p) => p.id === id)!
+    },
+    petDelete: async (id) => { setPets({ ...state.pets, pets: state.pets.pets.filter((p) => p.id !== id) }) },
+    petExport: async () => true,
+    petImport: async () => null,
+    petChat: async () => state.petReply,
+    petVoice: async () => false,
+    petClaudeActions: async (keys) => keys.flatMap((key) => { const action = state.petActions[key]; return action !== undefined ? [{ key, action }] : [] }),
+    petComment: async () => state.petComment,
     renameTerminalInClaude: () => {},
     // As in main (AppService.removeSession): archived, not un-imported, so the import dialog does
     // not offer it again as new.

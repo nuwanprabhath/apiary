@@ -23,6 +23,7 @@ import { updateHandlers } from './handlers/update'
 import { logHandlers } from './handlers/log'
 import { appChromeHandlers } from './handlers/appChrome'
 import { themeHandlers, type ThemeDeps } from './handlers/theme'
+import { petsHandlers, type PetDeps } from './handlers/pets'
 
 /**
  * Everything `registerIpc` needs, replacing the 11 positional parameters (up to 8 of them
@@ -63,6 +64,8 @@ export interface IpcDeps {
   /** The theme store, safe-mode flag and generator — constructed in `main/index.ts` before
    *  windows exist, since a window reads its theme synchronously as it loads. */
   theme: ThemeDeps
+  /** The pet store and service, built in the container. */
+  pets: PetDeps
 }
 
 /**
@@ -89,6 +92,7 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
   const logIpc = logHandlers()
   const theme = themeHandlers(deps.theme)
   const appChrome = appChromeHandlers()
+  const pets = petsHandlers(deps.pets)
 
   const handlers: Handlers = {
     ...sessions,
@@ -102,6 +106,7 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
     ...logIpc.handlers,
     ...theme.handlers,
     ...appChrome.handlers,
+    ...pets.handlers,
   }
   const listeners: Listeners = {
     ...terminals.listeners,
@@ -109,6 +114,7 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
     ...logIpc.listeners,
     ...theme.listeners,
     ...appChrome.listeners,
+    ...pets.listeners,
   }
 
   const disposeRegistry = registerAll(handlers, listeners, deps.trustedRenderer ?? null)

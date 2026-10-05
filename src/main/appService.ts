@@ -23,6 +23,7 @@ import { ChatManager, type SpawnChat } from './chat/chatManager'
 import type { ChatDecision, ChatEffort, ChatModel, ChatPermissionMode, ChatState, TerminalBusy } from '@shared/domain/chat'
 import { classifyActivity } from '@shared/activity'
 import { runningBackgroundTasks } from '@shared/chatTimeline'
+import { latestAction } from '@shared/pets/actions'
 import { ImageStore } from './media/imageStore'
 import type {
   ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo, CheckoutOutcome,
@@ -453,6 +454,24 @@ export class AppService {
     const session = this.resolver.requireSession(sessionId)
     const page = await readTranscriptPage(session.filePath).catch(() => null)
     return { busy: status !== 'idle', backgroundTasks: page === null ? 0 : runningBackgroundTasks(page.messages).length }
+  }
+
+  /**
+   * What each of these sessions is doing, for the pets: the latest tool and its label, from the
+   * end of its transcript (`latestAction` — never commands, output or conversation). Keys that
+   * are not a known session (a new session's pty) are skipped; the paths are Apiary's own.
+   */
+  async latestActions(keys: string[]): Promise<{ key: string; action: string }[]> {
+    const out: { key: string; action: string }[] = []
+    for (const key of keys.slice(0, 8)) {
+      try {
+        const session = this.resolver.requireSession(key)
+        const page = await readTranscriptPage(session.filePath, { limit: 12 })
+        const action = latestAction(page.messages)
+        if (action !== null) out.push({ key, action })
+      } catch { /* not a session, or not readable: nothing to say about it */ }
+    }
+    return out
   }
 
   /** Whether VS Code was found on this machine at launch. Checked once; does not change at runtime. */

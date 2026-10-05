@@ -1,0 +1,322 @@
+/*
+ * Pets (features/pets). The layer covers the window but takes no pointer except on the pets
+ * themselves. Everything that moves is a transform on an HTML layer (see PetSprite.tsx): walking is
+ * a transition on `.pet` whose duration the brain sets, and every pose below is a keyframe loop on
+ * a part, keyed off the sprite's `data-activity` and `data-face`. No animation here touches layout
+ * or paint, so a pet costs the main thread nothing between its commands.
+ */
+.pet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-pets);
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+.pet {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--pet-size);
+  height: var(--pet-size);
+  pointer-events: auto;
+  cursor: grab;
+  will-change: transform;
+  transition-property: transform;
+  transition-timing-function: linear;
+  touch-action: none;
+}
+.pet[data-held="true"] { cursor: grabbing; transition: none; }
+
+.pet-sprite { position: relative; width: var(--pet-size); height: var(--pet-size); }
+.pet-flip, .pet-part { position: absolute; inset: 0; }
+.pet-part > svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.pet-sprite[data-render="pending"] { visibility: hidden; }
+.pet-part > img { display: block; width: 100%; height: 100%; user-select: none; -webkit-user-drag: none; }
+/* A 3D render leaves room under the feet (render3d/render.ts reports how much); move it down so the
+   feet stand on the pet's bottom edge, where the floor is. */
+.pet-grounded { transform: translateY(calc((var(--pet-floor) * 100%))); }
+.pet-sprite[data-facing="left"] .pet-grounded { transform: translateY(calc((var(--pet-floor) * 100%))) scaleX(-1); }
+.pet-sprite[data-facing="left"] .pet-flip { transform: scaleX(-1); }
+
+/* -- always: breathing and blinking */
+.pet-breathe { transform-origin: 50% 88%; animation: pet-breathe 3s ease-in-out infinite; }
+.pet-eyes { transform-origin: 50% 52%; animation: pet-blink 4.7s infinite; }
+.pet-leg-l { transform-origin: 40% 84%; }
+.pet-leg-r { transform-origin: 60% 84%; }
+.pet-shadow { transform-origin: 50% 97%; }
+.pet-bob, .pet-face, .pet-leg, .pet-arm, .pet-shadow { transition: transform 0.25s ease-out, opacity 0.25s; }
+
+@keyframes pet-breathe { 50% { transform: scale(1.03, 0.97); } }
+@keyframes pet-blink { 0%, 93%, 100% { transform: scaleY(1); } 95.5% { transform: scaleY(0.1); } }
+
+/* -- walking and running */
+.pet-sprite[data-activity="walk"] .pet-bob { animation: pet-bob 0.42s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="walk"] .pet-leg-l { animation: pet-step 0.42s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="walk"] .pet-leg-r { animation: pet-step 0.42s ease-in-out infinite alternate-reverse; }
+.pet-sprite[data-activity="walk"] .pet-arm-l { animation: pet-swing 0.42s ease-in-out infinite alternate-reverse; }
+.pet-sprite[data-activity="walk"] .pet-arm-r { animation: pet-swing 0.42s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="run"] .pet-bob { animation: pet-run 0.22s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="run"] .pet-leg-l { animation: pet-stride 0.22s linear infinite alternate; }
+.pet-sprite[data-activity="run"] .pet-leg-r { animation: pet-stride 0.22s linear infinite alternate-reverse; }
+.pet-sprite[data-activity="run"] .pet-arm { animation: pet-swing 0.22s linear infinite alternate; }
+
+@keyframes pet-bob { from { transform: translateY(0); } to { transform: translateY(-5%); } }
+@keyframes pet-run { from { transform: translateY(0) rotate(7deg); } to { transform: translateY(-9%) rotate(7deg); } }
+@keyframes pet-step { from { transform: rotate(-16deg); } to { transform: rotate(16deg); } }
+@keyframes pet-stride { from { transform: rotate(-30deg); } to { transform: rotate(30deg); } }
+@keyframes pet-swing { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
+
+/* -- sitting, reading and sleeping: down on the floor, legs tucked away */
+.pet-sprite:is([data-activity="sit"], [data-activity="read"], [data-activity="sleep"]) .pet-bob { transform: translateY(8%); }
+.pet-sprite:is([data-activity="sit"], [data-activity="read"], [data-activity="sleep"]) .pet-leg { opacity: 0; transform: translateY(-8%); }
+.pet-sprite[data-activity="read"] .pet-face, .pet-sprite[data-activity="read"] .pet-eyes { transform: translateY(3%); }
+.pet-sprite[data-activity="read"] .pet-arm-l { transform: rotate(-35deg); }
+.pet-sprite[data-activity="read"] .pet-arm-r { transform: rotate(35deg); }
+.pet-sprite[data-activity="sleep"] .pet-bob { animation: pet-sway 3.6s ease-in-out infinite; }
+.pet-sprite[data-activity="sleep"] .pet-breathe { animation-duration: 4.6s; }
+.pet-sprite[data-activity="sleep"] .pet-eyes { animation: none; }
+.pet-zzz { animation: pet-float 2.6s ease-out infinite; }
+
+@keyframes pet-sway { 0%, 100% { transform: translateY(8%) rotate(-3deg); } 50% { transform: translateY(8%) rotate(3deg); } }
+@keyframes pet-float { 0% { transform: translate(0, 0); opacity: 0; } 30% { opacity: 1; } 100% { transform: translate(8%, -18%); opacity: 0; } }
+
+/* -- little gestures */
+.pet-sprite[data-activity="wave"] .pet-arm-r { animation: pet-wave 0.32s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="stretch"] .pet-breathe { animation: pet-stretch 2s ease-in-out; }
+.pet-sprite[data-activity="stretch"] .pet-arm-l { transform: rotate(70deg); }
+.pet-sprite[data-activity="stretch"] .pet-arm-r { transform: rotate(-70deg); }
+.pet-sprite[data-activity="dance"] .pet-bob { animation: pet-dance 0.6s ease-in-out infinite; }
+.pet-sprite[data-activity="dance"] .pet-arm-l { animation: pet-swing 0.3s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="dance"] .pet-arm-r { animation: pet-wave 0.3s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="celebrate"] .pet-bob { animation: pet-jump 0.5s cubic-bezier(0.3, 0.8, 0.4, 1) infinite alternate; }
+.pet-sprite[data-activity="celebrate"] .pet-shadow { animation: pet-shrink 0.5s cubic-bezier(0.3, 0.8, 0.4, 1) infinite alternate; }
+.pet-sprite[data-activity="celebrate"] .pet-arm-l { transform: rotate(80deg); }
+.pet-sprite[data-activity="celebrate"] .pet-arm-r { transform: rotate(-80deg); }
+.pet-sprite[data-activity="nervous"] .pet-bob { animation: pet-shiver 0.12s linear infinite alternate; }
+.pet-sprite[data-activity="watch"] .pet-bob { transform: rotate(-4deg); }
+.pet-sprite[data-activity="held"] .pet-bob { transform: translateY(-3%); }
+.pet-sprite[data-activity="held"] .pet-leg-l { animation: pet-dangle 0.9s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="held"] .pet-leg-r { animation: pet-dangle 0.9s ease-in-out infinite alternate-reverse; }
+.pet-sprite[data-activity="held"] .pet-shadow { opacity: 0; }
+
+@keyframes pet-wave { from { transform: rotate(-20deg); } to { transform: rotate(-85deg); } }
+@keyframes pet-stretch { 40%, 60% { transform: scale(0.94, 1.1); } }
+@keyframes pet-dance { 0%, 100% { transform: rotate(-9deg) translateY(0); } 50% { transform: rotate(9deg) translateY(-6%); } }
+@keyframes pet-jump { from { transform: translateY(0); } to { transform: translateY(-24%); } }
+@keyframes pet-shrink { from { transform: scale(1); } to { transform: scale(0.65); opacity: 0.6; } }
+@keyframes pet-shiver { from { transform: translateX(-1.5%); } to { transform: translateX(1.5%); } }
+@keyframes pet-dangle { from { transform: rotate(-12deg); } to { transform: rotate(12deg); } }
+
+/* -- sitting down to something: legs tucked, as for reading */
+.pet-sprite:is([data-activity="computer"], [data-activity="eat"], [data-activity="fish"], [data-activity="drive"]) .pet-bob { transform: translateY(8%); }
+.pet-sprite:is([data-activity="computer"], [data-activity="eat"], [data-activity="fish"], [data-activity="drive"]) .pet-leg { opacity: 0; transform: translateY(-8%); }
+
+/* -- things to do alone */
+.pet-sprite[data-activity="computer"] :is(.pet-face, .pet-eyes) { transform: translateY(3%); }
+.pet-sprite[data-activity="computer"] .pet-arm-l { animation: pet-type 0.18s linear infinite alternate; }
+.pet-sprite[data-activity="computer"] .pet-arm-r { animation: pet-type 0.18s linear infinite alternate-reverse; }
+.pet-sprite[data-activity="exercise"] :is(.pet-arm, .pet-held) { animation: pet-lift 0.9s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="exercise"] .pet-breathe { animation: pet-strain 0.9s ease-in-out infinite alternate; }
+.pet-sprite:is([data-activity="eat"], [data-activity="carry"]) .pet-held { animation: pet-nom 0.6s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="drink"] .pet-bob { transform: rotate(-5deg); }
+.pet-sprite[data-activity="skip"] .pet-bob { animation: pet-skip 0.55s cubic-bezier(0.3, 0.8, 0.4, 1) infinite alternate; }
+.pet-sprite[data-activity="skip"] .pet-shadow { animation: pet-shrink 0.55s cubic-bezier(0.3, 0.8, 0.4, 1) infinite alternate; }
+.pet-rope-up { animation: pet-rope 1.1s steps(1) infinite; }
+.pet-rope-down { animation: pet-rope 1.1s steps(1) -0.55s infinite; }
+
+@keyframes pet-type { from { transform: rotate(-6deg) translateY(0); } to { transform: rotate(4deg) translateY(-2%); } }
+@keyframes pet-lift { from { transform: translateY(0); } to { transform: translateY(-16%); } }
+@keyframes pet-strain { from { transform: scale(1); } to { transform: scale(1.04, 0.96); } }
+@keyframes pet-nom { from { transform: translate(0, 0); } to { transform: translate(-3%, -5%); } }
+@keyframes pet-skip { from { transform: translateY(0); } to { transform: translateY(-14%); } }
+@keyframes pet-rope { 0% { opacity: 1; } 50% { opacity: 0; } }
+
+/* -- scenes */
+.pet-sprite[data-activity="carry"] .pet-bob { animation: pet-bob 0.42s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="carry"] .pet-leg-l { animation: pet-step 0.42s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="carry"] .pet-leg-r { animation: pet-step 0.42s ease-in-out infinite alternate-reverse; }
+.pet-sprite[data-activity="catch"] .pet-arm { animation: pet-reach 0.9s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="catch"] .pet-arm-l { --reach: 70deg; }
+.pet-sprite[data-activity="catch"] .pet-arm-r { --reach: -70deg; }
+.pet-sprite[data-activity="catch"] .pet-bob { animation: pet-skip 0.9s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="tennis"] .pet-arm-r { animation: pet-swing-racket 0.7s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="tennis"] .pet-bob { animation: pet-bob 0.35s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="fish"] .pet-arm-r { animation: pet-sway 2.4s ease-in-out infinite; }
+.pet-sprite[data-activity="fishcaught"] .pet-bob { animation: pet-jump 0.45s cubic-bezier(0.3, 0.8, 0.4, 1) infinite alternate; }
+.pet-sprite[data-activity="fishcaught"] .pet-arm-l { transform: rotate(80deg); }
+.pet-sprite[data-activity="fishcaught"] .pet-arm-r { transform: rotate(-80deg); }
+.pet-sprite[data-activity="drive"] .pet-flip { animation: pet-rumble 0.16s linear infinite alternate; }
+.pet-sprite[data-activity="climb"] .pet-arm-l { animation: pet-climb 0.5s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="climb"] .pet-arm-r { animation: pet-climb 0.5s ease-in-out infinite alternate-reverse; }
+.pet-sprite[data-activity="climb"] .pet-leg-l { animation: pet-step 0.5s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="climb"] .pet-leg-r { animation: pet-step 0.5s ease-in-out infinite alternate-reverse; }
+.pet-sprite[data-activity="parachute"] .pet-bob { animation: pet-sway 2.2s ease-in-out infinite; }
+.pet-sprite[data-activity="parachute"] .pet-leg-l { animation: pet-dangle 0.9s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="parachute"] .pet-leg-r { animation: pet-dangle 0.9s ease-in-out infinite alternate-reverse; }
+.pet-sprite[data-activity="parachute"] .pet-shadow { opacity: 0; }
+.pet-sprite[data-activity="point"] .pet-arm-r { transform: rotate(-150deg); }
+.pet-sprite[data-activity="point"] .pet-arm-l { animation: pet-wave 0.32s ease-in-out infinite alternate; }
+.pet-sprite[data-activity="point"] .pet-bob { animation: pet-jump 0.5s cubic-bezier(0.3, 0.8, 0.4, 1) infinite alternate; }
+
+@keyframes pet-reach { from { transform: rotate(0deg); } to { transform: rotate(var(--reach, 60deg)); } }
+@keyframes pet-swing-racket { from { transform: rotate(25deg); } to { transform: rotate(-70deg); } }
+@keyframes pet-rumble { from { transform: translateY(calc(var(--pet-floor, 0) * 100%)); } to { transform: translateY(calc(var(--pet-floor, 0) * 100% - 1.5%)); } }
+@keyframes pet-climb { from { transform: rotate(40deg); } to { transform: rotate(-40deg); } }
+
+/* -- in profile (data-view="side", 3D only): the near arm and leg are the left ones, and turning
+   an arm forward is turning it towards the way the pet faces (negative, before any mirroring) */
+.pet-sprite[data-view="side"][data-activity="computer"] .pet-arm-l { animation: pet-type-side 0.18s linear infinite alternate; }
+.pet-sprite[data-view="side"][data-activity="computer"] .pet-arm-r { animation: pet-type-side 0.18s linear infinite alternate-reverse; }
+.pet-sprite[data-view="side"][data-activity="drink"] .pet-arm-l { transform: rotate(-80deg); }
+.pet-sprite[data-view="side"][data-activity="drink"] .pet-arm-r { transform: rotate(-40deg); }
+.pet-sprite[data-view="side"][data-activity="drink"] .pet-held { animation: pet-sip 1.6s ease-in-out infinite; }
+.pet-sprite[data-view="side"]:is([data-activity="eat"], [data-activity="carry"]) .pet-arm-l { transform: rotate(-70deg); }
+.pet-sprite[data-view="side"][data-activity="eat"] .pet-arm-l { animation: pet-feed 0.6s ease-in-out infinite alternate; }
+.pet-sprite[data-view="side"][data-activity="carry"] .pet-arm-l { animation: none; }
+.pet-sprite[data-view="side"][data-activity="fish"] .pet-arm { animation: none; transform: rotate(-35deg); }
+.pet-sprite[data-view="side"][data-activity="fish"] .pet-held { transform-origin: 38% 70%; animation: pet-rod 2.6s ease-in-out infinite; }
+.pet-sprite[data-view="side"][data-activity="drive"] .pet-arm { transform: rotate(-55deg); }
+.pet-sprite[data-activity="skate"] :is(.pet-bob, .pet-leg) { transform: translateY(-5%); }
+.pet-sprite[data-activity="skate"] .pet-bob { animation: pet-glide 1.4s ease-in-out infinite alternate; }
+.pet-sprite[data-view="side"][data-activity="skate"] .pet-arm-l { transform: rotate(-45deg); }
+.pet-sprite[data-view="side"][data-activity="skate"] .pet-arm-r { transform: rotate(35deg); }
+.pet-sprite[data-view="side"][data-activity="paint"] .pet-arm-l { animation: pet-dab 0.9s ease-in-out infinite alternate; }
+.pet-sprite[data-view="side"][data-activity="paint"] [data-prop="brush"] { animation: pet-dab-brush 0.9s ease-in-out infinite alternate; }
+.pet-sprite[data-view="side"][data-activity="paint"] :is(.pet-face, .pet-eyes) { transform: translateY(-1%); }
+
+@keyframes pet-type-side { from { transform: rotate(-38deg); } to { transform: rotate(-48deg) translateY(-1%); } }
+@keyframes pet-sip { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5%); } }
+@keyframes pet-feed { from { transform: rotate(-62deg); } to { transform: rotate(-80deg); } }
+@keyframes pet-rod { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-3deg); } }
+@keyframes pet-glide { from { transform: translateY(-5%) rotate(-3deg); } to { transform: translateY(-6%) rotate(2deg); } }
+@keyframes pet-dab { from { transform: rotate(-60deg); } to { transform: rotate(-78deg); } }
+@keyframes pet-dab-brush { from { transform: translate(0, 0); } to { transform: translate(1.5%, -2.5%); } }
+
+/* -- scenery and the ball (SceneryLayer), behind the pets, at their scale */
+.pet-scenery {
+  position: absolute;
+  pointer-events: none;
+  transition: opacity 0.6s;
+  animation: pet-arrive 0.6s ease-out;
+}
+.pet-scenery[data-leaving="true"], .pet-ball[data-leaving="true"] { opacity: 0; }
+.pet-ball {
+  position: absolute;
+  left: 0;
+  pointer-events: none;
+  transition: opacity 0.4s;
+  animation: pet-ball-across var(--ball-flight) linear infinite alternate;
+}
+.pet-ball img { display: block; width: 100%; height: 100%; animation: pet-ball-arc var(--ball-flight) infinite; }
+
+@keyframes pet-arrive { from { opacity: 0; transform: translateY(6%) scale(0.92); } }
+@keyframes pet-ball-across { from { transform: translateX(var(--ball-from)); } to { transform: translateX(var(--ball-to)); } }
+@keyframes pet-ball-arc {
+  0% { transform: translateY(0); animation-timing-function: ease-out; }
+  50% { transform: translateY(calc(var(--ball-height) * -1)); animation-timing-function: ease-in; }
+  100% { transform: translateY(0); }
+}
+
+/* -- what a pet says: a speech bubble, or a thought cloud trailing little circles */
+.pet-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  width: max-content;
+  max-width: 220px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  /* Solid, like every floating surface (60-themes.css; 90-glass.css for glass): drawn in the
+     panel colour alone, a thought on glass was see-through and hard to read. */
+  background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: pet-pop 0.18s ease-out;
+}
+.pet-bubble[data-kind="speech"]::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg);
+  transform: rotate(45deg);
+}
+.pet-bubble[data-kind="thought"] { font-style: italic; }
+.pet-bubble[data-kind="thought"]::before,
+.pet-bubble[data-kind="thought"]::after {
+  content: '';
+  position: absolute;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg);
+}
+.pet-bubble[data-kind="thought"]::before { top: calc(100% + 2px); left: calc(50% - 7px); width: 7px; height: 7px; }
+.pet-bubble[data-kind="thought"]::after { top: calc(100% + 10px); left: calc(50% - 3px); width: 4px; height: 4px; }
+/* Near an edge the bubble leans inwards rather than off the window. */
+.pet-bubble[data-align="start"] { left: 0; transform: none; }
+.pet-bubble[data-align="end"] { right: 0; left: auto; transform: none; }
+.pet-bubble[data-align="start"]::after, .pet-bubble[data-align="start"]::before { left: 10px; }
+.pet-bubble[data-align="end"]::after, .pet-bubble[data-align="end"]::before { left: auto; right: 10px; }
+
+@keyframes pet-pop { from { opacity: 0; transform: translateX(-50%) scale(0.8); } }
+
+/* -- chatting with a pet */
+.pet-chat {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 280px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text);
+  font-size: 12px;
+}
+.pet-chat-head { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.pet-chat-head span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pet-chat-log { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+.pet-chat-line { padding: 4px 8px; border-radius: var(--radius-row); background: var(--hover); overflow-wrap: anywhere; }
+.pet-chat-line[data-from="you"] { align-self: flex-end; background: var(--selected); }
+.pet-chat-line[data-from="pet"] { align-self: flex-start; }
+.pet-chat-thinking { color: var(--muted); font-style: italic; }
+.pet-chat-error { color: var(--danger); }
+.pet-chat input { width: 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pet, .pet * { animation: none !important; transition: none !important; }
+}
+
+/* -- Settings → Pets */
+.pets-section { display: flex; flex-direction: column; gap: 12px; }
+.pet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.pet-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--control-bg);
+}
+.pet-card[data-active="true"] { border-color: var(--accent); }
+.pet-card-stage { display: flex; justify-content: center; padding: 4px 0 2px; }
+.pet-card-name { flex: none; font-weight: 600; }
+.pet-card-tagline { font-size: 11px; }
+.pet-card-row { display: flex; align-items: center; gap: 6px; }
+.pet-card-actions { display: flex; align-items: center; gap: 6px; }
