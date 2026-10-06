@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.31.11] - 2026-10-06
+
+### Security
+
+- **Dependency audit.** source-map-js 1.2.2, and katex 0.18 and smol-toml 1.9 under the Markdown
+  linter (which pins the vulnerable ones). sprintf-js has no fixed release; it is only used for
+  logging inside electron-builder's download helper at build time, so the audit gate allows it
+  until 2026-12-31. 1.31.10 was tagged but not released: the gate stopped it on these.
+
 ## [1.31.10] - 2026-10-06
 
 ### Changed

@@ -14,6 +14,13 @@ const ALLOWED = {
       'braces <=3.0.3 (no fixed release): stack exhaustion on deeply nested glob patterns. ' +
       'Only reached through markdownlint-cli2 and stylelint, dev tools fed our own fixed globs.',
   },
+  'GHSA-hp3w-g68c-fv3c': {
+    review: '2026-12-31',
+    why:
+      'sprintf-js (every version, no fixed release): DoS through unbounded precision specifiers. ' +
+      "Only reached through electron-builder's @electron/get → global-agent → roarr logging, at " +
+      'build time, with format strings written by those packages, never by input.',
+  },
 }
 
 const run = spawnSync('npm', ['audit', '--json'], { encoding: 'utf8', maxBuffer: 64 << 20 })
