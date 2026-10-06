@@ -42,3 +42,33 @@ html[data-material="glass"] :is(.modal, .context-menu, .git-menu, .hover-card, .
 html[data-material="glass"] :is(.pet-bubble, .pet-bubble::before, .pet-bubble::after, .pet-chat) {
   background: var(--bg-popover);
 }
+
+/*
+ * Reading surfaces. A terminal paints its own colour as one hard-edged block, while a chat's text
+ * sat straight on the moving glass and was hard to read. Both now sit on the same surface: the
+ * theme's terminal colour, full strength under the text, thinning towards the left and right
+ * edges, so the glass still shows at the sides and there is no hard line where a terminal starts.
+ * A plain background, not a mask or a filter: it never repaints with what is underneath, and a
+ * scroll container's own background stays put while its content scrolls (see the note at the top
+ * of this file on what painting over glass costs).
+ *
+ * The terminal has it twice over — as dark in the middle as it was when xterm painted its own colour
+ * on top of the host's (see 32-terminal.css) — and the chat once, which reads as part of the pane
+ * rather than a box in it. The edge stays at 40%, so text near the side keeps most of its contrast.
+ */
+html[data-material="glass"] {
+  --reading-feather: 44px;
+}
+html[data-material="glass"] .terminal-host,
+html[data-material="glass"] .transcript {
+  --reading-edge: color-mix(in sRGB, var(--term-background) 40%, transparent);
+  --reading-surface: linear-gradient(
+    to right,
+    var(--reading-edge),
+    var(--term-background) var(--reading-feather),
+    var(--term-background) calc(100% - var(--reading-feather)),
+    var(--reading-edge)
+  );
+  background: var(--reading-surface);
+}
+html[data-material="glass"] .terminal-host { background: var(--reading-surface), var(--reading-surface); }

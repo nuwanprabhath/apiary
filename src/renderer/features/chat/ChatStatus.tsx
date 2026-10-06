@@ -57,7 +57,7 @@ export function ChatStatus({ tasks, turn, recap }: ChatStatusInfo): JSX.Element 
           data-testid="chat-status-tasks"
           title={tasks.map((t) => t.description).join('\n')}
         >
-          <span className="chat-status-glyph chat-status-spin" aria-hidden="true">◐</span>
+          <span className="chat-status-glyph" aria-hidden="true"><span className="chat-status-pulse" /></span>
           {tasks.length === 1 ? '1 background task' : `${String(tasks.length)} background tasks`} running
           <span className="chat-status-detail"> · {tasks.map((t) => t.description || t.taskId).join(' · ')}</span>
         </div>

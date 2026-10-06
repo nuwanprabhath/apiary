@@ -223,6 +223,10 @@ export function reduce(state: ChatState, event: Line, now: number = Date.now()):
     }
     case 'assistant':
     case 'user': {
+      // A subagent's own messages (its tool calls, their results, its report) arrive here too,
+      // marked only by parent_tool_use_id (measured on 2.1.288). They go to the subagent's file,
+      // never this session's, so shown here they appeared as Claude's own words and then vanished.
+      if (event.parent_tool_use_id) return state
       const message = toMessage(event)
       if (message === null || message.uuid === '' || state.live.some((m) => m.uuid === message.uuid)) return state
       const live = [...state.live, message].slice(-MAX_LIVE)

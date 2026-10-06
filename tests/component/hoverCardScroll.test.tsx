@@ -11,6 +11,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { page } from 'vitest/browser'
 import { renderApp } from './renderApp'
+import { mouse } from './helpers'
 import type { FakeSession } from './fakeApiary'
 
 const SESSION_COUNT = 40
@@ -33,6 +34,9 @@ describe('useHoverCard scroll cost (UI-7)', () => {
 
     // Keep the pointer off every row (top-left corner, before the sidebar) so nothing is armed or
     // open when the scroll fires, and any post-scroll reopen has nothing under it to reopen for.
+    // The real mouse too: it stays wherever the previous test file left it, and resting on a row
+    // it arms that row's card, which reads the row's rect — counted below as if the scroll had.
+    await mouse.move(0, 0)
     document.dispatchEvent(new MouseEvent('mousemove', { clientX: 0, clientY: 0 }))
 
     let wrapRectReads = 0

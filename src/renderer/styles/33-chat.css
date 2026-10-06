@@ -397,12 +397,31 @@
 .chat-status-glyph { flex: none; width: 12px; text-align: center; }
 .chat-status-recap { font-style: italic; }
 .chat-status-tasks { color: var(--text); }
-.chat-status-tasks .chat-status-glyph { color: var(--accent); }
 .chat-status-detail { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
-.chat-status-spin { animation: chat-spin 1.6s linear infinite; }
-@keyframes chat-spin { to { transform: rotate(360deg); } }
+/* A dot with a ring breathing out of it: "still running", without a glyph turning on its
+   baseline (a spun ◐ wobbled, since a font's glyph box is not centred on the glyph). */
+.chat-status-tasks .chat-status-glyph { display: flex; align-self: center; justify-content: center; }
+.chat-status-pulse {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.chat-status-pulse::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--accent);
+  content: "";
+  animation: chat-pulse 1.8s ease-out infinite;
+}
+@keyframes chat-pulse {
+  from { opacity: 0.9; transform: scale(1); }
+  to { opacity: 0; transform: scale(2.6); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .chat-status-spin { animation: none; }
+  .chat-status-pulse::after { animation: none; opacity: 0; }
 }
 
 /* "Jump to the latest", while you read further up and more is arriving (Transcript). */

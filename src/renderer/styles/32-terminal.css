@@ -53,7 +53,9 @@
  * lighter bar whose height changed as the pane was resized. Painted once here, a see-through
  * terminal colour is also not doubled up.
  */
-.terminal-host .xterm-viewport { background-color: transparent !important; }
+/* xterm 6 wraps the viewport in a scrollable element that paints the terminal colour too: on
+   glass, a second see-through layer, which read as a hard-edged darker block. */
+.terminal-host :is(.xterm-viewport, .xterm-scrollable-element) { background-color: transparent !important; }
 /*
  * The rows sit at the bottom and the sliver at the top. Claude's own screen and a shell prompt
  * both live at the bottom edge, so anchoring there keeps the last line the same distance from

@@ -140,6 +140,50 @@ describe('sidebarPopups', () => {
     expect(Math.abs(pickerBox.y - anchor.y)).toBeLessThan(200)
   })
 
+  it('a card is not opened by something scrolling after the pointer has left the window', async () => {
+    // Reported from Ubuntu: a session's card appeared beside the sidebar with the mouse nowhere
+    // near it. Any scroll in the window — a transcript following Claude's reply — used to end in
+    // opening the card of whatever row sat under the pointer's last known position, long after
+    // the pointer had gone to another window.
+    await renderApp()
+    await userEvent.hover(sidebarSession('Fix CSV export bug'))
+    await until(() => page.getByTestId('session-hover-card').elements().length === 1)
+
+    // The pointer leaves the window: Chromium fires mouseleave on the root element.
+    document.documentElement.dispatchEvent(new MouseEvent('mouseleave'))
+    await until(() => page.getByTestId('session-hover-card').elements().length === 0)
+
+    const elsewhere = document.createElement('div')
+    document.body.append(elsewhere)
+    try {
+      elsewhere.dispatchEvent(new Event('scroll'))
+      document.dispatchEvent(new Event('scroll'))
+      // Past the settle check (SCROLL_QUIET_MS + HOVER_DELAY_MS), the point where it reopened.
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      expect(page.getByTestId('session-hover-card').elements()).toHaveLength(0)
+    } finally {
+      elsewhere.remove()
+    }
+  })
+
+  it('a card being read stays open while another part of the window scrolls', async () => {
+    await renderApp()
+    await userEvent.hover(sidebarSession('Fix CSV export bug'))
+    await until(() => page.getByTestId('session-hover-card').elements().length === 1)
+
+    const transcript = document.createElement('div')
+    document.body.append(transcript)
+    try {
+      transcript.dispatchEvent(new Event('scroll'))
+      // Checked once, a couple of frames on, with no retrying: closing and then reopening a
+      // moment later (what it used to do) is the flicker this is about.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(page.getByTestId('session-hover-card').elements()).toHaveLength(1)
+    } finally {
+      transcript.remove()
+    }
+  })
+
   it('the hover card sits beside the list, so the next row can still be seen and hovered', async () => {
     // Reported: the card opened below its row and covered the next few sessions, so you could
     // neither read them nor move the pointer onto the next one without first backing out.

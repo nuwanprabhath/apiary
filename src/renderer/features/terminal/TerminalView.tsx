@@ -73,6 +73,31 @@ function fontFromTokens(): string {
   return value !== '' ? value : 'ui-monospace, "SF Mono", Menlo, Consolas, monospace'
 }
 
+/**
+ * How long a view may spend catching up (snapshot fetched, painted, live output drained behind it)
+ * before it gives up waiting and shows live output anyway. Catching up normally takes a few
+ * milliseconds; one that never finished left a terminal that took keystrokes but never drew them,
+ * stuck at the snapshot's width — reported from Ubuntu, cured only by closing the tab.
+ */
+const CATCH_UP_TIMEOUT_MS = 4000
+/**
+ * How long after output arrives xterm may take to parse it and draw, before the view counts as
+ * stuck and is rebuilt (what closing and reopening the tab did by hand). Generous: a busy terminal
+ * parses in time slices, and drawing waits for the next frame.
+ */
+const STALL_MS = 4000
+/** A view rebuilt this many times in a minute stops trying, rather than rebuilding forever. */
+const MAX_REBUILDS_PER_MINUTE = 3
+
+/** On screen and in front: the only state in which "nothing was drawn" means something is wrong.
+ *  A hidden tab, a background window and a minimised one all legitimately draw nothing. */
+function inView(el: HTMLElement | null): boolean {
+  if (el === null || document.visibilityState !== 'visible' || !document.hasFocus()) return false
+  if (!el.checkVisibility()) return false
+  const r = el.getBoundingClientRect()
+  return r.width > 0 && r.height > 0
+}
+
 function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude = false }: Props): JSX.Element {
   const host = useRef<HTMLDivElement | null>(null)
   // Read through a ref by the key handler, which is installed once per pty: a callback captured
@@ -92,6 +117,10 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
   const [confirmingSuspend, setConfirmingSuspend] = useState(false)
   const [suspended, setSuspended] = useState(false)
   const suspendedRef = useRef(false)
+  // Bumped to tear this view's xterm down and build a fresh one on the same pty — the mount effect
+  // depends on it. Only the stall watchdog below does this.
+  const [generation, setGeneration] = useState(0)
+  const rebuildsRef = useRef<number[]>([])
 
   const resume = (): void => {
     suspendedRef.current = false
@@ -146,15 +175,79 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
      */
     let disposed = false
     let caughtUp = false
+    // Which step catching up is on, for the log line if it never finishes.
+    let stage: 'snapshot' | 'paint' | 'drain' = 'snapshot'
     const queued: string[] = []
     let lastCols = term.cols
     let lastRows = term.rows
+
+    /**
+     * Runs app code from inside an xterm write callback without letting it throw there. xterm calls
+     * those callbacks in the middle of its parse loop with no guard: an exception ends the loop
+     * before it schedules the next batch, and every later write joins a queue nothing drains — a
+     * terminal that still sends what you type but never draws again.
+     */
+    const guarded = (what: string, fn: () => void): void => {
+      try {
+        fn()
+      } catch (err) {
+        window.apiary.logWrite('error', 'pty', `terminal ${what} failed`, { ptyId, error: String(err) })
+      }
+    }
+
+    /**
+     * The stall watchdog. After output arrives (at most once per `STALL_MS`), checks that xterm
+     * both parsed it and drew afterwards; if either never happens while the terminal is on screen
+     * and in front, the view is rebuilt — a fresh xterm caught up from a fresh snapshot.
+     */
+    let lastRenderAt = 0
+    const disposeRender = term.onRender(() => { lastRenderAt = performance.now() })
+    let watch: number | null = null
+    // When output last arrived, so a check that ends healthy knows whether output that came in
+    // after its probe still needs checking.
+    let lastDataAt = 0
+    const rebuild = (why: Record<string, unknown>): void => {
+      const now = Date.now()
+      rebuildsRef.current = rebuildsRef.current.filter((t) => now - t < 60_000)
+      if (rebuildsRef.current.length >= MAX_REBUILDS_PER_MINUTE) {
+        window.apiary.logWrite('error', 'pty', 'terminal keeps getting stuck; not rebuilding again', { ptyId, ...why })
+        return
+      }
+      rebuildsRef.current.push(now)
+      window.apiary.logWrite('warn', 'pty', 'terminal stopped drawing; rebuilt it', { ptyId, ...why })
+      setGeneration((g) => g + 1)
+    }
+    const watchForStall = (): void => {
+      if (watch !== null || disposed) return
+      let parsed = false
+      const probedAt = performance.now()
+      term.write('', () => { parsed = true })
+      // Output that arrived after the probe was written is not covered by it: check again.
+      const again = (): void => { if (lastDataAt > probedAt) watchForStall() }
+      watch = window.setTimeout(() => {
+        watch = null
+        if (disposed) return
+        if (!inView(host.current)) { again(); return }
+        if (!parsed) { rebuild({ parsed }); return }
+        // Parsed: now ask for a full redraw and see whether one happens. A renderer that has
+        // paused itself (xterm pauses while it believes it is off screen) never draws again.
+        const askedAt = performance.now()
+        term.refresh(0, term.rows - 1)
+        watch = window.setTimeout(() => {
+          watch = null
+          if (disposed) return
+          if (inView(host.current) && lastRenderAt < askedAt) { rebuild({ parsed, rendered: false }); return }
+          again()
+        }, 1000)
+      }, STALL_MS)
+    }
 
     // Declared before the snapshot is requested: main sends `ptyData` only to attached windows,
     // and IPC from one renderer is ordered, so nothing falls between attach and snapshot.
     window.apiary.ptyAttach(ptyId)
     const offData = ptyBus.onData(ptyId, (data) => {
-      if (caughtUp) term.write(data)
+      lastDataAt = performance.now()
+      if (caughtUp) { term.write(data); watchForStall() }
       else queued.push(data)
     })
 
@@ -164,7 +257,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       if (disposed) return
       if (queued.length === 0) { done(); return }
       const batch = queued.splice(0).join('')
-      term.write(batch, () => { drain(done) })
+      term.write(batch, () => { guarded('catch-up', () => { drain(done) }) })
     }
 
     /** Fits to the pane and tells the pty. On an unchanged size `PtyManager.resize` itself forces
@@ -175,10 +268,29 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       lastRows = term.rows
       window.apiary.ptyResize(ptyId, term.cols, term.rows)
     }
+    const finishCatchUp = (): void => {
+      if (caughtUp) return
+      caughtUp = true
+      settle()
+    }
+
+    // Caught up or not, live output is shown after this long: a view that waits forever for a
+    // round trip that is never coming is the stuck terminal. Logged, so the next one says where.
+    const catchUpTimer = window.setTimeout(() => {
+      if (disposed || caughtUp) return
+      window.apiary.logWrite('warn', 'pty', 'terminal catch-up stalled; showing live output', { ptyId, stage, queued: queued.length })
+      const late = queued.splice(0).join('')
+      guarded('catch-up', finishCatchUp)
+      if (late !== '') term.write(late)
+      watchForStall()
+    }, CATCH_UP_TIMEOUT_MS)
 
     void window.apiary.ptySnapshot(ptyId)
       .then((snap) => new Promise<void>((resolve) => {
-        if (disposed || snap === null) { resolve(); return }
+        // Given up on (above): live output is already on screen, and painting the old screen over
+        // it now would put the past below the present.
+        if (disposed || caughtUp || snap === null) { resolve(); return }
+        stage = 'paint'
         term.resize(snap.cols, snap.rows)
         term.write(snap.data, resolve)
       }))
@@ -186,10 +298,8 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       // brand-new pty starts anyway — not worth an error in front of a running session.
       .catch(() => { /* as above */ })
       .finally(() => {
-        drain(() => {
-          caughtUp = true
-          settle()
-        })
+        stage = 'drain'
+        drain(finishCatchUp)
       })
     const offExit = ptyBus.onExit(ptyId, (code) => {
       // Keep the terminal on screen so the exit status is readable.
@@ -343,6 +453,9 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
 
     return () => {
       disposed = true
+      window.clearTimeout(catchUpTimer)
+      if (watch !== null) window.clearTimeout(watch)
+      disposeRender.dispose()
       window.removeEventListener(THEME_CHANGE_EVENT, onTheme)
       observer.disconnect()
       if (rafId !== null) cancelAnimationFrame(rafId)
@@ -356,7 +469,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       term.dispose()
       // The PTY deliberately keeps running so the session survives a tab switch.
     }
-  }, [ptyId])
+  }, [ptyId, generation])
 
   /**
    * Snap to the bottom whenever this terminal becomes the visible one.

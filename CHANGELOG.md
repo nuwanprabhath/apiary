@@ -4,6 +4,47 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.31.10] - 2026-10-06
+
+### Changed
+
+- **Background tasks show a pulsing dot** under the chat, in place of a spinning glyph that
+  wobbled.
+
+## [1.31.9] - 2026-10-06
+
+### Changed
+
+- **Easier reading on glass.** A chat and a terminal now sit on the same soft dark surface: full
+  strength under the text, thinning towards the sides so the glass still shows, with no hard edge
+  where a terminal starts.
+
+## [1.31.8] - 2026-10-06
+
+### Fixed
+
+- **A terminal that stopped drawing recovers by itself.** It took what you typed but never showed
+  it, stuck at an old width, until the tab was closed and reopened. It now shows live output if
+  catching up on the session never finishes, and rebuilds itself if it stops drawing. Both are
+  noted in the diagnostic log.
+
+## [1.31.7] - 2026-10-06
+
+### Fixed
+
+- **A session's hover card no longer pops up with the mouse elsewhere.** Something scrolling in
+  another part of the window, such as a chat following Claude's reply, used to open the card of
+  the row the pointer had last crossed, even after it had left the window. It also closed a card
+  you were reading.
+
+## [1.31.6] - 2026-10-06
+
+### Fixed
+
+- **A background agent's work no longer appears in the chat as Claude's own words.** Its tool
+  calls and its report showed up in the conversation, then vanished, and were not in the session
+  when continued in the terminal. They belong to the agent, not to the session.
+
 ## [1.31.5] - 2026-10-05
 
 ### Changed

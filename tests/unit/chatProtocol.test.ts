@@ -88,6 +88,19 @@ describe('chat protocol', () => {
     expect(sub).toBe(s)
   })
 
+  it("keeps a subagent's own messages out of the conversation, even after the main turn ended", () => {
+    // As claude 2.1.288 printed a background Agent: the subagent's tool call, its tool result and
+    // its report arrive as whole messages, told apart only by parent_tool_use_id. They are written
+    // to the subagent's own file, never the session's, so shown here they would vanish later.
+    const idle = run(TURN)
+    const sub: Line[] = [
+      { type: 'assistant', uuid: 'sa1', parent_tool_use_id: 'toolu_bg', message: { role: 'assistant', content: [{ type: 'tool_use', id: 't7', name: 'Bash', input: { command: 'echo hi' } }] } },
+      { type: 'user', uuid: 'su1', parent_tool_use_id: 'toolu_bg', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't7', content: 'hi' }] } },
+      { type: 'assistant', uuid: 'sa2', parent_tool_use_id: 'toolu_bg', message: { role: 'assistant', content: [{ type: 'text', text: 'SUBAGENT REPORT' }] } },
+    ]
+    expect(sub.reduce((s, e) => reduce(s, e), idle)).toBe(idle)
+  })
+
   it('answers a permission prompt the way the SDK does', () => {
     const prompt = permissionRequestOf(TURN[9])
     expect(prompt).not.toBeNull()

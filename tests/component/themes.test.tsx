@@ -118,15 +118,19 @@ describe('themes', () => {
     const viewport = host.querySelector('.xterm-viewport')!
     const screen = host.querySelector('.xterm-screen')!.getBoundingClientRect()
     const sliver = host.getBoundingClientRect().bottom - screen.bottom
-    const hostBg = getComputedStyle(host).backgroundColor
+    const hostBg = getComputedStyle(host).backgroundImage
     const viewportBg = getComputedStyle(viewport).backgroundColor
+    const scrollableBg = getComputedStyle(host.querySelector('.xterm-scrollable-element')!).backgroundColor
     const termBg = cssVar('--term-background')
 
-    // xterm draws whole rows only, so there is a sliver under the last one; the host's colour —
-    // the terminal's — fills it, not whatever is behind.
+    // xterm draws whole rows only, so there is a sliver under the last one; the host's surface —
+    // the terminal's colour, feathered at the sides on glass — fills it, not whatever is behind.
+    // xterm itself paints nothing: neither its viewport nor (xterm 6) the scrollable element
+    // around it, which used to lay a second, hard-edged copy of the colour over the host's.
     expect(sliver).toBeGreaterThan(0)
     expect(viewportBg).toBe('rgba(0, 0, 0, 0)')
-    expect(hostBg).not.toBe('rgba(0, 0, 0, 0)')
+    expect(scrollableBg).toBe('rgba(0, 0, 0, 0)')
+    expect(hostBg).toContain('linear-gradient')
     expect(termBg).not.toBe('')
   })
 

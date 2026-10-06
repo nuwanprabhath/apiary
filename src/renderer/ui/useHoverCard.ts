@@ -26,7 +26,7 @@ const WARM_WINDOW_MS = 400
  * reported. With this, opening a card closes whatever else is open, so stacking cannot happen
  * whatever the timers do.
  */
-let openCard: { current: () => void } | null = null
+let openCard: { current: () => void; row: () => HTMLElement | null } | null = null
 let lastCardClosedAtMs = 0
 function isWarm(): boolean {
   return openCard !== null || Date.now() - lastCardClosedAtMs < WARM_WINDOW_MS
@@ -91,13 +91,26 @@ function scheduleReopenCheck(): void {
  * back while the pointer rested exactly where the user left it.
  */
 const pointer = { x: -1, y: -1 }
+/**
+ * What the pointer was last over, or null once it has left the window.
+ *
+ * A scroll only matters to hover cards when it moves things under the pointer or moves the row a
+ * card is showing. Every other scroll — a transcript following Claude's reply, a terminal
+ * scrolling its output — used to close the card being read, and then, once quiet, open the card
+ * of whatever row sat under the pointer's *last* position. With the pointer long gone to another
+ * window, that put a card up beside the sidebar with no mouse anywhere near it.
+ */
+let pointerOver: Element | null = null
 if (typeof document !== 'undefined') {
-  document.addEventListener('scroll', () => {
-    lastScrollAtMs = Date.now()
-    // The row a card describes is no longer where the card is pointing the moment the list
+  document.addEventListener('scroll', (e) => {
+    const scroller = e.target instanceof Element ? e.target : document.documentElement
+    // The row a card describes is no longer where the card is pointing the moment its list
     // moves — close the one card that can be open (the one-card rule) rather than every mounted
     // instance asking whether it happens to be the one.
-    if (openCard !== null) openCard.current()
+    const row = openCard?.row() ?? null
+    if (openCard !== null && (row === null || scroller.contains(row))) openCard.current()
+    if (pointerOver === null || !scroller.contains(pointerOver)) return
+    lastScrollAtMs = Date.now()
     for (const cancelArm of armedInstances) cancelArm()
     armedInstances.clear()
     scheduleReopenCheck()
@@ -105,7 +118,17 @@ if (typeof document !== 'undefined') {
   document.addEventListener('mousemove', (e) => {
     pointer.x = e.clientX
     pointer.y = e.clientY
+    pointerOver = e.target instanceof Element ? e.target : document.documentElement
   }, { capture: true, passive: true })
+  // Out of the window: there is nothing under the pointer here any more, so nothing to reopen,
+  // and no `mousemove` will arrive to close a card left up (see the watcher in useHoverCard).
+  document.documentElement.addEventListener('mouseleave', () => {
+    pointer.x = -1
+    pointer.y = -1
+    pointerOver = null
+    if (reopenCheckTimer !== null) { window.clearTimeout(reopenCheckTimer); reopenCheckTimer = null }
+    openCard?.current()
+  })
 }
 function scrolledJustNow(): boolean {
   return Date.now() - lastScrollAtMs < SCROLL_QUIET_MS
@@ -302,23 +325,26 @@ export function useHoverCard<T extends HTMLElement>(options: HoverCardOptions = 
    * for the warm delay. A layout effect, so the card being replaced is gone before the browser
    * paints the new one — never a frame with both.
    */
-  const closeSelf = useRef(() => {
-    if (openTimer.current !== null) { window.clearTimeout(openTimer.current); openTimer.current = null }
-    if (closeTimer.current !== null) { window.clearTimeout(closeTimer.current); closeTimer.current = null }
-    lastKnownRect.current = null
-    setAnchor(null)
+  const closeSelf = useRef({
+    current: (): void => {
+      if (openTimer.current !== null) { window.clearTimeout(openTimer.current); openTimer.current = null }
+      if (closeTimer.current !== null) { window.clearTimeout(closeTimer.current); closeTimer.current = null }
+      lastKnownRect.current = null
+      setAnchor(null)
+    },
+    row: (): HTMLElement | null => ref.current,
   })
   useLayoutEffect(() => {
     if (anchor === null) {
-      if (openCard === closeSelf) { openCard = null; lastCardClosedAtMs = Date.now() }
+      if (openCard === closeSelf.current) { openCard = null; lastCardClosedAtMs = Date.now() }
       return
     }
-    if (openCard !== null && openCard !== closeSelf) openCard.current()
-    openCard = closeSelf
+    if (openCard !== null && openCard !== closeSelf.current) openCard.current()
+    openCard = closeSelf.current
   }, [anchor])
   useEffect(() => () => {
     clearTimers()
-    if (openCard === closeSelf) { openCard = null; lastCardClosedAtMs = Date.now() }
+    if (openCard === closeSelf.current) { openCard = null; lastCardClosedAtMs = Date.now() }
   }, [])
 
   return { anchor, ref, arm, keepOpen, scheduleClose, hideNow, openNow }

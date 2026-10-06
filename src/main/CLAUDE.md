@@ -54,7 +54,7 @@ The "Chat in the transcript" setting runs a session the way the VS Code extensio
 with `--input-format stream-json`, `--output-format stream-json` and `--permission-prompt-tool stdio`, through
 the login shell like a terminal (`pty/resumeCommand.ts`'s `buildChatCommand`). The protocol is in
 `chat/protocol.ts`, written from what `claude` 2.1.286 actually printed — read its header before
-changing anything. Three rules:
+changing anything. Four rules:
 
 - **One process per session.** Two `claude`s on one session both append to its JSONL.
   `AppService.chatStart` stops a terminal's claude first (`takeOver`, `PtyManager.killAndWait`);
@@ -67,5 +67,9 @@ changing anything. Three rules:
   as an `attachment` of type `queued_command` whose `source_uuid` is the replayed uuid
   (`transcriptReader.ts`'s `queuedMessage`). A turn can also start with nothing sent — a
   background task finishing — so the first streamed message marks the chat busy, not `send`.
+
+- **A subagent's messages are not the session's.** Its tool calls, results and report arrive as
+  whole `assistant`/`user` messages marked only by `parent_tool_use_id` (measured on 2.1.288), and
+  are written to the subagent's own file. `reduce` drops them, like subagent `stream_event`s.
 
 `tests/fixtures/fake-claude-chat.mjs` speaks the same protocol for integration and e2e tests.
