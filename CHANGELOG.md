@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.31.12] - 2026-10-06 (not released)
+
+### Fixed
+
+- **A flaky layout test.** On a slow CI runner it sometimes clicked a layout picker opened for a
+  different session; it now waits for the picker that names the session being placed. It had
+  stopped the 1.31.11 release once.
+
 ## [1.31.11] - 2026-10-06
 
 ### Security

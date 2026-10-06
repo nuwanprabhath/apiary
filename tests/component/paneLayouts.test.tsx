@@ -26,17 +26,22 @@ function row(title: string): HTMLElement {
 /** Hovers `hoverFirst` then `button` and waits for the layout picker's own hover delay
  * (`HOVER_DELAY_MS`) to open it. Re-hovering on every poll tick would keep resetting that delay's
  * timer (`useHoverCard`'s `arm` clears and restarts it on every `mouseenter`), so the hover happens
- * once and only the wait for the picker polls. */
-async function openPickerOn(button: Element, hoverFirst?: Element): Promise<HTMLElement> {
+ * once and only the wait for the picker polls.
+ *
+ * Waits for the picker that names `session` in its heading ("Open “…” here"), not whichever picker
+ * is up first. Taking the first one failed now and then on CI: the zone clicked placed "Fix CSV
+ * export bug" (the row clicked just before) instead of the session being placed. */
+async function openPickerOn(button: Element, hoverFirst: Element, session: string): Promise<HTMLElement> {
+  const ours = (): HTMLElement | undefined => all('layout-picker').find((p) => p.textContent?.includes(`“${session}”`))
   // Up to three rests on the button: anything that moves the page under a still pointer (a late
   // reflow on a slow machine) restarts the picker's hover delay, and a pointer that stays put never
   // gets another mouseenter to start it again. A picker that never opens still fails.
   for (let attempt = 1; ; attempt++) {
-    if (hoverFirst !== undefined) await userEvent.hover(hoverFirst)
+    await userEvent.hover(hoverFirst)
     await userEvent.hover(button)
     try {
-      await until(() => all('layout-picker').length > 0, 2000)
-      return all('layout-picker')[0]
+      await until(() => ours() !== undefined && all('layout-picker').length === 1, 2000)
+      return ours()!
     } catch (e) {
       if (attempt === 3) throw e
     }
@@ -48,7 +53,7 @@ describe('pane layouts', () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     const target = row('Add worktree switcher')
-    const picker = await openPickerOn(within(target, 'split-session-button')[0], target)
+    const picker = await openPickerOn(within(target, 'split-session-button')[0], target, 'Add worktree switcher')
 
     await userEvent.click(within(picker, 'layout-zone-halves-h-1')[0])
 
@@ -93,7 +98,7 @@ describe('pane layouts', () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     const target = row('Add worktree switcher')
-    const picker = await openPickerOn(within(target, 'split-session-button')[0], target)
+    const picker = await openPickerOn(within(target, 'split-session-button')[0], target, 'Add worktree switcher')
     // thirds-h zone 3 (0-indexed 2, testid suffix z+1) is the last zone: "Fix CSV export bug" fills
     // zone 1, zone 2 is left waiting, and the placed session lands last — not first, so a stale
     // fallback to "pane one" cannot pass this test by accident.
@@ -113,7 +118,7 @@ describe('pane layouts', () => {
     await until(() => all('session-tab').length === 2)
 
     const tab = all('session-tab').find((el) => el.textContent?.includes('Add worktree switcher'))!
-    const picker = await openPickerOn(within(tab, 'session-tab-layout')[0], tab)
+    const picker = await openPickerOn(within(tab, 'session-tab-layout')[0], tab, 'Add worktree switcher')
     await userEvent.click(within(picker, 'layout-zone-halves-v-2')[0])
 
     await until(() => all('content')[0].getAttribute('data-preset') === 'halves-v')
@@ -234,7 +239,7 @@ describe('pane layouts', () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     const target = row('Add worktree switcher')
-    const picker = await openPickerOn(within(target, 'split-session-button')[0], target)
+    const picker = await openPickerOn(within(target, 'split-session-button')[0], target, 'Add worktree switcher')
     await userEvent.click(within(picker, 'layout-zone-halves-h-2')[0])
     await until(() => all('content')[0].getAttribute('data-preset') === 'halves-h')
 
