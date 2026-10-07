@@ -1,6 +1,6 @@
 import { type JSX, useEffect, useMemo, useRef, useState } from 'react'
 import type { GitRefEntry, GitRefs, WorktreeConflict } from '@shared/types'
-import type { TerminalRef } from '@shared/domain/ids'
+import type { GitTarget } from '@shared/domain/git'
 import { exactRefMatch } from './branchSelection'
 import { CopyIcon, CheckIcon, ArrowDownIcon } from '../../ui/icons'
 import { updateBranchMessage } from '@shared/gitMessages'
@@ -8,7 +8,9 @@ import { describeError } from '../../ui/errors'
 import { Modal } from '../../ui/Modal'
 
 interface Props {
-  terminal: TerminalRef
+  /** A pane's session, or a sidebar folder (its menu's "Change branch…"). Keep it stable: the ref
+   *  list is fetched again whenever it changes. */
+  terminal: GitTarget
   onClose: () => void
   onCheckedOut: () => void
   onError: (message: string) => void
@@ -29,6 +31,9 @@ interface Props {
   onNotice?: (message: string) => void
   /** A branch moved (the pull button): the toolbar's ahead/behind is out of date. */
   onBranchUpdated?: () => void
+  /** Said above the search box. A pane's picker needs none — it opens from that pane's toolbar —
+   *  but one opened from a sidebar folder's menu says which folder it changes. */
+  heading?: string
 }
 
 type Step =
@@ -70,6 +75,7 @@ export function BranchSwitcher({
   startAt = 'list',
   onNotice,
   onBranchUpdated,
+  heading,
 }: Props): JSX.Element {
   const [refs, setRefs] = useState<GitRefs | null>(null)
   const [query, setQuery] = useState('')
@@ -271,7 +277,9 @@ export function BranchSwitcher({
       initialFocusSelector='[data-testid="branch-switcher-search"]'
       closeOnBackdropClick
     >
-      <h2 id="branch-switcher-title" className="visually-hidden">{placeholder}</h2>
+      {heading !== undefined
+        ? <h2 id="branch-switcher-title" className="new-worktree-title" data-testid="branch-switcher-heading">{heading}</h2>
+        : <h2 id="branch-switcher-title" className="visually-hidden">{placeholder}</h2>}
       {errorMessage !== null && (
         <p className="error-banner" data-testid="branch-switcher-error">{errorMessage}</p>
       )}

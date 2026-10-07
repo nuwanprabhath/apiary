@@ -416,6 +416,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     gitListRefs: async () => state.refs,
     gitlabMrRefStatus: async () => ({}),
     gitCheckoutBranch: async (_k, name) => { state.refs = { ...state.refs, current: name }; emit('treeChanged'); return { ok: true } },
+    gitCheckoutBranchMovingOther: async (_target, branch) => { state.refs = { ...state.refs, current: branch }; emit('treeChanged') },
     gitPullWorktree: async () => { emit('treeChanged'); return { path: '/fixture/repo-c-wt', commits: 0 } },
     newSessionInWorktree: async () => newSession('/fixture/repo-c-wt'),
     gitCheckoutRemote: async (_k, _r, local) => {

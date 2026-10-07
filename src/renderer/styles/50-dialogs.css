@@ -545,3 +545,23 @@ button.layout-thumb:hover .layout-zone, button.layout-thumb:focus-visible .layou
   font-size: 0.9em;
   overflow-wrap: anywhere;
 }
+
+/* The conflict dialog's "switch that worktree to…": a searchable branch list with its button. */
+.worktree-conflict-move { display: flex; flex-direction: column; gap: var(--control-gap); margin-top: var(--control-gap); }
+.worktree-conflict-move-row { display: flex; gap: var(--control-gap); align-items: center; }
+.worktree-conflict-choices { max-height: 220px; }
+
+.worktree-conflict-choice { flex-direction: row; align-items: center; gap: 8px; }
+.worktree-conflict-choice .branch-switcher-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.worktree-conflict-swap { margin-left: auto; flex-shrink: 0; color: var(--accent); font-size: 11px; }
+
+.worktree-conflict-summary {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.9em;
+}
+.worktree-conflict-summary strong { color: var(--text); font-weight: 500; }

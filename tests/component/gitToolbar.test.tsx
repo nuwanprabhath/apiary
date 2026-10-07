@@ -215,7 +215,7 @@ describe('the git toolbar', () => {
     const fake = await open()
     fake.override('gitCheckoutBranch', async (_terminal, name) => (
       name === 'feature/wt'
-        ? { ok: false, conflict: { branch: 'feature/wt', worktreePath: '/fixture/repo-c-wt', label: 'repo-c-wt' } }
+        ? { ok: false, conflict: { branch: 'feature/wt', worktreePath: '/fixture/repo-c-wt', label: 'repo-c-wt', current: 'main', choices: ['main', 'dev'] } }
         : { ok: true }
     ))
 
@@ -233,11 +233,31 @@ describe('the git toolbar', () => {
     await expect.element(page.getByTestId('toolbar-branch-button')).toMatchTextContent('main')
   })
 
+  it('switching both swaps the branch with the worktree that has it, from the pane\'s own toolbar', async () => {
+    const fake = await open()
+    fake.override('gitCheckoutBranch', async (_terminal, name) => (
+      name === 'feature/wt'
+        ? { ok: false, conflict: { branch: 'feature/wt', worktreePath: '/fixture/repo-c-wt', label: 'repo-c-wt', current: 'main', choices: ['main', 'dev'] } }
+        : { ok: true }
+    ))
+
+    await userEvent.click(page.getByTestId('toolbar-branch-button'))
+    await userEvent.fill(page.getByTestId('branch-switcher-search'), 'feature/wt')
+    await userEvent.click(page.getByTestId('branch-switcher-branch-row').getByText('feature/wt', { exact: true }))
+    await userEvent.click(page.getByTestId('worktree-conflict-move'))
+
+    await until(() => fake.callsTo('gitCheckoutBranchMovingOther').length === 1)
+    expect(fake.callsTo('gitCheckoutBranchMovingOther')[0].slice(1)).toEqual(['feature/wt', 'main'])
+    await expect.element(page.getByTestId('worktree-conflict-dialog')).not.toBeInTheDocument()
+    // The toolbar reads the branch again: it is the one taken.
+    await expect.element(page.getByTestId('toolbar-branch-button')).toMatchTextContent('feature/wt')
+  })
+
   it('opening a session in that worktree starts it in the worktree, not the repo root', async () => {
     const fake = await open()
     fake.override('gitCheckoutBranch', async (_terminal, name) => (
       name === 'feature/wt'
-        ? { ok: false, conflict: { branch: 'feature/wt', worktreePath: '/fixture/repo-c-wt', label: 'repo-c-wt' } }
+        ? { ok: false, conflict: { branch: 'feature/wt', worktreePath: '/fixture/repo-c-wt', label: 'repo-c-wt', current: 'main', choices: ['main', 'dev'] } }
         : { ok: true }
     ))
 
@@ -293,7 +313,7 @@ describe('the git toolbar', () => {
       ['33333333-3333-3333-3333-333333333333', { current: 'main', local: [ref('main')], remote: [], tags: [] }],
       ['44444444-4444-4444-4444-444444444444', { current: 'feature/wt', local: [ref('feature/wt')], remote: [], tags: [] }],
     ])
-    fake.override('gitListRefs', async ({ id: key }) => refsByKey.get(key) ?? { current: null, local: [], remote: [], tags: [] })
+    fake.override('gitListRefs', async (target) => refsByKey.get(target.kind === 'folder' ? target.path : target.id) ?? { current: null, local: [], remote: [], tags: [] })
 
     // Both tabs opened up front, the way another window's Active row would find one already open —
     // `onSelectTab` (below) only re-focuses a tab that exists here, it does not open one.

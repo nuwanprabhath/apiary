@@ -4,7 +4,7 @@ import { launchApiary, importAll, sidebarSession, type Harness } from './helpers
 import { STANDARD_SESSIONS } from '../fixtures/standard'
 
 /**
- * "Chat in the transcript" through the real app: main spawns `claude` in stream-json mode through
+ * "Run sessions as a chat" through the real app: main spawns `claude` in stream-json mode through
  * a login shell and the transcript draws what it says. `claude` here is
  * tests/fixtures/fake-claude-chat.mjs, which speaks the same protocol as claude 2.1.286 — no
  * tokens are spent.
@@ -29,6 +29,8 @@ test('a message sent from the transcript is answered there, tools and all, witho
   await h.page.getByTestId('composer-input').press('Enter')
   await expect(h.page.getByTestId('chat-text').last()).toContainText('You said: hello from the chat')
   await expect(h.page.getByTestId('chat-user').last()).toContainText('hello from the chat')
+  // Nothing picked and no Claude settings choosing a mode: it started in Auto, not Manual.
+  await expect(h.page.getByTestId('composer-mode')).toHaveAttribute('data-mode', 'auto')
 
   await h.page.getByTestId('composer-input').fill('this needs permission')
   await h.page.getByTestId('composer-input').press('Enter')

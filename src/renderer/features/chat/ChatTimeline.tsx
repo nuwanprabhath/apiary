@@ -1,5 +1,5 @@
 import { type JSX, memo, useEffect, useRef, useState } from 'react'
-import type { ChatDecision, ChatState } from '@shared/domain/chat'
+import type { ChatDecision, ChatState, QueuedMessage } from '@shared/domain/chat'
 import { lastPrompt, type ChatItem } from '@shared/chatTimeline'
 import { TextBlock } from '../transcript/MessageRow'
 import { ImageThumbnail } from '../transcript/TranscriptImage'
@@ -12,6 +12,8 @@ interface Props {
   items: ChatItem[]
   /** The session's chat, when it has run as one this launch — for what is live right now. */
   chat: ChatState | null
+  /** The chat's queued messages the conversation does not show yet (`stillQueued`). */
+  queued: QueuedMessage[]
   onOpenImage: (src: string) => void
   onDecide: (requestId: string, decision: ChatDecision) => void
 }
@@ -113,12 +115,12 @@ function StickyPrompt({ prompt }: { prompt: { key: string; text: string } }): JS
 }
 
 /**
- * The transcript drawn as the VS Code extension draws a conversation (the "Chat in the transcript"
+ * The transcript drawn as the VS Code extension draws a conversation (the "Run sessions as a chat"
  * setting). Everything above the live part comes from the session's JSONL, so it looks the same
  * whether or not the session is running; the live part — the reply being written, permission
  * prompts, the working line — comes from the chat process.
  */
-export function ChatTimeline({ items, chat, onOpenImage, onDecide }: Props): JSX.Element {
+export function ChatTimeline({ items, chat, queued, onOpenImage, onDecide }: Props): JSX.Element {
   const prompt = lastPrompt(items)
   const streaming = chat?.streaming ?? null
   const busy = chat?.status === 'busy'
@@ -132,7 +134,7 @@ export function ChatTimeline({ items, chat, onOpenImage, onDecide }: Props): JSX
           <div className="chat-row-body"><MarkdownText text={streaming.text} /></div>
         </div>
       )}
-      {chat?.queued.map((q) => (
+      {queued.map((q) => (
         // Sent, and waiting for Claude to reach a point where it reads it: then it joins the
         // conversation above, where Claude took it in.
         <div key={q.id} className="chat-user chat-queued" data-testid="chat-queued">

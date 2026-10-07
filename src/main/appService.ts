@@ -20,6 +20,7 @@ import type { PtyId, SessionId, TerminalRef } from '@shared/domain/ids'
 import type { MrState } from './git/mrStatusCache'
 import { VsCodeService } from './vscode/vscodeService'
 import { ChatManager, type SpawnChat } from './chat/chatManager'
+import { chatStartMode } from './chat/startMode'
 import type { ChatDecision, ChatEffort, ChatModel, ChatPermissionMode, ChatState, TerminalBusy } from '@shared/domain/chat'
 import { classifyActivity } from '@shared/activity'
 import { runningBackgroundTasks } from '@shared/chatTimeline'
@@ -30,7 +31,7 @@ import type {
 } from '@shared/types'
 import type { StoredSession } from './store/sessionStore'
 import type { GitStatus, GitRefs, FolderWorktree } from '@shared/types'
-import type { WorktreeCreateOptions, WorktreeCreateRequest } from '@shared/domain/git'
+import type { GitTarget, WorktreeCreateOptions, WorktreeCreateRequest } from '@shared/domain/git'
 
 export interface AppServiceOptions {
   configRoot: string
@@ -112,6 +113,8 @@ export class AppService {
   /** Resume/fork/new-session/shell/sendPrompt (MAIN-14 step 4) — see `terminals/terminalService.ts`. */
   private readonly terminals: TerminalService
   private readonly chats: ChatManager
+  /** Claude Code's config root, for its settings (`chatStartMode`). */
+  private readonly configRoot: string
   private readonly source: SessionSource
   /** Refresh loop, the live map, tree/discovered/import (MAIN-14 step 5) — see `sessions/sessionCatalog.ts`. */
   private readonly catalog: SessionCatalog
@@ -119,6 +122,7 @@ export class AppService {
   private readonly actions: SessionActions
 
   constructor(options: AppServiceOptions) {
+    this.configRoot = options.configRoot
     this.source = options.source ?? new ClaudeProjectsSource(options.configRoot)
     this.pty = options.deps?.pty ?? new PtyManager()
     this.store = options.deps?.store ?? new SessionStore(options.dbPath)
@@ -287,9 +291,9 @@ export class AppService {
     return this.catalog.refreshProject(cwd)
   }
 
-  /** Same as `refreshProject`, but for one of the cwd-carrying `TerminalRef` IPC calls. */
-  async refreshProjectByKey(terminal: TerminalRef): Promise<void> {
-    await this.refreshProject(this.resolver.resolveShellCwd(terminal))
+  /** Same as `refreshProject`, but for one of the cwd-carrying git IPC calls. */
+  async refreshProjectByKey(target: GitTarget): Promise<void> {
+    await this.refreshProject(this.git.cwdOf(target))
   }
 
   async tree(): Promise<ProjectNode[]> {
@@ -429,7 +433,8 @@ export class AppService {
     if (!cwd || !existsSync(cwd)) {
       throw new Error(`The folder for this session no longer exists: ${cwd ?? 'unknown'}`)
     }
-    return this.chats.start(sessionId, cwd, { model: opts.model, permissionMode: opts.permissionMode, effort: opts.effort })
+    const permissionMode = opts.permissionMode ?? chatStartMode(this.configRoot, cwd)
+    return this.chats.start(sessionId, cwd, { model: opts.model, permissionMode, effort: opts.effort })
   }
 
   chatSend(sessionId: SessionId, text: string): void { this.chats.send(sessionId, text) }
@@ -499,8 +504,8 @@ export class AppService {
     return this.git.status(terminal)
   }
 
-  async gitListRefs(terminal: TerminalRef): Promise<GitRefs> {
-    return this.git.listRefs(terminal)
+  async gitListRefs(target: GitTarget): Promise<GitRefs> {
+    return this.git.listRefs(target)
   }
 
   async gitlabMrRefStatus(
@@ -509,34 +514,40 @@ export class AppService {
     return this.git.mrRefStatus(terminal, iids)
   }
 
-  async gitCheckoutBranch(terminal: TerminalRef, name: string): Promise<CheckoutOutcome> {
-    return this.git.checkoutBranch(terminal, name)
+  async gitCheckoutBranch(target: GitTarget, name: string): Promise<CheckoutOutcome> {
+    return this.git.checkoutBranch(target, name)
+  }
+
+  /** `branch` here, after the worktree that has it moves to `otherTo`; both rows re-resolved. */
+  async gitCheckoutBranchMovingOther(target: GitTarget, branch: string, otherTo: string): Promise<void> {
+    const other = await this.git.checkoutMovingOther(target, branch, otherTo)
+    await this.refreshProject(other)
   }
 
   /** Pulls `branch` in the worktree that has it, which is the only place it *can* be pulled. */
   async gitPullWorktree(
-    terminal: TerminalRef, branch: string,
+    target: GitTarget, branch: string,
   ): Promise<{ path: string; commits: number }> {
-    return this.git.pullWorktree(terminal, branch)
+    return this.git.pullWorktree(target, branch)
   }
 
   /** Starts a new Claude session in the worktree that has `branch`. */
   async newSessionInWorktree(
-    terminal: TerminalRef, branch: string,
+    target: GitTarget, branch: string,
   ): Promise<NewSessionInfo> {
-    return this.newSessionInFolder(await this.git.requireWorktreeFor(terminal, branch))
+    return this.newSessionInFolder(await this.git.requireWorktreeFor(target, branch))
   }
 
-  async gitCheckoutRemote(terminal: TerminalRef, remoteRef: string, localName: string): Promise<void> {
-    await this.git.checkoutRemote(terminal, remoteRef, localName)
+  async gitCheckoutRemote(target: GitTarget, remoteRef: string, localName: string): Promise<void> {
+    await this.git.checkoutRemote(target, remoteRef, localName)
   }
 
-  async gitCheckoutDetached(terminal: TerminalRef, ref: string): Promise<void> {
-    await this.git.checkoutDetached(terminal, ref)
+  async gitCheckoutDetached(target: GitTarget, ref: string): Promise<void> {
+    await this.git.checkoutDetached(target, ref)
   }
 
-  async gitCreateBranch(terminal: TerminalRef, name: string, from?: string): Promise<void> {
-    await this.git.createBranch(terminal, name, from)
+  async gitCreateBranch(target: GitTarget, name: string, from?: string): Promise<void> {
+    await this.git.createBranch(target, name, from)
   }
 
   async gitPull(terminal: TerminalRef): Promise<{ commits: number }> {
@@ -544,8 +555,8 @@ export class AppService {
   }
 
   /** Fast-forwards any local branch from its upstream (the branch list's pull button). */
-  async gitUpdateBranch(terminal: TerminalRef, branch: string): Promise<{ commits: number }> {
-    return this.git.updateBranch(terminal, branch)
+  async gitUpdateBranch(target: GitTarget, branch: string): Promise<{ commits: number }> {
+    return this.git.updateBranch(target, branch)
   }
 
   async gitPullFolder(path: string): Promise<{ commits: number }> {
@@ -570,8 +581,8 @@ export class AppService {
     return this.git.push(terminal)
   }
 
-  async gitMerge(terminal: TerminalRef, ref: string): Promise<void> {
-    await this.git.merge(terminal, ref)
+  async gitMerge(target: GitTarget, ref: string): Promise<void> {
+    await this.git.merge(target, ref)
   }
 
   async gitFetch(terminal: TerminalRef): Promise<void> {

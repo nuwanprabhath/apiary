@@ -107,7 +107,7 @@ export class ChatSession {
       status: 'busy',
       error: null,
       turnStartedAt: this.state.turnStartedAt ?? Date.now(),
-      queued: [...this.state.queued, { id: randomUUID(), text }],
+      queued: [...this.state.queued, { id: randomUUID(), text, sentAt: Date.now() }],
     }, true)
   }
 

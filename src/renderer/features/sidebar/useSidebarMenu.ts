@@ -5,11 +5,13 @@ import type { ContextMenuItem } from '../../ui/ContextMenu'
 import { useNotifications } from '../../ui/notifications'
 import { useLayoutActions } from '../layout/layoutContext'
 import { deleteGroup, moveGroup, type GroupState } from './model/groups'
-import { flattenSessions } from './treeUtils'
+import { findFolder, flattenSessions } from './treeUtils'
 import type { GroupActions } from './useGroupActions'
+import { useDialogActions } from '../dialogs/useDialogs'
 
-/** Which menu is open, if any: a right-click on a folder, a group's header or a session row. */
-export interface SidebarMenu { kind: 'folder' | 'group' | 'session'; id: string; x: number; y: number }
+/** Which menu is open, if any: a right-click on a folder, a group's header or a session row.
+ *  `nested`: a folder inside another (a worktree under its repository). */
+export interface SidebarMenu { kind: 'folder' | 'group' | 'session'; id: string; x: number; y: number; nested?: boolean }
 
 /** The sidebar's one context menu: what is open (`menu`/`setMenu`) and the items it shows. */
 export function useSidebarMenu({
@@ -27,6 +29,7 @@ export function useSidebarMenu({
 }): { menu: SidebarMenu | null; setMenu: (menu: SidebarMenu | null) => void; menuItems: () => ContextMenuItem[] } {
   const { notify, notifyError } = useNotifications()
   const { requestPicker } = useLayoutActions()
+  const { changeBranch } = useDialogActions()
   const [menu, setMenu] = useState<SidebarMenu | null>(null)
   const {
     patchGroups, assignFolder, startNewGroup, setRenamingGroup, setRenameDraft, folderSiblings, reorderFolder,
@@ -74,7 +77,15 @@ export function useSidebarMenu({
       const folder = menu.id
       const siblings = folderSiblings(menu.id)
       const folderIndex = siblings?.indexOf(menu.id) ?? -1
+      const node = findFolder(tree, folder) ?? findFolder(rawTree, folder)
+      // Only a folder git knows: the same test the "+" button's worktree menu uses.
+      const isGit = node !== null && (node.branch !== null || node.isWorktree || node.children.some((c) => c.isWorktree))
+      const changeBranchItem: ContextMenuItem[] = isGit
+        ? [{ id: 'change-branch', label: 'Change branch…', separator: menu.nested !== true, run: () => { changeBranch(folder, node.label) } }]
+        : []
+      if (menu.nested === true) return changeBranchItem
       return [
+        ...changeBranchItem,
         {
           id: 'folder-move-up',
           label: 'Move up',

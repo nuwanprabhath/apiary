@@ -85,6 +85,7 @@ describe('the IPC contract', () => {
       gitListRefs: 'apiary:git-list-refs',
       gitlabMrRefStatus: 'apiary:gitlab-mr-ref-status',
       gitCheckoutBranch: 'apiary:git-checkout-branch',
+      gitCheckoutBranchMovingOther: 'apiary:git-checkout-branch-moving-other',
       gitPullWorktree: 'apiary:git-pull-worktree',
       newSessionInWorktree: 'apiary:new-session-in-worktree',
       gitCheckoutRemote: 'apiary:git-checkout-remote',

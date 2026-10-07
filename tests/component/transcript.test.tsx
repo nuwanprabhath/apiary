@@ -246,12 +246,17 @@ describe('transcript', () => {
       const chevron = head.querySelector<HTMLElement>('.chevron')!
       await expect.element(chevron).toBeVisible()
 
-      const before = chevron.getBoundingClientRect()
+      // Measured from the head's right edge, not the window, so only the chevron's own place in
+      // its row counts, not where the row is.
+      const fromRight = (): number => head.getBoundingClientRect().right - chevron.getBoundingClientRect().right
+      const before = fromRight()
       await userEvent.click(head)
       await until(() => document.querySelector('.tool-body') !== null)
-      const after = chevron.getBoundingClientRect()
+      // The chevron turns over 120ms; measured mid-turn its box is wider (a 16px square at 45° is
+      // 22.6px across, which moved its edge 3.3px on a busy run), so wait for the turn to end.
+      await Promise.all(chevron.getAnimations().map((a) => a.finished))
 
-      expect(Math.abs(after.x - before.x)).toBeLessThanOrEqual(1)
+      expect(Math.abs(fromRight() - before)).toBeLessThanOrEqual(1)
     })
   })
 })

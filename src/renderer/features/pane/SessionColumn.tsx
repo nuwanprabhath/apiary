@@ -183,7 +183,7 @@ function SessionColumnView(props: Props): JSX.Element {
       {activeKey === null ? (
         emptyContent ?? (
           <p className="empty" data-testid="content-empty">
-            Select a session to view its transcript.
+            Select a session to see its chat.
           </p>
         )
       ) : (
@@ -261,6 +261,7 @@ function SessionColumnView(props: Props): JSX.Element {
           onCancel={() => git.setWorktreeConflict(null)}
           onPull={() => git.pullWorktreeBranch(worktreeConflict)}
           onOpenSession={() => git.openWorktreeSession(worktreeConflict)}
+          onMoveOther={(otherTo) => git.moveOtherWorktree(worktreeConflict, otherTo)}
         />
       )}
     </section>

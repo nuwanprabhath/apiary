@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react'
-import type { GitStatus, NewSessionInfo, WorktreeConflict } from '@shared/types'
+import type { GitStatus, NewSessionInfo } from '@shared/types'
 import type { TerminalRef } from '@shared/domain/ids'
-import { pullMessage, pushMessage, worktreePullMessage } from '@shared/gitMessages'
+import { pullMessage, pushMessage } from '@shared/gitMessages'
 import type { GitMenuItem } from '../git/GitMenu'
+import { useWorktreeConflict, type WorktreeConflictActions } from '../git/useWorktreeConflict'
 import { useNotifications } from '../../ui/notifications'
 
-export interface GitActions {
+export interface GitActions extends WorktreeConflictActions {
   /** Which remote operation is running — each shells out to git and must not start twice. */
   gitBusy: 'pull' | 'push' | 'fetch' | null
   runGitAction: (kind: 'pull' | 'push' | 'fetch') => Promise<void>
@@ -17,12 +18,6 @@ export interface GitActions {
   setGitMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void
   /** The "..." menu's commands, as data. */
   gitMenuItems: GitMenuItem[]
-  /** A checkout refused because another worktree has the branch, and what is being done about it. */
-  worktreeConflict: WorktreeConflict | null
-  setWorktreeConflict: (conflict: WorktreeConflict | null) => void
-  worktreeBusy: boolean
-  pullWorktreeBranch: (conflict: WorktreeConflict) => void
-  openWorktreeSession: (conflict: WorktreeConflict) => void
 }
 
 /** Everything a pane's git toolbar and "..." menu do: pull, push, fetch, the branch picker and the
@@ -37,8 +32,7 @@ export function useGitActions({ terminal, gitStatus, loadGitStatus, onSessionSta
   const { notify, notifyError } = useNotifications()
   const [gitBusy, setGitBusy] = useState<'pull' | 'push' | 'fetch' | null>(null)
   const [branchPicker, setBranchPicker] = useState<'checkout' | 'merge' | 'create' | null>(null)
-  const [worktreeConflict, setWorktreeConflict] = useState<WorktreeConflict | null>(null)
-  const [worktreeBusy, setWorktreeBusy] = useState(false)
+  const conflict = useWorktreeConflict({ target: terminal, onSessionStarted, onCheckedOut: loadGitStatus })
   const [gitMenuOpen, setGitMenuOpen] = useState(false)
 
   const runGitAction = useCallback(async (kind: 'pull' | 'push' | 'fetch') => {
@@ -94,32 +88,5 @@ export function useGitActions({ terminal, gitStatus, loadGitStatus, onSessionSta
     },
   ]
 
-  const pullWorktreeBranch = (conflict: WorktreeConflict): void => {
-    if (terminal === null) return
-    setWorktreeBusy(true)
-    void window.apiary.gitPullWorktree(terminal, conflict.branch)
-      .then(({ commits }) => {
-        notify({ message: worktreePullMessage(conflict.branch, conflict.label, commits) })
-        setWorktreeConflict(null)
-      })
-      .catch((e: unknown) => { notifyError(e, `Could not pull ${conflict.branch}`) })
-      .finally(() => setWorktreeBusy(false))
-  }
-
-  const openWorktreeSession = (conflict: WorktreeConflict): void => {
-    if (terminal === null) return
-    setWorktreeBusy(true)
-    void window.apiary.newSessionInWorktree(terminal, conflict.branch)
-      .then((info) => {
-        onSessionStarted(info)
-        setWorktreeConflict(null)
-      })
-      .catch((e: unknown) => { notifyError(e, 'Could not start a session there') })
-      .finally(() => setWorktreeBusy(false))
-  }
-
-  return {
-    gitBusy, runGitAction, branchPicker, setBranchPicker, gitMenuOpen, setGitMenuOpen, gitMenuItems,
-    worktreeConflict, setWorktreeConflict, worktreeBusy, pullWorktreeBranch, openWorktreeSession,
-  }
+  return { ...conflict, gitBusy, runGitAction, branchPicker, setBranchPicker, gitMenuOpen, setGitMenuOpen, gitMenuItems }
 }

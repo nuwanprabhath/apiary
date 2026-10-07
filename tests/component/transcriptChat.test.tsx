@@ -7,7 +7,7 @@ import { emptyChatState, type ChatState } from '../../src/shared/domain/chat'
 import type { TranscriptMessage } from '../../src/shared/domain/transcript'
 
 /**
- * The "Chat in the transcript" setting: the transcript drawn the way the VS Code extension draws a
+ * The "Run sessions as a chat" setting: the transcript drawn the way the VS Code extension draws a
  * conversation, and the message box driving the session as a chat. Claude's side is played by the
  * test through `chatChanged`, as main's ChatManager would send it.
  */
@@ -115,11 +115,24 @@ describe('transcript chat', () => {
 
   it('a message sent while Claude works shows as queued until Claude takes it in', async () => {
     const { fake, sessionId } = await openChat()
-    play(fake, sessionId, { status: 'busy', turnStartedAt: Date.now(), queued: [{ id: 'q1', text: 'and lint too' }] })
+    play(fake, sessionId, { status: 'busy', turnStartedAt: Date.now(), queued: [{ id: 'q1', text: 'and lint too', sentAt: Date.now() }] })
     await textOf('chat-queued', /and lint too\s*Queued/)
     play(fake, sessionId, { queued: [], live: [said('q-sent', 'user', [{ type: 'text', text: 'and lint too' }])] })
     await expect.poll(() => document.querySelector('[data-testid="chat-queued"]')).toBeNull()
     await textOf('chat-user', 'and lint too', true)
+  })
+
+  it('a sent message shows once when the session file has it before claude replays it', async () => {
+    const { fake, sessionId } = await openChat()
+    const sentAt = Date.now()
+    play(fake, sessionId, { status: 'busy', turnStartedAt: sentAt, queued: [{ id: 'q1', text: 'and lint too', sentAt }] })
+    await textOf('chat-queued', /and lint too\s*Queued/)
+    // Claude has written it to the file; its replay is still to come.
+    const session = fake.state.sessions.find((s) => s.sessionId === sessionId)!
+    session.messages = [...(session.messages ?? []), { ...said('q-sent', 'user', [{ type: 'text', text: 'and lint too' }]), timestampMs: sentAt + 50 }]
+    fake.emit('treeChanged')
+    await textOf('chat-user', 'and lint too', true)
+    expect(document.querySelector('[data-testid="chat-queued"]')).toBeNull()
   })
 
   it('a background task reporting back is a quiet notice, and the line above the box says what is still running and how the last turn went', async () => {

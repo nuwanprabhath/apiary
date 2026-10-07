@@ -39,11 +39,11 @@ export function GeneralSection(
       testId="setting-transcript-chat"
       checked={draft.transcriptChat}
       onChange={(checked) => { patch({ transcriptChat: checked }) }}
-      label="Chat in the transcript, like the VS Code extension"
+      label="Run sessions as a chat, like the VS Code extension"
       help={(
         <>
-          Messages sent from a session&apos;s transcript run it as a chat: replies stream in as
-          they are written, tools ask for permission right there, and you stay on the transcript.
+          Messages sent from a session&apos;s Chat tab run it as a chat: replies stream in as
+          they are written, tools ask for permission right there, and you stay on the Chat tab.
           A session runs either as a chat or in its terminal, not both — opening its terminal
           stops the chat, and the conversation carries on where it was.
         </>

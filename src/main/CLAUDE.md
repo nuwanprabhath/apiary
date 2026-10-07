@@ -50,7 +50,7 @@ documented at the top of `sessionCatalog.ts`; read that before touching either.*
 
 ## Chat mode (`chat/`)
 
-The "Chat in the transcript" setting runs a session the way the VS Code extension does: `claude`
+The "Run sessions as a chat" setting runs a session the way the VS Code extension does: `claude`
 with `--input-format stream-json`, `--output-format stream-json` and `--permission-prompt-tool stdio`, through
 the login shell like a terminal (`pty/resumeCommand.ts`'s `buildChatCommand`). The protocol is in
 `chat/protocol.ts`, written from what `claude` 2.1.286 actually printed — read its header before

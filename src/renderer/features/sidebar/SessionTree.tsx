@@ -45,8 +45,9 @@ interface Props {
    * whole tree, so one list serves every level without them interfering.
    */
   onReorderFolder?: (path: string, beforePath: string) => void
-  /** Filing into groups stays a top-level idea: a worktree belongs to its repository, not a group. */
-  onFolderMenu?: (path: string, x: number, y: number) => void
+  /** Filing into groups stays a top-level idea: a worktree belongs to its repository, not a group.
+   *  So a nested folder's menu (`nested`) only has what applies to it — its branch. */
+  onFolderMenu?: (path: string, x: number, y: number, nested: boolean) => void
   /** Right-click on a session row. */
   onSessionMenu?: (session: SessionNode, x: number, y: number) => void
   /** Orders a level's folders by the user's arrangement. */
@@ -148,6 +149,7 @@ export function SessionTree({
                     onTogglePin={onTogglePin}
                     onEditNote={onEditNote}
                     onReorderFolder={onReorderFolder}
+                    onFolderMenu={onFolderMenu}
                     onSessionMenu={onSessionMenu}
                     orderFolders={orderFolders}
                     onCollapseBeneath={onCollapseBeneath}
@@ -175,7 +177,7 @@ interface FolderHeaderProps {
   onNewSession: (path: string) => void
   onNewWorktree?: (path: string, label: string) => void
   onReorderFolder?: (path: string, beforePath: string) => void
-  onFolderMenu?: (path: string, x: number, y: number) => void
+  onFolderMenu?: (path: string, x: number, y: number, nested: boolean) => void
   /** Present only on a folder that has folders beneath it. */
   onCollapseBeneath?: () => void
   /** A session row was dropped on this folder — the drag-to-move gesture. */
@@ -269,9 +271,10 @@ function FolderHeader({
       }}
       onContextMenu={(e) => {
         card.hideNow()
-        if (depth !== 0 || onFolderMenu === undefined) return
+        // A nested folder's menu would be "Change branch…" alone; one git does not know has none.
+        if (onFolderMenu === undefined || (depth !== 0 && !isGit)) return
         e.preventDefault()
-        onFolderMenu(node.path, e.clientX, e.clientY)
+        onFolderMenu(node.path, e.clientX, e.clientY, depth !== 0)
       }}
     >
       {card.anchor !== null && (

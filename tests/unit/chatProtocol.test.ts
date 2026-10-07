@@ -131,7 +131,7 @@ describe('chat protocol', () => {
   })
 
   it('keeps a message sent mid-turn queued until claude replays it, and ends that turn idle with one result', () => {
-    const sent = { ...run(TURN.slice(0, 3)), queued: [{ id: 'q1', text: 'and lint too' }] }
+    const sent = { ...run(TURN.slice(0, 3)), queued: [{ id: 'q1', text: 'and lint too', sentAt: 0 }] }
     const replayed = reduce(sent, { type: 'user', uuid: 'q-uuid', isReplay: true, message: { role: 'user', content: [{ type: 'text', text: 'and lint too' }] } })
     expect(replayed.queued).toEqual([])
     expect(replayed.live.map((m) => m.uuid)).toContain('q-uuid')

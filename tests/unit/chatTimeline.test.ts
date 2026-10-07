@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { TranscriptMessage } from '../../src/shared/domain/transcript'
-import { chatItems, describeTool, lastPrompt, latestTurn, mergeLive, runningBackgroundTasks } from '../../src/shared/chatTimeline'
+import { chatItems, describeTool, lastPrompt, latestTurn, mergeLive, runningBackgroundTasks, stillQueued } from '../../src/shared/chatTimeline'
 
 const msg = (uuid: string, role: 'user' | 'assistant', blocks: TranscriptMessage['blocks']): TranscriptMessage =>
   ({ uuid, role, timestampMs: null, isSidechain: false, blocks })
@@ -85,5 +85,20 @@ describe('chat timeline', () => {
     expect(latestTurn([...CONVERSATION, turnEnd('t1', 33000, 1000), recap])).toEqual({ durationMs: 33000, endedAtMs: 1000, recap: 'You were listing files.' })
     expect(latestTurn([...CONVERSATION, turnEnd('t1', 33000, 1000)]).recap).toBeNull()
     expect(latestTurn([turnEnd('t1', 33000, 1000), msg('u9', 'user', [{ type: 'text', text: 'next' }])]).durationMs).toBeNull()
+  })
+
+  it('drops a queued message once the file has it, which it does before claude replays it', () => {
+    const at = (uuid: string, text: string, timestampMs: number): TranscriptMessage =>
+      ({ ...msg(uuid, 'user', [{ type: 'text', text }]), timestampMs })
+    const queued = [
+      { id: 'q1', text: 'and lint too', sentAt: 5000 },
+      { id: 'q2', text: 'and lint too', sentAt: 6000 },
+    ]
+    expect(stillQueued(queued, CONVERSATION)).toBe(queued)
+    // The same words sent earlier are not this message.
+    expect(stillQueued(queued, [at('old', 'and lint too', 1000)])).toBe(queued)
+    // One copy in the file answers one of the two sent.
+    expect(stillQueued(queued, [at('f1', 'and lint too', 5200)])).toEqual([queued[1]])
+    expect(stillQueued(queued, [at('f1', 'and lint too', 5200), at('f2', 'and lint too\n', 6100)])).toEqual([])
   })
 })

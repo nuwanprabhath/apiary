@@ -1,5 +1,5 @@
 /*
- * The transcript as a chat (features/chat/, the "Chat in the transcript" setting), after the VS Code
+ * The transcript as a chat (features/chat/, the "Run sessions as a chat" setting), after the VS Code
  * extension: your messages as boxes, Claude's turn as a thread of rows down a thin line, each row
  * with a dot — tool calls coloured by how they went — and the working line at the bottom.
  */

@@ -23,7 +23,7 @@ export function ResumeBar({
         data-active={view === 'transcript'}
         onClick={() => onView('transcript')}
       >
-        Transcript
+        Chat
       </button>
       {hasTerminal && (
         <button
@@ -32,7 +32,7 @@ export function ResumeBar({
           onClick={() => onView('terminal')}
         >
           <span className="live-dot" data-testid="session-live-dot" aria-label="running" />
-          Session
+          Terminal
         </button>
       )}
       <span className="spacer" />
@@ -63,7 +63,7 @@ export function ResumeBar({
               : 'Resume in an embedded terminal'}
           onClick={onResume}
         >
-          {chatRunning ? 'Continue in terminal' : 'Resume'}
+          {chatRunning ? 'Continue in terminal' : 'Resume in terminal'}
         </button>
       )}
     </div>

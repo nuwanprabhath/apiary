@@ -53,7 +53,7 @@ interface Props {
   /** Brings the live terminal into view, so a sent message is visibly going somewhere. */
   onShowSession: () => void
   onOpenImage: (src: string) => void
-  /** Send as a chat (the "Chat in the transcript" setting) rather than into the terminal. */
+  /** Send as a chat (the "Run sessions as a chat" setting) rather than into the terminal. */
   chatMode?: boolean
   /** The session's chat, when it has one. */
   chat?: ChatState | null
@@ -69,7 +69,7 @@ function shownMode(reported: string | null | undefined): ChatPermissionMode | ''
  * The chat box under the transcript.
  *
  * It is not a second conversation: everything typed here is delivered into the very same
- * `claude --resume` process the Session tab shows, as a paste followed by a return. That keeps one
+ * `claude --resume` process the Terminal tab shows, as a paste followed by a return. That keeps one
  * source of truth — the session's own JSONL — so the transcript above continues to be a faithful
  * record rather than something this component has to keep in step. It also means an image has to
  * reach Claude the way a file does: pasted images are written to disk, and the message carries

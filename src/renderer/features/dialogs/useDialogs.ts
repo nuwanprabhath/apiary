@@ -12,6 +12,8 @@ export type DialogRequest =
   /** The note as it stood when the editor opened. */
   | { kind: 'note'; session: SessionNode; note: string }
   | { kind: 'newWorktree'; path: string; label: string }
+  /** A sidebar folder's "Change branch…". */
+  | { kind: 'changeBranch'; path: string; label: string }
   | { kind: 'import' }
   /** Which settings section to land on — one value, so the dialog cannot open without saying what
    *  it should show ("Update settings" in the update banner is the reason). */
@@ -25,6 +27,7 @@ export interface DialogState {
   moveTarget: { session: SessionNode; toPath: string } | null
   noteTarget: { session: SessionNode; note: string } | null
   newWorktreeFor: { path: string; label: string } | null
+  changeBranchFor: { path: string; label: string } | null
   importOpen: boolean
   settingsSection: string | null
   requestedPicker: { target: PlaceTarget; at: DOMRect } | null
@@ -48,6 +51,7 @@ export function useDialogs(): DialogsApi {
   const [moveTarget, setMoveTarget] = useState<DialogState['moveTarget']>(null)
   const [noteTarget, setNoteTarget] = useState<DialogState['noteTarget']>(null)
   const [newWorktreeFor, setNewWorktreeFor] = useState<DialogState['newWorktreeFor']>(null)
+  const [changeBranchFor, setChangeBranchFor] = useState<DialogState['changeBranchFor']>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState<string | null>(null)
   const [requestedPicker, setRequestedPicker] = useState<DialogState['requestedPicker']>(null)
@@ -59,6 +63,7 @@ export function useDialogs(): DialogsApi {
       case 'move': setMoveTarget({ session: request.session, toPath: request.toPath }); break
       case 'note': setNoteTarget({ session: request.session, note: request.note }); break
       case 'newWorktree': setNewWorktreeFor({ path: request.path, label: request.label }); break
+      case 'changeBranch': setChangeBranchFor({ path: request.path, label: request.label }); break
       case 'import': setImportOpen(true); break
       case 'settings': setSettingsSection(request.section); break
       case 'arrange':
@@ -74,6 +79,7 @@ export function useDialogs(): DialogsApi {
       case 'move': setMoveTarget(null); break
       case 'note': setNoteTarget(null); break
       case 'newWorktree': setNewWorktreeFor(null); break
+      case 'changeBranch': setChangeBranchFor(null); break
       case 'import': setImportOpen(false); break
       case 'settings': setSettingsSection(null); break
       case 'arrange': setRequestedPicker(null); break
@@ -96,8 +102,8 @@ export function useDialogs(): DialogsApi {
   }, [requestedPicker])
 
   const state = useMemo<DialogState>(() => ({
-    conflict, deleteTarget, moveTarget, noteTarget, newWorktreeFor, importOpen, settingsSection, requestedPicker,
-  }), [conflict, deleteTarget, moveTarget, noteTarget, newWorktreeFor, importOpen, settingsSection, requestedPicker])
+    conflict, deleteTarget, moveTarget, noteTarget, newWorktreeFor, changeBranchFor, importOpen, settingsSection, requestedPicker,
+  }), [conflict, deleteTarget, moveTarget, noteTarget, newWorktreeFor, changeBranchFor, importOpen, settingsSection, requestedPicker])
 
   return useMemo(() => ({ state, open, close }), [state, open, close])
 }
@@ -114,6 +120,7 @@ export interface DialogActions {
    *  window's tree is a moment out of date. */
   editNote: (session: SessionNode) => void
   newWorktree: (path: string, label: string) => void
+  changeBranch: (path: string, label: string) => void
 }
 
 /** Named, stable shortcuts over `open` for the dialogs the sidebar asks for. */
@@ -129,5 +136,6 @@ export function useDialogActions(): DialogActions {
         .catch(() => { open({ kind: 'note', session, note: session.note ?? '' }) })
     },
     newWorktree: (path, label) => { open({ kind: 'newWorktree', path, label }) },
+    changeBranch: (path, label) => { open({ kind: 'changeBranch', path, label }) },
   }), [open])
 }

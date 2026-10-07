@@ -4,6 +4,79 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.32.3] - 2026-10-07
+
+### Fixed
+
+- **What Switch both will do is shown in full.** The line beside it clipped a long branch name;
+  it is now two lines, one per worktree, wrapping instead of cutting off the end.
+
+## [1.32.2] - 2026-10-07 (not released)
+
+### Changed
+
+- **Search the branches the other worktree can move to.** The conflict dialog's dropdown is now a
+  search box over a list, as in the branch picker: type to filter, arrow keys to move, Enter or
+  Switch both to act, double-click to act at once. This folder's own branch stays first, marked as
+  a swap, and the dialog no longer jumps as the list shortens.
+
+### Fixed
+
+- **A dialog that opens as another closes keeps the focus.** The closing one gave focus back to
+  what opened it a frame later, taking it from the new one: the conflict dialog's search box lost
+  its focus to the sidebar row.
+
+## [1.32.1] - 2026-10-07 (not released)
+
+### Fixed
+
+- **The tool-block chevron test, properly this time.** It still failed now and then: it measured
+  the chevron while it was turning, when its box is wider (a 16px square at 45° is 22.6px across,
+  exactly the 3.3px it was off by). It now waits for the turn to finish. 1.31.15 had guessed at
+  the pane settling instead.
+
+## [1.32.0] - 2026-10-07 (not released)
+
+### Added
+
+- **Change a folder's branch from the sidebar.** Right-click a git folder or worktree and choose
+  Change branch… to switch it without opening a session there.
+- **Take a branch another worktree has.** When the branch you pick is checked out in another
+  worktree, the dialog now offers to switch that worktree to a branch you choose (or swap with
+  this one) and check the branch out here, in one step. It works from a pane's branch switcher
+  too.
+
+## [1.31.16] - 2026-10-07 (not released)
+
+### Changed
+
+- **Chat and Terminal.** A session's two views are now called Chat (was Transcript) and Terminal
+  (was Session), and Resume reads Resume in terminal. The chat setting is now "Run sessions as a
+  chat, like the VS Code extension".
+
+## [1.31.15] - 2026-10-07 (not released)
+
+### Fixed
+
+- **A flaky tool-block test.** It measured the expand chevron against the window, so a pane still
+  settling on a busy machine moved it; it now measures it against the row's right edge.
+
+## [1.31.14] - 2026-10-07 (not released)
+
+### Changed
+
+- **A chat starts in Auto.** It started in Manual, asking before every tool call, unless a mode
+  was picked before sending. If Claude Code's settings choose a mode (`permissions.defaultMode`, in
+  your settings or the project's), the chat starts in that one instead.
+
+## [1.31.13] - 2026-10-07 (not released)
+
+### Fixed
+
+- **A sent message no longer shows twice for a moment.** Claude writes a message to the session
+  file before it confirms taking it in, so the file's copy appeared while the message still showed
+  as queued.
+
 ## [1.31.12] - 2026-10-06 (not released)
 
 ### Fixed

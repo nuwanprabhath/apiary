@@ -1,10 +1,11 @@
 import { terminalRef } from '@shared/domain/ids'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { realpathSync, mkdtempSync, rmSync } from 'node:fs'
+import { realpathSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, basename } from 'node:path'
 import type { AppService } from '../../../src/main/appService'
 import { makeSession } from '../../fixtures/makeSession'
+import { commitFile } from '../../fixtures/gitRepo'
 import { createServiceFixture, teardownServiceFixture, git, makeGitWorkdir } from './setup'
 
 let home: string
@@ -85,6 +86,82 @@ describe('checking out a branch another worktree already has', () => {
       await expect(service.gitPullWorktree(terminalRef(id, false), 'dev/1.0.15'))
         .rejects.toThrow(/no longer checked out/)
     } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  const branchOf = (cwd: string): string => git(cwd, 'symbolic-ref', '--short', 'HEAD').trim()
+
+  it('offers this folder\'s branch and every free branch for the other worktree to move to', async () => {
+    const id = 'cccccccc-8888-8888-8888-888888888888'
+    const { dir, worktree } = await repoWithWorktree('dev/2.0.0', id)
+    git(dir, 'branch', 'spare')
+    try {
+      const outcome = await service.gitCheckoutBranch(terminalRef(id, false), 'dev/2.0.0')
+      if (outcome.ok) throw new Error('expected a conflict')
+      expect(outcome.conflict.choices).toEqual([branchOf(dir), 'spare'])
+    } finally {
+      git(dir, 'worktree', 'remove', '--force', worktree)
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('moves the other worktree to another branch and checks this one out, in one go', async () => {
+    const id = 'dddddddd-8888-8888-8888-888888888888'
+    const { dir, worktree } = await repoWithWorktree('dev/2.0.1', id)
+    git(dir, 'branch', 'spare')
+    try {
+      await service.gitCheckoutBranchMovingOther(terminalRef(id, false), 'dev/2.0.1', 'spare')
+      expect(branchOf(dir)).toBe('dev/2.0.1')
+      expect(branchOf(worktree)).toBe('spare')
+    } finally {
+      git(dir, 'worktree', 'remove', '--force', worktree)
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('swaps branches with the other worktree when it is given this folder\'s branch', async () => {
+    const id = 'eeeeeeee-8888-8888-8888-888888888888'
+    const { dir, worktree } = await repoWithWorktree('dev/2.0.2', id)
+    const mine = branchOf(dir)
+    try {
+      await service.gitCheckoutBranchMovingOther(terminalRef(id, false), 'dev/2.0.2', mine)
+      expect(branchOf(dir)).toBe('dev/2.0.2')
+      expect(branchOf(worktree)).toBe(mine)
+    } finally {
+      git(dir, 'worktree', 'remove', '--force', worktree)
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps this folder on its branch when the other worktree cannot let go of its own', async () => {
+    const id = 'ffffffff-8888-8888-8888-888888888888'
+    const { dir, worktree } = await repoWithWorktree('dev/2.0.3', id)
+    const mine = branchOf(dir)
+    // A committed change on the worktree's branch, then an uncommitted one over it: git will not
+    // switch that worktree away and lose it.
+    commitFile(worktree, 'README.md', 'on dev', 'changed on dev')
+    writeFileSync(join(worktree, 'README.md'), 'not committed')
+    try {
+      await expect(service.gitCheckoutBranchMovingOther(terminalRef(id, false), 'dev/2.0.3', mine)).rejects.toThrow()
+      expect(branchOf(dir)).toBe(mine)
+      expect(branchOf(worktree)).toBe('dev/2.0.3')
+    } finally {
+      git(dir, 'worktree', 'remove', '--force', worktree)
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('changes a sidebar folder\'s branch with no session open, and refuses a folder it does not know', async () => {
+    const id = '12121212-8888-8888-8888-888888888888'
+    const { dir, worktree } = await repoWithWorktree('dev/2.0.4', id)
+    git(dir, 'branch', 'spare')
+    try {
+      await expect(service.gitCheckoutBranch({ kind: 'folder', path: dir }, 'spare')).resolves.toEqual({ ok: true })
+      expect(branchOf(dir)).toBe('spare')
+      await expect(service.gitCheckoutBranch({ kind: 'folder', path: tmpdir() }, 'spare')).rejects.toThrow(/Unknown project/)
+    } finally {
+      git(dir, 'worktree', 'remove', '--force', worktree)
       rmSync(dir, { recursive: true, force: true })
     }
   })

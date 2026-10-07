@@ -39,18 +39,21 @@ resume it in an embedded terminal in the correct working directory.
 - **A session in a window of its own** — drag a tab out of the window, or right-click it and
   choose *Move into New Window*, and the conversation and its shell get a window with no sidebar
   in the way. Tabs can be dragged between open windows too.
+- **Change a folder's branch from the sidebar** — right-click a git folder or worktree and choose
+  *Change branch…*; no session needs to be open there.
 - **Branches held by another worktree** — checking one out is refused by git, so Apiary says which
-  worktree has it and offers to pull it there or start a session there, instead of printing the
+  worktree has it and offers to pull it there, start a session there, or switch that worktree to
+  another branch (or swap with this one) and check it out here in one go, instead of printing the
   error and leaving you to find the folder.
 - **Fork a session** — right-click a tab or a sidebar row to start a new conversation from where
   this one has got to. The fork opens beside the original, named after it; the original is left
   exactly as it was.
-- **Chat from the transcript** — a message box under the conversation, so you can reply without
-  switching to the raw terminal. Paste or drop images straight into it: each one gets a thumbnail
+- **Chat with a session** — its Chat tab has a message box under the conversation, so you can
+  reply without switching to its Terminal tab. Paste or drop images straight into it: each one gets a thumbnail
   you can click to see full size, and images already in a session's history render the same way.
   It isn't a second conversation — what you type is delivered into the very same `claude --resume`
   process, so the session's own transcript stays the single record.
-- **Resume in an embedded terminal** — reopens a session with `claude --resume`
+- **Resume in terminal** — reopens a session with `claude --resume`
   in its correct working directory, right inside the app; warns (with the option
   to fork instead) if that session is already running elsewhere.
 - **Start brand-new sessions** — a "+" on any folder spawns a fresh `claude`

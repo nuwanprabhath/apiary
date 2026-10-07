@@ -28,6 +28,16 @@ export function folderBranches(nodes: ProjectNode[], into = new Map<string, stri
   return into
 }
 
+/** The folder at `path`, at any depth. */
+export function findFolder(nodes: ProjectNode[], path: string): ProjectNode | null {
+  for (const node of nodes) {
+    if (node.path === path) return node
+    const inner = findFolder(node.children, path)
+    if (inner !== null) return inner
+  }
+  return null
+}
+
 /** Every folder path in the tree, at every depth — the full list ordering is resolved against. */
 export function allFolderPaths(nodes: ProjectNode[]): string[] {
   return nodes.flatMap((n) => [n.path, ...allFolderPaths(n.children)])

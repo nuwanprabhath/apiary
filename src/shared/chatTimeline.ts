@@ -58,6 +58,30 @@ export function mergeLive(persisted: TranscriptMessage[], live: TranscriptMessag
   return fresh.length === 0 ? persisted : [...persisted, ...fresh]
 }
 
+/** Both clocks are this machine's; this only covers a timestamp rounded down. */
+const SAME_MACHINE_SLACK_MS = 1000
+
+/**
+ * The queued messages the conversation does not show yet. Claude writes a message it takes in to
+ * the session file before it replays it on stdout (0.5–0.9 s before, measured on 2.1.291), so the
+ * file's copy can reach the transcript while the message is still queued, and it showed twice.
+ * A queued message is matched by its text to a message of yours written since it was sent, each
+ * one matching at most one.
+ */
+export function stillQueued<Q extends { text: string; sentAt: number }>(queued: Q[], messages: TranscriptMessage[]): Q[] {
+  if (queued.length === 0) return queued
+  const used = new Set<TranscriptMessage>()
+  const textOf = (m: TranscriptMessage): string => m.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim()
+  const left = queued.filter((q) => {
+    const match = messages.find((m) => m.role === 'user' && !used.has(m) && m.timestampMs !== null
+      && m.timestampMs >= q.sentAt - SAME_MACHINE_SLACK_MS && textOf(m) === q.text.trim())
+    if (match === undefined) return true
+    used.add(match)
+    return false
+  })
+  return left.length === queued.length ? queued : left
+}
+
 export function chatItems(messages: TranscriptMessage[]): ChatItem[] {
   const results = new Map<string, { content: string; isError: boolean }>()
   for (const m of messages) {

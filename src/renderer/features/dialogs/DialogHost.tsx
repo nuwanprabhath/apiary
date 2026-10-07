@@ -1,4 +1,4 @@
-import type { JSX } from 'react'
+import { type JSX, useCallback } from 'react'
 import type { NewSessionInfo, SessionNode } from '@shared/types'
 import type { UpdateStatusPayload } from '@shared/api'
 import { ConflictDialog } from './ConflictDialog'
@@ -7,6 +7,7 @@ import { MoveSessionDialog } from './MoveSessionDialog'
 import { ImportDialog } from './ImportDialog'
 import { NoteDialog } from './NoteDialog'
 import { NewWorktreeDialog } from '../git/NewWorktreeDialog'
+import { FolderBranchDialog } from '../git/FolderBranchDialog'
 import { SettingsDialog } from '../settings/SettingsDialog'
 import { LayoutPicker } from '../layout/LayoutPicker'
 import type { PlaceTarget } from '../layout/layoutContext'
@@ -22,7 +23,7 @@ import type { DialogsApi } from './useDialogs'
  */
 export function DialogHost({
   dialogs, currentPreset, isTabOpen, onPlace,
-  onFork, onOpenAnyway, onConfirmDelete, onWorktreeCreated,
+  onFork, onOpenAnyway, onConfirmDelete, onWorktreeCreated, onSessionStarted,
   importWidth, onImportWidthChange, onImported,
   settingsUpdate, onSettingsClosed,
 }: {
@@ -37,6 +38,8 @@ export function DialogHost({
   onConfirmDelete: (session: SessionNode) => void
   /** `folder` is the folder the worktree was made from. */
   onWorktreeCreated: (info: NewSessionInfo, folder: string) => void
+  /** A session started from a folder's "Change branch…" (its conflict dialog's "New session there"). */
+  onSessionStarted: (info: NewSessionInfo) => void
   importWidth: number
   onImportWidthChange: (width: number) => void
   onImported: () => void
@@ -45,7 +48,8 @@ export function DialogHost({
 }): JSX.Element {
   const { notifyError } = useNotifications()
   const { state, close } = dialogs
-  const { requestedPicker, conflict, newWorktreeFor, deleteTarget, moveTarget, importOpen, settingsSection, noteTarget } = state
+  const closeChangeBranch = useCallback(() => { close('changeBranch') }, [close])
+  const { requestedPicker, conflict, newWorktreeFor, changeBranchFor, deleteTarget, moveTarget, importOpen, settingsSection, noteTarget } = state
   return (
     <>
       {requestedPicker !== null && (
@@ -92,6 +96,16 @@ export function DialogHost({
           folderLabel={newWorktreeFor.label}
           onClose={() => { close('newWorktree') }}
           onCreated={(info) => { close('newWorktree'); onWorktreeCreated(info, newWorktreeFor.path) }}
+        />
+      )}
+      {changeBranchFor !== null && (
+        <FolderBranchDialog
+          // A fresh picker for each folder, never one carrying the last folder's query or step.
+          key={changeBranchFor.path}
+          path={changeBranchFor.path}
+          label={changeBranchFor.label}
+          onClose={closeChangeBranch}
+          onSessionStarted={onSessionStarted}
         />
       )}
       {deleteTarget !== null && (

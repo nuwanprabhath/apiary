@@ -1,4 +1,20 @@
 /** Git-domain types shared by main (which computes them) and the renderer (which shows them). */
+import { isTerminalRef, type TerminalRef } from './ids'
+
+/**
+ * What a git call acts on: a session's (or a pending terminal's) folder, or a sidebar folder with
+ * no session open — its folder menu's "Change branch…". Main resolves either to a cwd it trusts:
+ * a folder's path is checked against a stored project row before git runs there.
+ */
+export type GitTarget = TerminalRef | { kind: 'folder'; path: string }
+
+/** The runtime check behind `GitTarget` arriving over IPC. */
+export function isGitTarget(v: unknown): v is GitTarget {
+  if (isTerminalRef(v)) return true
+  if (typeof v !== 'object' || v === null) return false
+  const r = v as { kind?: unknown; path?: unknown }
+  return r.kind === 'folder' && typeof r.path === 'string'
+}
 
 export interface GitStatus {
   branch: string | null
@@ -49,6 +65,13 @@ export interface WorktreeConflict {
   worktreePath: string
   /** Its last path segment, which is what the folder is called in the sidebar. */
   label: string
+  /** The branch checked out here; null when detached. */
+  current: string | null
+  /**
+   * Branches that worktree could switch to so this checkout can go ahead: every local branch
+   * checked out nowhere, newest first, after `current` (taking it is a swap).
+   */
+  choices: string[]
 }
 
 /** What a branch checkout did. A worktree conflict is an outcome, not an error. */

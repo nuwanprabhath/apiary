@@ -568,6 +568,14 @@ function AppWindow({ detached, arrival, restored }: {
     }
   }, [addPending, notify, notifyError, rememberCreatedWorktree])
 
+  const onFolderSessionStarted = useCallback(async (info: NewSessionInfo) => {
+    try {
+      addPending(info, await window.apiary.tree())
+    } catch (e) {
+      notifyError(e, 'Could not open the new session')
+    }
+  }, [addPending, notifyError])
+
   const onOpenSettings = useCallback((section: string) => { openDialog({ kind: 'settings', section }) }, [openDialog])
 
   const onStopPendingSidebar = useCallback((ptyId: PtyId) => { window.apiary.ptyKill(ptyId) }, [])
@@ -801,6 +809,7 @@ function AppWindow({ detached, arrival, restored }: {
         onOpenAnyway={(session) => { void startResume(session) }}
         onConfirmDelete={(session) => { void confirmDelete(session) }}
         onWorktreeCreated={(info, folder) => { void onWorktreeCreated(info, folder) }}
+        onSessionStarted={(info) => { void onFolderSessionStarted(info) }}
         importWidth={ui.importDialogWidth}
         onImportWidthChange={setImportDialogWidth}
         onImported={() => { setTreeNonce((n) => n + 1) }}

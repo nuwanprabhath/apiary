@@ -28,6 +28,11 @@ export function worktreePullMessage(branch: string, where: string, count: number
     : `Pulled ${commits(count)} into ${branch} in ${where}.`
 }
 
+/** The conflict dialog's "switch that worktree to…": what moved where. */
+export function movedOtherMessage(branch: string, other: string, otherTo: string): string {
+  return `Switched ${other} to ${otherTo} and checked out ${branch}.`
+}
+
 /** The branch list's pull button: which branch, and how much moved. */
 export function updateBranchMessage(branch: string, count: number): string {
   return count === 0 ? `${branch} is already up to date.` : `Pulled ${commits(count)} into ${branch}.`

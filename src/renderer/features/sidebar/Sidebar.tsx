@@ -297,7 +297,7 @@ function SidebarInner({
     onTogglePin,
     onEditNote,
     onReorderFolder: groups.reorderFolder,
-    onFolderMenu: (path, x, y) => setMenu({ kind: 'folder', id: path, x, y }),
+    onFolderMenu: (path, x, y, nested) => setMenu({ kind: 'folder', id: path, x, y, nested }),
     onSessionMenu,
     // Resolved against the unfiltered tree — a session being dragged is on screen and therefore in
     // `tree` too, but there is no reason to make this depend on the search box being empty.

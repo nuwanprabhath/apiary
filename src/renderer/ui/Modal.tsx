@@ -36,6 +36,10 @@ interface Props {
   children: ReactNode
 }
 
+/** The focus restore a closing dialog has scheduled for the next frame, until it runs or a dialog
+ *  opening in its place takes it over (see the layout effect below). */
+let pendingRestore: { element: HTMLElement | null } | null = null
+
 /**
  * The dialog primitive every modal in the app should be built from (UI-25).
  *
@@ -72,7 +76,17 @@ export function Modal(
     // triggered from — gets it back once the dialog closes, however that happens (Escape, a
     // button, the caller's own logic). Read once, not tracked live: a dialog does not expect the
     // rest of the app to be interactive behind it.
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    // A dialog opening in the place of one closing in the same commit (the branch picker handing
+    // a worktree conflict to its dialog) finds focus on nothing: it takes over that one's pending
+    // restore instead, so its own focus is not stolen a frame later and the control that opened
+    // the first still gets focus back once this one closes.
+    let previouslyFocused = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+      ? document.activeElement
+      : null
+    if (previouslyFocused === null && pendingRestore !== null) {
+      previouslyFocused = pendingRestore.element
+      pendingRestore = null
+    }
     const target = initialFocusSelector !== undefined
       ? root.querySelector<HTMLElement>(initialFocusSelector)
       : focusablesIn(root)[0]
@@ -91,7 +105,13 @@ export function Modal(
       // by anything in this app's code. One rAF is enough for that queued keyup to be delivered and
       // finish (to whatever had focus at that point, which is nothing useful once this dialog's
       // contents are already unmounted) before focus lands back on a live control.
-      requestAnimationFrame(() => { previouslyFocused?.focus() })
+      const mine = { element: previouslyFocused }
+      pendingRestore = mine
+      requestAnimationFrame(() => {
+        if (pendingRestore !== mine) return
+        pendingRestore = null
+        mine.element?.focus()
+      })
     }
     // Deliberately once per mount: `initialFocusSelector` is a static prop per call site, and
     // re-running this on every render would fight the user's own subsequent Tabbing.

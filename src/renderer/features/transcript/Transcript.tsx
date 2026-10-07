@@ -1,7 +1,7 @@
 import { type JSX, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SessionNode, TranscriptMessage } from '@shared/types'
 import type { ChatDecision, ChatState } from '@shared/domain/chat'
-import { chatItems, latestTurn, mergeLive, runningBackgroundTasks } from '@shared/chatTimeline'
+import { chatItems, latestTurn, mergeLive, runningBackgroundTasks, stillQueued } from '@shared/chatTimeline'
 import { ChatTimeline } from '../chat/ChatTimeline'
 import { ChatStatus, type ChatStatusInfo } from '../chat/ChatStatus'
 import { useCopyOnSelect } from '../chat/useCopyOnSelect'
@@ -28,7 +28,7 @@ interface TranscriptProps {
   visible?: boolean
   /** Opens an image full size. Owned by the column, so the composer's images use the same one. */
   onOpenImage: (src: string) => void
-  /** Draw it as a chat (the "Chat in the transcript" setting), with `chat`'s live part on top. */
+  /** Draw it as a chat (the "Run sessions as a chat" setting), with `chat`'s live part on top. */
   chatMode?: boolean
   chat?: ChatState | null
   onDecide?: (requestId: string, decision: ChatDecision) => void
@@ -281,6 +281,7 @@ export function Transcript({
     const live = (chat?.live ?? []).filter((m) => showSidechain || !m.isSidechain)
     return chatItems(mergeLive(visibleMessages, live))
   }, [chatMode, chat?.live, visibleMessages, showSidechain])
+  const queued = useMemo(() => stillQueued(chat?.queued ?? [], messages), [chat?.queued, messages])
 
   // The line above the message box: background tasks still running (claude's own list while it
   // runs as a chat, else the file's, while its terminal runs), and how the latest turn ended.
@@ -372,10 +373,10 @@ export function Transcript({
         </button>
       )}
 
-      {loading && <p className="empty">Loading transcript...</p>}
+      {loading && <p className="empty">Loading chat...</p>}
 
       {chatMode
-        ? <ChatTimeline items={items} chat={chat} onOpenImage={onOpenImage} onDecide={(id, d) => { onDecide?.(id, d) }} />
+        ? <ChatTimeline items={items} chat={chat} queued={queued} onOpenImage={onOpenImage} onDecide={(id, d) => { onDecide?.(id, d) }} />
         : visibleMessages.map((m, i) => (
           <MessageRow
             // eslint-disable-next-line @eslint-react/no-array-index-key -- falls back to the index only for the rare message with no uuid; the uuid is the real, stable key

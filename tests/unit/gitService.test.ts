@@ -81,10 +81,19 @@ describe('GitService', () => {
     vi.mocked(branchOps.checkoutBranch).mockRejectedValue(new Error("branch 'feature' is checked out elsewhere"))
     vi.mocked(branchOps.isWorktreeConflict).mockReturnValue(true)
     vi.mocked(branchOps.worktreeForBranch).mockResolvedValue('/other/worktree')
+    vi.mocked(branchOps.listWorktrees).mockResolvedValue([
+      { path: cwd, branch: 'main' }, { path: '/other/worktree', branch: 'feature' }, { path: '/third', branch: 'release' },
+    ])
+    const entry = (name: string) => ({ name, relativeDate: '', author: '', shortSha: '', subject: '' })
+    vi.mocked(branchOps.listRefs).mockResolvedValue({
+      current: 'main', local: ['dev', 'main', 'feature', 'release', 'old'].map(entry), remote: [], tags: [],
+    })
     const result = await git.checkoutBranch(terminalRef('s1', true), 'feature')
+    // What the other worktree could move to: this folder's own branch (a swap), then every branch
+    // checked out nowhere.
     expect(result).toEqual({
       ok: false,
-      conflict: { branch: 'feature', worktreePath: '/other/worktree', label: 'worktree' },
+      conflict: { branch: 'feature', worktreePath: '/other/worktree', label: 'worktree', current: 'main', choices: ['main', 'dev', 'old'] },
     })
   })
 

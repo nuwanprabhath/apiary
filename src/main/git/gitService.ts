@@ -9,7 +9,7 @@ import type { SessionResolver } from '../sessions/sessionResolver'
 import type { TerminalRef } from '@shared/domain/ids'
 import type { GitStatus, GitRefs, CheckoutOutcome, FolderWorktree } from '@shared/types'
 import {
-  worktreeNameProblem, type WorktreeCreateOptions, type WorktreeCreateRequest,
+  worktreeNameProblem, type GitTarget, type WorktreeCreateOptions, type WorktreeCreateRequest,
 } from '@shared/domain/git'
 
 export interface GitServiceDeps {
@@ -48,6 +48,19 @@ export class GitService {
     return this.lastBranch.get(cwd) ?? null
   }
 
+  /**
+   * The folder a git call acts on. A session or terminal goes through `resolveShellCwd`; a sidebar
+   * folder's path came from the renderer, so it must be a stored project row (`requireFolder`) or
+   * a worktree `listWorktrees` found in git.
+   */
+  cwdOf(target: GitTarget): string {
+    if (target.kind !== 'folder') return this.resolver.resolveShellCwd(target)
+    // A worktree "Show all worktrees" listed has no project row until a session starts there.
+    const folder = this.resolver.isKnownWorktree(target.path) ? target.path : this.resolver.requireFolder(target.path)
+    if (!existsSync(folder)) throw new Error(`This folder no longer exists: ${folder}`)
+    return folder
+  }
+
   /** Null means `cwd` is not (or is no longer) a git repository — an outcome, not a failure: see
    *  MAIN-9. Anything else `git` gets wrong there still rejects. */
   async status(terminal: TerminalRef): Promise<GitStatus | null> {
@@ -57,8 +70,8 @@ export class GitService {
     return status
   }
 
-  async listRefs(terminal: TerminalRef): Promise<GitRefs> {
-    return branchOps.listRefs(this.resolver.resolveShellCwd(terminal))
+  async listRefs(target: GitTarget): Promise<GitRefs> {
+    return branchOps.listRefs(this.cwdOf(target))
   }
 
   /**
@@ -97,8 +110,8 @@ export class GitService {
    * of the message. The message is English and quoted; the porcelain output is an interface. It
    * also keeps the rule that a path the app later acts on is one the main process derived itself.
    */
-  async checkoutBranch(terminal: TerminalRef, name: string): Promise<CheckoutOutcome> {
-    const cwd = this.resolver.resolveShellCwd(terminal)
+  async checkoutBranch(target: GitTarget, name: string): Promise<CheckoutOutcome> {
+    const cwd = this.cwdOf(target)
     try {
       await branchOps.checkoutBranch(cwd, name)
       return { ok: true }
@@ -112,7 +125,8 @@ export class GitService {
       // Git said a worktree has it but the list does not agree — rather than invent an answer,
       // let the original error through, which at least says what git said.
       if (worktreePath === null) throw e
-      return { ok: false, conflict: { branch: name, worktreePath, label: basename(worktreePath) } }
+      const { current, choices } = await this.choicesFor(cwd).catch(() => ({ current: null, choices: [] }))
+      return { ok: false, conflict: { branch: name, worktreePath, label: basename(worktreePath), current, choices } }
     }
   }
 
@@ -123,8 +137,11 @@ export class GitService {
    * cwd-carrying call goes through, and the answer is re-derived each time because a worktree can
    * be removed between the refusal and the click.
    */
-  async requireWorktreeFor(terminal: TerminalRef, branch: string): Promise<string> {
-    const cwd = this.resolver.resolveShellCwd(terminal)
+  async requireWorktreeFor(target: GitTarget, branch: string): Promise<string> {
+    return this.worktreeHolding(this.cwdOf(target), branch)
+  }
+
+  private async worktreeHolding(cwd: string, branch: string): Promise<string> {
     const path = await branchOps.worktreeForBranch(cwd, branch)
     if (path === null) {
       throw new Error(`${branch} is no longer checked out in a worktree of this repository`)
@@ -135,23 +152,55 @@ export class GitService {
 
   /** Pulls `branch` in the worktree that has it, which is the only place it *can* be pulled. */
   async pullWorktree(
-    terminal: TerminalRef, branch: string,
+    target: GitTarget, branch: string,
   ): Promise<{ path: string; commits: number }> {
-    const path = await this.requireWorktreeFor(terminal, branch)
+    const path = await this.requireWorktreeFor(target, branch)
     const { commits } = await branchOps.pull(path)
     return { path, commits }
   }
 
-  async checkoutRemote(terminal: TerminalRef, remoteRef: string, localName: string): Promise<void> {
-    await branchOps.checkoutRemote(this.resolver.resolveShellCwd(terminal), remoteRef, localName)
+  /**
+   * Checks `branch` out in `target` after switching the worktree that has it to `otherTo` — the
+   * conflict dialog's way of doing both in one go. When `otherTo` is the branch checked out here
+   * (a swap), this folder lets go of it first by detaching, and takes it back if the other
+   * worktree then cannot switch. Git refusing either checkout (local changes in the way, say)
+   * rejects with what git said; the other worktree's path is returned so its row can be refreshed.
+   */
+  async checkoutMovingOther(target: GitTarget, branch: string, otherTo: string): Promise<string> {
+    const cwd = this.cwdOf(target)
+    const other = await this.worktreeHolding(cwd, branch)
+    const here = (await branchOps.status(cwd))?.branch ?? null
+    const swap = here === otherTo
+    if (swap) await branchOps.checkoutDetached(cwd, 'HEAD')
+    try {
+      await branchOps.checkoutBranch(other, otherTo)
+    } catch (e) {
+      if (swap) await branchOps.checkoutBranch(cwd, otherTo).catch(() => {})
+      throw e
+    }
+    await branchOps.checkoutBranch(cwd, branch)
+    log.info('git', 'checked out after moving the other worktree', { branch, swap })
+    return other
   }
 
-  async checkoutDetached(terminal: TerminalRef, ref: string): Promise<void> {
-    await branchOps.checkoutDetached(this.resolver.resolveShellCwd(terminal), ref)
+  /** What `WorktreeConflict.choices` offers, for a checkout refused in `cwd`. */
+  private async choicesFor(cwd: string): Promise<{ current: string | null; choices: string[] }> {
+    const [worktrees, refs] = await Promise.all([branchOps.listWorktrees(cwd), branchOps.listRefs(cwd)])
+    const taken = new Set(worktrees.map((w) => w.branch).filter((b): b is string => b !== null))
+    const free = refs.local.map((r) => r.name).filter((n) => !taken.has(n))
+    return { current: refs.current, choices: refs.current === null ? free : [refs.current, ...free] }
   }
 
-  async createBranch(terminal: TerminalRef, name: string, from?: string): Promise<void> {
-    await branchOps.createBranch(this.resolver.resolveShellCwd(terminal), name, from)
+  async checkoutRemote(target: GitTarget, remoteRef: string, localName: string): Promise<void> {
+    await branchOps.checkoutRemote(this.cwdOf(target), remoteRef, localName)
+  }
+
+  async checkoutDetached(target: GitTarget, ref: string): Promise<void> {
+    await branchOps.checkoutDetached(this.cwdOf(target), ref)
+  }
+
+  async createBranch(target: GitTarget, name: string, from?: string): Promise<void> {
+    await branchOps.createBranch(this.cwdOf(target), name, from)
   }
 
   async pull(terminal: TerminalRef): Promise<{ commits: number }> {
@@ -159,8 +208,8 @@ export class GitService {
   }
 
   /** Fast-forwards any local branch from its upstream (the branch list's pull button). */
-  async updateBranch(terminal: TerminalRef, branch: string): Promise<{ commits: number }> {
-    return branchOps.updateBranch(this.resolver.resolveShellCwd(terminal), branch)
+  async updateBranch(target: GitTarget, branch: string): Promise<{ commits: number }> {
+    return branchOps.updateBranch(this.cwdOf(target), branch)
   }
 
   /**
@@ -230,8 +279,8 @@ export class GitService {
     return branchOps.push(this.resolver.resolveShellCwd(terminal))
   }
 
-  async merge(terminal: TerminalRef, ref: string): Promise<void> {
-    await branchOps.merge(this.resolver.resolveShellCwd(terminal), ref)
+  async merge(target: GitTarget, ref: string): Promise<void> {
+    await branchOps.merge(this.cwdOf(target), ref)
   }
 
   async fetch(terminal: TerminalRef): Promise<void> {

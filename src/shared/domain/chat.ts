@@ -20,6 +20,13 @@ export const CHAT_PERMISSION_MODE_LABELS: Record<ChatPermissionMode, string> = {
   plan: 'Plan',
 }
 
+/** A message sent to the chat that Claude has not read yet; `sentAt` is when it was sent (epoch ms). */
+export interface QueuedMessage {
+  id: string
+  text: string
+  sentAt: number
+}
+
 export function isChatPermissionMode(value: unknown): value is ChatPermissionMode {
   return typeof value === 'string' && (CHAT_PERMISSION_MODES as readonly string[]).includes(value)
 }
@@ -126,7 +133,7 @@ export interface ChatState {
    * Claude reaches a point it can take it (after the tool call in flight), then joins that same
    * turn — claude replays it then, which is when it leaves this list and enters the conversation.
    */
-  queued: { id: string; text: string }[]
+  queued: QueuedMessage[]
   /** The background tasks claude reports running (`background_tasks_changed`); null until it has. */
   backgroundTasks: BackgroundTask[] | null
   /** How long the latest finished turn took, and when it finished. */

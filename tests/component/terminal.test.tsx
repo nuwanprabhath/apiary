@@ -17,6 +17,17 @@ describe('the terminal panes', () => {
     await expect.element(page.getByTestId('resume-button')).toHaveAttribute('data-cwd-exists', 'false')
   })
 
+  it('names the views Chat and Terminal, and the button that starts one Resume in terminal', async () => {
+    await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    const label = (testId: string) => () => page.getByTestId(testId).query()?.textContent?.trim()
+    await expect.poll(label('view-transcript')).toBe('Chat')
+    await expect.poll(label('resume-button')).toBe('Resume in terminal')
+
+    await userEvent.click(page.getByTestId('resume-button'))
+    await expect.poll(label('view-terminal')).toBe('Terminal')
+  })
+
   // Regression test: dragging the resizer is a mousedown-then-mousemove-over-page-content
   // sequence, which — with nothing to stop it — the browser treats exactly like a click-drag text
   // selection, highlighting whatever surrounding text (the session title, "Hide shell", etc.) the

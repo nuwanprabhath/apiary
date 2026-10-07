@@ -2,14 +2,14 @@ import { CHANNELS } from '@shared/api'
 import type { AppService } from '../../appService'
 import { broadcast } from '../../windows/broadcast'
 import type { Handlers } from '../registrar'
-import type { TerminalRef } from '@shared/domain/ids'
+import type { GitTarget } from '@shared/domain/git'
 
 export interface GitDeps {
   service: AppService
 }
 
 type HandledKeys =
-  | 'gitStatus' | 'gitListRefs' | 'gitlabMrRefStatus' | 'gitCheckoutBranch' | 'gitPullWorktree'
+  | 'gitStatus' | 'gitListRefs' | 'gitlabMrRefStatus' | 'gitCheckoutBranch' | 'gitCheckoutBranchMovingOther' | 'gitPullWorktree'
   | 'newSessionInWorktree' | 'gitCheckoutRemote' | 'gitCheckoutDetached' | 'gitCreateBranch' | 'gitPull'
   | 'gitUpdateBranch' | 'gitPullFolder' | 'listWorktrees' | 'gitPush' | 'gitMerge' | 'gitFetch'
   | 'worktreeCreateOptions' | 'worktreeCreate'
@@ -32,9 +32,9 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
    * listening for `treeChanged` (the plugin bar, MR-status invalidation) still hears about it.
    */
   const afterGitMutation = async (
-    terminal: TerminalRef, branchMayChange: boolean,
+    target: GitTarget, branchMayChange: boolean,
   ): Promise<void> => {
-    if (branchMayChange) await service.refreshProjectByKey(terminal)
+    if (branchMayChange) await service.refreshProjectByKey(target)
     broadcast(CHANNELS.treeChanged)
   }
 
@@ -51,6 +51,10 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
       // Skipped when nothing was actually checked out (the worktree-conflict outcome).
       if (outcome.ok) await afterGitMutation(terminal, true)
       return outcome
+    },
+    gitCheckoutBranchMovingOther: async (_e, target, branch, otherTo) => {
+      await service.gitCheckoutBranchMovingOther(target, branch, otherTo)
+      await afterGitMutation(target, true)
     },
     gitPullWorktree: async (_e, terminal, branch) => {
       const outcome = await service.gitPullWorktree(terminal, branch)

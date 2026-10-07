@@ -20,7 +20,7 @@ import { isTabTransfer, type TabTransfer, type ReportedTab, type WindowLayoutRep
 import type {
   CheckoutOutcome, FolderWorktree, GitStatus, GitRefs, MrState, WorktreeCreateOptions, WorktreeCreateRequest,
 } from '../domain/git'
-import { isWorktreeCreateRequest } from '../domain/git'
+import { isGitTarget, isWorktreeCreateRequest, type GitTarget } from '../domain/git'
 import type {
   ProjectNode, DiscoveredSession, ResumeConflict, NewSessionInfo,
 } from '../domain/session'
@@ -48,6 +48,7 @@ import type { VoiceContext } from '../pets/prompt'
 const sessionIdArg: Guard<SessionId> = (v): v is SessionId => typeof v === 'string'
 const ptyIdArg: Guard<PtyId> = (v): v is PtyId => typeof v === 'string'
 const terminalRefArg: Guard<TerminalRef> = isTerminalRef
+const gitTargetArg: Guard<GitTarget> = isGitTarget
 
 type ChatStartOptions = { takeOver: boolean; model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort }
 const chatStartOptions: Guard<ChatStartOptions> = (v): v is ChatStartOptions => {
@@ -207,31 +208,36 @@ export const IPC = {
 
   // Git.
   gitStatus: invoke<[terminal: TerminalRef], GitStatus | null>('apiary:git-status', tuple(terminalRefArg)),
-  gitListRefs: invoke<[terminal: TerminalRef], GitRefs>('apiary:git-list-refs', tuple(terminalRefArg)),
+  gitListRefs: invoke<[target: GitTarget], GitRefs>('apiary:git-list-refs', tuple(gitTargetArg)),
   gitlabMrRefStatus: invoke<[terminal: TerminalRef, iids: number[]], Record<number, MrState | null>>(
     'apiary:gitlab-mr-ref-status', tuple(terminalRefArg, arr(num)),
   ),
-  gitCheckoutBranch: invoke<[terminal: TerminalRef, name: string], CheckoutOutcome>(
-    'apiary:git-checkout-branch', tuple(terminalRefArg, str),
+  gitCheckoutBranch: invoke<[target: GitTarget, name: string], CheckoutOutcome>(
+    'apiary:git-checkout-branch', tuple(gitTargetArg, str),
   ),
-  gitPullWorktree: invoke<[terminal: TerminalRef, branch: string], { path: string; commits: number }>(
-    'apiary:git-pull-worktree', tuple(terminalRefArg, str),
+  /** Checks `branch` out here after moving the worktree that has it to `otherTo` (the conflict
+   *  dialog's "switch that worktree to…"). Both worktrees are derived by main from git. */
+  gitCheckoutBranchMovingOther: invoke<[target: GitTarget, branch: string, otherTo: string], void>(
+    'apiary:git-checkout-branch-moving-other', tuple(gitTargetArg, str, str),
   ),
-  newSessionInWorktree: invoke<[terminal: TerminalRef, branch: string], NewSessionInfo>(
-    'apiary:new-session-in-worktree', tuple(terminalRefArg, str),
+  gitPullWorktree: invoke<[target: GitTarget, branch: string], { path: string; commits: number }>(
+    'apiary:git-pull-worktree', tuple(gitTargetArg, str),
   ),
-  gitCheckoutRemote: invoke<[terminal: TerminalRef, remoteRef: string, localName: string], void>(
-    'apiary:git-checkout-remote', tuple(terminalRefArg, str, str),
+  newSessionInWorktree: invoke<[target: GitTarget, branch: string], NewSessionInfo>(
+    'apiary:new-session-in-worktree', tuple(gitTargetArg, str),
   ),
-  gitCheckoutDetached: invoke<[terminal: TerminalRef, ref: string], void>(
-    'apiary:git-checkout-detached', tuple(terminalRefArg, str),
+  gitCheckoutRemote: invoke<[target: GitTarget, remoteRef: string, localName: string], void>(
+    'apiary:git-checkout-remote', tuple(gitTargetArg, str, str),
   ),
-  gitCreateBranch: invoke<[terminal: TerminalRef, name: string, from?: string], void>(
-    'apiary:git-create-branch', tuple(terminalRefArg, str, opt(str)),
+  gitCheckoutDetached: invoke<[target: GitTarget, ref: string], void>(
+    'apiary:git-checkout-detached', tuple(gitTargetArg, str),
+  ),
+  gitCreateBranch: invoke<[target: GitTarget, name: string, from?: string], void>(
+    'apiary:git-create-branch', tuple(gitTargetArg, str, opt(str)),
   ),
   gitPull: invoke<[terminal: TerminalRef], { commits: number }>('apiary:git-pull', tuple(terminalRefArg)),
-  gitUpdateBranch: invoke<[terminal: TerminalRef, branch: string], { commits: number }>(
-    'apiary:git-update-branch', tuple(terminalRefArg, str),
+  gitUpdateBranch: invoke<[target: GitTarget, branch: string], { commits: number }>(
+    'apiary:git-update-branch', tuple(gitTargetArg, str),
   ),
   gitPullFolder: invoke<[path: string], { commits: number }>('apiary:git-pull-folder', tuple(str)),
   listWorktrees: invoke<[path: string], FolderWorktree[]>('apiary:list-worktrees', tuple(str)),
@@ -278,7 +284,7 @@ export const IPC = {
   gitPush: invoke<[terminal: TerminalRef], { commits: number; published: boolean }>(
     'apiary:git-push', tuple(terminalRefArg),
   ),
-  gitMerge: invoke<[terminal: TerminalRef, ref: string], void>('apiary:git-merge', tuple(terminalRefArg, str)),
+  gitMerge: invoke<[target: GitTarget, ref: string], void>('apiary:git-merge', tuple(gitTargetArg, str)),
   gitFetch: invoke<[terminal: TerminalRef], void>('apiary:git-fetch', tuple(terminalRefArg)),
   mrStatusesInvalidated: event('apiary:mr-statuses-invalidated'),
 
