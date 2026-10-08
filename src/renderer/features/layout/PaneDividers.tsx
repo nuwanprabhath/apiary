@@ -1,4 +1,5 @@
-import { type JSX, useEffect, useRef, useState } from 'react'
+import { type JSX, type RefObject, useRef } from 'react'
+import { useResizeDrag } from '../../ui/useResizeDrag'
 import {
   presetDef, dragTracks, boundaryAt, type PresetId, type Tracks, type DividerDef,
 } from './layout'
@@ -27,61 +28,6 @@ interface Props {
  */
 export function PaneDividers({ preset, tracks, onChange }: Props): JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null)
-  const [dragging, setDragging] = useState<DividerDef | null>(null)
-  const latest = useRef({ tracks, onChange })
-  latest.current = { tracks, onChange }
-
-  useEffect(() => {
-    if (dragging === null) return
-    const host = ref.current?.parentElement
-    if (host === null || host === undefined) return
-    const cursor = dragging.axis === 'col' ? 'resizing-col' : 'resizing-row'
-    document.body.classList.add('resizing-active', cursor)
-    const onMove = (e: MouseEvent): void => {
-      const rect = host.getBoundingClientRect()
-      const { tracks: now, onChange: emit } = latest.current
-      if (dragging.axis === 'col') {
-        const pointer = (e.clientX - rect.left) / rect.width
-        emit({ ...now, cols: dragTracks(now.cols, dragging.index, pointer, MIN_PANE_WIDTH / rect.width) })
-      } else {
-        const pointer = (e.clientY - rect.top) / rect.height
-        emit({ ...now, rows: dragTracks(now.rows, dragging.index, pointer, MIN_PANE_HEIGHT / rect.height) })
-      }
-    }
-    const onUp = (): void => setDragging(null)
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    return () => {
-      document.body.classList.remove('resizing-active', cursor)
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-  }, [dragging])
-
-  /**
-   * The arrow-key alternative to dragging (UI-27): steps the boundary by `KEYBOARD_STEP_PX`,
-   * converted to the same 0..1 fraction `dragTracks` already works in, and clamped by the same
-   * minimum-pane-size floor a drag respects. Kept beside `onMove` above rather than sharing it
-   * because a key event has no pointer position to convert — it moves the boundary by a step from
-   * where it already is, not to an absolute point.
-   */
-  const onKeyDown = (d: DividerDef) => (e: React.KeyboardEvent): void => {
-    const forward = d.axis === 'col' ? 'ArrowRight' : 'ArrowDown'
-    const back = d.axis === 'col' ? 'ArrowLeft' : 'ArrowUp'
-    if (e.key !== forward && e.key !== back) return
-    e.preventDefault()
-    const host = ref.current?.parentElement
-    if (host === null || host === undefined) return
-    const rect = host.getBoundingClientRect()
-    const along = d.axis === 'col' ? tracks.cols : tracks.rows
-    const size = d.axis === 'col' ? rect.width : rect.height
-    const minFraction = (d.axis === 'col' ? MIN_PANE_WIDTH : MIN_PANE_HEIGHT) / size
-    const current = boundaryAt(along, d.index)
-    const delta = (e.key === forward ? 1 : -1) * (KEYBOARD_STEP_PX / size)
-    const next = dragTracks(along, d.index, current + delta, minFraction)
-    onChange(d.axis === 'col' ? { ...tracks, cols: next } : { ...tracks, rows: next })
-  }
-
   const pct = (n: number): string => `${String(n * 100)}%`
   return (
     <div ref={ref} className="pane-dividers">
@@ -95,27 +41,71 @@ export function PaneDividers({ preset, tracks, onChange }: Props): JSX.Element {
           ? { left: pct(at), top: pct(from), height: pct(to - from) }
           : { top: pct(at), left: pct(from), width: pct(to - from) }
         return (
-          <div
+          <Divider
             key={`${d.axis}-${String(d.index)}`}
-            className={d.axis === 'col' ? 'column-resizer' : 'row-resizer'}
-            data-testid={d.axis === 'col' ? 'column-resizer' : 'row-resizer'}
+            def={d}
+            tracks={tracks}
+            onChange={onChange}
+            hostRef={ref}
             style={style}
-            // UI-27: was `aria-hidden="true"` on the whole overlay, with no role, tabIndex or key
-            // handling at all — a mouse-only resizer. `role="separator"` plus `aria-orientation`
-            // and `aria-valuenow` is the pattern for a value a user can adjust that isn't a form
-            // control; `tabIndex={0}` (not −1) is what actually lets Tab reach it, since nothing
-            // else in the pane grid claims a stop there.
-            role="separator"
-            aria-orientation={d.axis === 'col' ? 'vertical' : 'horizontal'}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(at * 100)}
-            tabIndex={0}
-            onMouseDown={(e) => { e.preventDefault(); setDragging(d) }}
-            onKeyDown={onKeyDown(d)}
           />
         )
       })}
     </div>
+  )
+}
+
+/**
+ * One boundary: a separator you drag or step with the arrow keys (UI-27). Both go through
+ * `useResizeDrag`, in percent of the grid so `aria-valuenow` reads 0–100; `dragTracks` clamps to
+ * the minimum pane size whichever way the value arrives, so Home/End land on the nearest pane
+ * minimum rather than off the grid.
+ */
+function Divider({ def: d, tracks, onChange, hostRef, style }: {
+  def: DividerDef
+  tracks: Tracks
+  onChange: (next: Tracks) => void
+  hostRef: RefObject<HTMLDivElement | null>
+  style: React.CSSProperties
+}): JSX.Element {
+  const latest = useRef({ tracks, onChange })
+  latest.current = { tracks, onChange }
+  const col = d.axis === 'col'
+  const size = (): number => {
+    const rect = hostRef.current?.parentElement?.getBoundingClientRect()
+    return (col ? rect?.width : rect?.height) ?? 1
+  }
+  /** Moves this boundary to `percent` of the grid, as far as the minimum pane size allows. */
+  const apply = (percent: number): void => {
+    const { tracks: now, onChange: emit } = latest.current
+    const along = col ? now.cols : now.rows
+    const next = dragTracks(along, d.index, percent / 100, (col ? MIN_PANE_WIDTH : MIN_PANE_HEIGHT) / size())
+    if (next.length === along.length && next.every((n, i) => n === along[i])) return
+    emit(col ? { ...now, cols: next } : { ...now, rows: next })
+  }
+  const along = col ? tracks.cols : tracks.rows
+  const { separatorProps } = useResizeDrag({
+    axis: d.axis,
+    value: Math.round(boundaryAt(along, d.index) * 100),
+    min: 0,
+    max: 100,
+    initial: () => boundaryAt(col ? latest.current.tracks.cols : latest.current.tracks.rows, d.index) * 100,
+    measure: (e) => {
+      const rect = hostRef.current?.parentElement?.getBoundingClientRect()
+      if (rect === undefined) return 0
+      return col ? ((e.clientX - rect.left) / rect.width) * 100 : ((e.clientY - rect.top) / rect.height) * 100
+    },
+    step: () => (KEYBOARD_STEP_PX / size()) * 100,
+    // The panes follow the pointer as it moves, as they always have; the release only settles it.
+    onLive: apply,
+    onEnd: apply,
+  })
+  return (
+    <div
+      className={col ? 'column-resizer' : 'row-resizer'}
+      data-testid={col ? 'column-resizer' : 'row-resizer'}
+      style={style}
+      {...separatorProps}
+    />
   )
 }

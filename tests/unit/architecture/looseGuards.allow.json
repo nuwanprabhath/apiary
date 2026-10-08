@@ -1,0 +1,22 @@
+[
+  {
+    "key": "settingsSet",
+    "reason": "A partial AppSettingsPayload is deliberate (a missing field means leave it alone); mergeSettingsPayload (src/main/settings.ts) validates field by field"
+  },
+  {
+    "key": "themeSetOptions",
+    "reason": "Every field is optional; ThemeStore.setOptions (src/main/theme/themeStore.ts) checks each one and ignores a bad field"
+  },
+  {
+    "key": "themeGenerate",
+    "reason": "`current` is a theme spec the renderer holds; the handler re-validates it with validateTheme (src/shared/theme/validate.ts) before use"
+  },
+  {
+    "key": "pluginRunAction",
+    "reason": "The bar item is echoed back from what main sent; handlers/plugins.ts reads only `action` and opens an http(s) URL after parsing it"
+  },
+  {
+    "key": "logWrite",
+    "reason": "level and scope are checked only as strings (the renderer's callers are typed LogLevel/LogScope); Logger.log (src/main/log/logger.ts) redacts and fixes the written keys"
+  }
+]

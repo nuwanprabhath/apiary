@@ -1,9 +1,10 @@
 import { app, BrowserWindow, Menu, dialog, session } from 'electron'
+import { errorMessage } from '@shared/errors'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type AppService } from './appService'
 import { registerIpc } from './ipc'
-import { loadSessionLayout, type SessionLayoutStore } from './windows/sessionLayoutStore'
+import type { SessionLayoutStore } from './windows/sessionLayoutStore'
 import { type LayoutFlushCoordinator } from './windows/layoutFlushCoordinator'
 import type { TabRegistry } from './windows/tabRegistry'
 import { pruneStaleLive } from './windows/sessionLayoutRestore'
@@ -13,18 +14,21 @@ import { buildMenu } from './app/menu'
 import { writeZshShim } from './pty/promptPath'
 import type { ThemeGenerator } from './theme/themeGenerator'
 import type { PetService } from './pets/petService'
-import { CHANNELS } from '@shared/api'
+import type { SessionWatcher } from './sessions/sessionWatcher'
+import { IPC } from '@shared/api'
 import { type SettingsService } from './settings/settingsService'
 import type { UpdateService } from './update/updateService'
 import { log } from './log/logger'
 import { configureLogging } from './log/configure'
 import { detectVsCode } from './vscode/detectVsCode'
+import { hasDeveloperIdSignature } from './update/macSignature'
 import { parseRuntimeEnv, type RuntimeEnv } from './app/env'
 import { installPermissionGuards } from './app/permissions'
 import { broadcast } from './windows/broadcast'
 import { fireAndForget } from './log/fireAndForget'
 import type { WindowManager } from './windows/windowManager'
 import { installQuitDeferral } from './app/lifecycle'
+import { sendEvent } from './windows/sendEvent'
 
 const dirname = fileURLToPath(new URL('.', import.meta.url))
 
@@ -42,7 +46,7 @@ const env: RuntimeEnv = parseRuntimeEnv(process.env, process.argv, app.isPackage
 // after that dialog — so the log line is now the record of it.
 process.on('unhandledRejection', (reason) => {
   log.error('process', 'unhandled rejection', {
-    error: reason instanceof Error ? reason.message : String(reason),
+    error: errorMessage(reason),
   })
 })
 process.on('uncaughtException', (error) => {
@@ -51,6 +55,7 @@ process.on('uncaughtException', (error) => {
 
 let service: AppService | null = null
 let disposeIpc: (() => void) | null = null
+let sessionWatcher: SessionWatcher | null = null
 /** Window creation, numbering and focus tracking (MAIN-15 step 3) — constructed once in `start()`,
  *  once its dependencies (`settingsService`, `sessionLayoutStore`, `tabRegistry`) exist. */
 let windowManager: WindowManager | null = null
@@ -87,7 +92,7 @@ function setAutoImportInterval(intervalMinutes: number | null): void {
     autoImportTimer = setTimeout(() => {
       // Every window, not just the front one (MAIN-12): a periodic rescan importing a session
       // discovered outside Apiary must not leave a background window's sidebar stale.
-      const refresh = service?.refresh().then(() => broadcast(CHANNELS.treeChanged))
+      const refresh = service?.refresh().then(() => broadcast(IPC.treeChanged))
       if (refresh) fireAndForget(refresh, 'auto-import')
       scheduleNextRefresh()
     }, intervalMinutes * 60 * 1000)
@@ -134,7 +139,7 @@ async function onNewSessionInFolder(): Promise<void> {
   if (result.canceled || result.filePaths.length === 0) return
   try {
     const info = await service.newSessionInFolder(result.filePaths[0])
-    mainWindow.webContents.send(CHANNELS.newSessionStarted, info)
+    sendEvent(mainWindow.webContents, IPC.newSessionStarted, info)
   } catch (e) {
     // Folder picked via a live native dialog should always exist; a spawn failure here has no
     // dedicated renderer-facing channel, so it is surfaced the same way other main-process
@@ -158,17 +163,21 @@ async function start(): Promise<void> {
   const vsCodePath = codePathOverride === undefined
     ? await detectVsCode()
     : (codePathOverride === '' ? null : codePathOverride)
+  // Only a packaged macOS build with no fake update can ask `codesign` anything worth knowing.
+  const fakeUpdate = env.fakeUpdate
+  const macSigned = process.platform === 'darwin' && app.isPackaged && (fakeUpdate === undefined || fakeUpdate === '')
+    && await hasDeveloperIdSignature()
   // Everything long-lived is built in `app/container.ts` (MAIN-15 step 5); what is left in this
   // function is the order things start in.
   const container = createContainer(env, paths, {
     vsCodePath,
+    macSigned,
     // Rewritten every launch, so a new Apiary's shim replaces an old one's.
     zshPromptShim: writeZshShim(join(userData, 'prompt-shim', 'zsh')),
     dirname,
     statusBarKeychain: readsClaudeKeychain(process.platform, env.configRoot),
     isQuitting,
   })
-  const { configRoot } = paths
   settingsService = container.settingsService
   sessionLayoutStore = container.sessionLayoutStore
   layoutFlushCoordinator = container.layoutFlushCoordinator
@@ -191,7 +200,7 @@ async function start(): Promise<void> {
   // Before any window exists: each window asks for its theme synchronously as it loads.
   const safeTheme = env.safeTheme
   const ipc = registerIpc({
-    service, configRoot, settings: settingsService,
+    service, chat: container.chat, plugins: container.plugins, state: container.ipcState, settings: settingsService,
     pickFolder: async (sender) => {
       if (env.pickFolder !== undefined) return env.pickFolder
       const win = BrowserWindow.fromWebContents(sender)
@@ -202,13 +211,12 @@ async function start(): Promise<void> {
     onAutoImportIntervalChange: setAutoImportInterval,
     updater,
     sessionLayoutStore, layoutFlushCoordinator,
-    openDetachedWindow: (tab, at) => windowManager!.create({ detach: tab, at }),
     tabRegistry, windowNumberFor: (id) => windowManager!.windowNumberFor(id),
     // SEC-8 step 8: the renderer is always loaded from one of these two places (see
     // `WindowManager.create` above) — a dev-server origin (`ELECTRON_RENDERER_URL`, test/dev only) or the
     // packaged app's own `renderer/index.html`. `parseRuntimeEnv` already keeps the dev-server URL
     // out of a packaged build's environment (SEC-3), so `devServerOrigin` is always null there.
-    trustedRenderer: { devServerOrigin: env.rendererUrl ? new URL(env.rendererUrl).origin : null },
+    senderPolicy: { devServerOrigin: env.rendererUrl ? new URL(env.rendererUrl).origin : null },
     theme: {
       // APIARY_DEFAULT_THEME=original is test-only: the E2E suite is written against the original
       // look, so a fresh profile there starts on it rather than on the default theme.
@@ -226,6 +234,10 @@ async function start(): Promise<void> {
   })
   resetTheme = ipc.resetTheme
   disposeIpc = ipc.dispose
+  // New session files appear without a restart. Started before the first refresh, as it was when
+  // `registerIpc` owned it, so a file written during that scan is not missed.
+  sessionWatcher = container.sessionWatcher
+  sessionWatcher.start()
   await service.refresh()
   // The first refresh runs before the window exists, so nothing is listening for `treeChanged`
   // yet — importing here, before the window is created, is what makes everything already be in
@@ -238,14 +250,14 @@ async function start(): Promise<void> {
   // (see TitleBar.tsx), and on Linux a menu attached after a window exists can re-show its GTK bar.
   Menu.setApplicationMenu(
     buildMenu(
-      () => windowManager?.front()?.webContents.send(CHANNELS.openImportDialog),
+      () => sendEvent(windowManager?.front()?.webContents, IPC.openImportDialog),
       () => {
         // Every window, not just the front one (MAIN-12): background windows kept a stale tree
         // after Rescan Sessions from the menu.
-        const refresh = service?.refresh().then(() => broadcast(CHANNELS.treeChanged))
+        const refresh = service?.refresh().then(() => broadcast(IPC.treeChanged))
         if (refresh) fireAndForget(refresh, 'rescan')
       },
-      () => windowManager?.front()?.webContents.send(CHANNELS.openSettingsDialog),
+      () => sendEvent(windowManager?.front()?.webContents, IPC.openSettingsDialog),
       () => { void onNewSessionInFolder() },
       () => windowManager!.create(),
       () => {
@@ -254,11 +266,12 @@ async function start(): Promise<void> {
         windowManager?.front()?.show()
         void updater?.check({ manual: true })
       },
-      () => windowManager?.front()?.webContents.send(CHANNELS.toggleSidebar),
+      () => sendEvent(windowManager?.front()?.webContents, IPC.toggleSidebar),
       () => { resetTheme('menu') },
     ),
   )
-  const stored = loadSessionLayout(paths.sessionLayoutFile)
+  // What the file held at launch: no window exists yet to have reported anything since.
+  const stored = container.sessionLayoutStore.snapshot()
   const records = stored.windows
     .map((r) => pruneStaleLive(r, (id) => service!.sessionIsResumable(id)))
     .filter((r) => r.layout.panes.some((p) => p.tabs.length > 0))
@@ -276,7 +289,7 @@ async function start(): Promise<void> {
   }
   // Started after the window exists, so the first status push has somewhere to land.
   updater?.start()
-  service.startStatusBar()
+  container.plugins.startStatusBar()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) windowManager!.create()
   })
@@ -290,7 +303,7 @@ void app.whenReady().then(async () => {
   try {
     await start()
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = errorMessage(error)
     log.error('app', 'failed to start', { error: message })
     dialog.showErrorBox('Apiary could not start', message)
     app.quit()
@@ -334,11 +347,11 @@ async function shutdown(): Promise<void> {
         try {
           if (win.isDestroyed()) return
           const wait = coordinator.waitFor(win.webContents.id)
-          win.webContents.send(CHANNELS.requestLayoutFlush)
+          sendEvent(win.webContents, IPC.requestLayoutFlush)
           await wait
         } catch (err) {
           log.warn('window', 'layout flush failed for a window', {
-            error: err instanceof Error ? err.message : String(err),
+            error: errorMessage(err),
           })
         }
       }))
@@ -348,6 +361,7 @@ async function shutdown(): Promise<void> {
     // Runs even if the layout side threw: the PTYs still have to be reaped before Electron starts
     // tearing the Node environment down (see the comment above `before-quit`), which is the whole
     // reason quitting is deferred at all.
+    sessionWatcher?.dispose()
     disposeIpc?.()
     await service?.dispose()
   }

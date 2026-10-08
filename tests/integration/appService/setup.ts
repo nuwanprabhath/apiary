@@ -3,7 +3,8 @@ import { git as sharedGit, initRepo } from '../../fixtures/gitRepo'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { vi } from 'vitest'
-import { AppService } from '../../../src/main/appService'
+import { buildAppService } from '../../fixtures/buildService'
+import type { AppService } from '../../../src/main/appService'
 import { log } from '../../../src/main/log/logger'
 
 /**
@@ -22,7 +23,7 @@ export function createServiceFixture(): ServiceFixture {
   const home = mkdtempSync(join(tmpdir(), 'apiary-home-'))
   const workdir = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-work-')))
   mkdirSync(join(home, '.claude', 'projects'), { recursive: true })
-  const service = new AppService({
+  const service = buildAppService({
     configRoot: join(home, '.claude'),
     dbPath: join(home, 'apiary.db'),
     detectLive: async () => new Map(),

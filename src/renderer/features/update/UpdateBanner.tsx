@@ -3,7 +3,8 @@ import type { UpdateStatusPayload } from '@shared/api'
 import { CloseIcon } from '../../ui/icons'
 import { formatVersion } from './updateSummary'
 import { useNotifications } from '../../ui/notifications'
-import { fireAndForget } from '../../ui/fireAndForget'
+import { copyText } from '../../state/clipboard'
+import { dismissUpdate, downloadUpdate, installUpdate, openDownloadedUpdate, skipUpdate } from '../../state/updateStore'
 
 /**
  * The strip that appears when there is an update, and at no other time.
@@ -88,7 +89,7 @@ export function UpdateBanner(
             <button
               className="btn primary"
               data-testid="update-download"
-              onClick={() => { fireAndForget(window.apiary.updateDownload(), 'update') }}
+              onClick={() => { downloadUpdate() }}
             >
               {assisted ? 'Download' : 'Download and install'}
             </button>
@@ -96,7 +97,7 @@ export function UpdateBanner(
               className="btn"
               data-testid="update-skip"
               title={`Stop offering ${version} — the next release is offered as normal`}
-              onClick={() => { fireAndForget(window.apiary.updateSkip(), 'update') }}
+              onClick={() => { skipUpdate() }}
             >
               Skip this version
             </button>
@@ -106,7 +107,7 @@ export function UpdateBanner(
           <button
             className="btn primary"
             data-testid="update-install"
-            onClick={() => { fireAndForget(window.apiary.updateInstall(), 'update') }}
+            onClick={() => { installUpdate() }}
           >
             Restart and install
           </button>
@@ -116,7 +117,7 @@ export function UpdateBanner(
             className="btn primary"
             data-testid="update-open-downloaded"
             onClick={() => {
-              void window.apiary.updateOpenDownloaded()
+              void openDownloadedUpdate()
                 .then((result) => {
                   if (result.ok === 'opened') return
                   if (result.ok === 'revealed') {
@@ -156,7 +157,7 @@ export function UpdateBanner(
             className="btn"
             data-testid="update-copy-command"
             title={status.install.command}
-            onClick={() => { fireAndForget(window.apiary.copyToClipboard(status.install?.command ?? ''), 'update') }}
+            onClick={() => { void copyText(status.install?.command ?? '') }}
           >
             Copy install command
           </button>
@@ -165,7 +166,7 @@ export function UpdateBanner(
           <button
             className="btn"
             data-testid="update-notes"
-            onClick={() => { fireAndForget(window.apiary.copyToClipboard(status.releaseUrl ?? ''), 'update') }}
+            onClick={() => { void copyText(status.releaseUrl ?? '') }}
             title="Copy the release page link"
           >
             Release notes
@@ -177,7 +178,7 @@ export function UpdateBanner(
           data-testid="update-dismiss"
           aria-label="Dismiss"
           title="Dismiss"
-          onClick={() => { fireAndForget(window.apiary.updateDismiss(), 'update') }}
+          onClick={() => { dismissUpdate() }}
         >
           <CloseIcon />
         </button>

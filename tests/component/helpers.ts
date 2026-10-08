@@ -64,3 +64,28 @@ export async function drag(from: Element, dx: number, dy: number, steps = 6): Pr
 export async function until(check: () => boolean | Promise<boolean>, timeout = 3000): Promise<void> {
   await expect.poll(check, { timeout }).toBe(true)
 }
+
+/** Asserts `check` holds for the whole of `ms` — for "nothing happens" assertions; see `fixtures/stays.ts`. */
+export { stays } from '../fixtures/stays'
+
+/** Resolves after `n` animation frames: React has committed what a handler set in motion. */
+export async function nextFrames(n = 1): Promise<void> {
+  for (let i = 0; i < n; i++) await new Promise<void>((resolve) => { requestAnimationFrame(() => { resolve() }) })
+}
+
+/**
+ * Resolves once `read()` has returned the same thing for `frames` animation frames in a row: a
+ * transition or a refit has finished and the geometry is safe to measure. Rejects after `timeout`.
+ */
+export async function settled(read: () => string, frames = 3, timeout = 3000): Promise<void> {
+  const deadline = Date.now() + timeout
+  let last = read()
+  let same = 0
+  while (same < frames) {
+    if (Date.now() > deadline) throw new Error('Expected the layout to settle, but it kept changing')
+    await nextFrames(1)
+    const now = read()
+    same = now === last ? same + 1 : 0
+    last = now
+  }
+}

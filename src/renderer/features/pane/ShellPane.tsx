@@ -10,19 +10,16 @@ import { TerminalListPanel } from '../terminal/TerminalListPanel'
 import { GitMenu } from '../git/GitMenu'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
 import { BranchIcon, ArrowDownIcon, ArrowUpIcon, CopyIcon, PlusIcon, ListIcon, EllipsisIcon } from '../../ui/icons'
+import type { ResizeSeparatorProps } from '../../ui/useResizeDrag'
 import type { ShellTerminals } from './useShellTerminals'
 import type { GitActions } from './useGitActions'
-
-/** Where the shell card may be dragged to — the clamp lives in App (`onBottomHeightStep` and the
- *  drag), this only describes it for a screen reader. */
-const MIN_BOTTOM_HEIGHT = 120
-const MAX_BOTTOM_HEIGHT = 560
+import { copyText } from '../../state/clipboard'
 
 /** One pane's shell card: the resizer above it, the git/terminal toolbar, every tab's shell
  *  terminals and the terminal list. */
 export function ShellPane({
-  column, activeKey, keyFor, shell, git, gitStatus, pluginItems, bottomHeight, onStartBottomResize,
-  onBottomHeightStep, terminalListWidth, onTerminalListWidth,
+  column, activeKey, keyFor, shell, git, gitStatus, pluginItems, bottomHeight, bottomResizer,
+  terminalListWidth, onTerminalListWidth,
 }: {
   column: Column
   activeKey: string
@@ -32,10 +29,8 @@ export function ShellPane({
   gitStatus: GitStatus | null
   pluginItems: PluginBarItemPayload[]
   bottomHeight: number
-  onStartBottomResize: () => void
-  /** The keyboard alternative to dragging `.bottom-resizer` (UI-27): steps `bottomHeight` by the
-   *  given number of pixels (negative shrinks). */
-  onBottomHeightStep: (delta: number) => void
+  /** Everything `.bottom-resizer` needs to be a draggable, keyboard-operable separator. */
+  bottomResizer: ResizeSeparatorProps
   /** The terminal list's dragged width (null: fit the names), and how to change it. */
   terminalListWidth: number | null
   onTerminalListWidth?: (width: number | null) => void
@@ -57,26 +52,7 @@ export function ShellPane({
   return (
     <>
       {shellOpen && (
-        <div
-          className="bottom-resizer"
-          data-testid="bottom-resizer"
-          // UI-27: was a mouse-only drag handle with no role or keyboard alternative.
-          role="separator"
-          aria-orientation="horizontal"
-          aria-valuemin={MIN_BOTTOM_HEIGHT}
-          aria-valuemax={MAX_BOTTOM_HEIGHT}
-          aria-valuenow={bottomHeight}
-          aria-label="Resize the terminal pane"
-          tabIndex={0}
-          onMouseDown={(e) => { e.preventDefault(); onStartBottomResize() }}
-          onKeyDown={(e) => {
-            // Dragging up (a smaller clientY) grows the pane — see App.tsx's own comment on
-            // the drag effect this mirrors — so ArrowUp is the "bigger" direction here too.
-            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
-            e.preventDefault()
-            onBottomHeightStep(e.key === 'ArrowUp' ? 16 : -16)
-          }}
-        />
+        <div className="bottom-resizer" data-testid="bottom-resizer" {...bottomResizer} />
       )}
 
       {/* UI-6: `var(--drag-bottom-height, …)` reads the live value App's resize drag writes
@@ -140,7 +116,7 @@ export function ShellPane({
                     testId: 'toolbar-copy',
                     disabled: gitStatus.branch === null,
                     onClick: () => {
-                      if (gitStatus.branch !== null) void window.apiary.copyToClipboard(gitStatus.branch)
+                      if (gitStatus.branch !== null) void copyText(gitStatus.branch)
                     },
                   },
                   {

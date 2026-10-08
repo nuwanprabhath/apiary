@@ -1,7 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { resolveMrStatus, resetMrStatusCache, invalidateMrStatuses } from '../../src/main/git/mrStatusCache'
-
-beforeEach(() => { resetMrStatusCache() })
+import { describe, it, expect } from 'vitest'
+import { MrStatusCache } from '../../src/main/git/mrStatusCache'
 
 function fakeExec(response: () => Promise<string> | string) {
   const calls: Array<{ file: string; args: string[]; cwd: string }> = []
@@ -12,10 +10,13 @@ function fakeExec(response: () => Promise<string> | string) {
   return { exec, calls }
 }
 
-describe('resolveMrStatus', () => {
+const lookup = (cache: MrStatusCache, iid: number, project = 'group/project') =>
+  cache.resolve('/repo', 'https://gitlab.com', project, iid)
+
+describe('MrStatusCache.resolve', () => {
   it('spawns glab api against the urlencoded project path and iid', async () => {
     const { exec, calls } = fakeExec(() => JSON.stringify({ state: 'merged' }))
-    const state = await resolveMrStatus('/repo', 'https://gitlab.com', 'group/sub/project', 1267, { exec })
+    const state = await lookup(new MrStatusCache({ exec }), 1267, 'group/sub/project')
     expect(state).toBe('merged')
     expect(calls).toEqual([{
       file: 'glab',
@@ -27,44 +28,44 @@ describe('resolveMrStatus', () => {
   it('re-checks an open merge request after two minutes, since that is the state that changes', async () => {
     let now = 0
     const { exec, calls } = fakeExec(() => JSON.stringify({ state: 'opened' }))
-    const options = { exec, now: () => now }
-    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 1, options)
-    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 1, options)
+    const cache = new MrStatusCache({ exec, now: () => now })
+    await lookup(cache, 1)
+    await lookup(cache, 1)
     expect(calls).toHaveLength(1)
     now = 2 * 60 * 1000 + 1
-    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 1, options)
+    await lookup(cache, 1)
     expect(calls).toHaveLength(2)
   })
 
   it('keeps a merged one much longer — it is not going to change back', async () => {
     let now = 0
     const { exec, calls } = fakeExec(() => JSON.stringify({ state: 'merged' }))
-    const options = { exec, now: () => now }
-    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 2, options)
+    const cache = new MrStatusCache({ exec, now: () => now })
+    await lookup(cache, 2)
     now = 30 * 60 * 1000
-    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 2, options)
+    await lookup(cache, 2)
     expect(calls).toHaveLength(1)
   })
 
   it('asks again straight away once invalidated — the Refresh button', async () => {
     const { exec, calls } = fakeExec(() => JSON.stringify({ state: 'opened' }))
-    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 3, { exec })
-    invalidateMrStatuses()
-    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 3, { exec })
+    const cache = new MrStatusCache({ exec })
+    await lookup(cache, 3)
+    cache.invalidate()
+    await lookup(cache, 3)
     expect(calls).toHaveLength(2)
   })
 
   it('shares one call across concurrent lookups for the same key', async () => {
     let resolveExec: (v: string) => void = () => {}
-    const exec = async (): Promise<string> =>
-      new Promise((resolve) => { resolveExec = resolve })
     let calls = 0
-    const countingExec = async (_file: string, _args: string[], _cwd: string): Promise<string> => {
+    const exec = async (): Promise<string> => {
       calls++
-      return exec()
+      return new Promise((resolve) => { resolveExec = resolve })
     }
-    const a = resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 9, { exec: countingExec })
-    const b = resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 9, { exec: countingExec })
+    const cache = new MrStatusCache({ exec })
+    const a = lookup(cache, 9)
+    const b = lookup(cache, 9)
     resolveExec(JSON.stringify({ state: 'closed' }))
     expect(await a).toBe('closed')
     expect(await b).toBe('closed')
@@ -73,7 +74,7 @@ describe('resolveMrStatus', () => {
 
   it('degrades to null on a non-zero exit or malformed JSON', async () => {
     const exec = async (): Promise<string> => { throw new Error('HTTP 404') }
-    expect(await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 2, { exec })).toBeNull()
+    expect(await lookup(new MrStatusCache({ exec }), 2)).toBeNull()
   })
 
   it('caches "glab missing" negatively so a missing binary is not probed again', async () => {
@@ -84,8 +85,16 @@ describe('resolveMrStatus', () => {
       err.code = 'ENOENT'
       throw err
     }
-    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/project', 3, { exec })
-    await resolveMrStatus('/repo', 'https://gitlab.com', 'group/other', 4, { exec })
+    const cache = new MrStatusCache({ exec })
+    await lookup(cache, 3)
+    await lookup(cache, 4, 'group/other')
     expect(calls).toBe(1)
+  })
+
+  it('two caches share nothing: each test, and each window of the future, has its own', async () => {
+    const { exec, calls } = fakeExec(() => JSON.stringify({ state: 'merged' }))
+    await lookup(new MrStatusCache({ exec }), 5)
+    await lookup(new MrStatusCache({ exec }), 5)
+    expect(calls).toHaveLength(2)
   })
 })

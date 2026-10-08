@@ -4,7 +4,7 @@
  * suite seeds both with them, so the ids and titles cannot drift between the three.
  * Pure data: safe to import from node and browser tests alike.
  */
-import { asSessionId } from '../../src/shared/domain/ids'
+import { asSessionId } from '@shared/domain/ids'
 
 export const STANDARD_SESSIONS = {
   csv: { id: asSessionId('11111111-1111-1111-1111-111111111111'), title: 'Fix CSV export bug', slug: '-work-a', firstPrompt: 'the export is empty' },

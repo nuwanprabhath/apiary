@@ -5,6 +5,8 @@ import { pullMessage, pushMessage } from '@shared/gitMessages'
 import type { GitMenuItem } from '../git/GitMenu'
 import { useWorktreeConflict, type WorktreeConflictActions } from '../git/useWorktreeConflict'
 import { useNotifications } from '../../ui/notifications'
+import { copyText } from '../../state/clipboard'
+import { fetchRemote, gitPull, gitPush } from '../../state/git'
 
 export interface GitActions extends WorktreeConflictActions {
   /** Which remote operation is running — each shells out to git and must not start twice. */
@@ -43,10 +45,10 @@ export function useGitActions({ terminal, gitStatus, loadGitStatus, onSessionSta
       // happened — the same confusion the Refresh button had before it grew a spinner. Pull and
       // push say how many commits moved, so "nothing to do" is distinguishable too.
       let message: string
-      if (kind === 'pull') message = pullMessage((await window.apiary.gitPull(terminal)).commits)
-      else if (kind === 'push') message = pushMessage(await window.apiary.gitPush(terminal))
+      if (kind === 'pull') message = pullMessage((await gitPull(terminal)).commits)
+      else if (kind === 'push') message = pushMessage(await gitPush(terminal))
       else {
-        await window.apiary.gitFetch(terminal)
+        await fetchRemote(terminal)
         message = 'Fetched from remote.'
       }
       notify({ kind: 'success', message })
@@ -83,7 +85,7 @@ export function useGitActions({ terminal, gitStatus, loadGitStatus, onSessionSta
       separatorBefore: true,
       disabled: gitStatus?.branch === null || gitStatus?.branch === undefined,
       run: () => {
-        if (gitStatus?.branch !== null && gitStatus?.branch !== undefined) void window.apiary.copyToClipboard(gitStatus.branch)
+        if (gitStatus?.branch !== null && gitStatus?.branch !== undefined) void copyText(gitStatus.branch)
       },
     },
   ]

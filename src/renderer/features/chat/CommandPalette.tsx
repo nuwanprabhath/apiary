@@ -1,6 +1,9 @@
-import { type JSX, useMemo, useState } from 'react'
+import { type JSX, useId, useMemo, useState } from 'react'
 import type { ChatCommand } from '@shared/domain/chat'
 import { fuzzyScore } from '@shared/fuzzy'
+import { SlashBoxIcon } from '../../ui/icons'
+import { Listbox, optionId, useListboxNav } from '../../ui/Listbox'
+import { Popover } from '../../ui/Popover'
 import { usePopover } from './usePopover'
 
 /** More than this and the list is a scroll of things nobody is looking for. */
@@ -36,6 +39,7 @@ export function CommandPalette({ commands, onRun, onInsert }: Props): JSX.Elemen
   const { open, setOpen, root } = usePopover()
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
+  const listId = useId()
   const shown = useMemo(() => matchCommands(commands ?? [], query), [commands, query])
 
   const choose = (c: ChatCommand): void => {
@@ -44,6 +48,18 @@ export function CommandPalette({ commands, onRun, onInsert }: Props): JSX.Elemen
     if (c.argumentHint !== '') onInsert(`/${c.name} `)
     else onRun(`/${c.name}`)
   }
+
+  const { onKeyDown } = useListboxNav({
+    count: shown.length,
+    active,
+    setActive,
+    onChoose: () => {
+      const picked = shown[active]
+      if (picked !== undefined) choose(picked)
+      // Nothing listed (the chat has not started yet): what was typed is the command.
+      else if (query.trim() !== '') { setOpen(false); onRun(`/${query.trim().replace(/^\//, '')}`); setQuery('') }
+    },
+  })
 
   return (
     <div className="chat-commands" ref={root}>
@@ -56,13 +72,10 @@ export function CommandPalette({ commands, onRun, onInsert }: Props): JSX.Elemen
         title="Slash commands"
         onClick={() => { setOpen(!open); setActive(0) }}
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-          <rect x="2" y="2" width="12" height="12" rx="2" />
-          <path d="M9.5 5 6.5 11" />
-        </svg>
+        <SlashBoxIcon />
       </button>
       {open && (
-        <div className="chat-menu chat-command-menu" role="dialog" aria-label="Slash commands" data-testid="composer-command-menu">
+        <Popover className="chat-menu chat-command-menu" label="Slash commands" testId="composer-command-menu">
           <input
             className="chat-command-search"
             data-testid="composer-command-search"
@@ -70,20 +83,14 @@ export function CommandPalette({ commands, onRun, onInsert }: Props): JSX.Elemen
             placeholder="Search commands"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setActive(0) }}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(shown.length - 1, i + 1)) }
-              if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(0, i - 1)) }
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                const picked = shown[active]
-                if (picked !== undefined) choose(picked)
-                // Nothing listed (the chat has not started yet): what was typed is the command.
-                else if (query.trim() !== '') { setOpen(false); onRun(`/${query.trim().replace(/^\//, '')}`); setQuery('') }
-              }
-            }}
+            onKeyDown={onKeyDown}
+            role="combobox"
+            aria-expanded="true"
+            aria-controls={listId}
+            aria-activedescendant={shown[active] === undefined ? undefined : optionId(listId, active)}
           />
           <div className="chat-menu-heading">Slash commands</div>
-          <div className="chat-command-list" role="listbox">
+          <Listbox id={listId} label="Slash commands" className="chat-command-list">
             {commands === null && (
               <p className="chat-command-empty">
                 Claude lists its commands once the chat has started. Type one and press Enter to run it.
@@ -93,6 +100,7 @@ export function CommandPalette({ commands, onRun, onInsert }: Props): JSX.Elemen
             {shown.map((c, i) => (
               <button
                 key={c.name}
+                id={optionId(listId, i)}
                 type="button"
                 role="option"
                 aria-selected={i === active}
@@ -108,8 +116,8 @@ export function CommandPalette({ commands, onRun, onInsert }: Props): JSX.Elemen
                 <span className="chat-command-desc">{c.description}</span>
               </button>
             ))}
-          </div>
-        </div>
+          </Listbox>
+        </Popover>
       )}
     </div>
   )

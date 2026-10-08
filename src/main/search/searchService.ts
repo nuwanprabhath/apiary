@@ -1,12 +1,16 @@
-import { SearchIndex } from './searchIndex'
-import { SearchClient } from './searchClient'
+import type { SearchIndex } from './searchIndex'
+import type { SearchClient } from './searchClient'
+import { errorMessage } from '@shared/errors'
+import { log } from '../log/logger'
 import { runIndexPass, type IndexableSession } from './indexer'
 import type { SessionStore } from '../store/sessionStore'
 
 export interface SearchServiceDeps {
   store: SessionStore
-  /** Where the full-text index lives. */
-  dbPath: string
+  /** Opens the full-text index; called on first use, never at construction. Built in the container. */
+  createIndex: () => SearchIndex
+  /** Starts the search worker on the same index file (its own handle); called on the first search, never at construction. Built in the container. */
+  createClient: () => SearchClient
   searchChatContent?: boolean
   searchSessionNotes?: boolean
   /**
@@ -29,7 +33,6 @@ export interface SearchServiceDeps {
  */
 export class SearchService {
   private readonly store: SessionStore
-  private readonly dbPath: string
   private readonly onIndexUpdated: (() => void) | undefined
   private readonly isDisposed: () => boolean
   /**
@@ -44,9 +47,13 @@ export class SearchService {
   /** The in-flight indexing pass, if any — awaited by a rebuild so it never races the clear below. */
   private indexPass: Promise<void> | null = null
 
+  private readonly createIndex: () => SearchIndex
+  private readonly createClient: () => SearchClient
+
   constructor(deps: SearchServiceDeps) {
+    this.createIndex = deps.createIndex
+    this.createClient = deps.createClient
     this.store = deps.store
-    this.dbPath = deps.dbPath
     this.onIndexUpdated = deps.onIndexUpdated
     this.isDisposed = deps.isDisposed
     this.searchChatContent = deps.searchChatContent ?? true
@@ -63,7 +70,7 @@ export class SearchService {
    */
   async search(query: string): Promise<string[]> {
     if (!this.searchChatContent && !this.searchSessionNotes) return []
-    this.searchClient ??= new SearchClient(this.dbPath)
+    this.searchClient ??= this.createClient()
     const fromWorker = await this.searchClient.search(query, {
       content: this.searchChatContent,
       notes: this.searchSessionNotes,
@@ -91,7 +98,7 @@ export class SearchService {
 
   /** The index, opened on first use. */
   private index(): SearchIndex {
-    this.searchIndex ??= new SearchIndex(this.dbPath)
+    this.searchIndex ??= this.createIndex()
     return this.searchIndex
   }
 
@@ -119,8 +126,9 @@ export class SearchService {
     try {
       if (!enabled) this.index().clearNotes()
       else this.syncNoteIndex()
-    } catch {
+    } catch (e) {
       // The note index is derived data; failing to reshape it must not fail the settings save.
+      log.warn('search', 'could not reshape the note index', { error: errorMessage(e) })
     }
   }
 
@@ -144,8 +152,9 @@ export class SearchService {
     if (!this.searchSessionNotes) return
     try {
       this.index().putNote(sessionId, note)
-    } catch {
+    } catch (e) {
       // Saved either way: the note lives in the session store, and a rebuild recovers the index.
+      log.warn('search', 'could not index a note', { error: errorMessage(e) })
     }
   }
 
@@ -155,7 +164,8 @@ export class SearchService {
     // A background pass may already be walking the sessions. Let it finish first: clearing the
     // index underneath it would leave whatever it had already walked past missing afterwards, and
     // `ApiaryApi.searchRebuild` promises the index is fully rebuilt once it resolves.
-    if (this.indexPass) await this.indexPass.catch(() => {})
+    // `runSearchIndexPass` logs its own failure, so the pass promise never rejects.
+    if (this.indexPass) await this.indexPass
     this.index().clear()
     // Notes come back from the store immediately; transcripts are the slow part and are left to
     // the pass below.
@@ -185,7 +195,12 @@ export class SearchService {
     // Notes are kept in step by whoever changes them, but a pass is also where a note written
     // before indexing was switched on gets picked up.
     if (this.searchSessionNotes && !this.isDisposed()) {
-      try { this.syncNoteIndex() } catch { /* Derived data; the next pass tries again. */ }
+      try {
+        this.syncNoteIndex()
+      } catch (e) {
+        // Derived data; the next pass tries again.
+        log.warn('search', 'could not sync the note index', { error: errorMessage(e) })
+      }
     }
     if (!this.searchChatContent || this.indexPass || this.isDisposed()) return
     await this.runSearchIndexPass()
@@ -205,8 +220,9 @@ export class SearchService {
           this.index(), sessions, () => this.isDisposed() || !this.searchChatContent,
         )
         if (result.indexed > 0 && !this.isDisposed()) this.onIndexUpdated?.()
-      } catch {
+      } catch (e) {
         // A failed pass leaves the index as it was; the next refresh tries again.
+        log.warn('search', 'index pass failed', { error: errorMessage(e) })
       }
     })()
     this.indexPass = pass

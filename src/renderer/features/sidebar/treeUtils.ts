@@ -1,18 +1,4 @@
-import type { ProjectNode, SessionNode } from '@shared/types'
-
-/** How many sessions the tree holds, at any depth. */
-export function countSessions(nodes: ProjectNode[]): number {
-  return nodes.reduce((n, node) => n + node.sessions.length + countSessions(node.children), 0)
-}
-
-/** Every session anywhere in the tree, flattened, so pinned ids can be resolved back to rows. */
-export function flattenSessions(nodes: ProjectNode[], into = new Map<string, SessionNode>()): Map<string, SessionNode> {
-  for (const node of nodes) {
-    for (const s of node.sessions) into.set(s.sessionId, s)
-    flattenSessions(node.children, into)
-  }
-  return into
-}
+import type { ProjectNode } from '@shared/types'
 
 /**
  * Each session's *folder* branch, by session id.

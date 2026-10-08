@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { PetSpec } from '@shared/pets/spec'
 import type { PetImages, PropImages } from './render'
 import type { FromRenderer, ToRenderer } from './petRender.worker'
+import { testSeams } from '../../../state/testSeams'
 
 /**
  * Bump when the renderer's output changes (a part redrawn, the lighting), so saved renders from
@@ -73,7 +74,8 @@ async function save(key: string, images: PetImages | PropImages): Promise<void> 
       rows.sort((a, b) => b.at - a.at)
       for (const r of rows.slice(KEEP)) store.delete(r.key)
     }
-  } catch { /* only a cache */ }
+  // eslint-disable-next-line apiary/no-silent-catch -- IndexedDB can be blocked or full; this is only a cache
+  } catch { /* see above */ }
 }
 
 // -- the worker
@@ -123,7 +125,7 @@ let props: Promise<PropImages | null> | null = null
 
 /** The props and scenery, rendered once for every pet (and kept across launches). */
 export function renderProps(): Promise<PropImages | null> {
-  if ((globalThis as Record<string, unknown>)[FLAT_FLAG] === true) return Promise.resolve(null)
+  if (testSeams().petsFlat === true) return Promise.resolve(null)
   const key = `v${String(RENDER_VERSION)}:props`
   props ??= loadSaved<PropImages>(key).then(async (saved) => {
     if (saved !== null) return saved
@@ -146,16 +148,14 @@ export function useProps(): PropImages | null {
 }
 
 /**
- * Test seam: component tests draw pets flat. Their WebGL is software rendering, slow enough to
- * starve the tests running beside it; the tests about the 3D renderer switch it back on. On
- * `globalThis` because a test module and the app may be loaded as separate module instances.
+ * Test seam (`petsFlat` in state/testSeams.ts): component tests draw pets flat. Their WebGL is
+ * software rendering, slow enough to starve the tests running beside it; the tests about the 3D
+ * renderer switch it back on.
  */
-const FLAT_FLAG = '__apiaryPetsFlat'
-export function drawPetsFlat(on: boolean): void { (globalThis as Record<string, unknown>)[FLAT_FLAG] = on }
 
 /** Renders a pet once per look (saved across launches); null when 3D is not available here. */
 export function renderPet(spec: PetSpec): Promise<PetImages | null> {
-  if ((globalThis as Record<string, unknown>)[FLAT_FLAG] === true) return Promise.resolve(null)
+  if (testSeams().petsFlat === true) return Promise.resolve(null)
   const key = lookKey(spec)
   const known = cache.get(key)
   if (known !== undefined) return known

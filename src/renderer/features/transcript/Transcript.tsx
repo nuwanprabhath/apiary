@@ -1,13 +1,17 @@
 import { type JSX, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SessionNode, TranscriptMessage } from '@shared/types'
 import type { ChatDecision, ChatState } from '@shared/domain/chat'
-import { chatItems, latestTurn, mergeLive, runningBackgroundTasks, stillQueued } from '@shared/chatTimeline'
+import { chatItems, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withoutToolCalls } from '@shared/chatTimeline'
 import { ChatTimeline } from '../chat/ChatTimeline'
 import { ChatStatus, type ChatStatusInfo } from '../chat/ChatStatus'
 import { useCopyOnSelect } from '../chat/useCopyOnSelect'
 import { MessageRow } from './MessageRow'
 import { mergeLatestPage } from '../../state/transcriptMerge'
+import { treeStore } from '../../state/treeStore'
+import { useToolIoHidden } from '../../state/toolIoView'
 import { describeError, type DescribedError } from '../../ui/errors'
+import { loadTranscript } from '../../state/transcript'
+import { logBackgroundFailure } from '../../ui/fireAndForget'
 
 // How close to the bottom (in pixels) counts as being at it, for following new content again.
 // Deliberately tight: this used to be 64px, and a trackpad scrolls up a few pixels per event — so
@@ -102,8 +106,7 @@ export function Transcript({
     loadingRef.current = true
     setError(null)
     setMessages([])
-    window.apiary
-      .transcript(session.sessionId)
+    loadTranscript(session.sessionId)
       .then((page) => {
         if (cancelled) return
         // Force the post-render scroll-to-bottom once these messages actually paint — see the
@@ -201,7 +204,7 @@ export function Transcript({
   // session's latest page and merge in whatever's new. Subscribed once per session visit.
   useEffect(() => {
     const requestedSessionId = session.sessionId
-    const unsubscribe = window.apiary.onTreeChanged(() => {
+    const unsubscribe = treeStore.onChanged(() => {
       // Don't refresh while the initial load is still in flight (its own response will already
       // contain the freshest tail) or while a previous refresh hasn't resolved yet.
       if (loadingRef.current || refreshingRef.current) return
@@ -209,8 +212,7 @@ export function Transcript({
       // though this callback is registered once per session and invoked repeatedly.
       const requestedGeneration = generationRef.current
       refreshingRef.current = true
-      window.apiary
-        .transcript(requestedSessionId)
+      loadTranscript(requestedSessionId)
         .then((page) => {
           // Same staleness guard `loadEarlier` uses: a refresh that resolves after the user has
           // navigated away from (or back around to) this session must not touch state that now
@@ -226,13 +228,10 @@ export function Transcript({
           // earlier messages" (either resetting a cursor the user already paged past, or losing
           // the running skipped-line count).
         })
-        .catch(() => {
-          // The user is looking at a perfectly good transcript already; a background refresh
-          // failing (e.g. a transient read error while the file is mid-write) is not something
-          // they need to see or be interrupted by. Swallow it — the next `onTreeChanged` firing
-          // will simply try again. (Unlike the initial load or `loadEarlier`, there is no
-          // "loading earlier" state.)
-        })
+        // The user is looking at a perfectly good transcript already; a background refresh failing
+        // (a transient read error while the file is mid-write) is logged, not shown: the next
+        // tree change tries again.
+        .catch((e: unknown) => { logBackgroundFailure(e, 'refresh') })
         .finally(() => { refreshingRef.current = false })
     })
     return unsubscribe
@@ -244,8 +243,7 @@ export function Transcript({
     const requestedGeneration = generationRef.current
     loadingEarlierRef.current = true
     setLoadingEarlier(true)
-    void window.apiary
-      .transcript(requestedSessionId, cursor)
+    void loadTranscript(requestedSessionId, cursor)
       .then((page) => {
         // Stale response for a generation (session visit) the user has since navigated away
         // from — including a round trip back to the same session id — drop it rather than
@@ -269,18 +267,19 @@ export function Transcript({
   // UI-8: filtering on every render built a fresh array even when nothing about `messages` or
   // `showSidechain` had changed — cheap for one render, but this list only grows, and a filter
   // over the whole thing ran on every unrelated re-render of `Transcript` too.
-  const visibleMessages = useMemo(
-    () => (showSidechain ? messages : messages.filter((m) => !m.isSidechain)),
-    [messages, showSidechain],
-  )
+  const { hidden: hideTools, toggle: toggleTools } = useToolIoHidden()
+  const visibleMessages = useMemo(() => {
+    const shown = showSidechain ? messages : messages.filter((m) => !m.isSidechain)
+    return hideTools ? withoutToolCalls(shown) : shown
+  }, [messages, showSidechain, hideTools])
 
   // Chat view: the file's messages plus whatever the chat has streamed that the file has not caught
   // up with yet (matched by uuid, so nothing shows twice).
   const items = useMemo(() => {
     if (!chatMode) return []
     const live = (chat?.live ?? []).filter((m) => showSidechain || !m.isSidechain)
-    return chatItems(mergeLive(visibleMessages, live))
-  }, [chatMode, chat?.live, visibleMessages, showSidechain])
+    return chatItems(mergeLive(visibleMessages, hideTools ? withoutToolCalls(live) : live))
+  }, [chatMode, chat?.live, visibleMessages, showSidechain, hideTools])
   const queued = useMemo(() => stillQueued(chat?.queued ?? [], messages), [chat?.queued, messages])
 
   // The line above the message box: background tasks still running (claude's own list while it
@@ -354,6 +353,15 @@ export function Transcript({
             onChange={(e) => setShowSidechain(e.target.checked)}
           />
           Show subagent messages
+        </label>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            data-testid="tool-io-toggle"
+            checked={hideTools}
+            onChange={toggleTools}
+          />
+          Hide tool calls
         </label>
         {skipped > 0 && (
           <span className="muted" data-testid="transcript-skipped">

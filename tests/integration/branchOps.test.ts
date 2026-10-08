@@ -3,16 +3,15 @@ import { mkdtempSync, rmSync, writeFileSync, realpathSync, readFileSync } from '
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { git, commitFile as commit, initRepo, setIdentity } from '../fixtures/gitRepo'
-import {
-  status, listRefs, checkoutBranch, checkoutRemote, checkoutDetached, createBranch, pull, pullFastForward, push, merge, fetch, parseWorktreeList, isWorktreeConflict, worktreeForBranch, listWorktrees, updateBranch, addWorktree, listBranchNames,
-  branchOpsSpawnCount, resetBranchOpsSpawnCount,
-} from '../../src/main/git/branchOps'
+import { BranchOps, createBranchExec, parseWorktreeList, isWorktreeConflict } from '../../src/main/git/branchOps'
 import type { GitStatus } from '@shared/types'
+
+const ops = new BranchOps({ exec: createBranchExec() })
 
 /** `status()` returns `GitStatus | null` (MAIN-9: null means "not a repository", an outcome these
  *  tests never exercise via this helper — see the dedicated non-git-directory test below). */
 async function requireStatus(cwd: string): Promise<GitStatus> {
-  const s = await status(cwd)
+  const s = await ops.status(cwd)
   if (s === null) throw new Error('expected a git status, got null (not a repository?)')
   return s
 }
@@ -58,7 +57,7 @@ describe('status', () => {
   it('resolves null when pointed at a non-git directory, rather than rejecting (MAIN-9)', async () => {
     const nonGitDir = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-branchops-nonrepo-')))
     try {
-      await expect(status(nonGitDir)).resolves.toBeNull()
+      await expect(ops.status(nonGitDir)).resolves.toBeNull()
     } finally {
       rmSync(nonGitDir, { recursive: true, force: true })
     }
@@ -66,9 +65,9 @@ describe('status', () => {
 
   describe('spawn count (MAIN-9: measured before fixing)', () => {
     it('costs 2 git spawns for a branch with no upstream (was up to 3)', async () => {
-      resetBranchOpsSpawnCount()
-      await status(repo)
-      expect(branchOpsSpawnCount()).toBe(2)
+      ops.resetSpawnCount()
+      await ops.status(repo)
+      expect(ops.spawnCount()).toBe(2)
     })
 
     it('costs 2 git spawns for a branch with an upstream (was 4)', async () => {
@@ -76,19 +75,19 @@ describe('status', () => {
       git(remote, 'init', '-q', '--bare', '-b', 'main')
       git(repo, 'remote', 'add', 'origin', remote)
       git(repo, 'push', '-q', '-u', 'origin', 'main')
-      resetBranchOpsSpawnCount()
+      ops.resetSpawnCount()
       const s = await requireStatus(repo)
       expect(s.hasUpstream).toBe(true)
-      expect(branchOpsSpawnCount()).toBe(2)
+      expect(ops.spawnCount()).toBe(2)
       rmSync(remote, { recursive: true, force: true })
     })
 
     it('costs 2 git spawns for a detached HEAD (was 2, but always via the abbrev-ref path)', async () => {
       const sha = git(repo, 'rev-parse', 'HEAD').trim()
       git(repo, 'checkout', '-q', '--detach', sha)
-      resetBranchOpsSpawnCount()
-      await status(repo)
-      expect(branchOpsSpawnCount()).toBe(2)
+      ops.resetSpawnCount()
+      await ops.status(repo)
+      expect(ops.spawnCount()).toBe(2)
     })
   })
 })
@@ -102,7 +101,7 @@ describe('listRefs', () => {
     git(repo, 'remote', 'add', 'origin', remote)
     git(repo, 'push', '-q', 'origin', 'main')
 
-    const refs = await listRefs(repo)
+    const refs = await ops.listRefs(repo)
     expect(refs.current).toBe('main')
     expect(refs.local.map((r) => r.name)).toEqual(expect.arrayContaining(['main', 'feature/x']))
     expect(refs.remote.map((r) => r.name)).toEqual(expect.arrayContaining(['origin/main']))
@@ -115,26 +114,74 @@ describe('listRefs', () => {
   })
 })
 
+/** A clone whose `origin/HEAD` exists, the state git >= 2.48 creates itself (`followRemoteHEAD`) and
+ *  every older git creates on `clone`. `git for-each-ref --format=%(refname:short)` prints that
+ *  symbolic ref as a bare `origin`, which is what the branch lists used to offer as a branch. */
+function repoWithOriginHead(): { remote: string; cleanup: () => void } {
+  const remote = mkdtempSync(join(tmpdir(), 'apiary-branchops-remote-head-'))
+  git(remote, 'init', '-q', '--bare', '-b', 'main')
+  git(repo, 'remote', 'add', 'origin', remote)
+  git(repo, 'branch', 'feature/x')
+  git(repo, 'push', '-q', 'origin', 'main', 'feature/x')
+  git(repo, 'fetch', '-q')
+  git(repo, 'remote', 'set-head', 'origin', 'main')
+  expect(git(repo, 'symbolic-ref', 'refs/remotes/origin/HEAD').trim()).toBe('refs/remotes/origin/main')
+  return { remote, cleanup: () => rmSync(remote, { recursive: true, force: true }) }
+}
+
+describe('remote branch lists with origin/HEAD set', () => {
+  it('listRefs offers the remote branches and not the origin/HEAD alias', async () => {
+    const { cleanup } = repoWithOriginHead()
+    try {
+      const names = (await ops.listRefs(repo)).remote.map((r) => r.name)
+      expect(names.sort()).toEqual(['origin/feature/x', 'origin/main'])
+    } finally { cleanup() }
+  })
+
+  it('listBranchNames (the New worktree dialog) offers the same', async () => {
+    const { cleanup } = repoWithOriginHead()
+    try {
+      const { local, remote } = await ops.listBranchNames(repo)
+      expect(remote.sort()).toEqual(['origin/feature/x', 'origin/main'])
+      expect(local.sort()).toEqual(['feature/x', 'main'])
+    } finally { cleanup() }
+  })
+
+  it('names are full refnames minus the namespace, even when a local branch shadows a remote one', async () => {
+    const { cleanup } = repoWithOriginHead()
+    try {
+      // git shortens an ambiguous ref to `heads/origin/main` / `remotes/origin/main`.
+      git(repo, 'branch', 'origin/main')
+      const refs = await ops.listRefs(repo)
+      expect(refs.local.map((r) => r.name).sort()).toEqual(['feature/x', 'main', 'origin/main'])
+      expect(refs.remote.map((r) => r.name).sort()).toEqual(['origin/feature/x', 'origin/main'])
+      const names = await ops.listBranchNames(repo)
+      expect(names.local.sort()).toEqual(['feature/x', 'main', 'origin/main'])
+      expect(names.remote.sort()).toEqual(['origin/feature/x', 'origin/main'])
+    } finally { cleanup() }
+  })
+})
+
 describe('checkoutBranch / createBranch', () => {
   it('checks out an existing local branch', async () => {
     git(repo, 'branch', 'feature/x')
-    await checkoutBranch(repo, 'feature/x')
+    await ops.checkoutBranch(repo, 'feature/x')
     expect((await requireStatus(repo)).branch).toBe('feature/x')
   })
 
   it('rejects an unknown branch with git\'s own error text', async () => {
-    await expect(checkoutBranch(repo, 'nope')).rejects.toThrow(/nope/)
+    await expect(ops.checkoutBranch(repo, 'nope')).rejects.toThrow(/nope/)
   })
 
   it('creates a new branch from HEAD', async () => {
-    await createBranch(repo, 'feature/new')
+    await ops.createBranch(repo, 'feature/new')
     expect((await requireStatus(repo)).branch).toBe('feature/new')
   })
 
   it('creates a new branch from a given ref', async () => {
     git(repo, 'branch', 'base')
     commit(repo, 'b.txt', 'on main only')
-    await createBranch(repo, 'from-base', 'base')
+    await ops.createBranch(repo, 'from-base', 'base')
     expect((await requireStatus(repo)).branch).toBe('from-base')
     expect(git(repo, 'log', '--oneline').trim().split('\n')).toHaveLength(1) // only the init commit
   })
@@ -143,7 +190,7 @@ describe('checkoutBranch / createBranch', () => {
   // remote can still hand back a ref that starts with one, and a checkout of it would be parsed
   // as a flag instead of a ref name.
   it('rejects a ref name that looks like a flag, rather than parsing it as one', async () => {
-    await expect(checkoutBranch(repo, '--orphan=x')).rejects.toThrow(/looks like an option/i)
+    await expect(ops.checkoutBranch(repo, '--orphan=x')).rejects.toThrow(/looks like an option/i)
     // No orphan branch was created — the option was never interpreted as one.
     expect((await requireStatus(repo)).branch).toBe('main')
   })
@@ -161,7 +208,7 @@ describe('checkoutBranch / createBranch', () => {
     // ref exists — which discards local edits to a file of that name. The trailing `--` on
     // checkoutBranch's own args rules that out.
     writeFileSync(join(repo, 'README.md'), 'locally edited, uncommitted')
-    await expect(checkoutBranch(repo, 'README.md')).rejects.toThrow()
+    await expect(ops.checkoutBranch(repo, 'README.md')).rejects.toThrow()
     expect(readFileSync(join(repo, 'README.md'), 'utf8')).toBe('locally edited, uncommitted')
   })
 })
@@ -175,7 +222,7 @@ describe('checkoutRemote / checkoutDetached', () => {
     git(repo, 'checkout', '-q', '-b', 'throwaway')
     git(repo, 'fetch', '-q')
 
-    await checkoutRemote(repo, 'origin/main', 'main-local')
+    await ops.checkoutRemote(repo, 'origin/main', 'main-local')
     expect((await requireStatus(repo)).branch).toBe('main-local')
     expect((await requireStatus(repo)).hasUpstream).toBe(true)
     rmSync(remote, { recursive: true, force: true })
@@ -183,7 +230,7 @@ describe('checkoutRemote / checkoutDetached', () => {
 
   it('checks out a tag detached', async () => {
     git(repo, 'tag', 'v1.0.0')
-    await checkoutDetached(repo, 'v1.0.0')
+    await ops.checkoutDetached(repo, 'v1.0.0')
     expect((await requireStatus(repo)).branch).toBeNull()
   })
 })
@@ -203,9 +250,9 @@ describe('pull / push', () => {
     git(clone, 'push', '-q')
 
     // The count is what the notification shows; a second pull has nothing to bring.
-    expect(await pull(repo)).toEqual({ commits: 2 })
+    expect(await ops.pull(repo)).toEqual({ commits: 2 })
     expect(git(repo, 'log', '--oneline')).toContain('pushed from clone')
-    expect(await pull(repo)).toEqual({ commits: 0 })
+    expect(await ops.pull(repo)).toEqual({ commits: 0 })
     rmSync(remote, { recursive: true, force: true })
     rmSync(clone, { recursive: true, force: true })
   })
@@ -217,17 +264,17 @@ describe('pull / push', () => {
 
     commit(repo, 'second.txt', 'second')
     // Publishing: both commits are new to every remote.
-    expect(await push(repo)).toEqual({ commits: 2, published: true })
+    expect(await ops.push(repo)).toEqual({ commits: 2, published: true })
     expect((await requireStatus(repo)).hasUpstream).toBe(true)
 
     commit(repo, 'third.txt', 'third')
-    expect(await push(repo)).toEqual({ commits: 1, published: false })
-    expect(await push(repo)).toEqual({ commits: 0, published: false })
+    expect(await ops.push(repo)).toEqual({ commits: 1, published: false })
+    expect(await ops.push(repo)).toEqual({ commits: 0, published: false })
     rmSync(remote, { recursive: true, force: true })
   })
 
   it('rejects push with git\'s own error text when there is no remote at all', async () => {
-    await expect(push(repo)).rejects.toThrow(/does not appear to be a git repository|No configured push destination/i)
+    await expect(ops.push(repo)).rejects.toThrow(/does not appear to be a git repository|No configured push destination/i)
   })
 
   it('surfaces the real CONFLICT text (from stdout) on a conflicting pull, not the harmless stderr fetch-progress line', async () => {
@@ -253,7 +300,7 @@ describe('pull / push', () => {
     git(repo, 'add', '.')
     git(repo, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'conflicting change from repo')
 
-    await expect(pull(repo)).rejects.toThrow(/conflict/i)
+    await expect(ops.pull(repo)).rejects.toThrow(/conflict/i)
 
     rmSync(remote, { recursive: true, force: true })
     rmSync(other, { recursive: true, force: true })
@@ -266,8 +313,8 @@ describe('merge', () => {
     commit(repo, 'feature.txt', 'work on feature')
     const featureSha = git(repo, 'rev-parse', 'HEAD').trim()
 
-    await checkoutBranch(repo, 'main')
-    await merge(repo, 'feature')
+    await ops.checkoutBranch(repo, 'main')
+    await ops.merge(repo, 'feature')
 
     // After merging feature into main, main should point to the same commit as feature
     const mainSha = git(repo, 'rev-parse', 'HEAD').trim()
@@ -293,13 +340,13 @@ describe('merge', () => {
     // Create a conflicting change in repo
     git(repo, 'fetch', '-q')
     git(repo, 'branch', 'feature')
-    await checkoutBranch(repo, 'feature')
+    await ops.checkoutBranch(repo, 'feature')
     writeFileSync(join(repo, 'README.md'), 'change from feature')
     git(repo, 'add', '.')
     git(repo, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'conflicting commit from feature')
 
     // Try to merge the remote change — should fail with CONFLICT in the error
-    await expect(merge(repo, 'origin/main')).rejects.toThrow(/conflict/i)
+    await expect(ops.merge(repo, 'origin/main')).rejects.toThrow(/conflict/i)
 
     // Verify the repo is left mid-merge (MERGE_HEAD exists), not auto-aborted. `git` throws on a
     // non-zero exit, so a missing MERGE_HEAD fails the test on its own with git's own message.
@@ -338,12 +385,12 @@ describe('pullFastForward', () => {
     commit(other, 'two.txt', 'second upstream commit')
     git(other, 'push', '-q')
 
-    expect(await pullFastForward(repo)).toEqual({ commits: 2 })
+    expect(await ops.pullFastForward(repo)).toEqual({ commits: 2 })
     expect(git(repo, 'log', '-1', '--format=%s').trim()).toBe('second upstream commit')
   })
 
   it('reports zero, rather than a success that did nothing, when already up to date', async () => {
-    expect(await pullFastForward(repo)).toEqual({ commits: 0 })
+    expect(await ops.pullFastForward(repo)).toEqual({ commits: 0 })
   })
 
   it('refuses a branch that has diverged, and leaves it exactly where it was — no merge commit', async () => {
@@ -352,7 +399,7 @@ describe('pullFastForward', () => {
     commit(repo, 'mine.txt', 'local work')
     const before = git(repo, 'rev-parse', 'HEAD').trim()
 
-    await expect(pullFastForward(repo)).rejects.toThrow(/fast-forward/i)
+    await expect(ops.pullFastForward(repo)).rejects.toThrow(/fast-forward/i)
     expect(git(repo, 'rev-parse', 'HEAD').trim()).toBe(before)
     expect(git(repo, 'status', '--porcelain').trim()).toBe('')
   })
@@ -362,7 +409,7 @@ describe('pullFastForward', () => {
     git(other, 'push', '-q')
     writeFileSync(join(repo, 'README.md'), 'my unsaved edit')
 
-    await expect(pullFastForward(repo)).rejects.toThrow()
+    await expect(ops.pullFastForward(repo)).rejects.toThrow()
     expect(readFileSync(join(repo, 'README.md'), 'utf8')).toBe('my unsaved edit')
   })
 })
@@ -382,7 +429,7 @@ describe('fetch', () => {
     git(other, 'push', '-q')
 
     // Fetch from the remote in repo — should pick up the new commit
-    await fetch(repo)
+    await ops.fetch(repo)
 
     // Verify the remote-tracking branch now points to the new commit
     const originMainSha = git(repo, 'rev-parse', 'origin/main').trim()
@@ -460,22 +507,22 @@ describe('a branch checked out in another worktree', () => {
   it('is found by branch name, without reading it out of git\'s error message', async () => {
     const path = addWorktree('dev/1.0.12')
     try {
-      expect(await worktreeForBranch(repo, 'dev/1.0.12')).toBe(path)
+      expect(await ops.worktreeForBranch(repo, 'dev/1.0.12')).toBe(path)
     } finally {
       git(repo, 'worktree', 'remove', '--force', path)
     }
   })
 
   it('answers null for a branch that is not checked out anywhere else', async () => {
-    await createBranch(repo, 'unused', 'main')
-    await checkoutBranch(repo, 'main')
-    expect(await worktreeForBranch(repo, 'unused')).toBeNull()
+    await ops.createBranch(repo, 'unused', 'main')
+    await ops.checkoutBranch(repo, 'main')
+    expect(await ops.worktreeForBranch(repo, 'unused')).toBeNull()
   })
 
   it('reports the real refusal, so the app can tell this case from a typo', async () => {
     const path = addWorktree('dev/1.0.12')
     try {
-      const message = await checkoutBranch(repo, 'dev/1.0.12').then(() => '', (e: Error) => e.message)
+      const message = await ops.checkoutBranch(repo, 'dev/1.0.12').then(() => '', (e: Error) => e.message)
       expect(message).not.toBe('')
       expect(isWorktreeConflict(message)).toBe(true)
     } finally {
@@ -486,7 +533,7 @@ describe('a branch checked out in another worktree', () => {
   it('lists the main worktree alongside the added one', async () => {
     const path = addWorktree('dev/1.0.12')
     try {
-      const all = await listWorktrees(repo)
+      const all = await ops.listWorktrees(repo)
       expect(all.map((w) => w.branch).sort()).toEqual(['dev/1.0.12', 'main'])
       expect(all.map((w) => w.path)).toContain(repo)
     } finally {
@@ -518,7 +565,7 @@ describe('updateBranch — the branch list\'s pull button', () => {
   afterEach(() => { rmSync(remote, { recursive: true, force: true }); rmSync(other, { recursive: true, force: true }) })
 
   it('fast-forwards a branch that is not checked out, without touching the working tree', async () => {
-    const { commits } = await updateBranch(repo, 'feature/x')
+    const { commits } = await ops.updateBranch(repo, 'feature/x')
     expect(commits).toBe(2)
     expect(git(repo, 'rev-parse', 'feature/x').trim()).toBe(git(repo, 'rev-parse', 'origin/feature/x').trim())
     expect(git(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('main')
@@ -526,8 +573,8 @@ describe('updateBranch — the branch list\'s pull button', () => {
 
   it('pulls the current branch with a fast-forward', async () => {
     git(repo, 'checkout', '-q', 'feature/x')
-    expect((await updateBranch(repo, 'feature/x')).commits).toBe(2)
-    expect((await updateBranch(repo, 'feature/x')).commits).toBe(0)
+    expect((await ops.updateBranch(repo, 'feature/x')).commits).toBe(2)
+    expect((await ops.updateBranch(repo, 'feature/x')).commits).toBe(0)
   })
 
   it('refuses, changing nothing, when the branch has commits the remote does not', async () => {
@@ -535,19 +582,19 @@ describe('updateBranch — the branch list\'s pull button', () => {
     commit(repo, 'mine.txt', 'mine')
     git(repo, 'checkout', '-q', 'main')
     const before = git(repo, 'rev-parse', 'feature/x').trim()
-    await expect(updateBranch(repo, 'feature/x')).rejects.toThrow(/can't be fast-forwarded|cannot be fast-forwarded/i)
+    await expect(ops.updateBranch(repo, 'feature/x')).rejects.toThrow(/can't be fast-forwarded|cannot be fast-forwarded/i)
     expect(git(repo, 'rev-parse', 'feature/x').trim()).toBe(before)
   })
 
   it('says so when the branch has no upstream', async () => {
     git(repo, 'branch', 'local-only')
-    await expect(updateBranch(repo, 'local-only')).rejects.toThrow(/no upstream/i)
+    await expect(ops.updateBranch(repo, 'local-only')).rejects.toThrow(/no upstream/i)
   })
 
   it('pulls a branch checked out in another worktree in that worktree', async () => {
     const wt = join(realpathSync(tmpdir()), `apiary-branchops-wt-${String(Date.now())}`)
     git(repo, 'worktree', 'add', '-q', wt, 'feature/x')
-    expect((await updateBranch(repo, 'feature/x')).commits).toBe(2)
+    expect((await ops.updateBranch(repo, 'feature/x')).commits).toBe(2)
     expect(git(wt, 'rev-parse', 'HEAD').trim()).toBe(git(repo, 'rev-parse', 'origin/feature/x').trim())
     git(repo, 'worktree', 'remove', '--force', wt)
   })
@@ -560,7 +607,7 @@ describe('addWorktree — the New worktree dialog', () => {
   it('checks out an existing local branch in a new folder', async () => {
     git(repo, 'branch', 'feature')
     const target = join(wtDir(), 'feature-wt')
-    await addWorktree(repo, target, { kind: 'local', branch: 'feature' }, ['main', 'feature'])
+    await ops.addWorktree(repo, target, { kind: 'local', branch: 'feature' }, ['main', 'feature'])
     expect((await requireStatus(target)).branch).toBe('feature')
   })
 
@@ -568,12 +615,12 @@ describe('addWorktree — the New worktree dialog', () => {
     git(repo, 'branch', 'base')
     commit(repo, 'b.txt', 'on main only')
     const fromBase = join(wtDir(), 'from-base')
-    await addWorktree(repo, fromBase, { kind: 'new', branch: 'topic', from: 'base' }, ['main', 'base'])
+    await ops.addWorktree(repo, fromBase, { kind: 'new', branch: 'topic', from: 'base' }, ['main', 'base'])
     expect((await requireStatus(fromBase)).branch).toBe('topic')
     expect(git(fromBase, 'log', '--oneline').trim().split('\n')).toHaveLength(1)
 
     const fromHead = join(wtDir(), 'from-head')
-    await addWorktree(repo, fromHead, { kind: 'new', branch: 'topic2' }, ['main', 'base', 'topic'])
+    await ops.addWorktree(repo, fromHead, { kind: 'new', branch: 'topic2' }, ['main', 'base', 'topic'])
     expect(git(fromHead, 'log', '--oneline').trim().split('\n')).toHaveLength(2)
   })
 
@@ -587,10 +634,10 @@ describe('addWorktree — the New worktree dialog', () => {
       git(repo, 'checkout', '-q', 'main')
       git(repo, 'branch', '-D', 'shared')
       git(repo, 'fetch', '-q')
-      expect((await listBranchNames(repo)).remote).toEqual(expect.arrayContaining(['origin/shared', 'origin/main']))
+      expect((await ops.listBranchNames(repo)).remote).toEqual(expect.arrayContaining(['origin/shared', 'origin/main']))
 
       const tracking = join(wtDir(), 'shared')
-      await addWorktree(repo, tracking, { kind: 'remote', ref: 'origin/shared' }, ['main'])
+      await ops.addWorktree(repo, tracking, { kind: 'remote', ref: 'origin/shared' }, ['main'])
       const s = await requireStatus(tracking)
       expect(s.branch).toBe('shared')
       expect(s.hasUpstream).toBe(true)
@@ -600,6 +647,6 @@ describe('addWorktree — the New worktree dialog', () => {
   })
 
   it('refuses a ref that looks like an option', async () => {
-    await expect(addWorktree(repo, join(wtDir(), 'x'), { kind: 'local', branch: '--orphan=x' }, [])).rejects.toThrow(/looks like an option/)
+    await expect(ops.addWorktree(repo, join(wtDir(), 'x'), { kind: 'local', branch: '--orphan=x' }, [])).rejects.toThrow(/looks like an option/)
   })
 })

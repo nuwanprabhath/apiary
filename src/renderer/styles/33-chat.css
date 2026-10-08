@@ -414,9 +414,9 @@
   border-radius: 50%;
   box-shadow: 0 0 0 1.5px var(--accent);
   content: "";
-  animation: chat-pulse 1.8s ease-out infinite;
+  animation: chat-status-pulse 1.8s ease-out infinite;
 }
-@keyframes chat-pulse {
+@keyframes chat-status-pulse {
   from { opacity: 0.9; transform: scale(1); }
   to { opacity: 0; transform: scale(2.6); }
 }

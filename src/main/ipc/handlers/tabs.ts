@@ -1,30 +1,25 @@
-import { app, BrowserWindow, webContents, type Event, type WebContents } from 'electron'
-import { CHANNELS, type TabTransfer } from '@shared/api'
+import { app, BrowserWindow, type Event } from 'electron'
+import { IPC } from '@shared/api'
 import type { AppService } from '../../appService'
 import { log } from '../../log/logger'
 import { broadcast } from '../../windows/broadcast'
 import { classifyActivity } from '@shared/activity'
 import { resolveReportLayout } from '../../windows/reportLayoutGuard'
-import { TabMover } from '../../windows/tabMover'
-import { ActivityBroadcaster } from '../../terminals/activityBroadcaster'
-import { PtyAttachments } from '../../windows/ptyAttachments'
-import { PtyDataCoalescer } from '../../terminals/ptyDataCoalescer'
+import { windowLifetimeWatcher } from '../../windows/windowAttachments'
+import type { IpcState } from '../ipcState'
 import { type TabRegistry, focusTab, type OpenTab } from '../../windows/tabRegistry'
 import type { SessionLayoutStore } from '../../windows/sessionLayoutStore'
 import type { LayoutFlushCoordinator } from '../../windows/layoutFlushCoordinator'
 import type { Handlers, Listeners } from '../registrar'
-
-/** How often, at most, the Active section's activity broadcast goes out while a pty is producing
- *  output. See `ActivityBroadcaster`. */
-const ACTIVITY_BROADCAST_MS = 500
+import { sendEvent } from '../../windows/sendEvent'
 
 export interface TabsDeps {
   service: AppService
+  state: Pick<IpcState, 'tabMover' | 'activity' | 'ptyAttachments' | 'ptyCoalescer'>
   sessionLayoutStore?: SessionLayoutStore | null
   layoutFlushCoordinator?: LayoutFlushCoordinator | null
   tabRegistry?: TabRegistry | null
   windowNumberFor?: (webContentsId: number) => number | null
-  openDetachedWindow?: (tab: TabTransfer, at: { x: number; y: number }) => number
 }
 
 type HandledKeys = 'reportLayout' | 'activeTabs' | 'focusTab' | 'tabDropped' | 'tabAdoptHere' | 'tabDetach'
@@ -39,52 +34,24 @@ export function tabsHandlers(deps: TabsDeps): {
   listeners: Pick<Listeners, ListenedKeys>
   dispose: () => void
 } {
-  const { service, sessionLayoutStore, layoutFlushCoordinator, tabRegistry, windowNumberFor, openDetachedWindow } = deps
+  const { service, sessionLayoutStore, layoutFlushCoordinator, tabRegistry, windowNumberFor } = deps
+  const { tabMover, activity, ptyAttachments: attachments, ptyCoalescer } = deps.state
 
-  /**
-   * Moving a session tab between windows, and coalescing pty activity into the Active section's
-   * broadcasts — both pulled out into their own unit-tested classes (MAIN-13 step 3). See
-   * `TabMover` and `ActivityBroadcaster` for why each is shaped the way it is.
-   */
-  const tabMover = new TabMover({
-    getWindows: () => BrowserWindow.getAllWindows(),
-    tabRegistry,
-    pty: service.pty,
-    openDetachedWindow,
-    windowNumberFor,
-  })
   const onWindowFocus = (_e: Event, win: BrowserWindow): void => { tabMover.rememberFocus(win.webContents.id) }
   app.on('browser-window-focus', onWindowFocus)
 
   // Not coalesced: a tab opening or closing is a user action, rare and immediately visible, and
   // delaying it by up to half a second would be felt.
-  tabRegistry?.onChange(() => broadcast(CHANNELS.activeTabsChanged))
+  tabRegistry?.onChange(() => broadcast(IPC.activeTabsChanged))
 
-  const activity = new ActivityBroadcaster({
-    onBroadcast: () => broadcast(CHANNELS.activeTabsChanged),
-    intervalMs: ACTIVITY_BROADCAST_MS,
-  })
   // Neither `PtyManager` nor `TabRegistry` can unsubscribe a listener today (MAIN-20, not in
   // scope here) — these subscriptions outlive a `dispose()` exactly as they did before this file
   // existed; a second `registerIpc` call in the same process (tests aside) would double them up.
-  const attachments = new PtyAttachments((wcId) => webContents.fromId(wcId) ?? null)
-  const watched = new WeakSet<WebContents>()
   /** Drops a window's attachments when it goes away or reloads (a reloaded renderer re-attaches
    *  as its views mount). Registered once per webContents, on its first attach. */
-  const watchLifetime = (wc: WebContents): void => {
-    if (watched.has(wc)) return
-    watched.add(wc)
-    const id = wc.id
-    wc.once('destroyed', () => { attachments.detachWindow(id) })
-    wc.on('did-start-navigation', (details) => {
-      if (details.isMainFrame && !details.isSameDocument) attachments.detachWindow(id)
-    })
-  }
-  const ptyCoalescer = new PtyDataCoalescer({
-    onFlush: (id, data) => { attachments.sendTo(id, CHANNELS.ptyData, id, data) },
-  })
+  const watchLifetime = windowLifetimeWatcher((id) => { attachments.detachWindow(id) })
   service.pty.onData((id, data) => ptyCoalescer.push(id, data))
-  service.pty.onExit((id, code) => broadcast(CHANNELS.ptyExit, id, code))
+  service.pty.onExit((id, code) => broadcast(IPC.ptyExit, id, code))
   // Activity coalescing still observes every raw chunk, not the coalesced flush — it only cares
   // that output happened, and the interval it broadcasts on (500ms) is coarser than the few
   // milliseconds `PtyDataCoalescer` ever delays a chunk by.
@@ -134,7 +101,7 @@ export function tabsHandlers(deps: TabsDeps): {
         if (target === null ? false : target.webContents.id === e.sender.id) return
 
         if (target !== null) {
-          target.webContents.send(CHANNELS.tabAdopt, tab)
+          sendEvent(target.webContents, IPC.tabAdopt, tab)
           tabMover.handOver(tab, tabMover.windowNumberFor(target.webContents.id))
           // Brought to the front: the tab is now there, and a move whose result is behind another
           // window looks exactly like a move that did not happen.
@@ -151,7 +118,7 @@ export function tabsHandlers(deps: TabsDeps): {
       tabAdoptHere: (e, tab) => {
         log.info('tabs', 'tab dropped on a strip in another window', { to: e.sender.id })
         tabMover.announceClaimed(tab.key, e.sender.id)
-        e.sender.send(CHANNELS.tabAdopt, tab)
+        sendEvent(e.sender, IPC.tabAdopt, tab)
         tabMover.handOver(tab, tabMover.windowNumberFor(e.sender.id))
       },
       tabDetach: (_e, tab, at) => {

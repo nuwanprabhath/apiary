@@ -33,8 +33,23 @@ export type StatusSection =
   }
   | { kind: 'line'; points: { label: string; value: number; title: string }[] }
 
+/**
+ * A question a plugin must have answered before it does something the user has not agreed to yet
+ * (today: reading Claude Code's sign-in token). The plugin supplies the words, the renderer draws
+ * one dialog for any plugin, and the answer goes back through `statusBarConsent`.
+ */
+export interface ConsentPrompt {
+  title: string
+  /** One paragraph each: what is read, where it is sent, what is and is not kept. */
+  lines: string[]
+  allow: string
+  deny: string
+}
+
 /** What clicking an item does. */
 export type StatusAction =
+  /** Asks the user's permission first (`ConsentPrompt`); the dialog opens by itself the first time. */
+  | { kind: 'consent'; prompt: ConsentPrompt }
   /** Opens the item's dashboard (`statusBarPanel`). */
   | { kind: 'panel' }
   /** Asks the plugin to refresh now. */

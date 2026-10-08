@@ -1,8 +1,10 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { PtyManager } from '../../src/main/pty/ptyManager'
+import { log } from '../../src/main/log/logger'
 
 let manager: PtyManager | null = null
 afterEach(async () => { await manager?.killAll(); manager = null })
@@ -10,6 +12,7 @@ afterEach(async () => { await manager?.killAll(); manager = null })
 function collect(m: PtyManager, id: string, until: RegExp, timeoutMs = 10000): Promise<string> {
   return new Promise((res, rej) => {
     let buffer = ''
+    // eslint-disable-next-line apiary/no-test-sleep -- a deadline that rejects with what was seen, cleared the moment the pattern arrives; not a sleep
     const timer = setTimeout(() => rej(new Error(`timeout, saw: ${buffer}`)), timeoutMs)
     m.onData((gotId, data) => {
       if (gotId !== id) return
@@ -27,11 +30,12 @@ describe('PtyManager', () => {
     try {
       manager = new PtyManager()
       const m = manager
-      const stopped = collect(m, 'stop', /STOPPING/)
-      m.spawn({ id: 'stop', cwd: dir, command: 'echo STOPPING; kill -STOP $$; echo APIARY_BACK' })
-      await stopped
+      const stopped = collect(m, 'stop', /STOPPING (\d+)/)
+      m.spawn({ id: 'stop', cwd: dir, command: 'echo STOPPING $$; kill -STOP $$; echo APIARY_BACK' })
+      const pid = /STOPPING (\d+)/.exec(await stopped)?.[1]
       const back = collect(m, 'stop', /APIARY_BACK/)
-      await new Promise((r) => { setTimeout(r, 300) })
+      // It has printed, but the SIGSTOP lands a moment later: resuming before that would be undone by it.
+      await vi.waitFor(() => { expect(execFileSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' }).trim()).toMatch(/^T/) })
       m.resume('stop')
       expect(await back).toMatch(/APIARY_BACK/)
     } finally {
@@ -115,6 +119,54 @@ describe('PtyManager', () => {
     await exited
     expect(m.screen('selfexit')).toBe('')
   })
+
+  it('a killed child\'s late exit does not touch the pty respawned under the same id (MAIN-6)', async () => {
+    // `kill()` returns at once but the old child's `onExit` arrives later; by then the id may be
+    // running a new child. The old exit used to delete the new entry's bookkeeping (so `has()`
+    // went false, the screen was disposed) and told every view the new pty had died.
+    manager = new PtyManager()
+    const m = manager
+    const logged = vi.spyOn(log, 'info')
+    const exits: number[] = []
+    m.onExit((id, code) => { if (id === 'respawn') exits.push(code) })
+    const oldReady = collect(m, 'respawn', /OLD_READY/)
+    // Takes 600ms to die after SIGHUP, so the respawn below lands first.
+    m.spawn({
+      id: 'respawn', cwd: process.cwd(), tui: true,
+      command: "trap 'sleep 0.6; exit 7' HUP; echo OLD_READY; while true; do sleep 0.05; done",
+    })
+    await oldReady
+    m.kill('respawn')
+    expect(m.has('respawn')).toBe(false)
+
+    const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
+    try {
+      const newReady = collect(m, 'respawn', /NEW_READY/)
+      m.spawn({
+        id: 'respawn', cwd: dir, tui: true,
+        command: 'echo NEW_READY; while true; do sleep 0.05; done',
+      })
+      await newReady
+      // The old child's exit has been delivered (logged first thing in its handler, which then
+      // runs to the end in the same turn).
+      await vi.waitFor(() => {
+        expect(logged).toHaveBeenCalledWith('pty', 'exited', { id: 'respawn', exitCode: 7 })
+      }, { timeout: 5000 })
+
+      expect(m.has('respawn')).toBe(true)
+      expect(m.getCwd('respawn')).toBe(dir)
+      expect(m.screen('respawn')).toContain('NEW_READY')
+      expect(m.screen('respawn')).not.toContain('OLD_READY')
+      expect(m.outputCount('respawn')).toBeGreaterThan(0)
+      expect(m.tuiPids().has('respawn')).toBe(true)
+      expect(exits).toEqual([])
+      expect(await m.snapshot('respawn')).not.toBeNull()
+    } finally {
+      logged.mockRestore()
+      await m.killAll()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 15000)
 
   it('throws when the cwd does not exist', () => {
     manager = new PtyManager()

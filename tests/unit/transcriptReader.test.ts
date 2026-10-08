@@ -11,16 +11,15 @@ vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFs>()
   return { ...actual, createReadStream: vi.fn(actual.createReadStream) }
 })
-import {
-  indexTranscript,
-  readTranscriptPage,
-  clearTranscriptCache,
-} from '../../src/main/transcript/transcriptReader'
+import { TranscriptReader } from '../../src/main/transcript/transcriptReader'
 
 let dir: string
+let reader: TranscriptReader
+const indexTranscript = (...args: Parameters<TranscriptReader['indexTranscript']>) => reader.indexTranscript(...args)
+const readTranscriptPage = (...args: Parameters<TranscriptReader['readTranscriptPage']>) => reader.readTranscriptPage(...args)
 const file = () => join(dir, 's.jsonl')
 
-beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'apiary-tr-')); clearTranscriptCache() })
+beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'apiary-tr-')); reader = new TranscriptReader() })
 afterEach(() => { rmSync(dir, { recursive: true, force: true }) })
 
 function write(lines: unknown[]): void {

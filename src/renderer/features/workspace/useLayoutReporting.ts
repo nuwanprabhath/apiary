@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { asPtyId } from '@shared/domain/ids'
 import { buildPersistedLayout } from '@shared/layoutReport'
 import { windowNumber as getWindowNumber } from '../../state/windowParams'
-import { useWorkspace } from './WorkspaceProvider'
+import { useWorkspace } from './useWorkspaceSelector'
+import { onRequestLayoutFlush, reportLayout, reportTabs } from '../../state/tabs'
 
 /**
  * Reports this window to main: the restorable layout (never for a torn-off window), the open tabs
@@ -31,8 +33,7 @@ export function useLayoutReporting(detached: string | null): void {
   reportLayoutNowRef.current = () => {
     const persistedLayout = buildPersistedLayout(layout, shellTabs, activeTerminal, ptyOverrides)
     const live = [...resumed].filter((id) => openKeys.has(id))
-    void window.apiary.reportLayout({ number: windowNumber, layout: persistedLayout, live })
-      .catch(() => { /* the next change tries again; nothing to show for a dropped report */ })
+    reportLayout({ number: windowNumber, layout: persistedLayout, live })
   }
 
   /**
@@ -51,12 +52,12 @@ export function useLayoutReporting(detached: string | null): void {
    */
   const reportTabsNowRef = useRef<() => void>(() => {})
   reportTabsNowRef.current = () => {
-    window.apiary.reportTabs(columns.flatMap((c) => c.tabs).map((t) => {
+    reportTabs(columns.flatMap((c) => c.tabs).map((t) => {
       const p = pending.get(t.key)
       return {
         key: t.key,
         view: t.view,
-        ptyId: resumed.has(t.key) ? (ptyOverrides.get(t.key) ?? t.key) : null,
+        ptyId: resumed.has(t.key) ? (ptyOverrides.get(t.key) ?? asPtyId(t.key)) : null,
         // What the tab bar shows for a tab with no session yet — Active, in any window, has no
         // other way to name it, and fell back to the raw `new:<uuid>` key.
         label: p === undefined ? null : (p.titleOverride ?? p.label),
@@ -95,6 +96,6 @@ export function useLayoutReporting(detached: string | null): void {
    */
   useEffect(() => {
     if (detached !== null) return
-    return window.apiary.onRequestLayoutFlush(() => { reportLayoutNowRef.current() })
+    return onRequestLayoutFlush(() => { reportLayoutNowRef.current() })
   }, [detached])
 }

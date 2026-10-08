@@ -1,11 +1,14 @@
 import { type JSX, useEffect, useRef, useState } from 'react'
 import type { ChatDecision, ChatPermissionRequest } from '@shared/domain/chat'
 import { describeTool } from '@shared/chatTimeline'
+import { focusUnlessTyping } from '../../ui/focusUnlessTyping'
 
 /**
  * Claude asking to use a tool, in the conversation where it asked — the extension's permission
  * prompt. "Yes", "Yes, don't ask again" (when Claude offered a rule for it), or "No" with an
- * optional note telling Claude what to do instead. The first button takes focus, so Enter allows.
+ * optional note telling Claude what to do instead. The first button takes focus, so Enter allows,
+ * unless you are typing: the card can arrive at any moment, and the Enter meant to send your message
+ * must not approve a tool. Then it is announced (`role="alert"`) and reached with Tab instead.
  */
 export function PermissionCard(
   { request, onDecide }: { request: ChatPermissionRequest; onDecide: (decision: ChatDecision) => void },
@@ -14,10 +17,10 @@ export function PermissionCard(
   const [denying, setDenying] = useState(false)
   const [reason, setReason] = useState('')
   const allowRef = useRef<HTMLButtonElement | null>(null)
-  useEffect(() => { allowRef.current?.focus({ preventScroll: true }) }, [])
+  useEffect(() => { focusUnlessTyping(allowRef.current) }, [])
 
   return (
-    <div className="chat-permission" data-testid="chat-permission" role="group" aria-label={`Allow ${request.toolName}?`}>
+    <div className="chat-permission" data-testid="chat-permission" role="alert" aria-label={`Allow ${request.toolName}?`}>
       <div className="chat-permission-title">
         Allow <strong>{request.toolName}</strong>{request.description !== '' ? ` — ${request.description}` : ''}?
       </div>
@@ -30,6 +33,7 @@ export function PermissionCard(
           <input
             className="chat-permission-reason"
             data-testid="chat-permission-reason"
+            // eslint-disable-next-line apiary/focus-unless-typing -- the user just clicked "No…" to write this note, so the field is what they asked for
             autoFocus
             placeholder="Tell Claude what to do instead (optional)"
             value={reason}

@@ -4,6 +4,144 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.34.0] - 2026-10-08
+
+### Added
+
+- **Hide tool calls in the Chat tab.** A "Hide tool calls" switch beside "Show subagent messages"
+  leaves out the boxes showing what Claude ran and what came back (Bash commands and their output,
+  file reads, edits), so the tab is what you said and what Claude said and you do not scroll past
+  them. It works in the chat view and in the plain transcript. The switch is for the window you are
+  looking at and is not saved; it holds as you change tabs, and a permission prompt still appears
+  when Claude needs an answer.
+- **Settings → General → "Hide tool calls in the chat"** sets where the switch starts. Off by
+  default, so tool calls are shown as before. Saving a different value takes effect at once, over
+  any use of the switch.
+
+### Changed (for contributors and agents)
+
+These came from running the `correct` skill on how an agent built the feature above.
+
+- **`createLocalStore`** (`src/renderer/state/`) is the store for in-memory, per-window state. The
+  feature's first version hand-wrote a listener set, and renamed its `subscribe` to get past the
+  duplicate-helper test. The new `apiary/stores-via-factory` rule keeps `useSyncExternalStore`
+  inside the store factories, and `state/CLAUDE.md` has a "Which store" table.
+- **The renderer's settings mirror is derived from the schema.** A new setting no longer needs
+  edits in `state/settingsStore.ts`.
+- **`npm run lint` runs the architecture tests** (`lint:guards`), and so does the Stop hook. The
+  duplicate the agent hit was caught only by `npm test`.
+- **A test checks that the version matches everywhere it is written:** `package.json`,
+  `package-lock.json` and the newest changelog heading.
+
+## [1.33.0] - 2026-10-08 (not released; shipped in 1.34.0)
+
+One sanctioned way to do each thing, checked by a machine rather than written down. This release
+follows `docs/reviews/2026-10-07-guardrails-review.md`, which checked the 2026-09-26 review against
+1.32.3. It found that rules a compiler, linter or test enforced held through five feature releases,
+and rules that lived only in prose did not. So 1.33.0 does three things. It turns each sanctioned way
+into a check whose error names the fix, with shrink-only baselines for older code. It reshapes the
+architecture so each check has one right answer. And it fixes the bugs the review found, each paired
+with the guard that should have caught it.
+
+### Security
+
+- **Claude usage asks before reading your Claude Code sign-in.** The status-bar plugin now asks once
+  before it reads Claude Code's token from the macOS Keychain or the credentials file. Nothing is
+  read and no request is sent until you allow it. The token goes only to Anthropic's usage endpoint
+  and is never logged or stored. Declining turns the plugin off, and switching it back on asks again.
+  Installs that already used it are asked once too (ADR-0019).
+- **Pasting into a terminal through Edit > Paste, Shift+Insert or middle-click strips escape
+  sequences**, including the bracketed-paste end marker, like the other paste paths.
+- **The IPC sender check rejects a message whose sender frame is gone**, instead of allowing it.
+- **Viewing a pasted image no longer follows a symlink out of the images folder.**
+- **Renderer test hooks are gone from the production renderer.** The one remaining test seam is
+  inert in a packaged build.
+
+### Fixed
+
+- **A permission prompt no longer takes the keyboard while you type.** Enter sends your message
+  instead of approving the tool. The prompt is announced and reachable with Tab, and "Yes" still
+  takes focus when you are not typing.
+- **The branch switcher and New worktree dialog no longer list a bogus "origin"** on git 2.48 and
+  later. A local branch named like a remote one is no longer shown as `heads/...`.
+- **Restarting a terminal could mark the new one as exited** and blank its screen when the old
+  process finished dying a moment later.
+- **A branch switched with `git checkout` outside Apiary shows in the sidebar** the next time that
+  folder refreshes, without waiting for a full rescan.
+- **A rendering error in one region no longer blanks the whole window.** This covers the title bar,
+  update banner, status bar, pets, theme effects, and the Arrange, New worktree and Change branch
+  dialogs. The failed region shows a short message with Try again, or nothing for the decorative
+  layers.
+- **A chat whose `claude` cannot start ends with an error**, instead of leaving the app unable to
+  quit cleanly.
+- **A stopped chat is announced as ended once.** Before, other windows could be told twice.
+- **An ended chat is released once no window shows it**, instead of staying in memory until quit.
+- **Pets and the update status could briefly show an older value** when a change arrived while the
+  first read was still in flight.
+- **Failures that used to do nothing now tell you.** This covers resizing or putting away a pet,
+  refreshing the status bar, an application-menu item, a session-bar plugin action, opening or
+  clearing the log folder, and rebuilding the search index. Every copy button now reports "Could not
+  copy" the same way.
+- **A terminal is no longer restarted when the check for its running processes itself fails.**
+- **Screen readers no longer hear the elapsed seconds every second** while Claude works; they hear
+  "Claude is working" once.
+- **The running-tool dot in the chat pulses again**, instead of growing and fading.
+- **A theme or pet prompt that starts with "-" is no longer read as a command-line option.**
+- **The macOS signature check can recognise a signed build.** It had read the wrong output stream.
+  There is no effect while releases are unsigned.
+
+### Changed
+
+- **Keyboard support.** The mode and model menus, the "/" command palette, the branch pickers and
+  the terminal list answer to the arrow keys, Home and End, and give focus back when they close.
+- **Pets can be focused with Tab.** Enter or Space opens the pet's chat, and Shift+F10 or the menu
+  key opens its menu.
+- **The message box's top edge and the terminal list's edge resize with the arrow keys.**
+- **Less work in the background.**
+  - Chat updates go only to the windows that show that chat.
+  - Activating a tab in one pane no longer re-renders the others.
+  - Pets follow app updates instead of polling every 10 s.
+  - Running Claude processes are scanned at most every 3 seconds while sessions write.
+  - Dragging the import dialog's edges saves once on release.
+- **Saved files are safer.** Settings, window layout, themes and pets are written through one
+  atomic, fsynced, versioned writer. A file from a newer Apiary is backed up to `<file>.v<N>.bak`
+  before an older build rewrites it.
+- **Bad input is rejected at the boundary.** Settings, pet and layout calls from a window are
+  checked field by field in the main process; a wrong-typed value is ignored and logged.
+- **Failures that used to vanish are written to the diagnostic log.** This covers background reads,
+  failed settings and layout writes, chat start-up requests, and the search index.
+- **Installers are smaller:** `three` is no longer packed into the app archive.
+
+### Added (for contributors and agents)
+
+- **Guard layer.**
+  - `eslint/sanctioned.js` holds 30 `apiary/*` rules. Each has an allowlist of its sanctioned
+    homes and a message naming the fix.
+  - dependency-cruiser enforces layer direction, replacing madge.
+  - Stylelint enforces token sizes, and a knip ratchet stops new dead code.
+  - Thirteen architecture tests live in `tests/unit/architecture/`.
+  - `check-doc-refs` now also checks symbols and links.
+  - Every baseline may only shrink. `npm run lint:debt` shows what is left: 311, from 837.
+- **Agent hooks** in `.claude/settings.json`: the edited file is linted after every edit, and a turn
+  cannot end until typecheck and lint pass. `AGENTS.md` points other agents at `CLAUDE.md`.
+- **One way to do each thing.**
+  - **Main process:** one composition root, with chat and plugins as their own services. Every
+    subprocess starts in `src/main/exec`, and every saved file goes through `src/main/fs`. One
+    module reads git refs.
+  - **Renderer:** a data layer (`state/` stores and commands with one error policy). Workspace
+    selectors, and UI primitives for menus, listboxes, lists, resizing and dismissal.
+  - **Shared:** settings declared once in a schema. Branded ids, strict IPC guards and typed events.
+- **The contract suite covers every channel** (119 clauses). The component-test fake is rebuilt as a
+  model of the main process: 75 of the clauses failed against the old fake.
+- **Generators:** `npm run new -- ipc|store|feature|service <name>`.
+- **Docs.**
+  - `CLAUDE.md` is a rule-to-enforcer table.
+  - New nested docs for chat, pets and the status bar.
+  - ADRs 0011–0019.
+  - `docs/reviews/2026-10-07-guardrails-review.md` and its progress ledger.
+- **CI:** coverage is published on every run, and the full e2e suite runs nightly on Linux and
+  macOS.
+
 ## [1.32.3] - 2026-10-07
 
 ### Fixed

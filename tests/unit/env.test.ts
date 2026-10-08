@@ -60,6 +60,12 @@ describe('parseRuntimeEnv', () => {
     expect(env.safeTheme).toBe(true)
   })
 
+  it('passes the renderer test seams through unpackaged, and never when packaged', () => {
+    const seams = JSON.stringify({ petsFlat: true })
+    expect(parseRuntimeEnv({ APIARY_RENDERER_SEAMS: seams }, [], false).rendererSeams).toBe(seams)
+    expect(parseRuntimeEnv({ APIARY_RENDERER_SEAMS: seams }, [], true).rendererSeams).toBeUndefined()
+  })
+
   it('reads --safe-theme from argv or APIARY_SAFE_THEME from env, packaged or not', () => {
     expect(parseRuntimeEnv({}, ['--safe-theme'], true).safeTheme).toBe(true)
     expect(parseRuntimeEnv({ APIARY_SAFE_THEME: '1' }, [], true).safeTheme).toBe(true)

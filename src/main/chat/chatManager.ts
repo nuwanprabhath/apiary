@@ -1,50 +1,58 @@
-import { spawn as nodeSpawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import type { ChatDecision, ChatEffort, ChatModel, ChatPermissionMode, ChatState } from '@shared/domain/chat'
-import { buildChatCommand, loginShell } from '../pty/resumeCommand'
-import { childEnv } from '../pty/childEnv'
+import type { SessionId } from '@shared/domain/ids'
+import { buildChatCommand } from '../pty/resumeCommand'
+import { spawnLoginShell, type LoginShellSpawn } from '../exec/spawnLoginShell'
 import { log } from '../log/logger'
 import { ChatSession } from './chatSession'
 
-export type SpawnChat = (command: string, cwd: string) => ChildProcessWithoutNullStreams
+/** The `child_process.spawn` seam `spawnLoginShell` takes — a fake child in tests. */
+export type SpawnChat = LoginShellSpawn
 
 export interface ChatManagerDeps {
   claudeBin: () => string | undefined
   onChange: (state: ChatState) => void
-  /** Injectable for tests; the default runs `command` in a login shell, as terminals do. */
+  /** Injectable for tests; the chat runs `command` in a login shell (`spawnLoginShell`), as terminals do. */
   spawn?: SpawnChat
 }
-
-const defaultSpawn: SpawnChat = (command, cwd) => nodeSpawn(loginShell(), ['-l', '-c', command], {
-  cwd,
-  env: childEnv(process.env),
-  stdio: 'pipe',
-})
 
 /**
  * Every session running in chat mode (see `shared/domain/chat.ts`), by session id. A session is
  * never in chat mode and in a terminal at once — two `claude` processes on one session would both
- * append to its JSONL — so `AppService` stops one before starting the other.
+ * append to its JSONL — so `ChatService` stops one before starting the other.
+ *
+ * An exited session stays here (its last state, with the error that ended it) until `forget`: the
+ * window still showing it asks `state` for it. `ChatService` forgets it once no window does.
  */
 export class ChatManager {
-  private readonly sessions = new Map<string, ChatSession>()
+  private readonly sessions = new Map<SessionId, ChatSession>()
 
   constructor(private readonly deps: ChatManagerDeps) {}
 
   /** Whether `sessionId` has a chat process that is still running. */
-  has(sessionId: string): boolean {
+  has(sessionId: SessionId): boolean {
     return this.sessions.get(sessionId)?.running === true
   }
 
-  state(sessionId: string): ChatState | null {
+  state(sessionId: SessionId): ChatState | null {
     return this.sessions.get(sessionId)?.current ?? null
   }
 
-  start(sessionId: string, cwd: string, opts: { model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort } = {}): ChatState {
+  /** The last state of every session whose process has ended and that has not been forgotten. */
+  exitedStates(): ChatState[] {
+    return [...this.sessions.values()].filter((s) => !s.running).map((s) => s.current)
+  }
+
+  /** Drops an exited session; a running one is left alone. */
+  forget(sessionId: SessionId): void {
+    if (this.sessions.get(sessionId)?.running === false) this.sessions.delete(sessionId)
+  }
+
+  start(sessionId: SessionId, cwd: string, opts: { model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort } = {}): ChatState {
     const existing = this.sessions.get(sessionId)
     if (existing?.running === true) return existing.current
     const command = buildChatCommand(sessionId, { claudeBin: this.deps.claudeBin(), ...opts })
-    const child = (this.deps.spawn ?? defaultSpawn)(command, cwd)
-    const session = new ChatSession(sessionId, child, (state) => {
+    const proc = spawnLoginShell({ command, cwd }, this.deps.spawn)
+    const session = new ChatSession(sessionId, proc, (state) => {
       if (state.status === 'exited' && state.error !== null) log.warn('chat', 'exited', { sessionId: state.sessionId, error: state.error })
       this.deps.onChange(state)
     }, (from, to) => {
@@ -54,19 +62,19 @@ export class ChatManager {
       log.info('chat', 'moved to a new session', { from, to })
     })
     this.sessions.set(sessionId, session)
-    log.info('chat', 'started', { sessionId, pid: child.pid ?? null })
+    log.info('chat', 'started', { sessionId, pid: proc.child.pid ?? null })
     this.deps.onChange(session.current)
     return session.current
   }
 
-  send(sessionId: string, text: string): void { this.require(sessionId).send(text) }
-  interrupt(sessionId: string): void { this.require(sessionId).interrupt() }
-  respond(sessionId: string, requestId: string, decision: ChatDecision): void { this.require(sessionId).respond(requestId, decision) }
-  setPermissionMode(sessionId: string, mode: ChatPermissionMode): void { this.require(sessionId).setPermissionMode(mode) }
-  setModel(sessionId: string, model: ChatModel): void { this.require(sessionId).setModel(model) }
-  setEffort(sessionId: string, effort: ChatEffort): void { this.require(sessionId).setEffort(effort) }
+  send(sessionId: SessionId, text: string): void { this.require(sessionId).send(text) }
+  interrupt(sessionId: SessionId): void { this.require(sessionId).interrupt() }
+  respond(sessionId: SessionId, requestId: string, decision: ChatDecision): void { this.require(sessionId).respond(requestId, decision) }
+  setPermissionMode(sessionId: SessionId, mode: ChatPermissionMode): void { this.require(sessionId).setPermissionMode(mode) }
+  setModel(sessionId: SessionId, model: ChatModel): void { this.require(sessionId).setModel(model) }
+  setEffort(sessionId: SessionId, effort: ChatEffort): void { this.require(sessionId).setEffort(effort) }
 
-  async stop(sessionId: string): Promise<void> {
+  async stop(sessionId: SessionId): Promise<void> {
     await this.sessions.get(sessionId)?.stop()
   }
 
@@ -74,7 +82,7 @@ export class ChatManager {
     await Promise.all([...this.sessions.values()].map((s) => s.stop()))
   }
 
-  private require(sessionId: string): ChatSession {
+  private require(sessionId: SessionId): ChatSession {
     const session = this.sessions.get(sessionId)
     if (session?.running !== true) throw new Error('This session is not running as a chat')
     return session

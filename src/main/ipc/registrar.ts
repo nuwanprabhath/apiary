@@ -3,7 +3,7 @@ import {
   IPC, type InvokeKey, type SendKey, type ArgsOf, type ResultOf,
 } from '@shared/ipc/contract'
 import { log } from '../log/logger'
-import { isTrustedSender, type TrustedRendererConfig } from './ipcSenderGuard'
+import { isTrustedSender, type SenderPolicy } from './ipcSenderGuard'
 
 /**
  * The main-side registrar (MAIN-11, MAIN-13, MAIN-19 item 4): the one place every `invoke` and
@@ -40,10 +40,10 @@ export type Listeners = {
 export function registerAll(
   handlers: Handlers,
   listeners: Listeners,
-  trustedRenderer: TrustedRendererConfig | null,
+  senderPolicy: SenderPolicy,
 ): () => void {
   const fromApp = (senderFrameUrl: string | undefined): boolean => {
-    const ok = isTrustedSender(senderFrameUrl, trustedRenderer)
+    const ok = isTrustedSender(senderFrameUrl, senderPolicy)
     if (!ok) log.warn('ipc', 'rejected a message from an unexpected sender', { senderFrameUrl })
     return ok
   }

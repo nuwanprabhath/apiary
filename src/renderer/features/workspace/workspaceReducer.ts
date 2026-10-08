@@ -37,7 +37,7 @@ export interface WorkspaceState {
   activeColumnId: string | null
   openSessions: Map<string, SessionNode>
   resumed: Set<string>
-  ptyOverrides: Map<string, string>
+  ptyOverrides: Map<string, PtyId>
   pending: Map<string, PendingSession>
   shellTabs: Map<string, TerminalTab[]>
   activeTerminal: Map<string, string>

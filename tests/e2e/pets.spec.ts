@@ -3,7 +3,7 @@ import { writeFileSync, chmodSync, readFileSync, existsSync, mkdtempSync, realpa
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchApiary, relaunchApiary, type Harness } from './helpers'
-import { STARTER_PET } from '../../src/shared/pets/builtins'
+import { STARTER_PET } from '@shared/pets/builtins'
 
 /**
  * Pets through the real app: main's store and `claude -p` calls (answered by a stand-in that

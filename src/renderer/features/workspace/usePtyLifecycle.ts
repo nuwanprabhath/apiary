@@ -1,6 +1,8 @@
 import { asPtyId, type PtyId } from '@shared/domain/ids'
 import { useEffect, useMemo } from 'react'
-import { useWorkspace, useWorkspaceDispatch } from './WorkspaceProvider'
+import { useWorkspace } from './useWorkspaceSelector'
+import { useWorkspaceDispatch } from './workspaceContext'
+import { onAnyPtyExit, runningPtys } from '../../state/terminals'
 
 /**
  * What the main process tells this window about its ptys: an exit (which drops pending entries,
@@ -25,7 +27,7 @@ export function usePtyLifecycle(): void {
   // — nothing will ever resolve it. It is simply no longer "new" at that point: if it did somehow
   // still leave behind a JSONL, that file surfaces later as an ordinary (never-"resumed") session,
   // which is correct, since there is no longer a live process it could conflict with.
-  useEffect(() => window.apiary.onPtyExit((id) => {
+  useEffect(() => onAnyPtyExit((id) => {
     // Only a tab still keyed by its `new:` pty id — a session whose process died before it ever
     // had a session id — is closed: there is nothing left in it to show. This used to close the tab
     // of *any* pty that exited (a 1.3.0 generalisation of what had cleared only the pending
@@ -57,14 +59,12 @@ export function usePtyLifecycle(): void {
     if (keys.length === 0) return
     // A pending tab is keyed by its pty id already; a resolved one may have been started under a
     // different pty id, which `ptyOverrides` remembers.
-    const ptyIdOf = new Map(keys.map((k): [PtyId, string] => [asPtyId(ptyOverrides.get(k) ?? k), k]))
-    void window.apiary.ptyRunning([...ptyIdOf.keys()])
-      .then((running) => {
-        const live = running.map((id) => ptyIdOf.get(id)).filter((k): k is string => k !== undefined)
-        dispatch({ type: 'pty/running', keys: live })
-      })
-      // A window that cannot ask is a window that shows what it knew, which is where it was
-      // before this existed.
-      .catch(() => { /* as above */ })
+    const ptyIdOf = new Map(keys.map((k): [PtyId, string] => [ptyOverrides.get(k) ?? asPtyId(k), k]))
+    // A window that cannot ask (`null`) shows what it knew, which is where it was before this existed.
+    void runningPtys([...ptyIdOf.keys()]).then((running) => {
+      if (running === null) return
+      const live = running.map((id) => ptyIdOf.get(id)).filter((k): k is string => k !== undefined)
+      dispatch({ type: 'pty/running', keys: live })
+    })
   }, [openKeysSignature, ptyOverrides, dispatch])
 }

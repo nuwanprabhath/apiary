@@ -1,16 +1,14 @@
 import type { WebContents } from 'electron'
-import { CHANNELS } from '@shared/api'
 import type { AppService } from '../appService'
+import type { ChatService } from '../chat/chatService'
+import type { PluginService } from '../plugins/pluginService'
+import type { IpcState } from './ipcState'
 import type { UpdateService } from '../update/updateService'
 import type { SessionLayoutStore } from '../windows/sessionLayoutStore'
 import type { LayoutFlushCoordinator } from '../windows/layoutFlushCoordinator'
 import type { TabRegistry } from '../windows/tabRegistry'
-import type { TabTransfer } from '@shared/types'
-import type { TrustedRendererConfig } from './ipcSenderGuard'
+import type { SenderPolicy } from './ipcSenderGuard'
 import type { SettingsService } from '../settings/settingsService'
-import { ClaudeProjectsSource, type SessionSource } from '../sources/claudeProjects'
-import { broadcast } from '../windows/broadcast'
-import { fireAndForget } from '../log/fireAndForget'
 import { registerAll, type Handlers, type Listeners } from './registrar'
 import { sessionsHandlers } from './handlers/sessions'
 import { terminalsHandlers } from './handlers/terminals'
@@ -31,10 +29,11 @@ import { petsHandlers, type PetDeps } from './handlers/pets'
  */
 export interface IpcDeps {
   service: AppService
-  configRoot: string
-  /** Where sessions come from (MAIN-18). Defaults to `ClaudeProjectsSource`; injectable for
-   *  tests, and shared with `AppService`'s own default when neither is given one explicitly. */
-  source?: SessionSource
+  /** Chat mode and the plugins have services of their own, which their handlers call directly. */
+  chat: ChatService
+  plugins: PluginService
+  /** Built in the container; see `IpcState`. */
+  state: IpcState
   /** The single owner of `settings.json` (MAIN-16) — see `settings/settingsService.ts`. */
   settings: SettingsService
   onAutoImportIntervalChange?: (intervalMinutes: number | null) => void
@@ -44,9 +43,6 @@ export interface IpcDeps {
   sessionLayoutStore?: SessionLayoutStore | null
   /** Told about every incoming `reportLayout` so `before-quit` can wait for a specific window's. */
   layoutFlushCoordinator?: LayoutFlushCoordinator | null
-  /** Opens a tab in a window of its own, resolving the new window's number. Injected so this
-   *  module never imports the window code. */
-  openDetachedWindow?: (tab: TabTransfer, at: { x: number; y: number }) => number
   /** Where every window's open tabs are recorded, for the Active section. Null where the registry
    *  has not been constructed yet, mirroring `sessionLayoutStore` above. */
   tabRegistry?: TabRegistry | null
@@ -58,9 +54,10 @@ export interface IpcDeps {
   /** The native folder picker, over the asking window. Resolves null when cancelled. Injected so
    *  this module does not own the dialog (or its E2E stand-in, `APIARY_PICK_FOLDER`). */
   pickFolder?: (sender: WebContents) => Promise<string | null>
-  /** Where the app's own renderer is expected to be loaded from (SEC-8 step 8) — null when not
-   *  configured, which does not enforce anything. */
-  trustedRenderer?: TrustedRendererConfig | null
+  /** Where the app's own renderer is expected to be loaded from (SEC-8 step 8). Required, so the
+   *  check cannot be forgotten: a test harness that calls handlers without a frame passes
+   *  `UNCHECKED_SENDERS` (see `ipcSenderGuard.ts`); anything else rejects a message with no frame. */
+  senderPolicy: SenderPolicy
   /** The theme store, safe-mode flag and generator — constructed in `main/index.ts` before
    *  windows exist, since a window reads its theme synchronously as it loads. */
   theme: ThemeDeps
@@ -79,15 +76,15 @@ export interface IpcDeps {
  * (MAIN-19 item 4; `themeIpc.ts` used to call `ipcMain.handle`/`.on` directly and skip it).
  */
 export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (route: string) => void } {
-  const { service, configRoot } = deps
+  const { service } = deps
 
-  const terminals = terminalsHandlers({ service, configRoot })
+  const terminals = terminalsHandlers({ service, state: deps.state })
   const sessions = sessionsHandlers({ service, renameDeps: terminals.renameDeps, pickFolder: deps.pickFolder })
   const git = gitHandlers({ service })
   const settingsIpc = settingsHandlers(deps)
   const tabs = tabsHandlers(deps)
-  const plugins = pluginsHandlers({ service })
-  const chat = chatHandlers({ service })
+  const plugins = pluginsHandlers({ plugins: deps.plugins })
+  const chat = chatHandlers({ chat: deps.chat })
   const update = updateHandlers(deps)
   const logIpc = logHandlers()
   const theme = themeHandlers(deps.theme)
@@ -101,7 +98,7 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
     ...settingsIpc,
     ...tabs.handlers,
     ...plugins,
-    ...chat,
+    ...chat.handlers,
     ...update,
     ...logIpc.handlers,
     ...theme.handlers,
@@ -110,6 +107,7 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
   }
   const listeners: Listeners = {
     ...terminals.listeners,
+    ...chat.listeners,
     ...tabs.listeners,
     ...logIpc.listeners,
     ...theme.listeners,
@@ -117,18 +115,10 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
     ...pets.listeners,
   }
 
-  const disposeRegistry = registerAll(handlers, listeners, deps.trustedRenderer ?? null)
-
-  // New session files appear without a restart, debounced into scoped refresh requests (MAIN-1) —
-  // see `SessionWatcher` (MAIN-13 step 2) for the depth/ignore rationale (MAIN-25).
-  const source = deps.source ?? new ClaudeProjectsSource(configRoot)
-  const stopWatching = source.watch((paths) => {
-    fireAndForget(service.refresh({ paths }).then(() => broadcast(CHANNELS.treeChanged)), 'watcher')
-  })
+  const disposeRegistry = registerAll(handlers, listeners, deps.senderPolicy)
 
   return {
     dispose: () => {
-      stopWatching()
       disposeRegistry()
       terminals.dispose()
       tabs.dispose()

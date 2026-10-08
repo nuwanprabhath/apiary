@@ -1,7 +1,8 @@
-import { type JSX, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type JSX, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useEscape } from './useEscape'
-import { useMenuNav } from './Menu'
+import { useOutsideDismiss } from './useOutsideDismiss'
+import { Menu } from './Menu'
 import { CheckIcon } from './icons'
 
 export interface ContextMenuItem {
@@ -39,7 +40,7 @@ interface Props {
  * painted over whatever part of the menu reached across.
  */
 export function ContextMenu({ items, position, onClose, testId }: Props): JSX.Element | null {
-  const rootRef = useRef<HTMLDivElement | null>(null)
+  const rootRef = useRef<HTMLElement | null>(null)
 
   /**
    * Nudged back on screen when opened near an edge.
@@ -69,28 +70,18 @@ export function ContextMenu({ items, position, onClose, testId }: Props): JSX.El
   // context menu opened from inside another popup doesn't also close that popup. A press anywhere
   // outside is still handled here directly.
   useEscape(onClose, { enabled: position !== null })
-  // UI-26: focuses the first item on open, arrow/Home/End between items, restores focus to
-  // whatever opened the menu on close.
-  const { onKeyDown } = useMenuNav(rootRef, position !== null)
-  useEffect(() => {
-    if (position === null) return
-    const onPointerDown = (e: MouseEvent): void => {
-      if (rootRef.current?.contains(e.target as Node) !== true) onClose()
-    }
-    document.addEventListener('mousedown', onPointerDown)
-    return () => { document.removeEventListener('mousedown', onPointerDown) }
-  }, [position, onClose])
+  useOutsideDismiss(onClose, { enabled: position !== null, inside: [rootRef] })
 
   if (position === null) return null
 
   return createPortal(
-    <div
+    // UI-26: `Menu` focuses the first item on open, steps with arrow/Home/End and restores focus
+    // to whatever opened the menu on close.
+    <Menu
       className="context-menu"
-      data-testid={testId ?? 'context-menu'}
-      role="menu"
+      testId={testId ?? 'context-menu'}
       ref={rootRef}
       style={{ top: nudge?.top ?? position.y, left: nudge?.left ?? position.x }}
-      onKeyDown={onKeyDown}
     >
       {items.map((item) => (
         <button
@@ -110,7 +101,7 @@ export function ContextMenu({ items, position, onClose, testId }: Props): JSX.El
           {item.label}
         </button>
       ))}
-    </div>,
+    </Menu>,
     document.body,
   )
 }

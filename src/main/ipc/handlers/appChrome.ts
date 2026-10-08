@@ -1,6 +1,7 @@
 import { BrowserWindow, Menu, type KeyboardEvent, type MenuItem, type WebContents } from 'electron'
+import { ignoreErrors } from '@shared/ignoreErrors'
 import { isHexColor } from '@shared/domain/windowChrome'
-import { serializeMenu, itemAtPath } from '../../app/menuModel'
+import { serializeMenu, itemAtPath } from '../menuModel'
 import { TITLE_BAR_HEIGHT } from '../../windows/windowManager'
 import type { Handlers, Listeners } from '../registrar'
 
@@ -32,11 +33,10 @@ export function appChromeHandlers(): { handlers: Pick<Handlers, HandledKeys>; li
       setTitleBarColors: (e, background, symbol) => {
         if (process.platform === 'darwin' || !isHexColor(background) || !isHexColor(symbol)) return
         const win = BrowserWindow.fromWebContents(e.sender)
-        try {
-          win?.setTitleBarOverlay({ color: background, symbolColor: symbol, height: TITLE_BAR_HEIGHT })
-        } catch {
-          // A window with the system title bar has no overlay to colour.
-        }
+        ignoreErrors(
+          () => win?.setTitleBarOverlay({ color: background, symbolColor: symbol, height: TITLE_BAR_HEIGHT }),
+          'a window with the system title bar has no overlay to colour',
+        )
       },
     },
   }

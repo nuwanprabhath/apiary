@@ -10,7 +10,7 @@
  * (CLAUDE.md: a renderer module reached from `tests/unit` drags a DOM-less tsconfig into it).
  */
 import { describe, it, expect } from 'vitest'
-import { asPtyId } from '../../src/shared/domain/ids'
+import { asPtyId } from '@shared/domain/ids'
 import { terminalViewPropsEqual } from '../../src/renderer/features/terminal/TerminalView'
 
 const base = { ptyId: asPtyId('session-1'), testId: 'terminal-session', visible: true }

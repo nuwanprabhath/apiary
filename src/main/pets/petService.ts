@@ -4,9 +4,12 @@ import {
   LINES_JSON_SCHEMA, PET_JSON_SCHEMA, buildChatPrompt, buildCommentPrompt, buildDesignPrompt, buildVoicePrompt,
   extractStructured, extractText, CHAT_HISTORY, type ChatTurn, type VoiceContext,
 } from '@shared/pets/prompt'
-import { PET_MODELS, type PetModel, type PetRecord, type PetsState } from '@shared/pets/state'
-import { ClaudeOneShot } from '../claude/claudeOneShot'
+import { PET_MODELS, type PetExportFile, type PetModel, type PetRecord, type PetsState } from '@shared/pets/state'
+import { errorMessage } from '@shared/errors'
+import { isRecord } from '@shared/guards'
+import type { ClaudeOneShot } from '../claude/claudeOneShot'
 import { log } from '../log/logger'
+import { readTextFile, writeTextFile } from '../fs/textFile'
 import type { PetStore } from './petStore'
 
 /** A pet's lines are written afresh at most this often — the "batched voice" the user chose. */
@@ -15,14 +18,17 @@ export const VOICE_INTERVAL_MS = 60 * 60 * 1000
 export const COMMENT_INTERVAL_MS = 3 * 60 * 1000
 const CHAT_REPLY_CHARS = 300
 
+/** A pet file is small; anything much bigger is not one. */
+const MAX_IMPORT_BYTES = 64 * 1024
+
 export interface PetServiceDeps {
   store: PetStore
-  claudeBin: () => string | null
+  /** A one-shot `claude` runner; called once per kind of call (design, voice, chat, comment) so a
+   *  chat is never stuck behind a voice refresh. Built in the container, over the configured `claude`. */
+  makeRunner: () => ClaudeOneShot
   /** Something about the pets changed: broadcast `petsChanged`. */
   onChanged: () => void
   now?: () => number
-  /** Test-only: the shell to launch claude through. */
-  shell?: string
   timeouts?: { design?: number; voice?: number; chat?: number }
 }
 
@@ -53,12 +59,35 @@ export class PetService {
   private readonly history = new Map<string, ChatTurn[]>()
 
   constructor(private readonly deps: PetServiceDeps) {
-    const opts = { claudeBin: deps.claudeBin, ...(deps.shell !== undefined ? { shell: deps.shell } : {}) }
-    this.design = new ClaudeOneShot(opts)
-    this.voiceRunner = new ClaudeOneShot(opts)
-    this.chatRunner = new ClaudeOneShot(opts)
-    this.commentRunner = new ClaudeOneShot(opts)
+    this.design = deps.makeRunner()
+    this.voiceRunner = deps.makeRunner()
+    this.chatRunner = deps.makeRunner()
+    this.commentRunner = deps.makeRunner()
     this.now = deps.now ?? Date.now
+  }
+
+  /**
+   * Writes a pet to a file the user chose in a save dialog (the path never comes from the
+   * renderer). Not atomic: it is an export for the user to keep, not state Apiary reads back.
+   */
+  exportToFile(id: string, path: string): void {
+    const pet = this.deps.store.get(id)
+    if (pet === undefined) throw new Error('No such pet.')
+    const file: PetExportFile = { apiaryPet: 1, spec: pet.spec }
+    writeTextFile(path, `${JSON.stringify(file, null, 2)}\n`)
+  }
+
+  /** Reads a pet file the user chose in an open dialog: size-capped, and through `validatePet`. */
+  importFromFile(path: string): PetRecord {
+    const text = readTextFile(path)
+    if (text.length > MAX_IMPORT_BYTES) throw new Error('That file is too large to be a pet.')
+    let raw: unknown
+    try { raw = JSON.parse(text) } catch { throw new Error('That file is not a pet.') }
+    const spec = isRecord(raw) && raw.apiaryPet === 1 ? validatePet(raw.spec) : null
+    if (spec === null) throw new Error('That file is not a pet.')
+    const pet = this.deps.store.add(spec)
+    this.deps.onChanged()
+    return pet
   }
 
   state(): PetsState {
@@ -100,7 +129,7 @@ export class PetService {
       log.info('pets', 'designed', { model: m, ms: this.now() - started, described: description !== null })
       return pet
     } catch (e) {
-      log.warn('pets', 'design failed', { model: m, ms: this.now() - started, error: e instanceof Error ? e.message : String(e) })
+      log.warn('pets', 'design failed', { model: m, ms: this.now() - started, error: errorMessage(e) })
       throw e
     } finally {
       this.generating = false
@@ -134,7 +163,7 @@ export class PetService {
       this.deps.onChanged()
       return true
     } catch (e) {
-      log.warn('pets', 'voice failed', { model: pet.model, ms: this.now() - started, error: e instanceof Error ? e.message : String(e) })
+      log.warn('pets', 'voice failed', { model: pet.model, ms: this.now() - started, error: errorMessage(e) })
       return false
     }
   }
@@ -159,7 +188,7 @@ export class PetService {
       log.info('pets', 'chat', { model: pet.model, ms: this.now() - started })
       return reply
     } catch (e) {
-      log.warn('pets', 'chat failed', { model: pet.model, ms: this.now() - started, error: e instanceof Error ? e.message : String(e) })
+      log.warn('pets', 'chat failed', { model: pet.model, ms: this.now() - started, error: errorMessage(e) })
       throw e
     }
   }
@@ -185,7 +214,7 @@ export class PetService {
       log.info('pets', 'comment', { model: pet.model, ms: this.now() - started })
       return text === null ? null : cleanLine(text.replace(/^["“]|["”]$/g, ''))
     } catch (e) {
-      log.warn('pets', 'comment failed', { model: pet.model, ms: this.now() - started, error: e instanceof Error ? e.message : String(e) })
+      log.warn('pets', 'comment failed', { model: pet.model, ms: this.now() - started, error: errorMessage(e) })
       return null
     }
   }

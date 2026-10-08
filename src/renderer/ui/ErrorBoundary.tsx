@@ -10,6 +10,17 @@ interface Props {
   /** Passed to the crash fallback, so it still lands in its pane's grid zone when its child throws
    *  before ever rendering the element that would otherwise carry that style. */
   style?: CSSProperties
+  /** When this changes while the fallback is showing, the boundary tries its children again — so a
+   *  pane that crashed on one session recovers on its own when the pane is pointed at another,
+   *  without the user pressing "Try again". Unchanged while the children are fine. */
+  resetKey?: unknown
+  /** What to show instead of the crash pane. `null` shows nothing, for a purely decorative layer
+   *  (the effects canvas, the pets) whose absence is no loss worth a pane; a function is handed the
+   *  message and a retry, for a region that needs its own shape (a dialog must still be closable). */
+  fallback?: ReactNode | ((fault: { message: string; retry: () => void }) => ReactNode)
+  /** One line with a retry instead of the full pane, for a region that is a bar (title bar, update
+   *  banner, status bar) and would be pushed out of shape by a pane. */
+  compact?: boolean
 }
 
 interface State {
@@ -37,13 +48,33 @@ export class ErrorBoundary extends Component<Props, State> {
     return { message, detail }
   }
 
+  override componentDidUpdate(prev: Props): void {
+    if (this.state.message !== null && !Object.is(prev.resetKey, this.props.resetKey)) {
+      this.setState({ message: null, detail: null })
+    }
+  }
+
   override componentDidCatch(thrown: unknown, info: ErrorInfo): void {
     this.props.onError?.(thrown, info.componentStack ?? '')
   }
 
+  private readonly retry = (): void => { this.setState({ message: null, detail: null }) }
+
   override render(): ReactNode {
     const { message, detail } = this.state
     if (message === null) return this.props.children
+    const { fallback, compact, label } = this.props
+    if (fallback !== undefined) return typeof fallback === 'function' ? fallback({ message, retry: this.retry }) : fallback
+    if (compact === true) {
+      return (
+        <div className="crash-strip" data-testid="crash-strip" role="alert" style={this.props.style}>
+          <span className="crash-strip-text">
+            {label === undefined ? 'Something went wrong' : `${label} could not be displayed`}: {message}
+          </span>
+          <button className="btn small" data-testid="crash-retry" onClick={this.retry}>Try again</button>
+        </div>
+      )
+    }
     return (
       <div className="crash-pane" data-testid="crash-pane" style={this.props.style}>
         <h2 className="crash-title">
@@ -60,7 +91,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <button
             className="btn primary"
             data-testid="crash-retry"
-            onClick={() => this.setState({ message: null, detail: null })}
+            onClick={this.retry}
           >
             Try again
           </button>

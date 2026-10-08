@@ -1,0 +1,42 @@
+[
+  {
+    "key": "openImportDialog",
+    "reason": "An event main sends only when the user picks the Import item of the native application menu (src/main/index.ts, the menu callbacks); no call can cause it, and the loopback has no menu, so there is nothing to assert on the real side. The renderer's reaction is component-tested by emitting it on the fake (tests/component/import.test.tsx)."
+  },
+  {
+    "key": "openSettingsDialog",
+    "reason": "An event main sends only when the user picks Settings in the native application menu or presses its accelerator (src/main/index.ts); no call can cause it and the loopback has no menu. The renderer's reaction is component-tested by emitting it on the fake (tests/component/sidebar.test.tsx)."
+  },
+  {
+    "key": "toggleSidebar",
+    "reason": "An event main sends only for the View > Toggle Sidebar item of the native application menu and its accelerator (src/main/index.ts); no call can cause it and the loopback has no menu."
+  },
+  {
+    "key": "newSessionStarted",
+    "reason": "An event main sends only after the native folder dialog of File > New Session in Folder, which main opens itself and the renderer cannot trigger (src/main/index.ts, onNewSessionInFolder); the call that starts a session from the renderer's own folder picker is newSessionInPickedFolder, which has a clause."
+  },
+  {
+    "key": "requestLayoutFlush",
+    "reason": "An event main sends only from its before-quit handler, to make every window report its layout before the app exits (src/main/index.ts, layoutFlushCoordinator); the loopback never quits, and quitting is the one thing a bridge call cannot do."
+  },
+  {
+    "key": "ptySessionsChanged",
+    "reason": "An event raised by the Claude session tracker when the pid files of running claude TUI processes change (src/main/app/container.ts, createIpcState). It needs a claude process running under a pty of the app, which the loopback cannot start meaningfully: the stand-in claude is a chat process, not a TUI that writes a pid file. The renderer's reaction is component-tested by emitting it on the fake (tests/component/treeStoreDedup.test.tsx)."
+  },
+  {
+    "key": "themeGpuCompositing",
+    "reason": "Answers Chromium's own report of whether the GPU composites (app.getGPUFeatureStatus in the theme handlers). The loopback has no GPU process, so a clause could only assert the value its own electron mock was given."
+  },
+  {
+    "key": "appMenu",
+    "reason": "Serialises the native application menu (Menu.getApplicationMenu in the app-chrome handlers) for the themed title bar to draw. The loopback has no native menu, and a stand-in built for it would test the stand-in; the serialiser itself is unit-tested (tests/unit/menuModel.test.ts) and the title bar is component-tested against the fake's canned menu (tests/component/titleBar.test.tsx)."
+  },
+  {
+    "key": "appMenuInvoke",
+    "reason": "Runs a click on an item of the native application menu, which exists only in a real Electron main process; the loopback has none. See appMenu."
+  },
+  {
+    "key": "setTitleBarColors",
+    "reason": "Colours the OS-drawn window controls over the title bar (BrowserWindow.setTitleBarOverlay, window chrome that exists only on Windows and Linux); the loopback has no real window, and a send has no result to assert."
+  }
+]

@@ -1,4 +1,5 @@
 import { parentPort, workerData } from 'node:worker_threads'
+import { errorMessage } from '@shared/errors'
 import { SearchIndex } from './searchIndex'
 
 /**
@@ -32,6 +33,6 @@ parentPort?.on('message', (req: Request) => {
   } catch (error) {
     // Search is an enhancement to the sidebar, never a reason for it to fail — the caller turns
     // this into an empty result, the same as the synchronous version did.
-    reply({ id: req.id, error: error instanceof Error ? error.message : String(error) })
+    reply({ id: req.id, error: errorMessage(error) })
   }
 })

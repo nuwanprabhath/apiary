@@ -9,6 +9,7 @@ loaded; these and the nested `CLAUDE.md` files below load only when relevant.
 | Multi-window ownership, relaunch persistence, tab registry | [windows-and-tabs.md](windows-and-tabs.md) |
 | Activity status (running/waiting/idle/stopped) classification | [activity.md](activity.md) |
 | Which Claude session a terminal is on | [session-following.md](session-following.md) |
+| Chat mode: `ChatService`, protocol, per-window delivery, take-over, `/clear` | [chat.md](chat.md) |
 | The three trust-boundary rules, in full | [boundaries.md](boundaries.md) |
 
 Non-architecture cross-cutting docs, one level up:
@@ -22,9 +23,11 @@ Non-architecture cross-cutting docs, one level up:
 | Historical specs and plans (code wins on conflict) | [../history/](../history/) |
 
 Nested `CLAUDE.md` files, for reference (each loads automatically when Claude Code reads a file in
-its directory — see root `CLAUDE.md`'s "Where the long-form lives"):
+its directory — see root `CLAUDE.md`'s "Where the rest lives"):
 
-`src/main/CLAUDE.md`, `src/main/pty/CLAUDE.md`, `src/main/search/CLAUDE.md`,
+`src/main/CLAUDE.md`, `src/main/chat/CLAUDE.md`, `src/main/pets/CLAUDE.md`,
+`src/main/pty/CLAUDE.md`, `src/main/search/CLAUDE.md`, `src/main/statusBar/CLAUDE.md`,
 `src/main/store/CLAUDE.md`, `src/main/update/CLAUDE.md`, `src/main/plugins/CLAUDE.md`,
 `src/main/log/CLAUDE.md`, `src/renderer/CLAUDE.md`, `src/renderer/state/CLAUDE.md`,
-`src/shared/theme/CLAUDE.md`, `tests/CLAUDE.md`.
+`src/renderer/features/chat/CLAUDE.md`, `src/renderer/features/pets/CLAUDE.md`,
+`src/shared/theme/CLAUDE.md`, `src/shared/pets/CLAUDE.md`, `tests/CLAUDE.md`.

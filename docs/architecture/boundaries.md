@@ -26,3 +26,7 @@ error message. Git's plain-text error strings are not a stable contract (they ch
 versions and locales), and parsing one to extract a path would also violate the rule above: the
 path the app then acts on has to be one the main process derived itself, from a command with a
 machine-readable output format, not one it scraped out of prose meant for a human.
+
+A ref that git might read as a flag is refused by `assertNotOption` in `src/main/git/branchOps.ts`
+and the arguments end with `--`; `--end-of-options` is not used because git before 2.44 miscounts it
+([ADR-0016](../adr/0016-no-end-of-options-for-git-checkout.md)).

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AppService } from '../../../src/main/appService'
 import { makeSession } from '../../fixtures/makeSession'
-import { createServiceFixture, teardownServiceFixture, captureRefreshPass } from './setup'
+import { createServiceFixture, teardownServiceFixture, captureRefreshPass, makeGitWorkdir, git } from './setup'
 
 let home: string
 let workdir: string
@@ -84,5 +84,23 @@ describe('MAIN-1: incremental, path-scoped refresh', () => {
     })
     await service.refresh()
     expect(await service.discovered()).toHaveLength(1)
+  })
+
+  it('a scoped pass shows a branch checked out outside Apiary (MAIN-1)', async () => {
+    const repo = makeGitWorkdir()
+    try {
+      const file = makeSession(projects(), '-g', {
+        sessionId: '66666666-4444-4444-4444-444444444444', cwd: repo, title: 'In a repo',
+      })
+      await service.refresh()
+      await service.importSessions(['66666666-4444-4444-4444-444444444444'], [])
+      expect((await service.tree())[0].branch).toBe('main')
+
+      git(repo, 'checkout', '-q', '-b', 'feature/outside')
+      await service.refresh({ paths: [file] }) // what the watcher asks for when the session writes
+      expect((await service.tree())[0].branch).toBe('feature/outside')
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
   })
 })

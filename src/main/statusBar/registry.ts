@@ -1,4 +1,5 @@
 import type { PluginSettingValues } from '@shared/domain/plugins'
+import { errorMessage } from '@shared/errors'
 import type { StatusBarItem, StatusBarPanel } from '@shared/domain/statusBar'
 import { withDefaults } from '../plugins/types'
 import { log } from '../log/logger'
@@ -119,6 +120,20 @@ export class StatusBarRegistry {
     }
   }
 
+  /** Hands the user's answer to the plugin that asked. False when no running plugin takes one. */
+  answerConsent(pluginId: string, allow: boolean): boolean {
+    const plugin = this.runningPlugin(pluginId)
+    if (plugin?.answerConsent === undefined) return false
+    try {
+      plugin.answerConsent(allow)
+    } catch (e) {
+      this.fail(plugin, 'consent', e)
+      return false
+    }
+    this.onChanged()
+    return true
+  }
+
   private runningPlugin(pluginId: string): StatusBarPlugin | null {
     if (!this.running.has(pluginId)) return null
     return this.plugins.find((p) => p.id === pluginId) ?? null
@@ -140,6 +155,6 @@ export class StatusBarRegistry {
   }
 
   private fail(plugin: StatusBarPlugin, what: string, e: unknown): void {
-    log.warn('status-bar', 'plugin failed', { plugin: plugin.id, what, error: e instanceof Error ? e.message : String(e) })
+    log.warn('status-bar', 'plugin failed', { plugin: plugin.id, what, error: errorMessage(e) })
   }
 }

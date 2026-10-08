@@ -551,6 +551,20 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
 }
 .crash-actions { display: flex; gap: 8px; margin-top: 4px; }
 
+/* A bar-shaped region (title bar, update banner, status bar) that failed: one line, one button. */
+.crash-strip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--control-gap);
+  padding: 0 var(--control-padding-x);
+  min-height: var(--control-height-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 12px;
+}
+.crash-strip-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* The transcript pane's own failure state, reusing the crash pane's message/detail styling. */
 .transcript-error { padding: 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 

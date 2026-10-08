@@ -1,10 +1,11 @@
 import { describe, it, expect, afterEach, onTestFinished } from 'vitest'
 import { page } from 'vitest/browser'
+import { nextFrames } from './helpers'
 import { createRoot, type Root } from 'react-dom/client'
 import { flushSync } from 'react-dom'
 import '../../src/renderer/styles.css'
 import { PetSprite, viewOf } from '../../src/renderer/features/pets/PetSprite'
-import { drawPetsFlat } from '../../src/renderer/features/pets/render3d/usePetImages'
+import { setTestSeams } from '../../src/renderer/state/testSeams'
 import { STARTER_PET } from '@shared/pets/builtins'
 import { ACCESSORY_SLOTS, BODY_SHAPES, EYE_STYLES, type PetSpec } from '@shared/pets/spec'
 import { validatePet } from '@shared/pets/validate'
@@ -98,8 +99,8 @@ describe('a pet sprite', () => {
 
   // Opt-in, like petRender3d: software WebGL starves the suite (e2e checks the 3D swap on a GPU).
   it.skipIf((import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_PET_GALLERY !== '1')('swaps in its 3D render once the worker has made it, and changes expression without re-rendering', { timeout: 120_000 }, async () => {
-    drawPetsFlat(false)
-    onTestFinished(() => { drawPetsFlat(true) })
+    setTestSeams({ petsFlat: false })
+    onTestFinished(() => { setTestSeams({ petsFlat: true }) })
     const el = draw(<PetSprite spec={STARTER_PET} size={128} activity="idle" face="happy" facing="right" />)
     await expect.poll(() => el.querySelector('.pet-sprite')?.getAttribute('data-render'), { timeout: 110_000 }).toBe('3d')
     const face = (): string | null => el.querySelector('.pet-eyes img')?.getAttribute('src') ?? null
@@ -112,8 +113,8 @@ describe('a pet sprite', () => {
 
   // Opt-in with the gallery: every pose in 3D, props and profiles included, to look at.
   it.skipIf((import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_PET_GALLERY !== '1')('poses in 3D, side-on where that reads best', { timeout: 240_000 }, async () => {
-    drawPetsFlat(false)
-    onTestFinished(() => { drawPetsFlat(true) })
+    setTestSeams({ petsFlat: false })
+    onTestFinished(() => { setTestSeams({ petsFlat: true }) })
     const poses: [Activity, Face][] = [
       ['idle', 'happy'], ['walk', 'happy'], ['run', 'love'], ['computer', 'focused'], ['drink', 'happy'], ['eat', 'love'],
       ['carry', 'happy'], ['fish', 'focused'], ['drive', 'happy'], ['skate', 'love'], ['paint', 'focused'], ['read', 'focused'],
@@ -135,7 +136,7 @@ describe('a pet sprite', () => {
     still.textContent = '.pet-sprite, .pet-sprite * { animation-play-state: paused !important; animation-delay: -0.2s !important; }'
     document.head.append(still)
     onTestFinished(() => { still.remove() })
-    await new Promise((res) => setTimeout(res, 400))
+    await nextFrames(2)
     await page.screenshot({ element: el, path: '../../test-results/pets/poses3d.png' })
   })
 })

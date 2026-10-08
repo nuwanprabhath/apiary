@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 import type { AppSettingsPayload } from '@shared/api'
+import { SETTINGS } from '@shared/settings/schema'
 import { previewPrompt } from '@shared/promptPreview'
 import { CheckboxSetting } from '../fields/CheckboxSetting'
 import { NumberSetting } from '../fields/NumberSetting'
@@ -57,8 +58,8 @@ export function TerminalSection(
             testId="setting-terminal-path-segments"
             label="Keep the last"
             unit="folders"
-            min={1}
-            max={8}
+            min={SETTINGS.terminalPathSegments.range.min}
+            max={SETTINGS.terminalPathSegments.range.max}
             value={draft.terminalPathSegments}
             onChange={(n) => { patch({ terminalPathSegments: n }) }}
           />

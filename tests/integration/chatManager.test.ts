@@ -3,14 +3,15 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { ChatManager } from '../../src/main/chat/chatManager'
-import type { ChatState } from '../../src/shared/domain/chat'
+import type { ChatState } from '@shared/domain/chat'
+import { asSessionId } from '@shared/domain/ids'
 
 /**
  * The real ChatManager — a login shell running "claude" with the chat flags — against
  * tests/fixtures/fake-claude-chat.mjs, which speaks the same stream-json protocol as claude 2.1.286.
  */
 const FAKE = resolve(__dirname, '../fixtures/fake-claude-chat.mjs')
-const SESSION = '11111111-2222-3333-4444-555555555555'
+const SESSION = asSessionId('11111111-2222-3333-4444-555555555555')
 
 let manager: ChatManager | null = null
 let dir: string | null = null

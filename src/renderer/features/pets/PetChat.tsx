@@ -2,9 +2,12 @@ import { type JSX, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { PetRecord } from '@shared/pets/state'
 import type { ChatTurn } from '@shared/pets/prompt'
+import { Popover } from '../../ui/Popover'
 import { useEscape } from '../../ui/useEscape'
+import { useOutsideDismiss } from '../../ui/useOutsideDismiss'
 import { CloseIcon } from '../../ui/icons'
 import { describeError } from '../../ui/errors'
+import { chatWithPet } from '../../state/petsStore'
 
 const WIDTH = 280
 
@@ -31,13 +34,8 @@ export function PetChat({ pet, anchor, history, onSaid, onClose }: Props): JSX.E
   const logRef = useRef<HTMLDivElement | null>(null)
   useEscape(onClose)
 
-  useEffect(() => {
-    const onDown = (e: PointerEvent): void => {
-      if (rootRef.current !== null && !rootRef.current.contains(e.target as Node) && !(e.target as Element).closest('.pet')) onClose()
-    }
-    document.addEventListener('pointerdown', onDown, true)
-    return () => { document.removeEventListener('pointerdown', onDown, true) }
-  }, [onClose])
+  // A press on a pet is not outside: the pet handles it itself (it toggles this chat).
+  useOutsideDismiss(onClose, { inside: [rootRef], insideSelector: '.pet' })
 
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }) }, [history, thinking])
 
@@ -50,7 +48,7 @@ export function PetChat({ pet, anchor, history, onSaid, onClose }: Props): JSX.E
     const mine: ChatTurn = { from: 'you', text: said }
     onSaid([mine])
     try {
-      const reply = await window.apiary.petChat(pet.id, said)
+      const reply = await chatWithPet(pet.id, said)
       onSaid([{ from: 'pet', text: reply }])
     } catch (e) {
       setError(describeError(e).message)
@@ -62,7 +60,7 @@ export function PetChat({ pet, anchor, history, onSaid, onClose }: Props): JSX.E
   const left = Math.min(Math.max(8, anchor.x - WIDTH / 2), window.innerWidth - WIDTH - 8)
   const bottom = Math.max(8, window.innerHeight - anchor.y + pet.size + 10)
   return createPortal(
-    <div ref={rootRef} className="pet-chat" data-testid="pet-chat" role="dialog" aria-label={`Chat with ${pet.spec.name}`} style={{ left, bottom }}>
+    <Popover ref={rootRef} className="pet-chat" testId="pet-chat" label={`Chat with ${pet.spec.name}`} style={{ left, bottom }}>
       <div className="pet-chat-head">
         <span>{pet.spec.name}</span>
         <button className="icon-button" aria-label="Close" title="Close" onClick={onClose}><CloseIcon /></button>
@@ -86,7 +84,7 @@ export function PetChat({ pet, anchor, history, onSaid, onClose }: Props): JSX.E
         onChange={(e) => { setText(e.target.value) }}
         onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void send() } }}
       />
-    </div>,
+    </Popover>,
     document.body,
   )
 }

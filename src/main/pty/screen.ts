@@ -67,9 +67,12 @@ export async function renderScreen(raw: string, cols?: number, rows?: number): P
 
 /** One live headless terminal per pty id, written to as output arrives. */
 export class ScreenBuffers {
-  private terms = new Map<string, Terminal>()
-  private serializers = new Map<string, SerializeAddon>()
-  private sizes = new Map<string, { cols: number; rows: number }>()
+  /** One record per pty id: the size to create its terminal at, and the terminal once output has
+   *  arrived. A record and not one map per field, so `dispose` cannot miss one. */
+  private screens = new Map<string, {
+    size: { cols: number; rows: number } | null
+    live: { term: Terminal; serializer: SerializeAddon } | null
+  }>()
 
   /**
    * Keeps a pty's screen the same shape as the real terminal showing it.
@@ -80,22 +83,23 @@ export class ScreenBuffers {
    * is drawing on.
    */
   resize(id: string, cols: number, rows: number): void {
-    this.sizes.set(id, { cols, rows })
-    this.terms.get(id)?.resize(cols, rows)
+    const screen = this.screens.get(id) ?? { size: null, live: null }
+    screen.size = { cols, rows }
+    this.screens.set(id, screen)
+    screen.live?.term.resize(cols, rows)
   }
 
   /** Feeds a chunk to the pty's screen, creating it at the pty's last known size on first use. */
   write(id: string, data: string): void {
-    let term = this.terms.get(id)
-    if (term === undefined) {
-      const size = this.sizes.get(id)
-      term = createTerminal(size?.cols, size?.rows, LIVE_SCROLLBACK)
+    const screen = this.screens.get(id) ?? { size: null, live: null }
+    if (screen.live === null) {
+      const term = createTerminal(screen.size?.cols, screen.size?.rows, LIVE_SCROLLBACK)
       const serializer = new SerializeAddon()
       term.loadAddon(serializer)
-      this.terms.set(id, term)
-      this.serializers.set(id, serializer)
+      screen.live = { term, serializer }
+      this.screens.set(id, screen)
     }
-    term.write(data)
+    screen.live.term.write(data)
   }
 
   /**
@@ -113,9 +117,9 @@ export class ScreenBuffers {
    * Waits for writes still queued in the emulator, so the snapshot includes everything received.
    */
   async snapshot(id: string): Promise<ScreenSnapshot | null> {
-    const term = this.terms.get(id)
-    const serializer = this.serializers.get(id)
-    if (term === undefined || serializer === undefined) return null
+    const live = this.screens.get(id)?.live
+    if (!live) return null
+    const { term, serializer } = live
     await new Promise<void>((resolve) => { term.write('', resolve) })
     return { data: serializer.serialize(), cols: term.cols, rows: term.rows }
   }
@@ -129,14 +133,12 @@ export class ScreenBuffers {
    * looking at, and a repaint that has not landed yet is one they cannot see either.
    */
   read(id: string): string {
-    const term = this.terms.get(id)
-    return term === undefined ? '' : readScreen(term)
+    const live = this.screens.get(id)?.live
+    return live ? readScreen(live.term) : ''
   }
 
   dispose(id: string): void {
-    this.terms.get(id)?.dispose()
-    this.terms.delete(id)
-    this.serializers.delete(id)
-    this.sizes.delete(id)
+    this.screens.get(id)?.live?.term.dispose()
+    this.screens.delete(id)
   }
 }

@@ -1,4 +1,5 @@
 import { Worker } from 'node:worker_threads'
+import { errorMessage } from '@shared/errors'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { log } from '../log/logger'
@@ -53,7 +54,7 @@ export class SearchClient {
         this.unavailable = true
       }
       worker.on('error', (e: unknown) => {
-        fail(e instanceof Error ? e.message : String(e))
+        fail(errorMessage(e))
       })
       worker.on('exit', (code) => { if (code !== 0) fail(`exit ${String(code)}`) })
       worker.unref()

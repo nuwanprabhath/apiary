@@ -122,6 +122,7 @@ function packagedIsolationEnv(home: string, configRoot: string): Record<string, 
 function exitedWithin(proc: ChildProcess, ms: number): Promise<boolean> {
   if (proc.exitCode !== null || proc.signalCode !== null) return Promise.resolve(true)
   return new Promise((resolve) => {
+    // eslint-disable-next-line apiary/no-test-sleep -- a deadline on a process exit, resolved early by the 'exit' event below, not a sleep
     const timer = setTimeout(() => { resolve(false) }, ms)
     proc.once('exit', () => { clearTimeout(timer); resolve(true) })
   })
@@ -379,10 +380,13 @@ export async function launchApiary(
     writeFileSync(claudeBin, '#!/bin/sh\nexec "${SHELL:-/bin/bash}" -l\n')
     chmodSync(claudeBin, 0o755)
   }
-  if (claudeBin !== null) {
-    mkdirSync(userDataDir, { recursive: true })
-    writeFileSync(join(userDataDir, 'settings.json'), JSON.stringify({ claudeBin, ...opts.settings }))
-  }
+  // The Claude usage plugin asks for consent in a dialog on first launch (ADR-0019); left on, that
+  // dialog would sit over every spec's window. Only statusBar.spec turns it on, to test the question.
+  mkdirSync(userDataDir, { recursive: true })
+  writeFileSync(
+    join(userDataDir, 'settings.json'),
+    JSON.stringify({ ...(claudeBin !== null ? { claudeBin } : {}), plugins: { 'claude-usage': false }, ...opts.settings }),
+  )
 
   const electronArgs = opts.electronArgs ?? []
   const env = launchEnv(home, {
@@ -520,6 +524,7 @@ export async function relaunchApiaryClosingEachWindow(h: Harness, gapMs = 0): Pr
         win.once('closed', () => { resolve() })
         win.close()
       })
+      // eslint-disable-next-line apiary/no-test-sleep -- the pause between window closes IS the scenario (`gapMs`: someone who closed one window and carried on); it runs in the main process
       await new Promise((resolve) => setTimeout(resolve, gap))
     }
     // Linux and Windows quit on `window-all-closed` already; a Mac stays running without this.
@@ -740,18 +745,6 @@ export async function clickRowAction(row: Locator, testId: string): Promise<void
   }).toPass({ timeout: 20000 })
 }
 
-/**
- * Asserts that `check` holds for the whole of `ms`, sampling it every 50ms and failing at the first
- * sample where it does not — for tests whose point is that something does *not* happen (a flicker,
- * a re-expand, a second write). A fixed wait followed by one look proves only the last instant;
- * this proves the window, and says what it was proving when it fails.
- */
-export async function expectStays(
-  check: () => boolean | Promise<boolean>, ms: number, what: string,
-): Promise<void> {
-  const started = Date.now()
-  while (Date.now() - started < ms) {
-    if (!(await check())) throw new Error(`Expected ${what} for ${String(ms)}ms, but it stopped after ${String(Date.now() - started)}ms`)
-    await new Promise((resolve) => setTimeout(resolve, 50))
-  }
-}
+/** Asserts `check` holds for the whole of `ms`, for tests whose point is that something does *not*
+ *  happen; the one implementation is `fixtures/stays.ts`. */
+export { stays as expectStays } from '../fixtures/stays'

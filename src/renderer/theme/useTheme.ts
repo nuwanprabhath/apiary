@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { THEME_CHANGE_EVENT } from './applyTheme'
 import type { ThemeSpec } from '@shared/theme/spec'
+import { initialTheme } from '../state/theme'
 
-export { useThemeState } from './themeStore'
+export { useThemeState } from '../state/themeStore'
 
 /**
  * Whatever this window is showing right now — the active theme, or a preview the Themes screen
@@ -10,7 +11,7 @@ export { useThemeState } from './themeStore'
  * effects too.
  */
 export function useAppliedTheme(): ThemeSpec | null {
-  const [spec, setSpec] = useState<ThemeSpec | null>(() => window.apiary.initialTheme.active)
+  const [spec, setSpec] = useState<ThemeSpec | null>(() => initialTheme().active)
   useEffect(() => {
     const on = (e: Event): void => { setSpec((e as CustomEvent<ThemeSpec | null>).detail) }
     window.addEventListener(THEME_CHANGE_EVENT, on)

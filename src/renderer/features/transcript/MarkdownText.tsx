@@ -31,7 +31,7 @@ function installSanitizeHooks(): void {
   // submit button) is dropped and forced inert.
   DOMPurify.addHook('uponSanitizeElement', (node) => {
     if (node.nodeName !== 'INPUT') return
-    const el = node as unknown as HTMLInputElement
+    const el = node as HTMLInputElement
     if (el.getAttribute('type') !== 'checkbox') {
       el.parentNode?.removeChild(el)
       return

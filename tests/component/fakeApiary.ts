@@ -6,130 +6,37 @@
  *
  * It models the same four sessions the end-to-end harness writes to disk (tests/e2e/helpers.ts), so
  * a test moved down from end-to-end keeps its titles and its assertions. It is stateful where a
- * test needs a round trip — importing, renaming, notes, settings, git refs, themes — and records
- * every call, so a test can assert on what the renderer asked for instead of on what a real main
- * process would have done with it. What only the real app can prove (processes, persistence
+ * test needs a round trip — importing, renaming, notes, settings, git refs, themes, pets, chat —
+ * and records every call, so a test can assert on what the renderer asked for instead of on what a
+ * real main process would have done with it. What only the real app can prove (processes, persistence
  * across a relaunch, several windows) stays in tests/e2e.
+ *
+ * It is a model of main, and the model is checked: `tests/contract/bridgeContract.ts` runs one
+ * behavioural spec against this fake and against the real preload and handlers, so a fake that
+ * answers differently from main fails there. Each area lives in `fake/` and says which clause file
+ * pins it. Two things hold for every call, by construction: its arguments pass the contract's own
+ * guard (a malformed call is refused as main's registrar refuses it), and what crosses the bridge
+ * (arguments, results, event payloads) is a copy, as it is over Electron's IPC, so a component cannot
+ * lean on sharing an object with the fake's state.
  */
-import type { StatusBarItem, StatusBarPanel } from '../../src/shared/domain/statusBar'
-import type {
-  ActiveTabPayload, ApiaryApi, AppSettingsPayload, DiscoveredSession, LogStatusPayload,
-  PluginBarItemPayload, PluginInfoPayload, SavedTheme, ThemeOptions, ThemeState, UpdateStatusPayload,
-} from '@shared/api'
-import type {
-  FolderWorktree, GitRefEntry, GitRefs, GitStatus, NewSessionInfo, ProjectNode, SessionNode, TranscriptMessage,
-  TranscriptPage,
-} from '@shared/types'
-import { BUILTIN_THEMES } from '@shared/theme/builtins'
-import { STARTER_PET } from '@shared/pets/builtins'
-import { MAX_ACTIVE_PETS, PET_SIZES, type PetRecord, type PetsState } from '@shared/pets/state'
+import type { ApiaryApi } from '@shared/api'
+import { IPC } from '@shared/ipc/contract'
+import { asPtyId } from '@shared/domain/ids'
+import type { NewSessionInfo } from '@shared/types'
 import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
-import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
-import { asPtyId, asSessionId } from '@shared/domain/ids'
-import { emptyChatState, type ChatState, type TerminalBusy } from '@shared/domain/chat'
 import { STANDARD_SESSIONS as STD } from '../fixtures/standard'
+import { chatApi } from './fake/chat'
+import { fakeRef, gitApi } from './fake/git'
+import { fakePet, petsApi } from './fake/pets'
+import { message, sessionsApi } from './fake/sessions'
+import { settingsApi } from './fake/settings'
+import type { Env, FakeApiary, FakeCall, FakeEvent, FakeOptions, FakeProject, FakeSession, FakeState } from './fake/state'
+import { initialThemeState, themesApi } from './fake/themes'
+import { tabsApi } from './fake/tabs'
+import { updateApi } from './fake/update'
 
-export interface FakeSession {
-  sessionId: string
-  title: string
-  /** The project (folder) the session is filed under — one of `FakeProject.path`. */
-  projectPath: string
-  gitBranch?: string | null
-  lastActiveAtMs?: number | null
-  isLive?: boolean
-  cwdExists?: boolean
-  note?: string | null
-  /** Oldest first. Defaults to a two-message exchange like the e2e fixture's. */
-  messages?: TranscriptMessage[]
-}
-
-export interface FakeProject {
-  path: string
-  label: string
-  branch: string | null
-  isWorktree?: boolean
-  /** The repository this one is a worktree of, when it is one. */
-  parent?: string
-}
-
-export interface FakeOptions {
-  projects?: FakeProject[]
-  sessions?: FakeSession[]
-  /** Which sessions start imported: all of them (the default, like the e2e specs after `importAll`), or none. */
-  imported?: 'all' | 'none'
-  settings?: Partial<AppSettingsPayload>
-  update?: Partial<UpdateStatusPayload>
-  plugins?: PluginInfoPayload[]
-  pluginBar?: PluginBarItemPayload[]
-  refs?: Partial<GitRefs>
-  vsCode?: boolean
-  /** What `listWorktrees` answers, by folder path. A folder with no entry has no other worktrees. */
-  worktrees?: Record<string, FolderWorktree[]>
-  /** The status bar's items. Default: none (the real Claude usage plugin reads a network). */
-  statusBar?: StatusBarItem[]
-  /** The dashboard `statusBarPanel` answers for any item. */
-  statusBarPanel?: StatusBarPanel | null
-}
-
-export interface FakeCall { name: string; args: unknown[] }
-
-export type FakeApiary = ApiaryApi & {
-  /** Every call the renderer made, in order. */
-  calls: FakeCall[]
-  /** The arguments of each call to `name`. */
-  callsTo(name: keyof ApiaryApi): unknown[][]
-  /** Fires one of the `on…` subscriptions, as the main process would. */
-  emit(event: FakeEvent, ...args: unknown[]): void
-  /** Replace what a method does, for one test (a rejection, a slow answer, a different result). */
-  override<K extends keyof ApiaryApi>(name: K, impl: ApiaryApi[K]): void
-  /** The mutable state behind the fake — sessions, settings, refs — for arranging a test. */
-  state: FakeState
-}
-
-export type FakeEvent =
-  | 'activeTabsChanged' | 'selectTab' | 'themeChanged' | 'tabAdopt' | 'tabClaimed'
-  | 'requestLayoutFlush' | 'newSessionStarted' | 'ptySessionsChanged' | 'mrStatusesInvalidated'
-  | 'ptyData' | 'ptyExit' | 'treeChanged' | 'openImportDialog' | 'openSettingsDialog'
-  | 'toggleSidebar' | 'pluginsChanged' | 'updateChanged' | 'statusBarChanged' | 'chatChanged'
-  | 'petsChanged'
-
-export interface FakeState {
-  projects: FakeProject[]
-  sessions: FakeSession[]
-  imported: Set<string>
-  /** Removed from the tree (main archives; the session stays discovered and imported). */
-  archived: Set<string>
-  settings: AppSettingsPayload
-  theme: ThemeState
-  refs: GitRefs
-  update: UpdateStatusPayload
-  plugins: PluginInfoPayload[]
-  pluginBar: PluginBarItemPayload[]
-  tabs: ActiveTabPayload[]
-  log: LogStatusPayload
-  vsCode: boolean
-  worktrees: Record<string, FolderWorktree[]>
-  statusBar: StatusBarItem[]
-  /** Chat mode, by session id: what `chatState` answers and the `chat*` calls change. */
-  chats: Map<string, ChatState>
-  /** What `terminalBusy` answers, by session id; not busy when absent. */
-  terminalBusy: Map<string, TerminalBusy>
-  statusBarPanel: StatusBarPanel | null
-  /** Pets: what `petsState` answers; the pet calls change it and emit `petsChanged`. */
-  pets: PetsState
-  /** What `petChat` answers. */
-  petReply: string
-  /** What `petClaudeActions` reports for each session key, and what `petComment` answers. */
-  petActions: Record<string, string>
-  petComment: string | null
-}
-
-const DAY = 24 * 60 * 60 * 1000
-
-/** A pet as main would store it: the starter pet, out, with no place yet. */
-export function fakePet(id: string, over: Partial<PetRecord> = {}): PetRecord {
-  return { id, spec: STARTER_PET, model: 'haiku', size: PET_SIZES.default, active: true, place: null, createdAt: 0, voicedAt: 0, ...over }
-}
+export type { FakeApiary, FakeCall, FakeEvent, FakeOptions, FakeProject, FakeSession, FakeState }
+export { fakePet, fakeRef, message }
 
 /** The e2e harness's layout: two plain folders, and a repository with one worktree under it. */
 export const FIXTURE_PROJECTS: FakeProject[] = [
@@ -156,19 +63,11 @@ export const FIXTURE_SESSIONS: FakeSession[] = [
   { sessionId: STD.worktree.id, title: STD.worktree.title, projectPath: '/fixture/repo-c-wt', gitBranch: 'feature/wt' },
 ]
 
-export function message(
-  uuid: string, role: 'user' | 'assistant', text: string, extra: Partial<TranscriptMessage> = {},
-): TranscriptMessage {
-  return { uuid, role, timestampMs: Date.parse('2026-09-01T10:00:00Z'), isSidechain: false, blocks: [{ type: 'text', text }], ...extra }
-}
-
-const ref = (name: string): GitRefEntry => ({ name, relativeDate: '2 days ago', author: 'Test', shortSha: 'abc1234', subject: `tip of ${name}` })
-
 // Shared with src/main/settings.ts (TEST-5): a hand-copy here was a checked-nowhere place for the
 // fake's defaults to drift from what main actually ships.
-export const DEFAULT_SETTINGS: AppSettingsPayload = DEFAULT_SETTINGS_PAYLOAD
+export const DEFAULT_SETTINGS = DEFAULT_SETTINGS_PAYLOAD
 
-const DEFAULT_UPDATE: UpdateStatusPayload = {
+const DEFAULT_UPDATE: FakeState['update'] = {
   phase: 'idle',
   capability: { kind: 'assisted', reason: 'This build is not signed, so macOS will not let it replace itself.' },
   currentVersion: '1.24.1',
@@ -184,28 +83,34 @@ const DEFAULT_UPDATE: UpdateStatusPayload = {
   skippedVersion: null,
 }
 
-const THEME_OPTIONS: ThemeOptions = { animated: true, intensity: 1, model: 'sonnet' }
-
 export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
   const sessions = (opts.sessions ?? FIXTURE_SESSIONS).map((s) => ({ ...s }))
+  const projects = (opts.projects ?? FIXTURE_PROJECTS).map((p) => ({ ...p, tracked: p.branch !== null }))
+  const update = { ...DEFAULT_UPDATE, ...opts.update }
+  // A status-bar item or a bar button always comes from a plugin; one handed in without its plugin
+  // gets a plain one, switched on.
+  const plugins = [...(opts.plugins ?? [])]
+  for (const id of new Set([...(opts.statusBar ?? []), ...(opts.pluginBar ?? [])].map((i) => i.pluginId))) {
+    if (!plugins.some((p) => p.id === id)) plugins.push({ id, name: id, description: null, enabled: true, fields: [], values: {} })
+  }
   const state: FakeState = {
-    projects: opts.projects ?? FIXTURE_PROJECTS,
+    projects,
     sessions,
     imported: new Set(opts.imported === 'none' ? [] : sessions.map((s) => s.sessionId)),
     archived: new Set(),
     settings: { ...DEFAULT_SETTINGS, ...opts.settings },
-    theme: {
-      activeId: null, active: null, saved: [], builtins: [...BUILTIN_THEMES], options: { ...THEME_OPTIONS }, safeMode: false,
-    },
+    theme: initialThemeState(),
     refs: {
       current: 'main',
-      local: [ref('main'), ref('feature/wt')],
+      local: [fakeRef('main'), fakeRef('feature/wt')],
       remote: [],
-      tags: [ref('v1.0.0')],
+      tags: [fakeRef('v1.0.0')],
       ...opts.refs,
     },
-    update: { ...DEFAULT_UPDATE, ...opts.update },
-    plugins: opts.plugins ?? [],
+    tracking: new Map((opts.upstream ?? []).map((branch) => [branch, { upstream: true, ahead: 0, behind: 0, pending: 0 }])),
+    update,
+    updateFeed: opts.updateFeed !== undefined ? opts.updateFeed : update.availableVersion,
+    plugins,
     pluginBar: opts.pluginBar ?? [],
     tabs: [],
     log: { enabled: false, dir: '/fixture/logs', files: 0, bytes: 0 },
@@ -213,12 +118,18 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     worktrees: opts.worktrees ?? {},
     statusBar: opts.statusBar ?? [],
     chats: new Map(),
+    chatAttached: new Set(),
     terminalBusy: new Map(),
     statusBarPanel: opts.statusBarPanel ?? null,
     pets: { enabled: false, pets: [], generating: false },
     petReply: 'Hehe, hi!',
     petActions: {},
     petComment: null,
+    petFile: null,
+    pickedFolder: opts.pickedFolder !== undefined ? opts.pickedFolder : '/fixture/picked',
+    images: new Map(),
+    opened: [],
+    copied: [],
   }
 
   const calls: FakeCall[] = []
@@ -231,311 +142,65 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     set.add(fn)
     return () => { set.delete(fn) }
   }
+  // What crosses the bridge is a copy, as over Electron's IPC: every listener gets its own, so a
+  // component cannot lean on sharing an object with the fake's state (or with another window).
   const emit = (event: FakeEvent, ...args: unknown[]): void => {
-    for (const cb of [...(listeners.get(event) ?? [])]) cb(...args)
-  }  /** Records a chat's new state and tells the renderer, as main's ChatManager does. */
-  const setPets = (next: PetsState): void => { state.pets = next; emit('petsChanged', next) }
-  const setChat = (next: ChatState): void => { state.chats.set(next.sessionId, next); emit('chatChanged', next) }
-
-
-  const sessionNode = (s: FakeSession): SessionNode => ({
-    kind: 'session',
-    sessionId: asSessionId(s.sessionId),
-    title: s.title,
-    cwd: s.projectPath,
-    gitBranch: s.gitBranch ?? null,
-    lastActiveAtMs: s.lastActiveAtMs ?? Date.now() - 22 * DAY,
-    messageCount: (s.messages ?? []).length || 2,
-    isLive: s.isLive ?? false,
-    cwdExists: s.cwdExists ?? true,
-    note: s.note ?? null,
-  })
-  const tree = (): ProjectNode[] => {
-    const shown = state.sessions.filter((s) => state.imported.has(s.sessionId) && !state.archived.has(s.sessionId))
-    const node = (p: FakeProject): ProjectNode => ({
-      kind: 'project',
-      path: p.path,
-      label: p.label,
-      branch: p.branch,
-      isWorktree: p.isWorktree ?? false,
-      children: state.projects.filter((c) => c.parent === p.path).map(node).filter((c) => hasSessions(c)),
-      sessions: shown.filter((s) => s.projectPath === p.path).map(sessionNode),
-    })
-    const hasSessions = (n: ProjectNode): boolean => n.sessions.length > 0 || n.children.some(hasSessions)
-    return state.projects.filter((p) => p.parent === undefined).map(node).filter(hasSessions)
+    for (const cb of [...(listeners.get(event) ?? [])]) cb(...structuredClone(args))
   }
+
   const find = (id: string): FakeSession | undefined => state.sessions.find((s) => s.sessionId === id)
-  const transcript = (id: string, beforeIndex?: number): TranscriptPage => {
-    const s = find(id)
-    const all = s?.messages ?? [message(`${id}-u`, 'user', 'fix the export'), message(`${id}-a`, 'assistant', 'done')]
-    const end = beforeIndex ?? all.length
-    // The same page size as transcriptReader.ts (TEST-5; the contract suite pins the two together).
-    const start = Math.max(0, end - TRANSCRIPT_PAGE_SIZE)
-    return { messages: all.slice(start, end), earlierCursor: start > 0 ? start : null, skippedLines: 0 }
-  }
+  const pendingPtys = new Map<string, string>()
   let nextPty = 0
   const newSession = (cwd: string): NewSessionInfo => {
     nextPty += 1
-    return { ptyId: asPtyId(`new:fake-${String(nextPty)}`), cwd, label: `New session · ${cwd.split('/').pop() ?? cwd}` }
+    const ptyId = asPtyId(`new:fake-${String(nextPty)}`)
+    pendingPtys.set(ptyId, cwd)
+    return { ptyId, cwd, label: cwd.split('/').pop() ?? cwd }
   }
+  const projectOf: Env['projectOf'] = (target) => {
+    if (target.kind === 'folder') return state.projects.find((p) => p.path === target.path)
+    const path = target.kind === 'session' ? find(target.id)?.projectPath : pendingPtys.get(target.id)
+    return state.projects.find((p) => p.path === path)
+  }
+  const env: Env = { state, emit, find, newSession, projectOf, pendingPtys }
 
   const impl: ApiaryApi = {
-    // Real main sends mrStatusesInvalidated on refresh, not treeChanged (ipc.ts) — the caller
-    // re-fetches the tree from the invoke's own return value (Sidebar.tsx's reloadNow), not from
-    // an event.
-    refresh: async () => { emit('mrStatusesInvalidated') },
-    tree: async () => tree(),
-    searchContent: async (q) => state.sessions
-      .filter((s) => (s.messages ?? []).some((m) => m.blocks.some((b) => 'text' in b && b.text.toLowerCase().includes(q.toLowerCase()))))
-      .map((s) => s.sessionId),
-    discovered: async (): Promise<DiscoveredSession[]> => state.sessions.map((s) => ({
-      sessionId: asSessionId(s.sessionId), projectPath: s.projectPath, title: s.title,
-      lastActiveAtMs: s.lastActiveAtMs ?? Date.now() - 22 * DAY, imported: state.imported.has(s.sessionId),
-    })),
-    importSessions: async (ids) => { for (const id of ids) state.imported.add(id) },
-    transcript: async (id, before) => transcript(id, before),
-    checkConflict: async () => null,
-    resume: async () => {},
-    reportLayout: async () => {},
-    reportTabs: (tabs) => {
-      state.tabs = tabs.map((t) => ({ windowNumber: 1, key: t.key, view: t.view, status: 'stopped', label: t.label }))
-      emit('activeTabsChanged')
-    },
-    activeTabs: async () => state.tabs,
-    onActiveTabsChanged: on('activeTabsChanged'),
-    focusTab: async () => {},
-    onSelectTab: on('selectTab'),
-    // As in main (ipc.ts), a change to what the tree shows is followed by a tree-changed event.
-    renameSession: async (id, title) => { const s = find(id); if (s !== undefined) s.title = title; emit('treeChanged') },
+    ...sessionsApi(env),
+    ...settingsApi(env),
+    ...themesApi(env),
+    ...petsApi(env),
+    ...chatApi(env),
+    ...updateApi(env),
+    ...tabsApi(env),
+    ...gitApi(env),
     get initialTheme() { return state.theme },
-    themeState: async () => state.theme,
-    themeGpuCompositing: async () => true,
-    themeApply: async (id) => {
-      const spec = id === null ? null : (state.theme.builtins.find((b) => b.id === id)?.spec ?? state.theme.saved.find((t) => t.id === id)?.spec ?? null)
-      state.theme = { ...state.theme, activeId: id, active: spec }
-      emit('themeChanged', state.theme)
-    },
-    themeSave: async (name, spec, prompt) => {
-      const saved: SavedTheme = { id: `saved:${String(state.theme.saved.length + 1)}`, name, prompt: prompt ?? null, createdAt: Date.now(), spec: spec as SavedTheme['spec'] }
-      state.theme = { ...state.theme, saved: [...state.theme.saved, saved] }
-      emit('themeChanged', state.theme)
-      return saved
-    },
-    themeGenerate: async () => { throw new Error('No theme generator in component tests') },
-    themeGenerateCancel: () => {},
-    themeRename: async (id, name) => {
-      state.theme = { ...state.theme, saved: state.theme.saved.map((t) => (t.id === id ? { ...t, name } : t)) }
-      emit('themeChanged', state.theme)
-    },
-    themeDelete: async (id) => {
-      state.theme = { ...state.theme, saved: state.theme.saved.filter((t) => t.id !== id), activeId: state.theme.activeId === id ? null : state.theme.activeId }
-      emit('themeChanged', state.theme)
-    },
-    themeSetOptions: async (o) => { state.theme = { ...state.theme, options: { ...state.theme.options, ...o } }; emit('themeChanged', state.theme) },
+    onActiveTabsChanged: on('activeTabsChanged'),
+    onSelectTab: on('selectTab'),
     onThemeChanged: on('themeChanged'),
-    petsState: async () => state.pets,
     onPetsChanged: on('petsChanged'),
-    petsSetEnabled: async (enabled) => {
-      setPets({ ...state.pets, enabled, pets: enabled && state.pets.pets.length === 0 ? [fakePet('pet-1')] : state.pets.pets })
-    },
-    petGenerate: async (description) => {
-      const pet = { ...fakePet(`pet-${String(state.pets.pets.length + 1)}`), active: state.pets.pets.filter((p) => p.active).length < MAX_ACTIVE_PETS }
-      if (description !== null) pet.spec = { ...pet.spec, tagline: description }
-      setPets({ ...state.pets, pets: [...state.pets.pets, pet] })
-      return pet
-    },
-    petGenerateCancel: () => {},
-    petUpdate: async (id, patch) => {
-      const pets = state.pets.pets.map((p) => (p.id === id ? {
-        ...p,
-        ...(patch.size !== undefined ? { size: Math.min(PET_SIZES.max, Math.max(PET_SIZES.min, patch.size)) } : {}),
-        ...(patch.active !== undefined ? { active: patch.active } : {}),
-        ...(patch.place !== undefined ? { place: patch.place } : {}),
-        ...(patch.model !== undefined ? { model: patch.model } : {}),
-        ...(patch.name !== undefined ? { spec: { ...p.spec, name: patch.name } } : {}),
-      } : p))
-      setPets({ ...state.pets, pets })
-      return pets.find((p) => p.id === id)!
-    },
-    petDelete: async (id) => { setPets({ ...state.pets, pets: state.pets.pets.filter((p) => p.id !== id) }) },
-    petExport: async () => true,
-    petImport: async () => null,
-    petChat: async () => state.petReply,
-    petVoice: async () => false,
-    petClaudeActions: async (keys) => keys.flatMap((key) => { const action = state.petActions[key]; return action !== undefined ? [{ key, action }] : [] }),
-    petComment: async () => state.petComment,
-    renameTerminalInClaude: () => {},
-    // As in main (AppService.removeSession): archived, not un-imported, so the import dialog does
-    // not offer it again as new.
-    removeSession: async (id) => { state.archived.add(id); emit('treeChanged') },
-    moveSession: async (id, target) => { const s = find(id); if (s !== undefined) s.projectPath = target; emit('treeChanged') },
-    openShell: async () => {},
-    openShellForPty: async () => {},
-    newSessionInProject: async (path) => newSession(path),
-    // Main answers with the folder the native picker returned; the fake "picks" /fixture/picked.
-    newSessionInPickedFolder: async () => newSession('/fixture/picked'),
-    forkSession: async (id) => ({ ...newSession(find(id)?.projectPath ?? '/fixture'), label: `fork: ${find(id)?.title ?? id}` }),
-    logStatus: async () => state.log,
-    logReveal: async () => state.log.dir,
-    logClear: async () => { state.log = { ...state.log, files: 0, bytes: 0 }; return state.log },
-    logWrite: () => {},
-    tabDropped: async () => {},
-    tabDetach: async () => {},
-    tabAdoptHere: async () => {},
     onTabAdopt: on('tabAdopt'),
     onTabClaimed: on('tabClaimed'),
     onRequestLayoutFlush: on('requestLayoutFlush'),
     onNewSessionStarted: on('newSessionStarted'),
-    ptyWrite: () => {},
-    ptyResize: () => {},
-    ptyKill: () => {},
-    ptyResume: () => {},
-    ptyAttach: () => {},
-    ptyDetach: () => {},
-    ptySnapshot: async () => null,
-    ptySessions: async () => ({}),
     onPtySessionsChanged: on('ptySessionsChanged'),
     onMrStatusesInvalidated: on('mrStatusesInvalidated'),
-    ptyRunning: async () => [],
     onPtyData: on('ptyData'),
     onPtyExit: on('ptyExit'),
     onTreeChanged: on('treeChanged'),
     onOpenImportDialog: on('openImportDialog'),
-    settingsGet: async () => state.settings,
-    // A key the payload omits (or sends as `undefined`) must leave the current value alone —
-    // see mergeSettingsPayload (src/main/settings.ts) and CLAUDE.md "Settings arriving over IPC".
-    // A plain `{ ...state.settings, ...s }` spread keeps an explicit `undefined` value, which
-    // overwrites the field instead of leaving it — the bug that made session notes stop indexing.
-    settingsSet: async (s) => {
-      const kept = Object.fromEntries(Object.entries(s).filter(([, v]) => v !== undefined))
-      state.settings = { ...state.settings, ...kept }
-    },
     onOpenSettingsDialog: on('openSettingsDialog'),
     onToggleSidebar: on('toggleSidebar'),
-    gitStatus: async (): Promise<GitStatus> => ({ branch: state.refs.current, ahead: 0, behind: 0, hasUpstream: false }),
-    gitListRefs: async () => state.refs,
-    gitlabMrRefStatus: async () => ({}),
-    gitCheckoutBranch: async (_k, name) => { state.refs = { ...state.refs, current: name }; emit('treeChanged'); return { ok: true } },
-    gitCheckoutBranchMovingOther: async (_target, branch) => { state.refs = { ...state.refs, current: branch }; emit('treeChanged') },
-    gitPullWorktree: async () => { emit('treeChanged'); return { path: '/fixture/repo-c-wt', commits: 0 } },
-    newSessionInWorktree: async () => newSession('/fixture/repo-c-wt'),
-    gitCheckoutRemote: async (_k, _r, local) => {
-      state.refs = { ...state.refs, current: local, local: [...state.refs.local, ref(local)] }
-      emit('treeChanged')
-    },
-    gitCheckoutDetached: async (_k, r) => { state.refs = { ...state.refs, current: `(detached at ${r})` }; emit('treeChanged') },
-    gitCreateBranch: async (_k, name) => {
-      state.refs = { ...state.refs, current: name, local: [...state.refs.local, ref(name)] }
-      emit('treeChanged')
-    },
-    gitPull: async () => ({ commits: 0 }),
-    gitUpdateBranch: async () => ({ commits: 0 }),
-    gitPullFolder: async () => { emit('treeChanged'); return { commits: 0 } },
-    listWorktrees: async (path) => state.worktrees[path] ?? [],
-    statusBarItems: async () => state.statusBar,
-    statusBarRefresh: async () => {},
-    statusBarPanel: async () => state.statusBarPanel,
-    onStatusBarChanged: on('statusBarChanged'),
-    // Chat mode: just enough of main's ChatManager for the renderer to drive. A test plays Claude's
-    // side itself with `fake.emit('chatChanged', state)` (see chatState helpers in chat tests).
-    chatState: async (id) => state.chats.get(id) ?? null,
-    chatStart: async (id) => {
-      const existing = state.chats.get(id)
-      if (existing !== undefined && existing.status !== 'exited') return existing
-      const started: ChatState = { ...emptyChatState(id), status: 'idle' }
-      setChat(started)
-      return started
-    },
-    chatSend: async (id) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, status: 'busy' }) },
-    chatInterrupt: async () => {},
-    chatRespond: async (id, requestId) => {
-      const c = state.chats.get(id)
-      if (c !== undefined) setChat({ ...c, permissions: c.permissions.filter((p) => p.requestId !== requestId) })
-    },
-    chatSetPermissionMode: async (id, mode) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, permissionMode: mode }) },
-    chatSetModel: async (id, model) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, model }) },
-    chatSetEffort: async (id, effort) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, effort }) },
-    chatStop: async (id) => { const c = state.chats.get(id); if (c !== undefined) setChat({ ...c, status: 'exited' }) },
-    terminalBusy: async (id) => state.terminalBusy.get(id) ?? { busy: false, backgroundTasks: 0 },
-    onChatChanged: on('chatChanged'),
-    // A small stand-in for main's application menu, in the shape serializeMenu produces.
-    appMenu: async () => [
-      { label: 'File', kind: 'submenu', enabled: true, submenu: [
-        { label: 'New Window', kind: 'normal', enabled: true, accelerator: 'Ctrl+N' },
-        { label: '', kind: 'separator', enabled: true },
-        { label: 'Settings...', kind: 'normal', enabled: true, accelerator: 'Ctrl+,' },
-      ] },
-      { label: 'View', kind: 'submenu', enabled: true, submenu: [
-        { label: 'Toggle Sidebar', kind: 'normal', enabled: true, accelerator: 'Ctrl+Shift+B' },
-        { label: 'Appearance', kind: 'submenu', enabled: true, submenu: [
-          { label: 'Full Screen', kind: 'checkbox', enabled: true, checked: false, accelerator: 'F11' },
-        ] },
-      ] },
-    ],
-    appMenuInvoke: async () => {},
-    setTitleBarColors: () => {},
-    // Mirrors main: branches come from the fixture's refs, the new folder goes in
-    // `<folder>.worktrees/`, and a Claude session is started in it.
-    worktreeCreateOptions: async (path) => ({
-      parentDir: `${path}.worktrees`,
-      existingNames: [],
-      local: state.refs.local.map((r) => r.name),
-      remote: state.refs.remote.map((r) => r.name),
-      checkedOut: state.refs.current !== null ? [state.refs.current] : [],
-    }),
-    worktreeCreate: async (path, request) => {
-      // As git would: the folder's worktree list includes it from now on.
-      const made = `${path}.worktrees/${request.name.trim()}`
-      state.worktrees[path] = [...(state.worktrees[path] ?? []), { path: made, branch: request.branch.kind === 'remote' ? request.branch.ref.replace(/^[^/]+\//, '') : request.branch.branch }]
-      return newSession(made)
-    },
-    gitPush: async () => ({ commits: 0, published: false }),
-    gitMerge: async () => { emit('treeChanged') },
-    gitFetch: async () => { emit('treeChanged') },
-    vsCodeAvailable: async () => state.vsCode,
-    openInVsCode: async () => {},
-    copyToClipboard: async () => {},
-    searchRebuild: async () => {},
-    searchStatus: async () => ({ indexed: state.sessions.length, notes: state.sessions.filter((s) => (s.note ?? '') !== '').length }),
-    pluginBarItems: async () => state.pluginBar,
-    pluginBarRefresh: async () => state.pluginBar,
-    pluginRunAction: async () => {},
-    pluginList: async () => state.plugins,
     onPluginsChanged: on('pluginsChanged'),
-    // AppService.setSessionNote trims (appService.ts:567) before deciding empty-vs-not.
-    setSessionNote: async (id, note) => {
-      const trimmed = note.trim()
-      const s = find(id)
-      if (s !== undefined) s.note = trimmed === '' ? null : trimmed
-      emit('treeChanged')
-    },
-    sessionNote: async (id) => find(id)?.note ?? '',
-    saveImage: async () => '/fixture/images/pasted.png',
-    readImage: async () => null,
-    sendPrompt: async () => {},
-    updateStatus: async () => state.update,
-    updateCheck: async () => state.update,
-    updateDownload: async () => state.update,
-    updateInstall: async () => {},
-    updateOpenDownloaded: async () => ({ ok: 'opened' }),
-    // The same transitions as UpdateService.skip()/dismiss() in main.
-    updateSkip: async () => {
-      const version = state.update.availableVersion
-      if (version === null) return
-      state.update = { ...state.update, phase: 'idle', availableVersion: null, skippedVersion: version }
-      emit('updateChanged', state.update)
-    },
-    updateDismiss: async () => {
-      if (['available', 'up-to-date', 'error'].includes(state.update.phase)) {
-        state.update = { ...state.update, phase: 'idle', error: null }
-        emit('updateChanged', state.update)
-      }
-    },
+    onStatusBarChanged: on('statusBarChanged'),
+    onChatChanged: on('chatChanged'),
+    onChatLifecycle: on('chatLifecycle'),
     onUpdateChanged: on('updateChanged'),
   }
 
   // Every method goes through here, so calls are recorded and a test can swap one out. The theme
-  // snapshot is a getter on `impl`, read through rather than copied, so it stays live.
+  // snapshot is a getter on `impl`, read through rather than copied, so it stays live. A call whose
+  // arguments the contract's guard refuses is refused as main's registrar refuses it: an invoke
+  // rejects, a send is dropped.
   const fake = { calls, state, emit } as unknown as FakeApiary
   for (const name of Object.keys(impl) as (keyof ApiaryApi)[]) {
     if (name === 'initialTheme') {
@@ -543,12 +208,21 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
       continue
     }
     const original = impl[name] as (...args: unknown[]) => unknown
+    const spec = (IPC as Record<string, { kind: string; args?: (v: unknown) => boolean }>)[name]
     Object.defineProperty(fake, name, {
       enumerable: true,
-      value: (...args: unknown[]) => {
-        calls.push({ name, args })
+      value: (...sent: unknown[]) => {
+        calls.push({ name, args: sent })
+        if (spec?.args !== undefined && !spec.args(sent)) {
+          return spec.kind === 'invoke' ? Promise.reject(new Error('Invalid request.')) : undefined
+        }
+        // A value Electron's IPC could not carry (a function, a DOM node) fails here as it would there.
+        // A subscription (`on…`) is not a channel: its argument is the callback, which stays itself.
+        const copies = spec !== undefined
+        const args = copies ? structuredClone(sent) : sent
         const swapped = overrides.get(name)
-        return swapped !== undefined ? (swapped as (...a: unknown[]) => unknown)(...args) : original(...args)
+        const result = swapped !== undefined ? (swapped as (...a: unknown[]) => unknown)(...args) : original(...args)
+        return copies && result instanceof Promise ? result.then((value: unknown) => structuredClone(value)) : result
       },
     })
   }

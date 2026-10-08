@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveConfigRoot, projectsDir, readsClaudeKeychain } from '../../src/main/app/config'
+import { resolveConfigRoot, readsClaudeKeychain } from '../../src/main/app/config'
 
 describe('resolveConfigRoot', () => {
   it('defaults to ~/.claude', () => {
@@ -12,12 +12,6 @@ describe('resolveConfigRoot', () => {
 
   it('ignores an empty CLAUDE_CONFIG_DIR', () => {
     expect(resolveConfigRoot({ CLAUDE_CONFIG_DIR: '' }, '/home/nuwan')).toBe('/home/nuwan/.claude')
-  })
-})
-
-describe('projectsDir', () => {
-  it('points at the projects subdirectory', () => {
-    expect(projectsDir('/home/nuwan/.claude')).toBe('/home/nuwan/.claude/projects')
   })
 })
 

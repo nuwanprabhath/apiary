@@ -1,6 +1,6 @@
 import { type ComponentProps, type JSX, useState } from 'react'
 import type { ProjectNode } from '@shared/types'
-import { CollapseAllIcon } from '../../ui/icons'
+import { CollapseAllIcon, PlusBoldIcon } from '../../ui/icons'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
 import { moveGroupBefore, type GroupState, type SessionGroup } from './model/groups'
 import { SessionTree } from './SessionTree'
@@ -150,9 +150,7 @@ export function FolderGroup({
               })
             }}
           >
-            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            </svg>
+            <PlusBoldIcon />
           </button>
         )}
         {folders.length > 0 && renamingGroup !== group.id && (

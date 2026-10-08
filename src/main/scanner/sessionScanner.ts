@@ -2,6 +2,7 @@ import { readdir, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { SessionMeta } from '@shared/types'
 import { asSessionId } from '@shared/domain/ids'
+import { ignoreErrors, ignoreErrorsAsync } from '@shared/ignoreErrors'
 import { readHeadLines, readTailLines } from './boundaryRead'
 
 interface Entry { type?: string; [key: string]: unknown }
@@ -9,12 +10,8 @@ interface Entry { type?: string; [key: string]: unknown }
 function parseLines(lines: string[]): Entry[] {
   const out: Entry[] = []
   for (const line of lines) {
-    try {
-      const value = JSON.parse(line) as unknown
-      if (value && typeof value === 'object') out.push(value as Entry)
-    } catch {
-      // Corrupt or truncated line — skip it.
-    }
+    const value = ignoreErrors(() => JSON.parse(line) as unknown, 'a corrupt or truncated line is skipped')
+    if (value && typeof value === 'object') out.push(value as Entry)
   }
   return out
 }
@@ -138,16 +135,15 @@ export async function scanProjects(projectsRoot: string, opts?: ScanOptions): Pr
     for (const f of files) {
       filesSeen += 1
       const filePath = join(dirPath, f)
-      try {
+      const meta = await ignoreErrorsAsync(async () => {
         if (opts?.isUnchanged) {
           const info = await stat(filePath)
-          if (opts.isUnchanged(filePath, info.size, info.mtimeMs)) continue
+          if (opts.isUnchanged(filePath, info.size, info.mtimeMs)) return null
         }
         filesParsed += 1
-        results.push(await extractMeta(filePath))
-      } catch {
-        // Unreadable file — skip rather than fail the whole scan.
-      }
+        return await extractMeta(filePath)
+      }, 'an unreadable file is skipped rather than failing the whole scan')
+      if (meta) results.push(meta)
     }
   }
   if (opts?.stats) {

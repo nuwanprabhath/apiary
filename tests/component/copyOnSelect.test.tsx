@@ -3,6 +3,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { createRoot } from 'react-dom/client'
 import { useRef } from 'react'
 import { createFakeApiary, type FakeApiary } from './fakeApiary'
+import { stays } from './helpers'
 import { NotificationProvider } from '../../src/renderer/ui/notifications'
 import { NotificationCenter } from '../../src/renderer/ui/NotificationCenter'
 import { useCopyOnSelect } from '../../src/renderer/features/chat/useCopyOnSelect'
@@ -65,16 +66,14 @@ describe('useCopyOnSelect', () => {
     mouseup('para')
     window.getSelection()!.removeAllRanges()
     mouseup('para')
-    await new Promise((r) => { setTimeout(r, 50) })
-    expect(fake.callsTo('copyToClipboard')).toEqual([])
+    await stays(() => fake.callsTo('copyToClipboard').length === 0, 50, 'nothing to be copied')
   })
 
   it('ignores mouseup inside an input', async () => {
     const fake = await mount()
     select('para')
     mouseup('field')
-    await new Promise((r) => { setTimeout(r, 50) })
-    expect(fake.callsTo('copyToClipboard')).toEqual([])
+    await stays(() => fake.callsTo('copyToClipboard').length === 0, 50, 'nothing to be copied')
   })
 
   it('right-click menu: Copy is enabled with a selection and copies it', async () => {
@@ -93,5 +92,16 @@ describe('useCopyOnSelect', () => {
     document.getElementById('para')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }))
     await expect.poll(() => document.querySelector('[data-testid="context-menu-copy"]')).not.toBeNull()
     expect(document.querySelector<HTMLButtonElement>('[data-testid="context-menu-copy"]')!.disabled).toBe(true)
+  })
+})
+
+describe('copyText failures', () => {
+  it('a refused clipboard write is shown, not swallowed', async () => {
+    const fake = await mount()
+    fake.override('copyToClipboard', () => Promise.reject(new Error('clipboard busy')))
+    select('para')
+    mouseup('para')
+    await expect.poll(() => document.querySelector('[data-testid="notification-message"]')?.textContent)
+      .toBe('Could not copy: clipboard busy')
   })
 })

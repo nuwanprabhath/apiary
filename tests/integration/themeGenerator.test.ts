@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { ClaudeOneShot } from '../../src/main/claude/claudeOneShot'
 import { join } from 'node:path'
 import { ThemeGenerator } from '../../src/main/theme/themeGenerator'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
@@ -27,7 +28,7 @@ function standIn(body: string): string {
   return script
 }
 const reply = (theme: object): string => `cat <<'JSON'\n${JSON.stringify({ type: 'result', is_error: false, structured_output: theme })}\nJSON`
-const gen = (bin: string, timeoutMs?: number): ThemeGenerator => new ThemeGenerator({ claudeBin: () => bin, timeoutMs, shell: '/bin/sh' })
+const gen = (bin: string, timeoutMs?: number): ThemeGenerator => new ThemeGenerator({ runner: new ClaudeOneShot({ claudeBin: () => bin, shell: '/bin/sh' }), timeoutMs })
 
 describe('ThemeGenerator', () => {
   it('returns the validated theme Claude designed', async () => {
@@ -82,7 +83,8 @@ describe('ThemeGenerator', () => {
     const g = gen(standIn('sleep 5'))
     const first = g.generate({ request: 'x', current: null, model: 'sonnet' })
     await expect(g.generate({ request: 'y', current: null, model: 'sonnet' })).rejects.toThrow(/Already/)
-    await new Promise((r) => setTimeout(r, 100))
+    // The stand-in has started (it lists its directory just before running its body).
+    await vi.waitFor(() => { expect(existsSync(join(dir, 'ls.txt'))).toBe(true) })
     const cancelledAt = Date.now()
     g.cancel()
     await expect(first).rejects.toThrow(/Cancelled/)
@@ -94,12 +96,11 @@ describe('ThemeGenerator', () => {
   it('leaves nothing it started running after a cancel', async () => {
     const g = gen(standIn(`sleep 30 & echo $! > "${dir}/child.pid"; wait`))
     const run = g.generate({ request: 'x', current: null, model: 'sonnet' })
-    for (let i = 0; i < 50 && !existsSync(join(dir, 'child.pid')); i += 1) await new Promise((r) => setTimeout(r, 50))
+    await vi.waitFor(() => { expect(existsSync(join(dir, 'child.pid'))).toBe(true) })
     g.cancel()
     await expect(run).rejects.toThrow(/Cancelled/)
     const pid = Number(readFileSync(join(dir, 'child.pid'), 'utf8'))
-    await new Promise((r) => setTimeout(r, 300))
-    expect(() => process.kill(pid, 0)).toThrow()
+    await vi.waitFor(() => { expect(() => process.kill(pid, 0)).toThrow() })
   })
 
   it('sends the current theme along for a refinement', async () => {

@@ -1,6 +1,9 @@
 import { createContext, useCallback, use, useEffect, useMemo, useState } from 'react'
 import type { ResumeConflict, SessionNode } from '@shared/types'
 import type { PlaceTarget } from '../layout/layoutContext'
+import { useOutsideDismiss } from '../../ui/useOutsideDismiss'
+import { loadSessionNote, onOpenImportDialog } from '../../state/sessions'
+import { onOpenSettingsDialog } from '../../state/windowChrome'
 
 /** Everything App can ask `DialogHost` to put on screen. */
 export type DialogRequest =
@@ -86,20 +89,15 @@ export function useDialogs(): DialogsApi {
     }
   }, [])
 
-  useEffect(() => window.apiary.onOpenImportDialog(() => { setImportOpen(true) }), [])
-  useEffect(() => window.apiary.onOpenSettingsDialog(() => { setSettingsSection('sessions') }), [])
+  useEffect(() => onOpenImportDialog(() => { setImportOpen(true) }), [])
+  useEffect(() => onOpenSettingsDialog(() => { setSettingsSection('sessions') }), [])
 
   // A requested picker (opened from a context menu, with no button of its own to anchor a
   // blur/mousedown handler to) has to close itself on an outside click.
-  useEffect(() => {
-    if (requestedPicker === null) return
-    const closeOnOutside = (e: MouseEvent): void => {
-      const inPicker = (e.target as Element | null)?.closest('[data-testid="layout-picker"]')
-      if (inPicker === null || inPicker === undefined) setRequestedPicker(null)
-    }
-    window.addEventListener('mousedown', closeOnOutside)
-    return () => { window.removeEventListener('mousedown', closeOnOutside) }
-  }, [requestedPicker])
+  useOutsideDismiss(() => { setRequestedPicker(null) }, {
+    enabled: requestedPicker !== null,
+    insideSelector: '[data-testid="layout-picker"]',
+  })
 
   const state = useMemo<DialogState>(() => ({
     conflict, deleteTarget, moveTarget, noteTarget, newWorktreeFor, changeBranchFor, importOpen, settingsSection, requestedPicker,
@@ -131,9 +129,8 @@ export function useDialogActions(): DialogActions {
     deleteSession: (session) => { open({ kind: 'delete', session }) },
     moveSession: (session, toPath) => { open({ kind: 'move', session, toPath }) },
     editNote: (session) => {
-      void window.apiary.sessionNote(session.sessionId)
-        .then((note) => { open({ kind: 'note', session, note }) })
-        .catch(() => { open({ kind: 'note', session, note: session.note ?? '' }) })
+      // The saved note is the truth; the one on the row can lag it, and stands in if main cannot say.
+      void loadSessionNote(session.sessionId).then((note) => { open({ kind: 'note', session, note: note ?? session.note ?? '' }) })
     },
     newWorktree: (path, label) => { open({ kind: 'newWorktree', path, label }) },
     changeBranch: (path, label) => { open({ kind: 'changeBranch', path, label }) },

@@ -1,9 +1,6 @@
-const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
-
-/** POSIX single-quote escaping for a path that reaches a shell. */
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`
-}
+import { isChatModel } from '@shared/domain/chat'
+import { UUID_RE } from '@shared/domain/ids'
+import { shellQuote } from '../exec/shellQuote'
 
 /**
  * Builds the payload passed to `$SHELL -l -c`. The session id is validated as a
@@ -13,7 +10,7 @@ export function buildResumeCommand(
   sessionId: string,
   opts: { fork?: boolean; claudeBin?: string } = {},
 ): string {
-  if (!UUID.test(sessionId)) throw new Error(`Invalid session id: ${sessionId}`)
+  if (!UUID_RE.test(sessionId)) throw new Error(`Invalid session id: ${sessionId}`)
   const bin = opts.claudeBin ? shellQuote(opts.claudeBin) : 'claude'
   const fork = opts.fork ? ' --fork-session' : ''
   return `exec ${bin} --resume ${sessionId}${fork}`
@@ -29,10 +26,6 @@ export function buildNewSessionCommand(opts: { claudeBin?: string } = {}): strin
   return `exec ${bin}`
 }
 
-export function loginShell(env: NodeJS.ProcessEnv = process.env): string {
-  return env.SHELL && env.SHELL.trim() !== '' ? env.SHELL : '/bin/bash'
-}
-
 /**
  * Builds the `$SHELL -l -c` payload for a session in chat mode (`main/chat/`): the same `claude
  * --resume`, speaking JSON lines on stdin/stdout the way the VS Code extension's Agent SDK runs it.
@@ -43,7 +36,7 @@ export function buildChatCommand(
   sessionId: string,
   opts: { claudeBin?: string; model?: string; permissionMode?: string; effort?: string } = {},
 ): string {
-  if (!UUID.test(sessionId)) throw new Error(`Invalid session id: ${sessionId}`)
+  if (!UUID_RE.test(sessionId)) throw new Error(`Invalid session id: ${sessionId}`)
   const SAFE = /^[a-zA-Z][a-zA-Z0-9.-]{0,63}$/
   const bin = opts.claudeBin ? shellQuote(opts.claudeBin) : 'claude'
   const flags = [
@@ -52,8 +45,9 @@ export function buildChatCommand(
   ]
   if (opts.model !== undefined && opts.model !== 'default') {
     // Quoted as well as checked: a model id can carry `[1m]`, which a shell would glob.
-    if (!/^[a-zA-Z][a-zA-Z0-9.\-[\]]{0,63}$/.test(opts.model)) throw new Error(`Invalid model: ${opts.model}`)
-    flags.push(`--model ${shellQuote(opts.model)}`)
+    const model: string = opts.model
+    if (!isChatModel(model)) throw new Error(`Invalid model: ${String(model)}`)
+    flags.push(`--model ${shellQuote(model)}`)
   }
   if (opts.effort !== undefined) {
     if (!SAFE.test(opts.effort)) throw new Error(`Invalid effort: ${opts.effort}`)

@@ -24,37 +24,16 @@ function ttlFor(state: MrState | null): number {
   return 2 * 60 * 1000
 }
 
-const cache = new Map<string, CacheEntry>()
-const inFlight = new Map<string, Promise<MrState | null>>()
-/** Set once `glab` itself is missing, so a bad install is not re-probed on every reference. */
-let glabMissing = false
-
-/**
- * Forgets every cached answer, so the next lookup asks GitLab again. What the Refresh button does:
- * someone pressing it has usually just merged something and wants to see it.
- */
-export function invalidateMrStatuses(): void {
-  cache.clear()
+/** The `glab` runner a `MrStatusCache` is built with in the app: `exec/run.ts`'s `createExec`
+ *  (MAIN-23), as `plugins/gitlabMr.ts` uses, not an `execFile` of its own. */
+export function createMrExec(): MrExec {
+  return createExec({ timeoutMs: 8000, maxBuffer: 1024 * 1024, scope: 'mr-status' })
 }
 
-/** Test-only: clears every module-level cache so specs do not leak into each other. */
-export function resetMrStatusCache(): void {
-  cache.clear()
-  inFlight.clear()
-  glabMissing = false
-}
+type MrExec = (file: string, args: string[], cwd: string) => Promise<string>
 
-// Shares `exec/run.ts`'s `createExec` with `plugins/gitlabMr.ts` (MAIN-23) rather than defining a
-// second `defaultExec` of its own with a different buffer size — this doc comment on the older
-// version claimed the two already shared one, which was not true until now.
-const defaultExec = createExec({ timeoutMs: 8000, maxBuffer: 1024 * 1024, scope: 'mr-status' })
-
-export interface ResolveMrStatusOptions {
+interface ResolveMrStatusOptions {
   glabPath?: string
-  /** Injected in tests; returns stdout or throws the way execFile does. */
-  exec?: (file: string, args: string[], cwd: string) => Promise<string>
-  now?: () => number
-  timeoutMs?: number
 }
 
 const KNOWN_STATES: MrState[] = ['opened', 'merged', 'closed', 'locked']
@@ -70,68 +49,89 @@ function parseState(stdout: string): MrState | null {
   }
 }
 
-/**
- * Looks up one merge request's state through `glab api`, the same "never hold a token" approach
- * as the session-bar plugin: Apiary asks `glab`, which already has the user's GitLab credentials,
- * and never sees one itself.
- *
- * Cached per host+project+iid for `TTL_MS`, with an in-flight map so a burst of references
- * resolving at once (a title and a note both naming `!1267`) makes one call, not two. Any failure
- * — no `glab`, not logged in, a 404, a timeout, malformed JSON — degrades to `null` silently; a
- * missing binary is additionally remembered so it is not re-tried for every other reference until
- * the process restarts.
- */
-export async function resolveMrStatus(
-  cwd: string,
-  host: string,
-  project: string,
-  iid: number,
-  options: ResolveMrStatusOptions = {},
-): Promise<MrState | null> {
-  if (glabMissing) return null
-
-  const now = options.now ?? Date.now
-  const key = `${host}|${project}|${iid}`
-
-  const hit = cache.get(key)
-  if (hit !== undefined && now() - hit.at < ttlFor(hit.state)) return hit.state
-  // Only fresh lookups are logged — a cached answer is served many times a minute. "Why does it
-  // still say opened?" is answered by whether, and when, GitLab was last actually asked.
-
-  const running = inFlight.get(key)
-  if (running !== undefined) return running
-
-  const promise = lookup(cwd, host, project, iid, options)
-  inFlight.set(key, promise)
-  try {
-    const state = await promise
-    cache.set(key, { at: now(), state })
-    log.info('mr-status', 'looked up', { iid, state, stale: hit !== undefined ? hit.state : null })
-    return state
-  } finally {
-    inFlight.delete(key)
-  }
+export interface MrStatusCacheOptions {
+  /** Runs `glab`; returns stdout or throws the way execFile does. */
+  exec: MrExec
+  now?: () => number
 }
 
-async function lookup(
-  cwd: string,
-  host: string,
-  project: string,
-  iid: number,
-  options: ResolveMrStatusOptions,
-): Promise<MrState | null> {
-  void host // part of the cache key, not of the command — the project path alone identifies it to glab
-  const glab = options.glabPath ?? 'glab'
-  const exec = options.exec ?? defaultExec
-  try {
-    const stdout = await exec(
-      glab,
-      ['api', `projects/${encodeURIComponent(project)}/merge_requests/${String(iid)}`],
-      cwd,
-    )
-    return parseState(stdout)
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') glabMissing = true
-    return null
+/**
+ * Looks up merge requests' state through `glab api`, the same "never hold a token" approach as the
+ * session-bar plugin: Apiary asks `glab`, which already has the user's GitLab credentials, and
+ * never sees one itself.
+ *
+ * Owns the answers (cached per host+project+iid, for the TTL `ttlFor` gives their state), the
+ * in-flight map so a burst of references resolving at once (a title and a note both naming
+ * `!1267`) makes one call, not two, and whether `glab` itself is missing. One instance, built in
+ * the container; a test builds its own with a fake `exec` and clock.
+ */
+export class MrStatusCache {
+  /** Invalidated by age: each entry expires after the TTL `ttlFor` gives its state. */
+  private readonly cache = new Map<string, CacheEntry>()
+  private readonly inFlight = new Map<string, Promise<MrState | null>>()
+  /** Set once `glab` itself is missing, so a bad install is not re-probed on every reference. */
+  private glabMissing = false
+
+  constructor(private readonly options: MrStatusCacheOptions) {}
+
+  /**
+   * Forgets every cached answer, so the next lookup asks GitLab again. What the Refresh button
+   * does: someone pressing it has usually just merged something and wants to see it.
+   */
+  invalidate(): void {
+    this.cache.clear()
+  }
+
+  /**
+   * Cached per host+project+iid. Any failure — no `glab`, not logged in, a 404, a timeout,
+   * malformed JSON — degrades to `null` silently; a missing binary is additionally remembered so
+   * it is not re-tried for every other reference until the process restarts.
+   */
+  async resolve(
+    cwd: string,
+    host: string,
+    project: string,
+    iid: number,
+    options: ResolveMrStatusOptions = {},
+  ): Promise<MrState | null> {
+    if (this.glabMissing) return null
+
+    const now = this.options.now ?? Date.now
+    const key = `${host}|${project}|${iid}`
+
+    const hit = this.cache.get(key)
+    if (hit !== undefined && now() - hit.at < ttlFor(hit.state)) return hit.state
+    // Only fresh lookups are logged — a cached answer is served many times a minute. "Why does it
+    // still say opened?" is answered by whether, and when, GitLab was last actually asked.
+
+    const running = this.inFlight.get(key)
+    if (running !== undefined) return running
+
+    const promise = this.lookup(cwd, project, iid, options)
+    this.inFlight.set(key, promise)
+    try {
+      const state = await promise
+      this.cache.set(key, { at: now(), state })
+      log.info('mr-status', 'looked up', { iid, state, stale: hit !== undefined ? hit.state : null })
+      return state
+    } finally {
+      this.inFlight.delete(key)
+    }
+  }
+
+  private async lookup(cwd: string, project: string, iid: number, options: ResolveMrStatusOptions): Promise<MrState | null> {
+    // `host` is part of the cache key, not of the command — the project path alone identifies it to glab
+    const glab = options.glabPath ?? 'glab'
+    try {
+      const stdout = await this.options.exec(
+        glab,
+        ['api', `projects/${encodeURIComponent(project)}/merge_requests/${String(iid)}`],
+        cwd,
+      )
+      return parseState(stdout)
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') this.glabMissing = true
+      return null
+    }
   }
 }

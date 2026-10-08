@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { AppService } from '../../src/main/appService'
+import { buildAppService } from '../fixtures/buildService'
 import { PtyManager } from '../../src/main/pty/ptyManager'
 import { SessionStore } from '../../src/main/store/sessionStore'
 import { PluginRegistry } from '../../src/main/plugins/registry'
@@ -27,7 +27,7 @@ describe('AppService injectable deps', () => {
     const store = new SessionStore(join(home, 'apiary.db'))
     const plugins = new PluginRegistry({})
 
-    const service = new AppService({
+    const service = buildAppService({
       configRoot: join(home, '.claude'),
       dbPath: join(home, 'apiary.db'),
       detectLive: async () => new Map(),
@@ -38,7 +38,7 @@ describe('AppService injectable deps', () => {
     // `store` and `plugins` are private; identity is observed through behaviour that only the
     // injected instance would produce (an empty registry contributes no bar items, where the
     // default constructor always registers the GitLab plugin).
-    expect(service.listPlugins()).toEqual([])
+    expect(service.plugins.list()).toEqual([])
 
     await service.dispose()
     // dispose() closes the store it was given — a second close on the same handle must not throw,
@@ -49,13 +49,13 @@ describe('AppService injectable deps', () => {
   it('still builds its own collaborators when no deps are given (default behaviour unchanged)', async () => {
     home = mkdtempSync(join(tmpdir(), 'apiary-deps-default-'))
     mkdirSync(join(home, '.claude', 'projects'), { recursive: true })
-    const service = new AppService({
+    const service = buildAppService({
       configRoot: join(home, '.claude'),
       dbPath: join(home, 'apiary.db'),
       detectLive: async () => new Map(),
     })
     // The default GitLab plugin is registered, as before.
-    expect(service.listPlugins().map((p) => p.id)).toContain('gitlab-mr')
+    expect(service.plugins.list().map((p) => p.id)).toContain('gitlab-mr')
     await service.dispose()
   })
 })

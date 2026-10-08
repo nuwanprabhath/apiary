@@ -1,4 +1,7 @@
 import { parseColor, toHex8 } from './color'
+import { isOneOf, own } from '../guards'
+import { ignoreErrors } from '../ignoreErrors'
+import { flattenText } from '../text'
 import {
   PALETTE_TOKENS, TERMINAL_COLORS, UI_FONTS, MONO_FONTS, EFFECT_KINDS, DENSITIES, MATERIALS, LIMITS,
   DEFAULT_MATERIAL, ORIGINAL_THEME,
@@ -23,23 +26,15 @@ export type { ThemeReport } from './readability'
  *   it sits on is nudged until it is. A theme can look odd; it cannot be unreadable.
  */
 
-const own = (o: unknown, k: string): unknown =>
-  typeof o === 'object' && o !== null && Object.prototype.hasOwnProperty.call(o, k)
-    ? (o as Record<string, unknown>)[k]
-    : undefined
-
-const isOneOf = <T extends string>(list: readonly T[], v: unknown): v is T =>
-  typeof v === 'string' && (list as readonly string[]).includes(v)
-
 function original(): ThemeSpec {
   return structuredClone(ORIGINAL_THEME)
 }
 
 function sanitizeName(v: unknown): string {
   if (typeof v !== 'string') return 'Untitled theme'
-  // eslint-disable-next-line no-control-regex
-  const clean = v.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').replace(/[\u0000-\u001f\u007f]/g, ' ')
-    .replace(/\s+/g, ' ').trim().slice(0, LIMITS.maxNameChars)
+  // An ANSI sequence goes whole, not as a stray `[31m` left behind its ESC.
+  // eslint-disable-next-line no-control-regex -- ESC is what the pattern matches
+  const clean = flattenText(v.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '')).slice(0, LIMITS.maxNameChars)
   return clean === '' ? 'Untitled theme' : clean
 }
 
@@ -131,8 +126,7 @@ function effects(input: unknown, report: ThemeReport): EffectSpec[] {
 
 export function validateTheme(input: unknown): { spec: ThemeSpec; report: ThemeReport } {
   const report = emptyReport()
-  let size = Infinity
-  try { size = JSON.stringify(input)?.length ?? Infinity } catch { /* cyclic or exotic: refused */ }
+  const size = ignoreErrors(() => JSON.stringify(input)?.length ?? Infinity, 'cyclic or exotic: refused') ?? Infinity
   if (typeof input !== 'object' || input === null || Array.isArray(input) || size > LIMITS.maxInputChars) {
     return { spec: original(), report }
   }

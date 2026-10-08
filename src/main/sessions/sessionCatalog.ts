@@ -4,8 +4,8 @@
  * What it owns: the `live` map (session id -> pid of an external claude process, from
  * `detectLive`), the refresh state machine, and the sidebar read model (tree, discovered, import*).
  *
- * `live` ownership. Written in exactly one place: the end of `runRefresh`, as a whole-map
- * replacement after the store sync (never mutated in place, so a reader sees either the old or the
+ * `live` ownership. Written in exactly one place: `scanLive` (the end of `runRefresh`, or the
+ * throttled follow-up), as a whole-map replacement after the store sync (never mutated in place, so a reader sees either the old or the
  * new snapshot). Everyone else reads through `isLive`/`checkConflict`/`tree()`: SessionActions
  * (remove/move guards) and the tree. It reflects only the last *refresh*, which is why
  * `moveSession` also consults the pty manager (a process this app spawned is live before the next
@@ -23,17 +23,24 @@
  *   with nothing pending sets the promise to null (idle). Once `isDisposed()` is true no rerun is
  *   scheduled and passes bail between steps. It is a single flag, not a queue: no backlog. Passes
  *   are serialised: two never overlap (resolver cache clearing, store writes).
+ *   Live detection (`ps`) is throttled, not per pass: a full pass always scans (startup, the Refresh
+ *   button, a move all need the truth now), but a scoped pass, which the watcher fires about once a
+ *   second while any session writes, scans at most once per `liveMinIntervalMs`. A scoped pass
+ *   inside the window arms one trailing scan for the window's end, and if that changed who is
+ *   live it calls `onLiveChanged` so the tree is re-sent: the dot is late by at most the window.
  *   `whenIdle()` awaits the current promise (including chained reruns) and swallows its failure;
  *   AppService.dispose() uses it so the store is not closed under a running pass.
  */
 import { existsSync } from 'node:fs'
 import { extractMeta } from '../scanner/sessionScanner'
 import type { SessionSource } from '../sources/claudeProjects'
-import { resolveProject, clearResolverCache, resetResolverSpawnCount, resolverSpawnCount } from '../git/worktreeResolver'
+import type { WorktreeResolver } from '../git/worktreeResolver'
 import type { SessionStore, StoredSession } from '../store/sessionStore'
 import { buildTree } from '../tree/buildTree'
 import { detectLiveSessions } from '../claude/live/liveSessionDetector'
 import { log } from '../log/logger'
+import { errorMessage } from '@shared/errors'
+import { ignoreErrorsAsync } from '@shared/ignoreErrors'
 import { memoize } from '../util/memoize'
 import type { ProjectNode, ResumeConflict, SessionMeta, ProjectInfo } from '@shared/types'
 import type { SessionId } from '@shared/domain/ids'
@@ -51,6 +58,11 @@ interface RefreshRequest {
   paths: Set<string>
 }
 
+/** At most one process scan per this long on scoped passes. Short enough that a session which
+ *  just started shows its live dot within a couple of seconds, long enough that a busy session
+ *  (a pass per second) stops costing a `ps` per pass. */
+const LIVE_MIN_INTERVAL_MS = 3000
+
 /** How many folders are resolved concurrently in one refresh pass (MAIN-1 step 7). Resolution is
  *  a few sequential git spawns per folder; a small cap keeps a large library from serializing
  *  entirely on process-spawn latency without opening hundreds of git processes at once. */
@@ -59,17 +71,28 @@ const RESOLVE_CONCURRENCY = 8
 export interface SessionCatalogOptions {
   store: SessionStore
   source: SessionSource
+  worktrees: WorktreeResolver
   /** Defaults to the real process scan. */
   detectLive?: () => Promise<Map<string, number>>
+  /** Scoped passes scan at most this often (default `LIVE_MIN_INTERVAL_MS`); full passes always scan. */
+  liveMinIntervalMs?: number
+  /** Called when a scan that ran outside a pass (the trailing one) changed who is live. */
+  onLiveChanged?: () => void
   autoImportAll?: boolean
   /** True once shutdown has started; passes stop scheduling and writing. */
   isDisposed: () => boolean
   /** Fire-and-forget search index update at the end of a pass (see AppService.updateSearchIndex). */
   updateSearchIndex: () => Promise<void>
+  /** Runs after every `refresh()` call settles (not once per pass): chats that moved onto a new
+   *  session are adopted into the library once their file has been scanned. */
+  afterRefresh?: () => void
 }
 
 export class SessionCatalog {
   private live = new Map<string, number>()
+  /** When the last process scan started, and the one armed to run when the window ends. */
+  private liveScannedAt = 0
+  private liveTimer: NodeJS.Timeout | null = null
   private refreshPromise: Promise<void> | null = null
   /** Set while a pass is in flight, so the trigger that arrived mid-pass is not silently lost -
    *  see `refresh()`. `full` always wins when merging two pending requests. */
@@ -96,7 +119,9 @@ export class SessionCatalog {
 
   /** Resolves when no refresh is in flight (including any chained rerun). Never rejects. */
   async whenIdle(): Promise<void> {
-    if (this.refreshPromise) await this.refreshPromise.catch(() => {})
+    const inFlight = this.refreshPromise
+    // The rejection belongs to whoever called `refresh`; this only waits for the run to end.
+    if (inFlight) await ignoreErrorsAsync(() => inFlight, 'refresh callers see the failure; this only waits')
   }
 
   /**
@@ -109,7 +134,7 @@ export class SessionCatalog {
    * to `git`) a single refresh can easily outlast the debounce window while
    * Claude keeps appending to session files. If a run is already in flight,
    * this joins that run's promise rather than starting a second one
-   * immediately (so two runs never race on `clearResolverCache()`/git work
+   * immediately (so two runs never race on `worktrees.clearCache()`/git work
    * at once) — but it also sets `pendingRefresh`, so the change that
    * triggered this call is not silently lost. Once the in-flight run
    * finishes, `finally` checks that flag and, if set, runs exactly one more
@@ -138,6 +163,11 @@ export class SessionCatalog {
   }
 
   async refresh(opts?: { full?: boolean; paths?: string[] }): Promise<void> {
+    await this.refreshJoined(opts)
+    this.opts.afterRefresh?.()
+  }
+
+  private refreshJoined(opts?: { full?: boolean; paths?: string[] }): Promise<void> {
     const req = this.normalizeRefreshRequest(opts)
     if (this.refreshPromise) {
       if (!this.pendingRefresh) {
@@ -181,8 +211,8 @@ export class SessionCatalog {
     // A full pass re-resolves every folder from scratch (a checkout done outside Apiary, a
     // worktree removed); a scoped pass keeps the resolver's structural answers from earlier
     // passes and only re-resolves the folders whose files actually changed.
-    if (req.full) clearResolverCache()
-    resetResolverSpawnCount()
+    if (req.full) this.opts.worktrees.clearCache()
+    this.opts.worktrees.resetSpawnCount()
 
     let metas: SessionMeta[]
     let filesSeen: number
@@ -211,12 +241,12 @@ export class SessionCatalog {
       for (const path of req.paths) {
         if (this.opts.isDisposed()) return
         if (!path.endsWith('.jsonl')) continue
-        try {
-          metas.push(await extractMeta(path))
+        // Deleted between the watcher event and this read, or unreadable — a scoped pass simply
+        // leaves that session's row as it was; a later full pass reconciles it.
+        const meta = await ignoreErrorsAsync(() => extractMeta(path), 'deleted or unreadable: the row stays as it was')
+        if (meta !== undefined) {
+          metas.push(meta)
           filesParsed += 1
-        } catch {
-          // Deleted between the watcher event and this read, or unreadable — a scoped pass simply
-          // leaves that session's row as it was; a later full pass reconciles it.
         }
       }
     }
@@ -262,7 +292,7 @@ export class SessionCatalog {
         cursor += 1
         if (i >= rawCwds.length) return
         const rawCwd = rawCwds[i]
-        const info = await resolveProject(rawCwd)
+        const info = await this.opts.worktrees.resolveProject(rawCwd)
         infoByCanonicalCwd.set(info.path, info)
         const list = byRawCwd.get(rawCwd)
         const existing = byCanonicalCwd.get(info.path) ?? []
@@ -290,12 +320,13 @@ export class SessionCatalog {
       files: filesSeen,
       parsed: filesParsed,
       folders: rawCwds.length,
-      gitSpawns: resolverSpawnCount(),
+      gitSpawns: this.opts.worktrees.spawnCount(),
       ms: Date.now() - started,
     })
 
     if (this.opts.isDisposed()) return
-    this.live = await (this.opts.detectLive ?? detectLiveSessions)()
+    if (req.full || this.liveWindowElapsed()) await this.scanLive()
+    else this.armLiveScan()
     if (this.opts.isDisposed()) return
     // Inside the refresh itself, rather than at each of its callers: the Refresh button, the file
     // watcher and the periodic rescan all arrive here, and a setting called "import everything
@@ -305,6 +336,34 @@ export class SessionCatalog {
     }
     // Deliberately not awaited: see updateSearchIndex.
     void this.opts.updateSearchIndex()
+  }
+
+  private liveWindowMs(): number { return this.opts.liveMinIntervalMs ?? LIVE_MIN_INTERVAL_MS }
+
+  private liveWindowElapsed(): boolean {
+    return Date.now() - this.liveScannedAt >= this.liveWindowMs()
+  }
+
+  /** The one place `live` is replaced (see the note at the top). */
+  private async scanLive(): Promise<void> {
+    this.liveScannedAt = Date.now()
+    this.live = await (this.opts.detectLive ?? detectLiveSessions)()
+  }
+
+  /** Arms a single scan for when the throttle window ends; further passes in it add nothing. */
+  private armLiveScan(): void {
+    if (this.liveTimer !== null) return
+    const wait = Math.max(0, this.liveScannedAt + this.liveWindowMs() - Date.now())
+    this.liveTimer = setTimeout(() => {
+      this.liveTimer = null
+      if (this.opts.isDisposed()) return
+      const before = this.live
+      this.scanLive().then(() => {
+        const changed = before.size !== this.live.size || [...this.live.keys()].some((id) => !before.has(id))
+        if (changed && !this.opts.isDisposed()) this.opts.onLiveChanged?.()
+      }).catch((e: unknown) => { log.warn('refresh', 'live scan failed', { error: errorMessage(e) }) })
+    }, wait)
+    this.liveTimer.unref()
   }
 
   /**
@@ -317,7 +376,7 @@ export class SessionCatalog {
    * cached answer is now stale.
    */
   async refreshProject(cwd: string): Promise<void> {
-    const info = await resolveProject(cwd, { forceResolve: true })
+    const info = await this.opts.worktrees.resolveProject(cwd, { forceResolve: true })
     this.store.syncProject(info)
   }
 
@@ -380,7 +439,7 @@ export class SessionCatalog {
     }
     this.store.setImported(sessionIds, true)
     for (const path of autoImportProjects) {
-      const info = await resolveProject(path)
+      const info = await this.opts.worktrees.resolveProject(path)
       this.store.setAutoImport(info.path, true)
     }
   }

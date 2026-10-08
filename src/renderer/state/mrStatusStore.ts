@@ -1,5 +1,7 @@
 import type { MrState } from '../features/sidebar/mrRefText'
-import { asSessionId } from '@shared/domain/ids'
+import type { SessionId } from '@shared/domain/ids'
+import { background } from './policy'
+import { rebindOnNewBridge } from './bridgeBinding'
 
 /**
  * One shared timer, one shared `onMrStatusesInvalidated` listener, and one `gitlabMrRefStatus`
@@ -31,29 +33,21 @@ interface SessionEntry {
  *  replaces; the main process's cache decides whether re-asking actually reaches GitLab. */
 const REFRESH_MS = 2 * 60 * 1000
 
-const sessions = new Map<string, SessionEntry>()
+const sessions = new Map<SessionId, SessionEntry>()
 
-let boundApiary: typeof window.apiary | null = null
-let unsubInvalidated: (() => void) | null = null
-let timer: ReturnType<typeof setInterval> | null = null
-
-/** Mirrors `ptyBus.ts`/`treeStore.ts`'s own `ensureBound`: `tests/component` swaps in a brand new
- *  `fakeApiary` on every `renderApp()`, and the store has to notice on the next subscribe rather
- *  than keep talking to a bridge no test can see any more. */
-function ensureBound(): void {
-  if (window.apiary === boundApiary) return
-  unsubInvalidated?.()
-  if (timer !== null) clearInterval(timer)
-  boundApiary = window.apiary
-  unsubInvalidated = window.apiary.onMrStatusesInvalidated(() => refetchAll())
-  timer = setInterval(refetchAll, REFRESH_MS)
-}
+/** Notices a new `window.apiary` (a component test's fresh fake) on the next subscribe rather than
+ *  keep talking to a bridge no test can see any more. */
+const ensureBound = rebindOnNewBridge((api) => {
+  const unsubInvalidated = api.onMrStatusesInvalidated(() => { refetchAll() })
+  const timer = setInterval(refetchAll, REFRESH_MS)
+  return () => { unsubInvalidated(); clearInterval(timer) }
+})
 
 function refetchAll(): void {
   for (const sessionId of sessions.keys()) scheduleFetch(sessionId)
 }
 
-function scheduleFetch(sessionId: string): void {
+function scheduleFetch(sessionId: SessionId): void {
   const entry = sessions.get(sessionId)
   if (entry === undefined || entry.fetchScheduled) return
   entry.fetchScheduled = true
@@ -63,19 +57,19 @@ function scheduleFetch(sessionId: string): void {
     entry.fetchScheduled = false
     const iids = [...new Set([...entry.consumers.values()].flatMap((c) => c.iids))]
     if (iids.length === 0) return
-    void window.apiary.gitlabMrRefStatus({ kind: 'session', id: asSessionId(sessionId) }, iids)
+    // A failed lookup is logged; the reference just stays plain text.
+    background(window.apiary.gitlabMrRefStatus({ kind: 'session', id: sessionId }, iids)
       .then((result) => {
         entry.statuses = result
         for (const c of entry.consumers.values()) c.listener(result)
-      })
-      .catch(() => { /* an unresolved reference just stays plain text */ })
+      }), 'mr-status')
   })
 }
 
 /** Whatever this session's most recent fetch returned, before a new subscriber's own request (if
  *  any) lands — lets a fresh subscriber paint immediately instead of blanking until the round
  *  trip returns. */
-export function currentMrStatuses(sessionId: string): Record<number, MrState | null> {
+export function currentMrStatuses(sessionId: SessionId): Record<number, MrState | null> {
   return sessions.get(sessionId)?.statuses ?? {}
 }
 
@@ -84,7 +78,7 @@ export function currentMrStatuses(sessionId: string): Record<number, MrState | n
  * time this session's statuses are refreshed (on the shared timer, an invalidation, or — for a
  * fresh set of iids — once immediately). Returns an unsubscribe function.
  */
-export function subscribeMrStatuses(sessionId: string, iids: number[], listener: Listener): () => void {
+export function subscribeMrStatuses(sessionId: SessionId, iids: number[], listener: Listener): () => void {
   ensureBound()
   let entry = sessions.get(sessionId)
   if (entry === undefined) {

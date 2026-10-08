@@ -36,7 +36,6 @@ export function useHabitat(active: boolean, sidebarHidden: boolean): Habitat | n
       })
     }
     const observer = new ResizeObserver(measure)
-    // The bar renders once pets are on; it may not be in the page on this effect's first run.
     let observed = 0
     const observe = (): void => {
       const els = [document.querySelector(FLOOR), document.querySelector(RAIL)].filter((e): e is Element => e !== null)
@@ -47,11 +46,18 @@ export function useHabitat(active: boolean, sidebarHidden: boolean): Habitat | n
     }
     observe()
     measure()
-    const retry = window.setInterval(() => { observe(); measure() }, 1000)
+    // The bar renders once pets are on; it may not be in the page on this effect's first run. Wait
+    // for it to appear, then stop watching the page: the ResizeObserver takes it from there.
+    const appeared = new MutationObserver(() => {
+      observe()
+      measure()
+      if (document.querySelector(FLOOR) !== null) appeared.disconnect()
+    })
+    if (document.querySelector(FLOOR) === null) appeared.observe(document.body, { childList: true, subtree: true })
     window.addEventListener('resize', measure)
     return () => {
       cancelAnimationFrame(frame)
-      window.clearInterval(retry)
+      appeared.disconnect()
       observer.disconnect()
       window.removeEventListener('resize', measure)
     }

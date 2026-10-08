@@ -2,10 +2,15 @@ import { type JSX, useEffect, useMemo, useRef, useState } from 'react'
 import type { GitRefEntry, GitRefs, WorktreeConflict } from '@shared/types'
 import type { GitTarget } from '@shared/domain/git'
 import { exactRefMatch } from './branchSelection'
+import { BRANCH_ROW_SELECTOR } from './branchRows'
 import { CopyIcon, CheckIcon, ArrowDownIcon } from '../../ui/icons'
 import { updateBranchMessage } from '@shared/gitMessages'
 import { describeError } from '../../ui/errors'
 import { Modal } from '../../ui/Modal'
+import { useRovingList } from '../../ui/useRovingList'
+import { copyText } from '../../state/clipboard'
+import * as git from '../../state/git'
+import { bestEffort } from '../../state/policy'
 
 interface Props {
   /** A pane's session, or a sidebar folder (its menu's "Change branch…"). Keep it stable: the ref
@@ -44,29 +49,6 @@ type Step =
 
 function matches(entry: GitRefEntry, query: string): boolean {
   return query === '' || entry.name.toLowerCase().includes(query)
-}
-
-/** The rows this picker's Up/Down/Home/End move between: the "Create branch…" style actions and
- *  every visible branch/remote/tag row — not the per-row copy/pull buttons, which Tab still
- *  reaches in the ordinary order. */
-const ROW_SELECTOR = '.branch-switcher-action, .branch-switcher-row'
-
-/** UI-26: the finding's own words for this dialog were "focus moves between the list's buttons as
- *  you arrow around", which was never actually implemented — only an exact-match Enter worked.
- *  ArrowDown/Up move between rows (wrapping), Home/End to the ends; from the search input,
- *  ArrowDown enters the list at its first row. */
-function onListKeyDown(e: React.KeyboardEvent, container: HTMLElement): void {
-  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
-  const rows = [...container.querySelectorAll<HTMLElement>(ROW_SELECTOR)]
-  if (rows.length === 0) return
-  const current = rows.indexOf(document.activeElement as HTMLElement)
-  let next: number
-  if (e.key === 'Home') next = 0
-  else if (e.key === 'End') next = rows.length - 1
-  else if (e.key === 'ArrowDown') next = current === -1 ? 0 : Math.min(current + 1, rows.length - 1)
-  else next = current === -1 ? rows.length - 1 : Math.max(current - 1, 0)
-  e.preventDefault()
-  rows[next]?.focus()
 }
 
 export function BranchSwitcher({
@@ -124,11 +106,11 @@ export function BranchSwitcher({
   const updateBranch = async (name: string): Promise<void> => {
     setErrorMessage(null)
     try {
-      const { commits } = await window.apiary.gitUpdateBranch(terminal, name)
+      const { commits } = await git.gitUpdateBranch(terminal, name)
       onNotice?.(updateBranchMessage(name, commits))
       onBranchUpdated?.()
       // The row's date, author and subject are the branch tip's, which may just have moved.
-      void window.apiary.gitListRefs(terminal).then(setRefs).catch(() => {})
+      void bestEffort(git.gitRefs(terminal), 'git').then((r) => { if (r !== null) setRefs(r) })
     } catch (e) {
       setErrorMessage(describeError(e).message)
     }
@@ -136,7 +118,7 @@ export function BranchSwitcher({
 
   useEffect(() => {
     let cancelled = false
-    void window.apiary.gitListRefs(terminal)
+    void git.gitRefs(terminal)
       .then((r) => { if (!cancelled) setRefs(r) })
       .catch((e: Error) => { if (!cancelled) onErrorRef.current(e.message) })
     return () => { cancelled = true }
@@ -150,6 +132,7 @@ export function BranchSwitcher({
   // "dismisses the whole popup, from any step" is now Modal's own onClose contract, not something
   // this component wires up by hand.
   const listRef = useRef<HTMLUListElement | null>(null)
+  const rows = useRovingList(listRef, { itemSelector: BRANCH_ROW_SELECTOR })
 
   const q = query.trim().toLowerCase()
   const filtered = useMemo(() => {
@@ -167,7 +150,7 @@ export function BranchSwitcher({
     : null
 
   const checkout = (name: string): Promise<void> => run(async () => {
-    const outcome = await window.apiary.gitCheckoutBranch(terminal, name)
+    const outcome = await git.gitCheckout(terminal, name)
     if (!outcome.ok) {
       // Not an error, and not this popover's to solve: hand the conflict up and get out of the
       // way, so the choice is made in a dialog rather than inside a branch list.
@@ -181,13 +164,13 @@ export function BranchSwitcher({
 
   const checkoutRemote = (remoteRef: string): Promise<void> => run(async () => {
     const localName = remoteRef.slice(remoteRef.indexOf('/') + 1)
-    await window.apiary.gitCheckoutRemote(terminal, remoteRef, localName)
+    await git.gitCheckoutRemote(terminal, remoteRef, localName)
     onCheckedOut()
     onClose()
   })
 
   const checkoutDetached = (ref: string): Promise<void> => run(async () => {
-    await window.apiary.gitCheckoutDetached(terminal, ref)
+    await git.gitCheckoutDetached(terminal, ref)
     onCheckedOut()
     onClose()
   })
@@ -197,7 +180,7 @@ export function BranchSwitcher({
   // right: the popup stays open with git's own CONFLICT text in it rather than closing over a repo
   // the user now has to notice is halfway through something.
   const mergeRef = (ref: string): Promise<void> => run(async () => {
-    await window.apiary.gitMerge(terminal, ref)
+    await git.mergeRef(terminal, ref)
     onCheckedOut()
     onClose()
   })
@@ -215,7 +198,7 @@ export function BranchSwitcher({
     const name = nameDraft.trim()
     if (name === '') return Promise.resolve()
     return run(async () => {
-      await window.apiary.gitCreateBranch(terminal, name, from)
+      await git.gitCreateBranch(terminal, name, from)
       onCheckedOut()
       onClose()
     })
@@ -297,11 +280,11 @@ export function BranchSwitcher({
             pickRef(activeMatch.entry.name, activeMatch.kind)
             return
           }
-          if (listRef.current !== null) onListKeyDown(e, listRef.current)
+          rows.onKeyDown(e)
         }}
       />
 
-        <ul ref={listRef} className="branch-switcher-list" onKeyDown={(e) => { if (listRef.current !== null) onListKeyDown(e, listRef.current) }}>
+        <ul ref={listRef} className="branch-switcher-list" onKeyDown={rows.onKeyDown}>
           {showActions && (
             <>
               <li>
@@ -431,7 +414,7 @@ function CopyRefButton({ name }: { name: string }): JSX.Element {
       aria-label={`Copy ${name}`}
       onClick={(e) => {
         e.stopPropagation()
-        void window.apiary.copyToClipboard(name).then(() => { setCopied(true) })
+        void copyText(name).then((ok) => { if (ok) setCopied(true) })
       }}
     >
       {copied ? <CheckIcon /> : <CopyIcon />}

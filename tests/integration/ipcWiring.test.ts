@@ -2,16 +2,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { AppService } from '../../src/main/appService'
+import type { AppService } from '../../src/main/appService'
 import { CHANNELS } from '@shared/api'
 
 /**
  * A loopback bridge for `registerIpc`/`registerThemeIpc`: `electron` itself is mocked, so
  * `ipcMain.handle`/`.on` land in real `Map`s instead of on the actual IPC transport, and a fake
  * `BrowserWindow` records what `broadcast()`/`webContents.send` do with it. This is what TEST-4
- * asked for as the loopback bridge TEST-5's contract tests would run the real preload/main pair
- * through; only the parity and event-emission checks it names are done here, not the full
- * `fakeApiary`-vs-real-main contract suite, which is a larger follow-on (TEST-5).
+ * asked for. It checks the parity and event-emission properties only. The behavioural contract
+ * suite (`tests/contract/bridgeContract.ts`, run against `fakeApiary` and against the real preload
+ * and handlers in `tests/integration/contract.test.ts`) exists and is where a call's behaviour is
+ * pinned; add a clause there, not here.
  *
  * Declared with `vi.fn()`/`Map` at module scope, then referenced from `vi.mock('electron', …)`:
  * the mock factory is hoisted above these `const`s textually, but only *runs* when something
@@ -57,9 +58,12 @@ const invoked = new Set<string>()
 const subscribed = new Set<string>()
 
 // Imported after the mock so both pick it up — see the comment above.
+const { buildAppService, buildIpcState } = await import('../fixtures/buildService')
 const { registerIpc } = await import('../../src/main/ipc')
+const { UNCHECKED_SENDERS } = await import('../../src/main/ipc/ipcSenderGuard')
 const { ThemeStore } = await import('../../src/main/theme/themeStore')
 const { ThemeGenerator } = await import('../../src/main/theme/themeGenerator')
+const { ClaudeOneShot } = await import('../../src/main/claude/claudeOneShot')
 const { PetStore } = await import('../../src/main/pets/petStore')
 const { PetService } = await import('../../src/main/pets/petService')
 const { SettingsService } = await import('../../src/main/settings/settingsService')
@@ -72,7 +76,7 @@ let disposeIpc: () => void
 beforeEach(async () => {
   home = mkdtempSync(join(tmpdir(), 'apiary-ipcwiring-'))
   mkdirSync(join(home, '.claude', 'projects'), { recursive: true })
-  service = new AppService({
+  service = buildAppService({
     configRoot: join(home, '.claude'),
     dbPath: join(home, 'apiary.db'),
     detectLive: async () => new Map(),
@@ -81,17 +85,20 @@ beforeEach(async () => {
   ipcListeners.clear()
   sent.length = 0
   const ipc = registerIpc({
+    senderPolicy: UNCHECKED_SENDERS,
     service,
-    configRoot: join(home, '.claude'),
+    chat: service.chat,
+    plugins: service.plugins,
+    state: buildIpcState(service, join(home, '.claude')),
     settings: new SettingsService(join(home, 'settings.json')),
     theme: {
       store: new ThemeStore(join(home, 'themes.json')),
       safeMode: false,
-      generator: new ThemeGenerator({ claudeBin: () => null }),
+      generator: new ThemeGenerator({ runner: new ClaudeOneShot({ claudeBin: () => null }) }),
     },
     pets: (() => {
       const store = new PetStore(join(home, 'pets.json'))
-      return { store, service: new PetService({ store, claudeBin: () => null, onChanged: () => {} }), actions: async () => [] }
+      return { store, service: new PetService({ store, makeRunner: () => new ClaudeOneShot({ claudeBin: () => null }), onChanged: () => {} }), actions: async () => [] }
     })(),
   })
   disposeIpc = ipc.dispose

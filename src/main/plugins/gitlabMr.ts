@@ -1,4 +1,4 @@
-import { createExec } from '../exec/run'
+import { defaultExec } from './remote'
 import { parseGitLabRemote, newMergeRequestUrl, type GitLabRemote } from './gitlabRemote'
 import type {
   PluginBarItem, PluginContext, PluginSettingValues, SessionBarPlugin,
@@ -105,20 +105,14 @@ export function itemForNewMergeRequest(
   }
 }
 
-/** The `exec/run.ts`-backed `exec` every plugin call here defaults to; also reused by the MR
- *  status cache (MAIN-23) so `git`/`glab` are shelled out to exactly one way, with one timeout and
- *  buffer policy and one place that logs a slow or failed spawn, rather than each caller building
- *  its own `promisify(execFile)`. */
-export const defaultExec = createExec({ timeoutMs: 8000, maxBuffer: 8 * 1024 * 1024, scope: 'gitlab-mr' })
-
 export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarPlugin {
   const glab = options.glabPath ?? 'glab'
   const exec = options.exec ?? defaultExec
 
   return {
     id: 'gitlab-mr',
-    // On unless the user has actually said otherwise (AppServiceOptions.plugins still wins) — the
-    // literal `?? true` this replaces used to live in AppService's constructor instead of here.
+    // On unless the user has actually said otherwise (`BuiltinPluginConfig.enabled` still wins) — the
+    // literal `?? true` this replaces used to live in `AppService`'s constructor instead of here.
     defaultEnabled: true,
     name: 'GitLab merge request',
     description: 'Shows the merge request for the branch you are on, and opens it in a click. '

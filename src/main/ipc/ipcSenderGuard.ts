@@ -30,17 +30,25 @@ export function isTrustedRendererUrl(url: string, expected: TrustedRendererConfi
 }
 
 /**
- * `senderFrame` is only ever missing for a synthetic call — nothing that reaches this from Electron
- * itself omits it. Test harnesses that invoke a handler directly (`ipcHandlers.get(channel)?.({})`,
- * as `tests/integration/ipcWiring.test.ts` does) have no real sender to check, so this allows
- * rather than denies when there is nothing to check against; a `null` `expected` means the same
- * thing for the whole app (no dev server / packaged config was ever wired in, e.g. this test file),
- * and is likewise not enforced.
+ * Opts a registrar out of the sender check. For a test harness that calls a handler directly
+ * (`ipcHandlers.get(channel)?.({})`, as `tests/integration/ipcWiring.test.ts` does) and so has no
+ * frame to check. Production passes a `TrustedRendererConfig`; `registerIpc` requires one or the
+ * other, so forgetting to configure the check is a compile error rather than an open door.
+ */
+export const UNCHECKED_SENDERS = 'unchecked' as const
+
+export type SenderPolicy = TrustedRendererConfig | typeof UNCHECKED_SENDERS
+
+/**
+ * Whether a message may be acted on. Fails closed: Electron sets `event.senderFrame` to null for a
+ * frame that has been destroyed (and a message can outlive its page), so a missing url is a deny,
+ * the same as a url that is not ours. Only `UNCHECKED_SENDERS` lets a frameless call through.
  */
 export function isTrustedSender(
-  senderFrameUrl: string | undefined,
-  expected: TrustedRendererConfig | null,
+  senderFrameUrl: string | null | undefined,
+  policy: SenderPolicy,
 ): boolean {
-  if (expected === null || senderFrameUrl === undefined) return true
-  return isTrustedRendererUrl(senderFrameUrl, expected)
+  if (policy === UNCHECKED_SENDERS) return true
+  if (senderFrameUrl === undefined || senderFrameUrl === null) return false
+  return isTrustedRendererUrl(senderFrameUrl, policy)
 }

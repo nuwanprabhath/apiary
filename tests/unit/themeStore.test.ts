@@ -104,3 +104,19 @@ describe('ThemeStore', () => {
     expect(new ThemeStore(file).options).toEqual({ animated: false, intensity: 0.4, model: 'haiku' })
   })
 })
+
+describe('ThemeStore on disk', () => {
+  it('keeps a file from a newer Apiary as a backup before its first write, and reads its version back', () => {
+    writeFileSync(file, JSON.stringify({ version: 3, activeThemeId: null, themes: [], options: {}, futureField: 1 }))
+    const store = new ThemeStore(file)
+    store.setOptions({ animated: false })
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toMatchObject({ version: 1 })
+    expect(JSON.parse(readFileSync(`${file}.v3.bak`, 'utf8'))).toMatchObject({ version: 3, futureField: 1 })
+  })
+
+  it('a missing file starts on the default theme, a corrupt one does not', () => {
+    expect(new ThemeStore(file, 'builtin:neon').activeId).toBe('builtin:neon')
+    writeFileSync(file, '{ not json')
+    expect(new ThemeStore(file, 'builtin:neon').activeId).toBeNull()
+  })
+})

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { sidebarSession, until } from './helpers'
+import { settled, sidebarSession, stays, until } from './helpers'
 
 /**
  * Opens Settings and lands on the Themes section. `fake.emit` runs synchronously, outside any
@@ -82,13 +82,11 @@ describe('themes', () => {
     // Applied once main confirms it, so clicked and then waited for rather than an instant read.
     await userEvent.click(page.getByTestId('theme-animated'))
     await expect.element(page.getByTestId('theme-animated')).not.toBeChecked()
-    // Lets any in-flight animation frame finish before taking the "settled" baseline count below.
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    const settled = frames()
-    // Proving a negative: that no further frames are drawn once animation is off, so there is no
-    // condition to poll for other than re-checking after time passes.
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    expect(frames()).toBe(settled)
+    // Lets any in-flight animation frame finish before taking the baseline count below.
+    await settled(() => String(frames()), 6)
+    const baseline = frames()
+    // Proving a negative: that no further frames are drawn once animation is off.
+    await stays(() => frames() === baseline, 1000, 'no further animation frames once animation is off')
   })
 
   it('the Themes screen shows what is applied now, and dialogs stay solid over a translucent theme', async () => {
@@ -148,8 +146,7 @@ describe('themes', () => {
       await fake.themeApply('builtin:neon')
       await until(() => cssVar('--accent') === '#ff2a6dff')
       // Give any redundant second apply a chance to have already landed.
-      await new Promise((resolve) => setTimeout(resolve, 50))
-      expect(dispatches).toBe(1)
+      await stays(() => dispatches === 1, 50, 'the broadcast to be applied once')
     } finally {
       window.removeEventListener('apiary:themechange', onChange)
     }

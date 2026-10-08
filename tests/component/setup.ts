@@ -1,13 +1,14 @@
+import './renderTracker'
 import { afterEach, beforeEach } from 'vitest'
 import { createFakeApiary } from './fakeApiary'
 import { unmountApp } from './renderApp'
-import { drawPetsFlat } from '../../src/renderer/features/pets/render3d/usePetImages'
+import { setTestSeams } from '../../src/renderer/state/testSeams'
 
 // Installed before any test file imports the renderer, for code that reads the bridge as a module
 // loads; `renderApp` replaces it with the test's own fake.
 window.apiary = createFakeApiary()
-// Pets are drawn flat here unless a test is about the 3D renderer (see `drawPetsFlat`).
-drawPetsFlat(true)
+// Pets are drawn flat here unless a test is about the 3D renderer (see `petsFlat` in state/testSeams.ts).
+setTestSeams({ petsFlat: true })
 // ...and stand still in the window: the tests about pets in the layer are about what they do, not
 // how they move, and a minute of breathing and walking in software compositing starved the drag
 // tests running beside them. (petSprite.test.tsx draws pets outside the layer, animations on.)

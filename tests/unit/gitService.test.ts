@@ -4,32 +4,27 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-vi.mock('../../src/main/git/branchOps', () => ({
-  status: vi.fn(),
-  listRefs: vi.fn(),
-  checkoutBranch: vi.fn(),
+// Only the pure helper is replaced; the operations are a fake `BranchOps` passed to the service.
+vi.mock('../../src/main/git/branchOps', async (original) => ({
+  ...(await original<Record<string, unknown>>()),
   isWorktreeConflict: vi.fn(() => false),
-  worktreeForBranch: vi.fn(),
-  pull: vi.fn(),
-  checkoutRemote: vi.fn(),
-  checkoutDetached: vi.fn(),
-  createBranch: vi.fn(),
-  updateBranch: vi.fn(),
-  pullFastForward: vi.fn(),
-  listWorktrees: vi.fn(),
-  push: vi.fn(),
-  merge: vi.fn(),
-  fetch: vi.fn(),
 }))
 vi.mock('../../src/main/plugins/remote', () => ({
   resolveRemote: vi.fn(async () => null),
 }))
 
-import * as branchOps from '../../src/main/git/branchOps'
+import { isWorktreeConflict, type BranchOps } from '../../src/main/git/branchOps'
+import { MrStatusCache } from '../../src/main/git/mrStatusCache'
 import { GitService } from '../../src/main/git/gitService'
 import { SessionResolver } from '../../src/main/sessions/sessionResolver'
 import type { SessionStore } from '../../src/main/store/sessionStore'
 import type { PtyManager } from '../../src/main/pty/ptyManager'
+
+const branchOps = {
+  status: vi.fn(), listRefs: vi.fn(), checkoutBranch: vi.fn(), worktreeForBranch: vi.fn(), pull: vi.fn(),
+  checkoutRemote: vi.fn(), checkoutDetached: vi.fn(), createBranch: vi.fn(), updateBranch: vi.fn(),
+  pullFastForward: vi.fn(), listWorktrees: vi.fn(), push: vi.fn(), merge: vi.fn(), fetch: vi.fn(),
+}
 
 /** A resolver whose `resolveShellCwd`/`requireFolder` always answer with a real, existing
  *  directory — GitService itself does no filesystem checks, so the resolver only needs to hand
@@ -48,7 +43,13 @@ describe('GitService', () => {
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), 'apiary-gitservice-'))
     resolver = fakeResolver(cwd)
-    git = new GitService({ resolver })
+    git = new GitService({
+      resolver,
+      branchOps: branchOps as unknown as BranchOps,
+      mrStatus: new MrStatusCache({ exec: async () => { throw new Error('no glab in this test') } }),
+      refreshProject: async () => {},
+      startSessionIn: async () => { throw new Error('not used in this test') },
+    })
     vi.clearAllMocks()
   })
 
@@ -57,7 +58,7 @@ describe('GitService', () => {
   })
 
   it('status() records the branch for lastBranchFor()', async () => {
-    vi.mocked(branchOps.status).mockResolvedValue({ branch: 'main', ahead: 0, behind: 0, dirty: false } as never)
+    vi.mocked(branchOps.status).mockResolvedValue({ branch: 'main', ahead: 0, behind: 0, dirty: false })
     await git.status(terminalRef('s1', true))
     expect(git.lastBranchFor(cwd)).toBe('main')
   })
@@ -79,7 +80,7 @@ describe('GitService', () => {
 
   it('checkoutBranch() reports a worktree conflict as an outcome, not a throw', async () => {
     vi.mocked(branchOps.checkoutBranch).mockRejectedValue(new Error("branch 'feature' is checked out elsewhere"))
-    vi.mocked(branchOps.isWorktreeConflict).mockReturnValue(true)
+    vi.mocked(isWorktreeConflict).mockReturnValue(true)
     vi.mocked(branchOps.worktreeForBranch).mockResolvedValue('/other/worktree')
     vi.mocked(branchOps.listWorktrees).mockResolvedValue([
       { path: cwd, branch: 'main' }, { path: '/other/worktree', branch: 'feature' }, { path: '/third', branch: 'release' },
@@ -99,7 +100,7 @@ describe('GitService', () => {
 
   it('checkoutBranch() rethrows a non-conflict failure', async () => {
     vi.mocked(branchOps.checkoutBranch).mockRejectedValue(new Error('boom'))
-    vi.mocked(branchOps.isWorktreeConflict).mockReturnValue(false)
+    vi.mocked(isWorktreeConflict).mockReturnValue(false)
     await expect(git.checkoutBranch(terminalRef('s1', true), 'feature')).rejects.toThrow('boom')
   })
 

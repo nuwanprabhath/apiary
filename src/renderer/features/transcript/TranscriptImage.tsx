@@ -1,4 +1,5 @@
 import { type JSX, useEffect, useState } from 'react'
+import { loadImage } from '../../state/transcript'
 
 /** Absolute paths that look like an image file — how the composer hands an image to Claude. */
 export const IMAGE_PATH_LINE = /^\s*(\/\S+\.(?:png|jpe?g|gif|webp))\s*$/i
@@ -19,13 +20,9 @@ export function TranscriptImageFile(
 
   useEffect(() => {
     let cancelled = false
-    void window.apiary.readImage(path).then((result) => {
+    // A read failure looks like a missing file: the fallback text below, not a toast per thumbnail.
+    void loadImage(path).then((result) => {
       if (!cancelled) setDataUrl(result?.dataUrl ?? null)
-    }).catch(() => {
-      // Same outcome as a missing file (UI-23): the fallback text below is what a read failure
-      // should look like too, not an "Unexpected error" toast for every broken thumbnail in a
-      // long transcript.
-      if (!cancelled) setDataUrl(null)
     })
     return () => { cancelled = true }
   }, [path])

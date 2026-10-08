@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isTrustedRendererUrl, isTrustedSender } from '../../src/main/ipc/ipcSenderGuard'
+import { isTrustedRendererUrl, isTrustedSender, UNCHECKED_SENDERS } from '../../src/main/ipc/ipcSenderGuard'
 
 describe('isTrustedRendererUrl', () => {
   it('accepts a packaged renderer URL regardless of its window-number query', () => {
@@ -32,15 +32,22 @@ describe('isTrustedRendererUrl', () => {
 })
 
 describe('isTrustedSender', () => {
-  it('allows when there is nothing to check — no configured expectation, or no sender frame url', () => {
-    expect(isTrustedSender(undefined, null)).toBe(true)
-    expect(isTrustedSender(undefined, { devServerOrigin: null })).toBe(true)
-    expect(isTrustedSender('file:///Applications/Apiary.app/.../renderer/index.html', null)).toBe(true)
+  const expected = { devServerOrigin: null }
+
+  it('denies a missing sender frame: Electron sets senderFrame to null for a destroyed frame', () => {
+    expect(isTrustedSender(undefined, expected)).toBe(false)
+    expect(isTrustedSender(null, expected)).toBe(false)
+    expect(isTrustedSender(undefined, { devServerOrigin: 'http://localhost:5173' })).toBe(false)
   })
 
-  it('defers to isTrustedRendererUrl once both a url and an expectation are present', () => {
-    const expected = { devServerOrigin: null }
+  it('defers to isTrustedRendererUrl when there is a url', () => {
     expect(isTrustedSender('file:///a/renderer/index.html', expected)).toBe(true)
     expect(isTrustedSender('https://evil.example/', expected)).toBe(false)
+  })
+
+  it('checks nothing only when the caller explicitly opted out (the test harness)', () => {
+    expect(isTrustedSender(undefined, UNCHECKED_SENDERS)).toBe(true)
+    expect(isTrustedSender(null, UNCHECKED_SENDERS)).toBe(true)
+    expect(isTrustedSender('https://evil.example/', UNCHECKED_SENDERS)).toBe(true)
   })
 })

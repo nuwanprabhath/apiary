@@ -1,4 +1,5 @@
 import type { PetSpec } from '@shared/pets/spec'
+import { errorMessage } from '@shared/errors'
 import { PetRenderer, RENDER_PX, type PetImages, type PropImages } from './render'
 
 /**
@@ -20,7 +21,7 @@ addEventListener('message', (e: MessageEvent<ToRenderer>) => {
       if ('props' in msg) postMessage({ id, props: await renderer.renderProps() } satisfies FromRenderer)
       else postMessage({ id, images: await renderer.render(msg.spec) } satisfies FromRenderer)
     } catch (err) {
-      postMessage({ id, error: err instanceof Error ? err.message : String(err) } satisfies FromRenderer)
+      postMessage({ id, error: errorMessage(err) } satisfies FromRenderer)
     }
   })
 })

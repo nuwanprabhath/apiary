@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { serializeMenu, itemAtPath, type MenuItemLike } from '../../src/main/app/menuModel'
-import { displayAccelerator } from '../../src/shared/domain/windowChrome'
+import { serializeMenu, itemAtPath, type MenuItemLike } from '../../src/main/ipc/menuModel'
+import { displayAccelerator } from '@shared/domain/windowChrome'
 
 const item = (o: Partial<MenuItemLike> & { label: string }): MenuItemLike => ({
   type: 'normal', enabled: true, visible: true, checked: false, accelerator: null, role: null, ...o,

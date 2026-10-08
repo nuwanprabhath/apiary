@@ -2,6 +2,8 @@ import {
   ACCESSORIES, ARMS, BODY_SHAPES, EYE_STYLES, LEGS, LIMITS, SITUATIONS, TEXTURES, TRAITS, slotOf,
   type Accessory, type AccessorySlot, type PetSpec, type Situation,
 } from './spec'
+import { oneOf, own } from '../guards'
+import { flattenText } from '../text'
 
 /**
  * The one way anything becomes a pet — the security boundary of the pets feature, as
@@ -18,14 +20,6 @@ import {
  * It returns null only when the input is not an object at all; otherwise it always returns a pet.
  */
 
-const own = (o: unknown, k: string): unknown =>
-  typeof o === 'object' && o !== null && Object.prototype.hasOwnProperty.call(o, k)
-    ? (o as Record<string, unknown>)[k]
-    : undefined
-
-const oneOf = <T extends string>(list: readonly T[], v: unknown, fallback: T): T =>
-  typeof v === 'string' && (list as readonly string[]).includes(v) ? v as T : fallback
-
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
 
 export function cleanColor(v: unknown, fallback: string): string {
@@ -38,8 +32,8 @@ export function cleanColor(v: unknown, fallback: string): string {
 
 function cleanText(v: unknown, max: number): string {
   if (typeof v !== 'string') return ''
-  // eslint-disable-next-line no-control-regex -- control characters are what is being removed
-  const s = v.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim()
+  // C1 controls too (a pet's lines come from Claude); \s already folds U+2028 and U+2029.
+  const s = flattenText(v.replace(/[\u0080-\u009f]/g, ' '))
   return [...s].slice(0, max).join('').trim()
 }
 

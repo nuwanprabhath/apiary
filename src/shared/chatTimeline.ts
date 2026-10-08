@@ -109,6 +109,21 @@ export function chatItems(messages: TranscriptMessage[]): ChatItem[] {
   return items
 }
 
+/**
+ * The conversation without its tool calls: every `tool_use` and `tool_result` block gone, and a
+ * message that carried nothing else gone with it (an assistant turn that only ran a command, the
+ * user-role message that only held its result). What is left is what you said and what Claude said.
+ * A message with no tool block is returned as is, so a memoised row keeps its identity.
+ */
+export function withoutToolCalls(messages: TranscriptMessage[]): TranscriptMessage[] {
+  const isTool = (b: TranscriptMessage['blocks'][number]): boolean => b.type === 'tool_use' || b.type === 'tool_result'
+  return messages.flatMap((m) => {
+    if (!m.blocks.some(isTool)) return [m]
+    const blocks = m.blocks.filter((b) => !isTool(b))
+    return blocks.length === 0 ? [] : [{ ...m, blocks }]
+  })
+}
+
 /** The latest message you sent, for the box that stays at the top while you scroll. */
 export function lastPrompt(items: ChatItem[]): Extract<ChatItem, { kind: 'user' }> | null {
   for (let i = items.length - 1; i >= 0; i--) {

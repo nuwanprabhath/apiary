@@ -3,6 +3,7 @@ import type { PluginBarItemPayload } from '@shared/api'
 import type { TerminalRef } from '@shared/domain/ids'
 import { MergeRequestIcon, LinkIcon, PlusIcon, AlertIcon } from '../../ui/icons'
 import type { ToolbarButtonSpec } from './Toolbar'
+import { onPluginsChanged, readPluginBar, refreshPluginBar, runPluginAction } from '../../state/plugins'
 
 /**
  * The renderer's half of the session-bar plugins.
@@ -41,22 +42,17 @@ export function usePluginBar(terminal: TerminalRef | null, branch: string | null
   const load = useCallback(() => {
     if (terminal === null) { setItems([]); return }
     requestKey.current = terminal.id
-    void window.apiary.pluginBarItems(terminal)
-      .then((result) => { if (requestKey.current === terminal.id) setItems(result) })
-      // A plugin bar that cannot be read is an empty plugin bar, never an error in front of the
-      // session: nothing here is load-bearing.
-      .catch(() => { if (requestKey.current === terminal.id) setItems([]) })
+    // A plugin bar that cannot be read is an empty plugin bar (see `readPluginBar`).
+    void readPluginBar(terminal).then((result) => { if (requestKey.current === terminal.id) setItems(result ?? []) })
   }, [terminal])
 
   useEffect(load, [load, branch])
-  useEffect(() => window.apiary.onPluginsChanged(load), [load])
+  useEffect(() => onPluginsChanged(load), [load])
 
   const refresh = useCallback(() => {
     if (terminal === null) return
     requestKey.current = terminal.id
-    void window.apiary.pluginBarRefresh(terminal)
-      .then((result) => { if (requestKey.current === terminal.id) setItems(result) })
-      .catch(() => { /* as above */ })
+    void refreshPluginBar(terminal).then((result) => { if (requestKey.current === terminal.id && result !== null) setItems(result) })
   }, [terminal])
 
   return { items, refresh }
@@ -73,7 +69,7 @@ export function pluginButtons(items: PluginBarItemPayload[]): ToolbarButtonSpec[
     tone: item.tone,
     onClick: () => {
       if (item.action.kind === 'none') return
-      void window.apiary.pluginRunAction(item)
+      runPluginAction(item)
     },
   }))
 }

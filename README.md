@@ -52,7 +52,9 @@ resume it in an embedded terminal in the correct working directory.
   reply without switching to its Terminal tab. Paste or drop images straight into it: each one gets a thumbnail
   you can click to see full size, and images already in a session's history render the same way.
   It isn't a second conversation — what you type is delivered into the very same `claude --resume`
-  process, so the session's own transcript stays the single record.
+  process, so the session's own transcript stays the single record. "Hide tool calls" in the tab's
+  toolbar (or Settings → General, to start that way) leaves out the command and output boxes, so the
+  conversation reads as what you said and what Claude said.
 - **Resume in terminal** — reopens a session with `claude --resume`
   in its correct working directory, right inside the app; warns (with the option
   to fork instead) if that session is already running elsewhere.
@@ -153,7 +155,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the contributor workflow. Q
     npm run test:e2e       # Playwright tests against the built renderer (off-screen; APIARY_HEADED=1 to watch)
     npm run test:e2e:smoke # the ~1 minute subset that also runs in CI
     npm run typecheck
-    npm run lint            # eslint, stylelint, markdownlint, shellcheck, madge
+    npm run lint            # eslint, stylelint, markdownlint, shellcheck, dependency-cruiser
     npm run screenshot      # regenerate docs/screenshot.png (the README image above)
 
 `npm run screenshot` launches the real app against a representative fixture (three

@@ -1,3 +1,4 @@
+import type { LogScope } from '@shared/domain/log'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { log } from '../log/logger'
@@ -15,11 +16,14 @@ export interface CreateExecOptions {
   maxBuffer?: number
   /** A tag for the slow/failed-spawn log line — which caller this is, since `file`+`args` alone
    *  can be long. */
-  scope?: string
+  scope?: LogScope
 }
 
 /** How long a spawn may run before it is logged as slow, even when it eventually succeeds. */
 const SLOW_SPAWN_MS = 2000
+
+/** What a command wrote, for the caller that needs more than stdout (`codesign -dv` reports on stderr). */
+export interface ExecOutput { stdout: string; stderr: string }
 
 /**
  * Builds an `ExecFn` with one timeout/buffer policy and consistent logging (MAIN-23) — before
@@ -34,16 +38,23 @@ const SLOW_SPAWN_MS = 2000
  * itself, so nothing built on it can regress that.
  */
 export function createExec(options: CreateExecOptions = {}): ExecFn {
+  const run = createExecWithStderr(options)
+  return async (file, args, cwd) => (await run(file, args, cwd)).stdout
+}
+
+/** `createExec` for a command whose report is on stderr even when it succeeds: resolves with both
+ *  streams. A failure throws exactly as `createExec` does (the message is stderr, then stdout). */
+export function createExecWithStderr(options: CreateExecOptions = {}): (file: string, args: string[], cwd: string) => Promise<ExecOutput> {
   const { timeoutMs = 8000, maxBuffer = 1024 * 1024, scope = 'exec' } = options
   return async (file, args, cwd) => {
     const startedAt = Date.now()
     try {
-      const { stdout } = await run(file, args, { cwd, timeout: timeoutMs, maxBuffer })
+      const { stdout, stderr } = await run(file, args, { cwd, timeout: timeoutMs, maxBuffer })
       const durationMs = Date.now() - startedAt
       if (durationMs > SLOW_SPAWN_MS) {
         log.debug(scope, 'slow spawn', { file, args: args.join(' '), durationMs })
       }
-      return stdout
+      return { stdout, stderr }
     } catch (e) {
       const durationMs = Date.now() - startedAt
       const err = e as { stdout?: string; stderr?: string; message: string }

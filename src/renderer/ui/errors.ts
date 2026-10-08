@@ -31,6 +31,20 @@ export function describeError(thrown: unknown): DescribedError {
 }
 
 /**
+ * The notification for a region of the window an `ErrorBoundary` gave up on, so a layer that
+ * vanishes (the pets, the effects canvas) is not a silent mystery. Plain data, so this file does
+ * not depend on the notification provider.
+ */
+export function crashNotice(what: string, thrown: unknown, componentStack: string): { kind: 'error'; message: string; detail: string } {
+  const { message, detail } = describeError(thrown)
+  return {
+    kind: 'error',
+    message: `${what} could not be displayed: ${message}`,
+    detail: [detail, componentStack].filter((t) => t !== null && t !== '').join('\n'),
+  }
+}
+
+/**
  * Splits one thrown message into a headline and its detail.
  *
  * Detail is the stack when there is one, and otherwise the full message — but only when the

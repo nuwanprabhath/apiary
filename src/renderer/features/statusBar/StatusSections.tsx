@@ -1,6 +1,7 @@
 /* eslint-disable @eslint-react/no-array-index-key -- sections, rows and cells are positional data a plugin re-sends whole; nothing is reordered or edited in place, so an index is the identity */
 import type { JSX } from 'react'
 import type { StatusSection } from '@shared/domain/statusBar'
+import { TrendLine } from '../../ui/icons/TrendLine'
 
 /**
  * Draws a plugin's hover detail or dashboard. Each section kind is drawn here and nowhere else, so
@@ -95,19 +96,7 @@ function Section({ section }: { section: StatusSection }): JSX.Element | null {
       if (pts.length === 0) return null
       const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
       const area = `${line} L${pts[pts.length - 1].x.toFixed(1)},${String(h - padY)} L${pts[0].x.toFixed(1)},${String(h - padY)} Z`
-      return (
-        <svg className="status-line" viewBox={`0 0 ${String(w)} ${String(h)}`} preserveAspectRatio="none" role="img" aria-label="Monthly trend">
-          <path d={area} className="status-line-area" />
-          <path d={line} className="status-line-stroke" fill="none" />
-          {pts.map((p) => (
-            <g key={p.label}>
-              <circle cx={p.x} cy={p.y} r={3.5} className="status-line-dot" />
-              <circle cx={p.x} cy={p.y} r={10} className="status-line-hit"><title>{p.title}</title></circle>
-              <text x={p.x} y={h - 1} textAnchor="middle" className="status-line-label">{p.label}</text>
-            </g>
-          ))}
-        </svg>
-      )
+      return <TrendLine width={w} height={h} line={line} area={area} points={pts} />
     }
   }
 }

@@ -1,4 +1,5 @@
 import type { PtySessionInfo } from '@shared/api'
+import { flattenText } from '@shared/text'
 import { log } from '../log/logger'
 
 /**
@@ -40,8 +41,7 @@ export function composerIsEmpty(screen: string): boolean {
 /** One line, no control characters, bounded — a title is typed as keystrokes, so a newline in it
  *  would submit early and an escape would be interpreted by the terminal. */
 export function sanitizeTitle(title: string): string {
-  // eslint-disable-next-line no-control-regex
-  return title.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)
+  return flattenText(title).slice(0, 200)
 }
 
 export interface RenameDeps {

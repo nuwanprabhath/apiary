@@ -1,7 +1,8 @@
-import { readFileSync, mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
-import { writeJsonAtomic } from '../fs/atomicWrite'
-import type { WindowBounds } from '../settings'
+import { errorMessage } from '@shared/errors'
+import { isFiniteNumber, isRecord } from '@shared/guards'
+import { JsonStore } from '../fs/jsonStore'
+import { log } from '../log/logger'
+import type { WindowBounds } from './windowBounds'
 import type { WindowLayoutReport } from '@shared/types'
 
 export interface WindowLayoutRecord extends WindowLayoutReport {
@@ -16,49 +17,33 @@ export interface WindowLayoutRecord extends WindowLayoutReport {
   hasLayout: boolean
 }
 
-export interface SessionLayoutFile { windows: WindowLayoutRecord[] }
+interface SessionLayoutFile { windows: WindowLayoutRecord[] }
 
 function isWindowBounds(v: unknown): v is WindowBounds {
-  if (typeof v !== 'object' || v === null) return false
-  const b = v as Record<string, unknown>
-  return typeof b.x === 'number' && typeof b.y === 'number'
-    && typeof b.width === 'number' && typeof b.height === 'number'
+  return isRecord(v) && isFiniteNumber(v.x) && isFiniteNumber(v.y)
+    && isFiniteNumber(v.width) && isFiniteNumber(v.height)
 }
 
-function isRecord(v: unknown): v is WindowLayoutRecord {
-  if (typeof v !== 'object' || v === null) return false
-  const r = v as Record<string, unknown>
-  return typeof r.number === 'number' && isWindowBounds(r.bounds)
-    && typeof r.layout === 'object' && r.layout !== null
-    && Array.isArray(r.live) && r.live.every((s) => typeof s === 'string')
-    && typeof r.hasLayout === 'boolean'
+function isWindowRecord(v: unknown): v is WindowLayoutRecord {
+  return isRecord(v) && isFiniteNumber(v.number) && isWindowBounds(v.bounds)
+    && isRecord(v.layout)
+    && Array.isArray(v.live) && v.live.every((s) => typeof s === 'string')
+    && typeof v.hasLayout === 'boolean'
 }
 
 /**
- * Reads the on-disk record, falling back to an empty file on anything unreadable or malformed.
- * The caller (main/index.ts) treats an empty file exactly like "no record for this window" and
- * opens a single default window — restore must never fail the whole launch over one bad record.
+ * The on-disk record as a `JsonStore`: an empty file on anything unreadable or malformed. The
+ * caller (main/index.ts) treats an empty file exactly like "no record for this window" and opens a
+ * single default window — restore must never fail the whole launch over one bad record. Files
+ * written before it carried a `version` read as `undefined`, which is fine: there is one shape.
  */
-export function loadSessionLayout(file: string): SessionLayoutFile {
-  try {
-    const raw: unknown = JSON.parse(readFileSync(file, 'utf8'))
-    if (typeof raw !== 'object' || raw === null || !Array.isArray((raw as { windows?: unknown }).windows)) {
-      return { windows: [] }
-    }
-    const windows = (raw as { windows: unknown[] }).windows.filter(isRecord)
-    return { windows }
-  } catch {
-    return { windows: [] }
-  }
-}
-
-export function saveSessionLayoutNow(file: string, data: SessionLayoutFile): void {
-  try {
-    mkdirSync(dirname(file), { recursive: true })
-    writeJsonAtomic(file, data)
-  } catch {
-    // A read-only home directory should not crash the app — same bargain as settings.ts.
-  }
+function createLayoutFileStore(file: string): JsonStore<SessionLayoutFile> {
+  return new JsonStore<SessionLayoutFile>({
+    file,
+    version: 1,
+    parse: (raw) => (isRecord(raw) && Array.isArray(raw.windows) ? { windows: raw.windows.filter(isWindowRecord) } : { windows: [] }),
+    fallback: () => ({ windows: [] }),
+  })
 }
 
 export interface SessionLayoutStore {
@@ -78,16 +63,25 @@ const EMPTY_BOUNDS: WindowBounds = { x: 0, y: 0, width: 1400, height: 900 }
  * windows reporting close together (e.g. all four resizing at relaunch) into one disk write.
  */
 export function createSessionLayoutStore(file: string, writeDelayMs = 500): SessionLayoutStore {
+  const fileStore = createLayoutFileStore(file)
   const windows = new Map<number, WindowLayoutRecord>(
-    loadSessionLayout(file).windows.map((w) => [w.number, w]),
+    fileStore.load().windows.map((w) => [w.number, w]),
   )
+  /** A read-only home directory should not crash the app — same bargain as settings.ts. */
+  const write = (): void => {
+    try {
+      fileStore.save({ windows: [...windows.values()] })
+    } catch (e) {
+      log.warn('layout', 'could not write the window layout', { error: errorMessage(e) })
+    }
+  }
   let timer: ReturnType<typeof setTimeout> | null = null
 
   const scheduleWrite = (): void => {
     if (timer !== null) clearTimeout(timer)
     timer = setTimeout(() => {
       timer = null
-      saveSessionLayoutNow(file, { windows: [...windows.values()] })
+      write()
     }, writeDelayMs)
   }
 
@@ -115,7 +109,7 @@ export function createSessionLayoutStore(file: string, writeDelayMs = 500): Sess
     },
     flush() {
       if (timer !== null) { clearTimeout(timer); timer = null }
-      saveSessionLayoutNow(file, { windows: [...windows.values()] })
+      write()
     },
     snapshot() {
       return { windows: [...windows.values()] }

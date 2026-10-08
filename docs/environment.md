@@ -16,13 +16,20 @@ or a stand-in binary, and none of them must be usable to redirect a real install
 | `APIARY_PET_EXPORT_PATH` | test harness | answers the pet export save dialog with this path |
 | `APIARY_PET_IMPORT_PATH` | test harness | answers the pet import open dialog with this path |
 | `APIARY_WINDOW_CHROME` | test harness | forces a window's title bar: `custom` (Windows/Linux themed bar and menus), `mac` or `system` |
+| `APIARY_RENDERER_SEAMS` | test harness | JSON for the renderer's test seams (`src/renderer/state/testSeams.ts`): `petBrainOptions`, `petsFlat`. Reaches each window as `?seams=`; unset when packaged, so the renderer has no test hook a page script could reach |
 | `APIARY_DEFAULT_THEME=original` | test harness | starts a fresh profile on the pre-Liquid-Glass theme |
-| `APIARY_FAKE_UPDATE`, `APIARY_FAKE_UPDATE_MODE` | test harness | drives the update banner with no network |
+| `APIARY_FAKE_UPDATE`, `APIARY_FAKE_UPDATE_MODE` | test harness | drives the update banner with no network (`update/fakeBackend.ts`); the mode picks the platform and packaging shape it pretends to be |
 | `APIARY_HEADLESS` | test harness | keeps every window off-screen |
+| `APIARY_FAKE_GLAB_STATE_FILE`, `APIARY_FAKE_GLAB_EMPTY`, `APIARY_FAKE_GLAB_FAIL`, `APIARY_FAKE_GLAB_MERGED` | e2e harness, read by `tests/fixtures/bin/fake-glab*.sh` (not by the app) | shape the stand-in `glab`: an empty merge-request list, a failing call, a merged request; `glab api` answers with the state held in the state file |
+| *(chat)* no `APIARY_*` variable | e2e harness | Chat mode is driven through `claudeBin` in the profile's `settings.json` pointing at `tests/fixtures/fake-claude-chat.mjs` (`launchApiary({ claudeBin, settings: { transcriptChat: true } })`). The stand-in speaks the stream-json protocol; it writes a `/clear` session's file under `APIARY_CONFIG_ROOT` (or `CLAUDE_CONFIG_DIR`). A message containing "permission", "slow" or "background" makes it ask for a tool, stream long enough to interrupt, or finish a background task |
+| `APIARY_FAKE_CODE_LOG` | e2e harness, read by `tests/fixtures/bin/fake-code.sh` (not by the app) | file the stand-in `code` appends its arguments to, so a spec can assert what Open in VS Code launched |
+| `APIARY_E2E_EXECUTABLE` | `tests/packaged/` | makes the e2e harness (`launchApiary`) launch a packaged binary instead of `out/`, and isolate its `HOME` and `CLAUDE_CONFIG_DIR` |
+| `APIARY_PACKAGED_APP` | `scripts/test-packaged.mjs` | path of the packaged app that `tests/packaged/packagedApp.spec.ts` drives; the spec skips when it is unset, so use `npm run test:packaged` |
 | `ELECTRON_RENDERER_URL` | dev / test harness | points at the Vite dev server instead of `out/` |
 | `APIARY_SAFE_THEME` / `--safe-theme` | user | resets to the built-in theme; **always honoured**, not gated by `isPackaged` — a recovery path, not a test hook |
 | `CLAUDE_CONFIG_DIR` | user / Claude Code | overrides `~/.claude` (`resolveConfigRoot()`) |
 | `CLAUDE_CODE_CHILD_SESSION` and friends | inherited from a parent Claude Code shell | stripped from spawned shells (`pty/childEnv.ts`) so a nested `claude` still writes its own JSONL |
+| `APIARY_ZDOTDIR` | set *by* Apiary inside the zsh minimal-prompt shim | a local shell variable that holds Apiary's `ZDOTDIR` while the user's own rc file runs; not a setting |
 | `APIARY_USER_ZDOTDIR` | set *by* Apiary, for the zsh minimal-prompt shim | not a user-facing var — see [`src/main/pty/CLAUDE.md`](../src/main/pty/CLAUDE.md) |
 | `APPIMAGE` | the AppImage runtime | path of the running image, read by the updater to reinstall itself |
 | `APIARY_HEADED` | test harness (not the app) | runs e2e with visible windows |
@@ -43,6 +50,7 @@ or a stand-in binary, and none of them must be usable to redirect a real install
 | `prompt-shim/zsh` | `main/pty/promptPath.ts` (written at startup) |
 | `pasted-images/` | `main/` `ImageStore` (chat image attachments) |
 | `logs/` | `main/log/` — only exists once Diagnostics is switched on |
+| `<file>.v<N>.bak` | `main/fs/jsonStore.ts` — a copy of a settings, layout, theme or pets file written by a newer Apiary, made once before an older build first rewrites it |
 
 This is the method behind ["Measure before fixing"](debugging.md): read the actual state
 (`apiary.db`, `search.db`) rather than guessing from the code.

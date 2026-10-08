@@ -3,16 +3,18 @@ import { mkdtempSync, rmSync, mkdirSync, realpathSync, symlinkSync } from 'node:
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { git, initRepo } from '../fixtures/gitRepo'
-import { resolveProject, clearResolverCache } from '../../src/main/git/worktreeResolver'
+import { WorktreeResolver, createResolverExec } from '../../src/main/git/worktreeResolver'
 
 let base: string
+let resolver: WorktreeResolver
+const resolveProject = (...args: Parameters<WorktreeResolver['resolveProject']>) => resolver.resolveProject(...args)
 
 beforeEach(() => {
   // realpath: on macOS os.tmpdir() is under /var, a symlink to /private/var, while git
   // resolves absolute paths (--show-toplevel, and --git-common-dir for worktrees) to the
   // real path. Canonicalizing here keeps our expectations and git's output comparable.
   base = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-git-')))
-  clearResolverCache()
+  resolver = new WorktreeResolver({ exec: createResolverExec() })
 })
 afterEach(() => { rmSync(base, { recursive: true, force: true }) })
 
@@ -111,5 +113,32 @@ describe('resolveProject', () => {
     const parentInfo = await resolveProject(repoAlias)
     expect(wtInfo.isWorktree).toBe(true)
     expect(wtInfo.repoRoot).toBe(parentInfo.path)
+  })
+})
+
+describe('the cache is keyed by the folder\'s HEAD (MAIN-1)', () => {
+  it('shows a branch checked out outside Apiary on the next resolve, without a full pass', async () => {
+    const repo = makeRepo()
+    expect((await resolveProject(repo)).branch).toBe('main')
+    git(repo, 'checkout', '-q', '-b', 'feature/outside')
+    expect((await resolveProject(repo)).branch).toBe('feature/outside')
+  })
+
+  it('does the same for a linked worktree, whose HEAD lives in the repo\'s .git/worktrees', async () => {
+    const repo = makeRepo()
+    const wt = join(base, 'wt-head')
+    git(repo, 'worktree', 'add', '-q', '-b', 'rel/a', wt)
+    expect((await resolveProject(wt)).branch).toBe('rel/a')
+    git(wt, 'checkout', '-q', '-b', 'rel/b')
+    expect((await resolveProject(wt)).branch).toBe('rel/b')
+  })
+
+  it('still answers from the cache, with no git spawn, while HEAD is untouched', async () => {
+    const repo = makeRepo()
+    await resolveProject(repo)
+    resolver.resetSpawnCount()
+    await resolveProject(repo)
+    await resolveProject(repo)
+    expect(resolver.spawnCount()).toBe(0)
   })
 })

@@ -115,7 +115,7 @@ export function Modal(
     }
     // Deliberately once per mount: `initialFocusSelector` is a static prop per call site, and
     // re-running this on every render would fight the user's own subsequent Tabbing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per mount; initialFocusSelector is static and re-running would fight the user's Tabbing
   }, [])
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {

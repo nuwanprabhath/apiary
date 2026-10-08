@@ -19,7 +19,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { page } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { box, mouse } from './helpers'
+import { box, mouse, settled, stays } from './helpers'
 
 describe('sidebar drag cost (UI-6)', () => {
   afterEach(() => { vi.restoreAllMocks() })
@@ -29,10 +29,6 @@ describe('sidebar drag cost (UI-6)', () => {
     const resizer = page.getByTestId('sidebar-resizer')
     const r = box(resizer)
 
-    // Let the app's own mount-time debounced save land before measuring, so only the drag's own
-    // writes are counted below.
-    await new Promise((r2) => { setTimeout(r2, 350) })
-
     let setItemCalls = 0
     // eslint-disable-next-line @typescript-eslint/unbound-method -- captured only to `.call(this)` it back below, never invoked unbound
     const realSetItem = Storage.prototype.setItem
@@ -40,6 +36,10 @@ describe('sidebar drag cost (UI-6)', () => {
       setItemCalls++
       return realSetItem.call(this, k, v)
     })
+    // Let the app's own mount-time saves finish before measuring (quiet for ten frames), so only
+    // the drag's own writes are counted below.
+    await settled(() => String(setItemCalls), 10)
+    setItemCalls = 0
 
     await mouse.move(r.x + r.width / 2, r.y + r.height / 2)
     await mouse.down()
@@ -55,8 +55,7 @@ describe('sidebar drag cost (UI-6)', () => {
 
     // Waiting past the ordinary 250ms debounce changes nothing further: the drag's own commit was
     // never subject to it.
-    await new Promise((r2) => { setTimeout(r2, 350) })
-    expect(setItemCalls).toBe(2)
+    await stays(() => setItemCalls === 2, 350, 'the drag to cost no further writes')
   })
 
   it('the live width is not committed to ui state (and so not re-rendered) until the drag ends', async () => {

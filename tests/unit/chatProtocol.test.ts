@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { emptyChatState, type ChatState } from '../../src/shared/domain/chat'
+import { emptyChatState, type ChatState } from '@shared/domain/chat'
 import {
   contextUsageOf, parseLine, permissionReply, permissionRequestOf, reduce, userLine, controlLine, type Line,
 } from '../../src/main/chat/protocol'
+import { asSessionId } from '@shared/domain/ids'
 
 /** The shape of a real turn, as `claude` 2.1.286 printed it: a Write that needed permission. */
 const TURN: Line[] = [
@@ -34,7 +35,7 @@ const TURN: Line[] = [
   },
 ]
 
-const run = (events: Line[], from: ChatState = { ...emptyChatState('s'), status: 'busy' }): ChatState =>
+const run = (events: Line[], from: ChatState = { ...emptyChatState(asSessionId('s')), status: 'busy' }): ChatState =>
   events.reduce(reduce, from)
 
 describe('chat protocol', () => {
@@ -141,13 +142,13 @@ describe('chat protocol', () => {
   })
 
   it('is busy from the first streamed message of a turn nobody sent — a background task finishing', () => {
-    const idle = { ...emptyChatState('s'), status: 'idle' as const }
+    const idle = { ...emptyChatState(asSessionId('s')), status: 'idle' as const }
     const s = reduce(idle, { type: 'stream_event', event: { type: 'message_start' } }, 7000)
     expect(s).toMatchObject({ status: 'busy', turnStartedAt: 7000 })
   })
 
   it('tracks the background tasks claude reports', () => {
-    const s = reduce(emptyChatState('s'), { type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'b1', task_type: 'local_bash', description: 'Sleep' }] })
+    const s = reduce(emptyChatState(asSessionId('s')), { type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'b1', task_type: 'local_bash', description: 'Sleep' }] })
     expect(s.backgroundTasks).toEqual([{ taskId: 'b1', description: 'Sleep' }])
     expect(reduce(s, { type: 'system', subtype: 'background_tasks_changed', tasks: [] }).backgroundTasks).toEqual([])
   })

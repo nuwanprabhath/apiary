@@ -15,26 +15,20 @@ import { SessionHeader } from './SessionHeader'
 import { SessionBody } from './SessionBody'
 import { ShellPane } from './ShellPane'
 import { useSessionKeys } from './useSessionKeys'
+import { usePaneWorkspace } from './usePaneWorkspace'
 import { useGitStatus } from './useGitStatus'
 import { useGitActions } from './useGitActions'
 import { useShellTerminals } from './useShellTerminals'
+import type { ResizeSeparatorProps } from '../../ui/useResizeDrag'
 import type { PendingTabInfo } from './paneTypes'
 
 export type { PendingTabInfo }
 
 interface Props {
   column: Column
-  /** Real sessions for this column's tabs, by tab key. Pending tabs are absent here. */
-  sessions: Map<string, SessionNode>
-  /** Pending new sessions by pty id — a tab whose key is in here has no session row yet. */
-  pending: Map<string, PendingTabInfo>
-  /** Session ids with a live `claude` pty behind them. */
-  resumed: Set<string>
   bottomHeight: number
-  onStartBottomResize: () => void
-  /** The keyboard alternative to dragging `.bottom-resizer` (UI-27): steps `bottomHeight` by the
-   *  given number of pixels (negative shrinks). */
-  onBottomHeightStep: (delta: number) => void
+  /** Everything `.bottom-resizer` needs to be a draggable, keyboard-operable separator. */
+  bottomResizer: ResizeSeparatorProps
   /** The terminal list's dragged width (null: fit the names), and how to change it. */
   terminalListWidth?: number | null
   onTerminalListWidth?: (width: number | null) => void
@@ -90,7 +84,7 @@ interface Props {
  */
 function SessionColumnView(props: Props): JSX.Element {
   const {
-    column, sessions, pending, resumed, bottomHeight, onStartBottomResize, onBottomHeightStep,
+    column, bottomHeight, bottomResizer,
     terminalListWidth = null, onTerminalListWidth, isActive, onFocus,
     onActivateTab, onCloseTab, onSetView, onResume, onResumeAsync, onRenameSession, onRenamePending,
     onSplitActive, onReorderTab, transferFor, pinnedKeys, onTogglePin, onFork, onTabDropped, onDetach,
@@ -107,12 +101,17 @@ function SessionColumnView(props: Props): JSX.Element {
   /** The image being shown full size, from either the transcript or the composer. */
   const [lightbox, setLightbox] = useState<string | null>(null)
 
+  // The sessions, pending sessions and live processes behind this pane's tabs, read from the
+  // workspace by the pane itself so that a change to another pane's does not render this one.
+  const workspace = usePaneWorkspace(useMemo(() => column.tabs.map((t) => t.key), [column.tabs]))
+  const { sessions, pending, resumed } = workspace
+
   const activeKey = column.activeKey
   const activeTab = activeKey !== null ? findTab(column, activeKey) : null
   const activeSession = activeKey !== null ? sessions.get(activeKey) ?? null : null
   const activePending = activeKey !== null ? pending.get(activeKey) ?? null : null
 
-  const { keyFor, isPtyKey } = useSessionKeys(pending)
+  const { keyFor, isPtyKey } = useSessionKeys(workspace)
   const shellKey = activeKey !== null ? keyFor(activeKey) : null
   const shellKeyIsPtyId = activeKey !== null && isPtyKey(activeKey)
   // One ref for every cwd-carrying call below, so the key and which kind it is cannot be separated.
@@ -126,7 +125,7 @@ function SessionColumnView(props: Props): JSX.Element {
   // request (if any) belongs to what is in front of you.
   const { items: pluginItems } = usePluginBar(terminal, gitStatus?.branch ?? null)
   const git = useGitActions({ terminal, gitStatus, loadGitStatus, onSessionStarted })
-  const shell = useShellTerminals({ activeKey, terminal, isActive, keyFor })
+  const shell = useShellTerminals({ activeKey, terminal, isActive, keyFor, workspace })
 
   const tabViews: SessionTabView[] = column.tabs.map((tab) => {
     const p = pending.get(tab.key)
@@ -226,8 +225,7 @@ function SessionColumnView(props: Props): JSX.Element {
           gitStatus={gitStatus}
           pluginItems={pluginItems}
           bottomHeight={bottomHeight}
-          onStartBottomResize={onStartBottomResize}
-          onBottomHeightStep={onBottomHeightStep}
+          bottomResizer={bottomResizer}
           terminalListWidth={terminalListWidth}
           onTerminalListWidth={onTerminalListWidth}
         />

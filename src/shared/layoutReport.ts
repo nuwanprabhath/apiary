@@ -1,3 +1,4 @@
+import type { TabView } from './domain/tabs'
 import type { PersistedLayout } from './types'
 
 /**
@@ -14,7 +15,7 @@ export interface LayoutLike {
   preset: string
   panes: {
     id: string
-    tabs: { key: string; view: 'transcript' | 'terminal' }[]
+    tabs: { key: string; view: TabView }[]
     activeKey: string | null
   }[]
 }

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { until } from './helpers'
-import type { GitRefEntry } from '../../src/shared/types'
+import { stays, until } from './helpers'
+import type { GitRefEntry } from '@shared/types'
 
 /**
  * A sidebar folder's "Change branch…": a worktree's branch changes without a session open in it,
@@ -24,7 +24,8 @@ const ref = (name: string): GitRefEntry => ({ name, relativeDate: '2 days ago', 
 const WORKTREE = { kind: 'folder', path: '/fixture/repo-c-wt' }
 
 async function openChangeBranch(): Promise<ReturnType<typeof renderApp>> {
-  const app = renderApp({ refs: { current: 'feature/wt', local: [ref('feature/wt'), ref('main'), ref('dev')] } })
+  // The folder is a worktree on `feature/wt`; `repo-c`, which has `main`, is the main checkout.
+  const app = renderApp({ refs: { local: [ref('feature/wt'), ref('main'), ref('dev')] } })
   await app
   await until(() => folderRow('repo-c-wt') !== undefined)
   // A real right-click leaves the row focused, which is where the menu's dialogs give focus back.
@@ -86,8 +87,7 @@ describe('changing a folder\'s branch from the sidebar', () => {
     // Ready to type: the search box has focus as the dialog opens, and keeps it once the closed
     // branch picker's focus restore has run a frame later (it used to land on the sidebar row).
     await expect.element(search).toHaveFocus()
-    await new Promise((r) => setTimeout(r, 100))
-    expect(document.activeElement).toBe(search.element())
+    await stays(() => document.activeElement === search.element(), 100, 'the search box to keep focus')
 
     await userEvent.keyboard('fix/')
     const rows = (): (string | null)[] => [...document.querySelectorAll('[data-testid="worktree-conflict-choice"]')].map((r) => r.getAttribute('data-branch'))

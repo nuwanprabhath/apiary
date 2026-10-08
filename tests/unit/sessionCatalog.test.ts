@@ -1,5 +1,6 @@
 import { asSessionId } from '@shared/domain/ids'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { WorktreeResolver } from '../../src/main/git/worktreeResolver'
 import { SessionCatalog } from '../../src/main/sessions/sessionCatalog'
 import type { SessionStore } from '../../src/main/store/sessionStore'
 import type { SessionSource } from '../../src/main/sources/claudeProjects'
@@ -21,12 +22,16 @@ interface Harness {
   passes: () => number
   setDisposed: () => void
   live: Map<string, number>
+  detects: () => number
+  liveChanged: () => number
 }
 
-function harness(opts: { failFirst?: boolean } = {}): Harness {
+function harness(opts: { failFirst?: boolean; liveMinIntervalMs?: number } = {}): Harness {
   const scans: Array<() => void> = []
   let passes = 0
   let disposed = false
+  let detects = 0
+  let liveChanged = 0
   const live = new Map<string, number>()
   const source = {
     scan: () => {
@@ -40,14 +45,21 @@ function harness(opts: { failFirst?: boolean } = {}): Harness {
   const catalog = new SessionCatalog({
     store: fakeStore(),
     source,
-    detectLive: async () => live,
+    worktrees: new WorktreeResolver({ exec: async () => { throw new Error('no git in this test') } }),
+    detectLive: async () => { detects += 1; return new Map(live) },
+    liveMinIntervalMs: opts.liveMinIntervalMs,
+    onLiveChanged: () => { liveChanged += 1 },
     isDisposed: () => disposed,
     updateSearchIndex: async () => {},
   })
-  return { catalog, scans, passes: () => passes, setDisposed: () => { disposed = true }, live }
+  return {
+    catalog, scans, passes: () => passes, setDisposed: () => { disposed = true }, live,
+    detects: () => detects, liveChanged: () => liveChanged,
+  }
 }
 
-const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
+/** One turn of the event loop, so queued promise work has run; no clock involved. */
+const tick = (): Promise<void> => new Promise((r) => { setImmediate(r) })
 
 describe('SessionCatalog refresh state machine', () => {
   it('joins a refresh requested mid-pass and runs exactly one rerun for all joiners', async () => {
@@ -129,5 +141,47 @@ describe('SessionCatalog live map', () => {
     await p
     expect(h.catalog.isLive('s1')).toBe(true)
     expect(await h.catalog.checkConflict(asSessionId('s1'))).toEqual({ sessionId: asSessionId('s1'), pid: 4242 })
+  })
+})
+
+describe('SessionCatalog live-session detection is throttled (MAIN-1)', () => {
+  // A scoped pass never reads these files (they do not exist); it only reaches the live step.
+  const scoped = ['/x/a.jsonl']
+
+  it('runs one process scan for any number of scoped passes inside the window', async () => {
+    const h = harness({ liveMinIntervalMs: 60_000 })
+    for (let i = 0; i < 6; i += 1) await h.catalog.refresh({ paths: scoped })
+    expect(h.detects()).toBe(1)
+  })
+
+  it('a full pass always scans, whatever the window says', async () => {
+    const h = harness({ liveMinIntervalMs: 60_000 })
+    await h.catalog.refresh({ paths: scoped })
+    const full = h.catalog.refresh()
+    await vi.waitFor(() => { expect(h.scans).toHaveLength(1) })
+    h.scans[0]()
+    await full
+    expect(h.detects()).toBe(2)
+  })
+
+  it('a session that starts inside the window still turns live when the window ends, and the tree is told', async () => {
+    const h = harness({ liveMinIntervalMs: 40 })
+    await h.catalog.refresh({ paths: scoped })
+    h.live.set('11111111-1111-4111-8111-111111111111', 4242)
+    await h.catalog.refresh({ paths: scoped }) // inside the window: no scan yet
+    expect(h.detects()).toBe(1)
+    expect(h.catalog.isLive('11111111-1111-4111-8111-111111111111')).toBe(false)
+
+    await vi.waitFor(() => { expect(h.catalog.isLive('11111111-1111-4111-8111-111111111111')).toBe(true) })
+    expect(h.detects()).toBe(2)
+    expect(h.liveChanged()).toBe(1)
+  })
+
+  it('the follow-up scan is one per window however many passes asked for it, and says nothing when nothing changed', async () => {
+    const h = harness({ liveMinIntervalMs: 40 })
+    await h.catalog.refresh({ paths: scoped })
+    for (let i = 0; i < 5; i += 1) await h.catalog.refresh({ paths: scoped })
+    await vi.waitFor(() => { expect(h.detects()).toBe(2) })
+    expect(h.liveChanged()).toBe(0)
   })
 })

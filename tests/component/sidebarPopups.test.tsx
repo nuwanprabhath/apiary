@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { sidebarSession, sessionRow, mouse, until } from './helpers'
+import { nextFrames, sidebarSession, sessionRow, mouse, stays, until } from './helpers'
 import { FIXTURE_SESSIONS } from './fakeApiary'
 
 /** The row wrapper holding a session — where its hover-only action buttons live. */
@@ -89,26 +89,23 @@ describe('sidebarPopups', () => {
     const list = page.getByTestId('sidebar-list').element()
     list.scrollTop = 0
     list.dispatchEvent(new Event('scroll', { bubbles: true }))
-    // Lets the scroll-reset's own re-render settle before the pointer starts moving, so the drag
+    // Lets the scroll-reset's own re-render commit before the pointer starts moving, so the drag
     // below isn't itself the thing racing a pending re-render.
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    await nextFrames(2)
     await mouse.move(cx, cy)
 
     // Scroll with the pointer over the list. The 1px drift stands in for a hand resting on a
     // trackpad: it is what makes Chromium recompute which row is underneath, dispatching the
     // boundary events that arm each row's card in turn. Sampling between notches catches the
     // overlap, where the card being left has not closed yet and the next has already opened.
-    let worst = 0
     for (let i = 0; i < 12; i++) {
       list.scrollTop += 90
       list.dispatchEvent(new Event('scroll', { bubbles: true }))
       await mouse.move(cx + (i % 2), cy)
-      // Sampling the hover-card count between wheel notches at a fixed interval is the mechanism
-      // this test uses to catch the overlap window; there is no single condition to poll for.
-      await new Promise((resolve) => setTimeout(resolve, 60))
-      worst = Math.max(worst, page.getByTestId('session-hover-card').elements().length)
+      // Sampling the hover-card count between wheel notches is the mechanism this test uses to
+      // catch the overlap window; the first sample with two cards open fails it.
+      await stays(() => page.getByTestId('session-hover-card').elements().length <= 1, 60, 'at most one hover card during a scroll')
     }
-    expect(worst, 'hover cards stacked up during a scroll').toBeLessThanOrEqual(1)
 
     // And the suppression is a debounce, not an off switch: once the list stops, hovering a row
     // still produces its card. Named rather than inferred from where the pointer happened to land —
@@ -159,8 +156,7 @@ describe('sidebarPopups', () => {
       elsewhere.dispatchEvent(new Event('scroll'))
       document.dispatchEvent(new Event('scroll'))
       // Past the settle check (SCROLL_QUIET_MS + HOVER_DELAY_MS), the point where it reopened.
-      await new Promise((resolve) => setTimeout(resolve, 800))
-      expect(page.getByTestId('session-hover-card').elements()).toHaveLength(0)
+      await stays(() => page.getByTestId('session-hover-card').elements().length === 0, 800, 'no hover card to reopen')
     } finally {
       elsewhere.remove()
     }
@@ -175,10 +171,8 @@ describe('sidebarPopups', () => {
     document.body.append(transcript)
     try {
       transcript.dispatchEvent(new Event('scroll'))
-      // Checked once, a couple of frames on, with no retrying: closing and then reopening a
-      // moment later (what it used to do) is the flicker this is about.
-      await new Promise((resolve) => setTimeout(resolve, 50))
-      expect(page.getByTestId('session-hover-card').elements()).toHaveLength(1)
+      // Closing and then reopening a moment later (what it used to do) is the flicker this is about.
+      await stays(() => page.getByTestId('session-hover-card').elements().length === 1, 50, 'the card to stay open')
     } finally {
       transcript.remove()
     }
@@ -211,9 +205,8 @@ describe('sidebarPopups', () => {
 
     const cardBox = page.getByTestId('session-hover-card').element().getBoundingClientRect()
     await mouse.move(cardBox.x + 20, cardBox.y + 12, 12)
-    // Proving the card survives the crossing rather than closing a moment after the move
-    // completes; there is no later condition to assert on other than re-checking after time passes.
-    await new Promise((resolve) => setTimeout(resolve, 400))
+    // Proving the card survives the crossing rather than closing a moment after the move completes.
+    await stays(() => page.getByTestId('session-hover-card').elements().length === 1, 400, 'the card to survive the crossing')
     await expect.element(page.getByTestId('session-hover-card')).toBeVisible()
     await expect.element(page.getByTestId('session-hover-card')).toMatchTextContent('Fix CSV export bug')
   })
@@ -235,9 +228,8 @@ describe('sidebarPopups', () => {
     // A point on the row, past the button, short of the picker.
     const midX = Math.min(b.x + b.width + 2, p.x - 1)
     await mouse.move(midX, b.y + b.height / 2, 8)
-    // Pausing mid-crossing longer than the grace period is the point of this test; there is no
-    // condition to poll for other than re-checking after the pause.
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    // Pausing mid-crossing longer than the grace period is the point of this test.
+    await stays(() => page.getByTestId('layout-picker').elements().length === 1, 500, 'the picker to outlast the grace period')
     await expect.element(page.getByTestId('layout-picker')).toBeVisible()
 
     await mouse.move(p.x + p.width / 2, p.y + p.height / 2, 8)
@@ -260,7 +252,7 @@ describe('sidebarPopups', () => {
     // (only React-tree-adjacent to the row, not DOM-adjacent), so it is found from the document.
     const copyPath = document.querySelector('[data-testid="hover-card-copy-path"]') as HTMLElement
     copyPath.focus()
-    await new Promise((resolve) => setTimeout(resolve, 250))
+    await stays(() => page.getByTestId('session-hover-card').elements().length === 1, 250, 'the card to stay open while focus moves inside it')
     await expect.element(page.getByTestId('session-hover-card')).toBeVisible()
 
     // Tabbing away from the row and its card entirely closes it. `document.body` has no `tabindex`

@@ -19,7 +19,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { message } from './fakeApiary'
-import { sidebarSession, until } from './helpers'
+import { nextFrames, sidebarSession, until } from './helpers'
 
 describe('MessageRow memoisation (UI-4 step 3)', () => {
   afterEach(() => { vi.restoreAllMocks() })
@@ -61,7 +61,7 @@ describe('MessageRow memoisation (UI-4 step 3)', () => {
         windowNumber: 1, key: `probe-${i}`, view: 'transcript', status: i % 2 === 0 ? 'idle' : 'running', label: null,
       }]
       fake.emit('activeTabsChanged')
-      await new Promise((r) => { setTimeout(r, 0) })
+      await nextFrames(1)
     }
 
     // Measured against the pre-memo MessageRow (temporarily unwrapping `memo()`): 7 re-summarise

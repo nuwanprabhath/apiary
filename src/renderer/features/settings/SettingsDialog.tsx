@@ -4,6 +4,10 @@ import { SECTIONS, blurbOf } from './registry'
 import { useNotifications } from '../../ui/notifications'
 import { ErrorBoundary } from '../../ui/ErrorBoundary'
 import { Modal } from '../../ui/Modal'
+import { treeStore } from '../../state/treeStore'
+import { listPlugins } from '../../state/plugins'
+import { rebuildSearchIndex, readSearchStatus } from '../../state/sessions'
+import { readSettings, saveSettingsDraft } from '../../state/settingsStore'
 
 /**
  * One page of settings. Sections are data, not markup — adding a setting later means adding an
@@ -40,26 +44,28 @@ export function SettingsDialog(
   /** The plugins that exist, as the main process reports them, with their declared settings. */
   const [plugins, setPlugins] = useState<PluginInfoPayload[]>([])
   useEffect(() => {
-    void window.apiary.pluginList().then(setPlugins).catch(() => { setPlugins([]) })
+    void listPlugins().then(setPlugins)
   }, [])
 
   const loadIndexStatus = (): void => {
-    void window.apiary.searchStatus()
-      .then((s) => { setIndexed(s.indexed); setNotesIndexed(s.notes) })
-      .catch(() => setIndexed(null))
+    void readSearchStatus().then((s) => {
+      if (s === null) { setIndexed(null); return }
+      setIndexed(s.indexed)
+      setNotesIndexed(s.notes)
+    })
   }
   useEffect(loadIndexStatus, [])
   // Indexing runs in the background, so the number this dialog opened with goes stale while it is
   // on screen — showing "0 sessions indexed" indefinitely, on a page whose whole job is to say
   // whether the index exists. The main process announces a finished pass the same way it announces
   // a rescan, so re-read on that.
-  useEffect(() => window.apiary.onTreeChanged(loadIndexStatus), [])
+  useEffect(() => treeStore.onChanged(loadIndexStatus), [])
 
   useEffect(() => {
     // User-initiated (UI-23): a failure here leaves `draft` null forever, which the pane below
     // renders as "Loading settings…" — silently, and indefinitely, with no way to tell that from
     // an actually slow load. A toast at least says it isn't coming.
-    void window.apiary.settingsGet().then(setDraft).catch((e: unknown) => {
+    void readSettings().then(setDraft).catch((e: unknown) => {
       notifyError(e, 'Could not load settings')
     })
   }, [notifyError])
@@ -72,7 +78,7 @@ export function SettingsDialog(
     if (draft === null) return
     setSaving(true)
     try {
-      await window.apiary.settingsSet({
+      await saveSettingsDraft({
         ...draft,
         claudeBin: draft.claudeBin?.trim() === '' ? null : draft.claudeBin,
       })
@@ -84,11 +90,8 @@ export function SettingsDialog(
 
   const onRebuild = (): void => {
     setRebuilding(true)
-    void window.apiary.searchRebuild()
-      .catch(() => {
-        // Nothing to recover: the old index is still in place either way.
-      })
-      .finally(() => { setRebuilding(false); loadIndexStatus() })
+    // The old index is still in place when this fails, so the status below stays true.
+    void rebuildSearchIndex().then(() => { setRebuilding(false); loadIndexStatus() })
   }
 
   const active = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]

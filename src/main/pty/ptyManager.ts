@@ -1,9 +1,10 @@
 import { existsSync } from 'node:fs'
 import * as pty from 'node-pty'
-import { loginShell } from './resumeCommand'
+import { ignoreErrors } from '@shared/ignoreErrors'
+import { loginShellInvocation } from '../exec/loginShell'
 import { log } from '../log/logger'
 import { ScreenBuffers, type ScreenSnapshot } from './screen'
-import { childEnv, strippedMarkers } from './childEnv'
+import { strippedMarkers } from './childEnv'
 
 export interface SpawnOptions {
   id: string
@@ -48,16 +49,32 @@ const PTY_KILL_TIMEOUT_MS = 1500
  */
 const ALT_SCREEN = '\x1b[?1049h'
 
+/**
+ * Everything the manager knows about one pty id, in one record, so spawning, killing and exiting
+ * replace or drop it as a unit. It used to be nine maps keyed by id, and a late `onExit` from a
+ * killed child cleaned up whatever the id's *current* occupant had put in them (MAIN-6).
+ *
+ * `child` is also the identity of the occupant: every callback a child registers compares its own
+ * IPty with `entry.child` before it touches anything, so a stale child cannot act on its
+ * successor. It is null once the process has exited on its own; the entry then stays only for
+ * `cwd` (a pending id's cwd is still read afterwards, `resolveShellCwd`), and `kill()` or a
+ * respawn removes it.
+ */
+interface PtyEntry {
+  child: pty.IPty | null
+  cwd: string
+  size: { cols: number; rows: number }
+  /** Whether a full-screen child is expected, and whether it has actually started. */
+  expectTui: boolean
+  tuiStarted: boolean
+  /** Output activity, so a caller can wait for the child to finish reacting to input. */
+  lastDataAt: number
+  outputCount: number
+}
+
 export class PtyManager {
-  private processes = new Map<string, pty.IPty>()
-  private lastSize = new Map<string, { cols: number; rows: number }>()
-  private cwds = new Map<string, string>()
-  /** Per-pty: whether a full-screen child is expected, and whether it has actually started. */
-  private expectTui = new Map<string, boolean>()
-  private tuiStarted = new Map<string, boolean>()
-  /** Per-pty output activity, so a caller can wait for the child to finish reacting to input. */
-  private lastDataAt = new Map<string, number>()
-  private outputCounts = new Map<string, number>()
+  /** The one place per-pty state lives: never add a second map keyed by pty id. */
+  private entries = new Map<string, PtyEntry>()
   /** A headless terminal per pty, so `screen()` can report what is actually on screen rather than
    *  what was sent — see `screen.ts` for why those differ and why it matters. */
   private screens = new ScreenBuffers()
@@ -66,14 +83,15 @@ export class PtyManager {
 
   onData(handler: DataHandler): void { this.dataHandlers.push(handler) }
   onExit(handler: ExitHandler): void { this.exitHandlers.push(handler) }
-  has(id: string): boolean { return this.processes.has(id) }
+  has(id: string): boolean { return this.liveChild(id) !== undefined }
+  private liveChild(id: string): pty.IPty | undefined { return this.entries.get(id)?.child ?? undefined }
 
   /**
    * The cwd a still-running pty was actually spawned with. Lets a caller (e.g. opening a shell
    * alongside a not-yet-resolved new session) key a second pty off an already-running one's real
    * directory without the renderer ever having to send a raw filesystem path across IPC.
    */
-  getCwd(id: string): string | undefined { return this.cwds.get(id) }
+  getCwd(id: string): string | undefined { return this.entries.get(id)?.cwd }
 
   /**
    * The process id behind each live pty that was started as a TUI (a `claude`, not a plain shell).
@@ -84,8 +102,8 @@ export class PtyManager {
    */
   tuiPids(): Map<string, number> {
     const out = new Map<string, number>()
-    for (const [id, child] of this.processes) {
-      if (this.expectTui.get(id) === true) out.set(id, child.pid)
+    for (const [id, entry] of this.entries) {
+      if (entry.child !== null && entry.expectTui) out.set(id, entry.child.pid)
     }
     return out
   }
@@ -96,40 +114,53 @@ export class PtyManager {
     }
     this.kill(opts.id)
 
-    // A login shell is what puts nvm/homebrew installs of `claude` on PATH,
-    // and it behaves the same on macOS and Ubuntu.
-    const child = pty.spawn(loginShell(), ['-l', '-c', opts.command], {
+    // The login-shell recipe (shell, `-l -c`, env) is `exec/loginShell.ts`'s, shared with
+    // `spawnLoginShell`; only the node-pty spawn itself stays here.
+    const shell = loginShellInvocation(opts.command, { extraEnv: opts.env })
+    const child = pty.spawn(shell.file, shell.args, {
       name: 'xterm-256color',
       cwd: opts.cwd,
       cols: opts.cols ?? 80,
       rows: opts.rows ?? 24,
-      env: childEnv(process.env, opts.env),
+      env: shell.env,
     })
 
+    const entry: PtyEntry = {
+      child,
+      cwd: opts.cwd,
+      size: { cols: opts.cols ?? 80, rows: opts.rows ?? 24 },
+      expectTui: opts.tui ?? false,
+      tuiStarted: false,
+      lastDataAt: Date.now(),
+      outputCount: 0,
+    }
+    // Registered before the callbacks can run (they are delivered on later turns), and before the
+    // first byte is rendered, so the pty's very first screen is at the right width.
+    this.entries.set(opts.id, entry)
+    this.screens.resize(opts.id, entry.size.cols, entry.size.rows)
+
     child.onData((data) => {
+      // A killed child can still deliver output; it is not this id's output any more.
+      if (this.entries.get(opts.id)?.child !== child) return
       this.screens.write(opts.id, data)
-      this.lastDataAt.set(opts.id, Date.now())
-      this.outputCounts.set(opts.id, (this.outputCounts.get(opts.id) ?? 0) + 1)
-      if (data.includes(ALT_SCREEN)) this.tuiStarted.set(opts.id, true)
+      entry.lastDataAt = Date.now()
+      entry.outputCount += 1
+      if (data.includes(ALT_SCREEN)) entry.tuiStarted = true
       for (const h of this.dataHandlers) h(opts.id, data)
     })
     child.onExit(({ exitCode }) => {
       log.info('pty', 'exited', { id: opts.id, exitCode })
-      // A pty that exits on its own (as opposed to being `kill()`ed) used to only leave
-      // `processes`, and nothing ever cleared `expectTui`/`tuiStarted`/`lastDataAt`/
-      // `outputCounts`/the headless `screens` entry — even `kill()` missed the last three. Every
-      // `new:<uuid>` id is minted once and never reused (appService.ts), so a long-running app
-      // leaked one `Terminal` (with up to 1,000 lines of scrollback) per session whose Claude
-      // process ever exited normally (MAIN-6). `cwds` is the one thing deliberately kept: a
-      // pending id's cwd is still read afterwards (`resolveShellCwd`), and one string per pty is
-      // not the leak this fixes.
-      this.processes.delete(opts.id)
-      this.lastSize.delete(opts.id)
-      this.expectTui.delete(opts.id)
-      this.tuiStarted.delete(opts.id)
-      this.lastDataAt.delete(opts.id)
-      this.outputCounts.delete(opts.id)
-      this.screens.dispose(opts.id)
+      const current = this.entries.get(opts.id)
+      // A killed child's exit arrives after `kill()` and, if the id was respawned meanwhile, after
+      // the new child took the entry: it must not wipe it, nor tell the views the new pty died.
+      if (current !== undefined && current.child !== child) return
+      if (current !== undefined) {
+        // Exited on its own (not `kill()`ed): release the process and the headless `Terminal`
+        // (up to 1,000 lines of scrollback) — every `new:<uuid>` id is minted once, so this used
+        // to leak one per session whose Claude ever exited normally (MAIN-6). `cwd` is kept.
+        current.child = null
+        this.screens.dispose(opts.id)
+      }
       for (const h of this.exitHandlers) h(opts.id, exitCode)
     })
 
@@ -148,15 +179,6 @@ export class PtyManager {
       cols: opts.cols ?? 80,
       rows: opts.rows ?? 24,
     })
-    this.processes.set(opts.id, child)
-    this.lastSize.set(opts.id, { cols: opts.cols ?? 80, rows: opts.rows ?? 24 })
-    // Before any output arrives, so the pty's very first screen is rendered at the right width.
-    this.screens.resize(opts.id, opts.cols ?? 80, opts.rows ?? 24)
-    this.cwds.set(opts.id, opts.cwd)
-    this.expectTui.set(opts.id, opts.tui ?? false)
-    this.tuiStarted.set(opts.id, false)
-    this.lastDataAt.set(opts.id, Date.now())
-    this.outputCounts.set(opts.id, 0)
   }
 
   /**
@@ -185,7 +207,8 @@ export class PtyManager {
    * rather than mistaking the quiet that preceded your write for the quiet that follows it.
    */
   outputCount(id: string): number {
-    return this.outputCounts.get(id) ?? 0
+    const entry = this.entries.get(id)
+    return entry?.child ? entry.outputCount : 0
   }
 
   /**
@@ -194,7 +217,8 @@ export class PtyManager {
    * pty that has never existed, which reads the same as "not recently" to that classifier.
    */
   lastOutputAt(id: string): number {
-    return this.lastDataAt.get(id) ?? 0
+    const entry = this.entries.get(id)
+    return entry?.child ? entry.lastDataAt : 0
   }
 
   /**
@@ -217,12 +241,13 @@ export class PtyManager {
   ): Promise<void> {
     return new Promise((resolve) => {
       const deadline = Date.now() + capMs
-      const needsTui = this.expectTui.get(id) === true
+      const needsTui = this.entries.get(id)?.expectTui === true
       const tick = (): void => {
-        if (!this.processes.has(id)) return resolve()
-        const started = !needsTui || this.tuiStarted.get(id) === true
-        const reacted = after === undefined || this.outputCount(id) > after
-        const quietFor = Date.now() - (this.lastDataAt.get(id) ?? 0)
+        const entry = this.entries.get(id)
+        if (!entry?.child) return resolve()
+        const started = !needsTui || entry.tuiStarted
+        const reacted = after === undefined || entry.outputCount > after
+        const quietFor = Date.now() - entry.lastDataAt
         if (started && reacted && quietFor >= quietMs) return resolve()
         if (Date.now() >= deadline) return resolve()
         setTimeout(tick, 25)
@@ -232,11 +257,8 @@ export class PtyManager {
   }
 
   write(id: string, data: string): void {
-    try {
-      this.processes.get(id)?.write(data)
-    } catch {
-      // The process can exit between the renderer sending a keystroke and this call landing.
-    }
+    // The process can exit between the renderer sending a keystroke and this call landing.
+    ignoreErrors(() => this.entries.get(id)?.child?.write(data), 'the pty can exit before the keystroke lands')
   }
 
   /**
@@ -271,38 +293,34 @@ export class PtyManager {
    * included — can land between the two calls; this is what actually closes the race the old
    * renderer-side version had, where the two halves were separate fire-and-forget
    * `ipcRenderer.send` calls with no such guarantee. It only fires on a genuine no-op, so a
-   * brand-new spawn (never a no-op — there is no `lastSize` entry yet) never pays for it.
+   * resize that really changes the size never pays for it.
    */
   resize(id: string, cols: number, rows: number): void {
-    const child = this.processes.get(id)
-    if (!child) return
+    const entry = this.entries.get(id)
+    const child = entry?.child
+    if (entry === undefined || !child) return
     // `Math.max(1, x)` alone let a NaN (from a bad renderer message) or an unbounded number
     // through to node-pty's own resize, which sizes a headless xterm in this process to whatever
     // was asked (SEC-8). Any real terminal is well inside these bounds; anything outside them is
     // not a size a renderer should ever legitimately send.
     const clampedCols = Number.isFinite(cols) ? Math.min(1000, Math.max(1, Math.trunc(cols))) : 80
     const clampedRows = Number.isFinite(rows) ? Math.min(500, Math.max(1, Math.trunc(rows))) : 24
-    const last = this.lastSize.get(id)
-    const isNoOp = last !== undefined && last.cols === clampedCols && last.rows === clampedRows
-    try {
+    const last = entry.size
+    const isNoOp = last.cols === clampedCols && last.rows === clampedRows
+    // The process can exit between the renderer measuring and this call.
+    ignoreErrors(() => {
       if (isNoOp) {
         const kickedRows = clampedRows > 1 ? clampedRows - 1 : clampedRows + 1
         child.resize(clampedCols, kickedRows)
         queueMicrotask(() => {
-          try {
-            child.resize(clampedCols, clampedRows)
-          } catch {
-            // The process can exit between the two halves of the kick.
-          }
+          ignoreErrors(() => child.resize(clampedCols, clampedRows), 'the process can exit between the two halves of the kick')
         })
       } else {
         child.resize(clampedCols, clampedRows)
-        this.lastSize.set(id, { cols: clampedCols, rows: clampedRows })
+        entry.size = { cols: clampedCols, rows: clampedRows }
         this.screens.resize(id, clampedCols, clampedRows)
       }
-    } catch {
-      // The process can exit between the renderer measuring and this call.
-    }
+    }, 'the pty can exit before the resize lands')
   }
 
   /**
@@ -319,25 +337,23 @@ export class PtyManager {
    * the group id, and anything it had started (a tool call's shell) is continued with it.
    */
   resume(id: string): void {
-    const child = this.processes.get(id)
+    const child = this.entries.get(id)?.child
     if (!child) return
     log.info('pty', 'resuming', { id })
     try {
       process.kill(-child.pid, 'SIGCONT')
     } catch {
-      try { process.kill(child.pid, 'SIGCONT') } catch { /* already gone */ }
+      ignoreErrors(() => process.kill(child.pid, 'SIGCONT'), 'already gone')
     }
   }
 
   kill(id: string): void {
-    const child = this.processes.get(id)
+    const child = this.entries.get(id)?.child
     if (!child) return
     log.info('pty', 'killing', { id })
-    this.processes.delete(id)
-    this.lastSize.delete(id)
-    this.cwds.delete(id)
+    this.entries.delete(id)
     this.screens.dispose(id)
-    try { child.kill() } catch { /* already gone */ }
+    ignoreErrors(() => child.kill(), 'already gone')
   }
 
   /**
@@ -357,13 +373,13 @@ export class PtyManager {
    * is (and isn't) based on.
    */
   async killAll(timeoutMs = PTY_KILL_TIMEOUT_MS): Promise<void> {
-    await Promise.all([...this.processes.keys()].map((id) => this.killAndWait(id, timeoutMs)))
+    await Promise.all([...this.entries.keys()].map((id) => this.killAndWait(id, timeoutMs)))
   }
 
   /** `kill(id)`, resolving once the process has really exited (or after `timeoutMs` regardless) —
    *  for a caller about to start another process on the same session (chat mode taking over). */
   killAndWait(id: string, timeoutMs = PTY_KILL_TIMEOUT_MS): Promise<void> {
-    const child = this.processes.get(id)
+    const child = this.entries.get(id)?.child
     if (!child) return Promise.resolve()
     return new Promise<void>((resolve) => {
       let settled = false

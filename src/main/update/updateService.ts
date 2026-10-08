@@ -1,3 +1,4 @@
+import { errorMessage } from '@shared/errors'
 import {
   decideCapability, installInstructions,
   type CapabilityInput,
@@ -210,7 +211,7 @@ export class UpdateService {
     } catch (e) {
       this.patch({
         phase: 'error',
-        error: e instanceof Error ? e.message : String(e),
+        error: errorMessage(e),
         lastCheckedAt: this.timers.now(),
       })
       return this.status
@@ -251,7 +252,7 @@ export class UpdateService {
       this.patch({
         phase: 'available',
         progressPercent: null,
-        error: e instanceof Error ? e.message : String(e),
+        error: errorMessage(e),
       })
     }
     return this.status

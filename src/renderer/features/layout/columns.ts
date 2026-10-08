@@ -10,11 +10,12 @@
  * When a pending session finally resolves into a real one, `rekeyTab` swaps the key in place so
  * the tab keeps its position, its view mode, and its place in the active-tab pointer.
  */
+import type { TabView } from '@shared/domain/tabs'
 
 export interface OpenTab {
   key: string
   /** Transcript or live terminal, remembered per tab so switching tabs restores what you were on. */
-  view: 'transcript' | 'terminal'
+  view: TabView
 }
 
 export interface Column {

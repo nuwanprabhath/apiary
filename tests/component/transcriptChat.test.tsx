@@ -3,8 +3,9 @@ import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { drag, sidebarSession, until } from './helpers'
 import type { FakeApiary } from './fakeApiary'
-import { emptyChatState, type ChatState } from '../../src/shared/domain/chat'
-import type { TranscriptMessage } from '../../src/shared/domain/transcript'
+import { emptyChatState, type ChatState } from '@shared/domain/chat'
+import { asSessionId } from '@shared/domain/ids'
+import type { TranscriptMessage } from '@shared/domain/transcript'
 
 /**
  * The "Run sessions as a chat" setting: the transcript drawn the way the VS Code extension draws a
@@ -33,7 +34,7 @@ async function textOf(testId: string, expected: string | RegExp, last = false): 
 }
 
 function play(fake: FakeApiary, sessionId: string, patch: Partial<ChatState>): void {
-  const next = { ...(fake.state.chats.get(sessionId) ?? { ...emptyChatState(sessionId), status: 'idle' as const }), ...patch }
+  const next = { ...(fake.state.chats.get(sessionId) ?? { ...emptyChatState(asSessionId(sessionId)), status: 'idle' as const }), ...patch }
   fake.state.chats.set(sessionId, next)
   fake.emit('chatChanged', next)
 }
@@ -239,6 +240,56 @@ describe('transcript chat', () => {
     await expect.element(page.getByTestId('chat-permission')).not.toBeInTheDocument()
   })
 
+  it('a permission prompt arriving while you type does not take the keyboard: Enter still sends your message, not Yes', async () => {
+    const { fake, sessionId } = await openChat()
+    await userEvent.fill(page.getByTestId('composer-input'), 'and then run the tests')
+    const composer = page.getByTestId('composer-input').element()
+    expect(document.activeElement).toBe(composer)
+
+    play(fake, sessionId, {
+      status: 'busy',
+      permissions: [{ requestId: 'p1', toolName: 'Bash', description: 'Delete the build', input: { command: 'rm -rf out' }, canAlwaysAllow: false }],
+    })
+    await textOf('chat-permission', 'Delete the build')
+    expect(document.activeElement).toBe(composer)
+
+    await userEvent.keyboard('{Enter}')
+    await until(() => fake.callsTo('chatSend').length === 1)
+    expect(fake.callsTo('chatSend')).toEqual([[sessionId, 'and then run the tests']])
+    expect(fake.callsTo('chatRespond')).toEqual([])
+    await expect.element(page.getByTestId('chat-permission')).toBeVisible()
+  })
+
+  it('a permission prompt arriving while nothing is being typed takes focus, so Enter allows from the keyboard', async () => {
+    const { fake, sessionId } = await openChat()
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    play(fake, sessionId, {
+      status: 'busy',
+      permissions: [{ requestId: 'p1', toolName: 'Bash', description: 'Delete the build', input: { command: 'rm -rf out' }, canAlwaysAllow: false }],
+    })
+    await textOf('chat-permission', 'Delete the build')
+    await expect.poll(() => document.activeElement).toBe(page.getByTestId('chat-permission-allow').element())
+    await userEvent.keyboard('{Enter}')
+    await until(() => fake.callsTo('chatRespond').length === 1)
+    expect(fake.callsTo('chatRespond')).toEqual([[sessionId, 'p1', { behavior: 'allow' }]])
+  })
+
+  it('the working line announces that Claude is working once; its ticking time is not in the live region', async () => {
+    const { fake, sessionId } = await openChat()
+    play(fake, sessionId, { status: 'busy', turnStartedAt: Date.now() - 3000 })
+    await expect.element(page.getByTestId('chat-working')).toBeVisible()
+    const working = document.querySelector('[data-testid="chat-working"]')!
+    const announced = (): string => [working, ...working.querySelectorAll('*')].filter((n) => n.matches('[role="status"], [aria-live]')).map((n) => n.textContent).join('|')
+    const shown = (): string => working.querySelector('.chat-working-detail')?.textContent ?? ''
+
+    const before = { announced: announced(), shown: shown() }
+    expect(before.announced).toMatch(/working/i)
+    expect(before.announced).not.toMatch(/\d/)
+    // Let the clock tick over (and the verb along with it): the screen reader hears nothing new.
+    await expect.poll(shown, { timeout: 4000 }).not.toBe(before.shown)
+    expect(announced()).toBe(before.announced)
+  })
+
   it('the permission mode can be chosen, and reaches a running chat', async () => {
     const { fake, sessionId } = await openChat()
     play(fake, sessionId, { status: 'idle', permissionMode: 'default' })
@@ -248,6 +299,42 @@ describe('transcript chat', () => {
     await userEvent.click(page.getByTestId('composer-mode-plan'))
     await until(() => fake.callsTo('chatSetPermissionMode').length === 1)
     expect(fake.callsTo('chatSetPermissionMode')).toEqual([[sessionId, 'plan']])
+  })
+
+  it('UI-26: the mode menu is a keyboard menu — focus on open, arrows and Home/End, Escape returns focus to its button', async () => {
+    const { fake, sessionId } = await openChat()
+    play(fake, sessionId, { status: 'idle', permissionMode: 'default' })
+    const button = page.getByTestId('composer-mode')
+    await userEvent.click(button)
+    const focusedId = (): string | null => document.activeElement?.getAttribute('data-testid') ?? null
+    expect(focusedId()).toBe('composer-mode-manual')
+    await userEvent.keyboard('{ArrowDown}')
+    expect(focusedId()).toBe('composer-mode-acceptEdits')
+    await userEvent.keyboard('{End}')
+    expect(focusedId()).toBe('composer-mode-auto')
+    await userEvent.keyboard('{ArrowDown}')
+    expect(focusedId()).toBe('composer-mode-manual')
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByTestId('composer-mode-menu')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(button.element())
+  })
+
+  it('UI-26: the model menu reaches the effort scale by keyboard too', async () => {
+    const { fake, sessionId } = await openChat()
+    play(fake, sessionId, {
+      status: 'idle',
+      model: 'claude-opus-5-5',
+      effort: 'medium',
+      models: [{ value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus 5.5', description: '', efforts: ['low', 'medium', 'high'] }],
+    })
+    await userEvent.click(page.getByTestId('composer-model-pill'))
+    const focusedId = (): string | null => document.activeElement?.getAttribute('data-testid') ?? null
+    expect(focusedId()).toBe('composer-model-option')
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}')
+    expect(focusedId()).toBe('composer-effort-high')
+    await userEvent.keyboard('{Enter}')
+    await until(() => fake.callsTo('chatSetEffort').length === 1)
+    expect(fake.callsTo('chatSetEffort')).toEqual([[sessionId, 'high']])
   })
 
   it('the model button names the model really running, and changes model and effort', async () => {
@@ -308,6 +395,31 @@ describe('transcript chat', () => {
     expect(fake.callsTo('chatSend')).toHaveLength(1)
   })
 
+  it('UI-26: the / menu is a labelled dialog whose search drives aria-activedescendant through the listed commands', async () => {
+    const { fake, sessionId } = await openChat()
+    play(fake, sessionId, {
+      status: 'idle',
+      commands: [
+        { name: 'clear', description: 'Clear conversation history', argumentHint: '' },
+        { name: 'compact', description: 'Clear history but keep a summary', argumentHint: '<instructions>' },
+      ],
+    })
+    await userEvent.click(page.getByTestId('composer-commands'))
+    const menu = page.getByTestId('composer-command-menu').element()
+    expect(menu.getAttribute('role')).toBe('dialog')
+    expect(menu.getAttribute('aria-label')).toBe('Slash commands')
+    const search = page.getByTestId('composer-command-search').element()
+    const options = [...document.querySelectorAll('[data-testid="composer-command-option"]')]
+    expect(search.getAttribute('aria-activedescendant')).toBe(options[0].id)
+    await userEvent.keyboard('{ArrowDown}')
+    expect(search.getAttribute('aria-activedescendant')).toBe(options[1].id)
+    expect(options[1].getAttribute('aria-selected')).toBe('true')
+    // Esc closes the popup and the "/" button gets the focus back.
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByTestId('composer-command-menu')).not.toBeInTheDocument()
+    await expect.poll(() => document.activeElement).toBe(page.getByTestId('composer-commands').element())
+  })
+
   it('the model button keeps its name on one line, however little room the row has', async () => {
     await openChat()
     const pill = document.querySelector<HTMLElement>('[data-testid="composer-model-pill"]')!
@@ -362,5 +474,15 @@ describe('transcript chat', () => {
     const dots = handle.top + handle.height / 2
     const gapTop = composer.top + 1 // below the 1px top border
     expect(Math.abs(dots - (gapTop + input.top) / 2)).toBeLessThanOrEqual(1)
+  })
+
+  it('attaches the session its pane shows once however many readers it has, and lets go when the tab goes', async () => {
+    const { fake, sessionId } = await openChat()
+    // The header and the body both read the chat; main holds one attachment per window and session.
+    expect(fake.callsTo('chatAttach')).toEqual([[sessionId]])
+    expect(fake.callsTo('chatDetach')).toEqual([])
+    await userEvent.click(page.getByTestId('session-tab-close').first())
+    await until(() => fake.callsTo('chatDetach').length === 1)
+    expect(fake.callsTo('chatDetach')).toEqual([[sessionId]])
   })
 })

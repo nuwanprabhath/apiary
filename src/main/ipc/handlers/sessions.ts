@@ -1,9 +1,9 @@
 import { clipboard, type WebContents } from 'electron'
-import { CHANNELS } from '@shared/api'
+import { IPC } from '@shared/api'
 import { UNTITLED_SESSION } from '@shared/types'
 import type { AppService } from '../../appService'
 import { renameInClaude, type RenameDeps } from '../../claude/claudeRename'
-import { invalidateMrStatuses } from '../../git/mrStatusCache'
+import { fireAndForget } from '../../log/fireAndForget'
 import { log } from '../../log/logger'
 import { broadcast } from '../../windows/broadcast'
 import type { Handlers } from '../registrar'
@@ -31,8 +31,8 @@ export function sessionsHandlers(deps: SessionsDeps): Pick<Handlers, HandledKeys
     refresh: async () => {
       // Refresh also means "check merge requests again": the likeliest reason to press it is
       // having just merged one. Every view re-asks when told the cache is gone.
-      invalidateMrStatuses()
-      broadcast(CHANNELS.mrStatusesInvalidated)
+      service.invalidateMrStatuses()
+      broadcast(IPC.mrStatusesInvalidated)
       log.info('mr-status', 'invalidated by refresh')
       return service.refresh()
     },
@@ -63,30 +63,30 @@ export function sessionsHandlers(deps: SessionsDeps): Pick<Handlers, HandledKeys
       // Not awaited: it can wait up to a minute for Claude to go idle, and the rename in Apiary is
       // done.
       if (title.trim() !== '') {
-        void renameInClaude(renameDeps(), id, title).catch(() => { /* the Apiary rename already succeeded */ })
+        fireAndForget(renameInClaude(renameDeps(), id, title), 'rename') // the Apiary rename already succeeded; a failure here is only logged
       }
       // Nothing on disk changed, so the filesystem watcher will never fire for this — push the
       // same "tree changed" signal it uses so every open view (the sidebar list here, and any
       // other window) picks up the new title immediately instead of only on its next unrelated
       // refresh.
-      broadcast(CHANNELS.treeChanged)
+      broadcast(IPC.treeChanged)
     },
     removeSession: async (_e, id) => {
       await service.removeSession(id)
-      broadcast(CHANNELS.treeChanged)
+      broadcast(IPC.treeChanged)
     },
     moveSession: async (_e, id, targetPath) => {
       await service.moveSession(id, targetPath)
       // Same signal a rename or an archive sends: the sidebar re-reads the (unfiltered, cached)
       // tree, which now shows the session under its new project instead of the old one.
       await service.refresh()
-      broadcast(CHANNELS.treeChanged)
+      broadcast(IPC.treeChanged)
     },
     setSessionNote: async (_e, id, note) => {
       await service.setSessionNote(id, note)
       // The note shows in the sidebar's hover card and changes what searches match, so every
       // window needs to re-read the tree — the same signal a rename sends.
-      broadcast(CHANNELS.treeChanged)
+      broadcast(IPC.treeChanged)
     },
     sessionNote: (_e, id) => service.sessionNote(id),
     searchRebuild: async () => { await service.rebuildSearchIndex() },

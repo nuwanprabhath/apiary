@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron'
-import { CHANNELS } from '@shared/api'
+import { IPC } from '@shared/api'
 import type { OpenTab } from '@shared/domain/tabs'
+import { sendEvent } from './sendEvent'
 
 // Canonical definition moved to shared/domain/tabs.ts (MAIN-22 / SHARED-2): the wire type
 // `ApiaryApi.reportTabs` takes is the same shape minus `windowNumber`, and mirroring it here let
@@ -79,5 +80,5 @@ export function focusTab(windows: BrowserWindow[], windowNumber: number, key: st
   if (target === undefined) return
   if (target.isMinimized()) target.restore()
   target.focus()
-  target.webContents.send(CHANNELS.selectTab, key)
+  sendEvent(target.webContents, IPC.selectTab, key)
 }

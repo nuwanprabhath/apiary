@@ -1,25 +1,14 @@
 import {
-  createContext, useCallback, use, useMemo, useReducer, type Dispatch, type JSX, type ReactNode,
+  useCallback, useMemo, useState, type Dispatch, type JSX, type ReactNode,
   type SetStateAction,
 } from 'react'
+import type { PtyId } from '@shared/domain/ids'
 import type { TabTransfer, WindowLayoutReport } from '@shared/types'
 import { newColumn } from '../layout/columns'
 import { initialLayout, PRESETS, type PresetId } from '../layout/layout'
-import {
-  workspaceReducer, type TerminalTab, type WorkspaceAction, type WorkspaceState,
-} from './workspaceReducer'
-
-/**
- * Owns a window's open tabs, terminals and pane layout as one `useReducer` (UI-1 step 3 / UI-2).
- *
- * Two contexts rather than one: `dispatch` is stable for the provider's life, so a component that
- * only dispatches (every hook in this folder) never re-renders on a state change, while a
- * component that reads takes the state context. `layout` and `activeColumnId` stay one value —
- * they are written together by the reducer, which is what keeps a split's new pane id and the
- * focus that follows it in one update.
- */
-const StateContext = createContext<WorkspaceState | null>(null)
-const DispatchContext = createContext<Dispatch<WorkspaceAction> | null>(null)
+import { type TerminalTab, type WorkspaceState } from './workspaceReducer'
+import { createWorkspaceStore } from './workspaceStore'
+import { StoreContext, useWorkspaceDispatch } from './workspaceContext'
 
 /** The window's starting state: empty, or rebuilt from the previous run's record (`restored`) or
  *  the tab a torn-off window was opened to show (`arrival`). */
@@ -43,7 +32,7 @@ export function initWorkspaceState(
   // session's own id; a torn-off window starts out knowing the pty its tab runs under.
   const ptyOverrides = arrival?.ptyId !== null && arrival?.ptyId !== undefined
     ? new Map([[arrival.key, arrival.ptyId]])
-    : new Map<string, string>()
+    : new Map<string, PtyId>()
   const base = {
     openSessions: new Map(), resumed: new Set<string>(), ptyOverrides, pending: new Map(),
     shellTabs, activeTerminal,
@@ -63,29 +52,15 @@ export function initWorkspaceState(
   return { ...base, layout: { preset, panes }, activeColumnId: panes[0]?.id ?? null }
 }
 
+/** Owns a window's open tabs, terminals and pane layout: the pure `workspaceReducer` behind a
+ *  `WorkspaceStore` (see `workspaceContext.ts` for how it is read). */
 export function WorkspaceProvider({ restored, arrival, children }: {
   restored: WindowLayoutReport | null
   arrival: TabTransfer | null
   children: ReactNode
 }): JSX.Element {
-  const [state, dispatch] = useReducer(workspaceReducer, undefined, () => initWorkspaceState(restored, arrival))
-  return (
-    <DispatchContext value={dispatch}>
-      <StateContext value={state}>{children}</StateContext>
-    </DispatchContext>
-  )
-}
-
-export function useWorkspace(): WorkspaceState {
-  const state = use(StateContext)
-  if (state === null) throw new Error('useWorkspace outside a WorkspaceProvider')
-  return state
-}
-
-export function useWorkspaceDispatch(): Dispatch<WorkspaceAction> {
-  const dispatch = use(DispatchContext)
-  if (dispatch === null) throw new Error('useWorkspaceDispatch outside a WorkspaceProvider')
-  return dispatch
+  const [store] = useState(() => createWorkspaceStore(initWorkspaceState(restored, arrival)))
+  return <StoreContext value={store}>{children}</StoreContext>
 }
 
 /** The shell-tab and active-terminal maps' setters in the `useState` shape `SessionColumn` was

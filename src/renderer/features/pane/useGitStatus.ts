@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GitStatus } from '@shared/types'
 import type { TerminalRef } from '@shared/domain/ids'
+import { readGitStatus } from '../../state/git'
+import { onFocusedTick } from '../../state/focusedTick'
 
 /**
  * The branch state of what is in front of a pane, read again whenever it could have changed.
@@ -22,15 +24,13 @@ export function useGitStatus(terminal: TerminalRef | null): {
     // switched away from must never overwrite the toolbar with the wrong repo's branch.
     const key = terminal.id
     requestKey.current = key
-    void window.apiary.gitStatus(terminal)
-      .then((status) => { if (requestKey.current === key) setGitStatus(status) })
-      .catch(() => { if (requestKey.current === key) setGitStatus(null) })
+    void readGitStatus(terminal).then((status) => { if (requestKey.current === key) setGitStatus(status) })
   }, [terminal])
 
   useEffect(() => { loadGitStatus() }, [loadGitStatus])
 
   /**
-   * Re-read the branch on a timer, because the most common way to change branch in this app is to
+   * Re-read the branch on the shared focused-window tick (`onFocusedTick`), because the most common way to change branch in this app is to
    * type `git checkout` into the very terminal sitting below this toolbar — and nothing about that
    * is observable from here, so without polling the label goes stale and quietly lies.
    *
@@ -41,10 +41,9 @@ export function useGitStatus(terminal: TerminalRef | null): {
    */
   useEffect(() => {
     if (terminal === null) return
-    const tick = (): void => { if (document.hasFocus()) loadGitStatus() }
-    const timer = setInterval(tick, 5000)
+    const stopTicking = onFocusedTick(loadGitStatus)
     window.addEventListener('focus', loadGitStatus)
-    return () => { clearInterval(timer); window.removeEventListener('focus', loadGitStatus) }
+    return () => { stopTicking(); window.removeEventListener('focus', loadGitStatus) }
   }, [terminal, loadGitStatus])
 
   return { gitStatus, loadGitStatus }

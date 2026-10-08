@@ -1,4 +1,10 @@
-import type { WindowBounds } from '../settings'
+/** A window's saved position and size, as `settings.json` and the layout file keep it. */
+export interface WindowBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
 
 /** A plain rectangle shape — deliberately not Electron.Display, so this module stays
  *  dependency-free and testable without pulling Electron into the import graph. */

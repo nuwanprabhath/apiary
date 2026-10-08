@@ -1,5 +1,7 @@
 import { type JSX, useState, useRef, useEffect } from 'react'
 import { PencilIcon, TrashIcon } from '../../ui/icons'
+import { Listbox, useListboxNav } from '../../ui/Listbox'
+import { useResizeDrag } from '../../ui/useResizeDrag'
 
 interface Tab { id: string; name: string }
 
@@ -41,7 +43,7 @@ export function TerminalListPanel(
   const [draft, setDraft] = useState('')
   /** Which terminal has keyboard focus. Starts at the active terminal; arrow keys move it. */
   const [focusedId, setFocusedId] = useState<string | null>(null)
-  const listRef = useRef<HTMLUListElement | null>(null)
+  const listRef = useRef<HTMLElement | null>(null)
 
   const startRename = (tabId: string): void => {
     const tab = tabs.find((t) => t.id === tabId)
@@ -55,7 +57,7 @@ export function TerminalListPanel(
     startRename(renameRequest.id)
     onRenameRequestHandled?.()
     // Only a new request starts a rename; `tabs` changing under an open editor must not restart it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new rename request starts a rename; `tabs` changing must not restart it
   }, [renameRequest])
 
   const commit = (tabId: string): void => {
@@ -64,7 +66,27 @@ export function TerminalListPanel(
     if (trimmed !== '') onRename(tabId, trimmed)
   }
 
-  const handleListKeyDown = (e: React.KeyboardEvent<HTMLUListElement>): void => {
+  // Up/Down walk the terminals and switch to each as the focus passes it: the row "focused" is the
+  // `aria-activedescendant`, the active terminal is the one shown.
+  const current = focusedId ?? activeId
+  const arrows = useListboxNav({
+    count: tabs.length,
+    active: current !== null ? tabs.findIndex((t) => t.id === current) : -1,
+    setActive: (index) => {
+      const nextId = tabs[index]?.id
+      if (nextId === undefined) return
+      setFocusedId(nextId)
+      onSwitch(nextId)
+      // Keyboard focus belongs to the list, not to the row that happened to be clicked first.
+      // Left on that row's button, the browser draws its own focus ring around it the moment a
+      // key is pressed — a full box around a row, which is exactly what a row here looks like
+      // while it is being renamed, and on the wrong row besides, since the arrow has already
+      // moved to another one.
+      listRef.current?.focus()
+    },
+  })
+
+  const handleListKeyDown = (e: React.KeyboardEvent): void => {
     if (editingId !== null) return // Don't navigate while renaming
 
     if (e.key === 'F2') {
@@ -73,29 +95,7 @@ export function TerminalListPanel(
       return
     }
 
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault()
-
-      // Find the index of the currently focused item (or the active one if nothing is focused yet)
-      const current = focusedId ?? activeId
-      const currentIdx = current !== null ? tabs.findIndex(t => t.id === current) : -1
-
-      const nextIdx = e.key === 'ArrowDown'
-        ? Math.min(currentIdx + 1, tabs.length - 1)
-        : Math.max(currentIdx - 1, 0)
-
-      const nextId = tabs[nextIdx]?.id
-      if (nextId) {
-        setFocusedId(nextId)
-        onSwitch(nextId)
-        // Keyboard focus belongs to the list, not to the row that happened to be clicked first.
-        // Left on that row's button, the browser draws its own focus ring around it the moment a
-        // key is pressed — a full box around a row, which is exactly what a row here looks like
-        // while it is being renamed, and on the wrong row besides, since the arrow has already
-        // moved to another one.
-        listRef.current?.focus()
-      }
-    }
+    arrows.onKeyDown(e)
   }
 
   const handleItemClick = (tabId: string): void => {
@@ -111,27 +111,23 @@ export function TerminalListPanel(
     }
   }
 
-  const startResize = (e: React.MouseEvent): void => {
-    e.preventDefault()
-    const startX = e.clientX
-    const startWidth = listRef.current?.getBoundingClientRect().width ?? TERMINAL_LIST_MIN
-    let latest = startWidth
-    document.body.classList.add('resizing-active', 'resizing-col')
-    const onMove = (ev: MouseEvent): void => {
-      // The handle is on the list's left edge: dragging left widens it.
-      latest = Math.round(Math.min(TERMINAL_LIST_MAX, Math.max(TERMINAL_LIST_MIN, startWidth + startX - ev.clientX)))
-      setDragWidth(latest)
-    }
-    const onUp = (): void => {
-      document.body.classList.remove('resizing-active', 'resizing-col')
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
+  const listWidth = (): number => listRef.current?.getBoundingClientRect().width ?? TERMINAL_LIST_MIN
+  const { separatorProps } = useResizeDrag({
+    axis: 'col',
+    value: Math.round(dragWidth ?? width ?? TERMINAL_LIST_MIN),
+    min: TERMINAL_LIST_MIN,
+    max: TERMINAL_LIST_MAX,
+    label: 'Resize the terminal list',
+    // The handle is on the list's left edge: dragging (or arrowing) left widens it.
+    grows: 'back',
+    initial: listWidth,
+    measure: (e, start) => Math.round(Math.min(TERMINAL_LIST_MAX, Math.max(TERMINAL_LIST_MIN, start.value + start.x - e.clientX))),
+    onLive: setDragWidth,
+    onEnd: (w) => {
       setDragWidth(null)
-      onResize?.(latest)
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-  }
+      onResize?.(w)
+    },
+  })
 
   const shown = dragWidth ?? width
   return (
@@ -140,19 +136,19 @@ export function TerminalListPanel(
       className="terminal-list-resizer"
       data-testid="terminal-list-resizer"
       title="Drag to resize · double-click to fit the names"
-      onMouseDown={startResize}
+      {...separatorProps}
       onDoubleClick={() => { onResize?.(null) }}
     />
-    <ul
+    <Listbox
+      as="ul"
       ref={listRef}
       className="terminal-list-panel"
-      data-testid="terminal-list-panel"
-      role="listbox"
-      aria-label="Open terminals"
+      testId="terminal-list-panel"
+      label="Open terminals"
       tabIndex={0}
       // The focused row is named rather than focused in the DOM (the roving-focus listbox
       // pattern), so assistive technology follows the arrow keys without focus leaving the list.
-      aria-activedescendant={focusedId === null ? undefined : `terminal-tab-${focusedId}`}
+      activeId={focusedId === null ? undefined : `terminal-tab-${focusedId}`}
       onKeyDown={handleListKeyDown}
       onFocus={handleListFocus}
       // Unset, the list is as wide as its longest name (bounded in styles.css).
@@ -242,7 +238,7 @@ export function TerminalListPanel(
           </span>
         </li>
       ))}
-    </ul>
+    </Listbox>
     </>
   )
 }

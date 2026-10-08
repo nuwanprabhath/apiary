@@ -12,7 +12,7 @@
  */
 
 /** The most components worth keeping; past this nothing is being shortened. */
-const MAX_SEGMENTS = 8
+export const MAX_SEGMENTS = 8
 
 export interface PromptPathOptions {
   enabled: boolean

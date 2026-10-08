@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { writeFileSync, chmodSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { launchApiary, importAll, relaunchApiary, type Harness } from './helpers'
-import { BUILTIN_THEMES } from '../../src/shared/theme/builtins'
+import { BUILTIN_THEMES } from '@shared/theme/builtins'
 
 /**
  * Describe a theme, and Claude designs it — driven with a stand-in `claude` that answers by what

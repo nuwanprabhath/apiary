@@ -2,7 +2,10 @@ import { type JSX, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { AppMenuNode } from '@shared/domain/windowChrome'
 import { useEscape } from '../../ui/useEscape'
+import { useOutsideDismiss } from '../../ui/useOutsideDismiss'
 import { CheckIcon } from '../../ui/icons'
+import { Menu } from '../../ui/Menu'
+import { readAppMenu, runMenuItem } from '../../state/windowChrome'
 
 /**
  * The application menu, drawn in the theme instead of as a GTK/Win32 bar (Windows and Linux; a
@@ -21,18 +24,18 @@ export function MenuBar(): JSX.Element {
   const returnFocus = useRef<HTMLElement | null>(null)
 
   const load = (): void => {
-    window.apiary.appMenu().then(setMenu).catch(() => { /* no menu is better than a broken one */ })
+    void readAppMenu().then(setMenu)
   }
   // Main sets the menu before opening any window, but a window it did not open itself (a reload
   // in development) can still ask first — so an empty answer is asked again, once, shortly after.
   useEffect(() => {
     let cancelled = false
     let retry: number | null = null
-    window.apiary.appMenu().then((m) => {
+    void readAppMenu().then((m) => {
       if (cancelled) return
       setMenu(m)
       if (m.length === 0) retry = window.setTimeout(load, 500)
-    }).catch(() => {})
+    })
     return () => {
       cancelled = true
       if (retry !== null) window.clearTimeout(retry)
@@ -54,7 +57,7 @@ export function MenuBar(): JSX.Element {
 
   const invoke = (path: number[]): void => {
     close()
-    void window.apiary.appMenuInvoke(path)
+    runMenuItem(path)
   }
 
   useEffect(() => {
@@ -131,7 +134,7 @@ interface DropdownProps {
 }
 
 function MenuDropdown({ nodes, path, at, onInvoke, onClose, onSibling, onBack, testId }: DropdownProps): JSX.Element {
-  const root = useRef<HTMLUListElement | null>(null)
+  const root = useRef<HTMLElement | null>(null)
   const [sub, setSub] = useState<{ index: number; at: { x: number; y: number } } | null>(null)
   const [pos, setPos] = useState(at)
   useEscape(onBack ?? onClose)
@@ -148,37 +151,27 @@ function MenuDropdown({ nodes, path, at, onInvoke, onClose, onSibling, onBack, t
     el.querySelector<HTMLElement>('[role^="menuitem"]:not([disabled])')?.focus()
   }, [at])
 
-  useEffect(() => {
-    if (onBack !== undefined) return
-    const onDown = (e: MouseEvent): void => {
-      if (!(e.target instanceof Element) || e.target.closest('.menu-dropdown, .menu-bar') === null) onClose()
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => { document.removeEventListener('mousedown', onDown) }
-  }, [onBack, onClose])
+  // A submenu (`onBack` set) is dismissed with its parent, which is the one listening. Every level
+  // is its own portal, so "inside" is any dropdown or the bar, not this level's own element.
+  useOutsideDismiss(onClose, { enabled: onBack === undefined, insideSelector: '.menu-dropdown, .menu-bar' })
 
-  const items = (): HTMLElement[] => [...(root.current?.querySelectorAll<HTMLElement>(':scope > li > [role^="menuitem"]:not([disabled])') ?? [])]
   const openSub = (index: number, el: HTMLElement): void => {
     const r = el.getBoundingClientRect()
     setSub({ index, at: { x: r.right, y: r.top - 4 } })
   }
 
   return createPortal(
-    <ul
+    // Up/Down/Home/End are `Menu`'s; Left/Right are this one's, for moving between levels and
+    // menus. Focus is taken in the layout effect above, once the dropdown has its final position.
+    <Menu
+      as="ul"
       ref={root}
       className="menu-dropdown context-menu"
-      role="menu"
-      data-testid={testId}
+      testId={testId}
+      focusOnOpen={false}
       style={{ left: pos.x, top: pos.y }}
       onKeyDown={(e) => {
-        const list = items()
-        const current = list.indexOf(document.activeElement as HTMLElement)
-        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-          e.preventDefault()
-          e.stopPropagation()
-          const next = e.key === 'ArrowDown' ? (current + 1) % list.length : (current - 1 + list.length) % list.length
-          list[next]?.focus()
-        } else if (e.key === 'ArrowLeft') {
+        if (e.key === 'ArrowLeft') {
           e.preventDefault()
           e.stopPropagation()
           if (onBack !== undefined) onBack()
@@ -237,7 +230,7 @@ function MenuDropdown({ nodes, path, at, onInvoke, onClose, onSibling, onBack, t
           testId={`${testId}-sub`}
         />
       )}
-    </ul>,
+    </Menu>,
     document.body,
   )
 }

@@ -10,6 +10,7 @@
  * provider (or a probe that receives the same values App wires up), not the whole renderer.
  */
 import { describe, it, expect, vi } from 'vitest'
+import { stays } from './helpers'
 import { createRoot } from 'react-dom/client'
 import type { ReactNode } from 'react'
 import {
@@ -79,13 +80,11 @@ describe('context stability (UI-5)', () => {
     notify({ message: 'noisy toast 1', timeoutMs: null })
     notify({ message: 'noisy toast 2', timeoutMs: null })
     notify({ message: 'noisy toast 3', timeoutMs: null })
-    // A negative assertion: give React 19's scheduler ample time to (not) re-render.
-    await new Promise((r) => { setTimeout(r, 100) })
-
-    // Measured against the pre-UI-5 code: 2 renders (1 initial + 1 batched re-render for the
-    // three notify() calls). After the split: still 1 — a component that only reads actions is
-    // untouched by toast churn.
-    expect(renderCount).toBe(before)
+    // A negative assertion: give React 19's scheduler ample time to (not) re-render. Measured
+    // against the pre-UI-5 code: 2 renders (1 initial + 1 batched re-render for the three notify()
+    // calls). After the split: still 1 — a component that only reads actions is untouched by toast
+    // churn.
+    await stays(() => renderCount === before, 100, 'a component reading only actions to render once')
     unmount()
   })
 })

@@ -1,0 +1,92 @@
+[
+  {
+    "key": "gitCheckoutBranch",
+    "validator": "GitService.cwdOf",
+    "reason": "target is a TerminalRef (resolved from a known session/pty) or {kind:'folder', path}; cwdOf accepts the folder only when it is a stored project row (requireFolder) or a worktree git reported (isKnownWorktree), and that it still exists"
+  },
+  {
+    "key": "gitCheckoutBranchMovingOther",
+    "validator": "GitService.cwdOf",
+    "reason": "target is a TerminalRef (resolved from a known session/pty) or {kind:'folder', path}; cwdOf accepts the folder only when it is a stored project row (requireFolder) or a worktree git reported (isKnownWorktree), and that it still exists"
+  },
+  {
+    "key": "gitCheckoutDetached",
+    "validator": "GitService.cwdOf",
+    "reason": "target is a TerminalRef (resolved from a known session/pty) or {kind:'folder', path}; cwdOf accepts the folder only when it is a stored project row (requireFolder) or a worktree git reported (isKnownWorktree), and that it still exists"
+  },
+  {
+    "key": "gitCheckoutRemote",
+    "validator": "GitService.cwdOf",
+    "reason": "target is a TerminalRef (resolved from a known session/pty) or {kind:'folder', path}; cwdOf accepts the folder only when it is a stored project row (requireFolder) or a worktree git reported (isKnownWorktree), and that it still exists"
+  },
+  {
+    "key": "gitCreateBranch",
+    "validator": "GitService.cwdOf",
+    "reason": "target is a TerminalRef (resolved from a known session/pty) or {kind:'folder', path}; cwdOf accepts the folder only when it is a stored project row (requireFolder) or a worktree git reported (isKnownWorktree), and that it still exists"
+  },
+  {
+    "key": "gitListRefs",
+    "validator": "GitService.cwdOf",
+    "reason": "target is a TerminalRef (resolved from a known session/pty) or {kind:'folder', path}; cwdOf accepts the folder only when it is a stored project row (requireFolder) or a worktree git reported (isKnownWorktree), and that it still exists"
+  },
+  {
+    "key": "gitMerge",
+    "validator": "GitService.cwdOf",
+    "reason": "target is a TerminalRef (resolved from a known session/pty) or {kind:'folder', path}; cwdOf accepts the folder only when it is a stored project row (requireFolder) or a worktree git reported (isKnownWorktree), and that it still exists"
+  },
+  {
+    "key": "gitPullWorktree",
+    "validator": "GitService.cwdOf",
+    "reason": "target is a TerminalRef (resolved from a known session/pty) or {kind:'folder', path}; cwdOf accepts the folder only when it is a stored project row (requireFolder) or a worktree git reported (isKnownWorktree), and that it still exists"
+  },
+  {
+    "key": "gitUpdateBranch",
+    "validator": "GitService.cwdOf",
+    "reason": "target is a TerminalRef (resolved from a known session/pty) or {kind:'folder', path}; cwdOf accepts the folder only when it is a stored project row (requireFolder) or a worktree git reported (isKnownWorktree), and that it still exists"
+  },
+  {
+    "key": "newSessionInWorktree",
+    "validator": "GitService.cwdOf",
+    "reason": "target is a TerminalRef (resolved from a known session/pty) or {kind:'folder', path}; cwdOf accepts the folder only when it is a stored project row (requireFolder) or a worktree git reported (isKnownWorktree), and that it still exists"
+  },
+  {
+    "key": "gitPullFolder",
+    "validator": "SessionResolver.requireFolder",
+    "reason": "GitService.pullFolder passes the path through requireFolder: it must be a stored project row"
+  },
+  {
+    "key": "listWorktrees",
+    "validator": "SessionResolver.requireFolder",
+    "reason": "GitService.listWorktrees requires a stored project row; the worktree paths it returns are derived by git and remembered via rememberWorktree"
+  },
+  {
+    "key": "worktreeCreateOptions",
+    "validator": "SessionResolver.requireFolder",
+    "reason": "GitService.worktreeCreateOptions requires a stored project row; every path in the answer comes from git porcelain"
+  },
+  {
+    "key": "worktreeCreate",
+    "validator": "SessionResolver.requireFolder",
+    "reason": "GitService.createWorktree requires a stored project row and re-checks the name and branch; the new worktree path is derived by main, never taken from the renderer"
+  },
+  {
+    "key": "moveSession",
+    "validator": "SessionStore.getProject",
+    "reason": "SessionActions.moveSession looks targetProjectPath up as an existing project row and throws \"Unknown project\" otherwise"
+  },
+  {
+    "key": "newSessionInProject",
+    "validator": "SessionStore.getProject, SessionResolver.requireFolder, SessionResolver.isKnownWorktree",
+    "reason": "TerminalService.newSessionInProject accepts a stored project row, a worktree git reported, or a folder requireFolder knows; anything else throws"
+  },
+  {
+    "key": "readImage",
+    "validator": "ImageStore.read",
+    "reason": "ImageStore.read confines the path to Apiary's own saved-images directory (media/imageStore.ts)"
+  },
+  {
+    "key": "settingsSet",
+    "validator": "mergeSettingsPayload",
+    "reason": "claudeBin is the only path-valued setting; mergeSettingsPayload keeps it only when null or an absolute path of at most 4096 chars, else retains the current value"
+  }
+]

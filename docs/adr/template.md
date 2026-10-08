@@ -7,6 +7,8 @@
   was — the measurement or bug that ruled it out. Skip this ADR entirely if nothing was tried; that
   case belongs in a topic doc, not here.
 - **Consequences:** What this commits future changes to, and the one thing not to redo.
+- **Enforced by:** The lint rule, architecture test, type or hook that fails when the decision is
+  broken. If nothing can check it, say "judgment" and why.
 
 Keep it to about 10-15 lines. Link back from exactly one topic doc or nested `CLAUDE.md` — do not
 duplicate the full "why" prose here as well as there; put the story in the topic doc and the

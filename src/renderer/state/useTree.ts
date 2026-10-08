@@ -3,6 +3,7 @@ import type { ProjectNode } from '@shared/types'
 import { filterTreeLocal, SEARCH_RESULT_CAP } from '@shared/treeFilter'
 import { useSessionTreeCache } from './useSessionTreeCache'
 import { useNotifications } from '../ui/notifications'
+import { searchContent } from './sessions'
 
 export function useTree(
   /** A *settled* query — see `SearchField`. Anything live enough to change per keystroke does not
@@ -47,7 +48,7 @@ export function useTree(
       setMatchedByContent(new Set())
       return
     }
-    void window.apiary.searchContent(trimmed)
+    void searchContent(trimmed)
       .then((ids) => {
         if (requestId.current === id) setMatchedByContent(new Set(ids))
       })

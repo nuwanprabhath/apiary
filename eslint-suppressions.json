@@ -1,0 +1,152 @@
+{
+  "src/main/statusBar/claudeUsage/plugin.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/main/update/electronUpdaterBackend.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/app/App.tsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/chat/CommandPalette.tsx": {
+    "apiary/focus-unless-typing": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/dialogs/ImportDialog.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/git/BranchSwitcher.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/git/NewWorktreeDialog.tsx": {
+    "apiary/focus-unless-typing": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/layout/LayoutPicker.tsx": {
+    "apiary/focus-unless-typing": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/pane/SessionColumn.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/pane/SessionTabBar.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/pane/ShellPane.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/pane/useShellTerminals.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/pets/PetChat.tsx": {
+    "apiary/focus-unless-typing": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/pets/PetLayer.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/sidebar/FolderGroup.tsx": {
+    "apiary/focus-unless-typing": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/sidebar/SessionRow.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/sidebar/SessionTree.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/sidebar/Sidebar.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/sidebar/useSidebarMenu.ts": {
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/renderer/features/terminal/TerminalListPanel.tsx": {
+    "apiary/focus-unless-typing": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/terminal/TerminalView.tsx": {
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/renderer/features/transcript/Composer.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/transcript/Transcript.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/update/UpdateBanner.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/features/workspace/workspaceReducer.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/theme/ThemesSection.tsx": {
+    "apiary/focus-unless-typing": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/renderer/ui/HoverCard.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  }
+}

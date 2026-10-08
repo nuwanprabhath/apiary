@@ -1,11 +1,12 @@
 import type { JSX } from 'react'
+import type { TabView } from '@shared/domain/tabs'
 import type { SessionNode } from '@shared/types'
 
 interface Props {
   session: SessionNode
-  view: 'transcript' | 'terminal'
+  view: TabView
   hasTerminal: boolean
-  onView: (view: 'transcript' | 'terminal') => void
+  onView: (view: TabView) => void
   onResume: () => void
   /** The session is running as a chat: resuming moves it back to Claude Code's terminal. */
   chatRunning?: boolean

@@ -1,4 +1,5 @@
 import type { JSX } from 'react'
+import type { NotificationKind } from './notifications'
 interface IconProps { className?: string }
 
 export function BranchIcon({ className }: IconProps): JSX.Element {
@@ -274,6 +275,160 @@ export function AlertIcon({ className }: IconProps): JSX.Element {
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <path d="M8 3l5.5 9.5h-11z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
       <path d="M8 6.8v2.4M8 11h.01" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** A heavier "+" than `PlusIcon`: the sidebar's new-session buttons. */
+export function PlusBoldIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** A pencil on a sheet's corner: rename the session title in place. */
+export function RenameIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path
+        d="M11.3 2.3a1 1 0 0 1 1.4 0l1 1a1 1 0 0 1 0 1.4l-7 7-2.9.6.6-2.9 7-7Z"
+        stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/** The arrow on a menu item that opens a submenu. */
+export function SubmenuArrowIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** A small speedometer: VS Code's `$(dashboard)`, which the usage extension shows. */
+export function GaugeIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M2.5 11.5a5.5 5.5 0 1 1 11 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M8 11.5l2.6-3.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** A clock turned back: the value shown is the last one known, not a fresh one. */
+export function HistoryIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M3.2 8A4.8 4.8 0 1 0 5 4.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M2.8 2.8v2.6h2.6M8 5.5V8l1.8 1.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** A box with a slash in it: the slash-command button. */
+export function SlashBoxIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+      <rect x="2" y="2" width="12" height="12" rx="2" />
+      <path d="M9.5 5 6.5 11" />
+    </svg>
+  )
+}
+
+const MODE_STROKE = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
+
+/** A raised hand: Claude stops and asks (the Manual permission mode). */
+export function HandIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" aria-hidden="true" {...MODE_STROKE}>
+      <path d="M5 8V3.5a1 1 0 0 1 2 0V7M7 7V2.5a1 1 0 0 1 2 0V7M9 7V3.5a1 1 0 0 1 2 0V8M11 8V5.5a1 1 0 0 1 2 0v4A4.5 4.5 0 0 1 8.5 14h-.7a4 4 0 0 1-3.2-1.6L2.6 9.8a1 1 0 0 1 1.5-1.3L5 9.5" />
+    </svg>
+  )
+}
+
+/** Code brackets: edits go straight in (the Accept edits permission mode). */
+export function CodeBracketsIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" aria-hidden="true" {...MODE_STROKE}>
+      <path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4M9 3 7 13" />
+    </svg>
+  )
+}
+
+/** A scroll: a plan to read first (the Plan permission mode). */
+export function ScrollIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" aria-hidden="true" {...MODE_STROKE}>
+      <path d="M4 3h8.5a1.5 1.5 0 0 1 0 3H12v6.5A1.5 1.5 0 0 1 10.5 14H3.5A1.5 1.5 0 0 1 2 12.5V12h8M4 3a1.5 1.5 0 0 0-1.5 1.5V12M6 7h4M6 9.5h3" />
+    </svg>
+  )
+}
+
+/** A bolt: Auto, and the starting default. */
+export function BoltIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" aria-hidden="true" {...MODE_STROKE}>
+      <path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8z" />
+    </svg>
+  )
+}
+
+/** How full Claude's context is, as a ring with the percentage inside it. */
+export function ContextRingIcon({ pct }: { pct: number }): JSX.Element {
+  const r = 9
+  const circumference = 2 * Math.PI * r
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle className="chat-context-track" cx="12" cy="12" r={r} />
+      <circle
+        className="chat-context-fill"
+        cx="12" cy="12" r={r}
+        strokeDasharray={`${String((pct / 100) * circumference)} ${String(circumference)}`}
+        transform="rotate(-90 12 12)"
+      />
+      <text x="12" y="12" className="chat-context-text">{pct}</text>
+    </svg>
+  )
+}
+
+/**
+ * A single glyph per notification kind, so the strip is legible at a glance without reading it —
+ * and so a screenshot of a failure says "error" even in greyscale, which colour alone would not.
+ */
+export function NotificationKindIcon({ kind }: { kind: NotificationKind }): JSX.Element {
+  const common = { viewBox: '0 0 16 16', fill: 'none', xmlns: 'http://www.w3.org/2000/svg', 'aria-hidden': true } as const
+  if (kind === 'error') {
+    return (
+      <svg {...common}>
+        <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.3" />
+        <path d="M8 4.8v4M8 11.1v.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  if (kind === 'warning') {
+    return (
+      <svg {...common}>
+        <path d="M8 2.2 14.4 13H1.6L8 2.2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+        <path d="M8 6.4v3M8 11.2v.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  if (kind === 'success') {
+    return (
+      <svg {...common}>
+        <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.3" />
+        <path d="m5.3 8.2 1.9 1.9 3.5-3.9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  return (
+    <svg {...common}>
+      <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8 7.2v4M8 4.7v.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   )
 }

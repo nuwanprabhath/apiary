@@ -11,6 +11,11 @@
 
 declare const brand: unique symbol
 
+/** True for a whole string that is a session id (a UUID); main validates before an id reaches a shell. */
+export const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+/** The same shape unanchored, so a pattern can embed it (`--resume <id>`). */
+export const UUID_PATTERN = UUID_RE.source.slice(1, -1)
+
 /** A Claude session's id (a UUID), as the sidebar, the store and the transcript know it. */
 export type SessionId = string & { readonly [brand]: 'SessionId' }
 
@@ -29,7 +34,7 @@ export function asPtyId(id: string): PtyId {
 
 /** The pty that runs a real session is keyed by the session's own id. */
 export function ptyIdOfSession(id: SessionId): PtyId {
-  return id as unknown as PtyId
+  return asPtyId(id)
 }
 
 /**

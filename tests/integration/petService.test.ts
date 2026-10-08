@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { ClaudeOneShot } from '../../src/main/claude/claudeOneShot'
 import { join } from 'node:path'
 import { PetStore } from '../../src/main/pets/petStore'
 import { PetService, VOICE_INTERVAL_MS, COMMENT_INTERVAL_MS } from '../../src/main/pets/petService'
@@ -35,7 +36,7 @@ function setup(cases: Record<string, string>, now: { t: number } = { t: 1_000_00
   chmodSync(script, 0o755)
   const store = new PetStore(join(dir, 'pets.json'))
   let n = 0
-  const svc = new PetService({ store, claudeBin: () => script, shell: '/bin/sh', onChanged: () => { n++ }, now: () => now.t })
+  const svc = new PetService({ store, makeRunner: () => new ClaudeOneShot({ claudeBin: () => script, shell: '/bin/sh' }), onChanged: () => { n++ }, now: () => now.t })
   return { svc, store, changed: () => n, lastPrompt: () => readFileSync(join(dir, 'prompt.txt'), 'utf8') }
 }
 
@@ -119,5 +120,34 @@ describe('PetService', () => {
     now.t += 1
     expect(await svc.comment(pet.id, 'Bash: Run the tests\u0007')).toBe('Ooh, careful with that buffer!')
     expect(lastPrompt()).not.toContain('\u0007')
+  })
+
+  describe('export and import files', () => {
+    it('exports a pet as an apiaryPet file, and imports it back as a new, validated pet', () => {
+      const { svc, store, changed } = setup({})
+      const pet = store.add(STARTER_PET)
+      const out = join(dir, 'pip.apiarypet.json')
+      svc.exportToFile(pet.id, out)
+      expect(JSON.parse(readFileSync(out, 'utf8'))).toEqual({ apiaryPet: 1, spec: STARTER_PET })
+      const imported = svc.importFromFile(out)
+      expect(imported.id).not.toBe(pet.id)
+      expect(store.list()).toHaveLength(2)
+      expect(changed()).toBe(1)
+    })
+
+    it('refuses to export a pet that does not exist', () => {
+      const { svc } = setup({})
+      expect(() => { svc.exportToFile('nope', join(dir, 'x.json')) }).toThrow('No such pet.')
+    })
+
+    it('refuses a file that is too large, not JSON, or not a pet, and adds nothing', () => {
+      const { svc, store } = setup({})
+      const write = (name: string, text: string): string => { const f = join(dir, name); writeFileSync(f, text); return f }
+      expect(() => svc.importFromFile(write('big.json', ' '.repeat(70 * 1024)))).toThrow('too large')
+      expect(() => svc.importFromFile(write('bad.json', '{ nope'))).toThrow('not a pet')
+      expect(() => svc.importFromFile(write('other.json', JSON.stringify({ spec: STARTER_PET })))).toThrow('not a pet')
+      expect(() => svc.importFromFile(write('junk.json', JSON.stringify({ apiaryPet: 1, spec: 'x' })))).toThrow('not a pet')
+      expect(store.list()).toEqual([])
+    })
   })
 })

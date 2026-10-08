@@ -1,5 +1,6 @@
 import type { ProjectNode } from './types'
 import { fuzzyScore } from './fuzzy'
+import { countSessions } from './treeWalk'
 
 /** Results shown before "showing first 200" replaces the rest — applied by the caller once results
  *  are ranked (see `rankSessions` in `./sessionRank`), never by `filterTreeLocal` itself. Capping
@@ -26,10 +27,6 @@ function filterNode(node: ProjectNode, query: string, alsoMatched: Set<string>):
     .filter((c): c is ProjectNode => c !== null)
   if (sessions.length === 0 && children.length === 0) return null
   return { ...node, sessions, children }
-}
-
-function countSessions(nodes: ProjectNode[]): number {
-  return nodes.reduce((n, node) => n + node.sessions.length + countSessions(node.children), 0)
 }
 
 /**

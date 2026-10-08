@@ -24,11 +24,13 @@ import { PendingSection, type PendingSessionSummary } from './PendingSection'
 import { SearchResults } from './SearchResults'
 import { FolderGroup, type SharedTreeProps } from './FolderGroup'
 import type { RowActions } from './rowActions'
-import { countSessions, flattenSessions, folderBranches } from './treeUtils'
+import { countSessions, flattenTree } from '@shared/treeWalk'
+import { folderBranches } from './treeUtils'
 import { useRevealSession } from './useRevealSession'
 import { useGroupActions } from './useGroupActions'
 import { useSidebarMenu } from './useSidebarMenu'
 import { useMainTreeNav } from './useMainTreeNav'
+import { rescanSessions } from '../../state/sessions'
 
 export type { PendingSessionSummary }
 
@@ -174,7 +176,7 @@ function SidebarInner({
    */
   const pinnedSet = useMemo(() => new Set(pinned), [pinned])
   const branchOfSession = useMemo(() => folderBranches(tree), [tree])
-  const sessionsById = useMemo(() => flattenSessions(tree), [tree])
+  const sessionsById = useMemo(() => flattenTree(tree), [tree])
   const pinnedSessions = useMemo(() => {
     return pinned.map((id) => sessionsById.get(id)).filter((s): s is SessionNode => s !== undefined)
   }, [sessionsById, pinned])
@@ -186,7 +188,7 @@ function SidebarInner({
    * Every session known anywhere, unfiltered — what the Active section resolves its titles
    * against (see ActiveSection), and what a dropped row is resolved to.
    */
-  const activeSessionsById = useMemo(() => flattenSessions(rawTree), [rawTree])
+  const activeSessionsById = useMemo(() => flattenTree(rawTree), [rawTree])
 
   /**
    * Recent, resolved against the same filtered tree pinned is — a search narrows this section too.
@@ -350,7 +352,7 @@ function SidebarInner({
             // the rescan actually found rather than only that it happened.
             const before = countSessions(tree)
             setRefreshing(true)
-            void window.apiary.refresh()
+            void rescanSessions()
               .then(reloadNow)
               .then((next) => {
                 setWorktreeRefreshNonce((n) => n + 1)

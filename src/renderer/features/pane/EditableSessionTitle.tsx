@@ -1,4 +1,5 @@
 import { type JSX, useEffect, useRef, useState } from 'react'
+import { RenameIcon } from '../../ui/icons'
 
 interface Props {
   title: string
@@ -67,12 +68,7 @@ export function EditableSessionTitle({ title, onRename }: Props): JSX.Element {
         aria-label="Rename session"
         onClick={() => setEditing(true)}
       >
-        <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path
-            d="M11.3 2.3a1 1 0 0 1 1.4 0l1 1a1 1 0 0 1 0 1.4l-7 7-2.9.6.6-2.9 7-7Z"
-            stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"
-          />
-        </svg>
+        <RenameIcon />
       </button>
     </>
   )

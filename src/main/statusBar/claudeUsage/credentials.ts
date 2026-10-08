@@ -1,6 +1,24 @@
-import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { createExec } from '../../exec/run'
+import type { ConsentPrompt } from '@shared/domain/statusBar'
+import type { Consent } from './consent'
+
+/**
+ * What the user is asked, once, before Apiary first reads Claude Code's sign-in. Kept beside the
+ * code it describes: change what is read or where it is sent, and this text changes in the same diff.
+ */
+export const CONSENT_PROMPT: ConsentPrompt = {
+  title: 'Show your Claude usage?',
+  lines: [
+    'To show your plan’s 5-hour and weekly limits, Apiary reads Claude Code’s sign-in token: from the macOS Keychain (the item “Claude Code-credentials”, where macOS may ask you to allow it) or from the credentials file in Claude’s config folder.',
+    'The token is sent only to Anthropic’s usage endpoint (api.anthropic.com), the one Claude Code’s own /usage reads. It goes nowhere else.',
+    'Apiary never logs or stores the token. It is read for each request and dropped.',
+    'If you decline, this plugin is turned off. You can turn it back on in Settings, Plugins, and you will be asked again.',
+  ],
+  allow: 'Allow',
+  deny: 'Don’t allow',
+}
 
 /**
  * Reads the Claude Code OAuth access token — the same places Claude Code itself keeps it, and the
@@ -10,10 +28,15 @@ import { join } from 'node:path'
  * The token is used for one request to Anthropic's usage endpoint and nothing else. It never
  * leaves this module except as that request's Authorization header, and is never logged.
  *
+ * Nothing is read without a `Consent` (consent.ts): the user is asked once, before the first read,
+ * and the Keychain is not touched until they have said yes (ADR-0019). This file and limits.ts are
+ * the only places that may name the Keychain item, the credentials file or the usage endpoint
+ * (`apiary/credentials-behind-consent`).
+ *
  * `useKeychain` is false whenever Apiary is pointed at a config root other than the real one (the
  * test harness's fixture home): a Keychain read can put a macOS permission prompt on the screen.
  */
-export async function readAccessToken(opts: {
+export async function readAccessToken(_consent: Consent, opts: {
   configRoot: string
   useKeychain: boolean
   readKeychain?: () => Promise<string | undefined>
@@ -39,12 +62,13 @@ export function extractToken(raw: string | undefined): string | undefined {
   }
 }
 
-function readMacKeychain(): Promise<string | undefined> {
-  return new Promise((resolve) => {
-    execFile(
-      'security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'],
-      { timeout: 10_000 },
-      (err, stdout) => { resolve(err ? undefined : stdout.trim()) },
-    )
-  })
+/** A Keychain read can wait on a permission prompt the user has to answer, hence the longer timeout. */
+const keychainExec = createExec({ timeoutMs: 10_000, scope: 'claude-usage' })
+
+async function readMacKeychain(): Promise<string | undefined> {
+  try {
+    return (await keychainExec('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'], process.cwd())).trim()
+  } catch {
+    return undefined
+  }
 }

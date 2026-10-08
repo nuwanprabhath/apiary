@@ -19,8 +19,11 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reportsDirectory: 'coverage/component',
-      include: ['src/renderer/**', 'src/shared/**'],
+      include: ['src/renderer/**/*.{ts,tsx}', 'src/shared/**/*.ts'],
       reporter: ['text-summary', 'json-summary', 'html'],
+      // A ratchet, not a target: each is one point under the 1.33.0 measurement, so a change that
+      // drops coverage fails `npm run test:coverage` in CI. Raise them when the numbers rise; never lower.
+      thresholds: { lines: 68, statements: 65, functions: 72, branches: 59 },
     },
     // An assertion on an element not there yet fails its first attempt by printing the whole page
     // (the locator error embeds the DOM, formatted at unlimited depth) — which for the full app

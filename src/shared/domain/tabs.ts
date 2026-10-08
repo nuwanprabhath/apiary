@@ -1,4 +1,5 @@
 import type { ActivityStatus } from '../activity'
+import type { PtyId } from './ids'
 
 /** What a tab shows: a session's conversation, or a terminal attached to its pty. Repeated as a
  *  literal union in several places before this (SHARED-3); this is the one definition. */
@@ -18,7 +19,7 @@ export interface TabTransfer {
   key: string
   view: TabView
   /** The pty the session runs under, when that is not the key itself. */
-  ptyId: string | null
+  ptyId: PtyId | null
   /** The bottom shell tabs, in order, and which one was in front. */
   shells: { id: string; name: string }[]
   activeShell: string | null
@@ -113,7 +114,7 @@ export interface OpenTab {
   /** The pty this tab's process runs under, when it has one (a fresh new-session pty before its
    *  real session id exists, or the session id itself once resolved). Null for a transcript-only
    *  tab that has never been run as a terminal. */
-  ptyId: string | null
+  ptyId: PtyId | null
   /** The tab's own title for a tab with no session yet (a pending new session or fork); null once
    *  it has a session, whose title comes from the tree. */
   label: string | null

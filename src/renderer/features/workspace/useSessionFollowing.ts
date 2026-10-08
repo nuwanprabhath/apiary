@@ -2,10 +2,13 @@ import { asPtyId, type PtyId } from '@shared/domain/ids'
 import { useEffect, useRef } from 'react'
 import type { SessionNode } from '@shared/types'
 import { treeStore } from '../../state/treeStore'
-import { usePtySessions } from '../../state/usePtySessions'
-import { useNotifications } from '../../ui/notifications'
-import { flattenTree, findNewSessionByCwd } from './treeLookup'
-import { useWorkspace, useWorkspaceDispatch } from './WorkspaceProvider'
+import { usePtySessions } from '../../state/ptySessionsStore'
+import { flattenTree, findNewSessionByCwd } from '@shared/treeWalk'
+import { useWorkspace } from './useWorkspaceSelector'
+import { useWorkspaceDispatch } from './workspaceContext'
+import { background } from '../../state/policy'
+import { renameSession } from '../../state/sessions'
+import { logLine } from '../../state/log'
 
 /**
  * Keeps tabs on the session their terminal is actually on: folds a pending new session into its
@@ -17,7 +20,6 @@ import { useWorkspace, useWorkspaceDispatch } from './WorkspaceProvider'
  * pty id in `ptyOverrides` in the same update as the tab's new key.
  */
 export function useSessionFollowing(): void {
-  const { notifyError } = useNotifications()
   const dispatch = useWorkspaceDispatch()
   const { layout, ptyOverrides, pending } = useWorkspace()
   const columns = layout.panes
@@ -48,7 +50,7 @@ export function useSessionFollowing(): void {
     const check = (): void => {
       // Background (UI-23): re-run on every `treeChanged`, so a failed read here just means this
       // pass finds nothing new — the next tree change gives it another chance.
-      void treeStore.current().then((nodes) => {
+      background(treeStore.current().then((nodes) => {
         if (cancelled) return
         const claimed = new Set<string>()
         for (const [ptyId, info] of pending) {
@@ -65,21 +67,19 @@ export function useSessionFollowing(): void {
           // shows the renamed title immediately rather than flashing the scanner's own title
           // until the resulting `treeChanged` push round-trips back.
           if (info.titleOverride !== null) {
-            void window.apiary.renameSession(found.sessionId, info.titleOverride).catch((e: unknown) => {
-              notifyError(e, 'Could not rename the session')
-            })
+            renameSession(found.sessionId, info.titleOverride)
           }
           // `session/follow` also applies the override title to the node, takes the pty over
           // (`ptyOverrides`), marks it resumed, rekeys the tab in place — wherever it is — onto the
           // terminal view and drops the pending entry: one atomic update.
           dispatch({ type: 'session/follow', from: ptyId, to: found, ptyId: info.ptyId, titleOverride: info.titleOverride })
         }
-      }).catch(() => {})
+      }), 'tabs')
     }
     check()
-    const off = window.apiary.onTreeChanged(check)
+    const off = treeStore.onChanged(check)
     return () => { cancelled = true; off() }
-  }, [pending, ptyOverrides, notifyError, ptySessions, dispatch])
+  }, [pending, ptyOverrides, ptySessions, dispatch])
 
   /**
    * Keeps every tab on the session its terminal is *actually* on, as Claude reports it.
@@ -119,13 +119,13 @@ export function useSessionFollowing(): void {
     const check = (): void => {
       // Background (UI-23): re-run on every `treeChanged`, so a failed read here just means this
       // pass finds nothing new — the next tree change gives it another chance.
-      void treeStore.current().then((nodes) => {
+      background(treeStore.current().then((nodes) => {
       if (cancelled) return
       const known = flattenTree(nodes)
       const openKeys = new Set(columnsRef.current.flatMap((c) => c.tabs.map((t) => t.key)))
       const moves: Array<{ from: string; to: SessionNode; ptyId: PtyId }> = []
       for (const key of openKeys) {
-        const ptyId = asPtyId(ptyOverrides.get(key) ?? key)
+        const ptyId = ptyOverrides.get(key) ?? asPtyId(key)
         const now = ptySessions[ptyId]?.sessionId
         if (now === undefined || now === key) continue
         const target = known.get(now)
@@ -137,7 +137,7 @@ export function useSessionFollowing(): void {
           const waitKey = `${key}>${now}`
           if (!loggedWaitsRef.current.has(waitKey)) {
             loggedWaitsRef.current.add(waitKey)
-            window.apiary.logWrite('info', 'tabs', 'tab not following its terminal yet', {
+            logLine('info', 'tabs', 'tab not following its terminal yet', {
               key, ptyId, session: now,
               reason: target === undefined ? 'no transcript yet' : 'session already open in another tab',
             })
@@ -150,24 +150,22 @@ export function useSessionFollowing(): void {
       for (const { from, to, ptyId } of moves) {
         // Logged because a tab stuck on the wrong session was invisible from outside: which tab
         // was rekeyed, from what to what, and whether it had been pending.
-        window.apiary.logWrite('info', 'tabs', 'tab follows its terminal', {
+        logLine('info', 'tabs', 'tab follows its terminal', {
           from, to: to.sessionId, ptyId, wasPending: pending.has(from),
         })
         const titleOverride = pending.get(from)?.titleOverride ?? null
         if (titleOverride !== null) {
-          void window.apiary.renameSession(to.sessionId, titleOverride).catch((e: unknown) => {
-            notifyError(e, 'Could not rename the session')
-          })
+          renameSession(to.sessionId, titleOverride)
         }
         // Shells stay where they are: they are filed by the pty the tab runs under (see
         // `keyFor`), which is `ptyId` before this and — through the override — after it. The tab
         // stays on the terminal view: it was showing a live process, and still is.
         dispatch({ type: 'session/follow', from, to, ptyId, titleOverride })
       }
-      }).catch(() => {})
+      }), 'tabs')
     }
     check()
-    const off = window.apiary.onTreeChanged(check)
+    const off = treeStore.onChanged(check)
     return () => { cancelled = true; off() }
-  }, [ptySessions, rekeyOpenKeysSignature, ptyOverrides, pending, notifyError, dispatch])
+  }, [ptySessions, rekeyOpenKeysSignature, ptyOverrides, pending, dispatch])
 }

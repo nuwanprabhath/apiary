@@ -1,5 +1,5 @@
 import { app, ipcMain } from 'electron'
-import { CHANNELS } from '@shared/api'
+import { CHANNELS, IPC } from '@shared/api'
 import type { ThemeState, ThemeGenerateResult } from '@shared/theme/state'
 import { BUILTIN_THEMES, BUILTIN_THEME_PREFIX } from '@shared/theme/builtins'
 import { validateTheme, describeReport } from '@shared/theme/validate'
@@ -50,7 +50,7 @@ export function themeHandlers(deps: ThemeDeps): {
     options: store.options,
     safeMode,
   })
-  const broadcastTheme = (): void => { broadcast(CHANNELS.themeChanged, state()) }
+  const broadcastTheme = (): void => { broadcast(IPC.themeChanged, state()) }
 
   const onThemeInitial = (e: { returnValue: unknown }): void => { e.returnValue = state() }
   ipcMain.on(CHANNELS.themeInitial, onThemeInitial)

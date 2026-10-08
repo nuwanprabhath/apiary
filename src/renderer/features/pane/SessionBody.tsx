@@ -1,13 +1,13 @@
-import { asSessionId, type PtyId } from '@shared/domain/ids'
+import type { PtyId } from '@shared/domain/ids'
 import { type JSX, useCallback } from 'react'
 import type { ChatDecision } from '@shared/domain/chat'
-import { useChat, useChatMode } from '../../state/useChat'
-import { useNotifications } from '../../ui/notifications'
+import { useChat, useChatMode } from '../../state/chatStore'
 import type { SessionNode } from '@shared/types'
 import type { Column, OpenTab } from '../layout/columns'
 import { Transcript } from '../transcript/Transcript'
 import { Composer } from '../transcript/Composer'
 import { TerminalView } from '../terminal/TerminalView'
+import { answerChatRequest } from '../../state/chatStore'
 
 /** The session's centre pane: its transcript with the composer, and every tab's claude terminal. */
 export function SessionBody({
@@ -31,14 +31,12 @@ export function SessionBody({
 }): JSX.Element {
   const chatMode = useChatMode()
   const chat = useChat(activeSession?.sessionId ?? '')
-  const { notifyError } = useNotifications()
   // Answers go to the chat's own session, which `/clear` may have moved on from the tab's.
   const sessionId = chat?.sessionId ?? activeSession?.sessionId ?? null
   const onDecide = useCallback((requestId: string, decision: ChatDecision) => {
     if (sessionId === null) return
-    void window.apiary.chatRespond(asSessionId(sessionId), requestId, decision)
-      .catch((e: unknown) => { notifyError(e, 'Could not answer Claude') })
-  }, [sessionId, notifyError])
+    answerChatRequest(sessionId, requestId, decision)
+  }, [sessionId])
   return (
     <div
       className="centre-pane"

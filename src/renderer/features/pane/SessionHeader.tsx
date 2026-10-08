@@ -4,7 +4,7 @@ import type { SessionNode } from '@shared/types'
 import type { OpenTab } from '../layout/columns'
 import { EditableSessionTitle } from './EditableSessionTitle'
 import { ResumeBar } from './ResumeBar'
-import { useChat } from '../../state/useChat'
+import { useChat } from '../../state/chatStore'
 import type { PendingTabInfo } from './paneTypes'
 
 /** The title (editable), folder path and — for a resolved session — the resume bar. */

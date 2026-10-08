@@ -71,7 +71,7 @@ export interface SessionBarPlugin {
   /** A sentence under the name saying what the plugin does. */
   description?: string
   /** Whether a plugin nobody has configured starts on. Read once, at registration (MAIN-17) —
-   *  `AppServiceOptions.plugins` still wins when the user has actually set it. Defaults to `true`
+   *  `BuiltinPluginConfig.enabled` still wins when the user has actually set it. Defaults to `true`
    *  so an existing plugin that does not set this keeps behaving as it always did. */
   defaultEnabled?: boolean
   /** The settings this plugin declares; Settings draws them, and they come back to `evaluate`. */

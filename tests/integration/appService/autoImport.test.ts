@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
-import { AppService } from '../../../src/main/appService'
+import { buildAppService } from '../../fixtures/buildService'
+import type { AppService } from '../../../src/main/appService'
 import { makeSession } from '../../fixtures/makeSession'
 import { createServiceFixture, teardownServiceFixture } from './setup'
 
@@ -45,7 +46,7 @@ describe('auto-import all', () => {
 
   it('refresh with autoImportAll enabled imports newly discovered sessions', async () => {
     // Create service with autoImportAll enabled.
-    const autoService = new AppService({
+    const autoService = buildAppService({
       configRoot: join(home, '.claude'),
       dbPath: join(home, 'apiary-auto.db'),
       autoImportAll: true,

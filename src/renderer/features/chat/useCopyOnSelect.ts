@@ -1,6 +1,7 @@
 import { createElement, type JSX, type MouseEvent as ReactMouseEvent, type RefObject, useCallback, useEffect, useState } from 'react'
 import { ContextMenu, type ContextMenuItem } from '../../ui/ContextMenu'
 import { useNotifications } from '../../ui/notifications'
+import { copyText } from '../../state/clipboard'
 
 /** The selected text when it is non-empty and lies wholly inside `root`, else ''. */
 function selectionWithin(root: HTMLElement | null): string {
@@ -32,10 +33,9 @@ export function useCopyOnSelect(ref: RefObject<HTMLElement | null>): {
   const [selected, setSelected] = useState('')
 
   const copy = useCallback((text: string): void => {
-    // A refused clipboard write has nothing useful to say; the selection is still on screen.
-    window.apiary.copyToClipboard(text).then(() => {
-      notify({ kind: 'success', message: `Copied ${text.length} chars to clipboard`, timeoutMs: 2000 })
-    }, () => {})
+    void copyText(text).then((ok) => {
+      if (ok) notify({ kind: 'success', message: `Copied ${text.length} chars to clipboard`, timeoutMs: 2000 })
+    })
   }, [notify])
 
   useEffect(() => {

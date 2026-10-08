@@ -1,5 +1,7 @@
-import { CHANNELS, type AppSettingsPayload } from '@shared/api'
+import { IPC, type AppSettingsPayload } from '@shared/api'
+import { pickPayload } from '@shared/settings/schema'
 import type { AppService } from '../../appService'
+import type { PluginService } from '../../plugins/pluginService'
 import type { UpdateService } from '../../update/updateService'
 import type { SettingsService } from '../../settings/settingsService'
 import { configureLogging } from '../../log/configure'
@@ -9,6 +11,7 @@ import type { Handlers } from '../registrar'
 
 export interface SettingsDeps {
   service: AppService
+  plugins: PluginService
   settings: SettingsService
   updater?: UpdateService | null
   onAutoImportIntervalChange?: (intervalMinutes: number | null) => void
@@ -17,34 +20,17 @@ export interface SettingsDeps {
 type HandledKeys = 'settingsGet' | 'settingsSet'
 
 export function settingsHandlers(deps: SettingsDeps): Pick<Handlers, HandledKeys> {
-  const { service, settings: settingsService, updater, onAutoImportIntervalChange } = deps
+  const { service, plugins, settings: settingsService, updater, onAutoImportIntervalChange } = deps
 
   return {
     settingsGet: (): AppSettingsPayload => {
       const settings = settingsService.get()
       return {
-        claudeBin: settings.claudeBin,
-        autoImportAll: settings.autoImportAll,
-        autoImportIntervalMinutes: settings.autoImportIntervalMinutes,
-        revealActiveInSidebar: settings.revealActiveInSidebar,
-        systemTitleBar: settings.systemTitleBar,
-        transcriptChat: settings.transcriptChat,
-        searchChatContent: settings.searchChatContent,
-        searchSessionNotes: settings.searchSessionNotes,
-        recentSectionEnabled: settings.recentSectionEnabled,
-        recentSectionHours: settings.recentSectionHours,
-        terminalShortenPath: settings.terminalShortenPath,
-        terminalPathSegments: settings.terminalPathSegments,
-        terminalMinimalPrompt: settings.terminalMinimalPrompt,
-        diagnosticsEnabled: settings.diagnosticsEnabled,
-        logRetentionDays: settings.logRetentionDays,
-        logMaxSizeMb: settings.logMaxSizeMb,
-        plugins: Object.fromEntries(service.listPlugins().map((p) => [p.id, p.enabled])),
-        pluginSettings: Object.fromEntries(service.listPlugins().map((p) => [p.id, p.values])),
-        updateAutomaticChecks: settings.updateAutomaticChecks,
-        updateCheckIntervalHours: settings.updateCheckIntervalHours,
-        updateAutoDownload: settings.updateAutoDownload,
-        updateAllowPrerelease: settings.updateAllowPrerelease,
+        ...pickPayload(settings),
+        // The two fields the plugins own: what is on, and each plugin's values, come from the
+        // plugin registry rather than from settings.json.
+        plugins: Object.fromEntries(plugins.list().map((p) => [p.id, p.enabled])),
+        pluginSettings: Object.fromEntries(plugins.list().map((p) => [p.id, p.values])),
       }
     },
     settingsSet: async (_e, next) => {
@@ -52,7 +38,7 @@ export function settingsHandlers(deps: SettingsDeps): Pick<Handlers, HandledKeys
       // See `mergeSettingsPayload` (src/main/settings.ts) for why a missing field must mean "leave
       // it alone", never "off" (the bug that made session notes stop being indexed), and for the
       // SEC-8 validation on claudeBin, the numeric fields and pluginSettings.
-      const knownPluginIds = new Set(service.listPlugins().map((p) => p.id))
+      const knownPluginIds = new Set(plugins.list().map((p) => p.id))
       const merged = settingsService.applyPayload(next, knownPluginIds)
       // The schedule has to follow the settings immediately: switching checks off and having one
       // fire ten minutes later is the kind of thing that makes a toggle look broken.
@@ -62,14 +48,14 @@ export function settingsHandlers(deps: SettingsDeps): Pick<Handlers, HandledKeys
       service.setSearchChatContent(merged.searchChatContent)
       service.setSearchSessionNotes(merged.searchSessionNotes)
       for (const [id, enabled] of Object.entries(merged.plugins)) {
-        service.setPluginEnabled(id, enabled)
+        plugins.setEnabled(id, enabled)
       }
       for (const [id, values] of Object.entries(merged.pluginSettings)) {
-        service.setPluginSettings(id, values)
+        plugins.setSettings(id, values)
       }
       // Switching a plugin off changes what every open bar should show, and nothing else would
       // tell the windows: the bar only re-reads on a branch change or on this signal.
-      broadcast(CHANNELS.pluginsChanged)
+      broadcast(IPC.pluginsChanged)
       service.setPromptPath({
         enabled: merged.terminalShortenPath,
         segments: merged.terminalPathSegments,
@@ -91,7 +77,7 @@ export function settingsHandlers(deps: SettingsDeps): Pick<Handlers, HandledKeys
       // If autoImportAll was just switched ON, import everything right away.
       if (merged.autoImportAll && !current.autoImportAll) {
         await service.importAllDiscovered()
-        broadcast(CHANNELS.treeChanged)
+        broadcast(IPC.treeChanged)
       }
     },
   }

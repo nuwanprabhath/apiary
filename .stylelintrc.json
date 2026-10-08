@@ -14,10 +14,13 @@
       {
         "/^border(-(top|bottom)-(left|right))?-radius$/": [
           "/(^|\\s)([4-9]|\\d{2,})(\\.\\d+)?px/"
+        ],
+        "/^(padding(-(top|right|bottom|left|inline|block)(-(start|end))?)?|height|min-height|gap|row-gap|column-gap)$/": [
+          "/(^|[\\s(,])([4-9]|\\d{2,})(\\.\\d+)?px/"
         ]
       },
       {
-        "message": "Corners come from the theme: use --radius-sm/-row/-panel/-lg/-control, never a literal radius above 3px (see CLAUDE.md, Themes)."
+        "message": "Shape comes from tokens, not literals: corners use --radius-sm/-row/-panel/-lg/-control (never a literal radius above 3px); control heights, paddings and gaps use --control-height(-sm), --control-padding-x, --control-gap or the .btn layer. A literal ignores the theme and the density setting (src/renderer/CLAUDE.md, Conventions). A size that is not a control (an illustration, a fixed panel) may disable this line with a reason."
       }
     ],
     "value-keyword-case": [

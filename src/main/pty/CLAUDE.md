@@ -11,7 +11,9 @@ pty belongs to across windows, and
   take. zsh has no equivalent for the trim and is deliberately left alone there; the separate
   Minimal Prompt setting below *does* use a shim for zsh.
 - Sessions are resumed as `$SHELL -l -c 'exec claude --resume <uuid>'`. The login shell is what puts
-  nvm/homebrew installs of `claude` on `PATH` (`resumeCommand.ts`).
+  nvm/homebrew installs of `claude` on `PATH` (`resumeCommand.ts` builds the command). The shell,
+  `-l -c` argv and env are `exec/loginShell.ts`'s `loginShellInvocation`, shared with
+  `spawnLoginShell`; `ptyManager` keeps only the node-pty spawn call, so do not rebuild the recipe here.
 - **Writing to a PTY is not the same as a program receiving it.** Until a full-screen program starts
   and puts the tty in raw mode, the line discipline is in canonical mode: it buffers by line and
   translates carriage return to newline. A prompt written into that window arrives mangled — this is
@@ -21,6 +23,14 @@ pty belongs to across windows, and
   slow-starting TUI that reproduces the failure.
 - Multi-line prompts are delivered as a bracketed paste (`ESC[200~ … ESC[201~`), or the first newline
   submits a fragment.
+
+## One entry per id
+
+Everything `PtyManager` knows about a pty id is one `PtyEntry` in one map, replaced or dropped as a
+unit. `kill()` returns before the child has exited, so its `onData`/`onExit` arrive after a respawn
+under the same id: each callback first checks `entries.get(id).child === child` and does nothing
+when it is no longer the occupant. A new per-pty field goes on `PtyEntry`, never in a second map
+(`tests/unit/architecture/perIdState.test.ts`).
 
 ## Minimal prompt
 

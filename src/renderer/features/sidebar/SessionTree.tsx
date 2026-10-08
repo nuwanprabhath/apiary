@@ -4,9 +4,10 @@ import type { ProjectNode, SessionNode } from '@shared/types'
 import { SessionRow } from './SessionRow'
 import { HoverCard } from '../../ui/HoverCard'
 import { useHoverCard } from '../../ui/useHoverCard'
-import { CollapseAllIcon } from '../../ui/icons'
+import { CollapseAllIcon, PlusBoldIcon } from '../../ui/icons'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
 import { useNotifications } from '../../ui/notifications'
+import { pullFolder } from '../../state/git'
 
 /** Every folder beneath these, at any depth — what "collapse all" folds. */
 function descendantPaths(nodes: ProjectNode[], into: string[] = []): string[] {
@@ -287,7 +288,7 @@ function FolderHeader({
           lastActive={null}
           onPullBranch={node.branch === null ? undefined : async () => {
             try {
-              const { commits } = await window.apiary.gitPullFolder(node.path)
+              const { commits } = await pullFolder(node.path)
               notify({
                 message: commits === 0
                   ? `${node.label} is already up to date with ${node.branch ?? 'its upstream'}`
@@ -344,9 +345,7 @@ function FolderHeader({
           setPlusMenu({ x: r.left, y: r.bottom + 2 })
         }}
       >
-        <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        </svg>
+        <PlusBoldIcon />
       </button>
       {/* Mounted only while open: one per folder row otherwise, each with its own hooks. */}
       {plusMenu !== null && <ContextMenu

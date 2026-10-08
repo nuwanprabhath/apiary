@@ -7,7 +7,8 @@ Read with root CLAUDE.md; this covers how Apiary tracks a live pty's Claude sess
 **Ask Claude, don't guess.** Claude Code keeps `<config>/sessions/<pid>.json` for every interactive
 process — `sessionId`, `name`, `nameSource` (`user` or `derived`), `status` — and a session's pty
 pid *is* Claude's pid (sessions run under `exec`). `ClaudeSessionTracker` polls those files for live
-TUI ptys; `App.tsx` rekeys any tab whose pty is on another session the tree knows. Measured on real
+TUI ptys; `features/workspace/useSessionFollowing.ts` rekeys any tab whose pty is on another session
+the tree knows. Measured on real
 Haiku sessions (Claude 2.1.281):
 
 - the file exists from startup, but the session's **JSONL only appears on the first message** —
@@ -23,7 +24,7 @@ Haiku sessions (Claude 2.1.281):
 
 Shell terminals are filed under the pty a tab runs under (`keyFor` = `ptyOverrides.get(key) ??
 key`), not the tab key — a rekey must leave `shellTabs` alone. And shells do not survive a quit
-while the layout still lists them: `SessionColumn` restarts a shown terminal whose pty is not
+while the layout still lists them: `features/pane/useShellTerminals.ts` restarts a shown terminal whose pty is not
 running, rather than attaching to nothing.
 
 Before this, a new or forked tab was matched by waiting for an unseen JSONL in its folder. `/resume`

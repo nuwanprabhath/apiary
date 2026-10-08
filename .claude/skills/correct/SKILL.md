@@ -1,7 +1,6 @@
 ---
 name: correct
 description: Turn a mistake agents keep repeating in Apiary into one the repo makes impossible, choosing architecture first, then types, then a lint or hook whose error names the fix, then a test, and writing a docs rule only when nothing else can check it. Use for /correct, or when the maintainer corrects the same thing a second time.
-disable-model-invocation: true
 ---
 
 # Correct
@@ -24,10 +23,18 @@ the mistakes into classes. A class counts once it has happened twice.
    layout changes.
 2. **Types.** Make the bad state unwritable: `Record<Kind, …>` so a missing entry is a compile
    error (`EFFECT_NOTES`), `fakeApiary.ts` typed as `ApiaryApi`, `switch-exhaustiveness-check`.
-3. **A check whose error names the fix.** ESLint rules (`eslint.config.js`), `stylelint`,
-   `scripts/check-doc-refs.mjs`, `madge` cycles, the husky hooks (`.husky/commit-msg` already
-   rejects AI attribution; `pre-push` runs typecheck, lint and unit tests), commitlint. If the
-   pattern is already common, fail only on new occurrences.
+3. **A check whose error names the fix.** In order of preference:
+   - an `apiary/*` rule: one entry in `eslint/sanctioned.js` (an import, syntax or global
+     restriction, with an allowlist of its sanctioned homes and a message naming the replacement),
+     plus a case in `tests/unit/architecture/sanctionedRules.test.ts`;
+   - a dependency-cruiser layer rule (`.dependency-cruiser.cjs`);
+   - an architecture test in `tests/unit/architecture/`, with a shrink-only allowlist;
+   - stylelint (`.stylelintrc.json`), `scripts/check-doc-refs.mjs`, or the knip ratchet;
+   - the git hooks (`.husky/`) or the agent hooks (`.claude/hooks/`), and commitlint.
+
+   If the pattern is already common, fail only on new occurrences. Baseline today's sites with
+   `npx eslint . --suppress-rule apiary/<name>` (stylelint: `--suppress`; dependency-cruiser:
+   `npm run lint:arch:baseline`). Every baseline may only shrink.
 4. **A test of the behaviour.** In the cheapest layer that proves it (`tests/CLAUDE.md`). Fix or
    delete any test that would still pass if the code under it returned nothing.
 5. **A rule in `CLAUDE.md`**, last, only for judgment calls. Nothing fails when an agent skips it.

@@ -29,4 +29,9 @@ export interface StatusBarPlugin {
   panel?(itemId: string): Promise<StatusBarPanel | null>
   /** Settings changed while running. Default: stop, then start again. */
   settingsChanged?(): void
+  /**
+   * The user's answer to the consent prompt this plugin's item carries (`action.kind === 'consent'`).
+   * A plugin that has nothing to ask leaves this out.
+   */
+  answerConsent?(allow: boolean): void
 }

@@ -257,7 +257,7 @@ export function buildHeld(kind: HeldProp): THREE.Object3D {
           ctx.fillStyle = '#ffd400'; ctx.beginPath(); ctx.arc(46, 15, 7, 0, Math.PI * 2); ctx.fill()
           ctx.fillStyle = '#5bd65b'; ctx.beginPath(); ctx.ellipse(26, 52, 34, 22, 0, Math.PI, 0); ctx.fill()
           ctx.fillStyle = '#ff3fae'; ctx.beginPath(); ctx.arc(18, 34, 4, 0, Math.PI * 2); ctx.fill()
-          const texture = new THREE.CanvasTexture(c as unknown as HTMLCanvasElement)
+          const texture = new THREE.CanvasTexture(c)
           texture.colorSpace = THREE.SRGBColorSpace
           picture = new THREE.MeshPhysicalMaterial({ map: texture, roughness: 0.85 })
         }
@@ -381,7 +381,7 @@ export function buildScenery(kind: SceneryProp): THREE.Object3D {
           ctx.fillRect(0, 0, size, size)
           ctx.fillStyle = 'rgba(255, 60, 90, 0.55)'
           for (let i = 0; i < 8; i += 2) { ctx.fillRect(i * 8, 0, 8, size); ctx.fillRect(0, i * 8, size, 8) }
-          texture = new THREE.CanvasTexture(canvas as unknown as HTMLCanvasElement)
+          texture = new THREE.CanvasTexture(canvas)
           texture.colorSpace = THREE.SRGBColorSpace
           texture.wrapS = THREE.RepeatWrapping
           texture.wrapT = THREE.RepeatWrapping

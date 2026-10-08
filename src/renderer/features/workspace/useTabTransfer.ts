@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react'
 import { isTabTransfer, type TabTransfer } from '@shared/types'
-import { useWorkspace, useWorkspaceDispatch } from './WorkspaceProvider'
+import { useWorkspaceDispatch, useWorkspaceStore } from './workspaceContext'
+import { onSelectTab, onTabAdopt, onTabClaimed } from '../../state/tabs'
 
 /**
  * Moving a tab between windows: adopting one dropped here, letting go of one another window took,
@@ -9,8 +10,7 @@ import { useWorkspace, useWorkspaceDispatch } from './WorkspaceProvider'
  */
 export function useTabTransfer(): { transferFor: (key: string) => TabTransfer } {
   const dispatch = useWorkspaceDispatch()
-  const { layout, ptyOverrides, shellTabs, activeTerminal } = useWorkspace()
-  const columns = layout.panes
+  const store = useWorkspaceStore()
 
   /**
    * A tab dragged from another window has been dropped on this one.
@@ -20,7 +20,7 @@ export function useTabTransfer(): { transferFor: (key: string) => TabTransfer } 
    * the tab goes to the end of the active column — which is where a tab dropped past the last one
    * would have gone anyway.
    */
-  useEffect(() => window.apiary.onTabAdopt((tab) => {
+  useEffect(() => onTabAdopt((tab) => {
     if (!isTabTransfer(tab)) return
     // The processes first, so that by the time the tab renders it already knows what it runs —
     // one `tab/adopt` carries the pty override, the shells and the tab itself.
@@ -29,6 +29,10 @@ export function useTabTransfer(): { transferFor: (key: string) => TabTransfer } 
 
   /** Everything about an open tab another window would need to carry on with it. */
   const transferFor = useCallback((key: string): TabTransfer => {
+    // Read when a drag ends, not when the callback is made: it goes to every pane, and one that
+    // closed over the layout was a new function on every transition.
+    const { layout, ptyOverrides, shellTabs, activeTerminal } = store.getState()
+    const columns = layout.panes
     const ptyId = ptyOverrides.get(key) ?? null
     const shellKey = ptyId ?? key
     return {
@@ -38,7 +42,7 @@ export function useTabTransfer(): { transferFor: (key: string) => TabTransfer } 
       shells: shellTabs.get(shellKey) ?? [],
       activeShell: activeTerminal.get(shellKey) ?? null,
     }
-  }, [ptyOverrides, columns, shellTabs, activeTerminal])
+  }, [store])
 
   /**
    * Another window has taken a tab this one was showing, so let go of it.
@@ -47,7 +51,7 @@ export function useTabTransfer(): { transferFor: (key: string) => TabTransfer } 
    * windows on purpose is still allowed — that goes through the sidebar and never announces a
    * claim — so the two gestures stay distinguishable.
    */
-  useEffect(() => window.apiary.onTabClaimed((key) => {
+  useEffect(() => onTabClaimed((key) => {
     dispatch({ type: 'tab/closeEverywhere', key })
   }), [dispatch])
 
@@ -56,7 +60,7 @@ export function useTabTransfer(): { transferFor: (key: string) => TabTransfer } 
    * where it already is, the same "go to it rather than open it again" rule `openSessionTab` uses,
    * just against a bare key instead of a full `SessionNode`.
    */
-  useEffect(() => window.apiary.onSelectTab((key) => {
+  useEffect(() => onSelectTab((key) => {
     dispatch({ type: 'tab/focus', key })
   }), [dispatch])
 

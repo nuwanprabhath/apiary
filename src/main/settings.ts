@@ -1,16 +1,13 @@
-import { readFileSync, mkdirSync } from 'node:fs'
-import { dirname, isAbsolute } from 'node:path'
+import { isAbsolute } from 'node:path'
 import type { AppSettingsPayload } from '@shared/domain/settings'
-import { writeJsonAtomic } from './fs/atomicWrite'
-import { clampSegments } from '@shared/promptPreview'
+import { errorMessage } from '@shared/errors'
+import { clamp, isFiniteNumber, isRecord } from '@shared/guards'
+import { JsonStore } from './fs/jsonStore'
+import { log } from './log/logger'
+import type { WindowBounds } from './windows/windowBounds'
+import { mergePayload } from '@shared/settings/schema'
+import type { ConsentState } from './statusBar/claudeUsage/consent'
 import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
-
-export interface WindowBounds {
-  x: number
-  y: number
-  width: number
-  height: number
-}
 
 /**
  * The shape of the stored file, bumped when an existing one needs adjusting as it is read.
@@ -33,6 +30,13 @@ export interface AppSettings extends AppSettingsPayload {
   /** A version the user chose to skip; the next release is offered as normal. */
   updateSkippedVersion: string | null
   windowBounds: WindowBounds | null
+  /**
+   * The answer to "may Apiary read Claude Code's token to show usage?" (ADR-0019). Main-only, so
+   * the settings dialog and a stale renderer's `settingsSet` can neither grant nor wipe it; the
+   * only way in is `statusBarConsent`. Absent in files written before the prompt existed, which
+   * reads as `unknown`: an install that already ran the plugin is asked too.
+   */
+  claudeUsageConsent: ConsentState
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -40,6 +44,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   schemaVersion: SETTINGS_VERSION,
   updateSkippedVersion: null,
   windowBounds: null,
+  claudeUsageConsent: 'unknown',
 }
 
 /**
@@ -47,8 +52,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
  * — but here, where it is persisted, so a value never has to arrive through the dialog to be
  * trusted.
  *
- * Both `loadSettings` and the `settingsSet` IPC handler run every value through this rather than
- * relying on the renderer's own clamp. A stale renderer build, devtools, or a hand-edited
+ * Both the settings store's `parse` and, via the schema's range for `recentSectionHours`
+ * (`shared/settings/schema.ts`), the `settingsSet` IPC merge clamp every value rather than relying
+ * on the renderer's own clamp. A stale renderer build, devtools, or a hand-edited
  * settings.json can all hand a 0, a negative number, a fraction, or something that is not a
  * number at all straight to the main process, which otherwise persists it verbatim — and once
  * `recentSectionHours` is `<= 0`, `windowMs` in `selectRecent` never admits anything, so Recent
@@ -59,24 +65,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
  */
 export function clampRecentHours(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(n) && n >= 1 ? Math.min(168, Math.round(n)) : 1
-}
-
-/**
- * Clamps an integer setting to `[min, max]`, falling back to `min` for anything that is not a
- * finite number once coerced (SEC-8) — the same reasoning as `clampRecentHours`, generalised: a
- * stale renderer build, devtools, or a hand-edited settings.json can hand any of several numeric
- * settings (`updateCheckIntervalHours`, `logRetentionDays`, `logMaxSizeMb`,
- * `autoImportIntervalMinutes`) a value nobody who used the dialog could have produced.
- */
-export function clampIntSetting(value: unknown, min: number, max: number): number {
-  const n = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : min
-}
-
-/** As `clampIntSetting`, but `null` (a real value for some of these fields) passes through. */
-export function clampIntOrNullSetting(value: unknown, min: number, max: number): number | null {
-  return value === null ? null : clampIntSetting(value, min, max)
+  return isFiniteNumber(n) && n >= 1 ? clamp(Math.round(n), 1, 168) : 1
 }
 
 /**
@@ -105,115 +94,68 @@ export function migrateSettings(raw: Partial<AppSettings>): Partial<AppSettings>
   }
 }
 
-export function loadSettings(file: string): AppSettings {
-  try {
-    const raw = JSON.parse(readFileSync(file, 'utf8')) as Partial<AppSettings>
-    const merged = { ...DEFAULT_SETTINGS, ...migrateSettings(raw) }
-    // `migrateSettings`/the defaults spread only fill in *missing* fields — a present-but-invalid
-    // one (a settings.json hand-edited or left over from a build that didn't validate) passes
-    // straight through otherwise, so it is clamped here on every load, not only on write.
-    return { ...merged, recentSectionHours: clampRecentHours(merged.recentSectionHours) }
-  } catch {
-    // Missing or corrupt settings must never stop the app from starting.
-    return DEFAULT_SETTINGS
-  }
+/**
+ * The settings file as a `JsonStore`: `schemaVersion` is its version key, `migrateSettings` its
+ * migration, and missing or corrupt settings give the defaults — they must never stop the app from
+ * starting.
+ */
+export function createSettingsStore(file: string): JsonStore<AppSettings> {
+  return new JsonStore<AppSettings>({
+    file,
+    version: SETTINGS_VERSION,
+    versionKey: 'schemaVersion',
+    parse: (raw) => {
+      if (!isRecord(raw)) return DEFAULT_SETTINGS
+      const merged = { ...DEFAULT_SETTINGS, ...migrateSettings(raw) }
+      // `migrateSettings`/the defaults spread only fill in *missing* fields — a present-but-invalid
+      // one (a settings.json hand-edited or left over from a build that didn't validate) passes
+      // straight through otherwise, so it is clamped here on every load, not only on write.
+      return {
+        ...merged,
+        recentSectionHours: clampRecentHours(merged.recentSectionHours),
+        // A hand-edited or future value is "not asked", never a grant.
+        claudeUsageConsent: merged.claudeUsageConsent === 'granted' || merged.claudeUsageConsent === 'declined' ? merged.claudeUsageConsent : 'unknown',
+      }
+    },
+    fallback: () => DEFAULT_SETTINGS,
+  })
 }
 
-export function saveSettings(file: string, settings: AppSettings): void {
+/** Writes the settings; a read-only home directory must not crash the app, so a failure is logged. */
+export function saveSettings(store: JsonStore<AppSettings>, settings: AppSettings): void {
   try {
-    mkdirSync(dirname(file), { recursive: true })
-    writeJsonAtomic(file, settings)
-  } catch {
-    // A read-only home directory should not crash the app.
+    store.save(settings)
+  } catch (e) {
+    log.warn('settings', 'could not write settings', { error: errorMessage(e) })
   }
 }
 
 /**
- * Merges a settings payload arriving over IPC into the current settings.
+ * Merges a settings payload arriving over IPC into the current settings. What a field must look
+ * like is declared with the field, in `shared/settings/schema.ts`; this runs `mergePayload` over
+ * that schema and keeps the main-only fields (`schemaVersion`, `updateSkippedVersion`,
+ * `windowBounds`) from `current`.
  *
  * The payload is typed as `AppSettingsPayload`, but it crosses a process boundary from a renderer
  * that is not guaranteed to be the same build as this process — a dev reload, or an update that
- * reloads the window — so it is treated here as a `Partial`: a key the sender has never heard of
- * is simply absent. **A missing field means "leave it alone", never "off"**: assigning it straight
- * across would write `undefined`, which is falsy — the feature would switch off in this process,
- * its index wiped as a switch-off is meant to do, and `JSON.stringify` would drop the undefined
- * key on the way to disk, so `settings.json` would still say the feature was on. Nothing about
- * that is visible from the outside. This is the bug that made session notes stop being indexed;
- * see CLAUDE.md "Settings arriving over IPC".
+ * reloads the window — so it is treated as a `Partial`. **A missing field means "leave it alone",
+ * never "off"**: assigning it straight across would write `undefined`, which is falsy — the feature
+ * would switch off in this process, its index wiped as a switch-off is meant to do, and
+ * `JSON.stringify` would drop the undefined key on the way to disk, so `settings.json` would still
+ * say the feature was on. Nothing about that is visible from the outside. This is the bug that made
+ * session notes stop being indexed; see CLAUDE.md "Settings arriving over IPC".
  *
- * `claudeBin` is the one exception: `null` is a real value there ("find it on PATH"), so it keeps
- * the current value only when the field is missing altogether, not when it is `null`. A non-null
- * value must be an absolute, bounded-length path (SEC-8) — it becomes the binary `resumeCommand`
- * and the theme generator invoke, and is persisted and re-read on every launch — so a value that
- * fails that check is dropped rather than merged, the same as a missing field.
- *
- * Several numeric fields are clamped rather than trusted as `keep` would leave them
- * (`clampRecentHours`, `clampIntSetting`, `clampIntOrNullSetting`, `clampSegments`), since each is
- * typed as a plain number or int but arrives from a renderer that is not guaranteed to have
- * validated it. `pluginSettings` is filtered to plugin ids this build actually knows about and to
- * string/number/boolean values only (SEC-8): the settings dialog only ever sends back what it was
- * given, but the IPC boundary cannot assume the sender validated anything, and an unbounded object
- * here would be persisted to disk and re-read by whatever the plugin's own settings code expects.
- * `knownPluginIds` is passed in rather than looked up here, so this stays a pure function of its
- * arguments — the caller already has `AppService.listPlugins()`.
+ * A field that is present but the wrong type, or a `claudeBin` that is not an absolute path (SEC-8),
+ * is dropped the same way and logged by key (never by value). `knownPluginIds` is passed in rather
+ * than looked up here, so this stays a pure function of its arguments — the caller already has
+ * `AppService.listPlugins()`.
  */
 export function mergeSettingsPayload(
   current: AppSettings,
   next: Partial<AppSettingsPayload>,
   knownPluginIds: ReadonlySet<string>,
 ): AppSettings {
-  const keep = <T>(value: T | undefined, fallback: T): T => value ?? fallback
-  const cleanPluginSettings = (
-    raw: Record<string, Record<string, string | number | boolean>>,
-  ): Record<string, Record<string, string | number | boolean>> => Object.fromEntries(
-    Object.entries(raw)
-      .filter(([id]) => knownPluginIds.has(id))
-      .map(([id, values]) => [
-        id,
-        Object.fromEntries(
-          Object.entries(values).filter(([, v]) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'),
-        ),
-      ]),
-  )
-  return {
-    ...current,
-    claudeBin: next.claudeBin === undefined
-      ? current.claudeBin
-      : (next.claudeBin === null || (isAbsolute(next.claudeBin) && next.claudeBin.length <= 4096)
-        ? next.claudeBin
-        : current.claudeBin),
-    autoImportAll: keep(next.autoImportAll, current.autoImportAll),
-    autoImportIntervalMinutes: next.autoImportIntervalMinutes === undefined
-      ? current.autoImportIntervalMinutes
-      : clampIntOrNullSetting(next.autoImportIntervalMinutes, 1, 1440),
-    revealActiveInSidebar: keep(next.revealActiveInSidebar, current.revealActiveInSidebar),
-    systemTitleBar: keep(next.systemTitleBar, current.systemTitleBar),
-    transcriptChat: keep(next.transcriptChat, current.transcriptChat),
-    searchChatContent: keep(next.searchChatContent, current.searchChatContent),
-    searchSessionNotes: keep(next.searchSessionNotes, current.searchSessionNotes),
-    recentSectionEnabled: keep(next.recentSectionEnabled, current.recentSectionEnabled),
-    recentSectionHours: next.recentSectionHours === undefined
-      ? current.recentSectionHours
-      : clampRecentHours(next.recentSectionHours),
-    terminalShortenPath: keep(next.terminalShortenPath, current.terminalShortenPath),
-    terminalPathSegments: next.terminalPathSegments === undefined
-      ? current.terminalPathSegments
-      : clampSegments(next.terminalPathSegments),
-    terminalMinimalPrompt: keep(next.terminalMinimalPrompt, current.terminalMinimalPrompt),
-    plugins: keep(next.plugins, current.plugins),
-    pluginSettings: next.pluginSettings === undefined ? current.pluginSettings : cleanPluginSettings(next.pluginSettings),
-    updateAutomaticChecks: keep(next.updateAutomaticChecks, current.updateAutomaticChecks),
-    updateCheckIntervalHours: next.updateCheckIntervalHours === undefined
-      ? current.updateCheckIntervalHours
-      : clampIntSetting(next.updateCheckIntervalHours, 1, 168),
-    updateAutoDownload: keep(next.updateAutoDownload, current.updateAutoDownload),
-    updateAllowPrerelease: keep(next.updateAllowPrerelease, current.updateAllowPrerelease),
-    diagnosticsEnabled: keep(next.diagnosticsEnabled, current.diagnosticsEnabled),
-    logRetentionDays: next.logRetentionDays === undefined
-      ? current.logRetentionDays
-      : clampIntSetting(next.logRetentionDays, 1, 90),
-    logMaxSizeMb: next.logMaxSizeMb === undefined
-      ? current.logMaxSizeMb
-      : clampIntSetting(next.logMaxSizeMb, 1, 500),
-  }
+  const { merged, rejected } = mergePayload(current, next, { knownPluginIds, isAbsolutePath: isAbsolute })
+  if (rejected.length > 0) log.warn('settings', 'ignored invalid settings over IPC', { keys: rejected })
+  return { ...current, ...merged }
 }

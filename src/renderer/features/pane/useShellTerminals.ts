@@ -3,8 +3,10 @@ import { shellPtyId } from '@shared/domain/ptyId'
 import type { PtyId, TerminalRef } from '@shared/domain/ids'
 import { moveBefore } from '../sidebar/model/groups'
 import { useNotifications } from '../../ui/notifications'
-import { useWorkspace, useShellSetters } from '../workspace/WorkspaceProvider'
-import type { TerminalTab } from '../workspace/workspaceReducer'
+import { useShellSetters, type TerminalTab } from '../workspace'
+import type { PaneWorkspace } from './usePaneWorkspace'
+import { killPty, runningPtys, spawnShell } from '../../state/terminals'
+import { logLine } from '../../state/log'
 
 export interface ShellTerminals {
   shellOpen: boolean
@@ -33,17 +35,20 @@ export interface ShellTerminals {
  * One pane's shell terminals: the open/closed state of its shell card, and the terminals listed
  * under the session in front. The lists themselves live in the workspace (`shellTabs`,
  * `activeTerminal`), filed under `keyFor(tab)`, so two panes showing the same split session share
- * one set; this reads and writes them through the workspace rather than taking setters as props.
+ * one set; this reads this pane's entries (`workspace`) and writes through the workspace rather than
+ * taking setters as props.
  */
-export function useShellTerminals({ activeKey, terminal, isActive, keyFor }: {
+export function useShellTerminals({ activeKey, terminal, isActive, keyFor, workspace }: {
   activeKey: string | null
   terminal: TerminalRef | null
   isActive: boolean
   keyFor: (tabKey: string) => PtyId
+  /** This pane's slice of the workspace (`usePaneWorkspace`). */
+  workspace: Pick<PaneWorkspace, 'shellTabs' | 'activeTerminal'>
 }): ShellTerminals {
   const { notifyError } = useNotifications()
   const shellKey = terminal === null ? null : terminal.id
-  const { shellTabs, activeTerminal } = useWorkspace()
+  const { shellTabs, activeTerminal } = workspace
   const { setShellTabs, setActiveTerminal } = useShellSetters()
   const [shellOpen, setShellOpen] = useState(false)
   const [tabListOpen, setTabListOpen] = useState(false)
@@ -67,8 +72,7 @@ export function useShellTerminals({ activeKey, terminal, isActive, keyFor }: {
 
   const spawnTerminal = useCallback(async (id: string): Promise<void> => {
     if (terminal === null) return
-    if (terminal.kind === 'pty') await window.apiary.openShellForPty(terminal.id, id)
-    else await window.apiary.openShell(terminal.id, id)
+    await spawnShell(terminal, id)
   }, [terminal])
 
   // Guards `ensureShellFor` against firing twice for the same key before its first spawn has
@@ -116,10 +120,11 @@ export function useShellTerminals({ activeKey, terminal, isActive, keyFor }: {
     let cancelled = false
     const ptyId = shownShellPty
     const terminalId = currentTerminalId
-    void window.apiary.ptyRunning([ptyId]).then(async (running) => {
-      if (cancelled || running.includes(ptyId)) return
+    void runningPtys([ptyId]).then(async (running) => {
+      // Not knowing is not a reason to start a second process over a live id.
+      if (cancelled || running === null || running.includes(ptyId)) return
       revivingRef.current.add(ptyId)
-      window.apiary.logWrite('info', 'shell', 'restarting a listed terminal with no process', { ptyId })
+      logLine('info', 'shell', 'restarting a listed terminal with no process', { ptyId })
       try {
         await spawnTerminal(terminalId)
         setRevivals((prev) => new Map(prev).set(ptyId, (prev.get(ptyId) ?? 0) + 1))
@@ -208,7 +213,7 @@ export function useShellTerminals({ activeKey, terminal, isActive, keyFor }: {
 
   const deleteTerminalTab = useCallback((tabId: string) => {
     if (shellKey === null) return
-    window.apiary.ptyKill(shellPtyId(shellKey, tabId))
+    killPty(shellPtyId(shellKey, tabId))
     const list = (shellTabs.get(shellKey) ?? []).filter((t) => t.id !== tabId)
     setShellTabs((prev) => {
       const next = new Map(prev)

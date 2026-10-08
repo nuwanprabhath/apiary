@@ -41,25 +41,6 @@ interface Index {
  *  pays. */
 const MAX_CACHE_ENTRIES = 50
 
-const cache = new Map<string, Index>()
-
-export function clearTranscriptCache(): void {
-  cache.clear()
-}
-
-/** Records `entry` as the most recently used, evicting the least recently used past the cap. A
- *  `Map` already iterates in insertion order, so "oldest" is just its first key — re-inserting on
- *  every touch (hit or write) is what keeps that order meaning "least recently used" rather than
- *  "first ever inserted". */
-function remember(filePath: string, entry: Index): void {
-  cache.delete(filePath)
-  cache.set(filePath, entry)
-  if (cache.size > MAX_CACHE_ENTRIES) {
-    const oldest = cache.keys().next().value
-    if (oldest !== undefined) cache.delete(oldest)
-  }
-}
-
 /** Whether a raw line is a message someone wrote — by substring, without parsing. A message sent
  *  mid-turn counts (it is recorded as a `queued_command` attachment); turn ends and recaps, which
  *  `toMessage` also returns, do not: this is the count the session list shows. */
@@ -130,45 +111,6 @@ async function scanFrom(
   })
 
   return { offsets, messageCount, endsWithNewline }
-}
-
-/**
- * Records the byte offset of every non-empty line and counts message lines by substring test.
- *
- * **Append-only fast path (MAIN-24):** a live session's transcript is only ever appended to, so
- * when the cached size grew and the cached scan ended cleanly on a newline, only the new bytes are
- * read — the old offsets are still correct and are kept as-is. A file that shrank (or whose last
- * cached line had no trailing newline yet) falls back to a full rescan, since neither case can be
- * trusted to mean "unchanged content plus an append".
- */
-export async function indexTranscript(
-  filePath: string,
-): Promise<{ offsets: number[]; messageCount: number }> {
-  const info = await stat(filePath)
-  const hit = cache.get(filePath)
-  if (hit && hit.mtimeMs === info.mtimeMs && hit.size === info.size) {
-    remember(filePath, hit)
-    return { offsets: hit.offsets, messageCount: hit.messageCount }
-  }
-
-  let offsets: number[]
-  let messageCount: number
-  let endsWithNewline: boolean
-
-  if (hit && hit.endsWithNewline && info.size > hit.size) {
-    const delta = await scanFrom(filePath, hit.size, hit.size)
-    offsets = hit.offsets.concat(delta.offsets)
-    messageCount = hit.messageCount + delta.messageCount
-    endsWithNewline = delta.endsWithNewline
-  } else {
-    const full = await scanFrom(filePath, 0, 0)
-    offsets = full.offsets
-    messageCount = full.messageCount
-    endsWithNewline = full.endsWithNewline
-  }
-
-  remember(filePath, { offsets, messageCount, mtimeMs: info.mtimeMs, size: info.size, endsWithNewline })
-  return { offsets, messageCount }
 }
 
 function mapBlocks(_role: 'user' | 'assistant', content: unknown): TranscriptBlock[] {
@@ -286,88 +228,150 @@ interface IndexedMessage {
 }
 
 /**
- * Backward paging over the offset index.
- *
- * Widens the scan window [nextStart, end) geometrically until it holds more
- * messages than `limit` (so we know there is a real earlier boundary to
- * report) or reaches line index 0 (the true start of the file, so there is
- * nothing earlier left to report). Each widened window is re-parsed from
- * scratch — cheap relative to the I/O, and simple to reason about.
- *
- * `earlierCursor` is derived from the line index of the earliest message
- * kept on the page, never from the scan's window boundary: the window can
- * extend further back than is needed to fill the page (it doubles each
- * retry), and it can also contain non-message lines, so window-relative
- * arithmetic does not line up with real message positions in general.
+ * Reads a session's JSONL a page at a time. Owns the line-offset index it builds for each file it
+ * has been asked about (bounded at `MAX_CACHE_ENTRIES`, least recently used out) — one instance,
+ * built in the container, so a test builds its own and no state outlives it.
  */
-export async function readTranscriptPage(
-  filePath: string,
-  opts: { beforeIndex?: number; limit?: number } = {},
-): Promise<TranscriptPage> {
-  const limit = opts.limit ?? DEFAULT_LIMIT
-  const { offsets } = await indexTranscript(filePath)
-  const info = await stat(filePath)
-  // A renderer-supplied cursor that is not a real, non-negative index (NaN, most concretely) must
-  // not reach the arithmetic below: `Math.min(NaN, n)` is `NaN`, which makes `windowStart === 0`
-  // never hold and the loop below spin forever, opening and closing the file on every pass (SEC-8).
-  // Anything not a safe non-negative integer is treated as "no cursor", the same as omitting it.
-  const beforeIndex = Number.isSafeInteger(opts.beforeIndex) && (opts.beforeIndex as number) >= 0
-    ? opts.beforeIndex
-    : undefined
-  const end = Math.max(0, Math.min(beforeIndex ?? offsets.length, offsets.length))
-  if (!Number.isFinite(end)) throw new Error('Could not resolve a valid transcript window')
+export class TranscriptReader {
+  /** Invalidated by the file's size and mtime (checked on every read) and by the LRU cap. */
+  private readonly cache = new Map<string, Index>()
 
-  // Assigned unconditionally on every iteration before the loop's only `break`, so these are
-  // definitely assigned by the time they're read below without needing a throwaway initial value.
-  let windowMessages: IndexedMessage[]
-  let skippedLines: number
-  let windowStart: number
-  let span = Math.max(limit * 2, 1)
-
-  for (;;) {
-    const nextStart = Math.max(0, end - span)
-    const byteStart = nextStart < offsets.length ? offsets[nextStart] : info.size
-    const byteEnd = end < offsets.length ? offsets[end] : info.size
-    const text = await readRange(filePath, byteStart, byteEnd)
-
-    windowMessages = []
-    skippedLines = 0
-    let lineIndex = nextStart
-    for (const line of text.split('\n')) {
-      if (line.length === 0) continue
-      if (line.length > MAX_LINE_CHARS) {
-        skippedLines++
-        lineIndex++
-        continue
-      }
-      let entry: Record<string, unknown>
-      try {
-        entry = JSON.parse(line) as Record<string, unknown>
-      } catch {
-        skippedLines++
-        lineIndex++
-        continue
-      }
-      const m = toMessage(entry)
-      if (m) windowMessages.push({ index: lineIndex, message: m })
-      lineIndex++
+  /** Records `entry` as the most recently used, evicting the least recently used past the cap. A
+   *  `Map` already iterates in insertion order, so "oldest" is just its first key — re-inserting on
+   *  every touch (hit or write) is what keeps that order meaning "least recently used" rather than
+   *  "first ever inserted". */
+  private remember(filePath: string, entry: Index): void {
+    this.cache.delete(filePath)
+    this.cache.set(filePath, entry)
+    if (this.cache.size > MAX_CACHE_ENTRIES) {
+      const oldest = this.cache.keys().next().value
+      if (oldest !== undefined) this.cache.delete(oldest)
     }
-
-    windowStart = nextStart
-    // Strictly more than `limit`, not >=: landing exactly on `limit` while
-    // windowStart is still > 0 would leave us unable to tell whether earlier
-    // messages exist, so keep widening until that ambiguity is resolved.
-    if (windowMessages.length > limit || windowStart === 0) break
-    span *= 2
   }
 
-  const overflow = Math.max(0, windowMessages.length - limit)
-  const page = windowMessages.slice(overflow)
-  const earlierCursor = overflow > 0 ? page[0].index : null
+  /**
+   * Records the byte offset of every non-empty line and counts message lines by substring test.
+   *
+   * **Append-only fast path (MAIN-24):** a live session's transcript is only ever appended to, so
+   * when the cached size grew and the cached scan ended cleanly on a newline, only the new bytes are
+   * read — the old offsets are still correct and are kept as-is. A file that shrank (or whose last
+   * cached line had no trailing newline yet) falls back to a full rescan, since neither case can be
+   * trusted to mean "unchanged content plus an append".
+   */
+  async indexTranscript(
+    filePath: string,
+  ): Promise<{ offsets: number[]; messageCount: number }> {
+    const info = await stat(filePath)
+    const hit = this.cache.get(filePath)
+    if (hit && hit.mtimeMs === info.mtimeMs && hit.size === info.size) {
+      this.remember(filePath, hit)
+      return { offsets: hit.offsets, messageCount: hit.messageCount }
+    }
 
-  return {
-    messages: page.map((p) => p.message),
-    earlierCursor,
-    skippedLines,
+    let offsets: number[]
+    let messageCount: number
+    let endsWithNewline: boolean
+
+    if (hit && hit.endsWithNewline && info.size > hit.size) {
+      const delta = await scanFrom(filePath, hit.size, hit.size)
+      offsets = hit.offsets.concat(delta.offsets)
+      messageCount = hit.messageCount + delta.messageCount
+      endsWithNewline = delta.endsWithNewline
+    } else {
+      const full = await scanFrom(filePath, 0, 0)
+      offsets = full.offsets
+      messageCount = full.messageCount
+      endsWithNewline = full.endsWithNewline
+    }
+
+    this.remember(filePath, { offsets, messageCount, mtimeMs: info.mtimeMs, size: info.size, endsWithNewline })
+    return { offsets, messageCount }
+  }
+
+  /**
+   * Backward paging over the offset index.
+   *
+   * Widens the scan window [nextStart, end) geometrically until it holds more
+   * messages than `limit` (so we know there is a real earlier boundary to
+   * report) or reaches line index 0 (the true start of the file, so there is
+   * nothing earlier left to report). Each widened window is re-parsed from
+   * scratch — cheap relative to the I/O, and simple to reason about.
+   *
+   * `earlierCursor` is derived from the line index of the earliest message
+   * kept on the page, never from the scan's window boundary: the window can
+   * extend further back than is needed to fill the page (it doubles each
+   * retry), and it can also contain non-message lines, so window-relative
+   * arithmetic does not line up with real message positions in general.
+   */
+  async readTranscriptPage(
+    filePath: string,
+    opts: { beforeIndex?: number; limit?: number } = {},
+  ): Promise<TranscriptPage> {
+    const limit = opts.limit ?? DEFAULT_LIMIT
+    const { offsets } = await this.indexTranscript(filePath)
+    const info = await stat(filePath)
+    // A renderer-supplied cursor that is not a real, non-negative index (NaN, most concretely) must
+    // not reach the arithmetic below: `Math.min(NaN, n)` is `NaN`, which makes `windowStart === 0`
+    // never hold and the loop below spin forever, opening and closing the file on every pass (SEC-8).
+    // Anything not a safe non-negative integer is treated as "no cursor", the same as omitting it.
+    const beforeIndex = Number.isSafeInteger(opts.beforeIndex) && (opts.beforeIndex as number) >= 0
+      ? opts.beforeIndex
+      : undefined
+    const end = Math.max(0, Math.min(beforeIndex ?? offsets.length, offsets.length))
+    if (!Number.isFinite(end)) throw new Error('Could not resolve a valid transcript window')
+
+    // Assigned unconditionally on every iteration before the loop's only `break`, so these are
+    // definitely assigned by the time they're read below without needing a throwaway initial value.
+    let windowMessages: IndexedMessage[]
+    let skippedLines: number
+    let windowStart: number
+    let span = Math.max(limit * 2, 1)
+
+    for (;;) {
+      const nextStart = Math.max(0, end - span)
+      const byteStart = nextStart < offsets.length ? offsets[nextStart] : info.size
+      const byteEnd = end < offsets.length ? offsets[end] : info.size
+      const text = await readRange(filePath, byteStart, byteEnd)
+
+      windowMessages = []
+      skippedLines = 0
+      let lineIndex = nextStart
+      for (const line of text.split('\n')) {
+        if (line.length === 0) continue
+        if (line.length > MAX_LINE_CHARS) {
+          skippedLines++
+          lineIndex++
+          continue
+        }
+        let entry: Record<string, unknown>
+        try {
+          entry = JSON.parse(line) as Record<string, unknown>
+        } catch {
+          skippedLines++
+          lineIndex++
+          continue
+        }
+        const m = toMessage(entry)
+        if (m) windowMessages.push({ index: lineIndex, message: m })
+        lineIndex++
+      }
+
+      windowStart = nextStart
+      // Strictly more than `limit`, not >=: landing exactly on `limit` while
+      // windowStart is still > 0 would leave us unable to tell whether earlier
+      // messages exist, so keep widening until that ambiguity is resolved.
+      if (windowMessages.length > limit || windowStart === 0) break
+      span *= 2
+    }
+
+    const overflow = Math.max(0, windowMessages.length - limit)
+    const page = windowMessages.slice(overflow)
+    const earlierCursor = overflow > 0 ? page[0].index : null
+
+    return {
+      messages: page.map((p) => p.message),
+      earlierCursor,
+      skippedLines,
+    }
   }
 }

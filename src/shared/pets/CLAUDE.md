@@ -65,8 +65,10 @@ all pets (`PetService.comment`), and only while a session is working.
   - Scenery uses frames of its own, with their constants in `src/renderer/features/pets/render3d/frames.ts`. That file
     doesn't import three.js, which only the worker loads.
   - Props render once, and the render is kept.
-- **Test seams.** `__apiaryPetBrainOptions` on `globalThis` makes scenes and remarks come round
-  in seconds, and `sceneKinds` picks which scenes play. `drawPetsFlat` skips 3D in component tests.
+- **Test seams.** `petBrainOptions` makes scenes and remarks come round in seconds (`sceneKinds`
+  picks which scenes play); `petsFlat` skips 3D in component tests. Both live in
+  `src/renderer/state/testSeams.ts`, set by `setTestSeams` in a component test or by
+  `APIARY_RENDERER_SEAMS` in an e2e run, and inert in a packaged build.
 
 ## How a pet is drawn: 3D, rendered once
 

@@ -1,7 +1,12 @@
 import { type JSX, useEffect, useState } from 'react'
 import type { AppSettingsPayload, LogStatusPayload } from '@shared/api'
+import { SETTINGS } from '@shared/settings/schema'
 import { CheckboxSetting } from '../fields/CheckboxSetting'
 import { clampInt } from '../fields/NumberSetting'
+import { copyText } from '../../../state/clipboard'
+import { readLogStatus } from '../../../state/log'
+import { clearLogs, revealLogFolder } from '../../../state/diagnostics'
+import { logBackgroundFailure } from '../../../ui/fireAndForget'
 
 /** Log sizes, in the units a person would say them in. */
 function formatBytes(bytes: number): string {
@@ -23,7 +28,11 @@ export function DiagnosticsSection(
   // Re-read whenever the switch is flipped: the folder does not exist until logging is on, so
   // "where the logs are" changes with the checkbox.
   useEffect(() => {
-    void window.apiary.logStatus().then(setLogStatus).catch(() => setLogStatus(null))
+    readLogStatus().then(setLogStatus).catch((e: unknown) => {
+      // The folder not being readable reads as "not written yet"; the cause is in the log.
+      setLogStatus(null)
+      logBackgroundFailure(e, 'app')
+    })
   }, [draft.diagnosticsEnabled])
 
   return (
@@ -61,24 +70,24 @@ export function DiagnosticsSection(
             <input
               className="search settings-number"
               type="number"
-              min={1}
-              max={90}
+              min={SETTINGS.logRetentionDays.range.min}
+              max={SETTINGS.logRetentionDays.range.max}
               data-testid="setting-log-retention-days"
               value={draft.logRetentionDays}
               onChange={(e) => {
-                patch({ logRetentionDays: clampInt(e.target.value, 1, 90) })
+                patch({ logRetentionDays: clampInt(e.target.value, SETTINGS.logRetentionDays.range.min, SETTINGS.logRetentionDays.range.max) })
               }}
             />
             <span>days, using at most</span>
             <input
               className="search settings-number"
               type="number"
-              min={1}
-              max={500}
+              min={SETTINGS.logMaxSizeMb.range.min}
+              max={SETTINGS.logMaxSizeMb.range.max}
               data-testid="setting-log-max-size"
               value={draft.logMaxSizeMb}
               onChange={(e) => {
-                patch({ logMaxSizeMb: clampInt(e.target.value, 1, 500) })
+                patch({ logMaxSizeMb: clampInt(e.target.value, SETTINGS.logMaxSizeMb.range.min, SETTINGS.logMaxSizeMb.range.max) })
               }}
             />
             <span>MB</span>
@@ -107,7 +116,7 @@ export function DiagnosticsSection(
             className="btn"
             data-testid="log-open-folder"
             onClick={() => {
-              void window.apiary.logReveal().catch(() => { /* nothing useful to add */ })
+              revealLogFolder()
             }}
           >
             Open log folder
@@ -116,7 +125,7 @@ export function DiagnosticsSection(
             className="btn"
             data-testid="log-copy-path"
             onClick={() => {
-              void window.apiary.copyToClipboard(logStatus?.dir ?? '')
+              void copyText(logStatus?.dir ?? '')
             }}
           >
             Copy path
@@ -126,7 +135,7 @@ export function DiagnosticsSection(
             data-testid="log-clear"
             disabled={logStatus === null || logStatus.files === 0}
             onClick={() => {
-              void window.apiary.logClear().then(setLogStatus).catch(() => { /* as above */ })
+              void clearLogs().then((status) => { if (status !== null) setLogStatus(status) })
             }}
           >
             Delete logs

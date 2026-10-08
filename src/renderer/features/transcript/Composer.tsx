@@ -1,4 +1,4 @@
-import { asSessionId, ptyIdOfSession, type PtyId } from '@shared/domain/ids'
+import { ptyIdOfSession, type PtyId } from '@shared/domain/ids'
 import { type JSX, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import {
   isChatPermissionMode,
@@ -10,6 +10,11 @@ import { CommandPalette } from '../chat/CommandPalette'
 import type { SessionNode } from '@shared/types'
 import { useNotifications } from '../../ui/notifications'
 import { CloseIcon } from '../../ui/icons'
+import { useResizeDrag } from '../../ui/useResizeDrag'
+import { interruptChat, sendChat, setChatEffort, setChatModel, setChatPermissionMode, startChat, terminalBusy } from '../../state/chatStore'
+import { sendPrompt } from '../../state/terminals'
+import { loadComposerHeight, saveComposerHeight } from '../../state/uiState'
+import { saveImage } from '../../state/transcript'
 
 /** One image waiting to be sent: where it now lives on disk, and a preview of it. */
 interface Attachment {
@@ -28,16 +33,6 @@ interface Attachment {
 const MIN_HEIGHT = 58
 const GROW_SHARE = 0.4
 const MAX_SHARE = 0.75
-const HEIGHT_KEY = 'apiary.composerHeight'
-
-function savedHeight(): number | null {
-  try {
-    const n = Number(localStorage.getItem(HEIGHT_KEY))
-    return Number.isFinite(n) && n >= MIN_HEIGHT ? n : null
-  } catch {
-    return null
-  }
-}
 
 /** Model choices offered by the picker. `null` means "leave whatever the session is using". */
 const MODELS = ['default', 'opus', 'sonnet', 'haiku'] as const
@@ -92,8 +87,7 @@ export function Composer({
   const mode = chatRunning ? shownMode(chat.permissionMode) : startMode
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   // The height the box was dragged to, which it never shrinks below; null to fit what is typed.
-  const [dragged, setDragged] = useState<number | null>(savedHeight)
-  const [dragging, setDragging] = useState(false)
+  const [dragged, setDragged] = useState<number | null>(() => loadComposerHeight(MIN_HEIGHT))
 
   // Fits the box to its text, so a long message can be read whole before it is sent: from the
   // dragged height (or the minimum) up to a share of the window, scrolling only past that.
@@ -106,31 +100,26 @@ export function Composer({
     el.style.height = `${String(Math.min(cap, Math.max(floor, el.scrollHeight + 2)))}px`
   }, [text, dragged])
 
-  const startResize = useCallback((e: React.PointerEvent<HTMLDivElement>): void => {
-    const el = textareaRef.current
-    if (el === null) return
-    e.preventDefault()
-    const startY = e.clientY
-    const startHeight = el.getBoundingClientRect().height
-    const handle = e.currentTarget
-    handle.setPointerCapture(e.pointerId)
-    setDragging(true)
-    let latest = startHeight
-    const move = (ev: PointerEvent): void => {
-      latest = Math.round(Math.min(window.innerHeight * MAX_SHARE, Math.max(MIN_HEIGHT, startHeight + startY - ev.clientY)))
-      setDragged(latest)
-    }
-    const up = (): void => {
-      handle.removeEventListener('pointermove', move)
-      handle.removeEventListener('pointerup', up)
-      handle.removeEventListener('pointercancel', up)
-      setDragging(false)
-      try { localStorage.setItem(HEIGHT_KEY, String(latest)) } catch { /* only a convenience */ }
-    }
-    handle.addEventListener('pointermove', move)
-    handle.addEventListener('pointerup', up)
-    handle.addEventListener('pointercancel', up)
-  }, [])
+  // The top edge drags the box taller (up grows it) and, with the keyboard, steps it the same way.
+  // The height is committed — and saved — once, on release or key press; `onLive` only moves the
+  // local state the box already renders from.
+  const { dragging, separatorProps } = useResizeDrag({
+    axis: 'row',
+    value: dragged ?? MIN_HEIGHT,
+    min: MIN_HEIGHT,
+    max: Math.round(window.innerHeight * MAX_SHARE),
+    label: 'Resize the message box',
+    grows: 'back',
+    // From what the box measures now: before it is dragged it is sized to fit its text.
+    initial: () => textareaRef.current?.getBoundingClientRect().height ?? MIN_HEIGHT,
+    measure: (e, start) =>
+      Math.round(Math.min(window.innerHeight * MAX_SHARE, Math.max(MIN_HEIGHT, start.value + start.y - e.clientY))),
+    onLive: setDragged,
+    onEnd: (height) => {
+      setDragged(height)
+      saveComposerHeight(height)
+    },
+  })
 
   const addImages = useCallback(async (files: File[]): Promise<void> => {
     for (const file of files) {
@@ -148,7 +137,7 @@ export function Composer({
           }
           reader.readAsDataURL(file)
         })
-        const path = await window.apiary.saveImage(base64, file.type)
+        const path = await saveImage(base64, file.type)
         setAttachments((prev) => [...prev, { path, previewUrl: `data:${file.type};base64,${base64}` }])
       } catch (e) {
         notifyError(e, 'Could not attach that image')
@@ -178,24 +167,24 @@ export function Composer({
         // (its children: they die with it), keeps the session — the message is typed into it, and
         // the transcript, which reads the same file, shows it arrive. Claude Code queues a message
         // typed while it works, as the chat does.
-        const sessionId = asSessionId(chat?.sessionId ?? session.sessionId)
+        const sessionId = chat?.sessionId ?? session.sessionId
         if (!chatRunning && running && ptyId !== null) {
-          const terminal = await window.apiary.terminalBusy(asSessionId(session.sessionId))
+          const terminal = await terminalBusy(session.sessionId)
           if (terminal.busy || terminal.backgroundTasks > 0) {
-            await window.apiary.sendPrompt(ptyId, lines.join('\n'))
+            await sendPrompt(ptyId, lines.join('\n'))
             if (command === undefined) { setText(''); setAttachments([]) }
             return
           }
         }
         if (!chatRunning) {
-          await window.apiary.chatStart(sessionId, {
+          await startChat(sessionId, {
             takeOver: true,
             ...(startModel !== 'default' ? { model: startModel } : {}),
             ...(startMode !== '' ? { permissionMode: startMode } : {}),
             ...(startEffort !== null ? { effort: startEffort } : {}),
           })
         }
-        await window.apiary.chatSend(sessionId, lines.join('\n'))
+        await sendChat(sessionId, lines.join('\n'))
         if (command === undefined) { setText(''); setAttachments([]) }
         return
       }
@@ -206,7 +195,7 @@ export function Composer({
         await onResume()
         target = ptyIdOfSession(session.sessionId)
       }
-      await window.apiary.sendPrompt(target, lines.join('\n'))
+      await sendPrompt(target, lines.join('\n'))
       setText('')
       setAttachments([])
       onShowSession()
@@ -218,34 +207,31 @@ export function Composer({
   }, [text, attachments, ptyId, running, onResume, onShowSession, session.sessionId, notifyError, chatMode, chatRunning, chat?.sessionId, startModel, startMode, startEffort])
 
   const interrupt = useCallback((): void => {
-    void window.apiary.chatInterrupt(asSessionId(chat?.sessionId ?? session.sessionId)).catch((e: unknown) => { notifyError(e, 'Could not stop Claude') })
-  }, [chat?.sessionId, session.sessionId, notifyError])
+    interruptChat(chat?.sessionId ?? session.sessionId)
+  }, [chat?.sessionId, session.sessionId])
 
   const chooseMode = useCallback((next: ChatPermissionMode): void => {
     setStartMode(next)
     if (!chatRunning) return
-    void window.apiary.chatSetPermissionMode(asSessionId(chat?.sessionId ?? session.sessionId), next)
-      .catch((e: unknown) => { notifyError(e, 'Could not change the permission mode') })
-  }, [chatRunning, chat?.sessionId, session.sessionId, notifyError])
+    setChatPermissionMode(chat?.sessionId ?? session.sessionId, next)
+  }, [chatRunning, chat?.sessionId, session.sessionId])
 
   const chooseChatModel = useCallback((next: string): void => {
     if (!chatRunning) { setStartModel(next); return }
-    void window.apiary.chatSetModel(asSessionId(chat?.sessionId ?? session.sessionId), next)
-      .catch((e: unknown) => { notifyError(e, 'Could not switch model') })
-  }, [chatRunning, chat?.sessionId, session.sessionId, notifyError])
+    setChatModel(chat?.sessionId ?? session.sessionId, next)
+  }, [chatRunning, chat?.sessionId, session.sessionId])
 
   const chooseEffort = useCallback((next: ChatEffort): void => {
     if (!chatRunning) { setStartEffort(next); return }
-    void window.apiary.chatSetEffort(asSessionId(chat?.sessionId ?? session.sessionId), next)
-      .catch((e: unknown) => { notifyError(e, 'Could not change the effort') })
-  }, [chatRunning, chat?.sessionId, session.sessionId, notifyError])
+    setChatEffort(chat?.sessionId ?? session.sessionId, next)
+  }, [chatRunning, chat?.sessionId, session.sessionId])
 
   const chooseModel = useCallback(async (next: (typeof MODELS)[number]): Promise<void> => {
     setModel(next)
     if (!running || ptyId === null) return
     try {
       // `/model` is Claude Code's own command; this types it for you rather than reimplementing it.
-      await window.apiary.sendPrompt(ptyId, `/model ${next}`)
+      await sendPrompt(ptyId, `/model ${next}`)
       notify({ kind: 'info', message: `Asked the session to switch to ${next}.` })
     } catch (e) {
       notifyError(e, 'Could not switch model')
@@ -266,14 +252,11 @@ export function Composer({
         className="composer-resize"
         data-testid="composer-resize"
         data-dragging={dragging}
-        role="separator"
-        aria-orientation="horizontal"
-        aria-label="Resize the message box"
         title="Drag to resize · double-click to fit the text again"
-        onPointerDown={startResize}
+        {...separatorProps}
         onDoubleClick={() => {
           setDragged(null)
-          try { localStorage.removeItem(HEIGHT_KEY) } catch { /* only a convenience */ }
+          saveComposerHeight(null)
         }}
       />
       {attachments.length > 0 && (

@@ -65,7 +65,7 @@ it('renders pets as aligned transparent layers, with their joints inside the fra
       host.append(cell)
     }
   }
-  await new Promise((res) => setTimeout(res, 300))
+  await expect.poll(() => [...host.querySelectorAll('img')].every((i) => i.complete)).toBe(true)
   await page.screenshot({ element: host, path: '../../test-results/pets/gallery3d.png' })
 })
 })

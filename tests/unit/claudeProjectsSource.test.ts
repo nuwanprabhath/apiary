@@ -1,9 +1,8 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ClaudeProjectsSource } from '../../src/main/sources/claudeProjects'
-import type { WatchFn } from '../../src/main/sessions/sessionWatcher'
+import { ClaudeProjectsSource, projectsDir } from '../../src/main/sources/claudeProjects'
 
 describe('ClaudeProjectsSource', () => {
   it('scans the configRoot/projects directory it was built from', async () => {
@@ -32,22 +31,8 @@ describe('ClaudeProjectsSource', () => {
     )
   })
 
-  it('watches configRoot/projects and returns an unsubscribe that closes the watcher', () => {
-    let closed = false
-    let seenDir: string | undefined
-    const watchFn: WatchFn = (dir) => {
-      seenDir = dir
-      const fakeWatcher = {
-        on: () => fakeWatcher,
-        close: async () => { closed = true },
-      }
-      return fakeWatcher as never
-    }
-    const source = new ClaudeProjectsSource('/config-root')
-    const onChange = vi.fn()
-    const stop = source.watch(onChange, { watch: watchFn })
-    expect(seenDir).toBe(join('/config-root', 'projects'))
-    stop()
-    expect(closed).toBe(true)
+  it('is watched at configRoot/projects, the same directory it scans', () => {
+    expect(projectsDir('/home/nuwan/.claude')).toBe('/home/nuwan/.claude/projects')
+    expect(new ClaudeProjectsSource('/config-root').watchDir).toBe(join('/config-root', 'projects'))
   })
 })

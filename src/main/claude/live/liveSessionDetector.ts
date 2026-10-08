@@ -1,3 +1,4 @@
+import { UUID_PATTERN } from '@shared/domain/ids'
 import { createExec, type ExecFn } from '../../exec/run'
 
 /** MAIN-23: same wrapper `branchOps.ts`/`worktreeResolver.ts` use, at this module's own 5s
@@ -6,10 +7,9 @@ import { createExec, type ExecFn } from '../../exec/run'
  *  to nothing live" contract without a real `ps`. `cwd` is unused by `ps`, so `process.cwd()` is
  *  passed through unconditionally — the same as before this migration, when `run()` was called
  *  with no `cwd` option at all. */
-const defaultExec: ExecFn = createExec({ timeoutMs: 5000, maxBuffer: 8 * 1024 * 1024, scope: 'live-sessions' })
+const psExec: ExecFn = createExec({ timeoutMs: 5000, maxBuffer: 8 * 1024 * 1024, scope: 'live-sessions' })
 
-const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-const RESUME = new RegExp(`--resume[=\\s]+(${UUID})`)
+const RESUME = new RegExp(`--resume[=\\s]+(${UUID_PATTERN})`)
 /** The executable must actually be claude — not a shell that merely mentions it. */
 const IS_CLAUDE = /(^|\/)claude(\s|$)/
 
@@ -40,7 +40,7 @@ export interface DetectLiveSessionsOptions {
 }
 
 export async function detectLiveSessions(options: DetectLiveSessionsOptions = {}): Promise<Map<string, number>> {
-  const exec = options.exec ?? defaultExec
+  const exec = options.exec ?? psExec
   try {
     const stdout = await exec('ps', ['-eo', 'pid=,args='], process.cwd())
     return parseLiveSessions(stdout)

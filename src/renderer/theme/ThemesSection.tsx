@@ -3,9 +3,11 @@ import { DEFAULT_PALETTE, ORIGINAL_THEME, type ThemeSpec, type PaletteToken } fr
 import { THEME_MODELS, type ThemeModel } from '@shared/theme/models'
 import { useThemeState } from './useTheme'
 import { applyTheme } from './applyTheme'
-import { useNotifications } from '../ui/notifications'
 import { PencilIcon, TrashIcon } from '../ui/icons'
 import { describeError } from '../ui/errors'
+import { THEME_MODEL_LABELS } from '../ui/modelLabels'
+import { activateTheme, cancelThemeGeneration, deleteTheme, generateTheme, renameTheme, saveTheme, setThemeOptions } from '../state/theme'
+import { surface } from '../state/policy'
 
 /** How many versions of a preview Back and Forward can step through. */
 const HISTORY = 10
@@ -20,14 +22,8 @@ interface Preview {
   prompt: string
 }
 
-/** Labels for the models `THEME_MODELS` (the shared, generator-authoritative list) allows. */
-const MODEL_LABELS: Record<ThemeModel, string> = {
-  sonnet: 'Sonnet (balanced)',
-  haiku: 'Haiku (fastest)',
-  opus: 'Opus (most careful)',
-}
 const MODELS: Array<{ id: ThemeModel; label: string }> =
-  THEME_MODELS.map((id) => ({ id, label: MODEL_LABELS[id] }))
+  THEME_MODELS.map((id) => ({ id, label: THEME_MODEL_LABELS[id] }))
 
 const SWATCHES: PaletteToken[] = ['bg-window', 'bg-panel', 'bg', 'text', 'accent', 'info', 'success']
 
@@ -63,7 +59,6 @@ function effectsLabel(spec: ThemeSpec): string {
  */
 export function ThemesSection(): JSX.Element {
   const theme = useThemeState()
-  const { notifyError } = useNotifications()
   const [naming, setNaming] = useState<null | 'save' | 'rename' | 'save-preview'>(null)
   const [name, setName] = useState('')
   const [request, setRequest] = useState('')
@@ -89,7 +84,7 @@ export function ThemesSection(): JSX.Element {
   const generate = (text: string, base: ThemeSpec | null): void => {
     setBusy(true)
     setError(null)
-    window.apiary.themeGenerate(text, base).then(({ spec, note }) => {
+    generateTheme(text, base).then(({ spec, note }) => {
       setPreview((prev) => {
         const kept = prev === null ? [] : prev.history.slice(0, prev.index + 1)
         const history = [...kept, spec].slice(-HISTORY)
@@ -111,20 +106,20 @@ export function ThemesSection(): JSX.Element {
     ...theme.saved.map((s) => ({ id: s.id, spec: { ...s.spec, name: s.name }, saved: true })),
   ]
   const current = all.find((t) => t.id === theme.activeId) ?? all[0]
-  const run = (p: Promise<unknown>, what: string): void => { void p.catch((e: unknown) => { notifyError(e, what) }) }
+  const run = surface
 
   const submitName = (): void => {
     const trimmed = name.trim()
     if (trimmed === '') return
     if (naming === 'save-preview' && shown !== null && preview !== null) {
-      run(window.apiary.themeSave(trimmed, shown, preview.prompt).then((saved) => {
+      run(saveTheme(trimmed, shown, preview.prompt).then((saved) => {
         setPreview(null)
-        return window.apiary.themeApply(saved.id)
+        return activateTheme(saved.id)
       }), 'Could not save the theme')
     } else if (naming === 'save') {
-      run(window.apiary.themeSave(trimmed, current.spec).then((saved) => window.apiary.themeApply(saved.id)), 'Could not save the theme')
+      run(saveTheme(trimmed, current.spec).then((saved) => activateTheme(saved.id)), 'Could not save the theme')
     } else if (naming === 'rename' && current.id !== null) {
-      run(window.apiary.themeRename(current.id, trimmed), 'Could not rename the theme')
+      run(renameTheme(current.id, trimmed), 'Could not rename the theme')
     }
     setNaming(null)
   }
@@ -163,7 +158,7 @@ export function ThemesSection(): JSX.Element {
           {busy ? (
             <>
               <span className="theme-busy" data-testid="theme-generating"><span className="spinner-dot" /> Claude is designing — usually under a minute…</span>
-              <button className="btn small" data-testid="theme-generate-cancel" onClick={() => window.apiary.themeGenerateCancel()}>Cancel</button>
+              <button className="btn small" data-testid="theme-generate-cancel" onClick={() => cancelThemeGeneration()}>Cancel</button>
             </>
           ) : (
             <button
@@ -224,9 +219,9 @@ export function ThemesSection(): JSX.Element {
               data-testid="theme-keep"
               disabled={busy}
               onClick={() => {
-                run(window.apiary.themeSave(shown.name, shown, preview.prompt).then((saved) => {
+                run(saveTheme(shown.name, shown, preview.prompt).then((saved) => {
                   setPreview(null)
-                  return window.apiary.themeApply(saved.id)
+                  return activateTheme(saved.id)
                 }), 'Could not keep the theme')
               }}
             >
@@ -275,7 +270,7 @@ export function ThemesSection(): JSX.Element {
               className="btn small"
               data-testid="theme-reset"
               disabled={theme.activeId === null}
-              onClick={() => run(window.apiary.themeApply(null), 'Could not reset the theme')}
+              onClick={() => run(activateTheme(null), 'Could not reset the theme')}
             >
               Reset to original
             </button>
@@ -305,7 +300,7 @@ export function ThemesSection(): JSX.Element {
               data-testid="theme-card"
               data-theme-id={t.id ?? 'original'}
               data-active={t.id === theme.activeId}
-              onClick={() => run(window.apiary.themeApply(t.id), 'Could not apply the theme')}
+              onClick={() => run(activateTheme(t.id), 'Could not apply the theme')}
             >
               <Swatches spec={t.spec} />
               <span className="theme-card-name">{t.spec.name}</span>
@@ -319,7 +314,7 @@ export function ThemesSection(): JSX.Element {
                   aria-label={`Rename ${t.spec.name}`}
                   title="Rename"
                   onClick={() => {
-                    run(window.apiary.themeApply(t.id).then(() => { setName(t.spec.name); setNaming('rename') }), 'Could not select the theme')
+                    run(activateTheme(t.id).then(() => { setName(t.spec.name); setNaming('rename') }), 'Could not select the theme')
                   }}
                 >
                   <PencilIcon />
@@ -329,7 +324,7 @@ export function ThemesSection(): JSX.Element {
                   data-testid="theme-delete"
                   aria-label={`Delete ${t.spec.name}`}
                   title="Delete"
-                  onClick={() => { if (t.id !== null) run(window.apiary.themeDelete(t.id), 'Could not delete the theme') }}
+                  onClick={() => { if (t.id !== null) run(deleteTheme(t.id), 'Could not delete the theme') }}
                 >
                   <TrashIcon />
                 </button>
@@ -348,7 +343,7 @@ export function ThemesSection(): JSX.Element {
           className="theme-model"
           data-testid="theme-model"
           value={theme.options.model}
-          onChange={(e) => run(window.apiary.themeSetOptions({ model: e.target.value as ThemeModel }), 'Could not change the setting')}
+          onChange={(e) => run(setThemeOptions({ model: e.target.value as ThemeModel }), 'Could not change the setting')}
         >
           {MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
         </select>
@@ -358,7 +353,7 @@ export function ThemesSection(): JSX.Element {
           type="checkbox"
           data-testid="theme-animated"
           checked={theme.options.animated}
-          onChange={(e) => run(window.apiary.themeSetOptions({ animated: e.target.checked }), 'Could not change the setting')}
+          onChange={(e) => run(setThemeOptions({ animated: e.target.checked }), 'Could not change the setting')}
         />
         <span>
           <strong>Animated effects</strong>
@@ -380,7 +375,7 @@ export function ThemesSection(): JSX.Element {
           step={5}
           data-testid="theme-intensity"
           value={Math.round(theme.options.intensity * 100)}
-          onChange={(e) => run(window.apiary.themeSetOptions({ intensity: Number(e.target.value) / 100 }), 'Could not change the setting')}
+          onChange={(e) => run(setThemeOptions({ intensity: Number(e.target.value) / 100 }), 'Could not change the setting')}
         />
       </label>
       <p className="settings-help">

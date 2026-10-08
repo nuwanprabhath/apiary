@@ -106,7 +106,8 @@ export function useMainTreeNav({
         const kind = current.dataset.treeKind
         const key = current.dataset.treeKey
         if (key === undefined) return
-        if (kind === 'session') setMenu({ kind: 'session', id: key, x: at.x, y: at.y })
+        const session = sessionsById.get(key)
+        if (kind === 'session') { if (session !== undefined) setMenu({ kind: 'session', id: session.sessionId, x: at.x, y: at.y }) }
         // Matches FolderHeader's own onContextMenu: only a depth-0 folder has a menu at all.
         else if (kind === 'folder' && current.dataset.depth === '0') setMenu({ kind: 'folder', id: key, x: at.x, y: at.y })
         else if (kind === 'group') setMenu({ kind: 'group', id: key, x: at.x, y: at.y })

@@ -1,7 +1,8 @@
 import { appendFileSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { ignoreErrors } from '@shared/ignoreErrors'
 import { redact, redactString } from '@shared/redact'
-import type { LogLevel, LogStatusPayload } from '@shared/domain/log'
+import type { LogLevel, LogScope, LogStatusPayload } from '@shared/domain/log'
 import { filesToPrune, shouldRotate, type LogFile } from './rotation'
 
 export type { LogLevel } from '@shared/domain/log'
@@ -65,12 +66,11 @@ export class Logger {
     this.ready = false
     this.activeBytes = 0
     if (!opts.enabled) return
-    try {
+    // See the note on never breaking the app: a directory that cannot be made means no logging.
+    ignoreErrors(() => {
       this.prepare()
       this.prune()
-    } catch {
-      // See the note on never breaking the app: a directory that cannot be made means no logging.
-    }
+    }, 'a directory that cannot be made means no logging')
   }
 
   get enabled(): boolean { return this.opts.enabled && this.opts.dir !== '' }
@@ -111,26 +111,27 @@ export class Logger {
       activeName: ACTIVE,
     })
     for (const name of doomed) {
-      try { rmSync(join(this.opts.dir, name), { force: true }) } catch { /* it can go next time */ }
+      ignoreErrors(() => { rmSync(join(this.opts.dir, name), { force: true }) }, 'it can go next time')
     }
   }
 
   /** Rolls the active file aside under a sortable, timestamped name. */
   private rotate(): void {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-    try {
+    // A rename that fails leaves the active file in place: it keeps growing, and the size
+    // budget still removes older files. Worse than rotating, better than losing the log.
+    ignoreErrors(() => {
       renameSync(join(this.opts.dir, ACTIVE), join(this.opts.dir, `${PREFIX}-${stamp}${SUFFIX}`))
       this.activeBytes = 0
       this.prune()
-    } catch {
-      // A rename that fails leaves the active file in place: it keeps growing, and the size
-      // budget still removes older files. Worse than rotating, better than losing the log.
-    }
+    }, 'a failed rotation leaves the active file in place')
   }
 
-  log(level: LogLevel, scope: string, message: string, fields: LogFields = {}): void {
+  log(level: LogLevel, scope: LogScope | `renderer:${LogScope}`, message: string, fields: LogFields = {}): void {
     if (!this.enabled) return
-    try {
+    // Deliberately silent. Reporting a logging failure through the UI would turn a diagnostic
+    // aid into a source of its own errors, which is precisely backwards.
+    ignoreErrors(() => {
       this.prepare()
       // The redacted `fields` are spread *before* the four fixed keys, not after: `renderer:${scope}`
       // messages (logWrite, ipc.ts) carry a caller-chosen `scope` and `message`, and if `fields`
@@ -148,16 +149,13 @@ export class Logger {
       if (shouldRotate(this.activeBytes, bytes, this.budgetBytes)) this.rotate()
       appendFileSync(join(this.opts.dir, ACTIVE), line)
       this.activeBytes += bytes
-    } catch {
-      // Deliberately silent. Reporting a logging failure through the UI would turn a diagnostic
-      // aid into a source of its own errors, which is precisely backwards.
-    }
+    }, 'logging must never break the app')
   }
 
-  debug(scope: string, message: string, fields?: LogFields): void { this.log('debug', scope, message, fields) }
-  info(scope: string, message: string, fields?: LogFields): void { this.log('info', scope, message, fields) }
-  warn(scope: string, message: string, fields?: LogFields): void { this.log('warn', scope, message, fields) }
-  error(scope: string, message: string, fields?: LogFields): void { this.log('error', scope, message, fields) }
+  debug(scope: LogScope, message: string, fields?: LogFields): void { this.log('debug', scope, message, fields) }
+  info(scope: LogScope, message: string, fields?: LogFields): void { this.log('info', scope, message, fields) }
+  warn(scope: LogScope, message: string, fields?: LogFields): void { this.log('warn', scope, message, fields) }
+  error(scope: LogScope, message: string, fields?: LogFields): void { this.log('error', scope, message, fields) }
 
   /** What Settings shows: where the logs are, how many, and how much disk they take. */
   status(): LogStatus {
@@ -173,7 +171,7 @@ export class Logger {
   /** Deletes every log file. Offered in Settings, and the honest counterpart to switching it on. */
   clear(): void {
     for (const file of this.listFiles()) {
-      try { rmSync(join(this.opts.dir, file.name), { force: true }) } catch { /* as above */ }
+      ignoreErrors(() => { rmSync(join(this.opts.dir, file.name), { force: true }) }, 'it can go next time')
     }
     this.activeBytes = 0
   }

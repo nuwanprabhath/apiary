@@ -5,6 +5,9 @@ import {
 import type { NewSessionInfo } from '@shared/types'
 import { describeError } from '../../ui/errors'
 import { Modal } from '../../ui/Modal'
+import { BRANCH_ROW_SELECTOR } from './branchRows'
+import { useRovingList } from '../../ui/useRovingList'
+import { createWorktree, worktreeCreateOptions } from '../../state/git'
 
 interface Props {
   /** The sidebar folder the "+" belonged to. Main resolves the repository from it. */
@@ -27,23 +30,6 @@ type Step =
   | { kind: 'base' }
   | { kind: 'new-branch'; from?: string }
 
-const ROW_SELECTOR = '.branch-switcher-action, .branch-switcher-row'
-
-/** ArrowUp/Down/Home/End between the rows of a list step, as in the branch switcher. */
-function onRowsKeyDown(e: React.KeyboardEvent, container: HTMLElement | null): void {
-  if (container === null || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
-  const rows = [...container.querySelectorAll<HTMLElement>(ROW_SELECTOR)].filter((r) => !r.hasAttribute('disabled'))
-  if (rows.length === 0) return
-  const current = rows.indexOf(document.activeElement as HTMLElement)
-  let next: number
-  if (e.key === 'Home') next = 0
-  else if (e.key === 'End') next = rows.length - 1
-  else if (e.key === 'ArrowDown') next = current === -1 ? 0 : (current + 1) % rows.length
-  else next = current <= 0 ? rows.length - 1 : current - 1
-  e.preventDefault()
-  rows[next]?.focus()
-}
-
 export function NewWorktreeDialog({ folderPath, folderLabel, onClose, onCreated }: Props): JSX.Element {
   const [options, setOptions] = useState<WorktreeCreateOptions | null>(null)
   const [step, setStep] = useState<Step>({ kind: 'name' })
@@ -53,10 +39,11 @@ export function NewWorktreeDialog({ folderPath, folderLabel, onClose, onCreated 
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const listRef = useRef<HTMLUListElement | null>(null)
+  const rows = useRovingList(listRef, { itemSelector: BRANCH_ROW_SELECTOR, wrap: true })
 
   useEffect(() => {
     let cancelled = false
-    window.apiary.worktreeCreateOptions(folderPath)
+    worktreeCreateOptions(folderPath)
       .then((o) => { if (!cancelled) setOptions(o) })
       .catch((e: unknown) => { if (!cancelled) setError(describeError(e).message) })
     return () => { cancelled = true }
@@ -75,7 +62,7 @@ export function NewWorktreeDialog({ folderPath, folderLabel, onClose, onCreated 
     setBusy(true)
     setError(null)
     try {
-      onCreated(await window.apiary.worktreeCreate(folderPath, { name: name.trim(), branch }))
+      onCreated(await createWorktree(folderPath, { name: name.trim(), branch }))
     } catch (e) {
       setError(describeError(e).message)
     } finally {
@@ -148,9 +135,9 @@ export function NewWorktreeDialog({ folderPath, folderLabel, onClose, onCreated 
             value={query}
             autoFocus
             onChange={(e) => { setQuery(e.target.value) }}
-            onKeyDown={(e) => { onRowsKeyDown(e, listRef.current) }}
+            onKeyDown={rows.onKeyDown}
           />
-          <ul ref={listRef} className="branch-switcher-list" onKeyDown={(e) => { onRowsKeyDown(e, listRef.current) }}>
+          <ul ref={listRef} className="branch-switcher-list" onKeyDown={rows.onKeyDown}>
             {step.kind === 'branch' && (
               <li>
                 <button

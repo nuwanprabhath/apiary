@@ -2,6 +2,7 @@ import { createReadStream } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
+import { ignoreErrorsAsync } from '@shared/ignoreErrors'
 import { costForTokens, hasPricing } from './pricing'
 
 export interface TokenBreakdown {
@@ -59,6 +60,7 @@ const MONTHS = 6
  * src/main/search/CLAUDE.md). Only lines containing `"usage"` are parsed.
  */
 export class TokenAggregator {
+  /** Invalidated by the file's mtime and size: an entry is reused only while both still match. */
   private readonly fileCache = new Map<string, { mtimeMs: number; size: number; entries: UsageEntry[] }>()
 
   constructor(private readonly projectsDir: string, private readonly now: () => Date = () => new Date()) {}
@@ -151,11 +153,10 @@ async function listJsonlFiles(projectsDir: string): Promise<string[]> {
   try { dirs = await readdir(projectsDir, { withFileTypes: true }) } catch { return out }
   for (const dir of dirs) {
     if (!dir.isDirectory()) continue
-    try {
-      for (const f of await readdir(join(projectsDir, dir.name))) {
-        if (f.endsWith('.jsonl')) out.push(join(projectsDir, dir.name, f))
-      }
-    } catch { /* unreadable project folder: skipped */ }
+    const files = await ignoreErrorsAsync(() => readdir(join(projectsDir, dir.name)), 'an unreadable project folder is skipped')
+    for (const f of files ?? []) {
+      if (f.endsWith('.jsonl')) out.push(join(projectsDir, dir.name, f))
+    }
   }
   return out
 }

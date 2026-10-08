@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp, type Rendered } from './renderApp'
-import { sidebarSession, box, mouse, until } from './helpers'
+import { sidebarSession, box, mouse, settled, until } from './helpers'
 
 /**
  * The floating-panel look: the sidebar, each editor pane and its shell are rounded cards on the
@@ -134,10 +134,9 @@ describe('look and feel', () => {
       await mouse.down()
       await mouse.move(r.x + r.width / 2, r.y + 3 - dy, 2)
       await mouse.up()
-      // Settles layout/transition after the drag before measuring pixel geometry below; there is
-      // no visible-state condition to assert on instead.
-      await new Promise((resolve) => setTimeout(resolve, 300))
       const host = document.querySelector('[data-testid="terminal-shell"]')!.closest('.terminal-host')!
+      // Layout and the terminal's refit settle after the drag, before the pixel geometry is measured.
+      await settled(() => `${JSON.stringify(host.getBoundingClientRect())}${JSON.stringify(host.querySelector('.xterm-screen')?.getBoundingClientRect())}`)
       const hostRect = host.getBoundingClientRect()
       const screenRect = host.querySelector('.xterm-screen')!.getBoundingClientRect()
       gaps.push(Math.round(hostRect.bottom - screenRect.bottom))

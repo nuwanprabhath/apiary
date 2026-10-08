@@ -1,0 +1,6 @@
+[
+  {
+    "key": "AppService.dispose",
+    "reason": "Shutdown ordering is the one real behaviour left in the facade: set the disposed flag before any await, stop the status bar and chats, kill ptys, let a refresh in flight finish, then close the store and search. It moves to the container's shutdown when AppService itself goes (handlers take services directly)."
+  }
+]

@@ -12,9 +12,11 @@
  * - **The user's name**, which is in nearly every path. `/Users/nuwan/projects/x` becomes
  *   `~/projects/x`: the shape of the path is the diagnostic value, the account name is not.
  * - **Credentials**, in the shapes they actually take — API keys, GitHub and GitLab tokens,
- *   bearer headers, `password=`/`token=` query parameters, and JWTs. Apiary holds no credential
- *   of its own (see the GitLab plugin's note on `glab`), so anything matching these got here by
- *   accident, which is exactly when redaction has to work.
+ *   bearer headers, `password=`/`token=` query parameters, and JWTs. Apiary stores no credential
+ *   of its own (see the GitLab plugin's note on `glab`). The one it handles is Claude Code's
+ *   sign-in token, which the usage plugin reads only after the user agreed, sends only to
+ *   Anthropic's usage endpoint and never logs (ADR-0019). Anything matching these in a log got
+ *   there by accident, which is exactly when redaction has to work.
  * - **Anything very long**, truncated. A field that grew without bound is how transcript text
  *   would end up in a log by mistake.
  *

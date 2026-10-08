@@ -21,9 +21,14 @@ let mounted: { root: Root; host: HTMLElement } | null = null
 
 export interface Rendered { fake: FakeApiary }
 
-export async function renderApp(opts: FakeOptions = {}): Promise<Rendered> {
+/**
+ * `arrange` runs on the fake before the app mounts — the only moment a test can slow down or count
+ * what the app asks for as it starts (`fake.override('petsState', …)`).
+ */
+export async function renderApp(opts: FakeOptions = {}, arrange?: (fake: FakeApiary) => void): Promise<Rendered> {
   unmountApp()
   const fake = createFakeApiary(opts)
+  arrange?.(fake)
   window.apiary = fake
   applyTheme(fake.initialTheme.active)
   const host = document.createElement('div')

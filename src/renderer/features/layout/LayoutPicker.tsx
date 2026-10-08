@@ -1,10 +1,10 @@
 import { type JSX, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { Popover } from '../../ui/Popover'
 import { PRESETS, capacity, type PresetId } from './layout'
 import { useEscape } from '../../ui/useEscape'
+import { clampTop, fitsHorizontally, POPOVER_GAP, POPOVER_MARGIN } from '../../ui/popoverPlacement'
 
-const GAP = 6
-const MARGIN = 8
 const PER_ROW = 4
 
 interface Props {
@@ -61,13 +61,12 @@ export function LayoutPicker({
     // session rows, so the pointer travelling to it crosses them — and each one it crosses arms
     // its own hover card, which takes the gesture away before the picker can be clicked. To the
     // right there is nothing between the button and the menu.
-    const right = anchor.right + GAP
-    const left = right + box.width + MARGIN <= window.innerWidth
+    const right = anchor.right + POPOVER_GAP
+    const left = fitsHorizontally(right, box.width)
       ? right
-      : Math.max(MARGIN, anchor.left - GAP - box.width)
+      : Math.max(POPOVER_MARGIN, anchor.left - POPOVER_GAP - box.width)
     // Top-aligned with the button, pulled up only as far as staying on screen requires.
-    const top = Math.max(MARGIN, Math.min(anchor.top, window.innerHeight - box.height - MARGIN))
-    setPos({ left, top })
+    setPos({ left, top: clampTop(anchor.top, box.height) })
   }, [anchor])
 
   // Focus the first target once the picker actually has a position — not in the same effect that
@@ -110,13 +109,15 @@ export function LayoutPicker({
   }
 
   return createPortal(
-    <div
+    <Popover
       ref={ref}
       className="layout-picker"
-      data-testid="layout-picker"
+      testId="layout-picker"
       data-mode={mode}
-      role="dialog"
-      aria-label={heading}
+      label={heading}
+      // It moves focus itself (to its first target, once placed), and a hover-opened picker was
+      // never opened from a focused control to return to.
+      restoreFocus={false}
       style={pos ?? { visibility: 'hidden', left: 0, top: 0 }}
       onMouseEnter={onPointerEnter}
       onMouseLeave={onPointerLeave}
@@ -176,7 +177,7 @@ export function LayoutPicker({
           )
         })}
       </div>
-    </div>,
+    </Popover>,
     document.body,
   )
 }

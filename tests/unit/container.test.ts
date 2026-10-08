@@ -56,10 +56,15 @@ describe('createContainer', () => {
     const paths = containerPaths(env, dir, () => join(dir!, '.claude'))
     const c = createContainer(env, paths, {
       vsCodePath: null, zshPromptShim: join(dir, 'zsh'), dirname: dir,
-      statusBarKeychain: false, isQuitting: () => false,
+      statusBarKeychain: false, macSigned: false, isQuitting: () => false,
     })
     try {
       expect(c.service.pty).toBeDefined()
+      // Chat and plugins are the container's, shared with the facade rather than rebuilt per caller.
+      expect(c.chat).toBe(c.service.chat)
+      expect(c.plugins).toBe(c.service.plugins)
+      expect(c.plugins.list().map((p) => p.id)).toContain('gitlab-mr')
+      expect(c.ipcState.sessionTracker).toBeDefined() // built, not started: its timers belong to the handlers
       expect(c.windowManager.front()).toBeNull()
       expect(await c.service.tree()).toEqual([]) // nothing refreshed, nothing discovered
       expect(c.settingsService.get()).toBeDefined()

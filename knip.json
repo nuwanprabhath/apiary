@@ -1,0 +1,30 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/main/index.ts",
+    "src/preload/index.ts",
+    "src/renderer/main.tsx",
+    "src/**/*.worker.ts",
+    "scripts/**/*.{mjs,ts}",
+    "tests/**/*.{ts,tsx}",
+    "eslint/*.js",
+    "*.config.{ts,js,cjs,mjs}"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "scripts/**/*.{mjs,ts}",
+    "eslint/*.js"
+  ],
+  "ignore": [
+    "**/*.d.ts",
+    ".claude/**"
+  ],
+  "ignoreDependencies": [
+    "@fontsource/.*"
+  ],
+  "ignoreBinaries": [
+    "shellcheck",
+    "rsvg-convert",
+    "iconutil"
+  ]
+}

@@ -1,3 +1,5 @@
+import type { LogScope } from '@shared/domain/log'
+import { errorMessage } from '@shared/errors'
 import { log } from './logger'
 
 /**
@@ -9,8 +11,8 @@ import { log } from './logger'
  * diagnostic log rather than vanishing (ESLint's `no-floating-promises` allows `void` on anything,
  * which is exactly how these went unnoticed).
  */
-export function fireAndForget(promise: Promise<unknown>, scope: string): void {
+export function fireAndForget(promise: Promise<unknown>, scope: LogScope): void {
   promise.catch((error: unknown) => {
-    log.warn(scope, 'background task failed', { error: error instanceof Error ? error.message : String(error) })
+    log.warn(scope, 'background task failed', { error: errorMessage(error) })
   })
 }

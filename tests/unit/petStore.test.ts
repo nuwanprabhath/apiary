@@ -66,3 +66,14 @@ describe('PetStore', () => {
     expect(saved.pets[0].voicedAt).toBe(1234)
   })
 })
+
+describe('PetStore on disk', () => {
+  it('writes its version first, and keeps a file from a newer Apiary as a backup before rewriting it', () => {
+    writeFileSync(file, JSON.stringify({ version: 4, enabled: true, pets: [], futureField: 1 }))
+    const store = new PetStore(file)
+    expect(store.enabled).toBe(true)
+    store.setEnabled(false)
+    expect(Object.keys(JSON.parse(readFileSync(file, 'utf8')) as object)[0]).toBe('version')
+    expect(JSON.parse(readFileSync(`${file}.v4.bak`, 'utf8'))).toMatchObject({ version: 4, futureField: 1 })
+  })
+})

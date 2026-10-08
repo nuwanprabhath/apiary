@@ -1,15 +1,14 @@
-import { join } from 'node:path'
-import { CHANNELS } from '@shared/api'
 import type { AppService } from '../../appService'
+import { errorMessage } from '@shared/errors'
+import { fireAndForget } from '../../log/fireAndForget'
 import { log } from '../../log/logger'
-import { broadcast } from '../../windows/broadcast'
-import { ClaudeSessionTracker } from '../../claude/claudeSessionTracker'
+import type { IpcState } from '../ipcState'
 import { renameTerminalInClaude, type RenameDeps } from '../../claude/claudeRename'
 import type { Handlers, Listeners } from '../registrar'
 
 export interface TerminalsDeps {
   service: AppService
-  configRoot: string
+  state: Pick<IpcState, 'sessionTracker'>
 }
 
 type HandledKeys = 'openShell' | 'openShellForPty' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
@@ -37,15 +36,8 @@ export function terminalsHandlers(deps: TerminalsDeps): {
   })
 
   // Which session each Claude terminal is on, followed through /clear, /resume and /rename. The
-  // Active section is keyed by these as well, so it is told too.
-  const sessionTracker = new ClaudeSessionTracker({
-    sessionsDir: join(deps.configRoot, 'sessions'),
-    pids: () => service.pty.tuiPids(),
-    onChange: (sessions) => {
-      broadcast(CHANNELS.ptySessionsChanged, sessions)
-      broadcast(CHANNELS.activeTabsChanged)
-    },
-  })
+  // Active section is keyed by these as well, so the tracker's `onChange` (container) tells it too.
+  const { sessionTracker } = deps.state
   sessionTracker.start()
 
   return {
@@ -60,7 +52,7 @@ export function terminalsHandlers(deps: TerminalsDeps): {
       // dropped.
       sendPrompt: (_e, ptyId, text) => {
         service.sendPrompt(ptyId, text).catch((e: unknown) => {
-          log.warn('ipc', 'prompt delivery failed', { error: e instanceof Error ? e.message : String(e) })
+          log.warn('ipc', 'prompt delivery failed', { error: errorMessage(e) })
         })
       },
     },
@@ -71,7 +63,7 @@ export function terminalsHandlers(deps: TerminalsDeps): {
       ptyResume: (_e, id) => { service.pty.resume(id) },
       renameTerminalInClaude: (_e, ptyId, title) => {
         log.info('rename', 'terminal renamed before it had a session', { ptyId })
-        void renameTerminalInClaude(renameDeps(), ptyId, title).catch(() => { /* best effort */ })
+        fireAndForget(renameTerminalInClaude(renameDeps(), ptyId, title), 'rename')
       },
     },
     renameDeps,

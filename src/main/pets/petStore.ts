@@ -1,20 +1,44 @@
-import { readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { validatePet, cleanLines } from '@shared/pets/validate'
 import {
   MAX_ACTIVE_PETS, PET_MODELS, PET_SIZES, isPetPlace,
   type PetLines, type PetModel, type PetPatch, type PetPlace, type PetRecord,
 } from '@shared/pets/state'
+import { clamp, isFiniteNumber, isOneOf, isRecord } from '@shared/guards'
+import { JsonStore } from '../fs/jsonStore'
 import { log } from '../log/logger'
 
-interface PetsFile { version: 1; enabled: boolean; pets: PetRecord[] }
+interface PetsFile { enabled: boolean; pets: PetRecord[] }
 
-const isModel = (m: unknown): m is PetModel => typeof m === 'string' && (PET_MODELS as readonly string[]).includes(m)
 const clampSize = (n: unknown): number =>
-  typeof n === 'number' && Number.isFinite(n) ? Math.round(Math.min(PET_SIZES.max, Math.max(PET_SIZES.min, n))) : PET_SIZES.default
+  isFiniteNumber(n) ? Math.round(clamp(n, PET_SIZES.min, PET_SIZES.max)) : PET_SIZES.default
 const clampPlace = (p: unknown): PetPlace | null =>
-  isPetPlace(p) ? { region: p.region, at: Math.min(1, Math.max(0, p.at)) } : null
+  isPetPlace(p) ? { region: p.region, at: clamp(p.at, 0, 1) } : null
+
+/** Everything read back is re-validated; a pet that cannot be read is dropped and the rest kept. */
+function parsePetsFile(raw: unknown): PetsFile {
+  const r = isRecord(raw) ? raw : {}
+  const pets: PetRecord[] = []
+  for (const p of Array.isArray(r.pets) ? (r.pets as unknown[]) : []) {
+    const o = isRecord(p) ? p : {}
+    const spec = validatePet(o.spec)
+    if (typeof o.id !== 'string' || o.id === '' || spec === null || pets.some((x) => x.id === o.id)) {
+      log.warn('pets', 'dropped invalid pet')
+      continue
+    }
+    pets.push({
+      id: o.id,
+      spec,
+      model: isOneOf(PET_MODELS, o.model) ? o.model : 'haiku',
+      size: clampSize(o.size),
+      active: o.active === true && pets.filter((x) => x.active).length < MAX_ACTIVE_PETS,
+      place: clampPlace(o.place),
+      createdAt: isFiniteNumber(o.createdAt) ? o.createdAt : 0,
+      voicedAt: isFiniteNumber(o.voicedAt) ? o.voicedAt : 0,
+    })
+  }
+  return { enabled: r.enabled === true, pets }
+}
 
 /**
  * `pets.json`: whether pets are on, and every installed pet with where it stands.
@@ -22,51 +46,27 @@ const clampPlace = (p: unknown): PetPlace | null =>
  * Its own file, like `themes.json`, rather than a field in settings.json — a default written into
  * settings.json can never be changed for anyone (main/CLAUDE.md). Everything read back is validated
  * again, so a pet on disk can never reach the window without passing `validatePet`; a pet that
- * cannot be read is dropped and the rest kept. Writes go to a temp file renamed into place.
+ * cannot be read is dropped and the rest kept. Reads and writes go through `JsonStore`.
  */
 export class PetStore {
   private data: PetsFile
+  private readonly store: JsonStore<PetsFile>
 
-  constructor(private readonly file: string) {
-    this.data = this.load()
-  }
-
-  private load(): PetsFile {
-    let raw: unknown
-    try {
-      raw = JSON.parse(readFileSync(this.file, 'utf8'))
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') log.warn('pets', 'pets file unreadable, starting empty')
-      return { version: 1, enabled: false, pets: [] }
-    }
-    const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
-    const pets: PetRecord[] = []
-    for (const p of Array.isArray(r.pets) ? (r.pets as unknown[]) : []) {
-      const o = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
-      const spec = validatePet(o.spec)
-      if (typeof o.id !== 'string' || o.id === '' || spec === null || pets.some((x) => x.id === o.id)) {
-        log.warn('pets', 'dropped invalid pet')
-        continue
-      }
-      pets.push({
-        id: o.id,
-        spec,
-        model: isModel(o.model) ? o.model : 'haiku',
-        size: clampSize(o.size),
-        active: o.active === true && pets.filter((x) => x.active).length < MAX_ACTIVE_PETS,
-        place: clampPlace(o.place),
-        createdAt: typeof o.createdAt === 'number' && Number.isFinite(o.createdAt) ? o.createdAt : 0,
-        voicedAt: typeof o.voicedAt === 'number' && Number.isFinite(o.voicedAt) ? o.voicedAt : 0,
-      })
-    }
-    return { version: 1, enabled: r.enabled === true, pets }
+  constructor(file: string) {
+    this.store = new JsonStore<PetsFile>({
+      file,
+      version: 1,
+      parse: parsePetsFile,
+      fallback: (reason) => {
+        if (reason === 'unreadable') log.warn('pets', 'pets file unreadable, starting empty')
+        return { enabled: false, pets: [] }
+      },
+    })
+    this.data = this.store.load()
   }
 
   private save(): void {
-    mkdirSync(dirname(this.file), { recursive: true })
-    const tmp = `${this.file}.${String(process.pid)}.tmp`
-    writeFileSync(tmp, JSON.stringify(this.data, null, 2))
-    renameSync(tmp, this.file)
+    this.store.save(this.data)
   }
 
   get enabled(): boolean { return this.data.enabled }
@@ -95,7 +95,7 @@ export class PetStore {
     const pet: PetRecord = {
       id: randomUUID(),
       spec: valid,
-      model: isModel(opts.model) ? opts.model : 'haiku',
+      model: isOneOf(PET_MODELS, opts.model) ? opts.model : 'haiku',
       size: PET_SIZES.default,
       active: (opts.active ?? true) && this.activeCount() < MAX_ACTIVE_PETS,
       place: null,
@@ -113,7 +113,7 @@ export class PetStore {
       throw new Error(`Up to ${String(MAX_ACTIVE_PETS)} pets can be out at once.`)
     }
     if (typeof patch.active === 'boolean') pet.active = patch.active
-    if (isModel(patch.model)) pet.model = patch.model
+    if (isOneOf(PET_MODELS, patch.model)) pet.model = patch.model
     if (patch.size !== undefined) pet.size = clampSize(patch.size)
     if (patch.place !== undefined) pet.place = clampPlace(patch.place)
     if (typeof patch.name === 'string') {

@@ -103,7 +103,7 @@ describe('workspaceReducer: tab/adopt', () => {
     const next = workspaceReducer(state, {
       type: 'tab/adopt',
       transfer: {
-        key: 'sess-1', view: 'terminal', ptyId: 'new:xyz',
+        key: 'sess-1', view: 'terminal', ptyId: asPtyId('new:xyz'),
         shells: [{ id: 't1', name: 'shell' }], activeShell: 't1',
       },
     })

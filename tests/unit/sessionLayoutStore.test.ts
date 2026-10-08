@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, readdirSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createSessionLayoutStore, loadSessionLayout, saveSessionLayoutNow } from '../../src/main/windows/sessionLayoutStore'
+import { createSessionLayoutStore } from '../../src/main/windows/sessionLayoutStore'
 
 let dir: string
 const file = () => join(dir, 'session-layout.json')
@@ -15,6 +15,9 @@ afterEach(() => {
   vi.useRealTimers()
   rmSync(dir, { recursive: true, force: true })
 })
+
+/** What a fresh launch would read back from the file. */
+const onDisk = () => createSessionLayoutStore(file(), 500).snapshot()
 
 const bounds = { x: 10, y: 20, width: 1200, height: 800 }
 const layout = { preset: 'halves-h', panes: [
@@ -31,8 +34,7 @@ describe('SessionLayoutStore', () => {
     vi.advanceTimersByTime(499)
     expect(() => readFileSync(file(), 'utf8')).toThrow()
     vi.advanceTimersByTime(1)
-    const onDisk = loadSessionLayout(file())
-    expect(onDisk.windows).toEqual([{ number: 1, bounds, layout, live: ['sess-1'], hasLayout: true }])
+    expect(onDisk().windows).toEqual([{ number: 1, bounds, layout, live: ['sess-1'], hasLayout: true }])
   })
 
   it('marks a bounds-only record as not having a real layout, and flush() preserves that if quit lands inside the renderer debounce', () => {
@@ -43,8 +45,7 @@ describe('SessionLayoutStore', () => {
     const store = createSessionLayoutStore(file(), 500)
     store.reportBounds(2, bounds)
     store.flush()
-    const onDisk = loadSessionLayout(file())
-    expect(onDisk.windows).toEqual([
+    expect(onDisk().windows).toEqual([
       { number: 2, bounds, layout: { preset: 'single', panes: [] }, live: [], hasLayout: false },
     ])
   })
@@ -65,14 +66,14 @@ describe('SessionLayoutStore', () => {
     vi.advanceTimersByTime(499)
     expect(() => readFileSync(file(), 'utf8')).toThrow()
     vi.advanceTimersByTime(1)
-    expect(loadSessionLayout(file()).windows[0].live).toEqual(['sess-2'])
+    expect(onDisk().windows[0].live).toEqual(['sess-2'])
   })
 
   it('flush() writes immediately, for before-quit', () => {
     const store = createSessionLayoutStore(file(), 500)
     store.reportLayout({ number: 1, layout, live: ['sess-1'] })
     store.flush()
-    expect(loadSessionLayout(file()).windows[0].number).toBe(1)
+    expect(onDisk().windows[0].number).toBe(1)
   })
 
   it('removeWindow drops a closed window from the next write', () => {
@@ -81,36 +82,52 @@ describe('SessionLayoutStore', () => {
     store.reportLayout({ number: 2, layout, live: [] })
     store.removeWindow(1)
     store.flush()
-    expect(loadSessionLayout(file()).windows.map((w) => w.number)).toEqual([2])
+    expect(onDisk().windows.map((w) => w.number)).toEqual([2])
   })
 
   it('falls back to an empty file when the JSON on disk is corrupt', () => {
     writeFileSync(file(), '{not json')
-    expect(loadSessionLayout(file())).toEqual({ windows: [] })
+    expect(onDisk()).toEqual({ windows: [] })
   })
 
   it('falls back to an empty file when the JSON is well-formed but the wrong shape', () => {
     writeFileSync(file(), JSON.stringify({ windows: 'nope' }))
-    expect(loadSessionLayout(file())).toEqual({ windows: [] })
+    expect(onDisk()).toEqual({ windows: [] })
   })
 })
 
-describe('saveSessionLayoutNow writes atomically (MAIN-16)', () => {
-  it('leaves no temp file behind after a normal save', () => {
-    saveSessionLayoutNow(file(), { windows: [{ number: 1, bounds, layout, live: ['sess-1'], hasLayout: true }] })
+describe('the layout file is written atomically (MAIN-16)', () => {
+  const report = { number: 1, layout, live: ['sess-1'] }
+
+  it('leaves no temp file behind after a normal save, and records a version', () => {
+    const store = createSessionLayoutStore(file(), 500)
+    store.reportBounds(1, bounds)
+    store.reportLayout(report)
+    store.flush()
     expect(readdirSync(dir)).toEqual(['session-layout.json'])
+    expect(JSON.parse(readFileSync(file(), 'utf8'))).toMatchObject({ version: 1 })
+  })
+
+  it('still reads a file written before it carried a version', () => {
+    const record = { number: 1, bounds, layout, live: ['sess-1'], hasLayout: true }
+    writeFileSync(file(), JSON.stringify({ windows: [record] }))
+    expect(onDisk()).toEqual({ windows: [record] })
   })
 
   it('a crash between write and rename keeps the old file, rather than a truncated one', () => {
-    const first = { windows: [{ number: 1, bounds, layout, live: ['sess-1'], hasLayout: true }] }
-    saveSessionLayoutNow(file(), first)
+    const store = createSessionLayoutStore(file(), 500)
+    store.reportBounds(1, bounds)
+    store.reportLayout(report)
+    store.flush()
+    const first = onDisk()
     chmodSync(dir, 0o500)
     try {
-      saveSessionLayoutNow(file(), { windows: [] })
+      store.removeWindow(1)
+      store.flush()
     } finally {
       chmodSync(dir, 0o700)
     }
-    expect(loadSessionLayout(file())).toEqual(first)
+    expect(onDisk()).toEqual(first)
     expect(readdirSync(dir)).toEqual(['session-layout.json'])
   })
 })

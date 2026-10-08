@@ -1,4 +1,5 @@
 import type { Capability, InstallInstructions } from '@shared/domain/update'
+import { shellQuote } from '../exec/shellQuote'
 
 export type { Capability, InstallInstructions } from '@shared/domain/update'
 
@@ -32,11 +33,6 @@ export interface CapabilityInput {
   appImagePath: string | undefined
   /** Whether the running macOS bundle carries a Developer ID signature (see `hasDeveloperIdSignature`). */
   macSigned: boolean
-}
-
-/** POSIX single-quoting, so a download path with a space in it survives being pasted. */
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { modelLabel, type ChatModelInfo } from '../../src/shared/domain/chat'
+import { modelLabel, type ChatModelInfo } from '@shared/domain/chat'
 
 const MODELS: ChatModelInfo[] = [
   { value: 'default', resolvedModel: 'claude-opus-5-5', displayName: 'Default (recommended)', description: '', efforts: [] },

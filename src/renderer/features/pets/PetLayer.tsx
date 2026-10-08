@@ -1,10 +1,11 @@
-import { type CSSProperties, type JSX, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type JSX, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ActiveTabPayload } from '@shared/domain/tabs'
 import type { Activity, BrainPet, Face, Scenery } from '@shared/pets/brain'
 import { habitatLengths, nearestPlace, normalisePlace, placeToPoint, type Habitat } from '@shared/pets/habitat'
 import type { ChatTurn, VoiceContext } from '@shared/pets/prompt'
 import { PET_SIZE_STEPS, type PetPlace, type PetRecord, type PetsState } from '@shared/pets/state'
 import { ContextMenu, type ContextMenuItem } from '../../ui/ContextMenu'
+import { askPetVoice, latestClaudeAction, onPetVoiceCheck, petRemark, putPetAway, rememberPetPlace, resizePet, watchClaudeActions } from '../../state/petsStore'
 import { BrainClient } from './brainClient'
 import type { FromBrain } from './petBrain.worker'
 import { SceneryLayer } from './SceneryLayer'
@@ -51,12 +52,7 @@ interface Pose {
 }
 
 const SAY_MS = { speech: 5500, thought: 4500 }
-/** How often to ask whether a pet's lines are due a refresh; main decides whether they are. */
-const VOICE_CHECK_MS = 10 * 60_000
-const VOICE_FIRST_MS = 30_000
 const DRAG_THRESHOLD_PX = 4
-/** How often to ask what the working sessions are doing, while any is. */
-const ACTIONS_EVERY_MS = 10_000
 
 /** The spot on the bar under a session's pane in this window, or null when it is not in this one. */
 function underPane(h: Habitat, key: string): PetPlace | null {
@@ -92,8 +88,6 @@ function PetWorld({ pets, habitat, tabs, titleOf, onOpenSettings }: Props & { pe
   const [asleep, setAsleep] = useState<ReadonlySet<string>>(() => new Set())
   const [scenery, setScenery] = useState<Record<string, { item: Scenery; leaving: boolean }>>({})
   const brain = useRef<BrainClient | null>(null)
-  /** The latest action of each working session, for remarks (shared/pets/actions.ts). */
-  const actions = useRef(new Map<string, string>())
   const posesRef = useRef(poses)
   posesRef.current = poses
   const timers = useRef(new Set<number>())
@@ -111,9 +105,9 @@ function PetWorld({ pets, habitat, tabs, titleOf, onOpenSettings }: Props & { pe
 
   /** A pet has gone to look at Claude's work: ask its model what it makes of it. */
   const remark = useCallback((id: string): void => {
-    const action = [...actions.current.values()][0]
+    const action = latestClaudeAction()
     if (action === undefined) return
-    void window.apiary.petComment(id, action).then((text) => { if (text !== null) say(id, text, 'speech') }).catch(() => {})
+    void petRemark(id, action).then((text) => { if (text !== null) say(id, text, 'speech') })
   }, [say])
 
   const apply = useCallback(({ commands: cmds, scenery: items }: FromBrain): void => {
@@ -224,21 +218,9 @@ function PetWorld({ pets, habitat, tabs, titleOf, onOpenSettings }: Props & { pe
     if (done !== undefined) client.send({ kind: 'pointAt', at: done })
   }, [tabs])
 
-  // While anything works, what it is doing — tool and label only — for the pets' remarks.
-  const working = claudeCounts(tabs).working > 0
-  const runningKeys = useRef<string[]>([])
-  runningKeys.current = tabs.filter((t) => t.status === 'running').map((t) => t.key)
-  useEffect(() => {
-    if (!working) { actions.current.clear(); return }
-    const poll = (): void => {
-      void window.apiary.petClaudeActions(runningKeys.current).then((list) => {
-        actions.current = new Map(list.map((a) => [a.key, a.action]))
-      }).catch(() => {})
-    }
-    poll()
-    const every = window.setInterval(poll, ACTIONS_EVERY_MS)
-    return () => { window.clearInterval(every) }
-  }, [working])
+  // What Claude is doing, tool and label only, for the pets' remarks: kept current by main's pushes
+  // (state/petsStore.ts), read when a pet remarks.
+  useEffect(() => watchClaudeActions(), [])
 
   // Fresh lines now and then; main decides whether a pet is due (at most hourly).
   const voiceInputs = useRef({ pets, tabs, titleOf })
@@ -252,12 +234,10 @@ function PetWorld({ pets, habitat, tabs, titleOf, onOpenSettings }: Props & { pe
       const ctx: VoiceContext = { working, waiting, finished: 0, titles, hour: new Date().getHours() }
       for (const p of list) {
         if (Date.now() - p.voicedAt < 60 * 60_000) continue
-        try { await window.apiary.petVoice(p.id, ctx) } catch { /* the next check tries again */ }
+        await askPetVoice(p.id, ctx)
       }
     }
-    const first = window.setTimeout(() => { void ask() }, VOICE_FIRST_MS)
-    const every = window.setInterval(() => { void ask() }, VOICE_CHECK_MS)
-    return () => { window.clearTimeout(first); window.clearInterval(every) }
+    return onPetVoiceCheck(() => { void ask() })
   }, [])
 
   // -- dragging, clicking and the menu
@@ -266,6 +246,7 @@ function PetWorld({ pets, habitat, tabs, titleOf, onOpenSettings }: Props & { pe
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>, id: string): void => {
     if (e.button !== 0) return
+    // eslint-disable-next-line apiary/drag-via-use-resize-drag -- moving a pet in 2D with click-vs-drag detection, not resizing a separator: useResizeDrag's one-axis size model does not apply
     e.currentTarget.setPointerCapture(e.pointerId)
     drag.current = { id, x: e.clientX, y: e.clientY, moved: false, el: e.currentTarget }
   }
@@ -285,22 +266,38 @@ function PetWorld({ pets, habitat, tabs, titleOf, onOpenSettings }: Props & { pe
     d.el.style.transform = `translate(${String(e.clientX - pet.size / 2)}px, ${String(e.clientY - pet.size / 2)}px)`
   }
 
+  const openChat = (id: string): void => {
+    setChat(id)
+    brain.current?.send({ kind: 'poke', id })
+  }
+
+  /** The keyboard's way to what a click and a right-click do: Enter or Space chats, the context-menu
+   *  key or Shift+F10 opens the menu where the pet stands. */
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>, pet: PetRecord): void => {
+    if (e.target !== e.currentTarget) return
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      openChat(pet.id)
+    } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+      e.preventDefault()
+      const r = e.currentTarget.getBoundingClientRect()
+      setChat(null)
+      setMenu({ id: pet.id, x: r.left + r.width / 2, y: r.bottom })
+    }
+  }
+
   const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>, pet: PetRecord): void => {
     const d = drag.current
     drag.current = null
     if (d?.id !== pet.id) return
-    if (!d.moved) {
-      setChat(pet.id)
-      brain.current?.send({ kind: 'poke', id: pet.id })
-      return
-    }
+    if (!d.moved) { openChat(pet.id); return }
     const place = nearestPlace(habitat, { x: e.clientX, y: e.clientY + pet.size / 2 }, pet.size)
     const pt = placeToPoint(habitat, place, pet.size)
     d.el.style.transform = `translate(${String(pt.x - pet.size / 2)}px, ${String(pt.y - pet.size)}px)`
     setHeld(null)
     setPoses((p) => ({ ...p, [pet.id]: { ...(p[pet.id]), place, ms: 0 } }))
     brain.current?.send({ kind: 'dropped', id: pet.id, place })
-    void window.apiary.petUpdate(pet.id, { place }).catch(() => {})
+    rememberPetPlace(pet.id, place)
   }
 
   const menuPet = menu !== null ? pets.find((p) => p.id === menu.id) : undefined
@@ -308,12 +305,12 @@ function PetWorld({ pets, habitat, tabs, titleOf, onOpenSettings }: Props & { pe
     { id: 'chat', label: `Chat with ${menuPet.spec.name}…`, run: () => { setChat(menuPet.id) } },
     ...PET_SIZE_STEPS.map((step, i) => ({
       id: `size-${String(step.size)}`, label: step.label, separator: i === 0, checked: menuPet.size === step.size,
-      run: () => { void window.apiary.petUpdate(menuPet.id, { size: step.size }).catch(() => {}) },
+      run: () => { resizePet(menuPet.id, step.size) },
     })),
     asleep.has(menuPet.id)
       ? { id: 'wake', label: 'Wake up', separator: true, run: () => { setAsleep((s) => without(s, menuPet.id)); brain.current?.send({ kind: 'sleep', id: menuPet.id, on: false }) } }
       : { id: 'sleep', label: 'Go to sleep', separator: true, run: () => { setAsleep((s) => new Set(s).add(menuPet.id)); brain.current?.send({ kind: 'sleep', id: menuPet.id, on: true }) } },
-    { id: 'hide', label: `Put ${menuPet.spec.name} away`, run: () => { void window.apiary.petUpdate(menuPet.id, { active: false }).catch(() => {}) } },
+    { id: 'hide', label: `Put ${menuPet.spec.name} away`, run: () => { putPetAway(menuPet.id) } },
     { id: 'settings', label: 'Pet settings…', separator: true, run: () => { onOpenSettings('pets') } },
   ]
 
@@ -343,9 +340,11 @@ function PetWorld({ pets, habitat, tabs, titleOf, onOpenSettings }: Props & { pe
             data-held={held === pet.id}
             data-region={place.region}
             role="button"
-            aria-label={`${pet.spec.name} — click to chat, drag to move, right-click for more`}
+            tabIndex={0}
+            aria-label={`${pet.spec.name} — click or press Enter to chat, drag to move, right-click or Shift+F10 for more`}
             title={pet.spec.name}
             style={style}
+            onKeyDown={(e) => { onKeyDown(e, pet) }}
             onPointerDown={(e) => { onPointerDown(e, pet.id) }}
             onPointerMove={(e) => { onPointerMove(e, pet) }}
             onPointerUp={(e) => { onPointerUp(e, pet) }}

@@ -3,8 +3,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdirSync, realpathSync, symlinkSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { AppService } from '../../../src/main/appService'
+import { buildAppService } from '../../fixtures/buildService'
+import type { AppService } from '../../../src/main/appService'
 import { makeSession } from '../../fixtures/makeSession'
+import { stays } from '../../fixtures/stays'
 import { encodeProjectDirName as encodeProjectDirNameForTest } from '../../../src/main/scanner/projectDirName'
 import { createServiceFixture, teardownServiceFixture, git, makeGitWorkdir } from './setup'
 
@@ -108,7 +110,7 @@ describe('AppService', () => {
     })
     await service.refresh()
     await service.importSessions(['11111111-1111-1111-1111-111111111111'], [])
-    await expect(service.resume('11111111-1111-1111-1111-111111111111'))
+    await expect(service.resume(asSessionId('11111111-1111-1111-1111-111111111111')))
       .rejects.toThrow(/no longer exists/i)
   })
 
@@ -299,7 +301,7 @@ describe('AppService', () => {
   })
 
   it('refuses to remove a session that is still live', async () => {
-    const liveService = new AppService({
+    const liveService = buildAppService({
       configRoot: join(home, '.claude'),
       dbPath: join(home, 'apiary3.db'),
       detectLive: async () => new Map([['11111111-1111-1111-1111-111111111111', 4242]]),
@@ -339,7 +341,7 @@ describe('AppService', () => {
   })
 
   it('reports a conflict when the session is already live', async () => {
-    const liveService = new AppService({
+    const liveService = buildAppService({
       configRoot: join(home, '.claude'),
       dbPath: join(home, 'apiary2.db'),
       detectLive: async () => new Map([['11111111-1111-1111-1111-111111111111', 4242]]),
@@ -405,7 +407,7 @@ describe('AppService', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve
     })
-    const guardedService = new AppService({
+    const guardedService = buildAppService({
       configRoot: join(home, '.claude'),
       dbPath: join(home, 'apiary-guard.db'),
       detectLive: async () => {
@@ -426,8 +428,7 @@ describe('AppService', () => {
       // machine's scan could outlast (calls was still 0). Then, while it is gated there, a second
       // concurrent call must not have started a second run.
       await vi.waitFor(() => { expect(calls).toBe(1) })
-      await new Promise((resolve) => setTimeout(resolve, 50))
-      expect(calls).toBe(1)
+      await stays(() => calls === 1, 50, 'the second refresh() to join the run in flight')
       release()
       await Promise.all([first, second])
     } finally {
@@ -441,7 +442,7 @@ describe('AppService', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve
     })
-    const rerunService = new AppService({
+    const rerunService = buildAppService({
       configRoot: join(home, '.claude'),
       dbPath: join(home, 'apiary-rerun.db'),
       // detectLive runs at the very end of a scan pass, after scanProjects() has already read
@@ -515,7 +516,7 @@ describe('AppService', () => {
       })
     }
     let passesFinished = 0
-    const big = new AppService({
+    const big = buildAppService({
       configRoot: join(bigHome, '.claude'),
       dbPath: join(bigHome, 'apiary.db'),
       detectLive: async () => { passesFinished += 1; return new Map() },
@@ -537,7 +538,7 @@ describe('AppService', () => {
   it('recovers after a refresh rejects so later refreshes still run', async () => {
     let calls = 0
     let shouldFail = true
-    const recoveringService = new AppService({
+    const recoveringService = buildAppService({
       configRoot: join(home, '.claude'),
       dbPath: join(home, 'apiary-recover.db'),
       detectLive: async () => {

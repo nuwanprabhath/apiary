@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { sidebarSession, until } from './helpers'
+import { sidebarSession, stays, until } from './helpers'
 import { treeStore } from '../../src/renderer/state/treeStore'
 
 function groupLabelled(label: string): HTMLElement {
@@ -47,7 +47,9 @@ describe('treeStore de-duplication (UI-3)', () => {
     const before = fake.callsTo('tree').length
 
     fake.emit('treeChanged')
-    await new Promise((r) => { setTimeout(r, 50) })
+    await until(() => fake.callsTo('tree').length - before >= 1)
+    // The count must not keep climbing once the broadcast has been answered.
+    await stays(() => fake.callsTo('tree').length - before <= 3, 50, 'one treeChanged to cost at most 3 tree() calls')
 
     // Measured against the pre-UI-3 code (every affected effect calling `window.apiary.tree()`
     // for itself): 5 calls for this one broadcast. After: 3 — App's own effects (the reconciler,
@@ -77,9 +79,8 @@ describe('treeStore de-duplication (UI-3)', () => {
     })
     fake.state.imported.add('later-session')
     fake.emit('treeChanged')
-    await new Promise((r) => { setTimeout(r, 50) })
 
-    const second = await treeStore.current()
-    expect(second.flatMap((n) => n.sessions).some((s) => s.title === 'Injected after first load')).toBe(true)
+    await expect.poll(async () => (await treeStore.current()).flatMap((n) => n.sessions)
+      .some((s) => s.title === 'Injected after first load')).toBe(true)
   })
 })

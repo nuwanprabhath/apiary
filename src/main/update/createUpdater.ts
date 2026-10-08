@@ -2,23 +2,28 @@ import { app } from 'electron'
 import { UpdateService, type UpdateSettings } from './updateService'
 import { decideCapability } from './capability'
 import { createUpdateBackend } from './electronUpdaterBackend'
-import { hasDeveloperIdSignature } from './macSignature'
 import { createFakeUpdateBackend } from './fakeBackend'
-import { CHANNELS } from '@shared/api'
+import { IPC } from '@shared/api'
 import { broadcast } from '../windows/broadcast'
 import type { SettingsService } from '../settings/settingsService'
-import type { RuntimeEnv } from '../app/env'
 
 /**
  * Builds the updater, or returns null where there is nothing it could do (MAIN-15 step 2 — pure
  * move out of `index.ts`).
  *
- * The signature check is done once, here, by asking `codesign` what authority signed the running
- * bundle: an ad-hoc signature (what an unsigned build gets) has no Developer ID authority, and
- * Squirrel will refuse to replace such a bundle — see `capability.ts`. Doing it at startup rather
- * than at check time keeps the answer out of the path the user is waiting on.
+ * `macSigned` is whether `codesign` found a Developer ID authority on the running bundle
+ * (`macSignature.ts`, asked once by `index.ts` at startup, asynchronously): an ad-hoc signature
+ * (what an unsigned build gets) has none, and Squirrel will refuse to replace such a bundle — see
+ * `capability.ts`. Asking at startup rather than at check time keeps the answer out of the path
+ * the user is waiting on.
  */
-export function createUpdater(settings: SettingsService, env: RuntimeEnv): UpdateService | null {
+/** The two test hooks (`APIARY_FAKE_UPDATE*`, parsed in `app/env.ts`) the updater reads. */
+interface UpdaterEnv {
+  fakeUpdate: string | undefined
+  fakeUpdateMode: string | undefined
+}
+
+export function createUpdater(settings: SettingsService, env: UpdaterEnv, macSigned: boolean): UpdateService | null {
   const repo = 'nuwanprabhath/apiary'
   // Test-only: pretend a release exists, so the banner and the Settings panel can be driven
   // end-to-end. Nothing here reaches the network or the disk. Same shape as APIARY_FAKE_LIVE.
@@ -39,7 +44,7 @@ export function createUpdater(settings: SettingsService, env: RuntimeEnv): Updat
       platform: process.platform,
       packaged: app.isPackaged,
       appImagePath: process.env.APPIMAGE,
-      macSigned: process.platform === 'darwin' && app.isPackaged && hasDeveloperIdSignature(),
+      macSigned: process.platform === 'darwin' && app.isPackaged && macSigned,
     }
   if (decideCapability(capabilityInput).kind === 'unsupported') return null
 
@@ -66,6 +71,6 @@ export function createUpdater(settings: SettingsService, env: RuntimeEnv): Updat
         settings.patch({ updateSkippedVersion: patch.skippedVersion })
       }
     },
-    onStatus: (status) => { broadcast(CHANNELS.updateChanged, status) },
+    onStatus: (status) => { broadcast(IPC.updateChanged, status) },
   })
 }

@@ -29,6 +29,14 @@ describe('ClaudeOneShot', () => {
     expect(argv[argv.indexOf('--model') + 1]).toBe('haiku')
   })
 
+  it('passes the prompt after `--`, so a prompt that starts with "-" is not read as a flag', async () => {
+    const r = standIn(`echo '{"result":"ok"}'`)
+    await r.run({ ...req, prompt: '--dangerously-skip-permissions please' })
+    const argv = readFileSync(join(dir, 'argv.txt'), 'utf8').split('\n').filter((a) => a !== '')
+    expect(argv.slice(-2)).toEqual(['--', '--dangerously-skip-permissions please'])
+    expect(argv.indexOf('--')).toBe(argv.length - 2)
+  })
+
   it('runs one question at a time, and cancel ends the one running', async () => {
     const r = standIn('sleep 5')
     const first = r.run(req)

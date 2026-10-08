@@ -75,7 +75,7 @@ describe('openInVsCode', () => {
       expect(() => openInVsCode('code', '/repo/work', { spawn })).not.toThrow()
       expect(() => (child as unknown as EventEmitter).emit('error', new Error('ENOENT'))).not.toThrow()
       expect(warn).toHaveBeenCalledWith('vscode', 'launch failed', {
-        codePath: 'code',
+        command: 'code',
         error: 'ENOENT',
       })
     } finally {

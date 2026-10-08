@@ -57,14 +57,14 @@ and icon from a closed set, and its hover detail and dashboard as typed sections
 stacked bars, line, note) that `features/statusBar/StatusSections.tsx` draws. A new kind of content
 is a new section kind, drawn once there, never markup from a plugin.
 
-Both kinds share Settings → Plugins: `AppService.listPlugins()` lists both, and enabling or
+Both kinds share Settings → Plugins: `PluginService.list()` (`plugins/pluginService.ts`) lists both, and enabling or
 settings route to whichever registry owns the id. A new status-bar plugin is one factory in
 `statusBar/builtin.ts`.
 
 The first is **Claude usage** (`statusBar/claudeUsage/`), a port of the claude-usage-stats VS Code
 extension: the OAuth token Claude Code keeps (macOS Keychain, then `<config>/.credentials.json`)
-is sent only to Anthropic's usage endpoint and never logged; token and cost totals come from the
-transcripts. **The Keychain is read only when Apiary uses the real config root** — a Keychain read
+is read only after the user agreed to a one-time prompt (ADR-0019), sent only to Anthropic's usage
+endpoint and never logged; token and cost totals come from the transcripts. **The Keychain is read only when Apiary uses the real config root** — a Keychain read
 can put a macOS permission prompt on screen, so the test harness's fixture home never triggers one.
-`AppService` builds the registry but does not start it; `index.ts` calls `startStatusBar()`, so
-constructing an `AppService` in a test never starts a network poll.
+`PluginService` registers the built-ins but does not start the status bar; `index.ts` calls
+`startStatusBar()`, so building the services in a test never starts a network poll.

@@ -1,6 +1,8 @@
 import { type JSX, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useEscape } from '../../ui/useEscape'
-import { itemsIn, onMenuKeyDown, useMenuOpenFocus } from '../../ui/Menu'
+import { useOutsideDismiss } from '../../ui/useOutsideDismiss'
+import { itemsIn, Menu } from '../../ui/Menu'
+import { SubmenuArrowIcon } from '../../ui/icons'
 
 /** One command in the menu. A `submenu` opens a second panel beside this one instead of running. */
 export interface GitMenuItem {
@@ -34,8 +36,8 @@ interface Props {
 export function GitMenu({ items, onClose, anchorRef }: Props): JSX.Element {
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
-  const topListRef = useRef<HTMLUListElement | null>(null)
-  const submenuRef = useRef<HTMLUListElement | null>(null)
+  const topListRef = useRef<HTMLElement | null>(null)
+  const submenuRef = useRef<HTMLElement | null>(null)
   // Moving into a submenu (by ArrowRight or by activating its parent item) focuses its first item
   // once it exists — it isn't in the document until `openSubmenu` causes it to render.
   useEffect(() => {
@@ -58,12 +60,6 @@ export function GitMenu({ items, onClose, anchorRef }: Props): JSX.Element {
     setPosition({ left: rect.left, bottom: window.innerHeight - rect.top + 4 })
   }, [anchorRef])
 
-  // Enabled once `position` is known, not simply on mount: before that the menu is rendered with
-  // `visibility: hidden` (see below) so its width can be measured, and a hidden element cannot
-  // take focus — an effect that ran on mount unconditionally would try to focus the first item
-  // while it is still invisible, silently fail, and leave focus on the "..." button that opened it.
-  useMenuOpenFocus(topListRef, position !== null)
-
   /**
    * Keeps the menu on screen once it has a width.
    *
@@ -82,17 +78,7 @@ export function GitMenu({ items, onClose, anchorRef }: Props): JSX.Element {
   // Escape closes it via the shared stack (UI-13): only the top-most open layer reacts, so a
   // submenu or another popup opened from here isn't also closed by the same keypress.
   useEscape(onClose)
-  useEffect(() => {
-    // `mousedown`, not `click`: a click that lands on some other button should dismiss the menu
-    // *and* still reach that button, which is what happens if the menu is already gone by the
-    // time the click completes.
-    const onPointerDown = (e: MouseEvent): void => {
-      if (rootRef.current?.contains(e.target as Node) === true) return
-      onClose()
-    }
-    document.addEventListener('mousedown', onPointerDown)
-    return () => { document.removeEventListener('mousedown', onPointerDown) }
-  }, [onClose])
+  useOutsideDismiss(onClose, { inside: [rootRef] })
 
   const renderItem = (item: GitMenuItem, isSubmenuItem: boolean): JSX.Element => {
     const hasSubmenu = item.submenu !== undefined && item.submenu.length > 0
@@ -132,22 +118,13 @@ export function GitMenu({ items, onClose, anchorRef }: Props): JSX.Element {
           }}
         >
           <span className="git-menu-label">{item.label}</span>
-          {hasSubmenu && (
-            <svg className="git-menu-arrow" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
+          {hasSubmenu && <SubmenuArrowIcon className="git-menu-arrow" />}
         </button>
         {hasSubmenu && openSubmenu === item.id && (
-          <ul
-            ref={submenuRef}
-            className="git-menu git-submenu"
-            data-testid="git-submenu"
-            role="menu"
-            onKeyDown={(e) => { if (submenuRef.current !== null) onMenuKeyDown(e, submenuRef.current) }}
-          >
+          // Focus goes to its first item by the effect above, once it exists.
+          <Menu as="ul" ref={submenuRef} className="git-menu git-submenu" testId="git-submenu" focusOnOpen={false}>
             {item.submenu?.map((sub) => renderItem(sub, true))}
-          </ul>
+          </Menu>
         )}
       </li>
     )
@@ -161,15 +138,13 @@ export function GitMenu({ items, onClose, anchorRef }: Props): JSX.Element {
         ? { visibility: 'hidden' }
         : { left: position.left, bottom: position.bottom }}
     >
-      <ul
-        ref={topListRef}
-        className="git-menu"
-        data-testid="git-menu"
-        role="menu"
-        onKeyDown={(e) => { if (topListRef.current !== null) onMenuKeyDown(e, topListRef.current) }}
-      >
+      {/* Enabled once `position` is known, not simply on mount: before that the menu is rendered
+          with `visibility: hidden` (see above) so its width can be measured, and a hidden element
+          cannot take focus — an effect that ran on mount would try to focus the first item while it
+          is still invisible, silently fail, and leave focus on the "..." button that opened it. */}
+      <Menu as="ul" ref={topListRef} className="git-menu" testId="git-menu" focusOnOpen={position !== null}>
         {items.map((item) => renderItem(item, false))}
-      </ul>
+      </Menu>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 import type { AppSettingsPayload } from '@shared/api'
+import { SETTINGS } from '@shared/settings/schema'
 import { CheckboxSetting } from '../fields/CheckboxSetting'
 import { NumberSetting } from '../fields/NumberSetting'
 
@@ -41,8 +42,8 @@ export function SidebarSection(
             testId="setting-recent-hours"
             label="Within the last"
             unit="hours"
-            min={1}
-            max={168}
+            min={SETTINGS.recentSectionHours.range.min}
+            max={SETTINGS.recentSectionHours.range.max}
             value={draft.recentSectionHours}
             onChange={(n) => { patch({ recentSectionHours: n }) }}
           />

@@ -1,10 +1,14 @@
 import type { SessionId } from '@shared/domain/ids'
-import { type JSX, useCallback, useEffect, useMemo, useState } from 'react'
+import { type JSX, useEffect, useMemo, useState } from 'react'
 import type { DiscoveredSession } from '@shared/api'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
 import { useNotifications } from '../../ui/notifications'
 import { ErrorBoundary } from '../../ui/ErrorBoundary'
 import { Modal } from '../../ui/Modal'
+import { type DragStart, useResizeDrag } from '../../ui/useResizeDrag'
+import { importSessions, listDiscoveredSessions } from '../../state/sessions'
+import { bestEffort } from '../../state/policy'
+import { readSettings } from '../../state/settingsStore'
 
 const MIN_DIALOG_WIDTH = 420
 const MAX_DIALOG_WIDTH = 1500
@@ -69,7 +73,7 @@ export function ImportDialog({ onClose, onImported, width, onWidthChange }: Prop
     // User-initiated (UI-23): opening this dialog is the one reason to fetch the list, so a
     // failure here means the dialog itself has nothing to show — worth a toast naming what
     // failed, not an empty list that reads as "there is nothing to import".
-    void window.apiary.discovered().then(setRows).catch((e: unknown) => {
+    void listDiscoveredSessions().then(setRows).catch((e: unknown) => {
       notifyError(e, 'Could not list sessions to import')
     })
   }, [notifyError])
@@ -84,36 +88,32 @@ export function ImportDialog({ onClose, onImported, width, onWidthChange }: Prop
     // Background read (UI-23): a failure just leaves this at its default (false), which shows the
     // ordinary per-row checkboxes — a reasonable fallback, not a reason to interrupt opening the
     // dialog with a toast over one flag.
-    void window.apiary.settingsGet().then((s) => setAutoImportAll(s.autoImportAll)).catch(() => {})
+    void bestEffort(readSettings(), 'settings').then((s) => { if (s !== null) setAutoImportAll(s.autoImportAll) })
   }, [])
 
   /**
    * Dragging either edge widens the dialog. The dialog is centred, so a drag has to move the width
    * by twice the pointer's travel for the edge under the cursor to actually keep up with it —
    * otherwise the edge slides away at half speed and the drag feels broken.
+   *
+   * The live width goes onto the document as a CSS custom property the dialog's own `width` reads,
+   * and the persisted `ui` setting hears about it once, on release — not once per mouse move.
    */
-  const [dragFrom, setDragFrom] = useState<{ x: number; width: number; side: 1 | -1 } | null>(null)
-  useEffect(() => {
-    if (dragFrom === null) return
-    document.body.classList.add('resizing-active')
-    const onMove = (e: MouseEvent): void => {
-      const next = dragFrom.width + (e.clientX - dragFrom.x) * 2 * dragFrom.side
-      onWidthChange(Math.round(Math.max(MIN_DIALOG_WIDTH, Math.min(MAX_DIALOG_WIDTH, next))))
-    }
-    const onUp = (): void => setDragFrom(null)
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    return () => {
-      document.body.classList.remove('resizing-active')
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-  }, [dragFrom, onWidthChange])
-
-  const startDrag = useCallback((side: 1 | -1) => (e: React.MouseEvent) => {
-    e.preventDefault()
-    setDragFrom({ x: e.clientX, width, side })
-  }, [width])
+  const edgeDrag = (side: 1 | -1) => ({
+    axis: 'col' as const,
+    value: width,
+    min: MIN_DIALOG_WIDTH,
+    max: MAX_DIALOG_WIDTH,
+    measure: (e: { clientX: number }, start: DragStart) =>
+      Math.round(Math.max(MIN_DIALOG_WIDTH, Math.min(MAX_DIALOG_WIDTH, start.value + (e.clientX - start.x) * 2 * side))),
+    onLive: (w: number) => { document.documentElement.style.setProperty('--drag-import-width', `${String(w)}px`) },
+    onEnd: (w: number) => {
+      document.documentElement.style.removeProperty('--drag-import-width')
+      onWidthChange(w)
+    },
+  })
+  const leftEdge = useResizeDrag(edgeDrag(-1))
+  const rightEdge = useResizeDrag(edgeDrag(1))
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -167,7 +167,7 @@ export function ImportDialog({ onClose, onImported, width, onWidthChange }: Prop
   const confirm = async (): Promise<void> => {
     setBusy(true)
     try {
-      await window.apiary.importSessions([...picked], [...autoProjects])
+      await importSessions([...picked], [...autoProjects])
       onImported()
       onClose()
     } finally {
@@ -180,9 +180,10 @@ export function ImportDialog({ onClose, onImported, width, onWidthChange }: Prop
     <ErrorBoundary label="This dialog">
       {/* UI-25: onto the shared Modal primitive (Escape already worked via UI-13; this adds a
        *  labelled role, a Tab trap and focus restore on close). */}
-      <Modal testId="import-dialog" titleId="import-dialog-title" onClose={onClose} wide className="import-dialog" style={{ width }}>
-        <div className="dialog-resizer dialog-resizer-left" data-testid="import-resizer-left" onMouseDown={startDrag(-1)} />
-        <div className="dialog-resizer dialog-resizer-right" data-testid="import-resizer-right" onMouseDown={startDrag(1)} />
+      <Modal testId="import-dialog" titleId="import-dialog-title" onClose={onClose} wide className="import-dialog" style={{ width: `var(--drag-import-width, ${String(width)}px)` }}>
+        {/* Edges, not tab stops: only the pointer half of the separator. */}
+        <div className="dialog-resizer dialog-resizer-left" data-testid="import-resizer-left" onPointerDown={leftEdge.separatorProps.onPointerDown} />
+        <div className="dialog-resizer dialog-resizer-right" data-testid="import-resizer-right" onPointerDown={rightEdge.separatorProps.onPointerDown} />
         <h2 id="import-dialog-title">Import Claude Sessions</h2>
         <input
           className="search"

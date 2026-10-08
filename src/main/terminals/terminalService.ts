@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import type { PtyManager } from '../pty/ptyManager'
 import type { SessionResolver } from '../sessions/sessionResolver'
 import type { SessionStore } from '../store/sessionStore'
-import { resolveProject } from '../git/worktreeResolver'
+import type { WorktreeResolver } from '../git/worktreeResolver'
 import { buildResumeCommand, buildNewSessionCommand } from '../pty/resumeCommand'
 import { promptPathEnv, type PromptPathOptions } from '../pty/promptPath'
 import { forkLabel } from '@shared/forkLabel'
@@ -26,6 +26,7 @@ export interface TerminalServiceDeps {
   pty: PtyManager
   resolver: SessionResolver
   store: SessionStore
+  worktrees: WorktreeResolver
   claudeBin?: string
   promptPath?: PromptPathOptions
   /** The zsh startup shim the minimal prompt needs (see pty/promptPath.ts), or none. */
@@ -47,6 +48,7 @@ export class TerminalService {
   private readonly pty: PtyManager
   private readonly resolver: SessionResolver
   private readonly store: SessionStore
+  private readonly worktrees: WorktreeResolver
   private claudeBin: string | undefined
   private promptPath: PromptPathOptions
   private readonly zshPromptShim: string | undefined
@@ -55,6 +57,7 @@ export class TerminalService {
     this.pty = deps.pty
     this.resolver = deps.resolver
     this.store = deps.store
+    this.worktrees = deps.worktrees
     this.claudeBin = deps.claudeBin
     this.promptPath = deps.promptPath ?? { enabled: false, segments: 2 }
     this.zshPromptShim = deps.zshPromptShim
@@ -181,7 +184,7 @@ export class TerminalService {
     // Neither a worktree `listWorktrees` found in git nor a repository heading has a project row
     // yet. One is made first, so the auto-import flag `startNewSession` sets has a row to go on.
     if (!this.resolver.isKnownWorktree(path)) this.resolver.requireFolder(path)
-    const info = await resolveProject(path)
+    const info = await this.worktrees.resolveProject(path)
     this.store.syncProject(info)
     return this.startNewSession(info.path)
   }
@@ -194,7 +197,7 @@ export class TerminalService {
    */
   async newSessionInFolder(path: string): Promise<NewSessionInfo> {
     if (!existsSync(path)) throw new Error(`Folder does not exist: ${path}`)
-    const info = await resolveProject(path)
+    const info = await this.worktrees.resolveProject(path)
     this.store.syncProject(info)
     return this.startNewSession(info.path)
   }

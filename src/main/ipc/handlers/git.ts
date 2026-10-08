@@ -1,4 +1,4 @@
-import { CHANNELS } from '@shared/api'
+import { IPC } from '@shared/api'
 import type { AppService } from '../../appService'
 import { broadcast } from '../../windows/broadcast'
 import type { Handlers } from '../registrar'
@@ -35,7 +35,7 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
     target: GitTarget, branchMayChange: boolean,
   ): Promise<void> => {
     if (branchMayChange) await service.refreshProjectByKey(target)
-    broadcast(CHANNELS.treeChanged)
+    broadcast(IPC.treeChanged)
   }
 
   return {
@@ -83,7 +83,7 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
       // New commits can only move the folder's branch forward, never change which one is checked
       // out, so nothing needs re-resolving — the broadcast is only worth sending when something on
       // screen actually changed (a no-op pull happens on every hover-card poll).
-      if (outcome.commits > 0) broadcast(CHANNELS.treeChanged)
+      if (outcome.commits > 0) broadcast(IPC.treeChanged)
       return outcome
     },
     listWorktrees: (_e, path) => service.listWorktrees(path),

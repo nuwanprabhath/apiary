@@ -3,11 +3,19 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseLimits, fetchLimits, HttpError } from '../../src/main/statusBar/claudeUsage/limits'
+import { ConsentStore, memoryConsentStorage } from '../../src/main/statusBar/claudeUsage/consent'
 import { extractToken, readAccessToken } from '../../src/main/statusBar/claudeUsage/credentials'
 import { costForTokens } from '../../src/main/statusBar/claudeUsage/pricing'
 import { TokenAggregator } from '../../src/main/statusBar/claudeUsage/tokens'
 import { statusText, statusTone, fmtTokens, fmtUsd, detailSections, dashboard, relativeTime } from '../../src/main/statusBar/claudeUsage/present'
 import { createClaudeUsagePlugin } from '../../src/main/statusBar/claudeUsage/plugin'
+
+/** What the user's "Allow" produces; the credential functions will not run without it. */
+const granted = (): NonNullable<ReturnType<ConsentStore['proof']>> => {
+  const proof = new ConsentStore(memoryConsentStorage('granted')).proof()
+  if (proof === undefined) throw new Error('a granted store gives a proof')
+  return proof
+}
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -31,10 +39,10 @@ describe('the usage endpoint answer', () => {
       seen.push({ url, auth: (init.headers as Record<string, string>).Authorization })
       return new Response(JSON.stringify({ five_hour: { utilization: 10 } }), { status: 200 })
     }) as unknown as typeof fetch
-    await fetchLimits('tok', ok)
+    await fetchLimits(granted(), 'tok', ok)
     expect(seen).toEqual([{ url: 'https://api.anthropic.com/api/oauth/usage', auth: 'Bearer tok' }])
     const denied = (async () => new Response('', { status: 429 })) as unknown as typeof fetch
-    await expect(fetchLimits('tok', denied)).rejects.toBeInstanceOf(HttpError)
+    await expect(fetchLimits(granted(), 'tok', denied)).rejects.toBeInstanceOf(HttpError)
   })
 })
 
@@ -50,9 +58,9 @@ describe('credentials', () => {
     writeFileSync(join(root, '.credentials.json'), '{"claudeAiOauth":{"accessToken":"from-file"}}')
     let asked = false
     const readKeychain = async (): Promise<string | undefined> => { asked = true; return '{"claudeAiOauth":{"accessToken":"kc"}}' }
-    expect(await readAccessToken({ configRoot: root, useKeychain: false, readKeychain })).toBe('from-file')
+    expect(await readAccessToken(granted(), { configRoot: root, useKeychain: false, readKeychain })).toBe('from-file')
     expect(asked).toBe(false)
-    expect(await readAccessToken({ configRoot: root, useKeychain: true, readKeychain })).toBe('kc')
+    expect(await readAccessToken(granted(), { configRoot: root, useKeychain: true, readKeychain })).toBe('kc')
   })
 })
 
@@ -131,6 +139,7 @@ describe('the Claude usage plugin', () => {
     let changes = 0
     const plugin = createClaudeUsagePlugin({
       configRoot: root, useKeychain: false, fetchImpl: opts.fetch,
+      consent: new ConsentStore(memoryConsentStorage('granted')),
       setTimeout: (fn, ms) => { const t = { fn, ms }; timers.push(t); return t },
       clearTimeout: (h) => { const i = timers.indexOf(h as Timer); if (i >= 0) timers.splice(i, 1) },
     })

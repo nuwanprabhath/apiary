@@ -17,9 +17,11 @@ carrying). To build locally instead:
 
 On macOS this produces a `.dmg` for **your machine's own architecture only**
 (arm64 on Apple Silicon, x64 on Intel), under `release/`. On Linux it
-produces an `.AppImage` plus `.deb` (x64). The script rebuilds the native
-modules for Electron's ABI and runs `electron-vite build` before invoking
-`electron-builder`.
+produces an `.AppImage` plus `.deb` (x64). `npm run dist` runs `npm run build`
+(`electron-vite build`) and then `scripts/dist.mjs`, which invokes `electron-builder`. Neither script
+rebuilds the native modules: `better-sqlite3` and `node-pty` ship N-API prebuilds that load under
+Electron as they are ([testing.md](testing.md)). The only rebuild step is `electron-builder`'s own
+`npmRebuild`, which is what the cross-arch notes below are about.
 
 `electron-builder.yml` itself declares both `arm64` and `x64` as mac dmg
 targets, but `npm run dist` deliberately scopes the actual build to the host

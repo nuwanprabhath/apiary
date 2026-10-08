@@ -1,0 +1,61 @@
+# The full e2e suite on Linux and macOS, nightly and on demand. ci.yml runs only the one-minute
+# `@smoke` subset on Linux; until this workflow, chat, pets, update, external links and every
+# multi-window spec ran only on the maintainer's machine before a tag (guardrails review §6.6).
+# A red nightly is a regression on `main` that the per-commit smoke run did not reach.
+name: Nightly e2e
+
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      # The stand-in `claude` script execs "$SHELL" directly (see ci.yml's e2e-smoke job).
+      SHELL: /bin/bash
+      CI: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64 libgtk-3-0t64
+          # Ubuntu 24.04 restricts unprivileged user namespaces; Electron's sandbox needs one.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:e2e
+
+      - if: runner.os == 'macOS'
+        run: npm run test:e2e
+
+      - if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-results-${{ matrix.os }}
+          path: |
+            test-results/
+            playwright-report/

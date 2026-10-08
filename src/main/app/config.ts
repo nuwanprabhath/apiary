@@ -30,7 +30,3 @@ export function readsClaudeKeychain(
   const override = env.CLAUDE_CONFIG_DIR
   return override === undefined || override.trim() === ''
 }
-
-export function projectsDir(configRoot: string): string {
-  return join(configRoot, 'projects')
-}

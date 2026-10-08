@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
+import { fakeRef } from './fakeApiary'
 
 /** The "+" of the folder row labelled `label` (a git repository in the fixture: repo-c). */
 function plusOf(label: string): HTMLElement {
@@ -31,7 +32,7 @@ describe('"+" on a git folder', () => {
   })
 
   it('a new worktree on an existing branch: name, then branch — and a checked-out branch is not offered', async () => {
-    const { fake } = await renderApp()
+    const { fake } = await renderApp({ refs: { local: [fakeRef('main'), fakeRef('feature/wt'), fakeRef('dev')] } })
     await userEvent.click(plusOf('repo-c'))
     await userEvent.click(page.getByTestId('context-menu-new-worktree'))
     await expect.element(page.getByTestId('new-worktree-dialog')).toBeVisible()
@@ -45,13 +46,14 @@ describe('"+" on a git folder', () => {
     await expect.poll(location).toContain('/fixture/repo-c.worktrees/species-list')
     await userEvent.keyboard('{Enter}')
 
-    // `main` is the current branch in the fixture — already checked out, so not pickable.
+    // `main` is checked out in the repository and `feature/wt` in its worktree — not pickable.
     const rows = page.getByTestId('new-worktree-local-row')
     await expect.element(rows.filter({ hasText: 'main' })).toBeDisabled()
-    await userEvent.click(rows.filter({ hasText: 'feature/wt' }))
+    await expect.element(rows.filter({ hasText: 'feature/wt' })).toBeDisabled()
+    await userEvent.click(rows.filter({ hasText: 'dev' }))
 
     await expect.poll(() => fake.callsTo('worktreeCreate')).toEqual([
-      ['/fixture/repo-c', { name: 'species-list', branch: { kind: 'local', branch: 'feature/wt' } }],
+      ['/fixture/repo-c', { name: 'species-list', branch: { kind: 'local', branch: 'dev' } }],
     ])
     await expect.element(page.getByTestId('new-worktree-dialog')).not.toBeInTheDocument()
     await expect.element(page.getByTestId('terminal-session')).toBeVisible()

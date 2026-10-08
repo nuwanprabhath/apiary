@@ -26,20 +26,28 @@ export interface SessionWatcherOptions {
  * behaviour — previously only reachable through a live chokidar instance under `ipcMain` — can be
  * driven directly in a unit test via the injectable `watch`.
  *
+ * Built in the container (so construction opens nothing) and started by `start()` from `index.ts`,
+ * which is what puts a file handle and a timer behind it.
+ *
  * `depth: 1` and the `ignored` filter (MAIN-25) exist because the scanner only ever reads
  * `<projects>/<slug>/*.jsonl`: a slug directory is depth 1, and anything else changing under it
  * (depth 2, or a non-`.jsonl` file) is not worth a rescan.
  */
 export class SessionWatcher {
-  private readonly watcher: Pick<FSWatcher, 'on' | 'close'>
+  private watcher: Pick<FSWatcher, 'on' | 'close'> | null = null
   private timer: NodeJS.Timeout | null = null
   private pendingPaths = new Set<string>()
   private readonly debounceMs: number
 
-  constructor(options: SessionWatcherOptions) {
+  constructor(private readonly options: SessionWatcherOptions) {
     this.debounceMs = options.debounceMs ?? 1000
-    const watchFn = options.watch ?? ((dir, opts) => watch(dir, opts))
-    this.watcher = watchFn(options.dir, {
+  }
+
+  /** Starts watching. A second call does nothing. */
+  start(): void {
+    if (this.watcher !== null) return
+    const watchFn = this.options.watch ?? ((dir, opts) => watch(dir, opts))
+    this.watcher = watchFn(this.options.dir, {
       depth: 1,
       ignoreInitial: true,
       ignored: (path: string, stats?: { isFile(): boolean }) =>
@@ -53,7 +61,7 @@ export class SessionWatcher {
         this.timer = null
         const paths = [...this.pendingPaths]
         this.pendingPaths = new Set()
-        options.onChange(paths)
+        this.options.onChange(paths)
       }, this.debounceMs)
     }
     this.watcher.on('add', onFsChange).on('change', onFsChange).on('unlink', onFsChange)
@@ -61,6 +69,7 @@ export class SessionWatcher {
 
   dispose(): void {
     if (this.timer) { clearTimeout(this.timer); this.timer = null }
-    void this.watcher.close()
+    void this.watcher?.close()
+    this.watcher = null
   }
 }

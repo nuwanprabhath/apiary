@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isClaudeSuspended, isSuspendChord } from '../../src/shared/claudeSuspend'
+import { isClaudeSuspended, isSuspendChord } from '@shared/claudeSuspend'
 
 const SUSPENDED = [
   'Claude Code has been suspended. Run `fg` to bring Claude Code back.',

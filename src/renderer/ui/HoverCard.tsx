@@ -2,6 +2,8 @@ import { type JSX, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDownIcon, CopyIcon, CheckIcon } from './icons'
 import { MrRefText, type MrState } from '../features/sidebar/mrRefText'
 import { createPortal } from 'react-dom'
+import { copyText } from '../state/clipboard'
+import { clampLeft, clampTop, fitsHorizontally, POPOVER_MARGIN } from './popoverPlacement'
 
 /**
  * A hover card for a sidebar row.
@@ -58,8 +60,7 @@ interface Props {
   testId?: string
 }
 
-const GAP = 8
-const MARGIN = 8
+const CARD_GAP = 8
 
 export function HoverCard(
   {
@@ -95,20 +96,18 @@ export function HoverCard(
     // could neither read them nor hover the next one without first backing out of this one.
     // Out to the side, the list stays whole, and reaching the card is a straight move right that
     // crosses no other row.
-    const beside = anchor.right + GAP
-    if (beside + box.width + MARGIN <= window.innerWidth) {
-      const top = Math.max(MARGIN, Math.min(anchor.top, window.innerHeight - box.height - MARGIN))
-      setPos({ left: beside, top })
+    const beside = anchor.right + CARD_GAP
+    if (fitsHorizontally(beside, box.width)) {
+      setPos({ left: beside, top: clampTop(anchor.top, box.height) })
       return
     }
     // A window too narrow to fit it beside: below the row, flipping above only when the bottom of
     // the window leaves no room — a card run off the bottom edge is one whose last lines are lost.
-    const below = anchor.bottom + GAP
-    const top = below + box.height + MARGIN <= window.innerHeight
+    const below = anchor.bottom + CARD_GAP
+    const top = below + box.height + POPOVER_MARGIN <= window.innerHeight
       ? below
-      : Math.max(MARGIN, anchor.top - GAP - box.height)
-    const left = Math.max(MARGIN, Math.min(anchor.left, window.innerWidth - box.width - MARGIN))
-    setPos({ left, top })
+      : Math.max(POPOVER_MARGIN, anchor.top - CARD_GAP - box.height)
+    setPos({ left: clampLeft(anchor.left, box.width), top })
   }, [anchor])
 
   return createPortal(
@@ -152,7 +151,7 @@ export function HoverCard(
           title={copied === 'path' ? 'Copied' : 'Copy path'}
           aria-label={`Copy path ${path}`}
           onClick={() => {
-            void window.apiary.copyToClipboard(path).then(() => { setCopied('path') })
+            void copyText(path).then((ok) => { if (ok) setCopied('path') })
           }}
         >
           {copied === 'path' ? <CheckIcon /> : <CopyIcon />}
@@ -169,7 +168,7 @@ export function HoverCard(
             title={copied === 'branch' ? 'Copied' : 'Copy branch name'}
             aria-label={`Copy branch name ${branch}`}
             onClick={() => {
-              void window.apiary.copyToClipboard(branch).then(() => { setCopied('branch') })
+              void copyText(branch).then((ok) => { if (ok) setCopied('branch') })
             }}
           >
             {copied === 'branch' ? <CheckIcon /> : <CopyIcon />}

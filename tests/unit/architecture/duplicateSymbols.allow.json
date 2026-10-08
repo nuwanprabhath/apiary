@@ -1,0 +1,66 @@
+[
+  {
+    "key": "fireAndForget",
+    "reason": "Deliberate pair: main logs through log.warn, the renderer through window.apiary.logWrite with a LogScope; the renderer file documents it as the counterpart"
+  },
+  {
+    "key": "relativeTime",
+    "reason": "Different functions: main/statusBar/claudeUsage/present.ts formats a (from, now) pair for the usage panel, renderer/ui/format.ts one timestamp against the clock"
+  },
+  {
+    "key": "num",
+    "reason": "shared/ipc/guards.ts `num` is an IPC argument guard (finite number); main/statusBar/claudeUsage/tokens.ts `num` coerces an unknown JSON field to 0"
+  },
+  {
+    "key": "tint",
+    "reason": "pets/parts.tsx returns a CSS hex string for the SVG pet; render3d/parts3d.ts returns a THREE.Color for the 3D one"
+  },
+  {
+    "key": "start",
+    "reason": "Two process entry points (main/index.ts, the pet brain worker) that nothing imports"
+  },
+  {
+    "key": "white",
+    "reason": "Unrelated private helpers: a THREE material in parts3d.ts, an rgba() string in theme/cssVars.ts"
+  },
+  {
+    "key": "ACTIVE",
+    "reason": "Unrelated module constants: the logger file name, the set of active pet activities"
+  },
+  {
+    "key": "DEFAULT_TIMEOUT_MS",
+    "reason": "Unrelated: main layout-flush timeout (500) and the renderer per-kind notification timeouts"
+  },
+  {
+    "key": "EYE_X",
+    "reason": "Unrelated: 2D SVG eye x positions and a 3D eye offset"
+  },
+  {
+    "key": "FRAMES",
+    "reason": "Unrelated: the working-line spinner glyphs and the pet body frames"
+  },
+  {
+    "key": "HEX",
+    "reason": "Different regexes on purpose: pets accept 3 or 6 digits, themes also accept 4 and 8 (alpha)"
+  },
+  {
+    "key": "LIMITS",
+    "reason": "Unrelated: the pet spec limits and the theme spec limits, each exported from its own spec module"
+  },
+  {
+    "key": "MODELS",
+    "reason": "Unrelated lists: the chat composer model ids and the theme generator choices"
+  },
+  {
+    "key": "TAIL_LINES",
+    "reason": "Different window sizes (4 for suspend detection, 15 for activity) for different detectors"
+  },
+  {
+    "key": "UP",
+    "reason": "Unrelated: the layout preset step-down table and a THREE.Vector3 up axis"
+  },
+  {
+    "key": "VERBS",
+    "reason": "Unrelated: the working-line verbs and the pet action phrases"
+  }
+]

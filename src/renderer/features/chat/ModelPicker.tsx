@@ -3,7 +3,8 @@ import {
   CHAT_EFFORTS, CHAT_EFFORT_LABELS, CHAT_MODELS, modelLabel,
   type ChatEffort, type ChatModelInfo,
 } from '@shared/domain/chat'
-import { CheckIcon } from '../../ui/icons'
+import { CheckIcon, ContextRingIcon } from '../../ui/icons'
+import { Menu } from '../../ui/Menu'
 import { usePopover } from './usePopover'
 
 interface Props {
@@ -45,7 +46,7 @@ export function ModelPicker({ model, effort, models, onModel, onEffort }: Props)
         {effort !== null && efforts.length > 0 && <span className="chat-model-effort">{CHAT_EFFORT_LABELS[effort]}</span>}
       </button>
       {open && (
-        <div className="chat-model-menu" role="menu" data-testid="composer-model-menu">
+        <Menu className="chat-model-menu" testId="composer-model-menu">
           <div className="chat-model-heading">Select a model</div>
           <div className="chat-model-list">
             {list.map((m) => {
@@ -73,12 +74,12 @@ export function ModelPicker({ model, effort, models, onModel, onEffort }: Props)
           {efforts.length > 0 && (
             <div className="chat-effort" data-testid="composer-effort">
               <span>Effort <span className="muted">({effort !== null ? CHAT_EFFORT_LABELS[effort] : 'default'})</span></span>
-              <span className="chat-effort-scale" role="radiogroup" aria-label="Effort">
+              <span className="chat-effort-scale" role="group" aria-label="Effort">
                 {efforts.map((level) => (
                   <button
                     key={level}
                     type="button"
-                    role="radio"
+                    role="menuitemradio"
                     aria-checked={level === effort}
                     aria-label={CHAT_EFFORT_LABELS[level]}
                     title={CHAT_EFFORT_LABELS[level]}
@@ -91,7 +92,7 @@ export function ModelPicker({ model, effort, models, onModel, onEffort }: Props)
               </span>
             </div>
           )}
-        </div>
+        </Menu>
       )}
     </div>
   )
@@ -100,8 +101,6 @@ export function ModelPicker({ model, effort, models, onModel, onEffort }: Props)
 /** How full Claude's context is, as a ring with the percentage inside it. */
 export function ContextRing({ used, window: size }: { used: number; window: number }): JSX.Element {
   const pct = Math.min(100, Math.round((used / size) * 100))
-  const r = 9
-  const circumference = 2 * Math.PI * r
   return (
     <span
       className="chat-context"
@@ -110,16 +109,7 @@ export function ContextRing({ used, window: size }: { used: number; window: numb
       title={`${used.toLocaleString()} of ${size.toLocaleString()} tokens of context used`}
       aria-label={`${String(pct)}% of context used`}
     >
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <circle className="chat-context-track" cx="12" cy="12" r={r} />
-        <circle
-          className="chat-context-fill"
-          cx="12" cy="12" r={r}
-          strokeDasharray={`${String((pct / 100) * circumference)} ${String(circumference)}`}
-          transform="rotate(-90 12 12)"
-        />
-        <text x="12" y="12" className="chat-context-text">{pct}</text>
-      </svg>
+      <ContextRingIcon pct={pct} />
     </span>
   )
 }

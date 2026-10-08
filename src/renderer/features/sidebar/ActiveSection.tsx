@@ -7,6 +7,8 @@ import { NoteIcon } from '../../ui/icons'
 import { useFlatTreeNav } from '../../ui/Tree'
 import { ActivityLegend } from './ActivityLegend'
 import { MrRefText } from './mrRefText'
+import type { SessionId } from '@shared/domain/ids'
+import { sessionIdOfTabKey } from '../workspace'
 import { useMrStatuses } from './useMrStatuses'
 
 /**
@@ -16,7 +18,7 @@ import { useMrStatuses } from './useMrStatuses'
  * hook cannot go. Active is the section meant to be read at a glance without opening anything, so
  * it is the last place that should be showing a staler title than the tree.
  */
-function ActiveTabTitle({ sessionId, title }: { sessionId: string; title: string }): JSX.Element {
+function ActiveTabTitle({ sessionId, title }: { sessionId: SessionId; title: string }): JSX.Element {
   const statuses = useMrStatuses(sessionId, title)
   return <span className="session-title"><MrRefText text={title} statuses={statuses} /></span>
 }
@@ -106,7 +108,7 @@ export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote
                 role="img"
                 aria-label={describeActivityStatus(t.status)}
               />
-              <ActiveTabTitle sessionId={t.key} title={session?.title ?? t.label ?? UNTITLED_SESSION} />
+              <ActiveTabTitle sessionId={sessionIdOfTabKey(t.key)} title={session?.title ?? t.label ?? UNTITLED_SESSION} />
               <span className="active-window-number">W{t.windowNumber}</span>
             </button>
             {/* A tab still waiting for its session id has no session to attach a note to yet. */}

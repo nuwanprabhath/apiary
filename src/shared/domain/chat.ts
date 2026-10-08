@@ -1,3 +1,4 @@
+import type { SessionId } from './ids'
 import type { TranscriptMessage } from './transcript'
 import type { BackgroundTask } from '../chatTimeline'
 
@@ -94,7 +95,7 @@ export function isChatDecision(value: unknown): value is ChatDecision {
 export type ChatStatus = 'starting' | 'idle' | 'busy' | 'exited'
 
 export interface ChatState {
-  sessionId: string
+  sessionId: SessionId
   status: ChatStatus
   /** The model the session is actually running (claude's `applied` setting), e.g.
    *  `claude-haiku-4-5-20251001` — not whatever the picker last asked for. */
@@ -125,7 +126,7 @@ export interface ChatState {
   error: string | null
   /** Set when Claude moved this chat onto a new session (`/clear`): the id it was before, so a
    *  window showing that session can follow it to `sessionId`. */
-  previousSessionId: string | null
+  previousSessionId: SessionId | null
   /** The slash commands claude offers (its `initialize` answer); null until it has said. */
   commands: ChatCommand[] | null
   /**
@@ -138,6 +139,21 @@ export interface ChatState {
   backgroundTasks: BackgroundTask[] | null
   /** How long the latest finished turn took, and when it finished. */
   lastTurn: { durationMs: number; endedAt: number } | null
+}
+
+/**
+ * What every window hears about a chat, whether or not it shows that session (`chatLifecycle`):
+ * the chat's state itself goes only to windows attached to it (`chatAttach`), but a window with
+ * the session open in a tab has to know that a chat took the terminal over, or moved onto a new
+ * session with `/clear`, even while the tab is in the background. Rare and tiny, unlike
+ * `ChatState`, which changes about every 40 ms while a reply streams.
+ */
+export interface ChatLifecycle {
+  sessionId: SessionId
+  /** Set when the chat moved onto `sessionId` from another session (`/clear`). */
+  previousSessionId: SessionId | null
+  /** Whether its `claude` process is still running. */
+  running: boolean
 }
 
 /** What `terminalBusy` says about a session's terminal: nothing to lose by stopping it, or not. */
@@ -155,7 +171,7 @@ export interface ChatCommand {
   argumentHint: string
 }
 
-export function emptyChatState(sessionId: string): ChatState {
+export function emptyChatState(sessionId: SessionId): ChatState {
   return {
     sessionId,
     status: 'starting',

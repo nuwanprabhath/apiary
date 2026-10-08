@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { until } from './helpers'
+import { nextFrames, stays, until } from './helpers'
 
 function folderRow(label: string): HTMLElement | undefined {
   return [...document.querySelectorAll<HTMLElement>('.project-row-wrap')]
@@ -38,14 +38,13 @@ describe('useAllWorktrees re-listing (UI-11)', () => {
     // transcript growing fires `treeChanged` without adding or removing a project.
     for (let i = 0; i < 5; i++) {
       fake.emit('treeChanged')
-      await new Promise((r) => { setTimeout(r, 20) })
+      await nextFrames(1)
     }
-    await new Promise((r) => { setTimeout(r, 50) })
 
     // Measured against the pre-UI-11 code (keyed on the `tree` array's identity): 7 total calls
     // (2 before this loop + 5 more, one per unrelated refresh). After: still 2 — the folder set
     // never changed, so none of the five refreshes re-lists anything.
-    expect(fake.callsTo('listWorktrees').length).toBe(before)
+    await stays(() => fake.callsTo('listWorktrees').length === before, 50, 'no worktree re-list on an unrelated tree refresh')
 
     // The documented guarantee ("a worktree added or removed on disk shows up with the next
     // rescan") still holds for the one path that does not touch the folder set: the sidebar's own

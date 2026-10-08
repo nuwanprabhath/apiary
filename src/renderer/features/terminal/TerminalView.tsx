@@ -5,10 +5,13 @@ import { THEME_CHANGE_EVENT } from '../../theme/applyTheme'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { ContextMenu, type ContextMenuItem } from '../../ui/ContextMenu'
-import { pasteText } from './terminalPaste'
+import { pasteText, routeNativePaste } from './terminalPaste'
 import { ptyBus } from '../../state/ptyBus'
 import { isClaudeSuspended, isSuspendChord } from '@shared/claudeSuspend'
 import { SuspendConfirmDialog } from './SuspendConfirmDialog'
+import { copyText, readClipboardText } from '../../state/clipboard'
+import { attachPty, continuePty, detachPty, readPtySnapshot, resizePty, writePty } from '../../state/terminals'
+import { logLine } from '../../state/log'
 
 interface Props {
   ptyId: PtyId
@@ -125,7 +128,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
   const resume = (): void => {
     suspendedRef.current = false
     setSuspended(false)
-    window.apiary.ptyResume(ptyId)
+    continuePty(ptyId)
     termRef.current?.focus()
   }
   // Called from handlers installed once per pty; always the current closure.
@@ -148,6 +151,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(host.current)
+    const disposeNativePaste = routeNativePaste(host.current, term)
 
     /**
      * Catch this fresh xterm up on the pty it is attaching to, *then* size it to the pane.
@@ -191,7 +195,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       try {
         fn()
       } catch (err) {
-        window.apiary.logWrite('error', 'pty', `terminal ${what} failed`, { ptyId, error: String(err) })
+        logLine('error', 'pty', `terminal ${what} failed`, { ptyId, error: String(err) })
       }
     }
 
@@ -210,11 +214,11 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       const now = Date.now()
       rebuildsRef.current = rebuildsRef.current.filter((t) => now - t < 60_000)
       if (rebuildsRef.current.length >= MAX_REBUILDS_PER_MINUTE) {
-        window.apiary.logWrite('error', 'pty', 'terminal keeps getting stuck; not rebuilding again', { ptyId, ...why })
+        logLine('error', 'pty', 'terminal keeps getting stuck; not rebuilding again', { ptyId, ...why })
         return
       }
       rebuildsRef.current.push(now)
-      window.apiary.logWrite('warn', 'pty', 'terminal stopped drawing; rebuilt it', { ptyId, ...why })
+      logLine('warn', 'pty', 'terminal stopped drawing; rebuilt it', { ptyId, ...why })
       setGeneration((g) => g + 1)
     }
     const watchForStall = (): void => {
@@ -244,7 +248,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
 
     // Declared before the snapshot is requested: main sends `ptyData` only to attached windows,
     // and IPC from one renderer is ordered, so nothing falls between attach and snapshot.
-    window.apiary.ptyAttach(ptyId)
+    attachPty(ptyId)
     const offData = ptyBus.onData(ptyId, (data) => {
       lastDataAt = performance.now()
       if (caughtUp) { term.write(data); watchForStall() }
@@ -266,7 +270,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       fit.fit()
       lastCols = term.cols
       lastRows = term.rows
-      window.apiary.ptyResize(ptyId, term.cols, term.rows)
+      resizePty(ptyId, term.cols, term.rows)
     }
     const finishCatchUp = (): void => {
       if (caughtUp) return
@@ -278,14 +282,14 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
     // round trip that is never coming is the stuck terminal. Logged, so the next one says where.
     const catchUpTimer = window.setTimeout(() => {
       if (disposed || caughtUp) return
-      window.apiary.logWrite('warn', 'pty', 'terminal catch-up stalled; showing live output', { ptyId, stage, queued: queued.length })
+      logLine('warn', 'pty', 'terminal catch-up stalled; showing live output', { ptyId, stage, queued: queued.length })
       const late = queued.splice(0).join('')
       guarded('catch-up', finishCatchUp)
       if (late !== '') term.write(late)
       watchForStall()
     }, CATCH_UP_TIMEOUT_MS)
 
-    void window.apiary.ptySnapshot(ptyId)
+    void readPtySnapshot(ptyId)
       .then((snap) => new Promise<void>((resolve) => {
         // Given up on (above): live output is already on screen, and painting the old screen over
         // it now would put the past below the present.
@@ -294,9 +298,6 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
         term.resize(snap.cols, snap.rows)
         term.write(snap.data, resolve)
       }))
-      // A snapshot that cannot be fetched is a terminal that starts empty, which is where a
-      // brand-new pty starts anyway — not worth an error in front of a running session.
-      .catch(() => { /* as above */ })
       .finally(() => {
         stage = 'drain'
         drain(finishCatchUp)
@@ -313,7 +314,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
         if (data === '\r') resumeRef.current()
         return
       }
-      window.apiary.ptyWrite(ptyId, data)
+      writePty(ptyId, data)
     })
 
     // Watch for Claude Code's own "has been suspended" screen, whoever caused it — the Suspend
@@ -375,9 +376,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       if (key === 'c' && (e.shiftKey || term.hasSelection())) {
         const selection = term.getSelection()
         if (selection !== '') {
-          void window.apiary.copyToClipboard(selection).catch(() => {
-            // Nothing useful to say if the clipboard refuses; the selection is still on screen.
-          })
+          void copyText(selection)
           term.clearSelection()
         }
         return false
@@ -397,11 +396,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
         // Read the clipboard ourselves only to hand the text to xterm's own `paste()` — not to
         // write it to the pty directly. `paste()` is the same call the browser's native paste
         // event would otherwise drive, so there is exactly one write path instead of two.
-        void navigator.clipboard.readText()
-          .then((text) => { pasteText(term, text) })
-          .catch(() => {
-            // Clipboard read can be refused; better to do nothing than to interrupt the session.
-          })
+        void readClipboardText().then((text) => { if (text !== null) pasteText(term, text) })
         return false
       }
 
@@ -429,7 +424,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
         if (term.cols !== lastCols || term.rows !== lastRows) {
           lastCols = term.cols
           lastRows = term.rows
-          window.apiary.ptyResize(ptyId, term.cols, term.rows)
+          resizePty(ptyId, term.cols, term.rows)
         }
       })
     })
@@ -446,7 +441,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       if (term.cols !== lastCols || term.rows !== lastRows) {
         lastCols = term.cols
         lastRows = term.rows
-        window.apiary.ptyResize(ptyId, term.cols, term.rows)
+        resizePty(ptyId, term.cols, term.rows)
       }
     }
     window.addEventListener(THEME_CHANGE_EVENT, onTheme)
@@ -456,12 +451,13 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       window.clearTimeout(catchUpTimer)
       if (watch !== null) window.clearTimeout(watch)
       disposeRender.dispose()
+      disposeNativePaste()
       window.removeEventListener(THEME_CHANGE_EVENT, onTheme)
       observer.disconnect()
       if (rafId !== null) cancelAnimationFrame(rafId)
       offData()
       offExit()
-      window.apiary.ptyDetach(ptyId)
+      detachPty(ptyId)
       disposeInput.dispose()
       disposeParsed.dispose()
       if (suspendCheck !== null) cancelAnimationFrame(suspendCheck)
@@ -503,9 +499,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       run: () => {
         const selection = termRef.current?.getSelection()
         if (selection) {
-          // Fire-and-forget: a failed clipboard write has nothing useful to surface here, same as
-          // the other copyToClipboard call sites in this app.
-          void window.apiary.copyToClipboard(selection)
+          void copyText(selection)
           termRef.current?.clearSelection()
         }
       },
@@ -516,11 +510,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       run: () => {
         const current = termRef.current
         if (current === null) return
-        navigator.clipboard.readText().then((text) => {
-          pasteText(current, text)
-        }).catch((err) => {
-          console.error('Failed to read clipboard:', err)
-        })
+        void readClipboardText().then((text) => { if (text !== null) pasteText(current, text) })
       },
     },
     {
@@ -566,7 +556,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
           onKeepRunning={() => { setConfirmingSuspend(false) }}
           onSuspend={() => {
             setConfirmingSuspend(false)
-            window.apiary.ptyWrite(ptyId, '\x1a')
+            writePty(ptyId, '\x1a')
             termRef.current?.focus()
           }}
         />

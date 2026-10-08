@@ -3,7 +3,9 @@ import { useCallback, useEffect } from 'react'
 import type { NewSessionInfo, ProjectNode } from '@shared/types'
 import { treeStore } from '../../state/treeStore'
 import { fireAndForget } from '../../ui/fireAndForget'
-import { useWorkspaceDispatch } from './WorkspaceProvider'
+import { useWorkspaceDispatch } from './workspaceContext'
+import { renameTerminalTitle } from '../../state/terminals'
+import { onNewSessionStarted } from '../../state/sessions'
 
 /**
  * Registering a brand-new session's pty as pending: the entry points (`addPending`, which the
@@ -33,7 +35,7 @@ export function usePendingSessions(): {
 
   // `File > New Session in Folder...` picks its folder via a native dialog in the main process
   // (never from the renderer) and pushes the result here once the pty is already running.
-  useEffect(() => window.apiary.onNewSessionStarted((info) => {
+  useEffect(() => onNewSessionStarted((info) => {
     // UI-23: unlike the tree re-syncs below (which get another chance on the next treeChanged
     // event), this fires once per real session main already started — a failure here silently
     // drops the pending tab for a pty that is genuinely running, worth finding in the log.
@@ -48,7 +50,7 @@ export function usePendingSessions(): {
     // something happens in it — measured on a real Haiku fork — so a renamed but untouched tab
     // otherwise waited, still `new:…`, however often Refresh was pressed. The rename makes Claude
     // write the transcript, the tab follows it, and the title below is applied as a real rename.
-    if (title.trim() !== '') window.apiary.renameTerminalInClaude(ptyId, title)
+    if (title.trim() !== '') renameTerminalTitle(ptyId, title)
     dispatch({ type: 'pending/title', ptyId, title })
   }, [dispatch])
 

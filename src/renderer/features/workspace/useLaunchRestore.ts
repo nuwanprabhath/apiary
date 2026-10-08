@@ -2,8 +2,11 @@ import { asSessionId } from '@shared/domain/ids'
 import { useEffect, useRef } from 'react'
 import type { TabTransfer, WindowLayoutReport } from '@shared/types'
 import { useNotifications } from '../../ui/notifications'
-import { findSessionById } from './treeLookup'
-import { useWorkspaceDispatch } from './WorkspaceProvider'
+import { treeStore } from '../../state/treeStore'
+import { findSessionById } from '@shared/treeWalk'
+import { useWorkspaceDispatch } from './workspaceContext'
+import { background } from '../../state/policy'
+import { resumeSession } from '../../state/sessions'
 
 /**
  * What a window does once, at launch, to get back to where it was: resume the sessions that were
@@ -35,14 +38,13 @@ export function useLaunchRestore({ restored, detached, arrival, selectedSessionI
     if (restored === null || resumedRestoredRef.current) return
     resumedRestoredRef.current = true
     for (const sessionId of restored.live) {
-      void window.apiary.resume(asSessionId(sessionId))
-        .then(() => { dispatch({ type: 'resumed/add', key: sessionId }) })
-        .catch(() => { /* main already dropped anything unresumable; a spawn failure here is the
-                         * same as a failed manual resume and needs no extra handling */ })
+      // Main already dropped anything unresumable; a spawn failure here is logged, not toasted
+      // once per restored session at launch.
+      background(resumeSession(asSessionId(sessionId)).then(() => { dispatch({ type: 'resumed/add', key: sessionId }) }), 'resume')
     }
     // Deliberately runs only once: the ref latch (not just the empty dep list) is what stops a
     // StrictMode double-invoke from resuming every restored session twice.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once; the ref latch stops a StrictMode double-invoke resuming each session twice
   }, [])
 
   // Restore the previously selected session on launch, once, from the id persisted last time.
@@ -56,8 +58,7 @@ export function useLaunchRestore({ restored, detached, arrival, selectedSessionI
     const id = detached ?? selectedSessionId
     if (id === null) return
     let cancelled = false
-    window.apiary
-      .tree()
+    treeStore.current()
       .then((nodes) => {
         if (cancelled) return
         const found = findSessionById(nodes, id)
@@ -76,6 +77,6 @@ export function useLaunchRestore({ restored, detached, arrival, selectedSessionI
     return () => { cancelled = true }
     // Listing dispatch or notifyError would cancel the in-flight restore on the first focus change,
     // silently losing it while restoreAttempted blocks the effect from ever running again.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- listing dispatch or notifyError would cancel the in-flight restore on the first focus change
   }, [])
 }

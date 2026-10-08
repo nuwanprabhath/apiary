@@ -1,31 +1,14 @@
 import { type JSX, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { StatusBarItem, StatusBarPanel, StatusIcon } from '@shared/domain/statusBar'
-import { AlertIcon, RefreshIcon } from '../../ui/icons'
-import { useStatusBar } from '../../state/useStatusBar'
+import { AlertIcon, GaugeIcon, HistoryIcon, RefreshIcon } from '../../ui/icons'
+import { answerStatusBarConsent, onStatusBarChanged, refreshStatusBarItem, statusBarPanel, useStatusBar } from '../../state/statusBarStore'
+import { reportFailure } from '../../state/policy'
+import { logBackgroundFailure } from '../../ui/fireAndForget'
 import { StatusSections } from './StatusSections'
 import { StatusPanelDialog } from './StatusPanelDialog'
+import { ConsentDialog } from './ConsentDialog'
 import { HOVER_DELAY_MS } from '../../ui/HoverCard'
-
-/** A small speedometer: VS Code's `$(dashboard)`, which the usage extension shows. */
-function GaugeIcon(): JSX.Element {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M2.5 11.5a5.5 5.5 0 1 1 11 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <path d="M8 11.5l2.6-3.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-/** A clock turned back: the value shown is the last one known, not a fresh one. */
-function HistoryIcon(): JSX.Element {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M3.2 8A4.8 4.8 0 1 0 5 4.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M2.8 2.8v2.6h2.6M8 5.5V8l1.8 1.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
 
 function Icon({ icon, busy }: { icon: StatusIcon; busy: boolean }): JSX.Element {
   const cls = busy ? 'spinner' : undefined
@@ -52,24 +35,29 @@ interface Props {
 export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element | null {
   const items = useStatusBar()
   const [panel, setPanel] = useState<{ item: StatusBarItem; data: StatusBarPanel | null } | null>(null)
+  // Plugins whose consent prompt was closed without an answer. The prompt opens by itself the first
+  // time an item asks, once; clicking the item brings it back.
+  const [later, setLater] = useState<ReadonlySet<string>>(() => new Set())
+  const asking = items.find((i) => i.action.kind === 'consent' && !later.has(i.pluginId))
 
   const openPanel = async (item: StatusBarItem): Promise<void> => {
     setPanel({ item, data: null })
     try {
-      const data = await window.apiary.statusBarPanel(item.pluginId, item.id)
+      const data = await statusBarPanel(item.pluginId, item.id)
       setPanel((cur) => (cur?.item.id === item.id && cur.item.pluginId === item.pluginId ? { item, data } : cur))
-    } catch {
+    } catch (e) {
       setPanel(null)
+      reportFailure(e, 'Could not open the dashboard')
     }
   }
 
   // Keeps an open dashboard current when the plugin's data changes (a refresh landed).
   useEffect(() => {
     if (panel === null) return
-    const off = window.apiary.onStatusBarChanged(() => {
-      void window.apiary.statusBarPanel(panel.item.pluginId, panel.item.id).then((data) => {
+    const off = onStatusBarChanged(() => {
+      statusBarPanel(panel.item.pluginId, panel.item.id).then((data) => {
         setPanel((cur) => (cur !== null && cur.item.id === panel.item.id ? { ...cur, data } : cur))
-      }).catch(() => {})
+      }).catch((e: unknown) => { logBackgroundFailure(e, 'status-bar') })
     })
     return off
   }, [panel])
@@ -84,17 +72,25 @@ export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element 
           key={`${item.pluginId}:${item.id}`}
           item={item}
           onClick={() => {
-            if (item.action.kind === 'refresh') void window.apiary.statusBarRefresh(item.pluginId)
+            if (item.action.kind === 'consent') setLater((cur) => new Set([...cur].filter((id) => id !== item.pluginId)))
+            else if (item.action.kind === 'refresh') refreshStatusBarItem(item.pluginId)
             else if (item.action.kind === 'panel') void openPanel(item)
           }}
         />
       ))}
+      {asking?.action.kind === 'consent' && (
+        <ConsentDialog
+          prompt={asking.action.prompt}
+          onAnswer={(allow) => { answerStatusBarConsent(asking.pluginId, allow) }}
+          onLater={() => { setLater((cur) => new Set(cur).add(asking.pluginId)) }}
+        />
+      )}
       {panel !== null && (
         <StatusPanelDialog
           title={panel.data?.title ?? itemTitle(panel.item)}
           panel={panel.data}
           onClose={() => { setPanel(null) }}
-          onRefresh={() => { void window.apiary.statusBarRefresh(panel.item.pluginId) }}
+          onRefresh={() => { refreshStatusBarItem(panel.item.pluginId) }}
           onOpenSettings={() => { setPanel(null); onOpenSettings('plugins') }}
         />
       )}

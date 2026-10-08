@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { writeFileSync, readFileSync, chmodSync } from 'node:fs'
 import { join } from 'node:path'
-import { AppService } from '../../../src/main/appService'
+import { buildAppService } from '../../fixtures/buildService'
+import type { AppService } from '../../../src/main/appService'
 import { makeSession } from '../../fixtures/makeSession'
 import { createServiceFixture, teardownServiceFixture } from './setup'
+import { asSessionId } from '@shared/domain/ids'
 
 let home: string
 let workdir: string
@@ -30,7 +32,7 @@ describe('resuming a session that already has a pty', () => {
     writeFileSync(fakeClaude, `#!/bin/sh\necho spawned >> ${JSON.stringify(started)}\nexec sleep 100\n`)
     chmodSync(fakeClaude, 0o755)
 
-    const resumeService = new AppService({
+    const resumeService = buildAppService({
       configRoot: join(home, '.claude'),
       dbPath: join(home, 'apiary-resume.db'),
       detectLive: async () => new Map(),
@@ -43,12 +45,12 @@ describe('resuming a session that already has a pty', () => {
       await resumeService.refresh()
       await resumeService.importSessions(['55555555-5555-5555-5555-555555555555'], [])
 
-      await resumeService.resume('55555555-5555-5555-5555-555555555555')
+      await resumeService.resume(asSessionId('55555555-5555-5555-5555-555555555555'))
       await vi.waitFor(() => {
         expect(readFileSync(started, 'utf8').trim().split('\n')).toHaveLength(1)
       })
       // The second window's mount effect, calling resume() for the same restored session id.
-      await resumeService.resume('55555555-5555-5555-5555-555555555555')
+      await resumeService.resume(asSessionId('55555555-5555-5555-5555-555555555555'))
 
       // No second launch — the check is synchronous with spawn, so there is nothing to wait for.
       expect(readFileSync(started, 'utf8').trim().split('\n')).toHaveLength(1)

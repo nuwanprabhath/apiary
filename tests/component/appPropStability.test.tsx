@@ -17,9 +17,10 @@
  * `SessionColumnView` and `SessionRowView`.
  */
 import { describe, it, expect } from 'vitest'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { until } from './helpers'
+import { clickRowAction, nextFrames, sidebarSession, until } from './helpers'
+import { trackRenders } from './renderTracker'
 
 interface Fiber {
   type: unknown
@@ -60,8 +61,8 @@ describe('App prop stability and memoisation (UI-1 step 1, UI-4)', () => {
     // SessionColumn receive — driven through the real bridge call the Settings dialog itself uses.
     await window.apiary.themeSetOptions({ animated: false })
     await until(() => fake.state.theme.options.animated === false)
-    // One more tick for React to have committed the resulting App re-render.
-    await new Promise((r) => { setTimeout(r, 0) })
+    // Frames for React to have committed the resulting App re-render.
+    await nextFrames(2)
 
     // Same props objects: App rendered, handed both the same references, and `memo` bailed out.
     expect(propsOfAncestor(sidebarEl, 'SidebarShell')).toBe(before.sidebar)
@@ -84,8 +85,86 @@ describe('App prop stability and memoisation (UI-1 step 1, UI-4)', () => {
     fake.state.tabs = [{ windowNumber: 1, key: 'some-session', view: 'transcript', status: 'running', label: null }]
     fake.emit('activeTabsChanged')
     await until(() => propsOfAncestor(sidebarEl, 'SidebarShell') !== before.sidebar)
-    await new Promise((r) => { setTimeout(r, 0) })
+    await nextFrames(1)
 
     expect(propsOfAncestor(rowEl, 'SessionRowView')).toBe(before.row)
+  })
+})
+
+/**
+ * §7.2: the workspace used to be one context every pane read, so a dispatch aimed at pane A (a tab
+ * activation, a pending session, a divider drag) re-rendered pane B's `SessionColumn` too and
+ * `memo` bought nothing. Props identity cannot see that (a memo component re-rendered by a context
+ * keeps its props object), so this counts real renders through React's commit hook
+ * (`renderTracker.ts`).
+ */
+describe('a change in one pane does not render another (§7.2)', () => {
+  function panes(): { a: string; b: string } {
+    const cols = [...document.querySelectorAll<HTMLElement>('[data-testid="session-column"]')]
+    const active = cols.find((c) => c.dataset.active === 'true')
+    const other = cols.find((c) => c.dataset.active !== 'true')
+    if (active === undefined || other === undefined) throw new Error('want two panes, one of them focused')
+    return { a: active.dataset.columnId!, b: other.dataset.columnId! }
+  }
+
+  /** Two panes side by side, the focused one (A) holding two tabs, the other (B) one. */
+  async function twoPanes(): Promise<{ a: string; b: string }> {
+    await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await clickRowAction('Add worktree switcher', 'split-session-button')
+    await until(() => document.querySelectorAll('[data-testid="session-column"]').length === 2)
+    const ids = panes()
+    // The next click opens in the focused pane, giving it a second tab.
+    const focused = document.querySelector<HTMLElement>(`[data-column-id="${ids.a}"]`)!
+    await userEvent.click(focused)
+    await userEvent.click(sidebarSession('Repo root session'))
+    await until(() => focused.querySelectorAll('[data-testid="session-tab"]').length === 2)
+    return panes()
+  }
+
+  /** Two animation frames: the commit a dispatch caused, and any effect it scheduled, are done. */
+  async function settle(): Promise<void> {
+    await new Promise((r) => { requestAnimationFrame(r) })
+    await new Promise((r) => { requestAnimationFrame(r) })
+  }
+
+  it('activating a tab in pane A renders pane A and not pane B', async () => {
+    const { a, b } = await twoPanes()
+    const inA = document.querySelector<HTMLElement>(`[data-column-id="${a}"]`)!
+    const inactiveTab = [...inA.querySelectorAll<HTMLElement>('[data-testid="session-tab"]')]
+      .find((t) => t.dataset.active !== 'true')!.querySelector<HTMLElement>('[role="tab"]')!
+    const renders = trackRenders('SessionColumnView')
+    await userEvent.click(inactiveTab)
+    await settle()
+    expect(renders.read().get(a) ?? 0).toBeGreaterThan(0)
+    expect(renders.read().get(b) ?? 0).toBe(0)
+    renders.stop()
+  })
+
+  it('a new pending session opened in pane A does not render pane B', async () => {
+    const { a, b } = await twoPanes()
+    const renders = trackRenders('SessionColumnView')
+    const group = [...document.querySelectorAll<HTMLElement>('[data-testid="project-group"]')]
+      .find((g) => g.querySelector('.project-label')?.textContent === 'work-a')!
+    const plus = group.querySelector<HTMLElement>('[data-testid="new-session-button"]')!
+    await userEvent.click(plus)
+    await until(() => document.querySelectorAll(`[data-column-id="${a}"] [data-testid="session-tab"]`).length === 3)
+    await settle()
+    expect(renders.read().get(a) ?? 0).toBeGreaterThan(0)
+    expect(renders.read().get(b) ?? 0).toBe(0)
+    renders.stop()
+  })
+
+  it('dragging the divider between the panes renders neither', async () => {
+    const { a, b } = await twoPanes()
+    const renders = trackRenders('SessionColumnView')
+    const divider = page.getByTestId('column-resizer').element()
+    divider.focus()
+    await userEvent.keyboard('{ArrowRight}')
+    await userEvent.keyboard('{ArrowRight}')
+    await settle()
+    expect(renders.read().get(a) ?? 0).toBe(0)
+    expect(renders.read().get(b) ?? 0).toBe(0)
+    renders.stop()
   })
 })

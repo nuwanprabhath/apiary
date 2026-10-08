@@ -1,6 +1,6 @@
 {
   "name": "apiary",
-  "version": "1.32.3",
+  "version": "1.34.0",
   "private": true,
   "type": "module",
   "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",
@@ -33,13 +33,20 @@
     "test:packaged": "node scripts/test-packaged.mjs",
     "screenshot": "npm run build && playwright test --config=playwright.screenshot.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "lint": "npm run lint:js && npm run lint:css && npm run lint:md && npm run lint:sh && npm run lint:cycles",
+    "lint": "npm run lint:js && npm run lint:css && npm run lint:md && npm run lint:sh && npm run lint:arch && npm run lint:dead && npm run lint:guards",
     "lint:js": "eslint . --max-warnings 0",
     "lint:css": "stylelint \"src/**/*.css\" --max-warnings 0",
     "lint:md": "markdownlint-cli2 && node scripts/check-doc-refs.mjs",
     "lint:sh": "node scripts/lint-sh.mjs",
-    "lint:cycles": "madge --circular --extensions ts,tsx --ts-config tsconfig.json src",
+    "lint:arch": "depcruise src --config .dependency-cruiser.cjs --ignore-known --output-type err",
+    "lint:arch:baseline": "depcruise src --config .dependency-cruiser.cjs --output-type baseline > .dependency-cruiser-known-violations.json",
+    "lint:dead": "node scripts/knip-ratchet.mjs",
+    "lint:dead:baseline": "node scripts/knip-ratchet.mjs --write-baseline",
+    "lint:guards": "vitest run --project unit tests/unit/architecture",
     "lint:fix": "eslint . --fix && stylelint \"src/**/*.css\" --fix && markdownlint-cli2 --fix",
+    "lint:prune": "eslint . --prune-suppressions",
+    "lint:debt": "node scripts/lint-debt.mjs",
+    "new": "node scripts/new.mjs",
     "audit": "node scripts/audit.mjs",
     "dist": "npm run build && node scripts/dist.mjs",
     "dist:mac:arm64": "npm run build && node scripts/dist.mjs arm64",
@@ -52,13 +59,13 @@
     "better-sqlite3": "^13.0.3",
     "chokidar": "^5.0.0",
     "electron-updater": "^6.8.9",
-    "node-pty": "^1.1.0",
-    "three": "^0.186.1"
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@electron/rebuild": "^4.2.0",
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
     "@eslint-react/eslint-plugin": "^5.24.4",
     "@eslint/js": "^10.0.1",
     "@fontsource/fira-code": "^5.3.0",
@@ -85,6 +92,7 @@
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/headless": "^6.0.0",
     "@xterm/xterm": "^6.0.0",
+    "dependency-cruiser": "^18.5.0",
     "dompurify": "^3.4.16",
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
@@ -96,15 +104,17 @@
     "globals": "^17.13.0",
     "husky": "^9.1.7",
     "js-yaml": "^5.4.2",
+    "knip": "^6.40.0",
     "lint-staged": "^17.6.0",
-    "madge": "^8.0.0",
     "markdownlint-cli2": "^0.23.3",
     "marked": "^18.0.14",
+    "minimatch": "^10.2.6",
     "playwright": "^1.63.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "stylelint": "^17.15.0",
     "stylelint-config-standard": "^40.0.0",
+    "three": "^0.186.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.0",
     "vite": "^7.2.0",
@@ -117,9 +127,6 @@
     "*.sh": "shellcheck"
   },
   "overrides": {
-    "madge": {
-      "typescript": "$typescript"
-    },
     "markdownlint-cli2": {
       "smol-toml": "^1.9.0"
     },

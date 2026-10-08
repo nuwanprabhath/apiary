@@ -1,3 +1,5 @@
+import type { Consent } from './consent'
+
 /** One rate-limit window as the usage endpoint reports it. */
 export interface WindowLimit {
   /** 0–100 */
@@ -24,8 +26,9 @@ const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage'
 /**
  * Account-wide rate-limit utilization, from the endpoint Claude Code's own /usage reads. It is
  * unofficial, so the answer is parsed defensively and callers degrade to "last known, stale".
+ * The token goes to this URL and nowhere else, and only after the user agreed (`Consent`).
  */
-export async function fetchLimits(token: string, fetchImpl: typeof fetch = fetch, now: () => number = Date.now): Promise<Limits> {
+export async function fetchLimits(_consent: Consent, token: string, fetchImpl: typeof fetch = fetch, now: () => number = Date.now): Promise<Limits> {
   const res = await fetchImpl(USAGE_URL, {
     headers: {
       Authorization: `Bearer ${token}`,

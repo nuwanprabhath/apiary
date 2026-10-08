@@ -1,0 +1,8 @@
+[
+  {
+    "key": "src/main/plugins/registry.ts#PluginRegistry",
+    "reason": "Four Map<string, …> fields keyed by plugin id (enabled, settings, cache, inFlight). Predates the rule; fold them into one per-plugin record when the registry is next touched.",
+    "debt": true,
+    "ledger": "B10"
+  }
+]

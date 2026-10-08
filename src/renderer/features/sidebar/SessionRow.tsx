@@ -7,8 +7,8 @@ import { useHoverCard } from '../../ui/useHoverCard'
 import { useMrStatuses } from './useMrStatuses'
 import { LayoutMenuButton } from '../layout/LayoutMenuButton'
 import { useLayoutActions } from '../layout/layoutContext'
-import { useNotifications } from '../../ui/notifications'
 import { relativeTime, fullTime } from '../../ui/format'
+import { isVsCodeAvailable, openSessionInVsCode } from '../../state/sessions'
 
 /**
  * Whether VS Code was found, read once for every row rather than once per row: main-process
@@ -23,9 +23,7 @@ function loadVsCodeAvailable(): Promise<boolean> {
   // `vsCodeAvailablePromise` pointing at a rejected promise forever, and every row mounted after
   // that (`.then` below, with no catch of its own) produced its own unhandled rejection — one per
   // row in a long list, all for the same single failed lookup.
-  vsCodeAvailablePromise ??= window.apiary.vsCodeAvailable()
-    .then((v) => { vsCodeAvailable = v; return v })
-    .catch(() => { vsCodeAvailable = false; return false })
+  vsCodeAvailablePromise ??= isVsCodeAvailable().then((v) => { vsCodeAvailable = v; return v })
   return vsCodeAvailablePromise
 }
 
@@ -90,7 +88,6 @@ function SessionRowView({
   const { anchor: cardAnchor, ref: wrapRef, arm, keepOpen, scheduleClose, hideNow } =
     useHoverCard<HTMLDivElement>()
   const { place, isOpen } = useLayoutActions()
-  const { notifyError } = useNotifications()
 
   const [canOpenInVsCode, setCanOpenInVsCode] = useState(vsCodeAvailable ?? false)
   useEffect(() => {
@@ -177,9 +174,7 @@ function SessionRowView({
           missing={!session.cwdExists}
           canOpenInVsCode={canOpenInVsCode}
           onOpenInVsCode={() => {
-            window.apiary.openInVsCode({ kind: 'session', id: session.sessionId }).catch((e: unknown) => {
-              notifyError(e, 'Could not open VS Code')
-            })
+            openSessionInVsCode(session.sessionId)
           }}
           onPointerEnter={keepOpen}
           onPointerLeave={scheduleClose}

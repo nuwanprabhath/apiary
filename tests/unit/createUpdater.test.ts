@@ -29,23 +29,7 @@ const { SettingsService } = await import('../../src/main/settings/settingsServic
 const { createFakeUpdateBackend } = await import('../../src/main/update/fakeBackend')
 
 function baseEnv(): Parameters<typeof createUpdater>[1] {
-  return {
-    configRoot: undefined,
-    pickFolder: undefined,
-    petExportPath: undefined,
-    petImportPath: undefined,
-    windowChrome: undefined,
-    dbPath: undefined,
-    fakeLive: undefined,
-    codePathOverride: undefined,
-    glabPath: undefined,
-    defaultThemeOriginal: false,
-    safeTheme: false,
-    fakeUpdate: undefined,
-    fakeUpdateMode: undefined,
-    headless: false,
-    rendererUrl: undefined,
-  }
+  return { fakeUpdate: undefined, fakeUpdateMode: undefined }
 }
 
 describe('createUpdater (MAIN-15 step 2)', () => {
@@ -55,7 +39,7 @@ describe('createUpdater (MAIN-15 step 2)', () => {
   it('returns an UpdateService when a fake release is configured (test-only path)', () => {
     home = mkdtempSync(join(tmpdir(), 'apiary-updater-'))
     const settings = new SettingsService(join(home, 'settings.json'))
-    const updater = createUpdater(settings, { ...baseEnv(), fakeUpdate: '9.9.9' })
+    const updater = createUpdater(settings, { ...baseEnv(), fakeUpdate: '9.9.9' }, false)
     expect(updater).not.toBeNull()
   })
 
@@ -63,7 +47,7 @@ describe('createUpdater (MAIN-15 step 2)', () => {
     home = mkdtempSync(join(tmpdir(), 'apiary-updater-'))
     const settings = new SettingsService(join(home, 'settings.json'))
     settings.patch({ updateAllowPrerelease: true })
-    const updater = createUpdater(settings, { ...baseEnv(), fakeUpdate: '9.9.9' })
+    const updater = createUpdater(settings, { ...baseEnv(), fakeUpdate: '9.9.9' }, false)
     expect(updater).not.toBeNull()
   })
 })

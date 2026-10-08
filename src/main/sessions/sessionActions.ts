@@ -5,9 +5,10 @@
  * SessionResolver.requireSession first.
  */
 import { existsSync } from 'node:fs'
-import { mkdir, rename } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { resolveProject } from '../git/worktreeResolver'
+import { moveFile } from '../fs/moveFile'
+import type { WorktreeResolver } from '../git/worktreeResolver'
 import type { SessionStore } from '../store/sessionStore'
 import type { SessionSource } from '../sources/claudeProjects'
 import type { SessionResolver } from './sessionResolver'
@@ -22,6 +23,7 @@ export interface SessionActionsDeps {
   catalog: SessionCatalog
   search: SearchService
   pty: PtyManager
+  worktrees: WorktreeResolver
 }
 
 export class SessionActions {
@@ -102,7 +104,7 @@ export class SessionActions {
     // touch the filesystem — the same rule newSessionInProject follows for the same reason.
     const known = this.deps.store.getProject(targetProjectPath)
     if (!known) throw new Error(`Unknown project: ${targetProjectPath}`)
-    const target = await resolveProject(known.path)
+    const target = await this.deps.worktrees.resolveProject(known.path)
 
     const targetFile = this.deps.source.transcriptPathFor(target.path, sessionId)
     const targetDir = dirname(targetFile)
@@ -111,7 +113,7 @@ export class SessionActions {
     }
 
     await mkdir(targetDir, { recursive: true })
-    await rename(session.filePath, targetFile)
+    await moveFile(session.filePath, targetFile)
 
     this.deps.store.syncProject(target)
     this.deps.store.recordSessionMove(sessionId, target.path, target.path, targetFile)

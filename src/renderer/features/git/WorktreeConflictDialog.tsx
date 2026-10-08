@@ -1,6 +1,7 @@
 import { type JSX, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { WorktreeConflict } from '@shared/types'
 import { ErrorBoundary } from '../../ui/ErrorBoundary'
+import { Listbox, useListboxNav } from '../../ui/Listbox'
 import { Modal } from '../../ui/Modal'
 
 interface Props {
@@ -81,7 +82,7 @@ function OtherBranchPicker(
 ): JSX.Element {
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState(conflict.choices[0] ?? '')
-  const listRef = useRef<HTMLUListElement | null>(null)
+  const listRef = useRef<HTMLElement | null>(null)
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -103,11 +104,12 @@ function OtherBranchPicker(
   }, [chosen])
 
   const act = (): void => { if (chosen !== null && !busy) onMoveOther(chosen) }
-  const step = (by: number): void => {
-    if (shown.length === 0) return
-    const at = chosen === null ? -1 : shown.indexOf(chosen)
-    setPicked(shown[Math.min(shown.length - 1, Math.max(0, at + by))])
-  }
+  const { onKeyDown } = useListboxNav({
+    count: shown.length,
+    active: chosen === null ? -1 : shown.indexOf(chosen),
+    setActive: (index) => { setPicked(shown[index]) },
+    onChoose: act,
+  })
 
   return (
     <div className="worktree-conflict-move">
@@ -120,22 +122,18 @@ function OtherBranchPicker(
         value={query}
         disabled={busy}
         onChange={(e) => { setQuery(e.target.value) }}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') { e.preventDefault(); step(1) }
-          else if (e.key === 'ArrowUp') { e.preventDefault(); step(-1) }
-          else if (e.key === 'Enter') { e.preventDefault(); act() }
-        }}
+        onKeyDown={onKeyDown}
         role="combobox"
         aria-expanded="true"
         aria-controls="worktree-conflict-choices"
         aria-activedescendant={chosen === null ? undefined : `worktree-conflict-choice-${String(shown.indexOf(chosen))}`}
       />
-      <ul
+      <Listbox
+        as="ul"
         id="worktree-conflict-choices"
         ref={listRef}
         className="branch-switcher-list worktree-conflict-choices"
-        role="listbox"
-        aria-label={`Branches for ${conflict.label}`}
+        label={`Branches for ${conflict.label}`}
       >
         {shown.length === 0 && <li className="empty" data-testid="worktree-conflict-none">No branch matches</li>}
         {shown.map((b, i) => (
@@ -159,7 +157,7 @@ function OtherBranchPicker(
             </button>
           </li>
         ))}
-      </ul>
+      </Listbox>
       <div className="worktree-conflict-move-row">
         {/* One line per worktree, wrapping rather than clipped: the end of a long branch name is
             usually the part that tells two apart. */}

@@ -1,6 +1,9 @@
 import { useEffect } from 'react'
-import { useWorkspaceDispatch } from './WorkspaceProvider'
-import { findSessionById } from './treeLookup'
+import { onChatLifecycle } from '../../state/chatStore'
+import { treeStore } from '../../state/treeStore'
+import { useWorkspaceDispatch } from './workspaceContext'
+import { findSessionById } from '@shared/treeWalk'
+import { background } from '../../state/policy'
 
 /**
  * Keeps this window's tabs in step with chats, wherever they were started:
@@ -20,21 +23,24 @@ export function useChatTakeover(): void {
       if (following.has(from)) return
       let stop = (): void => {}
       const attempt = (): void => {
-        void window.apiary.tree().then((nodes) => {
+        background(treeStore.current().then((nodes) => {
           const node = findSessionById(nodes, to)
           if (node === null) return
           stop()
           dispatch({ type: 'chat/follow', from, to: node })
-        }).catch(() => {})
+        }), 'chat')
       }
-      const unsubscribe = window.apiary.onTreeChanged(attempt)
+      const unsubscribe = treeStore.onChanged(attempt)
       stop = () => { unsubscribe(); following.delete(from) }
       following.set(from, stop)
       attempt()
     }
-    const unsubscribe = window.apiary.onChatChanged((state) => {
-      if (state.status !== 'exited') dispatch({ type: 'resumed/remove', key: state.sessionId })
-      if (state.previousSessionId !== null) follow(state.previousSessionId, state.sessionId)
+    // `chatLifecycle`, not the chat's own push: this window may have the session open in a
+    // background tab, which shows no chat and so is attached to none, and these two facts are all
+    // it needs.
+    const unsubscribe = onChatLifecycle((change) => {
+      if (change.running) dispatch({ type: 'resumed/remove', key: change.sessionId })
+      if (change.previousSessionId !== null) follow(change.previousSessionId, change.sessionId)
     })
     return () => {
       unsubscribe()

@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ActivityStatus } from '@shared/activity'
 import { describeActivityStatus } from '@shared/activity'
+import { clampLeft, clampTop, fitsHorizontally, POPOVER_GAP } from '../../ui/popoverPlacement'
 
 /**
  * What each status dot in the Active section means, shown when the pointer rests on the section
@@ -23,9 +24,6 @@ const ENTRIES: { status: ActivityStatus; meaning: string }[] = [
   { status: 'stopped', meaning: 'The terminal has exited. Resume it to carry on.' },
 ]
 
-const GAP = 6
-const MARGIN = 8
-
 export function ActivityLegend({ anchor }: { anchor: DOMRect }): React.ReactElement {
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
@@ -39,15 +37,9 @@ export function ActivityLegend({ anchor }: { anchor: DOMRect }): React.ReactElem
     // Beside the header, not below it: below puts the panel straight over the Active rows, which
     // are the very dots it is explaining — you would be reading the key with the map covered up.
     // It falls back to below only when there is genuinely no room to the right.
-    const beside = anchor.right + GAP
-    const left = beside + box.width + MARGIN <= window.innerWidth
-      ? beside
-      : Math.max(MARGIN, window.innerWidth - box.width - MARGIN)
-    const top = Math.min(
-      Math.max(MARGIN, anchor.top),
-      Math.max(MARGIN, window.innerHeight - box.height - MARGIN),
-    )
-    setPos({ left, top })
+    const beside = anchor.right + POPOVER_GAP
+    const left = fitsHorizontally(beside, box.width) ? beside : clampLeft(beside, box.width)
+    setPos({ left, top: clampTop(anchor.top, box.height) })
   }, [anchor])
 
   return createPortal(

@@ -1,0 +1,57 @@
+{
+  "src/renderer/styles/02-controls.css": {
+    "declaration-property-value-disallowed-list": {
+      "count": 4
+    }
+  },
+  "src/renderer/styles/10-shell.css": {
+    "declaration-property-value-disallowed-list": {
+      "count": 11
+    }
+  },
+  "src/renderer/styles/20-sidebar.css": {
+    "declaration-property-value-disallowed-list": {
+      "count": 23
+    }
+  },
+  "src/renderer/styles/30-panes.css": {
+    "declaration-property-value-disallowed-list": {
+      "count": 37
+    }
+  },
+  "src/renderer/styles/31-transcript.css": {
+    "declaration-property-value-disallowed-list": {
+      "count": 9
+    }
+  },
+  "src/renderer/styles/32-terminal.css": {
+    "declaration-property-value-disallowed-list": {
+      "count": 13
+    }
+  },
+  "src/renderer/styles/33-chat.css": {
+    "declaration-property-value-disallowed-list": {
+      "count": 38
+    }
+  },
+  "src/renderer/styles/40-overlays.css": {
+    "declaration-property-value-disallowed-list": {
+      "count": 53
+    }
+  },
+  "src/renderer/styles/50-dialogs.css": {
+    "declaration-property-value-disallowed-list": {
+      "count": 52
+    }
+  },
+  "src/renderer/styles/60-themes.css": {
+    "declaration-property-value-disallowed-list": {
+      "count": 19
+    }
+  },
+  "src/renderer/styles/70-pets.css": {
+    "declaration-property-value-disallowed-list": {
+      "count": 16
+    }
+  }
+}

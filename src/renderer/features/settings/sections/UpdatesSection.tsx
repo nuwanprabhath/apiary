@@ -1,8 +1,11 @@
 import { type JSX, useState } from 'react'
 import type { AppSettingsPayload, UpdateStatusPayload } from '@shared/api'
+import { SETTINGS } from '@shared/settings/schema'
 import { formatVersion, formatChecked, describeCheck } from '../../update/updateSummary'
 import { CheckboxSetting } from '../fields/CheckboxSetting'
 import { NumberSetting } from '../fields/NumberSetting'
+import { checkForUpdate } from '../../../state/updateStore'
+import { describeError } from '../../../ui/errors'
 
 /** Check-interval presets, in hours. */
 const UPDATE_INTERVAL_PRESETS = [1, 6, 12, 24]
@@ -69,10 +72,10 @@ export function UpdatesSection(
               setCheckResult(null)
               // The answer comes from what this call resolves with, not from the pushed
               // status: see describeCheck for why the push is not enough here.
-              void window.apiary.updateCheck()
+              void checkForUpdate()
                 .then((status) => { setCheckResult(describeCheck(status)) })
                 .catch((e: unknown) => {
-                  setCheckResult(`Could not check — ${e instanceof Error ? e.message : String(e)}`)
+                  setCheckResult(`Could not check — ${describeError(e).message}`)
                 })
                 .finally(() => { setChecking(false) })
             }}
@@ -101,8 +104,8 @@ export function UpdatesSection(
             testId="setting-update-interval"
             label="Every"
             unit="hours"
-            min={1}
-            max={168}
+            min={SETTINGS.updateCheckIntervalHours.range.min}
+            max={SETTINGS.updateCheckIntervalHours.range.max}
             value={draft.updateCheckIntervalHours}
             onChange={(n) => { patch({ updateCheckIntervalHours: n }) }}
             presets={UPDATE_INTERVAL_PRESETS.map((hrs) => ({

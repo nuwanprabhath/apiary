@@ -1,11 +1,10 @@
 import { isWindowChrome, type WindowChrome } from '@shared/domain/windowChrome'
 import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'node:path'
-import { boundsAreOnScreen } from './windowBounds'
+import { boundsAreOnScreen, type WindowBounds } from './windowBounds'
 import { guardNavigation } from './navigationGuard'
 import { log } from '../log/logger'
 import { fireAndForget } from '../log/fireAndForget'
-import type { SettingsService } from '../settings/settingsService'
 import type { SessionLayoutStore, WindowLayoutRecord } from './sessionLayoutStore'
 import type { TabRegistry } from './tabRegistry'
 import type { TabTransfer } from '@shared/types'
@@ -28,8 +27,15 @@ export interface NewWindowOptions {
   restore?: WindowLayoutRecord
 }
 
+/** The two settings a window reads, and the one it writes back (the first window's geometry). The
+ *  settings service satisfies it; window code does not import settings to say so. */
+interface WindowSettings {
+  get(): { windowBounds: WindowBounds | null; systemTitleBar: boolean }
+  patch(change: { windowBounds: WindowBounds }): unknown
+}
+
 export interface WindowManagerDeps {
-  settingsService: SettingsService
+  settingsService: WindowSettings
   sessionLayoutStore: SessionLayoutStore | null
   tabRegistry: TabRegistry | null
   /** Keeps every window off-screen, for a test run that must not steal focus (see `index.ts`). */
@@ -43,6 +49,8 @@ export interface WindowManagerDeps {
   isQuitting: () => boolean
   /** `APIARY_WINDOW_CHROME`, test-only: overrides which title bar windows get. */
   chromeOverride?: string
+  /** `APIARY_RENDERER_SEAMS`, test-only (undefined when packaged): reaches the renderer as `?seams=`. */
+  rendererSeams?: string
   /** How long a closed window's layout record outlives it while other windows stay open — see
    *  `CLOSE_GRACE_MS`. Injectable so tests need not wait out the real one. */
   closeGraceMs?: number
@@ -289,6 +297,7 @@ export class WindowManager {
       // the `records` filter in `index.ts`'s `start()`), so the renderer has nothing to do with it.
       query.restore = JSON.stringify({ ...opts.restore, bounds: undefined, hasLayout: undefined })
     }
+    if (this.deps.rendererSeams !== undefined) query.seams = this.deps.rendererSeams
     if (rendererUrl) {
       const url = new URL(rendererUrl)
       for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v)

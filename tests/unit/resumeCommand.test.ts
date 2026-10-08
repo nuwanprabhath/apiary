@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildResumeCommand, buildNewSessionCommand, loginShell } from '../../src/main/pty/resumeCommand'
+import { buildResumeCommand, buildNewSessionCommand } from '../../src/main/pty/resumeCommand'
 
 const ID = 'c8af2f41-ff45-41cc-8d23-0f71067c7865'
 
@@ -32,15 +32,5 @@ describe('buildNewSessionCommand', () => {
   it('quotes an explicit binary path, the same as buildResumeCommand', () => {
     expect(buildNewSessionCommand({ claudeBin: '/opt/my apps/claude' }))
       .toBe(`exec '/opt/my apps/claude'`)
-  })
-})
-
-describe('loginShell', () => {
-  it('prefers $SHELL', () => {
-    expect(loginShell({ SHELL: '/usr/bin/zsh' })).toBe('/usr/bin/zsh')
-  })
-
-  it('falls back to bash', () => {
-    expect(loginShell({})).toBe('/bin/bash')
   })
 })

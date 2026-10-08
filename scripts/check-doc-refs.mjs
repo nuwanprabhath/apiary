@@ -44,6 +44,7 @@ function collectDir(dir) {
   }
 }
 collectDir(join(ROOT, 'docs', 'architecture'))
+collectDir(join(ROOT, 'docs', 'adr'))
 
 const contributing = join(ROOT, 'CONTRIBUTING.md')
 if (statSync(contributing, { throwIfNoEntry: false })) DOC_FILES.push(contributing)
@@ -147,9 +148,74 @@ function resolvesAsPath(candidate) {
 
 const failures = []
 
+// ── Symbols ──────────────────────────────────────────────────────────────────────────────────────
+// A backticked identifier in these docs (`tidyLayout`, `BUILTIN_PLUGINS`, `SessionCatalog`) is an
+// instruction to an agent: "call this", "register here". When the symbol is renamed or deleted the
+// sentence goes stale the same way a path does (`setLayout` outlived its removal by two releases), so
+// such a span must name an identifier that still occurs in the code. Only identifier-shaped spans
+// that cannot be an English word are checked: camelCase, PascalCase with two humps, or CONSTANT_CASE.
+const CODE_DIRS = ['src', 'tests', 'scripts', 'eslint', '.github', '.husky', 'build']
+const IDENTIFIERS = new Set()
+function indexIdentifiers(dir) {
+  if (!statSync(dir, { throwIfNoEntry: false })) return
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (SKIP_DIRS.has(entry.name)) continue
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) { indexIdentifiers(full); continue }
+    if (full === import.meta.filename) continue // this file names stale symbols in its comments
+    if (!/\.(ts|tsx|mjs|cjs|js|json|yml|yaml|sh|css)$/.test(entry.name) && !/^[\w-]+$/.test(entry.name)) continue
+    for (const id of readFileSync(full, 'utf8').match(/[A-Za-z_$][\w$]*/g) ?? []) IDENTIFIERS.add(id)
+  }
+}
+for (const d of CODE_DIRS) indexIdentifiers(join(ROOT, d))
+for (const f of readdirSync(ROOT)) if (/\.(json|ts|js|cjs|mjs|yml)$/.test(f)) {
+  for (const id of readFileSync(join(ROOT, f), 'utf8').match(/[A-Za-z_$][\w$]*/g) ?? []) IDENTIFIERS.add(id)
+}
+const IDENTIFIER_SPAN = /^@?([A-Za-z_$][\w$]*)(?:\.([A-Za-z_$][\w$]*))*(?:\(\))?$/
+function isCodeShaped(id) {
+  return /[a-z][A-Z]/.test(id) || /^[A-Z][A-Z0-9]*_[A-Z0-9_]+$/.test(id) || /^[A-Z][a-z0-9]+[A-Z][A-Za-z0-9]*$/.test(id)
+}
+// Code-shaped words in these docs that are not repo identifiers: Electron/DOM/library APIs and
+// product names. Shrink this list when a name stops appearing in the docs.
+const SYMBOL_ALLOWLIST = new Set([
+  'getBoundingClientRect', 'innerText', 'contentVisibility', 'backdropFilter', 'webContents', 'BrowserWindow',
+  'ipcMain', 'ipcRenderer', 'contextBridge', 'useSyncExternalStore', 'useEffect', 'useLayoutEffect', 'useState',
+  'useMemo', 'useCallback', 'useRef', 'React', 'ResizeObserver', 'requestAnimationFrame', 'localStorage',
+  'sessionStorage', 'indexedDB', 'GitHub', 'GitLab', 'JavaScript', 'TypeScript', 'macOS', 'iOS', 'VSCode', 'LiquidGlass',
+  'execFile', 'setInterval', 'setTimeout', 'NaN', 'npmRebuild', 'isPackaged', 'senderFrame', 'webPreferences',
+])
+// Stale symbols that docs still name, each with the ledger id that fixes it. May only shrink: an
+// entry that no longer fails is reported, so it is removed with the fix.
+const SYMBOL_DEBT = new Map([])
+const symbolDebtSeen = new Set()
+
+function checkSymbol(relFile, inner) {
+  const m = IDENTIFIER_SPAN.exec(inner.trim())
+  if (!m) return
+  const ids = inner.trim().replace(/^@/, '').replace(/\(\)$/, '').split('.')
+  for (const id of ids) {
+    if (!isCodeShaped(id) || SYMBOL_ALLOWLIST.has(id) || IDENTIFIERS.has(id)) continue
+    const key = `${relFile}:${id}`
+    if (SYMBOL_DEBT.has(key)) { symbolDebtSeen.add(key); continue }
+    failures.push(`${relFile}: \`${id}\` — no identifier with this name in the code (renamed or removed?)`)
+  }
+}
+
+// ── Links ────────────────────────────────────────────────────────────────────────────────────────
+// `[text](relative/path)` must point at a file that exists (markdownlint checks only #anchors).
+function checkLinks(relFile, text) {
+  for (const m of text.matchAll(/\]\(([^)\s]+)\)/g)) {
+    const target = m[1].split('#')[0]
+    if (target === '' || /^[a-z]+:/i.test(target)) continue
+    const rel = relative(ROOT, join(ROOT, relFile, '..', decodeURIComponent(target)))
+    if (!exists(rel)) failures.push(`${relFile}: link to \`${target}\` — no such file`)
+  }
+}
+
 for (const file of DOC_FILES) {
   const text = readFileSync(file, 'utf8')
   const relFile = relative(ROOT, file)
+  checkLinks(relFile, text)
   // Pull out backtick-delimited spans (single backticks; docs don't use fenced code for paths).
   const spans = text.match(/`[^`\n]+`/g) ?? []
   for (const span of spans) {
@@ -158,6 +224,7 @@ for (const file of DOC_FILES) {
     // `latest-*.yml`), not a concrete path — skip the whole span rather than the substring that
     // happens to still look path-like once the placeholder segment is stripped out.
     if (looksLikePlaceholder(inner)) continue
+    checkSymbol(relFile, inner)
     const tokens = inner.match(TOKEN_RE) ?? []
     for (const token of tokens) {
       const cleaned = token.replace(/[.,;:)]+$/, '')
@@ -179,12 +246,16 @@ for (const file of DOC_FILES) {
   }
 }
 
+for (const key of SYMBOL_DEBT.keys()) {
+  if (!symbolDebtSeen.has(key)) failures.push(`scripts/check-doc-refs.mjs: SYMBOL_DEBT entry \`${key}\` no longer fails — remove it`)
+}
+
 if (failures.length > 0) {
-  console.error(`check-doc-refs: ${failures.length} documented path(s) do not exist:\n`)
+  console.error(`check-doc-refs: ${failures.length} stale reference(s) (path, symbol or link):\n`)
   for (const f of failures) console.error(`  ${f}`)
   console.error('\nFix the doc, or add a real allowlist entry to scripts/check-doc-refs.mjs if the')
   console.error('path is a deliberate placeholder or a runtime-only path, not a repo file.')
   process.exit(1)
 }
 
-console.log(`check-doc-refs: checked ${DOC_FILES.length} doc file(s), all referenced paths exist.`)
+console.log(`check-doc-refs: checked ${DOC_FILES.length} doc file(s): every referenced path, symbol and link exists.`)

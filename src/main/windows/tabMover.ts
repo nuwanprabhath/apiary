@@ -1,6 +1,8 @@
-import { CHANNELS, type TabTransfer } from '@shared/api'
+import { IPC, type TabTransfer } from '@shared/api'
+import { asPtyId } from '@shared/domain/ids'
 import { pickWindowAt } from './windowAtPoint'
 import type { TabRegistry } from './tabRegistry'
+import { sendEvent } from './sendEvent'
 
 /** The slice of `BrowserWindow` (and its `webContents`) `TabMover` needs — narrowed so a unit test
  *  can pass a plain object instead of a real Electron window (MAIN-13 step 3). */
@@ -60,7 +62,7 @@ export class TabMover {
   announceClaimed(key: string, keeper: number | null): void {
     for (const win of this.deps.getWindows()) {
       if (win.isDestroyed() || win.webContents.id === keeper) continue
-      win.webContents.send(CHANNELS.tabClaimed, key)
+      sendEvent(win.webContents, IPC.tabClaimed, key)
     }
   }
 
@@ -76,7 +78,7 @@ export class TabMover {
       windowNumber: toWindow,
       key: tab.key,
       view: tab.view,
-      ptyId: tab.ptyId ?? (this.deps.pty.has(tab.key) ? tab.key : null),
+      ptyId: tab.ptyId ?? (this.deps.pty.has(tab.key) ? asPtyId(tab.key) : null),
       label: null,
     })
   }

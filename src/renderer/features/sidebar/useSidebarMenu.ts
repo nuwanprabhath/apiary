@@ -1,17 +1,20 @@
-import { asSessionId, type SessionId } from '@shared/domain/ids'
+import type { SessionId } from '@shared/domain/ids'
 import { useState } from 'react'
 import type { ProjectNode } from '@shared/types'
 import type { ContextMenuItem } from '../../ui/ContextMenu'
 import { useNotifications } from '../../ui/notifications'
 import { useLayoutActions } from '../layout/layoutContext'
 import { deleteGroup, moveGroup, type GroupState } from './model/groups'
-import { findFolder, flattenSessions } from './treeUtils'
+import { flattenTree } from '@shared/treeWalk'
+import { findFolder } from './treeUtils'
 import type { GroupActions } from './useGroupActions'
 import { useDialogActions } from '../dialogs/useDialogs'
+import { listFolderWorktrees } from '../../state/git'
 
 /** Which menu is open, if any: a right-click on a folder, a group's header or a session row.
  *  `nested`: a folder inside another (a worktree under its repository). */
-export interface SidebarMenu { kind: 'folder' | 'group' | 'session'; id: string; x: number; y: number; nested?: boolean }
+export type SidebarMenu = { x: number; y: number; nested?: boolean }
+  & ({ kind: 'folder' | 'group'; id: string } | { kind: 'session'; id: SessionId })
 
 /** The sidebar's one context menu: what is open (`menu`/`setMenu`) and the items it shows. */
 export function useSidebarMenu({
@@ -38,7 +41,7 @@ export function useSidebarMenu({
   const menuItems = (): ContextMenuItem[] => {
     if (menu === null) return []
     if (menu.kind === 'session') {
-      const session = flattenSessions(tree).get(menu.id)
+      const session = flattenTree(tree).get(menu.id)
       // A pinned session can be reordered from its context menu, the keyboard-reachable
       // equivalent of dragging it in the Pinned section — see the drop handler there.
       const pinnedIndex = pinned.indexOf(menu.id)
@@ -46,7 +49,7 @@ export function useSidebarMenu({
         {
           id: 'fork-session',
           label: 'Fork session',
-          run: () => onForkSession(asSessionId(menu.id)),
+          run: () => onForkSession(menu.id),
         },
         {
           id: 'arrange',
@@ -107,7 +110,7 @@ export function useSidebarMenu({
             onToggleAllWorktrees(folder)
             if (showingAll) return
             // Said out loud when there is nothing to add, or the tick would appear to do nothing.
-            void window.apiary.listWorktrees(folder).then((list) => {
+            void listFolderWorktrees(folder).then((list) => {
               const withSessions = new Set(rawTree.find((n) => n.path === folder)?.children.map((c) => c.path))
               if (list.every((w) => withSessions.has(w.path))) {
                 const label = rawTree.find((n) => n.path === folder)?.label ?? folder

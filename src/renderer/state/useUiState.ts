@@ -36,7 +36,7 @@ const MAX_CREATED_WORKTREES = 50
  * ad hoc. Ports App.tsx 129, 312–321, 399–408, 913–935 verbatim.
  *
  * `recentSectionHours` is a parameter rather than read from this hook because it comes from
- * settings (`useAppSettings`), a sibling hook — passing it in keeps this hook from having an
+ * settings (`useAppSettings`, in `settingsStore.ts`), a sibling hook — passing it in keeps this hook from having an
  * opinion about where settings live.
  */
 export function useUiState(recentSectionHours: number): UiStateActions {

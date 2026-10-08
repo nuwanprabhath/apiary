@@ -1,17 +1,11 @@
 import { type JSX, useEffect, useMemo, useState } from 'react'
-import type { ProjectNode, SessionNode } from '@shared/types'
+import type { SessionNode } from '@shared/types'
+import { flattenTree } from '@shared/treeWalk'
 import { relativeTime } from '../../ui/format'
 import { treeStore } from '../../state/treeStore'
+import { background } from '../../state/policy'
 
 const RECENT = 8
-
-function flatten(nodes: ProjectNode[], into: SessionNode[] = []): SessionNode[] {
-  for (const node of nodes) {
-    into.push(...node.sessions)
-    flatten(node.children, into)
-  }
-  return into
-}
 
 interface Props {
   /** Tabs open in the window's other panes. */
@@ -37,9 +31,8 @@ export function PaneFiller({ openTabs, exclude, onMoveHere, onOpenHere, onCloseP
     // UI-3: shares the cache App's own effects use instead of always starting its own fetch — a
     // pane emptying right after a tree change (the common case: closing the last tab in it) often
     // lands while that change's fetch is still in flight, or has only just finished.
-    void treeStore.current()
-      .then((nodes) => { if (!cancelled) setSessions(flatten(nodes)) })
-      .catch(() => { /* the open tabs are still offered; recent sessions are a convenience */ })
+    // Recent sessions are a convenience: the open tabs are still offered when this read fails.
+    background(treeStore.current().then((nodes) => { if (!cancelled) setSessions([...flattenTree(nodes).values()]) }), 'refresh')
     return () => { cancelled = true }
   }, [])
 

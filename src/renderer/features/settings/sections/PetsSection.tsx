@@ -1,15 +1,10 @@
 import { type JSX, useState } from 'react'
 import { MAX_ACTIVE_PETS, PET_MODELS, type PetModel, type PetRecord } from '@shared/pets/state'
 import { PetSprite } from '../../pets/PetSprite'
-import { usePets } from '../../pets/usePets'
+import { cancelPetGeneration, deletePet, exportPet, generatePet, importPet, setPetsEnabled, updatePet, usePets } from '../../../state/petsStore'
 import { describeError } from '../../../ui/errors'
 import { TrashIcon } from '../../../ui/icons'
-
-const MODEL_LABELS: Record<PetModel, string> = {
-  haiku: 'Haiku (fastest, default)',
-  sonnet: 'Sonnet',
-  opus: 'Opus',
-}
+import { PET_MODEL_LABELS } from '../../../ui/modelLabels'
 
 /**
  * Settings → Pets. Like Themes, everything here takes effect at once (main's `pets.json`), not on
@@ -34,7 +29,7 @@ export function PetsSection(): JSX.Element {
   const busy = state.generating
   const outCount = state.pets.filter((p) => p.active).length
   const hatch = (text: string | null): void => {
-    run(window.apiary.petGenerate(text, model).then(() => { setDescription('') }))
+    run(generatePet(text, model).then(() => { setDescription('') }))
   }
 
   return (
@@ -45,7 +40,7 @@ export function PetsSection(): JSX.Element {
           data-testid="setting-pets-enabled"
           checked={state.enabled}
           disabled={busy && !state.enabled}
-          onChange={(e) => { run(window.apiary.petsSetEnabled(e.target.checked)) }}
+          onChange={(e) => { run(setPetsEnabled(e.target.checked)) }}
         />
         <span>
           <strong>Show pets</strong>
@@ -105,13 +100,13 @@ export function PetsSection(): JSX.Element {
               {busy ? (
                 <>
                   <span className="theme-busy" data-testid="pet-generating"><span className="spinner-dot" /> Claude is designing your pet…</span>
-                  <button className="btn small" data-testid="pet-generate-cancel" onClick={() => { window.apiary.petGenerateCancel() }}>Cancel</button>
+                  <button className="btn small" data-testid="pet-generate-cancel" onClick={() => { cancelPetGeneration() }}>Cancel</button>
                 </>
               ) : (
                 <>
                   <button className="btn primary small" data-testid="pet-generate" disabled={description.trim() === ''} onClick={() => { hatch(description) }}>Hatch</button>
                   <button className="btn small" data-testid="pet-surprise" onClick={() => { hatch(null) }}>Surprise me</button>
-                  <button className="btn small" data-testid="pet-import" onClick={() => { run(window.apiary.petImport()) }}>Import…</button>
+                  <button className="btn small" data-testid="pet-import" onClick={() => { run(importPet()) }}>Import…</button>
                 </>
               )}
               <select
@@ -122,7 +117,7 @@ export function PetsSection(): JSX.Element {
                 disabled={busy}
                 onChange={(e) => { setModel(e.target.value as PetModel) }}
               >
-                {PET_MODELS.map((m) => <option key={m} value={m}>{MODEL_LABELS[m]}</option>)}
+                {PET_MODELS.map((m) => <option key={m} value={m}>{PET_MODEL_LABELS[m]}</option>)}
               </select>
             </div>
           </div>
@@ -154,7 +149,7 @@ function PetCard({ pet, canComeOut, confirming, onConfirm, run }: {
         value={name}
         maxLength={24}
         onChange={(e) => { setName(e.target.value) }}
-        onBlur={() => { if (name.trim() !== '' && name !== pet.spec.name) run(window.apiary.petUpdate(pet.id, { name })) }}
+        onBlur={() => { if (name.trim() !== '' && name !== pet.spec.name) run(updatePet(pet.id, { name })) }}
       />
       {pet.spec.tagline !== '' && <span className="settings-help pet-card-tagline">{pet.spec.tagline}</span>}
       <label className="pet-card-row" title={canComeOut ? undefined : `Up to ${String(MAX_ACTIVE_PETS)} pets can be out at once. Put one away first.`}>
@@ -163,7 +158,7 @@ function PetCard({ pet, canComeOut, confirming, onConfirm, run }: {
           data-testid="pet-card-out"
           checked={pet.active}
           disabled={!canComeOut}
-          onChange={(e) => { run(window.apiary.petUpdate(pet.id, { active: e.target.checked })) }}
+          onChange={(e) => { run(updatePet(pet.id, { active: e.target.checked })) }}
         />
         <span>Out</span>
       </label>
@@ -172,15 +167,15 @@ function PetCard({ pet, canComeOut, confirming, onConfirm, run }: {
         data-testid="pet-card-model"
         aria-label={`Model for ${pet.spec.name}`}
         value={pet.model}
-        onChange={(e) => { run(window.apiary.petUpdate(pet.id, { model: e.target.value as PetModel })) }}
+        onChange={(e) => { run(updatePet(pet.id, { model: e.target.value as PetModel })) }}
       >
-        {PET_MODELS.map((m) => <option key={m} value={m}>{MODEL_LABELS[m]}</option>)}
+        {PET_MODELS.map((m) => <option key={m} value={m}>{PET_MODEL_LABELS[m]}</option>)}
       </select>
       <div className="pet-card-actions">
-        <button className="btn small" data-testid="pet-card-export" onClick={() => { run(window.apiary.petExport(pet.id)) }}>Export…</button>
+        <button className="btn small" data-testid="pet-card-export" onClick={() => { run(exportPet(pet.id)) }}>Export…</button>
         {confirming ? (
           <>
-            <button className="btn small danger" data-testid="pet-card-delete-confirm" onClick={() => { onConfirm(false); run(window.apiary.petDelete(pet.id)) }}>Delete</button>
+            <button className="btn small danger" data-testid="pet-card-delete-confirm" onClick={() => { onConfirm(false); run(deletePet(pet.id)) }}>Delete</button>
             <button className="btn small" onClick={() => { onConfirm(false) }}>Keep</button>
           </>
         ) : (

@@ -11,7 +11,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { page } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { mouse } from './helpers'
+import { mouse, stays } from './helpers'
 import type { FakeSession } from './fakeApiary'
 
 const SESSION_COUNT = 40
@@ -50,11 +50,9 @@ describe('useHoverCard scroll cost (UI-7)', () => {
     list.dispatchEvent(new Event('scroll'))
     // Past SCROLL_QUIET_MS (250) + HOVER_DELAY_MS (350) — long enough for the shared settle check
     // (old code: every mounted row's own settle timer) to have fired.
-    await new Promise((r) => { setTimeout(r, 700) })
-
     // Measured against the pre-UI-7 code (each of the 40 rows' `useHoverCard` scheduling its own
     // settle timer and reading its own rect): 40 reads for this scenario. After the fix: 0 — the
     // single shared check finds nothing under the pointer and never reaches a row's rect at all.
-    expect(wrapRectReads).toBe(0)
+    await stays(() => wrapRectReads === 0, 700, 'no row rect to be read after the scroll')
   })
 })

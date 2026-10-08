@@ -169,8 +169,32 @@ export function saveUiState(state: UiState): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(state))
     localStorage.setItem(SHARED_KEY, JSON.stringify(pickShared(state)))
+    // eslint-disable-next-line apiary/no-silent-catch -- storage can be unavailable; the app works fine without persistence
   } catch {
     // Storage can be unavailable; the app works fine without persistence.
+  }
+}
+
+const COMPOSER_HEIGHT_KEY = 'apiary.composerHeight'
+
+/** The height the user dragged the composer to, or null if never (or storage is unavailable). */
+export function loadComposerHeight(minHeight: number): number | null {
+  try {
+    const n = Number(localStorage.getItem(COMPOSER_HEIGHT_KEY))
+    return Number.isFinite(n) && n >= minHeight ? n : null
+  } catch {
+    return null
+  }
+}
+
+/** Remembers a dragged composer height, or forgets it for `null` (the box fits its text again). */
+export function saveComposerHeight(height: number | null): void {
+  try {
+    if (height === null) localStorage.removeItem(COMPOSER_HEIGHT_KEY)
+    else localStorage.setItem(COMPOSER_HEIGHT_KEY, String(height))
+    // eslint-disable-next-line apiary/no-silent-catch -- storage can be blocked; the composer height is only a convenience
+  } catch {
+    // Storage can be unavailable; the composer just starts at its fitted height next time.
   }
 }
 

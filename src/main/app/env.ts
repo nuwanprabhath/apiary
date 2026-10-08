@@ -57,6 +57,9 @@ export interface RuntimeEnv {
   /** Forces a window chrome (`custom`, `mac`, `system`) — E2E only, so the Windows/Linux title bar
    *  and its menu can be driven on any machine. */
   windowChrome: string | undefined
+  /** JSON for the renderer's test seams (`renderer/state/testSeams.ts`), passed to every window in
+   *  its URL — component-style speed-ups an e2e spec may want (pets' scenes in seconds). */
+  rendererSeams: string | undefined
 }
 
 /** Parses every runtime override in one place. `argv`/`env`/`isPackaged` are passed in rather
@@ -80,5 +83,6 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackag
     petExportPath: test('APIARY_PET_EXPORT_PATH'),
     petImportPath: test('APIARY_PET_IMPORT_PATH'),
     windowChrome: test('APIARY_WINDOW_CHROME'),
+    rendererSeams: test('APIARY_RENDERER_SEAMS'),
   }
 }

@@ -1,4 +1,5 @@
 import type { WebContents } from 'electron'
+import { ignoreErrors } from '@shared/ignoreErrors'
 import { log } from '../log/logger'
 
 /**
@@ -37,10 +38,9 @@ function stripHash(href: string): string {
  * legitimate.
  */
 export function decideNavigation(current: string, target: string): NavigationDecision {
-  let to: URL
-  try { to = new URL(target) } catch { return 'block' }
-  let from: URL | null = null
-  try { from = new URL(current) } catch { /* no current page yet */ }
+  const to = ignoreErrors(() => new URL(target), 'an unparseable target is blocked')
+  if (to === undefined) return 'block'
+  const from = ignoreErrors(() => new URL(current), 'no current page yet') ?? null
 
   if (from !== null && stripHash(to.href) === stripHash(from.href)) return 'allow'
   return EXTERNAL_SCHEMES.has(to.protocol) ? 'external' : 'block'

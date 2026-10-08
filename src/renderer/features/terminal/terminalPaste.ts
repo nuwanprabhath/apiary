@@ -21,3 +21,20 @@ export function pasteText(term: PasteableTerminal, text: string): void {
   // whatever follows as keystrokes (SEC-6).
   term.paste(stripPasteControls(text))
 }
+
+/**
+ * Takes over the native `paste` DOM event on a terminal's element — Edit > Paste (`role:
+ * 'editMenu'`), Shift+Insert and Linux middle-click all arrive that way, not through a key handler
+ * of ours — and sends its text through `pasteText`. Registered in the capture phase on an
+ * ancestor of xterm's textarea, so it runs before xterm's own listener, and stops the event there:
+ * xterm's handler would bracket the text but keep every ESC in it (SEC-6). Returns the disposer.
+ */
+export function routeNativePaste(host: HTMLElement, term: PasteableTerminal): () => void {
+  const onPaste = (e: ClipboardEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    pasteText(term, e.clipboardData?.getData('text/plain') ?? '')
+  }
+  host.addEventListener('paste', onPaste, true)
+  return () => { host.removeEventListener('paste', onPaste, true) }
+}

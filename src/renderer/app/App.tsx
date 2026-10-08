@@ -1,4 +1,4 @@
-import { asSessionId, type PtyId, type SessionId } from '@shared/domain/ids'
+import type { PtyId, SessionId } from '@shared/domain/ids'
 import type { PendingTabInfo } from '../features/pane/paneTypes'
 import { type JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -11,27 +11,28 @@ import { DialogHost } from '../features/dialogs/DialogHost'
 import { DialogOpenContext, useDialogs } from '../features/dialogs/useDialogs'
 import { StatusBar } from '../features/statusBar/StatusBar'
 import { PetLayer, petsOut } from '../features/pets/PetLayer'
-import { usePets } from '../features/pets/usePets'
+import { usePets } from '../state/petsStore'
 import { findColumnWithTab, type OpenTab } from '../features/layout/columns'
 import { presetDef, type PresetId } from '../features/layout/layout'
-import {
-  WorkspaceProvider, useWorkspace, useWorkspaceDispatch,
-} from '../features/workspace/WorkspaceProvider'
+import { sessionIdOfTabKey } from '../features/workspace'
+import { WorkspaceProvider } from '../features/workspace/WorkspaceProvider'
+import { useWorkspaceDispatch, useWorkspaceStore } from '../features/workspace/workspaceContext'
+import { useWorkspace } from '../features/workspace/useWorkspaceSelector'
 import {
   LayoutContext, LayoutStateContext, type LayoutActions, type LayoutState, type PlaceTarget,
 } from '../features/layout/layoutContext'
 import { LayoutMenuButton } from '../features/layout/LayoutMenuButton'
 import { PaneGrid } from '../features/layout/PaneGrid'
-import { useResizeDrag } from '../features/layout/useResizeDrag'
+import { useResizeDrag } from '../ui/useResizeDrag'
 import { PaneFiller } from '../features/pane/PaneFiller'
 import { detachedKey, detachedTransfer, restoredWindow, windowChrome } from '../state/windowParams'
 import { TitleBar } from '../features/titleBar/TitleBar'
 import { useThemeState, useAppliedTheme } from '../theme/useTheme'
 import { ThemeEffects } from '../theme/ThemeEffects'
-import { useUpdate } from '../features/update/useUpdate'
-import { useAppSettings } from '../state/useAppSettings'
+import { useUpdate } from '../state/updateStore'
+import { useAppSettings } from '../state/settingsStore'
 import { useUiState } from '../state/useUiState'
-import { useActiveTabs } from '../state/useActiveTabs'
+import { useActiveTabs } from '../state/activeTabsStore'
 import { treeStore } from '../state/treeStore'
 import { useSessionFollowing } from '../features/workspace/useSessionFollowing'
 import { usePendingSessions } from '../features/workspace/usePendingSessions'
@@ -40,13 +41,18 @@ import { useLaunchRestore } from '../features/workspace/useLaunchRestore'
 import { useLayoutReporting } from '../features/workspace/useLayoutReporting'
 import { useOpenSessionRows } from '../features/workspace/useOpenSessionRows'
 import { useTabTransfer } from '../features/workspace/useTabTransfer'
-import { ChatModeContext } from '../state/useChat'
+import { ChatModeContext } from '../state/chatStore'
 import { useChatTakeover } from '../features/workspace/useChatTakeover'
 import { UpdateBanner } from '../features/update/UpdateBanner'
 import { useNotifications } from '../ui/notifications'
 import { ErrorBoundary } from '../ui/ErrorBoundary'
-import { describeError } from '../ui/errors'
+import { crashNotice } from '../ui/errors'
 import { SidebarIcon, LayoutIcon } from '../ui/icons'
+import { findResumeConflict, forkSession as forkSessionCommand, removeSession, renameSession, resumeSession, startSessionInPickedFolder, startSessionInProject } from '../state/sessions'
+import { adoptTabHere, detachTab, dropTab, focusTabInWindow } from '../state/tabs'
+import { killPty } from '../state/terminals'
+import { onToggleSidebar } from '../state/windowChrome'
+import { readGpuCompositing } from '../state/theme'
 
 /** How the toggle's shortcut is written on this platform — see the View menu in main/menu.ts. */
 const SIDEBAR_SHORTCUT = navigator.userAgent.includes('Mac') ? '⌘B' : 'Ctrl+Shift+B'
@@ -58,9 +64,6 @@ const MAX_SIDEBAR_WIDTH = 600
 // area above it readable rather than squeezed to a sliver.
 const MIN_BOTTOM_HEIGHT = 120
 const MAX_BOTTOM_HEIGHT = 560
-
-/** How far an arrow key moves a resizer (UI-27), matching PaneDividers' own keyboard step. */
-const RESIZE_KEY_STEP_PX = 16
 
 export function App(): JSX.Element {
   /**
@@ -93,7 +96,11 @@ function AppWindow({ detached, arrival, restored }: {
   const { notify, notifyError } = useNotifications()
   const workspace = useWorkspace()
   const dispatch = useWorkspaceDispatch()
-  const { layout, activeColumnId, openSessions, resumed, pending } = workspace
+  // Handlers that every pane receives read the workspace through the store when they run, not
+  // through a render's closure: a handler that closed over `resumed` or `openSessions` got a new
+  // identity on every change to them and re-rendered every pane (review §7.2).
+  const store = useWorkspaceStore()
+  const { layout, activeColumnId, openSessions, pending } = workspace
   // Pending-session reconciliation and rekeying: tabs follow the session their terminal is on.
   useSessionFollowing()
   const { addPending, setPendingTitle } = usePendingSessions()
@@ -122,7 +129,7 @@ function AppWindow({ detached, arrival, restored }: {
     // Background probe (UI-23): a failure leaves `gpuCompositing` at its assumed-true default,
     // which only affects the effects layer's frame rate — nothing the user asked for, and nothing
     // worth a toast over.
-    void window.apiary.themeGpuCompositing().then(setGpuCompositing).catch(() => {})
+    void readGpuCompositing().then((on) => { if (on !== null) setGpuCompositing(on) })
   }, [])
   const updateStatus = useUpdate()
   const activeTabs = useActiveTabs()
@@ -172,7 +179,7 @@ function AppWindow({ detached, arrival, restored }: {
 
   // `ui`'s load, save-on-change, cross-window shared-state sync and the dismissed-Recent prune all
   // live in useUiState now (UI-1 step 1) — see its own comments for why the save is synchronous.
-  useEffect(() => window.apiary.onToggleSidebar(toggleSidebar), [toggleSidebar])
+  useEffect(() => onToggleSidebar(toggleSidebar), [toggleSidebar])
 
   /**
    * Remembers which session is in front, so the next launch can reopen it (the restore effect
@@ -194,7 +201,10 @@ function AppWindow({ detached, arrival, restored }: {
   // about the final width, once, on `mouseup`.
   const sidebarResize = useResizeDrag({
     axis: 'col',
-    initial: () => ui.sidebarWidth,
+    value: ui.sidebarWidth,
+    min: MIN_SIDEBAR_WIDTH,
+    max: MAX_SIDEBAR_WIDTH,
+    label: 'Resize the sidebar',
     measure: (e) => Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, e.clientX)),
     onLive: (w) => { layoutRef.current?.style.setProperty('--drag-sidebar-width', `${String(w)}px`) },
     onEnd: (w) => {
@@ -208,7 +218,12 @@ function AppWindow({ detached, arrival, restored }: {
   // not `layoutRef`: every open `SessionColumn`'s shell pane reads this, and panes are siblings.
   const bottomResize = useResizeDrag({
     axis: 'row',
-    initial: () => ui.bottomHeight,
+    value: ui.bottomHeight,
+    min: MIN_BOTTOM_HEIGHT,
+    max: MAX_BOTTOM_HEIGHT,
+    label: 'Resize the terminal pane',
+    // Dragging up (a smaller clientY) grows the pane, so ArrowUp is the "bigger" key too.
+    grows: 'back',
     measure: (e) => Math.min(MAX_BOTTOM_HEIGHT, Math.max(MIN_BOTTOM_HEIGHT, window.innerHeight - e.clientY)),
     onLive: (h) => { document.documentElement.style.setProperty('--drag-bottom-height', `${String(h)}px`) },
     onEnd: (h) => {
@@ -287,8 +302,8 @@ function AppWindow({ detached, arrival, restored }: {
   const onNewSession = useCallback(async (path: string) => {
     try {
       const [info, nodes] = await Promise.all([
-        window.apiary.newSessionInProject(path),
-        window.apiary.tree(),
+        startSessionInProject(path),
+        treeStore.reloadNow(),
       ])
       addPending(info, nodes)
     } catch (e) {
@@ -309,8 +324,8 @@ function AppWindow({ detached, arrival, restored }: {
   const forkSession = useCallback(async (sessionId: SessionId) => {
     try {
       const [info, nodes] = await Promise.all([
-        window.apiary.forkSession(sessionId),
-        window.apiary.tree(),
+        forkSessionCommand(sessionId),
+        treeStore.reloadNow(),
       ])
       addPending(info, nodes, { titleOverride: info.label, after: sessionId })
       notify({ message: `Forking — ${info.label}` })
@@ -321,7 +336,7 @@ function AppWindow({ detached, arrival, restored }: {
 
   const startResume = useCallback(async (session: SessionNode) => {
     try {
-      await window.apiary.resume(session.sessionId)
+      await resumeSession(session.sessionId)
       dispatch({ type: 'resumed/add', key: session.sessionId })
       dispatch({ type: 'tab/showView', key: session.sessionId, view: 'terminal' })
     } catch (e) {
@@ -331,7 +346,7 @@ function AppWindow({ detached, arrival, restored }: {
 
   const confirmDelete = useCallback(async (target: SessionNode) => {
     try {
-      await window.apiary.removeSession(target.sessionId)
+      await removeSession(target.sessionId)
       // A session that is no longer in the tree has nothing left to show, so close every tab
       // pointing at it rather than leaving a stale header behind in some column.
       dispatch({ type: 'session/removed', sessionId: target.sessionId })
@@ -342,12 +357,12 @@ function AppWindow({ detached, arrival, restored }: {
   }, [notifyError, unpin, dispatch])
 
   const onResume = useCallback(async (session: SessionNode) => {
-    if (resumed.has(session.sessionId)) {
+    if (store.getState().resumed.has(session.sessionId)) {
       dispatch({ type: 'tab/showView', key: session.sessionId, view: 'terminal' })
       return
     }
     try {
-      const existing = await window.apiary.checkConflict(session.sessionId)
+      const existing = await findResumeConflict(session.sessionId)
       if (existing !== null) { openDialog({ kind: 'conflict', session, conflict: existing }); return }
       await startResume(session)
     } catch (e) {
@@ -356,7 +371,7 @@ function AppWindow({ detached, arrival, restored }: {
       // "Unexpected error" the window-level net would otherwise print.
       notifyError(e, 'Could not resume this session')
     }
-  }, [resumed, startResume, dispatch, notifyError, openDialog])
+  }, [store, startResume, dispatch, notifyError, openDialog])
 
   /**
    * Resume for the composer: resolves only once there is a process to type into.
@@ -366,16 +381,16 @@ function AppWindow({ detached, arrival, restored }: {
    * session the user has not yet agreed to open. Here a conflict is a refusal, stated as one.
    */
   const resumeAndWait = useCallback(async (session: SessionNode) => {
-    if (resumed.has(session.sessionId)) return
-    const existing = await window.apiary.checkConflict(session.sessionId)
+    if (store.getState().resumed.has(session.sessionId)) return
+    const existing = await findResumeConflict(session.sessionId)
     if (existing !== null) {
       openDialog({ kind: 'conflict', session, conflict: existing })
       throw new Error('This session is already running elsewhere — choose how to open it first.')
     }
-    await window.apiary.resume(session.sessionId)
+    await resumeSession(session.sessionId)
     dispatch({ type: 'resumed/add', key: session.sessionId })
     dispatch({ type: 'tab/showView', key: session.sessionId, view: 'terminal' })
-  }, [resumed, dispatch, openDialog])
+  }, [store, dispatch, openDialog])
 
   /** Every session id currently open in some column, so the sidebar can list only the pending
    *  sessions that aren't already reachable as a tab. Memoized: two effects below depend on it, and
@@ -412,31 +427,23 @@ function AppWindow({ detached, arrival, restored }: {
   // now hands Sidebar/SessionColumn back the *same* function and object references, which a later
   // step's `React.memo` can actually make use of. See tests/component/appPropStability.test.tsx.
 
-  const onStartBottomResize = bottomResize.start
-
-  /** The bottom shell pane's resizer keyboard alternative (UI-27) — steps `bottomHeight` directly
-   *  rather than going through the drag machinery above, which has no meaning for a key press. */
-  const onBottomHeightStep = useCallback((delta: number) => {
-    setBottomHeight(Math.min(MAX_BOTTOM_HEIGHT, Math.max(MIN_BOTTOM_HEIGHT, ui.bottomHeight + delta)))
-  }, [ui.bottomHeight, setBottomHeight])
+  const bottomResizer = bottomResize.separatorProps
 
   const onResumeClick = useCallback((session: SessionNode) => { void onResume(session) }, [onResume])
 
   const onRenameSessionCb = useCallback((session: SessionNode, title: string) => {
     dispatch({ type: 'openSessions/set', session: { ...session, title } })
-    void window.apiary.renameSession(session.sessionId, title).catch((e: unknown) => {
-      notifyError(e, 'Could not rename the session')
-    })
-  }, [notifyError, dispatch])
+    renameSession(session.sessionId, title)
+  }, [dispatch])
 
   const onTogglePinKey = useCallback((key: string) => {
     // A pending tab has no session row to pin yet, so this simply does nothing for it rather than
     // pinning an id that will be replaced the moment it resolves.
-    const session = openSessions.get(key)
+    const session = store.getState().openSessions.get(key)
     if (session) togglePin(session)
-  }, [openSessions, togglePin])
+  }, [store, togglePin])
 
-  const onForkKey = useCallback((key: string) => { void forkSession(asSessionId(key)) }, [forkSession])
+  const onForkKey = useCallback((key: string) => { void forkSession(sessionIdOfTabKey(key)) }, [forkSession])
 
   const onSessionStartedCb = useCallback((info: NewSessionInfo) => {
     // A session started from the worktree-conflict dialog is a new session like any other: it has
@@ -447,16 +454,12 @@ function AppWindow({ detached, arrival, restored }: {
   }, [addPending, notifyError])
 
   const onTabDroppedCb = useCallback((key: string, at: { x: number; y: number }) => {
-    void window.apiary.tabDropped(transferFor(key), at).catch((e: unknown) => {
-      notifyError(e, 'Could not move this tab')
-    })
-  }, [transferFor, notifyError])
+    dropTab(transferFor(key), at)
+  }, [transferFor])
 
   const onDetachCb = useCallback((key: string, at: { x: number; y: number }) => {
-    void window.apiary.tabDetach(transferFor(key), at).catch((e: unknown) => {
-      notifyError(e, 'Could not open this session in a new window')
-    })
-  }, [transferFor, notifyError])
+    detachTab(transferFor(key), at)
+  }, [transferFor])
 
   /** The window-layout button shown at the top-right pane — same element every render (`applyLayout`
    *  is already stable), rather than a fresh one built inline for whichever column happens to sit
@@ -502,11 +505,9 @@ function AppWindow({ detached, arrival, restored }: {
           // delivered here rather than as a `dragend` over nothing (X11 does this). Moving it
           // within this window would silently do nothing — the reported "dragging it back to the
           // main window does nothing" — so ask the main process to hand it over instead.
-          if (!openKeys.has(key)) {
+          if (findColumnWithTab(store.getState().layout.panes, key) === null) {
             if (transfer !== null) {
-              void window.apiary.tabAdoptHere(transfer).catch((e: unknown) => {
-                notifyError(e, 'Could not move this tab')
-              })
+              adoptTabHere(transfer)
             }
             return
           }
@@ -518,10 +519,7 @@ function AppWindow({ detached, arrival, restored }: {
       })
     }
     return map
-    // openKeys is read inside onReorderTab through the closure above; it is safe as a dependency
-    // (rather than a ref) because reordering already only fires from a user drag, never from a
-    // background tick, so recomputing this map when it changes costs nothing observable.
-  }, [columnIdsSignature, dispatch, closeSessionTab, openKeys, notifyError])
+  }, [columnIdsSignature, dispatch, closeSessionTab, store])
 
   /** Sidebar's `groupState` — one object rather than four scalars, kept stable across renders that
    *  don't touch grouping so it never busts a memo below Sidebar on its own. */
@@ -549,9 +547,9 @@ function AppWindow({ detached, arrival, restored }: {
   /** Resolves the new session's folder, so the sidebar can file it into the group it came from. */
   const onNewSessionInPickedFolder = useCallback(async (): Promise<string | null> => {
     try {
-      const info = await window.apiary.newSessionInPickedFolder()
+      const info = await startSessionInPickedFolder()
       if (info === null) return null
-      addPending(info, await window.apiary.tree())
+      addPending(info, await treeStore.reloadNow())
       return info.cwd
     } catch (e) {
       notifyError(e, 'Could not start a new session')
@@ -562,7 +560,7 @@ function AppWindow({ detached, arrival, restored }: {
     rememberCreatedWorktree(folder, info.cwd)
     notify({ message: `Worktree created at ${info.cwd} — starting Claude there` })
     try {
-      addPending(info, await window.apiary.tree())
+      addPending(info, await treeStore.reloadNow())
     } catch (e) {
       notifyError(e, 'Could not open the new worktree\'s session')
     }
@@ -570,7 +568,7 @@ function AppWindow({ detached, arrival, restored }: {
 
   const onFolderSessionStarted = useCallback(async (info: NewSessionInfo) => {
     try {
-      addPending(info, await window.apiary.tree())
+      addPending(info, await treeStore.reloadNow())
     } catch (e) {
       notifyError(e, 'Could not open the new session')
     }
@@ -578,13 +576,13 @@ function AppWindow({ detached, arrival, restored }: {
 
   const onOpenSettings = useCallback((section: string) => { openDialog({ kind: 'settings', section }) }, [openDialog])
 
-  const onStopPendingSidebar = useCallback((ptyId: PtyId) => { window.apiary.ptyKill(ptyId) }, [])
+  const onStopPendingSidebar = useCallback((ptyId: PtyId) => { killPty(ptyId) }, [])
 
   const onSelectPendingSidebar = useCallback((ptyId: PtyId) => {
     dispatch({ type: 'tab/open', key: ptyId })
   }, [dispatch])
 
-  const onFocusTabSidebar = useCallback((w: number, key: string) => { void window.apiary.focusTab(w, key) }, [])
+  const onFocusTabSidebar = useCallback((w: number, key: string) => { focusTabInWindow(w, key) }, [])
 
   // The pets' hourly lines mention what the open sessions are about — by title only.
   const titleOf = useCallback((key: string) => openSessions.get(key)?.title ?? pendingTabInfo.get(key)?.label ?? null, [openSessions, pendingTabInfo])
@@ -609,6 +607,15 @@ function AppWindow({ detached, arrival, restored }: {
     <DialogOpenContext value={openDialog}>
     <LayoutContext value={layoutActions}>
     <LayoutStateContext value={layoutState}>
+    {/* B11 (UI-24): every region beside the layout fails alone. The decorative layers vanish with a
+     *  notification; the bars show a one-line fallback with a retry. Without these, a throw in any
+     *  of them was caught only by the root boundary and replaced the whole window. */}
+    <ErrorBoundary
+      label="The theme effects"
+      fallback={null}
+      resetKey={applied}
+      onError={(thrown, componentStack) => { notify(crashNotice('The theme effects', thrown, componentStack)) }}
+    >
     <ThemeEffects
       effects={applied?.effects ?? []}
       animated={theme.options.animated}
@@ -616,10 +623,24 @@ function AppWindow({ detached, arrival, restored }: {
       glass={applied?.material.kind === 'glass' ? applied.material : null}
       lowPower={!gpuCompositing}
     />
+    </ErrorBoundary>
     <div className="app-shell">
-      <TitleBar chrome={chrome} title={windowTitle !== null ? `${windowTitle} — Apiary` : 'Apiary'} />
+      <ErrorBoundary
+        label="The title bar"
+        compact
+        onError={(thrown, componentStack) => { notify(crashNotice('The title bar', thrown, componentStack)) }}
+      >
+        <TitleBar chrome={chrome} title={windowTitle !== null ? `${windowTitle} — Apiary` : 'Apiary'} />
+      </ErrorBoundary>
       {updateStatus !== null && (
-        <UpdateBanner status={updateStatus} onOpenSettings={() => { onOpenSettings('updates') }} />
+        <ErrorBoundary
+          label="The update banner"
+          compact
+          resetKey={updateStatus}
+          onError={(thrown, componentStack) => { notify(crashNotice('The update banner', thrown, componentStack)) }}
+        >
+          <UpdateBanner status={updateStatus} onOpenSettings={() => { onOpenSettings('updates') }} />
+        </ErrorBoundary>
       )}
       <div
         ref={layoutRef}
@@ -698,26 +719,7 @@ function AppWindow({ detached, arrival, restored }: {
       )}
 
       {!ui.sidebarHidden && (
-        <div
-          className="sidebar-resizer"
-          data-testid="sidebar-resizer"
-          // UI-27: was a mouse-only drag handle with `aria-hidden` never even set (so a screen
-          // reader announced an unlabelled, inert div) and no keyboard alternative at all.
-          role="separator"
-          aria-orientation="vertical"
-          aria-valuemin={MIN_SIDEBAR_WIDTH}
-          aria-valuemax={MAX_SIDEBAR_WIDTH}
-          aria-valuenow={ui.sidebarWidth}
-          aria-label="Resize the sidebar"
-          tabIndex={0}
-          onMouseDown={(e) => { e.preventDefault(); sidebarResize.start() }}
-          onKeyDown={(e) => {
-            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-            e.preventDefault()
-            const delta = e.key === 'ArrowRight' ? RESIZE_KEY_STEP_PX : -RESIZE_KEY_STEP_PX
-            setSidebarWidth(Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, ui.sidebarWidth + delta)))
-          }}
-        />
+        <div className="sidebar-resizer" data-testid="sidebar-resizer" {...sidebarResize.separatorProps} />
       )}
 
       <PaneGrid preset={layout.preset}>
@@ -733,25 +735,14 @@ function AppWindow({ detached, arrival, restored }: {
           <ErrorBoundary
             key={column.id}
             label="This session"
-            onError={(thrown, componentStack) => {
-              const { message, detail } = describeError(thrown)
-              notify({
-                kind: 'error',
-                message: `This session could not be displayed: ${message}`,
-                detail: [detail, componentStack].filter((t) => t !== null && t !== '').join('\n'),
-              })
-            }}
+            onError={(thrown, componentStack) => { notify(crashNotice('This session', thrown, componentStack)) }}
             style={{ gridArea: `z${String(index + 1)}` }}
           >
           <SessionColumn
             gridArea={`z${String(index + 1)}`}
             column={column}
-            sessions={openSessions}
-            pending={pendingTabInfo}
-            resumed={resumed}
             bottomHeight={ui.bottomHeight}
-            onStartBottomResize={onStartBottomResize}
-            onBottomHeightStep={onBottomHeightStep}
+            bottomResizer={bottomResizer}
             terminalListWidth={ui.terminalListWidth}
             onTerminalListWidth={setTerminalListWidth}
             isActive={column.id === activeColumn?.id}
@@ -805,7 +796,7 @@ function AppWindow({ detached, arrival, restored }: {
         currentPreset={layout.preset}
         isTabOpen={(key) => findColumnWithTab(columns, key) !== null}
         onPlace={placeTarget}
-        onFork={(id) => { void forkSession(asSessionId(id)) }}
+        onFork={(id) => { void forkSession(id) }}
         onOpenAnyway={(session) => { void startResume(session) }}
         onConfirmDelete={(session) => { void confirmDelete(session) }}
         onWorktreeCreated={(info, folder) => { void onWorktreeCreated(info, folder) }}
@@ -819,8 +810,22 @@ function AppWindow({ detached, arrival, restored }: {
       </div>
       {/* Part of the window, not a card in the pane grid: the whole width under the sidebar and
        *  the panes alike, as VS Code's status bar is. */}
-      <StatusBar onOpenSettings={onOpenSettings} keep={petsOut(pets)} />
-      <PetLayer state={pets} sidebarHidden={ui.sidebarHidden} tabs={activeTabs} titleOf={titleOf} onOpenSettings={onOpenSettings} />
+      <ErrorBoundary
+        label="The status bar"
+        compact
+        onError={(thrown, componentStack) => { notify(crashNotice('The status bar', thrown, componentStack)) }}
+      >
+        <StatusBar onOpenSettings={onOpenSettings} keep={petsOut(pets)} />
+      </ErrorBoundary>
+      {/* Pets render model output, so they are the likeliest layer to fault. A new state retries. */}
+      <ErrorBoundary
+        label="The pets"
+        fallback={null}
+        resetKey={pets}
+        onError={(thrown, componentStack) => { notify(crashNotice('The pets', thrown, componentStack)) }}
+      >
+        <PetLayer state={pets} sidebarHidden={ui.sidebarHidden} tabs={activeTabs} titleOf={titleOf} onOpenSettings={onOpenSettings} />
+      </ErrorBoundary>
     </div>
     </LayoutStateContext>
     </LayoutContext>

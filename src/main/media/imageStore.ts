@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { extname, join, resolve, sep } from 'node:path'
+import { extname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { realPathInside } from '../fs/confine'
 
 /**
  * Extensions for the image types worth accepting from a clipboard. The map is also the allow-list:
@@ -59,13 +60,12 @@ export class ImageStore {
    *
    * Confined to the images directory, deliberately: the renderer supplies this path (it reads them
    * out of transcript text), and an unconstrained "read this file as a data URL" call handed to the
-   * renderer would be a way to exfiltrate any file the app can see. Paths are resolved before the
-   * check so `..` cannot climb out.
+   * renderer would be a way to exfiltrate any file the app can see. The check is on real paths, so
+   * neither `..` nor a symlink placed in the directory can lead out of it (`realPathInside`).
    */
   async read(path: string): Promise<{ dataUrl: string } | null> {
-    const dir = resolve(this.dir)
-    const full = resolve(path)
-    if (full !== dir && !full.startsWith(dir + sep)) return null
+    const full = await realPathInside(this.dir, path)
+    if (full === null) return null
     const mediaType = Object.entries(IMAGE_EXTENSIONS)
       .find(([, ext]) => ext === extname(full).toLowerCase())?.[0]
     if (mediaType === undefined) return null

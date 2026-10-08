@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 import type { AppSettingsPayload } from '@shared/api'
+import { SETTINGS } from '@shared/settings/schema'
 import { CheckboxSetting } from '../fields/CheckboxSetting'
 import { NumberSetting } from '../fields/NumberSetting'
 
@@ -47,8 +48,8 @@ export function SessionsSection(
             testId="setting-auto-import-interval"
             label="Every"
             unit="minutes"
-            min={1}
-            max={1440}
+            min={SETTINGS.autoImportIntervalMinutes.range.min}
+            max={SETTINGS.autoImportIntervalMinutes.range.max}
             value={draft.autoImportIntervalMinutes ?? 5}
             onChange={(n) => { patch({ autoImportIntervalMinutes: n }) }}
             presets={INTERVAL_PRESETS.map((m) => ({

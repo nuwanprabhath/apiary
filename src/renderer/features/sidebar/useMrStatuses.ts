@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { SessionId } from '@shared/domain/ids'
 import { parseMrRefs } from '@shared/mrRefs'
 import type { MrState } from './mrRefText'
 import { currentMrStatuses, subscribeMrStatuses } from '../../state/mrStatusStore'
@@ -19,7 +20,7 @@ import { currentMrStatuses, subscribeMrStatuses } from '../../state/mrStatusStor
  * alone calls it twice (title and note), which used to mean two timers and two IPC round trips
  * for the same session on every refresh.
  */
-export function useMrStatuses(sessionId: string, text: string): Record<number, MrState | null> {
+export function useMrStatuses(sessionId: SessionId, text: string): Record<number, MrState | null> {
   const refs = useMemo(() => parseMrRefs(text), [text])
   // A stable, primitive dependency: `refs.map(...)` would be a new array (and so a new effect
   // run) on every render even when the referenced iids have not actually changed.

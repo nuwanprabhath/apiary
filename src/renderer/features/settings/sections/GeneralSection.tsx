@@ -49,6 +49,20 @@ export function GeneralSection(
         </>
       )}
     />
+    <CheckboxSetting
+      testId="setting-hide-tool-call-io"
+      checked={draft.hideToolCallIo}
+      onChange={(checked) => { patch({ hideToolCallIo: checked }) }}
+      label="Hide tool calls in the chat"
+      help={(
+        <>
+          Leaves out the boxes showing what Claude ran and what came back (commands, file reads,
+          edits), so the Chat tab is what you said and what Claude said. This is where each Chat tab
+          starts: its &quot;Hide tool calls&quot; switch changes the view for as long as you are
+          looking at it without changing this.
+        </>
+      )}
+    />
     </>
   )
 }

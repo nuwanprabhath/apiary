@@ -7,9 +7,10 @@ import './fonts'
 import './styles.css'
 import './scrollMarks'
 import { applyTheme } from './theme/applyTheme'
+import { initialTheme } from './state/theme'
 
 // Before the first render, so a themed window's first paint is already in its theme.
-applyTheme(window.apiary.initialTheme.active)
+applyTheme(initialTheme().active)
 
 /**
  * The provider is outermost so that the outer error boundary — the one that catches a crash in

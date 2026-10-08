@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FolderWorktree, ProjectNode } from '@shared/types'
+import { worktreesOf } from '../../../state/git'
 
 /**
  * The worktrees of each folder in `paths`, asked of main whenever `paths` or the tree's top-level
@@ -29,8 +30,7 @@ export function useAllWorktrees(
     // since removed, is not one main will list.
     const present = new Set(treePathsSignature === '' ? [] : treePathsSignature.split('\n'))
     void Promise.all(wanted.filter((p) => present.has(p)).map(async (p) => {
-      const list = await window.apiary.listWorktrees(p).catch((): FolderWorktree[] => [])
-      return [p, list] as const
+      return [p, await worktreesOf(p)] as const
     })).then((entries) => { if (!cancelled) setFound(new Map(entries)) })
     return () => { cancelled = true }
   }, [key, treePathsSignature, refreshNonce, madeSignature])

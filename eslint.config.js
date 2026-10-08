@@ -6,6 +6,8 @@ import eslintReact from '@eslint-react/eslint-plugin'
 import vitest from '@vitest/eslint-plugin'
 import playwright from 'eslint-plugin-playwright'
 import globals from 'globals'
+import eslintComments from '@eslint-community/eslint-plugin-eslint-comments'
+import apiary, { apiaryRules } from './eslint/plugin.js'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 /**
@@ -71,6 +73,33 @@ export default defineConfig([
       // `async` with no `await` is deliberate here: it is how an implementation of a Promise-
       // returning interface (IPC handlers, test doubles) turns a synchronous throw into a rejection.
       '@typescript-eslint/require-await': 'off',
+    },
+  },
+
+  // "One sanctioned way to do X": the `apiary/*` rules (eslint/sanctioned.js is the table, with each
+  // rule's allowlist and the message an agent sees). Each rule scopes itself, so one block turns them
+  // all on. Violations older than a rule are baselined in eslint-suppressions.json, which can only
+  // shrink: `npm run lint:prune` after fixing one, never a hand edit to add one.
+  {
+    files: ['src/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}'],
+    plugins: { apiary, '@eslint-community/eslint-comments': eslintComments },
+    rules: {
+      ...apiaryRules,
+      // A disable says why (`-- <reason>`); the reason is what lets the next reader decide whether
+      // it still applies, and `reportUnusedDisableDirectives` only catches the ones that no longer do.
+      '@eslint-community/eslint-comments/require-description': ['error', { ignore: ['eslint-enable'] }],
+    },
+  },
+  // Size budgets. A file or function past these is where every new feature lands next (App.tsx,
+  // AppService, TerminalView's mount effect); splitting it is cheaper before the next one. Files
+  // already over are baselined, so they may not grow a new violation, and a split prunes them.
+  // Comments do not count: this codebase comments heavily on purpose (CLAUDE.md, Conventions).
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/renderer/features/pets/parts.tsx', 'src/renderer/features/pets/render3d/**', 'src/shared/pets/brain.ts'],
+    rules: {
+      'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['error', { max: 120, skipBlankLines: true, skipComments: true, IIFEs: true }],
     },
   },
 
@@ -149,6 +178,7 @@ export default defineConfig([
     files: ['tests/unit/**/*.{ts,tsx}', 'tests/integration/**/*.ts'],
     extends: [vitest.configs.recommended],
     languageOptions: { globals: { ...globals.node, ...vitest.environments.env.globals } },
+    rules: { 'vitest/expect-expect': ['error', { assertFunctionNames: ['expect', 'stays'] }] },
   },
 
   // Component tests: the renderer in a real browser against a fake bridge (tests/component).
@@ -156,6 +186,8 @@ export default defineConfig([
     files: ['tests/component/**/*.{ts,tsx}'],
     extends: [vitest.configs.recommended],
     languageOptions: { globals: globals.browser },
+    // `stays` (tests/fixtures/stays.ts) is an assertion: it throws when its condition stops holding.
+    rules: { 'vitest/expect-expect': ['error', { assertFunctionNames: ['expect', 'stays'] }] },
   },
 
   // End-to-end tests and the screenshot script, which drive the app with Playwright.

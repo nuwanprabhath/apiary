@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { sidebarSession, until } from './helpers'
+import { sidebarSession, stays, until } from './helpers'
 import type { FakeApiary, FakeOptions } from './fakeApiary'
 import type { GitRefEntry, GitRefs, GitStatus } from '@shared/types'
 
@@ -301,10 +301,9 @@ describe('the git toolbar', () => {
     // Checked with a short timeout, well under the 5s status poll that would otherwise paper over
     // a real failure by refetching and correcting it before the suite's default 5s matcher timeout.
     responses.get('33333333-3333-3333-3333-333333333333')?.resolve?.()
-    // A fixed wait, not a polling assertion: `expect.element`/`until` would trivially pass on
-    // their first (immediate) check, before the stale response has even had a chance to land.
-    await new Promise((resolve) => setTimeout(resolve, 100))
-    expect(page.getByTestId('toolbar-branch-button').element().textContent).toContain('feature/wt')
+    // Held for a window, not looked at once: `expect.element`/`until` would trivially pass on their
+    // first (immediate) check, before the stale response has even had a chance to land.
+    await stays(() => page.getByTestId('toolbar-branch-button').element().textContent.includes('feature/wt'), 100, 'the toolbar to keep the front tab\'s branch')
   })
 
   it('re-lists refs for the tab now active if it changes under an open branch switcher (UI-15 item 3)', async () => {

@@ -1,6 +1,7 @@
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
+import { ignoreErrorsAsync } from '@shared/ignoreErrors'
 import { extractLineText } from './extractText'
 import { MAX_TEXT_PER_SESSION, type SearchIndex } from './searchIndex'
 
@@ -108,13 +109,11 @@ export async function runIndexPass(
       continue
     }
 
-    try {
+    await ignoreErrorsAsync(async () => {
       const text = await readSearchText(session.file)
       index.put(session.sessionId, text, size, mtimeMs)
       indexed += 1
-    } catch {
-      // One unreadable session must not stop the rest of the pass.
-    }
+    }, 'one unreadable session must not stop the rest of the pass')
     await yieldToLoop()
   }
 

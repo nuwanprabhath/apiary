@@ -1,15 +1,14 @@
-import { readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { validateTheme } from '@shared/theme/validate'
 import { BUILTIN_THEMES, BUILTIN_THEME_PREFIX } from '@shared/theme/builtins'
 import type { ThemeSpec } from '@shared/theme/spec'
 import type { SavedTheme, ThemeOptions } from '@shared/theme/state'
+import { clamp, isFiniteNumber, isOneOf, isRecord } from '@shared/guards'
+import { JsonStore } from '../fs/jsonStore'
 import { log } from '../log/logger'
-import { THEME_MODELS, type ThemeModel } from '@shared/theme/models'
+import { THEME_MODELS } from '@shared/theme/models'
 
 interface ThemeFile {
-  version: 1
   activeThemeId: string | null
   themes: SavedTheme[]
   options: ThemeOptions
@@ -23,7 +22,40 @@ const DEFAULT_OPTIONS: ThemeOptions = { animated: true, intensity: 1, model: 'so
  * falls back to the original look, the one that cannot go wrong.
  */
 export const DEFAULT_THEME_ID = `${BUILTIN_THEME_PREFIX}glass`
-const isModel = (m: unknown): m is ThemeModel => typeof m === 'string' && (THEME_MODELS as readonly string[]).includes(m)
+const themeExists = (id: string, themes: SavedTheme[]): boolean =>
+  BUILTIN_THEMES.some((b) => b.id === id) || themes.some((t) => t.id === id)
+
+/** Everything read back is re-validated; a theme that cannot be read is dropped and the rest kept. */
+function parseThemeFile(raw: unknown): ThemeFile {
+  const r = isRecord(raw) ? raw : {}
+  const themes: SavedTheme[] = []
+  for (const t of Array.isArray(r.themes) ? (r.themes as unknown[]) : []) {
+    const o = isRecord(t) ? t : {}
+    if (typeof o.id !== 'string' || o.id === '' || !isRecord(o.spec)) {
+      log.warn('theme', 'dropped invalid saved theme')
+      continue
+    }
+    const { spec } = validateTheme(o.spec)
+    themes.push({
+      id: o.id,
+      name: typeof o.name === 'string' ? validateTheme({ ...spec, name: o.name }).spec.name : spec.name,
+      prompt: typeof o.prompt === 'string' ? o.prompt.slice(0, 2000) : null,
+      createdAt: isFiniteNumber(o.createdAt) ? o.createdAt : 0,
+      spec,
+    })
+  }
+  const options = isRecord(r.options) ? r.options : {}
+  const active = typeof r.activeThemeId === 'string' ? r.activeThemeId : null
+  return {
+    activeThemeId: active !== null && themeExists(active, themes) ? active : null,
+    themes,
+    options: {
+      animated: typeof options.animated === 'boolean' ? options.animated : DEFAULT_OPTIONS.animated,
+      intensity: isFiniteNumber(options.intensity) ? clamp(options.intensity, 0, 1) : DEFAULT_OPTIONS.intensity,
+      model: isOneOf(THEME_MODELS, options.model) ? options.model : DEFAULT_OPTIONS.model,
+    },
+  }
+}
 
 /**
  * `themes.json`: the user's saved themes, which one is active, and the effects options.
@@ -32,66 +64,32 @@ const isModel = (m: unknown): m is ThemeModel => typeof m === 'string' && (THEME
  * Everything read back is validated again — the file is the user's to edit, and may be from a
  * newer or older Apiary — so a theme on disk can never reach the page without passing
  * `validateTheme`. Writes go to a temp file and are renamed into place, so a crash mid-write
- * leaves the previous file, never half of one.
+ * leaves the previous file, never half of one (`JsonStore`).
  */
 export class ThemeStore {
   private data: ThemeFile
+  private readonly store: JsonStore<ThemeFile>
 
-  constructor(private readonly file: string, private readonly defaultThemeId: string | null = DEFAULT_THEME_ID) {
-    this.data = this.load()
-  }
-
-  private load(): ThemeFile {
-    let raw: unknown
-    try {
-      raw = JSON.parse(readFileSync(this.file, 'utf8'))
-    } catch (e) {
-      const missing = (e as NodeJS.ErrnoException).code === 'ENOENT'
-      if (!missing) log.warn('theme', 'themes file unreadable, starting empty')
-      const first = missing && this.defaultThemeId !== null && this.exists(this.defaultThemeId, []) ? this.defaultThemeId : null
-      return { version: 1, activeThemeId: first, themes: [], options: { ...DEFAULT_OPTIONS } }
-    }
-    const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
-    const themes: SavedTheme[] = []
-    for (const t of Array.isArray(r.themes) ? (r.themes as unknown[]) : []) {
-      const o = (typeof t === 'object' && t !== null ? t : {}) as Record<string, unknown>
-      if (typeof o.id !== 'string' || o.id === '' || typeof o.spec !== 'object' || o.spec === null) {
-        log.warn('theme', 'dropped invalid saved theme')
-        continue
-      }
-      const { spec } = validateTheme(o.spec)
-      themes.push({
-        id: o.id,
-        name: typeof o.name === 'string' ? validateTheme({ ...spec, name: o.name }).spec.name : spec.name,
-        prompt: typeof o.prompt === 'string' ? o.prompt.slice(0, 2000) : null,
-        createdAt: typeof o.createdAt === 'number' && Number.isFinite(o.createdAt) ? o.createdAt : 0,
-        spec,
-      })
-    }
-    const options = (typeof r.options === 'object' && r.options !== null ? r.options : {}) as Record<string, unknown>
-    const active = typeof r.activeThemeId === 'string' ? r.activeThemeId : null
-    return {
+  constructor(file: string, defaultThemeId: string | null = DEFAULT_THEME_ID) {
+    this.store = new JsonStore<ThemeFile>({
+      file,
       version: 1,
-      activeThemeId: active !== null && this.exists(active, themes) ? active : null,
-      themes,
-      options: {
-        animated: typeof options.animated === 'boolean' ? options.animated : DEFAULT_OPTIONS.animated,
-        intensity: typeof options.intensity === 'number' && Number.isFinite(options.intensity)
-          ? Math.min(1, Math.max(0, options.intensity)) : DEFAULT_OPTIONS.intensity,
-        model: isModel(options.model) ? options.model : DEFAULT_OPTIONS.model,
+      parse: parseThemeFile,
+      fallback: (reason) => {
+        if (reason === 'unreadable') log.warn('theme', 'themes file unreadable, starting empty')
+        const first = reason === 'missing' && defaultThemeId !== null && themeExists(defaultThemeId, []) ? defaultThemeId : null
+        return { activeThemeId: first, themes: [], options: { ...DEFAULT_OPTIONS } }
       },
-    }
+    })
+    this.data = this.store.load()
   }
 
-  private exists(id: string, themes: SavedTheme[] = this.data.themes): boolean {
-    return BUILTIN_THEMES.some((b) => b.id === id) || themes.some((t) => t.id === id)
+  private exists(id: string): boolean {
+    return themeExists(id, this.data.themes)
   }
 
   private save(): void {
-    mkdirSync(dirname(this.file), { recursive: true })
-    const tmp = `${this.file}.${String(process.pid)}.tmp`
-    writeFileSync(tmp, JSON.stringify(this.data, null, 2))
-    renameSync(tmp, this.file)
+    this.store.save(this.data)
   }
 
   get activeId(): string | null { return this.data.activeThemeId }
@@ -138,10 +136,8 @@ export class ThemeStore {
 
   setOptions(o: Partial<ThemeOptions>): void {
     if (typeof o.animated === 'boolean') this.data.options.animated = o.animated
-    if (typeof o.intensity === 'number' && Number.isFinite(o.intensity)) {
-      this.data.options.intensity = Math.min(1, Math.max(0, o.intensity))
-    }
-    if (isModel(o.model)) this.data.options.model = o.model
+    if (isFiniteNumber(o.intensity)) this.data.options.intensity = clamp(o.intensity, 0, 1)
+    if (isOneOf(THEME_MODELS, o.model)) this.data.options.model = o.model
     this.save()
   }
 }

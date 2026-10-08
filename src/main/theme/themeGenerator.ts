@@ -1,7 +1,8 @@
 import { validateTheme, type ThemeReport } from '@shared/theme/validate'
+import { errorMessage } from '@shared/errors'
 import { buildThemePrompt, extractThemeJson, THEME_JSON_SCHEMA } from '@shared/theme/prompt'
 import type { ThemeSpec } from '@shared/theme/spec'
-import { ClaudeOneShot } from '../claude/claudeOneShot'
+import type { ClaudeOneShot } from '../claude/claudeOneShot'
 import { log } from '../log/logger'
 import { THEME_MODELS, type ThemeModel } from '@shared/theme/models'
 
@@ -16,8 +17,9 @@ export { THEME_MODELS, type ThemeModel } from '@shared/theme/models'
 export class ThemeGenerator {
   private readonly runner: ClaudeOneShot
 
-  constructor(private readonly opts: { claudeBin: () => string | null; timeoutMs?: number; shell?: string }) {
-    this.runner = new ClaudeOneShot({ claudeBin: opts.claudeBin, ...(opts.shell !== undefined ? { shell: opts.shell } : {}) })
+  /** `runner` is built in the container, over the configured `claude`. */
+  constructor(private readonly opts: { runner: ClaudeOneShot; timeoutMs?: number }) {
+    this.runner = opts.runner
   }
 
   get busy(): boolean { return this.runner.busy }
@@ -50,7 +52,7 @@ export class ThemeGenerator {
       })
       return result
     } catch (e) {
-      log.warn('theme', 'generation failed', { kind, model, ms: Date.now() - started, error: e instanceof Error ? e.message : String(e) })
+      log.warn('theme', 'generation failed', { kind, model, ms: Date.now() - started, error: errorMessage(e) })
       throw e
     }
   }

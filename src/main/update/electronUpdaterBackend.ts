@@ -1,10 +1,11 @@
-import { createReadStream, createWriteStream, constants as fsConstants } from 'node:fs'
-import { mkdir, mkdtemp, rm, rename, copyFile, stat } from 'node:fs/promises'
+import { createReadStream, createWriteStream } from 'node:fs'
+import { errorMessage } from '@shared/errors'
+import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { pipeline } from 'node:stream/promises'
 import { log } from '../log/logger'
+import { moveFile } from '../fs/moveFile'
+import { createExec } from '../exec/run'
 import { join, basename } from 'node:path'
 import { get } from 'node:https'
 import type { IncomingMessage } from 'node:http'
@@ -62,7 +63,7 @@ async function fetchStream(url: string, redirectsLeft = 5): Promise<IncomingMess
  */
 export const OPEN_TIMEOUT_MS = 10_000
 
-const execFileAsync = promisify(execFile)
+const execQuarantine = createExec({ timeoutMs: 10_000, scope: 'update' })
 
 /**
  * Sets `com.apple.quarantine` on a verified download so Gatekeeper still evaluates it when the
@@ -74,9 +75,9 @@ const execFileAsync = promisify(execFile)
  * Best-effort and macOS-only: a failure here must not stop the user getting a verified installer,
  * only the extra OS-level nudge to double check it.
  */
-type ExecFileFn = (file: string, args: readonly string[]) => Promise<{ stdout: string; stderr: string }>
+type ExecFileFn = (file: string, args: readonly string[]) => Promise<unknown>
 
-export async function setQuarantine(path: string, run: ExecFileFn = execFileAsync): Promise<void> {
+export async function setQuarantine(path: string, run: ExecFileFn = (file, args) => execQuarantine(file, [...args], process.cwd())): Promise<void> {
   const hexTime = Math.floor(Date.now() / 1000).toString(16)
   await run('xattr', ['-w', 'com.apple.quarantine', `0081;${hexTime};Apiary;`, path])
 }
@@ -195,15 +196,10 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
         // A previous attempt's leftovers would otherwise be appended to or block the rename,
         // failing for a reason nobody would guess from the message.
         await rm(target, { force: true })
-        try {
-          await rename(tmpTarget, target)
-        } catch (e) {
-          // EXDEV: the temp directory and Downloads are on different filesystems, so a rename
-          // cannot work. `COPYFILE_EXCL` keeps the same "never overwrite" guarantee a plain
-          // rename would have given, now that `target` has just been cleared of its own leftovers.
-          if ((e as NodeJS.ErrnoException).code !== 'EXDEV') throw e
-          await copyFile(tmpTarget, target, fsConstants.COPYFILE_EXCL)
-        }
+        // EXDEV: the temp directory and Downloads can be on different filesystems, so a rename
+        // cannot work; the copy fallback keeps the same "never overwrite" guarantee (`target` has
+        // just been cleared of its own leftovers).
+        await moveFile(tmpTarget, target, { copyAcrossDevices: true })
       } finally {
         // The temp copy is either moved (rename) or copied-then-orphaned (copyFile), so this
         // always has something to clean up on the success path too, on top of any failed attempt.
@@ -238,7 +234,7 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
           shell.showItemInFolder(path)
           return { ok: 'revealed' }
         } catch (e) {
-          const reason = e instanceof Error ? e.message : String(e)
+          const reason = errorMessage(e)
           log.warn('update', 'could not reveal installer', { path, error: reason })
           return { ok: 'failed', reason }
         }

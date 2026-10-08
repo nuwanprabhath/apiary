@@ -1,5 +1,8 @@
 import { type JSX, createContext, useCallback, use, useEffect, useMemo, useRef, useState } from 'react'
 import { describeError } from './errors'
+import { errorMessage } from '@shared/errors'
+import { logLine } from '../state/log'
+import { setFailureSink } from '../state/policy'
 
 export type NotificationKind = 'error' | 'warning' | 'info' | 'success'
 
@@ -112,6 +115,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     })
   }, [notify])
 
+  // What `state/` commands report a user-visible failure through (policy 2 in `state/policy.ts`).
+  useEffect(() => {
+    setFailureSink(notifyError)
+    return () => { setFailureSink(null) }
+  }, [notifyError])
+
   useEffect(() => () => {
     for (const timer of timers.current.values()) clearTimeout(timer)
     timers.current.clear()
@@ -122,7 +131,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     // nothing else expected, which makes it the most valuable line in the file — and the toast
     // that shows it is gone in a few seconds, long before anyone thinks to write it down.
     const onError = (e: ErrorEvent): void => {
-      window.apiary.logWrite('error', 'window', 'uncaught error', {
+      logLine('error', 'window', 'uncaught error', {
         message: e.message,
         source: e.filename,
         line: e.lineno,
@@ -130,8 +139,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       notifyError(e.error ?? e.message, 'Unexpected error')
     }
     const onRejection = (e: PromiseRejectionEvent): void => {
-      window.apiary.logWrite('error', 'window', 'unhandled rejection', {
-        reason: e.reason instanceof Error ? e.reason.message : String(e.reason),
+      logLine('error', 'window', 'unhandled rejection', {
+        reason: errorMessage(e.reason),
       })
       notifyError(e.reason, 'Unexpected error')
     }

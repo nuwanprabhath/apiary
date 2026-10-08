@@ -1,17 +1,7 @@
-import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { childEnv } from '../pty/childEnv'
-import { loginShell } from '../pty/resumeCommand'
-
-/** SIGTERM to the child's whole process group (it is spawned detached, as the group leader). */
-function killGroup(child: ChildProcess): void {
-  try {
-    if (child.pid !== undefined) { process.kill(-child.pid, 'SIGTERM'); return }
-  } catch { /* already gone, or no group: fall back to the child alone */ }
-  child.kill('SIGTERM')
-}
+import { spawnLoginShell, type NoStdinLoginShell } from '../exec/spawnLoginShell'
 
 export interface OneShotRequest {
   prompt: string
@@ -45,30 +35,29 @@ export interface OneShotRequest {
  * One run at a time per instance; a caller that wants two at once makes two.
  */
 export class ClaudeOneShot {
-  private child: ChildProcess | null = null
+  private proc: NoStdinLoginShell | null = null
   private cancelled = false
   /** Settles the running call as cancelled, without waiting for the process to exit. */
   private abort: (() => void) | null = null
 
   constructor(private readonly opts: { claudeBin: () => string | null; shell?: string }) {}
 
-  get busy(): boolean { return this.child !== null }
+  get busy(): boolean { return this.proc !== null }
 
   cancel(): void {
-    if (this.child === null) return
+    if (this.proc === null) return
     this.cancelled = true
-    killGroup(this.child)
+    this.proc.signal()
     this.abort?.()
   }
 
   /** Resolves with claude's stdout (a `--output-format json` envelope); rejects with a message fit to show. */
   async run(req: OneShotRequest): Promise<string> {
-    if (this.child !== null) throw new Error(`Already working on ${req.what}.`)
-    const args = [
+    if (this.proc !== null) throw new Error(`Already working on ${req.what}.`)
+    const flags = [
       '-p', '--output-format', 'json', '--model', req.model,
       '--tools', '', '--safe-mode', '--strict-mcp-config', '--no-session-persistence',
       ...(req.jsonSchema !== undefined ? ['--json-schema', JSON.stringify(req.jsonSchema)] : []),
-      req.prompt,
     ]
     const bin = this.opts.claudeBin() ?? 'claude'
     const cwd = mkdtempSync(join(tmpdir(), `apiary-${req.tag}-`))
@@ -76,13 +65,15 @@ export class ClaudeOneShot {
     this.cancelled = false
     try {
       return await new Promise<string>((resolve, reject) => {
-        // Its own process group, so cancel and the timeout can end everything it started: `claude`
-        // (or a wrapper script) may have children of its own, and one left holding stdout would
-        // keep the call "running" until it finished by itself.
-        const child = spawn(this.opts.shell ?? loginShell(), ['-l', '-c', 'exec "$0" "$@"', bin, ...args], {
-          cwd, env: childEnv(process.env), stdio: ['ignore', 'pipe', 'pipe'], detached: true,
-        })
-        this.child = child
+        // Its own process group (`detached`), so cancel and the timeout can end everything it
+        // started: `claude` (or a wrapper script) may have children of its own, and one left
+        // holding stdout would keep the call "running" until it finished by itself. Settles on
+        // `close`, when stdout has drained, so the whole answer is in `out`.
+        const proc = spawnLoginShell(
+          { command: { bin, flags, positional: [req.prompt] }, cwd, stdin: 'ignore', detached: true, shell: this.opts.shell, settleOn: 'close' },
+        )
+        const { child } = proc
+        this.proc = proc
         let out = ''
         let err = ''
         let settled = false
@@ -90,27 +81,27 @@ export class ClaudeOneShot {
         this.abort = () => { finish(() => { reject(new Error('Cancelled.')) }) }
         const timer = setTimeout(() => {
           finish(() => { reject(new Error('Claude took too long to answer. Try again, or a shorter description.')) })
-          killGroup(child)
+          proc.signal()
         }, req.timeoutMs)
-        child.stdout?.on('data', (d: Buffer) => {
+        child.stdout.on('data', (d: Buffer) => {
           out += d.toString('utf8')
           if (out.length > maxStdout) {
             finish(() => { reject(new Error(`Claude's reply was too large to be ${req.what}.`)) })
-            killGroup(child)
+            proc.signal()
           }
         })
-        child.stderr?.on('data', (d: Buffer) => { if (err.length < 4096) err += d.toString('utf8') })
-        child.on('error', (e) => { finish(() => { reject(new Error(`Claude could not be run: ${e.message}`)) }) })
-        child.on('close', (code) => {
+        child.stderr.on('data', (d: Buffer) => { if (err.length < 4096) err += d.toString('utf8') })
+        void proc.exited.then(({ code, error }) => {
           finish(() => {
-            if (this.cancelled) reject(new Error('Cancelled.'))
+            if (error !== undefined) reject(new Error(`Claude could not be run: ${error.message}`))
+            else if (this.cancelled) reject(new Error('Cancelled.'))
             else if (code !== 0) reject(new Error(`Claude could not be run (exit ${String(code)}). ${err.trim().split('\n').slice(-1)[0] ?? ''}`.trim()))
             else resolve(out)
           })
         })
       })
     } finally {
-      this.child = null
+      this.proc = null
       this.abort = null
       rmSync(cwd, { recursive: true, force: true })
     }

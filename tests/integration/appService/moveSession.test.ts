@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdirSync, existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { AppService } from '../../../src/main/appService'
+import { buildAppService } from '../../fixtures/buildService'
+import type { AppService } from '../../../src/main/appService'
 import { makeSession } from '../../fixtures/makeSession'
 import { encodeProjectDirName as encodeProjectDirNameForTest } from '../../../src/main/scanner/projectDirName'
 import { createServiceFixture, teardownServiceFixture, makeGitWorkdir } from './setup'
@@ -63,7 +64,7 @@ describe('moveSession', () => {
 
   it('refuses to move a live session', async () => {
     const target = makeGitWorkdir()
-    const liveService = new AppService({
+    const liveService = buildAppService({
       configRoot: join(home, '.claude'), dbPath: join(home, 'apiary-live.db'),
       detectLive: async () => new Map([['55555555-5555-5555-5555-555555555555', 1234]]),
     })

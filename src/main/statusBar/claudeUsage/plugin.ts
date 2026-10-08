@@ -1,8 +1,10 @@
 import { join } from 'node:path'
+import { errorMessage } from '@shared/errors'
 import type { StatusBarItem } from '@shared/domain/statusBar'
 import { log } from '../../log/logger'
 import type { StatusBarPlugin, StatusBarPluginContext } from '../types'
-import { readAccessToken } from './credentials'
+import type { ConsentStore } from './consent'
+import { CONSENT_PROMPT, readAccessToken } from './credentials'
 import { fetchLimits, HttpError, type Limits } from './limits'
 import { TokenAggregator, type TokenStats } from './tokens'
 import { dashboard, detailSections, statusText, statusTone, type Thresholds } from './present'
@@ -12,6 +14,9 @@ export interface ClaudeUsageDeps {
   configRoot: string
   /** Read the macOS Keychain too. Only when `configRoot` is the real one; see credentials.ts. */
   useKeychain: boolean
+  /** The user's answer to "may Apiary read Claude Code's token?". Nothing credential-shaped is
+   *  touched until it says yes (consent.ts, ADR-0019). */
+  consent: ConsentStore
   fetchImpl?: typeof fetch
   readKeychain?: () => Promise<string | undefined>
   now?: () => Date
@@ -69,15 +74,22 @@ export function createClaudeUsagePlugin(deps: ClaudeUsageDeps): StatusBarPlugin 
   }
 
   const refreshOnce = async (): Promise<void> => {
+    // Before anything that touches a credential, the network or the Keychain: the user's answer.
+    if (deps.consent.proof() === undefined) return
     busy = true
     ctx?.changed()
     try {
       try {
         stats = await aggregator.compute()
-      } catch {
+      } catch (e) {
         // Keep the last totals; the hover says when they were computed.
+        log.warn('usage', 'could not total local usage', { error: errorMessage(e) })
       }
-      const token = await readAccessToken({
+      // Asked for again here, not carried over from the check above: an answer given while the
+      // transcripts were being totalled must stop the read, not follow it.
+      const consent = deps.consent.proof()
+      if (consent === undefined) return
+      const token = await readAccessToken(consent, {
         configRoot: deps.configRoot, useKeychain: deps.useKeychain,
         ...(deps.readKeychain !== undefined ? { readKeychain: deps.readKeychain } : {}),
       })
@@ -89,12 +101,12 @@ export function createClaudeUsagePlugin(deps: ClaudeUsageDeps): StatusBarPlugin 
       }
       signedOut = false
       try {
-        limits = await fetchLimits(token, deps.fetchImpl ?? fetch, () => now().getTime())
+        limits = await fetchLimits(consent, token, deps.fetchImpl ?? fetch, () => now().getTime())
         error = undefined
         backoffMs = 0
       } catch (e) {
         backoffMs = Math.min(Math.max(backoffMs * 2, nextPollMs()), MAX_BACKOFF_MS)
-        const detail = e instanceof HttpError ? `HTTP ${String(e.status)}` : e instanceof Error ? e.message : String(e)
+        const detail = e instanceof HttpError ? `HTTP ${String(e.status)}` : errorMessage(e)
         error = `Could not reach the usage endpoint (${detail}).`
         log.warn('usage', 'limits fetch failed', { detail })
       }
@@ -113,7 +125,7 @@ export function createClaudeUsagePlugin(deps: ClaudeUsageDeps): StatusBarPlugin 
   return {
     id: 'claude-usage',
     name: 'Claude usage',
-    description: 'Your Claude plan’s 5-hour and weekly limits in the status bar, with token and cost totals on hover and a dashboard on click. Reads Claude Code’s own sign-in; the token is only sent to Anthropic’s usage endpoint.',
+    description: 'Your Claude plan’s 5-hour and weekly limits in the status bar, with token and cost totals on hover and a dashboard on click. Reads Claude Code’s own sign-in once you allow it; the token is only sent to Anthropic’s usage endpoint.',
     defaultEnabled: true,
     settings: [
       { kind: 'number', key: 'pollIntervalMinutes', label: 'Refresh every (minutes)', default: 5, min: 1, max: 60 },
@@ -130,7 +142,19 @@ export function createClaudeUsagePlugin(deps: ClaudeUsageDeps): StatusBarPlugin 
     ],
     start(c) {
       ctx = c
+      // Switched back on after declining: ask again, as the prompt promised.
+      if (deps.consent.state() === 'declined') deps.consent.reset()
       schedule(0)
+    },
+    answerConsent(allow) {
+      if (allow) {
+        deps.consent.grant()
+        backoffMs = 0
+        schedule(0)
+      } else {
+        deps.consent.decline()
+      }
+      ctx?.changed()
     },
     stop() {
       ctx = null
@@ -148,6 +172,13 @@ export function createClaudeUsagePlugin(deps: ClaudeUsageDeps): StatusBarPlugin 
       if (ctx !== null) schedule(nextPollMs())
     },
     items() {
+      if (deps.consent.state() !== 'granted') {
+        // Not an error and not a sign-in problem: nothing has been asked of the user's credentials yet.
+        return [{
+          id: 'usage', icon: 'gauge', text: 'Claude usage: allow access?', title: 'Claude usage: allow access?',
+          tone: 'normal', action: { kind: 'consent', prompt: CONSENT_PROMPT }, detail: [],
+        }]
+      }
       const nowMs = now().getTime()
       const detail = detailSections({ limits, stats, stale: error !== undefined, error, now: nowMs })
       const main: Omit<StatusBarItem, 'pluginId'> = limits !== undefined

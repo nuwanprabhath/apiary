@@ -1,4 +1,5 @@
-import type { BrainEvent, BrainOptions } from '@shared/pets/brain'
+import type { BrainEvent } from '@shared/pets/brain'
+import { testSeams } from '../../state/testSeams'
 import type { FromBrain, ToBrain } from './petBrain.worker'
 
 /**
@@ -11,8 +12,8 @@ export class BrainClient {
   constructor(onMessage: (m: FromBrain) => void) {
     this.worker = new Worker(new URL('./petBrain.worker.ts', import.meta.url), { type: 'module', name: 'pets' })
     this.worker.addEventListener('message', (e: MessageEvent<FromBrain>) => { onMessage(e.data) })
-    // Test seam: tests make scenes and remarks come round in seconds rather than minutes.
-    const options = (globalThis as Record<string, unknown>).__apiaryPetBrainOptions as BrainOptions | undefined
+    // Test seam (state/testSeams.ts): tests make scenes and remarks come round in seconds, not minutes.
+    const options = testSeams().petBrainOptions
     if (options !== undefined) this.post({ type: 'init', options })
   }
 

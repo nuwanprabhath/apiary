@@ -48,6 +48,8 @@ jobs:
       # rather than depend on that staying true.
       - run: command -v shellcheck || sudo apt-get update && sudo apt-get install -y shellcheck
 
+      # Includes the architecture guards: the apiary/* ESLint rules and their shrink-only baseline,
+      # dependency-cruiser layer rules (lint:arch) and the knip dead-code ratchet (lint:dead).
       - run: npm run lint
 
   test:
@@ -69,9 +71,10 @@ jobs:
       # With scripts: the unit and integration suites open real SQLite databases and ptys.
       - run: npm ci
 
-      # Unit and integration tests (Node). No rebuild needed — better-sqlite3 and node-pty ship
-      # prebuilt N-API binaries, ABI-stable across Node and Electron (TEST-1).
-      - run: npm test
+      # Unit and integration tests (Node), with v8 coverage. No rebuild needed — better-sqlite3 and
+      # node-pty ship prebuilt N-API binaries, ABI-stable across Node and Electron (TEST-1). The
+      # thresholds in vitest.config.ts make coverage a ratchet; the summary is posted to the run.
+      - run: npm run test:coverage
 
       - name: Cache Playwright browsers
         id: playwright-cache
@@ -90,7 +93,18 @@ jobs:
       - run: npx playwright install-deps chromium
         if: steps.playwright-cache.outputs.cache-hit == 'true'
 
-      - run: npm run test:component
+      - run: npm run test:component:coverage
+
+      - name: Coverage summary
+        if: always()
+        run: node scripts/coverage-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: ignore
 
   e2e-smoke:
     runs-on: ubuntu-24.04

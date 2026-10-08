@@ -7,51 +7,30 @@
  * window, past Node's `EventEmitter` default of 10. This collapses that to exactly one listener
  * per channel, no matter how many terminals are on screen.
  *
- * Mirrors `treeStore.ts`'s `ensureBound` for the same reason: `tests/component` swaps in a brand
- * new `fakeApiary` on every `renderApp()`, and the bus has to notice and resubscribe to the new
- * one rather than keep forwarding events from a bridge no test can see any more.
+ * Rebinds through `rebindOnNewBridge` for the reason given there: `tests/component` swaps in a
+ * brand new `fakeApiary` on every `renderApp()`, and the bus has to resubscribe to the new one.
  */
+import { keyedListeners, rebindOnNewBridge } from './bridgeBinding'
 
 type DataListener = (data: string) => void
 type ExitListener = (exitCode: number) => void
 
-const dataListeners = new Map<string, Set<DataListener>>()
-const exitListeners = new Map<string, Set<ExitListener>>()
+const dataListeners = keyedListeners<DataListener>()
+const exitListeners = keyedListeners<ExitListener>()
 
-let boundApiary: typeof window.apiary | null = null
-let unsubData: (() => void) | null = null
-let unsubExit: (() => void) | null = null
-
-function ensureBound(): void {
-  if (window.apiary === boundApiary) return
-  unsubData?.()
-  unsubExit?.()
-  boundApiary = window.apiary
-  unsubData = window.apiary.onPtyData((id, data) => {
-    for (const cb of dataListeners.get(id) ?? []) cb(data)
+const bind = rebindOnNewBridge((api) => {
+  const unsubData = api.onPtyData((id, data) => {
+    for (const cb of dataListeners.of(id)) cb(data)
   })
-  unsubExit = window.apiary.onPtyExit((id, exitCode) => {
-    for (const cb of exitListeners.get(id) ?? []) cb(exitCode)
+  const unsubExit = api.onPtyExit((id, exitCode) => {
+    for (const cb of exitListeners.of(id)) cb(exitCode)
   })
-}
-
-function subscribe<T>(map: Map<string, Set<T>>, id: string, cb: T): () => void {
-  ensureBound()
-  let set = map.get(id)
-  if (!set) {
-    set = new Set()
-    map.set(id, set)
-  }
-  set.add(cb)
-  return () => {
-    set?.delete(cb)
-    if (set?.size === 0) map.delete(id)
-  }
-}
+  return () => { unsubData(); unsubExit() }
+})
 
 export const ptyBus = {
   /** Calls `cb` with every chunk written to `id`'s pty, until the returned function is called. */
-  onData: (id: string, cb: DataListener): (() => void) => subscribe(dataListeners, id, cb),
+  onData: (id: string, cb: DataListener): (() => void) => { bind(); return dataListeners.add(id, cb) },
   /** Calls `cb` once, when `id`'s pty exits, until the returned function is called. */
-  onExit: (id: string, cb: ExitListener): (() => void) => subscribe(exitListeners, id, cb),
+  onExit: (id: string, cb: ExitListener): (() => void) => { bind(); return exitListeners.add(id, cb) },
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { sidebarSession, until } from './helpers'
+import { sidebarSession, stays, until } from './helpers'
 
 describe('sidebar', () => {
   it('shows an empty state before anything is imported', async () => {
@@ -81,8 +81,7 @@ describe('sidebar', () => {
     // re-expand arrives on the next render, so an immediate assertion would pass against the bug.
     await until(() => page.getByTestId('session-item').elements().length === 2)
     // Proving it stays collapsed rather than re-expanding a moment later: there is no later
-    // condition to assert on other than re-checking after time passes.
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    expect(page.getByTestId('session-item').elements().length).toBe(2)
+    // condition to assert on other than re-checking while time passes.
+    await stays(() => page.getByTestId('session-item').elements().length === 2, 300, 'the folder to stay collapsed')
   })
 })

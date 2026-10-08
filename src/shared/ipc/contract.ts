@@ -14,9 +14,14 @@
  * Pure data plus guards, deliberately: the preload is sandboxed and must stay free of Node
  * imports, so nothing in this file (or `guards.ts`) may import `electron` or `node:*`.
  */
-import { type Guard, str, num, bool, any, obj, opt, nullable, arr, tuple } from './guards'
+import {
+  invoke, send, invokeLoose, sendLoose, event, sync, type Invoke, type Send, type EventSpec,
+} from './define'
+
+export type { EventSpec }
+import { type Guard, str, num, bool, any, obj, opaque, record, anyStr, opt, nullable, arr, tuple } from './guards'
 import { isTerminalRef, type PtyId, type SessionId, type TerminalRef } from '../domain/ids'
-import { isTabTransfer, type TabTransfer, type ReportedTab, type WindowLayoutReport, type ActiveTabPayload } from '../domain/tabs'
+import { isTabTransfer, isWindowLayoutReport, type TabTransfer, type ReportedTab, type WindowLayoutReport, type ActiveTabPayload } from '../domain/tabs'
 import type {
   CheckoutOutcome, FolderWorktree, GitStatus, GitRefs, MrState, WorktreeCreateOptions, WorktreeCreateRequest,
 } from '../domain/git'
@@ -33,13 +38,15 @@ import type { PtySessionInfo, PtySnapshot } from '../domain/pty'
 import type { StatusBarItem, StatusBarPanel } from '../domain/statusBar'
 import {
   isChatDecision, isChatEffort, isChatModel, isChatPermissionMode,
-  type ChatDecision, type ChatEffort, type ChatModel, type ChatPermissionMode, type ChatState, type TerminalBusy,
+  type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatModel, type ChatPermissionMode, type ChatState,
+  type TerminalBusy,
 } from '../domain/chat'
 import type { AppMenuNode } from '../domain/windowChrome'
 import type { ThemeSpec } from '../theme/spec'
 import type { SavedTheme, ThemeOptions, ThemeGenerateResult, ThemeState } from '../theme/state'
 import type { PetPatch, PetRecord, PetsState } from '../pets/state'
 import type { VoiceContext } from '../pets/prompt'
+import { isPetPatch, isVoiceContext } from '../pets/ipcGuards'
 
 // Boundary guards for branded ids (MAIN-21): the one place a string arriving over IPC becomes a
 // `SessionId`/`PtyId`/`TerminalRef`, so handlers receive branded values with no cast of their own.
@@ -63,25 +70,6 @@ const chatDecisionArg: Guard<ChatDecision> = isChatDecision
 const chatModelArg: Guard<ChatModel> = isChatModel
 const chatModeArg: Guard<ChatPermissionMode> = isChatPermissionMode
 const chatEffortArg: Guard<ChatEffort> = isChatEffort
-
-interface Invoke<A extends unknown[], R> { kind: 'invoke'; channel: string; args: Guard<A>; _r?: R }
-interface Send<A extends unknown[]> { kind: 'send'; channel: string; args: Guard<A> }
-interface Event<P extends unknown[]> { kind: 'event'; channel: string; _p?: P }
-interface Sync<R> { kind: 'sync'; channel: string; _r?: R }
-
-// `args` takes a `Guard<any>` rather than `Guard<A>`: several channels below intentionally use a
-// *looser* runtime check than their declared type (a permissive `tuple(obj)` standing in for a
-// full `AppSettingsPayload`, `str` standing in for the `LogLevel`/`LogScope` string unions) — see
-// "Start with permissive guards" in MAIN-11. The cast is trusted at the call site, one line per
-// channel, rather than forcing every guard to fully re-derive its declared type structurally.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- guard proves a looser shape than `A`, deliberately (see comment above)
-const invoke = <A extends unknown[], R>(channel: string, args: Guard<any>): Invoke<A, R> =>
-  ({ kind: 'invoke', channel, args: args as Guard<A> })
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see `invoke` above
-const send = <A extends unknown[]>(channel: string, args: Guard<any>): Send<A> =>
-  ({ kind: 'send', channel, args: args as Guard<A> })
-const event = <P extends unknown[] = []>(channel: string): Event<P> => ({ kind: 'event', channel })
-const sync = <R>(channel: string): Sync<R> => ({ kind: 'sync', channel })
 
 const point: Guard<{ x: number; y: number }> = (v): v is { x: number; y: number } =>
   typeof v === 'object' && v !== null
@@ -144,19 +132,23 @@ export const IPC = {
   themeGpuCompositing: invoke<[], boolean>('apiary:theme-gpu-compositing', tuple()),
   themeApply: invoke<[id: string | null], void>('apiary:theme-apply', tuple(nullable(str))),
   themeSave: invoke<[name: string, spec: unknown, prompt?: string], SavedTheme>(
-    'apiary:theme-save', tuple(str, any, opt(str)),
+    'apiary:theme-save', tuple(str, opaque, opt(str)),
   ),
   themeRename: invoke<[id: string, name: string], void>('apiary:theme-rename', tuple(str, str)),
   themeDelete: invoke<[id: string], void>('apiary:theme-delete', tuple(str)),
-  themeSetOptions: invoke<[options: Partial<ThemeOptions>], void>('apiary:theme-set-options', tuple(obj)),
+  // Loose: every field is optional and checked one by one in `ThemeStore.setOptions`
+  // (a bad field is ignored, not rejected).
+  themeSetOptions: invokeLoose<[options: Partial<ThemeOptions>], void>('apiary:theme-set-options', tuple(obj)),
   themeChanged: event<[state: ThemeState]>('apiary:theme-changed'),
-  themeGenerate: invoke<[request: string, current: ThemeSpec | null], ThemeGenerateResult>(
+  // Loose: `current` is a theme the renderer holds; the handler re-validates it with
+  // `validateTheme` (shared/theme/validate.ts) before it reaches the model.
+  themeGenerate: invokeLoose<[request: string, current: ThemeSpec | null], ThemeGenerateResult>(
     'apiary:theme-generate', tuple(str, any),
   ),
   themeGenerateCancel: send<[]>('apiary:theme-generate-cancel', tuple()),
 
-  // Pets. Everything sent is re-checked in main (handlers/pets.ts): a patch field by field, a
-  // voice context clamped, and a pet only ever reaches the store through `validatePet`.
+  // Pets. A patch and a voice context have real guards (shared/pets/ipcGuards.ts); the handler
+  // limits the ranges, and a pet only ever reaches the store through `validatePet`.
   petsState: invoke<[], PetsState>('apiary:pets-state', tuple()),
   petsChanged: event<[state: PetsState]>('apiary:pets-changed'),
   petsSetEnabled: invoke<[on: boolean], void>('apiary:pets-set-enabled', tuple(bool)),
@@ -164,14 +156,14 @@ export const IPC = {
     'apiary:pet-generate', tuple(nullable(str), nullable(str)),
   ),
   petGenerateCancel: send<[]>('apiary:pet-generate-cancel', tuple()),
-  petUpdate: invoke<[id: string, patch: PetPatch], PetRecord>('apiary:pet-update', tuple(str, obj)),
+  petUpdate: invoke<[id: string, patch: PetPatch], PetRecord>('apiary:pet-update', tuple(str, isPetPatch)),
   petDelete: invoke<[id: string], void>('apiary:pet-delete', tuple(str)),
   /** Saves the pet to a file the user picks; false when they cancel. */
   petExport: invoke<[id: string], boolean>('apiary:pet-export', tuple(str)),
   /** Adds a pet from a file the user picks; null when they cancel. */
   petImport: invoke<[], PetRecord | null>('apiary:pet-import', tuple()),
   petChat: invoke<[id: string, text: string], string>('apiary:pet-chat', tuple(str, str)),
-  petVoice: invoke<[id: string, context: VoiceContext], boolean>('apiary:pet-voice', tuple(str, obj)),
+  petVoice: invoke<[id: string, context: VoiceContext], boolean>('apiary:pet-voice', tuple(str, isVoiceContext)),
   /** What these working sessions are doing: tool and label only (shared/pets/actions.ts). */
   petClaudeActions: invoke<[keys: string[]], { key: string; action: string }[]>('apiary:pet-claude-actions', tuple(arr(str))),
   /** A pet's one-line remark on what Claude is doing; null when it is not time for another. */
@@ -202,7 +194,7 @@ export const IPC = {
   // A partial payload is deliberate (CLAUDE.md "Settings arriving over IPC"): a missing field
   // means "leave it alone", so this only proves an object arrived — `mergeSettingsPayload`
   // (src/main/settings.ts) does the field-by-field validation SEC-8 added.
-  settingsSet: invoke<[settings: AppSettingsPayload], void>('apiary:settings-set', tuple(obj)),
+  settingsSet: invokeLoose<[settings: AppSettingsPayload], void>('apiary:settings-set', tuple(obj)),
   openSettingsDialog: event('apiary:open-settings-dialog'),
   toggleSidebar: event('apiary:toggle-sidebar'),
 
@@ -248,6 +240,9 @@ export const IPC = {
   statusBarPanel: invoke<[pluginId: string, itemId: string], StatusBarPanel | null>(
     'apiary:status-bar-panel', tuple(str, str),
   ),
+  /** The user's answer to a plugin's consent prompt (an item whose action is `consent`). Declining
+   *  switches the plugin off. An id that is not a running plugin, or has nothing to ask, is ignored. */
+  statusBarConsent: invoke<[pluginId: string, allow: boolean], void>('apiary:status-bar-consent', tuple(str, bool)),
   statusBarChanged: event('apiary:status-bar-changed'),
   // Chat mode (main/chat/): a session driven over stream-json, as the VS Code extension does.
   chatState: invoke<[sessionId: SessionId], ChatState | null>('apiary:chat-state', tuple(sessionIdArg)),
@@ -268,7 +263,14 @@ export const IPC = {
   /** Whether the session's terminal claude is mid-turn or has background tasks still running —
    *  when it is, the chat sends into that terminal rather than stopping it to take over. */
   terminalBusy: invoke<[sessionId: SessionId], TerminalBusy>('apiary:terminal-busy', tuple(sessionIdArg)),
+  /** The sending window shows this session's chat: `chatChanged` for it (and for the session it
+   *  was moved from by `/clear`) goes to attached windows only. Sent before `chatState`, so no
+   *  update falls between the two. */
+  chatAttach: send<[sessionId: SessionId]>('apiary:chat-attach', tuple(sessionIdArg)),
+  chatDetach: send<[sessionId: SessionId]>('apiary:chat-detach', tuple(sessionIdArg)),
   chatChanged: event<[state: ChatState]>('apiary:chat-changed'),
+  /** A chat started, moved onto a new session, or ended — to every window, shown or not. */
+  chatLifecycle: event<[change: ChatLifecycle]>('apiary:chat-lifecycle'),
   /** The application menu, for the themed title bar to draw on Windows and Linux. */
   appMenu: invoke<[], AppMenuNode[]>('apiary:app-menu', tuple()),
   /** Runs the menu item at this path (indices into `appMenu`'s answer). */
@@ -307,7 +309,9 @@ export const IPC = {
   pluginBarRefresh: invoke<[terminal: TerminalRef], PluginBarItemPayload[]>(
     'apiary:plugin-bar-refresh', tuple(terminalRefArg),
   ),
-  pluginRunAction: invoke<[item: PluginBarItemPayload], void>('apiary:plugin-run-action', tuple(obj)),
+  // Loose: the bar item is echoed back from what main sent; the handler (handlers/plugins.ts) reads
+  // only `action` and opens an http(s) URL, nothing else of it is trusted.
+  pluginRunAction: invokeLoose<[item: PluginBarItemPayload], void>('apiary:plugin-run-action', tuple(obj)),
   pluginList: invoke<[], PluginInfoPayload[]>('apiary:plugin-list', tuple()),
   pluginsChanged: event('apiary:plugins-changed'),
 
@@ -315,8 +319,11 @@ export const IPC = {
   logStatus: invoke<[], LogStatusPayload>('apiary:log-status', tuple()),
   logReveal: invoke<[], string>('apiary:log-reveal', tuple()),
   logClear: invoke<[], LogStatusPayload>('apiary:log-clear', tuple()),
-  logWrite: send<[level: LogLevel, scope: LogScope, message: string, fields?: Record<string, unknown>]>(
-    'apiary:log-write', tuple(str, str, str, opt(obj)),
+  // Loose: `level`/`scope` are checked only as strings (`LogLevel`/`LogScope` bind the renderer's
+  // own callers at compile time); `Logger.log` is the validator for what is written — it prefixes
+  // the scope with `renderer:`, redacts every field and lets no field override the fixed keys.
+  logWrite: sendLoose<[level: LogLevel, scope: LogScope, message: string, fields?: Record<string, unknown>]>(
+    'apiary:log-write', tuple(anyStr, anyStr, str, opt(record)),
   ),
 
   // Tabs, layout and windows.
@@ -329,9 +336,9 @@ export const IPC = {
   tabAdoptHere: invoke<[tab: TabTransfer], void>('apiary:tab-adopt-here', tuple(isTabTransfer)),
   tabAdopt: event<[tab: TabTransfer]>('apiary:tab-adopt'),
   tabClaimed: event<[key: string]>('apiary:tab-claimed'),
-  // Deep-validated inside `resolveReportLayout` (`main/windows/reportLayoutGuard.ts`), which also needs
-  // to know this window's number — kept permissive here rather than duplicated.
-  reportLayout: invoke<[report: WindowLayoutReport], void>('apiary:report-layout', tuple(any)),
+  // `isWindowLayoutReport` is the same deep check `resolveReportLayout` (`main/windows/reportLayoutGuard.ts`)
+  // applies; that one then stamps the sender's own window number over the payload's.
+  reportLayout: invoke<[report: WindowLayoutReport], void>('apiary:report-layout', tuple(isWindowLayoutReport)),
   requestLayoutFlush: event('apiary:request-layout-flush'),
   reportTabs: send<[tabs: ReportedTab[]]>('apiary:report-tabs', tuple(arr(isReportedTab))),
   activeTabs: invoke<[], ActiveTabPayload[]>('apiary:active-tabs', tuple()),
@@ -344,10 +351,10 @@ type Spec = typeof IPC
 export type IpcKey = keyof Spec
 export type InvokeKey = { [K in IpcKey]: Spec[K] extends Invoke<unknown[], unknown> ? K : never }[IpcKey]
 export type SendKey = { [K in IpcKey]: Spec[K] extends Send<unknown[]> ? K : never }[IpcKey]
-export type EventKey = { [K in IpcKey]: Spec[K] extends Event<unknown[]> ? K : never }[IpcKey]
+export type EventKey = { [K in IpcKey]: Spec[K] extends EventSpec<unknown[]> ? K : never }[IpcKey]
 export type ArgsOf<K extends IpcKey> = Spec[K] extends Invoke<infer A, unknown> | Send<infer A> ? A : never
 export type ResultOf<K extends InvokeKey> = Spec[K] extends Invoke<unknown[], infer R> ? R : never
-export type PayloadOf<K extends EventKey> = Spec[K] extends Event<infer P> ? P : never
+export type PayloadOf<K extends EventKey> = Spec[K] extends EventSpec<infer P> ? P : never
 
 /** Kept for e2e/tests and existing imports: identical strings to before this file existed. */
 export const CHANNELS = Object.fromEntries(

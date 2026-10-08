@@ -1,19 +1,28 @@
 import { existsSync, readdirSync } from 'node:fs'
+import { errorMessage } from '@shared/errors'
 import { basename, join } from 'node:path'
-import * as branchOps from './branchOps'
+import { isWorktreeConflict, type BranchOps } from './branchOps'
 import { resolveRemote } from '../plugins/remote'
 import { parseGitLabRemote } from '../plugins/gitlabRemote'
-import { resolveMrStatus, type MrState } from './mrStatusCache'
+import type { MrState, MrStatusCache } from './mrStatusCache'
 import { log } from '../log/logger'
 import type { SessionResolver } from '../sessions/sessionResolver'
 import type { TerminalRef } from '@shared/domain/ids'
-import type { GitStatus, GitRefs, CheckoutOutcome, FolderWorktree } from '@shared/types'
+import type { GitStatus, GitRefs, CheckoutOutcome, FolderWorktree, NewSessionInfo } from '@shared/types'
 import {
   worktreeNameProblem, type GitTarget, type WorktreeCreateOptions, type WorktreeCreateRequest,
 } from '@shared/domain/git'
 
 export interface GitServiceDeps {
   resolver: SessionResolver
+  /** Every branch/worktree/remote `git` operation, over the container's `exec`. */
+  branchOps: BranchOps
+  /** Merge-request states and their cache. */
+  mrStatus: MrStatusCache
+  /** Re-resolves one folder's project row through git (`SessionCatalog.refreshProject`). */
+  refreshProject: (cwd: string) => Promise<void>
+  /** Starts a Claude session in a folder this service derived itself (`TerminalService.newSessionInFolder`). */
+  startSessionIn: (folder: string) => Promise<NewSessionInfo>
   /** Path to the `glab` executable, for anyone whose install is not on PATH (and for tests). */
   glabPath?: string
 }
@@ -31,7 +40,11 @@ export interface GitServiceDeps {
  */
 export class GitService {
   private readonly resolver: SessionResolver
+  private readonly branchOps: BranchOps
+  private readonly mrStatus: MrStatusCache
   private readonly glabPath: string | undefined
+  private readonly refreshProject: (cwd: string) => Promise<void>
+  private readonly startSessionIn: (folder: string) => Promise<NewSessionInfo>
   /** Which branch each folder was last seen on, filled in by `status()` — read by `AppService`'s
    *  plugin context so the bar's own git polling is what keeps plugins current, with no second
    *  `git` call of their own. */
@@ -39,7 +52,16 @@ export class GitService {
 
   constructor(deps: GitServiceDeps) {
     this.resolver = deps.resolver
+    this.branchOps = deps.branchOps
+    this.mrStatus = deps.mrStatus
     this.glabPath = deps.glabPath
+    this.refreshProject = deps.refreshProject
+    this.startSessionIn = deps.startSessionIn
+  }
+
+  /** Forgets every cached merge-request state: the Refresh button asks GitLab again. */
+  invalidateMrStatuses(): void {
+    this.mrStatus.invalidate()
   }
 
   /** The folder's branch as of its last `status()` call, or null if none has been made (or the
@@ -65,13 +87,13 @@ export class GitService {
    *  MAIN-9. Anything else `git` gets wrong there still rejects. */
   async status(terminal: TerminalRef): Promise<GitStatus | null> {
     const cwd = this.resolver.resolveShellCwd(terminal)
-    const status = await branchOps.status(cwd)
+    const status = await this.branchOps.status(cwd)
     this.lastBranch.set(cwd, status?.branch ?? null)
     return status
   }
 
   async listRefs(target: GitTarget): Promise<GitRefs> {
-    return branchOps.listRefs(this.cwdOf(target))
+    return this.branchOps.listRefs(this.cwdOf(target))
   }
 
   /**
@@ -92,7 +114,7 @@ export class GitService {
       return out
     }
     await Promise.all(iids.map(async (iid) => {
-      out[iid] = await resolveMrStatus(cwd, remote.host, remote.project, iid, { glabPath: this.glabPath })
+      out[iid] = await this.mrStatus.resolve(cwd, remote.host, remote.project, iid, { glabPath: this.glabPath })
     }))
     return out
   }
@@ -113,12 +135,12 @@ export class GitService {
   async checkoutBranch(target: GitTarget, name: string): Promise<CheckoutOutcome> {
     const cwd = this.cwdOf(target)
     try {
-      await branchOps.checkoutBranch(cwd, name)
+      await this.branchOps.checkoutBranch(cwd, name)
       return { ok: true }
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e)
-      if (!branchOps.isWorktreeConflict(message)) throw e
-      const worktreePath = await branchOps.worktreeForBranch(cwd, name)
+      const message = errorMessage(e)
+      if (!isWorktreeConflict(message)) throw e
+      const worktreePath = await this.branchOps.worktreeForBranch(cwd, name)
       log.info('git', 'checkout refused: branch is in another worktree', {
         branch: name, cwd, worktreePath,
       })
@@ -142,7 +164,7 @@ export class GitService {
   }
 
   private async worktreeHolding(cwd: string, branch: string): Promise<string> {
-    const path = await branchOps.worktreeForBranch(cwd, branch)
+    const path = await this.branchOps.worktreeForBranch(cwd, branch)
     if (path === null) {
       throw new Error(`${branch} is no longer checked out in a worktree of this repository`)
     }
@@ -155,7 +177,7 @@ export class GitService {
     target: GitTarget, branch: string,
   ): Promise<{ path: string; commits: number }> {
     const path = await this.requireWorktreeFor(target, branch)
-    const { commits } = await branchOps.pull(path)
+    const { commits } = await this.branchOps.pull(path)
     return { path, commits }
   }
 
@@ -169,47 +191,74 @@ export class GitService {
   async checkoutMovingOther(target: GitTarget, branch: string, otherTo: string): Promise<string> {
     const cwd = this.cwdOf(target)
     const other = await this.worktreeHolding(cwd, branch)
-    const here = (await branchOps.status(cwd))?.branch ?? null
+    const here = (await this.branchOps.status(cwd))?.branch ?? null
     const swap = here === otherTo
-    if (swap) await branchOps.checkoutDetached(cwd, 'HEAD')
+    if (swap) await this.branchOps.checkoutDetached(cwd, 'HEAD')
     try {
-      await branchOps.checkoutBranch(other, otherTo)
+      await this.branchOps.checkoutBranch(other, otherTo)
     } catch (e) {
-      if (swap) await branchOps.checkoutBranch(cwd, otherTo).catch(() => {})
+      // Put `cwd` back where it was; the checkout error below is what the caller sees, so a failed
+      // rollback is logged rather than allowed to replace it.
+      if (swap) {
+        await this.branchOps.checkoutBranch(cwd, otherTo).catch((err: unknown) => {
+          log.warn('git', 'could not restore the branch after a failed swap', { error: errorMessage(err) })
+        })
+      }
       throw e
     }
-    await branchOps.checkoutBranch(cwd, branch)
+    await this.branchOps.checkoutBranch(cwd, branch)
     log.info('git', 'checked out after moving the other worktree', { branch, swap })
     return other
   }
 
+  /** `checkoutMovingOther`, then both rows re-resolved: the other worktree's branch changed too. */
+  async checkoutBranchMovingOther(target: GitTarget, branch: string, otherTo: string): Promise<void> {
+    await this.refreshProject(await this.checkoutMovingOther(target, branch, otherTo))
+  }
+
+  /** One folder's project row re-resolved through git, for a call that named it by `target`. */
+  async refreshProjectOf(target: GitTarget): Promise<void> {
+    await this.refreshProject(this.cwdOf(target))
+  }
+
+  /** Starts a new Claude session in the worktree that has `branch`. */
+  async newSessionInWorktree(target: GitTarget, branch: string): Promise<NewSessionInfo> {
+    return this.startSessionIn(await this.requireWorktreeFor(target, branch))
+  }
+
+  /** New worktree, then a Claude session in it — Apiary's "open" for a fresh worktree. The path
+   *  comes back from git, never from the renderer, which is what makes starting a session in it safe. */
+  async createWorktreeSession(path: string, request: WorktreeCreateRequest): Promise<NewSessionInfo> {
+    return this.startSessionIn(await this.createWorktree(path, request))
+  }
+
   /** What `WorktreeConflict.choices` offers, for a checkout refused in `cwd`. */
   private async choicesFor(cwd: string): Promise<{ current: string | null; choices: string[] }> {
-    const [worktrees, refs] = await Promise.all([branchOps.listWorktrees(cwd), branchOps.listRefs(cwd)])
+    const [worktrees, refs] = await Promise.all([this.branchOps.listWorktrees(cwd), this.branchOps.listRefs(cwd)])
     const taken = new Set(worktrees.map((w) => w.branch).filter((b): b is string => b !== null))
     const free = refs.local.map((r) => r.name).filter((n) => !taken.has(n))
     return { current: refs.current, choices: refs.current === null ? free : [refs.current, ...free] }
   }
 
   async checkoutRemote(target: GitTarget, remoteRef: string, localName: string): Promise<void> {
-    await branchOps.checkoutRemote(this.cwdOf(target), remoteRef, localName)
+    await this.branchOps.checkoutRemote(this.cwdOf(target), remoteRef, localName)
   }
 
   async checkoutDetached(target: GitTarget, ref: string): Promise<void> {
-    await branchOps.checkoutDetached(this.cwdOf(target), ref)
+    await this.branchOps.checkoutDetached(this.cwdOf(target), ref)
   }
 
   async createBranch(target: GitTarget, name: string, from?: string): Promise<void> {
-    await branchOps.createBranch(this.cwdOf(target), name, from)
+    await this.branchOps.createBranch(this.cwdOf(target), name, from)
   }
 
   async pull(terminal: TerminalRef): Promise<{ commits: number }> {
-    return branchOps.pull(this.resolver.resolveShellCwd(terminal))
+    return this.branchOps.pull(this.resolver.resolveShellCwd(terminal))
   }
 
   /** Fast-forwards any local branch from its upstream (the branch list's pull button). */
   async updateBranch(target: GitTarget, branch: string): Promise<{ commits: number }> {
-    return branchOps.updateBranch(this.cwdOf(target), branch)
+    return this.branchOps.updateBranch(this.cwdOf(target), branch)
   }
 
   /**
@@ -218,7 +267,7 @@ export class GitService {
    * runs anywhere, the same rule `newSessionInProject` keeps.
    */
   async pullFolder(path: string): Promise<{ commits: number }> {
-    return branchOps.pullFastForward(this.resolver.requireFolder(path))
+    return this.branchOps.pullFastForward(this.resolver.requireFolder(path))
   }
 
   /**
@@ -231,7 +280,7 @@ export class GitService {
    */
   async listWorktrees(path: string): Promise<FolderWorktree[]> {
     const folder = this.resolver.requireFolder(path)
-    const all = await branchOps.listWorktrees(folder).catch(() => [])
+    const all = await this.branchOps.listWorktrees(folder).catch(() => [])
     const others = all.filter((w) => w.path !== folder && existsSync(w.path))
     for (const w of others) this.resolver.rememberWorktree(w.path)
     return others
@@ -244,11 +293,11 @@ export class GitService {
    */
   async worktreeCreateOptions(path: string): Promise<WorktreeCreateOptions> {
     const folder = this.resolver.requireFolder(path)
-    const all = await branchOps.listWorktrees(folder)
+    const all = await this.branchOps.listWorktrees(folder)
     // `git worktree list` always lists the main checkout first.
     const parentDir = `${all[0]?.path ?? folder}.worktrees`
     const existingNames = existsSync(parentDir) ? readdirSync(parentDir) : []
-    const { local, remote } = await branchOps.listBranchNames(folder)
+    const { local, remote } = await this.branchOps.listBranchNames(folder)
     const checkedOut = all.map((w) => w.branch).filter((b): b is string => b !== null)
     return { parentDir, existingNames, local, remote, checkedOut }
   }
@@ -269,21 +318,21 @@ export class GitService {
     }
     const target = join(options.parentDir, name)
     const normalised = choice.kind === 'new' ? { ...choice, branch: choice.branch.trim() } : choice
-    await branchOps.addWorktree(folder, target, normalised, options.local)
+    await this.branchOps.addWorktree(folder, target, normalised, options.local)
     log.info('git', 'worktree created', { kind: choice.kind })
     this.resolver.rememberWorktree(target)
     return target
   }
 
   async push(terminal: TerminalRef): Promise<{ commits: number; published: boolean }> {
-    return branchOps.push(this.resolver.resolveShellCwd(terminal))
+    return this.branchOps.push(this.resolver.resolveShellCwd(terminal))
   }
 
   async merge(target: GitTarget, ref: string): Promise<void> {
-    await branchOps.merge(this.cwdOf(target), ref)
+    await this.branchOps.merge(this.cwdOf(target), ref)
   }
 
   async fetch(terminal: TerminalRef): Promise<void> {
-    await branchOps.fetch(this.resolver.resolveShellCwd(terminal))
+    await this.branchOps.fetch(this.resolver.resolveShellCwd(terminal))
   }
 }

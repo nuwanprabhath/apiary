@@ -8,6 +8,8 @@
  * always one Apiary wrote itself.
  */
 
+import { clamp } from '../guards'
+
 export interface RGBA { r: number; g: number; b: number; a: number }
 
 const NUM = '(-?\\d+(?:\\.\\d+)?)'
@@ -16,8 +18,6 @@ const SEP = '\\s*,\\s*'
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
 const RGB = new RegExp(`^rgba?\\(\\s*${NUM}${SEP}${NUM}${SEP}${NUM}(?:${SEP}${NUM})?\\s*\\)$`, 'i')
 const HSL = new RegExp(`^hsla?\\(\\s*${NUM}${SEP}${PCT}${SEP}${PCT}(?:${SEP}${NUM})?\\s*\\)$`, 'i')
-
-const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 
 export function parseColor(input: string): RGBA | null {
   if (typeof input !== 'string' || input.length > 64) return null

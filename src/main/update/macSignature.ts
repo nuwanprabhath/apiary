@@ -1,5 +1,6 @@
-import { execFileSync } from 'node:child_process'
 import { app } from 'electron'
+import { createExecWithStderr } from '../exec/run'
+import { errorMessage } from '@shared/errors'
 
 /**
  * Whether the running macOS bundle is signed with a Developer ID certificate.
@@ -8,22 +9,21 @@ import { app } from 'electron'
  * only if the new one satisfies the running one's designated requirement, and an ad-hoc signature
  * (what an unsigned build gets) requires an exact hash of itself, which no other build can match.
  *
- * `codesign -dv` writes its report to stderr and exits non-zero for an unsigned bundle, so both
- * are folded into "not signed" — the honest answer for anything we cannot positively confirm. A
+ * `codesign -dv` writes its report to stderr (also when it succeeds) and exits non-zero for an
+ * unsigned bundle, so a failure and a report with no Developer ID authority are both folded into
+ * "not signed" — the honest answer for anything we cannot positively confirm. A
  * wrong answer in this direction costs an unnecessary manual install; the other direction costs a
  * download that fails at the very end.
  */
-export function hasDeveloperIdSignature(): boolean {
+const codesign = createExecWithStderr({ timeoutMs: 5000, scope: 'update' })
+const DEVELOPER_ID = /Authority=Developer ID Application/
+
+export async function hasDeveloperIdSignature(): Promise<boolean> {
   try {
-    const output = execFileSync('codesign', ['-dv', '--verbose=2', app.getAppPath()], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 5000,
-    })
-    return /Authority=Developer ID Application/.test(output)
+    const { stdout, stderr } = await codesign('codesign', ['-dv', '--verbose=2', app.getAppPath()], process.cwd())
+    return DEVELOPER_ID.test(`${stderr}\n${stdout}`)
   } catch (e) {
-    const stderr = (e as { stderr?: string | Buffer }).stderr
-    const text = typeof stderr === 'string' ? stderr : stderr?.toString() ?? ''
-    return /Authority=Developer ID Application/.test(text)
+    // A failure's message is the report (stderr, then stdout); see `createExec`.
+    return DEVELOPER_ID.test(errorMessage(e))
   }
 }

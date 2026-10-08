@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, existsSync } from 'node:fs'
+import { mkdtempSync, rmSync, existsSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ImageStore } from '../../src/main/media/imageStore'
@@ -52,6 +52,30 @@ describe('ImageStore', () => {
       expect(await store.read(join(dir, '..', 'escaped.png'))).toBeNull()
     } finally {
       rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('read() refuses a symlink inside the images directory that points outside it', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'apiary-images-outside-'))
+    try {
+      writeFileSync(join(outside, 'secret.png'), 'not for the renderer')
+      const link = join(dir, 'link.png')
+      symlinkSync(join(outside, 'secret.png'), link)
+      expect(await store.read(link)).toBeNull()
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('read() still serves an image when the images directory is itself reached through a symlink', async () => {
+    const alias = `${dir}-alias`
+    symlinkSync(dir, alias)
+    try {
+      const aliased = new ImageStore({ dir: alias })
+      const path = await aliased.save(onePixelPngBase64, 'image/png')
+      expect((await aliased.read(path))?.dataUrl.startsWith('data:image/png;base64,')).toBe(true)
+    } finally {
+      rmSync(alias, { force: true })
     }
   })
 

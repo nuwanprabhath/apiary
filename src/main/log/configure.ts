@@ -2,7 +2,6 @@ import { app } from 'electron'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { log } from './logger'
-import type { AppSettings } from '../settings'
 
 /**
  * Points the logger at this installation's log folder and applies the user's limits.
@@ -15,7 +14,14 @@ export function logDir(): string {
   return join(app.getPath('userData'), 'logs')
 }
 
-export function configureLogging(settings: AppSettings): void {
+/** The slice of the settings that governs the diagnostic log; `AppSettings` has these fields. */
+interface LoggingSettings {
+  diagnosticsEnabled: boolean
+  logRetentionDays: number
+  logMaxSizeMb: number
+}
+
+export function configureLogging(settings: LoggingSettings): void {
   log.configure({
     enabled: settings.diagnosticsEnabled,
     dir: logDir(),

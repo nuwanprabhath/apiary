@@ -2,6 +2,7 @@ import { type JSX, useEffect } from 'react'
 import type { WindowChrome } from '@shared/domain/windowChrome'
 import { THEME_CHANGE_EVENT } from '../../theme/applyTheme'
 import { MenuBar } from './MenuBar'
+import { setTitleBarColors } from '../../state/windowChrome'
 
 /** A computed CSS colour (`rgb(…)`/`rgba(…)`) as `#rrggbb`, alpha dropped — the overlay is opaque. */
 export function cssColorToHex(value: string): string | null {
@@ -32,7 +33,7 @@ export function TitleBar({ chrome, title }: { chrome: WindowChrome; title: strin
     const send = (): void => {
       const background = resolved('--bg-window')
       const symbol = resolved('--text')
-      if (background !== null && symbol !== null) window.apiary.setTitleBarColors(background, symbol)
+      if (background !== null && symbol !== null) setTitleBarColors(background, symbol)
     }
     send()
     window.addEventListener(THEME_CHANGE_EVENT, send)

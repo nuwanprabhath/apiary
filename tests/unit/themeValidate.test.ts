@@ -77,7 +77,7 @@ describe('validateTheme — hostile input changes nothing unsafe', () => {
     const { spec } = validateTheme({ ...base, name: 'Neon\u0000\u001b[31m city' + 'z'.repeat(100) })
     expect(spec.name.startsWith('Neon city')).toBe(true)
     expect(spec.name.length).toBeLessThanOrEqual(60)
-    // eslint-disable-next-line no-control-regex
+    // eslint-disable-next-line no-control-regex -- the assertion is that no control character survives
     expect(spec.name).not.toMatch(/[\u0000-\u001f]/)
   })
 

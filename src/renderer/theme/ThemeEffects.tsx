@@ -145,7 +145,7 @@ export function ThemeEffects({ effects, animated, intensity, glass = null, lowPo
       reducedMotion.removeEventListener('change', start)
     }
     // `signature` stands in for the effects array, which is a new object on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `signature` stands in for the effects array, a new object every render
   }, [signature, animated, intensity, glass?.blur, glass?.saturation, lowPower])
 
   if (canvasEffects.length === 0) return null

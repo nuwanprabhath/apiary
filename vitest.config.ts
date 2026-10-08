@@ -9,9 +9,12 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reportsDirectory: 'coverage/node',
-      include: ['src/main/**', 'src/shared/**', 'src/renderer/state/**'],
+      include: ['src/main/**/*.ts', 'src/shared/**/*.ts', 'src/renderer/state/**/*.ts'],
       exclude: ['src/main/index.ts', 'src/main/app/menu.ts'],
       reporter: ['text-summary', 'json-summary', 'html', 'lcov'],
+      // A ratchet, not a target: each is one point under the 1.33.0 measurement, so a change that
+      // drops coverage fails `npm run test:coverage` in CI. Raise them when the numbers rise; never lower.
+      thresholds: { lines: 85, statements: 82, functions: 77, branches: 79 },
     },
     // unit = pure logic, filesystem-only or fully-mocked; integration = drives a real git or pty
     // subprocess, or loads a native module (better-sqlite3, node-pty). See tests/unit/purity.test.ts
@@ -29,6 +32,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'integration',
+          setupFiles: ['tests/integration/setup.ts'],
           include: ['tests/integration/**/*.test.ts'],
           // Several files (worktreeResolver, ptyManager, branchOps, appService) drive real git and
           // pty subprocesses rather than mocking them out. Run concurrently, those workers contend

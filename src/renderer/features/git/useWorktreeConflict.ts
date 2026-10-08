@@ -3,6 +3,7 @@ import type { NewSessionInfo, WorktreeConflict } from '@shared/types'
 import type { GitTarget } from '@shared/domain/git'
 import { movedOtherMessage, worktreePullMessage } from '@shared/gitMessages'
 import { useNotifications } from '../../ui/notifications'
+import { checkoutBranchMovingOther, pullBranchInWorktree, startSessionInWorktree } from '../../state/git'
 
 export interface WorktreeConflictActions {
   /** A checkout refused because another worktree has the branch, and what is being done about it. */
@@ -30,7 +31,7 @@ export function useWorktreeConflict({ target, onSessionStarted, onCheckedOut }: 
   const pullWorktreeBranch = useCallback((conflict: WorktreeConflict): void => {
     if (target === null) return
     setWorktreeBusy(true)
-    void window.apiary.gitPullWorktree(target, conflict.branch)
+    void pullBranchInWorktree(target, conflict.branch)
       .then(({ commits }) => {
         notify({ message: worktreePullMessage(conflict.branch, conflict.label, commits) })
         setWorktreeConflict(null)
@@ -42,7 +43,7 @@ export function useWorktreeConflict({ target, onSessionStarted, onCheckedOut }: 
   const openWorktreeSession = useCallback((conflict: WorktreeConflict): void => {
     if (target === null) return
     setWorktreeBusy(true)
-    void window.apiary.newSessionInWorktree(target, conflict.branch)
+    void startSessionInWorktree(target, conflict.branch)
       .then((info) => {
         onSessionStarted(info)
         setWorktreeConflict(null)
@@ -54,7 +55,7 @@ export function useWorktreeConflict({ target, onSessionStarted, onCheckedOut }: 
   const moveOtherWorktree = useCallback((conflict: WorktreeConflict, otherTo: string): void => {
     if (target === null) return
     setWorktreeBusy(true)
-    void window.apiary.gitCheckoutBranchMovingOther(target, conflict.branch, otherTo)
+    void checkoutBranchMovingOther(target, conflict.branch, otherTo)
       .then(() => {
         notify({ kind: 'success', message: movedOtherMessage(conflict.branch, conflict.label, otherTo) })
         setWorktreeConflict(null)

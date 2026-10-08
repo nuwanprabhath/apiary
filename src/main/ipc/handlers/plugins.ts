@@ -1,24 +1,31 @@
 import { shell } from 'electron'
-import type { AppService } from '../../appService'
+import type { PluginService } from '../../plugins/pluginService'
+import { IPC } from '@shared/api'
+import { broadcast } from '../../windows/broadcast'
 import type { Handlers } from '../registrar'
 
 export interface PluginsDeps {
-  service: AppService
+  plugins: PluginService
 }
 
 type HandledKeys = 'pluginBarItems' | 'pluginBarRefresh' | 'pluginRunAction' | 'pluginList'
-  | 'statusBarItems' | 'statusBarRefresh' | 'statusBarPanel'
+  | 'statusBarItems' | 'statusBarRefresh' | 'statusBarPanel' | 'statusBarConsent'
 
 export function pluginsHandlers(deps: PluginsDeps): Pick<Handlers, HandledKeys> {
-  const { service } = deps
+  const { plugins } = deps
 
   return {
-    pluginBarItems: (_e, terminal) => service.pluginBarItems(terminal),
-    pluginBarRefresh: (_e, terminal) => service.refreshPluginBar(terminal),
-    pluginList: () => service.listPlugins(),
-    statusBarItems: () => service.statusBar.items(),
-    statusBarRefresh: (_e, pluginId) => service.statusBar.refresh(pluginId),
-    statusBarPanel: (_e, pluginId, itemId) => service.statusBar.panel(pluginId, itemId),
+    pluginBarItems: (_e, terminal) => plugins.barItems(terminal),
+    pluginBarRefresh: (_e, terminal) => plugins.refreshBar(terminal),
+    pluginList: () => plugins.list(),
+    statusBarItems: () => plugins.statusBarItems(),
+    statusBarRefresh: (_e, pluginId) => plugins.statusBarRefresh(pluginId),
+    statusBarPanel: (_e, pluginId, itemId) => plugins.statusBarPanel(pluginId, itemId),
+    statusBarConsent: (_e, pluginId, allow) => {
+      plugins.statusBarConsent(pluginId, allow)
+      // A declined plugin is now off, which Settings → Plugins and every bar should show.
+      if (!allow) broadcast(IPC.pluginsChanged)
+    },
     pluginRunAction: async (_e, item) => {
       if (item.action.kind !== 'open-url') return
       /*

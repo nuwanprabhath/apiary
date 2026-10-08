@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import type { TranscriptMessage } from '../../src/shared/domain/transcript'
-import { chatItems, describeTool, lastPrompt, latestTurn, mergeLive, runningBackgroundTasks, stillQueued } from '../../src/shared/chatTimeline'
+import type { TranscriptMessage } from '@shared/domain/transcript'
+import { chatItems, describeTool, lastPrompt, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withoutToolCalls } from '@shared/chatTimeline'
 
 const msg = (uuid: string, role: 'user' | 'assistant', blocks: TranscriptMessage['blocks']): TranscriptMessage =>
   ({ uuid, role, timestampMs: null, isSidechain: false, blocks })
@@ -24,6 +24,15 @@ describe('chat timeline', () => {
   it('shows a tool still waiting for its result as pending', () => {
     const items = chatItems(CONVERSATION.slice(0, 3))
     expect(items.find((i) => i.kind === 'tool')).toMatchObject({ result: null })
+  })
+
+  it('without tool calls, keeps what was said and drops a message that only ran or answered a tool', () => {
+    const left = withoutToolCalls(CONVERSATION)
+    expect(left.map((m) => m.uuid)).toEqual(['u1', 'a1', 'a2', 'a3', 'u3'])
+    expect(left.find((m) => m.uuid === 'a2')!.blocks).toEqual([{ type: 'text', text: 'Looking.' }])
+    // A message with no tool block is the same object, so a memoised row is not redrawn for it.
+    expect(left[0]).toBe(CONVERSATION[0])
+    expect(chatItems(left).map((i) => i.kind)).toEqual(['user', 'thinking', 'text', 'text', 'interrupted'])
   })
 
   it('keeps the latest prompt for the box at the top', () => {

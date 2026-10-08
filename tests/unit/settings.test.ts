@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, readdirSync, chmodSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  loadSettings, saveSettings, DEFAULT_SETTINGS, migrateSettings, SETTINGS_VERSION,
-  clampRecentHours, clampIntSetting, clampIntOrNullSetting, mergeSettingsPayload,
+  createSettingsStore, saveSettings, DEFAULT_SETTINGS, migrateSettings, SETTINGS_VERSION,
+  clampRecentHours, mergeSettingsPayload,
 } from '../../src/main/settings'
 
 let dir: string
@@ -15,70 +15,34 @@ afterEach(() => { rmSync(dir, { recursive: true, force: true }) })
 
 describe('settings', () => {
   it('returns defaults when the file does not exist', () => {
-    expect(loadSettings(file())).toEqual(DEFAULT_SETTINGS)
+    expect(createSettingsStore(file()).load()).toEqual(DEFAULT_SETTINGS)
   })
 
   it('round-trips values', () => {
-    const bounds = { x: 10, y: 20, width: 1200, height: 800 }
-    saveSettings(file(), {
-      schemaVersion: SETTINGS_VERSION,
+    // Every field set to something other than its default would be a hand-list that has to be
+    // edited whenever a setting is added; `settingsSchema.test.ts` covers every key. This checks
+    // that the store keeps what it is given, main-only fields included.
+    const stored = {
+      ...DEFAULT_SETTINGS,
       claudeBin: '/opt/claude',
       autoImportAll: true,
       autoImportIntervalMinutes: 30,
-      revealActiveInSidebar: false,
-      systemTitleBar: true,
-      transcriptChat: true,
-      searchChatContent: false,
-      searchSessionNotes: false,
-      recentSectionEnabled: false,
       recentSectionHours: 12,
-      terminalShortenPath: true,
       terminalPathSegments: 3,
       terminalMinimalPrompt: false,
       plugins: { 'gitlab-mr': false },
       pluginSettings: { 'gitlab-mr': { targetBranch: 'dev/1.0.12' } },
-      updateAutomaticChecks: false,
-      updateCheckIntervalHours: 24,
-      updateAutoDownload: true,
-      updateAllowPrerelease: true,
       updateSkippedVersion: '1.9.0',
-      diagnosticsEnabled: true,
       logRetentionDays: 14,
-      logMaxSizeMb: 50,
-      windowBounds: bounds,
-    })
-    expect(loadSettings(file())).toEqual({
-      schemaVersion: SETTINGS_VERSION,
-      claudeBin: '/opt/claude',
-      autoImportAll: true,
-      autoImportIntervalMinutes: 30,
-      revealActiveInSidebar: false,
-      systemTitleBar: true,
-      transcriptChat: true,
-      searchChatContent: false,
-      searchSessionNotes: false,
-      recentSectionEnabled: false,
-      recentSectionHours: 12,
-      terminalShortenPath: true,
-      terminalPathSegments: 3,
-      terminalMinimalPrompt: false,
-      plugins: { 'gitlab-mr': false },
-      pluginSettings: { 'gitlab-mr': { targetBranch: 'dev/1.0.12' } },
-      updateAutomaticChecks: false,
-      updateCheckIntervalHours: 24,
-      updateAutoDownload: true,
-      updateAllowPrerelease: true,
-      updateSkippedVersion: '1.9.0',
-      diagnosticsEnabled: true,
-      logRetentionDays: 14,
-      logMaxSizeMb: 50,
-      windowBounds: bounds,
-    })
+      windowBounds: { x: 10, y: 20, width: 1200, height: 800 },
+    }
+    saveSettings(createSettingsStore(file()), stored)
+    expect(createSettingsStore(file()).load()).toEqual(stored)
   })
 
   it('falls back to defaults on corrupt JSON', () => {
     writeFileSync(file(), '{ not json')
-    expect(loadSettings(file())).toEqual(DEFAULT_SETTINGS)
+    expect(createSettingsStore(file()).load()).toEqual(DEFAULT_SETTINGS)
   })
 
   it('fills in missing keys from defaults', () => {
@@ -86,7 +50,7 @@ describe('settings', () => {
     // Stated against the defaults themselves rather than a copy of them: a list of every field
     // has to be edited every time a setting is added, which makes an unrelated change look like
     // a failure and teaches whoever sees it to update the expectation without reading it.
-    expect(loadSettings(file())).toEqual({ ...DEFAULT_SETTINGS, claudeBin: '/opt/claude' })
+    expect(createSettingsStore(file()).load()).toEqual({ ...DEFAULT_SETTINGS, claudeBin: '/opt/claude' })
   })
 
   it('includes new session-related fields in defaults', () => {
@@ -97,7 +61,7 @@ describe('settings', () => {
   it('loads old settings files lacking new fields by filling in defaults', () => {
     // Simulate a v1 settings file that has no autoImportAll or autoImportIntervalMinutes.
     writeFileSync(file(), JSON.stringify({ claudeBin: '/opt/claude', windowBounds: null }))
-    const loaded = loadSettings(file())
+    const loaded = createSettingsStore(file()).load()
     expect(loaded.autoImportAll).toBe(false)
     expect(loaded.autoImportIntervalMinutes).toBe(null)
     expect(loaded.claudeBin).toBe('/opt/claude')
@@ -108,29 +72,29 @@ describe('settings', () => {
     // was given — filling in *missing* keys from defaults does nothing for a key that is present
     // but out of range, so loadSettings has to clamp it itself on every read.
     writeFileSync(file(), JSON.stringify({ recentSectionHours: 0 }))
-    expect(loadSettings(file()).recentSectionHours).toBe(1)
+    expect(createSettingsStore(file()).load().recentSectionHours).toBe(1)
   })
 })
 
 describe('saveSettings writes atomically (MAIN-16)', () => {
   it('leaves no temp file behind after a normal save', () => {
-    saveSettings(file(), DEFAULT_SETTINGS)
+    saveSettings(createSettingsStore(file()), DEFAULT_SETTINGS)
     expect(readdirSync(dir)).toEqual(['settings.json'])
   })
 
   it('a crash between write and rename keeps the old file, rather than a truncated one', () => {
-    saveSettings(file(), { ...DEFAULT_SETTINGS, claudeBin: '/opt/claude' })
+    saveSettings(createSettingsStore(file()), { ...DEFAULT_SETTINGS, claudeBin: '/opt/claude' })
     // Simulate the write half of tmp+rename failing (e.g. a full disk) by making the directory
     // unwritable, so the temp file itself cannot be created.
     chmodSync(dir, 0o500)
     try {
-      saveSettings(file(), { ...DEFAULT_SETTINGS, claudeBin: '/opt/other' })
+      saveSettings(createSettingsStore(file()), { ...DEFAULT_SETTINGS, claudeBin: '/opt/other' })
     } finally {
       chmodSync(dir, 0o700)
     }
     // The previous, valid settings are still there — never a half-written file that would read
     // back as corrupt (and then get silently replaced by defaults, per loadSettings's fallback).
-    expect(loadSettings(file()).claudeBin).toBe('/opt/claude')
+    expect(createSettingsStore(file()).load().claudeBin).toBe('/opt/claude')
     expect(readdirSync(dir)).toEqual(['settings.json'])
   })
 })
@@ -162,47 +126,6 @@ describe('clampRecentHours', () => {
     expect(clampRecentHours(24)).toBe(24)
     expect(clampRecentHours(1)).toBe(1)
     expect(clampRecentHours(168)).toBe(168)
-  })
-})
-
-describe('clampIntSetting', () => {
-  // SEC-8: settingsSet trusted several numeric fields verbatim from the renderer
-  // (updateCheckIntervalHours, logRetentionDays, logMaxSizeMb, autoImportIntervalMinutes) —
-  // a stale build, devtools, or a hand-edited settings.json could set any of them to a NaN, a
-  // negative number, or something absurdly large.
-  it('clamps below the minimum up to it', () => {
-    expect(clampIntSetting(0, 1, 90)).toBe(1)
-    expect(clampIntSetting(-5, 1, 90)).toBe(1)
-  })
-
-  it('clamps above the maximum down to it', () => {
-    expect(clampIntSetting(1000, 1, 90)).toBe(90)
-  })
-
-  it('rounds a fraction', () => {
-    expect(clampIntSetting(2.7, 1, 90)).toBe(3)
-  })
-
-  it('falls back to the minimum for anything that is not a finite number', () => {
-    expect(clampIntSetting(NaN, 1, 90)).toBe(1)
-    expect(clampIntSetting('nonsense', 1, 90)).toBe(1)
-    expect(clampIntSetting(undefined, 1, 90)).toBe(1)
-  })
-
-  it('leaves an in-range value unchanged', () => {
-    expect(clampIntSetting(7, 1, 90)).toBe(7)
-  })
-})
-
-describe('clampIntOrNullSetting', () => {
-  it('passes null through unchanged — a real value for autoImportIntervalMinutes', () => {
-    expect(clampIntOrNullSetting(null, 1, 1440)).toBeNull()
-  })
-
-  it('clamps a non-null value the same way clampIntSetting does', () => {
-    expect(clampIntOrNullSetting(NaN, 1, 1440)).toBe(1)
-    expect(clampIntOrNullSetting(999999, 1, 1440)).toBe(1440)
-    expect(clampIntOrNullSetting(30, 1, 1440)).toBe(30)
   })
 })
 
@@ -275,7 +198,7 @@ describe('mergeSettingsPayload', () => {
     expect(mergeSettingsPayload(current, { claudeBin: 'claude' }, noPlugins).claudeBin).toBe('/opt/claude')
   })
 
-  it('recentSectionHours is clamped when present, not just kept as `keep` would', () => {
+  it('recentSectionHours is clamped when present, not just kept as sent', () => {
     expect(mergeSettingsPayload(DEFAULT_SETTINGS, { recentSectionHours: 0 }, noPlugins).recentSectionHours).toBe(1)
     expect(mergeSettingsPayload(DEFAULT_SETTINGS, { recentSectionHours: 999 }, noPlugins).recentSectionHours).toBe(168)
   })
@@ -321,6 +244,41 @@ describe('terminalMinimalPrompt', () => {
   it('defaults on, including for an existing settings file that has never stored it', () => {
     expect(DEFAULT_SETTINGS.terminalMinimalPrompt).toBe(true)
     writeFileSync(file(), JSON.stringify({ schemaVersion: SETTINGS_VERSION, terminalShortenPath: true, terminalPathSegments: 1 }))
-    expect(loadSettings(file()).terminalMinimalPrompt).toBe(true)
+    expect(createSettingsStore(file()).load().terminalMinimalPrompt).toBe(true)
+  })
+})
+
+describe('settings file versions', () => {
+  it('stores its version as schemaVersion, and backs up a file from a newer Apiary before rewriting it', () => {
+    writeFileSync(file(), JSON.stringify({ schemaVersion: SETTINGS_VERSION + 1, claudeBin: '/opt/claude', futureSetting: true }))
+    const store = createSettingsStore(file())
+    const loaded = store.load()
+    expect(loaded.claudeBin).toBe('/opt/claude')
+    saveSettings(store, loaded)
+    expect(JSON.parse(readFileSync(file(), 'utf8'))).toMatchObject({ schemaVersion: SETTINGS_VERSION })
+    expect(JSON.parse(readFileSync(`${file()}.v${String(SETTINGS_VERSION + 1)}.bak`, 'utf8'))).toMatchObject({ futureSetting: true })
+  })
+
+  it('falls back to defaults for JSON that is not an object', () => {
+    writeFileSync(file(), 'null')
+    expect(createSettingsStore(file()).load()).toEqual(DEFAULT_SETTINGS)
+  })
+})
+describe('the Claude usage consent answer (ADR-0019)', () => {
+  it('is "unknown" in a file written before the prompt existed, so an install that ran the plugin is asked too', () => {
+    writeFileSync(file(), JSON.stringify({ schemaVersion: SETTINGS_VERSION, plugins: { 'claude-usage': true } }))
+    expect(createSettingsStore(file()).load().claudeUsageConsent).toBe('unknown')
+  })
+
+  it('keeps a recorded answer across launches, and reads anything else as "not asked", never as a grant', () => {
+    saveSettings(createSettingsStore(file()), { ...DEFAULT_SETTINGS, claudeUsageConsent: 'granted' })
+    expect(createSettingsStore(file()).load().claudeUsageConsent).toBe('granted')
+    writeFileSync(file(), JSON.stringify({ schemaVersion: SETTINGS_VERSION, claudeUsageConsent: true }))
+    expect(createSettingsStore(file()).load().claudeUsageConsent).toBe('unknown')
+  })
+
+  it('cannot be granted through settingsSet: the dialog\'s payload never reaches it', () => {
+    const merged = mergeSettingsPayload(DEFAULT_SETTINGS, { claudeUsageConsent: 'granted' } as never, new Set())
+    expect(merged.claudeUsageConsent).toBe('unknown')
   })
 })

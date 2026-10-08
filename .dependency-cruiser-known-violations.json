@@ -1,0 +1,725 @@
+[
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/chat/ChatTimeline.tsx",
+    "to": "src/renderer/features/transcript/MarkdownText.tsx",
+    "unresolvedTo": "../transcript/MarkdownText",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/chat/ChatTimeline.tsx",
+    "to": "src/renderer/features/transcript/MessageRow.tsx",
+    "unresolvedTo": "../transcript/MessageRow",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/chat/ChatTimeline.tsx",
+    "to": "src/renderer/features/transcript/TranscriptImage.tsx",
+    "unresolvedTo": "../transcript/TranscriptImage",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/dialogs/DialogHost.tsx",
+    "to": "src/renderer/features/git/FolderBranchDialog.tsx",
+    "unresolvedTo": "../git/FolderBranchDialog",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/dialogs/DialogHost.tsx",
+    "to": "src/renderer/features/git/NewWorktreeDialog.tsx",
+    "unresolvedTo": "../git/NewWorktreeDialog",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/dialogs/DialogHost.tsx",
+    "to": "src/renderer/features/layout/layout.ts",
+    "unresolvedTo": "../layout/layout",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/dialogs/DialogHost.tsx",
+    "to": "src/renderer/features/layout/layoutContext.ts",
+    "unresolvedTo": "../layout/layoutContext",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/dialogs/DialogHost.tsx",
+    "to": "src/renderer/features/layout/LayoutPicker.tsx",
+    "unresolvedTo": "../layout/LayoutPicker",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/dialogs/DialogHost.tsx",
+    "to": "src/renderer/features/settings/SettingsDialog.tsx",
+    "unresolvedTo": "../settings/SettingsDialog",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/dialogs/useDialogs.ts",
+    "to": "src/renderer/features/layout/layoutContext.ts",
+    "unresolvedTo": "../layout/layoutContext",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/SessionBody.tsx",
+    "to": "src/renderer/features/layout/columns.ts",
+    "unresolvedTo": "../layout/columns",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/SessionBody.tsx",
+    "to": "src/renderer/features/terminal/TerminalView.tsx",
+    "unresolvedTo": "../terminal/TerminalView",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/SessionBody.tsx",
+    "to": "src/renderer/features/transcript/Composer.tsx",
+    "unresolvedTo": "../transcript/Composer",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/SessionBody.tsx",
+    "to": "src/renderer/features/transcript/Transcript.tsx",
+    "unresolvedTo": "../transcript/Transcript",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/SessionColumn.tsx",
+    "to": "src/renderer/features/git/BranchSwitcher.tsx",
+    "unresolvedTo": "../git/BranchSwitcher",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/SessionColumn.tsx",
+    "to": "src/renderer/features/git/WorktreeConflictDialog.tsx",
+    "unresolvedTo": "../git/WorktreeConflictDialog",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/SessionColumn.tsx",
+    "to": "src/renderer/features/layout/columns.ts",
+    "unresolvedTo": "../layout/columns",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/SessionColumn.tsx",
+    "to": "src/renderer/features/layout/layoutContext.ts",
+    "unresolvedTo": "../layout/layoutContext",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/SessionColumn.tsx",
+    "to": "src/renderer/features/transcript/ImageLightbox.tsx",
+    "unresolvedTo": "../transcript/ImageLightbox",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/SessionHeader.tsx",
+    "to": "src/renderer/features/layout/columns.ts",
+    "unresolvedTo": "../layout/columns",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/SessionTabBar.tsx",
+    "to": "src/renderer/features/layout/layoutContext.ts",
+    "unresolvedTo": "../layout/layoutContext",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/SessionTabBar.tsx",
+    "to": "src/renderer/features/layout/LayoutMenuButton.tsx",
+    "unresolvedTo": "../layout/LayoutMenuButton",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/ShellPane.tsx",
+    "to": "src/renderer/features/git/GitMenu.tsx",
+    "unresolvedTo": "../git/GitMenu",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/ShellPane.tsx",
+    "to": "src/renderer/features/layout/columns.ts",
+    "unresolvedTo": "../layout/columns",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/ShellPane.tsx",
+    "to": "src/renderer/features/terminal/TerminalListPanel.tsx",
+    "unresolvedTo": "../terminal/TerminalListPanel",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/ShellPane.tsx",
+    "to": "src/renderer/features/terminal/TerminalView.tsx",
+    "unresolvedTo": "../terminal/TerminalView",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/useGitActions.ts",
+    "to": "src/renderer/features/git/GitMenu.tsx",
+    "unresolvedTo": "../git/GitMenu",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/useGitActions.ts",
+    "to": "src/renderer/features/git/useWorktreeConflict.ts",
+    "unresolvedTo": "../git/useWorktreeConflict",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/pane/useShellTerminals.ts",
+    "to": "src/renderer/features/sidebar/model/groups.ts",
+    "unresolvedTo": "../sidebar/model/groups",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/settings/sections/PetsSection.tsx",
+    "to": "src/renderer/features/pets/PetSprite.tsx",
+    "unresolvedTo": "../../pets/PetSprite",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/settings/sections/UpdatesSection.tsx",
+    "to": "src/renderer/features/update/updateSummary.ts",
+    "unresolvedTo": "../../update/updateSummary",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/sidebar/SessionRow.tsx",
+    "to": "src/renderer/features/layout/layoutContext.ts",
+    "unresolvedTo": "../layout/layoutContext",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/sidebar/SessionRow.tsx",
+    "to": "src/renderer/features/layout/LayoutMenuButton.tsx",
+    "unresolvedTo": "../layout/LayoutMenuButton",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/sidebar/Sidebar.tsx",
+    "to": "src/renderer/features/dialogs/useDialogs.ts",
+    "unresolvedTo": "../dialogs/useDialogs",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/sidebar/useSidebarMenu.ts",
+    "to": "src/renderer/features/dialogs/useDialogs.ts",
+    "unresolvedTo": "../dialogs/useDialogs",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/sidebar/useSidebarMenu.ts",
+    "to": "src/renderer/features/layout/layoutContext.ts",
+    "unresolvedTo": "../layout/layoutContext",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/transcript/Composer.tsx",
+    "to": "src/renderer/features/chat/CommandPalette.tsx",
+    "unresolvedTo": "../chat/CommandPalette",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/transcript/Composer.tsx",
+    "to": "src/renderer/features/chat/ModelPicker.tsx",
+    "unresolvedTo": "../chat/ModelPicker",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/transcript/Composer.tsx",
+    "to": "src/renderer/features/chat/ModeMenu.tsx",
+    "unresolvedTo": "../chat/ModeMenu",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/transcript/Transcript.tsx",
+    "to": "src/renderer/features/chat/ChatStatus.tsx",
+    "unresolvedTo": "../chat/ChatStatus",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/transcript/Transcript.tsx",
+    "to": "src/renderer/features/chat/ChatTimeline.tsx",
+    "unresolvedTo": "../chat/ChatTimeline",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/transcript/Transcript.tsx",
+    "to": "src/renderer/features/chat/useCopyOnSelect.ts",
+    "unresolvedTo": "../chat/useCopyOnSelect",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/workspace/WorkspaceProvider.tsx",
+    "to": "src/renderer/features/layout/columns.ts",
+    "unresolvedTo": "../layout/columns",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/workspace/WorkspaceProvider.tsx",
+    "to": "src/renderer/features/layout/layout.ts",
+    "unresolvedTo": "../layout/layout",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/workspace/workspaceReducer.ts",
+    "to": "src/renderer/features/layout/columns.ts",
+    "unresolvedTo": "../layout/columns",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/features/workspace/workspaceReducer.ts",
+    "to": "src/renderer/features/layout/layout.ts",
+    "unresolvedTo": "../layout/layout",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-feature-public-face"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/state/mrStatusStore.ts",
+    "to": "src/renderer/features/sidebar/mrRefText.tsx",
+    "unresolvedTo": "../features/sidebar/mrRefText",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-ui-and-state-below-features"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/state/uiState.ts",
+    "to": "src/renderer/features/sidebar/model/groups.ts",
+    "unresolvedTo": "../features/sidebar/model/groups",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-ui-and-state-below-features"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/state/useUiState.ts",
+    "to": "src/renderer/features/sidebar/model/groups.ts",
+    "unresolvedTo": "../features/sidebar/model/groups",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-ui-and-state-below-features"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/state/useUiState.ts",
+    "to": "src/renderer/features/sidebar/model/recentSessions.ts",
+    "unresolvedTo": "../features/sidebar/model/recentSessions",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-ui-and-state-below-features"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/renderer/ui/HoverCard.tsx",
+    "to": "src/renderer/features/sidebar/mrRefText.tsx",
+    "unresolvedTo": "../features/sidebar/mrRefText",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-ui-and-state-below-features"
+    }
+  }
+]

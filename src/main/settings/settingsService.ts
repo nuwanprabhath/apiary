@@ -1,5 +1,6 @@
 import type { AppSettingsPayload } from '@shared/domain/settings'
-import { type AppSettings, loadSettings, saveSettings, mergeSettingsPayload } from '../settings'
+import type { JsonStore } from '../fs/jsonStore'
+import { type AppSettings, createSettingsStore, saveSettings, mergeSettingsPayload } from '../settings'
 
 /**
  * Owns the in-memory `AppSettings` for the whole app (MAIN-16). Before this, `loadSettings` was
@@ -20,13 +21,16 @@ export class SettingsService {
   private current: AppSettings
   private readonly listeners = new Set<(next: AppSettings, prev: AppSettings) => void>()
 
-  constructor(private readonly file: string) {
-    const loaded = loadSettings(file)
+  private readonly store: JsonStore<AppSettings>
+
+  constructor(file: string) {
+    this.store = createSettingsStore(file)
+    const loaded = this.store.load()
     this.current = loaded
     // Written straight back, so a migration applied on read is recorded — see `migrateSettings`'s
     // own doc comment ("Changing a default reaches nobody", CLAUDE.md). Without this it would be
     // re-applied on every launch, silently undoing a later deliberate change.
-    saveSettings(file, loaded)
+    saveSettings(this.store, loaded)
   }
 
   get(): Readonly<AppSettings> {
@@ -38,7 +42,7 @@ export class SettingsService {
   patch(p: Partial<AppSettings>): void {
     const prev = this.current
     this.current = { ...prev, ...p }
-    saveSettings(this.file, this.current)
+    saveSettings(this.store, this.current)
     for (const fn of this.listeners) fn(this.current, prev)
   }
 
@@ -51,7 +55,7 @@ export class SettingsService {
   applyPayload(next: Partial<AppSettingsPayload>, knownPluginIds: ReadonlySet<string>): AppSettings {
     const prev = this.current
     this.current = mergeSettingsPayload(prev, next, knownPluginIds)
-    saveSettings(this.file, this.current)
+    saveSettings(this.store, this.current)
     for (const fn of this.listeners) fn(this.current, prev)
     return this.current
   }
