@@ -2,6 +2,7 @@ import { type ComponentProps, type JSX, useState } from 'react'
 import type { ProjectNode } from '@shared/types'
 import { CollapseAllIcon, PlusBoldIcon } from '../../ui/icons'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
+import { editableOf } from '../../ui/editableText'
 import { moveGroupBefore, type GroupState, type SessionGroup } from './model/groups'
 import { SessionTree } from './SessionTree'
 import { allFolderPaths } from './treeUtils'
@@ -73,6 +74,7 @@ export function FolderGroup({
         aria-expanded={open}
         aria-level={1}
         data-tree-kind="group"
+        data-own-context-menu
         data-tree-key={group.id}
         tabIndex={tabIndex}
         // Groups reorder by dragging their headings, the same gesture as everything else
@@ -95,6 +97,8 @@ export function FolderGroup({
           patchGroups({ groups: moveGroupBefore(groupState.groups, dragged, group.id) })
         }}
         onContextMenu={(e) => {
+          // The rename box is a text field: its menu is the text menu, so the default is left alone.
+          if (editableOf(e.target) !== null) return
           e.preventDefault()
           onMenu(e.clientX, e.clientY)
         }}
@@ -106,7 +110,11 @@ export function FolderGroup({
             autoFocus
             value={renameDraft}
             onChange={(e) => setRenameDraft(e.target.value)}
-            onBlur={() => commitRename(group.id)}
+            onBlur={(e) => {
+              // Focus moving into a menu opened over the rename is not the rename ending.
+              if (e.relatedTarget instanceof Element && e.relatedTarget.closest('[role="menu"]') !== null) return
+              commitRename(group.id)
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') commitRename(group.id)
               // Stopped rather than left to bubble: this rename can be in progress while

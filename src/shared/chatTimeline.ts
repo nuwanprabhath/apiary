@@ -1,4 +1,5 @@
 import type { TranscriptMessage } from './domain/transcript'
+import { firstOfMinuteRun } from './time'
 
 /**
  * The transcript as the chat view draws it — the VS Code extension's shape: your messages as
@@ -8,8 +9,8 @@ import type { TranscriptMessage } from './domain/transcript'
  * message that only carried results disappears into the calls it answered.
  */
 export type ChatItem =
-  | { kind: 'user'; key: string; text: string; images: string[] }
-  | { kind: 'text'; key: string; text: string }
+  | { kind: 'user'; key: string; text: string; images: string[]; timestampMs: number | null }
+  | { kind: 'text'; key: string; text: string; timestampMs: number | null }
   | { kind: 'thinking'; key: string; uuid: string; text: string }
   | { kind: 'tool'; key: string; name: string; input: unknown; result: { content: string; isError: boolean } | null }
   | { kind: 'interrupted'; key: string }
@@ -95,17 +96,21 @@ export function chatItems(messages: TranscriptMessage[]): ChatItem[] {
       const made = synthetic(text)
       if (INTERRUPTED.test(text)) items.push({ kind: 'interrupted', key: m.uuid })
       else if (made?.kind === 'notice') items.push({ kind: 'notice', key: m.uuid, text: made.text, status: made.status })
-      else if (made?.kind === 'command') items.push({ kind: 'user', key: m.uuid, text: made.text, images })
-      else if (made === null && (text !== '' || images.length > 0)) items.push({ kind: 'user', key: m.uuid, text, images })
+      else if (made?.kind === 'command') items.push({ kind: 'user', key: m.uuid, text: made.text, images, timestampMs: m.timestampMs })
+      else if (made === null && (text !== '' || images.length > 0)) items.push({ kind: 'user', key: m.uuid, text, images, timestampMs: m.timestampMs })
       continue
     }
     m.blocks.forEach((b, i) => {
       const key = `${m.uuid}:${String(i)}`
-      if (b.type === 'text' && b.text.trim() !== '') items.push({ kind: 'text', key, text: b.text })
+      if (b.type === 'text' && b.text.trim() !== '') items.push({ kind: 'text', key, text: b.text, timestampMs: m.timestampMs })
       else if (b.type === 'thinking') items.push({ kind: 'thinking', key, uuid: m.uuid, text: b.text })
       else if (b.type === 'tool_use') items.push({ kind: 'tool', key, name: b.name, input: b.input, result: results.get(b.id) ?? null })
     })
   }
+  // A time only on the first message of a minute.
+  const timed = items.filter((it): it is Extract<ChatItem, { timestampMs: number | null }> => 'timestampMs' in it)
+  const kept = firstOfMinuteRun(timed.map((it) => it.timestampMs))
+  timed.forEach((it, i) => { it.timestampMs = kept[i] })
   return items
 }
 
@@ -142,6 +147,37 @@ export interface BackgroundTask {
 const STARTED_IN_BACKGROUND = /running in background with ID: ([A-Za-z0-9_-]+)/
 
 /**
+ * Folds messages into the background tasks still running, a batch at a time. A call and its
+ * result can fall in different batches, so a call waits here until its result arrives.
+ */
+export class BackgroundTaskTally {
+  private readonly calls = new Map<string, string>()
+  private readonly started = new Map<string, BackgroundTask>()
+
+  add(messages: TranscriptMessage[]): void {
+    for (const m of messages) {
+      for (const b of m.blocks) {
+        if (b.type === 'tool_use') {
+          const input = b.input as Record<string, unknown> | null
+          if (input !== null && typeof input === 'object' && input.run_in_background === true) {
+            this.calls.set(b.id, field(input, 'description') ?? field(input, 'command') ?? b.name)
+          }
+        } else if (b.type === 'tool_result' && this.calls.has(b.toolUseId)) {
+          const id = STARTED_IN_BACKGROUND.exec(b.content)?.[1]
+          if (id !== undefined) this.started.set(id, { taskId: id, description: this.calls.get(b.toolUseId) ?? '' })
+        } else if (b.type === 'text' && b.text.startsWith('<task-notification>')) {
+          for (const done of b.text.matchAll(/<task-id>([^<]+)<\/task-id>/g)) this.started.delete(done[1].trim())
+        }
+      }
+    }
+  }
+
+  tasks(): BackgroundTask[] {
+    return [...this.started.values()]
+  }
+}
+
+/**
  * The background tasks still running, as far as the session file says: a call made with
  * `run_in_background` whose result names the task, with no `<task-notification>` for that task
  * since. A task that ended with its process is reported too — Claude Code writes one notification
@@ -150,24 +186,9 @@ const STARTED_IN_BACKGROUND = /running in background with ID: ([A-Za-z0-9_-]+)/
  * the session's claude is running.
  */
 export function runningBackgroundTasks(messages: TranscriptMessage[]): BackgroundTask[] {
-  const calls = new Map<string, string>()
-  const started = new Map<string, BackgroundTask>()
-  for (const m of messages) {
-    for (const b of m.blocks) {
-      if (b.type === 'tool_use') {
-        const input = b.input as Record<string, unknown> | null
-        if (input !== null && typeof input === 'object' && input.run_in_background === true) {
-          calls.set(b.id, field(input, 'description') ?? field(input, 'command') ?? b.name)
-        }
-      } else if (b.type === 'tool_result' && calls.has(b.toolUseId)) {
-        const id = STARTED_IN_BACKGROUND.exec(b.content)?.[1]
-        if (id !== undefined) started.set(id, { taskId: id, description: calls.get(b.toolUseId) ?? '' })
-      } else if (b.type === 'text' && b.text.startsWith('<task-notification>')) {
-        for (const done of b.text.matchAll(/<task-id>([^<]+)<\/task-id>/g)) started.delete(done[1].trim())
-      }
-    }
-  }
-  return [...started.values()]
+  const tally = new BackgroundTaskTally()
+  tally.add(messages)
+  return tally.tasks()
 }
 
 /**

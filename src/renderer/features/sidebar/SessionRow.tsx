@@ -116,6 +116,7 @@ function SessionRowView({
       aria-level={treeLevel}
       data-tree-kind="session"
       data-tree-key={session.sessionId}
+      data-own-context-menu={onMenu === undefined ? undefined : true}
       tabIndex={treeTabIndex}
       ref={wrapRef}
       // A pinned row is already wrapped in its own draggable div (the pin-reorder gesture — see

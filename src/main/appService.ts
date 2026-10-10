@@ -260,6 +260,11 @@ export class AppService {
     return this.vscode.open(terminal)
   }
 
+  /** Opens a file a transcript names, if it is inside the session's folder. Rejects otherwise. */
+  async openMentionedFile(terminal: TerminalRef, mention: string): Promise<void> {
+    return this.vscode.openMentionedFile(terminal, mention)
+  }
+
   /**
    * Writes an image pasted into the composer to disk and returns its absolute path. See
    * `media/imageStore.ts` for why it lives on disk, in Apiary's own data directory.

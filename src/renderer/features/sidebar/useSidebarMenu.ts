@@ -1,7 +1,7 @@
 import type { SessionId } from '@shared/domain/ids'
 import { useState } from 'react'
 import type { ProjectNode } from '@shared/types'
-import type { ContextMenuItem } from '../../ui/ContextMenu'
+import type { ContextMenuItem } from '../../ui/contextMenuItem'
 import { useNotifications } from '../../ui/notifications'
 import { useLayoutActions } from '../layout/layoutContext'
 import { deleteGroup, moveGroup, type GroupState } from './model/groups'
@@ -10,11 +10,26 @@ import { findFolder } from './treeUtils'
 import type { GroupActions } from './useGroupActions'
 import { useDialogActions } from '../dialogs/useDialogs'
 import { listFolderWorktrees } from '../../state/git'
+import { pullMenuItem, useMenuBranch } from './useMenuBranch'
+import { pullKey } from '../../state/gitActivity'
+import { useActivityRunning } from '../../state/activityStore'
 
 /** Which menu is open, if any: a right-click on a folder, a group's header or a session row.
  *  `nested`: a folder inside another (a worktree under its repository). */
 export type SidebarMenu = { x: number; y: number; nested?: boolean }
   & ({ kind: 'folder' | 'group'; id: string } | { kind: 'session'; id: SessionId })
+
+/** Only a folder git knows: the same test the "+" button's worktree menu uses. */
+function isGitFolder(node: ProjectNode): boolean {
+  return node.branch !== null || node.isWorktree || node.children.some((c) => c.isWorktree)
+}
+
+/** The session a folder's git commands run through: any one in it, since they share its directory. */
+function gitFolderSession(rawTree: ProjectNode[], path: string): SessionId | null {
+  const node = findFolder(rawTree, path)
+  if (node === null || !isGitFolder(node)) return null
+  return node.sessions[0]?.sessionId ?? null
+}
 
 /** The sidebar's one context menu: what is open (`menu`/`setMenu`) and the items it shows. */
 export function useSidebarMenu({
@@ -34,6 +49,9 @@ export function useSidebarMenu({
   const { requestPicker } = useLayoutActions()
   const { changeBranch } = useDialogActions()
   const [menu, setMenu] = useState<SidebarMenu | null>(null)
+  const pullSession = menu?.kind === 'folder' ? gitFolderSession(rawTree, menu.id) : null
+  const branchRead = useMenuBranch(menu, pullSession)
+  const pulling = useActivityRunning(branchRead?.branch !== undefined && branchRead.branch !== null ? pullKey(branchRead.branch) : null)
   const {
     patchGroups, assignFolder, startNewGroup, setRenamingGroup, setRenameDraft, folderSiblings, reorderFolder,
   } = groups
@@ -81,14 +99,15 @@ export function useSidebarMenu({
       const siblings = folderSiblings(menu.id)
       const folderIndex = siblings?.indexOf(menu.id) ?? -1
       const node = findFolder(tree, folder) ?? findFolder(rawTree, folder)
-      // Only a folder git knows: the same test the "+" button's worktree menu uses.
-      const isGit = node !== null && (node.branch !== null || node.isWorktree || node.children.some((c) => c.isWorktree))
+      const isGit = node !== null && isGitFolder(node)
       const changeBranchItem: ContextMenuItem[] = isGit
         ? [{ id: 'change-branch', label: 'Change branch…', separator: menu.nested !== true, run: () => { changeBranch(folder, node.label) } }]
         : []
-      if (menu.nested === true) return changeBranchItem
+      const pullItems: ContextMenuItem[] = isGit ? [pullMenuItem(pullSession, branchRead, notify, pulling)] : []
+      if (menu.nested === true) return [...changeBranchItem, ...pullItems]
       return [
         ...changeBranchItem,
+        ...pullItems,
         {
           id: 'folder-move-up',
           label: 'Move up',

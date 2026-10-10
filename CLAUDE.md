@@ -41,6 +41,7 @@ span main and renderer. Index at the end.
 | Lint everything (incl. layer rules, dead code and the architecture tests) / autofix | `npm run lint` / `npm run lint:fix` |
 | Unit + integration | `npm test` (`npm run test:unit`, `npm run test:integration`) |
 | Component (Chromium) | `npm run test:component` |
+| UI audit and screenshots (`ui-review/index.html`) | `npm run ui:review` |
 | E2E (builds first) / smoke (what CI runs) | `npm run test:e2e` / `npm run test:e2e:smoke` |
 | Generate a stub | `npm run new -- <ipc\|store\|feature\|service> <name>` |
 | Debt totals | `npm run lint:debt` |
@@ -68,6 +69,8 @@ No command rebuilds a native module ([`docs/testing.md`](docs/testing.md)), so a
 - `npm run typecheck && npm run lint` pass.
 - A test in the cheapest layer that proves the change fails without it and passes with it: `npm test`
   for main/shared, `npm run test:component` for the renderer, an e2e spec only for real wiring.
+- A change a person sees has its states in a UI scenario that passes the UI audit, and its
+  screenshots have been looked at (`.claude/skills/ui-review/SKILL.md`).
 - Version bumped and a new `CHANGELOG.md` section added, in a Conventional Commit.
 
 ## Versioning, changelog, commits
@@ -128,6 +131,7 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | What a tab shows is `TabView`, never a retyped `'transcript' \| 'terminal'` | `tab-view-type` | `TabView` from `@shared/domain/tabs` |
 | Log scopes are known | `LogScope` type | add the scope in `shared/domain/log.ts` |
 | Renderer-only packages are `devDependencies`; one `@keyframes` name; no raw control bytes | `dependencyPlacement`, `cssKeyframes`, `noControlBytes` tests | move the package; rename the animation; write `\u001b` |
+| What a person sees is not broken: no clipped labels, cut-off controls, overlaps, see-through popups, browser-default controls, bullets in chrome; every class used is styled | UI audit (`tests/component/ui/audit.ts`) in every UI scenario; `classesDefined` test; Stop hook (a renderer change needs a scenario) | a scenario in `tests/component/ui/` with `reviewUi`; `npm run ui:review`; `.claude/skills/ui-review/SKILL.md` |
 | Each `apiary/*` rule still fires | `tests/unit/architecture/sanctionedRules.test.ts` | add a case for a new rule |
 | Colour, radius, height, padding, gap come from tokens | stylelint `declaration-property-value-disallowed-list` | `--radius-*`, `--control-*`, the `.btn` layer ([`src/renderer/CLAUDE.md`](src/renderer/CLAUDE.md)) |
 | File and function size (400 / 120 lines) | ESLint `max-lines`, `max-lines-per-function` | split by responsibility |
@@ -210,5 +214,7 @@ Generators write stubs that fail until finished, never ones that are green and w
   [`docs/packaging.md`](docs/packaging.md).
 - [`docs/adr/`](docs/adr/README.md): decisions with a rejected alternative, each naming its check.
 - `docs/history/`, `docs/superpowers/`, `docs/reviews/`: history. The code wins where they differ.
-- `.claude/skills/`: `verify-apiary`, `blast-radius`, `correct`, `architecture-drift`.
+- `.claude/skills/`: `verify-apiary`, `blast-radius`, `correct`, `architecture-drift`, `ui-review`
+  (designing UI, the UI audit and the screenshot review), and
+  `agent-orchestration` (running Haiku/Sonnet agents in worktrees with `scripts/agents/run-agent.sh`).
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): the human onboarding path and the linter breakdown.

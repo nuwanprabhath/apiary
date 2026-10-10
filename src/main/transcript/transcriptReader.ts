@@ -11,7 +11,7 @@ const DEFAULT_LIMIT = TRANSCRIPT_PAGE_SIZE
  * the main thread on every page that includes it, which is a real, measurable freeze — the same
  * reasoning as the search indexer's own per-line cap (`search/indexer.ts`).
  */
-const MAX_LINE_CHARS = 1_000_000
+export const MAX_LINE_CHARS = 1_000_000
 
 /** Coerces a JSONL field of unknown shape to a string without ever falling through to
  *  `Object.prototype.toString` — real transcripts only ever put strings and numbers in these

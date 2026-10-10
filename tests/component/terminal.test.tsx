@@ -22,7 +22,7 @@ describe('the terminal panes', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     const label = (testId: string) => () => page.getByTestId(testId).query()?.textContent?.trim()
     await expect.poll(label('view-transcript')).toBe('Chat')
-    await expect.poll(label('resume-button')).toBe('Resume in terminal')
+    await expect.poll(() => page.getByTestId('resume-button').query()?.getAttribute('aria-label')).toBe('Resume in terminal')
 
     await userEvent.click(page.getByTestId('resume-button'))
     await expect.poll(label('view-terminal')).toBe('Terminal')

@@ -1,3 +1,4 @@
+import { ignoreErrors } from '@shared/ignoreErrors'
 import type { SessionGroup } from '../features/sidebar/model/groups'
 import { detachedKey } from './windowParams'
 
@@ -209,6 +210,38 @@ export function subscribeSharedUiState(onChange: (shared: SharedUiState) => void
   const listener = (e: StorageEvent): void => {
     if (e.key !== null && e.key !== SHARED_KEY) return
     onChange(loadSharedUiState())
+  }
+  window.addEventListener('storage', listener)
+  return () => { window.removeEventListener('storage', listener) }
+}
+
+/** Per-chat settings: sessionId -> settingId -> value. */
+export type PerChatSettings = Record<string, Record<string, boolean>>
+
+/**
+ * Its own shared key, not a field of `UiState`: every window saves its whole `UiState` on each
+ * change, and a stale copy of this would overwrite a choice made in another window.
+ */
+export const CHAT_SETTINGS_KEY = 'apiary.chatSettings'
+
+export function loadChatSettings(): PerChatSettings {
+  try {
+    const raw = localStorage.getItem(CHAT_SETTINGS_KEY)
+    const saved: unknown = raw ? JSON.parse(raw) : {}
+    return typeof saved === 'object' && saved !== null && !Array.isArray(saved) ? (saved as PerChatSettings) : {}
+  } catch {
+    return {}
+  }
+}
+
+export function saveChatSettings(settings: PerChatSettings): void {
+  ignoreErrors(() => { localStorage.setItem(CHAT_SETTINGS_KEY, JSON.stringify(settings)) }, 'storage can be unavailable; the app works without persistence')
+}
+
+/** Calls back when another window changes a chat's settings. */
+export function subscribeChatSettings(onChange: () => void): () => void {
+  const listener = (e: StorageEvent): void => {
+    if (e.key === null || e.key === CHAT_SETTINGS_KEY) onChange()
   }
   window.addEventListener('storage', listener)
   return () => { window.removeEventListener('storage', listener) }

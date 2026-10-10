@@ -21,6 +21,7 @@ function alternate(key: SettingKey): unknown {
   if (typeof d === 'boolean') return !d
   if (range) return d === range.min ? range.max : range.min
   if (key === 'claudeBin') return '/opt/claude'
+  if (key === 'proofingLanguage') return 'fr-FR'
   if (key === 'plugins') return { known: false }
   if (key === 'pluginSettings') return { known: { port: 8080 } }
   throw new Error(`settingsSchema.test.ts cannot build a sample for "${key}": add one to alternate()`)

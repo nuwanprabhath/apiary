@@ -17,3 +17,11 @@ instead:
 Each baseline (`eslint-suppressions.json`, `stylelint-suppressions.json`,
 `.dependency-cruiser-known-violations.json`, `.knip-baseline.json` and the architecture tests'
 allowlists) may only shrink. Fix the code; do not grow a baseline.
+
+If you are coordinating other agents (headless Haiku or Sonnet sessions in worktrees), read
+`.claude/skills/agent-orchestration/SKILL.md` first: it records how such runs failed and how to set
+them up so they do not.
+
+If your change is something a person sees, read `.claude/skills/ui-review/SKILL.md`: put each state
+in a UI scenario under `tests/component/ui/`, pass the UI audit, and look at your screenshots
+(`npm run ui:review`). The Stop hook refuses a renderer change without one.

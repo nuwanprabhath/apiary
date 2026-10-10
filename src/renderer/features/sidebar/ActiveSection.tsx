@@ -23,7 +23,21 @@ function ActiveTabTitle({ sessionId, title }: { sessionId: SessionId; title: str
   return <span className="session-title"><MrRefText text={title} statuses={statuses} /></span>
 }
 
-const activeKeyOf = (t: ActiveTabPayload): string => `${String(t.windowNumber)}:${t.key}`
+/** One row per session: the tabs of a session shown in several panes or windows collapse into the
+ *  first of them, which lists every window number it is open in. */
+interface ActiveRow extends ActiveTabPayload { windows: number[] }
+
+function groupActiveTabs(tabs: ActiveTabPayload[]): ActiveRow[] {
+  const rows = new Map<string, ActiveRow>()
+  for (const t of tabs) {
+    const row = rows.get(t.key)
+    if (row === undefined) rows.set(t.key, { ...t, windows: [t.windowNumber] })
+    else if (!row.windows.includes(t.windowNumber)) row.windows.push(t.windowNumber)
+  }
+  return [...rows.values()]
+}
+
+const activeKeyOf = (t: ActiveTabPayload): string => t.key
 
 /** Every open tab across every window, above Pinned. */
 export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote }: {
@@ -43,8 +57,9 @@ export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote
    * part of the folder/session hierarchy, so it gets no expand/collapse and Enter just raises the
    * tab's own window (`onFocusTab`), same as a click.
    */
-  const activeByKey = useMemo(() => new Map(activeTabs.map((t) => [activeKeyOf(t), t])), [activeTabs])
-  const activeTree = useFlatTreeNav(activeTabs.map(activeKeyOf), {
+  const rows = useMemo(() => groupActiveTabs(activeTabs), [activeTabs])
+  const activeByKey = useMemo(() => new Map(rows.map((t) => [activeKeyOf(t), t])), [rows])
+  const activeTree = useFlatTreeNav(rows.map(activeKeyOf), {
     onEnter: (current) => {
       const t = current.dataset.treeKey === undefined ? undefined : activeByKey.get(current.dataset.treeKey)
       if (t !== undefined) onFocusTab(t.windowNumber, t.key)
@@ -64,7 +79,7 @@ export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote
         onBlur={() => { setLegendAnchor(null) }}
       >
         <span className="pinned-label">Active</span>
-        <span className="pinned-count">{activeTabs.length}</span>
+        <span className="pinned-count">{rows.length}</span>
       </div>
       {legendAnchor !== null && <ActivityLegend anchor={legendAnchor} />}
       <div
@@ -74,7 +89,7 @@ export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote
         onKeyDown={activeTree.onKeyDown}
         onFocus={activeTree.onFocus}
       >
-      {activeTabs.map((t) => {
+      {rows.map((t) => {
         const session = sessionsById.get(t.key)
         const key = activeKeyOf(t)
         return (
@@ -96,7 +111,7 @@ export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote
               className="session-row active-tab-row"
               data-testid="active-tab-row"
               onClick={() => onFocusTab(t.windowNumber, t.key)}
-              title={`Window ${String(t.windowNumber)}`}
+              title={t.windows.length === 1 ? `Window ${String(t.windowNumber)}` : `Windows ${t.windows.join(', ')}`}
               // UI-27: the wrap above is the treeitem; Enter on it already raises this tab's
               // window, so this stays clickable but is not a second Tab stop.
               tabIndex={-1}
@@ -109,7 +124,7 @@ export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote
                 aria-label={describeActivityStatus(t.status)}
               />
               <ActiveTabTitle sessionId={sessionIdOfTabKey(t.key)} title={session?.title ?? t.label ?? UNTITLED_SESSION} />
-              <span className="active-window-number">W{t.windowNumber}</span>
+              <span className="active-window-number">{t.windows.map((n) => `W${String(n)}`).join(' ')}</span>
             </button>
             {/* A tab still waiting for its session id has no session to attach a note to yet. */}
             {session !== undefined && (

@@ -35,7 +35,7 @@ html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .s
   z-index: var(--z-glass-rim);
   box-shadow: var(--glass-rim);
 }
-html[data-material="glass"] :is(.modal, .context-menu, .git-menu, .hover-card, .notification, .layout-picker, .branch-switcher) {
+html[data-material="glass"] :is(.modal, .context-menu, .chat-command-menu, .git-menu, .hover-card, .notification, .layout-picker, .branch-switcher, .find-bar) {
   background: var(--glass-sheen), var(--bg-popover);
 }
 /* A pet's bubble and chat float too; the bubble's tail and thought circles are part of it. */

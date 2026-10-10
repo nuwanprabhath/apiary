@@ -1,4 +1,4 @@
-import { type JSX, useRef } from 'react'
+import { type JSX, type RefObject, useMemo, useRef } from 'react'
 import type { GitStatus } from '@shared/types'
 import type { PluginBarItemPayload } from '@shared/api'
 import { shellPtyId } from '@shared/domain/ptyId'
@@ -14,6 +14,25 @@ import type { ResizeSeparatorProps } from '../../ui/useResizeDrag'
 import type { ShellTerminals } from './useShellTerminals'
 import type { GitActions } from './useGitActions'
 import { copyText } from '../../state/clipboard'
+
+/** The branch: its icon and name (narrowing, the full name in the title) and the behind/ahead count as a badge. */
+function branchChip(gitStatus: GitStatus, active: boolean, onClick: () => void): ToolbarButtonSpec {
+  const counts = gitStatus.hasUpstream
+    ? (gitStatus.behind > 0 ? '↓' + String(gitStatus.behind) : '') + (gitStatus.ahead > 0 ? '↑' + String(gitStatus.ahead) : '')
+    : ''
+  const name = gitStatus.branch ?? 'HEAD (detached)'
+  return {
+    id: 'git-branch',
+    icon: <BranchIcon />,
+    label: name,
+    labelMode: 'shrink',
+    badge: counts === '' ? undefined : counts,
+    title: `${name} — switch or create branch`,
+    testId: 'toolbar-branch-button',
+    active,
+    onClick,
+  }
+}
 
 /** One pane's shell card: the resizer above it, the git/terminal toolbar, every tab's shell
  *  terminals and the terminal list. */
@@ -45,6 +64,12 @@ export function ShellPane({
    * that opened it.
    */
   const gitMenuButtonRef = useRef<HTMLButtonElement>(null)
+  /** The » button: the git menu opens from it while its own button is in the overflow menu. */
+  const moreButtonRef = useRef<HTMLButtonElement>(null)
+  const gitMenuAnchor = useMemo<RefObject<HTMLElement | null>>(
+    () => ({ get current() { return gitMenuButtonRef.current ?? moreButtonRef.current } }),
+    [],
+  )
   /** The box the terminal list opens upward from — see the positioning note in GitMenu. */
   const toolbarRef = useRef<HTMLDivElement | null>(null)
   const { gitBusy, runGitAction, branchPicker, setBranchPicker, gitMenuOpen, setGitMenuOpen } = git
@@ -65,56 +90,51 @@ export function ShellPane({
       >
         <div className="toolbar-anchor" ref={toolbarRef}>
         <Toolbar
+          moreRef={moreButtonRef}
           left={[
             {
               id: 'shell-toggle',
-              // Rotates like every other chevron in the app instead of always pointing down,
-              // so the button states which way it will move the pane.
+              // Rotates like every other chevron in the app (⌄ open, › closed), so the button
+              // states which way it will move the pane. The word hides whole before anything else
+              // is cut, leaving the chevron.
               icon: <ChevronIcon expanded={shellOpen} />,
-              label: shellOpen ? 'Hide shell' : 'Show shell',
+              label: 'Shell',
+              labelMode: 'collapse',
+              expanded: shellOpen,
               title: shellOpen ? 'Hide shell' : 'Show shell',
               testId: 'shell-toggle',
               onClick: () => { void shell.toggleShell() },
             },
+            ...(gitStatus !== null ? [branchChip(gitStatus, branchPicker !== null, () => setBranchPicker('checkout'))] : []),
+          ]}
+          right={[
             ...(gitStatus !== null
               ? ([
                   {
-                    id: 'git-branch',
-                    icon: <BranchIcon />,
-                    label:
-                      gitStatus.branch === null
-                        ? 'HEAD (detached)'
-                        : gitStatus.branch +
-                          (gitStatus.hasUpstream && (gitStatus.behind > 0 || gitStatus.ahead > 0)
-                            ? ` (${gitStatus.behind > 0 ? '↓' + String(gitStatus.behind) : ''}${gitStatus.ahead > 0 ? '↑' + String(gitStatus.ahead) : ''})`
-                            : ''),
-                    title: 'Switch or create branch',
-                    testId: 'toolbar-branch-button',
-                    active: branchPicker !== null,
-                    onClick: () => setBranchPicker('checkout'),
-                  },
-                  {
                     id: 'git-pull',
                     icon: <ArrowDownIcon className={gitBusy === 'pull' ? 'spinner' : undefined} />,
-                    title: 'Pull',
+                    title: gitBusy === 'pull' ? 'Pulling…' : gitBusy !== null ? 'Pull (a git command is running)' : 'Pull',
                     testId: 'toolbar-pull',
                     disabled: gitBusy !== null,
+                    priority: 4,
                     onClick: () => { void runGitAction('pull') },
                   },
                   {
                     id: 'git-push',
                     icon: <ArrowUpIcon className={gitBusy === 'push' ? 'spinner' : undefined} />,
-                    title: 'Push',
+                    title: gitBusy !== null ? 'Push (a git command is running)' : 'Push',
                     testId: 'toolbar-push',
                     disabled: gitBusy !== null,
+                    priority: 5,
                     onClick: () => { void runGitAction('push') },
                   },
                   {
                     id: 'git-copy',
                     icon: <CopyIcon />,
-                    title: 'Copy branch name',
+                    title: gitStatus.branch === null ? 'Copy branch name (HEAD is detached: no branch)' : 'Copy branch name',
                     testId: 'toolbar-copy',
                     disabled: gitStatus.branch === null,
+                    priority: 7,
                     onClick: () => {
                       if (gitStatus.branch !== null) void copyText(gitStatus.branch)
                     },
@@ -126,20 +146,20 @@ export function ShellPane({
                     title: 'More git commands',
                     testId: 'toolbar-git-menu',
                     active: gitMenuOpen,
+                    priority: 6,
                     onClick: () => setGitMenuOpen((v) => !v),
                   },
                 ] as ToolbarButtonSpec[])
               : []),
-            // Plugin buttons sit after git's, at the end of the left group: they are about the
-            // same checkout, and anything contributed belongs after what Apiary itself owns.
-            ...pluginButtons(pluginItems),
-          ]}
-          right={[
+            // Plugin buttons sit after git's: they are about the same checkout, and anything
+            // contributed belongs after what Apiary itself owns.
+            ...pluginButtons(pluginItems).map((spec) => ({ ...spec, priority: 3 })),
             {
               id: 'terminal-add',
               icon: <PlusIcon />,
               title: 'New terminal',
               testId: 'terminal-add',
+              priority: 1,
               onClick: () => { void shell.addTerminalTab() },
             },
             {
@@ -148,6 +168,7 @@ export function ShellPane({
               title: 'Toggle terminal list',
               testId: 'terminal-list-toggle',
               active: tabListOpen,
+              priority: 2,
               onClick: () => setTabListOpen((v) => !v),
             },
           ]}
@@ -156,7 +177,7 @@ export function ShellPane({
         {gitMenuOpen && (
           <GitMenu
             items={git.gitMenuItems}
-            anchorRef={gitMenuButtonRef}
+            anchorRef={gitMenuAnchor}
             onClose={() => setGitMenuOpen(false)}
           />
         )}

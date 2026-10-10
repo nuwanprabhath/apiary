@@ -197,10 +197,11 @@ async function start(): Promise<void> {
     electron: process.versions.electron,
     packaged: app.isPackaged,
   })
+  container.spelling.restore(settings.proofingLanguage)
   // Before any window exists: each window asks for its theme synchronously as it loads.
   const safeTheme = env.safeTheme
   const ipc = registerIpc({
-    service, chat: container.chat, plugins: container.plugins, state: container.ipcState, settings: settingsService,
+    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, state: container.ipcState, settings: settingsService,
     pickFolder: async (sender) => {
       if (env.pickFolder !== undefined) return env.pickFolder
       const win = BrowserWindow.fromWebContents(sender)
@@ -212,6 +213,7 @@ async function start(): Promise<void> {
     updater,
     sessionLayoutStore, layoutFlushCoordinator,
     tabRegistry, windowNumberFor: (id) => windowManager!.windowNumberFor(id),
+    activeTabs: container.activeTabs,
     // SEC-8 step 8: the renderer is always loaded from one of these two places (see
     // `WindowManager.create` above) — a dev-server origin (`ELECTRON_RENDERER_URL`, test/dev only) or the
     // packaged app's own `renderer/index.html`. `parseRuntimeEnv` already keeps the dev-server URL

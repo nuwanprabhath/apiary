@@ -152,6 +152,13 @@ const STILL: ReadonlySet<Activity> = new Set(['idle', 'sit', 'watch', 'nervous']
 
 type Errand = 'greet' | 'point' | 'comment'
 
+/** Active conversation between two pets, up to 5 lines each. */
+interface Conversation {
+  petIds: [string, string] // [visitor, visited]
+  /** Exchanges so far (both pets speak in each); the fifth is the wrap-up and ends it. */
+  turns: number
+}
+
 export interface BrainOptions {
   /** Overrides for tests: how often scenes and remarks come round. */
   sceneEveryMs?: [number, number]
@@ -183,6 +190,8 @@ export class Brain {
   private readonly sceneEvery: [number, number]
   private readonly commentEvery: [number, number]
   private readonly sceneKinds: SceneKind[] | null
+  /** Active conversation between two pets. */
+  private conversation: Conversation | null = null
 
   constructor(seed: number, opts: BrainOptions = {}) {
     this.rand = rng(seed)
@@ -459,9 +468,43 @@ export class Brain {
       return [{ ...this.command(m), ask: 'comment' }]
     }
     if (errand === 'greet' && !this.reducedMotion) {
+      const out: Command[] = []
+
+      // Start a new conversation or continue an existing one
+      if (this.conversation === null || !this.conversation.petIds.includes(m.pet.id)) {
+        // Find the nearest pet to converse with
+        const others = [...this.minds.values()].filter((o) => o !== m && !MOVING.has(o.activity))
+        if (others.length === 0) return [this.command(m)]
+        others.sort((a, b) => Math.abs(this.toS(a.pet.place) - this.toS(m.pet.place)) - Math.abs(this.toS(b.pet.place) - this.toS(m.pet.place)))
+        const visited = others[0]
+        this.conversation = { petIds: [m.pet.id, visited.pet.id], turns: 0 }
+      }
+
+      const [visitor, visited] = this.conversation.petIds
+      const visitedPet = visitor === m.pet.id ? this.minds.get(visited) : this.minds.get(visitor)
+      if (!visitedPet) {
+        this.conversation = null
+        return [this.command(m)]
+      }
+
+      // Determine situation based on turn (wrap-up at turn 4)
+      const situation: Situation = this.conversation.turns >= 4 ? 'wrappedUp' : this.conversation.turns === 0 ? 'greet' : 'conversation'
+
+      // Visitor speaks
       this.become(m, 'wave', 'happy', 2000)
-      this.speak(m, 'greet', 'speech', EVENT_SPEECH_GAP_MS)
-      return [this.withSaid(m)]
+      this.speak(m, situation, 'speech', EVENT_SPEECH_GAP_MS)
+      out.push(this.withSaid(m))
+
+      // Visited pet responds
+      this.become(visitedPet, 'wave', 'happy', 2000)
+      this.speak(visitedPet, situation, 'speech', EVENT_SPEECH_GAP_MS)
+      out.push(this.withSaid(visitedPet))
+
+      // Progress conversation
+      this.conversation.turns++
+      if (this.conversation.turns >= 5) this.conversation = null
+
+      return out
     }
     const t = m.pet.traits
     const night = this.hour >= 23 || this.hour < 6
@@ -731,6 +774,7 @@ export class Brain {
     }
     return out
   }
+
 
   // -- personal space: pets stand side by side, never one in front of another
 

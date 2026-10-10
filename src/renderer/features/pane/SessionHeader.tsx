@@ -40,7 +40,7 @@ export function SessionHeader({
   return (
     <>
       <header className="session-header">
-        <h1 data-testid="session-title" className="session-title-heading">
+        <h1 data-testid="session-title" className="session-title-heading" title={activePending !== null ? activePending.label : activeSession?.title}>
           {activePending !== null ? (
             <>
               New session &middot;{' '}
@@ -58,7 +58,7 @@ export function SessionHeader({
             />
           ) : null}
         </h1>
-        <p className="session-cwd" data-testid="session-path">
+        <p className="session-cwd" data-testid="session-path" title={activePending !== null ? activePending.cwd : activeSession?.cwd}>
           {activePending !== null ? activePending.cwd : activeSession?.cwd}
         </p>
       </header>

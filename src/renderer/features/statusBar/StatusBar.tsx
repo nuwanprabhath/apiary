@@ -8,6 +8,8 @@ import { logBackgroundFailure } from '../../ui/fireAndForget'
 import { StatusSections } from './StatusSections'
 import { StatusPanelDialog } from './StatusPanelDialog'
 import { ConsentDialog } from './ConsentDialog'
+import { ActivityIndicator } from './ActivityIndicator'
+import { useActivities } from '../../state/activityStore'
 import { HOVER_DELAY_MS } from '../../ui/HoverCard'
 
 function Icon({ icon, busy }: { icon: StatusIcon; busy: boolean }): JSX.Element {
@@ -34,6 +36,7 @@ interface Props {
  */
 export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element | null {
   const items = useStatusBar()
+  const busy = useActivities().length > 0
   const [panel, setPanel] = useState<{ item: StatusBarItem; data: StatusBarPanel | null } | null>(null)
   // Plugins whose consent prompt was closed without an answer. The prompt opens by itself the first
   // time an item asks, once; clicking the item brings it back.
@@ -62,9 +65,10 @@ export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element 
     return off
   }, [panel])
 
-  if (items.length === 0 && !keep) return null
+  if (items.length === 0 && !keep && !busy) return null
   return (
     <footer className="status-bar" data-testid="status-bar" aria-label="Status bar">
+      <ActivityIndicator />
       {/* The free stretch left of the items: the floor pets walk on (features/pets). */}
       <span className="status-bar-spacer" data-testid="status-bar-floor" />
       {items.map((item) => (

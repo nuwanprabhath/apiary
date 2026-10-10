@@ -4,7 +4,7 @@ import type {
   ChatDecision, ChatEffort, ChatLifecycle, ChatModel, ChatPermissionMode, ChatState, TerminalBusy,
 } from '@shared/domain/chat'
 import type { ResumeConflict } from '@shared/types'
-import { classifyActivity } from '@shared/activity'
+import { chatActivity, classifyActivity, type ActivityStatus } from '@shared/activity'
 import type { SessionId } from '@shared/domain/ids'
 import type { PtyManager } from '../pty/ptyManager'
 import type { SessionResolver } from '../sessions/sessionResolver'
@@ -32,6 +32,8 @@ export interface ChatServiceDeps {
   attachments: WindowAttachments
   /** Tells every window, shown or not, that a chat started, moved or ended (`chatLifecycle`). */
   announce: (change: ChatLifecycle) => void
+  /** Asks the windows for the Active section again: a chat's activity has moved (`activeTabsChanged`). */
+  activityChanged: () => void
 }
 
 /**
@@ -59,11 +61,11 @@ export class ChatService {
   /** Adopted already: every later state of that chat still names the session it left, and an
    *  adoption must not undo the user archiving the session afterwards. */
   private readonly adopted = new Set<string>()
-  /** The last lifecycle announced per session (`status|previousSessionId`), so a stream of
-   *  identical states is not announced again. Kept after the chat is forgotten (`sweep`): a late
+  /** The last lifecycle announced (`status|previousSessionId`) and activity seen, per session, so a
+   *  stream of identical states announces nothing. Kept after the chat is forgotten (`sweep`): a late
    *  state of that run must not announce its end a second time, and the next run's `running`
    *  replaces the entry. */
-  private readonly announced = new Map<string, string>()
+  private readonly announced = new Map<string, { lifecycle: string; activity: ActivityStatus }>()
 
   constructor(private readonly deps: ChatServiceDeps) {}
 
@@ -98,6 +100,7 @@ export class ChatService {
 
   send(sessionId: SessionId, text: string): void { this.deps.chats.send(sessionId, text) }
   interrupt(sessionId: SessionId): void { this.deps.chats.interrupt(sessionId) }
+  sendNow(sessionId: SessionId, queuedId: string): void { this.deps.chats.sendNow(sessionId, queuedId) }
   respond(sessionId: SessionId, requestId: string, decision: ChatDecision): void {
     this.deps.chats.respond(sessionId, requestId, decision)
   }
@@ -168,7 +171,7 @@ export class ChatService {
     // Windows showing the session it is now on, and those still on the one `/clear` left: they
     // follow the chat until their tab does (`useChatTakeover`).
     this.deps.attachments.sendTo(this.keysOf(state), IPC.chatChanged, state)
-    this.announceIfChanged(state)
+    this.observe(state)
     if (state.status === 'exited') this.sweep()
   }
 
@@ -176,13 +179,17 @@ export class ChatService {
     return state.previousSessionId === null ? [state.sessionId] : [state.sessionId, state.previousSessionId]
   }
 
-  private announceIfChanged(state: ChatState): void {
-    const key = `${state.status === 'exited' ? 'exited' : 'running'}|${state.previousSessionId ?? ''}`
-    if (this.announced.get(state.sessionId) === key) return
-    this.announced.set(state.sessionId, key)
-    this.deps.announce({
-      sessionId: state.sessionId, previousSessionId: state.previousSessionId, running: state.status !== 'exited',
-    })
+  private observe(state: ChatState): void {
+    const lifecycle = `${state.status === 'exited' ? 'exited' : 'running'}|${state.previousSessionId ?? ''}`
+    const activity = chatActivity(state)
+    const seen = this.announced.get(state.sessionId)
+    this.announced.set(state.sessionId, { lifecycle, activity })
+    if (seen?.lifecycle !== lifecycle) {
+      this.deps.announce({
+        sessionId: state.sessionId, previousSessionId: state.previousSessionId, running: state.status !== 'exited',
+      })
+    }
+    if (seen?.activity !== activity) this.deps.activityChanged()
   }
 
   /** Drops every exited chat that no window shows any more (and what is remembered about it). */

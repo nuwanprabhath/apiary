@@ -432,3 +432,11 @@ export function NotificationKindIcon({ kind }: { kind: NotificationKind }): JSX.
     </svg>
   )
 }
+
+export function ChevronsRightIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M3.5 4 7.5 8 3.5 12M8.5 4 12.5 8 8.5 12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}

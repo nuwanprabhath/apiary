@@ -29,7 +29,7 @@ interface Channel { key: string, kind: string, method: string }
 function channels(): Channel[] {
   const src = read('src/shared/ipc/contract.ts')
   const body = src.slice(src.indexOf('export const IPC = {'), src.indexOf('} as const'))
-  return [...body.matchAll(/^ {2}(\w+): (invoke|invokeLoose|send|sendLoose|event|sync)\b/gm)].map((m) => {
+  return [...body.matchAll(/^ {2}(\w+): (invoke|invokeLoose|send|sendLoose|event|sync|local)\b/gm)].map((m) => {
     const [, key, rawKind] = m
     const kind = rawKind.replace('Loose', '')
     return { key, kind, method: kind === 'sync' ? SYNC_PROPERTY[key] : key }

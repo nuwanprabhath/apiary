@@ -166,7 +166,7 @@ function MenuDropdown({ nodes, path, at, onInvoke, onClose, onSibling, onBack, t
     <Menu
       as="ul"
       ref={root}
-      className="menu-dropdown context-menu"
+      className="menu-dropdown context-menu-floating"
       testId={testId}
       focusOnOpen={false}
       style={{ left: pos.x, top: pos.y }}

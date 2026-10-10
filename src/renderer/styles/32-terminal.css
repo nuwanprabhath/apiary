@@ -1,5 +1,13 @@
 
-.resume-bar { display: flex; gap: 6px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+.resume-bar { display: flex; gap: 6px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); container-type: inline-size; }
+.resume-bar button { flex: none; }
+.resume-short { display: none; }
+/* Narrow pane: "Resume in terminal" gives way to "Resume"; the button keeps the whole label in
+   its title and accessible name. */
+@container (max-width: 400px) {
+  .resume-long { display: none; }
+  .resume-short { display: inline; }
+}
 .resume-bar .btn[data-active="true"] { background: var(--selected); border-color: var(--accent); }
 .resume-handoff { display: flex; gap: 6px; align-items: center; min-width: 0; font-size: 12px; }
 .resume-bar .btn:disabled { cursor: not-allowed; }
@@ -116,13 +124,14 @@
 .toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   padding: 4px 6px;
   gap: 4px;
   flex: none;
+  min-width: 0;
 }
+
 .toolbar-group { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .toolbar-group-right { margin-left: auto; flex: none; }
 .toolbar-button-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

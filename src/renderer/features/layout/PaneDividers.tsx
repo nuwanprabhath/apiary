@@ -6,7 +6,7 @@ import {
 
 /** Below these a pane shows nothing usable: the toolbar and a few terminal rows, or a readable
  *  column. The same floor the column dividers had. */
-const MIN_PANE_WIDTH = 220
+const MIN_PANE_WIDTH = 200
 const MIN_PANE_HEIGHT = 180
 
 /** How far an arrow key moves a divider (UI-27): pointer-only before this, with no keyboard

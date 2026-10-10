@@ -37,6 +37,12 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
     `upstream`.
   - `expect.element` on an element not there yet used to overflow the stack printing the whole
     page; `vitest.component.config.ts` sets `DEBUG_PRINT_LIMIT=0` and a 5 s poll for that.
+- **UI scenarios** (`tests/component/ui/*.ui.test.tsx`, part of the component run): each opens a state
+  of the app and calls `reviewUi`, which runs the UI audit (`tests/component/ui/audit.ts`: clipped, cut-off or
+  overlapping elements, see-through popups, unstyled controls, low contrast) at several widths and
+  themes and saves screenshots to `ui-review/shots/`. `npm run ui:review` writes them all to
+  `ui-review/index.html`. Defects that predate the audit are in `tests/component/ui/knownDefects.allow.json`, which
+  only shrinks. See `.claude/skills/ui-review/SKILL.md`.
 - **Contract** (`tests/contract/bridgeContract.ts`, no layer of its own): one behavioural spec of
   `window.apiary`, run twice — against `fakeApiary` (`component/contract.test.tsx`) and against the
   real preload plus the real main handlers over an in-process loopback: temp dirs, real git (a

@@ -6,7 +6,7 @@ export interface ChatDeps {
   chat: ChatService
 }
 
-type HandledKeys = 'chatState' | 'chatStart' | 'chatSend' | 'chatInterrupt' | 'chatRespond'
+type HandledKeys = 'chatState' | 'chatStart' | 'chatSend' | 'chatSendNow' | 'chatInterrupt' | 'chatRespond'
   | 'chatSetPermissionMode' | 'chatSetModel' | 'chatSetEffort' | 'chatStop' | 'terminalBusy'
 type ListenedKeys = 'chatAttach' | 'chatDetach'
 
@@ -24,6 +24,7 @@ export function chatHandlers(deps: ChatDeps): {
       chatStart: (_e, sessionId, opts) => chat.start(sessionId, opts),
       chatSend: (_e, sessionId, text) => { chat.send(sessionId, text) },
       chatInterrupt: (_e, sessionId) => { chat.interrupt(sessionId) },
+      chatSendNow: (_e, sessionId, queuedId) => { chat.sendNow(sessionId, queuedId) },
       chatRespond: (_e, sessionId, requestId, decision) => { chat.respond(sessionId, requestId, decision) },
       chatSetPermissionMode: (_e, sessionId, mode) => { chat.setPermissionMode(sessionId, mode) },
       chatSetModel: (_e, sessionId, model) => { chat.setModel(sessionId, model) },

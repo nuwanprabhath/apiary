@@ -39,7 +39,8 @@ export function ModeMenu({ mode, onMode }: { mode: ChatPermissionMode | ''; onMo
         data-mode={mode}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="How much Claude asks before it acts"
+        title={`${mode === '' ? 'Default' : CHAT_PERMISSION_MODE_LABELS[mode]}: how much Claude asks before it acts`}
+        aria-label={mode === '' ? 'Default' : CHAT_PERMISSION_MODE_LABELS[mode]}
         onClick={() => { setOpen(!open) }}
       >
         <ModeIcon mode={mode} />

@@ -29,6 +29,39 @@ describe('settings', () => {
     await expect.element(page.getByTestId('settings-pane')).not.toMatchTextContent('Automatically import all sessions')
   })
 
+  it('the proofing language offers "system" and the dictionaries this machine has', async () => {
+    const { fake } = await renderApp()
+    await openSettings(fake)
+    await userEvent.click(page.getByTestId('settings-nav-general'))
+    await until(() => document.querySelectorAll('[data-testid="proofing-language-select"] option').length > 1)
+    const values = [...document.querySelectorAll<HTMLOptionElement>('[data-testid="proofing-language-select"] option')]
+      .map((option) => option.value)
+    expect(values).toEqual(['system', 'de-DE', 'en-GB', 'en-US', 'es-ES', 'fr-FR'])
+    await expect.element(page.getByTestId('proofing-language-select')).toHaveValue('system')
+  })
+
+  it('saving a changed proofing language applies it to the spellchecker', async () => {
+    const { fake } = await renderApp()
+    await openSettings(fake)
+    await userEvent.click(page.getByTestId('settings-nav-general'))
+    await until(() => document.querySelectorAll('[data-testid="proofing-language-select"] option').length > 1)
+    await userEvent.selectOptions(page.getByTestId('proofing-language-select'), 'fr-FR')
+    await userEvent.click(page.getByTestId('settings-save'))
+    await until(() => document.querySelector('[data-testid="settings-dialog"]') === null)
+    expect(fake.callsTo('spellingSetLanguage')).toEqual([['fr-FR']])
+    expect(fake.callsTo('settingsSet').at(-1)?.[0]).toMatchObject({ proofingLanguage: 'fr-FR' })
+  })
+
+  it('saving with the proofing language unchanged leaves the spellchecker alone', async () => {
+    const { fake } = await renderApp()
+    await openSettings(fake)
+    await userEvent.click(page.getByTestId('settings-nav-general'))
+    await until(() => document.querySelectorAll('[data-testid="proofing-language-select"] option').length > 1)
+    await userEvent.click(page.getByTestId('settings-save'))
+    await until(() => document.querySelector('[data-testid="settings-dialog"]') === null)
+    expect(fake.callsTo('spellingSetLanguage')).toEqual([])
+  })
+
   it('Escape closes the settings dialog', async () => {
     const { fake } = await renderApp()
     await openSettings(fake)

@@ -32,6 +32,8 @@ export class ChatSession {
   private readonly exited: Promise<void>
   /** Our own control requests waiting for claude's `control_response`, by request id. */
   private readonly awaiting = new Map<string, (response: Line) => void>()
+  /** Queued messages whose Send now stopped a turn: written when its result arrives, not into it. */
+  private readonly sendNowIds = new Set<string>()
 
   constructor(
     public sessionId: SessionId,
@@ -113,6 +115,37 @@ export class ChatSession {
       turnStartedAt: this.state.turnStartedAt ?? Date.now(),
       queued: [...this.state.queued, { id: randomUUID(), text, sentAt: Date.now() }],
     }, true)
+  }
+
+  /** Mid-turn, a written message would join that turn, so the turn is stopped and the message follows its result. */
+  sendNow(queuedId: string): void {
+    const entry = this.state.queued.find((q) => q.id === queuedId)
+    if (entry === undefined) return
+    if (this.state.status === 'busy') {
+      this.interrupt()
+      this.sendNowIds.add(queuedId)
+      return
+    }
+    this.write(userLine(entry.text))
+    this.update({
+      ...this.state,
+      status: 'busy',
+      error: null,
+      turnStartedAt: this.state.turnStartedAt ?? Date.now(),
+    }, true)
+  }
+
+  /** Read before reduce drops local commands from the queue at a result. */
+  private takeSendNow(state: ChatState): string[] {
+    const texts = state.queued.filter((q) => this.sendNowIds.has(q.id)).map((q) => q.text)
+    this.sendNowIds.clear()
+    return texts
+  }
+
+  private startSendNow(state: ChatState, texts: string[]): ChatState {
+    if (texts.length === 0 || !this.running) return state
+    for (const text of texts) this.write(userLine(text))
+    return { ...state, status: 'busy', error: null, turnStartedAt: Date.now() }
   }
 
   /** Re-reads how full the context is — at the start, and after every turn. The window's size is
@@ -197,8 +230,12 @@ export class ChatSession {
       if (event.type === 'result') this.pending.clear()
       // A permission prompt or the end of a turn is shown at once; streamed text can wait a frame.
       if (prompt !== null || event.type === 'result' || event.type === 'system') urgent = true
+      const waiting = event.type === 'result' ? this.takeSendNow(next) : []
       next = reduce(next, event)
-      if (event.type === 'result') this.refreshContext()
+      if (event.type === 'result') {
+        next = this.startSendNow(next, waiting)
+        this.refreshContext()
+      }
     }
     if (next !== this.state) this.update(next, urgent)
   }

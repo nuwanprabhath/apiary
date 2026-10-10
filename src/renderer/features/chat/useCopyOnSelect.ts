@@ -1,5 +1,6 @@
 import { createElement, type JSX, type MouseEvent as ReactMouseEvent, type RefObject, useCallback, useEffect, useState } from 'react'
-import { ContextMenu, type ContextMenuItem } from '../../ui/ContextMenu'
+import { ContextMenu } from '../../ui/ContextMenu'
+import type { ContextMenuItem } from '../../ui/contextMenuItem'
 import { useNotifications } from '../../ui/notifications'
 import { copyText } from '../../state/clipboard'
 

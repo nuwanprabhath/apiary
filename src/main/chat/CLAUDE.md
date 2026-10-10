@@ -54,6 +54,14 @@ message sent mid-turn, subagent messages) are in [`src/main/CLAUDE.md`](../CLAUD
 - **A turn can start with nothing sent** (a background task finished), so busy starts at the first
   streamed message, not at `send`.
 - **Only the newest 200 streamed messages are kept** (`MAX_LIVE`); the transcript has read the rest.
+- **A `result` ends the turn even with a queued message pending.** A message claude never takes in
+  stays `queued`, and must not keep the chat busy, or the working line stays on after the turn.
+- **An interrupt keeps a queued message claude had not taken in.** It stays `queued`, and Send now
+  sends it as a turn of its own (`tests/integration/chatManager.test.ts`).
+- **A window's attachments follow the page it shows.** A link clicked in a reply starts a navigation
+  that the guard cancels, so `windowLifetimeWatcher` listens to `did-navigate`, not
+  `did-start-navigation`, or the chat stops reaching the window
+  ([windows and tabs](../../../docs/architecture/windows-and-tabs.md)).
 - **An exited chat nobody shows is forgotten**, so its error text is gone when a tab opens later.
 - **The default mode is `auto`** unless Claude Code's own settings pick one
   ([ADR-0017](../../../docs/adr/0017-chat-defaults-to-auto-permission-mode.md)).

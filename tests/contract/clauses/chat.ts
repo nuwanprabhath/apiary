@@ -81,9 +81,16 @@ export function defineChatClauses(ctx: Ctx): void {
       expect((await ctx.api.chatState(SESSION))?.permissions).toEqual([])
     })
 
+    it('Send now for a message that is not queued changes nothing', async () => {
+      await start()
+      await ctx.api.chatSendNow(SESSION, 'no-such-message')
+      expect(await ctx.api.chatState(SESSION)).toMatchObject({ status: 'idle', queued: [] })
+    })
+
     it('refuses to drive a session that is not chatting', async () => {
       await expect(ctx.api.chatSend(SESSION, 'hello')).rejects.toThrow()
       await expect(ctx.api.chatInterrupt(SESSION)).rejects.toThrow()
+      await expect(ctx.api.chatSendNow(SESSION, 'q1')).rejects.toThrow()
       await expect(ctx.api.chatRespond(SESSION, 'r', { behavior: 'deny' })).rejects.toThrow()
       await expect(ctx.api.chatSetPermissionMode(SESSION, 'plan')).rejects.toThrow()
       await expect(ctx.api.chatSetModel(SESSION, 'haiku')).rejects.toThrow()

@@ -57,6 +57,7 @@ export function ResumeBar({
           data-testid="resume-button"
           data-cwd-exists={session.cwdExists}
           disabled={!session.cwdExists}
+          aria-label={chatRunning ? 'Continue in terminal' : 'Resume in terminal'}
           title={!session.cwdExists
             ? 'This folder no longer exists'
             : chatRunning
@@ -64,7 +65,9 @@ export function ResumeBar({
               : 'Resume in an embedded terminal'}
           onClick={onResume}
         >
-          {chatRunning ? 'Continue in terminal' : 'Resume in terminal'}
+          {/* Both labels render; the bar's container query shows the short one when narrow. */}
+          <span className="resume-long">{chatRunning ? 'Continue in terminal' : 'Resume in terminal'}</span>
+          <span className="resume-short" aria-hidden="true">{chatRunning ? 'Continue' : 'Resume'}</span>
         </button>
       )}
     </div>

@@ -13,7 +13,7 @@ type HandledKeys =
   | 'newSessionInWorktree' | 'gitCheckoutRemote' | 'gitCheckoutDetached' | 'gitCreateBranch' | 'gitPull'
   | 'gitUpdateBranch' | 'gitPullFolder' | 'listWorktrees' | 'gitPush' | 'gitMerge' | 'gitFetch'
   | 'worktreeCreateOptions' | 'worktreeCreate'
-  | 'vsCodeAvailable' | 'openInVsCode'
+  | 'vsCodeAvailable' | 'openInVsCode' | 'openMentionedFile'
 
 export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
   const { service } = deps
@@ -102,5 +102,6 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
     },
     vsCodeAvailable: () => service.vsCodeAvailable(),
     openInVsCode: (_e, terminal) => service.openInVsCode(terminal),
+    openMentionedFile: (_e, terminal, mention) => service.openMentionedFile(terminal, mention),
   }
 }

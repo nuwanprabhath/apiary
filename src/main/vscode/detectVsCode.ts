@@ -61,6 +61,11 @@ export interface OpenInVsCodeOptions {
  * the editor window with it. `launchDetached` owns the no-shell argument array and the `'error'`
  * listener for a binary that has gone missing since `detectVsCode` last ran (MAIN-19).
  */
+export function openFileInVsCode(codePath: string, file: string, line: number | null, options: OpenInVsCodeOptions = {}): void {
+  // `file` is a real, absolute path, so it can never be read as a flag.
+  launchDetached(codePath, line === null ? [file] : ['--goto', `${file}:${String(line)}`], 'vscode', options.spawn)
+}
+
 export function openInVsCode(codePath: string, folder: string, options: OpenInVsCodeOptions = {}): void {
   launchDetached(codePath, [folder], 'vscode', options.spawn)
 }

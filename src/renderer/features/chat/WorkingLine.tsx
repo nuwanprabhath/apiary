@@ -1,4 +1,5 @@
 import { type JSX, useEffect, useState } from 'react'
+import { formatDuration } from '@shared/time'
 
 /** The glyph Claude Code animates while it works, frame by frame. */
 const FRAMES = ['·', '✢', '✳', '✶', '✻', '✽', '✻', '✶', '✳', '✢']
@@ -31,11 +32,11 @@ export function WorkingLine({ since, thinkingTokens }: { since: number | null; t
   }, [reduced])
 
   const start = since ?? now
-  const elapsed = Math.max(0, Math.floor((now - start) / 1000))
+  const elapsedMs = Math.max(0, now - start)
   const frame = reduced ? FRAMES[4] : FRAMES[Math.floor(now / FRAME_MS) % FRAMES.length]
   // Seeded by when the turn started, so two windows on the same turn say the same word.
-  const verb = VERBS[(Math.floor(start / 1000) + Math.floor((now - start) / VERB_MS)) % VERBS.length]
-  const detail = [`${String(elapsed)}s`]
+  const verb = VERBS[(Math.floor(start / 1000) + Math.floor(elapsedMs / VERB_MS)) % VERBS.length]
+  const detail = [formatDuration(elapsedMs)]
   if (thinkingTokens !== null) detail.push(`↓ ${thinkingTokens.toLocaleString()} tokens`)
   detail.push('esc to interrupt')
 

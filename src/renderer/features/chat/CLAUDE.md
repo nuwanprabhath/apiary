@@ -29,8 +29,8 @@ persisted messages is `src/shared/chatTimeline.ts`.
 - **A menu or list uses the `ui/` primitives** (`Menu`, `Listbox`, `Popover`) for roles and keys; do
   not write `role="menu"` here (`roles-via-primitives`).
 - **Hiding tool calls is a filter before the draw**, not a flag on `ToolCall`: `withoutToolCalls`
-  runs in `Transcript`, and `useToolIoHidden` (`state/toolIoView.ts`) says whether it applies.
-  Do not add a second "hidden" path inside the rows.
+  runs in `Transcript`, and `useChatSettings` (`state/chatSettingsStore.ts`) reads the per-chat
+  setting that overrides the global default. Do not add a second "hidden" path inside the rows.
 - **New chat data** starts in `ChatState` (`src/shared/domain/chat.ts`) and the reducer in
   `src/main/chat/protocol.ts`; then draw it here.
 
@@ -49,7 +49,10 @@ persisted messages is `src/shared/chatTimeline.ts`.
 - **A streaming chat pushes about 25 times a second.** Keep rows memoised and read only your
   session's key; a selector must return a stable value.
 - **A queued message shows once.** Claude writes a taken-in message to the file before it confirms,
-  so `stillQueued` hides a queued entry once your message has reached the transcript.
+  so `stillQueued` hides a queued entry once your message has reached the transcript. **Send now**
+  (`sendChatNow`) writes the message at once when Claude is idle; when busy, main stops the turn and
+  writes it at that turn's `result` (`src/main/CLAUDE.md`). Either way the row goes when Claude echoes
+  the message back.
 - **Selecting text must not open a clipped box.** A click that ends a selection is not a request to
   expand; the tool boxes are not buttons so their text stays selectable.
 - **Thinking text is often absent.** Claude Code keeps only a signature, so a thinking row may say

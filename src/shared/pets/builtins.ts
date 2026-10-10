@@ -21,7 +21,9 @@ export const STARTER_PET: PetSpec = {
     finished: ['Ta-da! It\'s done!', 'Another masterpiece.', 'Bravo! Encore!'],
     waiting: ['Psst… Claude needs you.', 'Someone\'s asking for permission!', 'Ahem. A question awaits.'],
     sleepy: ['Just resting my eyes…', 'Zzz… merge conflicts… zzz', '*yawns*'],
-    greet: ['Oh hi friend!', 'Fancy meeting you here!', 'High five!'],
+    greet: ['Oh hi friend!', 'Fancy meeting you here!', 'High five!', 'What\'s new?', 'You seem happy!'],
+    conversation: ['Totally!', 'Right?', 'Same here!', 'That\'s cool!', 'I know!'],
+    wrappedUp: ['See you soon!', 'Catch you later!', 'Time to go!', 'Take care!', 'See you around!'],
     petted: ['Hehe, that tickles!', 'Again! Again!', '*happy wiggle*'],
   },
 }

@@ -3,7 +3,6 @@ import { IPC } from '@shared/api'
 import type { AppService } from '../../appService'
 import { log } from '../../log/logger'
 import { broadcast } from '../../windows/broadcast'
-import { classifyActivity } from '@shared/activity'
 import { resolveReportLayout } from '../../windows/reportLayoutGuard'
 import { windowLifetimeWatcher } from '../../windows/windowAttachments'
 import type { IpcState } from '../ipcState'
@@ -12,6 +11,7 @@ import type { SessionLayoutStore } from '../../windows/sessionLayoutStore'
 import type { LayoutFlushCoordinator } from '../../windows/layoutFlushCoordinator'
 import type { Handlers, Listeners } from '../registrar'
 import { sendEvent } from '../../windows/sendEvent'
+import type { ActiveTabsService } from '../../terminals/activeTabsService'
 
 export interface TabsDeps {
   service: AppService
@@ -20,6 +20,7 @@ export interface TabsDeps {
   layoutFlushCoordinator?: LayoutFlushCoordinator | null
   tabRegistry?: TabRegistry | null
   windowNumberFor?: (webContentsId: number) => number | null
+  activeTabs: ActiveTabsService
 }
 
 type HandledKeys = 'reportLayout' | 'activeTabs' | 'focusTab' | 'tabDropped' | 'tabAdoptHere' | 'tabDetach'
@@ -34,7 +35,7 @@ export function tabsHandlers(deps: TabsDeps): {
   listeners: Pick<Listeners, ListenedKeys>
   dispose: () => void
 } {
-  const { service, sessionLayoutStore, layoutFlushCoordinator, tabRegistry, windowNumberFor } = deps
+  const { service, sessionLayoutStore, layoutFlushCoordinator, tabRegistry, windowNumberFor, activeTabs } = deps
   const { tabMover, activity, ptyAttachments: attachments, ptyCoalescer } = deps.state
 
   const onWindowFocus = (_e: Event, win: BrowserWindow): void => { tabMover.rememberFocus(win.webContents.id) }
@@ -67,19 +68,7 @@ export function tabsHandlers(deps: TabsDeps): {
         // Resolves `before-quit`'s bounded wait for this specific window, when one is in progress.
         layoutFlushCoordinator?.onReport(e.sender.id)
       },
-      activeTabs: () => (tabRegistry?.list() ?? []).map((t) => ({
-        windowNumber: t.windowNumber,
-        key: t.key,
-        view: t.view,
-        label: t.label,
-        status: classifyActivity(
-          // The rendered screen, not the raw stream — see `classifyActivity` and `pty/screen.ts`.
-          t.ptyId !== null ? service.pty.screen(t.ptyId) : '',
-          t.ptyId !== null ? service.pty.lastOutputAt(t.ptyId) : 0,
-          Date.now(),
-          t.ptyId !== null && service.pty.has(t.ptyId),
-        ),
-      })),
+      activeTabs: () => activeTabs.list(),
       focusTab: (_e, windowNumber, key) => {
         focusTab(BrowserWindow.getAllWindows(), windowNumber, key)
       },

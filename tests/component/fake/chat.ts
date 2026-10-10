@@ -3,20 +3,30 @@
  * renderer to drive (what Claude says is a test's to play, with `fake.emit('chatChanged', …)`), but
  * with the parts that are main's own: a chat must be running to be driven, its state goes only to a
  * window that attached it, every window hears it start and end, and an ended chat is forgotten once
- * no window shows it. The contract (`tests/contract/clauses/chat.ts`) pins it.
+ * no window shows it. A message about a background task ends its turn with the task still running,
+ * and the task reports back a second later, as `tests/fixtures/fake-claude-chat.mjs` does. Every
+ * change of a chat's activity is announced as `activeTabsChanged`. The contract
+ * (`tests/contract/clauses/chat.ts`) pins it.
  */
 import type { ApiaryApi } from '@shared/api'
+import { chatActivity, type ActivityStatus } from '@shared/activity'
 import { emptyChatState, type ChatState } from '@shared/domain/chat'
 import type { Env } from './state'
 
 type ChatApi = Pick<ApiaryApi,
-  | 'chatState' | 'chatStart' | 'chatSend' | 'chatInterrupt' | 'chatRespond' | 'chatSetPermissionMode' | 'chatSetModel'
+  | 'chatState' | 'chatStart' | 'chatSend' | 'chatSendNow' | 'chatInterrupt' | 'chatRespond' | 'chatSetPermissionMode' | 'chatSetModel'
   | 'chatSetEffort' | 'chatStop' | 'terminalBusy' | 'chatAttach' | 'chatDetach'>
+
+/** How long the background task runs: as long as the fixture's `sleep 1`. */
+const BACKGROUND_TASK_MS = 1000
 
 export function chatApi(env: Env): ChatApi {
   const { state, emit } = env
   /** The last lifecycle announced per session (`status|previousSessionId`), so repeats are not. */
   const announced = new Map<string, string>()
+  /** The last activity announced per session, so only a change is. */
+  const activities = new Map<string, ActivityStatus>()
+  let taskCount = 0
   const keysOf = (c: ChatState): string[] => (c.previousSessionId === null ? [c.sessionId] : [c.sessionId, c.previousSessionId])
 
   /** Drops every ended chat that no window shows any more. */
@@ -25,10 +35,12 @@ export function chatApi(env: Env): ChatApi {
       if (c.status !== 'exited' || keysOf(c).some((k) => state.chatAttached.has(k))) continue
       state.chats.delete(c.sessionId)
       announced.delete(c.sessionId)
+      activities.delete(c.sessionId)
     }
   }
   /** Records a chat's new state and tells the renderer, as main does: the state to a window that
-   *  attached the session (or the one `/clear` left), and every window a lifecycle change. */
+   *  attached the session (or the one `/clear` left), every window a lifecycle change, and every
+   *  window an activity change. */
   const setChat = (next: ChatState): void => {
     state.chats.set(next.sessionId, next)
     if (keysOf(next).some((k) => state.chatAttached.has(k))) emit('chatChanged', next)
@@ -37,12 +49,33 @@ export function chatApi(env: Env): ChatApi {
       announced.set(next.sessionId, key)
       emit('chatLifecycle', { sessionId: next.sessionId, previousSessionId: next.previousSessionId, running: next.status !== 'exited' })
     }
+    const activity = chatActivity(next)
+    if (activities.get(next.sessionId) !== activity) {
+      activities.set(next.sessionId, activity)
+      emit('activeTabsChanged')
+    }
     if (next.status === 'exited') sweep()
   }
   const running = (id: string): ChatState => {
     const c = state.chats.get(id)
     if (c === undefined || c.status === 'exited') throw new Error('This session is not running as a chat')
     return c
+  }
+  /** The turn a background-task message ends with: idle, the task still in flight, the task gone a
+   *  moment later. */
+  const endTurnWithBackgroundTask = (id: string): void => {
+    taskCount += 1
+    const taskId = `bash-${String(taskCount)}`
+    const c = running(id)
+    setChat({
+      ...c, status: 'idle', turnStartedAt: null, queued: [],
+      backgroundTasks: [...(c.backgroundTasks ?? []), { taskId, description: 'sleep 1; echo done' }],
+    })
+    setTimeout(() => {
+      const now = state.chats.get(id)
+      if (now === undefined || now.status === 'exited') return
+      setChat({ ...now, backgroundTasks: (now.backgroundTasks ?? []).filter((t) => t.taskId !== taskId) })
+    }, BACKGROUND_TASK_MS)
   }
 
   return {
@@ -63,6 +96,12 @@ export function chatApi(env: Env): ChatApi {
         ...c, status: 'busy', error: null, turnStartedAt: c.turnStartedAt ?? Date.now(),
         queued: [...c.queued, { id: `queued-${String(c.queued.length + 1)}`, text, sentAt: Date.now() }],
       })
+      if (text.includes('background')) endTurnWithBackgroundTask(id)
+    },
+    chatSendNow: async (id, queuedId) => {
+      const c = running(id)
+      if (!c.queued.some((q) => q.id === queuedId)) return
+      setChat({ ...c, status: 'busy', error: null, turnStartedAt: c.turnStartedAt ?? Date.now() })
     },
     chatInterrupt: async (id) => { running(id) },
     chatRespond: async (id, requestId) => {

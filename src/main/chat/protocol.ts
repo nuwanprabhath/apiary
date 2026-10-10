@@ -233,9 +233,9 @@ export function reduce(state: ChatState, event: Line, now: number = Date.now()):
       if (event.type === 'user') {
         // A message we sent, now read: claude replays it (`isReplay`) at the point it took it in.
         if (event.isReplay !== true) return { ...state, live }
-        const text = message.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n')
-        const at = state.queued.findIndex((q) => q.text === text)
-        return { ...state, live, queued: at < 0 ? state.queued : state.queued.filter((_, i) => i !== at) }
+        const text = message.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim()
+        const at = state.queued.findIndex((q) => q.text.trim() === text)
+        return { ...working(state, now), live, queued: at < 0 ? state.queued : state.queued.filter((_, i) => i !== at) }
       }
       // A whole block has arrived, so what was being streamed for it is now in `live`. A thinking
       // block keeps how long it took, which the session file never records.
@@ -254,17 +254,14 @@ export function reduce(state: ChatState, event: Line, now: number = Date.now()):
     case 'control_cancel_request':
       return { ...state, permissions: state.permissions.filter((p) => p.requestId !== event.request_id) }
     case 'result': {
-      // A local command (`/context`) is answered without being replayed, so it would sit in the
-      // queue for good; the turn that answered it is this one.
+      // A local command (`/context`) is never replayed, so the turn that answered it drops it here.
       const queued = state.queued.filter((q) => !q.text.startsWith('/'))
-      const more = queued.length > 0 && state.status !== 'exited'
       const startedAt = state.turnStartedAt
       return {
         ...state,
-        status: state.status === 'exited' ? 'exited' : more ? 'busy' : 'idle',
+        status: state.status === 'exited' ? 'exited' : 'idle',
         streaming: null,
-        // Still owed an answer: the next turn starts now, for the working line's clock.
-        turnStartedAt: more ? now : null,
+        turnStartedAt: null,
         permissions: [],
         queued,
         contextWindow: windowOf(event) ?? state.contextWindow,

@@ -38,5 +38,9 @@
   {
     "key": "setTitleBarColors",
     "reason": "Colours the OS-drawn window controls over the title bar (BrowserWindow.setTitleBarOverlay, window chrome that exists only on Windows and Linux); the loopback has no real window, and a send has no result to assert."
+  },
+  {
+    "key": "spellingCheck",
+    "reason": "`spellingCheck` is `local` and has no main side"
   }
 ]

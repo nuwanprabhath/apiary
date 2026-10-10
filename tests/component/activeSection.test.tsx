@@ -13,6 +13,13 @@ async function activeRowWrap(title: string): Promise<HTMLElement> {
   return el
 }
 
+/** The status its Active row's dot reports, or null while there is no such row. */
+function activeStatus(title: string): string | null {
+  const row = [...document.querySelectorAll<HTMLElement>('.active-row-wrap')]
+    .find((el) => el.textContent?.includes(title) === true)
+  return row?.querySelector<HTMLElement>('[data-testid="active-status-dot"]')?.dataset.status ?? null
+}
+
 describe('the Active section', () => {
   it('the status dot names its status for a screen reader, not only by colour', async () => {
     await renderApp()
@@ -82,5 +89,16 @@ describe('the Active section', () => {
     await userEvent.hover(page.elementLocator(treeRow))
     await until(() => document.querySelector('[data-testid="hover-card-note"]') !== null)
     await expect.element(page.getByTestId('hover-card-note')).toMatchTextContent('check with Mark first')
+  })
+
+  it('a session whose background task is still running shows running in the Active section, and idle once the task reports back', async () => {
+    await renderApp({ settings: { transcriptChat: true } })
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await expect.element(page.getByTestId('chat-timeline')).toBeVisible()
+    await userEvent.fill(page.getByTestId('composer-input'), 'run a background task')
+    await userEvent.keyboard('{Enter}')
+    // The reply is written and the turn is over, but the task it started is still in flight.
+    await expect.poll(() => activeStatus('Fix CSV export bug'), { timeout: 5000 }).toBe('running')
+    await expect.poll(() => activeStatus('Fix CSV export bug'), { timeout: 5000 }).toBe('idle')
   })
 })

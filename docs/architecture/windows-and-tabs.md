@@ -43,6 +43,13 @@ Apiary is multi-window, and the division is worth stating because getting it wro
   the windows' bounds (`windowAtPoint.ts`), decided in the main process, which then *tells* the
   receiving window to take the tab. Anything built on the receiving window seeing the drop is
   built on something that does not happen — this shipped once and did nothing at all.
+- **A window's attachments follow the page it shows, not every navigation it starts.**
+  `windowLifetimeWatcher` (`src/main/windows/windowAttachments.ts`) detaches a window when it is
+  destroyed or its main frame commits a new page (`did-navigate`). It does not listen to
+  `did-start-navigation`: a link clicked in a reply starts a navigation that
+  `src/main/windows/navigationGuard.ts` cancels and hands to the browser, and the page stays put.
+  Detaching on the start dropped the window's chat, so its working line vanished
+  (`tests/e2e/transcriptChat.spec.ts`, "a link clicked in a reply opens in the browser").
 
 ## Persistence: window and tab state across a relaunch
 

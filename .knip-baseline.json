@@ -13,8 +13,6 @@
   "exports  src/main/update/versions.ts  isPrerelease",
   "exports  src/main/windows/windowManager.ts  CLOSE_GRACE_MS",
   "exports  src/main/windows/windowManager.ts  windowChromeFor",
-  "exports  src/renderer/features/chat/ChatStatus.tsx  formatDuration",
-  "exports  src/renderer/features/chat/CommandPalette.tsx  matchCommands",
   "exports  src/renderer/features/pets/parts.tsx  frameOf",
   "exports  src/renderer/features/pets/parts.tsx  shade",
   "exports  src/renderer/features/pets/parts.tsx  tint",

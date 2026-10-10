@@ -15,13 +15,14 @@
  * imports, so nothing in this file (or `guards.ts`) may import `electron` or `node:*`.
  */
 import {
-  invoke, send, invokeLoose, sendLoose, event, sync, type Invoke, type Send, type EventSpec,
+  invoke, send, invokeLoose, sendLoose, event, sync, local, type Invoke, type Send, type EventSpec, type Local,
 } from './define'
 
 export type { EventSpec }
 import { type Guard, str, num, bool, any, obj, opaque, record, anyStr, opt, nullable, arr, tuple } from './guards'
 import { isTerminalRef, type PtyId, type SessionId, type TerminalRef } from '../domain/ids'
 import { isTabTransfer, isWindowLayoutReport, type TabTransfer, type ReportedTab, type WindowLayoutReport, type ActiveTabPayload } from '../domain/tabs'
+import { isEditCommand, type ContextMenuRequest, type EditCommand } from '../domain/contextMenu'
 import type {
   CheckoutOutcome, FolderWorktree, GitStatus, GitRefs, MrState, WorktreeCreateOptions, WorktreeCreateRequest,
 } from '../domain/git'
@@ -124,6 +125,8 @@ export const IPC = {
   readImage: invoke<[path: string], { dataUrl: string } | null>('apiary:read-image', tuple(str)),
   vsCodeAvailable: invoke<[], boolean>('apiary:vscode-available', tuple()),
   openInVsCode: invoke<[terminal: TerminalRef], void>('apiary:open-in-vscode', tuple(terminalRefArg)),
+  /** Opens a file a transcript mentions, named as written; main resolves it inside the session's folder. */
+  openMentionedFile: invoke<[terminal: TerminalRef, mention: string], void>('apiary:open-mentioned-file', tuple(terminalRefArg, str)),
   copyToClipboard: invoke<[text: string], void>('apiary:copy-to-clipboard', tuple(str)),
 
   // Themes.
@@ -251,6 +254,7 @@ export const IPC = {
   ),
   chatSend: invoke<[sessionId: SessionId, text: string], void>('apiary:chat-send', tuple(sessionIdArg, str)),
   chatInterrupt: invoke<[sessionId: SessionId], void>('apiary:chat-interrupt', tuple(sessionIdArg)),
+  chatSendNow: invoke<[sessionId: SessionId, queuedId: string], void>('apiary:chat-send-now', tuple(sessionIdArg, str)),
   chatRespond: invoke<[sessionId: SessionId, requestId: string, decision: ChatDecision], void>(
     'apiary:chat-respond', tuple(sessionIdArg, str, chatDecisionArg),
   ),
@@ -345,6 +349,18 @@ export const IPC = {
   activeTabsChanged: event('apiary:active-tabs-changed'),
   focusTab: invoke<[windowNumber: number, key: string], void>('apiary:focus-tab', tuple(num, str)),
   selectTab: event<[key: string]>('apiary:select-tab'),
+
+  // Spelling.
+  spellingGetLanguages: invoke<[], string[]>('apiary:spelling-get-languages', tuple()),
+  spellingSetLanguage: invoke<[language: string], void>('apiary:spelling-set-language', tuple(str)),
+
+  /** A right-click in a window; the page answers it with its own menu at `x`, `y`. */
+  contextMenuRequested: event<[request: ContextMenuRequest]>('apiary:context-menu-requested'),
+  /** An edit the page chose from its menu, made on the window's focused field. */
+  editCommand: send<[command: EditCommand]>('apiary:edit-command', tuple(isEditCommand)),
+
+  // Local preload-only APIs (not exposed over IPC).
+  spellingCheck: local<[word: string], { misspelled: boolean; suggestions: string[] }>(tuple(str)),
 } as const
 
 type Spec = typeof IPC
@@ -352,14 +368,15 @@ export type IpcKey = keyof Spec
 export type InvokeKey = { [K in IpcKey]: Spec[K] extends Invoke<unknown[], unknown> ? K : never }[IpcKey]
 export type SendKey = { [K in IpcKey]: Spec[K] extends Send<unknown[]> ? K : never }[IpcKey]
 export type EventKey = { [K in IpcKey]: Spec[K] extends EventSpec<unknown[]> ? K : never }[IpcKey]
-export type ArgsOf<K extends IpcKey> = Spec[K] extends Invoke<infer A, unknown> | Send<infer A> ? A : never
-export type ResultOf<K extends InvokeKey> = Spec[K] extends Invoke<unknown[], infer R> ? R : never
+export type LocalKey = { [K in IpcKey]: Spec[K] extends Local<unknown[], unknown> ? K : never }[IpcKey]
+export type ArgsOf<K extends IpcKey> = Spec[K] extends Invoke<infer A, unknown> | Send<infer A> | Local<infer A, unknown> ? A : never
+export type ResultOf<K extends InvokeKey | LocalKey> = Spec[K] extends Invoke<unknown[], infer R> | Local<unknown[], infer R> ? R : never
 export type PayloadOf<K extends EventKey> = Spec[K] extends EventSpec<infer P> ? P : never
 
 /** Kept for e2e/tests and existing imports: identical strings to before this file existed. */
 export const CHANNELS = Object.fromEntries(
-  Object.entries(IPC).map(([k, s]) => [k, s.channel]),
-) as { [K in IpcKey]: Spec[K]['channel'] }
+  Object.entries(IPC).flatMap(([k, s]) => (s.kind === 'local' ? [] : [[k, s.channel] as const])),
+) as { [K in Exclude<IpcKey, LocalKey>]: Spec[K] extends { channel: infer C } ? C : never }
 
 /**
  * What `window.apiary` is: derived, so it can never disagree with what main registers.
@@ -372,4 +389,5 @@ export type ApiaryApi =
   { [K in InvokeKey]: (...a: ArgsOf<K>) => Promise<ResultOf<K>> }
   & { [K in SendKey]: (...a: ArgsOf<K>) => void }
   & { [K in EventKey as `on${Capitalize<K & string>}`]: (cb: (...p: PayloadOf<K>) => void) => () => void }
+  & { [K in LocalKey]: (...a: ArgsOf<K>) => ResultOf<K> }
   & { initialTheme: ThemeState }

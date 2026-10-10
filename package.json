@@ -1,6 +1,6 @@
 {
   "name": "apiary",
-  "version": "1.34.0",
+  "version": "1.35.0",
   "private": true,
   "type": "module",
   "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",
@@ -53,7 +53,8 @@
     "dist:mac:x64": "npm run build && node scripts/dist.mjs x64",
     "dist:mac:all": "npm run build && electron-builder --config electron-builder.yml --mac --arm64 --x64 --publish never",
     "dist:linux": "npm run build && electron-builder --config electron-builder.yml --linux --publish never",
-    "prepare": "husky"
+    "prepare": "husky",
+    "ui:review": "node scripts/ui-review.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

@@ -149,6 +149,11 @@ const CASES: Record<string, Case> = {
     bad: { file: 'src/renderer/features/pets/PetLayer.tsx', code: 'declare const p: Promise<void>\np.catch(() => {})' },
     outside: { file: 'src/main/x.ts', code: "declare const p: Promise<void>\nimport { log } from './log'\np.catch((e: unknown) => { log('x', String(e)) })" },
   },
+  'one-home-for-durations': {
+    bad: { file: 'src/shared/text.ts', code: 'export function formatElapsedTime(seconds: number): string { return String(seconds) }' },
+    allowed: { file: 'src/shared/time.ts', code: 'export function formatDuration(ms: number): string { return String(ms) }' },
+    outside: { file: 'src/shared/text.ts', code: 'export function flattenText(s: string): string { return s }' },
+  },
   'error-message-helper': {
     bad: { file: 'src/main/pets/petService.ts', code: 'declare const e: unknown\nconst m = e instanceof Error ? e.message : String(e)' },
     allowed: { file: 'src/shared/errors.ts', code: 'declare const e: unknown\nconst m = e instanceof Error ? e.message : String(e)' },

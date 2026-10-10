@@ -1,4 +1,5 @@
-import { openInVsCode as spawnVsCode } from './detectVsCode'
+import { openFileInVsCode, openInVsCode as spawnVsCode } from './detectVsCode'
+import { resolveMentionedFile } from './mentionedFile'
 import type { SessionResolver } from '../sessions/sessionResolver'
 import type { TerminalRef } from '@shared/domain/ids'
 
@@ -32,5 +33,16 @@ export class VsCodeService {
     if (this.vsCodePath === null) throw new Error('VS Code was not found on this machine')
     const cwd = this.resolver.resolveShellCwd(terminal)
     spawnVsCode(this.vsCodePath, cwd)
+  }
+
+  /**
+   * Opens a file a transcript mentions. `mention` is text as written in a message; it is resolved
+   * against the session's own folder and refused unless it is a file inside it (`resolveMentionedFile`).
+   */
+  async openMentionedFile(terminal: TerminalRef, mention: string): Promise<void> {
+    if (this.vsCodePath === null) throw new Error('VS Code was not found on this machine')
+    const found = await resolveMentionedFile(this.resolver.resolveShellCwd(terminal), mention)
+    if (found === null) throw new Error('That is not a file in this session\'s folder')
+    openFileInVsCode(this.vsCodePath, found.file, found.line)
   }
 }

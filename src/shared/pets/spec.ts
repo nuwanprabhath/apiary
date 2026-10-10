@@ -22,7 +22,7 @@ export const ACCESSORIES = [
 ] as const
 
 /** When a line is said: the pet's own mood, or what Claude is doing. */
-export const SITUATIONS = ['idle', 'working', 'finished', 'waiting', 'sleepy', 'greet', 'petted'] as const
+export const SITUATIONS = ['idle', 'working', 'finished', 'waiting', 'sleepy', 'greet', 'petted', 'conversation', 'wrappedUp'] as const
 
 export type BodyShape = typeof BODY_SHAPES[number]
 export type Texture = typeof TEXTURES[number]

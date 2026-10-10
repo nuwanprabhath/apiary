@@ -1,18 +1,9 @@
 import type { JSX } from 'react'
 import type { BackgroundTask } from '@shared/chatTimeline'
+import { formatDuration } from '@shared/time'
 
 /** The past tense Claude Code's terminal picks for a finished turn ("✻ Brewed for 33s"). */
 const DONE_VERBS = ['Brewed', 'Baked', 'Churned', 'Cogitated', 'Cooked', 'Crunched', 'Mulled', 'Percolated', 'Simmered', 'Worked']
-
-export function formatDuration(ms: number): string {
-  const total = Math.max(0, Math.round(ms / 1000))
-  const h = Math.floor(total / 3600)
-  const m = Math.floor((total % 3600) / 60)
-  const s = total % 60
-  if (h > 0) return `${String(h)}h ${String(m)}m`
-  if (m > 0) return `${String(m)}m ${String(s)}s`
-  return `${String(s)}s`
-}
 
 function clock(ms: number): string {
   return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase()

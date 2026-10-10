@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { WindowAttachments, type SendTarget } from '../../src/main/windows/windowAttachments'
+import { EventEmitter } from 'node:events'
+import type { WebContents } from 'electron'
+import { WindowAttachments, windowLifetimeWatcher, type SendTarget } from '../../src/main/windows/windowAttachments'
 import type { EventSpec } from '@shared/ipc/contract'
 import { PtyDataCoalescer } from '../../src/main/terminals/ptyDataCoalescer'
 
@@ -126,5 +128,40 @@ describe('WindowAttachments (MAIN-26 step 2; ptys and chats)', () => {
     flush()
     expect(a.got).toEqual([['data', 'p1', 'x'.repeat(50)]])
     expect(b.got).toHaveLength(0)
+  })
+})
+
+describe('windowLifetimeWatcher', () => {
+  function watch(): { wc: WebContents; gone: number[] } {
+    const gone: number[] = []
+    const wc = Object.assign(new EventEmitter(), { id: 7 }) as WebContents
+    windowLifetimeWatcher((id) => { gone.push(id) })(wc)
+    return { wc, gone }
+  }
+
+  it('a navigation the guard cancels leaves the page where it was: did-start-navigation alone detaches nothing', () => {
+    const { wc, gone } = watch()
+    wc.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
+    expect(gone).toEqual([])
+  })
+
+  it('a page committed in the main frame is gone, so its views re-attach as they mount', () => {
+    const { wc, gone } = watch()
+    wc.emit('did-navigate')
+    expect(gone).toEqual([7])
+  })
+
+  it('a window that closes is gone too', () => {
+    const { wc, gone } = watch()
+    wc.emit('destroyed')
+    expect(gone).toEqual([7])
+  })
+
+  it('a window is watched once, however often it is attached', () => {
+    const wc = Object.assign(new EventEmitter(), { id: 7 }) as WebContents
+    const watcher = windowLifetimeWatcher(() => {})
+    watcher(wc)
+    watcher(wc)
+    expect(wc.listenerCount('did-navigate')).toBe(1)
   })
 })

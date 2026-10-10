@@ -1,3 +1,5 @@
+import type { ChatState } from './domain/chat'
+
 export type ActivityStatus = 'running' | 'waiting' | 'idle' | 'stopped'
 
 /** Output within this long is still "in progress" rather than "gone quiet". */
@@ -84,4 +86,19 @@ export function classifyActivity(
   if (WORKING_PATTERN.test(visible)) return 'running'
   if (now - lastOutputAtMs <= RUNNING_WINDOW_MS) return 'running'
   return 'idle'
+}
+
+/**
+ * A background task runs with nothing on the screen, so an idle claude with tasks still going is
+ * working, not idle.
+ */
+export function withBackgroundTasks(status: ActivityStatus, running: number): ActivityStatus {
+  return status === 'idle' && running > 0 ? 'running' : status
+}
+
+export function chatActivity(chat: ChatState | null): ActivityStatus {
+  if (chat === null || chat.status === 'exited') return 'stopped'
+  if (chat.permissions.length > 0) return 'waiting'
+  if (chat.status === 'busy') return 'running'
+  return withBackgroundTasks('idle', chat.backgroundTasks?.length ?? 0)
 }

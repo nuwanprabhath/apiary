@@ -11,6 +11,7 @@ import { DialogHost } from '../features/dialogs/DialogHost'
 import { DialogOpenContext, useDialogs } from '../features/dialogs/useDialogs'
 import { StatusBar } from '../features/statusBar/StatusBar'
 import { PetLayer, petsOut } from '../features/pets/PetLayer'
+import { TextMenuHost } from '../features/spelling'
 import { usePets } from '../state/petsStore'
 import { findColumnWithTab, type OpenTab } from '../features/layout/columns'
 import { presetDef, type PresetId } from '../features/layout/layout'
@@ -825,6 +826,13 @@ function AppWindow({ detached, arrival, restored }: {
         onError={(thrown, componentStack) => { notify(crashNotice('The pets', thrown, componentStack)) }}
       >
         <PetLayer state={pets} sidebarHidden={ui.sidebarHidden} tabs={activeTabs} titleOf={titleOf} onOpenSettings={onOpenSettings} />
+      </ErrorBoundary>
+      <ErrorBoundary
+        label="The spelling menu"
+        fallback={null}
+        onError={(thrown, componentStack) => { notify(crashNotice('The spelling menu', thrown, componentStack)) }}
+      >
+        <TextMenuHost />
       </ErrorBoundary>
     </div>
     </LayoutStateContext>

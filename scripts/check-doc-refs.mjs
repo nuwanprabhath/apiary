@@ -56,6 +56,7 @@ const ALLOWLIST = new Set([
   'session-layout.json',
   'themes.json',
   'pets.json',
+  'ui-review/index.html', // written by `npm run ui:review`, gitignored
   '.apiarypet.json', // the extension of an exported pet file, not a repo file
   'apiary.db',
   'search.db',

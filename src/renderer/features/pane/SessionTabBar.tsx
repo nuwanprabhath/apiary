@@ -223,6 +223,7 @@ export function SessionTabBar(
           ref={tab.key === activeKey ? activeRef : null}
           className="session-tab"
           data-testid="session-tab"
+          data-own-context-menu
           data-active={tab.key === activeKey}
           data-dragging={tab.key === dragKey}
           data-drop-before={dragKey !== null && dropAt === indexInRest(tabs, dragKey, index)}

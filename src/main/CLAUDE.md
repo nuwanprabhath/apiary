@@ -135,6 +135,13 @@ changing anything. Four rules:
   as an `attachment` of type `queued_command` whose `source_uuid` is the replayed uuid
   (`transcriptReader.ts`'s `queuedMessage`). A turn can also start with nothing sent — a
   background task finishing — so the first streamed message marks the chat busy, not `send`.
+  A `result` ends the turn even with a message still queued: a message claude never takes in stays
+  in `queued` (its row reads "Queued") without keeping the chat busy. `reduce` drops local commands
+  such as `/context` from `queued` at a `result`, because claude never replays them.
+- **Send now** (`ChatSession.sendNow`) on a queued message. Idle: it is written at once. Busy: the
+  turn is interrupted, the message is held until that turn's `result`, then written, so claude
+  answers it as a turn of its own rather than folding it into the stopped one. `ChatSession.read`
+  takes the held texts before `reduce` drops the local commands, so a held `/context` is still sent.
 
 - **A subagent's messages are not the session's.** Its tool calls, results and report arrive as
   whole `assistant`/`user` messages marked only by `parent_tool_use_id` (measured on 2.1.288), and

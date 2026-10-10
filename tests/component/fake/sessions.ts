@@ -18,7 +18,7 @@ type SessionsApi = Pick<ApiaryApi,
   | 'renameTerminalInClaude' | 'removeSession' | 'moveSession' | 'newSessionInProject' | 'newSessionInPickedFolder'
   | 'forkSession' | 'setSessionNote' | 'sessionNote' | 'openShell' | 'openShellForPty' | 'ptyWrite' | 'ptyResize'
   | 'ptyKill' | 'ptyResume' | 'ptyAttach' | 'ptyDetach' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
-  | 'saveImage' | 'readImage' | 'vsCodeAvailable' | 'openInVsCode' | 'copyToClipboard'
+  | 'saveImage' | 'readImage' | 'vsCodeAvailable' | 'openInVsCode' | 'openMentionedFile' | 'copyToClipboard'
   | 'logStatus' | 'logReveal' | 'logClear' | 'logWrite' | 'appMenu' | 'appMenuInvoke' | 'setTitleBarColors'>
 
 const DAY = 24 * 60 * 60 * 1000
@@ -146,6 +146,7 @@ export function sessionsApi(env: Env): SessionsApi {
     },
     vsCodeAvailable: async () => state.vsCode,
     openInVsCode: async () => { if (!state.vsCode) throw new Error('VS Code was not found on this machine.') },
+    openMentionedFile: async () => { if (!state.vsCode) throw new Error('VS Code was not found on this machine.') },
     copyToClipboard: async (text) => { state.copied.push(text) },
 
     logStatus: async () => state.log,

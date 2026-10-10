@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { IPC, type ApiaryApi, type ThemeState } from '@shared/api'
+import { localApis } from './local'
 
 function subscribe(channel: string, cb: (...args: unknown[]) => void): () => void {
   const listener = (_e: IpcRendererEvent, ...args: unknown[]): void => cb(...args)
@@ -31,6 +32,13 @@ for (const [key, spec] of Object.entries(IPC)) {
   } else if (spec.kind === 'event') {
     api[`on${key[0].toUpperCase()}${key.slice(1)}`] = (cb: (...a: unknown[]) => void) =>
       subscribe(spec.channel, cb)
+  } else if (spec.kind === 'local') {
+    const impl = localApis[key as keyof typeof localApis] as (...args: unknown[]) => unknown
+    const guard = spec.args
+    api[key] = (...a: unknown[]) => {
+      if (!guard(a)) throw new Error('Invalid request.')
+      return impl(...a)
+    }
   }
   // 'sync' (themeInitial) is handled once, above — every other kind of entry is covered.
 }

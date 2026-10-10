@@ -3,6 +3,19 @@
 .message[data-role="user"] .message-role { color: var(--accent); }
 .message-body { min-width: 0; }
 
+/* When a message was sent: a right-aligned line above the whole message, so the role label and the
+   text keep their line. In the chat it sits in the gap above a bubble or a reply. */
+.message-time {
+  display: block;
+  text-align: right;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.message > .message-time { grid-column: 1 / -1; margin-bottom: -4px; }
+.chat-timeline > .message-time { margin-bottom: -4px; }
+
 .text-block { margin: 0 0 8px; white-space: pre-wrap; line-height: 1.55; }
 
 .markdown { line-height: 1.55; }

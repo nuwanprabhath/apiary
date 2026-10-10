@@ -3,6 +3,7 @@ import { chmodSync, cpSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeF
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { ApiaryApi } from '@shared/api'
+import type { ContextMenuParamsLike, EditCommand } from '@shared/domain/contextMenu'
 import { STARTER_PET } from '@shared/pets/builtins'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
 import { defineBridgeContract, LONG_SESSION } from '../contract/bridgeContract'
@@ -43,16 +44,24 @@ type Handler = (...args: unknown[]) => unknown
 const ipcHandlers = new Map<string, Handler>()
 const ipcListeners = new Map<string, Handler>()
 const rendererListeners = new Map<string, Set<Handler>>()
+type ContextMenuListener = (event: unknown, params: ContextMenuParamsLike) => void
+let contextMenuListeners: ContextMenuListener[] = []
+let editLog: EditCommand[] = []
 /** The window the loopback's `send`/`invoke` come from, and the only one that exists. */
 const fakeContents = {
   id: THIS_WINDOW.number,
   once: () => {},
-  on: () => {},
+  on: (channel: string, fn: ContextMenuListener) => { if (channel === 'context-menu') contextMenuListeners.push(fn) },
   isDestroyed: () => false,
   getURL: () => `app://apiary/index.html?w=${String(THIS_WINDOW.number)}`,
   send: (channel: string, ...args: unknown[]) => {
     for (const fn of [...(rendererListeners.get(channel) ?? [])]) fn({}, ...structuredClone(args))
   },
+  cut: () => { editLog.push({ action: 'cut' }) },
+  copy: () => { editLog.push({ action: 'copy' }) },
+  paste: () => { editLog.push({ action: 'paste' }) },
+  selectAll: () => { editLog.push({ action: 'selectAll' }) },
+  replaceMisspelling: (word: string) => { editLog.push({ action: 'replaceMisspelling', word }) },
 }
 const fakeWindow = {
   isDestroyed: () => false,
@@ -80,7 +89,16 @@ vi.mock('electron', () => ({
   },
   BrowserWindow: { getAllWindows: () => [fakeWindow] },
   webContents: { fromId: (id: number) => (id === fakeContents.id ? fakeContents : null) },
-  app: { getVersion: () => '0.0.0-test', on: vi.fn(), off: vi.fn(), getPath: () => tmpdir(), isPackaged: false },
+  app: {
+    getVersion: () => '0.0.0-test', on: vi.fn(), off: vi.fn(), getPath: () => tmpdir(), isPackaged: false,
+    getLocale: () => 'en-US', getSystemLocale: () => 'en-US',
+  },
+  session: {
+    defaultSession: {
+      availableSpellCheckerLanguages: ['de-DE', 'en-GB', 'en-US', 'es-ES', 'fr-FR'],
+      setSpellCheckerLanguages: vi.fn(),
+    },
+  },
   shell: {
     openExternal: vi.fn(async (url: string) => { openedUrls.push(url) }),
     openPath: vi.fn(async () => ''),
@@ -109,9 +127,10 @@ vi.mock('electron', () => ({
   },
 }))
 
-const { buildAppService, buildIpcState } = await import('../fixtures/buildService')
+const { buildServices, buildIpcState } = await import('../fixtures/buildService')
 const { registerIpc } = await import('../../src/main/ipc')
 const { UNCHECKED_SENDERS } = await import('../../src/main/ipc/ipcSenderGuard')
+const { watchContextMenu } = await import('../../src/main/windows/contextMenu')
 const { ThemeStore } = await import('../../src/main/theme/themeStore')
 const { ThemeGenerator } = await import('../../src/main/theme/themeGenerator')
 const { ClaudeOneShot } = await import('../../src/main/claude/claudeOneShot')
@@ -124,6 +143,7 @@ const { TabRegistry } = await import('../../src/main/windows/tabRegistry')
 const { WindowAttachments } = await import('../../src/main/windows/windowAttachments')
 const { broadcast } = await import('../../src/main/windows/broadcast')
 const { createUpdater } = await import('../../src/main/update/createUpdater')
+const { SpellingService } = await import('../../src/main/spelling/spellingService')
 const { IPC } = await import('@shared/api')
 
 /** Speaks claude's chat protocol, for the chat and for any session the app starts. */
@@ -190,6 +210,8 @@ function copyRepositories(home: string): { repoRoot: string; worktreeDir: string
 defineBridgeContract('real preload + main handlers (loopback)', async ({ imported = true, longSessionMessages, liveSession, cancelPicker = false }) => {
   openedUrls = []
   copiedText = []
+  editLog = []
+  contextMenuListeners = []
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'apiary-contract-')))
   const projects = join(home, '.claude', 'projects')
   mkdirSync(projects, { recursive: true })
@@ -249,21 +271,24 @@ defineBridgeContract('real preload + main handlers (loopback)', async ({ importe
     answerConsent: () => { asked = false },
   }, true)
 
-  const service = buildAppService({
+  const tabRegistry = new TabRegistry()
+  const built = buildServices({
     configRoot: join(home, '.claude'),
     dbPath: join(home, 'apiary.db'),
     detectLive: async () => (liveSession === undefined ? new Map() : new Map([[liveSession, 4242]])),
     claudeBin: FAKE_CLAUDE,
+    tabs: tabRegistry,
     chat: {
       attachments: new WindowAttachments((id) => (id === fakeContents.id ? fakeContents : null)),
       announce: (change) => { broadcast(IPC.chatLifecycle, change) },
+      activityChanged: () => { broadcast(IPC.activeTabsChanged) },
     },
     deps: { plugins, statusBar },
   })
+  const service = built.service
   service.plugins.startStatusBar()
 
   const settings = new SettingsService(join(home, 'settings.json'))
-  const tabRegistry = new TabRegistry()
   const petStore = new PetStore(join(home, 'pets.json'))
   const petService = new PetService({
     store: petStore, makeRunner, onChanged: () => { broadcast(IPC.petsChanged, petService.state()) },
@@ -274,6 +299,8 @@ defineBridgeContract('real preload + main handlers (loopback)', async ({ importe
     service,
     chat: service.chat,
     plugins: service.plugins,
+    activeTabs: built.activeTabs,
+    spelling: new SpellingService(),
     state: buildIpcState(service, join(home, '.claude'), {
       tabRegistry,
       windowNumberFor: (id) => (id === fakeContents.id ? THIS_WINDOW.number : null),
@@ -291,6 +318,8 @@ defineBridgeContract('real preload + main handlers (loopback)', async ({ importe
     },
     pets: { store: petStore, service: petService, actions: (keys) => service.latestActions(keys), exportPath: petFile, importPath: petFile },
   })
+  // windowManager.create() does this for each real window; the loopback makes none.
+  watchContextMenu(fakeContents)
   // The preload reads `initialTheme` once, as it loads, so it is loaded after the handlers exist.
   exposedApi = null
   vi.resetModules()
@@ -310,6 +339,8 @@ defineBridgeContract('real preload + main handlers (loopback)', async ({ importe
     folders: { workA, workB, repo: repoRoot, worktree: worktreeDir, picked },
     openedUrls: () => [...openedUrls],
     copied: () => [...copiedText],
+    editing: () => [...editLog],
+    rightClick: (params: ContextMenuParamsLike) => { for (const fn of contextMenuListeners) fn({}, params) },
     outside: {
       commitLocally: async () => {
         madeHere += 1

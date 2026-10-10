@@ -2,9 +2,13 @@
  * Tabs, layout reports and windows in the fake, modelled on main's tab registry and tab mover: this
  * window (`THIS_WINDOW`) reports the tabs it has open, a tab torn off or dropped on the desktop is
  * announced as claimed to every window and filed under a window of its own, and a tab adopted here
- * is handed to this window. The contract (`tests/contract/clauses/tabs.ts`) pins it.
+ * is handed to this window. A tab whose session has a chat reads that chat's activity. Any other tab
+ * keeps the status it was given, which a test sets through `fake.state.tabs`: the fake models chats,
+ * not terminals, and stores no pty id to tell them apart. The contract (`tests/contract/clauses/tabs.ts`)
+ * pins it.
  */
 import type { ApiaryApi } from '@shared/api'
+import { chatActivity } from '@shared/activity'
 import type { ActiveTabPayload, TabTransfer } from '@shared/domain/tabs'
 import { DETACHED_WINDOW_NUMBER, THIS_WINDOW } from '../../contract/world'
 import type { Env } from './state'
@@ -35,7 +39,10 @@ export function tabsApi(env: Env): TabsApi {
       state.tabs = [...mine, ...state.tabs.filter((t) => t.windowNumber !== THIS_WINDOW.number)]
       emit('activeTabsChanged')
     },
-    activeTabs: async () => state.tabs,
+    activeTabs: async () => state.tabs.map((t) => {
+      const chat = state.chats.get(t.key)
+      return chat === undefined ? t : { ...t, status: chatActivity(chat) }
+    }),
     focusTab: async (windowNumber, key) => { if (windowNumber === THIS_WINDOW.number) emit('selectTab', key) },
     tabDropped: async (tab, at) => { if (!inThisWindow(at)) tearOff(tab) },
     tabDetach: async (tab) => { tearOff(tab) },

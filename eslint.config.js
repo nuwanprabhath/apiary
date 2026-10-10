@@ -88,6 +88,10 @@ export default defineConfig([
       // A disable says why (`-- <reason>`); the reason is what lets the next reader decide whether
       // it still applies, and `reportUnusedDisableDirectives` only catches the ones that no longer do.
       '@eslint-community/eslint-comments/require-description': ['error', { ignore: ['eslint-enable'] }],
+      // A placeholder ships as if it were the feature. A 1.35.0 agent committed "Context menu with
+      // spelling suggestions will be shown here / For now, we prevent the default" in place of the
+      // menu, and a "Stub for spelling context" that nothing ever filled. Build it, or leave it out.
+      'no-warning-comments': ['error', { location: 'anywhere', terms: ['todo', 'fixme', 'xxx', 'stub for', 'will be shown', 'will be implemented', 'will be added', 'will be assigned', 'will be populated', 'will be wired', 'placeholder for', 'not yet implemented', 'implement later'] }],
     },
   },
   // Size budgets. A file or function past these is where every new feature lands next (App.tsx,
@@ -187,7 +191,7 @@ export default defineConfig([
     extends: [vitest.configs.recommended],
     languageOptions: { globals: globals.browser },
     // `stays` (tests/fixtures/stays.ts) is an assertion: it throws when its condition stops holding.
-    rules: { 'vitest/expect-expect': ['error', { assertFunctionNames: ['expect', 'stays'] }] },
+    rules: { 'vitest/expect-expect': ['error', { assertFunctionNames: ['expect', 'stays', 'reviewUi'] }] },
   },
 
   // End-to-end tests and the screenshot script, which drive the app with Playwright.

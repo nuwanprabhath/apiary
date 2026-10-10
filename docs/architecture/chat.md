@@ -94,11 +94,10 @@ Why per window: [ADR-0015](../adr/0015-chat-state-delivered-per-window.md).
 (`src/shared/chatTimeline.ts`) drops every `tool_use` and `tool_result` block, and a message left
 with nothing, from the file's messages and from `ChatState.live`, before `chatItems` pairs them; the
 background-task and turn status still read the unfiltered messages. Whether it applies is
-`useToolIoHidden` (`src/renderer/state/toolIoView.ts`): the `hideToolCallIo` setting, unless the
-"Hide tool calls" switch in the transcript toolbar has flipped it. The flip is per window and never
-saved (the setting is where "always" lives), is kept outside the transcript because only the active
-tab's transcript is mounted, and counts only while the setting still has the value it was flipped
-from. A permission prompt is not a tool call box and always shows.
+`useChatSettings` (`src/renderer/state/chatSettingsStore.ts`): the `hideToolCallIo` global setting,
+unless overridden by a per-chat choice that persists for that session only. The per-chat choice is
+kept in an in-memory store that starts fresh each window. A permission prompt is not a tool call box
+and always shows.
 
 ## Tests
 

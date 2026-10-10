@@ -4,6 +4,7 @@
  */
 import { commands, page, userEvent, type Locator } from 'vitest/browser'
 import { expect } from 'vitest'
+import type { FakeApiary } from './fakeApiary'
 
 /** A session's row in the sidebar (tree, Pinned, Recent or Active), by its exact title. */
 export function sidebarSession(title: string): Locator {
@@ -89,3 +90,21 @@ export async function settled(read: () => string, frames = 3, timeout = 3000): P
     last = now
   }
 }
+
+/** Starts a new Claude session in work-a and returns its pty id, with its terminal focused. */
+export async function openClaudeTerminal(fake: FakeApiary): Promise<string> {
+  const toggle = [...document.querySelectorAll<HTMLElement>('[data-testid="project-toggle"]')]
+    .find((t) => t.querySelector('.project-label')?.textContent === 'work-a')
+  const button = toggle?.closest('[data-testid="project-group"]')
+    ?.querySelector<HTMLElement>('[data-testid="new-session-button"]')
+  if (button === null || button === undefined) throw new Error('no new-session-button on work-a')
+  await userEvent.click(button)
+  await expect.element(page.getByTestId('terminal-session')).toBeVisible()
+  await until(() => fake.callsTo('ptySnapshot').length > 0)
+  const ptyId = fake.callsTo('ptySnapshot')[0][0] as string
+  await userEvent.click(page.getByTestId('terminal-session'))
+  return ptyId
+}
+
+/** The text each `ptyWrite` sent to the pty, in order. */
+export const ptyWrites = (fake: FakeApiary): string[] => fake.callsTo('ptyWrite').map((args) => args[1] as string)

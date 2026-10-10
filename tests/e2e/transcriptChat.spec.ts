@@ -89,7 +89,7 @@ test('a session moves from its terminal to the chat and back again', async () =>
   await expect(h.page.getByTestId('view-terminal')).toHaveCount(0)
 
   // And back: the button resumes it in the terminal, which stops the chat.
-  await expect(h.page.getByTestId('resume-button')).toHaveText('Continue in terminal')
+  await expect(h.page.getByTestId('resume-button')).toHaveAccessibleName('Continue in terminal')
   await h.page.getByTestId('resume-button').click()
   await expect(h.page.getByTestId('view-terminal')).toHaveAttribute('data-active', 'true')
   await expect(h.page.getByTestId('terminal-session')).toBeVisible()
@@ -142,4 +142,41 @@ test('a message sent mid-turn waits as queued and is answered in that turn; a ba
   await expect(h.page.getByTestId('chat-text').last()).toContainText('The background task finished.')
   await expect(h.page.getByTestId('chat-status-tasks')).toHaveCount(0)
   await expect(h.page.getByTestId('chat-status-turn')).toContainText('for 1s')
+})
+
+test('a link clicked in a reply opens in the browser, and the next send still shows the working line', async () => {
+  await h.app.evaluate(({ shell }) => {
+    const g = globalThis as unknown as { opened: string[] }
+    g.opened = []
+    shell.openExternal = async (url: string) => { g.opened.push(url) }
+  })
+  const ticket = 'https://gitlab.com/ternandsparrow/reri/-/work_items/3'
+
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('composer-input').fill(`[the ticket](${ticket})`)
+  await h.page.getByTestId('composer-input').press('Enter')
+  const link = h.page.getByTestId('chat-text').last().getByRole('link', { name: 'the ticket' })
+  await expect(link).toBeVisible()
+  // `noWaitAfter`: the guard cancels the navigation, so Playwright must not wait for one.
+  await link.click({ noWaitAfter: true })
+  await expect.poll(() => h.app.evaluate(() => (globalThis as unknown as { opened: string[] }).opened)).toEqual([ticket])
+
+  // Playwright's actions wait on the navigation the guard cancelled, so the send goes over the bridge the composer uses.
+  await h.page.evaluate(async (id) => { await window.apiary.chatSend(id, 'go slow please') }, STANDARD_SESSIONS.csv.id)
+  await expect.poll(() => h.page.evaluate(() => document.querySelector('[data-testid="chat-working"]') !== null)).toBe(true)
+})
+
+test('Send now on a queued message interrupts the reply being written, and that message is answered', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('composer-input').fill('go slow please')
+  await h.page.getByTestId('composer-input').press('Enter')
+  await expect(h.page.getByTestId('chat-streaming')).toContainText('word1')
+  await h.page.getByTestId('composer-input').fill('answer this first')
+  await h.page.getByTestId('composer-input').press('Enter')
+  await expect(h.page.getByTestId('chat-queued')).toContainText('answer this first')
+  await h.page.getByTestId('chat-queued-send-btn').click()
+  await expect(h.page.getByTestId('chat-text').last()).toContainText('You said: answer this first', { timeout: 20000 })
+  await expect(h.page.getByTestId('chat-queued')).toHaveCount(0)
+  await expect(h.page.getByTestId('chat-user').filter({ hasText: 'answer this first' })).toHaveCount(1)
+  await expect(h.page.getByTestId('composer-send')).toBeVisible()
 })

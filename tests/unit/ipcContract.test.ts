@@ -37,7 +37,10 @@ describe('the IPC contract', () => {
       readImage: 'apiary:read-image',
       vsCodeAvailable: 'apiary:vscode-available',
       openInVsCode: 'apiary:open-in-vscode',
+      openMentionedFile: 'apiary:open-mentioned-file',
       copyToClipboard: 'apiary:copy-to-clipboard',
+      contextMenuRequested: 'apiary:context-menu-requested',
+      editCommand: 'apiary:edit-command',
       themeInitial: 'apiary:theme-initial',
       themeState: 'apiary:theme-state',
       themeGpuCompositing: 'apiary:theme-gpu-compositing',
@@ -104,6 +107,7 @@ describe('the IPC contract', () => {
       chatStart: 'apiary:chat-start',
       chatSend: 'apiary:chat-send',
       chatInterrupt: 'apiary:chat-interrupt',
+      chatSendNow: 'apiary:chat-send-now',
       chatRespond: 'apiary:chat-respond',
       chatSetPermissionMode: 'apiary:chat-set-permission-mode',
       chatSetModel: 'apiary:chat-set-model',
@@ -153,6 +157,8 @@ describe('the IPC contract', () => {
       activeTabsChanged: 'apiary:active-tabs-changed',
       focusTab: 'apiary:focus-tab',
       selectTab: 'apiary:select-tab',
+      spellingGetLanguages: 'apiary:spelling-get-languages',
+      spellingSetLanguage: 'apiary:spelling-set-language',
     })
   })
 

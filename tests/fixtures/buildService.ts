@@ -1,5 +1,5 @@
 import type { AppService } from '../../src/main/appService'
-import { createIpcState, createServices, type IpcStateInputs, type ServicesOptions } from '../../src/main/app/container'
+import { createIpcState, createServices, type IpcStateInputs, type Services, type ServicesOptions } from '../../src/main/app/container'
 
 /**
  * The session-side services around a temp directory, wired exactly as the app wires them
@@ -8,6 +8,11 @@ import { createIpcState, createServices, type IpcStateInputs, type ServicesOptio
  */
 export function buildAppService(options: ServicesOptions): AppService {
   return createServices(options).service
+}
+
+/** The same services, for a test that also hands the IPC handlers what sits beside the facade. */
+export function buildServices(options: ServicesOptions): Services {
+  return createServices(options)
 }
 
 /**

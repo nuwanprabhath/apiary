@@ -4,7 +4,8 @@ import { Terminal, type ITheme } from '@xterm/xterm'
 import { THEME_CHANGE_EVENT } from '../../theme/applyTheme'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
-import { ContextMenu, type ContextMenuItem } from '../../ui/ContextMenu'
+import { ContextMenu } from '../../ui/ContextMenu'
+import type { ContextMenuItem } from '../../ui/contextMenuItem'
 import { pasteText, routeNativePaste } from './terminalPaste'
 import { ptyBus } from '../../state/ptyBus'
 import { isClaudeSuspended, isSuspendChord } from '@shared/claudeSuspend'
@@ -539,6 +540,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       <div
         className="terminal-host"
         data-testid={testId}
+        data-own-context-menu
         ref={host}
         onContextMenu={handleContextMenu}
       />

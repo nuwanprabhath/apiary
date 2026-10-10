@@ -7,6 +7,7 @@ import type { UpdateService } from '../update/updateService'
 import type { SessionLayoutStore } from '../windows/sessionLayoutStore'
 import type { LayoutFlushCoordinator } from '../windows/layoutFlushCoordinator'
 import type { TabRegistry } from '../windows/tabRegistry'
+import type { ActiveTabsService } from '../terminals/activeTabsService'
 import type { SenderPolicy } from './ipcSenderGuard'
 import type { SettingsService } from '../settings/settingsService'
 import { registerAll, type Handlers, type Listeners } from './registrar'
@@ -22,6 +23,9 @@ import { logHandlers } from './handlers/log'
 import { appChromeHandlers } from './handlers/appChrome'
 import { themeHandlers, type ThemeDeps } from './handlers/theme'
 import { petsHandlers, type PetDeps } from './handlers/pets'
+import { spellingHandlers } from './handlers/spelling'
+import { contextMenuHandlers } from './handlers/contextMenu'
+import type { SpellingService } from '../spelling/spellingService'
 
 /**
  * Everything `registerIpc` needs, replacing the 11 positional parameters (up to 8 of them
@@ -36,6 +40,7 @@ export interface IpcDeps {
   state: IpcState
   /** The single owner of `settings.json` (MAIN-16) — see `settings/settingsService.ts`. */
   settings: SettingsService
+  spelling: SpellingService
   onAutoImportIntervalChange?: (intervalMinutes: number | null) => void
   /** Null where there is no updater at all (a dev run, or a platform without one). */
   updater?: UpdateService | null
@@ -51,6 +56,8 @@ export interface IpcDeps {
    *  know about webContents ids at all. Populated in `main/index.ts`, next to where a window's
    *  number is minted. */
   windowNumberFor?: (webContentsId: number) => number | null
+  /** Classifies each open tab for the Active section; built in the container with what it reads. */
+  activeTabs: ActiveTabsService
   /** The native folder picker, over the asking window. Resolves null when cancelled. Injected so
    *  this module does not own the dialog (or its E2E stand-in, `APIARY_PICK_FOLDER`). */
   pickFolder?: (sender: WebContents) => Promise<string | null>
@@ -90,6 +97,8 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
   const theme = themeHandlers(deps.theme)
   const appChrome = appChromeHandlers()
   const pets = petsHandlers(deps.pets)
+  const spelling = spellingHandlers(deps.spelling)
+  const contextMenu = contextMenuHandlers()
 
   const handlers: Handlers = {
     ...sessions,
@@ -104,6 +113,7 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
     ...theme.handlers,
     ...appChrome.handlers,
     ...pets.handlers,
+    ...spelling,
   }
   const listeners: Listeners = {
     ...terminals.listeners,
@@ -113,6 +123,7 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
     ...theme.listeners,
     ...appChrome.listeners,
     ...pets.listeners,
+    ...contextMenu.listeners,
   }
 
   const disposeRegistry = registerAll(handlers, listeners, deps.senderPolicy)

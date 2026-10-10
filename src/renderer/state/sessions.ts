@@ -54,6 +54,11 @@ export function openSessionInVsCode(sessionId: SessionId): void {
   surface(window.apiary.openInVsCode(terminal), 'Could not open VS Code')
 }
 
+/** Opens a file named in a session's transcript, as written; main resolves and confines it. */
+export function openMentionedFile(sessionId: SessionId, mention: string): void {
+  surface(window.apiary.openMentionedFile({ kind: 'session', id: sessionId }, mention), 'Could not open that file')
+}
+
 /** A session main started on its own (File → New Session in Folder…), pty already running. */
 export const onNewSessionStarted = (cb: (info: NewSessionInfo) => void): (() => void) =>
   window.apiary.onNewSessionStarted(cb)

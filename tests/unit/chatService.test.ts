@@ -55,8 +55,9 @@ function setup(overrides: Partial<ChatServiceDeps> = {}) {
   const resolver = { requireSession: vi.fn(() => ({ cwd: dir, filePath: join(dir, 'x.jsonl') })) }
   const resume = vi.fn(async () => {})
   const checkConflict = vi.fn(async () => null)
+  const activityChanged = vi.fn()
   const deps = {
-    chats, pty, resolver, store, attachments, configRoot: dir,
+    chats, pty, resolver, store, attachments, configRoot: dir, activityChanged,
     announce: (c: ChatLifecycle) => { announced.push(c) },
     terminals: { resume },
     catalog: { checkConflict },
@@ -64,7 +65,7 @@ function setup(overrides: Partial<ChatServiceDeps> = {}) {
     ...overrides,
   } as unknown as ChatServiceDeps
   const service = new ChatService(deps)
-  return { service, chats, open, attachments, announced, child, pty, store, resolver, resume, checkConflict }
+  return { service, chats, open, attachments, announced, child, pty, store, resolver, resume, checkConflict, activityChanged }
 }
 
 let dir = ''
@@ -106,6 +107,17 @@ describe('ChatService delivery', () => {
     expect(announced).toHaveLength(2)
     child.exit()
     await vi.waitFor(() => { expect(announced.at(-1)).toEqual({ sessionId: A, previousSessionId: null, running: false }) })
+  })
+
+  it('tells the sidebar once per change of activity, not for each streamed state', async () => {
+    const { service, chats, activityChanged } = setup()
+    await service.start(A, { takeOver: false })
+    const state = chats.state(A)!
+    activityChanged.mockClear()
+    service.onChanged({ ...state, status: 'busy' })
+    service.onChanged({ ...state, status: 'busy' })
+    service.onChanged({ ...state, status: 'idle' })
+    expect(activityChanged).toHaveBeenCalledTimes(2)
   })
 })
 

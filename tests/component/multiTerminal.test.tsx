@@ -105,7 +105,7 @@ describe('multi-terminal', () => {
     const row = page.getByTestId('terminal-tab-row')
     await userEvent.hover(row)
     await userEvent.click(row.getByTestId('terminal-tab-delete'))
-    await expect.element(page.getByTestId('shell-toggle')).toMatchTextContent('Show shell')
+    await expect.element(page.getByTestId('shell-toggle')).toHaveAttribute('title', 'Show shell')
     await expect.element(page.getByTestId('terminal-shell')).not.toBeInTheDocument()
   })
 

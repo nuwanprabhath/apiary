@@ -18,3 +18,15 @@ export function clampTop(anchorTop: number, height: number): number {
 export function clampLeft(left: number, width: number): number {
   return Math.max(POPOVER_MARGIN, Math.min(left, window.innerWidth - width - POPOVER_MARGIN))
 }
+
+/**
+ * Where a popup `width` x `height` goes against an anchor button: under it with the popup's right
+ * edge on the anchor's right edge, flipped above when there is no room below, then kept inside the
+ * window. Returns viewport coordinates for a `position: fixed` box.
+ */
+export function placeUnderRightEdge(anchor: DOMRect, size: { width: number; height: number }): { left: number; top: number } {
+  const below = anchor.bottom + POPOVER_GAP
+  const fitsBelow = below + size.height + POPOVER_MARGIN <= window.innerHeight
+  const top = fitsBelow ? below : anchor.top - POPOVER_GAP - size.height
+  return { left: clampLeft(anchor.right - size.width, size.width), top: Math.max(POPOVER_MARGIN, top) }
+}

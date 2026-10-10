@@ -161,14 +161,40 @@
 }
 
 /* A message sent while Claude works, until Claude reads it. */
-.chat-queued { position: relative; border-style: dashed; color: var(--muted); }
-.chat-queued-label {
-  position: absolute;
-  top: 6px;
-  right: 10px;
+.chat-queued {
+  display: flex;
+  gap: var(--control-gap);
+  align-items: flex-start;
+  border-style: dashed;
   color: var(--muted);
-  font-size: 11px;
+  position: relative;
 }
+.chat-queued-content { flex: 1; min-width: 0; }
+.chat-queued-actions {
+  display: flex;
+  flex: none;
+  gap: var(--control-gap);
+  align-items: center;
+}
+.chat-queued-label {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.chat-queued-send-btn {
+  padding: 0 var(--control-padding-x);
+  height: var(--control-height-sm);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-control);
+  background: var(--control-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chat-queued-send-btn:hover { background: var(--control-bg-hover); }
+.chat-queued-send-btn:focus-visible { box-shadow: var(--focus-ring); }
 
 /* Claude Code speaking for itself: a background task reporting back, a command's output. */
 .chat-notice .chat-row-body { color: var(--muted); font-size: 12px; white-space: pre-wrap; }
@@ -306,7 +332,7 @@
 }
 
 /* The mode button and the "/" commands button, and the menus they open (ModeMenu, CommandPalette). */
-.chat-mode, .chat-commands { position: relative; }
+.chat-mode { position: relative; }
 .chat-mode-button, .chat-icon-button {
   display: inline-flex;
   gap: 6px;
@@ -343,8 +369,20 @@
   box-shadow: var(--shadow-overlay);
 }
 .chat-mode-menu { right: 0; width: min(380px, 80vw); }
-.chat-command-menu { left: 0; width: min(560px, 85vw); max-height: 60vh; }
-.chat-menu-heading { padding: 6px 8px; color: var(--muted); font-size: 12px; }
+/* Anchored to the composer, not the small "/" button, so it spans the pane and is never clipped. */
+.chat-command-menu {
+  right: 10px;
+  bottom: calc(100% + 4px);
+  left: 10px;
+  max-width: 520px;
+  max-height: min(360px, 50vh);
+  padding: var(--control-gap);
+  border-radius: var(--radius-panel);
+  background: var(--bg-panel);
+  /* A container, so a narrow menu drops the descriptions (the footer still shows them). */
+  container-type: inline-size;
+}
+.chat-menu-heading { padding: var(--control-gap) var(--control-padding-x) 0; color: var(--muted); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
 .chat-menu-option, .chat-command-option {
   display: flex;
   gap: 10px;
@@ -367,8 +405,10 @@
 .chat-menu-option-desc { color: var(--muted); font-size: 12px; }
 
 .chat-command-search {
-  margin: 2px 2px 4px;
-  padding: 7px 10px;
+  flex: none;
+  height: var(--control-height);
+  margin: 0 0 var(--control-gap);
+  padding: 0 var(--control-padding-x);
   border: 1px solid var(--control-border);
   border-radius: var(--radius-control);
   background: var(--field-bg);
@@ -376,12 +416,38 @@
   font: inherit;
 }
 .chat-command-search:focus-visible { box-shadow: var(--focus-ring); }
-.chat-command-list { overflow-y: auto; }
-.chat-command-option[aria-selected="true"] { background: var(--hover); }
-.chat-command-name { flex: none; font-family: var(--font-mono); }
-.chat-command-hint { flex: none; color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
-.chat-command-desc { overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.chat-command-empty { margin: 6px 8px; color: var(--muted); }
+.chat-command-list { flex: 1; min-height: 0; overflow-y: auto; background: var(--bg-popover, var(--bg-panel)); }
+.chat-command-option { height: var(--control-height); padding: 0 var(--control-padding-x); }
+.chat-command-option:hover { background: var(--hover); }
+.chat-command-option[aria-selected="true"] { background: var(--selected); }
+/* One column of names per section, so the descriptions (or values) line up. */
+.chat-command-group { display: grid; grid-template-columns: auto 1fr; }
+.chat-command-group > .chat-command-option {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+}
+.chat-command-name { max-width: 14em; min-width: 0; overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.chat-command-desc { min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.chat-command-empty { margin: var(--control-gap) var(--control-padding-x); color: var(--muted); }
+.chat-setting-option { justify-content: space-between; }
+.chat-setting-value { justify-self: end; margin-left: auto; color: var(--muted); font-size: 12px; }
+.chat-command-footer {
+  display: -webkit-box;
+  flex: none;
+  margin-top: var(--control-gap);
+  padding: var(--control-gap) var(--control-padding-x) 0;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+@container (max-width: 380px) {
+  .chat-command-desc { display: none; }
+}
 
 /* Between the conversation and the message box (ChatStatus): the last turn, the recap, and the
    background tasks still running — what Claude Code's terminal prints under its last reply. */

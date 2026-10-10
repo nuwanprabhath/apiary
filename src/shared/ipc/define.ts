@@ -12,6 +12,9 @@ export interface Send<A extends unknown[]> { kind: 'send'; channel: string; args
  *  helpers (`main/windows`) and the preload's `on*` subscriptions are all typed from it. */
 export interface EventSpec<P extends unknown[]> { kind: 'event'; channel: string; _p?: P }
 export interface Sync<R> { kind: 'sync'; channel: string; _r?: R }
+/** A preload-only API: `window.apiary` answers it synchronously, and it never crosses IPC. `args` is the
+ *  guard the preload applies before the implementation in `src/preload/local.ts` runs; `R` is the result. */
+export interface Local<A extends unknown[], R> { kind: 'local'; args: Guard<A>; _r?: R }
 
 // `args` is a `Guard<A>` for the declared argument tuple `A`: a guard that proves less than `A`
 // (an `obj` standing in for a typed patch) is a compile error, so a handler never receives a
@@ -29,3 +32,4 @@ export const sendLoose = <A extends unknown[]>(channel: string, args: Guard<unkn
   ({ kind: 'send', channel, args: args as Guard<A>, loose: true })
 export const event = <P extends unknown[] = []>(channel: string): EventSpec<P> => ({ kind: 'event', channel })
 export const sync = <R>(channel: string): Sync<R> => ({ kind: 'sync', channel })
+export const local = <A extends unknown[], R>(args: Guard<A>): Local<A, R> => ({ kind: 'local', args })

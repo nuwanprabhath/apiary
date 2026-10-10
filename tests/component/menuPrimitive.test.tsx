@@ -26,6 +26,22 @@ function Demo(): React.JSX.Element {
 const focused = (): string | null => document.activeElement?.getAttribute('data-testid') ?? null
 
 describe('Menu', () => {
+  it('always carries the popup surface, with or without a class of its own, and never shows list bullets', async () => {
+    await mountUi(
+      <div>
+        <Menu testId="bare" as="ul"><li role="none"><button role="menuitem">a</button></li></Menu>
+        <Menu testId="classed" className="mine"><button role="menuitem">b</button></Menu>
+      </div>,
+    )
+    const bare = page.getByTestId('bare').element()
+    expect(bare.classList.contains('context-menu')).toBe(true)
+    expect(getComputedStyle(bare).listStyleType).toBe('none')
+    expect(getComputedStyle(bare).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
+    const classed = page.getByTestId('classed').element()
+    expect(classed.classList.contains('context-menu')).toBe(true)
+    expect(classed.classList.contains('mine')).toBe(true)
+  })
+
   it('takes focus on open, steps with the arrows over radios too, wraps, skips disabled, and Home/End jump', async () => {
     await mountUi(<Demo />)
     await userEvent.click(page.getByTestId('trigger'))

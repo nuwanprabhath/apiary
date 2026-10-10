@@ -67,6 +67,9 @@ export const terminalBusy = (sessionId: SessionId): Promise<TerminalBusy> => win
 export function interruptChat(sessionId: SessionId): void {
   surface(window.apiary.chatInterrupt(sessionId), 'Could not stop Claude')
 }
+export function sendChatNow(sessionId: SessionId, queuedId: string): void {
+  surface(window.apiary.chatSendNow(sessionId, queuedId), 'Could not send that message now')
+}
 export function answerChatRequest(sessionId: SessionId, requestId: string, decision: ChatDecision): void {
   surface(window.apiary.chatRespond(sessionId, requestId, decision), 'Could not answer Claude')
 }

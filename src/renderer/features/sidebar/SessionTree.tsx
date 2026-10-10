@@ -47,7 +47,7 @@ interface Props {
    */
   onReorderFolder?: (path: string, beforePath: string) => void
   /** Filing into groups stays a top-level idea: a worktree belongs to its repository, not a group.
-   *  So a nested folder's menu (`nested`) only has what applies to it — its branch. */
+   *  So a nested folder's menu (`nested`) only has what applies to it — its branch: change it, pull it. */
   onFolderMenu?: (path: string, x: number, y: number, nested: boolean) => void
   /** Right-click on a session row. */
   onSessionMenu?: (session: SessionNode, x: number, y: number) => void
@@ -203,6 +203,8 @@ function FolderHeader({
   // starts the session straight away.
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
   const isGit = node.branch !== null || node.isWorktree || node.children.some((c) => c.isWorktree)
+  // A nested folder's menu would be "Change branch…" alone; one git does not know has none.
+  const folderMenu = onFolderMenu !== undefined && (depth === 0 || isGit) ? onFolderMenu : undefined
   const card = useHoverCard<HTMLDivElement>()
   const { notify, notifyError } = useNotifications()
   // Highlights the row while a session is dragged over it — a folder drag has its own dropEffect
@@ -217,6 +219,7 @@ function FolderHeader({
       // level can be filed into a group, and a CSS selector cannot tell the levels apart
       // without encoding the nesting of the markup into every query that asks.
       data-depth={depth}
+      data-own-context-menu={folderMenu === undefined ? undefined : true}
       data-drop-target={sessionOver}
       data-no-sessions={node.isWorktree && node.sessions.length === 0 && node.children.length === 0}
       role="treeitem"
@@ -272,10 +275,9 @@ function FolderHeader({
       }}
       onContextMenu={(e) => {
         card.hideNow()
-        // A nested folder's menu would be "Change branch…" alone; one git does not know has none.
-        if (onFolderMenu === undefined || (depth !== 0 && !isGit)) return
+        if (folderMenu === undefined) return
         e.preventDefault()
-        onFolderMenu(node.path, e.clientX, e.clientY, depth !== 0)
+        folderMenu(node.path, e.clientX, e.clientY, depth !== 0)
       }}
     >
       {card.anchor !== null && (

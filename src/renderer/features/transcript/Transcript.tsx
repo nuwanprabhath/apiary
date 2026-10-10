@@ -1,17 +1,23 @@
 import { type JSX, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SessionNode, TranscriptMessage } from '@shared/types'
 import type { ChatDecision, ChatState } from '@shared/domain/chat'
+import { firstOfMinuteRun } from '@shared/time'
 import { chatItems, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withoutToolCalls } from '@shared/chatTimeline'
 import { ChatTimeline } from '../chat/ChatTimeline'
 import { ChatStatus, type ChatStatusInfo } from '../chat/ChatStatus'
 import { useCopyOnSelect } from '../chat/useCopyOnSelect'
 import { MessageRow } from './MessageRow'
+import { FileMentionsProvider } from './FileMentions'
+import { FindBar } from './FindBar'
+import { useTranscriptFind } from './useTranscriptFind'
 import { mergeLatestPage } from '../../state/transcriptMerge'
 import { treeStore } from '../../state/treeStore'
-import { useToolIoHidden } from '../../state/toolIoView'
 import { describeError, type DescribedError } from '../../ui/errors'
 import { loadTranscript } from '../../state/transcript'
 import { logBackgroundFailure } from '../../ui/fireAndForget'
+import { useAppSettings } from '../../state/settingsStore'
+import { useChatSettings } from '../../state/chatSettingsStore'
+import { SHOW_TOOL_CALLS, chatSettingValue } from '../../state/chatSettings'
 
 // How close to the bottom (in pixels) counts as being at it, for following new content again.
 // Deliberately tight: this used to be 64px, and a trackpad scrolls up a few pixels per event — so
@@ -267,19 +273,26 @@ export function Transcript({
   // UI-8: filtering on every render built a fresh array even when nothing about `messages` or
   // `showSidechain` had changed — cheap for one render, but this list only grows, and a filter
   // over the whole thing ran on every unrelated re-render of `Transcript` too.
-  const { hidden: hideTools, toggle: toggleTools } = useToolIoHidden()
+  const { hideToolCallIo: globalHideToolCalls } = useAppSettings()
+  const { values: perChatSettings } = useChatSettings(session.sessionId)
+  const hideToolCalls = !chatSettingValue(SHOW_TOOL_CALLS, perChatSettings, { hideToolCallIo: globalHideToolCalls })
   const visibleMessages = useMemo(() => {
     const shown = showSidechain ? messages : messages.filter((m) => !m.isSidechain)
-    return hideTools ? withoutToolCalls(shown) : shown
-  }, [messages, showSidechain, hideTools])
+    return hideToolCalls ? withoutToolCalls(shown) : shown
+  }, [messages, showSidechain, hideToolCalls])
+  const shownTimes = useMemo(() => firstOfMinuteRun(visibleMessages.map((m) => m.timestampMs)), [visibleMessages])
+
+  const find = useTranscriptFind({
+    containerRef, visible, sessionId: session.sessionId, contentKey: visibleMessages, hasEarlier: cursor !== null, loadEarlier,
+  })
 
   // Chat view: the file's messages plus whatever the chat has streamed that the file has not caught
   // up with yet (matched by uuid, so nothing shows twice).
   const items = useMemo(() => {
     if (!chatMode) return []
     const live = (chat?.live ?? []).filter((m) => showSidechain || !m.isSidechain)
-    return chatItems(mergeLive(visibleMessages, hideTools ? withoutToolCalls(live) : live))
-  }, [chatMode, chat?.live, visibleMessages, showSidechain, hideTools])
+    return chatItems(mergeLive(visibleMessages, hideToolCalls ? withoutToolCalls(live) : live))
+  }, [chatMode, chat?.live, visibleMessages, showSidechain, hideToolCalls])
   const queued = useMemo(() => stillQueued(chat?.queued ?? [], messages), [chat?.queued, messages])
 
   // The line above the message box: background tasks still running (claude's own list while it
@@ -334,9 +347,11 @@ export function Transcript({
   }
 
   return (
-    <>
+    <FileMentionsProvider sessionId={session.sessionId}>
+    {find.open && <FindBar find={find} />}
     <div
       className="transcript"
+      tabIndex={-1}
       data-testid="transcript"
       ref={containerRef}
       onScroll={handleScroll}
@@ -353,15 +368,6 @@ export function Transcript({
             onChange={(e) => setShowSidechain(e.target.checked)}
           />
           Show subagent messages
-        </label>
-        <label className="checkbox">
-          <input
-            type="checkbox"
-            data-testid="tool-io-toggle"
-            checked={hideTools}
-            onChange={toggleTools}
-          />
-          Hide tool calls
         </label>
         {skipped > 0 && (
           <span className="muted" data-testid="transcript-skipped">
@@ -390,6 +396,7 @@ export function Transcript({
             // eslint-disable-next-line @eslint-react/no-array-index-key -- falls back to the index only for the rare message with no uuid; the uuid is the real, stable key
             key={m.uuid.length > 0 ? m.uuid : String(i)}
             message={m}
+            showTime={shownTimes[i] !== null}
             onOpenImage={onOpenImage}
           />
         ))}
@@ -406,6 +413,6 @@ export function Transcript({
     </div>
     {chatMode && <ChatStatus tasks={status.tasks} turn={status.turn} recap={status.recap} />}
     {copyMenu}
-    </>
+    </FileMentionsProvider>
   )
 }

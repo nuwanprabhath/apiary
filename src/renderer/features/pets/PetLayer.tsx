@@ -4,7 +4,8 @@ import type { Activity, BrainPet, Face, Scenery } from '@shared/pets/brain'
 import { habitatLengths, nearestPlace, normalisePlace, placeToPoint, type Habitat } from '@shared/pets/habitat'
 import type { ChatTurn, VoiceContext } from '@shared/pets/prompt'
 import { PET_SIZE_STEPS, type PetPlace, type PetRecord, type PetsState } from '@shared/pets/state'
-import { ContextMenu, type ContextMenuItem } from '../../ui/ContextMenu'
+import { ContextMenu } from '../../ui/ContextMenu'
+import type { ContextMenuItem } from '../../ui/contextMenuItem'
 import { askPetVoice, latestClaudeAction, onPetVoiceCheck, petRemark, putPetAway, rememberPetPlace, resizePet, watchClaudeActions } from '../../state/petsStore'
 import { BrainClient } from './brainClient'
 import type { FromBrain } from './petBrain.worker'
@@ -336,6 +337,7 @@ function PetWorld({ pets, habitat, tabs, titleOf, onOpenSettings }: Props & { pe
             key={pet.id}
             className="pet"
             data-testid="pet"
+            data-own-context-menu
             data-pet-id={pet.id}
             data-held={held === pet.id}
             data-region={place.region}

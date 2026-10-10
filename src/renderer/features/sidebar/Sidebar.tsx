@@ -230,12 +230,13 @@ function SidebarInner({
     () => onlyWanted(listed, showAllWorktrees, createdRoots),
     [listed, showAllWorktrees, createdRoots],
   )
+  const withWorktrees = useMemo(() => withAllWorktrees(tree, extraWorktrees), [tree, extraWorktrees])
   const arranged = useMemo(
     () => groupFolders(
-      withAllWorktrees(tree, extraWorktrees), (n) => n.path,
+      withWorktrees, (n) => n.path,
       groupState.groups, groupState.assignments, groupState.folderOrder,
     ),
-    [tree, extraWorktrees, groupState],
+    [withWorktrees, groupState],
   )
   const groupsCollapsed = useMemo(() => new Set(groupState.collapsed), [groupState.collapsed])
 
@@ -269,7 +270,7 @@ function SidebarInner({
 
   const groups = useGroupActions(groupState, onGroupStateChange, tree, arranged)
   const { menu, setMenu, menuItems } = useSidebarMenu({
-    tree, rawTree, pinned, groupState, showAllWorktrees, onToggleAllWorktrees, onForkSession, onReorderPinned, groups,
+    tree: withWorktrees, rawTree, pinned, groupState, showAllWorktrees, onToggleAllWorktrees, onForkSession, onReorderPinned, groups,
   })
   const mainTree = useMainTreeNav({
     arranged, collapsed, onCollapsedChange, groupState, patchGroups: groups.patchGroups, sessionsById,

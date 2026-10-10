@@ -69,6 +69,7 @@ export class ChatManager {
 
   send(sessionId: SessionId, text: string): void { this.require(sessionId).send(text) }
   interrupt(sessionId: SessionId): void { this.require(sessionId).interrupt() }
+  sendNow(sessionId: SessionId, queuedId: string): void { this.require(sessionId).sendNow(queuedId) }
   respond(sessionId: SessionId, requestId: string, decision: ChatDecision): void { this.require(sessionId).respond(requestId, decision) }
   setPermissionMode(sessionId: SessionId, mode: ChatPermissionMode): void { this.require(sessionId).setPermissionMode(mode) }
   setModel(sessionId: SessionId, model: ChatModel): void { this.require(sessionId).setModel(model) }

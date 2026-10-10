@@ -3,6 +3,7 @@ import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'node:path'
 import { boundsAreOnScreen, type WindowBounds } from './windowBounds'
 import { guardNavigation } from './navigationGuard'
+import { watchContextMenu } from './contextMenu'
 import { log } from '../log/logger'
 import { fireAndForget } from '../log/fireAndForget'
 import type { SessionLayoutStore, WindowLayoutRecord } from './sessionLayoutStore'
@@ -206,6 +207,7 @@ export class WindowManager {
     // title bar it is drawn by the renderer (see TitleBar.tsx), not as a GTK/Win32 bar above it.
     if (chrome === 'custom') win.setMenuBarVisibility(false)
     guardNavigation(win.webContents, (url) => shell.openExternal(url))
+    watchContextMenu(win.webContents)
     // Captured now, not read back off `win.webContents` in the `closed` handler below: by the time
     // `closed` fires the window (and its webContents) has already been destroyed, and touching
     // `win.webContents` at that point throws `Object has been destroyed` — uncaught, since `closed`

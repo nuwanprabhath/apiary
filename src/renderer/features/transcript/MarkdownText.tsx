@@ -1,6 +1,8 @@
 import { type JSX, useMemo } from 'react'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import { mentionHandlers, useFileMentions } from './FileMentions'
+import { markFileMentions } from './mentionMarkup'
 
 // GitHub-flavoured line breaks (a single newline inside a paragraph becomes <br>) match how
 // Claude's own text reads best here — its messages are written more like chat than prose, where
@@ -55,13 +57,17 @@ function installSanitizeHooks(): void {
  * from disk, not typed by this app's user — would execute in the renderer.
  */
 export function MarkdownText({ text }: { text: string }): JSX.Element {
+  // Set only when VS Code is available; without it the text stays exactly as markdown made it.
+  const mentions = useFileMentions()
+  const linkFiles = mentions !== null
   const html = useMemo(() => {
     installSanitizeHooks()
     const rendered = marked.parse(text, { async: false })
-    return DOMPurify.sanitize(rendered, { ALLOWED_TAGS, ALLOWED_ATTR, ALLOWED_URI_REGEXP })
-  }, [text])
+    const clean = DOMPurify.sanitize(rendered, { ALLOWED_TAGS, ALLOWED_ATTR, ALLOWED_URI_REGEXP })
+    return linkFiles ? markFileMentions(clean) : clean
+  }, [text, linkFiles])
 
   // Sanitised with DOMPurify just above, so the HTML this sets is safe.
   // eslint-disable-next-line @eslint-react/dom-no-dangerously-set-innerhtml -- html is DOMPurify-sanitised above
-  return <div className="markdown text-block" dangerouslySetInnerHTML={{ __html: html }} />
+  return <div className="markdown text-block" {...mentionHandlers(mentions)} dangerouslySetInnerHTML={{ __html: html }} />
 }

@@ -1,5 +1,6 @@
 import { type JSX, memo, useMemo, useState } from 'react'
 import type { TranscriptMessage } from '@shared/types'
+import { MessageTime } from '../../ui/MessageTime'
 import { ToolBlock } from './ToolBlock'
 import { MarkdownText } from './MarkdownText'
 import { ImageThumbnail, TranscriptImageFile, IMAGE_PATH_LINE } from './TranscriptImage'
@@ -71,7 +72,7 @@ function ToolUseBlock({ name, input }: { name: string; input: unknown }): JSX.El
 // re-rendered on every App render — including every ~1s live-refresh tick — even when its own
 // message and callback had not changed at all.
 export const MessageRow = memo(function MessageRow(
-  { message, onOpenImage }: { message: TranscriptMessage; onOpenImage: (src: string) => void },
+  { message, onOpenImage, showTime }: { message: TranscriptMessage; onOpenImage: (src: string) => void; showTime: boolean },
 ): JSX.Element | null {
   const [showThinking, setShowThinking] = useState(false)
   // A turn's end and a recap are the chat view's (ChatStatus); this view has no place for them.
@@ -84,6 +85,7 @@ export const MessageRow = memo(function MessageRow(
       data-role={message.role}
       data-sidechain={message.isSidechain}
     >
+      <MessageTime ms={showTime ? message.timestampMs : null} />
       <div className="message-role">{message.role === 'user' ? 'You' : 'Claude'}</div>
       <div className="message-body">
         {message.blocks.map((block, i) => {

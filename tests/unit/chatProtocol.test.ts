@@ -137,8 +137,30 @@ describe('chat protocol', () => {
     expect(replayed.queued).toEqual([])
     expect(replayed.live.map((m) => m.uuid)).toContain('q-uuid')
     expect(reduce(replayed, { type: 'result', duration_ms: 4200 }, 5000)).toMatchObject({ status: 'idle', lastTurn: { durationMs: 4200, endedAt: 5000 } })
-    // Still waiting at the end of a turn, a message starts the next one.
-    expect(reduce(sent, { type: 'result' }, 5000)).toMatchObject({ status: 'busy', turnStartedAt: 5000 })
+    // Still queued when the turn ends: the turn is over, and the message waits to be taken in.
+    expect(reduce(sent, { type: 'result' }, 5000)).toMatchObject({ status: 'idle', turnStartedAt: null, queued: [{ id: 'q1' }] })
+  })
+
+  it('a turn ends idle even while a sent message is still queued, so an unreplayed message cannot keep the chat busy', () => {
+    const idle: ChatState = { ...emptyChatState(asSessionId('s')), status: 'idle', queued: [{ id: 'q1', text: 'x', sentAt: 0 }] }
+    const answered = reduce(idle, { type: 'assistant', uuid: 'a1', message: { role: 'assistant', content: [{ type: 'text', text: 'Hi' }] } }, 1000)
+    expect(answered).toMatchObject({ status: 'busy', turnStartedAt: 1000 })
+    expect(reduce(answered, { type: 'result' }, 5000)).toMatchObject({ status: 'idle', turnStartedAt: null, queued: [{ id: 'q1', text: 'x' }] })
+  })
+
+  it('a replayed message makes an idle chat busy, and leaves the queue', () => {
+    const idle: ChatState = { ...emptyChatState(asSessionId('s')), status: 'idle', queued: [{ id: 'q1', text: 'x', sentAt: 0 }] }
+    const replayed = reduce(idle, { type: 'user', uuid: 'q-uuid', isReplay: true, message: { role: 'user', content: [{ type: 'text', text: 'x' }] } }, 9000)
+    expect(replayed).toMatchObject({ status: 'busy', turnStartedAt: 9000, queued: [] })
+  })
+
+  it.each([
+    ['the sent text has trailing whitespace', 'and lint too  ', 'and lint too'],
+    ['the replayed text has trailing whitespace', 'and lint too', 'and lint too  '],
+  ])('takes a replayed message as the queued one when %s', (_why, queuedText, replayedText) => {
+    const sent = { ...run(TURN.slice(0, 3)), queued: [{ id: 'q1', text: queuedText, sentAt: 0 }] }
+    const replayed = reduce(sent, { type: 'user', uuid: 'q-uuid', isReplay: true, message: { role: 'user', content: [{ type: 'text', text: replayedText }] } })
+    expect(replayed.queued).toEqual([])
   })
 
   it('is busy from the first streamed message of a turn nobody sent — a background task finishing', () => {

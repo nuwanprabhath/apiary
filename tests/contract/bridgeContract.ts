@@ -34,6 +34,7 @@ import { defineGitClauses } from './clauses/git'
 import { defineWorktreeClauses } from './clauses/worktrees'
 import { defineTerminalClauses } from './clauses/terminals'
 import { defineMiscClauses } from './clauses/misc'
+import { defineSpellingClauses } from './clauses/spelling'
 
 export { LONG_SESSION, STANDARD_TITLES }
 export type { Bridge, BridgeOptions, MakeBridge }
@@ -73,5 +74,6 @@ export function defineBridgeContract(name: string, makeBridge: MakeBridge): void
     defineWorktreeClauses(ctx)
     defineTerminalClauses(ctx)
     defineMiscClauses(ctx)
+    defineSpellingClauses(ctx)
   })
 }

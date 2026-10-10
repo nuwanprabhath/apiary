@@ -1,4 +1,4 @@
-import { type JSX, useEffect, useState } from 'react'
+import { type JSX, useEffect, useRef, useState } from 'react'
 import type { AppSettingsPayload, PluginInfoPayload, UpdateStatusPayload } from '@shared/api'
 import { SECTIONS, blurbOf } from './registry'
 import { useNotifications } from '../../ui/notifications'
@@ -8,6 +8,7 @@ import { treeStore } from '../../state/treeStore'
 import { listPlugins } from '../../state/plugins'
 import { rebuildSearchIndex, readSearchStatus } from '../../state/sessions'
 import { readSettings, saveSettingsDraft } from '../../state/settingsStore'
+import { setSpellingLanguage } from '../../state/spelling'
 
 /**
  * One page of settings. Sections are data, not markup — adding a setting later means adding an
@@ -35,6 +36,8 @@ export function SettingsDialog(
   // new setting is a new key rather than another piece of local state to remember to save.
   const [draft, setDraft] = useState<AppSettingsPayload | null>(null)
   const [saving, setSaving] = useState(false)
+  // The proofing language as it was loaded, so Save applies the dictionary only when it changed.
+  const loadedProofing = useRef<string | null>(null)
   /** How many sessions/notes are indexed, and whether a rebuild is running — the Search section's
    *  state, owned here rather than in the section itself so it is loaded once for the dialog's
    *  whole life, not refetched every time Search is revisited (see SearchSection.tsx). */
@@ -65,7 +68,10 @@ export function SettingsDialog(
     // User-initiated (UI-23): a failure here leaves `draft` null forever, which the pane below
     // renders as "Loading settings…" — silently, and indefinitely, with no way to tell that from
     // an actually slow load. A toast at least says it isn't coming.
-    void readSettings().then(setDraft).catch((e: unknown) => {
+    void readSettings().then((settings) => {
+      loadedProofing.current = settings.proofingLanguage
+      setDraft(settings)
+    }).catch((e: unknown) => {
       notifyError(e, 'Could not load settings')
     })
   }, [notifyError])
@@ -82,6 +88,7 @@ export function SettingsDialog(
         ...draft,
         claudeBin: draft.claudeBin?.trim() === '' ? null : draft.claudeBin,
       })
+      if (draft.proofingLanguage !== loadedProofing.current) await setSpellingLanguage(draft.proofingLanguage)
       onClose()
     } finally {
       setSaving(false)

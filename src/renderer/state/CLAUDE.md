@@ -9,8 +9,8 @@ index this filtering never touches.
 | The state is… | Use | Example |
 | --- | --- | --- |
 | owned by main and pushed to the window | `createIpcStore` / `createKeyedIpcStore` | `petsStore`, `chatStore` |
-| this window's only, in memory, outliving the component that set it | `createLocalStore` | `toolIoView` (the "Hide tool calls" flip survives a tab switch) |
-| saved per viewer (sizes, collapsed sections) | `state/uiState.ts` | the sidebar width |
+| this window's only, in memory, outliving the component that set it | `createLocalStore` | `chatSettingsStore` counts changes so readers re-render |
+| saved per viewer (sizes, collapsed sections) | `state/uiState.ts` | the sidebar width; per-chat settings (`CHAT_SETTINGS_KEY`, shared by every window, read through `chatSettingsStore`) |
 | the workspace (tabs, panes, layout) | the workspace store (`features/workspace/`) | `useWorkspaceSelector` |
 | one component's own, gone when it unmounts | `useState` | a draft, an open menu |
 
@@ -83,6 +83,14 @@ or `void window.apiary.x()` is none of them (`no-silent-catch`, `no-void-bridge-
 Pick by asking what the user sees when it fails: nothing is wrong with the screen (1), the screen
 looks as if nothing happened (2), a control is waiting on the answer (3). Hot paths
 (`writePty`, `resizePty`) are one property read away from the bridge on purpose.
+
+## Showing what is running: `activityStore`
+
+The status bar's left side shows what the app is doing, and nothing there knows what it is. To
+track a new activity, wrap its promise: `trackActivity({ running: 'Doing X…', done: (r) => 'Did X', failed: 'X failed' }, promise)`
+(`state/activityStore.ts`; `state/gitActivity.ts` is the example). It returns the promise
+unchanged, so the caller's error handling stays; give it a `key` to disable the control that
+started it while it runs (`useActivityRunning`). Finished ones expire (4 s done, 10 s failed).
 
 ## Layouts
 

@@ -58,7 +58,7 @@ const invoked = new Set<string>()
 const subscribed = new Set<string>()
 
 // Imported after the mock so both pick it up — see the comment above.
-const { buildAppService, buildIpcState } = await import('../fixtures/buildService')
+const { buildServices, buildIpcState } = await import('../fixtures/buildService')
 const { registerIpc } = await import('../../src/main/ipc')
 const { UNCHECKED_SENDERS } = await import('../../src/main/ipc/ipcSenderGuard')
 const { ThemeStore } = await import('../../src/main/theme/themeStore')
@@ -67,6 +67,7 @@ const { ClaudeOneShot } = await import('../../src/main/claude/claudeOneShot')
 const { PetStore } = await import('../../src/main/pets/petStore')
 const { PetService } = await import('../../src/main/pets/petService')
 const { SettingsService } = await import('../../src/main/settings/settingsService')
+const { SpellingService } = await import('../../src/main/spelling/spellingService')
 await import('../../src/preload/index')
 
 let home: string
@@ -76,11 +77,12 @@ let disposeIpc: () => void
 beforeEach(async () => {
   home = mkdtempSync(join(tmpdir(), 'apiary-ipcwiring-'))
   mkdirSync(join(home, '.claude', 'projects'), { recursive: true })
-  service = buildAppService({
+  const built = buildServices({
     configRoot: join(home, '.claude'),
     dbPath: join(home, 'apiary.db'),
     detectLive: async () => new Map(),
   })
+  service = built.service
   ipcHandlers.clear()
   ipcListeners.clear()
   sent.length = 0
@@ -89,6 +91,8 @@ beforeEach(async () => {
     service,
     chat: service.chat,
     plugins: service.plugins,
+    activeTabs: built.activeTabs,
+    spelling: new SpellingService(),
     state: buildIpcState(service, join(home, '.claude')),
     settings: new SettingsService(join(home, 'settings.json')),
     theme: {

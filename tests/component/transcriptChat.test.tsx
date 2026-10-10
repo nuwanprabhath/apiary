@@ -39,6 +39,11 @@ function play(fake: FakeApiary, sessionId: string, patch: Partial<ChatState>): v
   fake.emit('chatChanged', next)
 }
 
+/** True when the two boxes share no area: one sits beside the other, not over it. */
+function apart(a: DOMRectReadOnly, b: DOMRectReadOnly): boolean {
+  return a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top
+}
+
 describe('transcript chat', () => {
   it('sending starts the session as a chat and stays on the transcript, with Stop while Claude works', async () => {
     const { fake, sessionId } = await openChat()
@@ -136,6 +141,65 @@ describe('transcript chat', () => {
     expect(document.querySelector('[data-testid="chat-queued"]')).toBeNull()
   })
 
+  it('the working animation appears immediately after sending a message', async () => {
+    const { fake, sessionId } = await openChat()
+    await userEvent.fill(page.getByTestId('composer-input'), 'test message')
+    await userEvent.keyboard('{Enter}')
+    await until(() => fake.callsTo('chatSend').length === 1)
+
+    // The working line should appear as soon as status becomes busy, not wait for tab remount
+    const now = Date.now()
+    play(fake, sessionId, { status: 'busy', turnStartedAt: now, streaming: null })
+    await expect.element(page.getByTestId('chat-working')).toBeVisible()
+  })
+
+  it('the working animation stops when the turn ends and turnStartedAt is cleared', async () => {
+    const { fake, sessionId } = await openChat()
+    const now = Date.now()
+
+    // Start a turn
+    play(fake, sessionId, { status: 'busy', turnStartedAt: now, streaming: null })
+    await expect.element(page.getByTestId('chat-working')).toBeVisible()
+
+    // End the turn by changing status to idle and clearing turnStartedAt
+    play(fake, sessionId, { status: 'idle', turnStartedAt: null })
+
+    // Working line should disappear immediately
+    await expect.poll(() => document.querySelector('[data-testid="chat-working"]')).toBeNull()
+  })
+
+  it('a queued message shows a "Send now" button that sends it at once', async () => {
+    const { fake, sessionId } = await openChat()
+    play(fake, sessionId, { status: 'busy', turnStartedAt: Date.now(), queued: [{ id: 'q1', text: 'send this now', sentAt: Date.now() }] })
+    await expect.element(page.getByTestId('chat-queued-send-btn')).toBeVisible()
+    await userEvent.click(page.getByTestId('chat-queued-send-btn'))
+    await until(() => fake.callsTo('chatSendNow').length === 1)
+    expect(fake.callsTo('chatSendNow')).toEqual([[sessionId, 'q1']])
+
+    // Sent now, Claude takes it in and answers it
+    const sentAt = Date.now()
+    const session = fake.state.sessions.find((s) => s.sessionId === sessionId)!
+    session.messages = [...(session.messages ?? []), said('q1', 'user', [{ type: 'text', text: 'send this now' }])]
+    play(fake, sessionId, { queued: [], status: 'busy', turnStartedAt: sentAt })
+    fake.emit('treeChanged')
+
+    // Message should no longer show as queued
+    await expect.poll(() => document.querySelector('[data-testid="chat-queued"]')).toBeNull()
+    // New message should appear in the conversation
+    await textOf('chat-user', 'send this now', true)
+  })
+
+  it('the "Queued" label sits beside a queued message, never over its text', async () => {
+    const { fake, sessionId } = await openChat()
+    const text = 'A queued message long enough to wrap onto a second line in the chat column, so that the label would run over it if it were laid on top. '.repeat(2)
+    play(fake, sessionId, { status: 'busy', turnStartedAt: Date.now(), queued: [{ id: 'q1', text, sentAt: Date.now() }] })
+    await expect.element(page.getByTestId('chat-queued-send-btn')).toBeVisible()
+    const row = document.querySelector('[data-testid="chat-queued"]')!
+    const label = row.querySelector('.chat-queued-label')!.getBoundingClientRect()
+    const content = row.querySelector('.chat-queued-content')!.getBoundingClientRect()
+    expect(apart(label, content)).toBe(true)
+  })
+
   it('a background task reporting back is a quiet notice, and the line above the box says what is still running and how the last turn went', async () => {
     const { fake, sessionId } = await openChat()
     play(fake, sessionId, {
@@ -222,6 +286,15 @@ describe('transcript chat', () => {
     await textOf('chat-tool-in', 'ls src')
     await textOf('chat-tool-out', /main\s*renderer/)
     await textOf('chat-thought', 'Thought for 3s · 512 tokens', true)
+  })
+
+  it('a long thought is counted in minutes and seconds, not seconds alone', async () => {
+    const { fake, sessionId } = await openChat()
+    play(fake, sessionId, {
+      live: [said('t-think', 'assistant', [{ type: 'thinking', text: '' }])],
+      thoughts: { 't-think': { seconds: 192, tokens: 512 } },
+    })
+    await expect.poll(() => document.querySelector('[data-testid="chat-thought"]')?.textContent ?? '').toMatch('Thought for 3m 12s · 512 tokens')
   })
 
   it('a permission prompt is answered from the conversation', async () => {
@@ -407,9 +480,10 @@ describe('transcript chat', () => {
     await userEvent.click(page.getByTestId('composer-commands'))
     const menu = page.getByTestId('composer-command-menu').element()
     expect(menu.getAttribute('role')).toBe('dialog')
-    expect(menu.getAttribute('aria-label')).toBe('Slash commands')
+    expect(menu.getAttribute('aria-label')).toBe('Actions')
     const search = page.getByTestId('composer-command-search').element()
-    const options = [...document.querySelectorAll('[data-testid="composer-command-option"]')]
+    // Chat settings come first, then the commands: arrows move across both.
+    const options = [...document.querySelectorAll('[role="option"]')]
     expect(search.getAttribute('aria-activedescendant')).toBe(options[0].id)
     await userEvent.keyboard('{ArrowDown}')
     expect(search.getAttribute('aria-activedescendant')).toBe(options[1].id)

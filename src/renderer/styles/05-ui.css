@@ -1,0 +1,79 @@
+/*
+ * UI primitive components: OverflowToolbar and others.
+ */
+
+/* A menu is never a browser list: no bullets, no browser margin or padding (the surface sets its own). */
+:where([role="menu"]) { list-style: none; margin: 0; padding: 0; }
+
+.overflow-toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--control-gap);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.overflow-toolbar-push { margin-left: auto; }
+
+/* A hidden copy of every item at natural width, so hidden items can still be measured. */
+.overflow-toolbar-measure {
+  position: absolute;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  display: flex;
+  gap: var(--control-gap);
+  white-space: nowrap;
+}
+
+/* A small count after a label; it stays when the label is hidden. */
+.toolbar-badge {
+  flex: none;
+  padding: 0 var(--control-gap);
+  border-radius: var(--radius-xs);
+  background: var(--control-bg);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+.overflow-menu-item .toolbar-badge { margin-left: auto; }
+
+/* The » menu is a popup on the viewport: the `.context-menu` surface, placed by `.context-menu-floating`. */
+.overflow-menu { min-width: 180px; }
+
+.overflow-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--control-gap);
+  width: 100%;
+  height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  border: 0;
+  border-radius: var(--radius-row);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.overflow-menu-item:disabled { color: var(--muted); cursor: default; }
+.overflow-menu-item:focus-visible { background: var(--hover); outline: none; }
+.overflow-menu-item:hover:not(:disabled) { background: var(--hover); }
+.overflow-menu-item svg { width: var(--icon-size); height: var(--icon-size); flex: none; }
+.overflow-menu-item-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The toolbar's buttons never shrink; the branch chip is the one that narrows, to its icon, about
+   6em of name and the badge, before its name hides. The pinned items' labels then hide by
+   `data-compact` (see OverflowToolbar). */
+.overflow-toolbar > .toolbar-button { flex: none; }
+.overflow-toolbar > .toolbar-chip { flex: 0 1 auto; min-width: 0; }
+/* A short name ("main") starts beside its icon; the 6em floor is room for the ellipsis, not a gap. */
+.toolbar-chip .toolbar-button-label { flex: 0 1 auto; min-width: 6em; text-align: left; }
+.toolbar-chip-min .toolbar-button-label { flex: none; width: 6em; }
+/* Direct children only: the hidden measuring copy always shows every label. */
+.overflow-toolbar[data-compact="1"] > .toolbar-button .toolbar-button-label[data-mode="shrink"],
+.overflow-toolbar[data-compact="2"] > .toolbar-button .toolbar-button-label[data-mode] { display: none; }

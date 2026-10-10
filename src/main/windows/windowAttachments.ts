@@ -81,8 +81,9 @@ export class WindowAttachments {
 
 /**
  * A function that, called with a webContents, arranges for `onGone(id)` when that window is
- * destroyed or navigates to a new document (a reload): either way its renderer's views are gone
- * and will re-attach as they mount. Idempotent per webContents, so call it on every attach.
+ * destroyed or commits a new main-frame page (a reload): either way its renderer's views are gone
+ * and will re-attach as they mount. A navigation the guard cancels never commits, so it leaves the
+ * views alone. Idempotent per webContents, so call it on every attach.
  */
 export function windowLifetimeWatcher(onGone: (webContentsId: number) => void): (wc: WebContents) => void {
   const watched = new WeakSet<WebContents>()
@@ -91,8 +92,6 @@ export function windowLifetimeWatcher(onGone: (webContentsId: number) => void): 
     watched.add(wc)
     const id = wc.id
     wc.once('destroyed', () => { onGone(id) })
-    wc.on('did-start-navigation', (details) => {
-      if (details.isMainFrame && !details.isSameDocument) onGone(id)
-    })
+    wc.on('did-navigate', () => { onGone(id) })
   }
 }

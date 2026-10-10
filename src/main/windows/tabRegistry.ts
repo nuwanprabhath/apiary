@@ -11,9 +11,8 @@ export type { OpenTab } from '@shared/domain/tabs'
 /**
  * What tabs are open, across every window, for the Active section.
  *
- * Deliberately dumb: it holds exactly what each window last reported and nothing derived from it
- * — status classification reads `PtyManager` fresh at render time in ipc.ts, because activity
- * changes constantly and this registry should not become a second place that state can go stale.
+ * Deliberately dumb: it holds exactly what each window last reported. Each tab's activity is worked
+ * out when it is asked for, by `ActiveTabsService`, so nothing derived here can go stale.
  */
 export class TabRegistry {
   private byWindow = new Map<number, OpenTab[]>()

@@ -1,9 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import type { TranscriptMessage } from '@shared/domain/transcript'
-import { chatItems, describeTool, lastPrompt, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withoutToolCalls } from '@shared/chatTimeline'
+import { BackgroundTaskTally, chatItems, describeTool, lastPrompt, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withoutToolCalls } from '@shared/chatTimeline'
 
 const msg = (uuid: string, role: 'user' | 'assistant', blocks: TranscriptMessage['blocks']): TranscriptMessage =>
   ({ uuid, role, timestampMs: null, isSidechain: false, blocks })
+
+const startedInBackground = (id: string, task: string): TranscriptMessage[] => [
+  msg(`a-${id}`, 'assistant', [{ type: 'tool_use', id, name: 'Bash', input: { command: 'sleep 9', description: `Task ${task}`, run_in_background: true } }]),
+  msg(`r-${id}`, 'user', [{ type: 'tool_result', toolUseId: id, content: `Command running in background with ID: ${task}. Output is being written to: /tmp/x`, isError: false }]),
+]
+
+const finishedInBackground = (...tasks: string[]): TranscriptMessage =>
+  msg(`n-${tasks.join()}`, 'user', [{ type: 'text', text: `<task-notification>\n${tasks.map((t) => `<task-id>${t}</task-id>`).join('\n')}\n<status>completed</status>\n</task-notification>` }])
 
 const CONVERSATION: TranscriptMessage[] = [
   msg('u1', 'user', [{ type: 'text', text: 'list the files' }]),
@@ -73,16 +81,10 @@ describe('chat timeline', () => {
   })
 
   it('knows which background tasks are still running from the session file', () => {
-    const started = (id: string, task: string): TranscriptMessage[] => [
-      msg(`a-${id}`, 'assistant', [{ type: 'tool_use', id, name: 'Bash', input: { command: 'sleep 9', description: `Task ${task}`, run_in_background: true } }]),
-      msg(`r-${id}`, 'user', [{ type: 'tool_result', toolUseId: id, content: `Command running in background with ID: ${task}. Output is being written to: /tmp/x`, isError: false }]),
-    ]
-    const done = (...tasks: string[]): TranscriptMessage =>
-      msg(`n-${tasks.join()}`, 'user', [{ type: 'text', text: `<task-notification>\n${tasks.map((t) => `<task-id>${t}</task-id>`).join('\n')}\n<status>completed</status>\n</task-notification>` }])
-    const file = [...started('t1', 'b1'), ...started('t2', 'b2'), ...started('t3', 'b3'), done('b1')]
+    const file = [...startedInBackground('t1', 'b1'), ...startedInBackground('t2', 'b2'), ...startedInBackground('t3', 'b3'), finishedInBackground('b1')]
     expect(runningBackgroundTasks(file)).toEqual([{ taskId: 'b2', description: 'Task b2' }, { taskId: 'b3', description: 'Task b3' }])
     // On resume Claude Code reports every task the previous process left behind, in one notification.
-    expect(runningBackgroundTasks([...file, done('b2', 'b3')])).toEqual([])
+    expect(runningBackgroundTasks([...file, finishedInBackground('b2', 'b3')])).toEqual([])
     // An ordinary command is not a background task.
     expect(runningBackgroundTasks(CONVERSATION)).toEqual([])
   })
@@ -109,5 +111,26 @@ describe('chat timeline', () => {
     // One copy in the file answers one of the two sent.
     expect(stillQueued(queued, [at('f1', 'and lint too', 5200)])).toEqual([queued[1]])
     expect(stillQueued(queued, [at('f1', 'and lint too', 5200), at('f2', 'and lint too\n', 6100)])).toEqual([])
+  })
+})
+
+describe('BackgroundTaskTally', () => {
+  it('finds the same running tasks however the messages are split into batches', () => {
+    const file = [...startedInBackground('t1', 'b1'), ...startedInBackground('t2', 'b2'), finishedInBackground('b1')]
+    const whole = new BackgroundTaskTally()
+    whole.add(file)
+    const piecemeal = new BackgroundTaskTally()
+    for (const m of file) piecemeal.add([m])
+    expect(whole.tasks()).toEqual([{ taskId: 'b2', description: 'Task b2' }])
+    expect(piecemeal.tasks()).toEqual(whole.tasks())
+  })
+
+  it('pairs a background call with its result when they arrive in different batches', () => {
+    const [call, result] = startedInBackground('t1', 'b1')
+    const tally = new BackgroundTaskTally()
+    tally.add([call])
+    expect(tally.tasks()).toEqual([])
+    tally.add([result])
+    expect(tally.tasks()).toEqual([{ taskId: 'b1', description: 'Task b1' }])
   })
 })

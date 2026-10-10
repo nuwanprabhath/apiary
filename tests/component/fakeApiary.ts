@@ -30,6 +30,7 @@ import { fakeRef, gitApi } from './fake/git'
 import { fakePet, petsApi } from './fake/pets'
 import { message, sessionsApi } from './fake/sessions'
 import { settingsApi } from './fake/settings'
+import { spellingApi } from './fake/spelling'
 import type { Env, FakeApiary, FakeCall, FakeEvent, FakeOptions, FakeProject, FakeSession, FakeState } from './fake/state'
 import { initialThemeState, themesApi } from './fake/themes'
 import { tabsApi } from './fake/tabs'
@@ -173,6 +174,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     ...updateApi(env),
     ...tabsApi(env),
     ...gitApi(env),
+    ...spellingApi(),
     get initialTheme() { return state.theme },
     onActiveTabsChanged: on('activeTabsChanged'),
     onSelectTab: on('selectTab'),
@@ -195,6 +197,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     onChatChanged: on('chatChanged'),
     onChatLifecycle: on('chatLifecycle'),
     onUpdateChanged: on('updateChanged'),
+    onContextMenuRequested: on('contextMenuRequested'),
   }
 
   // Every method goes through here, so calls are recorded and a test can swap one out. The theme
@@ -214,6 +217,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
       value: (...sent: unknown[]) => {
         calls.push({ name, args: sent })
         if (spec?.args !== undefined && !spec.args(sent)) {
+          if (spec.kind === 'local') throw new Error('Invalid request.')
           return spec.kind === 'invoke' ? Promise.reject(new Error('Invalid request.')) : undefined
         }
         // A value Electron's IPC could not carry (a function, a DOM node) fails here as it would there.
@@ -222,7 +226,8 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
         const args = copies ? structuredClone(sent) : sent
         const swapped = overrides.get(name)
         const result = swapped !== undefined ? (swapped as (...a: unknown[]) => unknown)(...args) : original(...args)
-        return copies && result instanceof Promise ? result.then((value: unknown) => structuredClone(value)) : result
+        if (!copies) return result
+        return result instanceof Promise ? result.then((value: unknown) => structuredClone(value)) : structuredClone(result)
       },
     })
   }

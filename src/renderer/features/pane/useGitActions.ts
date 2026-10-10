@@ -7,6 +7,7 @@ import { useWorktreeConflict, type WorktreeConflictActions } from '../git/useWor
 import { useNotifications } from '../../ui/notifications'
 import { copyText } from '../../state/clipboard'
 import { fetchRemote, gitPull, gitPush } from '../../state/git'
+import { trackPull, trackPush } from '../../state/gitActivity'
 
 export interface GitActions extends WorktreeConflictActions {
   /** Which remote operation is running — each shells out to git and must not start twice. */
@@ -45,8 +46,9 @@ export function useGitActions({ terminal, gitStatus, loadGitStatus, onSessionSta
       // happened — the same confusion the Refresh button had before it grew a spinner. Pull and
       // push say how many commits moved, so "nothing to do" is distinguishable too.
       let message: string
-      if (kind === 'pull') message = pullMessage((await gitPull(terminal)).commits)
-      else if (kind === 'push') message = pushMessage(await gitPush(terminal))
+      const branch = gitStatus?.branch ?? 'the branch'
+      if (kind === 'pull') message = pullMessage((await trackPull(branch, gitPull(terminal))).commits)
+      else if (kind === 'push') message = pushMessage(await trackPush(branch, gitPush(terminal)))
       else {
         await fetchRemote(terminal)
         message = 'Fetched from remote.'
@@ -58,7 +60,7 @@ export function useGitActions({ terminal, gitStatus, loadGitStatus, onSessionSta
     } finally {
       setGitBusy(null)
     }
-  }, [terminal, loadGitStatus, notify, notifyError])
+  }, [terminal, gitStatus?.branch, loadGitStatus, notify, notifyError])
 
   /**
    * The "..." menu's commands, grouped the way VS Code groups its own: the everyday remote

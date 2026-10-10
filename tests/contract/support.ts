@@ -4,6 +4,7 @@
  * Vitest configs), and nothing from either implementation.
  */
 import type { ApiaryApi } from '@shared/api'
+import type { ContextMenuParamsLike, EditCommand } from '@shared/domain/contextMenu'
 import { IPC, type EventKey, type PayloadOf } from '@shared/ipc/contract'
 import { asSessionId, type SessionId } from '@shared/domain/ids'
 import type { ProjectNode, SessionNode } from '@shared/types'
@@ -33,6 +34,10 @@ export interface Bridge {
   openedUrls(): string[]
   /** The text the app asked the operating system's clipboard to hold, in order. */
   copied(): string[]
+  /** The edits the window was asked to make, in order, as main ran them (`editCommand`). */
+  editing(): EditCommand[]
+  /** A right-click the page does not answer itself, as Chromium reports it to main. */
+  rightClick(params: ContextMenuParamsLike): void
   /** What happens in the world outside the app, which no call can cause. */
   outside: {
     /** A commit is made in the repository's `main` (in a terminal, say) and not pushed. */

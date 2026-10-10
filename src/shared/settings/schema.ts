@@ -182,6 +182,8 @@ export const SETTINGS = {
   logRetentionDays: int(7, 1, 90),
   /** Total disk the logs may take, across every file. */
   logMaxSizeMb: int(20, 1, 500),
+  /** Spellcheck language code (e.g. 'fr-FR'), or 'system' to follow the system language. */
+  proofingLanguage: setting<string>({ guard: str, default: 'system' }),
 }
 
 export type SettingKey = keyof typeof SETTINGS

@@ -39,7 +39,7 @@ export function ModelPicker({ model, effort, models, onModel, onEffort }: Props)
         data-testid="composer-model-pill"
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Choose the model and effort"
+        title={`${modelLabel(model, models)}: choose the model and effort`}
         onClick={() => { setOpen(!open) }}
       >
         <span className="chat-model-name">{modelLabel(model, models)}</span>

@@ -1,3 +1,4 @@
+import { contextMenuRequestFrom, isEditCommand, type ContextMenuParamsLike } from '@shared/domain/contextMenu'
 import { defineBridgeContract, LONG_SESSION } from '../contract/bridgeContract'
 import { BAR_ITEM, BAR_PLUGIN, CONSENT_ITEM, CONSENT_PLUGIN, FEED_VERSION, STATUS_ITEM, STATUS_PANEL, STATUS_PLUGIN } from '../contract/world'
 import { createFakeApiary, FIXTURE_PROJECTS, FIXTURE_SESSIONS, fakeRef, message, type FakeSession } from './fakeApiary'
@@ -45,6 +46,8 @@ defineBridgeContract('fakeApiary', async ({ imported = true, longSessionMessages
     },
     openedUrls: () => [...fake.state.opened],
     copied: () => [...fake.state.copied],
+    editing: () => fake.callsTo('editCommand').map(([command]) => command).filter(isEditCommand),
+    rightClick: (params: ContextMenuParamsLike) => { fake.emit('contextMenuRequested', contextMenuRequestFrom(params)) },
     outside: {
       commitLocally: () => { main().ahead += 1; return Promise.resolve() },
       advanceRemote: () => { main().pending += 1; return Promise.resolve() },

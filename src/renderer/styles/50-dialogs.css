@@ -174,7 +174,23 @@
 .composer-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .composer-input:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.composer-actions { display: flex; align-items: center; gap: 10px; padding-top: 8px; }
+.composer-actions {
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 8px 10px; padding-top: 8px;
+  container-type: inline-size;
+}
+.composer-actions > * { flex: none; }
+/* Giving way as the pane narrows, in this order: the hint (below; its words are in Send's title), the
+   "Model" label, the mode button's text (its name stays in the title and aria-label), then the
+   model chip's text truncates. The row never wraps, so Send stays on it at the right. */
+@container (max-width: 440px) { .composer-model > span { display: none; } }
+@container (max-width: 400px) { .chat-mode-button > span { display: none; } }
+/* Then the model chip shrinks, its name ending in an ellipsis (the full name is in its title), but
+   never below about 5em: a fixed 6em left Send 5px short in Glass, whose type is wider. */
+@container (max-width: 360px) {
+  .composer-actions > .chat-model { flex: 0 1 auto; min-width: 7em; }
+  .chat-model-pill { max-width: 100%; }
+  .chat-model-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 .composer-model { display: flex; align-items: center; gap: 6px; }
 .composer-model select {
   border: 1px solid var(--border);
@@ -185,18 +201,25 @@
   font: inherit;
   font-size: 12px;
 }
+/* The hint shows only when it fits whole, whatever its wording: a one-line, clipped wrapping row
+   whose spacer takes the first line, so text too wide for the room drops to the hidden second line
+   instead of pushing Send off the row. A fixed width threshold missed the longer chat-mode hint. */
 .composer-hint {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  height: 1.5em;
   overflow: hidden;
   font-size: 12px;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.5;
 }
+.composer-hint::before { content: ''; flex: 1 0 0; height: 1.5em; }
+.composer-hint-text { white-space: nowrap; }
 /* Sizing, colour and disabled state come from the control layer: `.composer-send` is listed
    there beside `.btn.primary`, and only its wider padding is its own. */
-.composer-send { padding: 0 14px; }
+.composer-send { padding: 0 14px; margin-left: auto; }
 
 /* An image path we could not turn into a picture, shown as the line it actually was. */
 .composer-path-fallback {
@@ -254,11 +277,15 @@
 
 /* The shared right-click menu (tab strip, terminal, sidebar). Fixed to the viewport at the cursor,
    so it is never clipped by the overflow of whatever opened it; shares the git menu's look. */
-.context-menu {
+.context-menu-floating {
+  /* The placement: a menu positioned by left/top on the viewport. `.context-menu` is the surface
+     every `Menu` carries. */
   position: fixed;
   z-index: var(--z-popover);
-  padding: 4px;
   min-width: 170px;
+}
+.context-menu {
+  padding: 4px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
@@ -295,6 +322,14 @@
   border-top: 1px solid var(--border);
   border-radius: 0 0 var(--radius-row) var(--radius-row);
 }
+/* A submenu's parent: its arrow sits at the right edge, and its panel opens beside it. */
+.context-menu-parent { display: flex; align-items: center; }
+.context-menu-parent[aria-expanded="true"] { background: var(--hover); }
+.context-menu-arrow { flex: none; margin-left: auto; width: var(--icon-size); height: var(--icon-size); }
+.context-menu-sub { position: relative; }
+/* The top offset cancels the menu's padding and border, so the first flyout item lines up with its parent. */
+.context-menu-flyout { position: absolute; top: -5px; left: calc(100% + 6px); }
+.context-menu-flyout-left { left: auto; right: calc(100% + 6px); }
 
 /* Dragging a tab to reorder it: the tab being carried fades, and the one it would land on shows an
    insertion edge. A border would shift the strip's layout as it appears, so the marker is an inset

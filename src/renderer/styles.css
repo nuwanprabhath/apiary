@@ -14,6 +14,7 @@
 @import url('./styles/00-tokens.css');
 @import url('./styles/01-base.css');
 @import url('./styles/02-controls.css');
+@import url('./styles/05-ui.css');
 @import url('./styles/10-shell.css');
 @import url('./styles/20-sidebar.css');
 @import url('./styles/30-panes.css');

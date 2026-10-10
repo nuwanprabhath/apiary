@@ -1,25 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { until } from './helpers'
-import type { FakeApiary } from './fakeApiary'
-
-/** Starts a new Claude session in work-a and returns its pty id, with its terminal focused. */
-async function openClaudeTerminal(fake: FakeApiary): Promise<string> {
-  const toggle = [...document.querySelectorAll<HTMLElement>('[data-testid="project-toggle"]')]
-    .find((t) => t.querySelector('.project-label')?.textContent === 'work-a')
-  const button = toggle?.closest('[data-testid="project-group"]')
-    ?.querySelector<HTMLElement>('[data-testid="new-session-button"]')
-  if (button === null || button === undefined) throw new Error('no new-session-button on work-a')
-  await userEvent.click(button)
-  await expect.element(page.getByTestId('terminal-session')).toBeVisible()
-  await until(() => fake.callsTo('ptySnapshot').length > 0)
-  const ptyId = fake.callsTo('ptySnapshot')[0][0] as string
-  await userEvent.click(page.getByTestId('terminal-session'))
-  return ptyId
-}
-
-const writes = (fake: FakeApiary): string[] => fake.callsTo('ptyWrite').map((args) => args[1] as string)
+import { openClaudeTerminal, ptyWrites, until } from './helpers'
 
 describe('Ctrl+Z in a Claude Code terminal', () => {
   it('asks before suspending, and "don\'t suspend" is the default an Enter picks', async () => {
@@ -32,7 +14,7 @@ describe('Ctrl+Z in a Claude Code terminal', () => {
 
     await userEvent.keyboard('{Enter}')
     await expect.element(page.getByTestId('suspend-confirm-dialog')).not.toBeInTheDocument()
-    expect(writes(fake)).not.toContain('\x1a')
+    expect(ptyWrites(fake)).not.toContain('\x1a')
   })
 
   it('suspends only when that is what was chosen', async () => {
@@ -41,7 +23,7 @@ describe('Ctrl+Z in a Claude Code terminal', () => {
 
     await userEvent.keyboard('{Control>}z{/Control}')
     await userEvent.click(page.getByTestId('suspend-confirm-suspend'))
-    await expect.poll(() => writes(fake)).toContain('\x1a')
+    await expect.poll(() => ptyWrites(fake)).toContain('\x1a')
   })
 
   it('a suspended Claude gets a Resume bar, and keys typed meanwhile never reach its prompt', async () => {
@@ -52,9 +34,9 @@ describe('Ctrl+Z in a Claude Code terminal', () => {
       + 'Note: ctrl + z now suspends Claude Code, ctrl + _ undoes input.\r\n')
     await expect.element(page.getByTestId('terminal-suspended')).toBeVisible()
 
-    const before = writes(fake).length
+    const before = ptyWrites(fake).length
     await userEvent.keyboard('fg')
-    expect(writes(fake).length).toBe(before)
+    expect(ptyWrites(fake).length).toBe(before)
 
     await userEvent.keyboard('{Enter}')
     await until(() => fake.callsTo('ptyResume').length === 1)
@@ -80,7 +62,7 @@ describe('Ctrl+Z in a shell terminal', () => {
     await userEvent.click(page.getByTestId('terminal-shell'))
 
     await userEvent.keyboard('{Control>}z{/Control}')
-    await until(() => writes(fake).includes('\x1a'))
+    await until(() => ptyWrites(fake).includes('\x1a'))
     expect(document.querySelector('[data-testid="suspend-confirm-dialog"]')).toBeNull()
   })
 })

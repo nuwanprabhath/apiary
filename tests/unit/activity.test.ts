@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { classifyActivity, describeActivityStatus } from '@shared/activity'
+import { chatActivity, classifyActivity, describeActivityStatus, withBackgroundTasks } from '@shared/activity'
+import { emptyChatState, type ChatPermissionRequest, type ChatState } from '@shared/domain/chat'
+import { asSessionId } from '@shared/domain/ids'
 
 /**
  * The classifier's contract, stated over screen text.
@@ -130,5 +132,51 @@ describe('describeActivityStatus', () => {
     expect(describeActivityStatus('waiting')).toBe('Waiting for input')
     expect(describeActivityStatus('idle')).toBe('Idle')
     expect(describeActivityStatus('stopped')).toBe('Stopped')
+  })
+})
+
+describe('withBackgroundTasks', () => {
+  it('turns an idle session running while a background task it started is still going', () => {
+    expect(withBackgroundTasks('idle', 1)).toBe('running')
+    expect(withBackgroundTasks('idle', 3)).toBe('running')
+  })
+
+  it('leaves an idle session idle when no background task is running', () => {
+    expect(withBackgroundTasks('idle', 0)).toBe('idle')
+  })
+
+  it('never overrides a status the tasks do not decide: a prompt, a stopped process, a running one', () => {
+    expect(withBackgroundTasks('waiting', 2)).toBe('waiting')
+    expect(withBackgroundTasks('stopped', 2)).toBe('stopped')
+    expect(withBackgroundTasks('running', 0)).toBe('running')
+  })
+})
+
+describe('chatActivity', () => {
+  const chat = (over: Partial<ChatState> = {}): ChatState => ({ ...emptyChatState(asSessionId('s1')), status: 'idle', ...over })
+  const permission: ChatPermissionRequest = { requestId: 'p1', toolName: 'Bash', description: 'rm -f x', input: {}, canAlwaysAllow: false }
+  const task = { taskId: 'b1', description: 'Sleep' }
+
+  it('is stopped with no chat, or once its claude process has exited', () => {
+    expect(chatActivity(null)).toBe('stopped')
+    expect(chatActivity(chat({ status: 'exited' }))).toBe('stopped')
+  })
+
+  it('is running while a turn is busy', () => {
+    expect(chatActivity(chat({ status: 'busy' }))).toBe('running')
+  })
+
+  it('is waiting while a permission request is open, even mid-turn', () => {
+    expect(chatActivity(chat({ status: 'busy', permissions: [permission] }))).toBe('waiting')
+  })
+
+  it('is idle between turns with nothing running, and while its process is still starting', () => {
+    expect(chatActivity(chat())).toBe('idle')
+    expect(chatActivity(chat({ status: 'starting' }))).toBe('idle')
+    expect(chatActivity(chat({ backgroundTasks: [] }))).toBe('idle')
+  })
+
+  it('is running between turns while a background task it started is still going', () => {
+    expect(chatActivity(chat({ backgroundTasks: [task] }))).toBe('running')
   })
 })

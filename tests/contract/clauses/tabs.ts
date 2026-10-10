@@ -24,6 +24,18 @@ export function defineTabClauses(ctx: Ctx): void {
       expect(ctx.heard.count('activeTabsChanged')).toBe(1)
     })
 
+    it('a chat is running in the list while Claude has a background task in flight, though its turn is over, and idle once the task reports back', async () => {
+      await ctx.api.chatStart(STD.csv.id, { takeOver: false })
+      ctx.api.reportTabs([tab(STD.csv.id)])
+      await ctx.api.chatSend(STD.csv.id, 'run a background task')
+      await expect.poll(async () => {
+        const chat = await ctx.api.chatState(STD.csv.id)
+        return chat?.status === 'idle' && (chat.backgroundTasks?.length ?? 0) === 1
+      }, { timeout: 5000 }).toBe(true)
+      expect((await ctx.api.activeTabs()).find((t) => t.key === STD.csv.id)?.status).toBe('running')
+      await expect.poll(async () => (await ctx.api.activeTabs()).find((t) => t.key === STD.csv.id)?.status, { timeout: 5000 }).toBe('idle')
+    })
+
     it('each report replaces the last: a tab left out of it is closed', async () => {
       ctx.api.reportTabs([tab(STD.csv.id), tab(STD.switcher.id)])
       ctx.api.reportTabs([tab(STD.switcher.id)])

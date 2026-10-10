@@ -1,10 +1,18 @@
-import type { JSX } from 'react'
+import { type JSX, useEffect, useState } from 'react'
 import type { AppSettingsPayload } from '@shared/api'
+import { spellingLanguages } from '../../../state/spelling'
 import { CheckboxSetting } from '../fields/CheckboxSetting'
 
 export function GeneralSection(
   { draft, patch }: { draft: AppSettingsPayload; patch: (fields: Partial<AppSettingsPayload>) => void },
 ): JSX.Element {
+  const [languages, setLanguages] = useState<string[]>([])
+  useEffect(() => {
+    void spellingLanguages().then(setLanguages)
+  }, [])
+  // A saved language this machine no longer has stays listed, so the select shows what is saved.
+  const saved = draft.proofingLanguage
+  const proofingOptions = saved === 'system' || languages.includes(saved) ? languages : [...languages, saved]
   return (
     <>
     <label className="settings-row settings-row-stacked">
@@ -19,6 +27,22 @@ export function GeneralSection(
       <span className="settings-help">
         Set this only if resuming fails with &quot;claude: command not found&quot;. Run
         <code> which claude </code> in your shell to find it.
+      </span>
+    </label>
+    <label className="settings-row settings-row-stacked">
+      <strong>Proofing language</strong>
+      <select
+        className="search"
+        data-testid="proofing-language-select"
+        value={saved}
+        onChange={(e) => { patch({ proofingLanguage: e.target.value }) }}
+      >
+        <option value="system">Follow the system language</option>
+        {proofingOptions.map((code) => <option key={code} value={code}>{code}</option>)}
+      </select>
+      <span className="settings-help">
+        Spelling suggestions and underlines use this dictionary. The change takes effect when you save.
+        On macOS this setting has no effect; spelling uses the languages in System Settings.
       </span>
     </label>
     <CheckboxSetting

@@ -133,7 +133,7 @@ export const SANCTIONED = [
     name: 'construct-in-container',
     kind: 'syntax',
     files: MAIN,
-    selectors: ["NewExpression[callee.name=/^(PtyManager|SessionStore|SearchIndex|SearchService|ChatManager|PetService|PetStore|ThemeStore|ClaudeOneShot|SessionWatcher|ClaudeProjectsSource|SettingsService|GitService|TerminalService|ImageStore|ChatService|PluginService|WorktreeResolver|BranchOps|MrStatusCache|TranscriptReader|SearchClient)$/]"],
+    selectors: ["NewExpression[callee.name=/^(PtyManager|SessionStore|SearchIndex|SearchService|ChatManager|PetService|PetStore|ThemeStore|ClaudeOneShot|SessionWatcher|ClaudeProjectsSource|SettingsService|GitService|TerminalService|ImageStore|ChatService|PluginService|WorktreeResolver|BranchOps|MrStatusCache|TranscriptReader|SearchClient|ActiveTabsService)$/]"],
     // The search worker is its own thread with its own composition root: it opens its own SearchIndex.
     allow: ['src/main/app/container.ts', 'src/main/search/searchWorker.ts'],
     description: 'Long-lived objects are built only in the composition root.',
@@ -377,6 +377,20 @@ export const SANCTIONED = [
       'wrap the call in `ignoreErrors(fn, why)` / `ignoreErrorsAsync` from @shared/ignoreErrors so the next reader knows it is deliberate.',
   },
   {
+    name: 'one-home-for-durations',
+    kind: 'syntax',
+    files: SRC,
+    selectors: [
+      'FunctionDeclaration[id.name=/^(format|human|pretty)\\w*(Duration|Elapsed)\\w*$/i]',
+      'VariableDeclarator[id.name=/^(format|human|pretty)\\w*(Duration|Elapsed)\\w*$/i]',
+    ],
+    allow: ['src/shared/time.ts'],
+    description: 'Durations are formatted in one place.',
+    message:
+      'Format a duration with the formatter in src/shared/time.ts (add a variant there if you need one). ' +
+      'A 1.35.0 agent wrote `formatElapsedTime` beside the existing `formatDuration`; two formatters drift into "1h 0m" in one place and "60m" in another.',
+  },
+  {
     name: 'error-message-helper',
     kind: 'syntax',
     files: SRC,
@@ -400,8 +414,12 @@ export const SANCTIONED = [
     name: 'no-cast-through-unknown',
     kind: 'syntax',
     files: SRC,
-    selectors: ["TSAsExpression > TSAsExpression[typeAnnotation.type='TSUnknownKeyword']"],
-    description: 'No `x as unknown as T`.',
+    selectors: [
+      "TSAsExpression > TSAsExpression[typeAnnotation.type='TSUnknownKeyword']",
+      // `as never` fits anywhere: a 1.35.0 agent used it to widen the preload bridge's type.
+      "TSAsExpression[typeAnnotation.type='TSNeverKeyword']",
+    ],
+    description: 'No `x as unknown as T` and no `x as never`.',
     message:
       'Narrow with a type guard instead (shared guards in @shared/guards, IPC argument guards in src/shared/ipc). ' +
       'A double cast is how an unvalidated renderer value reached a handler typed as validated (petUpdate).',

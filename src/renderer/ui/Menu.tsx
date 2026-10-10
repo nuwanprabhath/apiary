@@ -65,7 +65,7 @@ type MenuProps = Omit<HTMLAttributes<HTMLElement>, 'role'> & {
  * A caller's own `onKeyDown` runs first; if it calls `preventDefault` the default keys step aside
  * (a submenu's ArrowLeft, say). Left/Right between menus is the owner's to add.
  */
-export function Menu({ as = 'div', ref, testId, focusOnOpen = true, onKeyDown, ...rest }: MenuProps): JSX.Element {
+export function Menu({ as = 'div', ref, testId, focusOnOpen = true, onKeyDown, className, ...rest }: MenuProps): JSX.Element {
   const own = useRef<HTMLElement | null>(null)
   useMenuOpenFocus(own, focusOnOpen)
   const setRef = useCallback((node: HTMLElement | null) => {
@@ -82,6 +82,9 @@ export function Menu({ as = 'div', ref, testId, focusOnOpen = true, onKeyDown, .
       if (!e.defaultPrevented && own.current !== null) onMenuKeyDown(e, own.current)
     },
     ...rest,
+    // The popup surface is not the caller's to forget: a menu with no class used to render as a
+    // bare list with browser bullets.
+    className: className === undefined ? 'context-menu' : `context-menu ${className}`,
   })
 }
 

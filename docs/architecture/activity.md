@@ -24,7 +24,8 @@ rendering, handed to a view that wants to *paint* it.
 `waiting` at an unmistakable prompt (`Do you want to proceed?`, a confirm footer, a `❯ 1.` option
 cursor), `running` if the spinner shows a live elapsed timer in parentheses (`(2s · thinking)` —
 the finished form `✻ Cooked for 2s · done` has none), `running` if anything was printed in the last
-two seconds (which is what covers a tab running something that is not Claude), `idle` otherwise.
+two seconds (which is what covers a tab running something that is not Claude), `idle` otherwise,
+unless a background task is still in flight (below).
 Only the bottom fifteen non-blank lines are scanned, because that is where the furniture lives and
 everything above it is conversation.
 
@@ -42,3 +43,24 @@ The dots are colour *and* motion: a slow breath for `running`, a double-knock pu
 row for `waiting`, stillness for `idle` and `stopped`. `ActivityLegend.tsx`, on the Active header,
 is the only place that vocabulary is explained — it draws real `.status-dot`s so the legend
 animates exactly as the rows do.
+
+## Background tasks
+
+A background task (`run_in_background`) runs with nothing on the screen. A claude whose turn is over
+but which still has one in flight is `running`, not `idle`: `withBackgroundTasks` in
+`src/shared/activity.ts` makes that call, for both kinds of tab.
+
+- **A terminal tab** is classified by `ActiveTabsService` (`src/main/terminals/activeTabsService.ts`).
+  The pty decides first, and the transcript is asked only when that status is `idle`. A dead pty is
+  `stopped` and its transcript is never read, because a claude that died with tasks open never writes
+  their notifications, so any count would be stale.
+- **A chat tab** uses `chatActivity` alone, from the chat's own `backgroundTasks`. The transcript is
+  not read.
+- **The count for a terminal tab** is `TranscriptService.runningBackgroundTasks`
+  (`src/main/sessions/transcriptService.ts`). It reads the session file from the offset already read
+  and feeds each line to a `BackgroundTaskTally` (`src/shared/chatTimeline.ts`): a `run_in_background`
+  call stays open until its result reports `running in background with ID`, and a `task_notification`
+  closes it. The first read of a session in a launch scans the whole file.
+- **Either kind** reaches the sidebar as `activeTabsChanged`: a session file write (the watcher) or a
+  chat's activity changing (`ChatService`). A chat's state is never broadcast, so the sidebar sees only
+  the status.

@@ -35,6 +35,11 @@ export function defineMiscClauses(ctx: Ctx): void {
       expect(await ctx.api.vsCodeAvailable()).toBe(false)
       await expect(ctx.api.openInVsCode({ kind: 'session', id: STD.csv.id })).rejects.toThrow()
     })
+
+    it('opens no mentioned file without it, and refuses a mention that is not text', async () => {
+      await expect(ctx.api.openMentionedFile({ kind: 'session', id: STD.csv.id }, 'README.md')).rejects.toThrow()
+      await expect(ctx.api.openMentionedFile({ kind: 'session', id: STD.csv.id }, 7 as never)).rejects.toThrow()
+    })
   })
 
   describe('the diagnostic log', () => {

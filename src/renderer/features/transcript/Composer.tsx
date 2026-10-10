@@ -1,5 +1,5 @@
 import { ptyIdOfSession, type PtyId } from '@shared/domain/ids'
-import { type JSX, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { type JSX, type KeyboardEvent, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import {
   isChatPermissionMode,
   type ChatEffort, type ChatPermissionMode, type ChatState,
@@ -86,6 +86,8 @@ export function Composer({
   const busy = chat?.status === 'busy'
   const mode = chatRunning ? shownMode(chat.permissionMode) : startMode
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  /** The "/" menu's keys, set while typing "/" has it open; it sees Up/Down/Enter/Escape first. */
+  const menuKeys = useRef<((e: KeyboardEvent) => boolean) | null>(null)
   // The height the box was dragged to, which it never shrinks below; null to fit what is typed.
   const [dragged, setDragged] = useState<number | null>(() => loadComposerHeight(MIN_HEIGHT))
 
@@ -315,6 +317,7 @@ export function Composer({
           void addImages(images)
         }}
         onKeyDown={(e) => {
+          if (chatMode && menuKeys.current?.(e) === true) { e.preventDefault(); return }
           if (e.key === 'Escape' && busy) { e.preventDefault(); interrupt(); return }
           if (e.key !== 'Enter' || e.shiftKey) return
           e.preventDefault()
@@ -325,8 +328,14 @@ export function Composer({
       <div className="composer-actions">
         {chatMode && (
           <CommandPalette
+            sessionId={session.sessionId}
             commands={chatRunning ? chat.commands : null}
-            onRun={(command) => { void send(command) }}
+            composerText={text}
+            keyHandler={menuKeys}
+            onRun={(command) => {
+              void send(command)
+              if (text.startsWith('/')) setText('')
+            }}
             onInsert={(command) => {
               setText(command)
               textareaRef.current?.focus()
@@ -357,7 +366,7 @@ export function Composer({
             {MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </label>}
-        <span className="composer-hint muted" data-testid="composer-hint">{hint}</span>
+        <span className="composer-hint muted" data-testid="composer-hint"><span className="composer-hint-text">{hint}</span></span>
         {chatMode && <ModeMenu mode={mode} onMode={chooseMode} />}
         {busy ? (
           <button className="btn composer-send" data-testid="composer-stop" title="Stop Claude (Esc)" onClick={interrupt}>
@@ -368,6 +377,8 @@ export function Composer({
             className="primary composer-send"
             data-testid="composer-send"
             disabled={!session.cwdExists || sending || (text.trim() === '' && attachments.length === 0)}
+            // The hint is hidden when the footer is narrow; this keeps its words reachable.
+            title={hint === '' ? undefined : hint}
             onClick={() => { void send() }}
           >
             {sending ? 'Sending…' : 'Send'}

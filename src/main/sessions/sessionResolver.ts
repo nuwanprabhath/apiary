@@ -31,9 +31,13 @@ export class SessionResolver {
   }
 
   requireSession(sessionId: string): StoredSession {
-    const session = this.store.getSession(sessionId)
+    const session = this.findSession(sessionId)
     if (!session) throw new Error(`Unknown session: ${sessionId}`)
     return session
+  }
+
+  findSession(sessionId: string): StoredSession | null {
+    return this.store.getSession(sessionId)
   }
 
   /**

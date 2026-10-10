@@ -16,3 +16,4 @@ coverage/
 !.vscode/extensions.json
 .verify/
 .claude/skills/verify-apiary/drives/local/
+/ui-review/

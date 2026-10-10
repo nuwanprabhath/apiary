@@ -4,6 +4,105 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.35.0] - 2026-10-10
+
+### Added
+
+- **"/" opens an actions menu you can filter.**
+  - Clicking the "/" button and typing "/" in the message box open the same menu, with a "Filter
+    actions…" box at the top, like VS Code's. "Chat settings" come first, then Claude's commands.
+  - Rows are one calm line each: the names in one column and the descriptions in the next. The
+    selected row's full description and arguments show in a footer.
+  - The menu fits inside its pane and is opaque in every theme, Glass included.
+- **Per-chat settings.** The first is "Show tool calls": hide or show what Claude ran and what came
+  back, for this chat only.
+  - You can change it mid-turn while Claude works.
+  - The choice is saved per session, survives a restart, and applies in every window showing that
+    chat.
+  - A chat with no choice of its own follows Settings → General. The old per-window "Hide tool
+    calls" checkbox is gone.
+- **Spelling suggestions.**
+  - Click a misspelled word in a text field to see suggestions; choose one to replace the word.
+  - Right-click shows the app's own menu: Cut, Copy, Paste and Select all for text, plus a
+    "Spelling" submenu over a misspelled word.
+  - Settings → General gains a "Proofing language" setting, which follows your system language by
+    default.
+- **Find in a transcript.** Cmd+F on macOS (Ctrl+F elsewhere) opens a small find box at the top
+  right of the transcript, like VS Code's, styled to match the theme.
+  - Matches are highlighted, and the current one stands out.
+  - The count shows "3 of 12", or "No results" in red.
+  - Enter and Shift+Enter jump between matches.
+  - Terminals keep their own keys.
+- **Open a mentioned file in VS Code.** A file name or path in the transcript becomes a link when VS
+  Code is available. The main process resolves it inside the session's own folder and opens only a
+  file that is really there.
+- **"Send now" on a queued message** sends it at once, interrupting the current turn instead of
+  waiting for it to end.
+- **Pull from a worktree's menu.** Right-click a worktree in the sidebar to fast-forward its branch
+  from upstream. The item is disabled, with the reason, when the branch has no upstream.
+- **The status bar shows what is running.** "Pulling feature/wt…" with a spinner, then "Pulled
+  feature/wt (3 commits)" or "Pull failed" (click it for the error).
+  - It covers Pull from the worktree menu and the shell toolbar's pull and push.
+  - Several at once show as "+2", and hovering lists them.
+  - Any future long action can use it.
+- **Every message shows when it was sent** ("10:29 AM", "Oct 9, 10:29 AM"), above the message, as in
+  VS Code's Claude chat. It shows once per minute, in the transcript and in the chat.
+
+### Fixed
+
+- **The "working" line no longer runs forever after Claude stops.** A turn now ends when Claude
+  answers, even if a queued message never echoed back exactly. Before, the line could show
+  "Pondering… (12391s)" with nothing running.
+- **The "working" line appears again after you send.** Clicking a link in the transcript (which opens
+  outside the app) could disconnect the window from its chats' updates until the tab was reopened.
+- **Long durations read as hours, minutes and seconds** ("2h 5m 3s", not "7503s").
+- **The "Queued" label no longer overlaps the message text.**
+- **The shell toolbar reads well at every width**, like VS Code's panel header: "⌄ Shell", the
+  branch and its behind/ahead count, then the actions.
+  - What does not fit moves whole into one "»" menu, in priority order: a real popup anchored to
+    the button.
+  - The branch name shortens with an ellipsis, and the word "Shell" hides whole rather than being cut.
+- **Narrow panes keep everything whole.**
+  - The pane header shortens "Resume in terminal" to "Resume".
+  - The message box's hint shows only when it fits, and Send stays on the right of its row.
+  - The model and mode buttons compact before anything is cut.
+- **The ACTIVE section lists a session once** when it is open in two panes.
+- **The ACTIVE section shows a session as running while its background task runs**, in both chat and
+  terminal sessions.
+- **Pets wrap up their conversations.** When two pets meet, they take turns, at most five lines each,
+  and end with a goodbye instead of stopping mid-topic.
+
+### Changed (for contributors and agents)
+
+- **A UI quality gate.** Every change a person sees has its states in a UI scenario
+  (`tests/component/ui/`).
+  - Each scenario runs a layout audit in two window widths and three themes. The audit fails on:
+    clipped labels, cut-off controls, overlaps, popups the page shows through, browser-default
+    controls, bullets in menus, misaligned toolbars, low contrast and unnamed icon buttons.
+  - It saves screenshots for review; `npm run ui:review` puts them on one page.
+  - `classesDefined` fails a class no stylesheet defines.
+  - The Stop hook requires a scenario and a passing audit for any renderer change.
+  - The `ui-review` skill holds the design-spec format and the review checklist.
+  - `Menu` always draws the popup surface, so a menu cannot render unstyled.
+
+- **New guards, each added after a Haiku agent's real shortcut:**
+  - **Stop hook (the agent's turn end):**
+    - checks the whole branch since `main`, not only uncommitted changes, including knip and the
+      layer rules;
+    - runs the tests the branch changed;
+    - refuses a `src/` change with no test, and a branch with fewer test cases (unless a commit's
+      `No-Test-Reason:` or `Removed-Tests-Reason:` trailer says why);
+    - refuses to finish with uncommitted work;
+    - stays blocked for five attempts, then records `apiary-not-done`.
+  - **Lint rules:** `one-home-for-durations`, and `as never` casts are now rejected.
+  - **Architecture tests:** `lintDisables` (a new disable is reviewed) and `preloadIsGenerated`.
+  - **Comments:** placeholder comments ("will be shown here", "stub for") are errors.
+- **Contract kind `local`** for calls implemented inside the preload (Electron's `webFrame`), still
+  generated from the contract.
+- **Running headless agents:** the `agent-orchestration` skill and `scripts/agents/run-agent.sh`
+  (Haiku or Sonnet in worktrees, briefs, context limits, verifying claims, a watchdog for report
+  polishing). The ledger is `docs/reviews/2026-10-09-progress.md`.
+
 ## [1.34.0] - 2026-10-08
 
 ### Added

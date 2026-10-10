@@ -103,6 +103,32 @@ describe('ChatManager', () => {
     expect(states.slice(firstAnswered, secondAnswered).every((s) => s.status === 'busy')).toBe(true)
   }, 20000)
 
+  it('Send now interrupts the reply a queued message waits on, then sends that message, which is answered', async () => {
+    const { until } = start()
+    manager!.send(SESSION, 'slow')
+    await until((s) => (s.streaming?.text ?? '') !== '')
+    manager!.send(SESSION, 'hello queued')
+    const queued = manager!.state(SESSION)?.queued ?? []
+    expect(queued.map((q) => q.text)).toEqual(['hello queued'])
+    manager!.sendNow(SESSION, queued[0].id)
+    const done = await until((s) => s.status === 'idle' && textOf(s).includes('You said: hello queued'))
+    expect(done.queued).toEqual([])
+    expect(textOf(done)).toEqual(['slow', '[Request interrupted by user]', 'hello queued', 'You said: hello queued'])
+  }, 20000)
+
+  it('a queued message that an interrupt left unsent stays queued, and Send now sends it as a turn of its own', async () => {
+    const { until } = start()
+    manager!.send(SESSION, 'slow')
+    await until((s) => (s.streaming?.text ?? '') !== '')
+    manager!.send(SESSION, 'hello queued')
+    manager!.interrupt(SESSION)
+    const stopped = await until((s) => s.status === 'idle' && textOf(s).includes('[Request interrupted by user]'))
+    expect(stopped.queued.map((q) => q.text)).toEqual(['hello queued'])
+    manager!.sendNow(SESSION, stopped.queued[0].id)
+    const done = await until((s) => s.status === 'idle' && textOf(s).includes('You said: hello queued'))
+    expect(done.queued).toEqual([])
+  }, 20000)
+
   it('knows how full the context is from the start, before any turn has ended', async () => {
     const { until } = start()
     const known = await until((s) => s.contextWindow !== null)

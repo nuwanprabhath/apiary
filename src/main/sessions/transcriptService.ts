@@ -1,15 +1,30 @@
 import { existsSync } from 'node:fs'
-import { runningBackgroundTasks } from '@shared/chatTimeline'
+import { stat } from 'node:fs/promises'
+import { BackgroundTaskTally } from '@shared/chatTimeline'
 import { latestAction } from '@shared/pets/actions'
 import type { TranscriptPage } from '@shared/types'
-import type { SessionStore } from '../store/sessionStore'
+import type { SessionStore, StoredSession } from '../store/sessionStore'
+import type { forEachMessageFrom } from '../transcript/transcriptLines'
 import type { TranscriptReader } from '../transcript/transcriptReader'
-import type { SessionResolver } from './sessionResolver'
+
+type TranscriptSession = Pick<StoredSession, 'filePath' | 'messageCount'>
 
 export interface TranscriptServiceDeps {
-  resolver: SessionResolver
-  store: SessionStore
+  resolver: {
+    requireSession(sessionId: string): TranscriptSession
+    findSession(sessionId: string): TranscriptSession | null
+  }
+  store: Pick<SessionStore, 'setMessageCount'>
   reader: TranscriptReader
+  readFrom: typeof forEachMessageFrom
+}
+
+/** The background tasks of one session, as its file reads up to `offset`. */
+interface TaskRecord {
+  offset: number
+  tally: BackgroundTaskTally
+  /** The last read queued for this session, so reads of one session run one after another. */
+  queue: Promise<unknown>
 }
 
 /** How many sessions `latestActions` answers for at once, and how many messages it reads of each. */
@@ -18,10 +33,14 @@ const ACTION_TAIL = 12
 
 /**
  * What the sessions' transcripts say, for the windows (the transcript pane, the pets) and for the
- * chat (`ChatService.terminalBusy`): every id goes through `SessionResolver.requireSession` first,
- * so the file read is one the store already knows about, never a path the renderer named.
+ * chat (`ChatService.terminalBusy`): every id goes through `SessionResolver` first (`requireSession`,
+ * or `findSession` where an unknown id is nothing to do), so the file read is one the store already
+ * knows about, never a path the renderer named.
  */
 export class TranscriptService {
+  /** Invalidated by a read that fails, and by the file shrinking below the offset already read. */
+  private readonly taskRecords = new Map<string, TaskRecord>()
+
   constructor(private readonly deps: TranscriptServiceDeps) {}
 
   async page(sessionId: string, beforeIndex?: number): Promise<TranscriptPage> {
@@ -47,13 +66,27 @@ export class TranscriptService {
 
   /**
    * How many background tasks the session's `claude` has started that have not reported back, read
-   * from its file; 0 when the file cannot be read (nothing to report is not an error here).
+   * from its file; 0 when the file cannot be read (nothing to report is not an error here). Read
+   * from where the last call stopped, since a long session is too big to re-read on every poll.
    */
   async runningBackgroundTasks(sessionId: string): Promise<number> {
-    const session = this.deps.resolver.requireSession(sessionId)
+    const session = this.deps.resolver.findSession(sessionId)
+    if (session === null) return 0
+    const record = this.taskRecords.get(sessionId) ?? { offset: 0, tally: new BackgroundTaskTally(), queue: Promise.resolve() }
+    this.taskRecords.set(sessionId, record)
+    const count = record.queue.then(() => this.readTasks(session.filePath, record))
+    record.queue = count
+    return count
+  }
+
+  private async readTasks(filePath: string, record: TaskRecord): Promise<number> {
     try {
-      return runningBackgroundTasks((await this.deps.reader.readTranscriptPage(session.filePath)).messages).length
+      if ((await stat(filePath)).size < record.offset) resetTasks(record)
+      const { tally } = record
+      record.offset = await this.deps.readFrom(filePath, record.offset, (m) => tally.add([m]))
+      return tally.tasks().length
     } catch {
+      resetTasks(record)
       return 0
     }
   }
@@ -76,4 +109,9 @@ export class TranscriptService {
     }
     return out
   }
+}
+
+function resetTasks(record: TaskRecord): void {
+  record.offset = 0
+  record.tally = new BackgroundTaskTally()
 }

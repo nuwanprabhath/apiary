@@ -10,6 +10,7 @@ import { SessionCatalog } from '../sessions/sessionCatalog'
 import { SessionActions } from '../sessions/sessionActions'
 import { SessionWatcher } from '../sessions/sessionWatcher'
 import { TranscriptService } from '../sessions/transcriptService'
+import { forEachMessageFrom } from '../transcript/transcriptLines'
 import { TranscriptReader } from '../transcript/transcriptReader'
 import { WorktreeResolver, createResolverExec } from '../git/worktreeResolver'
 import { BranchOps, createBranchExec } from '../git/branchOps'
@@ -19,6 +20,7 @@ import { SearchIndex } from '../search/searchIndex'
 import { SearchClient } from '../search/searchClient'
 import { SearchService } from '../search/searchService'
 import { TerminalService } from '../terminals/terminalService'
+import { ActiveTabsService } from '../terminals/activeTabsService'
 import { VsCodeService } from '../vscode/vscodeService'
 import { ImageStore } from '../media/imageStore'
 import { ChatManager, type SpawnChat } from '../chat/chatManager'
@@ -52,6 +54,7 @@ import { broadcast } from '../windows/broadcast'
 import { WindowAttachments } from '../windows/windowAttachments'
 import { IPC } from '@shared/api'
 import type { RuntimeEnv } from './env'
+import { SpellingService } from '../spelling/spellingService'
 
 /**
  * The explicit composition root (MAIN-15 step 5): the one place that lists every long-lived
@@ -144,6 +147,8 @@ export interface Container {
   /** Chat mode and the plugins, which their handlers take directly rather than through `service`. */
   chat: ChatService
   plugins: PluginService
+  /** Spell checking service for all windows. */
+  spelling: SpellingService
   /** What the IPC handlers share between channels (`registerIpc` takes it). */
   ipcState: IpcState
   /** New session files appear without a restart; `index.ts` starts it before the first refresh. */
@@ -153,6 +158,8 @@ export interface Container {
   themeGenerator: ThemeGenerator
   petStore: PetStore
   petService: PetService
+  /** What each open tab is doing, for the Active section (`activeTabs`). */
+  activeTabs: ActiveTabsService
 }
 
 /**
@@ -190,9 +197,11 @@ export interface ServicesOptions {
   onPluginsChanged?: () => void
   /** The status bar's items changed (a usage poll landed, a plugin was switched off). */
   onStatusBarChanged?: () => void
-  /** Which windows show which chat, and how every window hears a chat started, moved or ended
-   *  (see `ChatService`). Defaults to no windows. */
-  chat?: { attachments: WindowAttachments; announce: (change: ChatLifecycle) => void }
+  /** Which windows show which chat, how every window hears a chat started, moved or ended, and
+   *  that a chat's activity moved (see `ChatService`). Defaults to no windows. */
+  chat?: { attachments: WindowAttachments; announce: (change: ChatLifecycle) => void; activityChanged: () => void }
+  /** The open tabs the Active section reads. Defaults to none, so a test that shows no tabs needs no registry. */
+  tabs?: Pick<TabRegistry, 'list'>
   /** Test-only: starts chat processes instead of a login shell running `claude`. */
   chatSpawn?: SpawnChat
   /** Let the Claude usage plugin read the macOS Keychain: only against the real `~/.claude`,
@@ -229,6 +238,8 @@ export interface ServicesOptions {
 export interface Services {
   service: AppService
   source: SessionSource
+  /** What each open tab is doing, for the Active section. */
+  activeTabs: ActiveTabsService
 }
 
 /**
@@ -281,7 +292,7 @@ export function createServices(options: ServicesOptions): Services {
     startSessionIn: (folder) => terminals.newSessionInFolder(folder),
   })
   const actions = new SessionActions({ store, source, resolver, catalog, search, pty, worktrees })
-  const transcripts = new TranscriptService({ resolver, store, reader: new TranscriptReader() })
+  const transcripts = new TranscriptService({ resolver, store, reader: new TranscriptReader(), readFrom: forEachMessageFrom })
   const chats: ChatManager = new ChatManager({
     claudeBin: () => terminals.getClaudeBin() ?? undefined,
     onChange: (state) => { chat.onChanged(state) },
@@ -292,6 +303,7 @@ export function createServices(options: ServicesOptions): Services {
     configRoot: options.configRoot,
     attachments: options.chat?.attachments ?? new WindowAttachments(() => null),
     announce: options.chat?.announce ?? (() => {}),
+    activityChanged: options.chat?.activityChanged ?? (() => {}),
   })
   const plugins = new PluginService({
     plugins: options.deps?.plugins ?? new PluginRegistry({ onChanged: () => options.onPluginsChanged?.() }),
@@ -314,10 +326,17 @@ export function createServices(options: ServicesOptions): Services {
       }
       : {}),
   })
+  const activeTabs = new ActiveTabsService({
+    tabs: options.tabs ?? { list: () => [] },
+    pty,
+    chats: chat,
+    transcripts,
+    now: () => Date.now(),
+  })
   const service = new AppService({
     pty, store, git, vscode, images, search, terminals, catalog, actions, transcripts, chat, plugins, disposed,
   })
-  return { service, source }
+  return { service, source, activeTabs }
 }
 
 export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: ContainerInputs): Container {
@@ -340,7 +359,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   })
   const settings = settingsService.get()
   const fakeLive = env.fakeLive
-  const { service, source } = createServices({
+  const { service, source, activeTabs } = createServices({
     configRoot: paths.configRoot,
     dbPath: paths.dbPath,
     claudeBin: settings.claudeBin ?? undefined,
@@ -360,9 +379,11 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     vsCodePath: inputs.vsCodePath,
     onPluginsChanged: () => { broadcast(IPC.pluginsChanged) },
     onStatusBarChanged: () => { broadcast(IPC.statusBarChanged) },
+    tabs: tabRegistry,
     chat: {
       attachments: new WindowAttachments((id) => webContents.fromId(id) ?? null),
       announce: (change) => { broadcast(IPC.chatLifecycle, change) },
+      activityChanged: () => { broadcast(IPC.activeTabsChanged) },
     },
     statusBarKeychain: inputs.statusBarKeychain,
     claudeUsageConsent: {
@@ -383,6 +404,8 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   const sessionWatcher = new SessionWatcher({
     dir: source.watchDir,
     onChange: (changed) => {
+      // A background task starting or finishing writes the session file while its terminal may be quiet.
+      broadcast(IPC.activeTabsChanged)
       fireAndForget(service.refresh({ paths: changed }).then(() => { broadcast(IPC.treeChanged) }), 'watcher')
     },
   })
@@ -406,10 +429,11 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     makeRunner,
     onChanged: () => { broadcast(IPC.petsChanged, petService.state()) },
   })
+  const spelling = new SpellingService()
   return {
     paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry,
-    windowManager, service, chat: service.chat, plugins: service.plugins, ipcState, sessionWatcher, updater,
-    themeStore, themeGenerator, petStore, petService,
+    windowManager, service, chat: service.chat, plugins: service.plugins, spelling, ipcState, sessionWatcher, updater,
+    themeStore, themeGenerator, petStore, petService, activeTabs,
   }
 }
 
