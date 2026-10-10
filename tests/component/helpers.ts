@@ -6,9 +6,14 @@ import { commands, page, userEvent, type Locator } from 'vitest/browser'
 import { expect } from 'vitest'
 import type { FakeApiary } from './fakeApiary'
 
-/** A session's row in the sidebar (tree, Pinned, Recent or Active), by its exact title. */
+/**
+ * A session's row in the sidebar's folder tree, by its exact title. The same title can also be
+ * listed above the tree (Active, Pinned, Recent), and whether the Active row has appeared yet
+ * depends on timing: a plain text query then matched two rows now and then, and the click failed
+ * strict mode (the `renameSession` flake). The tree is drawn last, so its row is the last match.
+ */
 export function sidebarSession(title: string): Locator {
-  return page.getByTestId('sidebar').getByText(title, { exact: true })
+  return page.getByTestId('sidebar').getByText(title, { exact: true }).last()
 }
 
 /** Every session row (tree, Pinned, Recent — not Active) whose text contains `title`. */
