@@ -5,7 +5,7 @@ import { message } from '../fakeApiary'
 import { sidebarSession, until } from '../helpers'
 import { reviewUi } from './review'
 
-/** The transcript find widget: with matches (the second current), with none, and in a narrow pane. */
+/** The transcript find widget: with matches (the newest current), with none, and in a narrow pane. */
 const MAC = navigator.userAgent.includes('Mac')
 const FIND = MAC ? '{Meta>}f{/Meta}' : '{Control>}f{/Control}'
 const press = async (keys: string): Promise<void> => { await userEvent.keyboard(keys) }
@@ -41,7 +41,7 @@ describe('UI: the transcript find widget', () => {
   it('find bar with matches', async () => {
     await openSession()
     await reviewUi('find bar with matches', {
-      open: () => openFind('csv', 1),
+      open: () => openFind('csv'),
       close: () => press('{Escape}'),
     })
   })
@@ -59,7 +59,7 @@ describe('UI: the transcript find widget', () => {
     await reviewUi('find bar narrow pane', {
       widths: [620],
       within: () => document.querySelector('[data-testid="transcript"]'),
-      open: () => openFind('csv', 1),
+      open: () => openFind('csv'),
       close: () => press('{Escape}'),
     })
   })

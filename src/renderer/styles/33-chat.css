@@ -432,7 +432,7 @@
 .chat-command-desc { min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .chat-command-empty { margin: var(--control-gap) var(--control-padding-x); color: var(--muted); }
 .chat-setting-option { justify-content: space-between; }
-.chat-setting-value { justify-self: end; margin-left: auto; color: var(--muted); font-size: 12px; }
+.chat-setting-switch { margin-left: auto; align-self: center; }
 .chat-command-footer {
   display: -webkit-box;
   flex: none;

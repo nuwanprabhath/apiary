@@ -18,7 +18,7 @@ export function FindBar({ find }: { find: TranscriptFind }): JSX.Element {
         onChange={(e) => { find.setQuery(e.target.value) }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') { e.preventDefault(); find.close() }
-          else if (e.key === 'Enter') { e.preventDefault(); find.step(e.shiftKey ? -1 : 1) }
+          else if (e.key === 'Enter') { e.preventDefault(); find.step(e.shiftKey ? 1 : -1) }
         }}
       />
       <span className={`find-count${noResults ? ' no-results' : ''}`} data-testid="find-count" aria-live="polite">
@@ -26,13 +26,13 @@ export function FindBar({ find }: { find: TranscriptFind }): JSX.Element {
       </span>
       <button
         className="icon-button find-button" data-testid="find-prev" aria-label="Previous match"
-        title="Previous match (Shift+Enter)" disabled={noMatches} onClick={() => { find.step(-1) }}
+        title="Previous match (Enter)" disabled={noMatches} onClick={() => { find.step(-1) }}
       >
         <ArrowUpIcon />
       </button>
       <button
         className="icon-button find-button" data-testid="find-next" aria-label="Next match"
-        title="Next match (Enter)" disabled={noMatches} onClick={() => { find.step(1) }}
+        title="Next match (Shift+Enter)" disabled={noMatches} onClick={() => { find.step(1) }}
       >
         <ArrowDownIcon />
       </button>
