@@ -4,6 +4,27 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.36.0] - 2026-10-10
+
+### Changed
+
+- **Find in a transcript starts at the newest match and walks back in time.**
+  - Typing a search jumps to its most recent use ("6 of 6"), not the oldest.
+  - Enter or ↑ moves to the older match; Shift+Enter or ↓ to the newer one.
+- **"Show tool calls" in the "/" menu is a toggle switch**, like VS Code's settings rows. Clicking the
+  row or pressing Enter flips it, and the menu stays open.
+
+### Fixed (tests)
+
+- **A sidebar session is clicked by its folder-tree row.** Once a session was open, the Active
+  section could also list it, depending on timing. The tests' helper then matched two rows and
+  failed now and then: `renameSession`, `spellingMenus` and others.
+
+### Added (for contributors)
+
+- **A feasibility proposal for remote access** (`docs/proposals/2026-10-10-remote-access.md`): using
+  a work machine's Apiary from home over SSH.
+
 ## [1.35.2] - 2026-10-10
 
 ### Fixed (tests)
