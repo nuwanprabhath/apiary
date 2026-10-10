@@ -64,8 +64,14 @@ test('turning pets on hatches one that walks the status bar, climbs the rail, re
 
   const pet = h.page.getByTestId('pet')
   await expect(pet).toBeVisible()
-  // Rendered in 3D by the worker, on the real GPU, and swapped in.
-  await expect(h.page.locator('[data-testid="pet"] .pet-sprite[data-render="3d"] .pet-body img')).toHaveCount(1, { timeout: 60_000 })
+  // Rendered in 3D by the worker, on the real GPU, and swapped in. A machine with no WebGL (the Linux
+  // CI runner's virtual display) gets the flat drawing instead, by design (features/pets/CLAUDE.md);
+  // that is what the nightly run there saw, so expect whichever this machine can do.
+  const webgl = await h.page.evaluate(() => new OffscreenCanvas(1, 1).getContext('webgl2') !== null)
+  const drawn = webgl
+    ? '[data-testid="pet"] .pet-sprite[data-render="3d"] .pet-body img'
+    : '[data-testid="pet"] .pet-sprite[data-render="drawn"]'
+  await expect(h.page.locator(drawn)).toHaveCount(1, { timeout: 60_000 })
   const floor = (await h.page.getByTestId('status-bar-floor').boundingBox())!
   await expect.poll(async () => { const b = (await pet.boundingBox())!; return Math.abs(b.y + b.height - (floor.y + floor.height - 2)) <= 1 }).toBe(true)
 

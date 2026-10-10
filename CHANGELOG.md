@@ -4,6 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.35.2] - 2026-10-10
+
+### Fixed (tests)
+
+- **The nightly end-to-end run passes on CI again.**
+  - The folder-card Pull test built its upstream repository on git's default branch, which differs
+    between machines. On CI the teammate's commit landed on another branch and the pull found
+    nothing. Test repositories now name their branch, and an architecture test
+    (`gitInitPinsBranch`) requires it.
+  - The pets test expected a 3D render on the Linux runner, which has no WebGL and draws pets flat
+    by design. It now expects 3D where WebGL exists and the flat drawing elsewhere.
+
 ## [1.35.1] - 2026-10-10
 
 ### Fixed

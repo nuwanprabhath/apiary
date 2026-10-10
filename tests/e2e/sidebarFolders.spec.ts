@@ -71,7 +71,10 @@ test('a folder\'s card pulls the latest of its branch into that worktree', async
   if (path === null) throw new Error('folder row has no path')
   const branch = git(path, 'rev-parse', '--abbrev-ref', 'HEAD').trim()
   const remote = mkdtempSync(join(h.home, 'upstream-'))
-  git(remote, 'init', '-q', '--bare')
+  // The bare upstream's HEAD names the folder's branch, so the teammate's clone checks it out. With
+  // a plain `init` its HEAD follows git's default branch, which differs between this machine's git
+  // and CI's: there the teammate committed to another branch, and the pull found nothing.
+  git(remote, 'init', '-q', '--bare', `--initial-branch=${branch}`)
   git(path, 'remote', 'add', 'origin', remote)
   git(path, 'push', '-q', '-u', 'origin', branch)
   const teammate = mkdtempSync(join(h.home, 'teammate-'))

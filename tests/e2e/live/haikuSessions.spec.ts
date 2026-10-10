@@ -105,7 +105,7 @@ test.beforeEach(async () => {
   // folder's Claude project directory is emptied before and after each one.
   lab = join(tmpdir(), 'apiary-live-lab')
   mkdirSync(lab, { recursive: true })
-  if (!existsSync(join(lab, '.git'))) execFileSync('git', ['init', '-q', lab])
+  if (!existsSync(join(lab, '.git'))) execFileSync('git', ['init', '-q', '-b', 'main', lab])
   for (const d of labProjectDirs()) rmSync(d, { recursive: true, force: true })
   // A first session made outside the app, so the folder is in the tree with a "+" to click.
   execFileSync('claude', ['-p', '--model', 'haiku', 'Reply with just the word: seed'], { cwd: lab, stdio: 'ignore' })
