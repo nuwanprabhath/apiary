@@ -5,6 +5,7 @@ import { fuzzyScore } from '@shared/fuzzy'
 import { SlashBoxIcon } from '../../ui/icons'
 import { Listbox, optionId, useListboxNav } from '../../ui/Listbox'
 import { Popover } from '../../ui/Popover'
+import { Switch } from '../../ui/Switch'
 import { usePopover } from './usePopover'
 import { useChatSettings } from '../../state/chatSettingsStore'
 import { useAppSettings } from '../../state/settingsStore'
@@ -105,13 +106,13 @@ function ActionsList({ shown, active, listId, onMouseEnter, onChoose }: {
             id={optionId(listId, idx)}
             selected={idx === active}
             testId="composer-setting-option"
-            extra={{ 'data-setting': a.settingId }}
+            extra={{ 'data-setting': a.settingId, 'aria-checked': String(a.value) }}
             onEnter={() => { onMouseEnter(idx) }}
             onClick={() => { onChoose(a) }}
           >
             {[
               <span key="n" className="chat-command-name" title={a.label}>{a.label}</span>,
-              <span key="v" className="chat-setting-value">{a.value ? 'On' : 'Off'}</span>,
+              <span key="v" className="chat-setting-switch"><Switch checked={a.value} /></span>,
             ]}
           </Row>
         )

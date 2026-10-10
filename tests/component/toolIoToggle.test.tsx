@@ -31,8 +31,10 @@ const CONVERSATION: TranscriptMessage[] = [
 
 const count = (testId: string): number => document.querySelectorAll(`[data-testid="${testId}"]`).length
 const bodyText = (): string => document.body.textContent ?? ''
-const settingValue = (): string | null =>
-  document.querySelector('[data-testid="composer-setting-option"] .chat-setting-value')?.textContent ?? null
+const settingValue = (): string | null => {
+  const checked = document.querySelector('[data-testid="composer-setting-option"]')?.getAttribute('aria-checked')
+  return checked === undefined || checked === null ? null : checked === 'true' ? 'On' : 'Off'
+}
 
 function rectOf(selector: string): DOMRect {
   const el = document.querySelector(selector)
@@ -106,6 +108,19 @@ describe('show tool calls', () => {
     await userEvent.click(page.getByTestId('composer-setting-option'))
     await until(() => count('chat-tool') === 1)
     expect(fake.callsTo('settingsSet')).toEqual([])
+  })
+
+  it('the row draws a switch, not On/Off text, and Enter flips it with the menu left open', async () => {
+    await openChat({})
+    await openMenu()
+    const row = (): Element | null => document.querySelector('[data-testid="composer-setting-option"]')
+    expect(row()?.querySelector('.ui-switch[aria-hidden="true"]')?.getAttribute('data-checked')).toBe('true')
+    expect(row()?.textContent).toBe('Show tool calls')
+    await userEvent.keyboard('{Enter}')
+    await until(() => count('chat-tool') === 0)
+    expect(row()?.getAttribute('aria-checked')).toBe('false')
+    expect(row()?.querySelector('.ui-switch')?.getAttribute('data-checked')).toBe('false')
+    expect(count('composer-command-menu')).toBe(1)
   })
 
   it('starts hidden when the Settings default says so, and the menu row shows them', async () => {

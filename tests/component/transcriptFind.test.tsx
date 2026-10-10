@@ -110,41 +110,63 @@ describe('find matches', () => {
     await openTranscript('Find test')
     await userEvent.keyboard(FIND)
     await userEvent.type(page.getByTestId('find-input'), 'csv')
-    await expect.poll(countText).toBe('1 of 6')
+    await expect.poll(countText).toBe('6 of 6')
   })
 
-  it('Enter and Shift+Enter step through the matches and wrap at both ends', async () => {
+  it('starts at the newest match: its highlight is current and it is in view', async () => {
+    await renderApp({ sessions: [sessionWith('Find test', csvChat())] })
+    await openTranscript('Find test')
+    await userEvent.keyboard(FIND)
+    await userEvent.type(page.getByTestId('find-input'), 'csv')
+    await expect.poll(countText).toBe('6 of 6')
+    const current = (): Range | undefined => [...(CSS.highlights.get('transcript-find-current') ?? [])][0] as Range | undefined
+    await expect.poll(() => current()?.startContainer.parentElement?.closest('[data-testid="message"]')).toBe(messageEls()[3])
+    expect(inView(current()?.startContainer.parentElement ?? undefined)).toBe(true)
+  })
+
+  it('Enter steps to the older match and Shift+Enter to the newer, wrapping at both ends', async () => {
     await renderApp({ sessions: [sessionWith('Find prev test', [message('u1', 'user', 'test test test')])] })
     await openTranscript('Find prev test')
     await userEvent.keyboard(FIND)
     await userEvent.type(page.getByTestId('find-input'), 'test')
-    await expect.poll(countText).toBe('1 of 3')
+    await expect.poll(countText).toBe('3 of 3')
     await userEvent.keyboard('{Enter}')
     await expect.poll(countText).toBe('2 of 3')
     await userEvent.keyboard('{Shift>}{Enter}{/Shift}')
-    await expect.poll(countText).toBe('1 of 3')
-    await userEvent.keyboard('{Shift>}{Enter}{/Shift}')
     await expect.poll(countText).toBe('3 of 3')
-    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard('{Shift>}{Enter}{/Shift}')
     await expect.poll(countText).toBe('1 of 3')
+    await userEvent.keyboard('{Enter}')
+    await expect.poll(countText).toBe('3 of 3')
   })
 
-  it('the next and previous buttons step through the matches', async () => {
+  it('the up button goes to the older match and the down button to the newer', async () => {
     const apples = [message('u1', 'user', 'Find apple, apple, apple'), message('a1', 'assistant', 'Here are your apples')]
     await renderApp({ sessions: [sessionWith('Find nav test', apples)] })
     await openTranscript('Find nav test')
     await userEvent.keyboard(FIND)
     await userEvent.type(page.getByTestId('find-input'), 'apple')
-    await expect.poll(countText).toBe('1 of 4')
-    await userEvent.click(page.getByTestId('find-next'))
-    await expect.poll(countText).toBe('2 of 4')
-    await userEvent.click(page.getByTestId('find-next'))
+    await expect.poll(countText).toBe('4 of 4')
+    await userEvent.click(page.getByTestId('find-prev'))
     await expect.poll(countText).toBe('3 of 4')
     await userEvent.click(page.getByTestId('find-prev'))
     await expect.poll(countText).toBe('2 of 4')
-    await userEvent.click(page.getByTestId('find-prev'))
-    await userEvent.click(page.getByTestId('find-prev'))
-    await expect.poll(countText).toBe('4 of 4')
+    await userEvent.click(page.getByTestId('find-next'))
+    await expect.poll(countText).toBe('3 of 4')
+    await userEvent.click(page.getByTestId('find-next'))
+    await userEvent.click(page.getByTestId('find-next'))
+    await expect.poll(countText).toBe('1 of 4')
+  })
+
+  it('pressing the chord again starts over from the newest match', async () => {
+    await renderApp({ sessions: [sessionWith('Find again', csvChat())] })
+    await openTranscript('Find again')
+    await userEvent.keyboard(FIND)
+    await userEvent.type(page.getByTestId('find-input'), 'csv')
+    await userEvent.keyboard('{Enter}{Enter}')
+    await expect.poll(countText).toBe('4 of 6')
+    await userEvent.keyboard(FIND)
+    await expect.poll(countText).toBe('6 of 6')
   })
 
   it('paints every match, and clears the paint when the bar closes', async () => {
@@ -169,11 +191,11 @@ describe('find jumping', () => {
     await openTranscript('Long chat')
     await userEvent.keyboard(FIND)
     await userEvent.type(page.getByTestId('find-input'), 'needle')
-    await expect.poll(countText).toBe('1 of 2')
-    await expect.poll(() => inView(messageEls()[0])).toBe(true)
-    await userEvent.click(page.getByTestId('find-next'))
     await expect.poll(countText).toBe('2 of 2')
     await expect.poll(() => inView(messageEls()[messageEls().length - 1])).toBe(true)
+    await userEvent.click(page.getByTestId('find-prev'))
+    await expect.poll(countText).toBe('1 of 2')
+    await expect.poll(() => inView(messageEls()[0])).toBe(true)
   })
 
   it('pages in earlier messages so that they can match', async () => {
@@ -196,7 +218,7 @@ describe('find jumping', () => {
     await expect.poll(countText).toBe('1 of 1')
     fake.state.sessions.find((s) => s.title === 'Live chat')?.messages?.push(message('a1', 'assistant', 'a second needle'))
     fake.emit('treeChanged')
-    await expect.poll(countText).toBe('1 of 2')
+    await expect.poll(countText).toBe('2 of 2')
   })
 })
 

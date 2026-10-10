@@ -5,7 +5,10 @@ const CURRENT = 'transcript-find-current'
 // What a match is never looked for in: the toolbar and the paging and jump buttons are not the transcript.
 const SKIPPED = '.transcript-toolbar, button, .find-bar'
 
-const isMac = (): boolean => navigator.userAgent.includes('Mac')
+// Clamped to the last match, so a fresh query starts at the newest.
+const NEWEST = Number.MAX_SAFE_INTEGER
+
+const isMac =(): boolean => navigator.userAgent.includes('Mac')
 
 /** Every case-insensitive occurrence of `query` in the container's text, as DOM ranges. */
 function findRanges(root: HTMLElement, query: string): Range[] {
@@ -38,6 +41,7 @@ export interface TranscriptFind {
   /** 1-based position of the current match, 0 when there is none. */
   position: number
   total: number
+  /** -1 moves to the older match (up the transcript), 1 to the newer. */
   step: (direction: 1 | -1) => void
   close: () => void
   inputRef: RefObject<HTMLInputElement | null>
@@ -59,7 +63,7 @@ export function useTranscriptFind(opts: {
   const { containerRef, visible, sessionId, contentKey, hasEarlier, loadEarlier } = opts
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [current, setCurrent] = useState(0)
+  const [current, setCurrent] = useState(NEWEST)
   const [total, setTotal] = useState(0)
   const [focusNonce, setFocusNonce] = useState(0)
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -93,6 +97,8 @@ export function useTranscriptFind(opts: {
     if (focusNonce === 0) return
     inputRef.current?.focus()
     inputRef.current?.select()
+    scrollNextRef.current = true
+    setCurrent(NEWEST)
   }, [focusNonce])
 
   useEffect(() => { setOpen(false); setQuery('') }, [sessionId])
@@ -102,7 +108,7 @@ export function useTranscriptFind(opts: {
     if (open && query !== '' && hasEarlier) loadEarlier()
   }, [open, query, hasEarlier, loadEarlier])
 
-  useEffect(() => { scrollNextRef.current = true; setCurrent(0) }, [query, open])
+  useEffect(() => { scrollNextRef.current = true; setCurrent(NEWEST) }, [query, open])
 
   useLayoutEffect(() => {
     const root = containerRef.current

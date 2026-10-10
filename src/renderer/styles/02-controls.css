@@ -157,3 +157,33 @@ button:not([class]) {
   font: inherit;
   cursor: pointer;
 }
+
+/* A pill switch (ui/Switch.tsx): the knob slides, and holds still under reduced motion. */
+.ui-switch {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  box-sizing: border-box;
+  --switch-knob: calc(var(--control-height-sm) * 0.55);
+  width: calc(var(--control-height-sm) * 1.27);
+  height: calc(var(--control-height-sm) * 0.73);
+  padding: 0;
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-height-sm);
+  background: var(--control-bg);
+  vertical-align: middle;
+}
+.ui-switch::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: var(--switch-knob);
+  height: var(--switch-knob);
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+.ui-switch[data-checked="true"] { border-color: var(--accent); background: var(--accent); }
+.ui-switch[data-checked="true"]::after { background: var(--accent-contrast); transform: translateX(var(--switch-knob)); }
+@media (prefers-reduced-motion: reduce) { .ui-switch::after { transition: none; } }
