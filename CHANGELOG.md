@@ -4,7 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.35.0] - 2026-10-10
+## [1.35.1] - 2026-10-10
+
+### Fixed
+
+- **The 1.35.0 release could not be built.** A contributor doc named a generated folder
+  (`ui-review/shots`) that exists only after a local run, so the release's lint failed on CI. The doc
+  check now counts only files in the repository, so a local run catches this too. Everything listed
+  under 1.35.0 ships in this version.
+
+## [1.35.0] - 2026-10-10 (not released: the release build stopped at lint; shipped as 1.35.1)
 
 ### Added
 

@@ -16,6 +16,7 @@
 //
 // No dependencies beyond Node's own `fs`/`path`, so this stays fast and has nothing to install.
 
+import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
@@ -57,6 +58,7 @@ const ALLOWLIST = new Set([
   'themes.json',
   'pets.json',
   'ui-review/index.html', // written by `npm run ui:review`, gitignored
+  'ui-review/shots', // the UI scenarios' screenshots, gitignored
   '.apiarypet.json', // the extension of an exported pet file, not a repo file
   'apiary.db',
   'search.db',
@@ -101,29 +103,31 @@ const SKIP_DIRS = new Set([
   'node_modules', '.git', '.worktrees', '.claude', '.agent-reports', '.superpowers',
   'out', 'test-results', 'release', 'coverage',
 ])
-function indexRepo(dir) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (SKIP_DIRS.has(entry.name)) continue
-    const full = join(dir, entry.name)
-    if (entry.isDirectory()) {
-      indexRepo(full)
-    } else {
-      const rel = relative(ROOT, full)
-      ALL_PATHS.push(rel)
-      const list = BASENAME_INDEX.get(entry.name) ?? []
-      list.push(rel)
-      BASENAME_INDEX.set(entry.name, list)
-    }
+// Tracked files only: a path that exists on this machine because a script generated it (the
+// gitignored `ui-review/shots/`) does not exist on CI, and a doc naming it failed the 1.35.0 release
+// after passing every local run.
+const TRACKED = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean)
+const TRACKED_FILES = new Set(TRACKED)
+const TRACKED_DIRS = new Set(TRACKED.flatMap((f) => f.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))))
+function indexRepo() {
+  for (const rel of TRACKED) {
+    if (SKIP_DIRS.has(rel.split('/')[0])) continue
+    ALL_PATHS.push(rel)
+    const name = rel.slice(rel.lastIndexOf('/') + 1)
+    const list = BASENAME_INDEX.get(name) ?? []
+    list.push(rel)
+    BASENAME_INDEX.set(name, list)
   }
 }
-indexRepo(ROOT)
+indexRepo()
 
 function looksLikePlaceholder(token) {
   return /[<>*]/.test(token)
 }
 
 function exists(relPath) {
-  return statSync(join(ROOT, relPath), { throwIfNoEntry: false }) !== undefined
+  const clean = relPath.replace(/\/+$/, '')
+  return TRACKED_FILES.has(clean) || TRACKED_DIRS.has(clean)
 }
 
 // Resolves a slash-containing token against the repo root, then against a `src/`/`tests/` prefix
