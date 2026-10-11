@@ -74,7 +74,14 @@ if [ "$MODE" = resume ]; then
   [ -n "$MSGFILE" ] && MSG="$(cat "$MSGFILE")"
   run_claude claude -p "$MSG" --resume "$SID" "${COMMON[@]}" >> "$RUN_DIR/$WP.log" 2>&1
 else
-  : > "$RUN_DIR/$WP.log"
+  # A brief written through a shell heredoc can come out empty or cut short (a stray backtick is a
+# command substitution): one agent started on an empty brief. Write briefs with a file tool, and
+# refuse anything too short to be one.
+if [ ! -s "$RUN_DIR/$WP.md" ] || [ "$(wc -c < "$RUN_DIR/$WP.md")" -lt 400 ]; then
+  echo "refusing to start $WP: $RUN_DIR/$WP.md is missing or too short to be a brief" >&2
+  exit 2
+fi
+: > "$RUN_DIR/$WP.log"
   run_claude claude -p "$(cat "$RUN_DIR/common.md")
 
 $(cat "$RUN_DIR/$WP.md")" "${COMMON[@]}" >> "$RUN_DIR/$WP.log" 2>&1

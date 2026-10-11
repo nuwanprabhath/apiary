@@ -4,6 +4,62 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.37.0] - 2026-10-10
+
+### Added
+
+- **Remote access: use your work machine's Apiary from home, over SSH**, the way VS Code Remote-SSH
+  works.
+  - On the work machine, turn on Settings → General → **Allow remote access over SSH**.
+  - At home, choose File → **Open Remote Session** and pick a host, or **Other Host…** to type one.
+    Apiary connects with your own SSH keys and `~/.ssh/config`. A window opens with the work
+    machine's sessions, terminals and chats, in your home machine's theme.
+  - Hosts are found in your `~/.ssh/config`, your recent connections and Tailscale. Each is checked
+    and shown as ready, remote access off, not running, login refused or unreachable.
+    When Tailscale refuses the user name, the dialog says to connect as `user@host` or add a `User`
+    line to `~/.ssh/config`.
+  - Sessions and terminals are shared live, but each side arranges its own tabs, so the two screens
+    never fight. A title-bar badge names the host.
+  - A dropped connection shows a banner and reconnects on its own after 1, 2, 5, 10 and then every
+    30 seconds. Terminals and chats pick up where they were.
+  - **If Apiary is not running on the work machine**, the dialog offers **Start Apiary and connect**.
+    It starts Apiary there in the background, with no window, then connects.
+  - **Open in VS Code** from a remote window opens the folder with
+    `code --remote ssh-remote+HOST`. This needs VS Code's Remote-SSH extension at home; without it,
+    VS Code shows its own error.
+  - Choosing a folder from a remote window browses the work machine's folders. Your home machine
+    sees names only, never paths.
+- **The work machine shows who is connected**, and **Disconnect all…** closes every connection and
+  turns remote access off.
+- **An optional pairing code** on top of SSH. Once set, a home machine must enter it once; it is kept
+  in the system keychain.
+
+### Security
+
+- Remote access is off until turned on. The work machine listens only on a Unix socket in
+  `~/.apiary` (folder 0700, socket 0600), reached through an SSH tunnel; nothing listens on the
+  network. ssh runs with `BatchMode` and `StrictHostKeyChecking=yes`, so an unknown or changed host
+  key fails rather than asking.
+- Pairing codes are compared in constant time and wrong guesses are rate-limited.
+
+### Notes
+
+- Tested over a real tailnet, including Tailscale SSH (`tailscale up --ssh` on the work machine):
+  hosts are found, and Apiary connects with no key, by tailnet identity. Not tested: an SSH rule in
+  "check" mode that asks for a browser re-login at connect time, which Apiary cannot show.
+- On Linux, starting Apiary on the work machine is best effort (`systemd-run --user`).
+- A packaged Apiary now runs once per user: a second launch brings the running one forward.
+
+### Added (for contributors)
+
+- **A Docker SSH test bed** (`npm run test:remote`): a Linux container running sshd and Apiary,
+  connected to from this machine's Apiary. It refuses to build below 15 GB free disk and cleans up
+  only its own labelled images.
+- **The UI audit flags a hover card left open over a modal** (`popup-over-modal`).
+- **The test bed can join a real tailnet** (`npm run test:remote:tailnet`): the container signs in as
+  an ephemeral node, and Apiary connects to it over Tailscale, through the container's own sshd and
+  through Tailscale SSH.
+
 ## [1.36.0] - 2026-10-10
 
 ### Changed

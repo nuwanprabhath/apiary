@@ -1,4 +1,13 @@
 import { Menu, app, type MenuItemConstructorOptions } from 'electron'
+import type { RemoteHost } from '@shared/domain/remote'
+import { remoteSessionItems } from './remoteSessionMenu'
+
+/** File → Open Remote Session: the hosts the directory knows (from its cache), and what choosing one does. */
+export interface RemoteMenu {
+  hosts: RemoteHost[]
+  onOpenHost: (host: string) => void
+  onOtherHost: () => void
+}
 
 export function buildMenu(
   onImport: () => void,
@@ -9,6 +18,7 @@ export function buildMenu(
   onCheckForUpdates: () => void,
   onToggleSidebar: () => void = () => {},
   onResetTheme: () => void = () => {},
+  remote: RemoteMenu = { hosts: [], onOpenHost: () => {}, onOtherHost: () => {} },
 ): Menu {
   const isMac = process.platform === 'darwin'
 
@@ -38,6 +48,8 @@ export function buildMenu(
           accelerator: 'CmdOrCtrl+N',
           click: onNewWindow,
         },
+        // A copy of another machine's Apiary windows, over SSH (docs/proposals/2026-10-10-remote-access.md).
+        { label: 'Open Remote Session', submenu: remoteSessionItems(remote.hosts, remote.onOpenHost, remote.onOtherHost) },
         { type: 'separator' },
         {
           label: 'Import Claude Sessions...',

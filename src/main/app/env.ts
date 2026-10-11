@@ -1,3 +1,5 @@
+import { parseLaunchMode } from './launchMode'
+
 /**
  * Reads a test-only environment variable, but never in a packaged build.
  *
@@ -60,6 +62,10 @@ export interface RuntimeEnv {
   /** JSON for the renderer's test seams (`renderer/state/testSeams.ts`), passed to every window in
    *  its URL — component-style speed-ups an e2e spec may want (pets' scenes in seconds). */
   rendererSeams: string | undefined
+  /** `ssh -F <file>` for remote connections — test-only (the Docker SSH test bed); never set when packaged. */
+  sshConfig: string | undefined
+  /** `--background`: services and remote server with no window (`app/launchMode.ts`). A launch flag, honoured when packaged. */
+  background: boolean
 }
 
 /** Parses every runtime override in one place. `argv`/`env`/`isPackaged` are passed in rather
@@ -84,5 +90,7 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackag
     petImportPath: test('APIARY_PET_IMPORT_PATH'),
     windowChrome: test('APIARY_WINDOW_CHROME'),
     rendererSeams: test('APIARY_RENDERER_SEAMS'),
+    sshConfig: test('APIARY_SSH_CONFIG'),
+    background: parseLaunchMode(argv).background,
   }
 }

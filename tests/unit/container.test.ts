@@ -43,6 +43,9 @@ describe('containerPaths', () => {
       sessionLayoutFile: '/u/session-layout.json',
       themesFile: '/u/themes.json',
       petsFile: '/u/pets.json',
+      remoteHostsFile: '/u/remote-hosts.json',
+      remotePairingFile: '/u/remote-pairing.json',
+      remotePairingCodesFile: '/u/remote-pairing-codes.json',
     })
     const real = containerPaths(parseRuntimeEnv({}, [], false), '/u', () => '/real/.claude')
     expect(real.configRoot).toBe('/real/.claude')
@@ -57,6 +60,7 @@ describe('createContainer', () => {
     const c = createContainer(env, paths, {
       vsCodePath: null, zshPromptShim: join(dir, 'zsh'), dirname: dir,
       statusBarKeychain: false, macSigned: false, isQuitting: () => false,
+      homeDir: dir, host: 'test-host', appVersion: '0.0.0',
     })
     try {
       expect(c.service.pty).toBeDefined()

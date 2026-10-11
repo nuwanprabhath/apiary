@@ -48,6 +48,27 @@ describe('VsCodeService.openMentionedFile', () => {
   })
 })
 
+describe('VsCodeService: resolving without launching', () => {
+  const serviceIn = (dir: string): VsCodeService => {
+    const pty = { getCwd: () => dir } as unknown as PtyManager
+    return new VsCodeService({ resolver: new SessionResolver({ store: {} as SessionStore, pty }), vsCodePath: null })
+  }
+
+  it('resolveFolder returns the session folder and resolveMentionedFile a file in it, launching nothing', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'apiary-vscode-'))
+    try {
+      writeFileSync(join(dir, 'notes.md'), 'x')
+      const service = serviceIn(dir)
+      expect(service.resolveFolder(terminalRef('new:1', true))).toBe(dir)
+      await expect(service.resolveMentionedFile(terminalRef('new:1', true), 'notes.md:3')).resolves.toEqual({ file: expect.stringMatching(/notes\.md$/) as string, line: 3 })
+      await expect(service.resolveMentionedFile(terminalRef('new:1', true), '../../etc/hosts')).rejects.toThrow('not a file')
+      expect(openInVsCode).not.toHaveBeenCalledWith(expect.anything(), dir)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('VsCodeService', () => {
   it('available() is false when no VS Code path was found', () => {
     const resolver = new SessionResolver({ store: {} as SessionStore, pty: {} as PtyManager })

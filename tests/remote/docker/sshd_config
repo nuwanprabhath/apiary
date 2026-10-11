@@ -1,0 +1,7 @@
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+PubkeyAuthentication yes
+AllowStreamLocalForwarding yes
+AllowUsers dev
+HostKey /etc/ssh/test_host_key

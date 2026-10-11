@@ -1,3 +1,4 @@
+import { isRemoteHost } from '@shared/domain/remote'
 import { isWindowChrome, type WindowChrome } from '@shared/domain/windowChrome'
 import { isTabTransfer, isWindowLayoutReport, type TabTransfer, type WindowLayoutReport } from '@shared/types'
 
@@ -81,5 +82,19 @@ export function windowChrome(): WindowChrome {
     return isWindowChrome(value) ? value : 'system'
   } catch {
     return 'system'
+  }
+}
+
+/**
+ * The work machine this window shows, from `remote=<host>` in its URL (main opens it that way), or
+ * null for an ordinary window. Read from the URL like the window number: it decides the title bar
+ * and whether pets exist from the first paint. Anything that is not a host reads as null.
+ */
+export function remoteHost(): string | null {
+  try {
+    const host = new URLSearchParams(window.location.search).get('remote')
+    return host !== null && isRemoteHost(host) ? host : null
+  } catch {
+    return null
   }
 }

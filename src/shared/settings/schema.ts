@@ -90,6 +90,13 @@ export const SETTINGS = {
   claudeBin: setting<string | null>({ guard: nullable(str), default: null, constrain: absolutePathOrNull }),
   /** Import every discovered session automatically, instead of picking them by hand. */
   autoImportAll: flag(false),
+  /**
+   * Serve this machine's sessions to another Apiary over SSH, through a Unix socket in `~/.apiary`
+   * (docs/proposals/2026-10-10-remote-access.md). Opens no network port. Off by default.
+   */
+  remoteAccess: flag(false),
+  /** Also ask a home machine for the pairing code shown in Settings → General; SSH stays the authentication. */
+  remoteAccessPairing: flag(false),
   /** Minutes between automatic rescans, or null when periodic scanning is off. */
   autoImportIntervalMinutes: intOrNull(null, 1, 1440),
   /**

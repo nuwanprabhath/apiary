@@ -133,9 +133,9 @@ export const SANCTIONED = [
     name: 'construct-in-container',
     kind: 'syntax',
     files: MAIN,
-    selectors: ["NewExpression[callee.name=/^(PtyManager|SessionStore|SearchIndex|SearchService|ChatManager|PetService|PetStore|ThemeStore|ClaudeOneShot|SessionWatcher|ClaudeProjectsSource|SettingsService|GitService|TerminalService|ImageStore|ChatService|PluginService|WorktreeResolver|BranchOps|MrStatusCache|TranscriptReader|SearchClient|ActiveTabsService)$/]"],
+    selectors: ["NewExpression[callee.name=/^(PtyManager|SessionStore|SearchIndex|SearchService|ChatManager|PetService|PetStore|ThemeStore|ClaudeOneShot|SessionWatcher|ClaudeProjectsSource|SettingsService|GitService|TerminalService|ImageStore|ChatService|PluginService|WorktreeResolver|BranchOps|MrStatusCache|TranscriptReader|SearchClient|ActiveTabsService|RemoteServer|VirtualContentsRegistry|RemoteWindows|RemoteClientService|HostDirectory|FolderBrowser)$/]"],
     // The search worker is its own thread with its own composition root: it opens its own SearchIndex.
-    allow: ['src/main/app/container.ts', 'src/main/search/searchWorker.ts'],
+    allow: ['src/main/app/container.ts', 'src/main/app/remoteContainer.ts', 'src/main/search/searchWorker.ts'],
     description: 'Long-lived objects are built only in the composition root.',
     message:
       'Build long-lived objects in `createContainer` (src/main/app/container.ts) and inject them. ' +

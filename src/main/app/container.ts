@@ -52,9 +52,18 @@ import { createUpdater } from '../update/createUpdater'
 import type { UpdateService } from '../update/updateService'
 import { broadcast } from '../windows/broadcast'
 import { WindowAttachments } from '../windows/windowAttachments'
+import type { PairingStore } from '../remote/pairingStore'
+import type { RemoteServer } from '../remote/remoteServer'
+import type { RemoteClientsFeed } from '../statusBar/remoteClients'
+import type { RemoteWindows } from '../remote/remoteWindows'
+import type { RemoteClientService } from '../remote/remoteClientService'
+import type { HostDirectory } from '../remote/hostDirectory'
+import { createRemoteConnecting, createRemoteServing } from './remoteContainer'
+import type { VirtualContentsRegistry } from '../remote/virtualContents'
 import { IPC } from '@shared/api'
 import type { RuntimeEnv } from './env'
 import { SpellingService } from '../spelling/spellingService'
+import { FolderBrowser } from '../folders/folderBrowser'
 
 /**
  * The explicit composition root (MAIN-15 step 5): the one place that lists every long-lived
@@ -77,6 +86,9 @@ export interface ContainerPaths {
   sessionLayoutFile: string
   themesFile: string
   petsFile: string
+  remoteHostsFile: string
+  remotePairingFile: string
+  remotePairingCodesFile: string
 }
 
 export interface ContainerInputs {
@@ -92,6 +104,10 @@ export interface ContainerInputs {
   macSigned: boolean
   /** Read lazily by `WindowManager` (the quit-deferral is installed after the container exists). */
   isQuitting: () => boolean
+  /** Remote access (`remote/remoteServer.ts`): the home directory holding `.apiary/remote.sock`, this machine's name and the app version. */
+  homeDir: string
+  host: string
+  appVersion: string
 }
 
 /** How often, at most, the Active section's activity broadcast goes out while a pty is producing
@@ -105,10 +121,12 @@ export interface IpcStateInputs {
   /** Opens a tab in a window of its own, resolving the new window's number. */
   openDetachedWindow: (tab: TabTransfer, at: { x: number; y: number }) => number
   windowNumberFor: (webContentsId: number) => number | null
+  /** Remote windows, which `ptyData` reaches once they attach; none when omitted. */
+  virtualContents?: VirtualContentsRegistry
 }
 
 export function createIpcState(inputs: IpcStateInputs): IpcState {
-  const ptyAttachments = new WindowAttachments((wcId) => webContents.fromId(wcId) ?? null)
+  const ptyAttachments = new WindowAttachments((wcId) => webContents.fromId(wcId) ?? inputs.virtualContents?.get(wcId) ?? null)
   return {
     sessionTracker: new ClaudeSessionTracker({
       sessionsDir: join(inputs.configRoot, 'sessions'),
@@ -149,6 +167,8 @@ export interface Container {
   plugins: PluginService
   /** Spell checking service for all windows. */
   spelling: SpellingService
+  /** The folder browser a remote window uses in place of the native picker. */
+  folderBrowser: FolderBrowser
   /** What the IPC handlers share between channels (`registerIpc` takes it). */
   ipcState: IpcState
   /** New session files appear without a restart; `index.ts` starts it before the first refresh. */
@@ -160,6 +180,16 @@ export interface Container {
   petService: PetService
   /** What each open tab is doing, for the Active section (`activeTabs`). */
   activeTabs: ActiveTabsService
+  /** The work machine's end of remote access; `index.ts` starts and stops it with the setting. */
+  remoteServer: RemoteServer
+  /** The work machine's pairing code (`remote-pairing.json`). */
+  remotePairing: PairingStore
+  virtualContents: VirtualContentsRegistry
+  /** The home machine's side: which windows show a work machine, and where their calls go. */
+  remoteWindows: RemoteWindows
+  /** The home machine's end of remote access: ssh, the forwarded socket and the remote windows. */
+  remoteClient: RemoteClientService
+  hostDirectory: HostDirectory
 }
 
 /**
@@ -210,6 +240,8 @@ export interface ServicesOptions {
   /** Where the answer to the usage plugin's consent prompt is kept. Omitted: in memory only, so
    *  a test (or a caller that persists nothing) is asked, and reads nothing, until it answers. */
   claudeUsageConsent?: ConsentStorage
+  /** Who is connected to this machine over remote access, for the status bar; omitted where remote access does not exist. */
+  remoteClients?: RemoteClientsFeed
   /** Remembers a plugin the user's own answer switched off (a declined consent). */
   persistPluginEnabled?: (pluginId: string, enabled: boolean) => void
   /**
@@ -240,6 +272,8 @@ export interface Services {
   source: SessionSource
   /** What each open tab is doing, for the Active section. */
   activeTabs: ActiveTabsService
+  /** The remote server asks it where a session's folder or a mentioned file is. */
+  vscode: VsCodeService
 }
 
 /**
@@ -321,6 +355,7 @@ export function createServices(options: ServicesOptions): Services {
           configRoot: options.configRoot,
           useKeychain: options.statusBarKeychain ?? false,
           consent: options.claudeUsageConsent,
+          remoteClients: options.remoteClients,
           persistEnabled: options.persistPluginEnabled,
         },
       }
@@ -336,7 +371,7 @@ export function createServices(options: ServicesOptions): Services {
   const service = new AppService({
     pty, store, git, vscode, images, search, terminals, catalog, actions, transcripts, chat, plugins, disposed,
   })
-  return { service, source, activeTabs }
+  return { service, source, activeTabs, vscode }
 }
 
 export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: ContainerInputs): Container {
@@ -347,29 +382,23 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   // doc comment (MAIN-16). Every later read/write in this process goes through this one instance.
   const settingsService = new SettingsService(paths.settingsFile)
   const windowManager = new WindowManager({
-    settingsService,
-    sessionLayoutStore,
-    tabRegistry,
-    headless: env.headless,
-    dirname: inputs.dirname,
-    rendererUrl: env.rendererUrl,
-    isQuitting: inputs.isQuitting,
+    settingsService, sessionLayoutStore, tabRegistry, headless: env.headless,
+    dirname: inputs.dirname, rendererUrl: env.rendererUrl, isQuitting: inputs.isQuitting,
     ...(env.windowChrome !== undefined ? { chromeOverride: env.windowChrome } : {}),
     ...(env.rendererSeams !== undefined ? { rendererSeams: env.rendererSeams } : {}),
   })
   const settings = settingsService.get()
   const fakeLive = env.fakeLive
-  const { service, source, activeTabs } = createServices({
-    configRoot: paths.configRoot,
-    dbPath: paths.dbPath,
-    claudeBin: settings.claudeBin ?? undefined,
+  const { virtualContents, remotePairing, remoteServer, useVsCode } = createRemoteServing({
+    homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion, pairingFile: paths.remotePairingFile,
+    settings: settingsService, layouts: () => sessionLayoutStore.snapshot().windows,
+  })
+  const { service, source, activeTabs, vscode } = createServices({
+    remoteClients: remoteServer, configRoot: paths.configRoot, dbPath: paths.dbPath, claudeBin: settings.claudeBin ?? undefined,
     autoImportAll: settings.autoImportAll,
-    searchChatContent: settings.searchChatContent,
-    searchSessionNotes: settings.searchSessionNotes,
+    searchChatContent: settings.searchChatContent, searchSessionNotes: settings.searchSessionNotes,
     promptPath: {
-      enabled: settings.terminalShortenPath,
-      segments: settings.terminalPathSegments,
-      minimal: settings.terminalMinimalPrompt,
+      enabled: settings.terminalShortenPath, segments: settings.terminalPathSegments, minimal: settings.terminalMinimalPrompt,
     },
     zshPromptShim: inputs.zshPromptShim,
     plugins: settings.plugins,
@@ -381,7 +410,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     onStatusBarChanged: () => { broadcast(IPC.statusBarChanged) },
     tabs: tabRegistry,
     chat: {
-      attachments: new WindowAttachments((id) => webContents.fromId(id) ?? null),
+      attachments: new WindowAttachments((id) => webContents.fromId(id) ?? virtualContents.get(id)),
       announce: (change) => { broadcast(IPC.chatLifecycle, change) },
       activityChanged: () => { broadcast(IPC.activeTabsChanged) },
     },
@@ -410,11 +439,14 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     },
   })
   const ipcState = createIpcState({
-    pty: service.pty,
-    configRoot: paths.configRoot,
-    tabRegistry,
+    pty: service.pty, configRoot: paths.configRoot, tabRegistry, virtualContents,
     openDetachedWindow: (tab, at) => windowManager.create({ detach: tab, at }),
     windowNumberFor: (id) => windowManager.windowNumberFor(id),
+  })
+  useVsCode(vscode)
+  const { remoteWindows, hostDirectory, remoteClient } = createRemoteConnecting({
+    homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion, vsCodePath: inputs.vsCodePath,
+    sshConfig: env.sshConfig, hostsFile: paths.remoteHostsFile, pairingCodesFile: paths.remotePairingCodesFile, windowManager,
   })
   const updater = createUpdater(settingsService, env, inputs.macSigned)
   // One runner per kind of call, over whichever `claude` is configured at the time it runs.
@@ -430,10 +462,11 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     onChanged: () => { broadcast(IPC.petsChanged, petService.state()) },
   })
   const spelling = new SpellingService()
+  const folderBrowser = new FolderBrowser({ home: inputs.homeDir })
   return {
     paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry,
-    windowManager, service, chat: service.chat, plugins: service.plugins, spelling, ipcState, sessionWatcher, updater,
-    themeStore, themeGenerator, petStore, petService, activeTabs,
+    windowManager, service, chat: service.chat, plugins: service.plugins, spelling, folderBrowser, ipcState, sessionWatcher, updater,
+    themeStore, themeGenerator, petStore, petService, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory,
   }
 }
 
@@ -448,5 +481,8 @@ export function containerPaths(
     sessionLayoutFile: join(userData, 'session-layout.json'),
     themesFile: join(userData, 'themes.json'),
     petsFile: join(userData, 'pets.json'),
+    remoteHostsFile: join(userData, 'remote-hosts.json'),
+    remotePairingFile: join(userData, 'remote-pairing.json'),
+    remotePairingCodesFile: join(userData, 'remote-pairing-codes.json'),
   }
 }

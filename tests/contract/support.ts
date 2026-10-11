@@ -5,7 +5,8 @@
  */
 import type { ApiaryApi } from '@shared/api'
 import type { ContextMenuParamsLike, EditCommand } from '@shared/domain/contextMenu'
-import { IPC, type EventKey, type PayloadOf } from '@shared/ipc/contract'
+import type { TestContext } from 'vitest'
+import { IPC, type EventKey, type IpcKey, type PayloadOf } from '@shared/ipc/contract'
 import { asSessionId, type SessionId } from '@shared/domain/ids'
 import type { ProjectNode, SessionNode } from '@shared/types'
 import { STANDARD_SESSIONS as STD } from '../fixtures/standard'
@@ -40,12 +41,36 @@ export interface Bridge {
   rightClick(params: ContextMenuParamsLike): void
   /** What happens in the world outside the app, which no call can cause. */
   outside: {
+    /** A link named `name` appears in home that leads to a folder outside it. */
+    linkOutsideHome(name: string): Promise<void>
     /** A commit is made in the repository's `main` (in a terminal, say) and not pushed. */
     commitLocally(): Promise<void>
     /** Someone else pushes a commit to `origin/main`; this clone does not know until it fetches. */
     advanceRemote(): Promise<void>
   }
+  /**
+   * Set only when the window under test is a home window showing a work machine
+   * (`integration/remoteContract.test.ts`): the channels that window cannot use (`unavailable`
+   * scope). A clause that needs one, or a behaviour a copied window does not have, skips itself
+   * with `skipOnRemote`.
+   */
+  remote?: {
+    unavailable: ReadonlySet<IpcKey>
+    /** Pretends this machine has VS Code at `path` (null: none); what it was asked to launch is recorded in `launched`. */
+    homeVsCode: { setPath(path: string | null): void; launched: { command: string; args: string[] }[] }
+  }
   cleanup(): void | Promise<void>
+}
+
+/**
+ * Skips the running clause when the bridge is a remote window and `reason` applies: always, or only
+ * when the clause calls one of `keys` and that key is `unavailable` there. One line of reason, for
+ * the person reading the skip list.
+ */
+export function skipOnRemote(t: TestContext, bridge: Bridge, reason: string, ...keys: IpcKey[]): void {
+  const remote = bridge.remote
+  if (remote === undefined) return
+  if (keys.length === 0 || keys.some((key) => remote.unavailable.has(key))) t.skip(reason)
 }
 
 export type MakeBridge = (options: BridgeOptions) => Promise<Bridge>

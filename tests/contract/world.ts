@@ -9,6 +9,17 @@ import type { PluginBarItem, PluginSettingField } from '@shared/domain/plugins'
 import type { StatusBarItem, StatusBarPanel } from '@shared/domain/statusBar'
 
 /**
+ * What the folder browser sees at home in both implementations (the loopback's temp home, the
+ * fake's modelled one): these folders, sorted, plus hidden ones (`.claude`, `work-a/.cache`) it
+ * must not list. `work-a` holds `src`. A repository has a `.git`; `origin.git` is a bare one and has none.
+ */
+export const BROWSE_HOME = {
+  folders: ['origin.git', 'picked', 'repo-c', 'repo-c-wt', 'work-a', 'work-b'],
+  repos: ['repo-c', 'repo-c-wt'],
+  nested: { parent: 'work-a', child: 'src' },
+} as const
+
+/**
  * The window the contract runs in. Number 1, filling a known rectangle, so a clause can drop a tab
  * inside it ("onto this window") or far outside every window ("onto the desktop"). A tab torn off
  * lands in window `DETACHED_WINDOW_NUMBER`, which both implementations treat as already open.

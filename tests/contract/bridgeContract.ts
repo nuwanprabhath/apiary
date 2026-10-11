@@ -12,6 +12,9 @@
  * Clauses assert ids, titles and counts only, never absolute paths, so the same spec holds for
  * both. When the fake and main disagree, decide which one is wrong and fix that one.
  *
+ * A third run, `tests/integration/remoteContract.test.ts`, puts a home window in front of a work
+ * machine over the remote protocol; a clause that cannot hold there skips itself (`skipOnRemote`).
+ *
  * The clauses live in `clauses/`, one file per area; `world.ts` is what both implementations are
  * configured with (the window, the plugins, the update feed), and `support.ts` the harness types.
  * `tests/unit/architecture/contractCoverage.test.ts` reads every file under this folder.
@@ -35,11 +38,17 @@ import { defineWorktreeClauses } from './clauses/worktrees'
 import { defineTerminalClauses } from './clauses/terminals'
 import { defineMiscClauses } from './clauses/misc'
 import { defineSpellingClauses } from './clauses/spelling'
+import { defineFolderClauses } from './clauses/folders'
+import { defineRemoteClauses } from './clauses/remote'
+import { defineRemoteConnectClauses } from './clauses/remoteConnect'
+import { defineRemoteHostsClauses } from './clauses/remoteHosts'
+import { defineRemoteClientsClauses } from './clauses/remoteClients'
 
 export { LONG_SESSION, STANDARD_TITLES }
 export type { Bridge, BridgeOptions, MakeBridge }
 
-export function defineBridgeContract(name: string, makeBridge: MakeBridge): void {
+/** `remote`: the run is a home window showing a work machine, which adds its own clauses (`clauses/remote.ts`). */
+export function defineBridgeContract(name: string, makeBridge: MakeBridge, options: { remote?: boolean } = {}): void {
   describe(`window.apiary contract: ${name}`, () => {
     let bridge: Bridge
     let heard: Heard
@@ -75,5 +84,10 @@ export function defineBridgeContract(name: string, makeBridge: MakeBridge): void
     defineTerminalClauses(ctx)
     defineMiscClauses(ctx)
     defineSpellingClauses(ctx)
+    defineFolderClauses(ctx)
+    if (options.remote === true) defineRemoteClauses(ctx)
+    defineRemoteConnectClauses(ctx)
+    defineRemoteHostsClauses(ctx)
+    defineRemoteClientsClauses(ctx)
   })
 }

@@ -226,6 +226,8 @@ export async function launchApiary(
      * that do not care about this feature never see the button.
      */
     codePath?: string
+    /** An ssh config for remote access to read instead of `~/.ssh/config` (`APIARY_SSH_CONFIG`). */
+    sshConfig?: string
     /**
      * Overrides the repo-c fixture session's title — used to give it a `!<iid>` reference so the
      * MR-status lookup (mrStatus.spec.ts) has something to resolve against a real GitLab remote.
@@ -406,6 +408,7 @@ export async function launchApiary(
     // button and can never spawn a real editor by accident.
     APIARY_CODE_PATH: opts.codePath ?? '',
     ...(opts.pickFolder !== undefined ? { APIARY_PICK_FOLDER: opts.pickFolder } : {}),
+    ...(opts.sshConfig !== undefined ? { APIARY_SSH_CONFIG: opts.sshConfig } : {}),
     ...(opts.windowChrome !== undefined ? { APIARY_WINDOW_CHROME: opts.windowChrome } : {}),
     APIARY_FAKE_CODE_LOG: vsCodeLog,
     ...packagedIsolationEnv(home, opts.configRoot ?? home),

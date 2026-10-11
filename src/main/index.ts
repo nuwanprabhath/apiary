@@ -1,5 +1,6 @@
-import { app, BrowserWindow, Menu, dialog, session } from 'electron'
+import { app, BrowserWindow, Menu, dialog, session, webContents } from 'electron'
 import { errorMessage } from '@shared/errors'
+import { homedir, hostname } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type AppService } from './appService'
@@ -24,11 +25,16 @@ import { detectVsCode } from './vscode/detectVsCode'
 import { hasDeveloperIdSignature } from './update/macSignature'
 import { parseRuntimeEnv, type RuntimeEnv } from './app/env'
 import { installPermissionGuards } from './app/permissions'
-import { broadcast } from './windows/broadcast'
+import { broadcast, registerBroadcastSkip, registerBroadcastTargets } from './windows/broadcast'
+import type { Container } from './app/container'
+import type { RemoteClientService } from './remote/remoteClientService'
+import type { RemoteHost } from '@shared/domain/remote'
+import type { Dispatcher } from './ipc/registrar'
 import { fireAndForget } from './log/fireAndForget'
 import type { WindowManager } from './windows/windowManager'
 import { installQuitDeferral } from './app/lifecycle'
 import { sendEvent } from './windows/sendEvent'
+import { shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitWhenNoWindows } from './app/launchMode'
 
 const dirname = fileURLToPath(new URL('.', import.meta.url))
 
@@ -37,6 +43,21 @@ const dirname = fileURLToPath(new URL('.', import.meta.url))
  * each one does and why a packaged build ignores all but `--safe-theme`.
  */
 const env: RuntimeEnv = parseRuntimeEnv(process.env, process.argv, app.isPackaged)
+const launchMode = { background: env.background }
+
+// One Apiary per profile: a second launch (the user starting it normally after a background start)
+// hands over to the running one, which opens a window.
+if (shouldHoldSingleInstanceLock(launchMode, app.isPackaged)) {
+  if (!app.requestSingleInstanceLock()) app.quit()
+  else {
+    app.on('second-instance', () => {
+      if (!app.isReady()) return
+      const front = windowManager?.front()
+      if (front) front.focus()
+      else windowManager?.create()
+    })
+  }
+}
 
 // Nothing in `src/main` registered either of these before (MAIN-19): an unobserved rejection was
 // silent, and an uncaught exception took the whole process down with Electron's own native error
@@ -55,6 +76,55 @@ process.on('uncaughtException', (error) => {
 
 let service: AppService | null = null
 let disposeIpc: (() => void) | null = null
+let disposeRemote: (() => void) | null = null
+
+/**
+ * Runs the remote-access server while the "Allow remote access over SSH" setting is on: started
+ * now if it is, and started or stopped as the setting changes. Returns the disposer for quit.
+ */
+function startRemoteAccess(container: Container, dispatcher: Dispatcher): () => void {
+  const { remoteServer, virtualContents, settingsService: settings } = container
+  remoteServer.attachDispatcher(dispatcher)
+  container.hostDirectory.start()
+  const disposeTargets = registerBroadcastTargets(() => virtualContents.list())
+  const disposeSkip = registerBroadcastSkip(container.remoteWindows.skipsBroadcast)
+  const apply = (on: boolean): void => {
+    fireAndForget(on ? remoteServer.start() : remoteServer.stop(), 'remote')
+  }
+  if (settings.get().remoteAccess) apply(true)
+  const unsubscribe = settings.onChange((next, prev) => {
+    if (next.remoteAccess !== prev.remoteAccess) apply(next.remoteAccess)
+  })
+  return () => {
+    unsubscribe()
+    disposeTargets()
+    disposeSkip()
+    fireAndForget(remoteServer.stop(), 'remote')
+    // Every ssh this app started stops with it.
+    fireAndForget(container.remoteClient.dispose(), 'remote')
+    container.hostDirectory.dispose()
+  }
+}
+/** File → Open Remote Session → Other Host…: the front window shows the dialog; with no window (macOS keeps the app alive without one), a new one does once its page has loaded. */
+function showRemoteDialog(): void {
+  const front = windowManager?.front()
+  if (front) { sendEvent(front.webContents, IPC.openRemoteDialog); return }
+  const opened = windowManager?.open()
+  if (opened === undefined) return
+  const contents = webContents.fromId(opened.webContentsId)
+  contents?.once('did-finish-load', () => { sendEvent(contents, IPC.openRemoteDialog) })
+}
+
+/** File → Open Remote Session → a host: the same path as the dialog's Connect; a failure shows over the focused window. */
+function openRemoteHost(client: RemoteClientService, host: string): void {
+  const connecting = client.connect(host).catch((error: unknown) => {
+    const win = BrowserWindow.getFocusedWindow()
+    const options = { type: 'error', title: 'Could not open the remote session', message: `Could not connect to ${host}`, detail: errorMessage(error) } as const
+    return win !== null ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options)
+  })
+  fireAndForget(connecting, 'remote')
+}
+
 let sessionWatcher: SessionWatcher | null = null
 /** Window creation, numbering and focus tracking (MAIN-15 step 3) — constructed once in `start()`,
  *  once its dependencies (`settingsService`, `sessionLayoutStore`, `tabRegistry`) exist. */
@@ -177,6 +247,9 @@ async function start(): Promise<void> {
     dirname,
     statusBarKeychain: readsClaudeKeychain(process.platform, env.configRoot),
     isQuitting,
+    homeDir: homedir(),
+    host: hostname(),
+    appVersion: app.getVersion(),
   })
   settingsService = container.settingsService
   sessionLayoutStore = container.sessionLayoutStore
@@ -201,7 +274,7 @@ async function start(): Promise<void> {
   // Before any window exists: each window asks for its theme synchronously as it loads.
   const safeTheme = env.safeTheme
   const ipc = registerIpc({
-    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, state: container.ipcState, settings: settingsService,
+    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
     pickFolder: async (sender) => {
       if (env.pickFolder !== undefined) return env.pickFolder
       const win = BrowserWindow.fromWebContents(sender)
@@ -236,6 +309,7 @@ async function start(): Promise<void> {
   })
   resetTheme = ipc.resetTheme
   disposeIpc = ipc.dispose
+  disposeRemote = startRemoteAccess(container, ipc.dispatcher)
   // New session files appear without a restart. Started before the first refresh, as it was when
   // `registerIpc` owned it, so a file written during that scan is not missed.
   sessionWatcher = container.sessionWatcher
@@ -250,7 +324,7 @@ async function start(): Promise<void> {
   setAutoImportInterval(settings.autoImportIntervalMinutes)
   // Before any window: a window with the themed title bar asks for this menu as it first renders
   // (see TitleBar.tsx), and on Linux a menu attached after a window exists can re-show its GTK bar.
-  Menu.setApplicationMenu(
+  const installMenu = (hosts: RemoteHost[]): void => { Menu.setApplicationMenu(
     buildMenu(
       () => sendEvent(windowManager?.front()?.webContents, IPC.openImportDialog),
       () => {
@@ -270,14 +344,17 @@ async function start(): Promise<void> {
       },
       () => sendEvent(windowManager?.front()?.webContents, IPC.toggleSidebar),
       () => { resetTheme('menu') },
+      { hosts, onOpenHost: (host) => { openRemoteHost(container.remoteClient, host) }, onOtherHost: showRemoteDialog },
     ),
-  )
+  ) }
+  installMenu(container.hostDirectory.snapshot())
+  container.hostDirectory.subscribe(installMenu) // rebuilt as the host cache changes
   // What the file held at launch: no window exists yet to have reported anything since.
   const stored = container.sessionLayoutStore.snapshot()
   const records = stored.windows
     .map((r) => pruneStaleLive(r, (id) => service!.sessionIsResumable(id)))
     .filter((r) => r.layout.panes.some((p) => p.tabs.length > 0))
-  if (records.length === 0) {
+  if (!shouldOpenFirstWindow(launchMode, false)) { /* background: no window until a normal launch */ } else if (records.length === 0) {
     windowManager.create()
   } else {
     // Advanced to the highest recorded window number before restore begins, so a freshly opened
@@ -365,10 +442,11 @@ async function shutdown(): Promise<void> {
     // reason quitting is deferred at all.
     sessionWatcher?.dispose()
     disposeIpc?.()
+    disposeRemote?.()
     await service?.dispose()
   }
 }
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  if (shouldQuitWhenNoWindows(launchMode, process.platform)) app.quit()
 })

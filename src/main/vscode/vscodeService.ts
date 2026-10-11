@@ -1,5 +1,5 @@
 import { openFileInVsCode, openInVsCode as spawnVsCode } from './detectVsCode'
-import { resolveMentionedFile } from './mentionedFile'
+import { resolveMentionedFile, type MentionedFile } from './mentionedFile'
 import type { SessionResolver } from '../sessions/sessionResolver'
 import type { TerminalRef } from '@shared/domain/ids'
 
@@ -28,21 +28,32 @@ export class VsCodeService {
     return this.vsCodePath !== null
   }
 
-  /** Opens the session's folder in VS Code. Rejects if VS Code was not found or the folder is gone. */
-  async open(terminal: TerminalRef): Promise<void> {
-    if (this.vsCodePath === null) throw new Error('VS Code was not found on this machine')
-    const cwd = this.resolver.resolveShellCwd(terminal)
-    spawnVsCode(this.vsCodePath, cwd)
+  /** The session's folder, resolved the way `open` does, without launching anything. */
+  resolveFolder(terminal: TerminalRef): string {
+    return this.resolver.resolveShellCwd(terminal)
   }
 
   /**
-   * Opens a file a transcript mentions. `mention` is text as written in a message; it is resolved
+   * The file a transcript mention names. `mention` is text as written in a message; it is resolved
    * against the session's own folder and refused unless it is a file inside it (`resolveMentionedFile`).
+   * Launches nothing.
    */
+  async resolveMentionedFile(terminal: TerminalRef, mention: string): Promise<MentionedFile> {
+    const found = await resolveMentionedFile(this.resolveFolder(terminal), mention)
+    if (found === null) throw new Error('That is not a file in this session\'s folder')
+    return found
+  }
+
+  /** Opens the session's folder in VS Code. Rejects if VS Code was not found or the folder is gone. */
+  async open(terminal: TerminalRef): Promise<void> {
+    if (this.vsCodePath === null) throw new Error('VS Code was not found on this machine')
+    spawnVsCode(this.vsCodePath, this.resolveFolder(terminal))
+  }
+
+  /** Opens a file a transcript mentions (see `resolveMentionedFile`). */
   async openMentionedFile(terminal: TerminalRef, mention: string): Promise<void> {
     if (this.vsCodePath === null) throw new Error('VS Code was not found on this machine')
-    const found = await resolveMentionedFile(this.resolver.resolveShellCwd(terminal), mention)
-    if (found === null) throw new Error('That is not a file in this session\'s folder')
+    const found = await this.resolveMentionedFile(terminal, mention)
     openFileInVsCode(this.vsCodePath, found.file, found.line)
   }
 }

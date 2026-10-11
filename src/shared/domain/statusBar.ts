@@ -14,7 +14,7 @@
 export type StatusTone = 'normal' | 'warning' | 'danger'
 
 /** The icons the renderer can draw for a status-bar item. */
-export type StatusIcon = 'gauge' | 'refresh' | 'alert' | 'history'
+export type StatusIcon = 'gauge' | 'refresh' | 'alert' | 'history' | 'link'
 
 /** A chart series colour, from the theme's own palette. */
 export type StatusSeriesColor = 'series-1' | 'series-2' | 'series-3' | 'series-4'
@@ -54,6 +54,8 @@ export type StatusAction =
   | { kind: 'panel' }
   /** Asks the plugin to refresh now. */
   | { kind: 'refresh' }
+  /** Opens Settings at `section` (`remote-clients`: General, where "Disconnect all…" is). */
+  | { kind: 'settings'; section: string }
   | { kind: 'none' }
 
 export interface StatusBarItem {

@@ -8,6 +8,7 @@ import type {
   UpdateStatusPayload,
 } from '@shared/api'
 import type { GitTarget } from '@shared/domain/git'
+import type { RemoteClientInfo, RemoteHost } from '@shared/domain/remote'
 import type { ChatState, TerminalBusy } from '@shared/domain/chat'
 import type { EventKey } from '@shared/ipc/contract'
 import type { PetSpec } from '@shared/pets/spec'
@@ -91,6 +92,25 @@ export type FakeEvent = EventKey
 export interface Tracking { upstream: boolean; ahead: number; behind: number; pending: number }
 
 export interface FakeState {
+  /** Hosts `remoteConnect` was asked for, in order. */
+  remoteConnects: string[]
+  /** The pairing code each `remoteConnect` was given (undefined when none), in order. */
+  remoteConnectPairings: (string | undefined)[]
+  /** The home machines connected to this one (the work machine's view), and how often "Disconnect all" ran. */
+  remoteClients: RemoteClientInfo[]
+  remoteDisconnects: number
+  /** This machine's pairing code as shown (`XXXX-XXXX`); `remotePairingNew` replaces it. */
+  remotePairingCode: string
+  /** When set, `remoteConnect` fails with this message (main's words for an ssh or Apiary refusal). */
+  remoteConnectError: string | null
+  /** Hosts `remoteStartAndConnect` was asked for, in order. */
+  remoteStarts: string[]
+  /** When set, `remoteStartAndConnect` fails with this message. */
+  remoteStartError: string | null
+  /** What `remoteHosts` lists (a test sets it, and emits `remoteHostsChanged` as probes would). */
+  remoteHosts: RemoteHost[]
+  /** The `probe` argument of each `remoteHosts` call, in order. */
+  remoteHostProbes: boolean[]
   projects: FakeProject[]
   sessions: FakeSession[]
   imported: Set<string>
@@ -130,6 +150,8 @@ export interface FakeState {
   petFile: PetSpec | null
   /** The folder the native picker answers with; null when it is dismissed. */
   pickedFolder: string | null
+  /** Names in the fake home that are links leading outside it (`fake/folders.ts`). */
+  homeLinks: Set<string>
   /** Pasted images, by the path `saveImage` answered with. */
   images: Map<string, string>
   /** The web addresses the app asked the operating system to open, in order. */

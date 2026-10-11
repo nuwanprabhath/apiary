@@ -2,6 +2,7 @@ import { type JSX, useEffect, useState } from 'react'
 import type { AppSettingsPayload } from '@shared/api'
 import { spellingLanguages } from '../../../state/spelling'
 import { CheckboxSetting } from '../fields/CheckboxSetting'
+import { RemoteAccessSetting } from './RemoteAccessSetting'
 
 export function GeneralSection(
   { draft, patch }: { draft: AppSettingsPayload; patch: (fields: Partial<AppSettingsPayload>) => void },
@@ -87,6 +88,7 @@ export function GeneralSection(
         </>
       )}
     />
+    <RemoteAccessSetting draft={draft} patch={patch} />
     </>
   )
 }

@@ -49,6 +49,7 @@ defineBridgeContract('fakeApiary', async ({ imported = true, longSessionMessages
     editing: () => fake.callsTo('editCommand').map(([command]) => command).filter(isEditCommand),
     rightClick: (params: ContextMenuParamsLike) => { fake.emit('contextMenuRequested', contextMenuRequestFrom(params)) },
     outside: {
+      linkOutsideHome: (name) => { fake.state.homeLinks.add(name); return Promise.resolve() },
       commitLocally: () => { main().ahead += 1; return Promise.resolve() },
       advanceRemote: () => { main().pending += 1; return Promise.resolve() },
     },

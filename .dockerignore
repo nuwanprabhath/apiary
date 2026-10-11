@@ -1,0 +1,12 @@
+node_modules
+out
+release
+test-results
+ui-review
+.worktrees
+.agent-reports
+.git
+coverage
+playwright-report
+.env
+.env.*

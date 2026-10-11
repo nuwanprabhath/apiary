@@ -26,7 +26,9 @@ import { LayoutMenuButton } from '../features/layout/LayoutMenuButton'
 import { PaneGrid } from '../features/layout/PaneGrid'
 import { useResizeDrag } from '../ui/useResizeDrag'
 import { PaneFiller } from '../features/pane/PaneFiller'
-import { detachedKey, detachedTransfer, restoredWindow, windowChrome } from '../state/windowParams'
+import { detachedKey, detachedTransfer, remoteHost, restoredWindow, windowChrome } from '../state/windowParams'
+import { RemoteRoot } from '../features/remote'
+import { useFolderBrowserRequest } from '../features/folderBrowser'
 import { TitleBar } from '../features/titleBar/TitleBar'
 import { useThemeState, useAppliedTheme } from '../theme/useTheme'
 import { ThemeEffects } from '../theme/ThemeEffects'
@@ -138,6 +140,7 @@ function AppWindow({ detached, arrival, restored }: {
   /** Every dialog's state; rendered by `DialogHost` below. */
   const dialogs = useDialogs()
   const { open: openDialog } = dialogs
+  const { request: requestFolder, element: folderBrowserElement } = useFolderBrowserRequest(remoteHost())
   const columns = layout.panes
   // UI-3: read through a ref (rather than depending on `columns`) wherever an effect or a stable
   // callback needs the current columns without re-running when they change.
@@ -548,7 +551,8 @@ function AppWindow({ detached, arrival, restored }: {
   /** Resolves the new session's folder, so the sidebar can file it into the group it came from. */
   const onNewSessionInPickedFolder = useCallback(async (): Promise<string | null> => {
     try {
-      const info = await startSessionInPickedFolder()
+      // The native picker would open on the work machine's screen, so a remote window browses it in-app.
+      const info = await (remoteHost() === null ? startSessionInPickedFolder() : requestFolder())
       if (info === null) return null
       addPending(info, await treeStore.reloadNow())
       return info.cwd
@@ -556,7 +560,7 @@ function AppWindow({ detached, arrival, restored }: {
       notifyError(e, 'Could not start a new session')
       return null
     }
-  }, [addPending, notifyError])
+  }, [addPending, notifyError, requestFolder])
   const onWorktreeCreated = useCallback(async (info: NewSessionInfo, folder: string) => {
     rememberCreatedWorktree(folder, info.cwd)
     notify({ message: `Worktree created at ${info.cwd} — starting Claude there` })
@@ -633,6 +637,7 @@ function AppWindow({ detached, arrival, restored }: {
       >
         <TitleBar chrome={chrome} title={windowTitle !== null ? `${windowTitle} — Apiary` : 'Apiary'} />
       </ErrorBoundary>
+      <RemoteRoot />
       {updateStatus !== null && (
         <ErrorBoundary
           label="The update banner"
@@ -792,6 +797,7 @@ function AppWindow({ detached, arrival, restored }: {
         })}
       </PaneGrid>
 
+      {folderBrowserElement}
       <DialogHost
         dialogs={dialogs}
         currentPreset={layout.preset}
@@ -819,14 +825,17 @@ function AppWindow({ detached, arrival, restored }: {
         <StatusBar onOpenSettings={onOpenSettings} keep={petsOut(pets)} />
       </ErrorBoundary>
       {/* Pets render model output, so they are the likeliest layer to fault. A new state retries. */}
-      <ErrorBoundary
-        label="The pets"
-        fallback={null}
-        resetKey={pets}
-        onError={(thrown, componentStack) => { notify(crashNotice('The pets', thrown, componentStack)) }}
-      >
-        <PetLayer state={pets} sidebarHidden={ui.sidebarHidden} tabs={activeTabs} titleOf={titleOf} onOpenSettings={onOpenSettings} />
-      </ErrorBoundary>
+      {/* A remote window shows another machine's sessions: the pets belong to this one. */}
+      {remoteHost() === null && (
+        <ErrorBoundary
+          label="The pets"
+          fallback={null}
+          resetKey={pets}
+          onError={(thrown, componentStack) => { notify(crashNotice('The pets', thrown, componentStack)) }}
+        >
+          <PetLayer state={pets} sidebarHidden={ui.sidebarHidden} tabs={activeTabs} titleOf={titleOf} onOpenSettings={onOpenSettings} />
+        </ErrorBoundary>
+      )}
       <ErrorBoundary
         label="The spelling menu"
         fallback={null}

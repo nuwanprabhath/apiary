@@ -1,6 +1,6 @@
 {
   "name": "apiary",
-  "version": "1.36.0",
+  "version": "1.37.0",
   "private": true,
   "type": "module",
   "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",
@@ -24,6 +24,8 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
+    "test:remote": "APIARY_REMOTE_E2E=1 vitest run --config vitest.remote.config.ts",
+    "test:remote:tailnet": "APIARY_REMOTE_E2E=1 APIARY_TAILNET_E2E=1 vitest run --config vitest.remote.config.ts tests/remote/tailnet.test.ts",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:component": "vitest run --config vitest.component.config.ts",

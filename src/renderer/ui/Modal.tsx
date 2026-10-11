@@ -1,4 +1,5 @@
 import { type JSX, type ReactNode, useLayoutEffect, useRef } from 'react'
+import { closeOpenHoverCard } from './useHoverCard'
 import { useEscape } from './useEscape'
 
 const FOCUSABLE_SELECTOR = [
@@ -70,6 +71,8 @@ export function Modal(
   // A layout effect, not a plain one: it focuses `target` in the same synchronous commit as the
   // mount, before the browser paints.
   useLayoutEffect(() => {
+    // A hover card left open by the row whose button opened this dialog would draw over it.
+    closeOpenHoverCard()
     const root = rootRef.current
     if (root === null) return
     // Whatever had focus when the dialog opened — usually a button in the row or toolbar it was

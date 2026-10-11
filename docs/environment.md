@@ -16,6 +16,7 @@ or a stand-in binary, and none of them must be usable to redirect a real install
 | `APIARY_PET_EXPORT_PATH` | test harness | answers the pet export save dialog with this path |
 | `APIARY_PET_IMPORT_PATH` | test harness | answers the pet import open dialog with this path |
 | `APIARY_WINDOW_CHROME` | test harness | forces a window's title bar: `custom` (Windows/Linux themed bar and menus), `mac` or `system` |
+| `APIARY_SSH_CONFIG` | test harness | A file passed to ssh as `-F` for every remote connection (`src/main/remote/sshCommand.ts`): the Docker SSH test bed's host aliases and keys. Unset when packaged. Host-key checking stays strict |
 | `APIARY_RENDERER_SEAMS` | test harness | JSON for the renderer's test seams (`src/renderer/state/testSeams.ts`): `petBrainOptions`, `petsFlat`. Reaches each window as `?seams=`; unset when packaged, so the renderer has no test hook a page script could reach |
 | `APIARY_DEFAULT_THEME=original` | test harness | starts a fresh profile on the pre-Liquid-Glass theme |
 | `APIARY_FAKE_UPDATE`, `APIARY_FAKE_UPDATE_MODE` | test harness | drives the update banner with no network (`update/fakeBackend.ts`); the mode picks the platform and packaging shape it pretends to be |

@@ -5,7 +5,7 @@ import { asSessionId } from '@shared/domain/ids'
 import { isPendingPtyId } from '@shared/domain/ptyId'
 import { forkLabel } from '@shared/forkLabel'
 import { STANDARD_SESSIONS as STD } from '../../fixtures/standard'
-import { LONG_SESSION, sessionOf, STANDARD_TITLES, titles, type Ctx } from '../support'
+import { LONG_SESSION, sessionOf, skipOnRemote, STANDARD_TITLES, titles, type Ctx } from '../support'
 
 /** A session id no implementation has heard of. */
 const UNKNOWN_SESSION = asSessionId('99999999-9999-9999-9999-999999999999')
@@ -143,7 +143,8 @@ export function defineSessionClauses(ctx: Ctx): void {
       await expect(ctx.api.forkSession(UNKNOWN_SESSION)).rejects.toThrow()
     })
 
-    it('the folder picker starts a session in the folder it answers with, or in none when dismissed', async () => {
+    it('the folder picker starts a session in the folder it answers with, or in none when dismissed', async (t) => {
+      skipOnRemote(t, ctx.bridge, "newSessionInPickedFolder is not available in a remote window", 'newSessionInPickedFolder')
       const info = await ctx.api.newSessionInPickedFolder()
       expect(info).not.toBeNull()
       expect(info !== null && isPendingPtyId(info.ptyId)).toBe(true)

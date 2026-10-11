@@ -27,6 +27,20 @@ const WARM_WINDOW_MS = 400
  * whatever the timers do.
  */
 let openCard: { current: () => void; row: () => HTMLElement | null } | null = null
+
+/**
+ * Whether a modal dialog is open. A hover card never opens over one: the card is portalled to the
+ * page body, a modal lives inside its pane's stacking context, so the card drew on top of the
+ * dialog the row's own button had just opened (found in the folder browser's screenshots).
+ */
+function modalOpen(): boolean {
+  return typeof document !== 'undefined' && document.querySelector('[aria-modal="true"]') !== null
+}
+
+/** Closes whichever hover card is open; `Modal` calls it as it opens. */
+export function closeOpenHoverCard(): void {
+  openCard?.current()
+}
 let lastCardClosedAtMs = 0
 function isWarm(): boolean {
   return openCard !== null || Date.now() - lastCardClosedAtMs < WARM_WINDOW_MS
@@ -220,7 +234,7 @@ export function useHoverCard<T extends HTMLElement>(options: HoverCardOptions = 
       armedInstances.delete(cancelArm)
       // Re-checked here as well as on entry: the wheel may have turned during the delay, and the
       // row under the pointer now is not the row the pointer chose.
-      if (scrolledJustNow()) return
+      if (scrolledJustNow() || modalOpen()) return
       const rect = ref.current?.getBoundingClientRect()
       if (rect !== undefined && !isDegenerate(rect)) { lastKnownRect.current = rect; setAnchor(rect) }
     }, isWarm() ? WARM_DELAY_MS : HOVER_DELAY_MS)
@@ -306,7 +320,7 @@ export function useHoverCard<T extends HTMLElement>(options: HoverCardOptions = 
     const el = ref.current
     if (el === null) return
     const onSettle = (): void => {
-      if (scrolledJustNow()) return
+      if (scrolledJustNow() || modalOpen()) return
       const rect = el.getBoundingClientRect()
       if (!isDegenerate(rect)) { lastKnownRect.current = rect; setAnchor(rect) }
     }
@@ -316,6 +330,7 @@ export function useHoverCard<T extends HTMLElement>(options: HoverCardOptions = 
 
   const openNow = (): void => {
     clearTimers()
+    if (modalOpen()) return
     const rect = ref.current?.getBoundingClientRect()
     if (rect !== undefined && !isDegenerate(rect)) { lastKnownRect.current = rect; setAnchor(rect) }
   }

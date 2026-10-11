@@ -24,6 +24,7 @@ export type UiRule =
   | 'misaligned-row'
   | 'low-contrast'
   | 'unnamed-control'
+  | 'popup-over-modal'
 
 export interface UiViolation {
   rule: UiRule
@@ -232,6 +233,15 @@ export function auditUi(root: Element = document.body): UiViolation[] {
     }
   }
 
+  // While a modal is open, nothing of the page outside it floats: a hover card or tooltip left over
+  // from the row that opened the dialog drew on top of it (the folder browser's screenshots).
+  const modal = [...root.querySelectorAll('[aria-modal="true"]')].find(visible)
+  if (modal !== undefined) {
+    for (const el of root.querySelectorAll('[role="tooltip"], .hover-card')) {
+      if (visible(el) && !modal.contains(el)) add('popup-over-modal', el, 'a hover card or tooltip is showing while a modal dialog is open')
+    }
+  }
+
   // A toolbar's controls sit on one line: one that drops below or floats above the row looks broken.
   for (const bar of root.querySelectorAll('[role="toolbar"]')) {
     if (!visible(bar)) continue
@@ -248,14 +258,23 @@ export function auditUi(root: Element = document.body): UiViolation[] {
   // Two controls, or two pieces of text, drawn over each other in the same layer.
   const leaves = all.filter((el) => el.matches(INTERACTIVE) || (ownText(el) !== '' && el.closest(PROSE) === null))
   const layerOf = (el: Element): Element | null => el.closest(POPUP)
+  // Only the part each element shows counts: a row scrolled half out of its list is not drawn over
+  // the header above the list, though its full box reaches under it.
+  const shown = (el: Element): DOMRect => {
+    const r = el.getBoundingClientRect()
+    const c = clipBox(el)
+    const left = Math.max(r.left, c.left)
+    const top = Math.max(r.top, c.top)
+    return new DOMRect(left, top, Math.max(0, Math.min(r.right, c.right) - left), Math.max(0, Math.min(r.bottom, c.bottom) - top))
+  }
   for (let i = 0; i < leaves.length; i++) {
     const a = leaves[i]
     if (a === undefined) continue
-    const ra = a.getBoundingClientRect()
+    const ra = shown(a)
     for (let j = i + 1; j < leaves.length; j++) {
       const b = leaves[j]
       if (b === undefined || a.contains(b) || b.contains(a) || layerOf(a) !== layerOf(b)) continue
-      const rb = b.getBoundingClientRect()
+      const rb = shown(b)
       const w = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left)
       const h = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top)
       if (w > 2 && h > 2) add('overlap', a, `overlaps ${describe(b)} by ${String(Math.round(w))}×${String(Math.round(h))}px`)

@@ -131,6 +131,31 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
   against the packaged binary: window, sidebar sessions, a shell that echoes (node-pty from the asar
   unpack), clean quit. `APIARY_E2E_EXECUTABLE` makes the e2e harness launch that binary. On macOS
   it skips unless `codesign --verify --deep --strict` passes. `-- --skip-pack` reuses `release/`.
+- `npm run test:remote` — the remote-access test bed (`tests/remote/`, `vitest.remote.config.ts`):
+  an `ubuntu:24.04` container (sshd, Node 22, xvfb, the built app) that the Mac reaches over real
+  SSH on `127.0.0.1`. Needs Docker; the first run builds the image (minutes, `npm ci` included),
+  later runs reuse its layers. `harness.ts` makes a throwaway client key, a pinned host key and an ssh
+  config (`Host apiary-test`); `swapHostKey()` is the man-in-the-middle case. Cases: connect, MITM
+  refused with no command run, an unauthorized key refused, Unix-socket forwarding, the app booting
+  under xvfb. The remote-server cases relaunch the app with `remoteAccess` on: the socket appears with mode 0600, and a hello sent through the forwarded socket gets a welcome. Without
+  `APIARY_REMOTE_E2E=1` (the script sets it) the suite skips with a message.
+  The "whole flow" cases make this Mac's built app (`npm run build` first; `homeApp.ts` mirrors
+  `launchApiary`, headless, its own fixture home, `APIARY_SSH_CONFIG` = the bed's config) the home
+  machine and the container's app the work machine: `remoteConnect('apiary-test')` opens a window
+  with `remote=`; its sidebar shows the container's "hello remote" session and its transcript; the
+  shell prints `REMOTE_42` and the container's host name; stopping the work app sends `remoteStatus`
+  disconnected (asserted by a listener in the page) and closing the window leaves no home ssh; then the
+  refusals: remote access off, an unknown host, a swapped host key (no "connection opened" in the work log).
+- `npm run test:remote:tailnet` — the same bed joined to a real tailnet (`tests/remote/tailnet.test.ts`,
+  helpers in `tailnet.ts`). Needs Tailscale running and signed in on this Mac. The container joins
+  as an ephemeral node (userspace `tailscaled`, state in memory) with `TS_AUTHKEY` from the
+  environment or the repo's `.env` (gitignored and dockerignored; use an **untagged** key, so the
+  node is yours and your tailnet's SSH rules for your own devices apply), or, with no key, by
+  signing in at the link it prints. The key goes into the container on stdin and is deleted there
+  once used. Cases: this Mac sees the peer; then over the container's sshd on the tailnet address
+  and again over Tailscale SSH (`tailscale set --ssh`): a connect by MagicDNS name, a Unix-socket
+  round-trip, and Apiary listing the host as a Tailscale one, connecting and reading the work
+  machine's session. The node logs out when the suite ends.
 - `scripts/capture-activity-fixtures.mjs` — records new activity-classifier fixtures against a real
   `claude --model haiku`. Never run in CI. See
   [docs/architecture/activity.md](../docs/architecture/activity.md).

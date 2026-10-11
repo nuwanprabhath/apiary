@@ -105,7 +105,8 @@ export function definePluginClauses(ctx: Ctx): void {
       expect((await ctx.api.pluginList()).find((p) => p.id === CONSENT_PLUGIN.id)?.enabled).toBe(false)
       expect((await ctx.api.settingsGet()).plugins[CONSENT_PLUGIN.id]).toBe(false)
       expect(ctx.heard.count('statusBarChanged')).toBeGreaterThan(0)
-      expect(ctx.heard.count('pluginsChanged')).toBeGreaterThan(0)
+      // A remote window hears the work machine's `pluginsChanged`, not home's own (events of `remote` scope).
+      if (ctx.bridge.remote === undefined) expect(ctx.heard.count('pluginsChanged')).toBeGreaterThan(0)
     })
 
     it('an answer to a question nobody is asking is ignored, for an unknown plugin and for one with nothing to ask', async () => {

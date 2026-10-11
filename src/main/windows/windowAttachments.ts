@@ -1,4 +1,4 @@
-import type { WebContents } from 'electron'
+import type { Caller } from './caller'
 import type { EventSpec } from '@shared/ipc/contract'
 import { sendEvent } from './sendEvent'
 
@@ -85,8 +85,8 @@ export class WindowAttachments {
  * and will re-attach as they mount. A navigation the guard cancels never commits, so it leaves the
  * views alone. Idempotent per webContents, so call it on every attach.
  */
-export function windowLifetimeWatcher(onGone: (webContentsId: number) => void): (wc: WebContents) => void {
-  const watched = new WeakSet<WebContents>()
+export function windowLifetimeWatcher(onGone: (webContentsId: number) => void): (wc: Caller) => void {
+  const watched = new WeakSet<Caller>()
   return (wc) => {
     if (watched.has(wc)) return
     watched.add(wc)

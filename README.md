@@ -1,118 +1,48 @@
 # Apiary
 
-Import, search and resume pre-existing Claude Code sessions across folders and git worktrees in your whole machine. Single place to manage them all.
-
-Apiary reads the session files Claude Code already writes to `~/.claude/projects`
-(or `$CLAUDE_CONFIG_DIR`), groups them by the folder they started in, nests git
-worktrees under their parent repository, and lets you read any conversation or
-resume it in an embedded terminal in the correct working directory.
+One desktop app for every Claude Code session on your machine: find any conversation in seconds,
+pick it up where it left off, and work on several side by side, even on another computer.
 
 ![Apiary in its default Liquid Glass theme: a searchable sidebar with an Active section listing open sessions, Pinned and grouped sessions below it, and three sessions arranged in a layout on the right — a live Claude Code session in the large pane, two transcripts stacked beside it, and a shell with a minimal `$` prompt running under the live one — with three fuzzy pets on the status bar along the bottom](docs/screenshot.png)
 
+## Why Apiary
+
+- **Every session in one place.** Apiary reads the session files Claude Code already writes, groups
+  them by the folder they started in and nests git worktrees under their repository. There is
+  nothing to set up and nothing copied.
+- **Find it again.** Fuzzy search over titles and your own notes, plus Pinned, Active and Recent
+  lists, so last month's session is a few keystrokes away.
+- **Pick up where you left off.** Resume any session in its own working directory, in a terminal or
+  as a chat. Both drive the same `claude --resume`, so the transcript stays the one record.
+- **Several at once.** Tabs, layouts of up to four panes, windows of their own, and a shell beside
+  every session.
+- **Your work machine, from home.** Open the Apiary on another computer over SSH or Tailscale, the
+  way VS Code Remote-SSH works: its sessions, terminals and chats in a window here. Nothing
+  listens on the network.
+- **Git where the session is.** Branch, pull, push and the merge request for each session's own
+  folder, without leaving it.
+
 ## Features
 
-- **Pets** — fuzzy little 3D characters that live along the status bar, and up the sidebar's rail
-  when it's folded away. They wander, nap, read and dance, play catch and tennis, have picnics,
-  go fishing and parachute off the rail. They peek at what Claude is doing and say what they
-  think of it, and run over to point at a session when it finishes. Drag one anywhere, right-click to resize it, click to
-  chat. The first is hatched for you by Claude; describe more in Settings → Pets, or import one a
-  friend exported. Off until you turn it on; each pet is drawn once, in the background, so it
-  never slows the window down.
-- **Grouped, searchable sidebar** — every session grouped by the folder it started
-  in, with git worktrees nested under their parent repository. Fuzzy-search by
-  title narrows both sessions and folders as you type.
-- **Import, on your terms** — nothing shows up until you import it via File >
-  Import Claude Sessions; ticking a folder also marks it for auto-import, so
-  sessions you start there later appear on their own without repeating the step.
-- **Read any transcript** — full conversation history, rendered as markdown
-  (headings, code blocks, lists), with tool calls/results collapsed into
-  expandable blocks and subagent (sidechain) messages hidden by default.
-- **Work on several sessions at once** — sessions open as tabs, and a window arranges up
-  to four of them in a layout: columns, rows, a main pane with two beside it, or a 2×2 grid.
-  Rest the pointer on a session's split button or a tab's layout icon (or choose *Arrange…*
-  from its right-click menu), click the spot you want it in, and the rest arrange around it.
-  Empty panes offer your open tabs and recent sessions, and the dividers drag in both
-  directions.
-- **Tidy terminals and a tidy sidebar** — F2 renames the terminal you're in; hovering a folder
-  shows its full path with a copy button, and collapses every worktree under it in one click;
-  the whole sidebar folds away to a thin rail (⌘B / Ctrl+Shift+B) when you want the width.
-- **A session in a window of its own** — drag a tab out of the window, or right-click it and
-  choose *Move into New Window*, and the conversation and its shell get a window with no sidebar
-  in the way. Tabs can be dragged between open windows too.
-- **Change a folder's branch from the sidebar** — right-click a git folder or worktree and choose
-  *Change branch…*; no session needs to be open there.
-- **Branches held by another worktree** — checking one out is refused by git, so Apiary says which
-  worktree has it and offers to pull it there, start a session there, or switch that worktree to
-  another branch (or swap with this one) and check it out here in one go, instead of printing the
-  error and leaving you to find the folder.
-- **Fork a session** — right-click a tab or a sidebar row to start a new conversation from where
-  this one has got to. The fork opens beside the original, named after it; the original is left
-  exactly as it was.
-- **Chat with a session** — its Chat tab has a message box under the conversation, so you can
-  reply without switching to its Terminal tab. Paste or drop images straight into it: each one gets a thumbnail
-  you can click to see full size, and images already in a session's history render the same way.
-  It isn't a second conversation — what you type is delivered into the very same `claude --resume`
-  process, so the session's own transcript stays the single record. "Hide tool calls" in the tab's
-  toolbar (or Settings → General, to start that way) leaves out the command and output boxes, so the
-  conversation reads as what you said and what Claude said.
-- **Resume in terminal** — reopens a session with `claude --resume`
-  in its correct working directory, right inside the app; warns (with the option
-  to fork instead) if that session is already running elsewhere.
-- **Start brand-new sessions** — a "+" on any folder spawns a fresh `claude`
-  session there directly from the sidebar, no separate terminal needed.
-- **A git toolbar per session** — current branch with ahead/behind counts, a VS
-  Code-style branch switcher, pull, push, and copy-branch-name, all scoped to that
-  session's own working directory.
-- **A plain shell alongside any session** — open an ordinary interactive shell in
-  the same working directory as the session you're looking at, resizable and
-  independent of the session's own terminal.
-- **Pin the sessions you live in** — a pin button on any session row lifts it into
-  a Pinned section at the top of the sidebar (collapsible, like a folder), so the
-  two or three you actually work in aren't buried among months of history. A row's
-  age gives way to its buttons on hover, so nothing has to compete for width.
-- **A diagnostic log, when you want one** — off by default and silent until you switch it on in
-  Settings. It records what Apiary did, never what you said to Claude: no prompts, no replies, no
-  transcript text, home directories replaced with `~` and anything token-shaped stripped. Kept
-  inside a retention and size limit you set, and the folder is one click away to send on.
-- **Failures say what happened** — anything that goes wrong, from a missing
-  transcript file to a failed push, appears as a notification with the message in
-  plain words and the raw error behind a "Details" toggle. A crash in one session's
-  pane is caught and shown in place rather than blanking the window.
-- **Rename sessions** — give a session a title of your own; it persists and
-  survives Claude's own title-generation catching up later.
-- **Remove sessions from view** — hide a session you don't need without ever
-  touching the underlying transcript file on disk; it stays importable again
-  later if you change your mind.
-- **Merge-request button** — the session bar shows the GitLab MR for the branch you are on by
-  number, and opens it in a click, saying whether it is open, merged or closed; with no MR yet it
-  opens GitLab's new-MR form with the branch filled in. Uses `glab`, so Apiary never stores a token. Part of a small plugin system, so the
-  bar can grow other integrations the same way.
-- **Shorter terminal prompts** — optionally trim the working directory in the prompt of shells
-  Apiary starts, so a deep worktree path stops eating the first line.
-- **Notes on sessions** — jot down what you were doing (the ticket, the merge request, what you
-  had ruled out) from the session's row. Notes show when you hover it, and are searched from the
-  search box, so a session is findable months later by the MR number you remember. Can be switched
-  off in Search settings.
-- **Keeps itself up to date** — checks GitHub for new releases on a schedule and offers them in
-  a strip above the workspace, with *Check for Updates…* in the menu for asking on demand. On
-  Linux (AppImage) it installs the update and restarts into it; on macOS, where an unsigned app
-  is not allowed to replace itself, it downloads and verifies the .dmg and opens it for you.
-  Settings has the schedule, auto-download and pre-release options.
-- **Everything remembered across restarts** — window size and position, sidebar
-  width, which folders are collapsed, the selected session, and the shell pane's
-  height all persist between launches. Every window's panes and tabs come back too, and a
-  session that was actually running when you quit resumes running rather than reopening as a
-  plain transcript.
-- **Active and Recent, above and below Pinned** — Active lists every session open across all your
-  windows, with a status dot for running, waiting on you, idle or stopped; clicking one brings its
-  window forward and switches to its tab. Recent lists sessions you've used in the last few hours,
-  with a configurable window, an on/off switch in Settings, and per-row dismissal.
-- **MR status beside the reference** — a `!1234` in a session's title or note shows its state
-  inline, `!1234 (merged)`, resolved through `glab`; it degrades to plain text if `glab` isn't
-  available.
-- **Move a session to another worktree by dragging it there** — drop a sidebar row onto a
-  different worktree and, after a confirmation, Apiary moves it there.
-- **Open in VS Code** — a button on a session's hover card opens its folder directly in VS Code.
+- **Import on your terms:** nothing appears until you import it; a ticked folder brings in new
+  sessions on its own.
+- **Transcripts** rendered as markdown, tool calls folded away, images inline.
+- **Chat** with a session while it works, with pasted or dropped images.
+- **Start, fork, rename, note, pin, hide** a session, or drag it to another worktree.
+- **Git toolbar** per session: branch switcher, ahead and behind, pull, push, and help when a branch
+  is checked out in another worktree.
+- **GitLab merge requests** for the current branch, and their status beside `!1234` in titles,
+  through `glab` (no token stored).
+- **Remote access** over SSH: hosts from `~/.ssh/config`, recent connections and Tailscale;
+  reconnects on its own; starts Apiary on the work machine if it is not running; optional pairing
+  code.
+- **Open in VS Code**, locally or over Remote-SSH from a remote window.
+- **Themes**, including Liquid Glass, or describe one and Claude designs it.
+- **Pets** (optional): small 3D characters on the status bar that react to what Claude is doing.
+- **Remembers everything** across restarts: windows, layouts, tabs, and sessions that were running.
+- **Keeps itself up to date** from GitHub releases.
+- **Errors in plain words**, with the raw error a click away, and an opt-in diagnostic log that
+  never records your conversations.
 
 ## Install
 

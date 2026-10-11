@@ -600,3 +600,116 @@ button.layout-thumb:hover .layout-zone, button.layout-thumb:focus-visible .layou
   font-size: 0.9em;
 }
 .worktree-conflict-summary strong { color: var(--text); font-weight: 500; }
+
+/* Connect to Remote Host. */
+.remote-form { display: flex; flex-direction: column; gap: var(--control-gap); width: 460px; max-width: 100%; }
+.remote-label { font-size: 12px; color: var(--muted); }
+.remote-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--field-bg);
+  color: var(--text);
+  font: inherit;
+}
+.remote-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.remote-input:disabled { opacity: 0.6; }
+.remote-hint { margin: 0; font-size: 12px; color: var(--muted); }
+.remote-hosts { display: flex; flex-direction: column; gap: var(--control-gap); }
+/* Six rows show; the rest scroll. */
+.remote-host-list { display: flex; flex-direction: column; max-height: calc(6 * var(--control-height)); overflow-y: auto; }
+.remote-host-row {
+  display: flex;
+  align-items: center;
+  gap: var(--control-gap);
+  flex: none;
+  min-height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.remote-host-row:disabled { opacity: 0.6; cursor: default; }
+.remote-host-row:hover:not(:disabled) { background: var(--hover); }
+.remote-host-dot { flex: none; width: 0.7em; aspect-ratio: 1; margin: 0; border-radius: var(--radius-sm); background: var(--muted); }
+.remote-host-dot.ready { background: var(--success); }
+.remote-host-dot.unreachable { background: var(--danger); }
+.remote-host-dot.refused { background: var(--danger); }
+.remote-host-dot.btn-spinner { width: 0.7em; margin: 0; background: none; border: 2px solid var(--muted); border-top-color: transparent; }
+.remote-host-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.remote-host-source { flex: none; color: var(--muted); }
+.remote-host-status { flex: none; color: var(--muted); font-style: italic; }
+.remote-pairing-field { display: flex; flex-direction: column; gap: var(--control-gap); }
+.remote-pairing-input { font-family: var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* Settings → General: pairing code and who is connected. */
+.remote-pairing-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--control-gap); }
+.remote-pairing-code { font-family: var(--font-mono); font-size: 15px; letter-spacing: 0.12em; padding: 0 var(--control-padding-x); background: var(--field-bg); border: 1px solid var(--border); border-radius: var(--radius-sm); user-select: all; }
+.remote-pairing-error { color: var(--danger); }
+.remote-client { overflow-wrap: anywhere; }
+.remote-confirm { display: flex; flex-direction: column; gap: var(--control-gap); }
+.remote-confirm-actions { display: flex; flex-wrap: wrap; gap: var(--control-gap); }
+.remote-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--control-gap);
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.remote-error-icon { flex: none; width: 1.2em; height: 1.2em; }
+.remote-offer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--control-gap); }
+.remote-offer-text { display: flex; align-items: center; gap: var(--control-gap); margin: 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.remote-host-dot.stopped { background: var(--warning); }
+.btn-spinner {
+  display: inline-block;
+  width: 1em;
+  aspect-ratio: 1;
+  margin-right: var(--control-gap);
+  vertical-align: -2px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin var(--search-spinner-duration) linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-spinner { animation: none; }
+}
+
+/* The folder browser a remote window shows in place of the native picker (features/folderBrowser). */
+.folder-browser-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-browser-bar { display: flex; align-items: center; gap: var(--control-gap); margin-bottom: var(--control-gap); min-width: 0; }
+.folder-browser-crumbs { display: flex; align-items: center; flex: 1; min-width: 0; overflow: hidden; }
+.folder-crumb-item { display: inline-flex; align-items: center; min-width: 0; flex: 0 1 auto; }
+.folder-crumb-sep { color: var(--text-dim); padding: 0 var(--control-gap); flex: none; }
+.folder-crumb {
+  min-width: 0; max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 0 var(--control-gap); border: 0; border-radius: var(--radius-sm); background: none; color: inherit; font: inherit;
+}
+button.folder-crumb { cursor: pointer; color: var(--text-dim); }
+button.folder-crumb:hover:not(:disabled) { background: var(--selected); color: var(--text); }
+.folder-crumb-here { font-weight: 600; }
+.folder-up-icon { width: 1em; height: 1em; flex: none; }
+.folder-browser-box { border: 1px solid var(--border); border-radius: var(--radius-control); min-height: calc(3 * var(--control-height)); }
+.folder-browser-list { max-height: calc(12 * var(--control-height)); overflow-y: auto; outline: none; background: var(--bg-popover, var(--bg-panel)); }
+.folder-browser-list:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
+.folder-row { display: flex; align-items: center; gap: var(--control-gap); height: var(--control-height); padding: 0 var(--control-padding-x); cursor: default; }
+.folder-row:hover { background: var(--selected); }
+.folder-row.selected { background: var(--selected); box-shadow: inset 2px 0 0 var(--accent); }
+.folder-row-icon { width: 1em; height: 1em; flex: none; color: var(--text-dim); }
+.folder-row-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-browser-note { margin: 0; padding: var(--control-padding-x); color: var(--text-dim); }
+.folder-browser-error { margin: var(--control-gap) 0 0; color: var(--danger); overflow-wrap: anywhere; }
+.folder-start { min-width: 0; max-width: 18em; }
+.folder-start-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

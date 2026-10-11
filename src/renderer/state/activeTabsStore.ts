@@ -1,5 +1,6 @@
 import type { ActiveTabPayload } from '@shared/api'
 import { createIpcStore } from './createIpcStore'
+import { onRemoteReconnected } from './remote'
 
 /**
  * Field-by-field equality on the payload's own fields (UI-4): main coalesces `activeTabsChanged`
@@ -37,7 +38,10 @@ const activeTabsStore = createIpcStore<ActiveTabPayload[]>({
   // consumer downstream does not re-render on every coalesced broadcast.
   equal: tabsEqual,
   fetch: () => window.apiary.activeTabs(),
-  subscribe: (_push, invalidate) => window.apiary.onActiveTabsChanged(invalidate),
+  subscribe: (_push, invalidate) => {
+    const off = [window.apiary.onActiveTabsChanged(invalidate), onRemoteReconnected(invalidate)]
+    return () => { for (const f of off) f() }
+  },
 })
 
 export function useActiveTabs(): ActiveTabPayload[] {

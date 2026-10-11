@@ -71,9 +71,10 @@ A new long-lived service: `npm run new -- service <name>`, then build it in `cre
 its class to the `construct-in-container` list in `eslint/sanctioned.js`, and hand it to the
 handlers that need it. A new IPC call: `npm run new -- ipc <name>`.
 
-`app/container.ts` is the one place long-lived main-process objects are constructed (the
-construct-in-container lint rule; the one exception is the search worker's own `SearchIndex`,
-on its own thread). `createContainer(env, paths, inputs)` builds the windows, settings, updater,
+`app/container.ts` is the one place long-lived main-process objects are constructed, with
+`app/remoteContainer.ts` holding remote access's part of it (the construct-in-container lint rule
+allows those two; the one other exception is the search worker's own `SearchIndex`, on its own
+thread). `createContainer(env, paths, inputs)` builds the windows, settings, updater,
 themes, pets and the watcher, and calls `createServices(options)` for the session side, so a test
 builds the same graph around a temp directory (`tests/fixtures/buildService.ts`). Construction is
 pure — no window, timer, poll or refresh; `index.ts` resolves what needs Electron and starts things

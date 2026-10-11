@@ -20,6 +20,9 @@ const OWNERS: Record<string, string> = {
   'session-layout.json': 'src/main/windows/sessionLayoutStore.ts',
   'themes.json': 'src/main/theme/themeStore.ts',
   'pets.json': 'src/main/pets/petStore.ts',
+  'remote-hosts.json': 'src/main/remote/hostDirectory.ts',
+  'remote-pairing.json': 'src/main/remote/pairingStore.ts',
+  'remote-pairing-codes.json': 'src/main/remote/savedPairingCodes.ts',
 }
 
 const root = resolve(__dirname, '../../..')

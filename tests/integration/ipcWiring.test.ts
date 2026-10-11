@@ -68,6 +68,7 @@ const { PetStore } = await import('../../src/main/pets/petStore')
 const { PetService } = await import('../../src/main/pets/petService')
 const { SettingsService } = await import('../../src/main/settings/settingsService')
 const { SpellingService } = await import('../../src/main/spelling/spellingService')
+const { FolderBrowser } = await import('../../src/main/folders/folderBrowser')
 await import('../../src/preload/index')
 
 let home: string
@@ -88,11 +89,13 @@ beforeEach(async () => {
   sent.length = 0
   const ipc = registerIpc({
     senderPolicy: UNCHECKED_SENDERS,
+    router: null, remoteClient: null, hostDirectory: null, remoteServer: null, remotePairing: null,
     service,
     chat: service.chat,
     plugins: service.plugins,
     activeTabs: built.activeTabs,
     spelling: new SpellingService(),
+    folderBrowser: new FolderBrowser({ home }),
     state: buildIpcState(service, join(home, '.claude')),
     settings: new SettingsService(join(home, 'settings.json')),
     theme: {

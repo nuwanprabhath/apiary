@@ -1,3 +1,4 @@
+import { isRecord } from '@shared/guards'
 import { isWindowChrome, type WindowChrome } from '@shared/domain/windowChrome'
 import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'node:path'
@@ -26,6 +27,15 @@ export interface NewWindowOptions {
   at?: { x: number; y: number }
   /** A window being recreated from the previous run's SessionLayoutStore record. */
   restore?: WindowLayoutRecord
+  /** A window showing a work machine (`remote/remoteClientService.ts`): titled with its name, given a fresh number here, and never stored in this machine's session layout. */
+  remote?: { host: string; /** The work machine's layout record for the window being copied (`RemoteWindowLayout.layout`), if it has one. */ layout?: unknown }
+}
+
+/** A window just created: its page has been asked to load but has not run yet. */
+export interface OpenedWindow {
+  number: number
+  webContentsId: number
+  onClosed(listener: () => void): void
 }
 
 /** The two settings a window reads, and the one it writes back (the first window's geometry). The
@@ -124,9 +134,16 @@ export class WindowManager {
   }
 
   create(opts: NewWindowOptions = {}): number {
+    return this.open(opts).number
+  }
+
+  /** `create`, also telling the caller which webContents it got — so it can bind the window before the page's first call. */
+  open(opts: NewWindowOptions = {}): OpenedWindow {
     const { settingsService, sessionLayoutStore, tabRegistry, headless, dirname, rendererUrl, isQuitting } = this.deps
     this.windowsOpened += 1
-    const windowNumber = opts.restore?.number ?? this.windowsOpened
+    const remote = opts.remote
+    // A remote window's layout comes from the work machine, whose window numbers mean nothing here.
+    const windowNumber = remote === undefined ? opts.restore?.number ?? this.windowsOpened : this.windowsOpened
     const isFirst = windowNumber === 1
 
     const detached = opts.detach !== undefined
@@ -177,7 +194,7 @@ export class WindowManager {
       minWidth: detached ? 520 : 900,
       minHeight: 400,
       show: false,
-      title: 'Apiary',
+      title: remote === undefined ? 'Apiary' : `${remote.host} — Apiary`,
       // A *packaged* macOS app takes its window/dock icon from the .app bundle (see
       // `mac.icon` in electron-builder.yml) and ignores this option entirely — but `npm start`
       // runs the bare Electron binary with no bundle at all, so without `setDevDockIcon()`
@@ -230,7 +247,7 @@ export class WindowManager {
     // A trailing 300ms debounce turns a drag's whole burst into one read and, for the first window,
     // one write once the drag actually settles.
     let boundsTimer: NodeJS.Timeout | null = null
-    if (!detached) {
+    if (!detached && remote === undefined) {
       const persistBounds = (): void => {
         if (boundsTimer) clearTimeout(boundsTimer)
         boundsTimer = setTimeout(() => {
@@ -265,7 +282,7 @@ export class WindowManager {
       // close before the grace runs out, this was one step of a quit and every pending record stays.
       if (BrowserWindow.getAllWindows().length === 0) {
         this.cancelPendingRemovals()
-      } else if (!isQuitting()) {
+      } else if (!isQuitting() && remote === undefined) {
         this.pendingRemovals.set(windowNumber, setTimeout(() => {
           this.pendingRemovals.delete(windowNumber)
           if (isQuitting() || BrowserWindow.getAllWindows().length === 0) return
@@ -299,6 +316,10 @@ export class WindowManager {
       // the `records` filter in `index.ts`'s `start()`), so the renderer has nothing to do with it.
       query.restore = JSON.stringify({ ...opts.restore, bounds: undefined, hasLayout: undefined })
     }
+    if (remote !== undefined) {
+      query.remote = remote.host
+      if (isRecord(remote.layout)) query.restore = JSON.stringify({ ...remote.layout, number: windowNumber, bounds: undefined, hasLayout: undefined })
+    }
     if (this.deps.rendererSeams !== undefined) query.seams = this.deps.rendererSeams
     if (rendererUrl) {
       const url = new URL(rendererUrl)
@@ -307,7 +328,7 @@ export class WindowManager {
     } else {
       fireAndForget(win.loadFile(join(dirname, '../renderer/index.html'), { query }), 'window')
     }
-    return windowNumber
+    return { number: windowNumber, webContentsId, onClosed: (listener) => { win.once('closed', listener) } }
   }
 }
 

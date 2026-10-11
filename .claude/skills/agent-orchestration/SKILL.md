@@ -38,6 +38,9 @@ Every rule here comes from the 1.35.0 release, which was built by headless Haiku
 
 ## Briefs
 
+- **Write each brief with a file tool, not a shell heredoc.** Briefs are full of backticks; one
+  unescaped backtick in a heredoc is a command substitution, and an agent was started on an empty
+  brief. `run-agent.sh` now refuses a brief under 400 bytes.
 - **Start every brief with the non-interactive rule** (it is in `common-brief.md`). A user-level
   skill that says "brainstorm and ask clarifying questions first" ended two agents on their first
   question, with nothing built.
@@ -95,6 +98,18 @@ Every rule here comes from the 1.35.0 release, which was built by headless Haiku
   the bugs fixed. A Sonnet investigator, read-only with a scratch e2e spec to reproduce, found the
   cause in one pass. Then hand the fix itself, precisely specified, to an agent.
 - Tell the maintainer each time you switch a package, and why.
+
+## Disk space
+
+- **A full disk stops every agent at once** ("ENOSPC"). In the remote-access run, a Docker test bed
+  left a new 4 GB image and its build cache behind on each rebuild, filled the disk, and two agents
+  died mid-task with nothing committed. Docker Desktop then hung and had to be force-quit.
+- Check `df -h` before launching agents that build images, and between rounds.
+- A test bed labels its image and prunes only that label's leftovers after each build
+  (`tests/remote/harness.ts`). Never run a blanket `docker system prune`: the maintainer's other
+  projects' containers and volumes live there too.
+- A killed agent's uncommitted work stays in its worktree. Restart it fresh with a "RESUMING: read
+  `git status` and `git diff` first" note at the top of its brief.
 
 ## Usage limits
 

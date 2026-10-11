@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ReportedTab, TabTransfer, WindowLayoutReport } from '@shared/domain/tabs'
 import { STANDARD_SESSIONS as STD } from '../../fixtures/standard'
-import type { Ctx } from '../support'
+import { skipOnRemote, type Ctx } from '../support'
 import { DETACHED_WINDOW_NUMBER, INSIDE_THIS_WINDOW, OUTSIDE_EVERY_WINDOW, THIS_WINDOW } from '../world'
 
 const tab = (key: string, over: Partial<ReportedTab> = {}): ReportedTab => ({ key, view: 'transcript', ptyId: null, label: null, ...over })
@@ -14,7 +14,8 @@ const LAYOUT: WindowLayoutReport = {
 
 export function defineTabClauses(ctx: Ctx): void {
   describe('tabs and layout', () => {
-    it('lists nothing open until a window reports its tabs, then what it reported, with an activity for each, and says when that changes', async () => {
+    it('lists nothing open until a window reports its tabs, then what it reported, with an activity for each, and says when that changes', async (t) => {
+      skipOnRemote(t, ctx.bridge, "the remote window has no window number on the work machine")
       expect(await ctx.api.activeTabs()).toEqual([])
       ctx.api.reportTabs([tab(STD.csv.id), tab('new:pending', { view: 'terminal', label: 'Pending session' })])
       expect(await ctx.api.activeTabs()).toEqual([
@@ -24,7 +25,8 @@ export function defineTabClauses(ctx: Ctx): void {
       expect(ctx.heard.count('activeTabsChanged')).toBe(1)
     })
 
-    it('a chat is running in the list while Claude has a background task in flight, though its turn is over, and idle once the task reports back', async () => {
+    it('a chat is running in the list while Claude has a background task in flight, though its turn is over, and idle once the task reports back', async (t) => {
+      skipOnRemote(t, ctx.bridge, "the remote window has no window number on the work machine")
       await ctx.api.chatStart(STD.csv.id, { takeOver: false })
       ctx.api.reportTabs([tab(STD.csv.id)])
       await ctx.api.chatSend(STD.csv.id, 'run a background task')
@@ -36,7 +38,8 @@ export function defineTabClauses(ctx: Ctx): void {
       await expect.poll(async () => (await ctx.api.activeTabs()).find((t) => t.key === STD.csv.id)?.status, { timeout: 5000 }).toBe('idle')
     })
 
-    it('each report replaces the last: a tab left out of it is closed', async () => {
+    it('each report replaces the last: a tab left out of it is closed', async (t) => {
+      skipOnRemote(t, ctx.bridge, "the remote window has no window number on the work machine")
       ctx.api.reportTabs([tab(STD.csv.id), tab(STD.switcher.id)])
       ctx.api.reportTabs([tab(STD.switcher.id)])
       expect((await ctx.api.activeTabs()).map((t) => t.key)).toEqual([STD.switcher.id])
@@ -44,7 +47,8 @@ export function defineTabClauses(ctx: Ctx): void {
       expect(await ctx.api.activeTabs()).toEqual([])
     })
 
-    it('drops a report that is not a list of tabs', async () => {
+    it('drops a report that is not a list of tabs', async (t) => {
+      skipOnRemote(t, ctx.bridge, "the remote window has no window number on the work machine")
       ctx.api.reportTabs([tab(STD.csv.id)])
       ctx.api.reportTabs('everything' as never)
       ctx.api.reportTabs([{ key: 5 }] as never)
@@ -64,7 +68,8 @@ export function defineTabClauses(ctx: Ctx): void {
       expect(ctx.heard.count('selectTab')).toBe(1)
     })
 
-    it('adopting a tab here hands it to this window and tells it to open it, without telling this window it lost it', async () => {
+    it('adopting a tab here hands it to this window and tells it to open it, without telling this window it lost it', async (t) => {
+      skipOnRemote(t, ctx.bridge, "tabAdoptHere is not available in a remote window", 'tabAdoptHere')
       await ctx.api.tabAdoptHere(transfer('tab-from-elsewhere'))
       expect(ctx.heard.payloads('tabAdopt')).toEqual([[transfer('tab-from-elsewhere')]])
       expect(ctx.heard.count('tabClaimed')).toBe(0)
@@ -74,14 +79,16 @@ export function defineTabClauses(ctx: Ctx): void {
       expect(ctx.heard.count('activeTabsChanged')).toBeGreaterThan(0)
     })
 
-    it('tearing a tab off into a window of its own tells every window it was claimed and files it under the new window', async () => {
+    it('tearing a tab off into a window of its own tells every window it was claimed and files it under the new window', async (t) => {
+      skipOnRemote(t, ctx.bridge, "tabDetach is not available in a remote window", 'tabDetach')
       ctx.api.reportTabs([tab(STD.csv.id)])
       await ctx.api.tabDetach(transfer(STD.csv.id), OUTSIDE_EVERY_WINDOW)
       expect(ctx.heard.payloads('tabClaimed')).toEqual([[STD.csv.id]])
       expect((await ctx.api.activeTabs()).map((t) => [t.windowNumber, t.key])).toEqual([[DETACHED_WINDOW_NUMBER, STD.csv.id]])
     })
 
-    it('dropping a tab on the desktop does the same; dropping it back on its own window does nothing', async () => {
+    it('dropping a tab on the desktop does the same; dropping it back on its own window does nothing', async (t) => {
+      skipOnRemote(t, ctx.bridge, "tabDropped is not available in a remote window", 'tabDropped')
       ctx.api.reportTabs([tab(STD.csv.id)])
       await ctx.api.tabDropped(transfer(STD.csv.id), INSIDE_THIS_WINDOW)
       expect(ctx.heard.count('tabClaimed')).toBe(0)

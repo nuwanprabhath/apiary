@@ -21,7 +21,7 @@ export function buildServices(options: ServicesOptions): Services {
  * the registry and the window functions it wants (the contract loopback does).
  */
 export function buildIpcState(
-  service: AppService, configRoot: string, windows: Partial<Pick<IpcStateInputs, 'tabRegistry' | 'openDetachedWindow' | 'windowNumberFor'>> = {},
+  service: AppService, configRoot: string, windows: Partial<Pick<IpcStateInputs, 'tabRegistry' | 'openDetachedWindow' | 'windowNumberFor' | 'virtualContents'>> = {},
 ): ReturnType<typeof createIpcState> {
   return createIpcState({
     pty: service.pty, configRoot, tabRegistry: null, openDetachedWindow: () => 0, windowNumberFor: () => null, ...windows,

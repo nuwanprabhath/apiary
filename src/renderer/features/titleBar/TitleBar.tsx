@@ -3,6 +3,8 @@ import type { WindowChrome } from '@shared/domain/windowChrome'
 import { THEME_CHANGE_EVENT } from '../../theme/applyTheme'
 import { MenuBar } from './MenuBar'
 import { setTitleBarColors } from '../../state/windowChrome'
+import { remoteHost } from '../../state/windowParams'
+import { RemoteBadge } from '../remote'
 
 /** A computed CSS colour (`rgb(…)`/`rgba(…)`) as `#rrggbb`, alpha dropped — the overlay is opaque. */
 export function cssColorToHex(value: string): string | null {
@@ -40,11 +42,15 @@ export function TitleBar({ chrome, title }: { chrome: WindowChrome; title: strin
     return () => { window.removeEventListener(THEME_CHANGE_EVENT, send) }
   }, [chrome])
 
+  const host = remoteHost()
   if (chrome === 'system') return null
   return (
     <header className="title-bar" data-chrome={chrome} data-testid="title-bar">
       {chrome === 'custom' && <MenuBar />}
-      <div className="title-bar-title" data-testid="title-bar-title">{title}</div>
+      <div className="title-bar-title" data-testid="title-bar-title">
+        {host !== null && <RemoteBadge host={host} />}
+        <span className="title-bar-title-text">{title}</span>
+      </div>
     </header>
   )
 }

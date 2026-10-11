@@ -31,6 +31,7 @@ import { fakePet, petsApi } from './fake/pets'
 import { message, sessionsApi } from './fake/sessions'
 import { settingsApi } from './fake/settings'
 import { spellingApi } from './fake/spelling'
+import { foldersApi } from './fake/folders'
 import type { Env, FakeApiary, FakeCall, FakeEvent, FakeOptions, FakeProject, FakeSession, FakeState } from './fake/state'
 import { initialThemeState, themesApi } from './fake/themes'
 import { tabsApi } from './fake/tabs'
@@ -95,6 +96,16 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     if (!plugins.some((p) => p.id === id)) plugins.push({ id, name: id, description: null, enabled: true, fields: [], values: {} })
   }
   const state: FakeState = {
+    remoteConnects: [],
+    remoteConnectPairings: [],
+    remoteClients: [],
+    remoteDisconnects: 0,
+    remotePairingCode: 'KMNP-2345',
+    remoteConnectError: null,
+    remoteStarts: [],
+    remoteStartError: null,
+    remoteHosts: [],
+    remoteHostProbes: [],
     projects,
     sessions,
     imported: new Set(opts.imported === 'none' ? [] : sessions.map((s) => s.sessionId)),
@@ -128,6 +139,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     petComment: null,
     petFile: null,
     pickedFolder: opts.pickedFolder !== undefined ? opts.pickedFolder : '/fixture/picked',
+    homeLinks: new Set(),
     images: new Map(),
     opened: [],
     copied: [],
@@ -175,6 +187,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     ...tabsApi(env),
     ...gitApi(env),
     ...spellingApi(),
+    ...foldersApi(env),
     get initialTheme() { return state.theme },
     onActiveTabsChanged: on('activeTabsChanged'),
     onSelectTab: on('selectTab'),
@@ -198,6 +211,41 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     onChatLifecycle: on('chatLifecycle'),
     onUpdateChanged: on('updateChanged'),
     onContextMenuRequested: on('contextMenuRequested'),
+    // Main opens the remote window itself; this window only learns whether it worked. A test sets
+    // `state.remoteConnectError` to make it fail with that message.
+    remoteConnect: async (host, pairing) => {
+      state.remoteConnects.push(host)
+      state.remoteConnectPairings.push(pairing)
+      if (state.remoteConnectError !== null) throw new Error(state.remoteConnectError)
+    },
+    remoteStartAndConnect: async (host) => {
+      state.remoteStarts.push(host)
+      if (state.remoteStartError !== null) throw new Error(state.remoteStartError)
+    },
+    onOpenRemoteDialog: on('openRemoteDialog'),
+    onRemoteStatus: on('remoteStatus'),
+    // Main answers with its cache and, for a probe, sends `remoteHostsChanged` as results arrive; a
+    // test sets `state.remoteHosts` and emits that event itself (the fake has no ssh to wait for).
+    remoteHosts: async (probe) => {
+      state.remoteHostProbes.push(probe)
+      return state.remoteHosts
+    },
+    onRemoteHostsChanged: on('remoteHostsChanged'),
+    remoteClients: async () => state.remoteClients,
+    onRemoteClientsChanged: on('remoteClientsChanged'),
+    // Main closes every connection and turns remote access off; the list empties and is announced.
+    remoteDisconnectAll: async () => {
+      state.remoteDisconnects += 1
+      const had = state.remoteClients.length > 0
+      state.remoteClients = []
+      state.settings = { ...state.settings, remoteAccess: false }
+      if (had) emit('remoteClientsChanged', [])
+    },
+    remotePairing: async () => state.remotePairingCode,
+    remotePairingNew: async () => {
+      state.remotePairingCode = state.remotePairingCode === 'KMNP-2345' ? 'WXYZ-6789' : 'KMNP-2345'
+      return state.remotePairingCode
+    },
   }
 
   // Every method goes through here, so calls are recorded and a test can swap one out. The theme

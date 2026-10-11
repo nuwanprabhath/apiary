@@ -3,6 +3,7 @@ import type { ChatDecision, ChatEffort, ChatLifecycle, ChatModel, ChatPermission
 import { asSessionId, type SessionId } from '@shared/domain/ids'
 import { createKeyedIpcStore } from './createIpcStore'
 import { surface } from './policy'
+import { onRemoteReconnected } from './remote'
 
 /**
  * Whether the transcript's message box drives the session as a chat (the `transcriptChat`
@@ -45,7 +46,12 @@ const chatStore = createKeyedIpcStore<ChatState | null>({
     if (sessionId === '') return () => {}
     const apiary = window.apiary
     apiary.chatAttach(sessionOfKey(sessionId))
-    return () => { apiary.chatDetach(sessionOfKey(sessionId)) }
+    // A reconnected remote window re-reads every chat it shows: pushes were lost while away.
+    const offReconnect = onRemoteReconnected(() => { chatStore.reload(sessionId) })
+    return () => {
+      offReconnect()
+      apiary.chatDetach(sessionOfKey(sessionId))
+    }
   },
   keysOf: (state) => (state === null ? [] : state.previousSessionId === null ? [state.sessionId] : [state.sessionId, state.previousSessionId]),
 })

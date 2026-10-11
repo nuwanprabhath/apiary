@@ -11,7 +11,7 @@ import { ptyBus } from '../../state/ptyBus'
 import { isClaudeSuspended, isSuspendChord } from '@shared/claudeSuspend'
 import { SuspendConfirmDialog } from './SuspendConfirmDialog'
 import { copyText, readClipboardText } from '../../state/clipboard'
-import { attachPty, continuePty, detachPty, readPtySnapshot, resizePty, writePty } from '../../state/terminals'
+import { attachPty, continuePty, detachPty, readPtySnapshot, repaintOnReconnect, resizePty, writePty } from '../../state/terminals'
 import { logLine } from '../../state/log'
 
 interface Props {
@@ -303,6 +303,13 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
         stage = 'drain'
         drain(finishCatchUp)
       })
+    // Back from a dropped connection: the screen may have changed while no output reached us.
+    const offRepaint = repaintOnReconnect(ptyId, (snap) => {
+      if (disposed || !caughtUp) return
+      term.reset()
+      term.resize(snap.cols, snap.rows)
+      term.write(snap.data)
+    })
     const offExit = ptyBus.onExit(ptyId, (code) => {
       // Keep the terminal on screen so the exit status is readable.
       term.write(`\r\n[process exited with code ${String(code)}]\r\n`)
@@ -458,6 +465,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
       if (rafId !== null) cancelAnimationFrame(rafId)
       offData()
       offExit()
+      offRepaint()
       detachPty(ptyId)
       disposeInput.dispose()
       disposeParsed.dispose()

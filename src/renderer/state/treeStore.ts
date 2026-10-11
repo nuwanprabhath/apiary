@@ -1,6 +1,7 @@
 import type { ProjectNode, SessionNode } from '@shared/types'
 import { flattenTree } from '@shared/treeWalk'
 import { createIpcStore } from './createIpcStore'
+import { onRemoteReconnected } from './remote'
 
 /**
  * The session tree, and the one place the renderer reads it or hears that it changed (UI-3).
@@ -33,7 +34,11 @@ const store = createIpcStore<ProjectNode[]>({
   scope: 'refresh',
   initial: [],
   fetch: () => window.apiary.tree(),
-  subscribe: (_push, invalidate) => window.apiary.onTreeChanged(invalidate),
+  // A reconnected remote window missed changes while it was away: ask again.
+  subscribe: (_push, invalidate) => {
+    const off = [window.apiary.onTreeChanged(invalidate), onRemoteReconnected(invalidate)]
+    return () => { for (const f of off) f() }
+  },
 })
 
 /** `SessionNode`s by id, memoised per tree — rebuilt at most once per change no matter how many

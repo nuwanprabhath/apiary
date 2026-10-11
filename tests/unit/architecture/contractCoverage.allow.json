@@ -42,5 +42,17 @@
   {
     "key": "spellingCheck",
     "reason": "`spellingCheck` is `local` and has no main side"
+  },
+  {
+    "key": "openRemoteDialog",
+    "reason": "An event main sends only for File > Open Remote Session > Other Host\u2026 in the native application menu (src/main/app/menu.ts); no call can cause it and the loopback has no menu. The renderer's dialog is component-tested by emitting it on the fake."
+  },
+  {
+    "key": "remoteHostsChanged",
+    "reason": "An event main sends as a host probe finishes; a probe is one ssh to a machine, and the loopback has no ssh and no second machine, so no call can cause it there. The probing is tested in tests/unit/hostDirectory.test.ts (a fake exec and a fake clock), and the dialog's reaction by emitting the event on the fake."
+  },
+  {
+    "key": "remoteStatus",
+    "reason": "An event main sends a remote window when its SSH connection to the work machine drops; the loopback has no ssh and no second machine. The drop is tested over real SSH in tests/remote (the Docker bed), and the window's banner by emitting the event on the fake."
   }
 ]

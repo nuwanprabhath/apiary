@@ -31,6 +31,7 @@ import type {
   ProjectNode, DiscoveredSession, ResumeConflict, NewSessionInfo,
 } from '../domain/session'
 import type { TranscriptPage } from '../domain/transcript'
+import type { BrowseView } from '../domain/folders'
 import type { AppSettingsPayload } from '../domain/settings'
 import type { LogLevel, LogScope, LogStatusPayload } from '../domain/log'
 import type { UpdateStatusPayload } from '../domain/update'
@@ -48,6 +49,7 @@ import type { SavedTheme, ThemeOptions, ThemeGenerateResult, ThemeState } from '
 import type { PetPatch, PetRecord, PetsState } from '../pets/state'
 import type { VoiceContext } from '../pets/prompt'
 import { isPetPatch, isVoiceContext } from '../pets/ipcGuards'
+import { isPairingCode, isRemoteHost, type RemoteClientInfo, type RemoteHost, type RemoteStatus } from '../domain/remote'
 
 // Boundary guards for branded ids (MAIN-21): the one place a string arriving over IPC becomes a
 // `SessionId`/`PtyId`/`TerminalRef`, so handlers receive branded values with no cast of their own.
@@ -113,6 +115,15 @@ export const IPC = {
   newSessionInProject: invoke<[path: string], NewSessionInfo>('apiary:new-session-in-project', tuple(str)),
   /** Asks for a folder with the native picker and starts a session there; null when cancelled. */
   newSessionInPickedFolder: invoke<[], NewSessionInfo | null>('apiary:new-session-in-picked-folder', tuple()),
+  // The folder browser of a remote window (main/folders/folderBrowser.ts): the work machine holds the
+  // position; the renderer passes an opaque id, a child's name or a crumb index, never a path (ADR-0001).
+  folderBrowseOpen: invoke<[], BrowseView>('apiary:folder-browse-open', tuple()),
+  folderBrowseEnter: invoke<[id: string, name: string], BrowseView>('apiary:folder-browse-enter', tuple(str, str)),
+  folderBrowseUp: invoke<[id: string], BrowseView>('apiary:folder-browse-up', tuple(str)),
+  folderBrowseCrumb: invoke<[id: string, index: number], BrowseView>('apiary:folder-browse-crumb', tuple(str, num)),
+  folderBrowseClose: send<[id: string]>('apiary:folder-browse-close', tuple(str)),
+  /** Starts a session in the browse's current folder, as the picker's answer does for `newSessionInPickedFolder`. */
+  newSessionInBrowsedFolder: invoke<[id: string], NewSessionInfo>('apiary:new-session-in-browsed-folder', tuple(str)),
   forkSession: invoke<[sessionId: SessionId], NewSessionInfo>('apiary:fork-session', tuple(sessionIdArg)),
   newSessionStarted: event<[info: NewSessionInfo]>('apiary:new-session-started'),
   treeChanged: event('apiary:tree-changed'),
@@ -350,6 +361,21 @@ export const IPC = {
   focusTab: invoke<[windowNumber: number, key: string], void>('apiary:focus-tab', tuple(num, str)),
   selectTab: event<[key: string]>('apiary:select-tab'),
 
+  // Remote access (docs/proposals/2026-10-10-remote-access.md). All three run on this machine
+  // (`main/remote/scopes.ts`): this machine starts ssh and opens the remote window.
+  /** Connects to `host` over SSH and opens its Apiary window here; resolves once it has opened. */
+  remoteConnect: invoke<[host: string, pairing?: string], void>('apiary:remote-connect', tuple(isRemoteHost, opt(isPairingCode))),
+  /** Apiary is installed on `host` but not running: starts it there in the background over SSH, waits for its socket, then connects as `remoteConnect` does. */
+  remoteStartAndConnect: invoke<[host: string], void>('apiary:remote-start-and-connect', tuple(isRemoteHost)),
+  /** File → Open Remote Session → Other Host…: the front window shows the connect dialog. */
+  openRemoteDialog: event('apiary:open-remote-dialog'),
+  /** A remote window's connection to the work machine changed (it dropped). */
+  remoteStatus: event<[status: RemoteStatus]>('apiary:remote-status'),
+  /** Hosts a connection could go to, with the last probe's answer; `probe` starts a probe of every one (the open dialog). */
+  remoteHosts: invoke<[probe: boolean], RemoteHost[]>('apiary:remote-hosts', tuple(bool)),
+  /** A probe finished: the whole list again, with what is known now. */
+  remoteHostsChanged: event<[hosts: RemoteHost[]]>('apiary:remote-hosts-changed'),
+
   // Spelling.
   spellingGetLanguages: invoke<[], string[]>('apiary:spelling-get-languages', tuple()),
   spellingSetLanguage: invoke<[language: string], void>('apiary:spelling-set-language', tuple(str)),
@@ -361,6 +387,15 @@ export const IPC = {
 
   // Local preload-only APIs (not exposed over IPC).
   spellingCheck: local<[word: string], { misspelled: boolean; suggestions: string[] }>(tuple(str)),
+  /** Work machine: the home machines connected now. */
+  remoteClients: invoke<[], RemoteClientInfo[]>('apiary:remote-clients', tuple()),
+  remoteClientsChanged: event<[clients: RemoteClientInfo[]]>('apiary:remote-clients-changed'),
+  /** Work machine: closes every connection and turns remote access off, so nothing reconnects. */
+  remoteDisconnectAll: invoke<[], void>('apiary:remote-disconnect-all', tuple()),
+  /** Work machine: the pairing code (`XXXX-XXXX`) Settings shows while "Also require a pairing code" is on; made on first use. */
+  remotePairing: invoke<[], string>('apiary:remote-pairing', tuple()),
+  /** Work machine: replaces the pairing code; every home machine must enter the new one. */
+  remotePairingNew: invoke<[], string>('apiary:remote-pairing-new', tuple()),
 } as const
 
 type Spec = typeof IPC

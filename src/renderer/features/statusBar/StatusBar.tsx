@@ -1,7 +1,7 @@
 import { type JSX, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { StatusBarItem, StatusBarPanel, StatusIcon } from '@shared/domain/statusBar'
-import { AlertIcon, GaugeIcon, HistoryIcon, RefreshIcon } from '../../ui/icons'
+import { AlertIcon, GaugeIcon, HistoryIcon, LinkIcon, RefreshIcon } from '../../ui/icons'
 import { answerStatusBarConsent, onStatusBarChanged, refreshStatusBarItem, statusBarPanel, useStatusBar } from '../../state/statusBarStore'
 import { reportFailure } from '../../state/policy'
 import { logBackgroundFailure } from '../../ui/fireAndForget'
@@ -19,6 +19,7 @@ function Icon({ icon, busy }: { icon: StatusIcon; busy: boolean }): JSX.Element 
     case 'alert': return <AlertIcon />
     case 'history': return <HistoryIcon />
     case 'gauge': return <GaugeIcon />
+    case 'link': return <LinkIcon />
   }
 }
 
@@ -79,6 +80,7 @@ export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element 
             if (item.action.kind === 'consent') setLater((cur) => new Set([...cur].filter((id) => id !== item.pluginId)))
             else if (item.action.kind === 'refresh') refreshStatusBarItem(item.pluginId)
             else if (item.action.kind === 'panel') void openPanel(item)
+            else if (item.action.kind === 'settings') onOpenSettings(item.action.section)
           }}
         />
       ))}

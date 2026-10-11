@@ -1,6 +1,7 @@
 import type { PtyId, TerminalRef } from '@shared/domain/ids'
 import type { PtySnapshot } from '@shared/domain/pty'
 import { bestEffort } from './policy'
+import { onRemoteReconnected } from './remote'
 
 /**
  * Commands on shells and ptys. The output side is `ptyBus` (one listener, fanned out by id) and the
@@ -23,6 +24,16 @@ export const runningPtys = (ids: PtyId[]): Promise<PtyId[] | null> => bestEffort
  *  that starts empty is where a brand-new pty starts anyway. */
 export const readPtySnapshot = (id: PtyId): Promise<PtySnapshot | null> =>
   bestEffort(window.apiary.ptySnapshot(id), 'pty')
+
+/**
+ * A mounted view of `id` asks to be repainted from a fresh snapshot when a reconnected remote window
+ * is back: `paint` gets the screen as main renders it. Returns what unmounts the view.
+ */
+export function repaintOnReconnect(id: PtyId, paint: (snapshot: PtySnapshot) => void): () => void {
+  return onRemoteReconnected(() => {
+    void readPtySnapshot(id).then((snapshot) => { if (snapshot !== null) paint(snapshot) })
+  })
+}
 
 export function writePty(id: PtyId, data: string): void { window.apiary.ptyWrite(id, data) }
 export function resizePty(id: PtyId, cols: number, rows: number): void { window.apiary.ptyResize(id, cols, rows) }

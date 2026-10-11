@@ -46,6 +46,7 @@ describe('parseRuntimeEnv', () => {
       fakeUpdateMode: 'deb',
       headless: true,
       rendererUrl: 'http://localhost:5173',
+      background: false,
     })
   })
 

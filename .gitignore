@@ -17,3 +17,7 @@ coverage/
 .verify/
 .claude/skills/verify-apiary/drives/local/
 /ui-review/
+
+# Local secrets (the Tailscale auth key for the remote test bed): never committed, never in an image.
+.env
+.env.*

@@ -3,6 +3,7 @@ import type { StatusBarItem, StatusBarPanel } from '@shared/domain/statusBar'
 import type { GitService } from '../git/gitService'
 import type { SessionResolver } from '../sessions/sessionResolver'
 import { BUILTIN_STATUS_BAR_PLUGINS } from '../statusBar/builtin'
+import type { RemoteClientsFeed } from '../statusBar/remoteClients'
 import type { StatusBarRegistry } from '../statusBar/registry'
 import { ConsentStore, memoryConsentStorage, type ConsentStorage } from '../statusBar/claudeUsage/consent'
 import { BUILTIN_PLUGINS } from './builtin'
@@ -26,6 +27,8 @@ interface BuiltinPluginConfig {
   /** Remembers that a plugin was switched off by the user's own answer (a declined consent), so it
    *  stays off at the next launch. Omitted: only this run. */
   persistEnabled?: (pluginId: string, enabled: boolean) => void
+  /** Who is connected over remote access, for the status bar. */
+  remoteClients?: RemoteClientsFeed
 }
 
 export interface PluginServiceDeps {
@@ -74,6 +77,7 @@ export class PluginService {
         configRoot: config.configRoot,
         useKeychain: config.useKeychain,
         consent: new ConsentStore(config.consent ?? memoryConsentStorage()),
+        remoteClients: config.remoteClients,
       })
       this.statusBar.register(plugin, config.enabled?.[plugin.id] ?? plugin.defaultEnabled ?? true)
     }

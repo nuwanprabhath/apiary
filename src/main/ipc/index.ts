@@ -10,7 +10,7 @@ import type { TabRegistry } from '../windows/tabRegistry'
 import type { ActiveTabsService } from '../terminals/activeTabsService'
 import type { SenderPolicy } from './ipcSenderGuard'
 import type { SettingsService } from '../settings/settingsService'
-import { registerAll, type Handlers, type Listeners } from './registrar'
+import { createDispatcher, registerAll, type CallRouter, type Dispatcher, type Handlers, type Listeners } from './registrar'
 import { sessionsHandlers } from './handlers/sessions'
 import { terminalsHandlers } from './handlers/terminals'
 import { gitHandlers } from './handlers/git'
@@ -25,6 +25,15 @@ import { themeHandlers, type ThemeDeps } from './handlers/theme'
 import { petsHandlers, type PetDeps } from './handlers/pets'
 import { spellingHandlers } from './handlers/spelling'
 import { contextMenuHandlers } from './handlers/contextMenu'
+import type { RemoteClientService } from '../remote/remoteClientService'
+import { remoteConnectHandlers } from './handlers/remoteConnect'
+import { foldersHandlers } from './handlers/folders'
+import type { FolderBrowser } from '../folders/folderBrowser'
+import { remoteHostsHandlers } from './handlers/remoteHosts'
+import { remoteClientsHandlers } from './handlers/remoteClients'
+import type { HostDirectory } from '../remote/hostDirectory'
+import type { PairingStore } from '../remote/pairingStore'
+import type { RemoteServer } from '../remote/remoteServer'
 import type { SpellingService } from '../spelling/spellingService'
 
 /**
@@ -41,6 +50,8 @@ export interface IpcDeps {
   /** The single owner of `settings.json` (MAIN-16) — see `settings/settingsService.ts`. */
   settings: SettingsService
   spelling: SpellingService
+  /** The in-app folder browser a remote window uses instead of the native picker; built in the container. */
+  folderBrowser: FolderBrowser
   onAutoImportIntervalChange?: (intervalMinutes: number | null) => void
   /** Null where there is no updater at all (a dev run, or a platform without one). */
   updater?: UpdateService | null
@@ -70,6 +81,18 @@ export interface IpcDeps {
   theme: ThemeDeps
   /** The pet store and service, built in the container. */
   pets: PetDeps
+  // The remote-access deps are required, `null` where the feature does not exist: index.ts once
+  // left three of them out, and the connect dialog's host list and the work machine's clients,
+  // Disconnect all and pairing code did nothing in the real app while every faked test passed.
+  /** Routes a window showing a work machine's calls (`remote/remoteWindows.ts`); none where remote windows do not exist. */
+  router: CallRouter | null
+  /** The home side of remote access (`remote/remoteClientService.ts`); none where remote windows do not exist. */
+  remoteClient: RemoteClientService | null
+  /** Candidate hosts for a remote connection; none where remote windows do not exist. */
+  hostDirectory: HostDirectory | null
+  /** The work machine's end of remote access and its pairing code; none where remote access does not exist. */
+  remoteServer: RemoteServer | null
+  remotePairing: PairingStore | null
 }
 
 /**
@@ -82,7 +105,9 @@ export interface IpcDeps {
  * channels join the same logging/sender-check/argument-guard wrapper as everything else
  * (MAIN-19 item 4; `themeIpc.ts` used to call `ipcMain.handle`/`.on` directly and skip it).
  */
-export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (route: string) => void } {
+export function registerIpc(
+  deps: IpcDeps,
+): { dispose: () => void; resetTheme: (route: string) => void; dispatcher: Dispatcher } {
   const { service } = deps
 
   const terminals = terminalsHandlers({ service, state: deps.state })
@@ -99,6 +124,10 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
   const pets = petsHandlers(deps.pets)
   const spelling = spellingHandlers(deps.spelling)
   const contextMenu = contextMenuHandlers()
+  const remoteConnectIpc = remoteConnectHandlers({ remoteClient: deps.remoteClient ?? null })
+  const folders = foldersHandlers({ service, folderBrowser: deps.folderBrowser })
+  const remoteHostsIpc = remoteHostsHandlers({ hosts: deps.hostDirectory ?? null })
+  const remoteClientsIpc = remoteClientsHandlers({ server: deps.remoteServer ?? null, pairing: deps.remotePairing ?? null })
 
   const handlers: Handlers = {
     ...sessions,
@@ -114,6 +143,10 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
     ...appChrome.handlers,
     ...pets.handlers,
     ...spelling,
+    ...remoteConnectIpc,
+    ...folders.handlers,
+    ...remoteHostsIpc,
+    ...remoteClientsIpc,
   }
   const listeners: Listeners = {
     ...terminals.listeners,
@@ -124,9 +157,12 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
     ...appChrome.listeners,
     ...pets.listeners,
     ...contextMenu.listeners,
+    ...folders.listeners,
   }
 
-  const disposeRegistry = registerAll(handlers, listeners, deps.senderPolicy)
+  // Local windows reach it through `registerAll`'s sender check; the remote server calls it directly.
+  const dispatcher = createDispatcher(handlers, listeners)
+  const disposeRegistry = registerAll(handlers, listeners, deps.senderPolicy, dispatcher, deps.router ?? null)
 
   return {
     dispose: () => {
@@ -136,5 +172,6 @@ export function registerIpc(deps: IpcDeps): { dispose: () => void; resetTheme: (
       theme.dispose()
     },
     resetTheme: theme.reset,
+    dispatcher,
   }
 }
