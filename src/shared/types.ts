@@ -10,6 +10,6 @@ export type { TranscriptBlock, TranscriptMessage, TranscriptPage } from './domai
 export { TRANSCRIPT_PAGE_SIZE } from './domain/transcript'
 export type { ResumeConflict, NewSessionInfo } from './domain/session'
 export type {
-  TabTransfer, PersistedTab, PersistedPane, PersistedLayout, WindowLayoutReport,
+  TabTransfer, PersistedLayout, WindowLayoutReport,
 } from './domain/tabs'
 export { isTabTransfer, isWindowLayoutReport } from './domain/tabs'

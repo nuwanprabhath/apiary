@@ -143,6 +143,20 @@ describe('pane layouts', () => {
     expect(all('session-column')[3].textContent).toContain('Fix CSV export bug')
   })
 
+  it('closing the picker does not give focus back over a text field being typed in', async () => {
+    await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await userEvent.click(page.getByTestId('window-layout-button'))
+    await until(() => all('layout-picker').length > 0)
+    const other =document.createElement('input')
+    document.body.append(other)
+    other.focus()
+    await userEvent.keyboard('{Escape}')
+    await until(() => all('layout-picker').length === 0)
+    expect(document.activeElement).toBe(other)
+    other.remove()
+  })
+
   it('Arrange… from a sidebar session\'s menu opens that session in the chosen zone', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))

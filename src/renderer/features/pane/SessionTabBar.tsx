@@ -1,43 +1,13 @@
-import { type JSX, useEffect, useRef, useState, type ReactNode } from 'react'
-import { CloseIcon, SplitIcon, LayoutIcon } from '../../ui/icons'
-import { ContextMenu } from '../../ui/ContextMenu'
-import { LayoutMenuButton } from '../layout/LayoutMenuButton'
-import { useLayoutActions, useLayoutState } from '../layout/layoutContext'
-import { isTabTransfer, type TabTransfer } from '@shared/types'
+import { type JSX, useState, type ReactNode } from 'react'
+import { LayoutIcon, SplitIcon } from '../../ui/icons'
+import { TabContextMenu } from './TabContextMenu'
+import { useTabStripKeys } from './useTabStripKeys'
+import { LayoutMenuButton, useLayoutActions, useLayoutState } from '../layout'
+import type { TabTransfer } from '@shared/types'
+import { SessionTab } from './SessionTab'
+import type { SessionTabView } from './paneTypes'
+import { PANE_MIME, TAB_MIME, indexInRest, insertionIndex, readTransfer } from './tabDrag'
 
-/** The drag payload type for a session tab, shared by every strip in the window. */
-const TAB_MIME = 'application/x-apiary-tab'
-/** The whole tab — its pty and shells — for a strip in *another* window that receives the drop.
- *  See `onDropTab`'s `transfer`. */
-const TRANSFER_MIME = 'application/x-apiary-tab-transfer'
-/** A whole pane, dragged by the empty part of its tab strip onto another pane. */
-export const PANE_MIME = 'application/x-apiary-pane'
-
-function readTransfer(dt: DataTransfer): TabTransfer | null {
-  try {
-    const parsed: unknown = JSON.parse(dt.getData(TRANSFER_MIME))
-    return isTabTransfer(parsed) ? parsed : null
-  } catch {
-    return null
-  }
-}
-
-export interface SessionTabView {
-  key: string
-  label: string
-  /** A session started from "+" that hasn't produced its JSONL yet, shown the way the sidebar
-   *  shows it so the two agree while it resolves. */
-  isPending: boolean
-}
-
-/**
- * Where the tab at `index` sits once `dragKey` is lifted out of the list — the coordinate the drop
- * indicator and `moveTab` both work in.
- */
-function indexInRest(tabs: SessionTabView[], dragKey: string, index: number): number {
-  const from = tabs.findIndex((t) => t.key === dragKey)
-  return from !== -1 && from < index ? index - 1 : index
-}
 
 interface Props {
   /** The pane this strip belongs to — carried on a place/arrange target so a key open in more
@@ -105,83 +75,13 @@ export function SessionTabBar(
   const { paneCount } = useLayoutState()
 
   /** Where a drop on this tab would insert, given which half of it the pointer is over. */
-  const insertionFor = (e: { currentTarget: HTMLElement; clientX: number }, index: number): number => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const after = e.clientX > rect.left + rect.width / 2
-    const from = tabs.findIndex((t) => t.key === dragKey)
-    // Index within the list the dragged tab has been lifted out of.
-    const base = from !== -1 && from < index ? index - 1 : index
-    return after ? base + 1 : base
-  }
+  const insertionFor = (e: { currentTarget: HTMLElement; clientX: number }, index: number): number =>
+    insertionIndex(e, tabs, dragKey, index)
   const [menu, setMenu] = useState<{ key: string; x: number; y: number } | null>(null)
 
-  /**
-   * Keeps the active tab in view.
-   *
-   * With enough tabs open the strip scrolls, and the tab you just switched to can be the one off
-   * the end of it — visible as a sliver with its close button beyond the edge. Scrolling it into
-   * view means the tab being worked in is always whole, whatever is open beside it.
-   */
-  const activeRef = useRef<HTMLDivElement | null>(null)
-  /** Every tab's `role="tab"` button, keyed by tab key, so arrow/Home/End can move DOM focus
-   *  once `onActivate` has changed which key is active (see `focusTab`). */
-  const tabButtonRefs = useRef(new Map<string, HTMLButtonElement>())
-  /** Set by a keyboard move just before calling `onActivate`; consumed by the effect below so a
-   *  mouse click (which also changes `activeKey`) never steals focus onto the tab it activated. */
-  const pendingKeyboardFocus = useRef(false)
-
-  useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-    if (pendingKeyboardFocus.current) {
-      pendingKeyboardFocus.current = false
-      const button = activeKey === null ? undefined : tabButtonRefs.current.get(activeKey)
-      button?.focus()
-    }
-  }, [activeKey, tabs.length])
-
   const endDrag = (): void => { setDragKey(null); setDropAt(null) }
+  const { activeRef, registerButton, onTabListKeyDown } = useTabStripKeys(tabs, activeKey, onActivate, onClose)
 
-  /** Moves the roving tab stop to `key` and activates it — the "automatic activation" model the
-   *  WAI-ARIA tabs pattern allows, and the simpler of the two here since every tab already
-   *  activates on a plain click. Keeps DOM focus and `activeKey` in lockstep, which is what lets
-   *  Delete below always mean "close the tab that has focus" without tracking them separately. */
-  const focusTab = (key: string): void => {
-    pendingKeyboardFocus.current = true
-    onActivate(key)
-  }
-
-  /** ArrowLeft/Right/Home/End roving focus, and Delete to close the focused tab — the WAI-ARIA
-   *  tablist pattern, scoped to this strip's own keydown so it never reaches a focused xterm. */
-  const onTabListKeyDown = (e: React.KeyboardEvent): void => {
-    if (tabs.length === 0) return
-    const current = activeKey === null ? -1 : tabs.findIndex((t) => t.key === activeKey)
-    switch (e.key) {
-      case 'ArrowRight':
-        e.preventDefault()
-        focusTab(tabs[(current + 1 + tabs.length) % tabs.length].key)
-        return
-      case 'ArrowLeft':
-        e.preventDefault()
-        focusTab(tabs[(current - 1 + tabs.length) % tabs.length].key)
-        return
-      case 'Home':
-        e.preventDefault()
-        focusTab(tabs[0].key)
-        return
-      case 'End':
-        e.preventDefault()
-        focusTab(tabs[tabs.length - 1].key)
-        return
-      case 'Delete':
-        // No existing shortcut closes a tab (Cmd/Ctrl+W is not bound anywhere in the app), so
-        // there is nothing here to collide with — Delete on the focused tab is the tablist
-        // pattern's own suggestion and nothing more.
-        if (activeKey !== null) { e.preventDefault(); onClose(activeKey) }
-        return
-      default:
-        return
-    }
-  }
 
   return (
     <div className="session-tab-bar" data-testid="session-tab-bar">
@@ -218,107 +118,43 @@ export function SessionTabBar(
         }}
       >
       {tabs.map((tab, index) => (
-        <div
+        <SessionTab
           key={tab.key}
-          ref={tab.key === activeKey ? activeRef : null}
-          className="session-tab"
-          data-testid="session-tab"
-          data-own-context-menu
-          data-active={tab.key === activeKey}
-          data-dragging={tab.key === dragKey}
-          data-drop-before={dragKey !== null && dropAt === indexInRest(tabs, dragKey, index)}
-          data-drop-after={
+          tab={tab}
+          columnId={columnId}
+          isActive={tab.key === activeKey}
+          isDragging={tab.key === dragKey}
+          dropBefore={dragKey !== null && dropAt === indexInRest(tabs, dragKey, index)}
+          dropAfter={
             dragKey !== null
             && index === tabs.length - 1
             && dropAt === indexInRest(tabs, dragKey, index) + 1
           }
-          draggable
-          onDragStart={(e) => {
-            setDragKey(tab.key)
-            e.dataTransfer.effectAllowed = 'move'
-            // A typed payload, so a strip can tell a tab being dragged from anywhere in the window
-            // apart from a folder, a pinned row or a plain text selection. `text/plain` is kept
-            // beside it because Firefox refuses to start a drag with no standard payload at all.
-            e.dataTransfer.setData(TAB_MIME, tab.key)
-            e.dataTransfer.setData('text/plain', tab.key)
-            if (transferFor !== undefined) e.dataTransfer.setData(TRANSFER_MIME, JSON.stringify(transferFor(tab.key)))
-          }}
-          onDragOver={(e) => {
-            // Keyed off the payload type rather than off `dragKey`, which is set only in the strip
-            // the drag started in: a tab dragged from another column would otherwise find no
-            // target here at all, because without `preventDefault` no drop ever fires.
-            if (!e.dataTransfer.types.includes(TAB_MIME)) return
-            e.preventDefault()
-            e.dataTransfer.dropEffect = 'move'
-            setDropAt(insertionFor(e, index))
-          }}
-          onDrop={(e) => {
-            const key = e.dataTransfer.getData(TAB_MIME)
-            if (key === '') return
-            e.preventDefault()
-            // The strip behind this tab is a drop target of its own (for the empty space past the
-            // last tab); without this the drop would count twice and the second, coarser one would
-            // win, sending every tab to the end.
-            e.stopPropagation()
-            onDropTab(key, insertionFor(e, index), readTransfer(e.dataTransfer))
-            endDrag()
-          }}
-          onDragEnd={(e) => {
-            // Nothing in this window took the tab. Where it went is decided in the main process
-            // from where the pointer was released — another of our windows, or the desktop — and
-            // that is the only way it *can* be decided: an HTML5 drag started here delivers no
-            // drop event to another window at all, so there is nothing on the receiving side to
-            // ask. Releasing over this same window resolves to "nothing happened".
-            if (e.dataTransfer.dropEffect === 'none' && !tab.isPending) {
-              onTabDropped(tab.key, { x: e.screenX, y: e.screenY })
-            }
-            endDrag()
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault()
-            setMenu({ key: tab.key, x: e.clientX, y: e.clientY })
-          }}
-        >
-          <button
-            ref={(el) => {
-              if (el !== null) tabButtonRefs.current.set(tab.key, el)
-              else tabButtonRefs.current.delete(tab.key)
-            }}
-            className="session-tab-label"
-            data-testid="session-tab-label"
-            role="tab"
-            id={`session-tab-${columnId}-${tab.key}`}
-            aria-selected={tab.key === activeKey}
-            aria-controls={tab.key === activeKey ? `session-tabpanel-${columnId}` : undefined}
-            // Roving tabindex (WAI-ARIA tablist pattern): only the active tab is a Tab stop: the
-            // others are reached by arrow key, not by Tab, the same as a browser's own tab strip.
-            tabIndex={tab.key === activeKey ? 0 : -1}
-            title={tab.label}
-            onClick={() => onActivate(tab.key)}
-          >
-            {tab.isPending && <span className="live-dot" aria-label="running" />}
-            <span className="session-tab-text">{tab.label}</span>
-          </button>
-          <LayoutMenuButton
-            className="session-tab-layout"
-            testId="session-tab-layout"
-            title="Arrange"
-            ariaLabel={`Arrange ${tab.label}`}
-            heading={`Move “${tab.label}” here`}
-            onPick={(preset, zone) => { place({ kind: 'tab', key: tab.key, paneId: columnId }, preset, zone) }}
-          >
-            <LayoutIcon />
-          </LayoutMenuButton>
-          <button
-            className="session-tab-close"
-            data-testid="session-tab-close"
-            title="Close session"
-            aria-label="Close session"
-            onClick={() => onClose(tab.key)}
-          >
-            <CloseIcon />
-          </button>
-        </div>
+          insertionFor={(e) => insertionFor(e, index)}
+          activeRef={activeRef}
+          registerButton={registerButton}
+          transferFor={transferFor}
+          onDragStartTab={setDragKey}
+          onDragOverAt={setDropAt}
+          onDropTab={onDropTab}
+          onEndDrag={endDrag}
+          onActivate={onActivate}
+          onClose={onClose}
+          onTabDropped={onTabDropped}
+          onOpenMenu={(key, at) => setMenu({ key, ...at })}
+          arrangeButton={(
+            <LayoutMenuButton
+              className="session-tab-layout"
+              testId="session-tab-layout"
+              title="Arrange"
+              ariaLabel={`Arrange ${tab.label}`}
+              heading={`Move “${tab.label}” here`}
+              onPick={(preset, zone) => { place({ kind: 'tab', key: tab.key, paneId: columnId }, preset, zone) }}
+            >
+              <LayoutIcon />
+            </LayoutMenuButton>
+          )}
+        />
       ))}
       </div>
 
@@ -343,43 +179,16 @@ export function SessionTabBar(
         </LayoutMenuButton>
       )}
 
-      <ContextMenu
-        testId="tab-menu"
-        position={menu === null ? null : { x: menu.x, y: menu.y }}
-        onClose={() => setMenu(null)}
-        items={menu === null ? [] : [
-          {
-            id: 'fork',
-            label: 'Fork session',
-            // A session that has not written its JSONL yet has no id to fork from — Claude mints
-            // that when it first saves, and `--resume` needs one.
-            disabled: tabs.find((t) => t.key === menu.key)?.isPending ?? false,
-            disabledReason: 'Available once the session has started — send it a message first',
-            run: () => onFork(menu.key),
-          },
-          {
-            id: 'detach',
-            label: 'Move into New Window',
-            // Same reason as forking: the new window opens a *session*, and a tab that has not
-            // written its JSONL yet has no session id to open — detaching one would leave an
-            // empty window and take the tab out of this one on the way.
-            disabled: tabs.find((t) => t.key === menu.key)?.isPending ?? false,
-            disabledReason: 'Available once the session has started — send it a message first',
-            run: () => onDetach(menu.key, { x: menu.x, y: menu.y }),
-          },
-          {
-            id: 'arrange',
-            label: 'Arrange…',
-            run: () => { requestPicker({ kind: 'tab', key: menu.key, paneId: columnId }, { x: menu.x, y: menu.y }) },
-          },
-          {
-            id: 'pin',
-            separator: true,
-            label: pinnedKeys.has(menu.key) ? 'Unpin from sidebar' : 'Pin to sidebar',
-            run: () => onTogglePin(menu.key),
-          },
-          { id: 'close', label: 'Close', separator: true, run: () => onClose(menu.key) },
-        ]}
+      <TabContextMenu
+        menu={menu}
+        onArrange={(key, at) => { requestPicker({ kind: 'tab', key, paneId: columnId }, at) }}
+        isPending={(key) => tabs.find((t) => t.key === key)?.isPending ?? false}
+        pinnedKeys={pinnedKeys}
+        onClose={onClose}
+        onTogglePin={onTogglePin}
+        onFork={onFork}
+        onDetach={onDetach}
+        onDismiss={() => setMenu(null)}
       />
     </div>
   )

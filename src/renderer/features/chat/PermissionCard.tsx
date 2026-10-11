@@ -21,7 +21,7 @@ export function PermissionCard(
 
   return (
     <div className="chat-permission" data-testid="chat-permission" role="alert" aria-label={`Allow ${request.toolName}?`}>
-      <div className="chat-permission-title">
+      <div>
         Allow <strong>{request.toolName}</strong>{request.description !== '' ? ` — ${request.description}` : ''}?
       </div>
       <pre className="chat-io-text chat-permission-input">{described.input}</pre>

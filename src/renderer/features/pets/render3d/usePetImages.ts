@@ -11,7 +11,7 @@ import { testSeams } from '../../../state/testSeams'
 const RENDER_VERSION = 3
 
 /** What a pet looks like, without what it says: two pets that look alike share their renders. */
-export function lookKey(spec: PetSpec): string {
+function lookKey(spec: PetSpec): string {
   const { body, eyes, cheeks, arms, legs, accessories } = spec
   return `v${String(RENDER_VERSION)}:${JSON.stringify({ body, eyes, cheeks, arms, legs, accessories })}`
 }
@@ -124,7 +124,7 @@ function renderInWorker(spec: PetSpec): Promise<PetImages | null> {
 let props: Promise<PropImages | null> | null = null
 
 /** The props and scenery, rendered once for every pet (and kept across launches). */
-export function renderProps(): Promise<PropImages | null> {
+function renderProps(): Promise<PropImages | null> {
   if (testSeams().petsFlat === true) return Promise.resolve(null)
   const key = `v${String(RENDER_VERSION)}:props`
   props ??= loadSaved<PropImages>(key).then(async (saved) => {
@@ -154,7 +154,7 @@ export function useProps(): PropImages | null {
  */
 
 /** Renders a pet once per look (saved across launches); null when 3D is not available here. */
-export function renderPet(spec: PetSpec): Promise<PetImages | null> {
+function renderPet(spec: PetSpec): Promise<PetImages | null> {
   if (testSeams().petsFlat === true) return Promise.resolve(null)
   const key = lookKey(spec)
   const known = cache.get(key)

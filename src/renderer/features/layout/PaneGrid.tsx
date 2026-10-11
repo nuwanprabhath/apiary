@@ -1,5 +1,5 @@
 import { type JSX, type ReactNode, useCallback, useState } from 'react'
-import { defaultTracks, trackTemplate, type PresetId, type Tracks } from './layout'
+import { defaultTracks, trackTemplate, type PresetId, type Tracks } from '../../state/layout'
 import { PaneDividers } from './PaneDividers'
 
 /**

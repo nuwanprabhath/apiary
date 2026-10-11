@@ -2,7 +2,7 @@ import type { PairingStore } from '../../remote/pairingStore'
 import type { RemoteServer } from '../../remote/remoteServer'
 import type { Handlers } from '../registrar'
 
-type HandledKeys = 'remoteClients' | 'remoteDisconnectAll' | 'remotePairing' | 'remotePairingNew'
+type HandledKeys = 'remoteClients' | 'remoteServerState' | 'remoteDisconnectAll' | 'remotePairing' | 'remotePairingNew'
 
 /**
  * The work machine's side of remote access, for its own Settings: who is connected, "Disconnect
@@ -14,6 +14,7 @@ export function remoteClientsHandlers(
 ): Pick<Handlers, HandledKeys> {
   return {
     remoteClients: () => deps.server?.clients() ?? [],
+    remoteServerState: () => deps.server?.serverState() ?? { state: 'off' },
     remoteDisconnectAll: () => { deps.server?.disconnectAll() },
     remotePairing: () => {
       if (deps.pairing === null) throw new Error('Pairing codes are not available here.')

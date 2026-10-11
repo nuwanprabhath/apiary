@@ -49,7 +49,7 @@ import type { SavedTheme, ThemeOptions, ThemeGenerateResult, ThemeState } from '
 import type { PetPatch, PetRecord, PetsState } from '../pets/state'
 import type { VoiceContext } from '../pets/prompt'
 import { isPetPatch, isVoiceContext } from '../pets/ipcGuards'
-import { isPairingCode, isRemoteHost, type RemoteClientInfo, type RemoteHost, type RemoteStatus } from '../domain/remote'
+import { isPairingCode, isRemoteHost, type RemoteClientInfo, type RemoteHost, type RemoteServerState, type RemoteStatus } from '../domain/remote'
 
 // Boundary guards for branded ids (MAIN-21): the one place a string arriving over IPC becomes a
 // `SessionId`/`PtyId`/`TerminalRef`, so handlers receive branded values with no cast of their own.
@@ -392,6 +392,9 @@ export const IPC = {
   /** Work machine: the home machines connected now. */
   remoteClients: invoke<[], RemoteClientInfo[]>('apiary:remote-clients', tuple()),
   remoteClientsChanged: event<[clients: RemoteClientInfo[]]>('apiary:remote-clients-changed'),
+  /** Work machine: whether the remote server listens, is off, or was refused (with the sentence to show). */
+  remoteServerState: invoke<[], RemoteServerState>('apiary:remote-server-state', tuple()),
+  remoteServerStateChanged: event<[state: RemoteServerState]>('apiary:remote-server-state-changed'),
   /** Work machine: closes every connection and turns remote access off, so nothing reconnects. */
   remoteDisconnectAll: invoke<[], void>('apiary:remote-disconnect-all', tuple()),
   /** Work machine: the pairing code (`XXXX-XXXX`) Settings shows while "Also require a pairing code" is on; made on first use. */

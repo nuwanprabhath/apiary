@@ -1,7 +1,7 @@
 import { type JSX, useState, useRef, useEffect } from 'react'
-import { PencilIcon, TrashIcon } from '../../ui/icons'
 import { Listbox, useListboxNav } from '../../ui/Listbox'
 import { useResizeDrag } from '../../ui/useResizeDrag'
+import { TerminalTabRow } from './TerminalTabRow'
 
 interface Tab { id: string; name: string }
 
@@ -26,8 +26,8 @@ interface Props {
 }
 
 /** Narrowest and widest a dragged list may be; a fitted list is bounded in CSS the same way. */
-export const TERMINAL_LIST_MIN = 96
-export const TERMINAL_LIST_MAX = 480
+const TERMINAL_LIST_MIN = 96
+const TERMINAL_LIST_MAX = 480
 
 /** The side panel listing every open terminal for the current session — click switches; a rename
  *  and a trash button appear on hover (double-clicking the label also renames, for muscle
@@ -156,87 +156,21 @@ export function TerminalListPanel(
       data-fitted={shown === null}
     >
       {tabs.map((tab) => (
-        <li
+        <TerminalTabRow
           key={tab.id}
-          id={`terminal-tab-${tab.id}`}
-          className="terminal-tab-row"
-          data-testid="terminal-tab-row"
-          data-active={tab.id === activeId}
-          data-keyboard-focused={tab.id === focusedId}
-          role="option"
-          aria-selected={tab.id === activeId}
-          // Not draggable while being renamed: the input inside needs its own text selection and
-          // caret, both of which a drag would hijack.
-          draggable={editingId !== tab.id}
-          onDragStart={(e) => {
-            e.dataTransfer.effectAllowed = 'move'
-            e.dataTransfer.setData('application/x-apiary-terminal', tab.id)
-          }}
-          onDragOver={(e) => {
-            if (!e.dataTransfer.types.includes('application/x-apiary-terminal')) return
-            e.preventDefault()
-            e.dataTransfer.dropEffect = 'move'
-          }}
-          onDrop={(e) => {
-            const dragged = e.dataTransfer.getData('application/x-apiary-terminal')
-            if (dragged === '' || dragged === tab.id) return
-            e.preventDefault()
-            onReorder(dragged, tab.id)
-          }}
-        >
-          {editingId === tab.id ? (
-            <input
-              className="terminal-tab-rename-input"
-              data-testid="terminal-tab-rename-input"
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={() => commit(tab.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); commit(tab.id) }
-                // Stopped rather than left to bubble: this panel can be showing while a dialog or
-                // menu is open on the shared Escape stack (UI-13), and Escape here should cancel
-                // just the rename, not also close that layer.
-                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingId(null) }
-              }}
-            />
-          ) : (
-            <button
-              className="terminal-tab-label"
-              data-testid="terminal-tab-label"
-              onClick={() => handleItemClick(tab.id)}
-              onDoubleClick={() => { startRename(tab.id) }}
-            >
-              {tab.name}
-            </button>
-          )}
-          {/* Floated over the end of the row on hover rather than laid out beside the label, so a
-              list sized to its longest name does not jump wider under the pointer. */}
-          <span className="terminal-tab-actions">
-          {editingId !== tab.id && (
-            // A dedicated button, not just the label's double-click: with many terminals open and
-            // no other way to tell, double-click-to-rename is easy to never discover at all.
-            <button
-              className="terminal-tab-action terminal-tab-rename"
-              data-testid="terminal-tab-rename"
-              title="Rename terminal (F2)"
-              aria-label={`Rename ${tab.name}`}
-              onClick={() => { startRename(tab.id) }}
-            >
-              <PencilIcon />
-            </button>
-          )}
-          <button
-            className="terminal-tab-action terminal-tab-delete"
-            data-testid="terminal-tab-delete"
-            title="Close terminal"
-            aria-label="Close terminal"
-            onClick={() => onDelete(tab.id)}
-          >
-            <TrashIcon />
-          </button>
-          </span>
-        </li>
+          tab={tab}
+          active={tab.id === activeId}
+          keyboardFocused={tab.id === focusedId}
+          editing={editingId === tab.id}
+          draft={draft}
+          onDraft={setDraft}
+          onCommit={() => commit(tab.id)}
+          onCancel={() => setEditingId(null)}
+          onClick={() => handleItemClick(tab.id)}
+          onRename={() => { startRename(tab.id) }}
+          onDelete={() => onDelete(tab.id)}
+          onReorder={onReorder}
+        />
       ))}
     </Listbox>
     </>

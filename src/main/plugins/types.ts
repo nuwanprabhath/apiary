@@ -26,7 +26,7 @@ import type { PluginSettingField, PluginSettingValues, PluginBarItem } from '@sh
 // these same shapes, so mirroring them here risked drifting apart. Re-exported so existing
 // `from './types'` imports in this directory are unaffected.
 export type {
-  PluginSettingField, PluginSettingValues, PluginIcon, PluginAction, PluginBarItem,
+  PluginSettingField, PluginSettingValues, PluginBarItem,
 } from '@shared/domain/plugins'
 
 /** Fills in anything the user has not set, so a plugin never has to check for absence. */

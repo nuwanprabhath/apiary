@@ -1,8 +1,9 @@
 import { type JSX, useEffect, useRef, type ReactNode } from 'react'
 import { LayoutPicker } from './LayoutPicker'
 import { useHoverCard } from '../../ui/useHoverCard'
+import { focusUnlessTyping } from '../../ui/focusUnlessTyping'
 import { useLayoutState } from './layoutContext'
-import type { PresetId } from './layout'
+import type { PresetId } from '../../state/layout'
 
 interface Props {
   className: string
@@ -76,7 +77,7 @@ export function LayoutMenuButton({
           current={preset}
           focusOnOpen={openedByClickRef.current}
           onPick={(p, z) => { hover.hideNow(); onPick(p, z) }}
-          onClose={() => { hover.hideNow(); hover.ref.current?.focus() }}
+          onClose={() => { hover.hideNow(); focusUnlessTyping(hover.ref.current) }}
           onPointerEnter={hover.keepOpen}
           onPointerLeave={hover.scheduleClose}
         />

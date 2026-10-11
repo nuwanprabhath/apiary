@@ -32,6 +32,7 @@
    * (it scrolls nowhere, but each column stays legible) than for one to collapse to a stripe.
    * Matches PaneDividers' MIN_PANE_WIDTH/MIN_PANE_HEIGHT, which stop a drag from asking for less. */
   min-width: 200px;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- a pane is never shorter than this, whatever the density: a layout bound, not a control */
   min-height: 180px;
   display: flex;
   flex-direction: column;
@@ -57,7 +58,7 @@
 }
 .pane-drop-label {
   pointer-events: none;
-  padding: 4px 10px;
+  padding: var(--space-xs) var(--control-padding-x);
   border-radius: var(--radius-control);
   background: var(--bg-popover, var(--bg));
   color: var(--muted);
@@ -94,6 +95,7 @@
   background: transparent;
 }
 .column-resizer { width: max(var(--panel-gap), 6px); transform: translateX(-50%); cursor: col-resize; }
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- the resizer hit target floor is a pointer-reach minimum, not spacing */
 .row-resizer { height: max(var(--panel-gap), 6px); transform: translateY(-50%); cursor: row-resize; }
 
 /* The split action stays pinned to the right while the tabs themselves scroll, so it can't be
@@ -102,11 +104,12 @@
   display: flex;
   flex: none;
   align-items: stretch;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the tab bar's height: a tab (an 18px close button plus its padding) and a drag strip; a fixed bar height that must hold both, whatever the control density */
   min-height: 34px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   overflow: hidden;
-  padding: 0 0 0 5px;
+  padding: 0 0 0 var(--space-sm);
 }
 .session-tab-strip {
   display: flex;
@@ -144,6 +147,7 @@
   padding: 0;
 }
 .session-tab-split:hover, .session-tab-split:focus-visible { background: var(--selected); color: var(--text); }
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- an icon glyph box, not a control size */
 .session-tab-split svg { width: 15px; height: 15px; display: block; }
 
 
@@ -164,7 +168,7 @@
    * active tab is kept scrolled into view and the scrollbar below makes the rest reachable. */
   min-width: 64px;
   max-width: 220px;
-  margin: 3px 0 4px;
+  margin: 3px 0 var(--space-xs);
   background: transparent;
   border-radius: var(--radius-control);
   transition: background-color 0.12s, box-shadow 0.12s;
@@ -189,14 +193,14 @@
   align-items: center;
   /* Without this the label refuses to shrink below its text and pushes the close button out of
    * the tab, which is the same clipping in a different place. */
-  gap: 6px;
+  gap: var(--space-sm);
   min-width: 0;
   border: 0;
   background: none;
   color: var(--muted);
   cursor: pointer;
   font: inherit;
-  padding: 4px 4px 4px 10px;
+  padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--control-padding-x);
 }
 .session-tab-label:focus-visible { outline: none; }
 .session-tab:has(.session-tab-label:focus-visible) { box-shadow: 0 0 0 1px var(--muted); }
@@ -208,9 +212,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-right: 6px;
+  width: var(--icon-button-size-sm);
+  height: var(--icon-button-size-sm);
+  margin-right: var(--space-sm);
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -224,7 +228,7 @@
 .session-tab-close:hover { background: var(--hover); color: var(--text); }
 .session-tab:hover .session-tab-close,
 .session-tab[data-active="true"] .session-tab-close { color: var(--text); }
-.session-tab-close svg { width: 12px; height: 12px; display: block; }
+.session-tab-close svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
 
 /* The per-tab layout button: present on the tab under the pointer and on the active tab only, so
  * a strip of many tabs does not become a strip of many icons. Same box as the close button. */
@@ -233,8 +237,8 @@
   display: none;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: var(--icon-button-size-sm);
+  height: var(--icon-button-size-sm);
   margin-right: 2px;
   padding: 0;
   border: 0;
@@ -246,17 +250,17 @@
 .session-tab-layout:focus-visible { display: flex; }
 .session-tab:hover .session-tab-layout,
 .session-tab[data-active="true"] .session-tab-layout { display: flex; }
-.session-tab-layout svg { width: 12px; height: 12px; display: block; }
+.session-tab-layout svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
 
-.session-header { padding: 14px 16px; border-bottom: 1px solid var(--border); min-width: 0; }
-.session-header h1 { font-size: 16px; margin: 0 0 4px; display: flex; align-items: center; gap: 6px; }
+.session-header { padding: var(--space-lg) var(--space-xl); border-bottom: 1px solid var(--border); min-width: 0; }
+.session-header h1 { font-size: 16px; margin: 0 0 var(--space-xs); display: flex; align-items: center; gap: var(--space-sm); }
 .session-cwd { color: var(--muted); margin: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .title-edit-button {
   opacity: 0;
   flex: none;
-  width: 22px;
-  height: 22px;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -282,14 +286,14 @@
   background: var(--field-bg);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
-  padding: 1px 6px;
+  padding: 1px var(--space-sm);
   min-width: 240px;
   outline: none;
 }
 
-.empty { color: var(--muted); padding: 16px; line-height: 1.6; }
+.empty { color: var(--muted); padding: var(--space-xl); line-height: 1.6; }
 
-.transcript { flex: 1; overflow-y: auto; padding: 12px 16px; }
+.transcript { flex: 1; overflow-y: auto; padding: var(--space-lg) var(--space-xl); }
 .transcript:focus { outline: none; }
 .file-mention { color: var(--accent); cursor: pointer; }
 .file-mention:hover { text-decoration: underline; }
@@ -352,22 +356,22 @@
 
 .transcript-toolbar {
   display: flex;
-  gap: 14px;
+  gap: var(--space-lg);
   align-items: center;
-  padding-bottom: 10px;
+  padding-bottom: var(--space-ml);
   color: var(--muted);
   /* As tall as the find widget (its field plus 2px padding and 1px border each side), so opening it moves nothing. */
   min-height: calc(var(--control-height-sm) + var(--control-gap));
 }
 
-.checkbox { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.checkbox { display: flex; align-items: center; gap: var(--space-sm); cursor: pointer; }
 .muted { color: var(--muted); font-size: 12px; }
 
 .load-earlier {
   display: block;
   width: 100%;
-  margin-bottom: 12px;
-  padding: 6px;
+  margin-bottom: var(--space-lg);
+  padding: var(--space-sm);
   border: 1px dashed var(--border);
   border-radius: var(--radius-control);
   background: none;
@@ -392,7 +396,7 @@
   gap: 2px;
   flex: none;
   height: var(--control-height-sm);
-  padding: 0 4px;
+  padding: 0 var(--space-xs);
   background: none;
   border-top: 1px solid var(--border);
   color: var(--text);
@@ -432,8 +436,8 @@ button.activity-indicator:focus-visible { outline: none; box-shadow: var(--focus
 .status-item {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 0 6px;
+  gap: var(--space-sm);
+  padding: 0 var(--space-sm);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -460,7 +464,7 @@ button.activity-indicator:focus-visible { outline: none; box-shadow: var(--focus
   position: fixed;
   z-index: var(--z-popover);
   max-width: min(640px, calc(100vw - 16px));
-  padding: 8px 10px;
+  padding: var(--space-md) var(--control-padding-x);
   background: var(--bg-popover, var(--bg-panel));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -470,38 +474,43 @@ button.activity-indicator:focus-visible { outline: none; box-shadow: var(--focus
   pointer-events: none;
 }
 
-.status-sections { display: flex; flex-direction: column; gap: 6px; }
-.status-heading { margin: 6px 0 0; font-size: 1em; }
+.status-sections { display: flex; flex-direction: column; gap: var(--space-sm); }
+.status-heading { margin: var(--space-sm) 0 0; font-size: 1em; }
 .status-heading:first-child { margin-top: 0; }
 .status-note { margin: 0; overflow-wrap: anywhere; }
 .status-table { border-collapse: collapse; }
-.status-table th, .status-table td { padding: 2px 8px; text-align: left; white-space: nowrap; }
+.status-table th, .status-table td { padding: 2px var(--space-md); text-align: left; white-space: nowrap; }
 .status-table th { color: var(--muted); font-weight: 500; }
 .status-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .status-table tr.totals td { font-weight: 600; border-top: 1px solid var(--border); }
 
-.status-gauges { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
-.status-gauge-head { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.status-gauges { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-lg); }
+.status-gauge-head { display: flex; justify-content: space-between; margin-bottom: var(--space-xs); }
 .status-gauge-pct { font-weight: 600; font-variant-numeric: tabular-nums; }
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- a gauge track is a drawn graphic, not a control */
 .status-gauge-track { height: 6px; background: var(--control-bg); border-radius: var(--radius-xs); overflow: hidden; }
 .status-gauge-fill { height: 100%; background: var(--success); }
 .status-gauge[data-tone="warning"] .status-gauge-fill { background: var(--warning); }
 .status-gauge[data-tone="danger"] .status-gauge-fill { background: var(--danger); }
 
-.status-bars-chart { display: flex; gap: 8px; height: 150px; }
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- a chart canvas height, not a control */
+.status-bars-chart { display: flex; gap: var(--space-md); height: 150px; }
 .status-bars-col { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- a chart value label slot sized to its 11px text, not a control */
 .status-bars-value { font-size: 11px; height: 16px; }
 .status-bars-area { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
 .status-bars-bar { width: 60%; display: flex; flex-direction: column-reverse; border-radius: var(--radius-xs); overflow: hidden; }
-.status-bars-label { font-size: 11px; margin-top: 4px; }
-.status-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; color: var(--muted); }
-.status-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.status-bars-label { font-size: 11px; margin-top: var(--space-xs); }
+.status-legend { display: flex; flex-wrap: wrap; gap: var(--space-lg); margin-top: var(--space-sm); color: var(--muted); }
+.status-legend-item { display: inline-flex; align-items: center; gap: var(--space-sm); }
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- a legend colour swatch is a drawn graphic, not a control */
 .status-swatch { width: 10px; height: 10px; border-radius: var(--radius-xs); }
 .status-bars-seg[data-series="series-1"], .status-swatch[data-series="series-1"] { background: var(--series-1); }
 .status-bars-seg[data-series="series-2"], .status-swatch[data-series="series-2"] { background: var(--series-2); }
 .status-bars-seg[data-series="series-3"], .status-swatch[data-series="series-3"] { background: var(--series-3); }
 .status-bars-seg[data-series="series-4"], .status-swatch[data-series="series-4"] { background: var(--series-4); }
 
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- a chart canvas height, not a control */
 .status-line { width: 100%; height: 160px; }
 .status-line-area { fill: var(--series-1); opacity: 0.18; }
 .status-line-stroke { stroke: var(--series-1); stroke-width: 2; }

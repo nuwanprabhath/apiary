@@ -15,23 +15,23 @@
   display: grid;
   place-items: center;
 }
-.modal { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; max-width: 460px; }
-.modal h2 { margin: 0 0 10px; font-size: 15px; }
-.modal p { line-height: 1.55; margin: 0 0 10px; }
-.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.modal { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--dialog-padding-y) var(--dialog-padding); max-width: 460px; }
+.modal h2 { margin: 0 0 var(--space-md); font-size: 15px; }
+.modal p { line-height: 1.55; margin: 0 0 var(--space-md); }
+.modal-actions { display: flex; gap: var(--space-md); justify-content: flex-end; margin-top: var(--space-lg); }
 /* Sizing and colour come from the control layer at the top of this file; a dialog footer only
    decides the arrangement. */
 
 .modal.wide { width: 620px; max-width: 90vw; }
-.modal .search { width: 100%; margin-bottom: 10px; }
+.modal .search { width: 100%; margin-bottom: var(--space-md); }
 
 .import-list { max-height: 46vh; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-control); }
 
 .import-group-head {
   display: flex;
-  gap: 4px;
+  gap: var(--space-xs);
   align-items: center;
-  padding: 7px 10px 7px 4px;
+  padding: var(--row-padding-y-lg) var(--control-padding-x) var(--row-padding-y-lg) var(--space-xs);
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   font-weight: 600;
@@ -41,9 +41,10 @@
 
 .import-row {
   display: flex;
-  gap: 8px;
+  gap: var(--space-md);
   align-items: center;
-  padding: 5px 10px 5px 28px;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- indent that clears the leading icon, not a control size */
+  padding: var(--row-padding-y) var(--control-padding-x) var(--row-padding-y) 28px;
   cursor: pointer;
 }
 
@@ -58,6 +59,7 @@
  * xterm's own internal `.xterm-viewport` (xterm renders its scrollport inside whatever container
  * it's mounted into, so a selector scoped to our own class names would never match it).
  */
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- scrollbar track size, not a control */
 ::-webkit-scrollbar { width: 12px; height: 12px; }
 ::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -69,10 +71,10 @@
  */
 ::-webkit-scrollbar-thumb {
   background-color: transparent;
-  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- a scrollbar thumb is a pill whatever the theme's corners */
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 3px solid transparent;
   background-clip: padding-box;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- scrollbar thumb minimum, not a control */
   min-height: 24px;
 }
 *:hover::-webkit-scrollbar-thumb,
@@ -105,6 +107,7 @@
 ::-webkit-scrollbar-button:horizontal:decrement,
 ::-webkit-scrollbar-button:horizontal:increment {
   display: block;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- scrollbar arrow button, not a control */
   height: 12px;
   width: 12px;
   background-repeat: no-repeat;
@@ -122,7 +125,7 @@
 ::-webkit-scrollbar-button:horizontal:end:decrement { display: none; }
 
 .branch-switcher-list { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto; }
-.branch-switcher-section-label { padding: 6px 4px 2px; font-size: 11px; text-transform: uppercase; color: var(--muted); }
+.branch-switcher-section-label { padding: var(--space-sm) var(--space-xs) 2px; font-size: 11px; text-transform: uppercase; color: var(--muted); }
 .branch-switcher-row {
   display: flex;
   flex-direction: column;
@@ -132,7 +135,7 @@
   background: transparent;
   color: var(--text);
   text-align: left;
-  padding: 6px 8px;
+  padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-control);
   cursor: pointer;
   font: inherit;
@@ -142,7 +145,9 @@
 .branch-switcher-row-meta { color: var(--muted); font-size: 11px; }
 .branch-switcher-item { position: relative; }
 /* Room on the right for the copy button, so a long name or subject never runs under it. */
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- room reserved for the absolutely positioned row buttons */
 .branch-switcher-item .branch-switcher-row { padding-right: 36px; }
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- room reserved for the absolutely positioned row buttons */
 .branch-switcher-item:has(.branch-switcher-pull) .branch-switcher-row { padding-right: 64px; }
 .branch-switcher-copy {
   position: absolute;
@@ -151,8 +156,8 @@
   display: none;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--icon-button-size-lg);
+  height: var(--icon-button-size-lg);
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -160,7 +165,7 @@
   color: var(--muted);
   cursor: pointer;
 }
-.branch-switcher-copy svg { width: 14px; height: 14px; }
+.branch-switcher-copy svg { width: var(--icon-size); height: var(--icon-size); }
 .branch-switcher-copy:hover { background: var(--border); color: var(--text); }
 .branch-switcher-copy[data-copied="true"] { color: var(--accent); display: flex; }
 .branch-switcher-item:hover .branch-switcher-copy,
@@ -175,7 +180,7 @@
   background: transparent;
   color: var(--accent);
   text-align: left;
-  padding: 6px 8px;
+  padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-control);
   cursor: pointer;
   font: inherit;
@@ -208,7 +213,7 @@
 .terminal-list-panel {
   list-style: none;
   margin: 0;
-  padding: 4px;
+  padding: var(--space-xs);
   /* As wide as the longest terminal name, within bounds, unless the user dragged it (inline
    * width). A fixed 180px took room from the terminal for a list of "Terminal 1". */
   width: max-content;
@@ -224,7 +229,7 @@
 .terminal-tab-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
   border-radius: var(--radius-control);
   padding: 2px;
   transition: background-color 0.12s, box-shadow 0.12s;
@@ -254,7 +259,7 @@
   color: var(--text);
   /* No room held back for the rename/close buttons: they float over the end of the row on hover
    * (see .terminal-tab-actions), and the list fits the names themselves. */
-  padding: 4px 8px 4px 6px;
+  padding: var(--space-xs) var(--space-md) var(--space-xs) var(--space-sm);
   border-radius: var(--radius-control);
   cursor: pointer;
   font: inherit;
@@ -268,7 +273,7 @@
   min-width: 0;
   border: 1px solid var(--accent);
   border-radius: var(--radius);
-  padding: 3px 5px;
+  padding: 3px var(--space-sm);
   background: var(--field-bg);
   color: var(--text);
   font: inherit;
@@ -304,11 +309,11 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  padding: 4px;
+  padding: var(--space-xs);
   border-radius: var(--radius-control);
 }
 .terminal-tab-row:hover .terminal-tab-action, .terminal-tab-row:focus-within .terminal-tab-action { display: flex; align-items: center; justify-content: center; }
-.terminal-tab-action svg { width: 12px; height: 12px; display: block; }
+.terminal-tab-action svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
 .terminal-tab-rename:hover { background: var(--border); color: var(--text); }
 .terminal-tab-delete:hover { background: var(--border); color: var(--danger); }
 
@@ -317,7 +322,7 @@
  * hits the folder checkbox. */
 .import-group-label {
   display: flex;
-  gap: 8px;
+  gap: var(--space-md);
   align-items: center;
   flex: 1;
   min-width: 0;
@@ -329,8 +334,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--icon-button-size);
+  height: var(--icon-button-size);
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -345,15 +350,15 @@
  * header is the same twisty-plus-label shape a project row uses, so collapsing it feels like
  * collapsing a folder rather than like a separate mechanism.
  */
-.pinned-section { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px; }
+.pinned-section { border-bottom: 1px solid var(--border); padding-bottom: var(--space-xs); margin-bottom: var(--space-xs); }
 
 /* Active section: every open tab across every window, mission-control style, above Pinned. */
-.active-section { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px; }
+.active-section { border-bottom: 1px solid var(--border); padding-bottom: var(--space-xs); margin-bottom: var(--space-xs); }
 .active-window-number { color: var(--muted); font-size: 11px; margin-left: auto; }
 /* The window number makes way for the note button on hover, as a session row's age does. */
 .active-row-wrap:hover .active-window-number,
 .active-row-wrap:focus-within .active-window-number { display: none; }
-.active-row-wrap .note-session-button { margin-right: 6px; }
+.active-row-wrap .note-session-button { margin-right: var(--space-sm); }
 /* The header is hoverable and focusable rather than decorative, because it carries the legend. */
 .active-header { cursor: help; }
 .active-header:focus-visible { outline: none; box-shadow: var(--focus-ring); }
@@ -376,7 +381,7 @@
   pointer-events: none;
   display: grid;
   grid-template-columns: auto auto 1fr;
-  gap: 4px 8px;
+  gap: var(--space-xs) var(--space-md);
   align-items: center;
 }
 .activity-legend .hover-card-title { grid-column: 1 / -1; }
@@ -386,7 +391,7 @@
 
 /* Recent section: same shape as Pinned, directly below it — sessions worked in lately rather
  * than deliberately promoted, so leaving is not the same as losing the session. */
-.recent-section { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px; }
+.recent-section { border-bottom: 1px solid var(--border); padding-bottom: var(--space-xs); margin-bottom: var(--space-xs); }
 .recent-row-wrap { position: relative; }
 /*
  * The dismiss button is an ordinary `.row-action` in the row's own strip (see SessionRow's
@@ -397,13 +402,13 @@
 .pinned-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--control-gap);
   width: 100%;
   background: none;
   border: 0;
   color: var(--muted);
   text-align: left;
-  padding: 5px 10px;
+  padding: var(--row-padding-y) var(--control-padding-x);
   cursor: pointer;
   font: inherit;
   font-size: 11px;
@@ -414,12 +419,12 @@
 .pinned-label { font-weight: 600; }
 .pinned-count {
   margin-left: auto;
-  margin-right: 6px;
+  margin-right: var(--space-sm);
   font-size: 10px;
   color: var(--muted);
   background: var(--selected);
   border-radius: var(--radius-panel);
-  padding: 1px 6px;
+  padding: 1px var(--space-sm);
   letter-spacing: 0;
 }
 
@@ -436,7 +441,7 @@
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-md);
   width: min(420px, calc(100vw - 32px));
   pointer-events: none;
 }
@@ -446,8 +451,8 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
   pointer-events: auto;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 10px 10px 12px;
+  gap: var(--space-ml);
+  padding: var(--space-ml) var(--space-ml) var(--space-ml) var(--space-lg);
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-left: 3px solid var(--muted);
@@ -470,7 +475,7 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
 .notification[data-kind="success"] { border-left-color: var(--success); }
 
 .notification-icon { flex: none; display: block; margin-top: 1px; }
-.notification-icon svg { width: 16px; height: 16px; display: block; }
+.notification-icon svg { width: var(--icon-size-lg); height: var(--icon-size-lg); display: block; }
 .notification[data-kind="error"] .notification-icon { color: var(--danger); }
 .notification[data-kind="warning"] .notification-icon { color: var(--warning); }
 .notification[data-kind="info"] .notification-icon { color: var(--info); }
@@ -479,8 +484,8 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
 .notification-body { flex: 1; min-width: 0; }
 .notification-message { margin: 0; line-height: 1.45; overflow-wrap: anywhere; }
 .notification-detail {
-  margin: 6px 0 0;
-  padding: 8px;
+  margin: var(--space-sm) 0 0;
+  padding: var(--space-md);
   max-height: 180px;
   overflow: auto;
   background: var(--bg);
@@ -491,11 +496,11 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.notification-actions { display: flex; gap: 6px; margin-top: 8px; }
+.notification-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-md); }
 .notification-close {
   flex: none;
-  width: 22px;
-  height: 22px;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -507,7 +512,7 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
   padding: 0;
 }
 .notification-close:hover { background: var(--hover); color: var(--text); }
-.notification-close svg { width: 14px; height: 14px; display: block; }
+.notification-close svg { width: var(--icon-size); height: var(--icon-size); display: block; }
 
 /*
  * What an error boundary renders in place of whatever crashed. Deliberately a normal-looking
@@ -518,16 +523,16 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 24px;
+  padding: var(--space-2xl);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--space-ml);
 }
 .crash-title { margin: 0; font-size: 15px; font-weight: 600; }
 .crash-message {
   margin: 0;
-  padding: 8px 12px;
+  padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius-control);
   background: var(--danger-bg);
   color: var(--danger);
@@ -537,8 +542,8 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
 .crash-detail { color: var(--muted); max-width: 100%; }
 .crash-detail summary { cursor: pointer; font-size: 12px; }
 .crash-detail pre {
-  margin: 8px 0 0;
-  padding: 10px;
+  margin: var(--space-md) 0 0;
+  padding: var(--space-ml);
   max-height: 260px;
   overflow: auto;
   background: var(--bg-panel);
@@ -549,7 +554,7 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.crash-actions { display: flex; gap: 8px; margin-top: 4px; }
+.crash-actions { display: flex; gap: var(--space-md); margin-top: var(--space-xs); }
 
 /* A bar-shaped region (title bar, update banner, status bar) that failed: one line, one button. */
 .crash-strip {
@@ -566,7 +571,7 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
 .crash-strip-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The transcript pane's own failure state, reusing the crash pane's message/detail styling. */
-.transcript-error { padding: 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.transcript-error { padding: var(--space-xl); display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-ml); }
 
 /* Wraps the shell pane's toolbar so the "..." menu has something to measure itself against. */
 .toolbar-anchor { flex: none; }
@@ -580,7 +585,7 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
 .git-menu {
   list-style: none;
   margin: 0;
-  padding: 4px;
+  padding: var(--space-xs);
   min-width: 190px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -589,20 +594,20 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
 }
 .git-menu-item-wrap { position: relative; }
 .git-menu-item-wrap[data-separator="true"] {
-  margin-top: 4px;
-  padding-top: 4px;
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
   border-top: 1px solid var(--border);
 }
 .git-menu-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-md);
   width: 100%;
   border: 0;
   background: transparent;
   color: var(--text);
   text-align: left;
-  padding: 5px 8px;
+  padding: var(--row-padding-y) var(--space-md);
   border-radius: var(--radius-row);
   cursor: pointer;
   font: inherit;
@@ -611,7 +616,7 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
 .git-menu-item:focus-visible { background: var(--selected); }
 .git-menu-item:hover:not(:disabled) { background: var(--selected); }
 .git-menu-label { flex: 1; }
-.git-menu-arrow { width: 14px; height: 14px; flex: none; color: var(--muted); }
+.git-menu-arrow { width: var(--icon-size); height: var(--icon-size); flex: none; color: var(--muted); }
 
 /* A submenu hangs off its parent row, opening to the right and aligned with it. */
 .git-submenu { position: absolute; left: 100%; top: -5px; margin-left: 2px; }
@@ -640,8 +645,8 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
 .import-select-all {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 2px 10px;
+  gap: var(--space-md);
+  padding: var(--space-sm) 2px var(--space-ml);
   cursor: pointer;
 }
 

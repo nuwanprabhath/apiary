@@ -270,6 +270,35 @@ describe('RemoteServer', () => {
     await greeted()
   })
 
+  it('does not take the socket of another Apiary that answers on it', async () => {
+    await boot()
+    const second = new RemoteServer({
+      homeDir: home, host: 'dev-box', appVersion: VERSION, registry: new VirtualContentsRegistry(), layouts: () => [],
+      pairing: { required: () => false, code: () => '' }, turnOff: () => {},
+    })
+    await expect(second.start()).rejects.toThrow('Another Apiary on this computer already serves remote access.')
+    await greeted()
+  })
+
+  it('reports off, then failed with the sentence after a refused start, then listening once a start succeeds', async () => {
+    await boot()
+    const second = new RemoteServer({
+      homeDir: home, host: 'dev-box', appVersion: VERSION, registry: new VirtualContentsRegistry(), layouts: () => [],
+      pairing: { required: () => false, code: () => '' }, turnOff: () => {},
+    })
+    const heard: string[] = []
+    second.subscribeState((s) => { heard.push(s.state) })
+    expect(second.serverState()).toEqual({ state: 'off' })
+    await expect(second.start()).rejects.toThrow()
+    expect(second.serverState()).toEqual({ state: 'failed', message: 'Another Apiary on this computer already serves remote access.' })
+    await server.stop()
+    await second.start()
+    expect(second.serverState()).toEqual({ state: 'listening' })
+    await second.stop()
+    expect(second.serverState()).toEqual({ state: 'off' })
+    expect(heard).toEqual(['failed', 'listening', 'off'])
+  })
+
   it('stop closes live connections and removes the socket', async () => {
     await boot()
     const c = await greeted()

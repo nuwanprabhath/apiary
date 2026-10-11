@@ -1,32 +1,15 @@
-import { type JSX, memo, useEffect, useState } from 'react'
+import { type JSX, memo } from 'react'
 import type { SessionNode } from '@shared/types'
-import { CloseIcon, NoteIcon, PinIcon, SplitIcon, TrashIcon } from '../../ui/icons'
+import { NoteIcon, SplitIcon } from '../../ui/icons'
+import { LayoutMenuButton, useLayoutActions } from '../layout'
+import { SessionRowActions } from './SessionRowActions'
 import { HoverCard } from '../../ui/HoverCard'
-import { MrRefText } from './mrRefText'
+import { MrRefText } from '../../ui/mrRefText'
 import { useHoverCard } from '../../ui/useHoverCard'
+import { useVsCodeAvailable } from '../../state/vsCodeStore'
 import { useMrStatuses } from './useMrStatuses'
-import { LayoutMenuButton } from '../layout/LayoutMenuButton'
-import { useLayoutActions } from '../layout/layoutContext'
 import { relativeTime, fullTime } from '../../ui/format'
-import { isVsCodeAvailable, openSessionInVsCode } from '../../state/sessions'
-
-/**
- * Whether VS Code was found, read once for every row rather than once per row: main-process
- * detection runs a single time at startup and never changes, so a hundred rows each awaiting
- * their own `ipcRenderer.invoke` would be a hundred round trips for one fact. The first row to
- * mount starts the lookup; every other row (mounted before or after) shares its result.
- */
-let vsCodeAvailable: boolean | null = null
-let vsCodeAvailablePromise: Promise<boolean> | null = null
-function loadVsCodeAvailable(): Promise<boolean> {
-  // Caches the resolved value even on failure (UI-23): without the catch, a rejection left
-  // `vsCodeAvailablePromise` pointing at a rejected promise forever, and every row mounted after
-  // that (`.then` below, with no catch of its own) produced its own unhandled rejection — one per
-  // row in a long list, all for the same single failed lookup.
-  vsCodeAvailablePromise ??= isVsCodeAvailable().then((v) => { vsCodeAvailable = v; return v })
-  return vsCodeAvailablePromise
-}
-
+import { openSessionInVsCode } from '../../state/sessions'
 interface Props {
   session: SessionNode
   selected: boolean
@@ -87,13 +70,10 @@ function SessionRowView({
   const hasNote = session.note !== null && session.note !== ''
   const { anchor: cardAnchor, ref: wrapRef, arm, keepOpen, scheduleClose, hideNow } =
     useHoverCard<HTMLDivElement>()
-  const { place, isOpen } = useLayoutActions()
 
-  const [canOpenInVsCode, setCanOpenInVsCode] = useState(vsCodeAvailable ?? false)
-  useEffect(() => {
-    if (vsCodeAvailable !== null) { setCanOpenInVsCode(vsCodeAvailable && session.cwdExists); return }
-    void loadVsCodeAvailable().then((v) => { setCanOpenInVsCode(v && session.cwdExists) })
-  }, [session.cwdExists])
+  const { place, isOpen } = useLayoutActions()
+  const vsCodeAvailable = useVsCodeAvailable()
+  const canOpenInVsCode = vsCodeAvailable && session.cwdExists
 
   // Resolves `!<iid>` references named in the title and the note independently, so the hover
   // card — a pure display component with no IPC calls of its own — is simply handed the answer.
@@ -207,69 +187,27 @@ function SessionRowView({
         {!session.cwdExists && <span className="missing">folder gone</span>}
         <span className="session-time" data-testid="session-time">{relativeTime(session.lastActiveAtMs)}</span>
       </button>
-      <button
-        className="row-action note-session-button"
-        data-testid="note-session-button"
-        data-has-note={hasNote}
-        title={hasNote ? 'Edit this session\u2019s note' : 'Add a note to this session'}
-        aria-label={`${hasNote ? 'Edit' : 'Add'} note for session ${session.title}`}
-        // UI-27 step 1: row-action buttons are not Tab stops (with 500 sessions that would be
-        // 2000+ of them); the row's own context menu (Shift+F10 / the Menu key, wired at the
-        // tree's root) offers the same actions.
-        tabIndex={-1}
-        onClick={(e) => { e.stopPropagation(); onEditNote(session) }}
-      >
-        <NoteIcon filled={hasNote} />
-      </button>
-      <button
-        className="row-action pin-session-button"
-        data-testid="pin-session-button"
-        data-pinned={pinned}
-        title={pinned ? 'Unpin this session' : 'Pin this session'}
-        aria-label={`${pinned ? 'Unpin' : 'Pin'} session ${session.title}`}
-        aria-pressed={pinned}
-        tabIndex={-1}
-        onClick={(e) => { e.stopPropagation(); onTogglePin(session) }}
-      >
-        <PinIcon filled={pinned} />
-      </button>
-      <LayoutMenuButton
-        className="row-action split-session-button"
-        testId="split-session-button"
-        title="Open to the side — rest here for layouts"
-        ariaLabel={`Open session ${session.title} to the side`}
-        heading={isOpen(session.sessionId) ? `Move “${session.title}” here` : `Open “${session.title}” here`}
-        onClick={() => { onSplit(session) }}
-        // The row's own hover card is still up when the pointer reaches this button — it opened on
-        // the way past. Two overlapping popups from one movement is unreadable, so the card yields.
-        onOpen={hideNow}
-        onPick={(preset, zone) => { hideNow(); place({ kind: 'session', session }, preset, zone) }}
-        tabIndex={-1}
-      >
-        <SplitIcon />
-      </LayoutMenuButton>
-      <button
-        className="row-action delete-session-button"
-        data-testid="delete-session-button"
-        title="Remove this session"
-        aria-label={`Remove session ${session.title}`}
-        tabIndex={-1}
-        onClick={(e) => { e.stopPropagation(); onDelete(session) }}
-      >
-        <TrashIcon />
-      </button>
-      {onDismiss !== undefined && (
-        <button
-          className="row-action recent-dismiss"
-          data-testid="recent-dismiss-button"
-          title="Dismiss from Recent"
-          aria-label={`Dismiss ${session.title} from Recent`}
-          tabIndex={-1}
-          onClick={(e) => { e.stopPropagation(); onDismiss(session) }}
-        >
-          <CloseIcon />
-        </button>
-      )}
+      <SessionRowActions
+        session={session} pinned={pinned} hasNote={hasNote} onDelete={onDelete}
+        onTogglePin={onTogglePin} onEditNote={onEditNote} onDismiss={onDismiss}
+        splitButton={
+          <LayoutMenuButton
+            className="row-action"
+            testId="split-session-button"
+            title="Open to the side — rest here for layouts"
+            ariaLabel={`Open session ${session.title} to the side`}
+            heading={isOpen(session.sessionId) ? `Move “${session.title}” here` : `Open “${session.title}” here`}
+            onClick={() => { onSplit(session) }}
+            // The row's own hover card is still up when the pointer reaches this button — it opened on
+            // the way past. Two overlapping popups from one movement is unreadable, so the card yields.
+            onOpen={hideNow}
+            onPick={(preset, zone) => { hideNow(); place({ kind: 'session', session }, preset, zone) }}
+            tabIndex={-1}
+          >
+            <SplitIcon />
+          </LayoutMenuButton>
+        }
+      />
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { type JSX, useState } from 'react'
-import { PANE_MIME } from './SessionTabBar'
+import { PANE_MIME } from './tabDrag'
 
 interface Props {
   /** This pane's own id, so it can tell "something is being dragged" apart from "I am the thing

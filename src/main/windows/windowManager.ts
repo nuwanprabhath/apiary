@@ -75,7 +75,7 @@ export interface WindowManagerDeps {
  * each other are a quit, and all come back; one closed while the app carries on is dropped once
  * it has passed.
  */
-export const CLOSE_GRACE_MS = 3000
+const CLOSE_GRACE_MS = 3000
 
 /**
  * Window creation, numbering, focus tracking and the one window's persisted bounds (MAIN-15 step
@@ -333,7 +333,7 @@ export class WindowManager {
 }
 
 /** Which title bar a new window gets — see `WindowChrome`. */
-export function windowChromeFor(platform: NodeJS.Platform, systemTitleBar: boolean): WindowChrome {
+function windowChromeFor(platform: NodeJS.Platform, systemTitleBar: boolean): WindowChrome {
   if (systemTitleBar) return 'system'
   return platform === 'darwin' ? 'mac' : 'custom'
 }

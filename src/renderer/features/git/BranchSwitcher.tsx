@@ -3,14 +3,12 @@ import type { GitRefEntry, GitRefs, WorktreeConflict } from '@shared/types'
 import type { GitTarget } from '@shared/domain/git'
 import { exactRefMatch } from './branchSelection'
 import { BRANCH_ROW_SELECTOR } from './branchRows'
-import { CopyIcon, CheckIcon, ArrowDownIcon } from '../../ui/icons'
-import { updateBranchMessage } from '@shared/gitMessages'
-import { describeError } from '../../ui/errors'
+import { BranchNameStep } from './BranchNameStep'
+import { BranchActions, BranchSection } from './BranchSection'
+import { useBranchActions } from './useBranchActions'
 import { Modal } from '../../ui/Modal'
 import { useRovingList } from '../../ui/useRovingList'
-import { copyText } from '../../state/clipboard'
 import * as git from '../../state/git'
-import { bestEffort } from '../../state/policy'
 
 interface Props {
   /** A pane's session, or a sidebar folder (its menu's "Change branch…"). Keep it stable: the ref
@@ -51,6 +49,17 @@ function matches(entry: GitRefEntry, query: string): boolean {
   return query === '' || entry.name.toLowerCase().includes(query)
 }
 
+function filterRefs(refs: GitRefs | null, q: string): { local: GitRefEntry[]; remote: GitRefEntry[]; tags: GitRefEntry[] } {
+  if (refs === null) return { local: [], remote: [], tags: [] }
+  return {
+    local: refs.local.filter((r) => matches(r, q)),
+    remote: refs.remote.filter((r) => matches(r, q)),
+    tags: refs.tags.filter((r) => matches(r, q)),
+  }
+}
+
+const pickingBaseNow = (s: Step): boolean => s.kind === 'pick-base' || s.kind === 'pick-detached'
+
 export function BranchSwitcher({
   terminal, onClose, onCheckedOut, onError, onWorktreeConflict, mode = 'checkout',
   currentBranch = null,
@@ -61,14 +70,11 @@ export function BranchSwitcher({
 }: Props): JSX.Element {
   const [refs, setRefs] = useState<GitRefs | null>(null)
   const [query, setQuery] = useState('')
-  const [busy, setBusy] = useState(false)
   const [step, setStep] = useState<Step>(startAt === 'name' ? { kind: 'name' } : { kind: 'list' })
   const [nameDraft, setNameDraft] = useState('')
-  // Shown inside this modal itself — the modal's own backdrop (position:fixed, full-viewport,
-  // 55% black wash) sits above everything behind it, so a failed checkout/create is reported here
-  // rather than only through the parent's `onError` (a toast), which would show the same failure a
-  // second time and read the Electron IPC wrapping raw if it did (see `run` below).
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const {
+    busy, errorMessage, setErrorMessage, updateBranch, checkout, checkoutRemote, checkoutDetached, mergeRef, createBranch,
+  } = useBranchActions({ terminal, onClose, onCheckedOut, onWorktreeConflict, onNotice, onBranchUpdated, setRefs })
 
   // `onError` is a fresh arrow function on every render of the parent (SessionColumn re-renders on
   // every git-status poll), so it cannot honestly go in the fetch effect's deps below without
@@ -77,44 +83,6 @@ export function BranchSwitcher({
   // from an effect that should not itself re-run when that callback changes identity.
   const onErrorRef = useRef(onError)
   onErrorRef.current = onError
-
-  const pickingBaseNow = (s: Step): boolean => s.kind === 'pick-base' || s.kind === 'pick-detached'
-
-  /**
-   * Runs one git action behind the shared busy flag, with one place that turns a failure into
-   * something readable: `describeError` strips Electron's IPC wrapping (`Error invoking remote
-   * method '…': Error: …`) rather than showing that raw text in the banner. Reported once, in the
-   * banner only — `onError`'s toast would otherwise fire too, and duplicate every failure. Success
-   * (`onCheckedOut`/`onClose`) is `op`'s to call, not `run`'s: `checkout`'s worktree-conflict case
-   * closes without either, and a conflicting merge must not close at all (see `mergeRef`).
-   */
-  const run = async (op: () => Promise<void>): Promise<void> => {
-    setErrorMessage(null)
-    setBusy(true)
-    try {
-      await op()
-    } catch (e) {
-      setErrorMessage(describeError(e).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  /** The pull button beside a local branch: fast-forwards it from its upstream, in place. Not
-   *  routed through `run`: it has its own per-row busy state (`PullRefButton`) and must not
-   *  disable the rest of the list while one branch updates. */
-  const updateBranch = async (name: string): Promise<void> => {
-    setErrorMessage(null)
-    try {
-      const { commits } = await git.gitUpdateBranch(terminal, name)
-      onNotice?.(updateBranchMessage(name, commits))
-      onBranchUpdated?.()
-      // The row's date, author and subject are the branch tip's, which may just have moved.
-      void bestEffort(git.gitRefs(terminal), 'git').then((r) => { if (r !== null) setRefs(r) })
-    } catch (e) {
-      setErrorMessage(describeError(e).message)
-    }
-  }
 
   useEffect(() => {
     let cancelled = false
@@ -135,55 +103,11 @@ export function BranchSwitcher({
   const rows = useRovingList(listRef, { itemSelector: BRANCH_ROW_SELECTOR })
 
   const q = query.trim().toLowerCase()
-  const filtered = useMemo(() => {
-    if (refs === null) return { local: [], remote: [], tags: [] }
-    return {
-      local: refs.local.filter((r) => matches(r, q)),
-      remote: refs.remote.filter((r) => matches(r, q)),
-      tags: refs.tags.filter((r) => matches(r, q)),
-    }
-  }, [refs, q])
+  const filtered = useMemo(() => filterRefs(refs, q), [refs, q])
 
-  const trimmedQuery = query.trim()
   const activeMatch = mode === 'checkout' && !pickingBaseNow(step)
-    ? exactRefMatch(refs ?? { local: [], remote: [] }, trimmedQuery)
+    ? exactRefMatch(refs ?? { local: [], remote: [] }, query.trim())
     : null
-
-  const checkout = (name: string): Promise<void> => run(async () => {
-    const outcome = await git.gitCheckout(terminal, name)
-    if (!outcome.ok) {
-      // Not an error, and not this popover's to solve: hand the conflict up and get out of the
-      // way, so the choice is made in a dialog rather than inside a branch list.
-      onClose()
-      onWorktreeConflict(outcome.conflict)
-      return
-    }
-    onCheckedOut()
-    onClose()
-  })
-
-  const checkoutRemote = (remoteRef: string): Promise<void> => run(async () => {
-    const localName = remoteRef.slice(remoteRef.indexOf('/') + 1)
-    await git.gitCheckoutRemote(terminal, remoteRef, localName)
-    onCheckedOut()
-    onClose()
-  })
-
-  const checkoutDetached = (ref: string): Promise<void> => run(async () => {
-    await git.gitCheckoutDetached(terminal, ref)
-    onCheckedOut()
-    onClose()
-  })
-
-  // A conflicting merge leaves the tree mid-merge on purpose (see branchOps.merge), so `run`'s
-  // catch reporting the error in the banner, without either onCheckedOut or onClose, is exactly
-  // right: the popup stays open with git's own CONFLICT text in it rather than closing over a repo
-  // the user now has to notice is halfway through something.
-  const mergeRef = (ref: string): Promise<void> => run(async () => {
-    await git.mergeRef(terminal, ref)
-    onCheckedOut()
-    onClose()
-  })
 
   /** What a click on a ref row does, given which job this picker is currently doing. */
   const pickRef = (name: string, kind: 'local' | 'remote' | 'tag'): void => {
@@ -194,48 +118,18 @@ export function BranchSwitcher({
     void checkout(name)
   }
 
-  const createBranch = (from?: string): Promise<void> => {
-    const name = nameDraft.trim()
-    if (name === '') return Promise.resolve()
-    return run(async () => {
-      await git.gitCreateBranch(terminal, name, from)
-      onCheckedOut()
-      onClose()
-    })
-  }
-
   if (step.kind === 'name') {
+    const from = step.from
     return (
-      // UI-25: onto the shared Modal primitive (Escape already worked via UI-13; this adds a
-      // labelled role, a Tab trap and focus restore on close). `closeOnBackdropClick` keeps the
-      // click-outside-closes behaviour this dialog already had.
-      <Modal
-        testId="branch-switcher"
-        titleId="branch-switcher-title"
+      <BranchNameStep
+        nameDraft={nameDraft}
+        busy={busy}
+        errorMessage={errorMessage}
+        onNameDraft={setNameDraft}
+        onCreate={() => { void createBranch(nameDraft.trim(), from) }}
+        onBack={() => { setErrorMessage(null); setStep({ kind: 'list' }) }}
         onClose={onClose}
-        className="branch-switcher"
-        initialFocusSelector='[data-testid="branch-switcher-name-input"]'
-        closeOnBackdropClick
-      >
-        <h2 id="branch-switcher-title" className="visually-hidden">New branch name</h2>
-        {errorMessage !== null && (
-          <p className="error-banner" data-testid="branch-switcher-error">{errorMessage}</p>
-        )}
-        <input
-          className="search"
-          data-testid="branch-switcher-name-input"
-          placeholder="Branch name"
-          value={nameDraft}
-          onChange={(e) => setNameDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void createBranch(step.from) }}
-        />
-        <div className="modal-actions">
-          <button className="btn" data-testid="branch-switcher-cancel" onClick={() => { setErrorMessage(null); setStep({ kind: 'list' }) }}>Back</button>
-          <button className="btn primary" data-testid="branch-switcher-confirm" disabled={busy || nameDraft.trim() === ''} onClick={() => { void createBranch(step.from) }}>
-            Create branch
-          </button>
-        </div>
-      </Modal>
+      />
     )
   }
 
@@ -284,140 +178,38 @@ export function BranchSwitcher({
         }}
       />
 
-        <ul ref={listRef} className="branch-switcher-list" onKeyDown={rows.onKeyDown}>
-          {showActions && (
-            <>
-              <li>
-                <button className="branch-switcher-action" data-testid="branch-switcher-create" onClick={() => { setErrorMessage(null); setNameDraft(''); setStep({ kind: 'name' }) }}>
-                  + Create new branch...
-                </button>
-              </li>
-              <li>
-                <button className="branch-switcher-action" data-testid="branch-switcher-create-from" onClick={() => { setErrorMessage(null); setStep({ kind: 'pick-base' }) }}>
-                  + Create new branch from...
-                </button>
-              </li>
-              <li>
-                <button className="branch-switcher-action" data-testid="branch-switcher-detached" onClick={() => { setErrorMessage(null); setStep({ kind: 'pick-detached' }) }}>
-                  Checkout detached...
-                </button>
-              </li>
-            </>
-          )}
+      <ul ref={listRef} className="branch-switcher-list" onKeyDown={rows.onKeyDown}>
+        {showActions && (
+          <BranchActions
+            onCreate={() => { setErrorMessage(null); setNameDraft(''); setStep({ kind: 'name' }) }}
+            onCreateFrom={() => { setErrorMessage(null); setStep({ kind: 'pick-base' }) }}
+            onDetached={() => { setErrorMessage(null); setStep({ kind: 'pick-detached' }) }}
+          />
+        )}
 
-          {refs === null && <li className="empty">Loading…</li>}
+        {refs === null && <li className="empty">Loading…</li>}
 
-          {refs !== null && (
-            <>
-              <BranchSection
-                title="branches" testId="branch-switcher-branch-row" rows={filtered.local} busy={busy}
-                activeName={activeMatch?.kind === 'local' ? activeMatch.entry.name : null}
-                onPick={(r) => pickRef(r.name, 'local')}
-                onUpdate={updateBranch}
-              />
-              <BranchSection
-                title="remote branches" testId="branch-switcher-remote-row" rows={filtered.remote} busy={busy}
-                activeName={activeMatch?.kind === 'remote' ? activeMatch.entry.name : null}
-                onPick={(r) => pickRef(r.name, 'remote')}
-              />
-              <BranchSection
-                title="tags" testId="branch-switcher-tag-row" rows={filtered.tags} busy={busy}
-                activeName={null}
-                onPick={(r) => pickRef(r.name, 'tag')}
-              />
-            </>
-          )}
-        </ul>
+        {refs !== null && (
+          <>
+            <BranchSection
+              title="branches" testId="branch-switcher-branch-row" rows={filtered.local} busy={busy}
+              activeName={activeMatch?.kind === 'local' ? activeMatch.entry.name : null}
+              onPick={(r) => { pickRef(r.name, 'local') }}
+              onUpdate={updateBranch}
+            />
+            <BranchSection
+              title="remote branches" testId="branch-switcher-remote-row" rows={filtered.remote} busy={busy}
+              activeName={activeMatch?.kind === 'remote' ? activeMatch.entry.name : null}
+              onPick={(r) => { pickRef(r.name, 'remote') }}
+            />
+            <BranchSection
+              title="tags" testId="branch-switcher-tag-row" rows={filtered.tags} busy={busy}
+              activeName={null}
+              onPick={(r) => { pickRef(r.name, 'tag') }}
+            />
+          </>
+        )}
+      </ul>
     </Modal>
-  )
-}
-
-function BranchSection(
-  { title, testId, rows, onPick, busy, activeName, onUpdate }:
-  {
-    title: string; testId: string; rows: GitRefEntry[]; onPick: (r: GitRefEntry) => void
-    busy: boolean; activeName: string | null
-    /** Local branches only: the pull button. */
-    onUpdate?: (name: string) => Promise<void>
-  },
-): JSX.Element | null {
-  if (rows.length === 0) return null
-  return (
-    <>
-      <li className="branch-switcher-section-label">{title}</li>
-      {rows.map((r) => (
-        <li key={r.name} className="branch-switcher-item">
-          <button
-            className="branch-switcher-row"
-            data-testid={testId}
-            data-active={r.name === activeName}
-            disabled={busy}
-            onClick={() => onPick(r)}
-          >
-            <span className="branch-switcher-row-name">{r.name}</span>
-            <span className="branch-switcher-row-meta">
-              {r.relativeDate} &middot; {r.author} &middot; {r.shortSha} &middot; {r.subject}
-            </span>
-          </button>
-          {onUpdate !== undefined && <PullRefButton name={r.name} onPull={onUpdate} />}
-          <CopyRefButton name={r.name} />
-        </li>
-      ))}
-    </>
-  )
-}
-
-/**
- * Brings a local branch up to date with its upstream without picking it — beside the copy button,
- * shown the same way. Fast-forward only (see branchOps.updateBranch); busy while it runs, so one
- * click cannot start two pulls.
- */
-function PullRefButton({ name, onPull }: { name: string; onPull: (name: string) => Promise<void> }): JSX.Element {
-  const [busy, setBusy] = useState(false)
-  return (
-    <button
-      className="branch-switcher-copy branch-switcher-pull"
-      data-testid="branch-switcher-pull"
-      data-busy={busy}
-      disabled={busy}
-      title={busy ? `Pulling ${name}…` : `Pull ${name} from its upstream`}
-      aria-label={`Pull ${name}`}
-      onClick={(e) => {
-        e.stopPropagation()
-        setBusy(true)
-        void onPull(name).finally(() => { setBusy(false) })
-      }}
-    >
-      <ArrowDownIcon />
-    </button>
-  )
-}
-
-/**
- * Copies a ref's name without picking it. A sibling of the row's button rather than inside it — a
- * button cannot hold another — shown on hover or keyboard focus, and enabled even while a checkout
- * is running, since copying changes nothing.
- */
-function CopyRefButton({ name }: { name: string }): JSX.Element {
-  const [copied, setCopied] = useState(false)
-  useEffect(() => {
-    if (!copied) return
-    const t = setTimeout(() => { setCopied(false) }, 1200)
-    return () => { clearTimeout(t) }
-  }, [copied])
-  return (
-    <button
-      className="branch-switcher-copy"
-      data-testid="branch-switcher-copy"
-      data-copied={copied}
-      title={copied ? 'Copied' : `Copy ${name}`}
-      aria-label={`Copy ${name}`}
-      onClick={(e) => {
-        e.stopPropagation()
-        void copyText(name).then((ok) => { if (ok) setCopied(true) })
-      }}
-    >
-      {copied ? <CheckIcon /> : <CopyIcon />}
-    </button>
   )
 }

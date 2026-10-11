@@ -142,7 +142,7 @@ export const DEFAULT_TERMINAL: Record<TerminalColor, string> = {
 
 export const DEFAULT_MATERIAL: MaterialSpec = { kind: 'solid', blur: 0, saturation: 1, highlight: 0, refraction: 0 }
 
-export const DEFAULT_SHAPE: ThemeSpec['shape'] = { radius: 8, gap: 6, density: 'normal' }
+const DEFAULT_SHAPE: ThemeSpec['shape'] = { radius: 8, gap: 6, density: 'normal' }
 
 /** Apiary's own look. Never stored and never edited — "no theme" means this. */
 export const ORIGINAL_THEME: ThemeSpec = {

@@ -10,7 +10,7 @@ import { DEFAULT_PALETTE, PALETTE_TOKENS, TERMINAL_COLORS, type ThemeSpec, type 
  * own default shows.
  */
 
-export const termVar = (c: TerminalColor): string =>
+const termVar = (c: TerminalColor): string =>
   `--term-${c.replace(/[A-Z]/g, (ch) => `-${ch.toLowerCase()}`)}`
 
 const DENSITY = { compact: '0.9', normal: '1', roomy: '1.1' } as const

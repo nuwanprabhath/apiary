@@ -88,20 +88,41 @@ describe('ChatManager', () => {
 
   it('a message sent while Claude is still answering waits as queued, then joins that turn and keeps it busy until answered', async () => {
     const { states, until } = start()
-    manager!.send(SESSION, 'first')
+    // "linger" holds the turn open until the second message joins it, so it cannot end first.
+    manager!.send(SESSION, 'linger first')
     await until((s) => (s.streaming?.text ?? '') !== '')
     manager!.send(SESSION, 'second')
     // Shown as waiting until Claude takes it in…
     expect(manager!.state(SESSION)?.queued.map((q) => q.text)).toEqual(['second'])
     const done = await until((s) => s.status === 'idle' && textOf(s).includes('You said: second'))
     // …then it is part of the conversation, where Claude read it, and no longer waiting.
-    expect(textOf(done)).toEqual(['first', 'You said: first', 'second', 'You said: second'])
+    expect(textOf(done)).toEqual(['linger first', 'You said: linger first', 'second', 'You said: second'])
     expect(done.queued).toEqual([])
     // Between the first answer and the second, it never looked finished.
-    const firstAnswered = states.findIndex((s) => textOf(s).includes('You said: first'))
+    const firstAnswered = states.findIndex((s) => textOf(s).includes('You said: linger first'))
     const secondAnswered = states.findIndex((s) => textOf(s).includes('You said: second'))
     expect(states.slice(firstAnswered, secondAnswered).every((s) => s.status === 'busy')).toBe(true)
   }, 20000)
+
+  it('an interrupt while a lingering turn is held open ends it as interrupted, not as a normal answer', async () => {
+    const { until } = start()
+    manager!.send(SESSION, 'linger hold')
+    // The whole reply has streamed, so the turn is in its hold, not still streaming words.
+    await until((s) => s.streaming?.text === 'You said: linger hold')
+    manager!.interrupt(SESSION)
+    const done = await until((s) => s.status === 'idle')
+    expect(textOf(done)).toContain('[Request interrupted by user]')
+    expect(textOf(done)).not.toContain('You said: linger hold')
+  }, 20000)
+
+  it('a message that joins a lingering turn does not hold it open again', async () => {
+    const { until } = start()
+    manager!.send(SESSION, 'linger first')
+    await until((s) => (s.streaming?.text ?? '') !== '')
+    manager!.send(SESSION, 'second linger')
+    const done = await until((s) => s.status === 'idle' && textOf(s).includes('You said: second linger'))
+    expect(done.queued).toEqual([])
+  }, 5000)
 
   it('Send now interrupts the reply a queued message waits on, then sends that message, which is answered', async () => {
     const { until } = start()

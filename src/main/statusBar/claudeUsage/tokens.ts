@@ -211,10 +211,10 @@ function startOfLocalDay(d: Date): Date {
   return copy
 }
 
-export function localDateKey(d: Date): string {
+function localDateKey(d: Date): string {
   return `${String(d.getFullYear())}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function localMonthKey(d: Date): string {
+function localMonthKey(d: Date): string {
   return `${String(d.getFullYear())}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }

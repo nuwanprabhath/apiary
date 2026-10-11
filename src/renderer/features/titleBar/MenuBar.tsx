@@ -187,7 +187,7 @@ function MenuDropdown({ nodes, path, at, onInvoke, onClose, onSibling, onBack, t
       }}
     >
       {nodes.map((node, i) => {
-        if (node.kind === 'separator') return <li key={`sep-${String(i)}`} role="separator" className="context-menu-separator" />
+        if (node.kind === 'separator') return <li key={`sep-${String(i)}`} role="separator" />
         const isSub = node.kind === 'submenu'
         return (
           <li key={`${node.label}-${String(i)}`} role="none">
@@ -209,7 +209,7 @@ function MenuDropdown({ nodes, path, at, onInvoke, onClose, onSibling, onBack, t
               <span className="menu-dropdown-check">
                 {(node.kind === 'checkbox' || node.kind === 'radio') && node.checked === true && <CheckIcon />}
               </span>
-              <span className="menu-dropdown-label">{node.label}</span>
+              <span>{node.label}</span>
               <span className="menu-dropdown-accel">{isSub ? '›' : node.accelerator ?? ''}</span>
             </button>
           </li>

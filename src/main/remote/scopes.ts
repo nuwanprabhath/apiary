@@ -200,6 +200,8 @@ export const CHANNEL_SCOPES = {
   remoteHostsChanged: 'local',
   remoteClients: 'local',
   remoteClientsChanged: 'local',
+  remoteServerState: 'local',
+  remoteServerStateChanged: 'local',
   remoteDisconnectAll: 'local',
   remotePairing: 'local',
   remotePairingNew: 'local',

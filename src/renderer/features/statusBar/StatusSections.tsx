@@ -61,7 +61,7 @@ function Section({ section }: { section: StatusSection }): JSX.Element | null {
       const totals = section.columns.map((c) => c.values.reduce((a, b) => a + b, 0))
       const max = Math.max(1, ...totals)
       return (
-        <div className="status-bars">
+        <div>
           <div className="status-bars-chart">
             {section.columns.map((c, i) => (
               <div key={i} className="status-bars-col" title={c.title}>

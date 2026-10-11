@@ -265,6 +265,13 @@ describe.skipIf(!enabled)('remote access over real SSH', () => {
     })
 
     it('refuses a swapped host key and never reaches the work app', async () => {
+      // The background app started above still holds the socket: a second app would refuse to take
+      // it (another Apiary serves it) and its probe would show up as a connection in the shared log.
+      await bed.exec(['pkill', '-u', 'dev', '-f', 'electron'])
+      await vi.waitFor(async () => {
+        expect((await bed.exec(['pgrep', '-u', 'dev', '-f', 'electron'])).code).toBe(1)
+      }, { timeout: 30_000, interval: 500 })
+      await bed.exec(['rm', '-f', '/home/dev/fixture/userdata/logs/apiary.log'])
       await launchApp(bed, { remoteAccess: true })
       await vi.waitFor(async () => {
         expect((await bed.exec(['stat', '-c', '%a', '/home/dev/.apiary/remote.sock'])).stdout.trim()).toBe('600')

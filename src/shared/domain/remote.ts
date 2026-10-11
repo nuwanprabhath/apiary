@@ -33,6 +33,9 @@ export interface RemoteClientInfo {
   windows: number
 }
 
+/** What this machine's remote server is doing, as main sees it: `failed` carries a sentence a person can read. */
+export type RemoteServerState = { state: 'off' | 'listening' } | { state: 'failed'; message: string }
+
 /** A time of day as a person reads it ("10:12"), for "since …" in the lists of who is connected. */
 export const clockTime = (at: number): string => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 

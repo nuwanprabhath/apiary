@@ -3,8 +3,8 @@ import type { SessionNode } from '@shared/types'
 import {
   loadUiState, saveUiState, subscribeSharedUiState, type UiState,
 } from './uiState'
-import { pruneDismissed, dismissRecent as dismissRecentAt } from '../features/sidebar/model/recentSessions'
-import { moveBefore, type GroupState } from '../features/sidebar/model/groups'
+import { pruneDismissed, dismissRecent as dismissRecentAt } from './recentSessions'
+import { moveBefore, type GroupState } from './groups'
 
 export interface UiStateActions {
   ui: UiState

@@ -17,7 +17,7 @@ export interface Notification {
   action: { label: string; run: () => void } | null
 }
 
-export interface NotifyInput {
+interface NotifyInput {
   kind?: NotificationKind
   message: string
   detail?: string | null

@@ -226,7 +226,7 @@
   left: 50%;
   width: max-content;
   max-width: 220px;
-  padding: 5px 9px;
+  padding: var(--space-xs) var(--space-md);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   /* Solid, like every floating surface (60-themes.css; 90-glass.css for glass): drawn in the
@@ -246,6 +246,7 @@
   top: 100%;
   left: 50%;
   width: 8px;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the speech-bubble tail, a drawn shape */
   height: 8px;
   margin: -4px 0 0 -4px;
   border-right: 1px solid var(--border);
@@ -262,7 +263,9 @@
   border-radius: 50%;
   background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg);
 }
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- a thought-bubble dot, a drawn shape */
 .pet-bubble[data-kind="thought"]::before { top: calc(100% + 2px); left: calc(50% - 7px); width: 7px; height: 7px; }
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- a thought-bubble dot, a drawn shape */
 .pet-bubble[data-kind="thought"]::after { top: calc(100% + 10px); left: calc(50% - 3px); width: 4px; height: 4px; }
 /* Near an edge the bubble leans inwards rather than off the window. */
 .pet-bubble[data-align="start"] { left: 0; transform: none; }
@@ -278,9 +281,9 @@
   z-index: var(--z-popover);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-sm);
   width: 280px;
-  padding: 8px;
+  padding: var(--space-md);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg);
@@ -288,10 +291,10 @@
   color: var(--text);
   font-size: 12px;
 }
-.pet-chat-head { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.pet-chat-head { display: flex; align-items: center; gap: var(--space-sm); font-weight: 600; }
 .pet-chat-head span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pet-chat-log { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
-.pet-chat-line { padding: 4px 8px; border-radius: var(--radius-row); background: var(--hover); overflow-wrap: anywhere; }
+.pet-chat-log { display: flex; flex-direction: column; gap: var(--space-xs); max-height: 180px; overflow-y: auto; }
+.pet-chat-line { padding: var(--space-xs) var(--space-md); border-radius: var(--radius-row); background: var(--hover); overflow-wrap: anywhere; }
 .pet-chat-line[data-from="you"] { align-self: flex-end; background: var(--selected); }
 .pet-chat-line[data-from="pet"] { align-self: flex-start; }
 .pet-chat-thinking { color: var(--muted); font-style: italic; }
@@ -303,20 +306,20 @@
 }
 
 /* -- Settings → Pets */
-.pets-section { display: flex; flex-direction: column; gap: 12px; }
-.pet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.pets-section { display: flex; flex-direction: column; gap: var(--space-lg); }
+.pet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: var(--space-md); }
 .pet-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px;
+  gap: var(--space-sm);
+  padding: var(--space-ml);
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
   background: var(--control-bg);
 }
 .pet-card[data-active="true"] { border-color: var(--accent); }
-.pet-card-stage { display: flex; justify-content: center; padding: 4px 0 2px; }
+.pet-card-stage { display: flex; justify-content: center; padding: var(--space-xs) 0 2px; }
 .pet-card-name { flex: none; font-weight: 600; }
 .pet-card-tagline { font-size: 11px; }
-.pet-card-row { display: flex; align-items: center; gap: 6px; }
-.pet-card-actions { display: flex; align-items: center; gap: 6px; }
+.pet-card-row { display: flex; align-items: center; gap: var(--space-sm); }
+.pet-card-actions { display: flex; align-items: center; gap: var(--space-sm); }

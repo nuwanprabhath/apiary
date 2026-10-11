@@ -84,6 +84,27 @@ describe('sidebarGroups', () => {
     await expect.element(page.getByTestId('folder-group-toggle')).toMatchTextContent('Archive')
   })
 
+  it('choosing Rename puts the cursor in the rename box', async () => {
+    await renderApp()
+    const first = (await folderOrder())[0]
+    await rightClick(folder(first))
+    await userEvent.click(page.getByTestId('context-menu-new-group'))
+    await expect.element(page.getByTestId('folder-group-rename')).toHaveFocus()
+  })
+
+  it('choosing Rename takes focus even while another text field still has it', async () => {
+    await renderApp()
+    const first = (await folderOrder())[0]
+    const stray = document.createElement('input')
+    document.body.appendChild(stray)
+    stray.focus()
+    await rightClick(folder(first))
+    stray.focus()
+    await userEvent.click(page.getByTestId('context-menu-new-group'))
+    await expect.element(page.getByTestId('folder-group-rename')).toHaveFocus()
+    stray.remove()
+  })
+
   it('a folder can be dropped into a group that is still empty', async () => {
     // The reported bug: an empty group is a heading and a line of placeholder text, and only the
     // heading accepted a drop — so filing the *first* folder into a new group, the case that needs

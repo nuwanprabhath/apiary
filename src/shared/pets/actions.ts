@@ -2,7 +2,7 @@ import type { TranscriptMessage } from '../domain/transcript'
 import { describeTool } from '../chatTimeline'
 
 /** What a pet may be told Claude is doing, at most this long. */
-export const ACTION_CHARS = 80
+const ACTION_CHARS = 80
 
 const TITLED = new Set(['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Task', 'Agent'])
 

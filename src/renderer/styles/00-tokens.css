@@ -149,8 +149,48 @@
   --control-height-sm: calc(22px * var(--density));
   /* The strip a hidden sidebar leaves behind: one icon button and its breathing room. */
   --sidebar-rail-width: 40px;
-  --control-padding-x: 10px;
-  --control-gap: 6px;
+  --control-padding-x: calc(10px * var(--density));
+  --control-gap: calc(6px * var(--density));
+  /*
+   * Spacing inside and between things (paddings, gaps, margins that are not a control's own
+   * padding): one scale, following the density setting like the controls. Pick the nearest step
+   * rather than a pixel count, so a compact or roomy theme moves everything together. A control's
+   * horizontal padding stays --control-padding-x.
+   */
+  --space-xs: calc(4px * var(--density));
+  --space-sm: calc(6px * var(--density));
+  --space-md: calc(8px * var(--density));
+  --space-ml: calc(10px * var(--density));
+  --space-lg: calc(12px * var(--density));
+  --space-xl: calc(16px * var(--density));
+  --space-2xl: calc(24px * var(--density));
+  /* The vertical padding of a list row (a sidebar row, a menu item) and of a roomier one (a dialog's
+   * section list), so every list keeps one rhythm and follows the density. */
+  --row-padding-y: calc(5px * var(--density));
+  --row-padding-y-lg: calc(7px * var(--density));
+  /* A dialog's inner edge: sides, and top and bottom. */
+  --dialog-padding: calc(20px * var(--density));
+  --dialog-padding-y: calc(18px * var(--density));
+  /* The chat timeline's left column, where the dots and the thread line sit; text that lines up
+   * with the timeline's content is indented by the same. */
+  --chat-gutter: 18px;
+  /* A row's text indented past the folder icon or checkbox of the row above it: it lines up with a
+   * fixed-size icon, so it does not follow the density. */
+  --row-indent: 26px;
+  /*
+   * Icons, the square buttons that hold one, and status dots: drawn marks, not controls, so they
+   * keep their pixel size whatever the density (an icon at a fractional size blurs).
+   */
+  --icon-size-xs: 10px;
+  --icon-size-sm: 12px;
+  --icon-size-lg: 16px;
+  --icon-size-xl: 20px;
+  --icon-button-size-sm: 18px;
+  --icon-button-size: 20px;
+  --icon-button-size-lg: 24px;
+  --dot-size-sm: 6px;
+  --dot-size: 7px;
+  --dot-size-lg: 8px;
   /*
    * Every corner follows the theme's panel radius (--radius-panel, set by a theme's shape.radius),
    * so a rounder theme is rounder everywhere — a 6px button tucked into a 14px glass card looked
@@ -164,6 +204,8 @@
   --radius-control: 6px;
   --radius: var(--radius-control);
   --radius-lg: calc(var(--radius-panel) * 1.25);
+  /* Fully rounded ends (a pill or a dot), whatever the theme's panel radius. */
+  --radius-pill: 999px;
 
   /*
    * The floating-panel layout: the sidebar, each editor pane and each shell are cards with

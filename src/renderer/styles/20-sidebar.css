@@ -26,7 +26,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 10px 0;
+  padding: var(--space-ml) 0;
 }
 
 .sidebar-resizer {
@@ -102,15 +102,15 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .sidebar-header {
   flex: none;
   display: flex;
-  gap: 6px;
-  padding: 10px;
+  gap: var(--control-gap);
+  padding: var(--space-ml);
   border-bottom: 1px solid var(--border);
 }
 
 .search {
   flex: 1;
   min-height: var(--control-height);
-  padding: 0 8px;
+  padding: 0 var(--space-md);
   border-radius: var(--radius);
   border: 1px solid var(--control-border);
   background: var(--field-bg);
@@ -131,7 +131,8 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 /* Wrapper that lets the clear button overlay the right-hand end of the field. The field keeps
  * `flex: 1` behaviour by having the wrapper carry it instead. */
 .search-field { position: relative; display: flex; flex: 1; min-width: 0; }
-.search-field .search { width: 100%; padding-right: 26px; }
+/* Clears the 18px clear button inside the field. */
+.search-field .search { width: 100%; padding-right: calc(var(--icon-button-size-sm) + var(--space-md)); }
 
 .search-clear {
   position: absolute;
@@ -141,8 +142,8 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: var(--icon-button-size-sm);
+  height: var(--icon-button-size-sm);
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -151,7 +152,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   cursor: pointer;
 }
 .search-clear:hover, .search-clear:focus-visible { background: var(--hover); color: var(--text); }
-.search-clear svg { width: 12px; height: 12px; display: block; }
+.search-clear svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
 
 /*
  * Shown while the typed query and the results on screen disagree — i.e. a large library is still
@@ -178,7 +179,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   .search-spinner { animation: none; border-top-color: var(--accent); }
 }
 
-.icon-button { color: var(--muted); padding: 0 8px; }
+.icon-button { color: var(--muted); padding: 0 var(--space-md); }
 
 /* Refresh button's own icon spins for as long as the refresh it triggered is still in
  * flight — otherwise a click has zero visual feedback, since the fetch usually resolves
@@ -199,9 +200,9 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  * shrank the whole button (a single character is much narrower than "Refresh") — jarring, and
  * easy to misread as the button itself having disappeared. The icon now just spins in place.
  */
-.sidebar-refresh { gap: 5px; }
+.sidebar-refresh { gap: var(--space-xs); }
 .sidebar-hide,
-.sidebar-rail .icon-button { padding: 0 5px; flex: none; }
+.sidebar-rail .icon-button { padding: 0 var(--space-xs); flex: none; }
 /*
  * An inline <svg> with a viewBox and no width/height has no intrinsic size, so inside a flex
  * button it can collapse to nothing and leave a button that is visibly an empty box. Sized here,
@@ -210,7 +211,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  * are more specific and keep the larger glyphs they already had.
  */
 .icon-button svg { width: var(--icon-size); height: var(--icon-size); flex: none; }
-.sidebar-refresh svg { width: 14px; height: 14px; flex: none; }
+.sidebar-refresh svg { width: var(--icon-size); height: var(--icon-size); flex: none; }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -292,19 +293,19 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .project-row, .session-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--control-gap);
   width: 100%;
   background: none;
   border: 0;
   color: inherit;
   text-align: left;
-  padding: 5px 10px;
+  padding: var(--row-padding-y) var(--control-padding-x);
   cursor: pointer;
   font: inherit;
 }
 
 .project-row { font-weight: 600; flex: 1; min-width: 0; }
-.session-row { padding-left: 26px; }
+.session-row { padding-left: var(--row-indent); }
 .session-row:hover { background: var(--selected); }
 
 .project-row-wrap { display: flex; align-items: center; border-radius: var(--radius-sm); }
@@ -335,8 +336,8 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .new-session-button {
   flex: none;
   opacity: 0;
-  width: 22px;
-  height: 22px;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
   margin-right: 4px;
   display: flex;
   align-items: center;
@@ -348,7 +349,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   cursor: pointer;
   padding: 0;
 }
-.new-session-button svg { width: 16px; height: 16px; display: block; }
+.new-session-button svg { width: var(--icon-size-lg); height: var(--icon-size-lg); display: block; }
 .new-session-button:hover,
 .new-session-button:focus-visible {
   background: var(--hover);
@@ -359,7 +360,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 
 /* Same hover-revealed treatment as "+", and the same box: the two sit side by side. */
 .collapse-all-button { margin-right: 0; }
-.collapse-all-button svg { width: 14px; height: 14px; }
+.collapse-all-button svg { width: var(--icon-size); height: var(--icon-size); }
 .collapse-all-button:focus-visible { opacity: 1; }
 .project-row-wrap:hover .collapse-all-button { opacity: 1; }
 
@@ -369,8 +370,8 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
  */
 .chevron {
   color: var(--muted);
-  width: 16px;
-  height: 16px;
+  width: var(--icon-size-lg);
+  height: var(--icon-size-lg);
   flex: none;
   transform: rotate(0deg);
   transition: transform 120ms ease;
@@ -403,8 +404,8 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .row-action {
   flex: none;
   display: none;
-  width: 22px;
-  height: 22px;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
   align-items: center;
   justify-content: center;
   border: 0;
@@ -423,11 +424,11 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .session-row-wrap:focus-within .row-action {
   display: flex;
 }
-.row-action svg { width: 14px; height: 14px; display: block; }
+.row-action svg { width: var(--icon-size); height: var(--icon-size); display: block; }
 /* Declared after the other sidebar `svg` size rules because it is the most specific of them
  * (`no-descending-specificity`); none of them match the same element. */
 .sidebar-hide svg,
-.sidebar-rail .icon-button svg { width: 16px; height: 16px; flex: none; }
+.sidebar-rail .icon-button svg { width: var(--icon-size-lg); height: var(--icon-size-lg); flex: none; }
 .delete-session-button { margin-right: 6px; }
 .delete-session-button:hover,
 .delete-session-button:focus-visible {
@@ -454,9 +455,14 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .mr-ref[data-state="closed"] { color: var(--mr-closed); }
 .mr-ref[data-state="locked"] { color: var(--mr-locked); }
 
-.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex: none; }
+.live-dot { width: var(--dot-size); height: var(--dot-size); border-radius: 50%; background: var(--success); flex: none; }
 
-.pending-section { border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.pending-section { border-bottom: 1px solid var(--border); padding-bottom: var(--space-sm); }
 .pending-header { cursor: default; }
 .pending-list { list-style: none; margin: 0; padding: 0; }
+
+/* A remote window row for a tab open only in another work-machine window: it cannot be raised. */
+.active-tab-row-inert { cursor: default; }
+.active-tab-row-inert:hover { background: transparent; }
+.active-row-wrap:has(.active-tab-row-inert):hover { background: transparent; }
 

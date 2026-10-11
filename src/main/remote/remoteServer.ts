@@ -1,7 +1,7 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
 import { chmod, mkdir, rm } from 'node:fs/promises'
-import { normalizePairingCode, pairingErrorMessage, type RefusalReason, type RemoteClientInfo } from '@shared/domain/remote'
-import { createServer, type Server, type Socket } from 'node:net'
+import { normalizePairingCode, pairingErrorMessage, type RefusalReason, type RemoteClientInfo, type RemoteServerState } from '@shared/domain/remote'
+import { connect, createServer, type Server, type Socket } from 'node:net'
 import { join } from 'node:path'
 import { IPC, type InvokeKey, type IpcKey, type SendKey } from '@shared/ipc/contract'
 import { errorMessage } from '@shared/errors'
@@ -19,6 +19,7 @@ import type { VsCodeService } from '../vscode/vscodeService'
 import type { VirtualContents, VirtualContentsRegistry } from './virtualContents'
 
 const HELLO_TIMEOUT_MS = 5000
+const ANOTHER_SERVES = 'Another Apiary on this computer already serves remote access.'
 const NOT_ALLOWED = 'Not allowed remotely'
 
 export interface RemoteServerDeps {
@@ -75,6 +76,9 @@ export class RemoteServer {
   /** The clients that said hello and are still connected. */
   private readonly live = new Set<Live>()
   private readonly listeners = new Set<(clients: RemoteClientInfo[]) => void>()
+  private readonly stateListeners = new Set<(state: RemoteServerState) => void>()
+  /** Whether the last start listened, was refused, or was stopped. Invalidated by every `settle`. */
+  private current: RemoteServerState = { state: 'off' }
   /** When each recent wrong pairing code was tried; entries older than the window are dropped. */
   private wrongCodes: number[] = []
   private pairingBlockedUntil = 0
@@ -90,6 +94,22 @@ export class RemoteServer {
   subscribe(listener: (clients: RemoteClientInfo[]) => void): () => void {
     this.listeners.add(listener)
     return () => { this.listeners.delete(listener) }
+  }
+
+  /** Whether the server listens, is off, or its last start was refused (with the reason). */
+  serverState(): RemoteServerState { return this.current }
+
+  /** Called with the new state whenever it changes. */
+  subscribeState(listener: (state: RemoteServerState) => void): () => void {
+    this.stateListeners.add(listener)
+    return () => { this.stateListeners.delete(listener) }
+  }
+
+  private setState(next: RemoteServerState): void {
+    const prev = this.current
+    if (next.state === prev.state && (next.state !== 'failed' || (prev.state === 'failed' && prev.message === next.message))) return
+    this.current = next
+    for (const listener of [...this.stateListeners]) listener(next)
   }
 
   /** Closes every connection and turns remote access off (the home side reconnects by itself otherwise). */
@@ -130,8 +150,18 @@ export class RemoteServer {
   }
 
   private async settle(): Promise<void> {
-    if (this.wanted && this.server === null) await this.listen()
-    else if (!this.wanted && this.server !== null) await this.close()
+    if (this.wanted && this.server === null) {
+      try {
+        await this.listen()
+      } catch (error) {
+        this.setState({ state: 'failed', message: errorMessage(error) })
+        throw error
+      }
+      this.setState({ state: 'listening' })
+    } else if (!this.wanted) {
+      if (this.server !== null) await this.close()
+      this.setState({ state: 'off' })
+    }
   }
 
   private async listen(): Promise<void> {
@@ -139,6 +169,12 @@ export class RemoteServer {
     await mkdir(dir, { recursive: true, mode: 0o700 })
     // `mkdir`'s mode does not apply to a directory that already exists.
     await chmod(dir, 0o700)
+    // A second Apiary on this machine (a dev build shares the installed app's home) must not take
+    // the first one's socket; only a file nothing answers on is stale.
+    if (await this.socketAnswers()) {
+      log.warn('remote', 'another Apiary already serves remote access; not listening')
+      throw new Error(ANOTHER_SERVES)
+    }
     await rm(this.socketPath, { force: true })
     const server = createServer((socket) => { this.accept(socket) })
     try {
@@ -155,6 +191,14 @@ export class RemoteServer {
     server.on('error', (error) => { log.warn('remote', 'server error', { error }) })
     this.server = server
     log.info('remote', 'listening')
+  }
+
+  private socketAnswers(): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      const probe = connect(this.socketPath)
+      probe.once('connect', () => { probe.destroy(); resolve(true) })
+      probe.once('error', () => { probe.destroy(); resolve(false) })
+    })
   }
 
   private async close(): Promise<void> {

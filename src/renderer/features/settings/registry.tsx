@@ -17,7 +17,7 @@ import { DiagnosticsSection } from './sections/DiagnosticsSection'
  * having to agree on one shape (UI-20's registry, replacing the 600-line ternary chain that used
  * to be SettingsDialog.tsx).
  */
-export interface SectionProps {
+interface SectionProps {
   draft: AppSettingsPayload
   patch: (fields: Partial<AppSettingsPayload>) => void
   update: UpdateStatusPayload | null

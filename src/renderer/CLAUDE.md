@@ -49,7 +49,10 @@ The theme data model, validation and effects live in `src/shared/theme/` — see
 - **Focus is never taken from a text field, and a live region never ticks.** Something that
   appears on its own (a permission prompt) moves focus with `focusUnlessTyping`
   (`ui/focusUnlessTyping.ts`; `focus-unless-typing` flags `autoFocus` and a mount-time
-  `.focus()` elsewhere), because the Enter meant to send a message approved a tool. A
+  `.focus()` elsewhere), because the Enter meant to send a message approved a tool. A field the
+  person just asked for (an inline rename, the field of a step they chose, a pet they opened) takes
+  focus with `autoFocus` and a `focus-unless-typing` disable saying why, never `focusUnlessTyping`,
+  which would refuse while another field still has focus (`tests/component/focusAskedFor.test.tsx`). A
   `role="status"` / `aria-live` region holds a state ("Claude is working"), set once; a clock,
   counter or rotating word beside it is `aria-hidden`, or a screen reader reads "N s" all turn
   (`WorkingLine`). Nothing lints the second: `role="status"` is right in six places and "ticking" is
@@ -93,14 +96,16 @@ from the first paint. "Use the system title bar" (Settings → General) turns it
 
 ## Shape of the big components (UI-1, UI-19, UI-21)
 
-`app/App.tsx` is providers, the grid and the `columns.map`; what it used to own lives in hooks:
-workspace state in `features/workspace/` (reducer, provider, effect hooks), dialogs in
-`features/dialogs/` (`useDialogs` state, `DialogHost` rendering, and `useDialogActions()` so the
-sidebar opens delete/move/note/worktree dialogs itself rather than through props), the two resizers
-in `ui/useResizeDrag.ts` (a draggable, keyboard-operable separator — the one place a drag is written), and the pane-divider positions in `features/layout/PaneGrid.tsx`.
+`app/App.tsx` is providers and the grid; the columns are `app/PaneColumns.tsx`, the sidebar
+`app/AppSidebar.tsx`, and what it used to own lives in hooks: workspace state in
+`features/workspace/` (reducer, provider, effect hooks), dialogs in `features/dialogs/`
+(`useDialogs` state, `DialogHost` rendering, and `useDialogActions()` so the sidebar opens
+delete/move/note/worktree dialogs itself rather than through props), the two resizers in
+`app/useWindowResizers.ts` over `ui/useResizeDrag.ts` (a draggable, keyboard-operable separator —
+the one place a drag is written), and the pane-divider positions in `features/layout/PaneGrid.tsx`.
 
-- **`features/sidebar/Sidebar.tsx`** is the search box, the data every section reads, and the
-  composition. Each section is a component (`ActiveSection`, `PinnedSection`, `RecentSection`,
+- **`features/sidebar/Sidebar.tsx`** is the data every section reads and the composition;
+  `SidebarHeader` is the search box. Each section is a component (`ActiveSection`, `PinnedSection`, `RecentSection`,
   `PendingSection`, `SearchResults`, `FolderGroup`) that owns its own `useFlatTreeNav`; the
   group arrangement (`useGroupActions`), the one context menu (`useSidebarMenu`), the main
   folder/session tree's keyboard model (`useMainTreeNav`) and scroll-to-reveal (`useRevealSession`)
@@ -130,6 +135,8 @@ re-renders because the workspace did; a component re-renders when what it **sele
   not through a render's closure — `transferFor`, `onResume`, the per-column handlers. A closure over
   `resumed` or `openSessions` was a new function per change and rendered every pane.
 - `dispatch` is applied synchronously and in call order, like `useReducer`'s queue; the reducer and
-  the effect ordering (session following, pending sessions, pty lifecycle, launch restore) are
-  unchanged. `tests/component/appPropStability.test.tsx` counts real renders per pane
+  the order of the workspace effects (session following, pending sessions, pty lifecycle, launch
+  restore) are unchanged. Effects run children first, so the `onToggleSidebar` subscription
+  (`AppSidebar`), the GPU probe (`ThemeEffectsLayer`) and the `useActiveTabs`/`usePets`
+  subscriptions (`WindowFooter`) now run before AppWindow's own; `useWindowReady` is still last. `tests/component/appPropStability.test.tsx` counts real renders per pane
   (`renderTracker.ts`) so a change in pane A that renders pane B fails.

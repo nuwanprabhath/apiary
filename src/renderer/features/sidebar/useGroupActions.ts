@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ProjectNode } from '@shared/types'
 import {
   moveFolder, newGroupId, orderFolders, type GroupedFolders, type GroupState,
-} from './model/groups'
+} from '../../state/groups'
 import { allFolderPaths } from './treeUtils'
 
 export interface GroupActions {

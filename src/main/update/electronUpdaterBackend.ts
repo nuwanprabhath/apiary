@@ -89,6 +89,26 @@ async function hashFile(path: string): Promise<string> {
   return hash.digest('base64')
 }
 
+/** Streams a response into `target` (never following or overwriting an existing entry), reporting percent; resolves to the sha512, base64, of what was written. */
+function writeHashed(
+  response: IncomingMessage, target: string, total: number, onProgress: (percent: number) => void,
+): Promise<string> {
+  const hash = createHash('sha512')
+  let received = 0
+  return new Promise<string>((resolve, reject) => {
+    const out = createWriteStream(target, { flags: 'wx', mode: 0o600 })
+    response.on('data', (chunk: Buffer) => {
+      hash.update(chunk)
+      received += chunk.length
+      if (total > 0) onProgress((received / total) * 100)
+    })
+    response.on('error', reject)
+    out.on('error', reject)
+    out.on('finish', () => { resolve(hash.digest('base64')) })
+    response.pipe(out)
+  })
+}
+
 export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
   autoUpdater.autoDownload = false
   // Never install behind the user's back on quit: with `assisted` platforms in the mix, "you
@@ -169,23 +189,7 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
         const url = `https://github.com/${opts.repo}/releases/download/v${latest.version}/${file.url}`
         const response = await fetchStream(url)
         const total = file.size ?? Number(response.headers['content-length'] ?? 0)
-        const hash = createHash('sha512')
-        let received = 0
-
-        await new Promise<void>((resolve, reject) => {
-          const out = createWriteStream(tmpTarget, { flags: 'wx', mode: 0o600 })
-          response.on('data', (chunk: Buffer) => {
-            hash.update(chunk)
-            received += chunk.length
-            if (total > 0) onProgress((received / total) * 100)
-          })
-          response.on('error', reject)
-          out.on('error', reject)
-          out.on('finish', resolve)
-          response.pipe(out)
-        })
-
-        const digest = hash.digest('base64')
+        const digest = await writeHashed(response, tmpTarget, total, onProgress)
         if (digest !== file.sha512) {
           throw new Error('The downloaded file did not match the checksum in the release, so it was discarded')
         }

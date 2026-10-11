@@ -4,15 +4,15 @@ import {
 } from 'react'
 import type { PtyId } from '@shared/domain/ids'
 import type { TabTransfer, WindowLayoutReport } from '@shared/types'
-import { newColumn } from '../layout/columns'
-import { initialLayout, PRESETS, type PresetId } from '../layout/layout'
+import { newColumn } from '../../state/columns'
+import { initialLayout, PRESETS, type PresetId } from '../../state/layout'
 import { type TerminalTab, type WorkspaceState } from './workspaceReducer'
 import { createWorkspaceStore } from './workspaceStore'
 import { StoreContext, useWorkspaceDispatch } from './workspaceContext'
 
 /** The window's starting state: empty, or rebuilt from the previous run's record (`restored`) or
  *  the tab a torn-off window was opened to show (`arrival`). */
-export function initWorkspaceState(
+function initWorkspaceState(
   restored: WindowLayoutReport | null,
   arrival: TabTransfer | null,
 ): WorkspaceState {

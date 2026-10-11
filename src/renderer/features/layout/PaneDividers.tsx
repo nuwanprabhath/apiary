@@ -2,7 +2,7 @@ import { type JSX, type RefObject, useRef } from 'react'
 import { useResizeDrag } from '../../ui/useResizeDrag'
 import {
   presetDef, dragTracks, boundaryAt, type PresetId, type Tracks, type DividerDef,
-} from './layout'
+} from '../../state/layout'
 
 /** Below these a pane shows nothing usable: the toolbar and a few terminal rows, or a readable
  *  column. The same floor the column dividers had. */

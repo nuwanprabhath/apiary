@@ -1,8 +1,9 @@
 import { type JSX, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Popover } from '../../ui/Popover'
-import { PRESETS, capacity, type PresetId } from './layout'
+import { PRESETS, capacity, type PresetId } from '../../state/layout'
 import { useEscape } from '../../ui/useEscape'
+import { focusUnlessTyping } from '../../ui/focusUnlessTyping'
 import { clampTop, fitsHorizontally, POPOVER_GAP, POPOVER_MARGIN } from '../../ui/popoverPlacement'
 
 const PER_ROW = 4
@@ -50,7 +51,7 @@ export function LayoutPicker({
   const previousActiveRef = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null)
   const focusOnOpenAtMountRef = useRef(focusOnOpen)
   useEffect(() => () => {
-    if (focusOnOpenAtMountRef.current) previousActiveRef.current?.focus({ preventScroll: true })
+    if (focusOnOpenAtMountRef.current) focusUnlessTyping(previousActiveRef.current)
   }, [])
 
   useLayoutEffect(() => {

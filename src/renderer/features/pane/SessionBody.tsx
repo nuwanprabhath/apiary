@@ -1,13 +1,11 @@
 import type { PtyId } from '@shared/domain/ids'
 import { type JSX, useCallback } from 'react'
 import type { ChatDecision } from '@shared/domain/chat'
-import { useChat, useChatMode } from '../../state/chatStore'
+import { useChat, useChatMode, answerChatRequest } from '../../state/chatStore'
 import type { SessionNode } from '@shared/types'
-import type { Column, OpenTab } from '../layout/columns'
-import { Transcript } from '../transcript/Transcript'
-import { Composer } from '../transcript/Composer'
-import { TerminalView } from '../terminal/TerminalView'
-import { answerChatRequest } from '../../state/chatStore'
+import type { Column, OpenTab } from '../../state/columns'
+import { Transcript, Composer } from '../transcript'
+import { TerminalView } from '../terminal'
 
 /** The session's centre pane: its transcript with the composer, and every tab's claude terminal. */
 export function SessionBody({

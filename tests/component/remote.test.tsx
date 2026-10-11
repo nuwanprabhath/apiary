@@ -3,7 +3,7 @@ import { pairingErrorMessage, type RemoteHost } from '@shared/domain/remote'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { expectConsoleError } from './setup'
-import { stays, until } from './helpers'
+import { sidebarSession, stays, until } from './helpers'
 import type { FakeApiary } from './fakeApiary'
 import { fakePet } from './fake/pets'
 
@@ -459,5 +459,37 @@ describe('a remote window', () => {
     const { fake } = await renderApp()
     fake.emit('remoteStatus', { state: 'disconnected', host: 'work-box' })
     await stays(() => document.querySelector('[data-testid="remote-banner"]') === null, 150, 'no banner outside a remote window')
+  })
+})
+
+describe('the Active section in a remote window', () => {
+  const OTHER = { windowNumber: 2, key: 'other-window-tab', view: 'terminal', status: 'stopped', label: 'Other window tab' } as const
+  const rows = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('[data-testid="active-tab-row"]')]
+  const rowFor = (text: string): HTMLElement | undefined => rows().find((r) => r.textContent?.includes(text) === true)
+  const selectedTab = (): string => document.querySelector('[role="tab"][aria-selected="true"]')?.textContent ?? ''
+
+  it('selects a tab open in this window without asking main; another window\'s row is inert and says why', async () => {
+    const { fake } = await renderRemote('work-box', (f) => { f.state.tabs = [OTHER] })
+    await userEvent.click(sidebarSession('Worktree session'))
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await until(() => rowFor('Worktree session') !== undefined && rowFor('Fix CSV export bug') !== undefined)
+    const other = rowFor('Other window tab')
+    expect(other?.title).toBe('Open on work-box\'s screen')
+    expect(other?.getAttribute('aria-disabled')).toBe('true')
+    expect(rowFor('Worktree session')?.getAttribute('aria-disabled')).toBeNull()
+    other?.click()
+    rowFor('Worktree session')?.click()
+    await until(() => selectedTab().includes('Worktree session'))
+    expect(fake.callsTo('focusTab')).toHaveLength(0)
+  })
+
+  it('a local window selects its own tab directly too', async () => {
+    const { fake } = await renderApp()
+    await userEvent.click(sidebarSession('Worktree session'))
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await until(() => rowFor('Worktree session') !== undefined && rowFor('Fix CSV export bug') !== undefined)
+    rowFor('Worktree session')?.click()
+    await until(() => selectedTab().includes('Worktree session'))
+    expect(fake.callsTo('focusTab')).toHaveLength(0)
   })
 })

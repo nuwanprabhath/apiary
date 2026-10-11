@@ -1,5 +1,5 @@
 import { type JSX, useMemo, useState } from 'react'
-import { ChevronIcon } from '../../ui/icons/ChevronIcon'
+import { ChevronIcon } from '../icons/ChevronIcon'
 
 interface Props {
   name: string

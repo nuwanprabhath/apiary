@@ -6,7 +6,8 @@
 // Per user message it streams a reply, word by word. A message containing "permission" first asks
 // to run a Bash command and waits for the answer; "slow" streams long enough to be interrupted;
 // "background" starts a background task that finishes a moment after the turn, which (as in the
-// real one) starts a turn of its own. A message sent mid-turn joins that turn: it is replayed
+// real one) starts a turn of its own; "linger" holds the turn open after its reply until a message
+// joins it or it is interrupted (an interrupt ends it as an interrupted turn). A message sent mid-turn joins that turn: it is replayed
 // before the turn's end and answered in it, with one `result` for both. The session id comes from
 // `--resume <id>`.
 import { randomUUID } from 'node:crypto'
@@ -54,7 +55,7 @@ const assistant = (content) => out({
   message: { role: 'assistant', content, usage: { input_tokens: 10, cache_read_input_tokens: 4000, cache_creation_input_tokens: 0 } },
 })
 
-async function stream(text) {
+async function stream(text, linger = false) {
   out({ type: 'stream_event', event: { type: 'message_start' } })
   out({ type: 'stream_event', event: { type: 'content_block_start', content_block: { type: 'thinking' } } })
   out({ type: 'system', subtype: 'thinking_tokens', estimated_tokens: 120 })
@@ -65,6 +66,10 @@ async function stream(text) {
     out({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: word } } })
     await sleep(text.length > 200 ? 40 : 15)
   }
+  // "linger" keeps the turn open until a message has joined it, so a test can send mid-turn
+  // without racing the reply's end. An interrupt during the hold ends the turn as an interrupted one.
+  if (linger) for (let i = 0; i < 1000 && absorbed.length === 0 && !interrupted; i++) await sleep(10)
+  if (interrupted) return false
   assistant([{ type: 'text', text }])
   return true
 }
@@ -131,7 +136,8 @@ async function turn(text) {
     const reply = text.includes('slow')
       ? Array.from({ length: 200 }, (_, i) => `word${i}`).join(' ')
       : `You said: ${text}`
-    const finished = await stream(reply)
+    // Only the message that opens the turn lingers; one that joins it (even saying "linger") does not.
+    const finished = await stream(reply, text.includes('linger'))
     if (!finished) {
       absorbed.length = 0
       out({ type: 'user', uuid: randomUUID(), session_id: sessionId, message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] } })

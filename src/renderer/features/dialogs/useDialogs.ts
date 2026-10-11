@@ -1,6 +1,6 @@
 import { createContext, useCallback, use, useEffect, useMemo, useState } from 'react'
 import type { ResumeConflict, SessionNode } from '@shared/types'
-import type { PlaceTarget } from '../layout/layoutContext'
+import type { PlaceTarget } from '../layout'
 import { useOutsideDismiss } from '../../ui/useOutsideDismiss'
 import { loadSessionNote, onOpenImportDialog } from '../../state/sessions'
 import { onOpenSettingsDialog } from '../../state/windowChrome'
@@ -24,7 +24,7 @@ export type DialogRequest =
   /** The layout picker opened from a context menu's "Arrange…", which has no button to hang it from. */
   | { kind: 'arrange'; target: PlaceTarget; at: { x: number; y: number } }
 
-export interface DialogState {
+interface DialogState {
   conflict: { session: SessionNode; conflict: ResumeConflict } | null
   deleteTarget: SessionNode | null
   moveTarget: { session: SessionNode; toPath: string } | null

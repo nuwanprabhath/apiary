@@ -1,13 +1,9 @@
 import { type JSX, useState } from 'react'
-import { ContextMenu } from '../../ui/ContextMenu'
 import type { ProjectNode, SessionNode } from '@shared/types'
 import { SessionRow } from './SessionRow'
-import { HoverCard } from '../../ui/HoverCard'
+import { FolderHoverCard, FolderRowControls } from './FolderRowControls'
 import { useHoverCard } from '../../ui/useHoverCard'
-import { CollapseAllIcon, PlusBoldIcon } from '../../ui/icons'
-import { ChevronIcon } from '../../ui/icons/ChevronIcon'
-import { useNotifications } from '../../ui/notifications'
-import { pullFolder } from '../../state/git'
+
 
 /** Every folder beneath these, at any depth — what "collapse all" folds. */
 function descendantPaths(nodes: ProjectNode[], into: string[] = []): string[] {
@@ -198,15 +194,10 @@ function FolderHeader({
   node, depth, level, isOpen, rearrangeable, onToggle, onNewSession, onNewWorktree, onReorderFolder, onFolderMenu,
   onCollapseBeneath, onSessionDrop, tabIndex,
 }: FolderHeaderProps): JSX.Element {
-  // "+" on a git folder is a choice — a session here, or a new worktree of this repository (the
-  // simple-worktrees extension's "+"). Anywhere else it only ever meant one thing, and still
-  // starts the session straight away.
-  const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
   const isGit = node.branch !== null || node.isWorktree || node.children.some((c) => c.isWorktree)
   // A nested folder's menu would be "Change branch…" alone; one git does not know has none.
   const folderMenu = onFolderMenu !== undefined && (depth === 0 || isGit) ? onFolderMenu : undefined
   const card = useHoverCard<HTMLDivElement>()
-  const { notify, notifyError } = useNotifications()
   // Highlights the row while a session is dragged over it — a folder drag has its own dropEffect
   // feedback already, but a session drop had nothing to show it would land here at all.
   const [sessionOver, setSessionOver] = useState(false)
@@ -281,84 +272,12 @@ function FolderHeader({
       }}
     >
       {card.anchor !== null && (
-        <HoverCard
-          testId="folder-hover-card"
-          anchor={card.anchor}
-          title={node.label}
-          path={node.path}
-          branch={node.branch}
-          lastActive={null}
-          onPullBranch={node.branch === null ? undefined : async () => {
-            try {
-              const { commits } = await pullFolder(node.path)
-              notify({
-                message: commits === 0
-                  ? `${node.label} is already up to date with ${node.branch ?? 'its upstream'}`
-                  : `Pulled ${String(commits)} commit${commits === 1 ? '' : 's'} into ${node.label}`,
-              })
-            } catch (e: unknown) {
-              notifyError(e, `Could not pull ${node.branch ?? 'the branch'} into ${node.label}`)
-            }
-          }}
-          onPointerEnter={card.keepOpen}
-          onPointerLeave={card.scheduleClose}
-        />
+        <FolderHoverCard node={node} anchor={card.anchor} keepOpen={card.keepOpen} scheduleClose={card.scheduleClose} />
       )}
-      <button
-        className="project-row"
-        data-testid="project-toggle"
-        onClick={() => onToggle(node.path)}
-        aria-expanded={isOpen}
-        // UI-27: the wrap above is the treeitem, and Enter/ArrowRight/ArrowLeft on it already
-        // toggle the same state — a second Tab stop here would be redundant.
-        tabIndex={-1}
-      >
-        <ChevronIcon expanded={isOpen} />
-        <span className="project-label">{node.label}</span>
-        {node.branch !== null && <span className="branch">{node.branch}</span>}
-      </button>
-      {onCollapseBeneath !== undefined && (
-        <button
-          className="new-session-button collapse-all-button"
-          data-testid="collapse-all-button"
-          title={`Collapse all folders in ${node.label}`}
-          aria-label={`Collapse all folders in ${node.label}`}
-          onClick={(e) => {
-            e.stopPropagation()
-            onCollapseBeneath()
-          }}
-        >
-          <CollapseAllIcon />
-        </button>
-      )}
-      <button
-        className="new-session-button"
-        data-testid="new-session-button"
-        title={`New Claude Code session in ${node.label}`}
-        aria-label={`New Claude Code session in ${node.label}`}
-        aria-haspopup={isGit && onNewWorktree !== undefined ? 'menu' : undefined}
-        onClick={(e) => {
-          e.stopPropagation()
-          if (!isGit || onNewWorktree === undefined) {
-            onNewSession(node.path)
-            return
-          }
-          const r = e.currentTarget.getBoundingClientRect()
-          setPlusMenu({ x: r.left, y: r.bottom + 2 })
-        }}
-      >
-        <PlusBoldIcon />
-      </button>
-      {/* Mounted only while open: one per folder row otherwise, each with its own hooks. */}
-      {plusMenu !== null && <ContextMenu
-        testId="new-in-folder-menu"
-        position={plusMenu}
-        onClose={() => { setPlusMenu(null) }}
-        items={[
-          { id: 'new-session', label: 'New Claude session here', run: () => { onNewSession(node.path) } },
-          { id: 'new-worktree', label: 'New worktree…', run: () => { onNewWorktree?.(node.path, node.label) } },
-        ]}
-     />}
+      <FolderRowControls
+        node={node} isOpen={isOpen} isGit={isGit} onToggle={onToggle} onNewSession={onNewSession}
+        onNewWorktree={onNewWorktree} onCollapseBeneath={onCollapseBeneath}
+      />
     </div>
   )
 }

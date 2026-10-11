@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { newColumn, type Column } from '../../src/renderer/features/layout/columns'
+import { newColumn, type Column } from '../../src/renderer/state/columns'
 import {
   PRESETS, capacity, applyPreset, placeInZone, initialLayout, type Layout, type PresetId,
   closePane, tidyLayout, openBeside, stepDown, stepUp, swapPanes,
   dragTracks, trackTemplate, boundaryAt, defaultTracks,
-} from '../../src/renderer/features/layout/layout'
+} from '../../src/renderer/state/layout'
 
 const pane = (...keys: string[]): Column =>
   newColumn(keys.map((key) => ({ key, view: 'transcript' as const })))

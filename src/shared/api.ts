@@ -9,14 +9,13 @@
  * rather than piled up here (SHARED-1) — this file re-exports the ones that used to be defined
  * here so existing `from '@shared/api'` imports keep working unchanged.
  */
-export { CHANNELS, IPC, type ApiaryApi, type InvokeKey, type SendKey, type EventKey, type ArgsOf, type ResultOf, type PayloadOf } from './ipc/contract'
+export { CHANNELS, IPC, type ApiaryApi } from './ipc/contract'
 
 // Re-exported under their old names/locations so nothing importing `@shared/api` has to change
 // (SHARED-1's barrel rule). `PluginSettingFieldPayload` used to be defined here; the canonical
 // shared name (used by both main and the renderer) is `PluginSettingField`.
-export type { CheckoutOutcome, FolderWorktree, GitStatus, GitRefs } from './domain/git'
-export type { DiscoveredSession, ResumeConflict, NewSessionInfo } from './domain/session'
-export type { TabTransfer, WindowLayoutReport, ActiveTabPayload } from './domain/tabs'
+export type { DiscoveredSession } from './domain/session'
+export type { TabTransfer, ActiveTabPayload } from './domain/tabs'
 export type { AppSettingsPayload } from './domain/settings'
 export type { LogStatusPayload } from './domain/log'
 export type { UpdateStatusPayload } from './domain/update'
@@ -24,5 +23,5 @@ export type { PluginInfoPayload } from './domain/plugins'
 export type { PluginBarItem as PluginBarItemPayload } from './domain/plugins'
 export type { PluginSettingField as PluginSettingFieldPayload } from './domain/plugins'
 export type { PtySessionInfo, PtySnapshot } from './domain/pty'
-export type { SavedTheme, ThemeOptions, ThemeGenerateResult, ThemeState } from './theme/state'
+export type { SavedTheme, ThemeOptions, ThemeState } from './theme/state'
 

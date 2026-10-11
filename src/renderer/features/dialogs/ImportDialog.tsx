@@ -1,17 +1,14 @@
-import type { SessionId } from '@shared/domain/ids'
 import { type JSX, useEffect, useMemo, useState } from 'react'
 import type { DiscoveredSession } from '@shared/api'
-import { ChevronIcon } from '../../ui/icons/ChevronIcon'
 import { useNotifications } from '../../ui/notifications'
 import { ErrorBoundary } from '../../ui/ErrorBoundary'
 import { Modal } from '../../ui/Modal'
-import { type DragStart, useResizeDrag } from '../../ui/useResizeDrag'
+import { ImportGroup } from './ImportGroup'
+import { useImportResize } from './useImportResize'
+import { useImportSelection } from './useImportSelection'
 import { importSessions, listDiscoveredSessions } from '../../state/sessions'
 import { bestEffort } from '../../state/policy'
 import { readSettings } from '../../state/settingsStore'
-
-const MIN_DIALOG_WIDTH = 420
-const MAX_DIALOG_WIDTH = 1500
 
 interface Props {
   onClose: () => void
@@ -19,19 +16,6 @@ interface Props {
   /** Persisted dialog width — session titles run long, so this one is draggable. */
   width: number
   onWidthChange: (next: number) => void
-}
-
-/**
- * What the hover tooltip says about a row: its full title (the visible one is ellipsized to fit)
- * and how long ago it was last touched, in both the relative form you actually think in and the
- * absolute one you need when comparing two of them.
- */
-function describeSession(s: DiscoveredSession): string {
-  if (s.lastActiveAtMs === null) return s.title
-  const when = new Date(s.lastActiveAtMs)
-  const days = Math.floor((Date.now() - s.lastActiveAtMs) / 86400000)
-  const ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${String(days)} days ago`
-  return `${s.title}\n\nLast active ${ago} — ${when.toLocaleString()}`
 }
 
 function groupByProject(rows: DiscoveredSession[]): Map<string, DiscoveredSession[]> {
@@ -50,8 +34,6 @@ function groupByProject(rows: DiscoveredSession[]): Map<string, DiscoveredSessio
 export function ImportDialog({ onClose, onImported, width, onWidthChange }: Props): JSX.Element {
   const { notifyError } = useNotifications()
   const [rows, setRows] = useState<DiscoveredSession[]>([])
-  const [picked, setPicked] = useState<Set<SessionId>>(() => new Set())
-  const [autoProjects, setAutoProjects] = useState<Set<string>>(() => new Set())
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
   /* Folder paths the user has collapsed. Absent = expanded, so a folder that appears later (or
@@ -91,29 +73,7 @@ export function ImportDialog({ onClose, onImported, width, onWidthChange }: Prop
     void bestEffort(readSettings(), 'settings').then((s) => { if (s !== null) setAutoImportAll(s.autoImportAll) })
   }, [])
 
-  /**
-   * Dragging either edge widens the dialog. The dialog is centred, so a drag has to move the width
-   * by twice the pointer's travel for the edge under the cursor to actually keep up with it —
-   * otherwise the edge slides away at half speed and the drag feels broken.
-   *
-   * The live width goes onto the document as a CSS custom property the dialog's own `width` reads,
-   * and the persisted `ui` setting hears about it once, on release — not once per mouse move.
-   */
-  const edgeDrag = (side: 1 | -1) => ({
-    axis: 'col' as const,
-    value: width,
-    min: MIN_DIALOG_WIDTH,
-    max: MAX_DIALOG_WIDTH,
-    measure: (e: { clientX: number }, start: DragStart) =>
-      Math.round(Math.max(MIN_DIALOG_WIDTH, Math.min(MAX_DIALOG_WIDTH, start.value + (e.clientX - start.x) * 2 * side))),
-    onLive: (w: number) => { document.documentElement.style.setProperty('--drag-import-width', `${String(w)}px`) },
-    onEnd: (w: number) => {
-      document.documentElement.style.removeProperty('--drag-import-width')
-      onWidthChange(w)
-    },
-  })
-  const leftEdge = useResizeDrag(edgeDrag(-1))
-  const rightEdge = useResizeDrag(edgeDrag(1))
+  const { leftEdge, rightEdge } = useImportResize(width, onWidthChange)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -125,44 +85,7 @@ export function ImportDialog({ onClose, onImported, width, onWidthChange }: Prop
 
   const groups = useMemo(() => groupByProject(filtered), [filtered])
 
-  const toggleSession = (id: SessionId): void => {
-    const next = new Set(picked)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    setPicked(next)
-  }
-
-  /** Ticking a folder selects its sessions and marks it for auto-import of future ones. */
-  const toggleGroup = (path: string, sessions: DiscoveredSession[], on: boolean): void => {
-    const nextPicked = new Set(picked)
-    const nextAuto = new Set(autoProjects)
-    for (const s of sessions) {
-      if (s.imported) continue
-      if (on) nextPicked.add(s.sessionId)
-      else nextPicked.delete(s.sessionId)
-    }
-    if (on) nextAuto.add(path)
-    else nextAuto.delete(path)
-    setPicked(nextPicked)
-    setAutoProjects(nextAuto)
-  }
-
-  /**
-   * Every session the dialog is currently showing that isn't already imported. Scoped to the
-   * filtered list on purpose: with a search term typed in, "select all" means all of *these*,
-   * which is the only reading that isn't a nasty surprise.
-   */
-  const allSelectable = useMemo(() => filtered.filter((r) => !r.imported), [filtered])
-  const allSelected = allSelectable.length > 0 && allSelectable.every((r) => picked.has(r.sessionId))
-
-  const toggleAll = (on: boolean): void => {
-    const next = new Set(picked)
-    for (const r of allSelectable) {
-      if (on) next.add(r.sessionId)
-      else next.delete(r.sessionId)
-    }
-    setPicked(next)
-  }
+  const { picked, autoProjects, toggleSession, toggleGroup, allSelectable, allSelected, toggleAll } = useImportSelection(filtered)
 
   const confirm = async (): Promise<void> => {
     setBusy(true)
@@ -215,65 +138,18 @@ export function ImportDialog({ onClose, onImported, width, onWidthChange }: Prop
         </label>
 
         <div className="import-list">
-          {[...groups.entries()].map(([path, sessions]) => {
-            const selectable = sessions.filter((s) => !s.imported)
-            // "In" means the session will be in the sidebar once this dialog is confirmed —
-            // whether it was already imported on a previous visit or has just been ticked here.
-            // Counting only the freshly-ticked ones is what used to leave a folder whose every
-            // session was already imported showing an *unchecked* header, which reads as "none of
-            // this folder is imported" when in fact all of it is.
-            const isIn = (s: DiscoveredSession): boolean => s.imported || picked.has(s.sessionId)
-            const allPicked = sessions.length > 0 && sessions.every(isIn)
-            // Some but not all: the header shows the tri-state dash rather than claiming either.
-            const somePicked = !allPicked && sessions.some(isIn)
-            return (
-              <section key={path} data-testid="import-group">
-                {/* The chevron is a sibling of the label rather than inside it: a <label> forwards
-                 *  every click within it to its own control, so a nested collapse button would
-                 *  toggle the folder's checkbox on the way past. Same reason the sidebar's row
-                 *  buttons sit beside their row rather than inside it. */}
-                <div className="import-group-head">
-                  <button
-                    className="import-group-toggle"
-                    data-testid="import-group-toggle"
-                    aria-expanded={!collapsed.has(path)}
-                    title={collapsed.has(path) ? 'Expand folder' : 'Collapse folder'}
-                    onClick={() => toggleCollapsed(path)}
-                  >
-                    <ChevronIcon expanded={!collapsed.has(path)} />
-                  </button>
-                  <label className="import-group-label">
-                    <input
-                      type="checkbox"
-                      data-testid="import-group-checkbox"
-                      checked={allPicked}
-                      // `indeterminate` is a DOM property with no HTML attribute behind it, so it
-                      // can only be set through the element itself, not through JSX.
-                      ref={(el) => { if (el !== null) el.indeterminate = somePicked }}
-                      disabled={selectable.length === 0}
-                      onChange={(e) => toggleGroup(path, sessions, e.target.checked)}
-                    />
-                    <span className="project-label">{path}</span>
-                    <span className="muted">{sessions.length}</span>
-                  </label>
-                </div>
-
-                {!collapsed.has(path) && sessions.map((s) => (
-                  <label key={s.sessionId} className="import-row" title={describeSession(s)}>
-                    <input
-                      type="checkbox"
-                      data-testid="import-session-checkbox"
-                      checked={s.imported || picked.has(s.sessionId)}
-                      disabled={s.imported}
-                      onChange={() => toggleSession(s.sessionId)}
-                    />
-                    <span className="session-title">{s.title}</span>
-                    {s.imported && <span className="muted">already imported</span>}
-                  </label>
-                ))}
-              </section>
-            )
-          })}
+          {[...groups.entries()].map(([path, sessions]) => (
+            <ImportGroup
+              key={path}
+              path={path}
+              sessions={sessions}
+              picked={picked}
+              collapsed={collapsed.has(path)}
+              onToggleCollapsed={() => { toggleCollapsed(path) }}
+              onToggleGroup={(on) => { toggleGroup(path, sessions, on) }}
+              onToggleSession={toggleSession}
+            />
+          ))}
 
           {groups.size === 0 && <p className="empty">No sessions found.</p>}
         </div>

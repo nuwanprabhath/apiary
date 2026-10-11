@@ -16,7 +16,7 @@
  * Sessions run in a login shell (`-l -c`), so anything a user deliberately sets in their profile is
  * set again there regardless.
  */
-export const INHERITED_SESSION_MARKERS = [
+const INHERITED_SESSION_MARKERS = [
   'CLAUDECODE',
   'CLAUDE_CODE_CHILD_SESSION',
   'CLAUDE_CODE_SESSION_ID',

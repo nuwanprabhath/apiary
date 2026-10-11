@@ -64,7 +64,7 @@ export function pickMergeRequest(list: GlabMr[]): GlabMr | null {
  * `suggest` is reserved for the *offer* to create one, so a merged MR is `normal` — it is a thing
  * that exists, not something being proposed. The glyph is what separates the states.
  */
-export function itemForMergeRequest(mr: GlabMr): Omit<PluginBarItem, 'pluginId'> {
+function itemForMergeRequest(mr: GlabMr): Omit<PluginBarItem, 'pluginId'> {
   const state = mr.state === 'opened'
     ? (mr.draft === true ? 'Draft' : 'Open')
     : mr.state.charAt(0).toUpperCase() + mr.state.slice(1)
@@ -87,7 +87,7 @@ function iconForState(state: string): PluginBarItem['icon'] {
 }
 
 /** The button offering to create one. */
-export function itemForNewMergeRequest(
+function itemForNewMergeRequest(
   remote: GitLabRemote,
   branch: string,
   targetBranch?: string | null,

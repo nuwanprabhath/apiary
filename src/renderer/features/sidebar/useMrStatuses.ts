@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { SessionId } from '@shared/domain/ids'
 import { parseMrRefs } from '@shared/mrRefs'
-import type { MrState } from './mrRefText'
+import type { MrState } from '../../ui/mrRefText'
 import { currentMrStatuses, subscribeMrStatuses } from '../../state/mrStatusStore'
 
 /**

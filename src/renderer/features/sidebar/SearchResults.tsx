@@ -30,7 +30,7 @@ export function SearchResults({ results, selectedId, pinned, actions }: {
   })
   return (
     <ul
-      className="tree flat-results"
+      className="tree"
       data-testid="flat-results"
       role="tree"
       aria-label="Search results"

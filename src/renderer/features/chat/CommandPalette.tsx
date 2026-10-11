@@ -1,4 +1,5 @@
-import { type JSX, type KeyboardEvent, type RefObject, useEffect, useId, useMemo, useState } from 'react'
+import { type JSX, type KeyboardEvent, type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { focusUnlessTyping } from '../../ui/focusUnlessTyping'
 import type { ChatCommand } from '@shared/domain/chat'
 import type { SessionId } from '@shared/domain/ids'
 import { fuzzyScore } from '@shared/fuzzy'
@@ -194,6 +195,15 @@ export function CommandPalette({ sessionId, commands, composerText, keyHandler, 
     }
   }
 
+  // The search box takes focus as it opens, unless the menu was opened from the message box (the
+  // person is typing there) or a text field has focus for another reason. Stable, so only the
+  // mount focuses: `typed` is read as it was when the box appeared.
+  const typedRef = useRef(typed)
+  typedRef.current = typed
+  const focusSearchOnMount = useCallback((el: HTMLInputElement | null): void => {
+    if (!typedRef.current) focusUnlessTyping(el)
+  }, [])
+
   const { onKeyDown } = useListboxNav({
     count: shown.length,
     active,
@@ -219,7 +229,7 @@ export function CommandPalette({ sessionId, commands, composerText, keyHandler, 
   const footer = footerText(shown[active])
 
   return (
-    <div className="chat-commands" ref={root}>
+    <div ref={root}>
       <button
         type="button"
         className="chat-icon-button"
@@ -240,7 +250,7 @@ export function CommandPalette({ sessionId, commands, composerText, keyHandler, 
           <input
             className="chat-command-search"
             data-testid="composer-command-search"
-            autoFocus={!typed}
+            ref={focusSearchOnMount}
             tabIndex={typed ? -1 : 0}
             readOnly={typed}
             placeholder="Filter actions…"

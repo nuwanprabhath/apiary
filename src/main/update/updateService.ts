@@ -5,10 +5,10 @@ import {
 } from './capability'
 import { shouldOffer } from './versions'
 import type {
-  UpdateStatusPayload, UpdatePhase, UpdateCapabilityKind, Capability, InstallInstructions, OpenInstallerResult,
+  UpdateStatusPayload,Capability, InstallInstructions, OpenInstallerResult,
 } from '@shared/domain/update'
 
-export type { UpdatePhase, UpdateCapabilityKind, Capability, InstallInstructions, OpenInstallerResult }
+export type { Capability, OpenInstallerResult }
 
 /**
  * The updater's state machine and scheduler.

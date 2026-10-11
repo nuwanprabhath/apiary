@@ -61,7 +61,7 @@ export function ModeMenu({ mode, onMode }: { mode: ChatPermissionMode | ''; onMo
             >
               <span className="chat-menu-icon"><ModeIcon mode={m} /></span>
               <span className="chat-menu-option-text">
-                <span className="chat-menu-option-name">{CHAT_PERMISSION_MODE_LABELS[m]}</span>
+                <span>{CHAT_PERMISSION_MODE_LABELS[m]}</span>
                 <span className="chat-menu-option-desc">{DESCRIPTIONS[m]}</span>
               </span>
               {m === mode && <CheckIcon />}

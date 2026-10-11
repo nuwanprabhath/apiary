@@ -7,7 +7,8 @@
 .settings-dialog { width: 720px; max-width: 92vw; }
 .settings-body {
   display: flex;
-  gap: 16px;
+  gap: var(--space-xl);
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the settings dialog's minimum height, so switching sections does not resize it */
   min-height: 320px;
   max-height: 60vh;
 }
@@ -18,14 +19,14 @@
   flex-direction: column;
   gap: 2px;
   border-right: 1px solid var(--border);
-  padding-right: 8px;
+  padding-right: var(--space-md);
 }
 .settings-nav-item {
   text-align: left;
   border: 0;
   background: transparent;
   color: var(--muted);
-  padding: 7px 10px;
+  padding: var(--row-padding-y-lg) var(--control-padding-x);
   border-radius: var(--radius-control);
   cursor: pointer;
   font: inherit;
@@ -33,21 +34,21 @@
 .settings-nav-item:hover { background: var(--selected); color: var(--text); }
 .settings-nav-item[data-active="true"] { background: var(--selected); color: var(--text); font-weight: 600; }
 
-.settings-pane { flex: 1; min-width: 0; overflow-y: auto; padding-right: 4px; }
+.settings-pane { flex: 1; min-width: 0; overflow-y: auto; padding-right: var(--space-xs); }
 .settings-blurb { margin: 0 0 14px; color: var(--muted); line-height: 1.5; }
 
 .settings-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 0;
+  gap: var(--space-ml);
+  padding: var(--space-ml) 0;
   border-top: 1px solid var(--border);
   cursor: pointer;
 }
 .settings-row:first-of-type { border-top: 0; }
-.settings-row > span { display: flex; flex-direction: column; gap: 4px; }
+.settings-row > span { display: flex; flex-direction: column; gap: var(--space-xs); }
 .settings-row-stacked { flex-direction: column; cursor: default; }
-.settings-row-indent { padding-left: 26px; border-top: 0; padding-top: 0; cursor: default; flex-direction: column; gap: 8px; }
+.settings-row-indent { padding-left: var(--row-indent); border-top: 0; padding-top: 0; cursor: default; flex-direction: column; gap: var(--space-md); }
 .settings-help { color: var(--muted); line-height: 1.5; font-size: 12px; }
 
 /* The worked example under "keep the last N folders". Drawn as a field rather than as prose
@@ -58,7 +59,7 @@
   background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 3px 8px;
+  padding: 3px var(--space-md);
   color: var(--text);
 }
 
@@ -70,24 +71,24 @@
   background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 6px 8px;
+  padding: var(--space-sm) var(--space-md);
   color: var(--text);
   word-break: break-all;
 }
 
-.settings-inline { display: flex; align-items: center; gap: 8px; }
+.settings-inline { display: flex; align-items: center; gap: var(--space-md); }
 /* The check's answer sits beside the button that asked for it, and wraps ahead of it rather than
    pushing it off the row. */
 .settings-check { margin-left: auto; justify-content: flex-end; flex-wrap: wrap; }
 .settings-number { width: 80px; }
-.settings-presets { display: flex; gap: 6px; }
+.settings-presets { display: flex; gap: var(--space-sm); }
 .settings-preset { color: var(--muted); }
 .settings-preset[data-active="true"] { border-color: var(--accent); color: var(--text); }
 
 /* Shown in place of "pick some sessions" when the app is already importing all of them. */
 .import-auto-notice {
   margin: 0 0 10px;
-  padding: 8px 10px;
+  padding: var(--space-md) var(--space-ml);
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-control);
@@ -105,10 +106,10 @@
   flex: none;
   border-top: 1px solid var(--border);
   background: var(--bg-panel);
-  padding: 8px 10px 10px;
+  padding: var(--space-md) var(--control-padding-x) var(--space-ml);
 }
 
-.composer-attachments { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
+.composer-attachments { display: flex; flex-wrap: wrap; gap: var(--space-md); padding-bottom: var(--space-md); }
 .composer-attachment { position: relative; }
 .composer-attachment-preview {
   display: block;
@@ -119,6 +120,7 @@
   cursor: zoom-in;
   overflow: hidden;
 }
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- an attached image's thumbnail, a picture size */
 .composer-attachment-preview img { display: block; width: 64px; height: 64px; object-fit: cover; }
 .composer-attachment-preview:hover { border-color: var(--accent); }
 .composer-attachment-remove {
@@ -126,8 +128,8 @@
   z-index: calc(var(--z-base) + 1); /* above .composer-resize */
   top: -6px;
   right: -6px;
-  width: 18px;
-  height: 18px;
+  width: var(--icon-button-size-sm);
+  height: var(--icon-button-size-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -139,7 +141,7 @@
   cursor: pointer;
 }
 .composer-attachment-remove:hover { color: var(--danger); border-color: var(--danger); }
-.composer-attachment-remove svg { width: 10px; height: 10px; display: block; }
+.composer-attachment-remove svg { width: var(--icon-size-xs); height: var(--icon-size-xs); display: block; }
 
 /* The composer's top edge is the handle: drag it up to make the box taller (Composer). It has the
    row of grip dots every other resizable edge has (20-sidebar.css), so it reads as one. It fills
@@ -152,7 +154,7 @@
   right: 0;
   left: 0;
   z-index: var(--z-base);
-  height: 8px; /* the composer's top padding */
+  height: var(--space-md); /* the composer\'s top padding */
   cursor: ns-resize;
   touch-action: none;
 }
@@ -162,12 +164,13 @@
   width: 100%;
   /* Sized by Composer: it grows with what is typed, and the handle above sets its height. */
   resize: none;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the message box's minimum height: three lines of text */
   min-height: 58px;
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
   background: var(--field-bg);
   color: var(--text);
-  padding: 8px 10px;
+  padding: var(--space-md) var(--control-padding-x);
   font: inherit;
   line-height: 1.5;
 }
@@ -175,7 +178,7 @@
 .composer-input:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .composer-actions {
-  display: flex; flex-wrap: nowrap; align-items: center; gap: 8px 10px; padding-top: 8px;
+  display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-md); padding-top: var(--space-md);
   container-type: inline-size;
 }
 .composer-actions > * { flex: none; }
@@ -191,13 +194,13 @@
   .chat-model-pill { max-width: 100%; }
   .chat-model-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
-.composer-model { display: flex; align-items: center; gap: 6px; }
+.composer-model { display: flex; align-items: center; gap: var(--space-sm); }
 .composer-model select {
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
   border-radius: var(--radius-control);
-  padding: 3px 6px;
+  padding: 3px var(--space-sm);
   font: inherit;
   font-size: 12px;
 }
@@ -217,9 +220,10 @@
 }
 .composer-hint::before { content: ''; flex: 1 0 0; height: 1.5em; }
 .composer-hint-text { white-space: nowrap; }
-/* Sizing, colour and disabled state come from the control layer: `.composer-send` is listed
-   there beside `.btn.primary`, and only its wider padding is its own. */
-.composer-send { padding: 0 14px; margin-left: auto; }
+/* Sizing, padding, colour and disabled state come from the control layer: `.composer-send` is
+   listed there beside `.btn.primary`. Its own rule only pushes it to the end of the row (a wider
+   padding cut "Send" off in a narrow pane at a roomy density). */
+.composer-send { margin-left: auto; }
 
 /* An image path we could not turn into a picture, shown as the line it actually was. */
 .composer-path-fallback {
@@ -253,7 +257,7 @@
   background: var(--bg-lightbox);
   display: grid;
   place-items: center;
-  padding: 32px;
+  padding: var(--space-2xl);
   cursor: zoom-out;
 }
 .lightbox-image { max-width: 100%; max-height: 100%; object-fit: contain; cursor: default; }
@@ -262,6 +266,7 @@
   top: 16px;
   right: 16px;
   width: 32px;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the lightbox's close button: a fixed square sized for a full-screen overlay, where the control density tokens do not apply */
   height: 32px;
   display: flex;
   align-items: center;
@@ -273,7 +278,7 @@
   cursor: pointer;
 }
 .lightbox-close:hover { background: var(--selected); }
-.lightbox-close svg { width: 16px; height: 16px; display: block; }
+.lightbox-close svg { width: var(--icon-size-lg); height: var(--icon-size-lg); display: block; }
 
 /* The shared right-click menu (tab strip, terminal, sidebar). Fixed to the viewport at the cursor,
    so it is never clipped by the overflow of whatever opened it; shares the git menu's look. */
@@ -285,7 +290,7 @@
   min-width: 170px;
 }
 .context-menu {
-  padding: 4px;
+  padding: var(--space-xs);
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
@@ -302,7 +307,7 @@
   background: transparent;
   color: var(--text);
   text-align: left;
-  padding: 5px 8px;
+  padding: var(--row-padding-y) var(--space-md);
   border-radius: var(--radius-row);
   cursor: pointer;
   font: inherit;
@@ -312,13 +317,13 @@
 .context-menu-item:hover:not(:disabled) { background: var(--hover); }
 /* A toggle's tick. Always takes its space, so a menu mixing toggles and actions keeps its labels
    lined up whether the toggle is on or off. */
-.context-menu-check { width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; }
+.context-menu-check { width: var(--icon-size-sm); height: var(--icon-size-sm); margin-right: 6px; vertical-align: -1px; }
 .context-menu-check[data-on="false"] { visibility: hidden; }
 /* A worktree listed by "Show all worktrees" that no session has been started in yet. */
 .project-row-wrap[data-no-sessions="true"] .project-label { color: var(--muted); }
 .context-menu-item[data-separator="true"] {
   margin-top: 4px;
-  padding-top: 7px;
+  padding-top: var(--row-padding-y-lg);
   border-top: 1px solid var(--border);
   border-radius: 0 0 var(--radius-row) var(--radius-row);
 }
@@ -348,13 +353,13 @@
 .folder-group-header {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
   width: 100%;
   border: 0;
   background: transparent;
   color: var(--muted);
   /* The right padding matches .pinned-header's, so every count ends at the same edge. */
-  padding: 4px 10px 4px 8px;
+  padding: var(--space-xs) var(--control-padding-x) var(--space-xs) var(--space-md);
   cursor: pointer;
   font: inherit;
   font-size: 11px;
@@ -404,7 +409,7 @@
   position: fixed;
   z-index: var(--z-popover);
   max-width: 420px;
-  padding: 8px 10px;
+  padding: var(--space-md) var(--space-ml);
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
   background: var(--bg-panel);
@@ -422,7 +427,7 @@
 .hover-card-path { color: var(--muted); word-break: break-all; flex: 1; min-width: 0; }
 .hover-card-path-row { align-items: flex-start; }
 .hover-card-missing { color: var(--danger); }
-.hover-card-row { display: flex; gap: 6px; align-items: center; }
+.hover-card-row { display: flex; gap: var(--space-sm); align-items: center; }
 .hover-card-label { color: var(--muted); min-width: 72px; }
 .hover-card-branch { color: var(--accent); word-break: break-all; }
 .hover-card-open-vscode { margin-top: var(--control-gap); align-self: flex-start; }
@@ -438,7 +443,7 @@
 .session-note-mark { flex: none; display: flex; align-items: center; color: var(--muted); }
 .session-row-wrap:hover .session-note-mark,
 .session-row-wrap:focus-within .session-note-mark { display: none; }
-.session-note-mark svg { width: 12px; height: 12px; display: block; }
+.session-note-mark svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
 .session-row[data-selected="true"] .session-note-mark { color: var(--text); }
 
 /* The note inside a hover card. Pre-wrapped so the lines someone typed survive, and capped so a
@@ -447,7 +452,7 @@
   white-space: pre-wrap;
   max-height: 180px;
   overflow: hidden;
-  padding: 4px 6px;
+  padding: var(--space-xs) var(--space-sm);
   border-left: 2px solid var(--accent);
   background: var(--hover);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
@@ -458,9 +463,10 @@
 .note-dialog-input {
   width: 100%;
   box-sizing: border-box;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the note editor's minimum height: several lines of text */
   min-height: 140px;
   resize: vertical;
-  padding: 8px 10px;
+  padding: var(--space-md) var(--control-padding-x);
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: var(--field-bg);
@@ -481,8 +487,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: var(--icon-button-size-sm);
+  height: var(--icon-button-size-sm);
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -493,7 +499,7 @@
 /* The pull button while its pull is in flight — the same treatment as .btn:disabled. */
 .hover-card-copy:disabled { cursor: default; opacity: 0.5; }
 .hover-card-copy:hover:not(:disabled) { background: var(--hover); color: var(--text); }
-.hover-card-copy svg { width: 12px; height: 12px; display: block; }
+.hover-card-copy svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
 
 /* A plugin's button when it is offering something that does not exist yet — "no MR, make one".
    Outlined rather than filled: it is an invitation, and the bar's real state (branch, ahead,
@@ -508,9 +514,9 @@
 
 /* One plugin's block in Settings: its switch, then whatever settings it declares, kept together
    and separated from the next plugin so a list of them stays readable. */
-.settings-plugin { padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+.settings-plugin { padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border); margin-bottom: 10px; }
 .settings-plugin:last-of-type { border-bottom: 0; margin-bottom: 0; }
-.settings-plugin-field { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
+.settings-plugin-field { display: flex; flex-direction: column; gap: var(--space-xs); align-items: stretch; }
 .settings-field-label { font-weight: 600; font-size: 12px; }
 .settings-plugin-field .search { width: 100%; box-sizing: border-box; }
 
@@ -532,6 +538,7 @@
   display: grid;
   gap: 2px;
   width: 44px;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- a layout preview thumbnail, a picture size */
   height: 32px;
   padding: 2px;
   border: 1px solid var(--border);
@@ -559,8 +566,8 @@ button.layout-thumb:hover .layout-zone, button.layout-thumb:focus-visible .layou
 .pane-filler {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
+  gap: var(--space-ml);
+  padding: var(--space-xl);
   overflow-y: auto;
   min-height: 0;
   max-width: 420px;
@@ -586,7 +593,7 @@ button.layout-thumb:hover .layout-zone, button.layout-thumb:focus-visible .layou
 .worktree-conflict-move-row { display: flex; gap: var(--control-gap); align-items: center; }
 .worktree-conflict-choices { max-height: 220px; }
 
-.worktree-conflict-choice { flex-direction: row; align-items: center; gap: 8px; }
+.worktree-conflict-choice { flex-direction: row; align-items: center; gap: var(--space-md); }
 .worktree-conflict-choice .branch-switcher-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .worktree-conflict-swap { margin-left: auto; flex-shrink: 0; color: var(--accent); font-size: 11px; }
 

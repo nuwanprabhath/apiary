@@ -91,13 +91,16 @@ function startRemoteAccess(container: Container, dispatcher: Dispatcher): () => 
   const disposeTargets = registerBroadcastTargets(() => virtualContents.list())
   const disposeSkip = registerBroadcastSkip(container.remoteWindows.skipsBroadcast)
   const apply = (on: boolean): void => {
-    fireAndForget(on ? remoteServer.start() : remoteServer.stop(), 'remote')
+    // The refusal itself reaches Settings through `remoteServerState`; here it only decides whether to quit.
+    const run = on ? remoteServer.start() : remoteServer.stop()
+    fireAndForget(run.finally(() => { if (on) quitIfIdleBackground() }), 'remote')
   }
-  // A background start with remote access off has no window and no server: nothing would show it is running.
+  // A background start with remote access off, or refused, has no window and no server: nothing would show it is running.
   quitIfIdleBackground = (): void => {
     const remoteAccess = settings.get().remoteAccess
-    if (!shouldQuitIdleBackground(launchMode, remoteAccess, BrowserWindow.getAllWindows().length)) return
-    log.info('remote', 'background start with remote access off and no window; quitting')
+    const serverFailed = remoteServer.serverState().state === 'failed'
+    if (!shouldQuitIdleBackground(launchMode, remoteAccess, BrowserWindow.getAllWindows().length, serverFailed)) return
+    log.info('remote', 'background start with no remote server and no window; quitting', { serverFailed })
     app.quit()
   }
   if (settings.get().remoteAccess) apply(true)

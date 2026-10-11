@@ -3,3 +3,4 @@
  * (dependency-cruiser: renderer-feature-public-face).
  */
 export { DialogBoundary } from './DialogBoundary'
+export { useDialogActions } from './useDialogs'

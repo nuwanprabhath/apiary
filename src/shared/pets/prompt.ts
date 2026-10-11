@@ -25,11 +25,11 @@ export interface VoiceContext {
 
 export interface ChatTurn { from: 'you' | 'pet'; text: string }
 
-export const VOICE_TITLES = 8
-export const VOICE_TITLE_CHARS = 60
+const VOICE_TITLES = 8
+const VOICE_TITLE_CHARS = 60
 export const CHAT_HISTORY = 6
-export const CHAT_MESSAGE_CHARS = 500
-export const DESCRIPTION_CHARS = 1000
+const CHAT_MESSAGE_CHARS = 500
+const DESCRIPTION_CHARS = 1000
 
 const lineList = { type: 'array', items: { type: 'string', maxLength: LIMITS.line }, maxItems: LIMITS.linesPerSituation }
 const linesSchema = {

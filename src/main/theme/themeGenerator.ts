@@ -6,7 +6,7 @@ import type { ClaudeOneShot } from '../claude/claudeOneShot'
 import { log } from '../log/logger'
 import { THEME_MODELS, type ThemeModel } from '@shared/theme/models'
 
-export { THEME_MODELS, type ThemeModel } from '@shared/theme/models'
+export { type ThemeModel } from '@shared/theme/models'
 
 /**
  * Asks the user's own `claude` to design a theme — through `ClaudeOneShot`, which gives it nothing

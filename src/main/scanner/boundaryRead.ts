@@ -1,6 +1,6 @@
 import { open } from 'node:fs/promises'
 
-export const DEFAULT_CHUNK_BYTES = 65536
+const DEFAULT_CHUNK_BYTES = 65536
 
 async function readChunk(
   filePath: string,

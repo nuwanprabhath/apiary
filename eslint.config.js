@@ -55,6 +55,9 @@ export default defineConfig([
       eqeqeq: ['error', 'always'],
       'no-console': ['error', { allow: ['warn', 'error'] }],
       'prefer-const': 'error',
+      // One import line per module (a separate `import type` line is fine): the 1.38 barrel rewrite
+      // left the same module imported on two or three lines in 14 places.
+      'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
       // A switch over a union that misses a case fails at compile time instead of at the default

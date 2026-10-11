@@ -1,12 +1,13 @@
-import { type JSX, useEffect, useMemo, useRef, useState } from 'react'
+import { type JSX, useEffect, useMemo, useState } from 'react'
 import {
   worktreeNameProblem, type WorktreeBranchChoice, type WorktreeCreateOptions,
 } from '@shared/domain/git'
 import type { NewSessionInfo } from '@shared/types'
 import { describeError } from '../../ui/errors'
 import { Modal } from '../../ui/Modal'
-import { BRANCH_ROW_SELECTOR } from './branchRows'
-import { useRovingList } from '../../ui/useRovingList'
+import { WorktreeBranchStep } from './WorktreeBranchStep'
+import { WorktreeNameStep } from './WorktreeNameStep'
+import { WorktreeNewBranchStep } from './WorktreeNewBranchStep'
 import { createWorktree, worktreeCreateOptions } from '../../state/git'
 
 interface Props {
@@ -38,8 +39,6 @@ export function NewWorktreeDialog({ folderPath, folderLabel, onClose, onCreated 
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const listRef = useRef<HTMLUListElement | null>(null)
-  const rows = useRovingList(listRef, { itemSelector: BRANCH_ROW_SELECTOR, wrap: true })
 
   useEffect(() => {
     let cancelled = false
@@ -77,8 +76,6 @@ export function NewWorktreeDialog({ folderPath, folderLabel, onClose, onCreated 
     : step.kind === 'branch' ? `New worktree — ${name.trim()}`
       : step.kind === 'base' ? 'Create the new branch from…' : 'New branch name'
 
-  const listStep = step.kind === 'branch' || step.kind === 'base'
-
   return (
     <Modal
       testId="new-worktree-dialog"
@@ -93,157 +90,47 @@ export function NewWorktreeDialog({ folderPath, folderLabel, onClose, onCreated 
       {error !== null && <p className="error-banner" data-testid="new-worktree-error">{error}</p>}
 
       {step.kind === 'name' && (
-        <form
-          onSubmit={(e) => { e.preventDefault(); if (nameProblem === null && options !== null) go({ kind: 'branch' }) }}
-        >
-          <input
-            className="search"
-            data-testid="new-worktree-name"
-            placeholder="Folder name, e.g. species-list"
-            value={name}
-            autoFocus
-            onChange={(e) => { setName(e.target.value); setError(null) }}
-          />
-          <p className="new-worktree-hint" data-testid="new-worktree-location">
-            {options === null
-              ? 'Reading the repository…'
-              : name.trim() !== '' && nameProblem !== null
-                ? nameProblem
-                : `Created in ${options.parentDir}/${name.trim()}`}
-          </p>
-          <div className="modal-actions">
-            <button type="button" className="btn" onClick={onClose}>Cancel</button>
-            <button
-              type="submit"
-              className="btn primary"
-              data-testid="new-worktree-next"
-              disabled={options === null || nameProblem !== null}
-            >
-              Next
-            </button>
-          </div>
-        </form>
+        <WorktreeNameStep
+          name={name}
+          options={options}
+          nameProblem={nameProblem}
+          onName={(n) => { setName(n); setError(null) }}
+          onNext={() => { go({ kind: 'branch' }) }}
+          onClose={onClose}
+        />
       )}
 
-      {listStep && (
-        <>
-          <input
-            key={step.kind}
-            className="search"
-            data-testid="new-worktree-branch-search"
-            placeholder={step.kind === 'branch' ? 'Select a branch to check out, or create a new one' : 'Filter branches'}
-            value={query}
-            autoFocus
-            onChange={(e) => { setQuery(e.target.value) }}
-            onKeyDown={rows.onKeyDown}
-          />
-          <ul ref={listRef} className="branch-switcher-list" onKeyDown={rows.onKeyDown}>
-            {step.kind === 'branch' && (
-              <li>
-                <button
-                  className="branch-switcher-action"
-                  data-testid="new-worktree-new-branch"
-                  disabled={busy}
-                  onClick={() => go({ kind: 'base' })}
-                >
-                  + Create new branch…
-                </button>
-              </li>
-            )}
-            {step.kind === 'base' && (
-              <li>
-                <button
-                  className="branch-switcher-action"
-                  data-testid="new-worktree-base-head"
-                  onClick={() => { setBranchName(name.trim()); go({ kind: 'new-branch' }) }}
-                >
-                  Current HEAD
-                </button>
-              </li>
-            )}
-            {local.length > 0 && <li className="branch-switcher-section-label">local branches</li>}
-            {local.map((b) => {
-              const taken = step.kind === 'branch' && options?.checkedOut.includes(b) === true
-              return (
-                <li key={`l:${b}`} className="branch-switcher-item">
-                  <button
-                    className="branch-switcher-row"
-                    data-testid="new-worktree-local-row"
-                    disabled={busy || taken}
-                    title={taken ? 'Already checked out in another worktree — git allows a branch in one worktree at a time.' : undefined}
-                    onClick={() => {
-                      if (step.kind === 'branch') void create({ kind: 'local', branch: b })
-                      else { setBranchName(name.trim()); go({ kind: 'new-branch', from: b }) }
-                    }}
-                  >
-                    <span className="branch-switcher-row-name">{b}</span>
-                    {taken && <span className="branch-switcher-row-meta">already checked out</span>}
-                  </button>
-                </li>
-              )
-            })}
-            {remote.length > 0 && <li className="branch-switcher-section-label">remote branches</li>}
-            {remote.map((b) => (
-              <li key={`r:${b}`} className="branch-switcher-item">
-                <button
-                  className="branch-switcher-row"
-                  data-testid="new-worktree-remote-row"
-                  disabled={busy}
-                  onClick={() => {
-                    if (step.kind === 'branch') void create({ kind: 'remote', ref: b })
-                    else { setBranchName(name.trim()); go({ kind: 'new-branch', from: b }) }
-                  }}
-                >
-                  <span className="branch-switcher-row-name">{b}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn"
-              data-testid="new-worktree-back"
-              onClick={() => go(step.kind === 'branch' ? { kind: 'name' } : { kind: 'branch' })}
-            >
-              Back
-            </button>
-          </div>
-        </>
+      {(step.kind === 'branch' || step.kind === 'base') && (
+        <WorktreeBranchStep
+          mode={step.kind}
+          options={options}
+          query={query}
+          local={local}
+          remote={remote}
+          busy={busy}
+          onQuery={setQuery}
+          onPick={(kind, b) => {
+            if (step.kind === 'branch') void create(kind === 'local' ? { kind: 'local', branch: b } : { kind: 'remote', ref: b })
+            else { setBranchName(name.trim()); go({ kind: 'new-branch', from: b }) }
+          }}
+          onNewBranch={() => { go({ kind: 'base' }) }}
+          onCurrentHead={() => { setBranchName(name.trim()); go({ kind: 'new-branch' }) }}
+          onBack={() => { go(step.kind === 'branch' ? { kind: 'name' } : { kind: 'branch' }) }}
+        />
       )}
 
       {step.kind === 'new-branch' && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (branchProblem === null && !busy) {
-              void create({ kind: 'new', branch: branchName.trim(), ...(step.from !== undefined ? { from: step.from } : {}) })
-            }
+        <WorktreeNewBranchStep
+          branchName={branchName}
+          from={step.from}
+          busy={busy}
+          branchProblem={branchProblem}
+          onBranchName={(n) => { setBranchName(n); setError(null) }}
+          onBack={() => { go({ kind: 'base' }) }}
+          onCreate={() => {
+            void create({ kind: 'new', branch: branchName.trim(), ...(step.from !== undefined ? { from: step.from } : {}) })
           }}
-        >
-          <input
-            className="search"
-            data-testid="new-worktree-branch-name"
-            placeholder="Name for the new branch"
-            value={branchName}
-            autoFocus
-            onChange={(e) => { setBranchName(e.target.value); setError(null) }}
-          />
-          <p className="new-worktree-hint">
-            {branchProblem ?? `From ${step.from ?? 'the current HEAD'}`}
-          </p>
-          <div className="modal-actions">
-            <button type="button" className="btn" onClick={() => go({ kind: 'base' })}>Back</button>
-            <button
-              type="submit"
-              className="btn primary"
-              data-testid="new-worktree-create"
-              disabled={busy || branchProblem !== null}
-            >
-              Create worktree
-            </button>
-          </div>
-        </form>
+        />
       )}
     </Modal>
   )

@@ -76,7 +76,7 @@ export function PetChat({ pet, anchor, history, onSaid, onClose }: Props): JSX.E
       <input
         className="search"
         data-testid="pet-chat-input"
-        // A chat opened on purpose: the box is where the next keystroke should go.
+        // eslint-disable-next-line apiary/focus-unless-typing -- the person just opened the pet chat to talk, so the field is what they asked for
         autoFocus
         placeholder={`Say something to ${pet.spec.name}…`}
         value={text}

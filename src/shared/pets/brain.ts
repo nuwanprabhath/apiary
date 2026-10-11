@@ -97,9 +97,9 @@ const CLIMB_PX_PER_S = 90
 /** Pixels between the rail's foot and the bar's corner, counted in walks. */
 const HOP_PX = 30
 /** How often a pet peeks at Claude's work and remarks on it, at most (main throttles too). */
-export const COMMENT_EVERY_MS: [number, number] = [3 * 60_000, 5 * 60_000]
+const COMMENT_EVERY_MS: [number, number] = [3 * 60_000, 5 * 60_000]
 /** How often something special happens, and for how long. */
-export const SCENE_EVERY_MS: [number, number] = [10 * 60_000, 20 * 60_000]
+const SCENE_EVERY_MS: [number, number] = [10 * 60_000, 20 * 60_000]
 const SCENE_PLAY_MS: [number, number] = [45_000, 75_000]
 
 interface PetMind {

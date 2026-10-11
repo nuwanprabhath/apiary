@@ -26,12 +26,24 @@ import { ROOT, judge, loadAllow, read, staleReport } from './allowlist'
  */
 const HOSTS = [
   { file: 'src/renderer/app/App.tsx', fn: 'AppWindow' },
+  // AppWindow's regions, split into their own files: each is walked as a host in its own right.
+  { file: 'src/renderer/app/AppSidebar.tsx', fn: 'AppSidebar' },
+  { file: 'src/renderer/app/PaneColumns.tsx', fn: 'PaneColumns' },
+  { file: 'src/renderer/app/windowRegions.tsx', fn: 'ThemeEffectsLayer' },
+  { file: 'src/renderer/app/windowRegions.tsx', fn: 'WindowHeader' },
+  { file: 'src/renderer/app/windowRegions.tsx', fn: 'WindowFooter' },
   { file: 'src/renderer/features/dialogs/DialogHost.tsx', fn: 'DialogHost' },
 ]
-/** Walked through, not checked: they wrap or place children but render nothing of their own that can fault. */
 /** Boundaries: `DialogBoundary` (features/dialogs) is an `ErrorBoundary` with a dialog-shaped fallback. */
 const BOUNDARY = /^(ErrorBoundary|DialogBoundary)$/
-const TRANSPARENT = /(Context|Provider)$|^(PaneGrid|DialogHost)$/
+/**
+ * Walked through, not checked: they wrap or place children but render nothing of their own that can
+ * fault. Every region of HOSTS (all but the root, `AppWindow`) is walked through where it is
+ * rendered, so a region is transparent exactly when it is also walked as a host.
+ */
+const TRANSPARENT = new RegExp(
+  `(Context|Provider)$|^(PaneGrid|${HOSTS.filter((h) => h.fn !== 'AppWindow').map((h) => h.fn).join('|')})$`,
+)
 
 const parsed = new Map<string, ts.SourceFile>()
 function source(rel: string): ts.SourceFile {
@@ -138,7 +150,12 @@ function unprotected(host: { file: string, fn: string }): string[] {
     if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) {
       const tag = tagOf(n)
       const inside = ts.isJsxElement(n) ? n.children : []
-      if (/^[a-z]/.test(tag) || TRANSPARENT.test(tag)) inside.forEach((c) => { walk(c, guarded) })
+      if (/^[a-z]/.test(tag) || TRANSPARENT.test(tag)) {
+        // A region component (`PaneColumns`, ...) is checked as a host of its own, but it proves
+        // the walk reached something, so a broken scan still shows as zero.
+        if (/^[A-Z]/.test(tag) && !/(Context|Provider)$/.test(tag)) checked += 1
+        inside.forEach((c) => { walk(c, guarded) })
+      }
       else if (BOUNDARY.test(tag)) inside.forEach((c) => { walk(c, true) })
       else {
         // Static SVG glyphs (`SidebarIcon` inside a button) have nothing that can fault.

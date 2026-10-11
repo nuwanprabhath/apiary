@@ -8,7 +8,7 @@ import { PAIRING_ALPHABET, type RemoteHost } from '@shared/domain/remote'
 import type { Env } from './state'
 
 type RemoteApi = Pick<ApiaryApi,
-  'remoteConnect' | 'remoteStartAndConnect' | 'remoteHosts' | 'remoteClients' | 'remoteDisconnectAll' | 'remotePairing' | 'remotePairingNew'>
+  'remoteConnect' | 'remoteStartAndConnect' | 'remoteHosts' | 'remoteClients' | 'remoteServerState' | 'remoteDisconnectAll' | 'remotePairing' | 'remotePairingNew'>
 
 const MAX_HOSTS = 20
 const REMOTE_OFF = (host: string): string =>
@@ -82,6 +82,7 @@ export function remoteApi(env: Env): RemoteApi {
       return listed
     },
     remoteClients: async () => state.remoteClients,
+    remoteServerState: async () => state.remoteServerState,
     // Main closes every connection and turns remote access off; the list empties and is announced.
     remoteDisconnectAll: async () => {
       state.remoteDisconnects += 1

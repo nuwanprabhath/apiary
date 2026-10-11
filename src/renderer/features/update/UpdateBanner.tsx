@@ -1,10 +1,7 @@
 import type { JSX } from 'react'
 import type { UpdateStatusPayload } from '@shared/api'
-import { CloseIcon } from '../../ui/icons'
-import { formatVersion } from './updateSummary'
-import { useNotifications } from '../../ui/notifications'
-import { copyText } from '../../state/clipboard'
-import { dismissUpdate, downloadUpdate, installUpdate, openDownloadedUpdate, skipUpdate } from '../../state/updateStore'
+import { UpdateBannerActions } from './UpdateBannerActions'
+import { UpdateBannerBody } from './UpdateBannerBody'
 
 /**
  * The strip that appears when there is an update, and at no other time.
@@ -20,57 +17,18 @@ import { dismissUpdate, downloadUpdate, installUpdate, openDownloadedUpdate, ski
 export function UpdateBanner(
   { status, onOpenSettings }: { status: UpdateStatusPayload; onOpenSettings: () => void },
 ): JSX.Element | null {
-  const { notify } = useNotifications()
-  const { phase, capability, availableVersion } = status
+  const { phase, capability } = status
   // 'up-to-date' and 'error' come from a check the user asked for, and are shown so that pressing
   // the menu item visibly does something; a silent scheduled check never reaches either.
   const shown = phase === 'available' || phase === 'downloading' || phase === 'ready'
     || phase === 'downloaded' || phase === 'up-to-date' || (phase === 'error' && status.error !== null)
   if (!shown) return null
 
-  const version = availableVersion === null ? '' : formatVersion(availableVersion)
-  const assisted = capability.kind === 'assisted'
-
-  const body = (): JSX.Element => {
-    switch (phase) {
-      case 'up-to-date':
-        return <span>Apiary {formatVersion(status.currentVersion)} is the latest version.</span>
-      case 'error':
-        return <span>Could not check for updates — {status.error}</span>
-      case 'downloading':
-        return (
-          <span>
-            Downloading Apiary {version}…
-            {status.progressPercent !== null && ` ${String(status.progressPercent)}%`}
-          </span>
-        )
-      case 'ready':
-        return <span>Apiary {version} is ready to install.</span>
-      case 'downloaded':
-        // The instruction comes from the main process, because it depends on what was downloaded
-        // and where. This used to say "drag Apiary into Applications" on Ubuntu, beside a button
-        // that could not open a .deb — an instruction for a thing that does not exist there.
-        return (
-          <span>
-            Apiary {version} has been downloaded.{' '}
-            {status.install?.hint ?? 'Open it to finish updating.'}
-          </span>
-        )
-      case 'available':
-        return (
-          <span>
-            <strong>Apiary {version} is available.</strong> You are on{' '}
-            {formatVersion(status.currentVersion)}.
-          </span>
-        )
-    }
-  }
-
   return (
     <div className="update-banner" data-testid="update-banner" data-phase={phase} role="status">
       <div className="update-banner-text">
-        {body()}
-        {phase === 'available' && assisted && (
+        <UpdateBannerBody status={status} />
+        {phase === 'available' && capability.kind === 'assisted' && (
           // Said before they click, not after: an unsigned build cannot install itself, and
           // finding that out at the end of a download is the thing this sentence prevents.
           <span className="update-banner-note">{capability.reason}</span>
@@ -83,106 +41,7 @@ export function UpdateBanner(
         </div>
       )}
 
-      <div className="update-banner-actions">
-        {phase === 'available' && (
-          <>
-            <button
-              className="btn primary"
-              data-testid="update-download"
-              onClick={() => { downloadUpdate() }}
-            >
-              {assisted ? 'Download' : 'Download and install'}
-            </button>
-            <button
-              className="btn"
-              data-testid="update-skip"
-              title={`Stop offering ${version} — the next release is offered as normal`}
-              onClick={() => { skipUpdate() }}
-            >
-              Skip this version
-            </button>
-          </>
-        )}
-        {phase === 'ready' && (
-          <button
-            className="btn primary"
-            data-testid="update-install"
-            onClick={() => { installUpdate() }}
-          >
-            Restart and install
-          </button>
-        )}
-        {phase === 'downloaded' && (
-          <button
-            className="btn primary"
-            data-testid="update-open-downloaded"
-            onClick={() => {
-              void openDownloadedUpdate()
-                .then((result) => {
-                  if (result.ok === 'opened') return
-                  if (result.ok === 'revealed') {
-                    notify({
-                      kind: 'info',
-                      message: 'Showed the installer in your file manager — open it from there to finish.',
-                    })
-                    return
-                  }
-                  notify({
-                    kind: 'error',
-                    message: status.downloadedPath === null
-                      ? 'Could not hand the installer to your desktop.'
-                      : `Could not hand the installer to your desktop. It is at ${status.downloadedPath}`,
-                  })
-                })
-                // Caught rather than left to the global unhandled-rejection net, which would put
-                // Electron's own words in front of the user — "reply was never sent" — and say
-                // nothing about the file that is sitting on their disk, ready to install.
-                .catch(() => {
-                  notify({
-                    kind: 'error',
-                    message: status.downloadedPath === null
-                      ? 'Could not hand the installer to your desktop.'
-                      : `Could not hand the installer to your desktop. It is at ${status.downloadedPath}`,
-                  })
-                })
-            }}
-          >
-            {status.install?.action === 'reveal' ? 'Show in folder' : 'Open installer'}
-          </button>
-        )}
-        {phase === 'downloaded' && status.install?.command !== null && status.install?.command !== undefined && (
-          // The command is the thing that actually finishes the update on a .deb, so it is a
-          // button rather than a sentence to retype: nobody transcribes a path from a banner.
-          <button
-            className="btn"
-            data-testid="update-copy-command"
-            title={status.install.command}
-            onClick={() => { void copyText(status.install?.command ?? '') }}
-          >
-            Copy install command
-          </button>
-        )}
-        {status.releaseUrl !== null && phase !== 'up-to-date' && phase !== 'error' && (
-          <button
-            className="btn"
-            data-testid="update-notes"
-            onClick={() => { void copyText(status.releaseUrl ?? '') }}
-            title="Copy the release page link"
-          >
-            Release notes
-          </button>
-        )}
-        <button className="btn" data-testid="update-settings" onClick={onOpenSettings}>Update settings</button>
-        <button
-          className="update-banner-close"
-          data-testid="update-dismiss"
-          aria-label="Dismiss"
-          title="Dismiss"
-          onClick={() => { dismissUpdate() }}
-        >
-          <CloseIcon />
-        </button>
-      </div>
+      <UpdateBannerActions status={status} onOpenSettings={onOpenSettings} />
     </div>
   )
 }

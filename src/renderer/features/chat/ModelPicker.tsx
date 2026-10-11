@@ -63,7 +63,7 @@ export function ModelPicker({ model, effort, models, onModel, onEffort }: Props)
                   onClick={() => { onModel(m.value); setOpen(false) }}
                 >
                   <span className="chat-model-option-text">
-                    <span className="chat-model-option-name">{m.displayName}</span>
+                    <span>{m.displayName}</span>
                     {m.description !== '' && <span className="chat-model-option-desc">{m.description}</span>}
                   </span>
                   {selected && <CheckIcon />}

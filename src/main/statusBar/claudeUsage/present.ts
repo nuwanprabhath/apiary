@@ -21,7 +21,7 @@ export const fmtUsd = (n: number): string =>
   n >= 100 ? `$${n.toFixed(0)}` : n >= 1 ? `$${n.toFixed(2)}` : `$${n.toFixed(3)}`
 
 /** Compact 12-hour time for the bar: "2:20 pm". */
-export function resetTime(iso: string): string {
+function resetTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase()
 }
 
@@ -41,7 +41,7 @@ export function statusText(limits: Limits): string {
   return parts.join(' · ') || 'Claude'
 }
 
-export function toneFor(percent: number, t: Thresholds): StatusTone {
+function toneFor(percent: number, t: Thresholds): StatusTone {
   return percent >= t.danger ? 'danger' : percent >= t.warn ? 'warning' : 'normal'
 }
 

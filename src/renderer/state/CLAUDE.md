@@ -94,7 +94,7 @@ started it while it runs (`useActivityRunning`). Finished ones expire (4 s done,
 
 ## Layouts
 
-A window's panes are a `Layout` (`src/renderer/features/layout/layout.ts`): one of eight presets and
+A window's panes are a `Layout` (`src/renderer/state/layout.ts`): one of eight presets and
 at most four panes, each pane being a `Column` with its own tabs and terminals. It is a preset table
 rather than a split tree on purpose — "zone three" and "what closing a pane turns into" are then
 table lookups, and the picker shows exactly the shapes that can exist.

@@ -3,9 +3,9 @@ import type { ChatDecision, ChatState, QueuedMessage } from '@shared/domain/chat
 import type { SessionId } from '@shared/domain/ids'
 import { lastPrompt, type ChatItem } from '@shared/chatTimeline'
 import { formatDuration } from '@shared/time'
-import { TextBlock } from '../transcript/MessageRow'
-import { ImageThumbnail } from '../transcript/TranscriptImage'
-import { MarkdownText } from '../transcript/MarkdownText'
+import { TextBlock } from '../../ui/message/MessageRow'
+import { ImageThumbnail } from '../../ui/message/TranscriptImage'
+import { MarkdownText } from '../../ui/message/MarkdownText'
 import { MessageTime } from '../../ui/MessageTime'
 import { ToolCall } from './ToolCall'
 import { PermissionCard } from './PermissionCard'
@@ -46,7 +46,7 @@ const Thought = memo(function Thought(
   // to expand into; the row then just says that Claude thought, and for how long.
   const hasText = text.trim() !== ''
   return (
-    <div className="chat-row chat-thought" data-testid="chat-thought">
+    <div className="chat-row" data-testid="chat-thought">
       <span className="chat-dot" aria-hidden="true" />
       <div className="chat-row-body">
         {hasText
@@ -74,7 +74,7 @@ function Item({ item, chat, onOpenImage }: { item: ChatItem; chat: ChatState | n
       return (
         <>
           <MessageTime ms={item.timestampMs} />
-          <div className="chat-row chat-text" data-testid="chat-text">
+          <div className="chat-row" data-testid="chat-text">
             <span className="chat-dot" aria-hidden="true" />
             <div className="chat-row-body"><TextBlock text={item.text} onOpenImage={onOpenImage} /></div>
           </div>
@@ -152,7 +152,7 @@ export function ChatTimeline({ items, chat, queued, onOpenImage, onDecide }: Pro
       {prompt !== null && <StickyPrompt prompt={prompt} />}
       {items.map((item) => <Item key={item.key} item={item} chat={chat} onOpenImage={onOpenImage} />)}
       {streaming !== null && streaming.text !== '' && (
-        <div className="chat-row chat-text chat-streaming" data-testid="chat-streaming">
+        <div className="chat-row chat-streaming" data-testid="chat-streaming">
           <span className="chat-dot" aria-hidden="true" />
           <div className="chat-row-body"><MarkdownText text={streaming.text} /></div>
         </div>

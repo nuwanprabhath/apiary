@@ -7,7 +7,7 @@ import type { Session } from 'electron'
  * HID/serial/USB are not features of this app, so they are refused outright (SEC-10): least
  * privilege, so a future renderer bug cannot also turn on the camera.
  */
-export const ALLOWED_PERMISSIONS = new Set(['clipboard-read', 'clipboard-sanitized-write'])
+const ALLOWED_PERMISSIONS = new Set(['clipboard-read', 'clipboard-sanitized-write'])
 
 /**
  * Whether `url` is this app's own page, judged the same way the *old* `navigationGuard` judged a

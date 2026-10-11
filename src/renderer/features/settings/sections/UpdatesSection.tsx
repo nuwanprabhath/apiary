@@ -1,7 +1,7 @@
 import { type JSX, useState } from 'react'
 import type { AppSettingsPayload, UpdateStatusPayload } from '@shared/api'
 import { SETTINGS } from '@shared/settings/schema'
-import { formatVersion, formatChecked, describeCheck } from '../../update/updateSummary'
+import { formatVersion, formatChecked, describeCheck } from '../../update'
 import { CheckboxSetting } from '../fields/CheckboxSetting'
 import { NumberSetting } from '../fields/NumberSetting'
 import { checkForUpdate } from '../../../state/updateStore'

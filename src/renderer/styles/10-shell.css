@@ -18,8 +18,8 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
+  gap: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   font-size: 13px;
@@ -28,13 +28,13 @@
 .update-banner[data-phase="error"] { border-bottom-color: var(--danger); }
 .update-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .update-banner-note { color: var(--muted); font-size: 12px; }
-.update-banner-actions { flex: none; display: flex; align-items: center; gap: 6px; }
+.update-banner-actions { flex: none; display: flex; align-items: center; gap: var(--space-sm); }
 .update-banner-close {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -43,7 +43,7 @@
   cursor: pointer;
 }
 .update-banner-close:hover { background: var(--hover); color: var(--text); }
-.update-banner-close svg { width: 12px; height: 12px; display: block; }
+.update-banner-close svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
 
 /* A hairline along the very bottom of the strip, so progress is legible without the layout
    shifting as a bar appears and disappears. */
@@ -75,9 +75,9 @@
   color: var(--text);
   font-size: 12px;
   user-select: none;
-  /* stylelint-disable-next-line property-no-unknown -- Electron's drag region; no standard name */
   -webkit-app-region: drag;
 }
+/* stylelint-disable-next-line declaration-property-value-disallowed-list -- clearance for the macOS traffic-light buttons, fixed by the OS, not a control size */
 .title-bar[data-chrome="mac"] { padding-left: 78px; }
 .title-bar-title {
   position: absolute;
@@ -99,20 +99,19 @@
 .menu-bar {
   display: flex;
   align-items: stretch;
-  padding-left: 4px;
+  padding-left: var(--space-xs);
 }
 /* What opts out of the title bar's drag region: the menu, and the remote chip (whose tooltip a drag
  * region would swallow). */
 .menu-bar,
 .remote-badge {
-  /* stylelint-disable-next-line property-no-unknown -- Electron's drag region; no standard name */
   -webkit-app-region: no-drag;
 }
 .menu-bar-item {
   display: flex;
   align-items: center;
   margin: 4px 0;
-  padding: 0 8px;
+  padding: 0 var(--space-md);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -125,9 +124,9 @@
 
 /* A menu bar dropdown: the shared context-menu look, with a column for shortcuts. */
 .menu-dropdown { list-style: none; margin: 0; min-width: 240px; font-size: 12px; }
-.menu-dropdown-item { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 6px; }
-.menu-dropdown-check svg { width: 12px; height: 12px; display: block; }
-.menu-dropdown-accel { padding-left: 24px; color: var(--muted); }
+.menu-dropdown-item { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: var(--control-gap); }
+.menu-dropdown-check svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
+.menu-dropdown-accel { padding-left: var(--space-2xl); color: var(--muted); }
 .menu-dropdown [role="separator"] { height: 1px; margin: 4px 6px; background: var(--border); }
 
 /* The remote window's chip, left of the title: an accent outline marks every window that belongs

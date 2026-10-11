@@ -1,6 +1,5 @@
 import type { ThemeSpec } from '@shared/theme/spec'
-import type { SavedTheme, ThemeGenerateResult, ThemeOptions } from '@shared/theme/state'
-import type { ThemeState } from '@shared/theme/state'
+import type { SavedTheme, ThemeGenerateResult, ThemeOptions, ThemeState } from '@shared/theme/state'
 import { bestEffort } from './policy'
 
 /**

@@ -12,7 +12,7 @@
  */
 import { useRef, useState, type RefObject } from 'react'
 
-export function treeItemsIn(root: HTMLElement): HTMLElement[] {
+function treeItemsIn(root: HTMLElement): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>('[role="treeitem"]')]
 }
 

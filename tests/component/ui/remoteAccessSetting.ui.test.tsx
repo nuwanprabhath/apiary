@@ -41,6 +41,14 @@ describe('UI: the remote access setting', () => {
     await reviewUi('remote access setting on', { widths: [620, 900] })
   })
 
+  it('remote access setting refused: another Apiary serves it', async () => {
+    await openGeneral(true, {}, [], (fake) => {
+      fake.state.remoteServerState = { state: 'failed', message: 'Another Apiary on this computer already serves remote access.' }
+    })
+    await until(() => document.querySelector('[data-testid="remote-server-failure"]') !== null)
+    await reviewUi('remote access setting refused', { widths: [620, 900], open: showAlert('remote-server-failure') })
+  })
+
   const CLIENTS: RemoteClientInfo[] = [
     { id: 'a', client: 'home-mac', connectedAt: new Date(2026, 9, 10, 10, 12).getTime(), windows: 2 },
     { id: 'b', client: 'a-very-long-laptop-name-from-the-corporate-network.example.com', connectedAt: new Date(2026, 9, 10, 11, 3).getTime(), windows: 1 },

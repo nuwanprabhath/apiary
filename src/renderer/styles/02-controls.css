@@ -61,9 +61,9 @@
   font-weight: 600;
 }
 
-.btn.small { min-height: var(--control-height-sm); padding: 0 8px; font-size: 12px; }
+.btn.small { min-height: var(--control-height-sm); padding: 0 var(--space-md); font-size: 12px; }
 
-.btn svg { width: 14px; height: 14px; flex: none; }
+.btn svg { width: var(--icon-size); height: var(--icon-size); flex: none; }
 
 .composer-send:disabled,
 .btn:disabled,
@@ -106,6 +106,7 @@ input[type="checkbox"] {
   appearance: none;
   flex: none;
   width: 15px;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the drawn checkbox box: a fixed 15px square so the tick and the label line up, whatever the control density */
   height: 15px;
   margin: 0;
   display: inline-grid;
@@ -123,8 +124,8 @@ input[type="checkbox"]:checked, input[type="checkbox"]:indeterminate {
 }
 input[type="checkbox"]:checked::before {
   content: "";
-  width: 10px;
-  height: 10px;
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
   background: var(--accent-contrast);
   clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
 }

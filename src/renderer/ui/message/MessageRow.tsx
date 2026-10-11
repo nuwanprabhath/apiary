@@ -1,6 +1,6 @@
 import { type JSX, memo, useMemo, useState } from 'react'
 import type { TranscriptMessage } from '@shared/types'
-import { MessageTime } from '../../ui/MessageTime'
+import { MessageTime } from '../MessageTime'
 import { ToolBlock } from './ToolBlock'
 import { MarkdownText } from './MarkdownText'
 import { ImageThumbnail, TranscriptImageFile, IMAGE_PATH_LINE } from './TranscriptImage'

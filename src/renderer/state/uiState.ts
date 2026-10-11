@@ -1,8 +1,7 @@
 import { ignoreErrors } from '@shared/ignoreErrors'
-import type { SessionGroup } from '../features/sidebar/model/groups'
+import type { SessionGroup } from './groups'
 import { detachedKey } from './windowParams'
 
-export type { SessionGroup }
 
 export interface UiState {
   /**
@@ -107,7 +106,7 @@ function stateKey(): string {
 const KEY = stateKey()
 /** Window 1's key, which is where the shared half lived before it had a key of its own. */
 const FIRST_WINDOW_KEY = 'apiary.ui'
-export const SHARED_KEY = 'apiary.shared'
+const SHARED_KEY = 'apiary.shared'
 
 function read(key: string): Partial<UiState> {
   try {
@@ -126,7 +125,7 @@ function pickShared(state: Partial<UiState>): Partial<SharedUiState> {
   return out
 }
 
-export const DEFAULT_UI_STATE: UiState = {
+const DEFAULT_UI_STATE: UiState = {
   collapsed: [],
   groups: [],
   groupAssignments: {},
@@ -162,7 +161,7 @@ export function loadUiState(): UiState {
 }
 
 /** Reads only the shared half — what a `storage` event from another window means. */
-export function loadSharedUiState(): SharedUiState {
+function loadSharedUiState(): SharedUiState {
   return { ...DEFAULT_UI_STATE, ...pickShared(read(SHARED_KEY)) }
 }
 

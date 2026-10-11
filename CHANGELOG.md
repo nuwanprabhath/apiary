@@ -4,6 +4,38 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.38.0] - 2026-10-11
+
+### Changed
+
+- **Compact and roomy themes now space the whole app evenly.** Paddings, gaps and the space inside
+  controls follow the theme's density everywhere. Before, about 275 spots used fixed pixel sizes and
+  stayed put while the rest scaled. At the normal density nothing moves.
+- **A field you open takes focus straight away**, even if another text box had it a moment before:
+  renaming a group or a terminal, the steps of the new-worktree dialog, saving a theme, talking to a pet.
+
+### Fixed
+
+- **Remote access says when it cannot start.** If another Apiary on the same computer already serves
+  remote access, Settings → General shows it under the switch, instead of the switch staying on while
+  nothing listened. A copy of Apiary started in the background that cannot serve now quits instead of
+  running invisibly. It also no longer takes the socket from the Apiary already using it.
+- **Clicking an Active row for a tab in this window selects it**, including in a remote window. A row
+  for another of the work machine's windows says it opens on that machine's screen.
+- **A chat test no longer hangs on a slow machine** (it blocked the first 1.37.1 release run).
+
+### Added (for contributors)
+
+- **All grandfathered lint debt is fixed, and the baselines are empty:** 311 ESLint and stylelint
+  suppressions, 51 layer violations, 89 unused exports and 18 unstyled classes. A new test
+  (`baselinesEmpty`) keeps the baselines empty, so grandfathering is a deliberate decision.
+- **Design tokens for spacing, list rows, icons, icon buttons and dots** (`styles/00-tokens.css`),
+  plus a check that a box never mixes a density-scaled side with a fixed one (`cssBoxesScaleTogether`).
+- **Every oversized function is split** (`App.tsx` from 852 to under 300 lines), and cross-feature
+  imports go through each feature's `index.ts`.
+- **Lint also rejects** a stylelint disable that suppresses nothing, and a module imported on more
+  than one line.
+
 ## [1.37.1] - 2026-10-11
 
 ### Fixed

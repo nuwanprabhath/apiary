@@ -1,6 +1,6 @@
 import { type JSX, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDownIcon, CopyIcon, CheckIcon } from './icons'
-import { MrRefText, type MrState } from '../features/sidebar/mrRefText'
+import { MrRefText, type MrState } from './mrRefText'
 import { createPortal } from 'react-dom'
 import { copyText } from '../state/clipboard'
 import { clampLeft, clampTop, fitsHorizontally, POPOVER_MARGIN } from './popoverPlacement'
@@ -62,18 +62,9 @@ interface Props {
 
 const CARD_GAP = 8
 
-export function HoverCard(
-  {
-    anchor, title, path, branch, recordedBranch, lastActive, note, noteMrStatuses, missing,
-    canOpenInVsCode, onOpenInVsCode, onPullBranch,
-    testId = 'session-hover-card',
-    onPointerEnter, onPointerLeave,
-  }: Props,
-): JSX.Element {
-  /** Which value was just copied, for the tick on its button. */
+/** Which value was just copied, for the tick on its button. */
+function useCopiedTick(): { copied: 'branch' | 'path' | null; setCopied: (v: 'branch' | 'path') => void } {
   const [copied, setCopied] = useState<'branch' | 'path' | null>(null)
-  /** A pull in flight: the button is disabled so a second click cannot start a second pull. */
-  const [pulling, setPulling] = useState(false)
   // The tick is an acknowledgement, not a state worth keeping: it goes back to the copy glyph so
   // the button does not claim a copy made a minute ago is the one just now.
   useEffect(() => {
@@ -81,6 +72,10 @@ export function HoverCard(
     const timer = window.setTimeout(() => { setCopied(null) }, 1200)
     return () => { window.clearTimeout(timer) }
   }, [copied])
+  return { copied, setCopied }
+}
+
+function useCardPlacement(anchor: Props['anchor']): { ref: React.RefObject<HTMLDivElement | null>; pos: { left: number; top: number } | null } {
   const ref = useRef<HTMLDivElement | null>(null)
   // Placed once its own size is known: a card is positioned relative to its width, which cannot
   // be measured before it renders. It starts offscreen rather than at 0,0 so the first paint is
@@ -109,6 +104,21 @@ export function HoverCard(
       : Math.max(POPOVER_MARGIN, anchor.top - CARD_GAP - box.height)
     setPos({ left: clampLeft(anchor.left, box.width), top })
   }, [anchor])
+  return { ref, pos }
+}
+
+export function HoverCard(
+  {
+    anchor, title, path, branch, recordedBranch, lastActive, note, noteMrStatuses, missing,
+    canOpenInVsCode, onOpenInVsCode, onPullBranch,
+    testId = 'session-hover-card',
+    onPointerEnter, onPointerLeave,
+  }: Props,
+): JSX.Element {
+  const { copied, setCopied } = useCopiedTick()
+  /** A pull in flight: the button is disabled so a second click cannot start a second pull. */
+  const [pulling, setPulling] = useState(false)
+  const { ref, pos } = useCardPlacement(anchor)
 
   return createPortal(
     <div

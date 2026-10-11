@@ -1,7 +1,7 @@
 import { asSessionId, asPtyId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import type { ProjectNode, SessionNode } from '@shared/types'
-import { initialLayout, type Layout } from '../../src/renderer/features/layout/layout'
+import { initialLayout, type Layout } from '../../src/renderer/state/layout'
 import {
   workspaceReducer, openKeysOf, type WorkspaceState,
 } from '../../src/renderer/features/workspace/workspaceReducer'

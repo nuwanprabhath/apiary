@@ -1,7 +1,7 @@
 import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect, vi } from 'vitest'
 import type { SessionNode } from '@shared/types'
-import { initialLayout } from '../../src/renderer/features/layout/layout'
+import { initialLayout } from '../../src/renderer/state/layout'
 import type { WorkspaceState } from '../../src/renderer/features/workspace/workspaceReducer'
 import { createWorkspaceStore } from '../../src/renderer/features/workspace/workspaceStore'
 

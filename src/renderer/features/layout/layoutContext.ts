@@ -1,6 +1,6 @@
 import { createContext, use } from 'react'
 import type { SessionNode } from '@shared/types'
-import type { PresetId } from './layout'
+import type { PresetId } from '../../state/layout'
 
 /**
  * What a picker is placing: a tab already in the window, or a session from the sidebar.

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import type { ProjectNode, SessionNode } from '@shared/types'
 import { onTreeKeyDown, rovingTabIndex } from '../../ui/Tree'
-import type { GroupedFolders, GroupState } from './model/groups'
+import type { GroupedFolders, GroupState } from '../../state/groups'
 import type { SidebarMenu } from './useSidebarMenu'
 
 /**

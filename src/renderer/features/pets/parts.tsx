@@ -23,8 +23,6 @@ const FRAMES: Record<BodyShape, Frame> = {
   cube: { top: 28, eyes: 54, shoulder: [19, 81], bottom: 88 },
 }
 
-export function frameOf(shape: BodyShape): Frame { return FRAMES[shape] }
-
 // -- colour helpers (inputs are validated #rrggbb)
 
 function rgb(hex: string): [number, number, number] {
@@ -35,11 +33,11 @@ function toHex([r, g, b]: [number, number, number]): string {
   return `#${[r, g, b].map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')).join('')}`
 }
 /** Towards black by `amount` (0..1). */
-export function shade(hex: string, amount: number): string {
+function shade(hex: string, amount: number): string {
   return toHex(rgb(hex).map((v) => v * (1 - amount)) as [number, number, number])
 }
 /** Towards white by `amount` (0..1). */
-export function tint(hex: string, amount: number): string {
+function tint(hex: string, amount: number): string {
   return toHex(rgb(hex).map((v) => v + (255 - v) * amount) as [number, number, number])
 }
 

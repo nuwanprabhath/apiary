@@ -1,5 +1,4 @@
-import type { StatusBarItem } from '@shared/domain/statusBar'
-import type { StatusBarPanel } from '@shared/domain/statusBar'
+import type { StatusBarItem, StatusBarPanel } from '@shared/domain/statusBar'
 import { createIpcStore } from './createIpcStore'
 import { surface } from './policy'
 

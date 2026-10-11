@@ -1,28 +1,22 @@
-import { type JSX, memo, useMemo, useState, type ReactNode } from 'react'
-import { terminalRef, type PtyId } from '@shared/domain/ids'
+import { type JSX, memo, useState, type ReactNode } from 'react'
+import type { PtyId } from '@shared/domain/ids'
 import type { SessionNode, NewSessionInfo, TabTransfer } from '@shared/types'
-import type { Column, OpenTab } from '../layout/columns'
-import { findTab } from '../layout/columns'
-import { SessionTabBar, type SessionTabView } from './SessionTabBar'
+import type { Column, OpenTab } from '../../state/columns'
+import { SessionTabBar } from './SessionTabBar'
 import { usePluginBar } from './pluginBar'
-import { BranchSwitcher } from '../git/BranchSwitcher'
-import { WorktreeConflictDialog } from '../git/WorktreeConflictDialog'
-import { ImageLightbox } from '../transcript/ImageLightbox'
-import { useNotifications } from '../../ui/notifications'
-import { useLayoutActions, useLayoutState } from '../layout/layoutContext'
+import { ImageLightbox } from '../transcript'
+import { useLayoutActions, useLayoutState } from '../layout'
 import { PaneDropOverlay } from './PaneDropOverlay'
 import { SessionHeader } from './SessionHeader'
 import { SessionBody } from './SessionBody'
 import { ShellPane } from './ShellPane'
-import { useSessionKeys } from './useSessionKeys'
-import { usePaneWorkspace } from './usePaneWorkspace'
+import { useColumnSession } from './useColumnSession'
+import { ColumnGitDialogs } from './ColumnGitDialogs'
 import { useGitStatus } from './useGitStatus'
 import { useGitActions } from './useGitActions'
 import { useShellTerminals } from './useShellTerminals'
 import type { ResizeSeparatorProps } from '../../ui/useResizeDrag'
-import type { PendingTabInfo } from './paneTypes'
 
-export type { PendingTabInfo }
 
 interface Props {
   column: Column
@@ -92,33 +86,12 @@ function SessionColumnView(props: Props): JSX.Element {
     gridArea, emptyContent, layoutButton,
   } = props
 
-  // Failures raised in here go to the app-wide notification stack rather than an in-pane banner:
-  // a message that only exists inside one column is easy to miss (and impossible to see at all
-  // once you have switched to another column), and every kind of failure now reads the same way
-  // wherever it came from.
-  const { notify } = useNotifications()
-
   /** The image being shown full size, from either the transcript or the composer. */
   const [lightbox, setLightbox] = useState<string | null>(null)
-
-  // The sessions, pending sessions and live processes behind this pane's tabs, read from the
-  // workspace by the pane itself so that a change to another pane's does not render this one.
-  const workspace = usePaneWorkspace(useMemo(() => column.tabs.map((t) => t.key), [column.tabs]))
-  const { sessions, pending, resumed } = workspace
-
-  const activeKey = column.activeKey
-  const activeTab = activeKey !== null ? findTab(column, activeKey) : null
-  const activeSession = activeKey !== null ? sessions.get(activeKey) ?? null : null
-  const activePending = activeKey !== null ? pending.get(activeKey) ?? null : null
-
-  const { keyFor, isPtyKey } = useSessionKeys(workspace)
-  const shellKey = activeKey !== null ? keyFor(activeKey) : null
-  const shellKeyIsPtyId = activeKey !== null && isPtyKey(activeKey)
-  // One ref for every cwd-carrying call below, so the key and which kind it is cannot be separated.
-  const terminal = useMemo(
-    () => (shellKey === null ? null : terminalRef(shellKey, shellKeyIsPtyId)),
-    [shellKey, shellKeyIsPtyId],
-  )
+  const {
+    workspace, resumed, activeKey, activeSession, activePending, keyFor, shellKey, terminal,
+    tabViews, viewOf, showTerminalFor, activeView,
+  } = useColumnSession(column)
 
   const { gitStatus, loadGitStatus } = useGitStatus(terminal)
   // Plugins are asked again when the branch changes, which is the event that decides which merge
@@ -127,22 +100,8 @@ function SessionColumnView(props: Props): JSX.Element {
   const git = useGitActions({ terminal, gitStatus, loadGitStatus, onSessionStarted })
   const shell = useShellTerminals({ activeKey, terminal, isActive, keyFor, workspace })
 
-  const tabViews: SessionTabView[] = column.tabs.map((tab) => {
-    const p = pending.get(tab.key)
-    if (p !== undefined) return { key: tab.key, label: p.label, isPending: true }
-    return { key: tab.key, label: sessions.get(tab.key)?.title ?? tab.key, isPending: false }
-  })
-
-  /** A pending session has no transcript to show, so its tab is always the live terminal. */
-  const viewOf = (tab: OpenTab): OpenTab['view'] => (pending.has(tab.key) ? 'terminal' : tab.view)
-  const showTerminalFor = (tab: OpenTab): boolean =>
-    pending.has(tab.key) || resumed.has(tab.key)
-
-  const activeView = activeTab !== null ? viewOf(activeTab) : 'transcript'
   const { dropPaneOn } = useLayoutActions()
   const { movingPane } = useLayoutState()
-
-  const { worktreeConflict } = git
 
   return (
     <section
@@ -233,35 +192,13 @@ function SessionColumnView(props: Props): JSX.Element {
 
       {lightbox !== null && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
 
-      {git.branchPicker !== null && terminal !== null && (
-        <BranchSwitcher
-          // Remounts (resetting the query, step and error) if the active tab changes under the
-          // open modal — e.g. another window switching it — rather than quietly going on showing
-          // the wrong repo's branches (UI-15 item 3).
-          key={terminal.id}
-          terminal={terminal}
-          mode={git.branchPicker === 'merge' ? 'merge' : 'checkout'}
-          startAt={git.branchPicker === 'create' ? 'name' : 'list'}
-          currentBranch={gitStatus?.branch ?? null}
-          onClose={() => git.setBranchPicker(null)}
-          onCheckedOut={loadGitStatus}
-          onError={(message) => notify({ kind: 'error', message })}
-          onNotice={(message) => notify({ kind: 'success', message })}
-          onBranchUpdated={loadGitStatus}
-          onWorktreeConflict={git.setWorktreeConflict}
-        />
-      )}
-
-      {worktreeConflict !== null && shellKey !== null && (
-        <WorktreeConflictDialog
-          conflict={worktreeConflict}
-          busy={git.worktreeBusy}
-          onCancel={() => git.setWorktreeConflict(null)}
-          onPull={() => git.pullWorktreeBranch(worktreeConflict)}
-          onOpenSession={() => git.openWorktreeSession(worktreeConflict)}
-          onMoveOther={(otherTo) => git.moveOtherWorktree(worktreeConflict, otherTo)}
-        />
-      )}
+      <ColumnGitDialogs
+        terminal={terminal}
+        git={git}
+        gitStatus={gitStatus}
+        loadGitStatus={loadGitStatus}
+        shellKey={shellKey}
+      />
     </section>
   )
 }

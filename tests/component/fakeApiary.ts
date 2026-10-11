@@ -100,6 +100,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     remoteConnects: [],
     remoteConnectPairings: [],
     remoteClients: [],
+    remoteServerState: { state: 'off' },
     remoteStatus: null,
     remoteDisconnects: 0,
     remotePairingCode: 'KMNP-2345',
@@ -221,6 +222,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     onRemoteStatus: on('remoteStatus'),
     onRemoteHostsChanged: on('remoteHostsChanged'),
     onRemoteClientsChanged: on('remoteClientsChanged'),
+    onRemoteServerStateChanged: on('remoteServerStateChanged'),
     ...remoteApi(env),
     // What main last told this window; a test sets `state.remoteStatus` (and emits `remoteStatus`) itself.
     remoteStatusNow: async () => state.remoteStatus,

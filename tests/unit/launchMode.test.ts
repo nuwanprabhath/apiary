@@ -36,6 +36,13 @@ describe('launch mode', () => {
     expect(shouldQuitIdleBackground(parseLaunchMode([]), false, 0)).toBe(false)
   })
 
+  it('a background app whose server was refused quits with no window, but a normal app or one with a window stays', () => {
+    const background = parseLaunchMode(['--background'])
+    expect(shouldQuitIdleBackground(background, true, 0, true)).toBe(true)
+    expect(shouldQuitIdleBackground(background, true, 1, true)).toBe(false)
+    expect(shouldQuitIdleBackground(parseLaunchMode([]), true, 0, true)).toBe(false)
+  })
+
   it('a packaged app and a background start hold the single-instance lock; a dev run does not', () => {
     expect(shouldHoldSingleInstanceLock(parseLaunchMode([]), true)).toBe(true)
     expect(shouldHoldSingleInstanceLock(parseLaunchMode(['--background']), false)).toBe(true)

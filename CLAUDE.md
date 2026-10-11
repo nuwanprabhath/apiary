@@ -22,7 +22,7 @@ span main and renderer. Index at the end.
 | IPC | `main/ipc/registrar.ts`, `main/ipc/handlers/` | `shared/ipc/` | `preload/index.ts` (generated), commands in `state/` | `unit/ipc*`, `contract/bridgeContract.ts` (clauses in `contract/clauses/`) |
 | Sessions, scan, store | `main/sources/`, `main/scanner/`, `main/sessions/`, `main/store/` ([CLAUDE.md](src/main/store/CLAUDE.md)) | `shared/domain/session.ts` | `state/treeStore.ts` | `integration/sessionStore.test.ts`, `e2e/sidebar*.spec.ts` |
 | Terminals, ptys | `main/pty/` ([CLAUDE.md](src/main/pty/CLAUDE.md)), `main/terminals/` | `shared/domain/pty.ts` | `features/terminal/`, `state/ptyBus.ts` | `unit/screenSnapshot*`, `e2e/terminal*.spec.ts` |
-| Windows, tabs, layouts, following | `main/windows/` | `shared/domain/tabs.ts`, `shared/activity.ts` | `features/workspace/` (store, reducer, `useSessionFollowing.ts`), `features/pane/useShellTerminals.ts`, `features/layout/layout.ts` | `unit/workspace*`, `e2e/{multiWindow,detachTab,sessionFollowing}.spec.ts`; docs: [windows-and-tabs](docs/architecture/windows-and-tabs.md), [activity](docs/architecture/activity.md), [session-following](docs/architecture/session-following.md) |
+| Windows, tabs, layouts, following | `main/windows/` | `shared/domain/tabs.ts`, `shared/activity.ts` | `features/workspace/` (store, reducer, `useSessionFollowing.ts`), `features/pane/useShellTerminals.ts`, `state/layout.ts` | `unit/workspace*`, `e2e/{multiWindow,detachTab,sessionFollowing}.spec.ts`; docs: [windows-and-tabs](docs/architecture/windows-and-tabs.md), [activity](docs/architecture/activity.md), [session-following](docs/architecture/session-following.md) |
 | Search | `main/search/` ([CLAUDE.md](src/main/search/CLAUDE.md)) | `shared/treeFilter.ts` | `state/useSessionTreeCache.ts` | `unit/searchLoad.test.ts`, `e2e/search.spec.ts` |
 | Chat mode | `main/chat/` ([CLAUDE.md](src/main/chat/CLAUDE.md)) | `shared/domain/chat.ts`, `shared/chatTimeline.ts` | `features/chat/` ([CLAUDE.md](src/renderer/features/chat/CLAUDE.md)), `state/chatStore.ts` | `unit/chat*`, `e2e/transcriptChat.spec.ts`; doc: [chat](docs/architecture/chat.md) |
 | Pets | `main/pets/` ([CLAUDE.md](src/main/pets/CLAUDE.md)) | `shared/pets/` ([CLAUDE.md](src/shared/pets/CLAUDE.md)) | `features/pets/` ([CLAUDE.md](src/renderer/features/pets/CLAUDE.md)), `state/petsStore.ts` | `unit/pet*`, `e2e/pets.spec.ts` |
@@ -106,6 +106,7 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | Layers point down (main: app, ipc, services, infra; renderer: features, then state and ui) | dependency-cruiser `main-infra-stays-down`, `main-services-below-ipc`, `main-ipc-below-app`, `renderer-ui-and-state-below-features`, `renderer-features-below-app` | inject the dependency, or move the shared piece down a layer |
 | A handler validates and delegates; no fs, process or store | dependency-cruiser `ipc-handlers-are-adapters` | move the work into a service in `main/<domain>/` |
 | A feature is imported only through its `index.ts`; no cycles; no orphan files | dependency-cruiser `renderer-feature-public-face`, `no-circular`, `no-orphans` | export from `index.ts`, lift the shared piece, or delete the file |
+| One import line per module (a separate `import type` line is fine) | ESLint `no-duplicate-imports` | merge them into one statement |
 | Imports respect the process: no `electron`/`node:*` in renderer or shared, no renderer in main | ESLint `no-restricted-imports`; `tsc` | `window.apiary`, or move the helper to `src/shared/` |
 | Components never touch `window.apiary` | `bridge-via-state`; `no-void-bridge-call` | a store or command in `src/renderer/state/` |
 | Shared renderer state comes from a store factory, never a hand-rolled listener set | `stores-via-factory` | `createIpcStore` (main owns it), `createLocalStore` (in memory, per window), `state/uiState.ts` (saved); `state/CLAUDE.md` "Which store" |
@@ -136,10 +137,10 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | What a person sees is not broken: no clipped labels, cut-off controls, overlaps, see-through popups, browser-default controls, bullets in chrome; every class used is styled | UI audit (`tests/component/ui/audit.ts`) in every UI scenario; `classesDefined` test; Stop hook (a renderer change needs a scenario) | a scenario in `tests/component/ui/` with `reviewUi`; `npm run ui:review`; `.claude/skills/ui-review/SKILL.md` |
 | Each `apiary/*` rule still fires | `tests/unit/architecture/sanctionedRules.test.ts` | add a case for a new rule |
 | A CSS variable a stylesheet uses is defined (by a stylesheet, a theme or code) | `tests/unit/architecture/cssVarsDefined.test.ts` | a token from `styles/00-tokens.css` (`--muted`, `--text`, …) |
-| Colour, radius, height, padding, gap come from tokens | stylelint `declaration-property-value-disallowed-list` | `--radius-*`, `--control-*`, the `.btn` layer ([`src/renderer/CLAUDE.md`](src/renderer/CLAUDE.md)) |
+| Colour, radius, height, padding, gap come from tokens | stylelint `declaration-property-value-disallowed-list` | spacing `--space-*`, icons `--icon-size-*` / `--icon-button-size-*` / `--dot-size-*`, `--radius-*`, `--control-*`, the `.btn` layer (`styles/00-tokens.css`, [`src/renderer/CLAUDE.md`](src/renderer/CLAUDE.md)) |
 | File and function size (400 / 120 lines) | ESLint `max-lines`, `max-lines-per-function` | split by responsibility |
 | Tests wait on conditions and import `@shared/` | `no-test-sleep`, `shared-alias-in-tests` | `vi.waitFor`, `expect.poll`, `stays` for "nothing happens"; the alias |
-| No dead code; docs name real paths, symbols and links; a disable comment says why | knip ratchet (`npm run lint:dead`); `scripts/check-doc-refs.mjs` (`npm run lint:md`); `reportUnusedDisableDirectives` | delete it; fix the doc; add `-- <reason>` |
+| No dead code; docs name real paths, symbols and links; a disable comment says why and is needed | knip ratchet (`npm run lint:dead`); `scripts/check-doc-refs.mjs` (`npm run lint:md`); ESLint `reportUnusedDisableDirectives`, stylelint `reportNeedlessDisables` | delete it; fix the doc; add `-- <reason>`; drop a disable nothing needs |
 | Lint on each edit; no stop with a red typecheck or lint; the Stop hook runs every step of `npm run lint` | `.claude/hooks/lint-edited.mjs`, `.claude/hooks/definition-of-done.mjs`, `tests/unit/architecture/stopHookCoversLint.test.ts` | fix what it prints; a new lint step gets its counterpart in the hook |
 | Commit hygiene | `.husky/pre-commit` (lint-staged), `.husky/commit-msg` (commitlint, no AI attribution), `.husky/pre-push` (typecheck, lint, `test:unit`) | fix, never `--no-verify` |
 
@@ -167,15 +168,19 @@ Nothing fails when these are broken; the reason is in the linked doc.
 
 ## Guard layer
 
-Baselines hold violations that predate a rule: `eslint-suppressions.json`,
-`stylelint-suppressions.json`, `.dependency-cruiser-known-violations.json`, `.knip-baseline.json`
-and `tests/unit/architecture/*.allow.json`. They only shrink.
+The lint baselines (`eslint-suppressions.json`, `stylelint-suppressions.json`,
+`.dependency-cruiser-known-violations.json`, `.knip-baseline.json`) are **empty, and
+`tests/unit/architecture/baselinesEmpty.test.ts` keeps them empty**. 1.34.0 grandfathered 450-odd
+violations into them as "shrink-only", and three releases later not one had been fixed; the 1.38
+cleanup fixed them all. The `tests/unit/architecture/*.allow.json` allowlists hold reasoned exceptions, never
+debt, and only shrink.
 
-- Fix the site, then run `npm run lint:prune` (ESLint and stylelint), `npm run lint:arch:baseline`
-  or `npm run lint:dead:baseline`, and commit the smaller file. A stale entry fails the check.
-- Never add to a baseline or an allowlist by hand, and never `--suppress-all`. A new violation is a
-  bug to fix, not an entry to add. The maintainer baselines a new rule.
-- `npm run lint:debt` prints the totals; they must go down.
+- A new violation is a bug to fix, not an entry to add. Never `--suppress`, never run a `:baseline`
+  script to hide one, never add to an allowlist by hand.
+- The maintainer adopting a new rule that existing code breaks either fixes the sites in the same
+  change, or baselines them by changing `tests/unit/architecture/baselinesEmpty.test.ts` on purpose, with the plan to empty it.
+- A disable comment says why and must be needed (ESLint `reportUnusedDisableDirectives`, stylelint
+  `reportNeedlessDisables`); `lintDisables.allow.json` counts them per file.
 - Why: [ADR-0011](docs/adr/0011-sanctioned-ways-with-shrink-only-baselines.md).
 - A new rule is an entry in `eslint/sanctioned.js` (files, allow, a message naming the replacement)
   and a case in `tests/unit/architecture/sanctionedRules.test.ts`. Apply `.claude/skills/correct/SKILL.md`.

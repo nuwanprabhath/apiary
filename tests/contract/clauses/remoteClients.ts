@@ -22,6 +22,11 @@ export function defineRemoteClientsClauses(ctx: Ctx): void {
       expect(ctx.heard.payloads('remoteClientsChanged').at(-1)?.[0]).toEqual(listed)
     })
 
+    it('reports its server as off until remote access is started, and announces nothing for that', async () => {
+      expect(await ctx.api.remoteServerState()).toEqual({ state: 'off' })
+      expect(ctx.heard.count('remoteServerStateChanged')).toBe(0)
+    })
+
     it('has a pairing code as XXXX-XXXX without 0/O or 1/I, which stays until a new one is asked for', async () => {
       const first = await ctx.api.remotePairing()
       expect(isShown(first)).toBe(true)

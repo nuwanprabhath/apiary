@@ -2,7 +2,7 @@ import { type JSX, useEffect, useState } from 'react'
 import type { AppSettingsPayload } from '@shared/api'
 import { clockTime } from '@shared/domain/remote'
 import { copyText } from '../../../state/clipboard'
-import { disconnectAllRemote, loadPairingCode, newPairingCode, useRemoteClients } from '../../../state/remoteAccess'
+import { disconnectAllRemote, loadPairingCode, newPairingCode, useRemoteClients, useRemoteServerState } from '../../../state/remoteAccess'
 import { remoteFailureText } from '../../../state/remote'
 import { CheckboxSetting } from '../fields/CheckboxSetting'
 
@@ -36,9 +36,21 @@ export function RemoteAccessSetting({ draft, patch }: { draft: AppSettingsPayloa
         label="Also require a pairing code"
         help="SSH stays the sign-in. The code is an extra the other machine has to know."
       />
+      <ServerFailure />
       {draft.remoteAccessPairing && <PairingCode />}
       <ConnectedClients patch={patch} />
     </>
+  )
+}
+
+/** Why main could not start the server (another Apiary holds the socket); nothing while it listens or is off. */
+function ServerFailure(): JSX.Element | null {
+  const server = useRemoteServerState()
+  if (server.state !== 'failed') return null
+  return (
+    <div className="settings-row settings-row-indent" data-testid="remote-server-failure">
+      <span className="settings-help remote-pairing-error" role="alert">{server.message}</span>
+    </div>
   )
 }
 

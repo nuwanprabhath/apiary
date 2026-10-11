@@ -1,6 +1,6 @@
 import { type JSX, useState } from 'react'
 import { MAX_ACTIVE_PETS, PET_MODELS, type PetModel, type PetRecord } from '@shared/pets/state'
-import { PetSprite } from '../../pets/PetSprite'
+import { PetSprite } from '../../pets'
 import { cancelPetGeneration, deletePet, exportPet, generatePet, importPet, setPetsEnabled, updatePet, usePets } from '../../../state/petsStore'
 import { describeError } from '../../../ui/errors'
 import { TrashIcon } from '../../../ui/icons'

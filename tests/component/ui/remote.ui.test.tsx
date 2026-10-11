@@ -1,7 +1,7 @@
 import { afterEach, describe, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from '../renderApp'
-import { until } from '../helpers'
+import { sidebarSession, until } from '../helpers'
 import type { FakeApiary } from '../fakeApiary'
 import { pairingErrorMessage } from '@shared/domain/remote'
 import { reviewUi } from './review'
@@ -254,6 +254,20 @@ describe('UI: a remote window', () => {
         await until(() => document.querySelector('[data-testid="remote-reconnect"]') !== null)
         await userEvent.click(page.getByTestId('remote-reconnect'))
         await until(() => document.querySelector('[data-testid="remote-banner-message"]')?.textContent?.includes('Operation timed out') === true)
+      },
+    })
+  })
+
+  it('remote window Active section with an own row and another window\'s inert row', async () => {
+    const { fake } = await renderRemote('work-box')
+    await userEvent.click(sidebarSession('Worktree session'))
+    await reviewUi('remote window active rows', {
+      widths: [760, 900],
+      open: async () => {
+        // Another work-machine window's tab, reported the way main does.
+        fake.state.tabs = [...fake.state.tabs, { windowNumber: 2, key: 'other-window-tab', view: 'terminal', status: 'stopped', label: 'Second window tab' }]
+        fake.emit('activeTabsChanged')
+        await until(() => document.querySelectorAll('[data-testid="active-tab-row"]').length === 2)
       },
     })
   })

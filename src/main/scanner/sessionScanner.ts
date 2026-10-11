@@ -93,7 +93,7 @@ export async function extractMeta(filePath: string): Promise<SessionMeta> {
   }
 }
 
-export interface ScanStats {
+interface ScanStats {
   /** How many `.jsonl` files were found under `projectsRoot`. */
   filesSeen: number
   /** How many of those were actually opened and re-parsed (MAIN-1: the rest were skipped by

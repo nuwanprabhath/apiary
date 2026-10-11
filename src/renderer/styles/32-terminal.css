@@ -1,5 +1,5 @@
 
-.resume-bar { display: flex; gap: 6px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); container-type: inline-size; }
+.resume-bar { display: flex; gap: var(--space-sm); align-items: center; padding: var(--space-md) var(--space-xl); border-bottom: 1px solid var(--border); container-type: inline-size; }
 .resume-bar button { flex: none; }
 .resume-short { display: none; }
 /* Narrow pane: "Resume in terminal" gives way to "Resume"; the button keeps the whole label in
@@ -9,7 +9,7 @@
   .resume-short { display: inline; }
 }
 .resume-bar .btn[data-active="true"] { background: var(--selected); border-color: var(--accent); }
-.resume-handoff { display: flex; gap: 6px; align-items: center; min-width: 0; font-size: 12px; }
+.resume-handoff { display: flex; gap: var(--space-sm); align-items: center; min-width: 0; font-size: 12px; }
 .resume-bar .btn:disabled { cursor: not-allowed; }
 .spacer { flex: 1; }
 
@@ -84,12 +84,13 @@
  * by the pane below it. Padding here is exactly what FitAddon subtracts, so the fit and the
  * visible padding agree.
  */
-.terminal-host .xterm { padding: 8px 10px; }
+.terminal-host .xterm { padding: var(--space-md) var(--space-ml); }
 
 .bottom-resizer {
   position: relative;
   /* Above both cards, so the hit area's reach into them (see ::before above) is not covered. */
   z-index: var(--z-resizer);
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the resizer hit target floor is a pointer-reach minimum, not spacing */
   height: max(var(--panel-gap), 4px);
   flex: none;
   cursor: row-resize;
@@ -111,6 +112,7 @@
   display: flex;
   flex-direction: column;
   flex: 0 1 auto;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- a fixed bound for the collapsed bottom pane, not a control */
   min-height: 32px;
   overflow: hidden;
 }
@@ -126,31 +128,31 @@
   align-items: center;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
-  padding: 4px 6px;
-  gap: 4px;
+  padding: var(--space-xs) var(--space-sm);
+  gap: var(--space-xs);
   flex: none;
   min-width: 0;
 }
 
-.toolbar-group { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.toolbar-group { display: flex; align-items: center; gap: var(--space-xs); min-width: 0; }
 .toolbar-group-right { margin-left: auto; flex: none; }
 .toolbar-button-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .toolbar-button {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
   border: 1px solid transparent;
   background: transparent;
   color: var(--muted);
   border-radius: var(--radius-control);
   cursor: pointer;
-  padding: 3px 6px;
+  padding: 3px var(--space-sm);
   font: inherit;
   white-space: nowrap;
   min-width: 0;
 }
-.toolbar-button svg { width: 14px; height: 14px; flex: none; }
+.toolbar-button svg { width: var(--icon-size); height: var(--icon-size); flex: none; }
 .toolbar-button:hover { background: var(--selected); color: var(--text); }
 .toolbar-button:active { background: var(--border); }
 .toolbar-button:disabled { cursor: default; opacity: 0.5; }
@@ -160,7 +162,7 @@
   .toolbar-button .spinner { animation: none; }
 }
 
-.error-banner { margin: 0; padding: 8px 16px; background: var(--danger-bg); color: var(--danger); }
+.error-banner { margin: 0; padding: var(--space-md) var(--space-xl); background: var(--danger-bg); color: var(--danger); }
 
 /*
  * Shown over a Claude Code terminal while Claude is suspended (Ctrl+Z). An overlay, not a row in

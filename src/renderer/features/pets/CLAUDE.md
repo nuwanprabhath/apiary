@@ -7,7 +7,8 @@ side is organised.
 ## What lives here
 
 - `PetLayer.tsx`: mounts everything while pets are on and one is out; nothing mounts otherwise.
-  Owns dragging, the pet menu, errands and the brain's event feed.
+  Composes `usePetBrain.ts` (poses, scenery, the brain's event feed, errands), `usePetInteraction.ts`
+  (dragging, the pet menu, keyboard) and `PetFigure.tsx` (one pet on the layer).
 - `PetSprite.tsx`: one pet as stacked image layers; chooses the front or profile view.
 - `PetChat.tsx`: the small chat popover. `SceneryLayer.tsx`: scenery and the ball behind the pets.
 - `parts.tsx`: the flat SVG version, used where WebGL is unavailable.
@@ -48,7 +49,7 @@ side is organised.
 - **Hide a pet until its render is ready**, so it never flips from flat to 3D in front of the user.
 - **Saved renders may be absent.** Every IndexedDB access is allowed to fail (private profile,
   cleared storage); the pet is then rendered again. Each silent catch there carries a reason.
-- **The drag in `PetLayer.tsx` is a deliberate exception** to `drag-via-use-resize-drag`: it moves a
+- **The drag in `usePetInteraction.ts` is a deliberate exception** to `drag-via-use-resize-drag`: it moves a
   pet in two dimensions and tells a click from a drag, which `useResizeDrag` does not do.
 - **Props are rendered for one view.** A side-on laptop beside a pet facing the window would float,
   so a prop shows only in its own view (`PROP_VIEW`).

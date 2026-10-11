@@ -37,7 +37,7 @@ export function PendingSection({ pending, onSelect, onStop }: {
         {pending.map((p) => (
           <li key={p.ptyId} className="session-row-wrap">
             <button
-              className="session-row pending-row"
+              className="session-row"
               data-testid="pending-session-item"
               onClick={() => onSelect(p.ptyId)}
               title={p.cwd}
@@ -47,7 +47,7 @@ export function PendingSection({ pending, onSelect, onStop }: {
             </button>
             {onStop !== undefined && (
               <button
-                className="row-action pending-stop"
+                className="row-action"
                 data-testid="pending-stop"
                 title="Stop this Claude"
                 aria-label={`Stop new session in ${p.label}`}

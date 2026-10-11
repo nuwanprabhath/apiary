@@ -21,7 +21,7 @@ export interface PetImages {
 }
 
 /** One view of a pet: one transparent image per layer, all framed alike, plus where its joints are. */
-export interface PetLayers {
+interface PetLayers {
   body: string
   faces: Record<FaceKey, string>
   accessories: string | null

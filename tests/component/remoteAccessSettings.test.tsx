@@ -25,6 +25,16 @@ describe('Settings → General → remote access, on the work machine', () => {
     expect(present('remote-disconnect-all')).toBe(false)
   })
 
+  it('says why the server is not listening while main was refused, and clears when it listens', async () => {
+    const { fake } = await renderApp({ settings: { remoteAccess: true } })
+    await openGeneral(fake)
+    expect(present('remote-server-failure')).toBe(false)
+    fake.emit('remoteServerStateChanged', { state: 'failed', message: 'Another Apiary on this computer already serves remote access.' })
+    await until(() => text('remote-server-failure') === 'Another Apiary on this computer already serves remote access.')
+    fake.emit('remoteServerStateChanged', { state: 'listening' })
+    await until(() => !present('remote-server-failure'))
+  })
+
   it('lists who is connected now, as they come and go', async () => {
     const { fake } = await renderApp({ settings: { remoteAccess: true } })
     fake.state.remoteClients = [CLIENT]

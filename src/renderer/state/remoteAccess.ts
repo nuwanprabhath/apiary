@@ -1,4 +1,4 @@
-import type { RemoteClientInfo } from '@shared/domain/remote'
+import type { RemoteClientInfo, RemoteServerState } from '@shared/domain/remote'
 import { createIpcStore } from './createIpcStore'
 import { bestEffort } from './policy'
 
@@ -13,6 +13,18 @@ const clientsStore = createIpcStore<RemoteClientInfo[]>({
 
 export function useRemoteClients(): RemoteClientInfo[] {
   return clientsStore.useStore()
+}
+
+/** Whether main's remote server listens, is off, or was refused (a sentence), kept current by `remoteServerStateChanged`. */
+const serverStateStore = createIpcStore<RemoteServerState>({
+  scope: 'remote',
+  initial: { state: 'off' },
+  fetch: () => window.apiary.remoteServerState(),
+  subscribe: (push) => window.apiary.onRemoteServerStateChanged(push),
+})
+
+export function useRemoteServerState(): RemoteServerState {
+  return serverStateStore.useStore()
 }
 
 /** Settings → General → "Disconnect all…": main closes every connection and turns remote access off.

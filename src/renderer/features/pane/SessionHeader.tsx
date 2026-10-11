@@ -1,7 +1,7 @@
 import type { PtyId } from '@shared/domain/ids'
 import { type JSX, useEffect, useState } from 'react'
 import type { SessionNode } from '@shared/types'
-import type { OpenTab } from '../layout/columns'
+import type { OpenTab } from '../../state/columns'
 import { EditableSessionTitle } from './EditableSessionTitle'
 import { ResumeBar } from './ResumeBar'
 import { useChat } from '../../state/chatStore'

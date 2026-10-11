@@ -1,4 +1,4 @@
-import type { MrState } from '../features/sidebar/mrRefText'
+import type { MrState } from '@shared/domain/git'
 import type { SessionId } from '@shared/domain/ids'
 import { background } from './policy'
 import { rebindOnNewBridge } from './bridgeBinding'

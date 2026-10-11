@@ -443,6 +443,18 @@ describe('transcript chat', () => {
     expect(fake.callsTo('chatSetEffort')).toEqual([[sessionId, 'high']])
   })
 
+  it('the / menu opening does not take focus from a text field being typed in', async () => {
+    await openChat()
+    const other = document.createElement('input')
+    document.body.append(other)
+    other.focus()
+    // A click that does not move focus, as when the menu is opened by something other than the person.
+    ;(page.getByTestId('composer-commands').element() as HTMLElement).click()
+    await expect.element(page.getByTestId('composer-command-search')).toBeInTheDocument()
+    expect(document.activeElement).toBe(other)
+    other.remove()
+  })
+
   it('the / menu searches Claude\'s commands, runs one that takes nothing and fills in one that takes arguments', async () => {
     const { fake, sessionId } = await openChat()
     play(fake, sessionId, {

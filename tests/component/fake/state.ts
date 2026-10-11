@@ -8,7 +8,7 @@ import type {
   UpdateStatusPayload,
 } from '@shared/api'
 import type { GitTarget } from '@shared/domain/git'
-import type { RemoteClientInfo, RemoteHost, RemoteStatus } from '@shared/domain/remote'
+import type { RemoteClientInfo, RemoteHost, RemoteServerState, RemoteStatus } from '@shared/domain/remote'
 import type { ChatState, TerminalBusy } from '@shared/domain/chat'
 import type { EventKey } from '@shared/ipc/contract'
 import type { PetSpec } from '@shared/pets/spec'
@@ -98,6 +98,8 @@ export interface FakeState {
   remoteConnectPairings: (string | undefined)[]
   /** The home machines connected to this one (the work machine's view), and how often "Disconnect all" ran. */
   remoteClients: RemoteClientInfo[]
+  /** What `remoteServerState` answers (the work machine's own server). */
+  remoteServerState: RemoteServerState
   remoteDisconnects: number
   /** What `remoteStatusNow` answers: the last `remoteStatus` this window was sent (null: none). */
   remoteStatus: RemoteStatus | null

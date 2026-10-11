@@ -68,6 +68,7 @@ export function createRemoteServing(inputs: ServingInputs): {
     },
   })
   remoteServer.subscribe((clients) => { broadcast(IPC.remoteClientsChanged, clients) })
+  remoteServer.subscribeState((state) => { broadcast(IPC.remoteServerStateChanged, state) })
   return { virtualContents, remotePairing, remoteServer, useVsCode: (v) => { vscode = v } }
 }
 

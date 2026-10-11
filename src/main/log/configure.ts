@@ -10,7 +10,7 @@ import { log } from './logger'
  * and the git helpers, which are exercised in plain Node unit tests, and a transitive `electron`
  * import there is a test that cannot run.
  */
-export function logDir(): string {
+function logDir(): string {
   return join(app.getPath('userData'), 'logs')
 }
 

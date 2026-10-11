@@ -25,11 +25,13 @@ export function shouldQuitWhenNoWindows(mode: LaunchMode, platform: NodeJS.Platf
 
 /**
  * Whether a background-started app has nothing left to do: remote access is off and no window is
- * open, so it would sit invisible (on Linux there is no menu to quit it from). Checked at startup,
+ * open, or the server was refused its socket (another Apiary holds it), so it would sit invisible (on Linux there is no menu to quit it from). Checked at startup,
  * when the setting turns off and when the last window closes.
  */
-export function shouldQuitIdleBackground(mode: LaunchMode, remoteAccess: boolean, openWindows: number): boolean {
-  return mode.background && !remoteAccess && openWindows === 0
+export function shouldQuitIdleBackground(
+  mode: LaunchMode, remoteAccess: boolean, openWindows: number, serverFailed = false,
+): boolean {
+  return mode.background && (!remoteAccess || serverFailed) && openWindows === 0
 }
 
 /**

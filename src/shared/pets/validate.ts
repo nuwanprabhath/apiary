@@ -22,7 +22,7 @@ import { flattenText } from '../text'
 
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
 
-export function cleanColor(v: unknown, fallback: string): string {
+function cleanColor(v: unknown, fallback: string): string {
   if (typeof v !== 'string') return fallback
   const s = v.trim()
   if (!HEX.test(s)) return fallback

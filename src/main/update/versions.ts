@@ -30,7 +30,7 @@ export function parseVersion(raw: string): Version | null {
   }
 }
 
-export function isPrerelease(raw: string): boolean {
+function isPrerelease(raw: string): boolean {
   return (parseVersion(raw)?.prerelease.length ?? 0) > 0
 }
 
