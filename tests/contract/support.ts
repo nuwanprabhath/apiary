@@ -47,6 +47,8 @@ export interface Bridge {
     commitLocally(): Promise<void>
     /** Someone else pushes a commit to `origin/main`; this clone does not know until it fetches. */
     advanceRemote(): Promise<void>
+    /** A home machine called `client` connects to this one over remote access (it shows in Settings' list of who is connected). */
+    remoteClientConnects(client: string): Promise<void>
   }
   /**
    * Set only when the window under test is a home window showing a work machine
@@ -57,6 +59,8 @@ export interface Bridge {
   remote?: {
     unavailable: ReadonlySet<IpcKey>
     /** Pretends this machine has VS Code at `path` (null: none); what it was asked to launch is recorded in `launched`. */
+    /** The `send`s the work machine's dispatcher received from this window, in order (a call that crossed the socket). */
+    sentToWorkMachine(): { key: string; args: unknown[] }[]
     homeVsCode: { setPath(path: string | null): void; launched: { command: string; args: string[] }[] }
   }
   cleanup(): void | Promise<void>

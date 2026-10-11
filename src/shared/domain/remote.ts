@@ -41,7 +41,8 @@ export type RefusalReason = 'version' | 'pairing-required' | 'pairing-wrong' | '
 
 /** The pairing code: 8 characters from an alphabet without 0/O or 1/I, shown as `XXXX-XXXX`. */
 export const PAIRING_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-const PAIRING_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{4}-?[A-HJ-NP-Z2-9]{4}$/i
+/** A code as typed: 8 characters from the alphabet, an optional dash in the middle, any case. */
+export const PAIRING_CODE_PATTERN = new RegExp(`^[${PAIRING_ALPHABET}]{4}-?[${PAIRING_ALPHABET}]{4}$`, 'i')
 
 /** A pairing code as a person types it: dash and case do not matter. */
 export const isPairingCode: Guard<string> = (v): v is string =>

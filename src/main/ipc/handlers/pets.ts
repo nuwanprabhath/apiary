@@ -14,8 +14,8 @@ export interface PetDeps {
   /** What the given sessions are doing (`AppService.latestActions`). */
   actions: (keys: string[]) => Promise<{ key: string; action: string }[]>
   /** Test-only answers for the save and open dialogs (`APIARY_PET_EXPORT_PATH` / `_IMPORT_PATH`). */
-  exportPath?: string
-  importPath?: string
+  exportPath: string | null
+  importPath: string | null
 }
 
 type HandledKeys =
@@ -60,7 +60,7 @@ export function petsHandlers(deps: PetDeps): {
         const pet = store.get(id)
         if (pet === undefined) throw new Error('No such pet.')
         let path = deps.exportPath
-        if (path === undefined) {
+        if (path === null) {
           const win = windowOf(e.sender)
           const options = { title: `Export ${pet.spec.name}`, defaultPath: fileName(pet.spec.name), filters: [{ name: 'Apiary pet', extensions: ['json'] }] }
           const result = win !== null ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options)
@@ -72,7 +72,7 @@ export function petsHandlers(deps: PetDeps): {
       },
       petImport: async (e) => {
         let path = deps.importPath
-        if (path === undefined) {
+        if (path === null) {
           const win = windowOf(e.sender)
           const options = { title: 'Import a pet', properties: ['openFile' as const], filters: [{ name: 'Apiary pet', extensions: ['json'] }] }
           const result = win !== null ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)

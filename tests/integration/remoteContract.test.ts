@@ -27,10 +27,9 @@ vi.mock('electron', async () => (await import('./support/electronLoopback')).ele
 const { buildLoopbackWorld } = await import('./support/loopbackWorld')
 const { fakeContents } = await import('./support/electronLoopback')
 const { RemoteConnection } = await import('../../src/main/remote/remoteConnection')
-const { RemoteServer } = await import('../../src/main/remote/remoteServer')
+const { createRemoteServing } = await import('../../src/main/app/remoteContainer')
 const { RemoteWindows } = await import('../../src/main/remote/remoteWindows')
 const { createVsCodeBridge } = await import('../../src/main/remote/vscodeBridge')
-const { VirtualContentsRegistry } = await import('../../src/main/remote/virtualContents')
 const { scopeOf } = await import('../../src/main/remote/scopes')
 const { registerBroadcastSkip, registerBroadcastTargets } = await import('../../src/main/windows/broadcast')
 
@@ -38,7 +37,13 @@ const VERSION = '0.0.0-remote-test'
 const UNAVAILABLE = new Set((Object.keys(IPC) as IpcKey[]).filter((key) => scopeOf(key) === 'unavailable'))
 
 defineBridgeContract('remote: a home window over the remote protocol', async (options) => {
-  const registry = new VirtualContentsRegistry()
+  const workHome = mkdtempSync(join(tmpdir(), 'apiary-remote-contract-'))
+  // The app's own factory builds the work machine's server; its remote windows are the registry the world sees.
+  const serving = createRemoteServing({
+    homeDir: workHome, host: 'work-box', appVersion: VERSION, pairingFile: join(workHome, 'remote-pairing.json'), layouts: () => [],
+    settings: { get: () => ({ remoteAccessPairing: false }), patch: () => {} },
+  })
+  const { remoteServer: server, virtualContents: registry } = serving
   const homeVsCode = { path: null as string | null, launched: [] as { command: string; args: string[] }[] }
   const bridge = createVsCodeBridge({
     vsCodePath: () => homeVsCode.path,
@@ -46,9 +51,12 @@ defineBridgeContract('remote: a home window over the remote protocol', async (op
   })
   const windows = new RemoteWindows((id) => (id === fakeContents.id ? fakeContents : null), bridge)
   const world = await buildLoopbackWorld(options, { virtualContents: registry, router: windows })
-  const workHome = mkdtempSync(join(tmpdir(), 'apiary-remote-contract-'))
-  const server = new RemoteServer({ homeDir: workHome, host: 'work-box', appVersion: VERSION, registry, layouts: () => [], vscode: world.vscode })
-  server.attachDispatcher(world.dispatcher)
+  serving.useVsCode(world.vscode)
+  const sent: { key: string; args: unknown[] }[] = []
+  server.attachDispatcher({
+    invoke: (key, event, raw) => world.dispatcher.invoke(key, event, raw),
+    send: (key, event, raw) => { sent.push({ key, args: raw }); world.dispatcher.send(key, event, raw) },
+  })
   await server.start()
   const connection = await RemoteConnection.connect(server.socketPath, { appVersion: VERSION })
   const disposeTargets = registerBroadcastTargets(() => registry.list())
@@ -59,6 +67,7 @@ defineBridgeContract('remote: a home window over the remote protocol', async (op
     ...world.bridge,
     remote: {
       unavailable: UNAVAILABLE,
+      sentToWorkMachine: () => [...sent],
       homeVsCode: { setPath: (path) => { homeVsCode.path = path }, launched: homeVsCode.launched },
     },
     cleanup: async () => {

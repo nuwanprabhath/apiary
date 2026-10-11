@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs'
-import { connect, type Socket } from 'node:net'
+import { connect, Server, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { IPC, type IpcKey } from '@shared/ipc/contract'
@@ -12,7 +12,7 @@ import { VsCodeService } from '../../src/main/vscode/vscodeService'
 import type { SessionStore } from '../../src/main/store/sessionStore'
 import type { PtyManager } from '../../src/main/pty/ptyManager'
 import type { ThemeState } from '@shared/api'
-import { encodeFrame, FrameDecoder } from '../../src/main/remote/frames'
+import { encodeFrame, encodeHandshakeFrame, FrameDecoder } from '../../src/main/remote/frames'
 import { contractHash, PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from '../../src/main/remote/protocol'
 import { RemoteServer, type RemoteServerDeps } from '../../src/main/remote/remoteServer'
 import { VirtualContentsRegistry } from '../../src/main/remote/virtualContents'
@@ -45,8 +45,11 @@ class Client {
   }
 
   send(message: ClientMessage): void { this.socket.write(encodeFrame(message)) }
+  sendRaw(bytes: Buffer): void { this.socket.write(bytes) }
+  /** The hello and the other handshake messages travel as JSON frames (frames.ts). */
+  sendHandshake(message: ClientMessage): void { this.socket.write(encodeHandshakeFrame(message)) }
   hello(over: Partial<Extract<ClientMessage, { t: 'hello' }>> = {}): void {
-    this.send({ t: 'hello', protocol: PROTOCOL_VERSION, contract: contractHash(), appVersion: VERSION, ...over })
+    this.sendHandshake({ t: 'hello', protocol: PROTOCOL_VERSION, contract: contractHash(), appVersion: VERSION, ...over })
   }
 
   async next(match: (m: ServerMessage) => boolean): Promise<ServerMessage> {
@@ -82,7 +85,8 @@ describe('RemoteServer', () => {
       ptyAttach: (e, id) => { attachments.attach(e.sender.id, id) },
     }
     server = new RemoteServer({
-      homeDir: home, host: 'work-box', appVersion: VERSION, registry, layouts: () => [], helloTimeoutMs, ...extra,
+      homeDir: home, host: 'work-box', appVersion: VERSION, registry, layouts: () => [], helloTimeoutMs,
+      pairing: { required: () => false, code: () => '' }, turnOff: () => {}, ...extra,
     })
     server.attachDispatcher(createDispatcher(handlers, listeners))
     disposeTargets = registerBroadcastTargets(() => registry.list())
@@ -201,7 +205,7 @@ describe('RemoteServer', () => {
     await boot()
     const c = await greeted()
     c.send({ t: 'open', w: 1 })
-    c.send({ t: 'invoke', id: 1, w: 1, key: 'focusTab', args: [42] })
+    c.send({ t: 'invoke', id: 1, w: 1, key: 'checkConflict', args: [42] })
     expect(await c.result(1)).toEqual({ t: 'result', id: 1, ok: false, message: 'Invalid request.' })
   })
 
@@ -319,6 +323,78 @@ describe('RemoteServer', () => {
       await vi.waitFor(() => { expect(a.closed && b.closed).toBe(true) })
       expect(turnOff).toHaveBeenCalledTimes(1)
       await vi.waitFor(() => { expect(server.clients()).toEqual([]) })
+    })
+  })
+
+  describe('connections before the hello', () => {
+    it('destroys a refused connection even when the client never closes', async () => {
+      await boot()
+      // A client that never closes its own end: the server's side closes only if the server destroys it.
+      const socket = connect({ path: server.socketPath, allowHalfOpen: true })
+      socket.on('error', () => {})
+      socket.on('data', () => {})
+      await new Promise<void>((resolve) => { socket.once('connect', resolve) })
+      const info = vi.spyOn(log, 'info')
+      try {
+        socket.write(encodeHandshakeFrame({ t: 'hello', protocol: PROTOCOL_VERSION, contract: contractHash(), appVersion: '9.9.9' }))
+        await vi.waitFor(() => { expect(info).toHaveBeenCalledWith('remote', 'connection closed') })
+      } finally {
+        info.mockRestore()
+        socket.destroy()
+      }
+    })
+
+    it('drops a connection that sends a V8 frame before the hello, and never decodes it', async () => {
+      await boot()
+      const c = await client()
+      c.send({ t: 'hello', protocol: PROTOCOL_VERSION, contract: contractHash(), appVersion: VERSION })
+      await vi.waitFor(() => { expect(c.closed).toBe(true) })
+      expect(c.messages).toEqual([])
+      expect(server.clients()).toEqual([])
+    })
+
+    it('still reads V8 frames after the hello, even in the same chunk', async () => {
+      await boot()
+      const c = await client()
+      const hello: ClientMessage = { t: 'hello', protocol: PROTOCOL_VERSION, contract: contractHash(), appVersion: VERSION }
+      c.sendRaw(Buffer.concat([encodeHandshakeFrame(hello), encodeFrame({ t: 'open', w: 1 })]))
+      await vi.waitFor(() => { expect(server.clients()).toEqual([expect.objectContaining({ windows: 1 })]) })
+    })
+  })
+
+  describe('start and stop', () => {
+    const listening = (): boolean => existsSync(server.socketPath)
+
+    it('on, off, on, off in quick succession ends with no listener', async () => {
+      await boot()
+      await server.stop()
+      const calls = [server.start(), server.stop(), server.start(), server.stop()]
+      await Promise.all(calls)
+      expect(listening()).toBe(false)
+      await expect(Client.open(server.socketPath)).rejects.toThrow()
+    })
+
+    it('on, off, on ends listening, once', async () => {
+      await boot()
+      await server.stop()
+      await Promise.all([server.start(), server.stop(), server.start()])
+      const c = await greeted()
+      expect(c.messages).toHaveLength(1)
+    })
+
+    it('a failed listen does not block the next start', async () => {
+      await boot()
+      await server.stop()
+      // listen itself fails, after the server object exists (the old code kept that dead server and
+      // treated every later start as already listening).
+      const listen = vi.spyOn(Server.prototype, 'listen').mockImplementationOnce(function (this: Server) {
+        process.nextTick(() => this.emit('error', Object.assign(new Error('listen EADDRINUSE'), { code: 'EADDRINUSE' })))
+        return this
+      })
+      await expect(server.start()).rejects.toThrow('EADDRINUSE')
+      listen.mockRestore()
+      await server.start()
+      await greeted()
     })
   })
 

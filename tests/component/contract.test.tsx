@@ -1,6 +1,6 @@
 import { contextMenuRequestFrom, isEditCommand, type ContextMenuParamsLike } from '@shared/domain/contextMenu'
 import { defineBridgeContract, LONG_SESSION } from '../contract/bridgeContract'
-import { BAR_ITEM, BAR_PLUGIN, CONSENT_ITEM, CONSENT_PLUGIN, FEED_VERSION, STATUS_ITEM, STATUS_PANEL, STATUS_PLUGIN } from '../contract/world'
+import { BAR_ITEM, BAR_PLUGIN, CONSENT_ITEM, CONSENT_PLUGIN, FEED_VERSION, noMachineMessage, pairingSeenMessage, REMOTE_WORLD, STATUS_ITEM, STATUS_PANEL, STATUS_PLUGIN } from '../contract/world'
 import { createFakeApiary, FIXTURE_PROJECTS, FIXTURE_SESSIONS, fakeRef, message, type FakeSession } from './fakeApiary'
 
 // The fake against the shared behavioural spec; the real main process runs the same spec in
@@ -34,6 +34,13 @@ defineBridgeContract('fakeApiary', async ({ imported = true, longSessionMessages
     updateFeed: FEED_VERSION,
     pickedFolder: cancelPicker ? null : '/fixture/picked',
   })
+  // The same recent hosts and canned probe as the loopback's (`tests/integration/support/remoteHome.ts`).
+  fake.state.remoteHosts = REMOTE_WORLD.recent.map((name) => ({ name, source: 'recent', status: 'unknown' }))
+  fake.state.remoteProbes = {
+    ...Object.fromEntries(Object.entries(REMOTE_WORLD.probes).map(([host, status]) => [host, { status }])),
+    [REMOTE_WORLD.gone]: { status: 'unreachable', detail: noMachineMessage(REMOTE_WORLD.gone) },
+  }
+  fake.state.remoteConnectRule = (host, pairing) => (host === REMOTE_WORLD.up ? null : host === REMOTE_WORLD.pairing ? pairingSeenMessage(pairing) : noMachineMessage(host))
   const main = (): NonNullable<ReturnType<typeof fake.state.tracking.get>> => {
     const t = fake.state.tracking.get('main')
     if (t === undefined) throw new Error('main has no upstream in this fake')
@@ -52,6 +59,11 @@ defineBridgeContract('fakeApiary', async ({ imported = true, longSessionMessages
       linkOutsideHome: (name) => { fake.state.homeLinks.add(name); return Promise.resolve() },
       commitLocally: () => { main().ahead += 1; return Promise.resolve() },
       advanceRemote: () => { main().pending += 1; return Promise.resolve() },
+      remoteClientConnects: (client) => {
+        fake.state.remoteClients = [...fake.state.remoteClients, { id: `home-${String(fake.state.remoteClients.length + 1)}`, client, connectedAt: Date.now(), windows: 0 }]
+        fake.emit('remoteClientsChanged', fake.state.remoteClients)
+        return Promise.resolve()
+      },
     },
     cleanup: () => {},
   })

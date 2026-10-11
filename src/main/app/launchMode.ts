@@ -1,7 +1,8 @@
 /**
  * Background launch (`--background`): the work machine's Apiary started over SSH by a home machine
  * (docs/proposals/2026-10-10-remote-access.md). It runs its services and remote server but opens no
- * window, and stays alive with none until quit from the menu. Pure, so a test can pin each decision.
+ * window, and stays alive with none while remote access is on (it quits when that is off and no
+ * window is open: `shouldQuitIdleBackground`). Pure, so a test can pin each decision.
  */
 export interface LaunchMode {
   /** `--background` was on this process's command line. */
@@ -20,6 +21,15 @@ export function shouldOpenFirstWindow(mode: LaunchMode, secondLaunch: boolean): 
 /** Whether closing the last window quits: macOS never does; a background-started app never does, so its remote server stays up. */
 export function shouldQuitWhenNoWindows(mode: LaunchMode, platform: NodeJS.Platform): boolean {
   return platform !== 'darwin' && !mode.background
+}
+
+/**
+ * Whether a background-started app has nothing left to do: remote access is off and no window is
+ * open, so it would sit invisible (on Linux there is no menu to quit it from). Checked at startup,
+ * when the setting turns off and when the last window closes.
+ */
+export function shouldQuitIdleBackground(mode: LaunchMode, remoteAccess: boolean, openWindows: number): boolean {
+  return mode.background && !remoteAccess && openWindows === 0
 }
 
 /**

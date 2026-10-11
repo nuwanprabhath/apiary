@@ -59,6 +59,12 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
     replies, the update feed is the fixture backend, and the folder picker, the pet file dialogs and
     the clipboard answer from the harness. What a call cannot cause in it (a teammate's push, a
     commit made in a terminal) is `bridge.outside`.
+  - Remote access runs on the app's own factories: the work machine's side from
+    `createRemoteServing`, the home side from `createRemoteConnecting` over
+    `loopbackConnectingOutside` (`integration/support/remoteHome.ts`: no ssh, no `tailscale`, canned
+    probes and hosts from `REMOTE_WORLD` in `contract/world.ts`). So a clause can connect, be refused,
+    enter a pairing code and hear `remoteHostsChanged`, on both sides. Wire a new remote piece in
+    the factory, never in the loopback, or the app's wiring goes untested again.
   - `tests/unit/architecture/contractCoverage.test.ts` fails for a channel no clause exercises, unless
     `contractCoverage.allow.json` exempts it with the reason it cannot run in the loopback (a native
     menu, window chrome, quit time, the GPU, a running claude TUI). It carries no debt, and it does

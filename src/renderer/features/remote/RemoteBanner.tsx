@@ -23,10 +23,14 @@ export function RemoteBanner({ status }: { status: RemoteStatus }): JSX.Element 
 
   if (status.state === 'reconnecting') {
     return (
-      <div className="remote-banner reconnecting" role="status" data-testid="remote-banner">
+      <div className="remote-banner reconnecting" data-testid="remote-banner">
         <RefreshIcon className="remote-banner-icon spinner" />
         <div className="remote-banner-text">
-          <strong>Reconnecting to {status.host}…{status.attempt !== undefined && ` (attempt ${String(status.attempt)})`}</strong>
+          {/* The live region says the state once; the counter beside it ticks, so it is hidden from a screen reader. */}
+          <div className="remote-banner-head">
+            <strong role="status">Reconnecting to {status.host}…</strong>
+            {status.attempt !== undefined && <span aria-hidden="true" data-testid="remote-banner-attempt"> (attempt {status.attempt})</span>}
+          </div>
           {status.message !== undefined && <span data-testid="remote-banner-message">{status.message}</span>}
         </div>
         <div className="remote-banner-actions">

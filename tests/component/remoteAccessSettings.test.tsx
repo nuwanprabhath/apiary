@@ -66,6 +66,20 @@ describe('Settings → General → remote access, on the work machine', () => {
     expect(fake.state.settings.remoteAccess).toBe(false)
   })
 
+  it('says so when the pairing code could not be loaded, instead of showing "…" for good', async () => {
+    const { fake } = await renderApp({ settings: { remoteAccess: true, remoteAccessPairing: true } })
+    fake.override('remotePairing', async () => { throw new Error('Pairing codes are not available here.') })
+    await openGeneral(fake)
+    await until(() => present('remote-pairing-load-error'))
+    expect(text('remote-pairing-load-error')).toContain('could not be loaded')
+    expect(text('remote-pairing-code')).not.toBe('…')
+    expect(document.querySelector<HTMLButtonElement>('[data-testid="remote-pairing-copy"]')?.disabled).toBe(true)
+    // "New code" still works and replaces the failure with the code.
+    await userEvent.click(page.getByTestId('remote-pairing-new'))
+    await until(() => text('remote-pairing-code') === 'WXYZ-6789')
+    expect(present('remote-pairing-load-error')).toBe(false)
+  })
+
   it('shows the pairing code with Copy and New code only while "Also require a pairing code" is on', async () => {
     const { fake } = await renderApp()
     await openGeneral(fake)

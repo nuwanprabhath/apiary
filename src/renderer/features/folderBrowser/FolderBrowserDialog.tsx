@@ -1,6 +1,5 @@
 import type { JSX } from 'react'
 import type { NewSessionInfo } from '@shared/domain/session'
-import { ErrorBoundary } from '../../ui/ErrorBoundary'
 import { BranchIcon, FolderIcon, ArrowUpIcon } from '../../ui/icons'
 import { Listbox, optionId } from '../../ui/Listbox'
 import { Modal } from '../../ui/Modal'
@@ -78,6 +77,7 @@ function Rows({ b }: { b: FolderBrowse }): JSX.Element {
 }
 
 /**
+ * Has no boundary of its own: `useFolderBrowserRequest` wraps it in a `DialogBoundary`, whose fallback is a closable dialog.
  * "Choose a folder on HOST": the in-app stand-in for the native folder picker, which would open on
  * the work machine's screen. The work machine holds where the browse is; this shows its view and
  * sends a child's name, a crumb index or "up" (ADR-0001). "Start session" starts in the folder
@@ -86,39 +86,37 @@ function Rows({ b }: { b: FolderBrowse }): JSX.Element {
 export function FolderBrowserDialog({ host, onStarted, onClose }: Props): JSX.Element {
   const b = useFolderBrowse(onStarted)
   return (
-    <ErrorBoundary label="This dialog">
-      <Modal
-        testId="folder-browser"
-        titleId="folder-browser-title"
-        onClose={onClose}
-        initialFocusSelector='[data-testid="folder-list"]'
-        wide
-      >
-        <h2 id="folder-browser-title" className="folder-browser-title" title={`Choose a folder on ${host}`}>
-          Choose a folder on {host}
-        </h2>
-        <div className="folder-browser-bar">
-          <Crumbs b={b} />
-          <button type="button" className="btn small" data-testid="folder-up" disabled={b.atRoot || b.busy} onClick={b.up}>
-            <ArrowUpIcon className="folder-up-icon" /> Up
-          </button>
-        </div>
-        <Rows b={b} />
-        {b.error !== null && <p className="folder-browser-error" role="alert" data-testid="folder-error">{b.error}</p>}
-        <div className="modal-actions">
-          <button type="button" className="btn" data-testid="folder-cancel" onClick={onClose}>Cancel</button>
-          <button
-            type="button"
-            className="btn primary folder-start"
-            data-testid="folder-start"
-            disabled={b.view === null || b.busy}
-            title={b.view === null ? undefined : `Start session in ${b.here}`}
-            onClick={b.start}
-          >
-            <span className="folder-start-label">Start session in {b.here === '' ? 'this folder' : b.here}</span>
-          </button>
-        </div>
-      </Modal>
-    </ErrorBoundary>
+    <Modal
+      testId="folder-browser"
+      titleId="folder-browser-title"
+      onClose={onClose}
+      initialFocusSelector='[data-testid="folder-list"]'
+      wide
+    >
+      <h2 id="folder-browser-title" className="folder-browser-title" title={`Choose a folder on ${host}`}>
+        Choose a folder on {host}
+      </h2>
+      <div className="folder-browser-bar">
+        <Crumbs b={b} />
+        <button type="button" className="btn small" data-testid="folder-up" disabled={b.atRoot || b.busy} onClick={b.up}>
+          <ArrowUpIcon className="folder-up-icon" /> Up
+        </button>
+      </div>
+      <Rows b={b} />
+      {b.error !== null && <p className="folder-browser-error" role="alert" data-testid="folder-error">{b.error}</p>}
+      <div className="modal-actions">
+        <button type="button" className="btn" data-testid="folder-cancel" onClick={onClose}>Cancel</button>
+        <button
+          type="button"
+          className="btn primary folder-start"
+          data-testid="folder-start"
+          disabled={b.view === null || b.busy}
+          title={b.view === null ? undefined : `Start session in ${b.here}`}
+          onClick={b.start}
+        >
+          <span className="folder-start-label">Start session in {b.here === '' ? 'this folder' : b.here}</span>
+        </button>
+      </div>
+    </Modal>
   )
 }

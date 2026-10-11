@@ -33,6 +33,7 @@ describe('RemoteConnection against a real RemoteServer', () => {
     }
     server = new RemoteServer({
       homeDir: home, host: 'work-box', appVersion: VERSION, registry: new VirtualContentsRegistry(), layouts: () => [],
+      pairing: { required: () => false, code: () => '' }, turnOff: () => {},
     })
     server.attachDispatcher(createDispatcher(handlers, {}))
     await server.start()

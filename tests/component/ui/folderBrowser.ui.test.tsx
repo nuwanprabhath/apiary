@@ -80,6 +80,35 @@ describe('UI: the folder browser', () => {
     await reviewUi('folder browser empty folder', { widths: WIDTHS, open: openFolderBrowser, close })
   })
 
+  it('folder browser loading', async () => {
+    await renderRemote('work-box', (fake) => {
+      fake.override('folderBrowseOpen', () => new Promise<BrowseView>(() => undefined))
+    })
+    await reviewUi('folder browser loading', {
+      widths: WIDTHS,
+      open: async () => {
+        await userEvent.click(page.getByTestId('group-new-session-button'))
+        await until(() => document.querySelector('[data-testid="folder-loading"]') !== null)
+      },
+      close,
+    })
+  })
+
+  it('folder browser busy entering a folder', async () => {
+    await renderRemote('work-box', (fake) => {
+      fake.override('folderBrowseEnter', () => new Promise<BrowseView>(() => undefined))
+    })
+    await reviewUi('folder browser busy', {
+      widths: WIDTHS,
+      open: async () => {
+        await openFolderBrowser()
+        await userEvent.dblClick(document.querySelectorAll<HTMLElement>('[data-testid="folder-row"]')[1] ?? document.body)
+        await until(() => document.querySelector<HTMLButtonElement>('[data-testid="folder-start"]')?.disabled === true)
+      },
+      close,
+    })
+  })
+
   it('folder browser error', async () => {
     await renderRemote('work-box', (fake) => {
       fake.override('folderBrowseEnter', async () => { throw new Error('That folder is outside your home folder, or is gone.') })

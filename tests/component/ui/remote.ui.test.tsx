@@ -46,6 +46,21 @@ describe('UI: the connect dialog', () => {
     })
   })
 
+  it('connect dialog with a wrong pairing code', async () => {
+    const { fake } = await renderApp()
+    await reviewUi('connect dialog wrong pairing code', {
+      widths: [620, 900],
+      open: async () => {
+        await askForCode(fake, false)
+        fake.state.remoteConnectError = pairingErrorMessage('pairing-wrong', 'work-box', true)
+        await userEvent.fill(page.getByTestId('remote-pairing'), 'ABCD-2345')
+        await userEvent.click(page.getByTestId('remote-connect'))
+        await until(() => document.querySelector('[data-testid="remote-pairing-ask"]')?.textContent?.includes('not the pairing code') === true)
+      },
+      close: async () => { await userEvent.keyboard('{Escape}') },
+    })
+  })
+
   it('connect dialog asking for the pairing code it cannot keep', async () => {
     const { fake } = await renderApp()
     await reviewUi('connect dialog pairing code unsaved', {

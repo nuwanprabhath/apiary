@@ -76,6 +76,15 @@ describe('RemoteWindows', () => {
     const { windows, link } = setup()
     windows.bind(7, link, 1)
     await expect(windows.routeInvoke(7, 'newSessionInPickedFolder', [])).rejects.toThrow(UNAVAILABLE_MESSAGE)
+    // Raising another work-machine window happens on a screen nobody at home sees: nothing, no error.
+    await expect(windows.routeInvoke(7, 'focusTab', [2, 'tab'])).resolves.toBeUndefined()
+    expect(link.invoked).toEqual([])
+  })
+
+  it("opens a plugin's link at home, not on the work machine", () => {
+    const { windows, link } = setup()
+    windows.bind(7, link, 1)
+    expect(windows.routeInvoke(7, 'pluginRunAction', [{ action: { kind: 'open-url', url: 'https://example.com' } }])).toBeUndefined()
     expect(link.invoked).toEqual([])
   })
 

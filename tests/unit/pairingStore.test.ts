@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { isPairingCode, formatPairingCode, normalizePairingCode, pairingError, pairingErrorMessage, pairingNotSaved } from '@shared/domain/remote'
+import { isPairingCode, formatPairingCode, PAIRING_CODE_PATTERN, normalizePairingCode, pairingError, pairingErrorMessage, pairingNotSaved } from '@shared/domain/remote'
 import { generatePairingCode, PairingStore } from '../../src/main/remote/pairingStore'
 
 describe('PairingStore', () => {
@@ -12,13 +12,19 @@ describe('PairingStore', () => {
   afterEach(() => { rmSync(dir, { recursive: true, force: true }) })
 
   it('makes 8 characters with no 0, O, 1 or I', () => {
-    for (let i = 0; i < 200; i++) expect(generatePairingCode()).toMatch(/^[A-HJ-NP-Z2-9]{8}$/)
+    for (let i = 0; i < 200; i++) {
+      const code = generatePairingCode()
+      expect(code).toMatch(PAIRING_CODE_PATTERN)
+      expect(code).toHaveLength(8)
+    }
   })
 
   it('shows the code as XXXX-XXXX and keeps it across restarts until a new one is asked for', () => {
     const store = new PairingStore(file, () => true)
     const first = store.display()
-    expect(first).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/)
+    expect(first).toMatch(PAIRING_CODE_PATTERN)
+    expect(first).toMatch(/^[^-]{4}-[^-]{4}$/)
+    expect(first).toBe(first.toUpperCase())
     expect(new PairingStore(file, () => true).display()).toBe(first)
     const next = store.regenerate()
     expect(next).not.toBe(normalizePairingCode(first))
@@ -27,7 +33,9 @@ describe('PairingStore', () => {
 
   it('replaces a file that holds something that is not a code', () => {
     writeFileSync(file, JSON.stringify({ version: 1, code: 'not a code' }))
-    expect(new PairingStore(file, () => true).code()).toMatch(/^[A-HJ-NP-Z2-9]{8}$/)
+    const code = new PairingStore(file, () => true).code()
+    expect(code).toMatch(PAIRING_CODE_PATTERN)
+    expect(code).toHaveLength(8)
     expect(readFileSync(file, 'utf8')).not.toContain('not a code')
   })
 })

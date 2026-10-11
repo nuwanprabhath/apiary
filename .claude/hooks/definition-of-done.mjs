@@ -38,7 +38,7 @@ const changed = [...new Set([
   ...git(['diff', '--name-only', 'HEAD']).split('\n'),
   ...git(['ls-files', '--others', '--exclude-standard']).split('\n'),
 ])].filter((f) => f !== '' && existsSync(join(root, f)))
-const code = changed.filter((f) => /^(src|tests|eslint|scripts)\//.test(f) || /\.(ts|tsx|css)$/.test(f))
+const code = changed.filter((f) => /^(src|tests|eslint|scripts)\//.test(f) || /\.(ts|tsx|css|sh|md)$/.test(f))
 if (code.length === 0) passed()
 
 const problems = []
@@ -55,6 +55,20 @@ if (js.length) run('eslint (changed files)', ['eslint', '--max-warnings', '0', '
 run('architecture tests', ['vitest', 'run', '--project', 'unit', 'tests/unit/architecture'])
 const css = code.filter((f) => f.endsWith('.css'))
 if (css.length) run('stylelint (changed files)', ['stylelint', '--max-warnings', '0', ...css])
+// Every step of `npm run lint` has its counterpart here (tests/unit/architecture/stopHookCoversLint):
+// P3c's Docker shim finished "done" with two shellcheck warnings because this hook ran no shellcheck.
+const sh = code.filter((f) => f.endsWith('.sh'))
+if (sh.length) {
+  const r = spawnSync('node', ['scripts/lint-sh.mjs', ...sh], { cwd: root, encoding: 'utf8' })
+  if (r.status !== 0) problems.push(`── shellcheck (lint:sh, changed files) ──\n${r.stdout}${r.stderr}`)
+}
+const md = code.filter((f) => f.endsWith('.md'))
+if (md.length) {
+  // markdownlint-cli2 skips what its config ignores (.claude, docs/superpowers…), as `npm run lint:md` does.
+  run('markdownlint (lint:md, changed files)', ['markdownlint-cli2', ...md])
+  const r = spawnSync('node', ['scripts/check-doc-refs.mjs'], { cwd: root, encoding: 'utf8' })
+  if (r.status !== 0) problems.push(`── doc references (lint:md) ──\n${r.stdout}${r.stderr}`)
+}
 // The rest of `npm run lint` that is whole-repo by nature: layer direction and dead code. "Plumbing
 // nobody uses yet" (a hook, a service, an IPC call with no caller) is what a half-built feature
 // looks like, and the knip ratchet is what notices it.

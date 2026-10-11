@@ -1,12 +1,14 @@
-import { type JSX, useEffect, useState } from 'react'
+import { type JSX, useEffect, useRef, useState } from 'react'
 import {
   isPairingCode, isRemoteHost, pairingError, pairingNotSaved, type RemoteHost, type RemoteHostSource, type RemoteHostState,
 } from '@shared/domain/remote'
 import { Modal } from '../../ui/Modal'
+import { focusUnlessTyping } from '../../ui/focusUnlessTyping'
 import { AlertIcon } from '../../ui/icons'
 import { StartRemoteOffer, isUnreachableText, offerShows } from './StartRemoteOffer'
 import { background } from '../../state/policy'
-import { connectRemote, loadRemoteHosts, onRemoteHostsChanged, remoteFailureText } from '../../state/remote'
+import { connectRemote, loadRemoteHosts, onRemoteHostsChanged, remoteFailureText, surfaceLateRemoteFailure } from '../../state/remote'
+import { useStillOpen } from './useStillOpen'
 
 const SOURCE_TAGS: Record<RemoteHostSource, string> = { recent: 'recent', 'ssh-config': 'ssh config', tailscale: 'Tailscale' }
 
@@ -31,6 +33,7 @@ export function RemoteDialog({ onClose }: { onClose: () => void }): JSX.Element 
   const [offer, setOffer] = useState<{ host: string; since: number } | null>(null)
   const [ask, setAsk] = useState<PairingAsk | null>(null)
   const [code, setCode] = useState('')
+  const stillOpen = useStillOpen()
 
   const trimmed = host.trim()
   const hostOk = isRemoteHost(trimmed)
@@ -54,9 +57,12 @@ export function RemoteDialog({ onClose }: { onClose: () => void }): JSX.Element 
     setBusy(true)
     // A code goes only to the machine that asked for it, and a different host starts over.
     const sent = ask !== null && ask.host === name && isPairingCode(code) ? code.trim() : undefined
+    // Escape closes the dialog mid-connect and that is a cancel to the person: a success then only
+    // opens (and focuses) the window they asked for, a failure is a notification, never lost.
     connectRemote(name, sent).then(
-      onClose,
+      () => { if (stillOpen.current) onClose() },
       (thrown: unknown) => {
+        if (!stillOpen.current) { surfaceLateRemoteFailure(name, thrown); return }
         const text = remoteFailureText(thrown)
         const kind = pairingError(text)
         setBusy(false)
@@ -111,7 +117,7 @@ export function RemoteDialog({ onClose }: { onClose: () => void }): JSX.Element 
                   onDoubleClick={() => { connect(h.name) }}
                 >
                   {h.status === 'unknown'
-                    ? <span className="btn-spinner remote-host-dot" aria-label="checking" />
+                    ? <span className="btn-spinner remote-host-dot" aria-hidden="true" />
                     : <span className={`remote-host-dot ${h.status}`} aria-hidden="true" />}
                   <span className="remote-host-name" title={h.name}>{h.name}</span>
                   <span className="remote-host-source">{SOURCE_TAGS[h.source]}</span>
@@ -155,10 +161,15 @@ export function RemoteDialog({ onClose }: { onClose: () => void }): JSX.Element 
 function PairingField(
   { ask, code, busy, onCode }: { ask: PairingAsk; code: string; busy: boolean; onCode: (code: string) => void },
 ): JSX.Element {
+  const input = useRef<HTMLInputElement>(null)
+  // The field and Connect were disabled while the connect ran, so focus fell to the page: a new
+  // ask (the first, or "that is not the code") puts it where the next keystroke belongs.
+  useEffect(() => { if (!busy) focusUnlessTyping(input.current) }, [ask, busy])
   return (
     <div className="remote-pairing-field" data-testid="remote-pairing-field">
       <label className="remote-label" htmlFor="remote-pairing">Pairing code</label>
       <input
+        ref={input}
         id="remote-pairing"
         className="remote-input remote-pairing-input"
         data-testid="remote-pairing"

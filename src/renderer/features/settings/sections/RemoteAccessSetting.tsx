@@ -46,19 +46,21 @@ function PairingCode(): JSX.Element {
   const [code, setCode] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** `loadPairingCode` answered null: it failed (and was logged), so "…" must not stay up for good. */
+  const [loadFailed, setLoadFailed] = useState(false)
   useEffect(() => {
     let live = true
-    void loadPairingCode().then((c) => { if (live) setCode(c) })
+    void loadPairingCode().then((c) => { if (live) { setCode(c); setLoadFailed(c === null) } })
     return () => { live = false }
   }, [])
   const renew = (): void => {
     setError(null)
-    newPairingCode().then((c) => { setCode(c); setCopied(false) }, (thrown: unknown) => { setError(remoteFailureText(thrown)) })
+    newPairingCode().then((c) => { setCode(c); setLoadFailed(false); setCopied(false) }, (thrown: unknown) => { setError(remoteFailureText(thrown)) })
   }
   return (
     <div className="settings-row settings-row-indent" data-testid="remote-pairing">
       <div className="remote-pairing-line">
-        <code className="remote-pairing-code" data-testid="remote-pairing-code">{code ?? '…'}</code>
+        <code className="remote-pairing-code" data-testid="remote-pairing-code">{code ?? (loadFailed ? '—' : '…')}</code>
         <button
           type="button"
           className="btn small"
@@ -74,6 +76,11 @@ function PairingCode(): JSX.Element {
         Enter it once on the other machine; it is remembered there. A new code makes every other
         machine enter it again.
       </span>
+      {loadFailed && (
+        <span className="settings-help remote-pairing-error" role="alert" data-testid="remote-pairing-load-error">
+          The pairing code could not be loaded. New code makes a fresh one.
+        </span>
+      )}
       {error !== null && <span className="settings-help remote-pairing-error" role="alert">{error}</span>}
     </div>
   )

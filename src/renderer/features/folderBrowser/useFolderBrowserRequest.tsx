@@ -1,6 +1,6 @@
 import { type JSX, useCallback, useRef, useState } from 'react'
 import type { NewSessionInfo } from '@shared/domain/session'
-import { ErrorBoundary } from '../../ui/ErrorBoundary'
+import { DialogBoundary } from '../dialogs'
 import { FolderBrowserDialog } from './FolderBrowserDialog'
 
 /**
@@ -29,10 +29,11 @@ export function useFolderBrowserRequest(host: string | null): {
 
   const element = open && host !== null
     ? (
-      // A fault in the dialog closes it (the request resolves with nothing) instead of blanking the window.
-      <ErrorBoundary label="The folder browser" fallback={null} onError={() => { finish(null) }}>
+      // A fault in the dialog shows `DialogBoundary`'s own closable dialog instead of blanking the
+      // window; closing it, like closing the browser, resolves the request with nothing.
+      <DialogBoundary onClose={() => { finish(null) }}>
         <FolderBrowserDialog host={host} onStarted={finish} onClose={() => { finish(null) }} />
-      </ErrorBoundary>
+      </DialogBoundary>
     )
     : null
   return { request, element }

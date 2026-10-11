@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { writeFileSync } from 'node:fs'
+import { PAIRING_CODE_PATTERN } from '@shared/domain/remote'
 import { launchApiary, type Harness } from './helpers'
 
 // The real main process behind remote access's local calls. The component tests run these against
@@ -24,9 +25,11 @@ test("the connect dialog's host list comes from the ssh config", async () => {
 test('the work machine shows a pairing code, and a new one replaces it', async () => {
   h = await launchApiary()
   const code = await h.page.evaluate(() => window.apiary.remotePairing())
-  expect(code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/)
+  expect(code).toMatch(PAIRING_CODE_PATTERN)
+  expect(code).toMatch(/^[^-]{4}-[^-]{4}$/)
   const next = await h.page.evaluate(() => window.apiary.remotePairingNew())
-  expect(next).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/)
+  expect(next).toMatch(PAIRING_CODE_PATTERN)
+  expect(next).toMatch(/^[^-]{4}-[^-]{4}$/)
   expect(next).not.toBe(code)
   expect(await h.page.evaluate(() => window.apiary.remoteClients())).toEqual([])
 })

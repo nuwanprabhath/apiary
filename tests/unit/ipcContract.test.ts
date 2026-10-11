@@ -93,6 +93,7 @@ describe('the IPC contract', () => {
       remoteConnect: 'apiary:remote-connect',
       remoteStartAndConnect: 'apiary:remote-start-and-connect',
       remoteStatus: 'apiary:remote-status',
+      remoteStatusNow: 'apiary:remote-status-now',
       remoteHosts: 'apiary:remote-hosts',
       remoteHostsChanged: 'apiary:remote-hosts-changed',
       remoteClients: 'apiary:remote-clients',

@@ -15,10 +15,8 @@ import { STANDARD_SESSIONS as STD } from '../../fixtures/standard'
 import { buildServices, buildIpcState } from '../../fixtures/buildService'
 import type { Services } from '../../../src/main/app/container'
 import { registerIpc } from '../../../src/main/ipc'
-import { HostDirectory } from '../../../src/main/remote/hostDirectory'
-import { PairingStore } from '../../../src/main/remote/pairingStore'
-import { RemoteServer } from '../../../src/main/remote/remoteServer'
-import { VirtualContentsRegistry as ClientRegistry } from '../../../src/main/remote/virtualContents'
+import { RemoteConnection } from '../../../src/main/remote/remoteConnection'
+import { createRemoteConnecting, createRemoteServing } from '../../../src/main/app/remoteContainer'
 import type { CallRouter } from '../../../src/main/ipc/registrar'
 import { UNCHECKED_SENDERS } from '../../../src/main/ipc/ipcSenderGuard'
 import { watchContextMenu } from '../../../src/main/windows/contextMenu'
@@ -39,6 +37,7 @@ import { FolderBrowser } from '../../../src/main/folders/folderBrowser'
 import type { Dispatcher } from '../../../src/main/ipc/registrar'
 import type { VirtualContentsRegistry } from '../../../src/main/remote/virtualContents'
 import { fakeContents, loopback, resetLoopback } from './electronLoopback'
+import { loopbackConnectingOutside, seedRemoteHosts } from './remoteHome'
 
 /**
  * The world both contract loopbacks run in (`contract.test.ts`, `remoteContract.test.ts`): the
@@ -153,6 +152,7 @@ export async function buildLoopbackWorld(
   }
 
   let pushed = 0
+  const homeMachines: RemoteConnection[] = []
   let madeHere = 0
   const oneShot = writeOneShot(home)
   const makeRunner = (): InstanceType<typeof ClaudeOneShot> => new ClaudeOneShot({ claudeBin: () => oneShot, shell: '/bin/sh' })
@@ -209,22 +209,24 @@ export async function buildLoopbackWorld(
     store: petStore, makeRunner, onChanged: () => { broadcast(IPC.petsChanged, petService.state()) },
   })
   const petFile = join(home, 'pet.apiarypet.json')
-  const remotePairing = new PairingStore(join(home, 'remote-pairing.json'), () => false)
-  // Nothing connects to it here; it answers "nobody" and "Disconnect all" turns the setting off, as in the app.
-  const remoteServer = new RemoteServer({
-    homeDir: home, host: 'loopback', appVersion: '0.0.0', registry: new ClientRegistry(), layouts: () => [],
-    turnOff: () => { settings.patch({ remoteAccess: false }) },
+  // The work machine's side, built by the app's own factory: nothing connects to it unless a clause asks,
+  // it answers "nobody", and "Disconnect all" turns the setting off, as in the app.
+  const { remoteServer, remotePairing } = createRemoteServing({
+    homeDir: home, host: 'loopback', appVersion: '0.0.0', pairingFile: join(home, 'remote-pairing.json'), settings, layouts: () => [],
   })
-  remoteServer.subscribe((clients) => { broadcast(IPC.remoteClientsChanged, clients) })
+  // The home side, built by the app's own factory over a stubbed outside world (no ssh, no tailscale).
+  const { hostDirectory, remoteClient } = createRemoteConnecting({
+    homeDir: home, host: 'loopback', appVersion: '0.0.0', vsCodePath: null, sshConfig: undefined,
+    hostsFile: seedRemoteHosts(home), pairingCodesFile: join(home, 'remote-pairing-codes.json'),
+    windowManager: { open: () => ({ number: 9001, webContentsId: 9001, onClosed: () => {} }) },
+  }, loopbackConnectingOutside(home))
   const ipc = registerIpc({
     senderPolicy: UNCHECKED_SENDERS,
-    remoteServer, remotePairing, remoteClient: null,
+    remoteServer, remotePairing, remoteClient,
+    // No auto-import timer and no layout persistence in the loopback: the layout clauses run on e2e.
+    onAutoImportIntervalChange: null, sessionLayoutStore: null, layoutFlushCoordinator: null,
     router: extras.router ?? null,
-    // No ssh, no ~/.ssh/config and no Tailscale here: only recent hosts could ever be listed.
-    hostDirectory: new HostDirectory({
-      file: join(home, 'remote-hosts.json'), homeDir: home, readText: () => null, sshConfig: undefined, now: () => Date.now(),
-      exec: () => Promise.reject(new Error('no tailscale')), probeExec: () => Promise.reject(new Error('no ssh')),
-    }),
+    hostDirectory,
     service,
     chat: service.chat,
     plugins: service.plugins,
@@ -282,6 +284,10 @@ export async function buildLoopbackWorld(
         madeHere += 1
         commitFile(repoRoot, 'local.txt', `a commit made in a terminal (${String(madeHere)})`)
       },
+      remoteClientConnects: async (client) => {
+        await remoteServer.start()
+        homeMachines.push(await RemoteConnection.connect(remoteServer.socketPath, { appVersion: '0.0.0', host: 'loopback', client }))
+      },
       advanceRemote: async () => {
         const mate = mkdtempSync(join(home, 'mate-'))
         cloneInto(remote, mate)
@@ -292,6 +298,9 @@ export async function buildLoopbackWorld(
     },
     cleanup: async () => {
       ipc.dispose()
+      await remoteClient.dispose()
+      for (const machine of homeMachines) machine.close()
+      await remoteServer.stop()
       await service.dispose()
       rmSync(home, { recursive: true, force: true })
       for (const dir of outsideDirs) rmSync(dir, { recursive: true, force: true })

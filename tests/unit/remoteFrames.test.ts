@@ -37,6 +37,13 @@ describe('remote frames', () => {
     expect(new FrameDecoder().push(bytes)).toEqual([hello, { t: 'open', w: 1 }])
   })
 
+  it('handshakeOnly reads JSON frames but refuses to deserialize a V8 one', () => {
+    const decoder = new FrameDecoder()
+    decoder.handshakeOnly = true
+    expect(decoder.push(encodeHandshakeFrame({ t: 'hello' }))).toEqual([{ t: 'hello' }])
+    expect(() => decoder.push(encodeFrame({ t: 'open', w: 1 }))).toThrow(/before the hello/)
+  })
+
   it('refuses a frame of an unknown kind', () => {
     const bad = Buffer.from([0, 0, 0, 2, 9, 0])
     expect(() => new FrameDecoder().push(bad)).toThrow(/Unknown frame kind/)
@@ -64,8 +71,32 @@ describe('remote channel scopes', () => {
     }
   })
 
-  it('the contract fingerprint is stable for one contract', () => {
-    expect(contractHash()).toBe(contractHash())
-    expect(contractHash()).toMatch(/^[0-9a-f]{16}$/)
+  describe('the contract fingerprint', () => {
+    /** Runs `read` with one channel of the contract changed by `change`, then puts it back. */
+    const hashWith = (change: (spec: Record<string, unknown>) => void): string => {
+      const spec = IPC.tree as unknown as Record<string, unknown>
+      const before = { ...spec }
+      try { change(spec); return contractHash() } finally { Object.assign(spec, before) }
+    }
+
+    it('is 16 hex digits, and the same for one contract', () => {
+      expect(contractHash()).toMatch(/^[0-9a-f]{16}$/)
+      expect(contractHash()).toBe(contractHash())
+    })
+
+    it('changes when a channel is renamed, so two builds that disagree about a call refuse each other', () => {
+      expect(hashWith((spec) => { spec.channel = 'apiary:tree-renamed' })).not.toBe(contractHash())
+    })
+
+    it('changes when a channel changes kind', () => {
+      expect(hashWith((spec) => { spec.kind = spec.kind === 'invoke' ? 'send' : 'invoke' })).not.toBe(contractHash())
+    })
+
+    it('changes when a channel is added, and is back to the first value once it is removed', () => {
+      const first = contractHash()
+      Object.assign(IPC, { zzProbe: { kind: 'invoke', channel: 'apiary:zz-probe' } })
+      try { expect(contractHash()).not.toBe(first) } finally { Reflect.deleteProperty(IPC, 'zzProbe') }
+      expect(contractHash()).toBe(first)
+    })
   })
 })

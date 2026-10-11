@@ -631,7 +631,7 @@ button.layout-thumb:hover .layout-zone, button.layout-thumb:focus-visible .layou
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--fg);
+  color: var(--text);
   font: inherit;
   font-size: 12px;
   text-align: left;
@@ -692,12 +692,12 @@ button.layout-thumb:hover .layout-zone, button.layout-thumb:focus-visible .layou
 .folder-browser-bar { display: flex; align-items: center; gap: var(--control-gap); margin-bottom: var(--control-gap); min-width: 0; }
 .folder-browser-crumbs { display: flex; align-items: center; flex: 1; min-width: 0; overflow: hidden; }
 .folder-crumb-item { display: inline-flex; align-items: center; min-width: 0; flex: 0 1 auto; }
-.folder-crumb-sep { color: var(--text-dim); padding: 0 var(--control-gap); flex: none; }
+.folder-crumb-sep { color: var(--muted); padding: 0 var(--control-gap); flex: none; }
 .folder-crumb {
   min-width: 0; max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   padding: 0 var(--control-gap); border: 0; border-radius: var(--radius-sm); background: none; color: inherit; font: inherit;
 }
-button.folder-crumb { cursor: pointer; color: var(--text-dim); }
+button.folder-crumb { cursor: pointer; color: var(--muted); }
 button.folder-crumb:hover:not(:disabled) { background: var(--selected); color: var(--text); }
 .folder-crumb-here { font-weight: 600; }
 .folder-up-icon { width: 1em; height: 1em; flex: none; }
@@ -707,9 +707,9 @@ button.folder-crumb:hover:not(:disabled) { background: var(--selected); color: v
 .folder-row { display: flex; align-items: center; gap: var(--control-gap); height: var(--control-height); padding: 0 var(--control-padding-x); cursor: default; }
 .folder-row:hover { background: var(--selected); }
 .folder-row.selected { background: var(--selected); box-shadow: inset 2px 0 0 var(--accent); }
-.folder-row-icon { width: 1em; height: 1em; flex: none; color: var(--text-dim); }
+.folder-row-icon { width: 1em; height: 1em; flex: none; color: var(--muted); }
 .folder-row-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.folder-browser-note { margin: 0; padding: var(--control-padding-x); color: var(--text-dim); }
+.folder-browser-note { margin: 0; padding: var(--control-padding-x); color: var(--muted); }
 .folder-browser-error { margin: var(--control-gap) 0 0; color: var(--danger); overflow-wrap: anywhere; }
 .folder-start { min-width: 0; max-width: 18em; }
 .folder-start-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

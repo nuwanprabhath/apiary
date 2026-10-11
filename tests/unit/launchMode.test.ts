@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseLaunchMode, shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitWhenNoWindows } from '../../src/main/app/launchMode'
+import { parseLaunchMode, shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitIdleBackground, shouldQuitWhenNoWindows } from '../../src/main/app/launchMode'
 import { parseRuntimeEnv } from '../../src/main/app/env'
 
 describe('launch mode', () => {
@@ -25,6 +25,15 @@ describe('launch mode', () => {
     expect(shouldQuitWhenNoWindows(mode, 'linux')).toBe(true)
     expect(shouldQuitWhenNoWindows(mode, 'win32')).toBe(true)
     expect(shouldQuitWhenNoWindows(mode, 'darwin')).toBe(false)
+  })
+
+  it('a background app quits when remote access is off and no window is open, and only then', () => {
+    const background = parseLaunchMode(['--background'])
+    expect(shouldQuitIdleBackground(background, false, 0)).toBe(true)
+    expect(shouldQuitIdleBackground(background, true, 0)).toBe(false)
+    // A second, normal launch opened a window: the person is using it.
+    expect(shouldQuitIdleBackground(background, false, 1)).toBe(false)
+    expect(shouldQuitIdleBackground(parseLaunchMode([]), false, 0)).toBe(false)
   })
 
   it('a packaged app and a background start hold the single-instance lock; a dev run does not', () => {

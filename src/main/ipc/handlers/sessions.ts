@@ -13,7 +13,7 @@ export interface SessionsDeps {
   /** Shared with `handlers/terminals.ts`'s `renameTerminalInClaude`, so both go through the same
    *  Claude session tracker rather than each keeping their own. */
   renameDeps: () => RenameDeps
-  pickFolder?: (sender: WebContents) => Promise<string | null>
+  pickFolder: ((sender: WebContents) => Promise<string | null>) | null
 }
 
 type HandledKeys =
@@ -40,7 +40,7 @@ export function sessionsHandlers(deps: SessionsDeps): Pick<Handlers, HandledKeys
     // The path comes from the OS dialog, never from the renderer — which is what makes
     // `newSessionInFolder` (any folder, even one new to Apiary) safe to call with it.
     newSessionInPickedFolder: async (e) => {
-      const folder = deps.pickFolder === undefined ? null : await deps.pickFolder(e.sender)
+      const folder = deps.pickFolder === null ? null : await deps.pickFolder(e.sender)
       return folder === null ? null : service.newSessionInFolder(folder)
     },
     searchContent: (_e, query) => service.searchSessions(query),

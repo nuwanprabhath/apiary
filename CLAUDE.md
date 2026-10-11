@@ -97,9 +97,11 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | A path is confined to a directory by real path | `confine-via-real-path`; `tests/unit/confine.test.ts` | `realPathInside` in `main/fs/confine.ts` |
 | Ref names come from git as full refnames; the short form (`%(refname:short)`, `--abbrev-ref`, `symbolic-ref --short`) is never parsed | `no-short-refnames`; `tests/integration/branchOps.test.ts` (a clone with its remote HEAD set) | `listRefsArgs`, `parseRefRows`, `branchFromRef` in `main/git/refs.ts` |
 | Persisted state is written only through `main/fs`; every userData JSON file is a `JsonStore` | `no-raw-state-write`; `tests/unit/architecture/persistedStores.test.ts` | `JsonStore` in `main/fs/jsonStore.ts`; `moveFile` (`main/fs`) for a file that is not app state; list a new file in the test |
+| A remote window's call never acts on the work machine's screen: a handler using `shell`, `dialog`, `clipboard` or `BrowserWindow` is not `remote` | `tests/unit/architecture/remoteScopes.test.ts` | scope it `local`, `bridged` or `unavailable` in `main/remote/scopes.ts` |
 | IPC goes through the contract and registrar | `ipc-through-registrar`; types (a channel with no handler or fake does not compile) | `npm run new -- ipc <name>` |
 | The IPC sender check fails closed (a missing sender frame is rejected); only test harnesses opt out | `IpcDeps.senderPolicy` is required (type); `no-unchecked-senders-in-app`; `tests/unit/ipcRegistrar.test.ts` | pass the `TrustedRendererConfig`; `UNCHECKED_SENDERS` is for tests |
 | Main to renderer events use `broadcast` / `sendEvent` | `send-through-windows`; `EventSpec` types | `main/windows/` helpers |
+| Everything handed to the IPC registrar is required (`X \| null` where it does not exist), so `index.ts` cannot leave one out | `tests/unit/architecture/ipcDepsRequired.test.ts`; types | add the member as `name: T \| null` and pass it in `index.ts` and the test harnesses |
 | Long-lived objects are built in the container; `AppService` stays a facade | `construct-in-container`; `appServiceDelegates` test | `main/app/container.ts` (remote access: `main/app/remoteContainer.ts`); put logic in the owning service |
 | Layers point down (main: app, ipc, services, infra; renderer: features, then state and ui) | dependency-cruiser `main-infra-stays-down`, `main-services-below-ipc`, `main-ipc-below-app`, `renderer-ui-and-state-below-features`, `renderer-features-below-app` | inject the dependency, or move the shared piece down a layer |
 | A handler validates and delegates; no fs, process or store | dependency-cruiser `ipc-handlers-are-adapters` | move the work into a service in `main/<domain>/` |
@@ -133,11 +135,12 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | Renderer-only packages are `devDependencies`; one `@keyframes` name; no raw control bytes | `dependencyPlacement`, `cssKeyframes`, `noControlBytes` tests | move the package; rename the animation; write `\u001b` |
 | What a person sees is not broken: no clipped labels, cut-off controls, overlaps, see-through popups, browser-default controls, bullets in chrome; every class used is styled | UI audit (`tests/component/ui/audit.ts`) in every UI scenario; `classesDefined` test; Stop hook (a renderer change needs a scenario) | a scenario in `tests/component/ui/` with `reviewUi`; `npm run ui:review`; `.claude/skills/ui-review/SKILL.md` |
 | Each `apiary/*` rule still fires | `tests/unit/architecture/sanctionedRules.test.ts` | add a case for a new rule |
+| A CSS variable a stylesheet uses is defined (by a stylesheet, a theme or code) | `tests/unit/architecture/cssVarsDefined.test.ts` | a token from `styles/00-tokens.css` (`--muted`, `--text`, …) |
 | Colour, radius, height, padding, gap come from tokens | stylelint `declaration-property-value-disallowed-list` | `--radius-*`, `--control-*`, the `.btn` layer ([`src/renderer/CLAUDE.md`](src/renderer/CLAUDE.md)) |
 | File and function size (400 / 120 lines) | ESLint `max-lines`, `max-lines-per-function` | split by responsibility |
 | Tests wait on conditions and import `@shared/` | `no-test-sleep`, `shared-alias-in-tests` | `vi.waitFor`, `expect.poll`, `stays` for "nothing happens"; the alias |
 | No dead code; docs name real paths, symbols and links; a disable comment says why | knip ratchet (`npm run lint:dead`); `scripts/check-doc-refs.mjs` (`npm run lint:md`); `reportUnusedDisableDirectives` | delete it; fix the doc; add `-- <reason>` |
-| Lint on each edit; no stop with a red typecheck or lint | `.claude/hooks/lint-edited.mjs`, `.claude/hooks/definition-of-done.mjs` | fix what it prints |
+| Lint on each edit; no stop with a red typecheck or lint; the Stop hook runs every step of `npm run lint` | `.claude/hooks/lint-edited.mjs`, `.claude/hooks/definition-of-done.mjs`, `tests/unit/architecture/stopHookCoversLint.test.ts` | fix what it prints; a new lint step gets its counterpart in the hook |
 | Commit hygiene | `.husky/pre-commit` (lint-staged), `.husky/commit-msg` (commitlint, no AI attribution), `.husky/pre-push` (typecheck, lint, `test:unit`) | fix, never `--no-verify` |
 
 ## Judgment calls

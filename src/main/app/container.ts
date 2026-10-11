@@ -58,7 +58,7 @@ import type { RemoteClientsFeed } from '../statusBar/remoteClients'
 import type { RemoteWindows } from '../remote/remoteWindows'
 import type { RemoteClientService } from '../remote/remoteClientService'
 import type { HostDirectory } from '../remote/hostDirectory'
-import { createRemoteConnecting, createRemoteServing } from './remoteContainer'
+import { createRemoteConnecting, createRemoteServing, realConnectingOutside } from './remoteContainer'
 import type { VirtualContentsRegistry } from '../remote/virtualContents'
 import { IPC } from '@shared/api'
 import type { RuntimeEnv } from './env'
@@ -447,7 +447,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   const { remoteWindows, hostDirectory, remoteClient } = createRemoteConnecting({
     homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion, vsCodePath: inputs.vsCodePath,
     sshConfig: env.sshConfig, hostsFile: paths.remoteHostsFile, pairingCodesFile: paths.remotePairingCodesFile, windowManager,
-  })
+  }, realConnectingOutside(inputs.host))
   const updater = createUpdater(settingsService, env, inputs.macSigned)
   // One runner per kind of call, over whichever `claude` is configured at the time it runs.
   const makeRunner = (): ClaudeOneShot => new ClaudeOneShot({ claudeBin: () => service.claudeBin })

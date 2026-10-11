@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { pairingErrorMessage, type RemoteHost } from '@shared/domain/remote'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
+import { expectConsoleError } from './setup'
 import { stays, until } from './helpers'
 import type { FakeApiary } from './fakeApiary'
 import { fakePet } from './fake/pets'
@@ -24,9 +25,9 @@ async function openDialog(fake: FakeApiary): Promise<void> {
 }
 
 /** Mounts the app as main opens a remote window: with `remote=<host>` (and a custom bar) in its URL. */
-async function renderRemote(host: string): ReturnType<typeof renderApp> {
+async function renderRemote(host: string, arrange?: (fake: FakeApiary) => void): ReturnType<typeof renderApp> {
   history.replaceState(null, '', `${location.pathname}?chrome=custom&remote=${host}`)
-  return renderApp()
+  return renderApp({}, arrange)
 }
 
 afterEach(() => { history.replaceState(null, '', location.pathname) })
@@ -196,6 +197,61 @@ describe('the connect dialog', () => {
     })
   })
 
+  describe('Escape while a connect runs', () => {
+    const toasts = (): string => [...document.querySelectorAll('[data-testid="notification"]')].map((n) => n.textContent).join('\n')
+    /** A `remoteConnect` (or start) that the test settles later. */
+    const held = (): { promise: Promise<void>; resolve: () => void; reject: (e: Error) => void } => {
+      let resolve = (): void => undefined
+      let reject = (_e: Error): void => undefined
+      const promise = new Promise<void>((res, rej) => { resolve = res; reject = rej })
+      return { promise, resolve, reject }
+    }
+
+    it('closes the dialog, and a connect that then fails is told in a notification, not lost', async () => {
+      const { fake } = await renderApp()
+      const connect = held()
+      fake.override('remoteConnect', () => connect.promise)
+      await openDialog(fake)
+      await userEvent.fill(page.getByTestId('remote-host'), 'work-box')
+      await userEvent.click(page.getByTestId('remote-connect'))
+      await expect.element(page.getByTestId('remote-connect')).toHaveTextContent('Connecting…')
+      await userEvent.keyboard('{Escape}')
+      await until(() => dialog() === null)
+      connect.reject(new Error('Permission denied (publickey).'))
+      await until(() => toasts().includes('Permission denied (publickey).'))
+      expect(toasts()).toContain('Could not connect to work-box')
+    })
+
+    it('says nothing when the connect that was cancelled then succeeds (its window opens)', async () => {
+      const { fake } = await renderApp()
+      const connect = held()
+      fake.override('remoteConnect', () => connect.promise)
+      await openDialog(fake)
+      await userEvent.fill(page.getByTestId('remote-host'), 'work-box')
+      await userEvent.click(page.getByTestId('remote-connect'))
+      await userEvent.keyboard('{Escape}')
+      await until(() => dialog() === null)
+      connect.resolve()
+      await stays(() => toasts() === '', 150, 'no notification for a success')
+    })
+
+    it('does the same for "Start Apiary and connect": a later failure is told', async () => {
+      const { fake } = await renderApp()
+      const start = held()
+      fake.override('remoteStartAndConnect', () => start.promise)
+      fake.state.remoteHosts = [{ name: 'work-box', source: 'recent', status: 'stopped', checkedAt: 1 }]
+      await openDialog(fake)
+      await until(() => document.querySelectorAll('[data-testid="remote-host-row"]').length === 1)
+      await userEvent.dblClick(document.querySelector('[data-testid="remote-host-row"]') as Element)
+      await userEvent.click(page.getByTestId('remote-start'))
+      await expect.element(page.getByTestId('remote-offer-starting')).toBeVisible()
+      await userEvent.keyboard('{Escape}')
+      await until(() => dialog() === null)
+      start.reject(new Error('Could not start Apiary on work-box.'))
+      await until(() => toasts().includes('Could not start Apiary on work-box.'))
+    })
+  })
+
   describe('the pairing code', () => {
     const pairingField = (): HTMLInputElement | null => document.querySelector<HTMLInputElement>('[data-testid="remote-pairing"]')
     const tryConnect = async (fake: FakeApiary, error: string): Promise<void> => {
@@ -215,6 +271,26 @@ describe('the connect dialog', () => {
       expect(document.querySelector('[data-testid="remote-error"]')).toBeNull()
       expect(document.querySelector('[data-testid="remote-pairing-unsaved"]')).toBeNull()
       expect(connectButton().disabled).toBe(true)
+    })
+
+    it('takes focus when it appears and again when the code was wrong (busy had dropped focus to the page)', async () => {
+      const { fake } = await renderApp()
+      await openDialog(fake)
+      await tryConnect(fake, pairingErrorMessage('pairing-required', 'work-box'))
+      await expect.element(page.getByTestId('remote-pairing')).toHaveFocus()
+      fake.state.remoteConnectError = pairingErrorMessage('pairing-wrong', 'work-box')
+      await userEvent.fill(page.getByTestId('remote-pairing'), 'KMNP-2345')
+      await userEvent.click(page.getByTestId('remote-connect'))
+      await until(() => document.querySelector('[data-testid="remote-pairing-ask"]')?.textContent?.includes('not the pairing code') === true)
+      await expect.element(page.getByTestId('remote-pairing')).toHaveFocus()
+    })
+
+    it('does not label the checking dot (it has no role, so a label would be ignored)', async () => {
+      const { fake } = await renderApp()
+      fake.state.remoteHosts = [{ name: 'work-box', source: 'recent', status: 'unknown' }]
+      await openDialog(fake)
+      await until(() => document.querySelector('[data-testid="remote-host-row"]') !== null)
+      expect(document.querySelector('[data-testid="remote-host-row"] [aria-label]')).toBeNull()
     })
 
     it('is sent with Connect, and only a well-formed code enables it', async () => {
@@ -305,6 +381,55 @@ describe('a remote window', () => {
     await userEvent.click(page.getByTestId('remote-reconnect'))
     await expect.element(page.getByTestId('remote-banner-message')).toHaveTextContent('Permission denied (publickey).')
     expect(fake.state.remoteConnects).toEqual(['work-box'])
+  })
+
+  it('a fault in the banner shows a compact strip, not a crash pane, and the window stays', async () => {
+    expectConsoleError(/Objects are not valid as a React child/)
+    const { fake } = await renderRemote('work-box')
+    fake.emit('remoteStatus', { state: 'reconnecting', host: {} as never })
+    await expect.element(page.getByTestId('crash-strip')).toBeVisible()
+    expect(document.querySelector('[data-testid="crash-pane"]')).toBeNull()
+    await expect.element(page.getByTestId('sidebar')).toBeVisible()
+  })
+
+  it('a fault in the connect dialog shows a dialog fallback that closes', async () => {
+    expectConsoleError(/DELIBERATE_REMOTE_DIALOG_CRASH/)
+    const { fake } = await renderApp()
+    // The dialog focuses its host field as it opens; that step throwing is a fault inside the dialog.
+    // (A malformed host can no longer get in: the fake checks what main sends against the contract.)
+    // Other focus calls in that moment are skipped; the spy is gone once the fallback shows.
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
+      if (this.matches('[data-testid="remote-host"]')) throw new Error('DELIBERATE_REMOTE_DIALOG_CRASH')
+    })
+    onTestFinished(() => { focus.mockRestore() })
+    fake.emit('openRemoteDialog')
+    await expect.element(page.getByTestId('dialog-crash')).toBeVisible()
+    focus.mockRestore()
+    expect(document.querySelector('[data-testid="crash-pane"]')).toBeNull()
+    await expect.element(page.getByTestId('sidebar')).toBeVisible()
+    await userEvent.click(page.getByTestId('dialog-crash-close'))
+    await until(() => document.querySelector('[data-testid="dialog-crash"]') === null)
+  })
+
+  it('keeps the live region still while the attempt counter ticks (a screen reader must not re-read it)', async () => {
+    const { fake } = await renderRemote('work-box')
+    const live = (): string => document.querySelector('[data-testid="remote-banner"] [role="status"]')?.textContent ?? ''
+    fake.emit('remoteStatus', { state: 'reconnecting', host: 'work-box', message: 'The connection dropped.', attempt: 1 })
+    await until(() => live() !== '')
+    const first = live()
+    expect(first).toBe('Reconnecting to work-box…')
+    fake.emit('remoteStatus', { state: 'reconnecting', host: 'work-box', message: 'The connection dropped.', attempt: 2 })
+    await until(() => document.querySelector('[data-testid="remote-banner"]')?.textContent?.includes('attempt 2') === true)
+    expect(live()).toBe(first)
+    expect(document.querySelector('[data-testid="remote-banner-attempt"]')?.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('shows the banner of a connection that dropped before this page loaded (a reload asks main)', async () => {
+    await renderRemote('work-box', (fake) => {
+      fake.state.remoteStatus = { state: 'disconnected', host: 'work-box', message: 'The connection dropped.' }
+    })
+    await until(() => document.querySelector('[data-testid="remote-banner"]')?.textContent?.includes('Disconnected from work-box.') === true)
+    await expect.element(page.getByTestId('remote-reconnect')).toBeVisible()
   })
 
   it('shows the reconnecting banner, then fetches the tree and a terminal snapshot again once connected', async () => {

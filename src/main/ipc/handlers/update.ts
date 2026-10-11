@@ -6,7 +6,7 @@ import type { Handlers } from '../registrar'
 
 export interface UpdateDeps {
   settings: SettingsService
-  updater?: UpdateService | null
+  updater: UpdateService | null
 }
 
 type HandledKeys =

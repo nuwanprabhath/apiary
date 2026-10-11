@@ -119,7 +119,9 @@ export const CHANNEL_SCOPES = {
   // hears the work machine's instead.
   pluginBarItems: 'remote',
   pluginBarRefresh: 'remote',
-  pluginRunAction: 'remote',
+  // The item carries its own URL (checked for http(s) in the handler), so opening it needs nothing
+  // of the work machine's: it opens in the browser of the person at home.
+  pluginRunAction: 'local',
   pluginsChanged: 'remote',
   pluginList: 'local',
 
@@ -129,7 +131,8 @@ export const CHANNEL_SCOPES = {
   reportTabs: 'remote',
   activeTabs: 'remote',
   activeTabsChanged: 'remote',
-  focusTab: 'remote',
+  // Raises the work machine's own window holding the tab, on a screen nobody at home sees.
+  focusTab: 'unavailable',
   selectTab: 'remote',
   tabAdopt: 'remote',
   tabClaimed: 'remote',
@@ -192,6 +195,7 @@ export const CHANNEL_SCOPES = {
   remoteStartAndConnect: 'local',
   openRemoteDialog: 'local',
   remoteStatus: 'local',
+  remoteStatusNow: 'local',
   remoteHosts: 'local',
   remoteHostsChanged: 'local',
   remoteClients: 'local',
@@ -220,7 +224,10 @@ export const CHANNEL_SCOPES = {
 export const UNAVAILABLE_MESSAGE = 'Not available in a remote window yet.'
 
 /** The `unavailable` channels that answer a value instead of refusing: the renderer only asks whether it can. */
-export const UNAVAILABLE_ANSWERS: Partial<Record<IpcKey, unknown>> = {}
+export const UNAVAILABLE_ANSWERS: Partial<Record<IpcKey, unknown>> = {
+  // A click on an Active row of another work-machine window does nothing rather than show an error.
+  focusTab: undefined,
+}
 
 export function scopeOf(key: IpcKey): ChannelScope {
   return CHANNEL_SCOPES[key]

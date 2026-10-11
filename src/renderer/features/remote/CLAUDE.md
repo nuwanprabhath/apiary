@@ -4,9 +4,15 @@ Read with root CLAUDE.md and `docs/proposals/2026-10-10-remote-access.md`. The w
 remote access: the work machine is somewhere else, main runs ssh and opens its window.
 
 - `RemoteView` (mounted by `RemoteRoot` in `App`, below the title bar) owns the `openRemoteDialog`
-  event, the `remoteStatus` event and `document.title`. The dialog works in any window; the banner
-  and the title only in a remote window (`remoteHost()` in `state/windowParams.ts`, from `remote=` in
-  the URL).
+  event and `document.title`, and reads the connection status from `state/remoteStatusStore.ts` (one
+  `createIpcStore`: `remoteStatusNow` on mount, so a reloaded window still shows its banner, then
+  `remoteStatus`; `onRemoteReconnected` in `state/remote.ts` follows the same store). The dialog works
+  in any window; the banner and the title only in a remote window (`remoteHost()` in
+  `state/windowParams.ts`, from `remote=` in the URL). The banner sits in an `ErrorBoundary compact`,
+  the dialog in a `DialogBoundary` (`features/dialogs`).
+- Escape closes the connect dialog even while a connect runs, and that is a cancel to the person: a
+  later success only opens (and focuses) the window they asked for, a later failure is a notification
+  (`surfaceLateRemoteFailure`), never written into the gone dialog (`useStillOpen`).
 - `RemoteDialog`: one host field checked with the contract's own `isRemoteHost`; the "Hosts" list is main's
   (`main/remote/hostDirectory.ts`: recent, ssh config, Tailscale, each with a probed status):
   opening the dialog asks `loadRemoteHosts(true)` and rows update on `remoteHostsChanged`; a click

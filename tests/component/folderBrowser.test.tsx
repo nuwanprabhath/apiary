@@ -1,6 +1,12 @@
+import type { JSX } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
+import type { NewSessionInfo } from '@shared/domain/session'
+import { useFolderBrowserRequest } from '../../src/renderer/features/folderBrowser'
+import { NotificationProvider } from '../../src/renderer/ui/notifications'
 import { renderApp } from './renderApp'
+import { mountUi } from './mountUi'
+import { expectConsoleError } from './setup'
 import { until } from './helpers'
 
 async function rightClick(el: Element): Promise<void> {
@@ -95,6 +101,25 @@ describe('the folder browser in a remote window', () => {
     // The folder is the one shown (the fake starts in `/fixture/<path>`), which the label names.
     await expect.element(page.getByTestId('terminal-session')).toBeVisible()
     expect(document.body.textContent).toContain('work-a')
+  })
+
+  it('a fault in a row shows a dialog fallback that closes, the window stays, and the request settles with null', async () => {
+    expectConsoleError(/Cannot read properties of null/)
+    const { fake } = await renderApp()
+    fake.override('folderBrowseOpen', async () => ({ id: 'b-1', crumbs: ['~'], entries: [null as never], atRoot: true }))
+    const results: Array<NewSessionInfo | null> = []
+    function Probe(): JSX.Element {
+      const { request, element } = useFolderBrowserRequest('work-box')
+      return <><button data-testid="probe" onClick={() => { void request().then((r) => { results.push(r) }) }} />{element}</>
+    }
+    await mountUi(<NotificationProvider><Probe /></NotificationProvider>)
+    await userEvent.click(page.getByTestId('probe'))
+    await expect.element(page.getByTestId('dialog-crash')).toBeVisible()
+    expect(document.querySelector('[data-testid="crash-pane"]')).toBeNull()
+    expect(results).toEqual([])
+    await userEvent.click(page.getByTestId('dialog-crash-close'))
+    await until(() => document.querySelector('[data-testid="dialog-crash"]') === null)
+    expect(results).toEqual([null])
   })
 
   it('shows a refusal inline and keeps the list', async () => {

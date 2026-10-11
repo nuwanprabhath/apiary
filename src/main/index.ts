@@ -34,7 +34,7 @@ import { fireAndForget } from './log/fireAndForget'
 import type { WindowManager } from './windows/windowManager'
 import { installQuitDeferral } from './app/lifecycle'
 import { sendEvent } from './windows/sendEvent'
-import { shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitWhenNoWindows } from './app/launchMode'
+import { shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitIdleBackground, shouldQuitWhenNoWindows } from './app/launchMode'
 
 const dirname = fileURLToPath(new URL('.', import.meta.url))
 
@@ -76,13 +76,15 @@ process.on('uncaughtException', (error) => {
 
 let service: AppService | null = null
 let disposeIpc: (() => void) | null = null
-let disposeRemote: (() => void) | null = null
+let disposeRemote: (() => Promise<void>) | null = null
+/** Quits a background-started app with no window and remote access off; set once remote access starts. */
+let quitIfIdleBackground: () => void = () => {}
 
 /**
  * Runs the remote-access server while the "Allow remote access over SSH" setting is on: started
  * now if it is, and started or stopped as the setting changes. Returns the disposer for quit.
  */
-function startRemoteAccess(container: Container, dispatcher: Dispatcher): () => void {
+function startRemoteAccess(container: Container, dispatcher: Dispatcher): () => Promise<void> {
   const { remoteServer, virtualContents, settingsService: settings } = container
   remoteServer.attachDispatcher(dispatcher)
   container.hostDirectory.start()
@@ -91,18 +93,27 @@ function startRemoteAccess(container: Container, dispatcher: Dispatcher): () => 
   const apply = (on: boolean): void => {
     fireAndForget(on ? remoteServer.start() : remoteServer.stop(), 'remote')
   }
+  // A background start with remote access off has no window and no server: nothing would show it is running.
+  quitIfIdleBackground = (): void => {
+    const remoteAccess = settings.get().remoteAccess
+    if (!shouldQuitIdleBackground(launchMode, remoteAccess, BrowserWindow.getAllWindows().length)) return
+    log.info('remote', 'background start with remote access off and no window; quitting')
+    app.quit()
+  }
   if (settings.get().remoteAccess) apply(true)
+  else quitIfIdleBackground()
   const unsubscribe = settings.onChange((next, prev) => {
-    if (next.remoteAccess !== prev.remoteAccess) apply(next.remoteAccess)
+    if (next.remoteAccess === prev.remoteAccess) return
+    apply(next.remoteAccess)
+    quitIfIdleBackground()
   })
-  return () => {
+  return async () => {
     unsubscribe()
     disposeTargets()
     disposeSkip()
-    fireAndForget(remoteServer.stop(), 'remote')
-    // Every ssh this app started stops with it.
-    fireAndForget(container.remoteClient.dispose(), 'remote')
     container.hostDirectory.dispose()
+    // Waited for: the socket and the /tmp directories are removed before the process exits.
+    await Promise.all([remoteServer.stop(), container.remoteClient.dispose()])
   }
 }
 /** File → Open Remote Session → Other Host…: the front window shows the dialog; with no window (macOS keeps the app alive without one), a new one does once its page has loaded. */
@@ -303,8 +314,8 @@ async function start(): Promise<void> {
       store: container.petStore,
       service: container.petService,
       actions: (keys) => container.service.latestActions(keys),
-      ...(env.petExportPath !== undefined ? { exportPath: env.petExportPath } : {}),
-      ...(env.petImportPath !== undefined ? { importPath: env.petImportPath } : {}),
+      exportPath: env.petExportPath ?? null,
+      importPath: env.petImportPath ?? null,
     },
   })
   resetTheme = ipc.resetTheme
@@ -442,11 +453,12 @@ async function shutdown(): Promise<void> {
     // reason quitting is deferred at all.
     sessionWatcher?.dispose()
     disposeIpc?.()
-    disposeRemote?.()
+    await disposeRemote?.()
     await service?.dispose()
   }
 }
 
 app.on('window-all-closed', () => {
   if (shouldQuitWhenNoWindows(launchMode, process.platform)) app.quit()
+  else quitIfIdleBackground()
 })

@@ -192,6 +192,38 @@ describe('RemoteClientService', () => {
     })
   })
 
+  describe('connects at once', () => {
+    it('a second connect to a host still connecting awaits the first: one tunnel, one window set', async () => {
+      const s = setup()
+      await Promise.all([s.service.connect('work-box'), s.service.connect('work-box')])
+      expect(s.startTunnel).toHaveBeenCalledTimes(1)
+      expect(s.openWindow).toHaveBeenCalledTimes(2)
+    })
+
+    it('dispose stops a connect still establishing, and it leaves no session', async () => {
+      let release!: () => void
+      const exec = vi.fn(() => new Promise<string>((r) => { release = () => { r('/home/me\n') } }))
+      const s = setup({ exec })
+      const connecting = s.service.connect('work-box')
+      const disposing = s.service.dispose()
+      await vi.waitFor(() => { expect(release).toBeTypeOf('function') })
+      release()
+      await expect(connecting).rejects.toThrow()
+      await disposing
+      expect(s.openWindow).not.toHaveBeenCalled()
+      expect(s.removeDir).toHaveBeenCalledWith('/tmp/apiary-x')
+    })
+
+    it('dispose stops the tunnel of a connect waiting for its socket', async () => {
+      const s = setup({ socketExists: () => false, pollMs: 1 })
+      const connecting = s.service.connect('work-box')
+      await vi.waitFor(() => { expect(s.startTunnel).toHaveBeenCalled() })
+      await s.service.dispose()
+      await expect(connecting).rejects.toThrow()
+      expect(s.tunnel.stopFn).toHaveBeenCalled()
+    })
+  })
+
   describe('when the connection drops', () => {
     const dropped = async (over: Partial<RemoteClientDeps> = {}) => {
       vi.useFakeTimers()
@@ -202,6 +234,19 @@ describe('RemoteClientService', () => {
       return s
     }
     afterEach(() => { vi.useRealTimers() })
+
+    it('reconnects when the host typed differs from the name the work machine gives itself', async () => {
+      vi.useFakeTimers()
+      const s = setup()
+      await s.service.connect('work-box.tail1.ts.net')
+      // The connection says "work-box" (the server's hostname()), not what was typed.
+      s.drop([7, 8], 'work-box', 'Disconnected from work-box')
+      expect(s.statuses[0]?.[1].state).toBe('reconnecting')
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(s.connectFn).toHaveBeenCalledTimes(2)
+      await s.service.connect('work-box.tail1.ts.net')
+      expect(s.focusWindow).toHaveBeenCalled()
+    })
 
     it('sends reconnecting and retries on the backoff schedule', async () => {
       const { statuses, connectFn, exec } = await dropped()

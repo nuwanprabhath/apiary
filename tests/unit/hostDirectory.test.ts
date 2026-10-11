@@ -72,6 +72,21 @@ function rig(over: Partial<HostDirectoryDeps> & { sshConfig?: string; probe?: (h
   return { dir: new HostDirectory(deps), probes, release: () => undefined, calls, deps }
 }
 
+describe('a probe that finishes late', () => {
+  it('never replaces a newer result: "ready" from connected() beats an older, slower "unreachable"', async () => {
+    let fail!: () => void
+    const r = rig({ probe: () => new Promise<string>((_resolve, reject) => { fail = () => { reject(new Error('Connection refused')) } }) })
+    r.dir.probe(['box'])
+    await vi.waitFor(() => { expect(fail).toBeTypeOf('function') })
+    r.dir.connected('box')
+    fail()
+    await vi.waitFor(() => { expect(r.dir.snapshot()[0]).toMatchObject({ name: 'box' }) })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(r.dir.snapshot()[0]).toMatchObject({ name: 'box', status: 'ready' })
+  })
+})
+
 describe('the merged list', () => {
   it('lists recent hosts first (newest first), then ssh config, then Tailscale, without repeats', async () => {
     const tailscale = JSON.stringify({ Peer: { a: { DNSName: 'ts-box.net.', Online: true }, b: { DNSName: 'cfg-b.', Online: true } } })

@@ -74,7 +74,10 @@ handlers that need it. A new IPC call: `npm run new -- ipc <name>`.
 `app/container.ts` is the one place long-lived main-process objects are constructed, with
 `app/remoteContainer.ts` holding remote access's part of it (the construct-in-container lint rule
 allows those two; the one other exception is the search worker's own `SearchIndex`, on its own
-thread). `createContainer(env, paths, inputs)` builds the windows, settings, updater,
+thread). `createRemoteConnecting` takes the outside world it reaches (ssh, the `tailscale` CLI, the
+keychain) as one required `ConnectingOutside`, so the contract loopback stubs only that and runs the
+same wiring. Everything `registerIpc` is handed is required (`X | null` where it does not exist):
+`tests/unit/architecture/ipcDepsRequired.test.ts`. `createContainer(env, paths, inputs)` builds the windows, settings, updater,
 themes, pets and the watcher, and calls `createServices(options)` for the session side, so a test
 builds the same graph around a temp directory (`tests/fixtures/buildService.ts`). Construction is
 pure — no window, timer, poll or refresh; `index.ts` resolves what needs Electron and starts things

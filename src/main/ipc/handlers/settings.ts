@@ -13,8 +13,8 @@ export interface SettingsDeps {
   service: AppService
   plugins: PluginService
   settings: SettingsService
-  updater?: UpdateService | null
-  onAutoImportIntervalChange?: (intervalMinutes: number | null) => void
+  updater: UpdateService | null
+  onAutoImportIntervalChange: ((intervalMinutes: number | null) => void) | null
 }
 
 type HandledKeys = 'settingsGet' | 'settingsSet'

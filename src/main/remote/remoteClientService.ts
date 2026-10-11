@@ -1,6 +1,7 @@
 import { pairingError, pairingErrorMessage, type RemoteStatus } from '@shared/domain/remote'
 import { errorMessage } from '@shared/errors'
 import { isRecord } from '@shared/guards'
+import { ignoreErrorsAsync } from '@shared/ignoreErrors'
 import { log } from '../log/logger'
 import { fireAndForget } from '../log/fireAndForget'
 import type { ExecFn } from '../exec/run'
@@ -99,11 +100,20 @@ const NOT_ACCEPTING = (host: string): string =>
  */
 export class RemoteClientService {
   private readonly sessions = new Map<string, Session>()
+  /** A connect still establishing, by the host typed; a second connect to it awaits this one. Cleared when it settles. */
+  private readonly pending = new Map<string, Promise<void>>()
+  /** Tunnels of connects that have not finished, so `dispose` can stop them. */
+  private readonly starting = new Set<SshTunnel>()
+  private disposed = false
+  /** The last status each local window was sent. Invalidated by the window closing (`openWindow`'s `onClosed`). */
+  private readonly lastStatus = new Map<number, RemoteStatus>()
 
   constructor(private readonly deps: RemoteClientDeps) {
-    deps.windows.onDisconnected((ids, host, reason) => {
-      const session = this.sessions.get(host)
-      if (session === undefined || !ids.some((id) => session.windows.has(id))) {
+    deps.windows.onDisconnected((ids, serverName, reason) => {
+      // The connection's host is the work machine's own name; sessions are keyed by what was typed.
+      const session = [...this.sessions.values()].find((s) => ids.some((id) => s.windows.has(id)))
+      const host = session?.host ?? serverName
+      if (session === undefined) {
         log.info('remote', 'disconnected', { host })
         for (const id of ids) this.deps.sendStatus(id, { state: 'disconnected', host, message: reason })
         return
@@ -124,10 +134,28 @@ export class RemoteClientService {
       if (first !== undefined) this.deps.focusWindow(first)
       return
     }
+    const inFlight = this.pending.get(host)
+    if (inFlight !== undefined) return inFlight
+    const run = this.connectNew(host, typedCode)
+    this.pending.set(host, run)
+    try {
+      await run
+    } finally {
+      if (this.pending.get(host) === run) this.pending.delete(host)
+    }
+  }
+
+  private async connectNew(host: string, typedCode: string | undefined): Promise<void> {
     log.info('remote', 'connect start', { host })
     try {
+      if (this.disposed) throw new Error('Apiary is quitting.')
       const code = this.codeFor(host, typedCode)
       const link = await this.establish(host, code)
+      if (this.disposed) {
+        link.connection.close()
+        await this.cleanup(link.dir, link.tunnel)
+        throw new Error('Apiary is quitting.')
+      }
       if (typedCode !== undefined) this.deps.pairingCodes?.save(host, typedCode)
       const session: Session = { host, link, pairing: code.code, windows: new Map(), stopped: false, reconnecting: false, lostReason: null, cancelSleep: null }
       this.sessions.set(host, session)
@@ -174,6 +202,10 @@ export class RemoteClientService {
 
   /** On quit: every ssh stops. */
   async dispose(): Promise<void> {
+    this.disposed = true
+    const settling = [...this.pending.values()].map((p) => ignoreErrorsAsync(() => p, 'the caller of connect hears why it failed; dispose only waits'))
+    await Promise.all([...this.starting].map((t) => t.stop()))
+    await Promise.all(settling)
     await Promise.all([...this.sessions.values()].map((s) => this.teardown(s)))
   }
 
@@ -186,12 +218,15 @@ export class RemoteClientService {
       dir = await this.deps.makeTempDir()
       const local = `${dir}/s`
       tunnel = this.deps.startTunnel(forwardFlags(local, `${home}/.apiary/remote.sock`, this.deps.sshConfig), host, dir)
+      this.starting.add(tunnel)
       await this.waitForSocket(local, tunnel, host)
       const connection = await this.reach(local, host, code)
       return { dir, tunnel, connection }
     } catch (error) {
       await this.cleanup(dir, tunnel)
       throw error
+    } finally {
+      if (tunnel !== null) this.starting.delete(tunnel)
     }
   }
 
@@ -273,6 +308,7 @@ export class RemoteClientService {
       created.onClosed(() => {
         this.deps.windows.unbind(created.webContentsId)
         session.windows.delete(created.webContentsId)
+        this.lastStatus.delete(created.webContentsId)
         if (session.windows.size === 0) fireAndForget(this.teardown(session), 'remote')
       })
     }
@@ -323,7 +359,12 @@ export class RemoteClientService {
   }
 
   private sendAll(session: Session, status: RemoteStatus): void {
-    for (const id of session.windows.keys()) this.deps.sendStatus(id, status)
+    for (const id of session.windows.keys()) { this.lastStatus.set(id, status); this.deps.sendStatus(id, status) }
+  }
+
+  /** What the window `webContentsId` was last told, so a reloaded window can ask instead of waiting; null for a window that is not a remote one. */
+  statusFor(webContentsId: number): RemoteStatus | null {
+    return this.lastStatus.get(webContentsId) ?? null
   }
 
   private sleep(session: Session, ms: number): Promise<void> {

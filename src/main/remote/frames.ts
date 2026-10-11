@@ -41,13 +41,20 @@ export function encodeHandshakeFrame(message: unknown): Buffer {
 /**
  * Collects chunks as they arrive and hands out each complete message. A chunk may hold part of a
  * frame, several frames, or both; `push` returns every message completed by it, in order.
+ * While `handshakeOnly` is set a V8 frame is an error: nothing is deserialized before the hello is
+ * accepted. `decode` yields one message at a time, so the caller can clear the flag between two
+ * frames of one chunk.
  */
 export class FrameDecoder {
   private buffer: Buffer = Buffer.alloc(0)
+  handshakeOnly = false
 
   push(chunk: Buffer): unknown[] {
+    return [...this.decode(chunk)]
+  }
+
+  *decode(chunk: Buffer): Generator<unknown> {
     this.buffer = this.buffer.length === 0 ? chunk : Buffer.concat([this.buffer, chunk])
-    const out: unknown[] = []
     while (this.buffer.length >= 4) {
       const length = this.buffer.readUInt32BE(0)
       if (length > MAX_FRAME_BYTES) throw new Error(`Frame too large (${String(length)} bytes); closing the connection.`)
@@ -55,11 +62,14 @@ export class FrameDecoder {
       if (length < 1) throw new Error('Empty frame; closing the connection.')
       const kind = this.buffer.readUInt8(4)
       const body = this.buffer.subarray(5, 4 + length)
-      if (kind === V8) out.push(deserialize(body))
-      else if (kind === JSON_KIND) out.push(JSON.parse(body.toString('utf8')))
+      let message: unknown
+      if (kind === V8) {
+        if (this.handshakeOnly) throw new Error('A V8 frame before the hello; closing the connection.')
+        message = deserialize(body)
+      } else if (kind === JSON_KIND) message = JSON.parse(body.toString('utf8'))
       else throw new Error(`Unknown frame kind ${String(kind)}; closing the connection.`)
       this.buffer = this.buffer.subarray(4 + length)
+      yield message
     }
-    return out
   }
 }

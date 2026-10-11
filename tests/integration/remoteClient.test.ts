@@ -65,6 +65,7 @@ describe('RemoteClientService against a real RemoteServer', () => {
     windows = new RemoteWindows(() => ({ isDestroyed: () => false, send: (channel: string, ...args: unknown[]) => { heard.push([channel, ...args]) } }))
     server = new RemoteServer({
       homeDir: home, host: 'work-box', appVersion: VERSION, registry: new VirtualContentsRegistry(), layouts: () => [],
+      pairing: { required: () => false, code: () => '' }, turnOff: () => {},
     })
     server.attachDispatcher(createDispatcher({}, { ptyAttach: (event, id) => { attached.push({ id, sender: (event as { sender: Sender }).sender }) } }))
     await server.start()

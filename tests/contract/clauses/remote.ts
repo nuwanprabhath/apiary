@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ReportedTab } from '@shared/domain/tabs'
 import { STANDARD_SESSIONS as STD } from '../../fixtures/standard'
 import { UNAVAILABLE_MESSAGE } from '../../../src/main/remote/scopes'
@@ -46,7 +46,11 @@ export function defineRemoteClauses(ctx: Ctx): void {
 
     it('reports its tabs without the work machine listing them: it has no window number there', async () => {
       const tab: ReportedTab = { key: STD.csv.id, view: 'transcript', ptyId: null, label: null }
+      const sentAtWork = (): unknown[] => (ctx.bridge.remote?.sentToWorkMachine() ?? []).filter((s) => s.key === 'reportTabs').map((s) => s.args)
       ctx.api.reportTabs([tab])
+      // It does cross to the work machine (which files it under no window number)...
+      await vi.waitFor(() => { expect(sentAtWork()).toEqual([[[tab]]]) })
+      // ...and is not listed there.
       expect(await ctx.api.activeTabs()).toEqual([])
     })
   })

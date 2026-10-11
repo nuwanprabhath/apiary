@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { IPC, type InvokeKey, type IpcKey, type SendKey } from '@shared/ipc/contract'
 import { errorMessage } from '@shared/errors'
 import { isRecord } from '@shared/guards'
+import { ignoreErrorsAsync } from '@shared/ignoreErrors'
 import { log } from '../log/logger'
 import type { Dispatcher } from '../ipc/registrar'
 import type { WindowLayoutRecord } from '../windows/sessionLayoutStore'
@@ -33,9 +34,9 @@ export interface RemoteServerDeps {
   vscode?: Pick<VsCodeService, 'resolveFolder' | 'resolveMentionedFile'>
   helloTimeoutMs?: number
   /** The optional pairing code: asked for only while `required()`; `code()` is its stored (no dash) form. */
-  pairing?: { required(): boolean; code(): string }
+  pairing: { required(): boolean; code(): string }
   /** "Disconnect all" turns the `remoteAccess` setting off through this, so nothing reconnects by itself. */
-  turnOff?: () => void
+  turnOff: () => void
   now?: () => number
 }
 
@@ -66,6 +67,9 @@ interface Live { id: string; client: string; connectedAt: number; windows: Map<n
  */
 export class RemoteServer {
   private server: Server | null = null
+  /** The state last asked for, and the chain that gets `server` there one step at a time. */
+  private wanted = false
+  private chain: Promise<void> = Promise.resolve()
   private dispatcher: Dispatcher | null = null
   private readonly connections = new Set<Socket>()
   /** The clients that said hello and are still connected. */
@@ -91,7 +95,7 @@ export class RemoteServer {
   /** Closes every connection and turns remote access off (the home side reconnects by itself otherwise). */
   disconnectAll(): void {
     log.info('remote', 'disconnect all', { clients: this.live.size })
-    this.deps.turnOff?.()
+    this.deps.turnOff()
     for (const socket of [...this.connections]) socket.destroy()
   }
 
@@ -109,25 +113,51 @@ export class RemoteServer {
     this.dispatcher = dispatcher
   }
 
-  async start(): Promise<void> {
-    if (this.server !== null) return
+  /**
+   * Start and stop are serialised on one chain and always end in the state last asked for: a stop
+   * queued behind a start waits for it, and a start whose stop was asked after it does nothing.
+   */
+  start(): Promise<void> { return this.ask(true) }
+
+  stop(): Promise<void> { return this.ask(false) }
+
+  private ask(on: boolean): Promise<void> {
+    this.wanted = on
+    const run = this.chain.then(() => this.settle())
+    this.chain = ignoreErrorsAsync(() => run, 'the caller of start hears a failed listen; the chain only orders')
+      .then(() => undefined)
+    return run
+  }
+
+  private async settle(): Promise<void> {
+    if (this.wanted && this.server === null) await this.listen()
+    else if (!this.wanted && this.server !== null) await this.close()
+  }
+
+  private async listen(): Promise<void> {
     const dir = join(this.deps.homeDir, '.apiary')
     await mkdir(dir, { recursive: true, mode: 0o700 })
     // `mkdir`'s mode does not apply to a directory that already exists.
     await chmod(dir, 0o700)
     await rm(this.socketPath, { force: true })
     const server = createServer((socket) => { this.accept(socket) })
-    this.server = server
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject)
-      server.listen(this.socketPath, () => { server.off('error', reject); resolve() })
-    })
-    await chmod(this.socketPath, 0o600)
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject)
+        server.listen(this.socketPath, () => { server.off('error', reject); resolve() })
+      })
+      await chmod(this.socketPath, 0o600)
+    } catch (error) {
+      // A failed listen leaves nothing behind, so the next start is not blocked by it.
+      await new Promise<void>((resolve) => { server.close(() => { resolve() }) })
+      throw error
+    }
     server.on('error', (error) => { log.warn('remote', 'server error', { error }) })
+    this.server = server
     log.info('remote', 'listening')
   }
 
-  async stop(): Promise<void> {
+  private async close(): Promise<void> {
     const server = this.server
     if (server === null) return
     this.server = null
@@ -142,6 +172,8 @@ export class RemoteServer {
     log.info('remote', 'connection opened')
     const windows = new Map<number, VirtualContents>()
     const decoder = new FrameDecoder()
+    // Nothing but the JSON handshake is read until the hello is accepted.
+    decoder.handshakeOnly = true
     let greeted = false
     const write = (message: ServerMessage): void => {
       if (socket.destroyed) return
@@ -155,7 +187,8 @@ export class RemoteServer {
     }
     const refuse = (message: string, reason: RefusalReason): void => {
       write({ t: 'refused', message, reason })
-      socket.end()
+      // `end` flushes the refusal; a client that never closes would otherwise hold the socket for ever.
+      socket.end(() => { socket.destroy() })
     }
     let entry: Live | null = null
     const helloTimer = setTimeout(() => {
@@ -175,6 +208,7 @@ export class RemoteServer {
           return
         }
         greeted = true
+        decoder.handshakeOnly = false
         clearTimeout(helloTimer)
         // `client` is informational (shown to the user), so it is trimmed and capped, never relied on.
         const client = (message.client ?? '').trim().slice(0, 100) || 'a remote machine'
@@ -205,7 +239,7 @@ export class RemoteServer {
 
     socket.on('data', (chunk: Buffer) => {
       try {
-        for (const message of decoder.push(chunk)) {
+        for (const message of decoder.decode(chunk)) {
           if (!isClientMessage(message)) throw new Error('Unrecognised message.')
           handle(message)
         }
@@ -244,7 +278,7 @@ export class RemoteServer {
    */
   private checkPairing(given: string | undefined): HelloVerdict {
     const pairing = this.deps.pairing
-    if (pairing === undefined || !pairing.required()) return { ok: true }
+    if (!pairing.required()) return { ok: true }
     const now = (this.deps.now ?? Date.now)()
     const host = this.deps.host
     if (now < this.pairingBlockedUntil) {

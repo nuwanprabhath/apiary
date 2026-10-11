@@ -1,24 +1,27 @@
 import { type JSX, useEffect, useState } from 'react'
 import type { RemoteHost } from '@shared/domain/remote'
 import { background } from '../../state/policy'
-import { loadRemoteHosts, remoteFailureText, startRemoteAndConnect } from '../../state/remote'
+import { loadRemoteHosts, remoteFailureText, startRemoteAndConnect, surfaceLateRemoteFailure } from '../../state/remote'
+import { useStillOpen } from './useStillOpen'
 
 /** What main says when the socket could not be reached (`NOT_ACCEPTING` in `remoteClientService.ts`): Apiary may simply not be running. */
 export function isUnreachableText(text: string): boolean {
   return text.includes('is not accepting remote connections')
 }
 
-/**
- * Under the connect dialog's error (or from a host row marked "not running"): Apiary is installed on
- * `host` but not running, so offer to start it there and connect. `since` is when the failure
- * happened: only a probe made after it counts as "fresh" (0 for a row, whose status is the offer).
- * A failure to start is handed back as text for the dialog's own error line.
- */
 /** Whether a probe made since `since` says `host` is installed but not running: when the offer shows. */
 export function offerShows(host: string, hosts: readonly RemoteHost[], since: number): boolean {
   const probed = hosts.find((h) => h.name === host)
   return probed?.status === 'stopped' && (probed.checkedAt ?? 0) >= since
 }
+
+/**
+ * Under the connect dialog's error (or from a host row marked "not running"): Apiary is installed on
+ * `host` but not running, so offer to start it there and connect. `since` is when the failure
+ * happened: only a probe made after it counts as "fresh" (0 for a row, whose status is the offer).
+ * A failure to start is handed back as text for the dialog's own error line, or, when the dialog was
+ * closed meanwhile, shown as a notification.
+ */
 
 export function StartRemoteOffer({ host, hosts, since, disabled, onWorking, onStarted, onFailed }: {
   host: string
@@ -30,6 +33,7 @@ export function StartRemoteOffer({ host, hosts, since, disabled, onWorking, onSt
   onFailed: (text: string) => void
 }): JSX.Element | null {
   const [starting, setStarting] = useState(false)
+  const stillOpen = useStillOpen()
   // A fresh probe of the host: the answers arrive through the dialog's `remoteHostsChanged` listener.
   useEffect(() => { if (since > 0) background(loadRemoteHosts(true), 'remote') }, [host, since])
 
@@ -39,8 +43,13 @@ export function StartRemoteOffer({ host, hosts, since, disabled, onWorking, onSt
     setStarting(true)
     onWorking(true)
     startRemoteAndConnect(host).then(
-      onStarted,
-      (thrown: unknown) => { setStarting(false); onWorking(false); onFailed(remoteFailureText(thrown)) },
+      () => { if (stillOpen.current) onStarted() },
+      (thrown: unknown) => {
+        if (!stillOpen.current) { surfaceLateRemoteFailure(host, thrown); return }
+        setStarting(false)
+        onWorking(false)
+        onFailed(remoteFailureText(thrown))
+      },
     )
   }
 

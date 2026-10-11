@@ -10,9 +10,11 @@
 // (Debian/Ubuntu; already preinstalled on GitHub's ubuntu runners, see ci.yml/release.yml).
 import { execFileSync, spawnSync } from 'node:child_process'
 
-const files = execFileSync('git', ['ls-files', '*.sh'], { encoding: 'utf8' })
-  .split('\n')
-  .filter(Boolean)
+// With arguments, just those files (the Stop hook passes what a branch changed, untracked ones
+// included); without, every tracked script, as `npm run lint:sh` and CI run it.
+const files = process.argv.length > 2
+  ? process.argv.slice(2)
+  : execFileSync('git', ['ls-files', '*.sh'], { encoding: 'utf8' }).split('\n').filter(Boolean)
 
 if (files.length === 0) {
   process.exit(0)

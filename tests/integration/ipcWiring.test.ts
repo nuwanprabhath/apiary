@@ -90,6 +90,8 @@ beforeEach(async () => {
   const ipc = registerIpc({
     senderPolicy: UNCHECKED_SENDERS,
     router: null, remoteClient: null, hostDirectory: null, remoteServer: null, remotePairing: null,
+    onAutoImportIntervalChange: null, updater: null, sessionLayoutStore: null, layoutFlushCoordinator: null,
+    tabRegistry: null, windowNumberFor: null, pickFolder: null,
     service,
     chat: service.chat,
     plugins: service.plugins,
@@ -105,7 +107,7 @@ beforeEach(async () => {
     },
     pets: (() => {
       const store = new PetStore(join(home, 'pets.json'))
-      return { store, service: new PetService({ store, makeRunner: () => new ClaudeOneShot({ claudeBin: () => null }), onChanged: () => {} }), actions: async () => [] }
+      return { store, service: new PetService({ store, makeRunner: () => new ClaudeOneShot({ claudeBin: () => null }), onChanged: () => {} }), actions: async () => [], exportPath: null, importPath: null }
     })(),
   })
   disposeIpc = ipc.dispose

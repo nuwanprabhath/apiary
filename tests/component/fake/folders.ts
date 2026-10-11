@@ -7,6 +7,7 @@
  */
 import type { ApiaryApi } from '@shared/api'
 import { BROWSE_MAX_ENTRIES, type BrowseView } from '@shared/domain/folders'
+import { BROWSE_HOME } from '../../contract/world'
 import type { Env } from './state'
 
 type FoldersApi = Pick<ApiaryApi,
@@ -20,14 +21,18 @@ interface Folder {
 /** Where the fake browser starts; `/fixture/<name>` is the folder the contract's `folders` name. */
 const FAKE_HOME = '/fixture'
 
+/** `BROWSE_HOME`'s folders, plus the hidden ones a browser must not list (`.claude`, `work-a/.cache`). */
 const HOME: Record<string, Folder> = {
+  ...Object.fromEntries(BROWSE_HOME.folders.map((name): [string, Folder] => [name, name === BROWSE_HOME.nested.parent
+    ? { children: { [BROWSE_HOME.nested.child]: {}, '.cache': {} } }
+    : (BROWSE_HOME.repos as readonly string[]).includes(name) ? { repo: true } : {}])),
   '.claude': {},
-  'origin.git': {},
-  picked: {},
-  'repo-c': { repo: true },
-  'repo-c-wt': { repo: true },
-  'work-a': { children: { src: {}, '.cache': {} } },
-  'work-b': {},
+}
+
+/** Main's order (`folderBrowser.ts`): by lower-cased name in code units, a tie by the name itself. */
+const byName = ([a]: [string, Folder], [b]: [string, Folder]): number => {
+  const [x, y] = [a.toLowerCase(), b.toLowerCase()]
+  return x < y ? -1 : x > y ? 1 : a < b ? -1 : 1
 }
 
 export function foldersApi(env: Env): FoldersApi {
@@ -46,7 +51,7 @@ export function foldersApi(env: Env): FoldersApi {
     const links: [string, Folder][] = segments.length === 0 ? [...state.homeLinks].map((name) => [name, {}]) : []
     const entries = [...Object.entries(children), ...links]
       .filter(([name]) => !name.startsWith('.'))
-      .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      .sort(byName)
       .slice(0, BROWSE_MAX_ENTRIES)
       .map(([name, folder]) => ({ name, isRepo: folder.repo === true }))
     return { id, crumbs: ['~', ...segments], entries, atRoot: segments.length === 0 }

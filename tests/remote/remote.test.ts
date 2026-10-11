@@ -198,20 +198,40 @@ describe.skipIf(!enabled)('remote access over real SSH', () => {
       }, { timeout: 30_000 })
     })
 
-    it('reports a disconnect when the work app stops, and leaves no ssh behind', async () => {
+    const statuses = (): Promise<Array<{ state: string }>> =>
+      remote.evaluate(() => (window as unknown as { __remoteStatus: Array<{ state: string }> }).__remoteStatus)
+
+    // 1.37.0 never reconnected here: it looked the session up by the work machine's own name, and
+    // the container calls itself something other than the `apiary-test` that was typed.
+    it('reconnects when the work app comes back, although the name typed is not the work machine\'s own', async () => {
       await remote.evaluate(() => {
         const seen: unknown[] = []
         ;(window as unknown as { __remoteStatus: unknown[] }).__remoteStatus = seen
         window.apiary.onRemoteStatus((s) => { seen.push(s) })
       })
+      expect(containerHost).not.toBe('apiary-test')
       expect((await homeSsh()).code).toBe(0)
       await bed.exec(['pkill', '-u', 'dev', '-f', 'electron'])
+      await vi.waitFor(async () => { expect((await statuses()).some((s) => s.state === 'reconnecting')).toBe(true) }, { timeout: 30_000 })
       await vi.waitFor(async () => {
-        const seen = await remote.evaluate(() => (window as unknown as { __remoteStatus: Array<{ state: string }> }).__remoteStatus)
-        expect(seen.some((s) => s.state === 'disconnected')).toBe(true)
-      }, { timeout: 30_000 })
+        expect((await bed.exec(['pgrep', '-u', 'dev', '-f', 'electron'])).code).toBe(1)
+      }, { timeout: 30_000, interval: 500 })
+      await launchApp(bed, { remoteAccess: true })
+      await vi.waitFor(async () => {
+        const seen = await statuses()
+        const lost = seen.findIndex((s) => s.state === 'reconnecting')
+        expect(seen.slice(lost + 1).some((s) => s.state === 'connected')).toBe(true)
+      }, { timeout: 120_000, interval: 1000 })
+    }, 240_000)
+
+    it('stops reconnecting once the window closes, and leaves no ssh behind', async () => {
+      await bed.exec(['pkill', '-u', 'dev', '-f', 'electron'])
+      await vi.waitFor(async () => { expect((await statuses()).at(-1)?.state).toBe('reconnecting') }, { timeout: 30_000 })
       await remote.close()
       await vi.waitFor(async () => { expect((await homeSsh()).code).toBe(1) }, { timeout: 30_000 })
+      await vi.waitFor(async () => {
+        expect((await bed.exec(['pgrep', '-u', 'dev', '-f', 'electron'])).code).toBe(1)
+      }, { timeout: 30_000, interval: 500 })
     })
 
     it('refuses when the work machine is not accepting remote connections', async () => {

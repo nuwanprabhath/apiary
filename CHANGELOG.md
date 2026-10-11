@@ -4,6 +4,45 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.37.1] - 2026-10-11
+
+### Fixed
+
+- **A dropped remote connection reconnects whatever name you connected with.** It only did when
+  that name matched the work machine's own host name, so connecting to `work-box.tailnet.ts.net`
+  or an `~/.ssh/config` alias left the window disconnected for good.
+- **Connecting twice to one host at once** (the menu and the dialog) no longer opens two sets of
+  windows, and no ssh is left running after you quit.
+- **Turning remote access off quickly after turning it on** can no longer leave the work machine
+  listening, and a failed start no longer blocks the next one.
+- **A plugin's link in a remote window opens in your browser at home**, not on the work machine's
+  screen, and an Active row of another work-machine window no longer raises it there.
+- **A remote window you reload still shows its connection banner** and its Reconnect button.
+- **Escape during a slow connect** no longer loses a failure: it arrives as a notification.
+- **A crash inside the folder browser** shows a dialog you can close, and the session you were
+  starting no longer waits forever.
+- **"Start Apiary and connect" on a machine with remote access off** no longer leaves an Apiary
+  running there with no window. A background-started Apiary quits when there is nothing to serve.
+- **The pairing code is always checked when it is on.** A wiring mistake could have skipped it;
+  the server now cannot be built without it.
+- A refused connection is closed at once, and the server reads only the handshake before a hello.
+- A late probe no longer overwrites a newer host status; the folder browser's dimmed text is dimmed.
+- Screen readers no longer re-read the reconnect banner at every attempt; the pairing field takes
+  focus when it appears.
+
+### Added (for contributors)
+
+- **Checks for the mistakes 1.37.0 made**, each proven against the shipped code:
+  - everything handed to the IPC registrar is required (`ipcDepsRequired`), and the contract
+    loopback builds remote access with the app's own factories;
+  - a handler that acts on the screen (`shell`, `dialog`, `clipboard`, `BrowserWindow`) is never
+    scoped `remote` (`remoteScopes`);
+  - every CSS variable used is defined (`cssVarsDefined`);
+  - the Stop hook runs shellcheck and the markdown checks, and a test keeps it in step with
+    `npm run lint` (`stopHookCoversLint`).
+- Remote contract clauses now fail when the code under them returns nothing, and the fake emits
+  `remoteHostsChanged` as main does.
+
 ## [1.37.0] - 2026-10-10
 
 ### Added

@@ -1,16 +1,16 @@
 import { BrowserWindow, webContents } from 'electron'
 import { IPC } from '@shared/api'
 import type { RemoteStatus } from '@shared/domain/remote'
-import { createExec } from '../exec/run'
+import { createExec, type ExecFn } from '../exec/run'
 import { HostDirectory } from '../remote/hostDirectory'
 import { PairingStore } from '../remote/pairingStore'
 import { makePrivateDir, pathExists, readSshConfigFile, removePrivateDir } from '../remote/privateDir'
-import { RemoteClientService } from '../remote/remoteClientService'
+import { RemoteClientService, type RemoteClientDeps } from '../remote/remoteClientService'
 import { RemoteConnection } from '../remote/remoteConnection'
 import { RemoteServer } from '../remote/remoteServer'
 import { RemoteWindows } from '../remote/remoteWindows'
 import { safeStorageCipher } from '../remote/safeStorageCipher'
-import { SavedPairingCodes } from '../remote/savedPairingCodes'
+import { SavedPairingCodes, type CodeCipher } from '../remote/savedPairingCodes'
 import { sshExec, startSshTunnel } from '../remote/sshTunnel'
 import { VirtualContentsRegistry } from '../remote/virtualContents'
 import { createVsCodeBridge } from '../remote/vscodeBridge'
@@ -82,8 +82,46 @@ export interface ConnectingInputs {
   windowManager: Pick<WindowManager, 'open'>
 }
 
+/**
+ * Everything the home side reaches outside this process: ssh, the `tailscale` CLI, sockets, temp
+ * folders and the keychain. The app passes `realConnectingOutside`; the contract loopback passes stubs
+ * and so runs this file's own wiring (the broadcasts, `onConnected`, `probe`) rather than a copy of
+ * it. 1.37.0 shipped with `index.ts` handing the registrar no host directory, server or pairing
+ * store, and every test passed because each built its own.
+ */
+export interface ConnectingOutside {
+  /** Runs the `tailscale` CLI for the host list. */
+  tailscaleExec: ExecFn
+  /** Runs the host probe over ssh. */
+  probeExec: ExecFn
+  /** Runs short ssh commands for a connect (the work machine's home, starting Apiary there). */
+  sshExec: ExecFn
+  startTunnel: RemoteClientDeps['startTunnel']
+  connect: RemoteClientDeps['connect']
+  cipher: CodeCipher
+  makeTempDir: RemoteClientDeps['makeTempDir']
+  removeDir: RemoteClientDeps['removeDir']
+  socketExists: RemoteClientDeps['socketExists']
+  /** How long a connect waits for an Apiary it started; the defaults when empty. */
+  startWait: Pick<RemoteClientDeps, 'startWaitMs' | 'startPollMs'>
+}
+
+/** The real outside world: ssh through the login shell, the `tailscale` CLI, Electron's safeStorage. */
+export function realConnectingOutside(host: string): ConnectingOutside {
+  return {
+    tailscaleExec: createExec({ timeoutMs: 3000, scope: 'remote' }),
+    probeExec: sshExec(6000),
+    sshExec: sshExec(20_000),
+    startTunnel: startSshTunnel,
+    connect: (path, options) => RemoteConnection.connect(path, { ...options, client: host }),
+    cipher: safeStorageCipher(),
+    makeTempDir: makePrivateDir, removeDir: removePrivateDir, socketExists: pathExists,
+    startWait: {},
+  }
+}
+
 /** The home machine's side: connecting to other machines and showing their windows here. */
-export function createRemoteConnecting(inputs: ConnectingInputs): {
+export function createRemoteConnecting(inputs: ConnectingInputs, outside: ConnectingOutside): {
   remoteWindows: RemoteWindows
   hostDirectory: HostDirectory
   remoteClient: RemoteClientService
@@ -91,20 +129,21 @@ export function createRemoteConnecting(inputs: ConnectingInputs): {
   const remoteWindows = new RemoteWindows((id) => webContents.fromId(id) ?? null, createVsCodeBridge({ vsCodePath: () => inputs.vsCodePath }))
   const hostDirectory = new HostDirectory({
     file: inputs.hostsFile, homeDir: inputs.homeDir, readText: readSshConfigFile, sshConfig: inputs.sshConfig,
-    exec: createExec({ timeoutMs: 3000, scope: 'remote' }), probeExec: sshExec(6000), now: () => Date.now(),
+    exec: outside.tailscaleExec, probeExec: outside.probeExec, now: () => Date.now(),
   })
   hostDirectory.subscribe((hosts) => { broadcast(IPC.remoteHostsChanged, hosts) })
   const remoteClient = new RemoteClientService({
-    appVersion: inputs.appVersion, sshConfig: inputs.sshConfig, exec: sshExec(20_000), startTunnel: startSshTunnel,
-    connect: (path, options) => RemoteConnection.connect(path, { ...options, client: inputs.host }),
-    pairingCodes: new SavedPairingCodes(inputs.pairingCodesFile, safeStorageCipher()),
-    makeTempDir: makePrivateDir, removeDir: removePrivateDir, socketExists: pathExists,
+    appVersion: inputs.appVersion, sshConfig: inputs.sshConfig, exec: outside.sshExec, startTunnel: outside.startTunnel,
+    connect: outside.connect,
+    pairingCodes: new SavedPairingCodes(inputs.pairingCodesFile, outside.cipher),
+    makeTempDir: outside.makeTempDir, removeDir: outside.removeDir, socketExists: outside.socketExists,
     openWindow: (host, layout) => inputs.windowManager.open({ remote: { host, layout } }),
     focusWindow: (id) => { BrowserWindow.getAllWindows().find((w) => w.webContents.id === id)?.focus() },
     windows: remoteWindows,
     sendStatus: (id, status: RemoteStatus) => { sendEvent(webContents.fromId(id), IPC.remoteStatus, status) },
     onConnected: (host) => { hostDirectory.connected(host) },
     probe: (host) => hostDirectory.probeNow(host),
+    ...outside.startWait,
   })
   return { remoteWindows, hostDirectory, remoteClient }
 }

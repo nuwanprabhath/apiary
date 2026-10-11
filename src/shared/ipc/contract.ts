@@ -371,6 +371,8 @@ export const IPC = {
   openRemoteDialog: event('apiary:open-remote-dialog'),
   /** A remote window's connection to the work machine changed (it dropped). */
   remoteStatus: event<[status: RemoteStatus]>('apiary:remote-status'),
+  /** What `remoteStatus` last told the asking window, or null (an ordinary window, or nothing said yet): a reloaded remote window reads it instead of waiting for the next push. */
+  remoteStatusNow: invoke<[], RemoteStatus | null>('apiary:remote-status-now', tuple()),
   /** Hosts a connection could go to, with the last probe's answer; `probe` starts a probe of every one (the open dialog). */
   remoteHosts: invoke<[probe: boolean], RemoteHost[]>('apiary:remote-hosts', tuple(bool)),
   /** A probe finished: the whole list again, with what is known now. */

@@ -8,7 +8,7 @@ import type {
   UpdateStatusPayload,
 } from '@shared/api'
 import type { GitTarget } from '@shared/domain/git'
-import type { RemoteClientInfo, RemoteHost } from '@shared/domain/remote'
+import type { RemoteClientInfo, RemoteHost, RemoteStatus } from '@shared/domain/remote'
 import type { ChatState, TerminalBusy } from '@shared/domain/chat'
 import type { EventKey } from '@shared/ipc/contract'
 import type { PetSpec } from '@shared/pets/spec'
@@ -99,16 +99,27 @@ export interface FakeState {
   /** The home machines connected to this one (the work machine's view), and how often "Disconnect all" ran. */
   remoteClients: RemoteClientInfo[]
   remoteDisconnects: number
+  /** What `remoteStatusNow` answers: the last `remoteStatus` this window was sent (null: none). */
+  remoteStatus: RemoteStatus | null
   /** This machine's pairing code as shown (`XXXX-XXXX`); `remotePairingNew` replaces it. */
   remotePairingCode: string
+  /** Codes `remotePairingNew` hands out first, in order; once empty it draws a fresh one each time. */
+  remoteNextPairingCodes: string[]
   /** When set, `remoteConnect` fails with this message (main's words for an ssh or Apiary refusal). */
   remoteConnectError: string | null
   /** Hosts `remoteStartAndConnect` was asked for, in order. */
   remoteStarts: string[]
   /** When set, `remoteStartAndConnect` fails with this message. */
   remoteStartError: string | null
-  /** What `remoteHosts` lists (a test sets it, and emits `remoteHostsChanged` as probes would). */
+  /** What `remoteHosts` lists. A probe or a connect updates it and announces it, as main does. */
   remoteHosts: RemoteHost[]
+  /**
+   * What a probe of each host finds (`remoteHosts(true)`, `remoteStartAndConnect`). A host with no
+   * entry is never probed: the fake has no ssh to wait for, so a test emits that result itself.
+   */
+  remoteProbes: Record<string, { status: RemoteHost['status']; detail?: string }>
+  /** When set, decides whether a connect to `host` fails, and with what message; null: it works. */
+  remoteConnectRule: ((host: string, pairing: string | undefined) => string | null) | null
   /** The `probe` argument of each `remoteHosts` call, in order. */
   remoteHostProbes: boolean[]
   projects: FakeProject[]

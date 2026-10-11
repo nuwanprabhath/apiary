@@ -16,10 +16,10 @@ import type { ActiveTabsService } from '../../terminals/activeTabsService'
 export interface TabsDeps {
   service: AppService
   state: Pick<IpcState, 'tabMover' | 'activity' | 'ptyAttachments' | 'ptyCoalescer'>
-  sessionLayoutStore?: SessionLayoutStore | null
-  layoutFlushCoordinator?: LayoutFlushCoordinator | null
-  tabRegistry?: TabRegistry | null
-  windowNumberFor?: (webContentsId: number) => number | null
+  sessionLayoutStore: SessionLayoutStore | null
+  layoutFlushCoordinator: LayoutFlushCoordinator | null
+  tabRegistry: TabRegistry | null
+  windowNumberFor: ((webContentsId: number) => number | null) | null
   activeTabs: ActiveTabsService
 }
 

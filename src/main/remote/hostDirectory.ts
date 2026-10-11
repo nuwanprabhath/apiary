@@ -19,7 +19,8 @@ const TAILSCALE_PATHS = ['tailscale', '/Applications/Tailscale.app/Contents/MacO
 interface HostsFile { hosts: string[] }
 
 /** What the last probe of one host found. */
-interface Probed { status: RemoteHostState; detail?: string; checkedAt: number }
+/** `seq` is when the probe started, in `HostDirectory.seq` order: an older probe never replaces a newer result. */
+interface Probed { status: RemoteHostState; detail?: string; checkedAt: number; seq: number }
 
 export interface HostDirectoryDeps {
   /** `remote-hosts.json`. */
@@ -101,6 +102,7 @@ export class HostDirectory {
   private peers: string[] = []
   /** Invalidated by the next probe of the same host. */
   private readonly probed = new Map<string, Probed>()
+  private seq = 0
   private readonly inFlight = new Set<string>()
   private readonly queue: string[] = []
   private running = 0
@@ -168,8 +170,14 @@ export class HostDirectory {
     try { this.store.save({ hosts: this.recent }) } catch (error) {
       log.warn('remote', 'could not save the recent hosts', { message: errorMessage(error) })
     }
-    this.probed.set(host, { status: 'ready', checkedAt: this.deps.now() })
+    this.record(host, { status: 'ready', checkedAt: this.deps.now(), seq: ++this.seq })
     this.emit()
+  }
+
+  /** Keeps `result` only if it started after what is stored for `host`. */
+  private record(host: string, result: Probed): void {
+    const stored = this.probed.get(host)
+    if (stored === undefined || result.seq > stored.seq) this.probed.set(host, result)
   }
 
   /** Starts probes of `names`, at most four at a time; a host already being probed is not probed twice. */
@@ -188,7 +196,7 @@ export class HostDirectory {
       if (name === undefined) break
       this.running += 1
       void this.probeOne(name).then((result) => {
-        this.probed.set(name, result)
+        this.record(name, result)
         this.inFlight.delete(name)
         this.running -= 1
         this.emit()
@@ -200,7 +208,7 @@ export class HostDirectory {
   /** One probe now, recorded like any other; rejects with a sentence when ssh cannot get in. */
   async probeNow(host: string): Promise<'ready' | 'off' | 'stopped'> {
     const result = await this.probeOne(host)
-    this.probed.set(host, result)
+    this.record(host, result)
     this.emit()
     if (result.status === 'unreachable' || result.status === 'refused') throw new Error(result.detail)
     return parseProbe(result.status)
@@ -208,13 +216,14 @@ export class HostDirectory {
 
   private async probeOne(host: string): Promise<Probed> {
     const checkedAt = this.deps.now()
+    const seq = ++this.seq
     try {
       const out = await this.deps.probeExec('ssh', probeArgs(host, this.deps.sshConfig), process.cwd())
-      return { status: parseProbe(out), checkedAt }
+      return { status: parseProbe(out), checkedAt, seq }
     } catch (error) {
       const killed = isRecord(error) && isRecord(error.cause) && error.cause.killed === true
       const stderr = errorMessage(error)
-      return { status: !killed && isLoginRefused(stderr) ? 'refused' : 'unreachable', detail: describeSshFailure(stderr, host, killed), checkedAt }
+      return { status: !killed && isLoginRefused(stderr) ? 'refused' : 'unreachable', detail: describeSshFailure(stderr, host, killed), checkedAt, seq }
     }
   }
 

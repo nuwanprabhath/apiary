@@ -78,3 +78,24 @@ export const CONSENT_ITEM: Omit<StatusBarItem, 'pluginId'> = {
 
 /** The release the update feed offers in both implementations. */
 export const FEED_VERSION = '9.9.9'
+
+/**
+ * Remote access's home side in both implementations. The loopback seeds `remote-hosts.json` with
+ * `recent` (most recent first) and answers a host probe from `probes` (a host not named there is
+ * "No machine called … was found"); the fake lists the same hosts and answers the same probes. A
+ * connect to `up` works, one to `pairing` reaches the work machine's Apiary, which refuses naming the
+ * pairing code it was sent, and any other host cannot be reached over ssh at all.
+ */
+export const REMOTE_WORLD = {
+  recent: ['work-box', 'lab-box'],
+  probes: { 'work-box': 'ready', 'lab-box': 'stopped', 'up-box': 'ready', 'pair-box': 'ready' },
+  up: 'up-box',
+  pairing: 'pair-box',
+  gone: 'gone-box',
+} as const
+
+/** What main says when ssh cannot resolve the host (`describeSshFailure` on the loopback's canned stderr). */
+export const noMachineMessage = (host: string): string => `No machine called ${host} was found.`
+
+/** What the loopback's stub work machine refuses with: the pairing code `remoteConnect` handed it. */
+export const pairingSeenMessage = (code: string | undefined): string => `The work machine was sent the pairing code ${code ?? 'none'}.`

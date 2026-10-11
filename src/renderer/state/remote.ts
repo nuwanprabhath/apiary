@@ -1,6 +1,7 @@
-import type { RemoteHost, RemoteStatus } from '@shared/domain/remote'
+import type { RemoteHost } from '@shared/domain/remote'
+import { remoteStatusStore } from './remoteStatusStore'
 import { errorMessage } from '@shared/errors'
-import { bestEffort } from './policy'
+import { bestEffort, surface } from './policy'
 
 /** Connect to a work machine; main opens its window. Policy 3: rejects with main's words (ssh or
  *  Apiary refused), which the dialog and the banner show whole. */
@@ -12,10 +13,13 @@ export const startRemoteAndConnect = (host: string): Promise<void> => window.api
 export function remoteFailureText(thrown: unknown): string {
   return errorMessage(thrown).replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, '')
 }
+/** A connect (or start) that failed after the dialog that asked for it was closed: nothing is left to
+ *  show the text in, so it is a notification (policy 2) saying which host it was. */
+export function surfaceLateRemoteFailure(host: string, thrown: unknown): void {
+  surface(Promise.reject(new Error(remoteFailureText(thrown))), `Could not connect to ${host}`)
+}
 /** File → Open Remote Session → Other Host… */
 export const onOpenRemoteDialog = (cb: () => void): (() => void) => window.apiary.onOpenRemoteDialog(cb)
-/** A remote window's connection changed. */
-export const onRemoteStatus = (cb: (status: RemoteStatus) => void): (() => void) => window.apiary.onRemoteStatus(cb)
 /** The hosts a connection could go to, with what is known of each; `probe` has main check every one now (the open dialog).
  *  Policy 1: null after logging when it failed, and the dialog still works with the typed host. */
 export const loadRemoteHosts = (probe: boolean): Promise<RemoteHost[] | null> => bestEffort(window.apiary.remoteHosts(probe), 'remote')
@@ -24,29 +28,20 @@ export const onRemoteHostsChanged = (cb: (hosts: RemoteHost[]) => void): (() => 
 /** Closes this window (a disconnected remote window, once there is nothing left to show). */
 export const closeThisWindow = (): void => { window.close() }
 
-const reconnectListeners = new Set<() => void>()
-let offStatus: (() => void) | null = null
-
 /**
  * Runs `fn` when this remote window's connection comes back after a drop, so whatever it showed can
  * be fetched again (main replays the attaches, but anything that changed meanwhile was never sent).
- * The one place that watches for it; stores subscribe, components never do. Nothing runs in an
- * ordinary window, which hears no `remoteStatus`.
+ * The one place that watches for it; stores subscribe, components never do. It follows the window's
+ * `remoteStatusStore`, so nothing runs in an ordinary window, which is never sent a status.
  */
 export function onRemoteReconnected(fn: () => void): () => void {
-  reconnectListeners.add(fn)
-  if (offStatus === null) {
-    let dropped = false
-    offStatus = window.apiary.onRemoteStatus((status) => {
-      if (status.state === 'reconnecting') dropped = true
-      if (status.state === 'connected' && dropped) {
-        dropped = false
-        for (const listener of [...reconnectListeners]) listener()
-      }
-    })
-  }
-  return () => {
-    reconnectListeners.delete(fn)
-    if (reconnectListeners.size === 0) { offStatus?.(); offStatus = null }
-  }
+  let dropped = remoteStatusStore.getSnapshot()?.state === 'reconnecting'
+  return remoteStatusStore.subscribe(() => {
+    const state = remoteStatusStore.getSnapshot()?.state
+    if (state === 'reconnecting') dropped = true
+    if (state === 'connected' && dropped) {
+      dropped = false
+      fn()
+    }
+  })
 }

@@ -52,26 +52,26 @@ export interface IpcDeps {
   spelling: SpellingService
   /** The in-app folder browser a remote window uses instead of the native picker; built in the container. */
   folderBrowser: FolderBrowser
-  onAutoImportIntervalChange?: (intervalMinutes: number | null) => void
+  onAutoImportIntervalChange: ((intervalMinutes: number | null) => void) | null
   /** Null where there is no updater at all (a dev run, or a platform without one). */
-  updater?: UpdateService | null
+  updater: UpdateService | null
   /** Null where the store has not been constructed yet (mirrors `updater` above). */
-  sessionLayoutStore?: SessionLayoutStore | null
+  sessionLayoutStore: SessionLayoutStore | null
   /** Told about every incoming `reportLayout` so `before-quit` can wait for a specific window's. */
-  layoutFlushCoordinator?: LayoutFlushCoordinator | null
+  layoutFlushCoordinator: LayoutFlushCoordinator | null
   /** Where every window's open tabs are recorded, for the Active section. Null where the registry
    *  has not been constructed yet, mirroring `sessionLayoutStore` above. */
-  tabRegistry?: TabRegistry | null
+  tabRegistry: TabRegistry | null
   /** Maps the sending window's `webContents.id` to the window number `reportTabs` should file
    *  under, so `TabRegistry` (keyed by window number, same as `SessionLayoutStore`) never has to
    *  know about webContents ids at all. Populated in `main/index.ts`, next to where a window's
    *  number is minted. */
-  windowNumberFor?: (webContentsId: number) => number | null
+  windowNumberFor: ((webContentsId: number) => number | null) | null
   /** Classifies each open tab for the Active section; built in the container with what it reads. */
   activeTabs: ActiveTabsService
   /** The native folder picker, over the asking window. Resolves null when cancelled. Injected so
    *  this module does not own the dialog (or its E2E stand-in, `APIARY_PICK_FOLDER`). */
-  pickFolder?: (sender: WebContents) => Promise<string | null>
+  pickFolder: ((sender: WebContents) => Promise<string | null>) | null
   /** Where the app's own renderer is expected to be loaded from (SEC-8 step 8). Required, so the
    *  check cannot be forgotten: a test harness that calls handlers without a frame passes
    *  `UNCHECKED_SENDERS` (see `ipcSenderGuard.ts`); anything else rejects a message with no frame. */
@@ -124,10 +124,10 @@ export function registerIpc(
   const pets = petsHandlers(deps.pets)
   const spelling = spellingHandlers(deps.spelling)
   const contextMenu = contextMenuHandlers()
-  const remoteConnectIpc = remoteConnectHandlers({ remoteClient: deps.remoteClient ?? null })
+  const remoteConnectIpc = remoteConnectHandlers({ remoteClient: deps.remoteClient })
   const folders = foldersHandlers({ service, folderBrowser: deps.folderBrowser })
-  const remoteHostsIpc = remoteHostsHandlers({ hosts: deps.hostDirectory ?? null })
-  const remoteClientsIpc = remoteClientsHandlers({ server: deps.remoteServer ?? null, pairing: deps.remotePairing ?? null })
+  const remoteHostsIpc = remoteHostsHandlers({ hosts: deps.hostDirectory })
+  const remoteClientsIpc = remoteClientsHandlers({ server: deps.remoteServer, pairing: deps.remotePairing })
 
   const handlers: Handlers = {
     ...sessions,
@@ -162,7 +162,7 @@ export function registerIpc(
 
   // Local windows reach it through `registerAll`'s sender check; the remote server calls it directly.
   const dispatcher = createDispatcher(handlers, listeners)
-  const disposeRegistry = registerAll(handlers, listeners, deps.senderPolicy, dispatcher, deps.router ?? null)
+  const disposeRegistry = registerAll(handlers, listeners, deps.senderPolicy, dispatcher, deps.router)
 
   return {
     dispose: () => {
