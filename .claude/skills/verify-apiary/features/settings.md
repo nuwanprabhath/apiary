@@ -5,10 +5,12 @@ Most sections save with `settings-save`; some (themes, pets) apply at once.
 
 ## Sub-features
 
-- Auto-import (`setting-auto-import-all`, `setting-auto-import-interval-enabled`,
+- Auto-import, in the Sessions section (`settings-nav-sessions`; `setting-auto-import-all`, `setting-auto-import-interval-enabled`,
   `setting-interval-preset-15`).
 - Search (`setting-search-chat-content`, `search-index-status`, `search-rebuild`).
-- Sections for themes, pets, plugins, diagnostics: see their own feature files.
+- Themes and pets have their own feature files; plugins, updates and diagnostics have none yet.
+- General's "Hide tool calls" (`setting-hide-tool-call-io`) saves to library state
+  (`library-state.json`), never `settings.json`; in a remote window it edits the work machine's.
 
 ## How to get to it (user POV)
 
@@ -29,7 +31,8 @@ await h.page.getByTestId('settings-save').click()
 ```
 
 Proof: the behaviour the setting changes (search falls back to titles), and `settings.json` in
-`app.getPath('userData')` holding the new value.
+`app.getPath('userData')` holding the new value (`schemaVersion` 2). For "Hide tool calls", the
+proof is `hideToolCallIo` in `library-state.json`.
 
 ## Gotchas
 

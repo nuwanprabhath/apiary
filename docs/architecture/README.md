@@ -11,6 +11,7 @@ loaded; these and the nested `CLAUDE.md` files below load only when relevant.
 | Which Claude session a terminal is on | [session-following.md](session-following.md) |
 | Chat mode: `ChatService`, protocol, per-window delivery, take-over, `/clear` | [chat.md](chat.md) |
 | The three trust-boundary rules, in full | [boundaries.md](boundaries.md) |
+| Viewer state vs library state, and what a remote window mirrors | [library-state.md](library-state.md) |
 
 Non-architecture cross-cutting docs, one level up:
 

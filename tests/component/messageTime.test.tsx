@@ -31,13 +31,14 @@ const intersects = (a: DOMRect, b: DOMRect): boolean =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
 
 describe.each([[false], [true]] as const)('message times (chat: %s)', (chat) => {
-  it('shows a time on a user message and on a reply without hover, and none for the same minute', async () => {
+  it('shows a time on every user message and every reply, even within one minute', async () => {
     await open(chat, [TS, TS + 2 * MINUTE, TS + 2 * MINUTE + 10_000])
-    await until(() => times().length >= 2)
-    expect(times()).toHaveLength(2)
-    const [user, reply] = times()
+    await until(() => times().length >= 3)
+    expect(times()).toHaveLength(3)
+    const [user, reply, second] = times()
     expect(user.textContent).toMatch(/10:29/)
     expect(reply.textContent).toMatch(/10:31/)
+    expect(second.textContent).toMatch(/10:31/)
     expect(user.getAttribute('datetime')).toBe(new Date(TS).toISOString())
     expect(user.title).not.toBe('')
     expect(getComputedStyle(reply).opacity).toBe('1')
@@ -54,7 +55,7 @@ describe('message time placement', () => {
   it('keeps the role label on the same top as the text in the plain transcript', async () => {
     await open(false, [TS, TS + 2 * MINUTE, TS + 4 * MINUTE])
     await until(() => times().length >= 3)
-    for (const row of document.querySelectorAll('[data-testid="message"]')) {
+    for (const row of document.querySelectorAll('[data-testid="message"][data-role="user"]')) {
       const time = row.querySelector('[data-testid="message-time"]')!
       const role = row.querySelector('.message-role')!
       const text = row.querySelector('.message-body .text-block, .message-body .markdown')!
@@ -64,10 +65,23 @@ describe('message time placement', () => {
     }
   })
 
+  it.each([[false], [true]] as const)('puts a reply time on the first line of its text, not on its own line (chat: %s)', async (chat) => {
+    await open(chat, [TS, TS + 2 * MINUTE, TS + 4 * MINUTE])
+    await until(() => times().length >= 3)
+    const body = document.querySelector(chat ? '[data-testid="chat-text"] .chat-row-body' : '[data-role="assistant"] .message-body')!
+    const time = body.querySelector('[data-testid="message-time"]')!
+    const text = body.querySelector('.markdown, .text-block')!
+    const line = parseFloat(getComputedStyle(text).lineHeight)
+    expect(body.contains(time)).toBe(true)
+    expect(rect(time).top).toBeGreaterThanOrEqual(rect(text).top - 1)
+    expect(rect(time).top).toBeLessThan(rect(text).top + line)
+  })
+
   it('draws no chat time over a bubble, a reply or another time', async () => {
     await open(true, [TS, TS + 2 * MINUTE, TS + 4 * MINUTE])
     await until(() => times().length >= 3)
-    const boxes = [...document.querySelectorAll('[data-testid="chat-user"], [data-testid="chat-text"]')]
+    // A reply's time lives inside its row, beside the text (the line test above), so only a bubble can be covered.
+    const boxes = [...document.querySelectorAll('[data-testid="chat-user"]')]
     const all = times()
     const hits = all.flatMap((t) => [
       ...boxes.filter((box) => intersects(rect(t), rect(box))),

@@ -34,17 +34,3 @@ export function formatMessageDateTime(ms: number, locale?: string): string {
   return new Date(ms).toLocaleString(locale, { dateStyle: 'full', timeStyle: 'medium' })
 }
 
-/**
- * Keeps a time only on the first of a run of messages sent in the same minute, so a quick
- * exchange does not repeat it. A message with no time neither shows one nor breaks the run.
- */
-export function firstOfMinuteRun(stamps: readonly (number | null)[]): (number | null)[] {
-  let last: number | null = null
-  return stamps.map((ms) => {
-    if (ms === null) return null
-    const minute = Math.floor(ms / 60_000)
-    if (minute === last) return null
-    last = minute
-    return ms
-  })
-}

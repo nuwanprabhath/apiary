@@ -23,6 +23,7 @@ const OWNERS: Record<string, string> = {
   'remote-hosts.json': 'src/main/remote/hostDirectory.ts',
   'remote-pairing.json': 'src/main/remote/pairingStore.ts',
   'remote-pairing-codes.json': 'src/main/remote/savedPairingCodes.ts',
+  'library-state.json': 'src/main/library/libraryStateService.ts',
 }
 
 const root = resolve(__dirname, '../../..')

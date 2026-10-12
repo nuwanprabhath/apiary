@@ -32,6 +32,7 @@ import { message, sessionsApi } from './fake/sessions'
 import { settingsApi } from './fake/settings'
 import { spellingApi } from './fake/spelling'
 import { foldersApi } from './fake/folders'
+import { initialLibrary, libraryApi } from './fake/library'
 import { remoteApi } from './fake/remote'
 import type { Env, FakeApiary, FakeCall, FakeEvent, FakeOptions, FakeProject, FakeSession, FakeState } from './fake/state'
 import { initialThemeState, themesApi } from './fake/themes'
@@ -118,6 +119,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     imported: new Set(opts.imported === 'none' ? [] : sessions.map((s) => s.sessionId)),
     archived: new Set(),
     settings: { ...DEFAULT_SETTINGS, ...opts.settings },
+    library: initialLibrary(opts.library, opts.librarySeeded),
     theme: initialThemeState(),
     refs: {
       current: 'main',
@@ -226,6 +228,8 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     ...remoteApi(env),
     // What main last told this window; a test sets `state.remoteStatus` (and emits `remoteStatus`) itself.
     remoteStatusNow: async () => state.remoteStatus,
+    ...libraryApi(env),
+    onLibraryStateChanged: on('libraryStateChanged'),
   }
 
   // Every method goes through here, so calls are recorded and a test can swap one out. The theme

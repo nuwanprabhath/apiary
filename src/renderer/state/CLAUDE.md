@@ -9,8 +9,9 @@ index this filtering never touches.
 | The state is… | Use | Example |
 | --- | --- | --- |
 | owned by main and pushed to the window | `createIpcStore` / `createKeyedIpcStore` | `petsStore`, `chatStore` |
-| this window's only, in memory, outliving the component that set it | `createLocalStore` | `chatSettingsStore` counts changes so readers re-render |
-| saved per viewer (sizes, collapsed sections) | `state/uiState.ts` | the sidebar width; per-chat settings (`CHAT_SETTINGS_KEY`, shared by every window, read through `chatSettingsStore`) |
+| describes the sessions library, mirrored to remote windows (pins, groups, folder order, each chat's settings, hide tool calls) | `libraryStateStore` (`useLibraryState`, `updateLibraryState`); one entry in `LIBRARY_STATE` (`shared/libraryState.ts`) | `useUiState`'s pins and groups, `chatSettingsStore` |
+| this window's only, in memory, outliving the component that set it | `createLocalStore` | `activityStore` (what the status bar says is running) |
+| saved per viewer (sizes, collapsed folders, the selected session) | `state/uiState.ts` (`ViewerUiState`) | the sidebar width |
 | the workspace (tabs, panes, layout) | the workspace store (`features/workspace/`) | `useWorkspaceSelector` |
 | one component's own, gone when it unmounts | `useState` | a draft, an open menu |
 

@@ -48,14 +48,14 @@ describe('sidebar drag cost (UI-6)', () => {
     await mouse.move(r.x + r.width / 2 + 80, r.y + r.height / 2, 20)
     await mouse.up()
 
-    // `mouseup` flushes immediately — exactly one `saveUiState` call (it writes two localStorage
-    // keys) for the whole gesture, where the pre-fix code measured 40 (2 keys × the 20 mousemove
-    // events this drag produced) and made every one of them wait on nothing.
-    expect(setItemCalls).toBe(2)
+    // `mouseup` flushes immediately — exactly one `saveUiState` call (it writes this window's one
+    // localStorage key) for the whole gesture, where the pre-fix code measured 40 (2 keys, as it
+    // then was, × the 20 mousemove events this drag produced) and made every one of them wait on nothing.
+    expect(setItemCalls).toBe(1)
 
     // Waiting past the ordinary 250ms debounce changes nothing further: the drag's own commit was
     // never subject to it.
-    await stays(() => setItemCalls === 2, 350, 'the drag to cost no further writes')
+    await stays(() => setItemCalls === 1, 350, 'the drag to cost no further writes')
   })
 
   it('the live width is not committed to ui state (and so not re-rendered) until the drag ends', async () => {

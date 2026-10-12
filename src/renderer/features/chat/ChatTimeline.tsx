@@ -73,10 +73,9 @@ function Item({ item, chat, onOpenImage }: { item: ChatItem; chat: ChatState | n
     case 'text':
       return (
         <>
-          <MessageTime ms={item.timestampMs} />
           <div className="chat-row" data-testid="chat-text">
             <span className="chat-dot" aria-hidden="true" />
-            <div className="chat-row-body"><TextBlock text={item.text} onOpenImage={onOpenImage} /></div>
+            <div className="chat-row-body"><MessageTime ms={item.timestampMs} inline /><TextBlock text={item.text} onOpenImage={onOpenImage} /></div>
           </div>
         </>
       )

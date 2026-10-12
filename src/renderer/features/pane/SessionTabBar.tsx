@@ -47,6 +47,8 @@ interface Props {
   onDetach: (key: string, at: { x: number; y: number }) => void
   /** The window's layout button, shown beside the split button on the top-right pane only. */
   layoutButton?: ReactNode
+  /** The Chat | Terminal toggle for the active session, right of the strip. */
+  viewToggle?: ReactNode
 }
 
 /**
@@ -60,7 +62,7 @@ interface Props {
 export function SessionTabBar(
   {
     columnId, tabs, activeKey, onActivate, onClose, onSplitActive, onDropTab, transferFor, pinnedKeys,
-    onTogglePin, onFork, onTabDropped, onDetach, layoutButton,
+    onTogglePin, onFork, onTabDropped, onDetach, layoutButton, viewToggle,
   }: Props,
 ): JSX.Element {
   /**
@@ -157,6 +159,8 @@ export function SessionTabBar(
         />
       ))}
       </div>
+
+      {viewToggle}
 
       {/* Pinned to the right of the strip, where VS Code keeps its own split action — reaching a
        *  session that is already open in this column shouldn't mean going back to the sidebar to

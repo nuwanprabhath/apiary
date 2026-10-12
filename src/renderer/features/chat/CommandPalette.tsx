@@ -9,7 +9,7 @@ import { Popover } from '../../ui/Popover'
 import { Switch } from '../../ui/Switch'
 import { usePopover } from './usePopover'
 import { useChatSettings } from '../../state/chatSettingsStore'
-import { useAppSettings } from '../../state/settingsStore'
+import { useLibraryState } from '../../state/libraryStateStore'
 import { CHAT_SETTINGS_REGISTRY, chatSettingRows, chatSettingValue, type ChatSetting } from '../../state/chatSettings'
 
 /** More than this and the list is a scroll of things nobody is looking for. */
@@ -160,7 +160,7 @@ export function CommandPalette({ sessionId, commands, composerText, keyHandler, 
   const [active, setActive] = useState(0)
   const [dismissedFor, setDismissedFor] = useState<string | null>(null)
   const listId = useId()
-  const { hideToolCallIo: globalHideToolCalls } = useAppSettings()
+  const { hideToolCallIo: globalHideToolCalls } = useLibraryState()
   const { values: perChatSettings, set: setPerChatSetting } = useChatSettings(sessionId)
 
   const typed = !buttonOpen && TYPED_SLASH.test(composerText) && dismissedFor !== composerText

@@ -1,16 +1,22 @@
 # Panes, tabs and terminals
 
 Opening a session puts it in a tab. Tabs move between pane layouts (halves, thirds and so on)
-through a layout picker. Each session has a terminal (`terminal-session`, for `claude --resume`)
-and a shell (`terminal-shell`) owned by main, which survive moves between panes.
+through a layout picker. A session gets a terminal (`terminal-session`, its `claude --resume`)
+once it is resumed, and a shell (`terminal-shell`) on demand; main owns both, so they survive moves
+between panes. The pane header is the title alone: its tooltip (and `data-cwd` on `session-title`)
+holds the folder path.
 
 ## Sub-features
 
 - Tabs (`session-tab`) and the layout picker (`session-tab-layout` → `layout-picker` →
   `layout-zone-<preset>-<n>`, e.g. `layout-zone-halves-h-2`). `content` carries `data-preset`.
 - The shell toggle (`shell-toggle`) and the shell itself (`terminal-shell`).
-- Resume (`resume-button`) starts the session's `claude` in `terminal-session`.
-- Transcript and terminal views (`view-transcript`, `view-terminal`).
+- The Chat | Terminal toggle in the tab bar (`view-toggle`): `view-transcript` always; the second
+  segment is `resume-button` while the session has no terminal (it starts one; disabled with
+  `data-cwd-exists="false"` when the folder is gone) and `view-terminal` with `session-live-dot`
+  once it has one. Only one of the two is in the page at a time.
+- With a chat busy, Terminal waits for it: `resume-handoff` under the title, with
+  `resume-handoff-now` and `resume-handoff-cancel`.
 
 ## How to get to it (user POV)
 

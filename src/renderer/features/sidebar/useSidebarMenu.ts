@@ -1,6 +1,6 @@
 import type { SessionId } from '@shared/domain/ids'
 import { useState } from 'react'
-import type { ProjectNode } from '@shared/types'
+import type { ProjectNode, SessionNode } from '@shared/types'
 import type { ContextMenuItem } from '../../ui/contextMenuItem'
 import { useNotifications } from '../../ui/notifications'
 import { useLayoutActions } from '../layout'
@@ -20,7 +20,7 @@ export type { SidebarMenu }
 
 /** The sidebar's one context menu: what is open (`menu`/`setMenu`) and the items it shows. */
 export function useSidebarMenu({
-  tree, rawTree, pinned, groupState, showAllWorktrees, onToggleAllWorktrees, onForkSession, onReorderPinned, groups,
+  tree, rawTree, pinned, groupState, showAllWorktrees, onToggleAllWorktrees, onForkSession, onReorderPinned, onTogglePin, groups,
 }: {
   tree: ProjectNode[]
   rawTree: ProjectNode[]
@@ -30,6 +30,7 @@ export function useSidebarMenu({
   onToggleAllWorktrees: (path: string) => void
   onForkSession: (sessionId: SessionId) => void
   onReorderPinned: (id: string, beforeId: string) => void
+  onTogglePin: (session: SessionNode) => void
   groups: GroupActions
 }): { menu: SidebarMenu | null; setMenu: (menu: SidebarMenu | null) => void; menuItems: () => ContextMenuItem[] } {
   const { notify, notifyError } = useNotifications()
@@ -75,7 +76,7 @@ export function useSidebarMenu({
 
   const menuItems = (): ContextMenuItem[] => {
     if (menu === null) return []
-    if (menu.kind === 'session') return sessionMenuItems(menu, { tree, pinned, onForkSession, onReorderPinned, requestPicker })
+    if (menu.kind === 'session') return sessionMenuItems(menu, { tree, pinned, onForkSession, onReorderPinned, onTogglePin, requestPicker })
     if (menu.kind === 'folder') return folderItems(menu)
     return groupMenuItems(menu, groupState, groups)
   }

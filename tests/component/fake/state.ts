@@ -11,6 +11,7 @@ import type { GitTarget } from '@shared/domain/git'
 import type { RemoteClientInfo, RemoteHost, RemoteServerState, RemoteStatus } from '@shared/domain/remote'
 import type { ChatState, TerminalBusy } from '@shared/domain/chat'
 import type { EventKey } from '@shared/ipc/contract'
+import type { LibraryPatch, LibrarySnapshot } from '@shared/libraryState'
 import type { PetSpec } from '@shared/pets/spec'
 import type { PetsState } from '@shared/pets/state'
 import type { TerminalRef } from '@shared/domain/ids'
@@ -51,6 +52,10 @@ export interface FakeOptions {
   /** Which sessions start imported: all of them (the default, like the e2e specs after `importAll`), or none. */
   imported?: 'all' | 'none'
   settings?: Partial<AppSettingsPayload>
+  /** Main's library state (pins, groups, chat settings); the rest are defaults. Counts as seeded. */
+  library?: LibraryPatch
+  /** Whether main's library state has been seeded. Default: true when `library` is given, else false. */
+  librarySeeded?: boolean
   update?: Partial<UpdateStatusPayload>
   /** The newest release the update feed offers; defaults to `update.availableVersion`, else none. */
   updateFeed?: string | null
@@ -130,6 +135,8 @@ export interface FakeState {
   /** Removed from the tree (main archives; the session stays discovered and imported). */
   archived: Set<string>
   settings: AppSettingsPayload
+  /** Main's `library-state.json` (`shared/libraryState.ts`). */
+  library: LibrarySnapshot
   theme: ThemeState
   refs: GitRefs
   /** Per branch name: whether it tracks an upstream, and how far ahead and behind it is. */

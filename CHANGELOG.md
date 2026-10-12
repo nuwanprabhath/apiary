@@ -4,6 +4,46 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.39.0] - 2026-10-12
+
+### Added
+
+- **A remote window shows the work machine's sidebar as it is at work:** the same groups, pins,
+  folder order, collapsed sections and Recent dismissals, and the same "Hide tool calls" choices,
+  app-wide and per chat. They now belong to the machine whose sessions they describe, so a change
+  made from home shows at work and the other way round. Your existing arrangement moves over on the
+  first launch of this version. "Hide tool calls" moved with it: in a remote window, Settings edits
+  the work machine's choice.
+- **Fold the message box away** with the chevron at the start of its bottom row, to give the
+  conversation the room. The model, Send and Stop stay usable; the row shows "Message Claude…", or
+  the first line of your draft, and clicking it brings the box back with the cursor in it. The choice
+  applies to every pane and is remembered.
+- **Pin and Unpin from a session's right-click menu**, wherever the row is: the tree, Pinned, Recent,
+  Active and search results.
+
+### Changed
+
+- **A Chat | Terminal toggle in the tab bar** replaces the row of Chat, Terminal and "Resume in
+  terminal" buttons, and the folder path moved into the title's tooltip, so each pane's header is one
+  row instead of three. With no terminal running, the Terminal side resumes the session in one
+  (waiting for Claude to finish first if the chat is busy, as before).
+- **Every message shows its time**, yours and Claude's, not only the first message in each minute.
+  On Claude's replies the time sits at the end of the first line, so it costs no extra line.
+
+### Fixed
+
+- **The effort level is back in the model picker** for a 1M-context model: the pill reads "Opus 5.5
+  Medium" again and the menu has the effort scale, now drawn like the VS Code extension's.
+
+### Added (for contributors)
+
+- **Library state** (`shared/libraryState.ts`, `main/library/`): one registry of the preferences a
+  remote window mirrors; a new one is one entry ([library-state](docs/architecture/library-state.md)).
+- **The Stop hook shows that a branch's tests fail without its change**, by running them against the
+  base's code in a throwaway worktree (`.claude/hooks/testsFailOnBase.mjs`).
+- **`maintain-verify-apiary`**, an audit pass that keeps the verification skill's feature map true,
+  and `run-agent.sh` can start an Opus agent.
+
 ## [1.38.0] - 2026-10-11
 
 ### Changed

@@ -1,16 +1,21 @@
 
-.resume-bar { display: flex; gap: var(--space-sm); align-items: center; padding: var(--space-md) var(--space-xl); border-bottom: 1px solid var(--border); container-type: inline-size; }
-.resume-bar button { flex: none; }
-.resume-short { display: none; }
-/* Narrow pane: "Resume in terminal" gives way to "Resume"; the button keeps the whole label in
-   its title and accessible name. */
-@container (max-width: 400px) {
-  .resume-long { display: none; }
-  .resume-short { display: inline; }
+/* Chat | Terminal in the tab bar: a pill track on the control background (so it shows on glass),
+   the segment in front outlined in the accent. It never shrinks or wraps; the tab strip gives way. */
+.view-toggle {
+  display: flex; flex: none; align-self: center; align-items: center; gap: var(--space-xs);
+  height: var(--control-height-sm); padding: 1px; margin: 0 var(--space-sm);
+  background: var(--control-bg); border: 1px solid var(--border); border-radius: var(--radius-pill);
 }
-.resume-bar .btn[data-active="true"] { background: var(--selected); border-color: var(--accent); }
-.resume-handoff { display: flex; gap: var(--space-sm); align-items: center; min-width: 0; font-size: 12px; }
-.resume-bar .btn:disabled { cursor: not-allowed; }
+.view-toggle-segment {
+  display: inline-flex; align-items: center; gap: var(--space-xs); flex: none; white-space: nowrap;
+  height: 100%; padding: 0 var(--control-padding-x); font: inherit; font-size: 12px;
+  color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: var(--radius-pill); cursor: pointer;
+}
+.view-toggle-segment:disabled { cursor: not-allowed; opacity: 0.6; }
+.view-toggle-segment:hover:not(:disabled) { color: var(--text); }
+.view-toggle-segment[data-active="true"] { color: var(--text); border-color: var(--accent); }
+@container (max-width: 240px) { .view-toggle-segment { padding: 0 var(--space-sm); } }
+.resume-handoff { display: flex; gap: var(--space-sm); align-items: center; min-width: 0; font-size: 12px; margin: var(--space-xs) 0 0; }
 .spacer { flex: 1; }
 
 /*

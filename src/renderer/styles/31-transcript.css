@@ -13,6 +13,7 @@
   line-height: 14px;
   font-variant-numeric: tabular-nums;
 }
+.message-time-inline { display: inline; float: right; margin-left: var(--space-md); }
 .message > .message-time { grid-column: 1 / -1; margin-bottom: -4px; }
 .chat-timeline > .message-time { margin-bottom: -4px; }
 

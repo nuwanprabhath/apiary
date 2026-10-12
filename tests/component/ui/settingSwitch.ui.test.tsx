@@ -6,7 +6,7 @@ import { reviewUi } from './review'
 
 /** The "/" menu's Chat settings row as a switch: on, and off. */
 async function openChat(hideToolCallIo: boolean): Promise<void> {
-  await renderApp({ settings: { transcriptChat: true, hideToolCallIo } })
+  await renderApp({ settings: { transcriptChat: true }, library: { hideToolCallIo } })
   await userEvent.click(sidebarSession('Fix CSV export bug'))
   await until(() => document.querySelector('[data-testid="chat-timeline"]') !== null)
 }

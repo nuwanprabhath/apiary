@@ -2,9 +2,8 @@ import { useMemo } from 'react'
 import type { TranscriptMessage } from '@shared/types'
 import type { ChatState } from '@shared/domain/chat'
 import type { SessionId } from '@shared/domain/ids'
-import { firstOfMinuteRun } from '@shared/time'
 import { chatItems, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withoutToolCalls } from '@shared/chatTimeline'
-import { useAppSettings } from '../../state/settingsStore'
+import { useLibraryState } from '../../state/libraryStateStore'
 import { useChatSettings } from '../../state/chatSettingsStore'
 import { SHOW_TOOL_CALLS, chatSettingValue } from '../../state/chatSettings'
 
@@ -41,14 +40,13 @@ export function useTranscriptView({ sessionId, messages, showSidechain, chatMode
   // UI-8: filtering on every render built a fresh array even when nothing about `messages` or
   // `showSidechain` had changed — cheap for one render, but this list only grows, and a filter
   // over the whole thing ran on every unrelated re-render of `Transcript` too.
-  const { hideToolCallIo: globalHideToolCalls } = useAppSettings()
+  const { hideToolCallIo: globalHideToolCalls } = useLibraryState()
   const { values: perChatSettings } = useChatSettings(sessionId)
   const hideToolCalls = !chatSettingValue(SHOW_TOOL_CALLS, perChatSettings, { hideToolCallIo: globalHideToolCalls })
   const visibleMessages = useMemo(() => {
     const shown = showSidechain ? messages : messages.filter((m) => !m.isSidechain)
     return hideToolCalls ? withoutToolCalls(shown) : shown
   }, [messages, showSidechain, hideToolCalls])
-  const shownTimes = useMemo(() => firstOfMinuteRun(visibleMessages.map((m) => m.timestampMs)), [visibleMessages])
 
   // Chat view: the file's messages plus whatever the chat has streamed that the file has not caught
   // up with yet (matched by uuid, so nothing shows twice).
@@ -62,5 +60,5 @@ export function useTranscriptView({ sessionId, messages, showSidechain, chatMode
     () => chatStatusInfo(chatMode, chat, messages, terminalRunning),
     [chatMode, chat, messages, terminalRunning],
   )
-  return { visibleMessages, shownTimes, items, queued, status }
+  return { visibleMessages, items, queued, status }
 }

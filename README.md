@@ -17,8 +17,8 @@ pick it up where it left off, and work on several side by side, even on another 
 - **Several at once.** Tabs, layouts of up to four panes, windows of their own, and a shell beside
   every session.
 - **Your work machine, from home.** Open the Apiary on another computer over SSH or Tailscale, the
-  way VS Code Remote-SSH works: its sessions, terminals and chats in a window here. Nothing
-  listens on the network.
+  way VS Code Remote-SSH works: its sessions, terminals and chats in a window here, arranged in
+  the same groups and pins. Nothing listens on the network.
 - **Git where the session is.** Branch, pull, push and the merge request for each session's own
   folder, without leaving it.
 

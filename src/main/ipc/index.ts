@@ -31,6 +31,8 @@ import { foldersHandlers } from './handlers/folders'
 import type { FolderBrowser } from '../folders/folderBrowser'
 import { remoteHostsHandlers } from './handlers/remoteHosts'
 import { remoteClientsHandlers } from './handlers/remoteClients'
+import { libraryStateHandlers } from './handlers/libraryState'
+import type { LibraryStateService } from '../library/libraryStateService'
 import type { HostDirectory } from '../remote/hostDirectory'
 import type { PairingStore } from '../remote/pairingStore'
 import type { RemoteServer } from '../remote/remoteServer'
@@ -49,6 +51,8 @@ export interface IpcDeps {
   state: IpcState
   /** The single owner of `settings.json` (MAIN-16) — see `settings/settingsService.ts`. */
   settings: SettingsService
+  /** The sessions library's arrangement and reading preferences (`library-state.json`). */
+  library: LibraryStateService
   spelling: SpellingService
   /** The in-app folder browser a remote window uses instead of the native picker; built in the container. */
   folderBrowser: FolderBrowser
@@ -128,6 +132,7 @@ export function registerIpc(
   const folders = foldersHandlers({ service, folderBrowser: deps.folderBrowser })
   const remoteHostsIpc = remoteHostsHandlers({ hosts: deps.hostDirectory })
   const remoteClientsIpc = remoteClientsHandlers({ server: deps.remoteServer, pairing: deps.remotePairing })
+  const libraryStateIpc = libraryStateHandlers(deps.library)
 
   const handlers: Handlers = {
     ...sessions,
@@ -147,6 +152,7 @@ export function registerIpc(
     ...folders.handlers,
     ...remoteHostsIpc,
     ...remoteClientsIpc,
+    ...libraryStateIpc,
   }
   const listeners: Listeners = {
     ...terminals.listeners,

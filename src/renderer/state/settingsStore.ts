@@ -2,7 +2,9 @@ import { useCallback } from 'react'
 import type { AppSettingsPayload } from '@shared/domain/settings'
 import { SETTINGS, type SettingKey } from '@shared/settings/schema'
 import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
+import type { LibraryState } from '@shared/libraryState'
 import { createIpcStore } from './createIpcStore'
+import { readLibraryState, saveLibraryState } from './libraryStateStore'
 
 /**
  * Settings the renderer itself acts on, read fresh from main rather than kept in sync with it.
@@ -44,7 +46,21 @@ export function useAppSettings(): AppSettingsMirror {
   return { ...fields, reload }
 }
 
-/** Every setting, as saved (the Settings dialog edits a draft of this). */
-export const readSettings = (): Promise<AppSettingsPayload> => window.apiary.settingsGet()
-/** Saves the draft; the dialog stays open and says why when it fails. */
-export const saveSettingsDraft = (settings: AppSettingsPayload): Promise<void> => window.apiary.settingsSet(settings)
+/**
+ * What the Settings dialog edits: every setting, plus the library preferences it has a control
+ * for. Those are library state (`shared/libraryState.ts`), so in a remote window the dialog edits
+ * the work machine's, while the settings themselves stay this machine's.
+ */
+export type SettingsDraft = AppSettingsPayload & Pick<LibraryState, 'hideToolCallIo'>
+
+/** Every setting, as saved, and the library preferences the dialog shows. */
+export const readSettings = async (): Promise<SettingsDraft> => {
+  const [settings, library] = await Promise.all([window.apiary.settingsGet(), readLibraryState()])
+  return { ...settings, hideToolCallIo: library.hideToolCallIo }
+}
+/** Saves the draft; the dialog stays open and says why when it fails. The library preference is
+ *  sent only when it changed, so opening and saving the dialog leaves library state alone. */
+export const saveSettingsDraft = async ({ hideToolCallIo, ...settings }: SettingsDraft): Promise<void> => {
+  await window.apiary.settingsSet(settings)
+  if (hideToolCallIo !== (await readLibraryState()).hideToolCallIo) await saveLibraryState({ hideToolCallIo })
+}

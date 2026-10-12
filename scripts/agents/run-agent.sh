@@ -3,12 +3,13 @@
 # the repo's .claude hooks run on it. How to use it and why it is shaped this way:
 # .claude/skills/agent-orchestration/SKILL.md.
 #
-#   scripts/agents/run-agent.sh <run-dir> <WP> <haiku|sonnet> [start|resume] [message-file]
+#   scripts/agents/run-agent.sh <run-dir> <WP> <haiku|sonnet|opus> [start|resume] [message-file]
 #
 #   <run-dir>       absolute folder with common.md, <WP>.md (the brief) and where <WP>.log is written
 #   <WP>            package id; its worktree is .worktrees/<wp lowercased>
-#   haiku | sonnet  claude-haiku-5-5 at max effort, or claude-sonnet-5-5 at low effort. Explicit ids:
-#                   the `haiku` alias still resolves to Haiku 4.5.
+#   haiku | sonnet | opus  claude-haiku-5-5 at max effort, or claude-sonnet-5-5 or claude-opus-5-5 at
+#                   low effort (opus: work Sonnet cannot hold). Explicit ids: the `haiku` alias
+#                   still resolves to Haiku 4.5.
 #   start           a fresh session from common.md + <WP>.md (the default; use it for every new round)
 #   resume          continue the logged session with [message-file] (only within a round: resumed
 #                   sessions thrash after a few rounds)
@@ -35,7 +36,8 @@ WT="$ROOT/.worktrees/$(echo "$WP" | tr '[:upper:]' '[:lower:]')"
 case "$KIND" in
   haiku)  MODEL=(--model claude-haiku-5-5 --effort max) ;;
   sonnet) MODEL=(--model claude-sonnet-5-5 --effort low) ;;
-  *) echo "model must be haiku or sonnet" >&2; exit 2 ;;
+  opus)   MODEL=(--model claude-opus-5-5 --effort low) ;;
+  *) echo "model must be haiku, sonnet or opus" >&2; exit 2 ;;
 esac
 
 # Headless: --permission-mode auto refuses file writes, so edits are auto-accepted (acceptEdits) and

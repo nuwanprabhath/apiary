@@ -5,6 +5,7 @@ import type { SessionNode } from '@shared/types'
 import { ContextRing, ModelPicker, ModeMenu, CommandPalette } from '../chat'
 import { interruptChat } from '../../state/chatStore'
 import { AttachmentStrip, imagesFrom, useImageAttachments } from './composerAttachments'
+import { FoldButton, PeekButton, useComposerFold } from './composerFold'
 import { ComposerActions } from './ComposerActions'
 import { useChatChoices, type ChatChoices } from './useChatChoices'
 import { useComposerHeight } from './useComposerHeight'
@@ -92,9 +93,11 @@ export function Composer({
   const chatRunning = chat !== null && chat.status !== 'exited'
   const busy = chat?.status === 'busy'
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const fold = useComposerFold(textareaRef)
+  const { collapsed, inputId } = fold
   /** The "/" menu's keys, set while typing "/" has it open; it sees Up/Down/Enter/Escape first. */
   const menuKeys = useRef<((e: KeyboardEvent) => boolean) | null>(null)
-  const { dragging, separatorProps, fitAgain } = useComposerHeight(textareaRef, text)
+  const { dragging, separatorProps, fitAgain } = useComposerHeight(textareaRef, text, !collapsed)
   const { attachments, addImages, removeImage, clear } = useImageAttachments()
   const choices = useChatChoices(chat, chatRunning, session.sessionId)
   const onSent = useCallback(() => { setText(''); clear() }, [clear])
@@ -116,20 +119,23 @@ export function Composer({
 
   return (
     <div className="composer" data-testid="composer">
-      <div
-        className="composer-resize"
-        data-testid="composer-resize"
-        data-dragging={dragging}
-        title="Drag to resize · double-click to fit the text again"
-        {...separatorProps}
-        onDoubleClick={fitAgain}
-      />
-      {attachments.length > 0 && (
+      {!collapsed && (
+        <div
+          className="composer-resize"
+          data-testid="composer-resize"
+          data-dragging={dragging}
+          title="Drag to resize · double-click to fit the text again"
+          {...separatorProps}
+          onDoubleClick={fitAgain}
+        />
+      )}
+      {!collapsed && attachments.length > 0 && (
         <AttachmentStrip attachments={attachments} onOpenImage={onOpenImage} onRemove={removeImage} />
       )}
 
-      <textarea
+      {!collapsed && <textarea
         ref={textareaRef}
+        id={inputId}
         className="composer-input"
         data-testid="composer-input"
         rows={3}
@@ -164,7 +170,7 @@ export function Composer({
           e.preventDefault()
           void send()
         }}
-      />
+      />}
 
       <ComposerActions
         ptyId={ptyId}
@@ -172,6 +178,8 @@ export function Composer({
         chatMode={chatMode}
         busy={busy}
         hint={hint}
+        leading={<FoldButton fold={fold} />}
+        peek={collapsed ? <PeekButton fold={fold} draft={text} /> : null}
         chatControls={chatMode && (
           <ChatControls
             sessionId={session.sessionId}

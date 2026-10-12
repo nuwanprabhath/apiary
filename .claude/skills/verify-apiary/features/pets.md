@@ -13,8 +13,9 @@ by a worker, driven by a brain worker, and voiced by `claude -p` with Haiku.
 - Drag to the rail (`sidebar-hide` first, then drop on `sidebar-rail`).
 - Right-click menu sizes (`menuitemcheckbox`: Small 44, Medium 64, Large 92, Extra large 128 px;
   `PET_SIZE_STEPS` in `src/shared/pets/state.ts`).
-- Chat on click (`pet-chat-input`, `pet-chat-line`); bubbles; scenes (catch, tennis, picnic,
-  fishing, tree, drive, parachute) a few times an hour.
+- Chat on click (`pet-chat-input`, `pet-chat-line`); bubbles; scenes (`SceneKind` in
+  `src/shared/pets/brain.ts`: catch, tennis, share, picnic, fish, tree, drive, parachute) every
+  10 to 20 minutes.
 
 ## How to get to it (user POV)
 
@@ -23,13 +24,17 @@ Settings → Pets → turn on. Up to three pets are out at once.
 ## Driving it with launchApiary
 
 `drives/pets.verify.ts` runs the whole enable → 3D render → chat path with a stand-in `claude`
-that answers the design prompt. For a scene on demand, scenes and comments have a test seam:
-set `globalThis.__apiaryPetBrainOptions = { sceneEveryMs, commentEveryMs, sceneKinds }` in the
-renderer before pets start (see `src/renderer/features/pets/brainClient.ts`). To start with
+that answers the design prompt. For a scene on demand, scenes and comments have a test seam, `petBrainOptions` in
+`src/renderer/state/testSeams.ts` (ranges are `[min, max]` tuples). Seams reach the renderer only
+through `APIARY_RENDERER_SEAMS` (JSON), which main puts in the window's URL; a `globalThis` property
+changes nothing. `launchApiary` has no env option, so relaunch with it:
+`relaunchApiary(h, { APIARY_RENDERER_SEAMS: JSON.stringify({ petBrainOptions: { sceneEveryMs: [2000, 3000], sceneKinds: ['fish'] } }) })`,
+then wait for `pet-scenery`. An unknown scene kind is dropped silently. To start with
 several pets placed, write `pets.json` into the profile and relaunch, as
 `scripts/screenshot/screenshot.spec.ts` does.
 
-Proof: the 3D `img` present, the pet's box sitting on `status-bar-floor`, `data-region`, and
+Proof: the pet's sprite rendered (`data-render="3d"` with its `img`, or `"drawn"` where there is
+no WebGL), the pet's box sitting on `status-bar-floor`, `data-region`, and
 screenshots. For "pets stand apart", compare boxes: no two overlap by more than the personal-space
 rule in `src/shared/pets/brain.ts`.
 

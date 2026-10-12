@@ -39,7 +39,7 @@ export function Transcript({
   const { messages, cursor, skipped, loading, loadingEarlier, loadEarlier } = pages
   const scroll = useTranscriptScroll({ tail, messages, visible, chatMode, chat })
   const { onContextMenu, menu: copyMenu } = useCopyOnSelect(tail.containerRef)
-  const { visibleMessages, shownTimes, items, queued, status } = useTranscriptView({
+  const { visibleMessages, items, queued, status } = useTranscriptView({
     sessionId: session.sessionId, messages, showSidechain, chatMode, chat, terminalRunning,
   })
   const find = useTranscriptFind({
@@ -98,7 +98,6 @@ export function Transcript({
             // eslint-disable-next-line @eslint-react/no-array-index-key -- falls back to the index only for the rare message with no uuid; the uuid is the real, stable key
             key={m.uuid.length > 0 ? m.uuid : String(i)}
             message={m}
-            showTime={shownTimes[i] !== null}
             onOpenImage={onOpenImage}
           />
         ))}

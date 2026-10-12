@@ -173,7 +173,7 @@ test('starting a second new session before the first resolves does not orphan th
   // for the swap to settle on work-b's cwd — the terminal element itself is re-used at the same
   // DOM position (see Finding 2), but the xterm instance behind it was just torn down and
   // recreated for the new pty, so typing into it before that finishes lands nowhere.
-  await expect(h.page.locator('.session-cwd')).toHaveText(h.workdirB)
+  await expect(h.page.getByTestId('session-title')).toHaveAttribute('data-cwd', h.workdirB)
   // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await h.page.getByTestId('terminal-session').click({ force: true })
   await expect(h.page.getByTestId('terminal-session')).toContainText('$', { timeout: 20000 })
@@ -192,7 +192,7 @@ test('starting a second new session before the first resolves does not orphan th
   // Switching back to it proves its pty is still alive and reachable — not orphaned — by typing
   // into it directly and reading real output back, the same technique used above for work-b.
   await tabs.first().getByTestId('session-tab-label').click()
-  await expect(h.page.locator('.session-cwd')).toHaveText(h.workdir)
+  await expect(h.page.getByTestId('session-title')).toHaveAttribute('data-cwd', h.workdir)
   // eslint-disable-next-line playwright/no-force-option -- xterm mounts its own internal DOM layers inside this host div, so Playwright's actionability hit-test can land on a different xterm-internal element than expected; force is needed to focus the terminal for the keyboard input that follows
   await h.page.getByTestId('terminal-session').click({ force: true })
   await expect(h.page.getByTestId('terminal-session')).toContainText('$', { timeout: 20000 })

@@ -20,6 +20,9 @@ async function open(chat: boolean): Promise<void> {
         message('a1', 'assistant', 'Two folders.', { timestampMs: TS - 400 * DAY + 3 * 60_000 }),
         message('u2', 'user', 'now the tests, and a long question that wraps over several lines in a narrow pane so the time above it must not collide with the role label', { timestampMs: TS - DAY }),
         message('a2', 'assistant', 'Two folders: tests/unit and tests/component, and a reply that is long enough to wrap in a narrow pane.', { timestampMs: TS }),
+        message('a3', 'assistant', 'Short.', { timestampMs: TS + 5_000 }),
+        message('a4', 'assistant', '# A heading first\n\nThen some text.', { timestampMs: TS + 10_000 }),
+        message('a5', 'assistant', '```ts\nconst answer = 42 // a code block first, long enough to reach the right edge of a narrow pane\n```', { timestampMs: TS + 15_000 }),
       ],
     }],
   })

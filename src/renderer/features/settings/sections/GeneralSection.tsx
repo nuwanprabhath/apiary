@@ -1,11 +1,11 @@
 import { type JSX, useEffect, useState } from 'react'
-import type { AppSettingsPayload } from '@shared/api'
 import { spellingLanguages } from '../../../state/spelling'
+import type { SettingsDraft } from '../../../state/settingsStore'
 import { CheckboxSetting } from '../fields/CheckboxSetting'
 import { RemoteAccessSetting } from './RemoteAccessSetting'
 
 export function GeneralSection(
-  { draft, patch }: { draft: AppSettingsPayload; patch: (fields: Partial<AppSettingsPayload>) => void },
+  { draft, patch }: { draft: SettingsDraft; patch: (fields: Partial<SettingsDraft>) => void },
 ): JSX.Element {
   const [languages, setLanguages] = useState<string[]>([])
   useEffect(() => {

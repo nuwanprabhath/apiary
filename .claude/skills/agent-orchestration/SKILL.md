@@ -162,7 +162,9 @@ committed, and described features that did not exist. For every package:
 3. **For UI, look at the screenshots** (`npm run ui:review` in the worktree) against
    `.claude/skills/ui-review/SKILL.md`.
 4. **Run the changed tests yourself**, and rerun a failure alone before calling it real: several
-   agents run their suites on the same machine.
+   agents run their suites on the same machine. The Stop hook already shows that they fail on the
+   base's `src/` (`.claude/hooks/testsFailOnBase.mjs`); do not re-check that by checking out old
+   files in the agent's worktree, which re-stages files the branch deleted.
 5. **For every class of shortcut, run the `correct` skill**: make the mistake impossible (an
    architecture change, a type, an `apiary/*` rule, a dependency-cruiser rule, an architecture test,
    or a Stop hook check), prove it fires on the agent's real worktree, and commit the guard with

@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import {
-  CHAT_EFFORTS, CHAT_EFFORT_LABELS, CHAT_MODELS, modelLabel,
+  CHAT_EFFORTS, CHAT_EFFORT_LABELS, CHAT_MODELS, modelLabel, runningModelEntry,
   type ChatEffort, type ChatModelInfo,
 } from '@shared/domain/chat'
 import { CheckIcon, ContextRingIcon } from '../../ui/icons'
@@ -26,8 +26,7 @@ interface Props {
 export function ModelPicker({ model, effort, models, onModel, onEffort }: Props): JSX.Element {
   const { open, setOpen, root } = usePopover()
   const list = models ?? CHAT_MODELS
-  const current = list.find((m) => m.value !== 'default' && (m.resolvedModel === model || m.value === model))
-    ?? list.find((m) => m.value === model)
+  const current = model === null ? undefined : runningModelEntry(model, list)
   // Effort levels: the running model's own, or every level before claude has said.
   const efforts: readonly ChatEffort[] = models === null ? CHAT_EFFORTS : current?.efforts ?? []
 

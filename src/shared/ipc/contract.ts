@@ -33,6 +33,7 @@ import type {
 import type { TranscriptPage } from '../domain/transcript'
 import type { BrowseView } from '../domain/folders'
 import type { AppSettingsPayload } from '../domain/settings'
+import { isLibraryPatch, type LibraryPatch, type LibrarySnapshot } from '../libraryState'
 import type { LogLevel, LogScope, LogStatusPayload } from '../domain/log'
 import type { UpdateStatusPayload } from '../domain/update'
 import type { PluginInfoPayload, PluginBarItem as PluginBarItemPayload } from '../domain/plugins'
@@ -210,6 +211,15 @@ export const IPC = {
   // (src/main/settings.ts) does the field-by-field validation SEC-8 added.
   settingsSet: invokeLoose<[settings: AppSettingsPayload], void>('apiary:settings-set', tuple(obj)),
   openSettingsDialog: event('apiary:open-settings-dialog'),
+
+  // Library state: the sessions library's arrangement and reading preferences, owned by the main
+  // of the machine whose sessions it describes (shared/libraryState.ts). `remote` scope, so a
+  // remote window reads and writes the work machine's.
+  libraryState: invoke<[], LibrarySnapshot>('apiary:library-state', tuple()),
+  setLibraryState: invoke<[patch: LibraryPatch], LibrarySnapshot>('apiary:set-library-state', tuple(isLibraryPatch)),
+  /** Applied only while the state is unseeded; answers what main now holds either way. */
+  seedLibraryState: invoke<[patch: LibraryPatch], LibrarySnapshot>('apiary:seed-library-state', tuple(isLibraryPatch)),
+  libraryStateChanged: event<[snapshot: LibrarySnapshot]>('apiary:library-state-changed'),
   toggleSidebar: event('apiary:toggle-sidebar'),
 
   // Git.

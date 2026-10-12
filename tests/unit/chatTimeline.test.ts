@@ -114,6 +114,19 @@ describe('chat timeline', () => {
   })
 })
 
+describe('chat item times', () => {
+  it('keeps the time of every user and text message, even within one minute', () => {
+    const t = new Date(2026, 9, 10, 10, 29).getTime()
+    const at = (m: TranscriptMessage, ms: number): TranscriptMessage => ({ ...m, timestampMs: ms })
+    const items = chatItems([
+      at(msg('u1', 'user', [{ type: 'text', text: 'hi' }]), t),
+      at(msg('a1', 'assistant', [{ type: 'text', text: 'one' }]), t + 10_000),
+      at(msg('a2', 'assistant', [{ type: 'text', text: 'two' }]), t + 20_000),
+    ])
+    expect(items.map((it) => ('timestampMs' in it ? it.timestampMs : undefined))).toEqual([t, t + 10_000, t + 20_000])
+  })
+})
+
 describe('BackgroundTaskTally', () => {
   it('finds the same running tasks however the messages are split into batches', () => {
     const file = [...startedInBackground('t1', 'b1'), ...startedInBackground('t2', 'b2'), finishedInBackground('b1')]

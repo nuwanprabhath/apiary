@@ -41,7 +41,8 @@ test('pets: turning them on hatches a 3D pet on the status bar that chats', asyn
     await h.page.getByTestId('settings-cancel').click()
 
     const pet = h.page.getByTestId('pet')
-    await expect(h.page.locator('[data-testid="pet"] .pet-sprite[data-render="3d"] .pet-body img')).toHaveCount(1, { timeout: 60_000 })
+    // 3D where the machine has WebGL, the flat drawing where it does not (pets.spec.ts does the same).
+    await expect(h.page.locator('[data-testid="pet"] .pet-sprite[data-render="3d"] .pet-body img, [data-testid="pet"] .pet-sprite[data-render="drawn"]')).toHaveCount(1, { timeout: 60_000 })
     const box = (await pet.boundingBox())!
     const floor = (await h.page.getByTestId('status-bar-floor').boundingBox())!
     note('pet-on-floor', { pet: box, floor, region: await pet.getAttribute('data-region') })

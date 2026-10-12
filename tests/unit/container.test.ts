@@ -46,6 +46,7 @@ describe('containerPaths', () => {
       remoteHostsFile: '/u/remote-hosts.json',
       remotePairingFile: '/u/remote-pairing.json',
       remotePairingCodesFile: '/u/remote-pairing-codes.json',
+      libraryStateFile: '/u/library-state.json',
     })
     const real = containerPaths(parseRuntimeEnv({}, [], false), '/u', () => '/real/.claude')
     expect(real.configRoot).toBe('/real/.claude')

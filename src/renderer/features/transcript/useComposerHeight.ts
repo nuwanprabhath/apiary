@@ -12,6 +12,8 @@ const MAX_SHARE = 0.75
 export function useComposerHeight(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
   text: string,
+  /** False while the box is folded away: it is measured again when it comes back. */
+  shown: boolean,
 ): { dragging: boolean, separatorProps: ReturnType<typeof useResizeDrag>['separatorProps'], fitAgain: () => void } {
   // The height the box was dragged to, which it never shrinks below; null to fit what is typed.
   const [dragged, setDragged] = useState<number | null>(() => loadComposerHeight(MIN_HEIGHT))
@@ -25,7 +27,7 @@ export function useComposerHeight(
     const cap = Math.max(floor, window.innerHeight * GROW_SHARE)
     el.style.height = 'auto'
     el.style.height = `${String(Math.min(cap, Math.max(floor, el.scrollHeight + 2)))}px`
-  }, [textareaRef, text, dragged])
+  }, [textareaRef, text, dragged, shown])
 
   // The top edge drags the box taller (up grows it) and, with the keyboard, steps it the same way.
   // The height is committed — and saved — once, on release or key press; `onLive` only moves the

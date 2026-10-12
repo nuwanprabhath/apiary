@@ -1,16 +1,19 @@
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react'
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useState } from 'react'
 import type { SessionNode } from '@shared/types'
-import {
-  loadUiState, saveUiState, subscribeSharedUiState, type UiState,
-} from './uiState'
+import type { LibraryState } from '@shared/libraryState'
+import { loadUiState, saveUiState, type ViewerUiState } from './uiState'
+import { updateLibraryState, useLibraryState } from './libraryStateStore'
 import { pruneDismissed, dismissRecent as dismissRecentAt } from './recentSessions'
 import { moveBefore, type GroupState } from './groups'
 
+/** This window's own state and the library's, read as one value; each half is written its own way. */
+export type UiState = ViewerUiState & LibraryState
+
 export interface UiStateActions {
   ui: UiState
-  /** The raw updater, for the handful of call sites too specific to be worth a named action of
-   *  their own (e.g. remembering the active session id) — every action below is built on it. */
-  updateUi: Dispatch<SetStateAction<UiState>>
+  /** The raw updater of this window's own half, for the handful of call sites too specific to be
+   *  worth a named action of their own (e.g. remembering the active session id). */
+  updateUi: Dispatch<SetStateAction<ViewerUiState>>
   toggleSidebar: () => void
   togglePin: (session: SessionNode) => void
   unpin: (sessionId: string) => void
@@ -30,142 +33,116 @@ export interface UiStateActions {
 
 
 const MAX_CREATED_WORKTREES = 50
+
+/** The library's actions: each works out its patch from the latest state main sent, and sends it. */
+function libraryActions(): Pick<UiStateActions,
+  'togglePin' | 'unpin' | 'setGroupState' | 'reorderPinned' | 'toggleAllWorktrees' | 'rememberCreatedWorktree'
+  | 'setPinnedCollapsed' | 'setRecentCollapsed' | 'dismissRecent'> {
+  return {
+    /**
+     * Pins (or unpins) a session. Newly pinned ids go to the front, so the pinned section reads
+     * most-recent-first rather than in whatever order the tree happened to hand them over.
+     */
+    togglePin: (session) => {
+      updateLibraryState(({ pinned }) => ({
+        pinned: pinned.includes(session.sessionId) ? pinned.filter((id) => id !== session.sessionId) : [session.sessionId, ...pinned],
+      }))
+    },
+    /** Drops an id from the pinned list, used when the session behind it is removed from view. */
+    unpin: (sessionId) => {
+      updateLibraryState(({ pinned }) => (pinned.includes(sessionId) ? { pinned: pinned.filter((id) => id !== sessionId) } : {}))
+    },
+    setGroupState: (next) => {
+      updateLibraryState(() => ({
+        groups: next.groups, groupAssignments: next.assignments, groupsCollapsed: next.collapsed, folderOrder: next.folderOrder,
+      }))
+    },
+    reorderPinned: (id, beforeId) => { updateLibraryState(({ pinned }) => ({ pinned: moveBefore(pinned, id, beforeId) })) },
+    toggleAllWorktrees: (path) => {
+      updateLibraryState(({ showAllWorktrees: all }) => ({
+        showAllWorktrees: all.includes(path) ? all.filter((p) => p !== path) : [...all, path],
+      }))
+    },
+    rememberCreatedWorktree: (folder, path) => {
+      // The newest first, and only so many: once a session has run in one the tree finds it on its
+      // own, and one since removed is simply not listed by git any more.
+      updateLibraryState(({ createdWorktrees }) => ({
+        createdWorktrees: [{ folder, path }, ...createdWorktrees.filter((w) => w.path !== path)].slice(0, MAX_CREATED_WORKTREES),
+      }))
+    },
+    setPinnedCollapsed: (next) => { updateLibraryState(() => ({ pinnedCollapsed: next })) },
+    setRecentCollapsed: (next) => { updateLibraryState(() => ({ recentCollapsed: next })) },
+    dismissRecent: (session) => {
+      updateLibraryState(({ dismissedRecent }) => ({ dismissedRecent: dismissRecentAt(dismissedRecent, session.sessionId, Date.now()) }))
+    },
+  }
+}
+
 /**
- * Owns the per-window/shared `ui` blob: load, the synchronous save, cross-window shared-state
- * sync, and the dismissed-Recent prune — plus narrow actions for every place App.tsx mutated it
- * ad hoc. Ports App.tsx 129, 312–321, 399–408, 913–935 verbatim.
+ * Owns this window's `ui` half (load, the synchronous save, narrow actions) and reads the library's
+ * half from `libraryStateStore`, so the sidebar sees one value. A library action never sets local
+ * state: it goes to main, and main's push (to every window, remote ones included) is what the
+ * sidebar then shows.
  *
  * `recentSectionHours` is a parameter rather than read from this hook because it comes from
  * settings (`useAppSettings`, in `settingsStore.ts`), a sibling hook — passing it in keeps this hook from having an
  * opinion about where settings live.
  */
 export function useUiState(recentSectionHours: number): UiStateActions {
-  const [ui, setUi] = useState<UiState>(() => loadUiState())
+  const [viewer, setViewer] = useState<ViewerUiState>(() => loadUiState())
+  const library = useLibraryState()
 
-  // Saved on every `ui` change, synchronously. A debounce was tried (UI-6) and lost the last
-  // change before a quit or reload: a real quit tears the renderer down without a React unmount,
-  // so a pending timer simply never fires. The expensive case it was meant for — a drag writing on
+  // Saved on every change, synchronously. A debounce was tried (UI-6) and lost the last change
+  // before a quit or reload: a real quit tears the renderer down without a React unmount, so a
+  // pending timer simply never fires. The expensive case it was meant for — a drag writing on
   // every mousemove — is gone at the source: resize drags commit `ui` once, on mouseup (see
   // `setSidebarWidth`/`setBottomHeight`, called only from a `mouseup` handler).
-  useEffect(() => { saveUiState(ui) }, [ui])
-
-  // Pins and groups belong to the library rather than to this window, so a change made in another
-  // window lands here as it happens instead of at the next launch.
-  useEffect(() => subscribeSharedUiState((shared) => {
-    setUi((prev) => ({ ...prev, ...shared }))
-  }), [])
+  useEffect(() => { saveUiState(viewer) }, [viewer])
 
   /**
-   * Drops dismissals old enough that they could never hide a session again, so the shared map does
-   * not grow without bound across months of use. Re-checked whenever the window is open and either
-   * input changes; a no-op prune returns the same reference (see `pruneDismissed`), so this only
-   * writes shared state when there is actually something to drop.
+   * Drops dismissals old enough that they could never hide a session again, so the map does not
+   * grow without bound across months of use. A no-op prune returns the same reference (see
+   * `pruneDismissed`), so this only writes when there is actually something to drop.
    */
   useEffect(() => {
-    setUi((prev) => {
-      const pruned = pruneDismissed(prev.dismissedRecent, Date.now(), recentSectionHours)
-      return pruned === prev.dismissedRecent ? prev : { ...prev, dismissedRecent: pruned }
-    })
-  }, [recentSectionHours])
+    const now = Date.now()
+    if (pruneDismissed(library.dismissedRecent, now, recentSectionHours) === library.dismissedRecent) return
+    updateLibraryState(({ dismissedRecent }) => ({ dismissedRecent: pruneDismissed(dismissedRecent, now, recentSectionHours) }))
+  }, [library.dismissedRecent, recentSectionHours])
 
   const toggleSidebar = useCallback(() => {
-    setUi((prev) => ({ ...prev, sidebarHidden: !prev.sidebarHidden }))
-  }, [])
-
-  /**
-   * Pins (or unpins) a session. Newly pinned ids go to the front, so the pinned section reads
-   * most-recent-first rather than in whatever order the tree happened to hand them over.
-   */
-  const togglePin = useCallback((session: SessionNode) => {
-    setUi((prev) => ({
-      ...prev,
-      pinned: prev.pinned.includes(session.sessionId)
-        ? prev.pinned.filter((id) => id !== session.sessionId)
-        : [session.sessionId, ...prev.pinned],
-    }))
-  }, [])
-
-  /** Drops an id from the pinned list, used when the session behind it is removed from view. */
-  const unpin = useCallback((sessionId: string) => {
-    setUi((prev) => (prev.pinned.includes(sessionId)
-      ? { ...prev, pinned: prev.pinned.filter((id) => id !== sessionId) }
-      : prev))
+    setViewer((prev) => ({ ...prev, sidebarHidden: !prev.sidebarHidden }))
   }, [])
 
   const setCollapsed = useCallback((next: Set<string>) => {
-    setUi((prev) => {
+    setViewer((prev) => {
       const list = [...next].sort()
       if (list.join(' ') === [...prev.collapsed].sort().join(' ')) return prev
       return { ...prev, collapsed: list }
     })
   }, [])
 
-  const setGroupState = useCallback((next: GroupState) => {
-    setUi((prev) => ({
-      ...prev,
-      groups: next.groups,
-      groupAssignments: next.assignments,
-      groupsCollapsed: next.collapsed,
-      folderOrder: next.folderOrder,
-    }))
-  }, [])
-
-  const reorderPinned = useCallback((id: string, beforeId: string) => {
-    setUi((prev) => ({ ...prev, pinned: moveBefore(prev.pinned, id, beforeId) }))
-  }, [])
-
-  const toggleAllWorktrees = useCallback((path: string) => {
-    setUi((prev) => ({
-      ...prev,
-      showAllWorktrees: prev.showAllWorktrees.includes(path)
-        ? prev.showAllWorktrees.filter((p) => p !== path)
-        : [...prev.showAllWorktrees, path],
-    }))
-  }, [])
-
-  const rememberCreatedWorktree = useCallback((folder: string, path: string) => {
-    setUi((prev) => ({
-      ...prev,
-      // The newest first, and only so many: once a session has run in one the tree finds it on its
-      // own, and one since removed is simply not listed by git any more.
-      createdWorktrees: [{ folder, path }, ...prev.createdWorktrees.filter((w) => w.path !== path)].slice(0, MAX_CREATED_WORKTREES),
-    }))
-  }, [])
-
-  const setPinnedCollapsed = useCallback((next: boolean) => {
-    setUi((prev) => ({ ...prev, pinnedCollapsed: next }))
-  }, [])
-
-  const setRecentCollapsed = useCallback((next: boolean) => {
-    setUi((prev) => ({ ...prev, recentCollapsed: next }))
-  }, [])
-
-  const dismissRecent = useCallback((session: SessionNode) => {
-    setUi((prev) => ({
-      ...prev,
-      dismissedRecent: dismissRecentAt(prev.dismissedRecent, session.sessionId, Date.now()),
-    }))
-  }, [])
-
   // Written only from a `mouseup` handler (see CLAUDE.md/UI-6): React hears about a resize drag
   // once, at the end, not on every `mousemove`.
   const setSidebarWidth = useCallback((width: number) => {
-    setUi((prev) => (prev.sidebarWidth === width ? prev : { ...prev, sidebarWidth: width }))
+    setViewer((prev) => (prev.sidebarWidth === width ? prev : { ...prev, sidebarWidth: width }))
   }, [])
   const setBottomHeight = useCallback((height: number) => {
-    setUi((prev) => (prev.bottomHeight === height ? prev : { ...prev, bottomHeight: height }))
+    setViewer((prev) => (prev.bottomHeight === height ? prev : { ...prev, bottomHeight: height }))
   }, [])
 
   const setTerminalListWidth = useCallback((width: number | null) => {
-    setUi((prev) => ({ ...prev, terminalListWidth: width }))
+    setViewer((prev) => ({ ...prev, terminalListWidth: width }))
   }, [])
   const setImportDialogWidth = useCallback((width: number) => {
-    setUi((prev) => ({ ...prev, importDialogWidth: width }))
+    setViewer((prev) => ({ ...prev, importDialogWidth: width }))
   }, [])
 
+  const actions = useMemo(libraryActions, [])
+  const ui = useMemo(() => ({ ...viewer, ...library }), [viewer, library])
+
   return {
-    ui, updateUi: setUi, toggleSidebar, togglePin, unpin, setCollapsed, setGroupState, reorderPinned,
-    toggleAllWorktrees, rememberCreatedWorktree, setPinnedCollapsed, setRecentCollapsed, dismissRecent,
-    setSidebarWidth, setBottomHeight, setTerminalListWidth, setImportDialogWidth,
+    ui, updateUi: setViewer, toggleSidebar, setCollapsed,
+    setSidebarWidth, setBottomHeight, setTerminalListWidth, setImportDialogWidth, ...actions,
   }
 }

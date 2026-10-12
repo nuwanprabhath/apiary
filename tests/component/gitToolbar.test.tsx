@@ -268,7 +268,7 @@ describe('the git toolbar', () => {
 
     await expect.element(page.getByTestId('worktree-conflict-dialog')).not.toBeInTheDocument()
     // A new tab, showing the worktree's own directory in the header.
-    await until(() => page.getByTestId('session-path').elements().some((el) => el.textContent?.includes('repo-c-wt') === true))
+    await until(() => page.getByTestId('session-title').elements().some((el) => el.getAttribute('data-cwd')?.includes('repo-c-wt') === true))
   })
 
   it('a slow git status for a tab left behind does not overwrite the tab now in front (UI-14)', async () => {

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { until } from './helpers'
+import type { FakeApiary } from './fakeApiary'
 
 async function rightClick(el: Element): Promise<void> {
   const { x, y, width, height } = el.getBoundingClientRect()
@@ -10,17 +11,8 @@ async function rightClick(el: Element): Promise<void> {
   }))
 }
 
-/** Every group assignment the window has persisted, folder path → group id. */
-function savedAssignments(): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (let i = 0; i < localStorage.length; i++) {
-    const raw = localStorage.getItem(localStorage.key(i) ?? '') ?? ''
-    try {
-      Object.assign(out, (JSON.parse(raw) as { groupAssignments?: Record<string, string> }).groupAssignments ?? {})
-    } catch { /* not ours */ }
-  }
-  return out
-}
+/** Every group assignment main holds in its library state, folder path → group id. */
+const savedAssignments = (fake: FakeApiary): Record<string, string> => fake.state.library.state.groupAssignments
 
 describe('"+" on a user-created group', () => {
   it('starts a session in a folder picked with the native dialog, and files that folder under the group', async () => {
@@ -34,7 +26,7 @@ describe('"+" on a user-created group', () => {
     await userEvent.click(page.getByTestId('group-new-session-button'))
     await expect.poll(() => fake.callsTo('newSessionInPickedFolder').length).toBe(1)
     await expect.element(page.getByTestId('terminal-session')).toBeVisible()
-    await expect.poll(() => Object.keys(savedAssignments())).toContain('/fixture/picked')
+    await expect.poll(() => Object.keys(savedAssignments(fake))).toContain('/fixture/picked')
   })
 
   it('a cancelled picker starts nothing and files nothing', async () => {
@@ -47,6 +39,6 @@ describe('"+" on a user-created group', () => {
     await userEvent.click(page.getByTestId('group-new-session-button'))
     await expect.poll(() => fake.callsTo('newSessionInPickedFolder').length).toBe(1)
     expect(document.querySelector('[data-testid="terminal-session"]')).toBeNull()
-    expect(Object.keys(savedAssignments())).not.toContain('/fixture/picked')
+    expect(Object.keys(savedAssignments(fake))).not.toContain('/fixture/picked')
   })
 })

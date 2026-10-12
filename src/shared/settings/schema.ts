@@ -118,13 +118,6 @@ export const SETTINGS = {
    */
   transcriptChat: flag(false),
   /**
-   * Start with each chat's tool calls (the IN and OUT boxes of Bash, Read, Edit and the rest) hidden,
-   * so the transcript is what you said and what Claude said. Off by default: tool calls are shown.
-   * The Chat tab's own "Hide tool calls" switch flips this for what you are looking at without
-   * saving anything; this is the value it starts from.
-   */
-  hideToolCallIo: flag(false),
-  /**
    * Whether the search box also matches the *contents* of conversations, not just their titles.
    * On by default; turning it off falls back to title-only search and stops the indexer running.
    */

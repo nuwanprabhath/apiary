@@ -57,6 +57,7 @@ const ALLOWLIST = new Set([
   'session-layout.json',
   'themes.json',
   'pets.json',
+  'library-state.json', // userData, written by LibraryStateService
   'ui-review/index.html', // written by `npm run ui:review`, gitignored
   'ui-review/shots', // the UI scenarios' screenshots, gitignored
   '.apiarypet.json', // the extension of an exported pet file, not a repo file

@@ -13,6 +13,10 @@ interface Props {
   chatMode: boolean
   busy: boolean
   hint: string
+  /** The fold button, first in the row. */
+  leading: ReactNode
+  /** While the box is folded: the button that unfolds it, in the hint's place. */
+  peek: ReactNode
   /** Chat mode only: the "/" menu, context ring and model picker, before the hint. */
   chatControls: ReactNode
   /** Chat mode only: the permission mode menu, after the hint. */
@@ -29,9 +33,10 @@ export function ComposerActions(p: Props): JSX.Element {
   const { running, chatMode, busy, hint, sending } = p
   return (
     <div className="composer-actions">
+      {p.leading}
       {p.chatControls}
       {!chatMode && <TerminalModelSelect ptyId={p.ptyId} running={running} />}
-      <span className="composer-hint muted" data-testid="composer-hint"><span className="composer-hint-text">{hint}</span></span>
+      {p.peek ?? <span className="composer-hint muted" data-testid="composer-hint"><span className="composer-hint-text">{hint}</span></span>}
       {p.modeMenu}
       {busy ? (
         <button className="btn composer-send" data-testid="composer-stop" title="Stop Claude (Esc)" onClick={p.interrupt}>

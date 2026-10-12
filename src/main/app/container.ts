@@ -64,6 +64,7 @@ import { IPC } from '@shared/api'
 import type { RuntimeEnv } from './env'
 import { SpellingService } from '../spelling/spellingService'
 import { FolderBrowser } from '../folders/folderBrowser'
+import { LibraryStateService } from '../library/libraryStateService'
 
 /**
  * The explicit composition root (MAIN-15 step 5): the one place that lists every long-lived
@@ -89,6 +90,7 @@ export interface ContainerPaths {
   remoteHostsFile: string
   remotePairingFile: string
   remotePairingCodesFile: string
+  libraryStateFile: string
 }
 
 export interface ContainerInputs {
@@ -190,6 +192,8 @@ export interface Container {
   /** The home machine's end of remote access: ssh, the forwarded socket and the remote windows. */
   remoteClient: RemoteClientService
   hostDirectory: HostDirectory
+  /** The sessions library's arrangement and reading preferences, mirrored to remote windows. */
+  library: LibraryStateService
 }
 
 /**
@@ -463,10 +467,16 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   })
   const spelling = new SpellingService()
   const folderBrowser = new FolderBrowser({ home: inputs.homeDir })
+  const library = new LibraryStateService({
+    file: paths.libraryStateFile,
+    moved: settingsService.movedToLibrary(),
+    onChanged: (snapshot) => { broadcast(IPC.libraryStateChanged, snapshot) },
+  })
   return {
     paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry,
     windowManager, service, chat: service.chat, plugins: service.plugins, spelling, folderBrowser, ipcState, sessionWatcher, updater,
     themeStore, themeGenerator, petStore, petService, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory,
+    library,
   }
 }
 
@@ -484,5 +494,6 @@ export function containerPaths(
     remoteHostsFile: join(userData, 'remote-hosts.json'),
     remotePairingFile: join(userData, 'remote-pairing.json'),
     remotePairingCodesFile: join(userData, 'remote-pairing-codes.json'),
+    libraryStateFile: join(userData, 'library-state.json'),
   }
 }

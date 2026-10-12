@@ -72,7 +72,7 @@ function ToolUseBlock({ name, input }: { name: string; input: unknown }): JSX.El
 // re-rendered on every App render — including every ~1s live-refresh tick — even when its own
 // message and callback had not changed at all.
 export const MessageRow = memo(function MessageRow(
-  { message, onOpenImage, showTime }: { message: TranscriptMessage; onOpenImage: (src: string) => void; showTime: boolean },
+  { message, onOpenImage }: { message: TranscriptMessage; onOpenImage: (src: string) => void },
 ): JSX.Element | null {
   const [showThinking, setShowThinking] = useState(false)
   // A turn's end and a recap are the chat view's (ChatStatus); this view has no place for them.
@@ -85,9 +85,10 @@ export const MessageRow = memo(function MessageRow(
       data-role={message.role}
       data-sidechain={message.isSidechain}
     >
-      <MessageTime ms={showTime ? message.timestampMs : null} />
+      {message.role === 'user' && <MessageTime ms={message.timestampMs} />}
       <div className="message-role">{message.role === 'user' ? 'You' : 'Claude'}</div>
       <div className="message-body">
+        {message.role !== 'user' && message.blocks.some((b) => b.type === 'text') && <MessageTime ms={message.timestampMs} inline />}
         {message.blocks.map((block, i) => {
           // Blocks have no id of their own and this message's block list never reorders or
           // mutates in place after being parsed from the JSONL, so the index is a stable key.

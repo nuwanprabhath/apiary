@@ -1,5 +1,5 @@
 import { type JSX, useEffect, useRef, useState } from 'react'
-import type { AppSettingsPayload, PluginInfoPayload, UpdateStatusPayload } from '@shared/api'
+import type { PluginInfoPayload, UpdateStatusPayload } from '@shared/api'
 import { SECTIONS, blurbOf } from './registry'
 import { useNotifications } from '../../ui/notifications'
 import { ErrorBoundary } from '../../ui/ErrorBoundary'
@@ -7,7 +7,7 @@ import { Modal } from '../../ui/Modal'
 import { treeStore } from '../../state/treeStore'
 import { listPlugins } from '../../state/plugins'
 import { rebuildSearchIndex, readSearchStatus } from '../../state/sessions'
-import { readSettings, saveSettingsDraft } from '../../state/settingsStore'
+import { readSettings, saveSettingsDraft, type SettingsDraft } from '../../state/settingsStore'
 import { setSpellingLanguage } from '../../state/spelling'
 
 /**
@@ -34,7 +34,7 @@ export function SettingsDialog(
     : SECTIONS[0].id)
   // Null until the first load resolves; every field below is driven from this one object, so a
   // new setting is a new key rather than another piece of local state to remember to save.
-  const [draft, setDraft] = useState<AppSettingsPayload | null>(null)
+  const [draft, setDraft] = useState<SettingsDraft | null>(null)
   const [saving, setSaving] = useState(false)
   // The proofing language as it was loaded, so Save applies the dictionary only when it changed.
   const loadedProofing = useRef<string | null>(null)
@@ -76,7 +76,7 @@ export function SettingsDialog(
     })
   }, [notifyError])
 
-  const patch = (fields: Partial<AppSettingsPayload>): void => {
+  const patch = (fields: Partial<SettingsDraft>): void => {
     setDraft((prev) => (prev === null ? prev : { ...prev, ...fields }))
   }
 

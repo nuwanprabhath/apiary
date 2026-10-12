@@ -8,6 +8,7 @@ import type { WindowBounds } from './windows/windowBounds'
 import { mergePayload } from '@shared/settings/schema'
 import type { ConsentState } from './statusBar/claudeUsage/consent'
 import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
+import type { LibraryPatch } from '@shared/libraryState'
 
 /**
  * The shape of the stored file, bumped when an existing one needs adjusting as it is read.
@@ -17,7 +18,7 @@ import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
  * already pins every field to whatever the default was on the day it was first written, and a new
  * default only ever applies to someone who has never used the app.
  */
-export const SETTINGS_VERSION = 1
+export const SETTINGS_VERSION = 2
 
 /**
  * The full stored shape: `AppSettingsPayload` (shared/domain/settings.ts) plus what only main
@@ -82,16 +83,34 @@ export function clampRecentHours(value: unknown): number {
  * click either way.
  */
 export function migrateSettings(raw: Partial<AppSettings>): Partial<AppSettings> {
-  if ((raw.schemaVersion ?? 0) >= SETTINGS_VERSION) return raw
+  const from = raw.schemaVersion ?? 0
+  if (from >= SETTINGS_VERSION) return raw
+  return { ...withoutMoved(from < 1 ? migrateToV1(raw) : raw), schemaVersion: SETTINGS_VERSION }
+}
 
+function migrateToV1(raw: Partial<AppSettings>): Partial<AppSettings> {
   const chose = raw.terminalShortenPath === true
     || (raw.terminalPathSegments !== undefined && raw.terminalPathSegments !== 2)
+  return chose ? raw : { ...raw, terminalShortenPath: true, terminalPathSegments: 1 }
+}
 
-  return {
-    ...raw,
-    schemaVersion: SETTINGS_VERSION,
-    ...(chose ? {} : { terminalShortenPath: true, terminalPathSegments: 1 }),
-  }
+/**
+ * Version 2 moved `hideToolCallIo` into the library state (`shared/libraryState.ts`): it says how
+ * this machine's chats are shown, so a remote window must read the work machine's. The key is
+ * dropped here; `movedSettings` is what the library state is given in its place.
+ */
+const MOVED_TO_LIBRARY = ['hideToolCallIo'] as const
+
+function withoutMoved(raw: Partial<AppSettings>): Partial<AppSettings> {
+  const out: Record<string, unknown> = { ...raw }
+  for (const key of MOVED_TO_LIBRARY) delete out[key]
+  return out
+}
+
+/** The values a pre-2 settings file holds for keys that now live in the library state. */
+function movedSettings(raw: unknown): LibraryPatch {
+  if (!isRecord(raw) || (isFiniteNumber(raw.schemaVersion) && raw.schemaVersion >= 2)) return {}
+  return typeof raw.hideToolCallIo === 'boolean' ? { hideToolCallIo: raw.hideToolCallIo } : {}
 }
 
 /**
@@ -99,12 +118,13 @@ export function migrateSettings(raw: Partial<AppSettings>): Partial<AppSettings>
  * migration, and missing or corrupt settings give the defaults — they must never stop the app from
  * starting.
  */
-export function createSettingsStore(file: string): JsonStore<AppSettings> {
+export function createSettingsStore(file: string, onMoved?: (moved: LibraryPatch) => void): JsonStore<AppSettings> {
   return new JsonStore<AppSettings>({
     file,
     version: SETTINGS_VERSION,
     versionKey: 'schemaVersion',
     parse: (raw) => {
+      onMoved?.(movedSettings(raw))
       if (!isRecord(raw)) return DEFAULT_SETTINGS
       const merged = { ...DEFAULT_SETTINGS, ...migrateSettings(raw) }
       // `migrateSettings`/the defaults spread only fill in *missing* fields — a present-but-invalid

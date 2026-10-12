@@ -1,5 +1,4 @@
 import type { TranscriptMessage } from './domain/transcript'
-import { firstOfMinuteRun } from './time'
 
 /**
  * The transcript as the chat view draws it — the VS Code extension's shape: your messages as
@@ -107,10 +106,6 @@ export function chatItems(messages: TranscriptMessage[]): ChatItem[] {
       else if (b.type === 'tool_use') items.push({ kind: 'tool', key, name: b.name, input: b.input, result: results.get(b.id) ?? null })
     })
   }
-  // A time only on the first message of a minute.
-  const timed = items.filter((it): it is Extract<ChatItem, { timestampMs: number | null }> => 'timestampMs' in it)
-  const kept = firstOfMinuteRun(timed.map((it) => it.timestampMs))
-  timed.forEach((it, i) => { it.timestampMs = kept[i] })
   return items
 }
 

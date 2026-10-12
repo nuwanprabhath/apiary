@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SettingsService } from '../../src/main/settings/settingsService'
@@ -16,6 +16,19 @@ describe('SettingsService', () => {
     const service = new SettingsService(file())
     expect(service.get()).toEqual(DEFAULT_SETTINGS)
     expect(JSON.parse(readFileSync(file(), 'utf8'))).toEqual(DEFAULT_SETTINGS)
+  })
+
+  it('moves hideToolCallIo out of an older settings.json, once, for the library state', () => {
+    writeFileSync(file(), JSON.stringify({ schemaVersion: 1, hideToolCallIo: true }))
+    const service = new SettingsService(file())
+    expect(service.movedToLibrary()).toEqual({ hideToolCallIo: true })
+    expect(JSON.parse(readFileSync(file(), 'utf8'))).not.toHaveProperty('hideToolCallIo')
+    expect(new SettingsService(file()).movedToLibrary()).toEqual({})
+  })
+
+  it('moves nothing from a file that never set it', () => {
+    writeFileSync(file(), JSON.stringify({ schemaVersion: 1 }))
+    expect(new SettingsService(file()).movedToLibrary()).toEqual({})
   })
 
   it('patch updates the in-memory copy and persists it', () => {

@@ -443,6 +443,28 @@ describe('transcript chat', () => {
     expect(fake.callsTo('chatSetEffort')).toEqual([[sessionId, 'high']])
   })
 
+  it('a 1M-context model id still shows its effort in the pill and the menu', async () => {
+    const { fake, sessionId } = await openChat()
+    const levels = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+    play(fake, sessionId, {
+      status: 'idle',
+      model: 'claude-opus-5-5[1m]',
+      effort: 'medium',
+      models: [
+        { value: 'default', resolvedModel: 'claude-opus-5-5', displayName: 'Default (recommended)', description: '', efforts: [...levels] },
+        { value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus 5.5', description: '', efforts: [...levels] },
+      ],
+    })
+    await textOf('composer-model-pill', /Opus 5\.5\s*Medium/)
+    await userEvent.click(page.getByTestId('composer-model-pill'))
+    for (const level of levels) await expect.element(page.getByTestId(`composer-effort-${level}`)).toBeInTheDocument()
+    await expect.element(page.getByTestId('composer-effort-medium')).toHaveAttribute('aria-checked', 'true')
+    await expect.element(page.getByTestId('composer-model-option').nth(1)).toHaveAttribute('aria-checked', 'true')
+    await userEvent.click(page.getByTestId('composer-effort-max'))
+    await until(() => fake.callsTo('chatSetEffort').length === 1)
+    expect(fake.callsTo('chatSetEffort')).toEqual([[sessionId, 'max']])
+  })
+
   it('the / menu opening does not take focus from a text field being typed in', async () => {
     await openChat()
     const other = document.createElement('input')

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { modelLabel, type ChatModelInfo } from '@shared/domain/chat'
+import { modelLabel, runningModelEntry, type ChatModelInfo } from '@shared/domain/chat'
 
 const MODELS: ChatModelInfo[] = [
   { value: 'default', resolvedModel: 'claude-opus-5-5', displayName: 'Default (recommended)', description: '', efforts: [] },
@@ -27,5 +27,19 @@ describe('modelLabel', () => {
     expect(modelLabel('opus', familyOnly)).toBe('Opus 5.5')
     expect(modelLabel('claude-opus-5-5', familyOnly)).toBe('Opus 5.5')
     expect(modelLabel('sonnet', familyOnly)).toBe('Sonnet 5.5')
+  })
+})
+
+describe('runningModelEntry', () => {
+  it('matches a resolved id, an alias and an id with a bracketed suffix', () => {
+    expect(runningModelEntry('claude-fable-5-1', MODELS)?.value).toBe('claude-fable-5-1')
+    expect(runningModelEntry('opus', MODELS)?.value).toBe('opus')
+    expect(runningModelEntry('claude-opus-5-5[1m]', MODELS)?.value).toBe('opus')
+  })
+
+  it('never picks default when a named entry matches, and knows an unknown id', () => {
+    expect(runningModelEntry('claude-opus-5-5', MODELS)?.value).toBe('opus')
+    expect(runningModelEntry('claude-nope-1', MODELS)).toBeUndefined()
+    expect(runningModelEntry('claude-opus-5-5', null)).toBeUndefined()
   })
 })

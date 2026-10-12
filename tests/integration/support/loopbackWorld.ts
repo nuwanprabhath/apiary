@@ -34,6 +34,7 @@ import { broadcast } from '../../../src/main/windows/broadcast'
 import { createUpdater } from '../../../src/main/update/createUpdater'
 import { SpellingService } from '../../../src/main/spelling/spellingService'
 import { FolderBrowser } from '../../../src/main/folders/folderBrowser'
+import { LibraryStateService } from '../../../src/main/library/libraryStateService'
 import type { VirtualContentsRegistry } from '../../../src/main/remote/virtualContents'
 import { fakeContents, loopback, resetLoopback } from './electronLoopback'
 import { loopbackConnectingOutside, seedRemoteHosts } from './remoteHome'
@@ -232,6 +233,10 @@ export async function buildLoopbackWorld(
     activeTabs: built.activeTabs,
     spelling: new SpellingService(),
     folderBrowser: new FolderBrowser({ home }),
+    library: new LibraryStateService({
+      file: join(home, 'library-state.json'), moved: settings.movedToLibrary(),
+      onChanged: (snapshot) => { broadcast(IPC.libraryStateChanged, snapshot) },
+    }),
     state: buildIpcState(service, join(home, '.claude'), {
       tabRegistry,
       ...(extras.virtualContents !== undefined ? { virtualContents: extras.virtualContents } : {}),

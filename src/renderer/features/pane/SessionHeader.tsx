@@ -1,90 +1,59 @@
 import type { PtyId } from '@shared/domain/ids'
-import { type JSX, useEffect, useState } from 'react'
+import type { JSX } from 'react'
 import type { SessionNode } from '@shared/types'
-import type { OpenTab } from '../../state/columns'
 import { EditableSessionTitle } from './EditableSessionTitle'
-import { ResumeBar } from './ResumeBar'
-import { useChat } from '../../state/chatStore'
+import type { Handoff } from './useTerminalHandoff'
 import type { PendingTabInfo } from './paneTypes'
 
-/** The title (editable), folder path and — for a resolved session — the resume bar. */
+/** The title (editable), with the folder in its tooltip, and the wait-for-Claude line while a handoff is pending. */
 export function SessionHeader({
-  activePending, activeSession, activeView, hasTerminal, onRenamePending, onRenameSession, onSetView, onResume,
+  activePending, activeSession, handoff, onRenamePending, onRenameSession,
 }: {
   activePending: PendingTabInfo | null
   activeSession: SessionNode | null
-  activeView: OpenTab['view']
-  /** Whether the session has a live claude pty behind it. */
-  hasTerminal: boolean
+  handoff: Handoff | null
   onRenamePending: (ptyId: PtyId, title: string) => void
   onRenameSession: (session: SessionNode, title: string) => void
-  onSetView: (key: string, view: OpenTab['view']) => void
-  onResume: (session: SessionNode) => void
 }): JSX.Element {
-  const chat = useChat(activeSession?.sessionId ?? '')
-  const chatRunning = chat !== null && chat.status !== 'exited'
-  // What moving the chat to the terminal now would cut short: the turn in progress, or background
-  // tasks it started — the chat's claude is stopped for the terminal's, and they die with it.
-  const tasks = chat?.backgroundTasks?.length ?? 0
-  const chatWorking = chatRunning && (chat.status === 'busy' || tasks > 0)
-  // "Continue in terminal" pressed while it was: the switch waits until there is nothing to lose.
-  const [handoff, setHandoff] = useState<string | null>(null)
-  const sessionId = activeSession?.sessionId ?? null
-  useEffect(() => {
-    if (handoff === null) return
-    if (handoff !== sessionId || !chatRunning) { setHandoff(null); return }
-    if (chatWorking || activeSession === null) return
-    setHandoff(null)
-    onResume(activeSession)
-  }, [handoff, sessionId, chatRunning, chatWorking, activeSession, onResume])
+  const cwd = activePending !== null ? activePending.cwd : activeSession?.cwd
+  const title = activePending !== null ? activePending.label : activeSession?.title
   return (
-    <>
-      <header className="session-header">
-        <h1 data-testid="session-title" className="session-title-heading" title={activePending !== null ? activePending.label : activeSession?.title}>
-          {activePending !== null ? (
-            <>
-              New session &middot;{' '}
-              <EditableSessionTitle
-                key={activePending.ptyId}
-                title={activePending.label}
-                onRename={(title) => onRenamePending(activePending.ptyId, title)}
-              />
-            </>
-          ) : activeSession !== null ? (
+    <header className="session-header">
+      <h1
+        data-testid="session-title" className="session-title-heading" data-cwd={cwd}
+        title={title === undefined ? undefined : `${title}\n${cwd ?? ''}`}
+      >
+        {activePending !== null ? (
+          <>
+            New session &middot;{' '}
             <EditableSessionTitle
-              key={activeSession.sessionId}
-              title={activeSession.title}
-              onRename={(title) => onRenameSession(activeSession, title)}
+              key={activePending.ptyId}
+              title={activePending.label}
+              onRename={(t) => onRenamePending(activePending.ptyId, t)}
             />
-          ) : null}
-        </h1>
-        <p className="session-cwd" data-testid="session-path" title={activePending !== null ? activePending.cwd : activeSession?.cwd}>
-          {activePending !== null ? activePending.cwd : activeSession?.cwd}
+          </>
+        ) : activeSession !== null ? (
+          <EditableSessionTitle
+            key={activeSession.sessionId}
+            title={activeSession.title}
+            onRename={(t) => onRenameSession(activeSession, t)}
+          />
+        ) : null}
+      </h1>
+      {handoff !== null && (
+        <p className="resume-handoff" data-testid="resume-handoff" role="status">
+          <span className="muted">Moving to the terminal after {handoff.waitingFor}…</span>
+          <button
+            className="btn"
+            data-testid="resume-handoff-now"
+            title="Stop the chat now — whatever it is doing, and its background tasks stop with it"
+            onClick={handoff.onSwitchNow}
+          >
+            Switch now
+          </button>
+          <button className="btn" data-testid="resume-handoff-cancel" onClick={handoff.onCancel}>Cancel</button>
         </p>
-      </header>
-
-      {activePending === null && activeSession !== null && (
-        <ResumeBar
-          session={activeSession}
-          view={activeView}
-          hasTerminal={hasTerminal}
-          onView={(v) => onSetView(activeSession.sessionId, v)}
-          onResume={() => {
-            if (chatWorking) setHandoff(activeSession.sessionId)
-            else onResume(activeSession)
-          }}
-          chatRunning={chatRunning}
-          handoff={handoff === activeSession.sessionId
-            ? {
-                waitingFor: tasks > 0 && chat?.status !== 'busy'
-                  ? `${String(tasks)} background ${tasks === 1 ? 'task' : 'tasks'}`
-                  : 'Claude to finish',
-                onSwitchNow: () => { setHandoff(null); onResume(activeSession) },
-                onCancel: () => { setHandoff(null) },
-              }
-            : null}
-        />
       )}
-    </>
+    </header>
   )
 }

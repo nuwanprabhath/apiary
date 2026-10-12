@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
-import type { AppSettingsPayload, PluginInfoPayload, UpdateStatusPayload } from '@shared/api'
+import type { PluginInfoPayload, UpdateStatusPayload } from '@shared/api'
+import type { SettingsDraft } from '../../state/settingsStore'
 import { SessionsSection } from './sections/SessionsSection'
 import { SearchSection } from './sections/SearchSection'
 import { SidebarSection } from './sections/SidebarSection'
@@ -18,8 +19,8 @@ import { DiagnosticsSection } from './sections/DiagnosticsSection'
  * to be SettingsDialog.tsx).
  */
 interface SectionProps {
-  draft: AppSettingsPayload
-  patch: (fields: Partial<AppSettingsPayload>) => void
+  draft: SettingsDraft
+  patch: (fields: Partial<SettingsDraft>) => void
   update: UpdateStatusPayload | null
   plugins: PluginInfoPayload[]
   indexed: number | null

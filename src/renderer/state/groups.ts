@@ -11,11 +11,11 @@
  * one identity a folder keeps across rescans; ids that no longer resolve are ignored rather than
  * cleaned up, so a folder that disappears and comes back finds its group again.
  */
-/** One user-made heading in the sidebar. `id` is stable; `name` is what is shown and renamed. */
-export interface SessionGroup {
-  id: string
-  name: string
-}
+import type { SessionGroup } from '@shared/libraryState'
+
+/** One user-made heading in the sidebar. `id` is stable; `name` is what is shown and renamed. It is
+ *  library state (`shared/libraryState.ts`), so it is declared there. */
+export type { SessionGroup }
 
 /** The whole sidebar arrangement, passed around as one value rather than four parallel props. */
 export interface GroupState {

@@ -107,13 +107,8 @@ convenient entry point is incomplete when the map lists others.
 
 ## Keeping the map honest
 
-The map rots as the app changes. When asked to audit it, or after a change that renames test ids
-or moves a feature:
-
-1. Check the index against the files in `features/`. Fix missing, extra or dead entries.
-2. For each feature file, read the source it points at and note drift with a `file:line`.
-3. Drive every feature live at least once, `doctor` first and again after any failed drive.
-4. Sort what you find: a wrong description is map drift (fix the map); behaviour the harness
-   cannot reach is a harness gap (fix `verify.sh`, `lib.ts` or a drive); behaviour that is broken
-   is a product bug (report it to the maintainer, do not paper over it in the map).
-5. Edit only this skill's directory during an audit. Ship corrections as one commit.
+The map rots as the app changes. Audit it with
+[`maintain-verify-apiary`](../maintain-verify-apiary/SKILL.md) before a release, after a change that
+renames test ids or moves a feature, or when asked: it reads every feature from source, drives
+every feature live, and ships at most one commit of proven corrections. During an audit, edit only
+this skill's directory.

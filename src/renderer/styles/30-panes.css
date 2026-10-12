@@ -69,6 +69,7 @@
 .session-tab-strip[draggable="true"] { cursor: grab; }
 
 .session-card {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -185,6 +186,9 @@
   background: var(--bg);
   box-shadow: 0 0 0 1px var(--border), var(--shadow-chip);
 }
+/* A lone tab shares the strip with nobody, and the view toggle now takes the room beside it: keep
+ * enough of its title to read and let the strip scroll, rather than squeeze it to a few letters. */
+.session-tab:only-child { min-width: 128px; }
 .session-tab-strip[draggable="true"] .session-tab { cursor: default; }
 /* Keyboard focus, and only keyboard focus: a quiet ring, not the OS accent around the whole tab
  * on every click. */
@@ -253,8 +257,7 @@
 .session-tab-layout svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
 
 .session-header { padding: var(--space-lg) var(--space-xl); border-bottom: 1px solid var(--border); min-width: 0; }
-.session-header h1 { font-size: 16px; margin: 0 0 var(--space-xs); display: flex; align-items: center; gap: var(--space-sm); }
-.session-cwd { color: var(--muted); margin: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-header h1 { font-size: 16px; margin: 0; display: flex; align-items: center; gap: var(--space-sm); }
 
 .title-edit-button {
   opacity: 0;

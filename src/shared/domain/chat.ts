@@ -196,6 +196,17 @@ export function emptyChatState(sessionId: SessionId): ChatState {
 }
 
 /**
+ * The entry of claude's list that is the running model. claude reports a 1M-context model with a
+ * bracketed suffix (`claude-opus-5-5[1m]`) that the list's ids lack, so the suffix is ignored. A
+ * named entry wins over `default`, which runs the same model as one of them.
+ */
+export function runningModelEntry(model: string, models: readonly ChatModelInfo[] | null): ChatModelInfo | undefined {
+  const id = model.replace(/\[[^\]]*\]$/, '')
+  const matches = (m: ChatModelInfo): boolean => m.resolvedModel === id || m.value === id
+  return models?.find((m) => m.value !== 'default' && matches(m)) ?? models?.find((m) => m.value === id)
+}
+
+/**
  * The name a model goes by, as the pill shows it — always with its version ("Opus 5.5"). claude's
  * own `displayName` when that has one; some versions name an alias by family alone ("Opus"), and
  * then the version comes from the model the entry runs (`resolvedModel`), or its description
@@ -203,8 +214,7 @@ export function emptyChatState(sessionId: SessionId): ChatState {
  */
 export function modelLabel(model: string | null, models: readonly ChatModelInfo[] | null): string {
   if (model === null) return 'Default model'
-  const named = models?.find((m) => m.value !== 'default' && (m.resolvedModel === model || m.value === model))
-    ?? models?.find((m) => m.value === model)
+  const named = runningModelEntry(model, models)
   if (named === undefined) return tidyModelId(model)
   if (named.value !== 'default' && /\d/.test(named.displayName)) return named.displayName
   if (named.resolvedModel !== undefined) return tidyModelId(named.resolvedModel)

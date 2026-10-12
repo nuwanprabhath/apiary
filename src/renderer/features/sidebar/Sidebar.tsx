@@ -177,7 +177,7 @@ function SidebarInner({
 
   const groups = useGroupActions(groupState, onGroupStateChange, tree, arranged)
   const { menu, setMenu, menuItems } = useSidebarMenu({
-    tree: withWorktrees, rawTree, pinned, groupState, showAllWorktrees, onToggleAllWorktrees, onForkSession, onReorderPinned, groups,
+    tree: withWorktrees, rawTree, pinned, groupState, showAllWorktrees, onToggleAllWorktrees, onForkSession, onReorderPinned, onTogglePin, groups,
   })
   const mainTree = useMainTreeNav({
     arranged, collapsed, onCollapsedChange, groupState, patchGroups: groups.patchGroups, sessionsById,

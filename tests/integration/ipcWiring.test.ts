@@ -69,6 +69,7 @@ const { PetService } = await import('../../src/main/pets/petService')
 const { SettingsService } = await import('../../src/main/settings/settingsService')
 const { SpellingService } = await import('../../src/main/spelling/spellingService')
 const { FolderBrowser } = await import('../../src/main/folders/folderBrowser')
+const { LibraryStateService } = await import('../../src/main/library/libraryStateService')
 await import('../../src/preload/index')
 
 let home: string
@@ -98,6 +99,7 @@ beforeEach(async () => {
     activeTabs: built.activeTabs,
     spelling: new SpellingService(),
     folderBrowser: new FolderBrowser({ home }),
+    library: new LibraryStateService({ file: join(home, 'library-state.json'), moved: {}, onChanged: () => {} }),
     state: buildIpcState(service, join(home, '.claude')),
     settings: new SettingsService(join(home, 'settings.json')),
     theme: {

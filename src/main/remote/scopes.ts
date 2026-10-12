@@ -161,6 +161,12 @@ export const CHANNEL_SCOPES = {
   setTitleBarColors: 'local',
   settingsGet: 'local',
   settingsSet: 'local',
+  // How the work machine's sessions are arranged and read (pins, groups, tool calls) belongs to
+  // those sessions, so a remote window reads and writes the work machine's (shared/libraryState.ts).
+  libraryState: 'remote',
+  setLibraryState: 'remote',
+  seedLibraryState: 'remote',
+  libraryStateChanged: 'remote',
   openSettingsDialog: 'local',
   openImportDialog: 'local',
   toggleSidebar: 'local',

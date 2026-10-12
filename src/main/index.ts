@@ -288,7 +288,7 @@ async function start(): Promise<void> {
   // Before any window exists: each window asks for its theme synchronously as it loads.
   const safeTheme = env.safeTheme
   const ipc = registerIpc({
-    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
+    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, library: container.library, state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
     pickFolder: async (sender) => {
       if (env.pickFolder !== undefined) return env.pickFolder
       const win = BrowserWindow.fromWebContents(sender)

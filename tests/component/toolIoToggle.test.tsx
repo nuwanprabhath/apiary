@@ -6,8 +6,7 @@ import type { FakeApiary } from './fakeApiary'
 import { emptyChatState, type ChatCommand, type ChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
 import type { TranscriptMessage } from '@shared/domain/transcript'
-import type { AppSettingsPayload } from '@shared/api'
-import { CHAT_SETTINGS_KEY } from '../../src/renderer/state/uiState'
+import type { LibraryPatch } from '@shared/libraryState'
 
 const TITLE = 'Fix CSV export bug'
 const OTHER = 'Add worktree switcher'
@@ -54,8 +53,9 @@ function play(fake: FakeApiary, sessionId: string, extra: Partial<ChatState> = {
   fake.emit('chatChanged', next)
 }
 
-async function openChat(settings: Partial<AppSettingsPayload> = {}): Promise<{ fake: FakeApiary; sessionId: string }> {
-  const { fake } = await renderApp({ settings: { transcriptChat: true, ...settings } })
+/** Opens the chat with main's library state (the tool-call default, each chat's own choice) as given. */
+async function openChat(library: LibraryPatch = {}): Promise<{ fake: FakeApiary; sessionId: string }> {
+  const { fake } = await renderApp({ settings: { transcriptChat: true }, library })
   await userEvent.click(sidebarSession(TITLE))
   await expect.element(page.getByTestId('chat-timeline')).toBeVisible()
   const sessionId = sessionIdOf(fake, TITLE)
@@ -73,7 +73,7 @@ async function openPlainTranscript(hideToolCallIo: boolean): Promise<void> {
       gitBranch: 'main',
       messages: CONVERSATION,
     }],
-    settings: { hideToolCallIo },
+    library: { hideToolCallIo },
   })
   await userEvent.click(sidebarSession('Plain transcript'))
 }
@@ -205,17 +205,18 @@ describe('show tool calls', () => {
     await until(() => document.activeElement?.getAttribute('data-testid') === 'composer-commands')
   })
 
-  it('a choice is saved for its chat in the shared store, and a restart keeps it', async () => {
-    const { sessionId } = await openChat({})
+  it('a choice is saved for its chat in main\'s library state, and a restart keeps it', async () => {
+    const { fake, sessionId } = await openChat({})
     await openMenu()
     await userEvent.click(page.getByTestId('composer-setting-option'))
     await until(() => count('chat-tool') === 0)
     await userEvent.keyboard('{Escape}')
 
-    const saved: unknown = JSON.parse(localStorage.getItem(CHAT_SETTINGS_KEY) ?? '{}')
+    const saved = fake.state.library.state.chatSettings
     expect(saved).toEqual({ [sessionId]: { showToolCalls: false } })
+    expect(localStorage.getItem('apiary.chatSettings')).toBeNull()
 
-    await openChat({})
+    await openChat({ chatSettings: saved })
     expect(count('chat-tool')).toBe(0)
     await openMenu()
     expect(settingValue()).toBe('Off')

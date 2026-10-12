@@ -35,6 +35,7 @@ export function sessionMenuItems(
     pinned: string[]
     onForkSession: (sessionId: SessionId) => void
     onReorderPinned: (id: string, beforeId: string) => void
+    onTogglePin: (session: SessionNode) => void
     requestPicker: (target: { kind: 'session'; session: SessionNode }, at: { x: number; y: number }) => void
   },
 ): ContextMenuItem[] {
@@ -55,11 +56,17 @@ export function sessionMenuItems(
       disabled: session === undefined,
       run: () => { if (session !== undefined) d.requestPicker({ kind: 'session', session }, { x: menu.x, y: menu.y }) },
     },
+    {
+      id: pinnedIndex === -1 ? 'pin' : 'unpin',
+      label: pinnedIndex === -1 ? 'Pin' : 'Unpin',
+      separator: true,
+      disabled: session === undefined,
+      run: () => { if (session !== undefined) d.onTogglePin(session) },
+    },
     ...(pinnedIndex === -1 ? [] : [
       {
         id: 'pinned-move-up',
         label: 'Move up in Pinned',
-        separator: true,
         disabled: pinnedIndex <= 0,
         run: () => { onReorderPinned(menu.id, pinned[pinnedIndex - 1]) },
       },

@@ -8,6 +8,8 @@ import { ImageLightbox } from '../transcript'
 import { useLayoutActions, useLayoutState } from '../layout'
 import { PaneDropOverlay } from './PaneDropOverlay'
 import { SessionHeader } from './SessionHeader'
+import { ViewToggle } from './ViewToggle'
+import { useTerminalHandoff } from './useTerminalHandoff'
 import { SessionBody } from './SessionBody'
 import { ShellPane } from './ShellPane'
 import { useColumnSession } from './useColumnSession'
@@ -100,6 +102,7 @@ function SessionColumnView(props: Props): JSX.Element {
   const git = useGitActions({ terminal, gitStatus, loadGitStatus, onSessionStarted })
   const shell = useShellTerminals({ activeKey, terminal, isActive, keyFor, workspace })
 
+  const terminalHandoff = useTerminalHandoff(activeSession, onResume)
   const { dropPaneOn } = useLayoutActions()
   const { movingPane } = useLayoutState()
 
@@ -136,6 +139,8 @@ function SessionColumnView(props: Props): JSX.Element {
         onTabDropped={onTabDropped}
         onDetach={onDetach}
         layoutButton={layoutButton}
+        viewToggle={activePending === null && activeSession !== null
+          && <ViewToggle session={activeSession} view={activeView} hasTerminal={resumed.has(activeSession.sessionId)} onView={onSetView} handoff={terminalHandoff} />}
       />
 
       {activeKey === null ? (
@@ -149,12 +154,9 @@ function SessionColumnView(props: Props): JSX.Element {
           <SessionHeader
             activePending={activePending}
             activeSession={activeSession}
-            activeView={activeView}
-            hasTerminal={activeSession !== null && resumed.has(activeSession.sessionId)}
+            handoff={terminalHandoff.handoff}
             onRenamePending={onRenamePending}
             onRenameSession={onRenameSession}
-            onSetView={onSetView}
-            onResume={onResume}
           />
           <SessionBody
             column={column}

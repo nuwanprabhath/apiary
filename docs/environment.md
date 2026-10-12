@@ -48,6 +48,7 @@ or a stand-in binary, and none of them must be usable to redirect a real install
 | `session-layout.json` | `main/windows/sessionLayoutStore.ts` |
 | `themes.json` | `main/theme/` (`ThemeStore`) |
 | `pets.json` | `main/pets/` (`PetStore`) — whether pets are on, every installed pet and where it stands |
+| `library-state.json` | `main/library/libraryStateService.ts` — the sessions library's arrangement (pins, groups, folder order, Recent dismissals) and reading preferences (each chat's settings, hide tool calls), mirrored to remote windows; see [library-state](architecture/library-state.md) |
 | `prompt-shim/zsh` | `main/pty/promptPath.ts` (written at startup) |
 | `pasted-images/` | `main/` `ImageStore` (chat image attachments) |
 | `logs/` | `main/log/` — only exists once Diagnostics is switched on |

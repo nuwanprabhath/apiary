@@ -1,4 +1,5 @@
 import type { AppSettingsPayload } from '@shared/domain/settings'
+import type { LibraryPatch } from '@shared/libraryState'
 import type { JsonStore } from '../fs/jsonStore'
 import { type AppSettings, createSettingsStore, saveSettings, mergeSettingsPayload } from '../settings'
 
@@ -23,14 +24,26 @@ export class SettingsService {
 
   private readonly store: JsonStore<AppSettings>
 
+  /** What this launch's read of an older settings.json held for keys that moved to the library state. */
+  private moved: LibraryPatch = {}
+
   constructor(file: string) {
-    this.store = createSettingsStore(file)
+    this.store = createSettingsStore(file, (moved) => { this.moved = moved })
     const loaded = this.store.load()
     this.current = loaded
     // Written straight back, so a migration applied on read is recorded — see `migrateSettings`'s
     // own doc comment ("Changing a default reaches nobody", CLAUDE.md). Without this it would be
     // re-applied on every launch, silently undoing a later deliberate change.
     saveSettings(this.store, loaded)
+  }
+
+  /**
+   * Values the settings file held for keys that now belong to the library state (`hideToolCallIo`),
+   * read on the launch that migrated it to version 2. The migration is written straight back, so
+   * this is non-empty on that one launch only; the container hands it to `LibraryStateService`.
+   */
+  movedToLibrary(): LibraryPatch {
+    return this.moved
   }
 
   get(): Readonly<AppSettings> {

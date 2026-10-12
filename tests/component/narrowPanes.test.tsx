@@ -19,7 +19,7 @@ describe('a split pane in a narrow window', () => {
     for (const column of document.querySelectorAll('.session-column')) {
       const pane = column.getBoundingClientRect()
       const parts = column.querySelectorAll(
-        '.session-header, .session-header > *, .resume-bar button, .session-tab-bar, .session-tab-split, .composer, .composer-actions > *',
+        '.session-header, .session-header > *, .view-toggle-segment, .session-tab-bar, .session-tab-split, .composer, .composer-actions > *',
       )
       for (const part of parts) {
         const box = part.getBoundingClientRect()

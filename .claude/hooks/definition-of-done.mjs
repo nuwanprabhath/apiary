@@ -10,6 +10,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { testsFailOnBase } from './testsFailOnBase.mjs'
 
 let input = {}
 try { input = JSON.parse(readFileSync(0, 'utf8')) } catch { /* no input: use the defaults */ }
@@ -172,6 +173,13 @@ if (base) {
   if (nodeTests.length) run('changed unit/integration tests', ['vitest', 'run', ...nodeTests])
   const componentTests = changed.filter((f) => /^tests\/component\/.*\.test\.tsx?$/.test(f))
   if (componentTests.length) run('changed component tests', ['vitest', 'run', '--config', 'vitest.component.config.ts', ...componentTests])
+}
+
+// The tests above pass with the change; at least one must fail without it (./testsFailOnBase.mjs).
+// Only once everything else is green: it builds a second worktree, so it is the slowest step.
+if (problems.length === 0) {
+  const red = testsFailOnBase({ root, base, changed, git })
+  if (red !== null) problems.push(red)
 }
 
 if (problems.length === 0) passed()

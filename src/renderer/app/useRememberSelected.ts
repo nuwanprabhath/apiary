@@ -1,5 +1,5 @@
 import { type Dispatch, type SetStateAction, useEffect } from 'react'
-import type { UiState } from '../state/uiState'
+import type { ViewerUiState } from '../state/uiState'
 
 /**
  * Remembers which session is in front, so the next launch can reopen it (the restore effect
@@ -8,7 +8,7 @@ import type { UiState } from '../state/uiState'
  * restore target before the asynchronous restore has had a chance to use it.
  */
 export function useRememberSelected(
-  activeKey: string | null, pending: ReadonlyMap<string, unknown>, setUi: Dispatch<SetStateAction<UiState>>,
+  activeKey: string | null, pending: ReadonlyMap<string, unknown>, setUi: Dispatch<SetStateAction<ViewerUiState>>,
 ): void {
   useEffect(() => {
     if (activeKey === null || pending.has(activeKey)) return

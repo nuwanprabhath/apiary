@@ -190,10 +190,30 @@
 /* Then the model chip shrinks, its name ending in an ellipsis (the full name is in its title), but
    never below about 5em: a fixed 6em left Send 5px short in Glass, whose type is wider. */
 @container (max-width: 360px) {
+  /* A container query cannot restyle its own container, so the tighter gap is a negative margin. */
+  .composer-actions > * + *:not(.composer-send) { margin-left: calc(var(--space-xs) - var(--space-md)); }
+  .composer-actions > .composer-collapse { width: var(--icon-button-size-sm); }
   .composer-actions > .chat-model { flex: 0 1 auto; min-width: 7em; }
   .chat-model-pill { max-width: 100%; }
   .chat-model-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+/* The fold button leads the row; the peek button takes the hint's place while the box is folded and
+   shows the draft's first line, ending in an ellipsis. */
+.composer-collapse {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: var(--icon-button-size); padding: 0; color: var(--muted);
+}
+.composer-collapse .chevron { width: var(--icon-size); height: var(--icon-size); }
+.composer-actions > .composer-peek {
+  flex: 1 1 0; min-width: 0; justify-content: flex-start; text-align: left;
+  background: transparent; border-color: transparent; color: var(--muted);
+  font-size: 12px; /* as .composer-hint */
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;
+}
+.composer-actions > .composer-peek:hover { color: var(--text); }
+/* In a narrow pane the pickers leave it a sliver that reads as nothing: it gives way, like the hint.
+   The chevron (and the enabled Send, when there is a draft) still say what is folded. */
+@container (max-width: 400px) { .composer-actions > .composer-peek { display: none; } }
 .composer-model { display: flex; align-items: center; gap: var(--space-sm); }
 .composer-model select {
   border: 1px solid var(--border);

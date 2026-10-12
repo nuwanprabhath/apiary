@@ -142,6 +142,7 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | Tests wait on conditions and import `@shared/` | `no-test-sleep`, `shared-alias-in-tests` | `vi.waitFor`, `expect.poll`, `stays` for "nothing happens"; the alias |
 | No dead code; docs name real paths, symbols and links; a disable comment says why and is needed | knip ratchet (`npm run lint:dead`); `scripts/check-doc-refs.mjs` (`npm run lint:md`); ESLint `reportUnusedDisableDirectives`, stylelint `reportNeedlessDisables` | delete it; fix the doc; add `-- <reason>`; drop a disable nothing needs |
 | Lint on each edit; no stop with a red typecheck or lint; the Stop hook runs every step of `npm run lint` | `.claude/hooks/lint-edited.mjs`, `.claude/hooks/definition-of-done.mjs`, `tests/unit/architecture/stopHookCoversLint.test.ts` | fix what it prints; a new lint step gets its counterpart in the hook |
+| A behaviour change has a test that fails without it: the branch's changed unit, integration and component tests run against the base's `src/`, and at least one must fail | `.claude/hooks/testsFailOnBase.mjs` (Stop hook) | write the test from the requirement, see it fail on the old code, then fix; a pure refactor says why in `No-Red-Test-Reason:` |
 | Commit hygiene | `.husky/pre-commit` (lint-staged), `.husky/commit-msg` (commitlint, no AI attribution), `.husky/pre-push` (typecheck, lint, `test:unit`) | fix, never `--no-verify` |
 
 ## Judgment calls
@@ -202,6 +203,10 @@ Generators write stubs that fail until finished, never ones that are green and w
 - **A setting.** One entry in `SETTINGS` (`shared/settings/schema.ts`): guard, default, range. The
   type, defaults, merge and fake derive from it. Add the control in `features/settings/`. Changing
   an existing default also needs a migration ([`src/main/CLAUDE.md`](src/main/CLAUDE.md)).
+- **A mirrored (library) preference.** Something that describes the sessions (how they are arranged
+  or read) rather than the screen: one entry in `LIBRARY_STATE` (`shared/libraryState.ts`), read with
+  `useLibraryState`, written with `updateLibraryState`. A remote window then shows the work
+  machine's. Never a `uiState` field ([library-state](docs/architecture/library-state.md)).
 - **A session-bar plugin.** A factory in `BUILTIN_PLUGINS` (`main/plugins/builtin.ts`); pass it what
   it needs in `PluginService`. See [`src/main/plugins/CLAUDE.md`](src/main/plugins/CLAUDE.md).
 - **A status-bar item, a theme token or effect, a log line.** [`src/main/statusBar/CLAUDE.md`](src/main/statusBar/CLAUDE.md),
@@ -222,7 +227,7 @@ Generators write stubs that fail until finished, never ones that are green and w
   [`docs/packaging.md`](docs/packaging.md).
 - [`docs/adr/`](docs/adr/README.md): decisions with a rejected alternative, each naming its check.
 - `docs/history/`, `docs/superpowers/`, `docs/reviews/`: history. The code wins where they differ.
-- `.claude/skills/`: `verify-apiary`, `blast-radius`, `correct`, `architecture-drift`, `ui-review`
+- `.claude/skills/`: `verify-apiary` (and `maintain-verify-apiary`, the audit that keeps its feature map true), `blast-radius`, `correct`, `architecture-drift`, `ui-review`
   (designing UI, the UI audit and the screenshot review), and
-  `agent-orchestration` (running Haiku/Sonnet agents in worktrees with `scripts/agents/run-agent.sh`).
+  `agent-orchestration` (running Haiku, Sonnet or Opus agents in worktrees with `scripts/agents/run-agent.sh`).
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): the human onboarding path and the linter breakdown.
