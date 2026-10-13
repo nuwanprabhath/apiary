@@ -65,6 +65,21 @@
   --status-attention-duration: 1.4s;
   --status-attention-spread: 7px;
   --status-attention-scale: 1.35;
+  /* The travelling border glow (`[data-glow]`, styles/05-ui.css): ring width, lap time, the faint
+     ring's share of the colour, and the halo's size and share. */
+  --glow-width: 2px;
+  --glow-duration: 2.4s;
+  --glow-track: 40%;
+  --glow-halo: 12px;
+  /* The halo outside the element: no wider than the room a scrolling tab strip leaves around a tab
+   * (its 3px padding), or the strip clips it to a hard edge. The rest of the glow is inside. */
+  --glow-halo-outer: 3px;
+  --glow-halo-mix: 55%;
+  /* A working session: a spinning ring before a tab's label and in the sidebar. */
+  --status-spinner-size: 10px;
+  --status-spinner-duration: 0.9s;
+  --status-spinner-glow: 6px;
+  --status-spinner-track: 25%;
 
   /* A `!<iid>` reference's resolved GitLab state (see MrRefText). --mr-opened/--mr-closed/
    * --mr-locked reuse the general status tones; --mr-merged is its own, since a merged MR is

@@ -1,0 +1,28 @@
+/* A pane folded down to its tab bar (the chevron at the bar's start; layout.ts `setFolded`). Its
+ * grid row is `--pane-folded-height` (features/layout/foldedGrid.ts): the bar plus the pane's own
+ * half-gaps. The body and the shell are hidden, not unmounted, so terminals keep their views. */
+.content {
+  /* The tab bar's fixed height (.session-tab-bar's min-height), which a folded row holds exactly. */
+  --pane-folded-height: calc(34px + var(--panel-gap));
+}
+.session-column[data-folded="true"] { min-height: 0; }
+.session-column[data-folded="true"] > .session-card { flex: none; position: relative; }
+.session-column[data-folded="true"] > .session-card > :not(.session-tab-bar),
+.session-column[data-folded="true"] > .shell-card { display: none; }
+.session-column[data-folded="true"] .session-tab-bar { position: relative; border-bottom-color: transparent; }
+
+.pane-collapse {
+  flex: none;
+  align-self: center;
+  width: var(--icon-button-size-sm);
+  height: var(--icon-button-size-sm);
+  margin-right: var(--space-xs);
+}
+.pane-collapse .chevron { transition: transform 0.15s; }
+/* Down when open, right when folded: the sidebar's disclosure convention. */
+.pane-collapse[aria-expanded="true"] .chevron { transform: rotate(90deg); }
+.pane-collapse[aria-expanded="false"] .chevron { transform: none; }
+
+/* Something still working in a folded pane: the folded card wears the shared travelling border
+ * glow (`[data-glow]`, styles/05-ui.css; set in SessionColumn), the same as a working tab's, so
+ * the whole bar shows it. `position: relative` above anchors the glow ring. */

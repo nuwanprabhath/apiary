@@ -1,4 +1,16 @@
 # The whole-repo checks, too slow to run on every commit: both tsconfigs and every linter, plus the
 # native-free unit project (fast: no native modules, parallel). Integration, component and e2e stay
 # out of hooks — they are slower and some drive real git/pty subprocesses.
-npm run typecheck && npm run lint && npm run test:unit
+#
+# Except for a release: pushing a `v*` tag runs the whole e2e suite first, `@serial` included.
+# Agents run only the specs they think their change touches, and twice a spec nobody thought of
+# broke and was first seen by the nightly run after the release (1.39's Chat/Terminal toggle broke
+# activeSection's @serial test; 1.40's shell bar broke the glass test in themes.spec.ts).
+refs=$(cat)
+npm run typecheck && npm run lint && npm run test:unit || exit 1
+case "$refs" in
+  *refs/tags/v*)
+    echo "pre-push: a release tag — running the whole e2e suite (npm run test:e2e) first."
+    npm run test:e2e || { echo "pre-push: e2e failed; the tag is not pushed. Fix it, then push the tag again."; exit 1; }
+    ;;
+esac

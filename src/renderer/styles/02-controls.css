@@ -84,6 +84,13 @@
 .btn:hover:not(:disabled),
 .icon-button:hover:not(:disabled) { background: var(--control-bg-hover); color: var(--text); }
 
+/* A quiet control (a disclosure chevron beside other chrome): no fill or border until the pointer
+ * is on it or it has keyboard focus, like the Shell bar's own chevron. Same size and hit area. */
+.btn.quiet,
+.icon-button.quiet { background: transparent; border-color: transparent; color: var(--muted); }
+.btn.quiet:hover:not(:disabled),
+.icon-button.quiet:hover:not(:disabled) { border-color: var(--control-border); }
+
 .btn:active:not(:disabled),
 .icon-button:active:not(:disabled) { background: var(--control-bg-active); }
 

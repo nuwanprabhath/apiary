@@ -12,26 +12,28 @@
  *
  * The pane is a pseudo-element on each card (and on .sidebar-frame, because .sidebar scrolls).
  */
-html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card) {
+html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card) {
   position: relative;
   isolation: isolate;
   --glass-tint: var(--bg-panel);
 }
 html[data-material="glass"] .session-card { --glass-tint: var(--bg); }
-html[data-material="glass"] :is(.sidebar, .sidebar-rail, .session-card, .shell-card) { background: transparent; }
-html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card)::before,
-html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card)::after {
+/* The shell bar is the session card's footer: the card's glass is its glass. */
+html[data-material="glass"] .shell-card { background: transparent; }
+html[data-material="glass"] :is(.sidebar, .sidebar-rail, .session-card) { background: transparent; }
+html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card)::before,
+html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card)::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
 }
-html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card)::before {
+html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card)::before {
   z-index: var(--z-glass-tint);
   background: var(--glass-sheen), var(--glass-tint);
 }
-html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card, .shell-card)::after {
+html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card)::after {
   z-index: var(--z-glass-rim);
   box-shadow: var(--glass-rim);
 }

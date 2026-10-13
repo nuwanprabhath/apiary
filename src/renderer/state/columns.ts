@@ -28,6 +28,8 @@ export interface Column {
    * left empty because its last tab went away, which is closed. See `tidyLayout` in layout.ts.
    */
   placeholder?: boolean
+  /** Folded down to its tab bar, its stack neighbour taking the space (`setFolded` in layout.ts). */
+  collapsed?: boolean
 }
 
 let nextColumnId = 0

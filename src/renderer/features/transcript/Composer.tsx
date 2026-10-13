@@ -12,6 +12,8 @@ import { useComposerHeight } from './useComposerHeight'
 import { useComposerSend } from './useComposerSend'
 
 interface Props {
+  /** The pane this composer sits in: its message box folds and unfolds on its own. */
+  columnId: string
   session: SessionNode
   /** The pty this session's `claude` runs under, or null while it has none. */
   ptyId: PtyId | null
@@ -30,6 +32,7 @@ interface Props {
 
 interface ChatControlsProps {
   sessionId: SessionId
+  folderExists: boolean
   chat: ChatState | null
   chatRunning: boolean
   choices: ChatChoices
@@ -51,6 +54,8 @@ function ChatControls(p: ChatControlsProps): JSX.Element {
       <CommandPalette
         sessionId={p.sessionId}
         commands={live !== null ? live.commands : null}
+        folderExists={p.folderExists}
+        onFocusBox={p.focusInput}
         composerText={text}
         keyHandler={p.menuKeys}
         onRun={(command) => {
@@ -87,13 +92,13 @@ function ChatControls(p: ChatControlsProps): JSX.Element {
  * their paths for Claude to read.
  */
 export function Composer({
-  session, ptyId, running, onResume, onShowSession, onOpenImage, chatMode = false, chat = null,
+  columnId, session, ptyId, running, onResume, onShowSession, onOpenImage, chatMode = false, chat = null,
 }: Props): JSX.Element {
   const [text, setText] = useState('')
   const chatRunning = chat !== null && chat.status !== 'exited'
   const busy = chat?.status === 'busy'
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const fold = useComposerFold(textareaRef)
+  const fold = useComposerFold(textareaRef, columnId)
   const { collapsed, inputId } = fold
   /** The "/" menu's keys, set while typing "/" has it open; it sees Up/Down/Enter/Escape first. */
   const menuKeys = useRef<((e: KeyboardEvent) => boolean) | null>(null)
@@ -183,6 +188,7 @@ export function Composer({
         chatControls={chatMode && (
           <ChatControls
             sessionId={session.sessionId}
+            folderExists={session.cwdExists}
             chat={chat}
             chatRunning={chatRunning}
             choices={choices}

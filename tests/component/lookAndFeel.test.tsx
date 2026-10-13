@@ -21,15 +21,16 @@ const radius = (testId: string): number =>
   parseFloat(getComputedStyle(document.querySelector(`[data-testid="${testId}"]`)!).borderTopLeftRadius)
 
 describe('look and feel', () => {
-  it('the sidebar, the session and its shell are rounded cards a gap apart', async () => {
+  it('the sidebar and the session (its shell bar inside) are rounded cards a gap apart', async () => {
     await open()
-    for (const id of ['sidebar', 'session-card', 'shell-card']) expect(radius(id)).toBeGreaterThanOrEqual(6)
+    for (const id of ['sidebar', 'session-card']) expect(radius(id)).toBeGreaterThanOrEqual(6)
 
     const s = box(page.getByTestId('sidebar'))
     const c = box(page.getByTestId('session-card'))
     const sh = box(page.getByTestId('shell-card'))
     expect(c.x - (s.x + s.width)).toBeGreaterThanOrEqual(4)
-    expect(sh.y - (c.y + c.height)).toBeGreaterThanOrEqual(4)
+    // The shell is the card's footer: inside its outline, not a card floating below it.
+    expect(sh.y + sh.height).toBeLessThanOrEqual(c.y + c.height + 1)
     // No divider lines: the gap does that job now.
     expect(getComputedStyle(document.querySelector('[data-testid="sidebar"]')!).borderRightWidth).toBe('0px')
   })
@@ -114,7 +115,7 @@ describe('look and feel', () => {
 
     await fake.themeApply('builtin:glass')
     await until(() => document.querySelector('html')?.getAttribute('data-material') === 'glass')
-    const panel = radius('shell-card')
+    const panel = radius('session-card')
     expect(panel).toBe(14)
     // The Hide shell button sits a few pixels inside the card's corner: it has to be about as
     // round as that corner minus the inset, not a fixed 6px that reads as square next to it.

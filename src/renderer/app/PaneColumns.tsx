@@ -1,7 +1,7 @@
 import { type ComponentProps, type Dispatch, type JSX, type ReactNode } from 'react'
 import type { SessionNode } from '@shared/types'
 import type { Column } from '../state/columns'
-import { presetDef, type PresetId } from '../state/layout'
+import { foldState, presetDef, type PresetId } from '../state/layout'
 import { PaneGrid } from '../features/layout/PaneGrid'
 import { PaneFiller } from '../features/pane/PaneFiller'
 import type { PendingTabInfo } from '../features/pane/paneTypes'
@@ -14,7 +14,7 @@ import type { ColumnHandlers } from './useColumnHandlers'
 
 /** What every column receives the same of — each a stable reference (see appPropStability.test.tsx). */
 type SharedColumnProps = Omit<ComponentProps<typeof SessionColumn>,
-  'column' | 'gridArea' | 'isActive' | 'layoutButton' | 'emptyContent' | keyof ColumnHandlers>
+  'column' | 'gridArea' | 'isActive' | 'layoutButton' | 'emptyContent' | 'fold' | keyof ColumnHandlers>
 
 type Props = SharedColumnProps & {
   columns: Column[]
@@ -35,7 +35,7 @@ export function PaneColumns({
 }: Props): JSX.Element {
   const { notify } = useNotifications()
   return (
-    <PaneGrid preset={preset}>
+    <PaneGrid preset={preset} folded={columns.map((c) => c.collapsed === true)}>
       {columns.map((column, index) => {
         // columnHandlers is built from exactly these columns' ids (see its own comment), so this is
         // always present — the `!` records that invariant rather than papering over a real
@@ -61,6 +61,8 @@ export function PaneColumns({
               onCloseTab={handlers.onCloseTab}
               onSetView={handlers.onSetView}
               onReorderTab={handlers.onReorderTab}
+              fold={foldState({ preset, panes: columns }, index)}
+              onFold={handlers.onFold}
               layoutButton={index === presetDef(preset).topRight ? layoutMenuButton : undefined}
               emptyContent={column.placeholder === true ? (
                 <PaneFiller

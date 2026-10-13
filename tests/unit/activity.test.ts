@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { chatActivity, classifyActivity, describeActivityStatus, withBackgroundTasks } from '@shared/activity'
+import { chatActivity, classifyActivity, describeActivityStatus, strongestActivity, withBackgroundTasks } from '@shared/activity'
 import { emptyChatState, type ChatPermissionRequest, type ChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
 
@@ -178,5 +178,14 @@ describe('chatActivity', () => {
 
   it('is running between turns while a background task it started is still going', () => {
     expect(chatActivity(chat({ backgroundTasks: [task] }))).toBe('running')
+  })
+})
+
+describe('strongestActivity', () => {
+  it('is running if any is, then waiting, then the first; null with none', () => {
+    expect(strongestActivity(['idle', 'waiting', 'running'])).toBe('running')
+    expect(strongestActivity(['stopped', 'waiting'])).toBe('waiting')
+    expect(strongestActivity(['stopped', 'idle'])).toBe('stopped')
+    expect(strongestActivity([])).toBeNull()
   })
 })

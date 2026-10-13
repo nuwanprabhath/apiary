@@ -1,5 +1,7 @@
 import { type JSX, useState, type ReactNode } from 'react'
 import { LayoutIcon, SplitIcon } from '../../ui/icons'
+import { ChevronIcon } from '../../ui/icons/ChevronIcon'
+import type { FoldState } from '../../state/layout'
 import { TabContextMenu } from './TabContextMenu'
 import { useTabStripKeys } from './useTabStripKeys'
 import { LayoutMenuButton, useLayoutActions, useLayoutState } from '../layout'
@@ -49,6 +51,29 @@ interface Props {
   layoutButton?: ReactNode
   /** The Chat | Terminal toggle for the active session, right of the strip. */
   viewToggle?: ReactNode
+  /** Whether the pane can fold to this bar, or is folded; `none` shows no chevron. */
+  fold?: FoldState
+  onFold?: (folded: boolean) => void
+}
+
+/** The chevron at the start of the bar that folds a pane with a vertical neighbour down to it. */
+function FoldButton({ fold, onFold }: { fold: FoldState; onFold?: (folded: boolean) => void }): JSX.Element | null {
+  if (fold === 'none') return null
+  const folded = fold === 'folded'
+  const label = folded ? 'Unfold this pane' : 'Fold this pane'
+  return (
+    <button
+      type="button"
+      className="icon-button quiet pane-collapse"
+      data-testid="pane-collapse"
+      aria-expanded={!folded}
+      aria-label={folded ? 'Unfold this pane' : 'Fold this pane'}
+      title={label}
+      onClick={() => onFold?.(!folded)}
+    >
+      <ChevronIcon expanded={!folded} />
+    </button>
+  )
 }
 
 /**
@@ -62,7 +87,7 @@ interface Props {
 export function SessionTabBar(
   {
     columnId, tabs, activeKey, onActivate, onClose, onSplitActive, onDropTab, transferFor, pinnedKeys,
-    onTogglePin, onFork, onTabDropped, onDetach, layoutButton, viewToggle,
+    onTogglePin, onFork, onTabDropped, onDetach, layoutButton, viewToggle, fold = 'none', onFold,
   }: Props,
 ): JSX.Element {
   /**
@@ -87,6 +112,7 @@ export function SessionTabBar(
 
   return (
     <div className="session-tab-bar" data-testid="session-tab-bar">
+      <FoldButton fold={fold} onFold={onFold} />
       <div
         className="session-tab-strip"
         data-testid="session-tab-strip"

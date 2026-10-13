@@ -21,7 +21,7 @@ async function open(): Promise<FakeApiary> {
 const fold = (): Promise<void> => userEvent.click(page.getByTestId('composer-collapse'))
 
 describe('composer collapse', () => {
-  beforeEach(() => { localStorage.removeItem('apiary.composerCollapsed') })
+  beforeEach(() => { localStorage.removeItem('apiary.composerCollapsed'); localStorage.removeItem('apiary.ui') })
 
   it('the chevron hides the box and its handle; the row keeps working', async () => {
     await open()
@@ -46,16 +46,47 @@ describe('composer collapse', () => {
     await until(() => count('composer-input') === 1 && document.activeElement === input())
   })
 
-  it('stays folded across a remount and in a second pane', async () => {
+  it('folds only its own pane: the other pane keeps its box', async () => {
+    await open()
+    await userEvent.click(page.getByTestId('session-tab-split').first())
+    await until(() => count('composer') === 2)
+    await userEvent.click(page.getByTestId('composer-collapse').first())
+    await until(() => count('composer-input') === 1)
+    expect(count('composer')).toBe(2)
+    expect(document.querySelectorAll('[data-testid="composer-collapse"]')[0]?.getAttribute('aria-expanded')).toBe('false')
+    expect(document.querySelectorAll('[data-testid="composer-collapse"]')[1]?.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('keeps a pane folded when another tab is shown in it', async () => {
+    await open()
+    await userEvent.click(page.getByTestId('session-tab-split').first())
+    await until(() => count('composer') === 2)
+    await userEvent.click(page.getByTestId('composer-collapse').first())
+    await until(() => count('composer-input') === 1)
+    await userEvent.click(sidebarSession('Add worktree switcher'))
+    await until(() => document.querySelectorAll('[data-testid="composer"]').length === 2)
+    await until(() => document.querySelectorAll('[data-testid="composer-collapse"]')[0]?.getAttribute('aria-expanded') === 'false'
+      || document.querySelectorAll('[data-testid="composer-collapse"]')[1]?.getAttribute('aria-expanded') === 'false')
+    expect(count('composer-input')).toBe(1)
+  })
+
+  it('saves the fold for this window only, under the pane, and drops a pane that closed', async () => {
     await open()
     await fold()
+    const saved = (): Record<string, unknown> => (JSON.parse(localStorage.getItem('apiary.ui') ?? '{}') as { foldedPanes?: Record<string, unknown> }).foldedPanes ?? {}
+    expect(Object.keys(saved())).toHaveLength(1)
+    expect(localStorage.getItem('apiary.composerCollapsed')).toBeNull()
+    localStorage.setItem('apiary.ui', JSON.stringify({ foldedPanes: { 'col-gone': true, ...saved() } }))
     await userEvent.click(page.getByTestId('session-tab-split').first())
-    await until(() => count('composer') >= 1)
-    await userEvent.keyboard('{Escape}')
-    expect(count('composer-input')).toBe(0)
-    expect(localStorage.getItem('apiary.composerCollapsed')).toBe('true')
+    await until(() => count('composer') === 2)
+    await until(() => !('col-gone' in saved()))
+    expect(Object.keys(saved())).toHaveLength(1)
+  })
+
+  it('ignores the old window-wide preference', async () => {
+    localStorage.setItem('apiary.composerCollapsed', 'true')
     await open()
-    expect(count('composer-input')).toBe(0)
+    expect(count('composer-input')).toBe(1)
   })
 
   it('shows the draft first line, keeps it, and sends it while folded', async () => {

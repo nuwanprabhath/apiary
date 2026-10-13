@@ -17,6 +17,15 @@ interface Props {
   preset: PresetId
   tracks: Tracks
   onChange: (next: Tracks) => void
+  /** Grid columns whose row divider is hidden because a pane in them is folded. */
+  hiddenCols: Set<number>
+}
+
+/** `d` without the columns in `hidden` (a row divider), or null when none are left. */
+function visiblePart(d: DividerDef, hidden: Set<number>): DividerDef | null {
+  if (d.axis === 'col') return d
+  const cols = Array.from({ length: d.span[1] - d.span[0] }, (_, i) => d.span[0] + i).filter((c) => !hidden.has(c))
+  return cols.length === 0 ? null : { ...d, span: [cols[0], cols[cols.length - 1] + 1] }
 }
 
 /**
@@ -26,12 +35,12 @@ interface Props {
  * every preset's template to interleave them, and `main-right2`'s horizontal divider exists on
  * one side only — as an overlay it is simply a shorter handle.
  */
-export function PaneDividers({ preset, tracks, onChange }: Props): JSX.Element {
+export function PaneDividers({ preset, tracks, onChange, hiddenCols }: Props): JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null)
   const pct = (n: number): string => `${String(n * 100)}%`
   return (
     <div ref={ref} className="pane-dividers">
-      {presetDef(preset).dividers.map((d) => {
+      {presetDef(preset).dividers.flatMap((full) => visiblePart(full, hiddenCols) ?? []).map((d) => {
         const along = d.axis === 'col' ? tracks.cols : tracks.rows
         const across = d.axis === 'col' ? tracks.rows : tracks.cols
         const at = boundaryAt(along, d.index)

@@ -33,7 +33,7 @@ const fold = async (): Promise<void> => {
 }
 
 describe('UI composer collapse', () => {
-  beforeEach(() => { localStorage.removeItem('apiary.composerCollapsed') })
+  beforeEach(() => { localStorage.removeItem('apiary.ui') })
 
   it('composer expanded', async () => {
     await open()
@@ -59,6 +59,15 @@ describe('UI composer collapse', () => {
     busy()
     await until(() => document.querySelector('[data-testid="composer-stop"]') !== null)
     await reviewUi('composer collapsed busy', scoped({ widths: [620, 1000] }))
+  })
+
+  it('two panes, the first folded and the second open', async () => {
+    await open()
+    await userEvent.click(page.getByTestId('session-tab-split').first())
+    await until(() => document.querySelectorAll('[data-testid="composer"]').length === 2)
+    await userEvent.click(page.getByTestId('composer-collapse').first())
+    await until(() => document.querySelectorAll('[data-testid="composer-input"]').length === 1)
+    await reviewUi('composer two panes one folded', { widths: [1000] })
   })
 
   it('composer collapsed narrow', async () => {

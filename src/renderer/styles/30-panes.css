@@ -79,13 +79,14 @@
   box-shadow: var(--panel-shadow);
   overflow: hidden;
 }
+/* The shell bar and its terminals are the footer of the session card above them: one outline, a
+ * hairline between. The card's `overflow: hidden` rounds the footer's bottom corners. */
 .shell-card {
   background: var(--bg-panel);
-  border-radius: var(--radius-panel);
-  box-shadow: var(--panel-shadow);
+  border-top: 1px solid var(--border);
 }
-/* Collapsed, the shell card still floats a gap below the session; open, the resizer is the gap. */
-.session-card + .shell-card { margin-top: var(--panel-gap); }
+/* Closed, the footer is just the bar; its own bottom rule has nothing to separate. */
+.shell-card[data-open="false"] .toolbar { border-bottom: 0; }
 
 /* Divider handles, laid over the grid by PaneDividers. Centered on the boundary; wider on hover
  * the way the sidebar's resizer is. */
@@ -170,6 +171,7 @@
   min-width: 64px;
   max-width: 220px;
   margin: 3px 0 var(--space-xs);
+  position: relative;
   background: transparent;
   border-radius: var(--radius-control);
   transition: background-color 0.12s, box-shadow 0.12s;
@@ -209,7 +211,29 @@
 .session-tab-label:focus-visible { outline: none; }
 .session-tab:has(.session-tab-label:focus-visible) { box-shadow: 0 0 0 1px var(--muted); }
 .session-tab[data-active="true"] .session-tab-label { color: var(--text); }
+/* A working tab: the spinning ring before the label, and the shared border glow (`data-glow`,
+   styles/05-ui.css) around the whole tab, so a row of tabs shows which are busy even when the
+   labels are cut. `data-activity` and `data-glow` are set by SessionTab from the active-tabs store. */
+.session-tab-ring {
+  flex: none;
+  width: var(--status-spinner-size);
+  height: var(--status-spinner-size);
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: var(--status-ring-width) solid color-mix(in sRGB, var(--status-running) var(--status-spinner-track), transparent);
+  border-top-color: var(--status-running);
+  box-shadow: 0 0 var(--status-spinner-glow) color-mix(in sRGB, var(--status-running) 40%, transparent);
+  animation: status-spin var(--status-spinner-duration) linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .session-tab-ring { animation: none; border-color: var(--status-running); border-top-color: color-mix(in sRGB, var(--status-running) var(--status-spinner-track), transparent); }
+}
 .session-tab-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-tab[data-activity="running"] .session-tab-text { color: var(--status-running); }
+/* The ring and the dot cost the label room: a busy tab keeps enough of its title to be read, and
+   the strip scrolls for the rest. */
+.session-tab[data-activity="running"],
+.session-tab[data-activity="waiting"] { min-width: 136px; }
 
 .session-tab-close {
   flex: none;

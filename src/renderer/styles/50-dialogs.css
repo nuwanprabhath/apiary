@@ -106,7 +106,7 @@
   flex: none;
   border-top: 1px solid var(--border);
   background: var(--bg-panel);
-  padding: var(--space-md) var(--control-padding-x) var(--space-ml);
+  padding: var(--space-md) var(--control-padding-x) var(--space-sm);
 }
 
 .composer-attachments { display: flex; flex-wrap: wrap; gap: var(--space-md); padding-bottom: var(--space-md); }

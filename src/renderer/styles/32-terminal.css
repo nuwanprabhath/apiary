@@ -93,10 +93,11 @@
 
 .bottom-resizer {
   position: relative;
-  /* Above both cards, so the hit area's reach into them (see ::before above) is not covered. */
+  /* Above the session body and the bar, so the hit area's reach into them is not covered. */
   z-index: var(--z-resizer);
-  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the resizer hit target floor is a pointer-reach minimum, not spacing */
-  height: max(var(--panel-gap), 4px);
+  /* Centred on the boundary inside the card and taking no room: the negative margin cancels its height. */
+  height: var(--space-md);
+  margin: calc(var(--space-md) / -2) 0;
   flex: none;
   cursor: row-resize;
   background: transparent;

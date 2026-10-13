@@ -77,3 +77,58 @@
 /* Direct children only: the hidden measuring copy always shows every label. */
 .overflow-toolbar[data-compact="1"] > .toolbar-button .toolbar-button-label[data-mode="shrink"],
 .overflow-toolbar[data-compact="2"] > .toolbar-button .toolbar-button-label[data-mode] { display: none; }
+
+/*
+ * The travelling border glow: the one way a "working" element is marked outside the sidebar dot
+ * (a tab, a folded pane). `data-glow="running"` sends a bright beam (a white-hot head fading evenly
+ * both ways, the same distance ahead and behind, about half the perimeter) around the element's own
+ * rounded border over a faint full ring, with a soft halo; `data-glow="waiting"` holds a steady
+ * ring, because moving versus still is what tells working from needs-you at a glance.
+ * The arc is a conic gradient whose start angle is animated (`@property` makes the angle
+ * animatable), masked down to the border ring, so only `background` repaints and no layout moves.
+ */
+@property --glow-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes border-glow {
+  to { --glow-angle: 360deg; }
+}
+[data-glow]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: var(--glow-width);
+  pointer-events: none;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+/* The repeated attribute outranks a state's own box-shadow (an active tab's chip) without !important. */
+/* The halo is mostly inside the element (inset): a tab sits in a strip that scrolls, and a folded
+ * pane in a column that clips, so an outer halo wider than `--glow-halo-outer` was cut to a hard edge. */
+[data-glow][data-glow][data-glow="running"] {
+  box-shadow:
+    inset 0 0 var(--glow-halo) color-mix(in sRGB, var(--status-running) var(--glow-halo-mix), transparent),
+    0 0 var(--glow-halo-outer) color-mix(in sRGB, var(--status-running) var(--glow-halo-mix), transparent);
+}
+[data-glow="running"]::after {
+  background: conic-gradient(
+    from var(--glow-angle),
+    color-mix(in sRGB, var(--status-running) var(--glow-track), transparent) 0,
+    color-mix(in sRGB, var(--status-running) var(--glow-track), transparent) 45%,
+    var(--status-running) 63%,
+    color-mix(in sRGB, var(--status-running) 55%, var(--text)) 72.5%,
+    var(--status-running) 82%,
+    color-mix(in sRGB, var(--status-running) var(--glow-track), transparent) 100%
+  );
+  animation: border-glow var(--glow-duration) linear infinite;
+}
+[data-glow="waiting"]::after { background: var(--status-waiting); }
+@media (prefers-reduced-motion: reduce) {
+  [data-glow="running"]::after {
+    animation: none;
+    background: var(--status-running);
+  }
+}

@@ -9,9 +9,9 @@ export interface ComposerFold {
   toggle: () => void
 }
 
-/** Folding the message box away, one preference for every composer, and focusing it on unfold. */
-export function useComposerFold(textareaRef: RefObject<HTMLTextAreaElement | null>): ComposerFold {
-  const [collapsed, setCollapsed] = useComposerCollapsed()
+/** Folding the message box away, per pane (`columnId`), and focusing it on unfold. */
+export function useComposerFold(textareaRef: RefObject<HTMLTextAreaElement | null>, columnId: string): ComposerFold {
+  const [collapsed, setCollapsed] = useComposerCollapsed(columnId)
   const inputId = useId()
   /** Set when the person unfolds the box, so it takes focus once it exists again. */
   const focusOnShow = useRef(false)
@@ -32,7 +32,7 @@ export function FoldButton({ fold }: { fold: ComposerFold }): JSX.Element {
   const label = fold.collapsed ? 'Show the message box' : 'Hide the message box'
   return (
     <button
-      className="btn composer-collapse"
+      className="btn quiet composer-collapse"
       data-testid="composer-collapse"
       aria-expanded={!fold.collapsed}
       aria-controls={fold.inputId}

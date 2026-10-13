@@ -131,7 +131,9 @@ test('a glass theme turns the panels into blurred panes, and menus inside them s
       const st = getComputedStyle(target, p)
       return { filter: st.backdropFilter, shadow: st.boxShadow, bg: getComputedStyle(el).backgroundColor }
     }, pseudo)
-  for (const id of ['sidebar', 'session-card', 'shell-card']) {
+  // The shell is the session card's footer (1.40), inside the card's own glass, not a pane of its own.
+  expect(await h.page.getByTestId('shell-card').evaluate((el) => el.closest('[data-testid="session-card"]') !== null)).toBe(true)
+  for (const id of ['sidebar', 'session-card']) {
     const before = await pane(id, '::before')
     // No live backdrop filter: it re-ran on every frame and made the app lag without GPU
     // compositing. The blur is in the back canvas instead (below).

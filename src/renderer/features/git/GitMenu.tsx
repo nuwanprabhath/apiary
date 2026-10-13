@@ -44,6 +44,15 @@ export function GitMenu({ items, onClose, anchorRef }: Props): JSX.Element {
     if (openSubmenu === null || submenuRef.current === null) return
     itemsIn(submenuRef.current)[0]?.focus()
   }, [openSubmenu])
+  // The "..." button sits at the toolbar's right end, so a submenu opening rightwards can run off
+  // the window. Measured in its usual place each time it opens; if it would, it opens to the left
+  // of its parent instead (as ContextMenu's fly-outs do).
+  const [submenuLeft, setSubmenuLeft] = useState(false)
+  useLayoutEffect(() => {
+    if (openSubmenu === null) { setSubmenuLeft(false); return }
+    const right = submenuRef.current?.getBoundingClientRect().right
+    if (right !== undefined && right > window.innerWidth) setSubmenuLeft(true)
+  }, [openSubmenu])
 
   /**
    * Positioned `fixed`, against the anchor's measured box, rather than absolutely inside the
@@ -122,7 +131,7 @@ export function GitMenu({ items, onClose, anchorRef }: Props): JSX.Element {
         </button>
         {hasSubmenu && openSubmenu === item.id && (
           // Focus goes to its first item by the effect above, once it exists.
-          <Menu as="ul" ref={submenuRef} className="git-menu git-submenu" testId="git-submenu" focusOnOpen={false}>
+          <Menu as="ul" ref={submenuRef} className={submenuLeft ? 'git-menu git-submenu git-submenu-left' : 'git-menu git-submenu'} testId="git-submenu" focusOnOpen={false}>
             {item.submenu?.map((sub) => renderItem(sub, true))}
           </Menu>
         )}

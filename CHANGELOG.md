@@ -4,6 +4,41 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.40.0] - 2026-10-13
+
+### Added
+
+- **Fold a pane away.** Panes stacked above each other get a chevron at the start of their tab bar.
+  Folding one shrinks it to its tab bar and gives its room to the pane above or below; in a 2×2
+  grid only that column changes. Clicking one of its tabs, or the chevron, brings it back; folding
+  the pane that is still open swaps the two. Folds are remembered across restarts.
+- **Open in VS Code from the "/" menu** of the message box, under a new "Actions" group: it opens
+  the session's folder or worktree, also from a remote window.
+
+### Changed
+
+- **A working session is obvious at a glance.** Its status dot is a glowing spinning ring, and its
+  row in Active gets an accent bar. Its tab carries a glow that travels around its edge, so working
+  tabs stand out even with the sidebar hidden. A folded pane with a session working inside wears
+  the same glow around the whole bar. A session waiting for you holds a steady ring instead.
+- **The Shell bar belongs to its pane.** It is now the bottom strip of the pane's own card, not a
+  separate bar that read as the header of the pane below. The copy-branch button sits right after
+  the branch name, and the space under the message box's bottom row is smaller.
+
+### Fixed
+
+- **Folding the message box folds only that pane's**, not every pane's in the window. Its chevron,
+  like a pane's, shows a button outline only under the pointer.
+- **The Shell bar's Branch submenu stays inside the window**: near the right edge it opens to the
+  left of the menu instead of being cut off.
+
+### Added (for contributors)
+
+- **A shared travelling-glow style** (`[data-glow]` in `styles/05-ui.css`) and `strongestActivity`
+  (`shared/activity.ts`), the one rule for which status speaks for several.
+- **Pushing a release tag runs the whole e2e suite first** (`.husky/pre-push`), and two e2e tests
+  that 1.39 and 1.40 had broken are fixed (the nightly run had been failing since 1.39).
+
 ## [1.39.0] - 2026-10-12
 
 ### Added

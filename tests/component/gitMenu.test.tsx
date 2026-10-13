@@ -29,6 +29,17 @@ describe('the git "..." menu', () => {
     await expect.element(submenu.getByTestId('git-menu-branch-merge')).toBeVisible()
   })
 
+  it('the Branch submenu stays inside the window: near the right edge it opens to the left', async () => {
+    // The "..." button sits at the toolbar's right end, so a submenu opening rightwards ran off
+    // the window and was cut off.
+    await open()
+    await userEvent.click(page.getByTestId('toolbar-git-menu'))
+    await userEvent.click(page.getByTestId('git-menu-branch'))
+    const submenu = page.getByTestId('git-submenu').element()
+    await expect.poll(() => submenu.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth)
+    expect(submenu.getBoundingClientRect().left).toBeGreaterThanOrEqual(0)
+  })
+
   it('the menu closes on Escape and on a click outside it', async () => {
     await open()
     await userEvent.click(page.getByTestId('toolbar-git-menu'))

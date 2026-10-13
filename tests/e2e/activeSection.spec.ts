@@ -27,13 +27,16 @@ test('Active lists open sessions from both windows and clicking a row focuses th
 
   // Confirm focusTab only focuses and selects — it never migrates the tab between windows,
   // unlike tabDropped. The first window's own tab bar must stay exactly as it was.
-  const firstWindowTabBarBefore = await h.page.getByTestId('session-tab-bar').innerText()
+  // Its tabs, read the same way before and after: the bar's raw text also holds the Chat/Terminal
+  // toggle, and innerText (line breaks) never equals toHaveText's textContent once it does.
+  const firstWindowTabs = h.page.getByTestId('session-tab-bar').getByTestId('session-tab')
+  const before = await firstWindowTabs.allInnerTexts()
+  expect(before.length).toBeGreaterThan(0)
 
   await otherRow.click()
   await expect.poll(() => second.evaluate(() => document.hasFocus())).toBe(true)
 
-  const firstWindowTabBarAfter = h.page.getByTestId('session-tab-bar')
-  await expect(firstWindowTabBarAfter).toHaveText(firstWindowTabBarBefore)
+  await expect.poll(() => firstWindowTabs.allInnerTexts()).toEqual(before)
 })
 
 test('an Active row for a tab open in another window keeps its title even when this window\'s own search excludes it', async () => {

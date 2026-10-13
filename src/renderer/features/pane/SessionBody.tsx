@@ -60,6 +60,7 @@ export function SessionBody({
             * reading view, and being able to reply without switching to the raw terminal is
             * the whole point. What it types still goes to that terminal. */}
           <Composer
+            columnId={column.id}
             key={activeSession.sessionId}
             session={activeSession}
             ptyId={keyFor(activeSession.sessionId)}

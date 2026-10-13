@@ -271,7 +271,7 @@ export function tidyLayout(layout: Layout, activePaneId: string | null): Layout 
     const slots: (Column | null)[] = Array.from({ length: capacity(preset) }, () => null)
     next = { preset, panes: fill(slots, next.panes) }
   }
-  return next
+  return validFolds(next)
 }
 
 /**
@@ -347,4 +347,54 @@ export function dragTracks(tracks: number[], index: number, pointer: number, min
   next[index] = pairWeight * leftShare
   next[index + 1] = pairWeight * (1 - leftShare)
   return next
+}
+
+/** The grid columns zone `zone` (0-based) covers in `def`. */
+export function zoneCols(def: PresetDef, zone: number): number[] {
+  const name = `z${String(zone + 1)}`
+  return [...new Set(def.areas.flatMap((row) => row.split(/\s+/).flatMap((n, c) => (n === name ? [c] : []))))]
+}
+
+/** The zones sharing zone `zone`'s grid columns, itself included: the vertical stack a fold hands
+ *  its space to. A pane beside the others (`main`, the top of `top-bottom2`) is alone in its own. */
+function stackOf(preset: PresetId, zone: number): number[] {
+  const def = presetDef(preset)
+  const mine = zoneCols(def, zone).join(' ')
+  return Array.from({ length: capacity(preset) }, (_, z) => z).filter((z) => zoneCols(def, z).join(' ') === mine)
+}
+
+/** `none`: no vertical neighbour, so nothing to fold into. */
+export type FoldState = 'none' | 'open' | 'folded'
+
+export function foldState(layout: Layout, index: number): FoldState {
+  if (layout.panes[index]?.collapsed === true) return 'folded'
+  return stackOf(layout.preset, index).length < 2 ? 'none' : 'open'
+}
+
+/**
+ * Folds or unfolds a pane, where its `foldState` allows it; otherwise the layout unchanged. Folding
+ * the last open pane of a stack opens the others: the two swap, so a stack is never all bars.
+ */
+export function setFolded(layout: Layout, paneId: string | null, folded: boolean): Layout {
+  const index = layout.panes.findIndex((p) => p.id === paneId)
+  if (index === -1 || foldState(layout, index) !== (folded ? 'open' : 'folded')) return layout
+  const stack = stackOf(layout.preset, index)
+  const lastOpen = folded && stack.every((z) => z === index || layout.panes[z]?.collapsed === true)
+  return {
+    ...layout,
+    panes: layout.panes.map((p, i) => {
+      if (i === index) return { ...p, collapsed: folded }
+      return lastOpen && stack.includes(i) ? { ...p, collapsed: false } : p
+    }),
+  }
+}
+
+export function validFolds(layout: Layout): Layout {
+  const stale = (p: Column, i: number): boolean => {
+    if (p.collapsed !== true) return false
+    const stack = stackOf(layout.preset, i)
+    return stack.length < 2 || (stack.every((z) => layout.panes[z]?.collapsed === true) && i === Math.max(...stack))
+  }
+  if (!layout.panes.some(stale)) return layout
+  return { ...layout, panes: layout.panes.map((p, i) => (stale(p, i) ? { ...p, collapsed: false } : p)) }
 }

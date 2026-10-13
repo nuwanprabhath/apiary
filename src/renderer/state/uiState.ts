@@ -92,7 +92,9 @@ export function loadUiState(): ViewerUiState {
 
 export function saveUiState(state: ViewerUiState): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(state))
+    // `foldedPanes` is saved on its own (`saveFoldedPanes`); this whole-state write must keep it.
+    const foldedPanes = read(KEY).foldedPanes
+    localStorage.setItem(KEY, JSON.stringify(foldedPanes === undefined ? state : { ...state, foldedPanes }))
     // eslint-disable-next-line apiary/no-silent-catch -- storage can be unavailable; the app works fine without persistence
   } catch {
     // Storage can be unavailable; the app works fine without persistence.
@@ -131,18 +133,18 @@ export function saveComposerHeight(height: number | null): void {
     // Storage can be unavailable; the composer just starts at its fitted height next time.
   }
 }
-const COMPOSER_COLLAPSED_KEY = 'apiary.composerCollapsed'
 
-/** Whether the message box is folded away, for every composer in this viewer's windows. */
-export function loadComposerCollapsed(): boolean {
-  try {
-    return localStorage.getItem(COMPOSER_COLLAPSED_KEY) === 'true'
-  } catch {
-    return false
+/** The panes whose message box is folded, saved with this window's own record (`columnId` → true). */
+export function loadFoldedPanes(): Record<string, true> {
+  const stored = read(KEY).foldedPanes
+  const out: Record<string, true> = {}
+  if (typeof stored === 'object' && stored !== null && !Array.isArray(stored)) {
+    for (const [id, folded] of Object.entries(stored)) if (folded === true) out[id] = true
   }
+  return out
 }
 
-export function saveComposerCollapsed(collapsed: boolean): void {
-  ignoreErrors(() => { localStorage.setItem(COMPOSER_COLLAPSED_KEY, String(collapsed)) }, 'storage can be unavailable; the box just starts open next time')
+export function saveFoldedPanes(panes: Record<string, true>): void {
+  ignoreErrors(() => { localStorage.setItem(KEY, JSON.stringify({ ...read(KEY), foldedPanes: panes })) }, 'storage can be unavailable; the boxes just start open next time')
 }
 

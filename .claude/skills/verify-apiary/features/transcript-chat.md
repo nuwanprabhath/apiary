@@ -14,6 +14,9 @@ streams in with tool calls and permission prompts, without starting a terminal.
   `composer-effort` with `composer-effort-<level>`).
 - Folding the box (`composer-collapse`, `aria-expanded`; while folded the textarea is gone and
   `composer-peek` shows "Message Claude…" or the draft's first line, and unfolds with focus in it).
+- The "/" menu's Actions group: "Open in VS Code" (`composer-action-option`), shown only when VS
+  Code is available and the folder exists; it calls `openInVsCode` for the session.
+- Folding the box is per pane (each column's own; `composer-collapse` in one pane leaves the others).
 - Hide tool calls: library state's `hideToolCallIo` (and each chat's `showToolCalls` in
   `chatSettings`), in `library-state.json`, not `settings.json`.
 

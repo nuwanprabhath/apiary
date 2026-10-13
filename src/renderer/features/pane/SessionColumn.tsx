@@ -18,6 +18,8 @@ import { useGitStatus } from './useGitStatus'
 import { useGitActions } from './useGitActions'
 import { useShellTerminals } from './useShellTerminals'
 import type { ResizeSeparatorProps } from '../../ui/useResizeDrag'
+import type { FoldState } from '../../state/layout'
+import { usePaneActivity } from '../../state/activeTabsStore'
 
 
 interface Props {
@@ -61,6 +63,9 @@ interface Props {
   emptyContent?: ReactNode
   /** The window's layout button, when this pane is the one at the top-right corner. */
   layoutButton?: ReactNode
+  /** Whether this pane can fold to its tab bar, or is folded (`foldState` in state/layout.ts). */
+  fold?: FoldState
+  onFold?: (folded: boolean) => void
 }
 
 /**
@@ -85,8 +90,11 @@ function SessionColumnView(props: Props): JSX.Element {
     onActivateTab, onCloseTab, onSetView, onResume, onResumeAsync, onRenameSession, onRenamePending,
     onSplitActive, onReorderTab, transferFor, pinnedKeys, onTogglePin, onFork, onTabDropped, onDetach,
     onSessionStarted,
-    gridArea, emptyContent, layoutButton,
+    gridArea, emptyContent, layoutButton, fold = 'none', onFold,
   } = props
+  const folded = fold === 'folded'
+  // Folded, the pane's body is hidden, so its bar says when something inside is still working.
+  const paneActivity = usePaneActivity(folded ? column.tabs.map((t) => t.key) : [])
 
   /** The image being shown full size, from either the transcript or the composer. */
   const [lightbox, setLightbox] = useState<string | null>(null)
@@ -116,14 +124,15 @@ function SessionColumnView(props: Props): JSX.Element {
       style={{ gridArea }}
       data-active={isActive}
       data-placeholder={column.placeholder === true}
+      data-folded={folded}
+      data-pane-activity={folded ? paneActivity ?? undefined : undefined}
       onFocusCapture={onFocus}
       onMouseDownCapture={onFocus}
     >
       <PaneDropOverlay columnId={column.id} movingPane={movingPane} onDrop={dropPaneOn} />
-      {/* Two cards, the way VS Code floats its editor and its panel: the session (tabs, header,
-       *  transcript or terminal) and, below it across the gap, the shell. The gap between them is
-       *  the resize handle. */}
-      <div className="session-card" data-testid="session-card">
+      {/* One card: the session (tabs, header, transcript or terminal) and, as its footer below a
+       *  hairline, the shell bar and its terminals. The resize handle sits on the boundary. */}
+      <div className="session-card" data-testid="session-card" data-glow={foldedGlow(folded, paneActivity)}>
       <SessionTabBar
         columnId={column.id}
         tabs={tabViews}
@@ -139,6 +148,8 @@ function SessionColumnView(props: Props): JSX.Element {
         onTabDropped={onTabDropped}
         onDetach={onDetach}
         layoutButton={layoutButton}
+        fold={fold}
+        onFold={onFold}
         viewToggle={activePending === null && activeSession !== null
           && <ViewToggle session={activeSession} view={activeView} hasTerminal={resumed.has(activeSession.sessionId)} onView={onSetView} handoff={terminalHandoff} />}
       />
@@ -174,7 +185,6 @@ function SessionColumnView(props: Props): JSX.Element {
           />
         </>
       )}
-      </div>
 
       {activeKey !== null && (
         <ShellPane
@@ -191,6 +201,7 @@ function SessionColumnView(props: Props): JSX.Element {
           onTerminalListWidth={onTerminalListWidth}
         />
       )}
+      </div>
 
       {lightbox !== null && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
 
@@ -203,6 +214,11 @@ function SessionColumnView(props: Props): JSX.Element {
       />
     </section>
   )
+}
+
+/** A folded pane still working wears the tabs' travelling border glow (`[data-glow]`, styles/05-ui.css). */
+function foldedGlow(folded: boolean, activity: 'running' | 'waiting' | null): 'running' | 'waiting' | undefined {
+  return folded ? activity ?? undefined : undefined
 }
 
 export const SessionColumn = memo(SessionColumnView)

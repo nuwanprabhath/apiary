@@ -51,6 +51,8 @@ export interface PersistedPane {
   id: string
   tabs: PersistedTab[]
   activeTab: string | null
+  /** Folded down to its tab bar; absent when open (and in records written before folding). */
+  collapsed?: boolean
 }
 
 /**
@@ -86,6 +88,7 @@ function isPersistedPane(value: unknown): value is PersistedPane {
   return typeof v.id === 'string'
     && Array.isArray(v.tabs) && v.tabs.every(isPersistedTab)
     && (v.activeTab === null || typeof v.activeTab === 'string')
+    && (v.collapsed === undefined || typeof v.collapsed === 'boolean')
 }
 
 /**

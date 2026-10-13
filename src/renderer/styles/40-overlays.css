@@ -372,6 +372,15 @@
   background: color-mix(in sRGB, var(--status-waiting) 10%, transparent);
   box-shadow: inset var(--status-ring-width) 0 0 0 var(--status-waiting);
 }
+/* A working row gets the same left edge in the running colour and a tinted title, so what is busy
+   reads down the list at a glance. The dot carries the motion. */
+.active-tab-row:has(.status-dot[data-status="running"]) {
+  background: color-mix(in sRGB, var(--status-running) 8%, transparent);
+  box-shadow: inset var(--status-ring-width) 0 0 0 var(--status-running);
+}
+.active-tab-row:has(.status-dot[data-status="running"]) .session-title {
+  color: var(--status-running);
+}
 
 /* The legend behind the Active header. Laid out as a grid so the meanings line up in a column
    that can be read down, rather than each starting wherever its status name happened to end. */
@@ -620,6 +629,8 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
 
 /* A submenu hangs off its parent row, opening to the right and aligned with it. */
 .git-submenu { position: absolute; left: 100%; top: -5px; margin-left: 2px; }
+/* Near the window's right edge it opens to the left of its parent instead (GitMenu measures it). */
+.git-submenu-left { left: auto; right: 100%; margin-left: 0; margin-right: 2px; }
 
 /* Right-click context menu for the terminal, styled to match git-menu. */
 /*

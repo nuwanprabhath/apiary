@@ -15,6 +15,13 @@ holds the folder path.
   segment is `resume-button` while the session has no terminal (it starts one; disabled with
   `data-cwd-exists="false"` when the folder is gone) and `view-terminal` with `session-live-dot`
   once it has one. Only one of the two is in the page at a time.
+- Folding a stacked pane: `pane-collapse` at the start of its tab bar (`aria-expanded`); the folded
+  column has `data-folded="true"`, and `data-pane-activity` plus `data-glow` on its `session-card`
+  while a tab inside runs or waits. Only panes with a vertical neighbour have the control.
+- A working tab: `data-activity` on `session-tab`, and `data-glow="running|waiting"` (the travelling
+  border glow, `[data-glow]` in `styles/05-ui.css`).
+- The shell bar is the card's footer (`.shell-card` inside `session-card`); copy-branch
+  (`toolbar-copy`) sits right after the branch name.
 - With a chat busy, Terminal waits for it: `resume-handoff` under the title, with
   `resume-handoff-now` and `resume-handoff-cancel`.
 

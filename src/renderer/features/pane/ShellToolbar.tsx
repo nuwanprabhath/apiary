@@ -29,9 +29,22 @@ function branchChip(gitStatus: GitStatus, active: boolean, onClick: () => void):
   }
 }
 
-/** Pull, push, copy-branch and the "..." button: the git half of the toolbar's right side. */
+/** Copy-branch, pinned right after the branch name it copies (always visible, at the muted colour). */
+function copyBranchButton(gitStatus: GitStatus): ToolbarButtonSpec {
+  return {
+    id: 'git-copy',
+    icon: <CopyIcon />,
+    title: gitStatus.branch === null ? 'Copy branch name (HEAD is detached: no branch)' : 'Copy branch name',
+    testId: 'toolbar-copy',
+    disabled: gitStatus.branch === null,
+    onClick: () => {
+      if (gitStatus.branch !== null) void copyText(gitStatus.branch)
+    },
+  }
+}
+
+/** Pull, push and the "..." button: the git half of the toolbar's right side. */
 function gitButtons(
-  gitStatus: GitStatus,
   git: GitActions,
   gitMenuButtonRef: RefObject<HTMLButtonElement | null>,
 ): ToolbarButtonSpec[] {
@@ -56,17 +69,6 @@ function gitButtons(
       disabled: gitBusy !== null,
       priority: 5,
       onClick: () => { void runGitAction('push') },
-    },
-    {
-      id: 'git-copy',
-      icon: <CopyIcon />,
-      title: gitStatus.branch === null ? 'Copy branch name (HEAD is detached: no branch)' : 'Copy branch name',
-      testId: 'toolbar-copy',
-      disabled: gitStatus.branch === null,
-      priority: 7,
-      onClick: () => {
-        if (gitStatus.branch !== null) void copyText(gitStatus.branch)
-      },
     },
     {
       id: 'git-more',
@@ -125,10 +127,12 @@ export function ShellToolbar({ shell, git, gitStatus, pluginItems }: {
               testId: 'shell-toggle',
               onClick: () => { void shell.toggleShell() },
             },
-            ...(gitStatus !== null ? [branchChip(gitStatus, branchPicker !== null, () => setBranchPicker('checkout'))] : []),
+            ...(gitStatus !== null
+              ? [branchChip(gitStatus, branchPicker !== null, () => setBranchPicker('checkout')), copyBranchButton(gitStatus)]
+              : []),
           ]}
           right={[
-            ...(gitStatus !== null ? gitButtons(gitStatus, git, gitMenuButtonRef) : []),
+            ...(gitStatus !== null ? gitButtons(git, gitMenuButtonRef) : []),
             // Plugin buttons sit after git's: they are about the same checkout, and anything
             // contributed belongs after what Apiary itself owns.
             ...pluginButtons(pluginItems).map((spec) => ({ ...spec, priority: 3 })),

@@ -5,7 +5,7 @@ import {
 import type { PtyId } from '@shared/domain/ids'
 import type { TabTransfer, WindowLayoutReport } from '@shared/types'
 import { newColumn } from '../../state/columns'
-import { initialLayout, PRESETS, type PresetId } from '../../state/layout'
+import { initialLayout, PRESETS, validFolds, type PresetId } from '../../state/layout'
 import { type TerminalTab, type WorkspaceState } from './workspaceReducer'
 import { createWorkspaceStore } from './workspaceStore'
 import { StoreContext, useWorkspaceDispatch } from './workspaceContext'
@@ -46,10 +46,12 @@ function initWorkspaceState(
   const panes = restored.layout.panes.map((pane) => ({
     ...newColumn(pane.tabs.map((t) => ({ key: t.key, view: t.view }))),
     activeKey: pane.activeTab,
+    ...(pane.collapsed === true ? { collapsed: true } : {}),
   }))
   const knownPreset = PRESETS.some((p) => p.id === restored.layout.preset)
   const preset = (knownPreset ? restored.layout.preset : 'single') as PresetId
-  return { ...base, layout: { preset, panes }, activeColumnId: panes[0]?.id ?? null }
+  // A fold the restored layout cannot hold (an edited record) is dropped.
+  return { ...base, layout: validFolds({ preset, panes }), activeColumnId: panes[0]?.id ?? null }
 }
 
 /** Owns a window's open tabs, terminals and pane layout: the pure `workspaceReducer` behind a

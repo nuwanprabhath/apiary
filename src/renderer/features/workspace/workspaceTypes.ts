@@ -93,6 +93,8 @@ export type WorkspaceAction =
   | { type: 'layout/apply'; preset: PresetId }
   | { type: 'layout/closePane'; columnId: string }
   | { type: 'layout/swap'; from: string; to: string }
+  /** The tab bar's chevron: fold a pane down to its tab bar, or open it again. */
+  | { type: 'layout/fold'; columnId: string; folded: boolean }
   /** Remembers the row behind an open tab (a rename, a drop onto an empty pane, ...). */
   | { type: 'openSessions/set'; session: SessionNode }
   /** Fills in rows for tabs this window has no row for yet (a tab adopted as a bare key). */

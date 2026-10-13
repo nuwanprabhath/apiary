@@ -134,6 +134,10 @@ Every rule here comes from the 1.35.0 release, which was built by headless Haiku
 - Expect agents to delete known-defect entries that read as fixed only because their run was
   loaded or their layout differs. The audit now waits for the layout to settle, but check every
   baseline deletion in review, and settle the file at merge time.
+- Agents run only the e2e specs they think their change touches, and miss some: 1.39's toggle
+  broke a `@serial` spec (seen only by the nightly run) and 1.40's shell bar broke the glass test.
+  Run `npm run test:e2e` (both projects) on the release branch before tagging; pushing a `v*` tag
+  now runs it anyway (`.husky/pre-push`) and refuses the push if it fails.
 - After each merge, run every UI scenario on the release branch. Two packages that each pass alone
   can still cut a control together: P5's message times plus P6's footer cut Send in Glass, which
   only the run after both merged showed.

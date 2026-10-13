@@ -1,4 +1,5 @@
-import { type Dispatch, useMemo } from 'react'
+import { type Dispatch, useEffect, useMemo } from 'react'
+import { pruneFoldedPanes } from '../state/composerCollapsed'
 import type { TabTransfer } from '@shared/types'
 import { findColumnWithTab, type Column, type OpenTab } from '../state/columns'
 import type { WorkspaceAction } from '../features/workspace/workspaceReducer'
@@ -11,6 +12,8 @@ export interface ColumnHandlers {
   onCloseTab: (key: string) => void
   onSetView: (key: string, view: OpenTab['view']) => void
   onReorderTab: (key: string, toIndex: number, transfer: TabTransfer | null) => void
+  /** The tab bar's chevron: fold this pane to its tab bar, or open it again. */
+  onFold: (folded: boolean) => void
 }
 
 /**
@@ -23,6 +26,8 @@ export interface ColumnHandlers {
 export function useColumnHandlers(columns: Column[], dispatch: Dispatch<WorkspaceAction>): Map<string, ColumnHandlers> {
   const store = useWorkspaceStore()
   const columnIdsSignature = columns.map((c) => c.id).join(' ')
+  // A pane that closed takes its fold with it.
+  useEffect(() => { pruneFoldedPanes(columnIdsSignature === '' ? [] : columnIdsSignature.split(' ')) }, [columnIdsSignature])
   return useMemo(() => {
     const map = new Map<string, ColumnHandlers>()
     for (const columnId of columnIdsSignature === '' ? [] : columnIdsSignature.split(' ')) {
@@ -33,6 +38,7 @@ export function useColumnHandlers(columns: Column[], dispatch: Dispatch<Workspac
         // empty placeholder so the layout never collapses to nothing.
         onCloseTab: (key) => { dispatch({ type: 'tab/close', columnId, key }) },
         onSetView: (key, view) => { dispatch({ type: 'tab/setView', columnId, key, view }) },
+        onFold: (folded) => { dispatch({ type: 'layout/fold', columnId, folded }) },
         onReorderTab: (key, toIndex, transfer) => {
           // Not open anywhere in this window: it came from another one, whose drop the platform
           // delivered here rather than as a `dragend` over nothing (X11 does this). Moving it

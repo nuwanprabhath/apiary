@@ -1,4 +1,5 @@
 import type { ActiveTabPayload } from '@shared/api'
+import { strongestActivity } from '@shared/activity'
 import { createIpcStore } from './createIpcStore'
 import { onRemoteReconnected } from './remote'
 
@@ -46,6 +47,18 @@ const activeTabsStore = createIpcStore<ActiveTabPayload[]>({
 
 export function useActiveTabs(): ActiveTabPayload[] {
   return activeTabsStore.useStore()
+}
+
+/**
+ * What the tabs `keys` are doing, as one word for a pane: `running` if any runs, else `waiting` if
+ * any waits, else null. A primitive, so a pane reading it re-renders only when the word changes,
+ * not on every activity broadcast.
+ */
+export function usePaneActivity(keys: readonly string[]): 'running' | 'waiting' | null {
+  return activeTabsStore.useStore((tabs) => {
+    const strongest = strongestActivity(tabs.filter((t) => keys.includes(t.key)).map((t) => t.status))
+    return strongest === 'running' || strongest === 'waiting' ? strongest : null
+  })
 }
 
 /** Every open tab right now: joins a fetch already under way for the same signal, so a store woken

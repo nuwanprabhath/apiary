@@ -9,7 +9,7 @@ import type { ResizeSeparatorProps } from '../../ui/useResizeDrag'
 import type { ShellTerminals } from './useShellTerminals'
 import type { GitActions } from './useGitActions'
 
-/** One pane's shell card: the resizer above it, the git/terminal toolbar, every tab's shell
+/** One pane's shell footer, inside its session card: the resizer above it, the git/terminal toolbar, every tab's shell
  *  terminals and the terminal list. */
 export function ShellPane({
   column, activeKey, keyFor, shell, git, gitStatus, pluginItems, bottomHeight, bottomResizer,
@@ -46,6 +46,7 @@ export function ShellPane({
       <div
         className="bottom-pane shell-card"
         data-testid="shell-card"
+        data-open={shellOpen}
         style={{ height: shellOpen ? `var(--drag-bottom-height, ${String(bottomHeight)}px)` : 32 }}
       >
         <ShellToolbar shell={shell} git={git} gitStatus={gitStatus} pluginItems={pluginItems} />

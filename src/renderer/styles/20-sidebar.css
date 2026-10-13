@@ -217,6 +217,12 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   to { transform: rotate(360deg); }
 }
 
+/* Claude is working: a ring with one bright quarter, turning. Read as "in progress" from across
+   the room, and by its motion unlike `waiting`'s knock. Transform only, so it costs no layout. */
+@keyframes status-spin {
+  to { transform: rotate(360deg); }
+}
+
 /*
  * Claude is working, and wants nothing: a slow, even breath. No halo, no bounce — the dot should
  * register as "alive" in peripheral vision and then be ignorable, because a row in this state is
@@ -250,8 +256,14 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   flex: none;
 }
 .status-dot[data-status="running"] {
-  background: var(--status-running);
-  animation: status-breathe var(--status-breathe-duration) ease-in-out infinite;
+  box-sizing: border-box;
+  width: var(--status-spinner-size);
+  height: var(--status-spinner-size);
+  background: transparent;
+  border: var(--status-ring-width) solid color-mix(in sRGB, var(--status-running) var(--status-spinner-track), transparent);
+  border-top-color: var(--status-running);
+  box-shadow: 0 0 var(--status-spinner-glow) color-mix(in sRGB, var(--status-running) 40%, transparent);
+  animation: status-spin var(--status-spinner-duration) linear infinite;
 }
 .status-dot[data-status="waiting"] {
   background: var(--status-waiting);
@@ -281,10 +293,10 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   .status-dot[data-status="waiting"] {
     box-shadow: 0 0 0 var(--status-ring-width) var(--pulse-color);
   }
-  /* `running` keeps a shape cue too, not just its colour: an inset ring in the panel's own
-     background reads as a distinct mark even to someone who can't tell it from `idle` by hue. */
+  /* `running` keeps a shape cue too, not just its colour: a still three-quarter ring. */
   .status-dot[data-status="running"] {
-    box-shadow: inset 0 0 0 var(--status-ring-width) var(--bg-panel);
+    border-color: var(--status-running);
+    border-top-color: color-mix(in sRGB, var(--status-running) var(--status-spinner-track), transparent);
   }
 }
 

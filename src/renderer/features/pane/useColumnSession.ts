@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
+import { strongestActivity, type ActivityStatus } from '@shared/activity'
 import { terminalRef, type TerminalRef } from '@shared/domain/ids'
+import { useActiveTabs } from '../../state/activeTabsStore'
 import type { Column, OpenTab } from '../../state/columns'
 import { findTab } from '../../state/columns'
 import type { SessionTabView } from './paneTypes'
@@ -29,10 +31,16 @@ export function useColumnSession(column: Column) {
     [shellKey, shellKeyIsPtyId],
   )
 
+  const activeTabs = useActiveTabs()
+  /** A session open in several windows is working if any of them says so, then waiting. */
+  const activityOf = (key: string): ActivityStatus => {
+    return strongestActivity(activeTabs.filter((t) => t.key === key).map((t) => t.status)) ?? 'idle'
+  }
   const tabViews: SessionTabView[] = column.tabs.map((tab) => {
     const p = pending.get(tab.key)
-    if (p !== undefined) return { key: tab.key, label: p.label, isPending: true }
-    return { key: tab.key, label: sessions.get(tab.key)?.title ?? tab.key, isPending: false }
+    const activity = activityOf(tab.key)
+    if (p !== undefined) return { key: tab.key, label: p.label, isPending: true, activity }
+    return { key: tab.key, label: sessions.get(tab.key)?.title ?? tab.key, isPending: false, activity }
   })
 
   /** A pending session has no transcript to show, so its tab is always the live terminal. */

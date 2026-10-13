@@ -92,6 +92,14 @@ export function classifyActivity(
  * A background task runs with nothing on the screen, so an idle claude with tasks still going is
  * working, not idle.
  */
+/**
+ * The one status that speaks for several (a session open in several windows, the tabs of a pane):
+ * running if any is, then waiting (it needs you), then whichever came first; null for none.
+ */
+export function strongestActivity(statuses: readonly ActivityStatus[]): ActivityStatus | null {
+  return statuses.find((s) => s === 'running') ?? statuses.find((s) => s === 'waiting') ?? statuses[0] ?? null
+}
+
 export function withBackgroundTasks(status: ActivityStatus, running: number): ActivityStatus {
   return status === 'idle' && running > 0 ? 'running' : status
 }

@@ -39,6 +39,8 @@ export function SessionTab(p: Props): JSX.Element {
       data-testid="session-tab"
       data-own-context-menu
       data-active={isActive}
+      data-activity={tab.activity}
+      data-glow={tab.activity === 'running' || tab.activity === 'waiting' ? tab.activity : undefined}
       data-dragging={p.isDragging}
       data-drop-before={p.dropBefore}
       data-drop-after={p.dropAfter}
@@ -103,7 +105,9 @@ export function SessionTab(p: Props): JSX.Element {
         title={tab.label}
         onClick={() => p.onActivate(tab.key)}
       >
-        {tab.isPending && <span className="live-dot" aria-label="running" />}
+        {tab.activity === 'running' && <span className="session-tab-ring" role="img" aria-label="running" />}
+        {tab.activity === 'waiting' && <span className="status-dot" data-status="waiting" role="img" aria-label="waiting for you" />}
+        {tab.isPending && tab.activity !== 'running' && <span className="live-dot" aria-label="running" />}
         <span className="session-tab-text">{tab.label}</span>
       </button>
       {p.arrangeButton}

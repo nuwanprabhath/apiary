@@ -12,7 +12,7 @@
  * `tabReducers.ts`, the session, pending and pty ones in `sessionReducers.ts`.
  */
 import {
-  columnFocus, layoutApply, layoutClosePane, layoutPlace, layoutSwap, sessionOpen, tabActivate,
+  columnFocus, layoutApply, layoutClosePane, layoutFold, layoutPlace, layoutSwap, sessionOpen, tabActivate,
   tabAdopt, tabClose, tabCloseEverywhere, tabFocus, tabMove, tabOpen, tabSetView, tabShowView, tabSplit,
 } from './tabReducers'
 import {
@@ -20,11 +20,39 @@ import {
   pendingAdd, pendingTitle, ptyExited, ptyRunning, resumedAdd, resumedRemove, sessionFollow,
   sessionRemoved, shellTabsUpdate,
 } from './sessionReducers'
+import { setFolded } from '../../state/layout'
 import type { WorkspaceAction, WorkspaceState } from './workspaceTypes'
 
 export type { PendingSession, TerminalTab, WorkspaceAction, WorkspaceState } from './workspaceTypes'
 
 export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
+  const next = route(state, action)
+  const key = openedKey(action)
+  // Reopening the session already in front (launch restore reselects the last one) is not asking
+  // to see a folded pane; a click on its tab is.
+  const already = action.type === 'session/open' && state.layout.panes.some((p) => p.activeKey === key)
+  return key === null || already ? next : unfoldWhereShown(next, key)
+}
+
+/** The key an action brings to the front of a pane, for the actions that open something. */
+function openedKey(action: WorkspaceAction): string | null {
+  if (action.type === 'session/open') return action.session.sessionId
+  if (action.type === 'tab/adopt') return action.transfer.key
+  const opening = action.type === 'tab/activate' || action.type === 'tab/open' || action.type === 'tab/focus'
+    || action.type === 'tab/move' || action.type === 'tab/split' || action.type === 'layout/place'
+  return opening ? action.key : null
+}
+
+/** Opening something into a folded pane opens the pane, since folded it hides what was just asked
+ *  for. The pane is the active one when it shows `key`, otherwise the first that does. */
+function unfoldWhereShown(state: WorkspaceState, key: string): WorkspaceState {
+  const panes = state.layout.panes.filter((p) => p.activeKey === key)
+  const pane = panes.find((p) => p.id === state.activeColumnId) ?? panes[0]
+  if (pane?.collapsed !== true) return state
+  return { ...state, layout: setFolded(state.layout, pane.id, false) }
+}
+
+function route(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
   switch (action.type) {
     case 'session/open': return sessionOpen(state, action)
     case 'tab/activate': return tabActivate(state, action)
@@ -48,6 +76,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
     case 'layout/apply': return layoutApply(state, action)
     case 'layout/closePane': return layoutClosePane(state, action)
     case 'layout/swap': return layoutSwap(state, action)
+    case 'layout/fold': return layoutFold(state, action)
     case 'openSessions/set': return openSessionsSet(state, action)
     case 'openSessions/merge': return openSessionsMerge(state, action)
     case 'openSessions/refresh': return openSessionsRefresh(state, action)
