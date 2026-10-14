@@ -361,11 +361,11 @@ describe('a remote window', () => {
 
   it('mounts no pets, where an ordinary window does', async () => {
     const ordinary = await renderApp()
-    ordinary.fake.state.pets = { enabled: true, generating: false, pets: [fakePet('pip', { size: 64 })] }
+    ordinary.fake.state.pets = { enabled: true, generating: false, arrival: null, pets: [fakePet('pip', { size: 64 })] }
     ordinary.fake.emit('petsChanged', ordinary.fake.state.pets)
     await until(() => document.querySelector('[data-testid="pet-layer"]') !== null)
     const remote = await renderRemote('work-box')
-    remote.fake.state.pets = { enabled: true, generating: false, pets: [fakePet('pip', { size: 64 })] }
+    remote.fake.state.pets = { enabled: true, generating: false, arrival: null, pets: [fakePet('pip', { size: 64 })] }
     remote.fake.emit('petsChanged', remote.fake.state.pets)
     await expect.element(page.getByTestId('remote-badge')).toBeVisible()
     await stays(() => document.querySelector('[data-testid="pet-layer"]') === null, 200, 'no pet layer in a remote window')

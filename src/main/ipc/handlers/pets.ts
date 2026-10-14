@@ -5,12 +5,15 @@ import { PET_MODELS } from '@shared/pets/state'
 import { limitVoiceContext, pickPetPatch } from '@shared/pets/ipcGuards'
 import type { PetStore } from '../../pets/petStore'
 import type { PetService } from '../../pets/petService'
+import type { PetPlacement } from '../../pets/petPlacement'
 import { broadcast } from '../../windows/broadcast'
 import type { Handlers, Listeners } from '../registrar'
 
 export interface PetDeps {
   store: PetStore
   service: PetService
+  /** Which window each pet is out in. */
+  placement: PetPlacement
   /** What the given sessions are doing (`AppService.latestActions`). */
   actions: (keys: string[]) => Promise<{ key: string; action: string }[]>
   /** Test-only answers for the save and open dialogs (`APIARY_PET_EXPORT_PATH` / `_IMPORT_PATH`). */
@@ -20,7 +23,7 @@ export interface PetDeps {
 
 type HandledKeys =
   | 'petsState' | 'petsSetEnabled' | 'petGenerate' | 'petUpdate' | 'petDelete' | 'petExport' | 'petImport'
-  | 'petChat' | 'petVoice' | 'petClaudeActions' | 'petComment'
+  | 'petChat' | 'petVoice' | 'petClaudeActions' | 'petComment' | 'petDropOutside'
 type ListenedKeys = 'petGenerateCancel'
 
 function fileName(name: string): string {
@@ -37,17 +40,28 @@ export function petsHandlers(deps: PetDeps): {
   handlers: Pick<Handlers, HandledKeys>
   listeners: Pick<Listeners, ListenedKeys>
 } {
-  const { store, service } = deps
+  const { store, service, placement } = deps
   const changed = (): void => { broadcast(IPC.petsChanged, service.state()) }
   const windowOf = (sender: WebContents): BrowserWindow | null => BrowserWindow.fromWebContents(sender)
 
   return {
     handlers: {
       petsState: () => service.state(),
-      petsSetEnabled: async (_e, on) => { await service.setEnabled(on) },
-      petGenerate: async (_e, description, model) => service.generate(description, isOneOf(PET_MODELS, model) ? model : 'haiku'),
-      petUpdate: (_e, id, patch) => {
-        const pet = store.update(id, pickPetPatch(patch))
+      petsSetEnabled: async (e, on) => {
+        await service.setEnabled(on)
+        placement.adopt(e.sender.id)
+      },
+      petGenerate: async (e, description, model) => {
+        const pet = await service.generate(description, isOneOf(PET_MODELS, model) ? model : 'haiku')
+        placement.adopt(e.sender.id)
+        return pet
+      },
+      petUpdate: (e, id, patch) => {
+        const picked = pickPetPatch(patch)
+        const wasOut = store.get(id)?.active === true
+        const pet = store.update(id, picked)
+        if (picked.active === true && !wasOut) placement.activated(id, e.sender.id)
+        if (picked.place !== undefined) service.settled(id)
         changed()
         return pet
       },
@@ -79,12 +93,15 @@ export function petsHandlers(deps: PetDeps): {
           if (result.canceled || result.filePaths.length === 0) return null
           path = result.filePaths[0]
         }
-        return service.importFromFile(path)
+        const pet = service.importFromFile(path)
+        placement.adopt(e.sender.id)
+        return pet
       },
       petChat: async (_e, id, text) => service.chat(id, text),
       petVoice: async (_e, id, context) => service.voice(id, limitVoiceContext(context)),
       petClaudeActions: async (_e, keys) => (store.enabled ? deps.actions(keys) : []),
       petComment: async (_e, id, action) => service.comment(id, action),
+      petDropOutside: (e, id) => placement.dropOutside(id, e.sender.id),
     },
     listeners: {
       petGenerateCancel: () => { service.cancelGenerate() },

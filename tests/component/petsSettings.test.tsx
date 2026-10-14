@@ -23,7 +23,7 @@ describe('Settings → Pets', () => {
 
   it('hatches a pet from a description with the model chosen, or a surprise', async () => {
     const fake = await openPets()
-    fake.state.pets = { enabled: true, generating: false, pets: [fakePet('pip')] }
+    fake.state.pets = { enabled: true, generating: false, arrival: null, pets: [fakePet('pip')] }
     fake.emit('petsChanged', fake.state.pets)
     await userEvent.selectOptions(page.getByTestId('pet-new-model'), 'sonnet')
     await userEvent.fill(page.getByTestId('pet-describe'), 'a frog in a crown')
@@ -36,7 +36,7 @@ describe('Settings → Pets', () => {
 
   it('lets at most three out, and says why a fourth cannot come out', async () => {
     const fake = await openPets()
-    fake.state.pets = { enabled: true, generating: false, pets: ['a', 'b', 'c', 'd'].map((id, i) => fakePet(id, { active: i < 3 })) }
+    fake.state.pets = { enabled: true, generating: false, arrival: null, pets: ['a', 'b', 'c', 'd'].map((id, i) => fakePet(id, { active: i < 3 })) }
     fake.emit('petsChanged', fake.state.pets)
     await expect.poll(() => document.querySelectorAll('[data-testid="pet-card"]').length).toBe(4)
     const fourth = document.querySelector('[data-pet-id="d"] [data-testid="pet-card-out"]')!
@@ -48,7 +48,7 @@ describe('Settings → Pets', () => {
 
   it('changes a pet\'s model, renames, exports, and deletes only once confirmed', async () => {
     const fake = await openPets()
-    fake.state.pets = { enabled: true, generating: false, pets: [fakePet('pip')] }
+    fake.state.pets = { enabled: true, generating: false, arrival: null, pets: [fakePet('pip')] }
     fake.emit('petsChanged', fake.state.pets)
     await userEvent.selectOptions(page.getByTestId('pet-card-model'), 'opus')
     expect(fake.callsTo('petUpdate').at(-1)).toEqual(['pip', { model: 'opus' }])
@@ -62,9 +62,26 @@ describe('Settings → Pets', () => {
     expect(fake.callsTo('petDelete')).toEqual([['pip']])
   })
 
+  it('with more than one window open, each pet that is out says which window it is in', async () => {
+    const fake = await openPets()
+    fake.state.pets = { enabled: true, generating: false, arrival: null, pets: [fakePet('a', { window: 1 }), fakePet('b', { window: 2 }), fakePet('c', { active: false, window: null })] }
+    fake.emit('petsChanged', fake.state.pets)
+    const label = (id: string): string | null => document.querySelector(`[data-pet-id="${id}"] [data-testid="pet-card-window"]`)?.textContent ?? null
+    await expect.poll(() => label('b')).toBe('Window 2')
+    expect([label('a'), label('c')]).toEqual(['Window 1', null])
+  })
+
+  it('with one window open, no pet says which window it is in', async () => {
+    const fake = await openPets()
+    fake.state.pets = { enabled: true, generating: false, arrival: null, pets: [fakePet('a'), fakePet('b')] }
+    fake.emit('petsChanged', fake.state.pets)
+    await expect.poll(() => document.querySelectorAll('[data-testid="pet-card"]').length).toBe(2)
+    expect(document.querySelector('[data-testid="pet-card-window"]')).toBeNull()
+  })
+
   it('shows what went wrong when a pet cannot be hatched', async () => {
     const fake = await openPets()
-    fake.state.pets = { enabled: true, generating: false, pets: [] }
+    fake.state.pets = { enabled: true, generating: false, arrival: null, pets: [] }
     fake.emit('petsChanged', fake.state.pets)
     fake.override('petGenerate', async () => { throw new Error("Claude's reply had no pet in it. Try describing it differently.") })
     await userEvent.click(page.getByTestId('pet-surprise'))

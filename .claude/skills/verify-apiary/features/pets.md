@@ -13,6 +13,10 @@ by a worker, driven by a brain worker, and voiced by `claude -p` with Haiku.
 - Drag to the rail (`sidebar-hide` first, then drop on `sidebar-rail`).
 - Right-click menu sizes (`menuitemcheckbox`: Small 44, Medium 64, Large 92, Extra large 128 px;
   `PET_SIZE_STEPS` in `src/shared/pets/state.ts`).
+- One window per pet: `PetRecord.window` is the window number; a window draws only its own pets,
+  at most three in the whole app. A release outside the window calls `petDropOutside`; main reads
+  the cursor and moves the pet to the window under it (`PetsState.arrival`). Settings shows
+  "Window N" beside Out when several windows are known.
 - Chat on click (`pet-chat-input`, `pet-chat-line`); bubbles; scenes (`SceneKind` in
   `src/shared/pets/brain.ts`: catch, tennis, share, picnic, fish, tree, drive, parachute) every
   10 to 20 minutes.

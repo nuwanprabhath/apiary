@@ -22,6 +22,9 @@ export interface PetRecord {
   /** Out in the window (at most `MAX_ACTIVE_PETS`), rather than only installed. */
   active: boolean
   place: PetPlace | null
+  /** The number of the window it is out in (`WindowManager`'s, the one its layout is restored
+   *  with); only that window draws it. Null while it has none: put away, or from before 1.41. */
+  window: number | null
   createdAt: number
   /** When its lines were last written by its model; 0 for never. */
   voicedAt: number
@@ -32,7 +35,12 @@ export interface PetsState {
   pets: PetRecord[]
   /** A pet is being designed (Settings shows it, and the first enable waits on it). */
   generating: boolean
+  /** The pet last dropped into a window from another, with the release point in that window's own
+   *  coordinates, so it lands at the nearest spot there. Not persisted; `seq` tells drops apart. */
+  arrival: PetArrival | null
 }
+
+export interface PetArrival { id: string; window: number; x: number; y: number; seq: number }
 
 export interface PetPatch {
   name?: string

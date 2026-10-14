@@ -14,7 +14,7 @@ describe('the fake bridge, as a bridge', () => {
     const pets = await fake.petsState()
     pets.enabled = true
     pets.pets.push(fakePet('stray'))
-    expect(await fake.petsState()).toEqual({ enabled: false, pets: [], generating: false })
+    expect(await fake.petsState()).toEqual({ enabled: false, pets: [], generating: false, arrival: null })
   })
 
   it('takes copies of what it is given: changing an argument afterwards changes nothing', async () => {
@@ -30,7 +30,7 @@ describe('the fake bridge, as a bridge', () => {
     const heard: { id: string; size: number }[][] = []
     fake.onPetsChanged((state) => { state.pets[0].size = 1; heard.push(state.pets) })
     fake.onPetsChanged((state) => { heard.push(state.pets) })
-    const pushed = { enabled: true, generating: false, pets: [fakePet('pip', { size: 64 })] }
+    const pushed = { enabled: true, generating: false, arrival: null, pets: [fakePet('pip', { size: 64 })] }
     fake.emit('petsChanged', pushed)
     expect(heard.map((pets) => pets[0].size)).toEqual([1, 64])
     expect(pushed.pets[0].size).toBe(64)

@@ -102,9 +102,11 @@ export class WindowManager {
    *  carries the sender's webContents) can be filed under the same number `SessionLayoutStore` and
    *  the `?w=` URL already use for that window. Populated and cleared right alongside the window
    *  itself in `create()`, the same lifecycle `sessionLayoutStore`'s per-window bookkeeping follows. */
-  private readonly windowNumberByWebContentsId = new Map<number, number>()
+  private readonly windowNumberByWebContentsId = new Map<number, { number: number; remote: boolean }>()
   /** Closed windows whose layout record is waiting out `CLOSE_GRACE_MS` before it is removed. */
   private readonly pendingRemovals = new Map<number, NodeJS.Timeout>()
+  /** Told when a local window closes, and whether that is the app quitting (the pets' owners move). */
+  private readonly closeListeners: ((number: number, quitting: boolean) => void)[] = []
 
   constructor(deps: WindowManagerDeps) {
     this.deps = deps
@@ -122,7 +124,17 @@ export class WindowManager {
   }
 
   windowNumberFor(webContentsId: number): number | null {
-    return this.windowNumberByWebContentsId.get(webContentsId) ?? null
+    return this.windowNumberByWebContentsId.get(webContentsId)?.number ?? null
+  }
+
+  /** Whether the window shows another machine (`NewWindowOptions.remote`). */
+  isRemote(webContentsId: number): boolean {
+    return this.windowNumberByWebContentsId.get(webContentsId)?.remote === true
+  }
+
+  /** `listener(number, quitting)` after a local window closes; `quitting` when the app is quitting or no window is left. */
+  onWindowClosed(listener: (number: number, quitting: boolean) => void): void {
+    this.closeListeners.push(listener)
   }
 
   /**
@@ -231,7 +243,7 @@ export class WindowManager {
     // is an Electron event emitter callback, which took the whole main process down with a native
     // error dialog every time a window closed.
     const webContentsId = win.webContents.id
-    this.windowNumberByWebContentsId.set(webContentsId, windowNumber)
+    this.windowNumberByWebContentsId.set(webContentsId, { number: windowNumber, remote: remote !== undefined })
     this.mainWindow = win
     // The menu and native dialogs act on whichever window is in front, so this follows focus rather
     // than staying pinned to the first window opened.
@@ -291,6 +303,10 @@ export class WindowManager {
       }
       tabRegistry?.unregisterWindow(windowNumber)
       this.windowNumberByWebContentsId.delete(webContentsId)
+      if (remote === undefined) {
+        const quitting = isQuitting() || BrowserWindow.getAllWindows().length === 0
+        for (const listener of this.closeListeners) listener(windowNumber, quitting)
+      }
       if (this.mainWindow === win) this.mainWindow = BrowserWindow.getAllWindows()[0] ?? null
     })
 

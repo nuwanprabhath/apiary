@@ -103,6 +103,7 @@ export function defineChatClauses(ctx: Ctx): void {
       await expect(ctx.api.chatSetEffort(SESSION, 'extreme' as never)).rejects.toThrow()
       await expect(ctx.api.chatSetModel(SESSION, 'not a model!')).rejects.toThrow()
       await expect(ctx.api.chatRespond(SESSION, 'r', { behavior: 'maybe' } as never)).rejects.toThrow()
+      await expect(ctx.api.chatRespond(SESSION, 'r', { behavior: 'allow', answers: { q: 5 } } as never)).rejects.toThrow()
       await expect(ctx.api.chatStart(asSessionId('99999999-9999-9999-9999-999999999999'), { takeOver: false })).rejects.toThrow()
     })
 

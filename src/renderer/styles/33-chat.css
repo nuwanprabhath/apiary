@@ -204,8 +204,8 @@
 .chat-interrupted, .chat-error { padding-left: var(--chat-gutter); color: var(--muted); font-style: italic; }
 .chat-error { color: var(--danger); font-style: normal; }
 
-.chat-working { display: flex; gap: var(--space-md); align-items: baseline; padding-left: 2px; }
-.chat-working-glyph { width: 12px; color: var(--accent); text-align: center; }
+.chat-working { display: flex; gap: var(--space-md); align-items: baseline; }
+.chat-working-glyph { flex: none; width: var(--chat-glyph-size); margin-left: var(--chat-rail-offset); color: var(--accent); text-align: center; }
 .chat-working-verb { color: var(--accent); }
 .chat-working-detail { color: var(--muted); font-size: 12px; }
 
@@ -227,6 +227,61 @@
 }
 .chat-permission-actions, .chat-permission-deny { display: flex; gap: var(--control-gap); }
 .chat-permission-reason { flex: 1; }
+
+.chat-question { display: flex; flex-direction: column; gap: var(--space-md); }
+.chat-question-header {
+  align-self: flex-start;
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-xs);
+  background: var(--field-bg);
+  color: var(--muted);
+  font-size: 11px;
+}
+.chat-question-ask { font-weight: 600; overflow-wrap: anywhere; }
+.chat-question-options { display: flex; flex-direction: column; gap: var(--space-sm); border-radius: var(--radius-sm); background: var(--bg-popover, var(--bg-panel)); }
+.chat-question-options:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.chat-question-option {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  padding: var(--space-md) var(--space-ml);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.chat-question-option:hover, .chat-question-option.active { border-color: var(--accent); }
+.chat-question-option.selected { background: var(--field-bg); border-color: var(--accent); }
+.chat-question-mark {
+  flex: none;
+  width: var(--dot-size-lg);
+  height: var(--dot-size-lg);
+  margin-top: var(--space-xs);
+  border: 1px solid var(--muted);
+}
+.chat-question-mark.radio { border-radius: 50%; }
+.chat-question-mark.check { border-radius: var(--radius-xs); }
+.selected > .chat-question-mark { border-color: var(--accent); background: var(--accent); }
+.chat-question-text { display: flex; flex-direction: column; gap: var(--space-xs); min-width: 0; }
+.chat-question-label { font-weight: 600; overflow-wrap: anywhere; }
+.chat-question-description { color: var(--muted); overflow-wrap: anywhere; }
+.chat-question-tag {
+  margin-left: var(--space-md);
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 400;
+}
+.chat-question-other {
+  width: 100%;
+  padding: var(--space-md) var(--space-ml);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--field-bg);
+  color: var(--text);
+}
+.chat-question-other:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 
 @media (prefers-reduced-motion: reduce) {
   .chat-tool[data-status="pending"] .chat-dot { animation: none; }
@@ -457,15 +512,86 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--space-sm) var(--space-xs) 2px;
+  /* Starts where the transcript's own padding does, so the glyphs sit on the timeline's dot column. */
+  padding: var(--space-sm) var(--space-xl) 2px calc(var(--space-xl) + var(--chat-rail-offset));
   color: var(--muted);
   font-size: 12px;
 }
 .chat-status-line { display: flex; gap: var(--space-sm); align-items: baseline; min-width: 0; }
-.chat-status-glyph { flex: none; width: 12px; text-align: center; }
+.chat-status-glyph { flex: none; width: var(--chat-glyph-size); text-align: center; }
 .chat-status-recap { font-style: italic; }
-.chat-status-tasks { color: var(--text); }
-.chat-status-detail { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.chat-status-detail { overflow: hidden; min-width: 0; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+
+/* The background-task line is a quiet button that opens the task popup above it: one row that
+   never wraps, the first task's description giving way first. */
+.chat-tasks { position: relative; min-width: 0; }
+.btn.quiet.chat-status-tasks {
+  /* Pulled left by its own padding and 1px border, so the pulse sits on the timeline's dot rail
+     like the other status glyphs, while the hover outline still has room around it. */
+  --tasks-inset: calc(var(--space-xs) + 1px);
+  /* Centred, not the status lines' baseline: as a button its height is the pulse ring's, and on a
+     baseline the text and chevron rode along its top. */
+  align-items: center;
+  justify-content: flex-start;
+  width: calc(100% + var(--tasks-inset));
+  min-width: 0;
+  height: auto;
+  margin-left: calc(-1 * var(--tasks-inset));
+  padding: 1px var(--space-xs);
+  color: var(--text);
+  font-size: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+.chat-status-count, .chat-status-sep { flex: none; }
+.chat-status-sep { color: var(--muted); }
+.chat-status-chevron { display: inline-flex; flex: none; margin-left: auto; color: var(--muted); }
+.chat-status-chevron svg { width: var(--icon-size-sm); height: var(--icon-size-sm); }
+
+.chat-tasks-popup {
+  right: 0;
+  left: 0;
+  max-height: min(50vh, 420px);
+  overflow: hidden;
+}
+.chat-tasks-header { display: flex; flex: none; gap: var(--space-sm); align-items: baseline; padding-bottom: var(--space-xs); }
+.chat-tasks-header .chat-menu-heading { padding-right: 0; }
+.chat-tasks-count { color: var(--muted); font-size: 11px; }
+.chat-tasks-list { display: flex; flex-direction: column; min-height: 0; margin: 0; padding: 0; overflow-y: auto; background: var(--bg-popover, var(--bg-panel)); list-style: none; outline: none; }
+.chat-task { min-width: 0; border-radius: var(--radius-sm); }
+.chat-task[aria-selected="true"] { background: var(--hover); }
+.chat-tasks-list:focus-visible .chat-task[aria-selected="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
+.chat-task-head {
+  display: flex;
+  gap: var(--space-ml);
+  align-items: center;
+  min-width: 0;
+  padding: var(--row-padding-y-lg) var(--space-md);
+  cursor: pointer;
+}
+.chat-task-text { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.chat-task-desc, .chat-task-command { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-task-desc { color: var(--text); }
+.chat-task-command { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+.chat-task-meta { display: flex; flex: none; flex-direction: column; align-items: flex-end; color: var(--muted); font-size: 11px; }
+.chat-task-elapsed { font-variant-numeric: tabular-nums; }
+.chat-task-id { opacity: 0.8; font-family: var(--font-mono); font-size: 10px; }
+.chat-task-output {
+  max-height: 16em;
+  margin: 0 var(--space-md) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-task-output-note { color: var(--muted); font-family: inherit; font-style: italic; }
 /* A dot with a ring breathing out of it: "still running", without a glyph turning on its
    baseline (a spun ◐ wobbled, since a font's glyph box is not centred on the glyph). */
 .chat-status-tasks .chat-status-glyph { display: flex; align-self: center; justify-content: center; }

@@ -8,7 +8,7 @@ import { IPC } from '@shared/api'
 import { LONG_SESSION } from '../../contract/bridgeContract'
 import type { ContextMenuParamsLike } from '@shared/domain/contextMenu'
 import type { Bridge, BridgeOptions } from '../../contract/support'
-import { BAR_ITEM, BAR_PLUGIN, CONSENT_ITEM, CONSENT_PLUGIN, FEED_VERSION, STATUS_ITEM, STATUS_PANEL, STATUS_PLUGIN, BROWSE_HOME, THIS_WINDOW, DETACHED_WINDOW_NUMBER } from '../../contract/world'
+import { BAR_ITEM, BAR_PLUGIN, CONSENT_ITEM, CONSENT_PLUGIN, FEED_VERSION, STATUS_ITEM, STATUS_PANEL, STATUS_PLUGIN, BROWSE_HOME, THIS_WINDOW, DETACHED_WINDOW_NUMBER, OUTSIDE_EVERY_WINDOW } from '../../contract/world'
 import { addBareRemote, cloneInto, commitFile, git, makeRepoWithWorktree } from '../../fixtures/gitRepo'
 import { makeSession } from '../../fixtures/makeSession'
 import { STANDARD_SESSIONS as STD } from '../../fixtures/standard'
@@ -25,6 +25,7 @@ import { ThemeGenerator } from '../../../src/main/theme/themeGenerator'
 import { ClaudeOneShot } from '../../../src/main/claude/claudeOneShot'
 import { PetStore } from '../../../src/main/pets/petStore'
 import { PetService } from '../../../src/main/pets/petService'
+import { PetPlacement } from '../../../src/main/pets/petPlacement'
 import { SettingsService } from '../../../src/main/settings/settingsService'
 import { PluginRegistry } from '../../../src/main/plugins/registry'
 import { StatusBarRegistry } from '../../../src/main/statusBar/registry'
@@ -208,6 +209,15 @@ export async function buildLoopbackWorld(
   const petService = new PetService({
     store: petStore, makeRunner, onChanged: () => { broadcast(IPC.petsChanged, petService.state()) },
   })
+  // The one window the contract runs in; main's cursor is over no window, so a drop outside it stays.
+  const petPlacement = new PetPlacement({
+    store: petStore,
+    windows: () => [{ number: THIS_WINDOW.number, webContentsId: fakeContents.id, remote: false, visible: true, bounds: THIS_WINDOW.bounds, content: THIS_WINDOW.bounds, focus: () => {} }],
+    focusOrder: () => [fakeContents.id],
+    cursor: () => OUTSIDE_EVERY_WINDOW,
+    arrive: (arrival) => { petService.arrive(arrival) },
+    changed: () => { broadcast(IPC.petsChanged, petService.state()) },
+  })
   const petFile = join(home, 'pet.apiarypet.json')
   // The work machine's side, built by the app's own factory: nothing connects to it unless a clause asks,
   // it answers "nobody", and "Disconnect all" turns the setting off, as in the app.
@@ -253,7 +263,7 @@ export async function buildLoopbackWorld(
       safeMode: false,
       generator: new ThemeGenerator({ runner: makeRunner() }),
     },
-    pets: { store: petStore, service: petService, actions: (keys) => service.latestActions(keys), exportPath: petFile, importPath: petFile },
+    pets: { store: petStore, service: petService, placement: petPlacement, actions: (keys) => service.latestActions(keys), exportPath: petFile, importPath: petFile },
   })
   // windowManager.create() does this for each real window; the loopback makes none.
   watchContextMenu(fakeContents)

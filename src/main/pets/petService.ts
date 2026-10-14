@@ -4,7 +4,7 @@ import {
   LINES_JSON_SCHEMA, PET_JSON_SCHEMA, buildChatPrompt, buildCommentPrompt, buildDesignPrompt, buildVoicePrompt,
   extractStructured, extractText, CHAT_HISTORY, type ChatTurn, type VoiceContext,
 } from '@shared/pets/prompt'
-import { PET_MODELS, type PetExportFile, type PetModel, type PetRecord, type PetsState } from '@shared/pets/state'
+import { PET_MODELS, type PetArrival, type PetExportFile, type PetModel, type PetRecord, type PetsState } from '@shared/pets/state'
 import { errorMessage } from '@shared/errors'
 import { isRecord } from '@shared/guards'
 import type { ClaudeOneShot } from '../claude/claudeOneShot'
@@ -54,6 +54,8 @@ export class PetService {
   private lastComment = -Infinity
   private readonly now: () => number
   private generating = false
+  private arrival: PetArrival | null = null
+  private arrivals = 0
   /** When a voice refresh was last tried per pet — a failure waits out the interval too. */
   private readonly voiceTried = new Map<string, number>()
   private readonly history = new Map<string, ChatTurn[]>()
@@ -91,7 +93,19 @@ export class PetService {
   }
 
   state(): PetsState {
-    return { enabled: this.deps.store.enabled, pets: this.deps.store.list(), generating: this.generating }
+    return { enabled: this.deps.store.enabled, pets: this.deps.store.list(), generating: this.generating, arrival: this.arrival }
+  }
+
+  /** A pet was dropped into another window (`PetPlacement.dropOutside`): that window places it. */
+  arrive(arrival: Omit<PetArrival, 'seq'>): void {
+    this.arrivals += 1
+    this.arrival = { ...arrival, seq: this.arrivals }
+    this.deps.onChanged()
+  }
+
+  /** The pet has a place again: a window that loads later must not drop it at the old point. */
+  settled(id: string): void {
+    if (this.arrival?.id === id) this.arrival = null
   }
 
   /**

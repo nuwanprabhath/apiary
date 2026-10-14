@@ -368,6 +368,25 @@ export function ScrollIcon({ className }: IconProps): JSX.Element {
   )
 }
 
+/** A prompt in a window: a background shell command. */
+export function ShellTaskIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" aria-hidden="true" {...MODE_STROKE}>
+      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+      <path d="m4.5 6 2 2-2 2M8.5 10.5h3" />
+    </svg>
+  )
+}
+
+/** A spark: a background agent (a subagent working on its own). */
+export function AgentTaskIcon({ className }: IconProps): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" aria-hidden="true" {...MODE_STROKE}>
+      <path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3M3.4 3.4l2.1 2.1M10.5 10.5l2.1 2.1M3.4 12.6l2.1-2.1M10.5 5.5l2.1-2.1" />
+    </svg>
+  )
+}
+
 /** A bolt: Auto, and the starting default. */
 export function BoltIcon({ className }: IconProps): JSX.Element {
   return (

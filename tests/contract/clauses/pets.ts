@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { MAX_ACTIVE_PETS, PET_SIZES } from '@shared/pets/state'
 import type { Ctx } from '../support'
+import { THIS_WINDOW } from '../world'
 
 const VOICE = { working: 1, waiting: 0, finished: 2, titles: ['Fix CSV export bug'], hour: 14 }
 
@@ -13,7 +14,26 @@ export function definePetClauses(ctx: Ctx): void {
 
   describe('pets', () => {
     it('start off, with none hatched', async () => {
-      expect(await ctx.api.petsState()).toEqual({ enabled: false, pets: [], generating: false })
+      expect(await ctx.api.petsState()).toEqual({ enabled: false, pets: [], generating: false, arrival: null })
+    })
+
+    it('a pet hatched or put out from this window is out in it; one in the drawer is in no window', async () => {
+      const id = await firstPet()
+      expect((await ctx.api.petsState()).pets[0].window).toBe(THIS_WINDOW.number)
+      await ctx.api.petUpdate(id, { active: false })
+      expect((await ctx.api.petsState()).pets[0].window).toBeNull()
+      await ctx.api.petUpdate(id, { active: true })
+      expect((await ctx.api.petsState()).pets[0].window).toBe(THIS_WINDOW.number)
+    })
+
+    it('a pet released outside its window over no other Apiary window stays where it was; one that is not there is an error', async () => {
+      const id = await firstPet()
+      ctx.heard.reset()
+      expect(await ctx.api.petDropOutside(id)).toBe(false)
+      expect((await ctx.api.petsState()).pets[0]).toMatchObject({ window: THIS_WINDOW.number, active: true })
+      expect((await ctx.api.petsState()).arrival).toBeNull()
+      expect(ctx.heard.count('petsChanged')).toBe(0)
+      await expect(ctx.api.petDropOutside('no-such-pet')).rejects.toThrow()
     })
 
     it('turning them on for the first time hatches one that is out, and tells every view; off and on again hatches no more', async () => {

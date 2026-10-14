@@ -69,7 +69,7 @@ export function chatApi(env: Env): ChatApi {
     const c = running(id)
     setChat({
       ...c, status: 'idle', turnStartedAt: null, queued: [],
-      backgroundTasks: [...(c.backgroundTasks ?? []), { taskId, description: 'sleep 1; echo done' }],
+      backgroundTasks: [...(c.backgroundTasks ?? []), { taskId, description: 'sleep 1; echo done', kind: 'shell', command: 'sleep 1; echo done', startedAtMs: Date.now() }],
     })
     setTimeout(() => {
       const now = state.chats.get(id)

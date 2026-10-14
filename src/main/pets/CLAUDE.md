@@ -11,6 +11,20 @@ here and how they are reached.
   and one that cannot be read is dropped while the rest are kept.
 - `petService.ts`: `PetService`. The pets' use of `claude`: design a pet, write its lines for the
   hour, chat, remark on Claude's work; and export and import of pet files.
+- `petPlacement.ts`: `PetPlacement`, which window each pet is out in (`PetRecord.window`, the
+  window's number, so a restart puts it back). At most three are out in the whole app (the store's
+  cap); only the owning window draws a pet, so it has one brain and its voice is asked for once.
+  - A pet put out, hatched or imported goes to the window that asked (`adopt`, `activated`); a
+    remote window never hosts one, so it goes to the most recently focused local window.
+  - `start()` runs after the startup restore: a pet whose window did not come back (or a record
+    from before 1.41, with no `window`) goes to the most recently focused window.
+  - A window closing while the app carries on hands its pets to the most recently focused other
+    window (`WindowManager.onWindowClosed`); on quit they keep its number for the restore.
+  - `dropOutside` is `petDropOutside`: main reads the cursor itself (`screen`), hit-tests with
+    `pickWindowAt` and `TabMover`'s focus order, and moves the pet to another local window with
+    the drop point in that window's coordinates (`PetsState.arrival`). Over no window, its own, a
+    hidden or a remote one, the pet stays.
+- `petWindows.ts`: `petWindowing`, the Electron side of `PetPlacement` (the open windows, their focus order and the cursor).
 
 ## The sanctioned way
 
@@ -29,7 +43,7 @@ here and how they are reached.
 
 ## Tests
 
-- `tests/unit/petStore.test.ts`, `tests/unit/petValidate.test.ts`, `tests/unit/petPrompt.test.ts`,
+- `tests/unit/petStore.test.ts`, `tests/unit/petPlacement.test.ts` (fake windows), `tests/unit/petValidate.test.ts`, `tests/unit/petPrompt.test.ts`,
   `tests/unit/petActions.test.ts`, `tests/unit/petIpcGuards.test.ts`.
 - `tests/integration/petService.test.ts`: the service with a fake runner, export and import.
 - `tests/e2e/pets.spec.ts`: the real app. The export and import dialogs are answered by

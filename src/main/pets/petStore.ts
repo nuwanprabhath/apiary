@@ -12,6 +12,8 @@ interface PetsFile { enabled: boolean; pets: PetRecord[] }
 
 const clampSize = (n: unknown): number =>
   isFiniteNumber(n) ? Math.round(clamp(n, PET_SIZES.min, PET_SIZES.max)) : PET_SIZES.default
+/** A window number as `WindowManager` hands them out; anything else (or none, from before 1.41) is unassigned. */
+const asWindowNumber = (n: unknown): number | null => (typeof n === 'number' && Number.isSafeInteger(n) && n >= 0 ? n : null)
 const clampPlace = (p: unknown): PetPlace | null =>
   isPetPlace(p) ? { region: p.region, at: clamp(p.at, 0, 1) } : null
 
@@ -33,6 +35,7 @@ function parsePetsFile(raw: unknown): PetsFile {
       size: clampSize(o.size),
       active: o.active === true && pets.filter((x) => x.active).length < MAX_ACTIVE_PETS,
       place: clampPlace(o.place),
+      window: asWindowNumber(o.window),
       createdAt: isFiniteNumber(o.createdAt) ? o.createdAt : 0,
       voicedAt: isFiniteNumber(o.voicedAt) ? o.voicedAt : 0,
     })
@@ -99,6 +102,7 @@ export class PetStore {
       size: PET_SIZES.default,
       active: (opts.active ?? true) && this.activeCount() < MAX_ACTIVE_PETS,
       place: null,
+      window: null,
       createdAt: Date.now(),
       voicedAt: 0,
     }
@@ -113,6 +117,7 @@ export class PetStore {
       throw new Error(`Up to ${String(MAX_ACTIVE_PETS)} pets can be out at once.`)
     }
     if (typeof patch.active === 'boolean') pet.active = patch.active
+    if (!pet.active) pet.window = null
     if (isOneOf(PET_MODELS, patch.model)) pet.model = patch.model
     if (patch.size !== undefined) pet.size = clampSize(patch.size)
     if (patch.place !== undefined) pet.place = clampPlace(patch.place)
@@ -120,6 +125,14 @@ export class PetStore {
       const renamed = validatePet({ ...pet.spec, name: patch.name })
       if (renamed !== null) pet.spec = renamed
     }
+    this.save()
+    return pet
+  }
+
+  /** Out in window `window` (`PetPlacement` decides which); the cap of three is not per window. */
+  assign(id: string, window: number | null): PetRecord {
+    const pet = this.must(id)
+    pet.window = asWindowNumber(window)
     this.save()
     return pet
   }

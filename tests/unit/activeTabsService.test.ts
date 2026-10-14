@@ -78,7 +78,7 @@ describe('ActiveTabsService', () => {
 
   it('an idle chat with a background task is running, from the chat, without reading the file', async () => {
     const chat: ChatState = {
-      ...emptyChatState(A), status: 'idle', backgroundTasks: [{ taskId: 'b1', description: 'Sleep' }],
+      ...emptyChatState(A), status: 'idle', backgroundTasks: [{ taskId: 'b1', description: 'Sleep', kind: 'shell', command: null, startedAtMs: null }],
     }
     const { list, runningBackgroundTasks } = activeTabs({ tabs: [transcriptTab(A)], chats: [chat] })
     expect((await list()).map((t) => t.status)).toEqual(['running'])

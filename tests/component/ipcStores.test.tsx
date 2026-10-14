@@ -20,12 +20,12 @@ describe('IPC stores', () => {
       // The read main answered before the push — slow, and about to land late.
       f.override('petsState', () => new Promise<PetsState>((resolve) => { release = resolve }))
     })
-    const pushed: PetsState = { enabled: true, generating: false, pets: [fakePet('pip', { size: 64 })] }
+    const pushed: PetsState = { enabled: true, generating: false, arrival: null, pets: [fakePet('pip', { size: 64 })] }
     fake.state.pets = pushed
     fake.emit('petsChanged', pushed)
     await expect.element(page.getByTestId('pet')).toBeVisible()
 
-    release({ enabled: false, generating: false, pets: [] })
+    release({ enabled: false, generating: false, arrival: null, pets: [] })
     // The stale answer is dropped: the pet is still out, and stays out.
     await until(() => fake.callsTo('petsState').length === 1)
     await userEvent.keyboard('{Shift}') // a real round trip to the browser: the stale answer has been handled by now

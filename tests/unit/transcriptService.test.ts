@@ -51,6 +51,7 @@ function serviceFor(files: Record<string, string>, readFrom: typeof forEachMessa
     store: { setMessageCount: () => undefined },
     reader: new TranscriptReader(),
     readFrom,
+    taskOutputRoots: { tempRoots: [], agentRoots: [] },
   })
 }
 

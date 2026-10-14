@@ -17,6 +17,14 @@ streams in with tool calls and permission prompts, without starting a terminal.
 - The "/" menu's Actions group: "Open in VS Code" (`composer-action-option`), shown only when VS
   Code is available and the folder exists; it calls `openInVsCode` for the session.
 - Folding the box is per pane (each column's own; `composer-collapse` in one pane leaves the others).
+- Claude's questions (`AskUserQuestion`): `chat-question-card` instead of `chat-permission`, one
+  `chat-question` per question with option rows, `chat-question-other` (a text field), and
+  `chat-question-submit` / `chat-question-skip`. The allow carries `answers` (question text to
+  label, multi-select joined with ", "); the timeline row reads "Q: … → A: …".
+- Background tasks: `chat-status-tasks` is a button opening a popup of `chat-task` rows
+  (`chat-task-elapsed`); opening a row shows `chat-task-output`, read by main
+  (`backgroundTaskOutput`) from the file the session's transcript names. A task stopped with
+  `TaskStop`/`KillShell` leaves the list.
 - Hide tool calls: library state's `hideToolCallIo` (and each chat's `showToolCalls` in
   `chatSettings`), in `library-state.json`, not `settings.json`.
 

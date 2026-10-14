@@ -10,6 +10,7 @@ import type {
 import type { GitTarget } from '@shared/domain/git'
 import type { RemoteClientInfo, RemoteHost, RemoteServerState, RemoteStatus } from '@shared/domain/remote'
 import type { ChatState, TerminalBusy } from '@shared/domain/chat'
+import type { BackgroundTaskOutput } from '@shared/chatTimeline'
 import type { EventKey } from '@shared/ipc/contract'
 import type { LibraryPatch, LibrarySnapshot } from '@shared/libraryState'
 import type { PetSpec } from '@shared/pets/spec'
@@ -154,6 +155,8 @@ export interface FakeState {
   statusBar: StatusBarItem[]
   /** Chat mode, by session id: what `chatState` answers and the `chat*` calls change. */
   chats: Map<string, ChatState>
+  /** What `backgroundTaskOutput` answers, by `<sessionId>:<taskId>`; not available when absent. */
+  taskOutputs: Map<string, BackgroundTaskOutput>
   /** Sessions whose chat this window has attached (`chatAttach`); `chatChanged` goes only to those. */
   chatAttached: Set<string>
   /** What `terminalBusy` answers, by session id; not busy when absent. */
@@ -168,6 +171,9 @@ export interface FakeState {
   petComment: string | null
   /** The pet in the file the user last exported to (and `petImport` reads); null before any export. */
   petFile: PetSpec | null
+  /** Where main's cursor is when a pet is released outside this window: another window's number and the
+   *  point in its own coordinates, or null for over no other Apiary window (the default). */
+  petDropTarget: { window: number; x: number; y: number } | null
   /** The folder the native picker answers with; null when it is dismissed. */
   pickedFolder: string | null
   /** Names in the fake home that are links leading outside it (`fake/folders.ts`). */

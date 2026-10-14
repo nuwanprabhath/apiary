@@ -204,7 +204,7 @@ describe('transcript chat', () => {
     const { fake, sessionId } = await openChat()
     play(fake, sessionId, {
       live: [said('n1', 'user', [{ type: 'text', text: '<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n<summary>Background command "Build" completed (exit code 0)</summary>\n</task-notification>' }])],
-      backgroundTasks: [{ taskId: 'b2', description: 'Run the e2e suite' }],
+      backgroundTasks: [{ taskId: 'b2', description: 'Run the e2e suite', kind: 'shell', command: 'npm run test:e2e', startedAtMs: null }],
       lastTurn: { durationMs: 33000, endedAt: Date.parse('2026-10-02T09:23:00') },
     })
     await textOf('chat-notice', 'Background command "Build" completed (exit code 0)')
@@ -263,7 +263,7 @@ describe('transcript chat', () => {
     await userEvent.click(page.getByTestId('resume-button'))
     await textOf('resume-handoff', /after Claude to finish/)
     expect(fake.callsTo('resume')).toEqual([])
-    play(fake, sessionId, { status: 'idle', turnStartedAt: null, backgroundTasks: [{ taskId: 'b1', description: 'Build' }] })
+    play(fake, sessionId, { status: 'idle', turnStartedAt: null, backgroundTasks: [{ taskId: 'b1', description: 'Build', kind: 'shell', command: 'npm run build', startedAtMs: null }] })
     await textOf('resume-handoff', /after 1 background task/)
     expect(fake.callsTo('resume')).toEqual([])
     play(fake, sessionId, { backgroundTasks: [] })

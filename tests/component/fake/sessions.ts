@@ -14,7 +14,7 @@ import { asSessionId } from '@shared/domain/ids'
 import type { Env, FakeSession } from './state'
 
 type SessionsApi = Pick<ApiaryApi,
-  | 'refresh' | 'tree' | 'discovered' | 'importSessions' | 'transcript' | 'checkConflict' | 'resume' | 'renameSession'
+  | 'refresh' | 'tree' | 'discovered' | 'importSessions' | 'transcript' | 'backgroundTaskOutput' | 'checkConflict' | 'resume' | 'renameSession'
   | 'renameTerminalInClaude' | 'removeSession' | 'moveSession' | 'newSessionInProject' | 'newSessionInPickedFolder'
   | 'forkSession' | 'setSessionNote' | 'sessionNote' | 'openShell' | 'openShellForPty' | 'ptyWrite' | 'ptyResize'
   | 'ptyKill' | 'ptyResume' | 'ptyAttach' | 'ptyDetach' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
@@ -87,6 +87,8 @@ export function sessionsApi(env: Env): SessionsApi {
     })),
     importSessions: async (ids) => { for (const id of ids) state.imported.add(id) },
     transcript: async (id, before) => transcript(id, before),
+    // As in main, a task nobody wrote output for (or an unknown session) is "not available", not an error.
+    backgroundTaskOutput: async (id, taskId) => state.taskOutputs.get(`${id}:${taskId}`) ?? { available: false, lines: [] },
     // Someone else's process is running the session: the conflict names it.
     checkConflict: async (id) => (find(id)?.isLive === true ? { sessionId: id, pid: 4242 } : null),
     // As in main, a change to what the tree shows is followed by a tree-changed event.

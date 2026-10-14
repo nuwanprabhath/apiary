@@ -316,6 +316,7 @@ async function start(): Promise<void> {
     pets: {
       store: container.petStore,
       service: container.petService,
+      placement: container.petPlacement,
       actions: (keys) => container.service.latestActions(keys),
       exportPath: env.petExportPath ?? null,
       importPath: env.petImportPath ?? null,
@@ -374,17 +375,16 @@ async function start(): Promise<void> {
     // Advanced to the highest recorded window number before restore begins, so a freshly opened
     // window after restore does not collide with a recorded number.
     windowManager.advanceOpenedTo(Math.max(0, ...records.map((r) => r.number)))
-    for (const record of records) {
-      windowManager.create({ restore: record }) // never combined with { detach } — restored
-      // windows are only ever opened here, never through the drag/tear-off or registerIpc code
-      // paths.
-    }
+    // Never combined with { detach }: restored windows are only ever opened here, never through the drag/tear-off or registerIpc paths.
+    for (const record of records) windowManager.create({ restore: record })
   }
+  // Every window the restore will open is open: a pet whose window did not come back goes to one that did.
+  container.petPlacement.start()
   // Started after the window exists, so the first status push has somewhere to land.
   updater?.start()
   container.plugins.startStatusBar()
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) windowManager!.create()
+    if (BrowserWindow.getAllWindows().length === 0) { windowManager!.create(); container.petPlacement.rehome() }
   })
 }
 

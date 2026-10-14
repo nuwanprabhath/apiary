@@ -2,6 +2,8 @@ import { type JSX, useState } from 'react'
 import { MAX_ACTIVE_PETS, PET_MODELS, type PetModel, type PetRecord } from '@shared/pets/state'
 import { PetSprite } from '../../pets'
 import { cancelPetGeneration, deletePet, exportPet, generatePet, importPet, setPetsEnabled, updatePet, usePets } from '../../../state/petsStore'
+import { useActiveTabs } from '../../../state/activeTabsStore'
+import { windowNumber } from '../../../state/windowParams'
 import { describeError } from '../../../ui/errors'
 import { TrashIcon } from '../../../ui/icons'
 import { PET_MODEL_LABELS } from '../../../ui/modelLabels'
@@ -12,6 +14,7 @@ import { PET_MODEL_LABELS } from '../../../ui/modelLabels'
  */
 export function PetsSection(): JSX.Element {
   const state = usePets()
+  const tabs = useActiveTabs()
   const [description, setDescription] = useState('')
   const [model, setModel] = useState<PetModel>('haiku')
   const [error, setError] = useState<string | null>(null)
@@ -28,6 +31,8 @@ export function PetsSection(): JSX.Element {
   if (state === null) return <p className="settings-help">Loading…</p>
   const busy = state.generating
   const outCount = state.pets.filter((p) => p.active).length
+  // The windows known to be open: this one, every one with tabs, every one a pet is out in.
+  const manyWindows = new Set([windowNumber(), ...tabs.map((t) => t.windowNumber), ...state.pets.flatMap((p) => (p.active && p.window !== null ? [p.window] : []))]).size > 1
   const hatch = (text: string | null): void => {
     run(generatePet(text, model).then(() => { setDescription('') }))
   }
@@ -66,6 +71,7 @@ export function PetsSection(): JSX.Element {
                   key={pet.id}
                   pet={pet}
                   canComeOut={pet.active || outCount < MAX_ACTIVE_PETS}
+                  window={manyWindows && pet.active ? pet.window : null}
                   confirming={confirmDelete === pet.id}
                   onConfirm={(on) => { setConfirmDelete(on ? pet.id : null) }}
                   run={run}
@@ -129,9 +135,11 @@ export function PetsSection(): JSX.Element {
   )
 }
 
-function PetCard({ pet, canComeOut, confirming, onConfirm, run }: {
+function PetCard({ pet, canComeOut, window, confirming, onConfirm, run }: {
   pet: PetRecord
   canComeOut: boolean
+  /** The window it is out in, shown only while more than one is open; null to say nothing. */
+  window: number | null
   confirming: boolean
   onConfirm: (on: boolean) => void
   run: (p: Promise<unknown>) => void
@@ -161,6 +169,7 @@ function PetCard({ pet, canComeOut, confirming, onConfirm, run }: {
           onChange={(e) => { run(updatePet(pet.id, { active: e.target.checked })) }}
         />
         <span>Out</span>
+        {window !== null && <span className="settings-help" data-testid="pet-card-window">Window {window}</span>}
       </label>
       <select
         className="theme-model"

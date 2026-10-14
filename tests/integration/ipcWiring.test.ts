@@ -66,6 +66,7 @@ const { ThemeGenerator } = await import('../../src/main/theme/themeGenerator')
 const { ClaudeOneShot } = await import('../../src/main/claude/claudeOneShot')
 const { PetStore } = await import('../../src/main/pets/petStore')
 const { PetService } = await import('../../src/main/pets/petService')
+const { PetPlacement } = await import('../../src/main/pets/petPlacement')
 const { SettingsService } = await import('../../src/main/settings/settingsService')
 const { SpellingService } = await import('../../src/main/spelling/spellingService')
 const { FolderBrowser } = await import('../../src/main/folders/folderBrowser')
@@ -109,7 +110,9 @@ beforeEach(async () => {
     },
     pets: (() => {
       const store = new PetStore(join(home, 'pets.json'))
-      return { store, service: new PetService({ store, makeRunner: () => new ClaudeOneShot({ claudeBin: () => null }), onChanged: () => {} }), actions: async () => [], exportPath: null, importPath: null }
+      const service = new PetService({ store, makeRunner: () => new ClaudeOneShot({ claudeBin: () => null }), onChanged: () => {} })
+      const placement = new PetPlacement({ store, windows: () => [], focusOrder: () => [], cursor: () => ({ x: 0, y: 0 }), arrive: () => {}, changed: () => {} })
+      return { store, service, placement, actions: async () => [], exportPath: null, importPath: null }
     })(),
   })
   disposeIpc = ipc.dispose

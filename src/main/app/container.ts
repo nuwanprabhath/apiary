@@ -11,6 +11,7 @@ import { SessionActions } from '../sessions/sessionActions'
 import { SessionWatcher } from '../sessions/sessionWatcher'
 import { TranscriptService } from '../sessions/transcriptService'
 import { forEachMessageFrom } from '../transcript/transcriptLines'
+import { claudeTaskRoots } from '../sessions/backgroundTaskOutput'
 import { TranscriptReader } from '../transcript/transcriptReader'
 import { WorktreeResolver, createResolverExec } from '../git/worktreeResolver'
 import { BranchOps, createBranchExec } from '../git/branchOps'
@@ -48,6 +49,8 @@ import { ThemeStore, DEFAULT_THEME_ID } from '../theme/themeStore'
 import { ThemeGenerator } from '../theme/themeGenerator'
 import { PetStore } from '../pets/petStore'
 import { PetService } from '../pets/petService'
+import { PetPlacement } from '../pets/petPlacement'
+import { petWindowing } from '../pets/petWindows'
 import { createUpdater } from '../update/createUpdater'
 import type { UpdateService } from '../update/updateService'
 import { broadcast } from '../windows/broadcast'
@@ -180,6 +183,7 @@ export interface Container {
   themeGenerator: ThemeGenerator
   petStore: PetStore
   petService: PetService
+  petPlacement: PetPlacement
   /** What each open tab is doing, for the Active section (`activeTabs`). */
   activeTabs: ActiveTabsService
   /** The work machine's end of remote access; `index.ts` starts and stops it with the setting. */
@@ -330,7 +334,9 @@ export function createServices(options: ServicesOptions): Services {
     startSessionIn: (folder) => terminals.newSessionInFolder(folder),
   })
   const actions = new SessionActions({ store, source, resolver, catalog, search, pty, worktrees })
-  const transcripts = new TranscriptService({ resolver, store, reader: new TranscriptReader(), readFrom: forEachMessageFrom })
+  const transcripts = new TranscriptService({
+    resolver, store, reader: new TranscriptReader(), readFrom: forEachMessageFrom, taskOutputRoots: claudeTaskRoots(source.watchDir),
+  })
   const chats: ChatManager = new ChatManager({
     claudeBin: () => terminals.getClaudeBin() ?? undefined,
     onChange: (state) => { chat.onChanged(state) },
@@ -460,11 +466,12 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   // look, so a fresh profile there starts on it rather than on the default theme.
   const themeStore = new ThemeStore(paths.themesFile, env.defaultThemeOriginal ? null : DEFAULT_THEME_ID)
   const petStore = new PetStore(paths.petsFile)
-  const petService: PetService = new PetService({
-    store: petStore,
-    makeRunner,
-    onChanged: () => { broadcast(IPC.petsChanged, petService.state()) },
+  const petsChanged = (): void => { broadcast(IPC.petsChanged, petService.state()) }
+  const petService: PetService = new PetService({ store: petStore, makeRunner, onChanged: petsChanged })
+  const petPlacement = new PetPlacement({
+    store: petStore, ...petWindowing(windowManager, ipcState.tabMover), arrive: (arrival) => { petService.arrive(arrival) }, changed: petsChanged,
   })
+  windowManager.onWindowClosed((number, quitting) => { petPlacement.windowClosed(number, { quitting }) })
   const spelling = new SpellingService()
   const folderBrowser = new FolderBrowser({ home: inputs.homeDir })
   const library = new LibraryStateService({
@@ -475,7 +482,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   return {
     paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry,
     windowManager, service, chat: service.chat, plugins: service.plugins, spelling, folderBrowser, ipcState, sessionWatcher, updater,
-    themeStore, themeGenerator, petStore, petService, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory,
+    themeStore, themeGenerator, petStore, petService, petPlacement, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory,
     library,
   }
 }

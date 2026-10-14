@@ -112,7 +112,7 @@ export function Transcript({
         </button>
       )}
     </div>
-    {chatMode && <ChatStatus tasks={status.tasks} turn={status.turn} recap={status.recap} />}
+    {chatMode && <ChatStatus sessionId={session.sessionId} tasks={status.tasks} turn={status.turn} recap={status.recap} />}
     {copyMenu}
     </FileMentionsProvider>
   )

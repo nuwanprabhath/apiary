@@ -1,11 +1,12 @@
 import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
-import { BackgroundTaskTally } from '@shared/chatTimeline'
+import { BackgroundTaskTally, type BackgroundTaskOutput } from '@shared/chatTimeline'
 import { latestAction } from '@shared/pets/actions'
 import type { TranscriptPage } from '@shared/types'
 import type { SessionStore, StoredSession } from '../store/sessionStore'
 import type { forEachMessageFrom } from '../transcript/transcriptLines'
 import type { TranscriptReader } from '../transcript/transcriptReader'
+import { readTaskOutput, type TaskOutputRoots } from './backgroundTaskOutput'
 
 type TranscriptSession = Pick<StoredSession, 'filePath' | 'messageCount'>
 
@@ -17,6 +18,7 @@ export interface TranscriptServiceDeps {
   store: Pick<SessionStore, 'setMessageCount'>
   reader: TranscriptReader
   readFrom: typeof forEachMessageFrom
+  taskOutputRoots: TaskOutputRoots
 }
 
 /** The background tasks of one session, as its file reads up to `offset`. */
@@ -72,23 +74,45 @@ export class TranscriptService {
   async runningBackgroundTasks(sessionId: string): Promise<number> {
     const session = this.deps.resolver.findSession(sessionId)
     if (session === null) return 0
-    const record = this.taskRecords.get(sessionId) ?? { offset: 0, tally: new BackgroundTaskTally(), queue: Promise.resolve() }
-    this.taskRecords.set(sessionId, record)
-    const count = record.queue.then(() => this.readTasks(session.filePath, record))
-    record.queue = count
-    return count
+    const record = await this.caughtUp(sessionId, session.filePath)
+    return record.tally.tasks().length
   }
 
-  private async readTasks(filePath: string, record: TaskRecord): Promise<number> {
+  /** The session's task record, once it has read whatever the file gained since the last read.
+   *  Reads of one session queue behind each other, so two callers never read the same bytes twice. */
+  private caughtUp(sessionId: string, filePath: string): Promise<TaskRecord> {
+    const record = this.taskRecords.get(sessionId) ?? { offset: 0, tally: new BackgroundTaskTally(), queue: Promise.resolve() }
+    this.taskRecords.set(sessionId, record)
+    const read = record.queue.then(() => this.readTasks(filePath, record)).then(() => record)
+    record.queue = read
+    return read
+  }
+
+  private async readTasks(filePath: string, record: TaskRecord): Promise<void> {
     try {
       if ((await stat(filePath)).size < record.offset) resetTasks(record)
       const { tally } = record
       record.offset = await this.deps.readFrom(filePath, record.offset, (m) => tally.add([m]))
-      return tally.tasks().length
     } catch {
+      // An unreadable file counts no tasks; the next read starts it again from the top.
       resetTasks(record)
-      return 0
     }
+  }
+
+  /**
+   * The end of one background task's output, for the task popup. The file is the one the session's
+   * own transcript names for that task, read by `readTaskOutput` only inside Claude Code's task
+   * folder for this session; an unknown session or task is "not available", not an error.
+   */
+  async backgroundTaskOutput(sessionId: string, taskId: string): Promise<BackgroundTaskOutput> {
+    const session = this.deps.resolver.findSession(sessionId)
+    if (session === null) return { available: false, lines: [] }
+    // The same incremental read as the running count: a popup refreshing every 1.5 s must not
+    // re-read a transcript that can run to tens of megabytes from its start each time.
+    const { tally } = await this.caughtUp(sessionId, session.filePath)
+    const output = tally.outputFile(taskId)
+    if (output === null) return { available: false, lines: [] }
+    return readTaskOutput(output.path, sessionId, taskId, output.kind, this.deps.taskOutputRoots)
   }
 
   /**

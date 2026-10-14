@@ -170,8 +170,13 @@ describe('chat protocol', () => {
   })
 
   it('tracks the background tasks claude reports', () => {
-    const s = reduce(emptyChatState(asSessionId('s')), { type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'b1', task_type: 'local_bash', description: 'Sleep' }] })
-    expect(s.backgroundTasks).toEqual([{ taskId: 'b1', description: 'Sleep' }])
+    const s = reduce(emptyChatState(asSessionId('s')), { type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'b1', task_type: 'local_bash', description: 'Sleep' }] }, 1000)
+    expect(s.backgroundTasks).toEqual([{ taskId: 'b1', description: 'Sleep', kind: 'shell', command: null, startedAtMs: 1000 }])
+    // A task already listed keeps when it was first seen; an agent task is one.
+    const later = reduce(s, { type: 'system', subtype: 'background_tasks_changed', tasks: [
+      { task_id: 'b1', task_type: 'local_bash', description: 'Sleep' }, { task_id: 'a1', task_type: 'local_agent', description: 'Review' },
+    ] }, 9000)
+    expect(later.backgroundTasks).toMatchObject([{ taskId: 'b1', startedAtMs: 1000 }, { taskId: 'a1', kind: 'agent', startedAtMs: 9000 }])
     expect(reduce(s, { type: 'system', subtype: 'background_tasks_changed', tasks: [] }).backgroundTasks).toEqual([])
   })
 

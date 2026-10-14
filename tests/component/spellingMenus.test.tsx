@@ -175,7 +175,7 @@ describe('spelling and text context menus', () => {
 
   it("a pet's own context menu still opens, with no app text menu over it", async () => {
     const { fake } = await renderApp()
-    fake.state.pets = { enabled: true, generating: false, pets: [fakePet('pip', { size: 64 })] }
+    fake.state.pets = { enabled: true, generating: false, arrival: null, pets: [fakePet('pip', { size: 64 })] }
     fake.emit('petsChanged', fake.state.pets)
     await until(() => document.querySelector('[data-testid="pet"]') !== null)
     rightClick(document.querySelector('[data-testid="pet"]')!)

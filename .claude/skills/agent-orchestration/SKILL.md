@@ -118,6 +118,8 @@ Every rule here comes from the 1.35.0 release, which was built by headless Haiku
   (`sleep N; echo wake`, `run_in_background`) every 30 minutes across the expected limit window.
   - A wake that lands inside the limit is lost; the next one retries.
   - Cancel the leftover sleepers when the work is done.
+- A launch can hit the weekly limit within seconds (`api_error_status: 429`, `usage_limit_reached`
+  in `<WP>.log`): check each log about a minute after launching, not when the reports are due.
 - An agent stopped by a limit shows `terminal_reason: api_error` and often has no commits. Restart
   it fresh. A resume is fine only early in a round.
 
@@ -146,6 +148,10 @@ Every rule here comes from the 1.35.0 release, which was built by headless Haiku
 
 Agents reported "all tests pass" while their own tests failed, reported done with nothing
 committed, and described features that did not exist. For every package:
+
+0. **Stop the agent before you touch its worktree** (`pkill -P <run-agent pid>`): a report on disk
+   does not mean the session has ended. In 1.41 a finished agent was still running, saw the lead's
+   uncommitted fix in its tree, and committed it under its own message.
 
 1. **Run the Stop hook yourself on the agent's branch** (it checks the whole branch since `main`):
 

@@ -13,7 +13,7 @@ import type { ActiveTabPayload } from '@shared/domain/tabs'
  * they react to Claude — through the real brain worker.
  */
 function out(fake: FakeApiary, state: Partial<PetsState> = {}): void {
-  fake.state.pets = { enabled: true, generating: false, pets: [fakePet('pip', { size: 64 })], ...state }
+  fake.state.pets = { enabled: true, generating: false, arrival: null, pets: [fakePet('pip', { size: 64 })], ...state }
   fake.emit('petsChanged', fake.state.pets)
 }
 
@@ -100,6 +100,36 @@ describe('pets', () => {
     await expect.poll(() => fake.callsTo('logWrite').some((a) => a[2] === 'background task failed')).toBe(true)
     expect(document.querySelector('[data-testid="notification-message"]')).toBeNull()
     expect(p.width).toBe(64)
+  })
+
+  it('draws only the pets out in this window: one in another window, or in none, is not drawn here', async () => {
+    const { fake } = await renderApp()
+    out(fake, { pets: [fakePet('mine', { window: 1 }), fakePet('theirs', { window: 2 }), fakePet('nowhere', { window: null })] })
+    await expect.element(page.getByTestId('pet')).toBeVisible()
+    await stays(() => [...document.querySelectorAll('[data-testid="pet"]')].map((p) => p.getAttribute('data-pet-id')).join() === 'mine', 500, 'only this window\'s pet to be drawn')
+  })
+
+  it('released outside the window, a pet is handed to main to move, and walks back when it stays', async () => {
+    const { fake } = await renderApp()
+    out(fake)
+    await expect.element(page.getByTestId('pet')).toBeVisible()
+    await until(() => pet().getBoundingClientRect().bottom > window.innerHeight - 40)
+    const before = pet().getBoundingClientRect()
+    await drag(pet(), 0, window.innerHeight, 10)
+    await expect.poll(() => fake.callsTo('petDropOutside')).toEqual([['pip']])
+    // Over no other window main says it stays: no place is saved, and it is back where it was.
+    expect(fake.callsTo('petUpdate')).toEqual([])
+    await until(() => Math.abs(pet().getBoundingClientRect().left - before.left) <= 1 && Math.abs(pet().getBoundingClientRect().top - before.top) <= 1)
+  })
+
+  it('a pet dropped in from another window lands at the nearest spot to the drop point, and that spot is saved', async () => {
+    const { fake } = await renderApp()
+    await userEvent.click(page.getByTestId('sidebar-hide'))
+    await expect.element(page.getByTestId('sidebar-rail')).toBeVisible()
+    const rail = rect('[data-testid="sidebar-rail"]')
+    out(fake, { pets: [fakePet('pip', { window: 1, place: { region: 'bar', at: 0.9 } })], arrival: { id: 'pip', window: 1, x: rail.x + rail.width / 2, y: rail.y + rail.height / 2, seq: 1 } })
+    await expect.element(page.getByTestId('pet')).toHaveAttribute('data-region', 'rail')
+    await expect.poll(() => fake.callsTo('petUpdate').at(-1)).toEqual(['pip', { place: { region: 'rail', at: expect.any(Number) as number } }])
   })
 
   it('clicking a pet opens a chat with it', async () => {

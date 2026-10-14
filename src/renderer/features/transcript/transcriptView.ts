@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { TranscriptMessage } from '@shared/types'
 import type { ChatState } from '@shared/domain/chat'
 import type { SessionId } from '@shared/domain/ids'
-import { chatItems, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withoutToolCalls } from '@shared/chatTimeline'
+import { chatItems, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withFileDetails, withoutToolCalls } from '@shared/chatTimeline'
 import { useLibraryState } from '../../state/libraryStateStore'
 import { useChatSettings } from '../../state/chatSettingsStore'
 import { SHOW_TOOL_CALLS, chatSettingValue } from '../../state/chatSettings'
@@ -15,7 +15,7 @@ function chatStatusInfo(
   if (!chatMode) return { tasks: [], turn: null, recap: null }
   const chatRunning = chat !== null && chat.status !== 'exited'
   const tasks = chatRunning && chat.backgroundTasks !== null
-    ? chat.backgroundTasks
+    ? withFileDetails(chat.backgroundTasks, runningBackgroundTasks(messages))
     : chatRunning || terminalRunning ? runningBackgroundTasks(messages) : []
   if (chat?.status === 'busy') return { tasks, turn: null, recap: null }
   const fromFile = latestTurn(messages)

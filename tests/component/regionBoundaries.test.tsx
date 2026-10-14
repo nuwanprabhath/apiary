@@ -80,7 +80,7 @@ describe('a fault in one region of the window stays in that region (UI-24)', () 
     expectConsoleError(/Cannot read properties of undefined/)
     const { fake } = await renderApp()
     await openSession()
-    fake.state.pets = { enabled: true, generating: false, pets: [fakePet('pip', { spec: undefined as never })] }
+    fake.state.pets = { enabled: true, generating: false, arrival: null, pets: [fakePet('pip', { spec: undefined as never })] }
     fake.emit('petsChanged', fake.state.pets)
     await expectToldAbout('The pets')
     expect(document.querySelector('[data-testid="pet-layer"]')).toBeNull()

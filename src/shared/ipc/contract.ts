@@ -31,6 +31,7 @@ import type {
   ProjectNode, DiscoveredSession, ResumeConflict, NewSessionInfo,
 } from '../domain/session'
 import type { TranscriptPage } from '../domain/transcript'
+import type { BackgroundTaskOutput } from '../chatTimeline'
 import type { BrowseView } from '../domain/folders'
 import type { AppSettingsPayload } from '../domain/settings'
 import { isLibraryPatch, type LibraryPatch, type LibrarySnapshot } from '../libraryState'
@@ -102,6 +103,11 @@ export const IPC = {
   ),
   transcript: invoke<[sessionId: SessionId, beforeIndex?: number], TranscriptPage>(
     'apiary:transcript', tuple(sessionIdArg, opt(num)),
+  ),
+  /** The end of one background task's output, for the task popup. Main finds the file from the
+   *  session's own transcript and reads it only inside Claude Code's task folder for that session. */
+  backgroundTaskOutput: invoke<[sessionId: SessionId, taskId: string], BackgroundTaskOutput>(
+    'apiary:background-task-output', tuple(sessionIdArg, str),
   ),
   checkConflict: invoke<[sessionId: SessionId], ResumeConflict | null>('apiary:check-conflict', tuple(sessionIdArg)),
   resume: invoke<[sessionId: SessionId], void>('apiary:resume', tuple(sessionIdArg)),
@@ -183,6 +189,9 @@ export const IPC = {
   petClaudeActions: invoke<[keys: string[]], { key: string; action: string }[]>('apiary:pet-claude-actions', tuple(arr(str))),
   /** A pet's one-line remark on what Claude is doing; null when it is not time for another. */
   petComment: invoke<[id: string, action: string], string | null>('apiary:pet-comment', tuple(str, str)),
+  /** A pet was released outside its window: main hit-tests the pointer itself and moves the pet to
+   *  the Apiary window under it. True when it moved; false when it stays where it was. */
+  petDropOutside: invoke<[id: string], boolean>('apiary:pet-drop-outside', tuple(str)),
 
   // Terminals and ptys.
   openShell: invoke<[sessionId: SessionId, tabId: string], void>('apiary:open-shell', tuple(sessionIdArg, str)),

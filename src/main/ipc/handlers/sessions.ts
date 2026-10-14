@@ -17,7 +17,7 @@ export interface SessionsDeps {
 }
 
 type HandledKeys =
-  | 'refresh' | 'tree' | 'searchContent' | 'discovered' | 'importSessions' | 'transcript' | 'checkConflict'
+  | 'refresh' | 'tree' | 'searchContent' | 'discovered' | 'importSessions' | 'transcript' | 'backgroundTaskOutput' | 'checkConflict'
   | 'resume' | 'renameSession' | 'removeSession' | 'moveSession' | 'setSessionNote' | 'sessionNote'
   | 'searchRebuild' | 'searchStatus' | 'saveImage' | 'readImage' | 'newSessionInProject' | 'forkSession'
   | 'copyToClipboard' | 'newSessionInPickedFolder'
@@ -54,6 +54,7 @@ export function sessionsHandlers(deps: SessionsDeps): Pick<Handlers, HandledKeys
       })),
     importSessions: (_e, ids, projects) => service.importSessions(ids, projects),
     transcript: (_e, id, beforeIndex) => service.transcript(id, beforeIndex),
+    backgroundTaskOutput: (_e, id, taskId) => service.backgroundTaskOutput(id, taskId),
     checkConflict: (_e, id) => service.checkConflict(id),
     resume: (_e, id) => service.resume(id),
     renameSession: async (_e, id, title) => {

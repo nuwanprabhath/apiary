@@ -47,6 +47,11 @@ export class TabMover {
     this.focusOrder.unshift(webContentsId)
   }
 
+  /** webContents ids, most recently focused first: the same order a dropped pet is hit-tested with. */
+  recentFirst(): readonly number[] {
+    return this.focusOrder
+  }
+
   /** The topmost window under a screen point, or null for none. */
   windowUnder(at: { x: number; y: number }): MovableWindow | null {
     const windows = this.deps.getWindows().filter((w) => !w.isDestroyed())

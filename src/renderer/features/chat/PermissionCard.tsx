@@ -1,7 +1,9 @@
 import { type JSX, useEffect, useRef, useState } from 'react'
 import type { ChatDecision, ChatPermissionRequest } from '@shared/domain/chat'
 import { describeTool } from '@shared/chatTimeline'
+import { ASK_USER_QUESTION, isAskInput } from '@shared/askQuestion'
 import { focusUnlessTyping } from '../../ui/focusUnlessTyping'
+import { QuestionCard } from './QuestionCard'
 
 /**
  * Claude asking to use a tool, in the conversation where it asked — the extension's permission
@@ -11,6 +13,13 @@ import { focusUnlessTyping } from '../../ui/focusUnlessTyping'
  * must not approve a tool. Then it is announced (`role="alert"`) and reached with Tab instead.
  */
 export function PermissionCard(
+  { request, onDecide }: { request: ChatPermissionRequest; onDecide: (decision: ChatDecision) => void },
+): JSX.Element {
+  if (request.toolName === ASK_USER_QUESTION && isAskInput(request.input)) return <QuestionCard request={request} onDecide={onDecide} />
+  return <ToolPermissionCard request={request} onDecide={onDecide} />
+}
+
+function ToolPermissionCard(
   { request, onDecide }: { request: ChatPermissionRequest; onDecide: (decision: ChatDecision) => void },
 ): JSX.Element {
   const described = describeTool(request.toolName, request.input)

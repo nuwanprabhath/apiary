@@ -2,6 +2,7 @@ import {
   isChatEffort, type ChatCommand, type ChatDecision, type ChatEffort, type ChatModelInfo, type ChatPermissionRequest, type ChatState,
 } from '@shared/domain/chat'
 import type { BackgroundTask } from '@shared/chatTimeline'
+import { answersProblem, ASK_USER_QUESTION } from '@shared/askQuestion'
 import { toMessage } from '../transcript/transcriptReader'
 
 /**
@@ -52,6 +53,7 @@ export function controlLine(requestId: string, request: Line): Line {
 
 /** What a permission prompt carried that the reply needs back, but the renderer does not. */
 export interface PendingPermission {
+  toolName: string
   input: unknown
   suggestions: unknown[]
 }
@@ -62,11 +64,19 @@ function denyMessage(reason: string | undefined): string {
   return trimmed === '' ? 'The user declined this.' : trimmed
 }
 
+/** The reply to a permission prompt. Throws for an allow of AskUserQuestion that answers nothing
+ *  Claude asked: that tool's allow *is* the answer, and the renderer cannot add other input to a call. */
 export function permissionReply(requestId: string, decision: ChatDecision, pending: PendingPermission): Line {
+  let updatedInput = pending.input
+  if (decision.behavior === 'allow' && pending.toolName === ASK_USER_QUESTION) {
+    const problem = answersProblem(pending.input, decision.answers)
+    if (problem !== null) throw new Error(problem)
+    updatedInput = { ...(pending.input as object), answers: decision.answers }
+  }
   const response = decision.behavior === 'allow'
     ? {
         behavior: 'allow',
-        updatedInput: pending.input,
+        updatedInput,
         ...(decision.always === true && pending.suggestions.length > 0 ? { updatedPermissions: pending.suggestions } : {}),
       }
     : { behavior: 'deny', message: denyMessage(decision.message) }
@@ -87,7 +97,7 @@ export function permissionRequestOf(event: Line): { request: ChatPermissionReque
       input: req.input,
       canAlwaysAllow: suggestions.length > 0,
     },
-    pending: { input: req.input, suggestions },
+    pending: { toolName: typeof req.tool_name === 'string' ? req.tool_name : 'tool', input: req.input, suggestions },
   }
 }
 
@@ -163,12 +173,24 @@ function working(state: ChatState, now: number): ChatState {
   return { ...state, status: 'busy', turnStartedAt: state.turnStartedAt ?? now }
 }
 
-function backgroundTasksOf(tasks: unknown[]): BackgroundTask[] {
+/**
+ * claude's list (`{ task_id, task_type: 'local_bash' | 'local_agent' | …, description }`, 2.1.286).
+ * It does not say when a task started, so a task is stamped when the list first names it, and keeps
+ * that stamp while it stays listed. The command is not in it; the session file fills it in.
+ */
+function backgroundTasksOf(tasks: unknown[], previous: BackgroundTask[] | null, now: number): BackgroundTask[] {
   return tasks.flatMap((t: unknown): BackgroundTask[] => {
     if (t === null || typeof t !== 'object') return []
     const r = t as Record<string, unknown>
     if (typeof r.task_id !== 'string') return []
-    return [{ taskId: r.task_id, description: typeof r.description === 'string' ? r.description : '' }]
+    const seen = previous?.find((p) => p.taskId === r.task_id)
+    return [{
+      taskId: r.task_id,
+      description: typeof r.description === 'string' ? r.description : '',
+      kind: typeof r.task_type === 'string' && r.task_type.includes('agent') ? 'agent' : 'shell',
+      command: seen?.command ?? null,
+      startedAtMs: seen?.startedAtMs ?? now,
+    }]
   })
 }
 
@@ -188,7 +210,7 @@ export function reduce(state: ChatState, event: Line, now: number = Date.now()):
         return { ...state, streaming: { ...state.streaming, thinkingTokens: event.estimated_tokens } }
       }
       if (event.subtype === 'background_tasks_changed' && Array.isArray(event.tasks)) {
-        return { ...state, backgroundTasks: backgroundTasksOf(event.tasks) }
+        return { ...state, backgroundTasks: backgroundTasksOf(event.tasks, state.backgroundTasks, now) }
       }
       if (event.subtype === 'init') {
         return {

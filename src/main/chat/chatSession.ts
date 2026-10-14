@@ -175,8 +175,9 @@ export class ChatSession {
   respond(requestId: string, decision: ChatDecision): void {
     const pending = this.pending.get(requestId)
     if (pending === undefined) return
+    const reply = permissionReply(requestId, decision, pending)
     this.pending.delete(requestId)
-    this.write(permissionReply(requestId, decision, pending))
+    this.write(reply)
     this.update({ ...this.state, permissions: this.state.permissions.filter((p) => p.requestId !== requestId) }, true)
   }
 

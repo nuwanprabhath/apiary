@@ -81,13 +81,20 @@ export interface ChatPermissionRequest {
 }
 
 export type ChatDecision =
-  | { behavior: 'allow'; always?: boolean }
+  | { behavior: 'allow'; always?: boolean; /** AskUserQuestion: question text to chosen label(s) or typed text. */ answers?: Record<string, string> }
   | { behavior: 'deny'; message?: string }
+
+function isAnswers(value: unknown): boolean {
+  if (value === undefined) return true
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const entries = Object.entries(value)
+  return entries.length <= 4 && entries.every(([k, a]) => k.length <= 2000 && typeof a === 'string' && a.length <= 2000)
+}
 
 export function isChatDecision(value: unknown): value is ChatDecision {
   if (value === null || typeof value !== 'object') return false
   const v = value as Record<string, unknown>
-  if (v.behavior === 'allow') return v.always === undefined || typeof v.always === 'boolean'
+  if (v.behavior === 'allow') return (v.always === undefined || typeof v.always === 'boolean') && isAnswers(v.answers)
   if (v.behavior === 'deny') return v.message === undefined || (typeof v.message === 'string' && v.message.length <= 10_000)
   return false
 }

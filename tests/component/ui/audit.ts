@@ -177,7 +177,10 @@ export function auditUi(root: Element = document.body): UiViolation[] {
 
     // Text cut by its own box: a label reading "H.." or "dev…" tells nobody anything. Allowed only
     // where the full text is one hover away and at least a few characters still show.
-    if (!inProse && ownText(el) !== '' && el.scrollWidth > el.clientWidth + 1 && s.overflowX !== 'visible') {
+    // `.visually-hidden` (styles/01-base.css) is text clipped to nothing on purpose: a screen
+    // reader's, never a person's.
+    const forScreenReaders = el.closest('.visually-hidden') !== null
+    if (!inProse && !forScreenReaders && ownText(el) !== '' && el.scrollWidth > el.clientWidth + 1 && s.overflowX !== 'visible') {
       const fullText = (el.textContent ?? '').trim()
       const hint = el.closest('[title], [aria-label]')
       const hinted = hint !== null && ((hint.getAttribute('title') ?? '') + (hint.getAttribute('aria-label') ?? '')).includes(fullText.slice(0, 12))

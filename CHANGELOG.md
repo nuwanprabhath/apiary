@@ -4,6 +4,39 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.41.0] - 2026-10-14
+
+### Added
+
+- **Claude's questions are asked as questions.** When Claude asks you something in a chat
+  (`AskUserQuestion`), the conversation shows a card with each question and its options, instead of
+  a permission prompt with raw JSON. Pick with the mouse, the arrow keys or 1–9; "Other…" takes your
+  own answer; Skip declines. Your answer goes back to Claude, and the conversation keeps the
+  question with what you chose.
+- **See what a background task is doing.** The "N background tasks running" line under the
+  conversation stays on one row and opens a list of the tasks: what each is, its command, how long
+  it has run. Open one to see the end of its output as it runs; a background agent shows its
+  latest messages and tool calls.
+- **Drag a pet to another window.** Release a pet over another Apiary window and it moves there.
+
+### Changed
+
+- **Three pets in the whole app, each in one window.** A second window no longer shows copies of
+  the same pets. A pet stays in the window it was put out in, also after a restart; when that
+  window closes, its pets move to the window you used last. Settings → Pets says which window
+  each one is in when several are open.
+- **One left edge under the conversation.** The working spinner and the status lines below it sit
+  on the same column as the conversation's dots.
+- The README screenshot shows the current app.
+
+### Fixed
+
+- **A background task Claude stopped no longer stays listed as running.** Tasks ended with Claude's
+  stop tool were never taken off the "background tasks running" line.
+- **No dark band down one pane's edge on Glass.** The conversation and terminal now have one colour
+  edge to edge; they used to thin out at the sides, which over a bright part of the background read
+  as a shadow down the left of a pane.
+
 ## [1.40.0] - 2026-10-13
 
 ### Added

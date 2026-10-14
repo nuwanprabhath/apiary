@@ -121,3 +121,41 @@ test('pets survive a relaunch, and export to a file that imports as a new pet', 
   await closeSettings()
   await expect(h.page.getByTestId('pet')).toHaveCount(2)
 })
+
+test('three pets in the whole app, each drawn by one window; one dropped on another window moves there', async () => {
+  await openPetSettings()
+  await h.page.getByTestId('setting-pets-enabled').click()
+  await expect(h.page.getByTestId('pet-card')).toHaveCount(1)
+  await h.page.getByTestId('pet-surprise').click()
+  await expect(h.page.getByTestId('pet-card')).toHaveCount(2)
+  await h.page.getByTestId('pet-surprise').click()
+  await expect(h.page.getByTestId('pet-card')).toHaveCount(3)
+  await closeSettings()
+  await expect(h.page.getByTestId('pet')).toHaveCount(3)
+
+  // A new window starts with none of them: the same three are not drawn twice.
+  const second = await h.newWindow()
+  await expect(second.getByTestId('sidebar')).toBeVisible()
+  await expect(second.getByTestId('pet')).toHaveCount(0)
+  await expect(h.page.getByTestId('pet')).toHaveCount(3)
+
+  // Releasing a drag outside a window cannot be driven here, so the renderer makes the call the drag
+  // makes, with main's cursor (which main reads itself) stood over the second window. The test's
+  // windows are never shown (off-screen, headless), and a hidden window is never a drop target.
+  await h.app.evaluate(({ BrowserWindow, screen }) => {
+    const all = [...BrowserWindow.getAllWindows()].sort((a, b) => a.webContents.id - b.webContents.id)
+    for (const w of all) w.isVisible = () => true
+    const f = all[0].getBounds()
+    const last = all[all.length - 1]
+    last.setBounds({ x: f.x + f.width + 40, y: f.y, width: 900, height: 700 })
+    const c = last.getContentBounds()
+    screen.getCursorScreenPoint = () => ({ x: c.x + c.width / 2, y: c.y + c.height - 12 })
+  })
+  const id = await h.page.evaluate(async () => (await window.apiary.petsState()).pets[0].id)
+  expect(await h.page.evaluate(async (pet) => window.apiary.petDropOutside(pet), id)).toBe(true)
+  const moved = `[data-testid="pet"][data-pet-id="${id}"]`
+  await expect(second.getByTestId('pet')).toHaveCount(1)
+  await expect(second.locator(moved)).toHaveAttribute('data-region', 'bar')
+  await expect(h.page.getByTestId('pet')).toHaveCount(2)
+  await expect(h.page.locator(moved)).toHaveCount(0)
+})

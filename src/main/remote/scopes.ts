@@ -34,6 +34,7 @@ export const CHANNEL_SCOPES = {
   discovered: 'remote',
   importSessions: 'remote',
   transcript: 'remote',
+  backgroundTaskOutput: 'remote',
   checkConflict: 'remote',
   resume: 'remote',
   renameSession: 'remote',
@@ -226,6 +227,8 @@ export const CHANNEL_SCOPES = {
   petComment: 'local',
   petVoice: 'local',
   petClaudeActions: 'local',
+  // A remote window never hosts a pet, so it never drops one; and the hit test reads this screen.
+  petDropOutside: 'local',
 } as const satisfies Record<IpcKey, ChannelScope>
 
 /** What a remote window is told when it calls an `unavailable` channel that has no fixed answer. */

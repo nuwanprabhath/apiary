@@ -1,4 +1,5 @@
 import type { TranscriptMessage } from './domain/transcript'
+import { ASK_USER_QUESTION, summarizeQuestions } from './askQuestion'
 
 /**
  * The transcript as the chat view draws it — the VS Code extension's shape: your messages as
@@ -137,38 +138,91 @@ export function lastPrompt(items: ChatItem[]): Extract<ChatItem, { kind: 'user' 
 export interface BackgroundTask {
   taskId: string
   description: string
+  /** A shell command (`Bash`) or a subagent (`Agent`/`Task`). */
+  kind: 'shell' | 'agent'
+  /** The command a shell task runs; null for an agent, or when the stream did not say. */
+  command: string | null
+  /** When the call that started it was written; null when not known. */
+  startedAtMs: number | null
 }
 
-const STARTED_IN_BACKGROUND = /running in background with ID: ([A-Za-z0-9_-]+)/
+/** The end of a background task's output, as main read it: its last lines (a shell's output, an
+ *  agent's latest steps), or not available (no file the session names, or one main will not read). */
+export interface BackgroundTaskOutput {
+  available: boolean
+  lines: string[]
+}
+
+/** A shell's result: "Command running in background with ID: bluctp9gs. Output is being written
+ *  to: …". A background agent's: "Async agent launched successfully.\nagentId: a4f9c2e1b (…)". */
+const STARTED_IN_BACKGROUND = /(?:running in background with ID|agentId): ([A-Za-z0-9_-]+)/
+/** Where the task writes, as the same result says ("Output is being written to:" for a shell,
+ *  "output_file:" for an agent). */
+const OUTPUT_FILE = /(?:Output is being written to|output_file): (\S+?\.output)\b/
+/** The tools that stop a task: `TaskStop` (`task_id`), and `KillShell` (`shell_id`) before it. A
+ *  stopped task gets no `<task-notification>`, so its successful result is what ends it. */
+const STOP_TOOLS: Partial<Record<string, string>> = { TaskStop: 'task_id', KillShell: 'shell_id' }
+
+type PendingCall = { kind: 'start'; task: Omit<BackgroundTask, 'taskId'> } | { kind: 'stop'; taskId: string }
 
 /**
  * Folds messages into the background tasks still running, a batch at a time. A call and its
- * result can fall in different batches, so a call waits here until its result arrives.
+ * result can fall in different batches, so a call waits here until its result arrives. A task ends
+ * with its `<task-notification>`, or with a stop call (`TaskStop`) whose result is not an error.
  */
 export class BackgroundTaskTally {
-  private readonly calls = new Map<string, string>()
+  private readonly calls = new Map<string, PendingCall>()
   private readonly started = new Map<string, BackgroundTask>()
+  /** Each task's output file as its start result named it, kept after the task ends. */
+  private readonly outputs = new Map<string, { path: string; kind: BackgroundTask['kind'] }>()
 
   add(messages: TranscriptMessage[]): void {
     for (const m of messages) {
       for (const b of m.blocks) {
-        if (b.type === 'tool_use') {
-          const input = b.input as Record<string, unknown> | null
-          if (input !== null && typeof input === 'object' && input.run_in_background === true) {
-            this.calls.set(b.id, field(input, 'description') ?? field(input, 'command') ?? b.name)
-          }
-        } else if (b.type === 'tool_result' && this.calls.has(b.toolUseId)) {
-          const id = STARTED_IN_BACKGROUND.exec(b.content)?.[1]
-          if (id !== undefined) this.started.set(id, { taskId: id, description: this.calls.get(b.toolUseId) ?? '' })
-        } else if (b.type === 'text' && b.text.startsWith('<task-notification>')) {
+        if (b.type === 'tool_use') this.call(b.id, b.name, b.input, m.timestampMs)
+        else if (b.type === 'tool_result') this.result(b.toolUseId, b.content, b.isError)
+        else if (b.type === 'text' && b.text.startsWith('<task-notification>')) {
           for (const done of b.text.matchAll(/<task-id>([^<]+)<\/task-id>/g)) this.started.delete(done[1].trim())
         }
       }
     }
   }
 
+  private call(id: string, name: string, input: unknown, timestampMs: number | null): void {
+    const stopField = STOP_TOOLS[name]
+    if (stopField !== undefined) {
+      const taskId = field(input, stopField)
+      if (taskId !== null) this.calls.set(id, { kind: 'stop', taskId })
+      return
+    }
+    if (input === null || typeof input !== 'object' || (input as Record<string, unknown>).run_in_background !== true) return
+    const command = field(input, 'command')
+    const kind = name === 'Agent' || name === 'Task' ? 'agent' : 'shell'
+    this.calls.set(id, { kind: 'start', task: { description: field(input, 'description') ?? command ?? name, kind, command, startedAtMs: timestampMs } })
+  }
+
+  private result(toolUseId: string, content: string, isError: boolean): void {
+    const call = this.calls.get(toolUseId)
+    if (call === undefined) return
+    this.calls.delete(toolUseId)
+    if (call.kind === 'stop') {
+      if (!isError) this.started.delete(call.taskId)
+      return
+    }
+    const id = STARTED_IN_BACKGROUND.exec(content)?.[1]
+    if (id === undefined) return
+    this.started.set(id, { taskId: id, ...call.task })
+    const output = OUTPUT_FILE.exec(content)?.[1]
+    if (output !== undefined) this.outputs.set(id, { path: output, kind: call.task.kind })
+  }
+
   tasks(): BackgroundTask[] {
     return [...this.started.values()]
+  }
+
+  /** The output file the task's start result named, as written there; main confines it before reading. */
+  outputFile(taskId: string): { path: string; kind: BackgroundTask['kind'] } | null {
+    return this.outputs.get(taskId) ?? null
   }
 }
 
@@ -184,6 +238,18 @@ export function runningBackgroundTasks(messages: TranscriptMessage[]): Backgroun
   const tally = new BackgroundTaskTally()
   tally.add(messages)
   return tally.tasks()
+}
+
+/**
+ * claude's own list of running tasks (a chat's `background_tasks_changed`), which decides what is
+ * running, with what the session file knows about each (the command, when its call was made).
+ */
+export function withFileDetails(running: BackgroundTask[], fromFile: BackgroundTask[]): BackgroundTask[] {
+  if (fromFile.length === 0) return running
+  return running.map((t) => {
+    const f = fromFile.find((x) => x.taskId === t.taskId)
+    return f === undefined ? t : { ...t, command: f.command ?? t.command, startedAtMs: f.startedAtMs ?? t.startedAtMs }
+  })
 }
 
 /**
@@ -237,6 +303,8 @@ export function describeTool(name: string, input: unknown): { title: string; inp
       return { title: field(input, 'query') ?? '', input: field(input, 'query') ?? json() }
     case 'Task': case 'Agent':
       return { title: field(input, 'description') ?? '', input: field(input, 'prompt') ?? json() }
+    case ASK_USER_QUESTION:
+      return { title: field(input, 'description') ?? '', input: summarizeQuestions(input) ?? json() }
     default:
       return { title: field(input, 'description') ?? '', input: json() }
   }

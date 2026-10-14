@@ -155,7 +155,7 @@ describe('withBackgroundTasks', () => {
 describe('chatActivity', () => {
   const chat = (over: Partial<ChatState> = {}): ChatState => ({ ...emptyChatState(asSessionId('s1')), status: 'idle', ...over })
   const permission: ChatPermissionRequest = { requestId: 'p1', toolName: 'Bash', description: 'rm -f x', input: {}, canAlwaysAllow: false }
-  const task = { taskId: 'b1', description: 'Sleep' }
+  const task = { taskId: 'b1', description: 'Sleep', kind: 'shell' as const, command: null, startedAtMs: null }
 
   it('is stopped with no chat, or once its claude process has exited', () => {
     expect(chatActivity(null)).toBe('stopped')

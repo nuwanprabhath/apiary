@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { TranscriptMessage } from '@shared/domain/transcript'
-import { BackgroundTaskTally, chatItems, describeTool, lastPrompt, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withoutToolCalls } from '@shared/chatTimeline'
+import { BackgroundTaskTally, chatItems, describeTool, lastPrompt, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withFileDetails, withoutToolCalls } from '@shared/chatTimeline'
 
 const msg = (uuid: string, role: 'user' | 'assistant', blocks: TranscriptMessage['blocks']): TranscriptMessage =>
   ({ uuid, role, timestampMs: null, isSidechain: false, blocks })
@@ -82,11 +82,42 @@ describe('chat timeline', () => {
 
   it('knows which background tasks are still running from the session file', () => {
     const file = [...startedInBackground('t1', 'b1'), ...startedInBackground('t2', 'b2'), ...startedInBackground('t3', 'b3'), finishedInBackground('b1')]
-    expect(runningBackgroundTasks(file)).toEqual([{ taskId: 'b2', description: 'Task b2' }, { taskId: 'b3', description: 'Task b3' }])
+    expect(runningBackgroundTasks(file).map((t) => t.taskId)).toEqual(['b2', 'b3'])
+    expect(runningBackgroundTasks(file)[0]).toEqual({ taskId: 'b2', description: 'Task b2', kind: 'shell', command: 'sleep 9', startedAtMs: null })
     // On resume Claude Code reports every task the previous process left behind, in one notification.
     expect(runningBackgroundTasks([...file, finishedInBackground('b2', 'b3')])).toEqual([])
     // An ordinary command is not a background task.
     expect(runningBackgroundTasks(CONVERSATION)).toEqual([])
+  })
+
+  it('drops a task Claude stopped with TaskStop or KillShell once the stop succeeds, and keeps it when the stop failed', () => {
+    const stop = (id: string, name: string, input: Record<string, string>, isError: boolean): TranscriptMessage[] => [
+      msg(`s-${id}`, 'assistant', [{ type: 'tool_use', id, name, input }]),
+      msg(`sr-${id}`, 'user', [{ type: 'tool_result', toolUseId: id, isError,
+        content: isError ? 'No task found with ID: b1' : '{"message":"Successfully stopped task: b1 (sleep 9)","task_id":"b1"}' }]),
+    ]
+    const file = [...startedInBackground('t1', 'b1'), ...startedInBackground('t2', 'b2')]
+    expect(runningBackgroundTasks([...file, ...stop('s1', 'TaskStop', { task_id: 'b1' }, false)]).map((t) => t.taskId)).toEqual(['b2'])
+    expect(runningBackgroundTasks([...file, ...stop('s1', 'TaskStop', { task_id: 'b1' }, true)]).map((t) => t.taskId)).toEqual(['b1', 'b2'])
+    expect(runningBackgroundTasks([...file, ...stop('s1', 'KillShell', { shell_id: 'b2' }, false)]).map((t) => t.taskId)).toEqual(['b1'])
+    // The stop call alone, before its result, does not end the task yet.
+    expect(runningBackgroundTasks([...file, stop('s1', 'TaskStop', { task_id: 'b1' }, false)[0]])).toHaveLength(2)
+  })
+
+  it('counts a background agent as a task, with when it started', () => {
+    const agent: TranscriptMessage[] = [
+      { ...msg('ag', 'assistant', [{ type: 'tool_use', id: 'tA', name: 'Agent', input: { description: 'Camera trap migration', prompt: 'Migrate…', run_in_background: true } }]), timestampMs: 5000 },
+      msg('agr', 'user', [{ type: 'tool_result', toolUseId: 'tA', isError: false,
+        content: 'Async agent launched successfully.\nagentId: a4f9c2e1b (internal ID - do not mention to user.)\nThe agent is working in the background.\noutput_file: /private/tmp/claude-501/p/s/tasks/a4f9c2e1b.output' }]),
+    ]
+    expect(runningBackgroundTasks(agent)).toEqual([{ taskId: 'a4f9c2e1b', description: 'Camera trap migration', kind: 'agent', command: null, startedAtMs: 5000 }])
+    expect(runningBackgroundTasks([...agent, finishedInBackground('a4f9c2e1b')])).toEqual([])
+  })
+
+  it("keeps a chat's own list of running tasks, with the command and start time the file knows", () => {
+    const chat = [{ taskId: 'b2', description: 'Task b2', kind: 'shell' as const, command: null, startedAtMs: 9000 }]
+    const file = runningBackgroundTasks([...startedInBackground('t1', 'b1'), ...startedInBackground('t2', 'b2')])
+    expect(withFileDetails(chat, file)).toEqual([{ taskId: 'b2', description: 'Task b2', kind: 'shell', command: 'sleep 9', startedAtMs: 9000 }])
   })
 
   it('says how the latest turn ended, and the recap after it, until you send something', () => {
@@ -134,7 +165,7 @@ describe('BackgroundTaskTally', () => {
     whole.add(file)
     const piecemeal = new BackgroundTaskTally()
     for (const m of file) piecemeal.add([m])
-    expect(whole.tasks()).toEqual([{ taskId: 'b2', description: 'Task b2' }])
+    expect(whole.tasks()).toMatchObject([{ taskId: 'b2', description: 'Task b2' }])
     expect(piecemeal.tasks()).toEqual(whole.tasks())
   })
 
@@ -144,6 +175,6 @@ describe('BackgroundTaskTally', () => {
     tally.add([call])
     expect(tally.tasks()).toEqual([])
     tally.add([result])
-    expect(tally.tasks()).toEqual([{ taskId: 'b1', description: 'Task b1' }])
+    expect(tally.tasks()).toMatchObject([{ taskId: 'b1', description: 'Task b1' }])
   })
 })

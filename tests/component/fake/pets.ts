@@ -9,16 +9,17 @@ import { clamp, isFiniteNumber, isOneOf } from '@shared/guards'
 import { STARTER_PET } from '@shared/pets/builtins'
 import { cleanLine, validatePet } from '@shared/pets/validate'
 import { isPetPlace, MAX_ACTIVE_PETS, PET_MODELS, PET_SIZES, type PetPlace, type PetRecord, type PetsState } from '@shared/pets/state'
+import { THIS_WINDOW } from '../../contract/world'
 import type { Env } from './state'
 
-/** A pet as main would store it: the starter pet, out, with no place yet. */
+/** A pet as main would store it: the starter pet, out in this window, with no place yet. */
 export function fakePet(id: string, over: Partial<PetRecord> = {}): PetRecord {
-  return { id, spec: STARTER_PET, model: 'haiku', size: PET_SIZES.default, active: true, place: null, createdAt: 0, voicedAt: 0, ...over }
+  return { id, spec: STARTER_PET, model: 'haiku', size: PET_SIZES.default, active: true, place: null, window: THIS_WINDOW.number, createdAt: 0, voicedAt: 0, ...over }
 }
 
 type PetsApi = Pick<ApiaryApi,
   | 'petsState' | 'petsSetEnabled' | 'petGenerate' | 'petGenerateCancel' | 'petUpdate' | 'petDelete' | 'petExport' | 'petImport'
-  | 'petChat' | 'petVoice' | 'petClaudeActions' | 'petComment'>
+  | 'petChat' | 'petVoice' | 'petClaudeActions' | 'petComment' | 'petDropOutside'>
 
 const VOICE_INTERVAL_MS = 60 * 60 * 1000
 const clampSize = (n: number): number => Math.round(clamp(n, PET_SIZES.min, PET_SIZES.max))
@@ -27,6 +28,7 @@ const clampPlace = (p: PetPlace): PetPlace => ({ region: p.region, at: clamp(p.a
 export function petsApi(env: Env): PetsApi {
   const { state, emit } = env
   let minted = 0
+  let arrivals = 0
   const set = (next: PetsState): void => { state.pets = next; emit('petsChanged', next) }
   const must = (id: string): PetRecord => {
     const pet = state.pets.pets.find((p) => p.id === id)
@@ -37,7 +39,8 @@ export function petsApi(env: Env): PetsApi {
   /** Adds a pet, out if there is room for one more. */
   const add = (spec: PetRecord['spec'], model: PetRecord['model']): PetRecord => {
     minted += 1
-    const pet = fakePet(`pet-${String(minted)}`, { spec, model, active: activeCount() < MAX_ACTIVE_PETS, createdAt: Date.now() })
+    const active = activeCount() < MAX_ACTIVE_PETS
+    const pet = fakePet(`pet-${String(minted)}`, { spec, model, active, window: active ? THIS_WINDOW.number : null, createdAt: Date.now() })
     set({ ...state.pets, pets: [...state.pets.pets, pet] })
     return pet
   }
@@ -63,14 +66,26 @@ export function petsApi(env: Env): PetsApi {
       const renamed = patch.name === undefined ? null : validatePet({ ...pet.spec, name: patch.name })
       const next: PetRecord = {
         ...pet,
-        ...(patch.active !== undefined ? { active: patch.active } : {}),
+        // Put away it is in no window; put out it comes to the window that asked (this one).
+        ...(patch.active !== undefined ? { active: patch.active, window: patch.active ? (pet.active ? pet.window : THIS_WINDOW.number) : null } : {}),
         ...(patch.model !== undefined ? { model: patch.model } : {}),
         ...(patch.size !== undefined ? { size: isFiniteNumber(patch.size) ? clampSize(patch.size) : PET_SIZES.default } : {}),
         ...(patch.place !== undefined ? { place: patch.place !== null && isPetPlace(patch.place) ? clampPlace(patch.place) : null } : {}),
         ...(renamed !== null ? { spec: renamed } : {}),
       }
+      // A place reported for a pet that just arrived means it has landed: forget the drop point.
+      if (patch.place !== undefined && state.pets.arrival?.id === id) state.pets = { ...state.pets, arrival: null }
       replace(next)
       return next
+    },
+    // Main hit-tests its own cursor; here `state.petDropTarget` stands for what is under it.
+    petDropOutside: async (id) => {
+      const pet = must(id)
+      const target = state.petDropTarget
+      if (target === null || target.window === pet.window) return false
+      arrivals += 1
+      set({ ...state.pets, pets: state.pets.pets.map((p) => (p.id === id ? { ...p, window: target.window } : p)), arrival: { id, ...target, seq: arrivals } })
+      return true
     },
     petDelete: async (id) => {
       must(id)

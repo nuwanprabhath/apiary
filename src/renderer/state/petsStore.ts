@@ -36,6 +36,12 @@ export function rememberPetPlace(id: string, place: PetPlace): void {
   background(window.apiary.petUpdate(id, { place }), 'app')
 }
 
+/** A pet was released outside its window: main moves it to the Apiary window under the pointer.
+ *  False when it stays (over no such window, or the call failed: logged), and the pet walks back. */
+export async function dropPetOutside(id: string): Promise<boolean> {
+  return (await bestEffort(window.apiary.petDropOutside(id), 'app')) === true
+}
+
 /** Resize or put away from the pet's menu: nothing changes on screen unless it worked. */
 export function resizePet(id: string, size: number): void {
   surface(window.apiary.petUpdate(id, { size }), 'Could not resize the pet')

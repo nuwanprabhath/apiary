@@ -189,6 +189,10 @@
   /* The chat timeline's left column, where the dots and the thread line sit; text that lines up
    * with the timeline's content is indented by the same. */
   --chat-gutter: 18px;
+  /* The rail down the chat's left: a glyph of --chat-glyph-size centred under the timeline's dots, so the
+     working line and the status lines read as part of the thread. The offset is from the dot's left edge. */
+  --chat-glyph-size: 12px;
+  --chat-rail-offset: calc((var(--dot-size) - var(--chat-glyph-size)) / 2);
   /* A row's text indented past the folder icon or checkbox of the row above it: it lines up with a
    * fixed-size icon, so it does not follow the density. */
   --row-indent: 26px;

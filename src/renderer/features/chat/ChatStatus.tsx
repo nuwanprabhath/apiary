@@ -1,6 +1,8 @@
 import type { JSX } from 'react'
 import type { BackgroundTask } from '@shared/chatTimeline'
+import type { SessionId } from '@shared/domain/ids'
 import { formatDuration } from '@shared/time'
+import { BackgroundTasksLine } from './BackgroundTasks'
 
 /** The past tense Claude Code's terminal picks for a finished turn ("✻ Brewed for 33s"). */
 const DONE_VERBS = ['Brewed', 'Baked', 'Churned', 'Cogitated', 'Cooked', 'Crunched', 'Mulled', 'Percolated', 'Simmered', 'Worked']
@@ -24,7 +26,7 @@ export interface ChatStatusInfo {
  * and when it finished, and the recap it writes when you come back. Nothing when there is nothing
  * to say.
  */
-export function ChatStatus({ tasks, turn, recap }: ChatStatusInfo): JSX.Element | null {
+export function ChatStatus({ sessionId, tasks, turn, recap }: ChatStatusInfo & { sessionId: SessionId }): JSX.Element | null {
   if (tasks.length === 0 && turn === null && recap === null) return null
   const verb = turn !== null ? DONE_VERBS[Math.floor((turn.endedAtMs ?? turn.durationMs) / 1000) % DONE_VERBS.length] : ''
   return (
@@ -42,17 +44,7 @@ export function ChatStatus({ tasks, turn, recap }: ChatStatusInfo): JSX.Element 
           <span><strong>recap:</strong> {recap}</span>
         </div>
       )}
-      {tasks.length > 0 && (
-        <div
-          className="chat-status-line chat-status-tasks"
-          data-testid="chat-status-tasks"
-          title={tasks.map((t) => t.description).join('\n')}
-        >
-          <span className="chat-status-glyph" aria-hidden="true"><span className="chat-status-pulse" /></span>
-          {tasks.length === 1 ? '1 background task' : `${String(tasks.length)} background tasks`} running
-          <span className="chat-status-detail"> · {tasks.map((t) => t.description || t.taskId).join(' · ')}</span>
-        </div>
-      )}
+      {tasks.length > 0 && <BackgroundTasksLine sessionId={sessionId} tasks={tasks} />}
     </div>
   )
 }

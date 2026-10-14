@@ -17,6 +17,16 @@ side is organised.
 - `render3d/`: the three.js renderer (`petRender.worker.ts`, `plush.ts`, `sdf.ts`, `props.ts`,
   `frames.ts`) and `usePetImages.ts`, which asks the worker and keeps renders in IndexedDB.
 
+## One window per pet
+
+- `PetLayer` draws only the pets whose `window` is this window's number (`windowNumber()`); main
+  decides which (`src/main/pets/petPlacement.ts`). The status bar stays drawn in every window while
+  any pet is out anywhere (`petsOut`), so a window with none can still receive one.
+- A drag released outside the window calls `dropPetOutside`; main hit-tests its own cursor. While
+  outside, the pet is pinned at the window's edge. If it stays, it walks back to where it stood.
+- A pet dropped in from another window arrives with `PetsState.arrival` (the point in this window's
+  coordinates): `useArrival` starts it at the nearest spot and saves that spot once.
+
 ## The sanctioned way
 
 - **Read pets with `usePets()`** and act with the commands in `src/renderer/state/petsStore.ts`

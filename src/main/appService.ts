@@ -3,6 +3,7 @@ import type { SessionStore, StoredSession } from './store/sessionStore'
 import type { SessionCatalog } from './sessions/sessionCatalog'
 import type { SessionActions } from './sessions/sessionActions'
 import type { TranscriptService } from './sessions/transcriptService'
+import type { BackgroundTaskOutput } from '@shared/chatTimeline'
 import type { GitService } from './git/gitService'
 import type { SearchService } from './search/searchService'
 import type { TerminalService } from './terminals/terminalService'
@@ -128,6 +129,11 @@ export class AppService {
 
   async transcript(sessionId: string, beforeIndex?: number): Promise<TranscriptPage> {
     return this.transcripts.page(sessionId, beforeIndex)
+  }
+
+  /** The end of a background task's output; see `TranscriptService.backgroundTaskOutput`. */
+  async backgroundTaskOutput(sessionId: string, taskId: string): Promise<BackgroundTaskOutput> {
+    return this.transcripts.backgroundTaskOutput(sessionId, taskId)
   }
 
   /** What each of these sessions is doing, for the pets; see `TranscriptService.latestActions`. */

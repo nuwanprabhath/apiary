@@ -47,6 +47,32 @@ describe('PetStore', () => {
     expect(store.update(pets[3].id, { active: true }).active).toBe(true)
   })
 
+  it('keeps which window a pet is out in across a reload, and forgets it when the pet is put away', () => {
+    const a = new PetStore(file)
+    const pet = a.add(STARTER_PET)
+    expect(pet.window).toBeNull()
+    a.assign(pet.id, 2)
+    expect(new PetStore(file).get(pet.id)?.window).toBe(2)
+    expect(a.update(pet.id, { active: false }).window).toBeNull()
+  })
+
+  it('reads a pet saved before pets had windows, or with a window it cannot read, as unassigned', () => {
+    writeFileSync(file, JSON.stringify({
+      enabled: true,
+      pets: [{ id: 'old', spec: STARTER_PET, active: true }, { id: 'odd', spec: STARTER_PET, active: true, window: 'two' }, { id: 'neg', spec: STARTER_PET, active: true, window: -1.5 }],
+    }))
+    expect(new PetStore(file).list().map((p) => p.window)).toEqual([null, null, null])
+  })
+
+  it('counts the cap of three across every window, not per window', () => {
+    const store = new PetStore(file)
+    const pets = [1, 2, 3].map((n) => store.assign(store.add(STARTER_PET).id, n))
+    expect(pets.map((p) => p.window)).toEqual([1, 2, 3])
+    const fourth = store.add(STARTER_PET)
+    expect(fourth.active).toBe(false)
+    expect(() => store.update(fourth.id, { active: true })).toThrow('Up to 3 pets')
+  })
+
   it('keeps size and place within bounds, and renames through the validator', () => {
     const store = new PetStore(file)
     const pet = store.add(STARTER_PET)
