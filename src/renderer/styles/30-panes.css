@@ -190,7 +190,9 @@
 }
 /* A lone tab shares the strip with nobody, and the view toggle now takes the room beside it: keep
  * enough of its title to read and let the strip scroll, rather than squeeze it to a few letters. */
-.session-tab:only-child { min-width: 128px; }
+/* The floor is the title's, not a fixed tab width: a working tab's spinning ring took 128px's worth
+ * of room from the title, which a narrow pane squeezed to four letters (1.41 CI, wider Linux fonts). */
+.session-tab:only-child { min-width: min-content; }
 .session-tab-strip[draggable="true"] .session-tab { cursor: default; }
 /* Keyboard focus, and only keyboard focus: a quiet ring, not the OS accent around the whole tab
  * on every click. */
@@ -229,6 +231,9 @@
   .session-tab-ring { animation: none; border-color: var(--status-running); border-top-color: color-mix(in sRGB, var(--status-running) var(--status-spinner-track), transparent); }
 }
 .session-tab-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A lone tab's label does not shrink below its ring and six letters of title (the floor above). */
+.session-tab:only-child .session-tab-label { min-width: auto; }
+.session-tab:only-child .session-tab-text { min-width: 6em; }
 .session-tab[data-activity="running"] .session-tab-text { color: var(--status-running); }
 /* The ring and the dot cost the label room: a busy tab keeps enough of its title to be read, and
    the strip scrolls for the rest. */

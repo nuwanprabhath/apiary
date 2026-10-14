@@ -4,7 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.41.0] - 2026-10-14
+## [1.41.1] - 2026-10-14
+
+The first release of 1.41: everything listed under 1.41.0, plus this fix.
+
+### Fixed
+
+- **A lone tab keeps enough of its title to read in a narrow pane.** A working tab's spinning ring
+  took room from its title, and a narrow pane squeezed the title to a few letters.
+
+## [1.41.0] - 2026-10-14 (not released: the release checks failed on the fix above)
 
 ### Added
 
