@@ -45,6 +45,9 @@ All notable changes to Apiary are documented here. Format follows
   published nothing.
 - **Every UI scenario is also checked at 620 px**, at the width the app widens the window to.
   Scenarios that skipped narrow widths had hidden the defects above; none is exempt.
+- **Component tests start with the mouse parked.** The real mouse stayed where the last test left
+  it, over a sidebar row, and opened that row's hover card in the next test's fresh app; the
+  sidebar hover-card test failed in CI on it.
 - **No grandfathered debt in the allowlists.** The last entry (`PluginRegistry`'s four parallel
   maps) is fixed, one record per plugin and one per folder and branch, and an allowlist entry
   marked as debt is now refused: an old violation gets fixed, not listed.

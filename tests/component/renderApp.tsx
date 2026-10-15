@@ -16,6 +16,7 @@ import '../../src/renderer/fonts'
 import '../../src/renderer/styles.css'
 import '../../src/renderer/scrollMarks'
 import { createFakeApiary, type FakeApiary, type FakeOptions } from './fakeApiary'
+import { mouse } from './helpers'
 
 let mounted: { root: Root; host: HTMLElement; fake: FakeApiary } | null = null
 
@@ -27,6 +28,10 @@ export interface Rendered { fake: FakeApiary }
  */
 export async function renderApp(opts: FakeOptions = {}, arrange?: (fake: FakeApiary) => void): Promise<Rendered> {
   unmountApp()
+  // The real mouse outlives a test: left over the row the last test hovered, it opened that row's
+  // hover card in this test's fresh app, racing the hover the test then made (sidebarPopups failed
+  // in CI with the previous test's card). Parked where reviewUi parks it, before anything mounts.
+  await mouse.move(1, window.innerHeight - 1)
   const fake = createFakeApiary(opts)
   arrange?.(fake)
   window.apiary = fake
