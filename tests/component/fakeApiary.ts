@@ -140,6 +140,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     statusBar: opts.statusBar ?? [],
     chats: new Map(),
     taskOutputs: new Map(),
+    requiredWindowWidth: null,
     chatAttached: new Set(),
     terminalBusy: new Map(),
     statusBarPanel: opts.statusBarPanel ?? null,

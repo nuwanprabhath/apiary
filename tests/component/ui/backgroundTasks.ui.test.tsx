@@ -93,6 +93,6 @@ describe('UI background tasks', () => {
 
   it('popup in a narrow pane', async () => {
     await open(FOUR, { a1c9f0e2d: { available: false, lines: [] } })
-    await reviewUi('background tasks narrow', { widths: [700], open: () => expandRow('a1c9f0e2d', "isn't available") })
+    await reviewUi('background tasks narrow', { widths: [620], open: () => expandRow('a1c9f0e2d', "isn't available") })
   })
 })

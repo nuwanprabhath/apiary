@@ -147,6 +147,7 @@ describe('the IPC contract', () => {
       appMenu: 'apiary:app-menu',
       appMenuInvoke: 'apiary:app-menu-invoke',
       setTitleBarColors: 'apiary:set-title-bar-colors',
+      requireWindowWidth: 'apiary:require-window-width',
       newSessionInPickedFolder: 'apiary:new-session-in-picked-folder',
       worktreeCreateOptions: 'apiary:worktree-create-options',
       worktreeCreate: 'apiary:worktree-create',

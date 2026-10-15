@@ -49,7 +49,7 @@ export function TitleBar({ chrome, title }: { chrome: WindowChrome; title: strin
       {chrome === 'custom' && <MenuBar />}
       <div className="title-bar-title" data-testid="title-bar-title">
         {host !== null && <RemoteBadge host={host} />}
-        <span className="title-bar-title-text">{title}</span>
+        <span className="title-bar-title-text" title={title}>{title}</span>
       </div>
     </header>
   )

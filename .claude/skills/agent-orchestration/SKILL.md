@@ -149,9 +149,13 @@ Every rule here comes from the 1.35.0 release, which was built by headless Haiku
 Agents reported "all tests pass" while their own tests failed, reported done with nothing
 committed, and described features that did not exist. For every package:
 
-0. **Stop the agent before you touch its worktree** (`pkill -P <run-agent pid>`): a report on disk
+1. **Stop the agent before you touch its worktree** (`pkill -P <run-agent pid>`): a report on disk
    does not mean the session has ended. In 1.41 a finished agent was still running, saw the lead's
    uncommitted fix in its tree, and committed it under its own message.
+
+0b. **Diff the UI scenarios' options** (`git diff <base> -- tests/component/ui/`): a width,
+   theme or text changed so the audit passes is a defect hidden, not fixed (ui-review skill §2).
+   For a reported visual bug, find the screenshot that shows the reported symptom before the fix.
 
 1. **Run the Stop hook yourself on the agent's branch** (it checks the whole branch since `main`):
 

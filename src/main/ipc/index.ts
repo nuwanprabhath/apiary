@@ -1,4 +1,4 @@
-import type { WebContents } from 'electron'
+import type { BrowserWindow, WebContents } from 'electron'
 import type { AppService } from '../appService'
 import type { ChatService } from '../chat/chatService'
 import type { PluginService } from '../plugins/pluginService'
@@ -71,6 +71,9 @@ export interface IpcDeps {
    *  know about webContents ids at all. Populated in `main/index.ts`, next to where a window's
    *  number is minted. */
   windowNumberFor: ((webContentsId: number) => number | null) | null
+  /** Raises a window's minimum width to what its panes need, widening it if narrower
+   *  (`WindowManager.requireWidth`). Null where there is no real window to size. */
+  requireWindowWidth: ((win: BrowserWindow, width: number) => void) | null
   /** Classifies each open tab for the Active section; built in the container with what it reads. */
   activeTabs: ActiveTabsService
   /** The native folder picker, over the asking window. Resolves null when cancelled. Injected so
@@ -124,7 +127,7 @@ export function registerIpc(
   const update = updateHandlers(deps)
   const logIpc = logHandlers()
   const theme = themeHandlers(deps.theme)
-  const appChrome = appChromeHandlers()
+  const appChrome = appChromeHandlers({ requireWindowWidth: deps.requireWindowWidth })
   const pets = petsHandlers(deps.pets)
   const spelling = spellingHandlers(deps.spelling)
   const contextMenu = contextMenuHandlers()

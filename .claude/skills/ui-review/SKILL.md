@@ -45,8 +45,10 @@ each one.
 
 - A scenario is a component test in `tests/component/ui/<feature>.ui.test.tsx` that opens a state
   and calls `reviewUi(name, { open, close, widths, themes })` (`tests/component/ui/review.ts`).
-- `reviewUi` runs at a narrow and a wide window (900 and 1400 by default) in the default, Paper
-  (light) and Glass themes. For each it:
+- `reviewUi` runs every scenario at the 620 px floor, whatever it asks for, plus its own widths
+  (900 and 1400 by default; only the standard `UiWidth`s), in the default, Paper (light) and Glass
+  themes. When the app asks for a wider window to fit its panes (`requireWindowWidth`), the check
+  runs at that width, as the real window would be widened. For each it:
   - runs `open`;
   - audits;
   - saves `ui-review/shots/<name>--<theme>-<width>.png`.
@@ -57,6 +59,17 @@ each one.
   - long text (a long branch name, a long command description);
   - empty, busy and error states;
   - hover only where it changes layout.
+- **A failing audit is fixed in the UI, never by changing the scenario.** Do not move a width, drop
+  a theme or shorten the text until the audit passes. In 1.41 three agents did: 520 → 700 px for a
+  cut-off Send button, 620 → 700 px for a squeezed tab title, and 1000 px and wider for a clipped
+  status line. The 700 px one hid a defect that Linux's wider fonts then showed in CI, and the
+  release failed. A defect that is not yours goes in your report with its screenshot; the scenario
+  stays where it showed it.
+- **A reported visual bug is reproduced before it is fixed.** First a scenario screenshot that
+  shows what the maintainer saw, then a test that asserts that symptom (the marker on the tab, the
+  band on the edge), not the CSS you are about to change. The blue edge on a tab was "fixed" twice
+  without that: as the glow's halo (1.40), then as the Glass surface (1.41), and each test passed
+  on its own fix. It was a drop marker a drag had left behind (1.42).
 - `npm run ui:review` runs every scenario and writes `ui-review/index.html`: every screenshot on one
   page, stamped with the commit. Pass a scenario file to run only that one.
 

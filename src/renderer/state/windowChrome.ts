@@ -13,6 +13,10 @@ export function runMenuItem(path: number[]): void {
 export function setTitleBarColors(background: string, symbol: string): void {
   window.apiary.setTitleBarColors(background, symbol)
 }
+/** How wide this window must be for its panes to fit at their minimum: main widens it if narrower. */
+export function requireWindowWidth(width: number): void {
+  window.apiary.requireWindowWidth(width)
+}
 /** View → Toggle Sidebar. */
 export const onToggleSidebar = (cb: () => void): (() => void) => window.apiary.onToggleSidebar(cb)
 /** Apiary → Settings… */

@@ -137,11 +137,15 @@ test('the target branch setting is used when creating a merge request, and persi
   await h.page.getByTestId('settings-save').click()
   await expect(h.page.getByTestId('settings-dialog')).toHaveCount(0)
 
-  await h.page.getByTestId('plugin-gitlab-mr-mr-new').click()
-  await expect.poll(opened).toEqual([
-    'https://gitlab.com/ternandsparrow/paratoo-fdcp/-/merge_requests/new'
-    + '?merge_request%5Bsource_branch%5D=main&merge_request%5Btarget_branch%5D=dev%2F1.0.12',
-  ])
+  // The bar recomputes its button in the background after a settings change (src/main/plugins/
+  // CLAUDE.md), running `glab` again; under a loaded full run that can land after the dialog has
+  // closed, so the claim is that the button catches up, and clicking it then targets the branch.
+  const withTarget = 'https://gitlab.com/ternandsparrow/paratoo-fdcp/-/merge_requests/new'
+    + '?merge_request%5Bsource_branch%5D=main&merge_request%5Btarget_branch%5D=dev%2F1.0.12'
+  await expect(async () => {
+    await h.page.getByTestId('plugin-gitlab-mr-mr-new').click()
+    expect((await opened()).at(-1)).toBe(withTarget)
+  }).toPass({ timeout: 15_000 })
 
   // Reopening Settings shows what was saved, rather than the default again.
   await h.app.evaluate(({ BrowserWindow }) => {

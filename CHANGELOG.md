@@ -4,6 +4,54 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.42.0] - 2026-10-15
+
+### Added
+
+- **Up and Down in the message box go through what you sent**, as in a shell. Up on the first line
+  brings back your previous message to that session, again and again further back; Down on the last
+  line comes forward, and past the newest the draft you were writing comes back. It reads the
+  session's own file, so messages sent from the terminal or another window are there too. With the
+  "/" menu open, the arrows still move through the menu.
+
+### Changed
+
+- **The window grows to fit its panes.** Picking a layout with more columns than fit (three in a
+  900 px window, say) widens the window, and it cannot be dragged narrower than its panes need.
+  The last pane used to run off the window's edge, out of reach.
+- **A pane is at least 280 px wide**, what its tab bar and message box buttons need; at 200 px the
+  split and mode buttons were cut off.
+- **Every tab keeps six letters of its title.** Past that the tab bar scrolls; a crowded bar used
+  to squeeze titles to two letters.
+
+### Fixed
+
+- **The model menu stays inside a narrow pane** instead of running past its edge, and the model
+  button keeps its name ("Opus 5.5") by dropping the effort label first.
+- The window title shows in full on hover when it is cut short.
+- **No more blue edge left on a tab after a drag.** Dragging a tab into another pane or window left
+  the insertion line it had drawn in its old tab bar, a blue "(" down the left of a tab, until the
+  pane was rebuilt.
+- **Glass shows at the sides of the conversation again.** 1.41 made the reading surface one solid
+  colour to remove a "band" that was in fact this tab marker; the faded edges are back.
+- **The background-task line in a narrow pane shows just the count** instead of the first two
+  letters of the first task's description; the popup still lists every task.
+
+### Added (for contributors)
+
+- **A release tag waits for CI on its commit.** Pushing a `v*` tag runs `scripts/release-ci-gate.mjs`
+  first and refuses the tag until CI has passed on the commit it tags. The release repeats CI's
+  checks on Linux, and five tags (1.22.0, 1.26.0, 1.31.10, 1.35.0, 1.41.0) stopped there and
+  published nothing.
+- **Every UI scenario is also checked at 620 px**, at the width the app widens the window to.
+  Scenarios that skipped narrow widths had hidden the defects above; none is exempt.
+- **No grandfathered debt in the allowlists.** The last entry (`PluginRegistry`'s four parallel
+  maps) is fixed, one record per plugin and one per folder and branch, and an allowlist entry
+  marked as debt is now refused: an old violation gets fixed, not listed.
+- **UI scenarios run only at the standard widths** (`UiWidth` in `tests/component/ui/review.ts`).
+  In 1.41 agents moved scenarios to whatever width made the UI audit pass, and one of the defects
+  that hid failed CI. The two scenarios at 700 px are back at the 620 px floor.
+
 ## [1.41.1] - 2026-10-14
 
 The first release of 1.41: everything listed under 1.41.0, plus this fix.

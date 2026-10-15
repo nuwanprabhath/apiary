@@ -3,6 +3,7 @@ import { isWindowChrome, type WindowChrome } from '@shared/domain/windowChrome'
 import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'node:path'
 import { boundsAreOnScreen, type WindowBounds } from './windowBounds'
+import { minimumWidth, widenedBounds } from './windowWidth'
 import { guardNavigation } from './navigationGuard'
 import { watchContextMenu } from './contextMenu'
 import { log } from '../log/logger'
@@ -102,7 +103,7 @@ export class WindowManager {
    *  carries the sender's webContents) can be filed under the same number `SessionLayoutStore` and
    *  the `?w=` URL already use for that window. Populated and cleared right alongside the window
    *  itself in `create()`, the same lifecycle `sessionLayoutStore`'s per-window bookkeeping follows. */
-  private readonly windowNumberByWebContentsId = new Map<number, { number: number; remote: boolean }>()
+  private readonly windowNumberByWebContentsId = new Map<number, { number: number; remote: boolean; baseMinWidth: number }>()
   /** Closed windows whose layout record is waiting out `CLOSE_GRACE_MS` before it is removed. */
   private readonly pendingRemovals = new Map<number, NodeJS.Timeout>()
   /** Told when a local window closes, and whether that is the app quitting (the pets' owners move). */
@@ -125,6 +126,24 @@ export class WindowManager {
 
   windowNumberFor(webContentsId: number): number | null {
     return this.windowNumberByWebContentsId.get(webContentsId)?.number ?? null
+  }
+
+  /**
+   * The window's panes need `width` to fit at their minimum (`requireWindowWidth`): its minimum
+   * width becomes that (never below its kind's own), and a narrower window is widened to it.
+   */
+  requireWidth(win: BrowserWindow, width: number): void {
+    const record = this.windowNumberByWebContentsId.get(win.webContents.id)
+    if (record === undefined || win.isDestroyed()) return
+    const min = minimumWidth(record.baseMinWidth, width)
+    const [, minHeight] = win.getMinimumSize()
+    win.setMinimumSize(min, minHeight)
+    if (win.isMaximized() || win.isFullScreen()) return
+    const bounds = win.getBounds()
+    // A headless run keeps its windows off-screen: widen in place rather than onto the screen.
+    const area = this.deps.headless ? { ...bounds, width: Math.max(bounds.width, min) } : screen.getDisplayMatching(bounds).workArea
+    const next = widenedBounds(bounds, area, min)
+    if (next !== null) win.setBounds(next)
   }
 
   /** Whether the window shows another machine (`NewWindowOptions.remote`). */
@@ -243,7 +262,7 @@ export class WindowManager {
     // is an Electron event emitter callback, which took the whole main process down with a native
     // error dialog every time a window closed.
     const webContentsId = win.webContents.id
-    this.windowNumberByWebContentsId.set(webContentsId, { number: windowNumber, remote: remote !== undefined })
+    this.windowNumberByWebContentsId.set(webContentsId, { number: windowNumber, remote: remote !== undefined, baseMinWidth: detached ? 520 : 900 })
     this.mainWindow = win
     // The menu and native dialogs act on whichever window is in front, so this follows focus rather
     // than staying pinned to the first window opened.

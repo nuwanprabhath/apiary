@@ -195,6 +195,8 @@
   .composer-actions > .composer-collapse { width: var(--icon-button-size-sm); }
   .composer-actions > .chat-model { flex: 0 1 auto; min-width: 7em; }
   .chat-model-pill { max-width: 100%; }
+  /* The effort gives way before the name does (it is in the menu, and the button's title). */
+  .chat-model-effort { display: none; }
   .chat-model-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 /* The fold button leads the row; the peek button takes the hint's place while the box is folded and

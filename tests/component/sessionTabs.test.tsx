@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { sidebarSession, clickRowAction, box, mouse, until } from './helpers'
+import { sidebarSession, clickRowAction, box, mouse, nextFrames, until } from './helpers'
 
 /** Every element with a given data-testid, document-wide. */
 function all(id: string): HTMLElement[] {
@@ -344,6 +344,31 @@ describe('session tabs', () => {
     expect(within(all('session-column')[1], 'session-tab')).toHaveLength(1)
   })
 
+  it('a tab dragged over its own strip and dropped in another column leaves no drop marker behind', async () => {
+    await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await userEvent.click(page.getByTestId('session-tab-split'))
+    await until(() => all('session-column').length === 2)
+    await userEvent.click(sidebarSession('Add worktree switcher'))
+    await until(() => within(all('session-column')[1], 'session-tab').length === 2)
+
+    const [stays, dragged] = within(all('session-column')[1], 'session-tab')
+    const from = dragged.getBoundingClientRect()
+    const over = stays.getBoundingClientRect()
+    const target = within(all('session-column')[0], 'session-tab')[0].getBoundingClientRect()
+    // Over the tab that stays first, as a reorder in its own strip would, then into the other column.
+    await mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+    await mouse.down()
+    await mouse.move(over.x + 6, over.y + over.height / 2, 8)
+    await mouse.move(target.x + 4, target.y + 10, 8)
+    await mouse.up()
+
+    await until(() => within(all('session-column')[0], 'session-tab').length === 2)
+    // The dragged tab left its strip before its dragend could fire, so the strip must not keep
+    // the insertion line it drew while the tab was over it (the blue "(" left on a tab in 1.41).
+    expect(document.querySelectorAll('[data-drop-before="true"], [data-drop-after="true"], [data-dragging="true"]')).toHaveLength(0)
+  })
+
   it('dragging a column its last tab leaves that column gone, not empty', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
@@ -428,13 +453,19 @@ describe('session tabs', () => {
     }
     await until(() => within(column, 'session-tab').length === 4)
 
-    // The tabs give up width rather than running off the end: every close button is inside the
-    // strip, and every tab is narrower than it would have been left to itself.
-    const strip = column.querySelector('.session-tab-strip')!.getBoundingClientRect()
+    // The tabs give up width down to their floor (six letters of title), then the strip scrolls:
+    // every tab still reads as its title, and each close button is whole inside the strip once its
+    // tab is scrolled into view. (A fixed 64px floor kept every close button in view by leaving
+    // titles two letters long.)
+    const stripEl = column.querySelector<HTMLElement>('.session-tab-strip')!
     const tabs = within(column, 'session-tab')
     for (const tab of tabs) {
-      const box_ = tab.getBoundingClientRect()
-      expect(box_.width).toBeLessThan(220)
+      expect(tab.getBoundingClientRect().width).toBeLessThan(220)
+      const text = tab.querySelector('.session-tab-text')!
+      expect(text.clientWidth).toBeGreaterThanOrEqual(5 * parseFloat(getComputedStyle(text).fontSize))
+      tab.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+      await nextFrames(1)
+      const strip = stripEl.getBoundingClientRect()
       const close = within(tab, 'session-tab-close')[0].getBoundingClientRect()
       expect(close.width).toBeGreaterThan(0)
       expect(close.x).toBeGreaterThanOrEqual(strip.x - 1)

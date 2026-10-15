@@ -35,6 +35,23 @@ interface CacheEntry {
  *  folders over weeks kept every one of them, including branches long since deleted. */
 const IDLE_EVICT_MS = 10 * 60 * 1000
 
+/** One plugin: what it is, whether it is on, and what the user set for it (before defaults). */
+interface PluginRecord {
+  plugin: SessionBarPlugin
+  enabled: boolean
+  settings: PluginSettingValues | undefined
+}
+
+/**
+ * One folder+branch the bar has been drawn for: its last answer, and the lookup running for it, so
+ * a burst of renders produces one lookup rather than ten, and a caller that asks during one *joins*
+ * it rather than being handed the stale answer it was trying to get past.
+ */
+interface TargetRecord {
+  cached: CacheEntry | null
+  inFlight: Promise<PluginBarItem[]> | null
+}
+
 export interface RegistryOptions {
   /** How long a result stays fresh. */
   ttlMs?: number
@@ -50,18 +67,11 @@ export interface RegistryOptions {
 const DEFAULT_TTL_MS = 60_000
 
 export class PluginRegistry {
-  private readonly plugins: SessionBarPlugin[] = []
-  private readonly enabled = new Map<string, boolean>()
-  /** What the user has configured per plugin, before defaults are applied. */
-  private readonly settings = new Map<string, PluginSettingValues>()
-  /** Invalidated by age (`ttlMs`), by `revalidate` when an input to `evaluate` changes, and by `clearCache`. */
-  private readonly cache = new Map<string, CacheEntry>()
-  /**
-   * Lookups in flight, by cache key, so a burst of renders produces one lookup rather than ten —
-   * and so a caller that asks during one *joins* it rather than being handed the stale answer it
-   * was trying to get past.
-   */
-  private readonly inFlight = new Map<string, Promise<PluginBarItem[]>>()
+  /** By plugin id, in the order they were registered (the order they are asked and listed in). */
+  private readonly plugins = new Map<string, PluginRecord>()
+  /** By folder+branch (`key`). The cached answers are invalidated by age (`ttlMs`), by `revalidate`
+   *  when an input to `evaluate` changes, by `clearCache`, and dropped when idle (`evictIdle`). */
+  private readonly targets = new Map<string, TargetRecord>()
   private readonly ttlMs: number
   private readonly now: () => number
   private readonly onChanged: (() => void) | undefined
@@ -75,13 +85,13 @@ export class PluginRegistry {
   }
 
   register(plugin: SessionBarPlugin, enabled = true): void {
-    this.plugins.push(plugin)
-    this.enabled.set(plugin.id, enabled)
+    this.plugins.set(plugin.id, { plugin, enabled, settings: undefined })
   }
 
   setEnabled(pluginId: string, enabled: boolean): void {
-    if (this.enabled.get(pluginId) === enabled) return
-    this.enabled.set(pluginId, enabled)
+    const record = this.plugins.get(pluginId)
+    if (record === undefined || record.enabled === enabled) return
+    record.enabled = enabled
     this.revalidate()
   }
 
@@ -93,8 +103,9 @@ export class PluginRegistry {
    * a setting look broken.
    */
   setSettings(pluginId: string, values: PluginSettingValues): void {
-    if (JSON.stringify(this.settings.get(pluginId) ?? {}) === JSON.stringify(values)) return
-    this.settings.set(pluginId, values)
+    const record = this.plugins.get(pluginId)
+    if (record === undefined || JSON.stringify(record.settings ?? {}) === JSON.stringify(values)) return
+    record.settings = values
     this.revalidate()
   }
 
@@ -108,21 +119,22 @@ export class PluginRegistry {
    * replaces it, and the replacement announces itself through `onChanged`.
    */
   private revalidate(): void {
-    for (const entry of [...this.cache.values()]) {
+    for (const { cached } of [...this.targets.values()]) {
+      if (cached === null) continue
       // Marked stale so `items()` does not serve it as fresh while the recompute runs.
-      entry.at = Number.NEGATIVE_INFINITY
-      void this.refresh(entry.ctx)
+      cached.at = Number.NEGATIVE_INFINITY
+      void this.refresh(cached.ctx)
     }
   }
 
   /** A plugin's settings with its declared defaults filled in. */
   settingsFor(pluginId: string): PluginSettingValues {
-    const plugin = this.plugins.find((p) => p.id === pluginId)
-    return withDefaults(plugin?.settings ?? [], this.settings.get(pluginId))
+    const record = this.plugins.get(pluginId)
+    return withDefaults(record?.plugin.settings ?? [], record?.settings)
   }
 
   isEnabled(pluginId: string): boolean {
-    return this.enabled.get(pluginId) ?? false
+    return this.plugins.get(pluginId)?.enabled ?? false
   }
 
   /** Everything Settings needs to draw the Plugins section, including each plugin's own fields. */
@@ -134,7 +146,7 @@ export class PluginRegistry {
     fields: NonNullable<SessionBarPlugin['settings']>
     values: PluginSettingValues
   }[] {
-    return this.plugins.map((p) => ({
+    return [...this.plugins.values()].map(({ plugin: p }) => ({
       id: p.id,
       name: p.name,
       description: p.description ?? null,
@@ -160,7 +172,7 @@ export class PluginRegistry {
   items(ctx: PluginTarget): PluginBarItem[] {
     this.evictIdle()
     const key = this.key(ctx)
-    const hit = this.cache.get(key)
+    const hit = this.targets.get(key)?.cached ?? undefined
     if (hit !== undefined) hit.lastRead = this.now()
     if (hit !== undefined && this.now() - hit.at < this.ttlMs) return hit.items
     void this.refresh(ctx)
@@ -174,22 +186,32 @@ export class PluginRegistry {
    *  its own to start or stop. */
   private evictIdle(): void {
     const cutoff = this.now() - IDLE_EVICT_MS
-    for (const [key, entry] of this.cache) {
-      if (entry.lastRead < cutoff) this.cache.delete(key)
+    for (const [key, target] of this.targets) {
+      // A lookup still running is kept: its answer lands in this record.
+      if (target.inFlight === null && (target.cached === null || target.cached.lastRead < cutoff)) this.targets.delete(key)
     }
   }
 
   /** Forces a lookup, ignoring the cache — for an explicit "refresh" and for tests. */
   async refresh(ctx: PluginTarget): Promise<PluginBarItem[]> {
     const key = this.key(ctx)
-    const running = this.inFlight.get(key)
-    if (running !== undefined) return running
-    const promise = this.lookup(ctx, key)
-    this.inFlight.set(key, promise)
+    const target = this.targetFor(key)
+    if (target.inFlight !== null) return target.inFlight
+    const promise = this.lookup(ctx, target)
+    target.inFlight = promise
     return promise
   }
 
-  private async lookup(target: PluginTarget, key: string): Promise<PluginBarItem[]> {
+  private targetFor(key: string): TargetRecord {
+    let target = this.targets.get(key)
+    if (target === undefined) {
+      target = { cached: null, inFlight: null }
+      this.targets.set(key, target)
+    }
+    return target
+  }
+
+  private async lookup(target: PluginTarget, record: TargetRecord): Promise<PluginBarItem[]> {
     // One remote lookup per evaluation, shared by every plugin that asks (MAIN-17).
     let remote: Promise<string | null> | undefined
     const ctx: PluginContext = {
@@ -197,7 +219,7 @@ export class PluginRegistry {
       remoteUrl: () => (remote ??= this.lookupRemote(target.cwd)),
     }
     try {
-      const results = await Promise.all(this.plugins.map(async (plugin) => {
+      const results = await Promise.all([...this.plugins.values()].map(async ({ plugin }) => {
         if (!this.isEnabled(plugin.id)) return null
         try {
           const result = await plugin.evaluate(ctx, this.settingsFor(plugin.id))
@@ -211,29 +233,28 @@ export class PluginRegistry {
         }
       }))
       const items = results.filter((item): item is PluginBarItem => item !== null)
-      const before = this.cache.get(key)
+      const before = record.cached
       // A revalidate-triggered recompute (settings/enabled change) is not someone looking at the
       // bar, so it must not reset the idle clock — only `items()` does that.
-      this.cache.set(key, { at: this.now(), items, ctx: target, lastRead: before?.lastRead ?? this.now() })
-      if (before === undefined || !sameItems(before.items, items)) this.onChanged?.()
+      record.cached = { at: this.now(), items, ctx: target, lastRead: before?.lastRead ?? this.now() }
+      if (before === null || !sameItems(before.items, items)) this.onChanged?.()
       return items
     } finally {
-      this.inFlight.delete(key)
+      record.inFlight = null
     }
   }
 
   /** Drops every cached answer — used when a setting that plugins read has changed. */
   clearCache(): void {
-    this.cache.clear()
+    for (const target of this.targets.values()) target.cached = null
   }
 
   /** Releases every plugin that holds something of its own (a timer, a socket) — called once, on
    *  app quit (MAIN-17/MAIN-20). None of the current plugins need this; it exists so a future one
    *  that does is not the first to have to invent a teardown path. */
   dispose(): void {
-    for (const plugin of this.plugins) plugin.dispose?.()
-    this.cache.clear()
-    this.inFlight.clear()
+    for (const { plugin } of this.plugins.values()) plugin.dispose?.()
+    this.targets.clear()
   }
 }
 

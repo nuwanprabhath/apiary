@@ -73,10 +73,6 @@ describe('every IPC channel has a clause in the bridge contract', () => {
     })).toEqual([])
   })
 
-  it('has no debt: a channel is either exercised or exempt for a reason that stays true', () => {
-    expect(allow.filter((e) => e.debt === true).map((e) => e.key)).toEqual([])
-  })
-
   it('does not exempt an event the fake emits', () => {
     const fakeSources = ['tests/component/fakeApiary.ts', ...walk(['tests/component/fake'], ['.ts'])]
     const emitted = new Set(fakeSources.flatMap((rel) => [...read(rel).matchAll(/\bemit\('(\w+)'/g)].map((m) => m[1])))

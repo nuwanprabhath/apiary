@@ -157,6 +157,9 @@ export interface FakeState {
   chats: Map<string, ChatState>
   /** What `backgroundTaskOutput` answers, by `<sessionId>:<taskId>`; not available when absent. */
   taskOutputs: Map<string, BackgroundTaskOutput>
+  /** The width this window last said its panes need (`requireWindowWidth`); null before it said. A
+   *  real window is widened to it, so the UI scenarios widen the viewport the same way. */
+  requiredWindowWidth: number | null
   /** Sessions whose chat this window has attached (`chatAttach`); `chatChanged` goes only to those. */
   chatAttached: Set<string>
   /** What `terminalBusy` answers, by session id; not busy when absent. */

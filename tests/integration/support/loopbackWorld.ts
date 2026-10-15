@@ -256,6 +256,7 @@ export async function buildLoopbackWorld(
     settings,
     tabRegistry,
     windowNumberFor: (id) => (id === fakeContents.id ? THIS_WINDOW.number : null),
+    requireWindowWidth: null,
     pickFolder: async () => (cancelPicker ? null : picked),
     updater: createUpdater(settings, { fakeUpdate: FEED_VERSION, fakeUpdateMode: undefined }, false),
     theme: {

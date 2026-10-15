@@ -311,6 +311,9 @@ export const IPC = {
   appMenuInvoke: invoke<[path: number[]], void>('apiary:app-menu-invoke', tuple(arr(num))),
   /** The theme's colours for the OS-drawn window controls over the title bar (`#rrggbb`). */
   setTitleBarColors: send<[background: string, symbol: string]>('apiary:set-title-bar-colors', tuple(str, str)),
+  /** How wide this window must be for its panes to fit at their minimum (CSS px): main raises the
+   *  window's minimum width to it, and widens the window when it is narrower. */
+  requireWindowWidth: send<[width: number]>('apiary:require-window-width', tuple(num)),
   /** Branches and naming facts for the "New worktree" dialog on a sidebar folder. */
   worktreeCreateOptions: invoke<[path: string], WorktreeCreateOptions>('apiary:worktree-create-options', tuple(str)),
   /** Creates `<main>.worktrees/<name>` on the chosen branch, then starts a Claude session in it. */

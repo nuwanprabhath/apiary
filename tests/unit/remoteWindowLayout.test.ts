@@ -23,6 +23,7 @@ describe('a remote window\'s layout and tabs', () => {
       tabRegistry: { report, onChange: () => {} },
       // The window manager knows only real windows' ids: a virtual id has no number.
       windowNumberFor: () => null,
+      requireWindowWidth: null,
       activeTabs: {},
     } as unknown as TabsDeps
     const { handlers, listeners, dispose } = tabsHandlers(deps)

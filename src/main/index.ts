@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, dialog, session, webContents } from 'electron'
+import { app, BrowserWindow, Menu, dialog, session, webContents, type WebContents } from 'electron'
 import { errorMessage } from '@shared/errors'
 import { homedir, hostname } from 'node:os'
 import { join } from 'node:path'
@@ -233,6 +233,15 @@ async function onNewSessionInFolder(): Promise<void> {
 }
 
 
+/** The native folder picker, over the window that asked; `preset` answers instead in a test run. */
+async function pickFolderOver(sender: WebContents, preset: string | undefined): Promise<string | null> {
+  if (preset !== undefined) return preset
+  const win = BrowserWindow.fromWebContents(sender)
+  const options = { properties: ['openDirectory' as const], title: 'Start a Claude session in…' }
+  const result = win !== null ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+}
+
 async function start(): Promise<void> {
   setDevDockIcon()
   // Before any window is created: Electron's default is to grant every permission a page asks
@@ -289,17 +298,12 @@ async function start(): Promise<void> {
   const safeTheme = env.safeTheme
   const ipc = registerIpc({
     service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, library: container.library, state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
-    pickFolder: async (sender) => {
-      if (env.pickFolder !== undefined) return env.pickFolder
-      const win = BrowserWindow.fromWebContents(sender)
-      const options = { properties: ['openDirectory' as const], title: 'Start a Claude session in…' }
-      const result = win !== null ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
-      return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
-    },
+    pickFolder: (sender) => pickFolderOver(sender, env.pickFolder),
     onAutoImportIntervalChange: setAutoImportInterval,
     updater,
     sessionLayoutStore, layoutFlushCoordinator,
     tabRegistry, windowNumberFor: (id) => windowManager!.windowNumberFor(id),
+    requireWindowWidth: (win, width) => { windowManager!.requireWidth(win, width) },
     activeTabs: container.activeTabs,
     // SEC-8 step 8: the renderer is always loaded from one of these two places (see
     // `WindowManager.create` above) — a dev-server origin (`ELECTRON_RENDERER_URL`, test/dev only) or the

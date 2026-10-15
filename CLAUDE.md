@@ -145,6 +145,7 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | A behaviour change has a test that fails without it: the branch's changed unit, integration and component tests run against the base's `src/`, and at least one must fail | `.claude/hooks/testsFailOnBase.mjs` (Stop hook) | write the test from the requirement, see it fail on the old code, then fix; a pure refactor says why in `No-Red-Test-Reason:` |
 | Commit hygiene | `.husky/pre-commit` (lint-staged), `.husky/commit-msg` (commitlint, no AI attribution), `.husky/pre-push` (typecheck, lint, `test:unit`) | fix, never `--no-verify` |
 | A release passes the whole e2e suite, `@serial` included, not only the specs a change seemed to touch | `.husky/pre-push`: pushing a `v*` tag runs `npm run test:e2e` and refuses the push if it fails | fix the spec or the code, then push the tag again |
+| A release tag goes only on a commit CI has passed (the release repeats CI's checks on Linux; five tags stopped there and published nothing) | `.husky/pre-push` runs `scripts/release-ci-gate.mjs` for a `v*` tag; `tests/unit/releaseCiGate.test.ts` | push `main`, wait for CI on it (`gh run watch`), then push the tag; a failed CI means a fix and a new version |
 
 ## Judgment calls
 

@@ -16,6 +16,9 @@ streams in with tool calls and permission prompts, without starting a terminal.
   `composer-peek` shows "Message Claude…" or the draft's first line, and unfolds with focus in it).
 - The "/" menu's Actions group: "Open in VS Code" (`composer-action-option`), shown only when VS
   Code is available and the folder exists; it calls `openInVsCode` for the session.
+- History: Up on the box's first line recalls the previous message sent to the session (from its
+  file, `sentPrompts`), Down on the last line comes forward, past the newest the draft returns
+  (`useSentHistory`). The "/" menu takes the arrows first while it is open.
 - Folding the box is per pane (each column's own; `composer-collapse` in one pane leaves the others).
 - Claude's questions (`AskUserQuestion`): `chat-question-card` instead of `chat-permission`, one
   `chat-question` per question with option rows, `chat-question-other` (a text field), and

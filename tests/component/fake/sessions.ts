@@ -19,7 +19,7 @@ type SessionsApi = Pick<ApiaryApi,
   | 'forkSession' | 'setSessionNote' | 'sessionNote' | 'openShell' | 'openShellForPty' | 'ptyWrite' | 'ptyResize'
   | 'ptyKill' | 'ptyResume' | 'ptyAttach' | 'ptyDetach' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
   | 'saveImage' | 'readImage' | 'vsCodeAvailable' | 'openInVsCode' | 'openMentionedFile' | 'copyToClipboard'
-  | 'logStatus' | 'logReveal' | 'logClear' | 'logWrite' | 'appMenu' | 'appMenuInvoke' | 'setTitleBarColors'>
+  | 'logStatus' | 'logReveal' | 'logClear' | 'logWrite' | 'appMenu' | 'appMenuInvoke' | 'setTitleBarColors' | 'requireWindowWidth'>
 
 const DAY = 24 * 60 * 60 * 1000
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
@@ -172,5 +172,6 @@ export function sessionsApi(env: Env): SessionsApi {
     ],
     appMenuInvoke: async () => {},
     setTitleBarColors: () => {},
+    requireWindowWidth: (width) => { state.requiredWindowWidth = width },
   }
 }

@@ -125,6 +125,16 @@ export function withoutToolCalls(messages: TranscriptMessage[]): TranscriptMessa
   })
 }
 
+/** What you sent in a session, newest first, for the message box's ↑/↓ history. A message sent
+ *  several times in a row is one entry, as a shell's history keeps it. */
+export function sentPrompts(messages: TranscriptMessage[]): string[] {
+  const out: string[] = []
+  for (const item of chatItems(messages)) {
+    if (item.kind === 'user' && item.text !== '' && item.text !== out[0]) out.unshift(item.text)
+  }
+  return out
+}
+
 /** The latest message you sent, for the box that stays at the top while you scroll. */
 export function lastPrompt(items: ChatItem[]): Extract<ChatItem, { kind: 'user' }> | null {
   for (let i = items.length - 1; i >= 0; i--) {

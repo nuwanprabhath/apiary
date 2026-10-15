@@ -6,7 +6,9 @@ import {
 
 /** Below these a pane shows nothing usable: the toolbar and a few terminal rows, or a readable
  *  column. The same floor the column dividers had. */
-const MIN_PANE_WIDTH = 200
+/** A pane's floor (`.session-column`'s min-width): no divider drag goes below it, and the window
+ *  is widened rather than run a pane off its edge (`useWindowFitsPanes`). */
+export const MIN_PANE_WIDTH = 280
 const MIN_PANE_HEIGHT = 180
 
 /** How far an arrow key moves a divider (UI-27): pointer-only before this, with no keyboard

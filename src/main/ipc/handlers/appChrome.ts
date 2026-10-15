@@ -5,14 +5,17 @@ import { serializeMenu, itemAtPath } from '../menuModel'
 import { TITLE_BAR_HEIGHT } from '../../windows/windowManager'
 import type { Handlers, Listeners } from '../registrar'
 
+/** More than any screen: a width past this is a bad report, not a layout. */
+const MAX_REQUIRED_WIDTH = 20_000
+
 type HandledKeys = 'appMenu' | 'appMenuInvoke'
-type ListenedKeys = 'setTitleBarColors'
+type ListenedKeys = 'setTitleBarColors' | 'requireWindowWidth'
 
 /**
  * The themed title bar's two needs from main: the application menu to draw (and a way to run an
  * item from it), and a way to colour the OS-drawn window controls that sit over the bar.
  */
-export function appChromeHandlers(): { handlers: Pick<Handlers, HandledKeys>; listeners: Pick<Listeners, ListenedKeys> } {
+export function appChromeHandlers(deps: { requireWindowWidth: ((win: BrowserWindow, width: number) => void) | null }): { handlers: Pick<Handlers, HandledKeys>; listeners: Pick<Listeners, ListenedKeys> } {
   const isMac = process.platform === 'darwin'
   return {
     handlers: {
@@ -30,6 +33,11 @@ export function appChromeHandlers(): { handlers: Pick<Handlers, HandledKeys>; li
       },
     },
     listeners: {
+      requireWindowWidth: (e, width) => {
+        if (!Number.isFinite(width) || width < 0 || width > MAX_REQUIRED_WIDTH) return
+        const win = BrowserWindow.fromWebContents(e.sender)
+        if (win !== null) deps.requireWindowWidth?.(win, width)
+      },
       setTitleBarColors: (e, background, symbol) => {
         if (process.platform === 'darwin' || !isHexColor(background) || !isHexColor(symbol)) return
         const win = BrowserWindow.fromWebContents(e.sender)

@@ -3,10 +3,10 @@ import { page, userEvent } from 'vitest/browser'
 import { renderApp } from '../renderApp'
 import { until } from '../helpers'
 import { trackActivity } from '../../../src/renderer/state/activityStore'
-import { reviewUi } from './review'
+import { reviewUi, type UiWidth } from './review'
 
 /** The status bar's activity indicator: a held pull, its outcomes, and several things at once. */
-const WIDTHS = [620, 1400]
+const WIDTHS: UiWidth[] = [620, 1400]
 const indicator = (): HTMLElement | null => document.querySelector('[data-testid="activity-indicator"]')
 
 async function startPull(settle: 'hold' | 'fail' | 'done'): Promise<void> {

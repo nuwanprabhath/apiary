@@ -17,7 +17,7 @@ import '../../src/renderer/styles.css'
 import '../../src/renderer/scrollMarks'
 import { createFakeApiary, type FakeApiary, type FakeOptions } from './fakeApiary'
 
-let mounted: { root: Root; host: HTMLElement } | null = null
+let mounted: { root: Root; host: HTMLElement; fake: FakeApiary } | null = null
 
 export interface Rendered { fake: FakeApiary }
 
@@ -43,7 +43,7 @@ export async function renderApp(opts: FakeOptions = {}, arrange?: (fake: FakeApi
       <NotificationCenter />
     </NotificationProvider>,
   )
-  mounted = { root, host }
+  mounted = { root, host, fake }
   await expect.element(page.getByTestId('sidebar')).toBeVisible()
   // The app's fonts load after the first render, and on a cold machine (a CI runner) late enough
   // to reflow the page under a test that has already measured or hovered something — a hover
@@ -56,6 +56,11 @@ export async function renderApp(opts: FakeOptions = {}, arrange?: (fake: FakeApi
   // the sidebar container's own visibility.
   await expect.poll(() => document.querySelector('[data-testid="sidebar-list"]')?.children.length ?? 0).toBeGreaterThan(0)
   return { fake }
+}
+
+/** The fake behind the app `renderApp` mounted, or null when none is (a primitive mounted alone). */
+export function mountedFake(): FakeApiary | null {
+  return mounted?.fake ?? null
 }
 
 export function unmountApp(): void {

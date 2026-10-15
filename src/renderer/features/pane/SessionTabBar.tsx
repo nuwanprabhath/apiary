@@ -1,4 +1,4 @@
-import { type JSX, useState, type ReactNode } from 'react'
+import { type JSX, useEffect, useState, type ReactNode } from 'react'
 import { LayoutIcon, SplitIcon } from '../../ui/icons'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
 import type { FoldState } from '../../state/layout'
@@ -107,6 +107,11 @@ export function SessionTabBar(
   const [menu, setMenu] = useState<{ key: string; x: number; y: number } | null>(null)
 
   const endDrag = (): void => { setDragKey(null); setDropAt(null) }
+  // A tab dropped into another column or window leaves this strip before its dragend can fire (the
+  // event goes to an element no longer in the page), so the drag would never end here: the
+  // insertion line it last drew stayed on a tab for good.
+  const draggedAway = dragKey !== null && !tabs.some((t) => t.key === dragKey)
+  useEffect(() => { if (draggedAway) endDrag() }, [draggedAway])
   const { activeRef, registerButton, onTabListKeyDown } = useTabStripKeys(tabs, activeKey, onActivate, onClose)
 
 

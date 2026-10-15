@@ -11,6 +11,7 @@
  * Opening a state (a menu, a find bar, a narrow pane) is the scenario's job: pass it as `open`, so
  * it runs again after each resize and theme change, as a person would see it.
  */
+import { mountedFake } from '../renderApp'
 import { page } from 'vitest/browser'
 import { expect } from 'vitest'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
@@ -29,9 +30,17 @@ const KNOWN: Readonly<Record<string, Readonly<Record<string, string>>>> = known
 
 export type ReviewTheme = 'default' | 'paper' | 'glass'
 
+/**
+ * The window widths a scenario may be checked at: the narrow floor (620, a detached window or a
+ * split pane), the steps the scenarios share, and wide. Not any number: in 1.41 three agents moved a
+ * scenario to whatever width made the audit pass (700 px twice), and one of the defects that hid
+ * failed CI on Linux's wider fonts. A failing width is a defect to fix, not a width to change.
+ */
+export type UiWidth = 620 | 760 | 900 | 1000 | 1400
+
 export interface ReviewOptions {
-  /** Window widths to check at. Default: a narrow window and a wide one. */
-  widths?: number[]
+  /** Window widths to check at, besides the 620 px floor every scenario gets. Default: 900 and 1400. */
+  widths?: UiWidth[]
   height?: number
   themes?: ReviewTheme[]
   /** Brings the state on screen; runs after every resize and theme change. */
@@ -42,7 +51,9 @@ export interface ReviewOptions {
   within?: () => Element | null
 }
 
-const DEFAULT_WIDTHS = [900, 1400]
+/** Every scenario is also checked here, whatever it asks for. */
+const NARROW: UiWidth = 620
+const DEFAULT_WIDTHS: UiWidth[] = [900, 1400]
 
 /** Where every visible element is, as one string: equal on consecutive frames means laid out. */
 function layoutSignature(): string {
@@ -86,7 +97,10 @@ function slug(s: string): string {
 
 /** Check one UI state at each width and theme; fail on any audit violation. */
 export async function reviewUi(name: string, opts: ReviewOptions = {}): Promise<void> {
-  const widths = opts.widths ?? DEFAULT_WIDTHS
+  // The narrow floor is never optional: a split pane or a detached window is that narrow, and a
+  // scenario that left it out hid defects there (19 scenarios failed at 620 px when first made to
+  // check it, in 1.42).
+  const widths = [...new Set<UiWidth>([NARROW, ...(opts.widths ?? DEFAULT_WIDTHS)])]
   const themes = opts.themes ?? ['default', 'paper', 'glass']
   const height = opts.height ?? 820
   const found: Array<UiViolation & { shot: string }> = []
@@ -101,6 +115,13 @@ export async function reviewUi(name: string, opts: ReviewOptions = {}): Promise<
       await settledLayout()
       await opts.open?.()
       await settledLayout()
+      // A real window is widened to fit its panes (`requireWindowWidth`), so a layout too wide for
+      // this width is checked at the width the app asked for, never in a window it cannot have.
+      const needed = mountedFake()?.state.requiredWindowWidth ?? null
+      if (needed !== null && needed > width) {
+        await page.viewport(needed, height)
+        await settledLayout()
+      }
       const shot = `${slug(name)}--${theme}-${String(width)}.png`
       await page.screenshot({ path: `../../../ui-review/shots/${shot}`, scale: 'device' } as Parameters<typeof page.screenshot>[0])
       const root = opts.within?.() ?? document.body

@@ -315,7 +315,8 @@
   z-index: var(--z-popover);
   display: flex;
   flex-direction: column;
-  width: min(420px, 80vw);
+  /* Never wider than the message box (its container), which a narrow pane clips to. */
+  width: min(420px, 100cqw);
   max-height: 60vh;
   padding: var(--space-sm);
   border: 1px solid var(--border);
@@ -524,7 +525,10 @@
 
 /* The background-task line is a quiet button that opens the task popup above it: one row that
    never wraps, the first task's description giving way first. */
-.chat-tasks { position: relative; min-width: 0; }
+.chat-tasks { position: relative; min-width: 0; container-type: inline-size; }
+/* Too narrow to show a useful part of the first task's description ("Ve…"): the count alone, the
+   popup lists them all. */
+@container (max-width: 380px) { .chat-status-sep, .chat-status-detail { display: none; } }
 .btn.quiet.chat-status-tasks {
   /* Pulled left by its own padding and 1px border, so the pulse sits on the timeline's dot rail
      like the other status glyphs, while the hover outline still has room around it. */

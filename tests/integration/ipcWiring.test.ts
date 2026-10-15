@@ -93,7 +93,7 @@ beforeEach(async () => {
     senderPolicy: UNCHECKED_SENDERS,
     router: null, remoteClient: null, hostDirectory: null, remoteServer: null, remotePairing: null,
     onAutoImportIntervalChange: null, updater: null, sessionLayoutStore: null, layoutFlushCoordinator: null,
-    tabRegistry: null, windowNumberFor: null, pickFolder: null,
+    tabRegistry: null, windowNumberFor: null, requireWindowWidth: null, pickFolder: null,
     service,
     chat: service.chat,
     plugins: service.plugins,

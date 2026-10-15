@@ -160,6 +160,7 @@ export const CHANNEL_SCOPES = {
   themeGpuCompositing: 'local',
   themeChanged: 'local',
   setTitleBarColors: 'local',
+  requireWindowWidth: 'local',
   settingsGet: 'local',
   settingsSet: 'local',
   // How the work machine's sessions are arranged and read (pins, groups, tool calls) belongs to

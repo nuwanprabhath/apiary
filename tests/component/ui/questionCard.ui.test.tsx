@@ -36,19 +36,19 @@ async function show(input: unknown): Promise<void> {
 describe('UI: the question card', () => {
   it('one question with a long text and Recommended', async () => {
     await show(NAMES_INPUT)
-    await reviewUi('question single', { widths: [700, 1000] })
+    await reviewUi('question single', { widths: [620, 1000] })
   })
 
   it('a multi-select question with two rows chosen', async () => {
     await show(MULTI)
     await userEvent.click(page.getByTestId('chat-question-option-0'))
     await userEvent.click(page.getByTestId('chat-question-option-2'))
-    await reviewUi('question multi', { widths: [700, 1000] })
+    await reviewUi('question multi', { widths: [620, 1000] })
   })
 
   it('three questions stacked', async () => {
     await show(THREE)
-    await reviewUi('question three', { widths: [700, 1000], height: 1400 })
+    await reviewUi('question three', { widths: [620, 1000], height: 1400 })
   })
 
   it('Other chosen, with the typed answer', async () => {
@@ -56,6 +56,6 @@ describe('UI: the question card', () => {
     await userEvent.click(page.getByTestId('chat-question-option-3'))
     await userEvent.fill(page.getByTestId('chat-question-other'), 'Both, behind a flag, with the preferred name first')
     expect(document.querySelector('[data-testid="chat-question-other"]')).not.toBeNull()
-    await reviewUi('question other', { widths: [700, 1000] })
+    await reviewUi('question other', { widths: [620, 1000] })
   })
 })

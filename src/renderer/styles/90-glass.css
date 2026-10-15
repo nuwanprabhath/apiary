@@ -55,11 +55,22 @@ html[data-material="glass"] :is(.pet-bubble, .pet-bubble::before, .pet-bubble::a
  * of this file on what painting over glass costs).
  *
  * The terminal has it twice over — as dark in the middle as it was when xterm painted its own colour
- * on top of the host's (see 32-terminal.css) — and the chat once. It is the same colour edge to edge:
- * an earlier version thinned towards the sides so the glass showed there, and over a bright part of
- * the backdrop that read as a dark band down one pane's left edge, with none on a pane over a dark part.
+ * on top of the host's (see 32-terminal.css) — and the chat once, which reads as part of the pane
+ * rather than a box in it. The edge stays at 40%, so text near the side keeps most of its contrast.
  */
-html[data-material="glass"] .transcript { background: var(--term-background); }
-html[data-material="glass"] .terminal-host {
-  background: linear-gradient(var(--term-background), var(--term-background)), var(--term-background);
+html[data-material="glass"] {
+  --reading-feather: 44px;
 }
+html[data-material="glass"] .terminal-host,
+html[data-material="glass"] .transcript {
+  --reading-edge: color-mix(in sRGB, var(--term-background) 40%, transparent);
+  --reading-surface: linear-gradient(
+    to right,
+    var(--reading-edge),
+    var(--term-background) var(--reading-feather),
+    var(--term-background) calc(100% - var(--reading-feather)),
+    var(--reading-edge)
+  );
+  background: var(--reading-surface);
+}
+html[data-material="glass"] .terminal-host { background: var(--reading-surface), var(--reading-surface); }

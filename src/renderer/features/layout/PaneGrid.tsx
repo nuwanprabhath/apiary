@@ -1,7 +1,8 @@
-import { type JSX, type ReactNode, useCallback, useState } from 'react'
+import { type JSX, type ReactNode, useCallback, useRef, useState } from 'react'
 import { defaultTracks, trackTemplate, type PresetId, type Tracks } from '../../state/layout'
 import { PaneDividers } from './PaneDividers'
 import { foldedCols, foldedTemplate } from './foldedGrid'
+import { useWindowFitsPanes } from './useWindowFitsPanes'
 
 /**
  * The `<main>` the panes sit in, and the divider positions that shape it. Those positions live
@@ -20,8 +21,11 @@ export function PaneGrid({ preset, folded, children }: {
     setTracks((prev) => new Map(prev).set(preset, next))
   }, [preset])
   const fold = foldedTemplate(preset, folded, current.rows)
+  const content = useRef<HTMLElement | null>(null)
+  useWindowFitsPanes(content, current.cols.length)
   return (
     <main
+      ref={content}
       className="content"
       data-testid="content"
       data-preset={preset}

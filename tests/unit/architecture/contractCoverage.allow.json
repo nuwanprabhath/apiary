@@ -36,6 +36,10 @@
     "reason": "Runs a click on an item of the native application menu, which exists only in a real Electron main process; the loopback has none. See appMenu."
   },
   {
+    "key": "requireWindowWidth",
+    "reason": "Sets a real BrowserWindow's minimum width and widens it (WindowManager.requireWidth, geometry in windowWidth.test.ts); the loopback has no real window, and a send has no result to assert."
+  },
+  {
     "key": "setTitleBarColors",
     "reason": "Colours the OS-drawn window controls over the title bar (BrowserWindow.setTitleBarOverlay, window chrome that exists only on Windows and Linux); the loopback has no real window, and a send has no result to assert."
   },

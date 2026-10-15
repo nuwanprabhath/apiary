@@ -30,8 +30,8 @@ import { judge, loadAllow, read, staleReport, walk } from './allowlist'
  *      equals one in another file. This catches renamed copies, which a name check cannot.
  *
  * Allowlist: duplicateSymbols.allow.json. A name entry is keyed by the name (`isModel`); a body
- * entry by `body:` + the sorted `file#function` members. Entries marked debt name the ledger item
- * that removes them; the rest are same-named things that are not the same thing, with the reason.
+ * entry by `body:` + the sorted `file#function` members. Each is a same-named thing that is not the
+ * same thing, with the reason; never debt (`allowlist.ts` refuses it).
  * It only shrinks: an entry that no longer matches (the copies were merged) fails the test.
  */
 const MIN_STATEMENTS = 5

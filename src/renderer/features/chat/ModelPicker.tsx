@@ -1,10 +1,11 @@
-import type { JSX } from 'react'
+import { type JSX, useLayoutEffect } from 'react'
 import {
   CHAT_EFFORTS, CHAT_EFFORT_LABELS, CHAT_MODELS, modelLabel, runningModelEntry,
   type ChatEffort, type ChatModelInfo,
 } from '@shared/domain/chat'
 import { CheckIcon, ContextRingIcon } from '../../ui/icons'
 import { Menu } from '../../ui/Menu'
+import { POPOVER_MARGIN } from '../../ui/popoverPlacement'
 import { usePopover } from './usePopover'
 
 interface Props {
@@ -29,6 +30,17 @@ export function ModelPicker({ model, effort, models, onModel, onEffort }: Props)
   const current = model === null ? undefined : runningModelEntry(model, list)
   // Effort levels: the running model's own, or every level before claude has said.
   const efforts: readonly ChatEffort[] = models === null ? CHAT_EFFORTS : current?.efforts ?? []
+  // The menu opens from the button's left edge, and its pane clips it: in a narrow pane it ran past
+  // the pane's right edge. Once open, it slides left by just what keeps it inside the pane (its
+  // width is capped at the message box's in CSS).
+  useLayoutEffect(() => {
+    const menu = open ? root.current?.querySelector<HTMLElement>('.chat-model-menu') : null
+    if (menu === null || menu === undefined) return
+    const box = menu.getBoundingClientRect()
+    const pane = menu.closest('.session-card')?.getBoundingClientRect() ?? { left: 0, right: window.innerWidth }
+    const left = Math.max(pane.left + POPOVER_MARGIN, Math.min(box.left, pane.right - POPOVER_MARGIN - box.width))
+    if (left !== box.left) menu.style.left = `${String(left - box.left)}px`
+  }, [open, root])
 
   return (
     <div className="chat-model" ref={root}>

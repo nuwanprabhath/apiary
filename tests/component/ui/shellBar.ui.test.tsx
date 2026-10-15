@@ -57,7 +57,13 @@ describe('shell bar', () => {
       themes: [...THEMES],
       // Opened after each resize: the menu measures where it fits as it opens.
       open: async () => {
-        await userEvent.click(page.getByTestId('toolbar-git-menu'))
+        // In a narrow pane the "..." button has moved into the toolbar's overflow menu.
+        if (document.querySelector('[data-testid="toolbar-git-menu"]') === null) {
+          await userEvent.click(page.getByTestId('overflow-menu-button'))
+          await userEvent.click(page.getByTestId('overflow-toolbar-git-menu'))
+        } else {
+          await userEvent.click(page.getByTestId('toolbar-git-menu'))
+        }
         await userEvent.click(page.getByTestId('git-menu-branch'))
         await until(() => document.querySelector('[data-testid="git-submenu"]') !== null)
       },

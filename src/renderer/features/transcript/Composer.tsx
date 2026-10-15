@@ -10,6 +10,7 @@ import { ComposerActions } from './ComposerActions'
 import { useChatChoices, type ChatChoices } from './useChatChoices'
 import { useComposerHeight } from './useComposerHeight'
 import { useComposerSend } from './useComposerSend'
+import { useSentHistory } from './useSentHistory'
 
 interface Props {
   /** The pane this composer sits in: its message box folds and unfolds on its own. */
@@ -105,7 +106,8 @@ export function Composer({
   const { dragging, separatorProps, fitAgain } = useComposerHeight(textareaRef, text, !collapsed)
   const { attachments, addImages, removeImage, clear } = useImageAttachments()
   const choices = useChatChoices(chat, chatRunning, session.sessionId)
-  const onSent = useCallback(() => { setText(''); clear() }, [clear])
+  const history = useSentHistory(session.sessionId, setText)
+  const onSent = useCallback(() => { history.sent(text); setText(''); clear() }, [clear, history, text])
   const { sending, send } = useComposerSend({
     session, ptyId, running, onResume, onShowSession, chatMode, chat, chatRunning, choices, text, attachments, onSent,
   })
@@ -153,7 +155,7 @@ export function Composer({
         }
         disabled={!session.cwdExists || sending}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => { history.edited(); setText(e.target.value) }}
         onPaste={(e) => {
           const images = imagesFrom(e.clipboardData)
           if (images.length === 0) return
@@ -171,6 +173,7 @@ export function Composer({
         onKeyDown={(e) => {
           if (chatMode && menuKeys.current?.(e) === true) { e.preventDefault(); return }
           if (e.key === 'Escape' && busy) { e.preventDefault(); interrupt(); return }
+          if (history.onKey(e)) { e.preventDefault(); return }
           if (e.key !== 'Enter' || e.shiftKey) return
           e.preventDefault()
           void send()

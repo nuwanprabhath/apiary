@@ -4,9 +4,9 @@ import type { BrowseView } from '@shared/domain/folders'
 import { renderApp } from '../renderApp'
 import { until } from '../helpers'
 import type { FakeApiary } from '../fakeApiary'
-import { reviewUi } from './review'
+import { reviewUi, type UiWidth } from './review'
 
-const WIDTHS = [620, 900, 1400]
+const WIDTHS: UiWidth[] = [620, 900, 1400]
 
 async function rightClick(el: Element): Promise<void> {
   const { x, y, width, height } = el.getBoundingClientRect()

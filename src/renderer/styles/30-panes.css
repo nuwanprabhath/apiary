@@ -31,7 +31,10 @@
    * open — below this a column shows nothing usable, and it is better for the window to overflow
    * (it scrolls nowhere, but each column stays legible) than for one to collapse to a stripe.
    * Matches PaneDividers' MIN_PANE_WIDTH/MIN_PANE_HEIGHT, which stop a drag from asking for less. */
-  min-width: 200px;
+  /* 280: what a pane's tab bar (fold, a tab, the view toggle, arrange, split) and its message box's
+   * buttons need. 200 left a split button and the mode button cut off; the window now grows to fit
+   * its panes (useWindowFitsPanes), so the floor can be what the pane really needs. */
+  min-width: 280px;
   /* stylelint-disable-next-line declaration-property-value-disallowed-list -- a pane is never shorter than this, whatever the density: a layout bound, not a control */
   min-height: 180px;
   display: flex;
@@ -165,10 +168,11 @@
    * read from what is left of it.
    */
   flex: 0 1 auto;
-  /* Enough for a few characters plus the close button. Below this the tab says nothing useful,
-   * so the strip scrolls after all — the case of a dozen tabs in a narrow column, where the
-   * active tab is kept scrolled into view and the scrollbar below makes the rest reachable. */
-  min-width: 64px;
+  /* Its own content at the least: six letters of title (below), its ring, arrange and close.
+   * Below that a tab says nothing useful ("Fl…"), so the strip scrolls after all — the case of a
+   * dozen tabs in a narrow column, where the active tab is kept scrolled into view and the
+   * scrollbar below makes the rest reachable. A fixed 64px left a title two letters long. */
+  min-width: min-content;
   max-width: 220px;
   margin: 3px 0 var(--space-xs);
   position: relative;
@@ -188,21 +192,17 @@
   background: var(--bg);
   box-shadow: 0 0 0 1px var(--border), var(--shadow-chip);
 }
-/* A lone tab shares the strip with nobody, and the view toggle now takes the room beside it: keep
- * enough of its title to read and let the strip scroll, rather than squeeze it to a few letters. */
-/* The floor is the title's, not a fixed tab width: a working tab's spinning ring took 128px's worth
- * of room from the title, which a narrow pane squeezed to four letters (1.41 CI, wider Linux fonts). */
-.session-tab:only-child { min-width: min-content; }
 .session-tab-strip[draggable="true"] .session-tab { cursor: default; }
 /* Keyboard focus, and only keyboard focus: a quiet ring, not the OS accent around the whole tab
  * on every click. */
 .session-tab-label {
   display: flex;
   align-items: center;
-  /* Without this the label refuses to shrink below its text and pushes the close button out of
-   * the tab, which is the same clipping in a different place. */
   gap: var(--space-sm);
-  min-width: 0;
+  /* Shrinks to its ring and the title's six letters (.session-tab-text), no further: 0 here let a
+   * squeezed tab keep two letters of its title. Past that the strip scrolls, and the close button
+   * stays inside its tab. */
+  min-width: auto;
   border: 0;
   background: none;
   color: var(--muted);
@@ -230,15 +230,10 @@
 @media (prefers-reduced-motion: reduce) {
   .session-tab-ring { animation: none; border-color: var(--status-running); border-top-color: color-mix(in sRGB, var(--status-running) var(--status-spinner-track), transparent); }
 }
-.session-tab-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* A lone tab's label does not shrink below its ring and six letters of title (the floor above). */
-.session-tab:only-child .session-tab-label { min-width: auto; }
-.session-tab:only-child .session-tab-text { min-width: 6em; }
+/* Six letters of title at the least: the tab's floor (`min-width: min-content` above) is built on it. */
+.session-tab-text { min-width: 6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-tab[data-activity="running"] .session-tab-text { color: var(--status-running); }
-/* The ring and the dot cost the label room: a busy tab keeps enough of its title to be read, and
-   the strip scrolls for the rest. */
-.session-tab[data-activity="running"],
-.session-tab[data-activity="waiting"] { min-width: 136px; }
+
 
 .session-tab-close {
   flex: none;
