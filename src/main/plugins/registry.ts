@@ -72,6 +72,13 @@ export class PluginRegistry {
   /** By folder+branch (`key`). The cached answers are invalidated by age (`ttlMs`), by `revalidate`
    *  when an input to `evaluate` changes, by `clearCache`, and dropped when idle (`evictIdle`). */
   private readonly targets = new Map<string, TargetRecord>()
+  /**
+   * Bumped whenever an input to `evaluate` changes (a setting, a plugin switched on or off). A
+   * lookup started under an older value answered with the old inputs: it is not cached as fresh,
+   * and it is looked up again. Joining it instead lost a setting changed while it ran, and the bar
+   * kept the old target branch for the whole TTL.
+   */
+  private inputs = 0
   private readonly ttlMs: number
   private readonly now: () => number
   private readonly onChanged: (() => void) | undefined
@@ -119,11 +126,13 @@ export class PluginRegistry {
    * replaces it, and the replacement announces itself through `onChanged`.
    */
   private revalidate(): void {
-    for (const { cached } of [...this.targets.values()]) {
+    this.inputs += 1
+    for (const { cached, inFlight } of [...this.targets.values()]) {
       if (cached === null) continue
       // Marked stale so `items()` does not serve it as fresh while the recompute runs.
       cached.at = Number.NEGATIVE_INFINITY
-      void this.refresh(cached.ctx)
+      // A lookup already running looks again itself when it finishes (`lookup`).
+      if (inFlight === null) void this.refresh(cached.ctx)
     }
   }
 
@@ -212,6 +221,7 @@ export class PluginRegistry {
   }
 
   private async lookup(target: PluginTarget, record: TargetRecord): Promise<PluginBarItem[]> {
+    const inputs = this.inputs
     // One remote lookup per evaluation, shared by every plugin that asks (MAIN-17).
     let remote: Promise<string | null> | undefined
     const ctx: PluginContext = {
@@ -236,11 +246,14 @@ export class PluginRegistry {
       const before = record.cached
       // A revalidate-triggered recompute (settings/enabled change) is not someone looking at the
       // bar, so it must not reset the idle clock — only `items()` does that.
-      record.cached = { at: this.now(), items, ctx: target, lastRead: before?.lastRead ?? this.now() }
+      const current = inputs === this.inputs
+      record.cached = { at: current ? this.now() : Number.NEGATIVE_INFINITY, items, ctx: target, lastRead: before?.lastRead ?? this.now() }
       if (before === null || !sameItems(before.items, items)) this.onChanged?.()
       return items
     } finally {
       record.inFlight = null
+      // The inputs changed while this ran: its answer is the old one, so look again now.
+      if (inputs !== this.inputs) void this.refresh(target)
     }
   }
 

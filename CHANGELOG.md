@@ -17,6 +17,9 @@ The first release of 1.42: everything listed under 1.42.0, plus this fix.
 - **A tab's close button stays put when you point at it.** The tab's arrange button appeared on
   hover and widened the tab, so the close button jumped as the pointer reached it and the click
   opened the layout picker instead. The arrange button's room is now kept on every tab.
+- **A merge request target branch takes effect at once.** Changed while the session bar was
+  already looking up its button, it was lost to that lookup, and the button kept opening merge
+  requests against the old branch for up to a minute.
 
 ## [1.42.0] - 2026-10-15 (not released: the release checks failed on the fix above)
 

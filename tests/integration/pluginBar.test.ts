@@ -389,6 +389,32 @@ describe('plugin settings', () => {
     expect(seen).toEqual({ a: { value: 'for-a' }, b: { value: 'for-b' } })
   })
 
+  it('a setting changed while a lookup is running is not lost to that lookup', async () => {
+    // The lookup in flight was started with the old setting. The change joined it instead of
+    // starting another, so the old answer was cached as fresh and the button kept the old target
+    // branch for the whole TTL (pluginBar.spec.ts failed the 1.42.1 tag push on it).
+    const registry = new PluginRegistry({ ttlMs: 10_000, now: () => 1000 })
+    const held: Array<() => void> = []
+    registry.register({
+      id: 'a',
+      name: 'a',
+      settings: [{ kind: 'string', key: 'v', label: 'v', default: '' }],
+      evaluate: async (_ctx, settings) => {
+        const label = String(settings.v)
+        if (label === 'old') await new Promise<void>((resolve) => { held.push(resolve) })
+        return { ...barItem('a'), label }
+      },
+    })
+    registry.setSettings('a', { v: 'old' })
+    const first = registry.refresh(ctx)
+    await vi.waitFor(() => { expect(held).toHaveLength(1) })
+
+    registry.setSettings('a', { v: 'new' })
+    held[0]()
+    await first
+    await vi.waitFor(() => { expect(registry.items(ctx).map((i) => i.label)).toEqual(['new']) })
+  })
+
   it('looks again when a setting changes, rather than serving the old answer', async () => {
     const registry = new PluginRegistry({ ttlMs: 10_000, now: () => 1000 })
     const plugin = stubPlugin('a', barItem('a'))
