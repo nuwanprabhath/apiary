@@ -390,6 +390,22 @@ describe('session tabs', () => {
     expect(all('session-tab')).toHaveLength(2)
   })
 
+  it('hovering a tab does not move its close button out from under the pointer', async () => {
+    // The arrange button appeared on hover and widened the tab, so the close button jumped right as
+    // the pointer reached it, and the click landed on arrange instead (CI run 38715369345).
+    await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await userEvent.click(sidebarSession('Add worktree switcher'))
+    await until(() => all('session-tab').length === 2)
+    const inactive = all('session-tab')[0]
+    const close = within(inactive, 'session-tab-close')[0]
+    const before = close.getBoundingClientRect()
+    await userEvent.hover(within(inactive, 'session-tab-label')[0])
+    await nextFrames(2)
+    const after = close.getBoundingClientRect()
+    expect({ x: after.x, y: after.y }).toEqual({ x: before.x, y: before.y })
+  })
+
   it('every tab shows its close button without being hovered first', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))

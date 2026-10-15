@@ -258,11 +258,14 @@
 .session-tab[data-active="true"] .session-tab-close { color: var(--text); }
 .session-tab-close svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
 
-/* The per-tab layout button: present on the tab under the pointer and on the active tab only, so
- * a strip of many tabs does not become a strip of many icons. Same box as the close button. */
+/* The per-tab layout button: shown on the tab under the pointer and on the active tab only, so a
+ * strip of many tabs does not become a strip of many icons. Same box as the close button, and its
+ * room is always kept (hidden, not removed): appearing on hover widened the tab, and the close
+ * button jumped right as the pointer reached for it, so the click landed on arrange. */
 .session-tab-layout {
   flex: none;
-  display: none;
+  display: flex;
+  visibility: hidden;
   align-items: center;
   justify-content: center;
   width: var(--icon-button-size-sm);
@@ -275,9 +278,9 @@
   color: var(--muted);
 }
 .session-tab-layout:hover { background: var(--hover); color: var(--text); }
-.session-tab-layout:focus-visible { display: flex; }
+.session-tab-layout:focus-visible,
 .session-tab:hover .session-tab-layout,
-.session-tab[data-active="true"] .session-tab-layout { display: flex; }
+.session-tab[data-active="true"] .session-tab-layout { visibility: visible; }
 .session-tab-layout svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
 
 .session-header { padding: var(--space-lg) var(--space-xl); border-bottom: 1px solid var(--border); min-width: 0; }

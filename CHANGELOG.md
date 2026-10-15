@@ -14,6 +14,9 @@ The first release of 1.42: everything listed under 1.42.0, plus this fix.
   it to the Active section, which slides the rows under a pointer that has not moved, and the row
   now under it opened its card over the conversation you were reaching for. A card now waits for
   the pointer to move after a click.
+- **A tab's close button stays put when you point at it.** The tab's arrange button appeared on
+  hover and widened the tab, so the close button jumped as the pointer reached it and the click
+  opened the layout picker instead. The arrange button's room is now kept on every tab.
 
 ## [1.42.0] - 2026-10-15 (not released: the release checks failed on the fix above)
 
