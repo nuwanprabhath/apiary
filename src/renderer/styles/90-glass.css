@@ -37,9 +37,12 @@ html[data-material="glass"] :is(.sidebar-frame, .sidebar-rail, .session-card)::a
   z-index: var(--z-glass-rim);
   box-shadow: var(--glass-rim);
 }
-html[data-material="glass"] :is(.modal, .context-menu, .chat-command-menu, .git-menu, .hover-card, .notification, .layout-picker, .branch-switcher, .find-bar) {
+html[data-material="glass"] :is(.modal, .context-menu, .chat-command-menu, .git-menu, .hover-card, .notification, .layout-picker, .branch-switcher, .find-bar, .chat-sticky-prompt, .chat-jump) {
   background: var(--glass-sheen), var(--bg-popover);
 }
+/* The pinned prompt and "Jump to latest" float over the conversation as it scrolls under them: at
+   the panel's half tint the text beneath showed through (1.42's CI, on Linux's taller text). */
+html[data-material="glass"] .chat-jump:hover { background: linear-gradient(var(--control-bg-hover), var(--control-bg-hover)), var(--bg-popover); }
 /* A pet's bubble and chat float too; the bubble's tail and thought circles are part of it. */
 html[data-material="glass"] :is(.pet-bubble, .pet-bubble::before, .pet-bubble::after, .pet-chat) {
   background: var(--bg-popover);

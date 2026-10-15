@@ -20,6 +20,8 @@ The first release of 1.42: everything listed under 1.42.0, plus this fix.
 - **A merge request target branch takes effect at once.** Changed while the session bar was
   already looking up its button, it was lost to that lookup, and the button kept opening merge
   requests against the old branch for up to a minute.
+- **On Glass, the pinned prompt and "Jump to latest" are solid**: the conversation scrolling under
+  them used to show through.
 
 ## [1.42.0] - 2026-10-15 (not released: the release checks failed on the fix above)
 

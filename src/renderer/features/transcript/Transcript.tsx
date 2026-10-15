@@ -107,7 +107,7 @@ export function Transcript({
       )}
 
       {scroll.showJump && (
-        <button className="chat-jump" data-testid="transcript-jump" onClick={scroll.jumpToLatest}>
+        <button className="chat-jump" data-testid="transcript-jump" data-popup="" onClick={scroll.jumpToLatest}>
           Jump to latest ↓
         </button>
       )}

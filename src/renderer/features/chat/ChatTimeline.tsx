@@ -122,6 +122,8 @@ function StickyPrompt({ prompt }: { prompt: { key: string; text: string } }): JS
       {above && (
         <button
           className="chat-sticky-prompt"
+          // Floats over the conversation scrolling under it, as the find bar does: its own layer.
+          data-popup=""
           data-testid="chat-sticky-prompt"
           title="Go to this message"
           onClick={() => {

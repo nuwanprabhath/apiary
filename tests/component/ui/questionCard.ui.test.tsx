@@ -48,7 +48,9 @@ describe('UI: the question card', () => {
 
   it('three questions stacked', async () => {
     await show(THREE)
-    await reviewUi('question three', { widths: [620, 1000], height: 1400 })
+    // A short window, so the conversation scrolls under the pinned prompt and "Jump to latest" on
+    // every machine (on Linux's taller text it did, and they were see-through on Glass).
+    await reviewUi('question three', { widths: [620, 1000], height: 700 })
   })
 
   it('Other chosen, with the typed answer', async () => {
