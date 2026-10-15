@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { HOVER_DELAY_MS } from '../../src/renderer/ui/HoverCard'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { nextFrames, sidebarSession, sessionRow, mouse, stays, until } from './helpers'
@@ -195,6 +196,16 @@ describe('sidebarPopups', () => {
     await userEvent.hover(sidebarSession('Add worktree switcher'))
     await until(() => page.getByTestId('session-hover-card').elements().length === 1)
     await expect.element(page.getByTestId('session-hover-card')).toMatchTextContent('Add worktree switcher')
+  })
+
+  it('clicking a session opens it without its card coming up under the still pointer', async () => {
+    // Opening a session adds it to the Active section, which moves every row below under a pointer
+    // that has not moved; the browser counts the row now under it as entered. Its card came up over
+    // the pane the person was reaching for (the release checks failed on it: a card over the
+    // transcript took the click meant for an image).
+    await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await stays(() => page.getByTestId('session-hover-card').elements().length === 0, HOVER_DELAY_MS + 400, 'no card after the click')
   })
 
   it('the pointer can travel from a row to its card and use it', async () => {

@@ -115,7 +115,25 @@ const pointer = { x: -1, y: -1 }
  * window, that put a card up beside the sidebar with no mouse anywhere near it.
  */
 let pointerOver: Element | null = null
+/**
+ * Where the last click landed, until the pointer moves away from it.
+ *
+ * A click on a session row opens the session, which adds it to the Active section and moves every
+ * row below under a pointer that has not moved. The browser counts the row now under it as
+ * entered, and its card came up over the pane the person was reaching for (in 1.42's release checks
+ * it took a click meant for an image in the transcript). A card is armed only by a pointer that
+ * has moved since its click.
+ */
+let clickedAt: { x: number; y: number } | null = null
+/** How far the pointer must move after a click before hovering counts again: a hand's tremor less. */
+const CLICK_STILL_PX = 4
+function stillSinceClick(): boolean {
+  return clickedAt !== null
+}
 if (typeof document !== 'undefined') {
+  document.addEventListener('click', (e) => {
+    clickedAt = { x: e.clientX, y: e.clientY }
+  }, { capture: true, passive: true })
   document.addEventListener('scroll', (e) => {
     const scroller = e.target instanceof Element ? e.target : document.documentElement
     // The row a card describes is no longer where the card is pointing the moment its list
@@ -130,6 +148,7 @@ if (typeof document !== 'undefined') {
     scheduleReopenCheck()
   }, { capture: true, passive: true })
   document.addEventListener('mousemove', (e) => {
+    if (clickedAt !== null && Math.hypot(e.clientX - clickedAt.x, e.clientY - clickedAt.y) > CLICK_STILL_PX) clickedAt = null
     pointer.x = e.clientX
     pointer.y = e.clientY
     pointerOver = e.target instanceof Element ? e.target : document.documentElement
@@ -234,7 +253,9 @@ export function useHoverCard<T extends HTMLElement>(options: HoverCardOptions = 
       armedInstances.delete(cancelArm)
       // Re-checked here as well as on entry: the wheel may have turned during the delay, and the
       // row under the pointer now is not the row the pointer chose.
-      if (scrolledJustNow() || modalOpen()) return
+      // Checked when the card would open, not when it was armed: the browser sends the enter before
+      // the move, so a real move away from a click has not been seen yet at arm time.
+      if (scrolledJustNow() || modalOpen() || stillSinceClick()) return
       const rect = ref.current?.getBoundingClientRect()
       if (rect !== undefined && !isDegenerate(rect)) { lastKnownRect.current = rect; setAnchor(rect) }
     }, isWarm() ? WARM_DELAY_MS : HOVER_DELAY_MS)

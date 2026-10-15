@@ -4,7 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.42.0] - 2026-10-15
+## [1.42.1] - 2026-10-15
+
+The first release of 1.42: everything listed under 1.42.0, plus this fix.
+
+### Fixed
+
+- **Clicking a session no longer brings up its hover card over the pane.** Opening a session adds
+  it to the Active section, which slides the rows under a pointer that has not moved, and the row
+  now under it opened its card over the conversation you were reaching for. A card now waits for
+  the pointer to move after a click.
+
+## [1.42.0] - 2026-10-15 (not released: the release checks failed on the fix above)
 
 ### Added
 
