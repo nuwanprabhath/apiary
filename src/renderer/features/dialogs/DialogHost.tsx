@@ -2,6 +2,7 @@ import { type JSX, useCallback } from 'react'
 import type { SessionId } from '@shared/domain/ids'
 import type { NewSessionInfo, SessionNode } from '@shared/types'
 import type { UpdateStatusPayload } from '@shared/api'
+import { AccountSwitchHost } from '../chat'
 import { ConflictDialog } from './ConflictDialog'
 import { DialogBoundary } from './DialogBoundary'
 import { DeleteSessionDialog } from './DeleteSessionDialog'
@@ -53,6 +54,7 @@ export function DialogHost({
   const { requestedPicker, conflict, newWorktreeFor, changeBranchFor, deleteTarget, moveTarget, importOpen, settingsSection, noteTarget } = state
   return (
     <>
+      <AccountSwitchHost />
       {requestedPicker !== null && (
         <ArrangePicker
           request={requestedPicker}
@@ -137,6 +139,7 @@ export function DialogHost({
           initialSection={settingsSection}
           onClose={() => { close('settings'); onSettingsClosed() }}
           update={settingsUpdate}
+          onSessionStarted={onSessionStarted}
         />
       )}
 

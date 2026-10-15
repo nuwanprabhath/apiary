@@ -1,5 +1,7 @@
 import type { JSX } from 'react'
 import type { PluginInfoPayload, UpdateStatusPayload } from '@shared/api'
+import type { NewSessionInfo } from '@shared/types'
+import { AccountsSection } from './sections/AccountsSection'
 import type { SettingsDraft } from '../../state/settingsStore'
 import { SessionsSection } from './sections/SessionsSection'
 import { SearchSection } from './sections/SearchSection'
@@ -27,6 +29,8 @@ interface SectionProps {
   notesIndexed: number
   rebuilding: boolean
   onRebuild: () => void
+  /** A login session an account started: the window opens it as a tab. */
+  onLoginStarted: (info: NewSessionInfo) => void
 }
 
 export interface Section {
@@ -96,6 +100,12 @@ export const SECTIONS: Section[] = [
     label: 'General',
     blurb: 'Where Apiary finds the tools it runs.',
     Component: ({ draft, patch }) => <GeneralSection draft={draft} patch={patch} />,
+  },
+  {
+    id: 'accounts',
+    label: 'Accounts',
+    blurb: 'Run a session as another Claude account without signing out of this one. New sessions start in the default account.',
+    Component: ({ onLoginStarted }) => <AccountsSection onLoginStarted={onLoginStarted} />,
   },
   {
     id: 'diagnostics',

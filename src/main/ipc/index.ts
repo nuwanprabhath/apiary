@@ -32,6 +32,8 @@ import type { FolderBrowser } from '../folders/folderBrowser'
 import { remoteHostsHandlers } from './handlers/remoteHosts'
 import { remoteClientsHandlers } from './handlers/remoteClients'
 import { libraryStateHandlers } from './handlers/libraryState'
+import { accountsHandlers } from './handlers/accounts'
+import type { AccountService } from '../accounts/accountService'
 import type { LibraryStateService } from '../library/libraryStateService'
 import type { HostDirectory } from '../remote/hostDirectory'
 import type { PairingStore } from '../remote/pairingStore'
@@ -53,6 +55,8 @@ export interface IpcDeps {
   settings: SettingsService
   /** The sessions library's arrangement and reading preferences (`library-state.json`). */
   library: LibraryStateService
+  /** The Claude accounts (`accounts.json`) and each session's account. */
+  accounts: AccountService
   spelling: SpellingService
   /** The in-app folder browser a remote window uses instead of the native picker; built in the container. */
   folderBrowser: FolderBrowser
@@ -136,6 +140,7 @@ export function registerIpc(
   const remoteHostsIpc = remoteHostsHandlers({ hosts: deps.hostDirectory })
   const remoteClientsIpc = remoteClientsHandlers({ server: deps.remoteServer, pairing: deps.remotePairing })
   const libraryStateIpc = libraryStateHandlers(deps.library)
+  const accountsIpc = accountsHandlers(deps.accounts, deps.chat, service)
 
   const handlers: Handlers = {
     ...sessions,
@@ -156,6 +161,7 @@ export function registerIpc(
     ...remoteHostsIpc,
     ...remoteClientsIpc,
     ...libraryStateIpc,
+    ...accountsIpc,
   }
   const listeners: Listeners = {
     ...terminals.listeners,

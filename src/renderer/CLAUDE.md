@@ -51,8 +51,8 @@ The theme data model, validation and effects live in `src/shared/theme/` — see
   (`ui/focusUnlessTyping.ts`; `focus-unless-typing` flags `autoFocus` and a mount-time
   `.focus()` elsewhere), because the Enter meant to send a message approved a tool. A field the
   person just asked for (an inline rename, the field of a step they chose, a pet they opened) takes
-  focus with `autoFocus` and a `focus-unless-typing` disable saying why, never `focusUnlessTyping`,
-  which would refuse while another field still has focus (`tests/component/focusAskedFor.test.tsx`). A
+  focus with `ref={focusAskedFor}` from the same file, never `focusUnlessTyping`, which would refuse
+  while another field still has focus (`tests/component/focusAskedFor.test.tsx`). A
   `role="status"` / `aria-live` region holds a state ("Claude is working"), set once; a clock,
   counter or rotating word beside it is `aria-hidden`, or a screen reader reads "N s" all turn
   (`WorkingLine`). Nothing lints the second: `role="status"` is right in six places and "ticking" is

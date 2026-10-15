@@ -1,5 +1,6 @@
 import { type JSX, useEffect, useRef, useState } from 'react'
 import type { PluginInfoPayload, UpdateStatusPayload } from '@shared/api'
+import type { NewSessionInfo } from '@shared/types'
 import { SECTIONS, blurbOf } from './registry'
 import { useNotifications } from '../../ui/notifications'
 import { ErrorBoundary } from '../../ui/ErrorBoundary'
@@ -17,12 +18,14 @@ import { setSpellingLanguage } from '../../state/spelling'
  * disagree about what exists.
  */
 export function SettingsDialog(
-  { onClose, initialSection, update }: {
+  { onClose, initialSection, update, onSessionStarted }: {
     onClose: () => void
     initialSection?: string
     /** App's one shared `useUpdate()` subscription — read here, never re-subscribed to (UI-20):
      *  the banner and this dialog must never disagree about whether a download is running. */
     update: UpdateStatusPayload | null
+    /** Opens a session this dialog started (an account's login) as a tab. */
+    onSessionStarted: (info: NewSessionInfo) => void
   },
 ): JSX.Element {
   const { notifyError } = useNotifications()
@@ -136,6 +139,8 @@ export function SettingsDialog(
                   draft={draft} patch={patch} update={update} plugins={plugins}
                   indexed={indexed} notesIndexed={notesIndexed} rebuilding={rebuilding}
                   onRebuild={onRebuild}
+                  // Closed so the login tab is what the person sees; accounts apply at once, not on Save.
+                  onLoginStarted={(info) => { onSessionStarted(info); onClose() }}
                 />
               </>
             )}

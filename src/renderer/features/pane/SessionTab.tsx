@@ -1,4 +1,6 @@
 import type { JSX, ReactNode } from 'react'
+import { accountById, hasSeveralAccounts, useAccounts, useSessionAccount } from '../../state/accountsStore'
+import { sessionOfTabKey } from '../../state/sessionBusy'
 import { CloseIcon } from '../../ui/icons'
 import type { TabTransfer } from '@shared/types'
 import type { SessionTabView } from './paneTypes'
@@ -32,6 +34,9 @@ interface Props {
 /** One tab of the strip: the draggable wrapper, its label button, arrange and close. */
 export function SessionTab(p: Props): JSX.Element {
   const { tab, columnId, isActive } = p
+  const accounts = useAccounts()
+  const account = accountById(accounts, useSessionAccount(sessionOfTabKey(tab.key)))
+  const tooltip = hasSeveralAccounts(accounts) && account !== null ? `${tab.label}\nAccount: ${account.label}` : tab.label
   return (
     <div
       ref={isActive ? p.activeRef : null}
@@ -102,7 +107,7 @@ export function SessionTab(p: Props): JSX.Element {
         // Roving tabindex (WAI-ARIA tablist pattern): only the active tab is a Tab stop: the
         // others are reached by arrow key, not by Tab, the same as a browser's own tab strip.
         tabIndex={isActive ? 0 : -1}
-        title={tab.label}
+        title={tooltip}
         onClick={() => p.onActivate(tab.key)}
       >
         {tab.activity === 'running' && <span className="session-tab-ring" role="img" aria-label="running" />}

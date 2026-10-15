@@ -13,6 +13,7 @@ import type { ChatState, TerminalBusy } from '@shared/domain/chat'
 import type { BackgroundTaskOutput } from '@shared/chatTimeline'
 import type { EventKey } from '@shared/ipc/contract'
 import type { LibraryPatch, LibrarySnapshot } from '@shared/libraryState'
+import type { AccountsState } from '@shared/domain/accounts'
 import type { PetSpec } from '@shared/pets/spec'
 import type { PetsState } from '@shared/pets/state'
 import type { TerminalRef } from '@shared/domain/ids'
@@ -138,6 +139,9 @@ export interface FakeState {
   settings: AppSettingsPayload
   /** Main's `library-state.json` (`shared/libraryState.ts`). */
   library: LibrarySnapshot
+  /** Main's Claude accounts (`accounts.json`) and which account each session was recorded under. */
+  accounts: AccountsState
+  sessionAccounts: Map<string, string>
   theme: ThemeState
   refs: GitRefs
   /** Per branch name: whether it tracks an upstream, and how far ahead and behind it is. */

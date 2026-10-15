@@ -187,11 +187,13 @@ function ContextMenuEntry({ item, open, onOpen, onClose }: EntryProps): JSX.Elem
               className="context-menu-item"
               data-testid={`context-menu-${sub.id}`}
               data-separator={sub.separator === true}
-              role="menuitem"
+              role={sub.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+              aria-checked={sub.checked}
               disabled={sub.disabled ?? false}
-              title={sub.disabled === true ? sub.disabledReason : undefined}
+              title={sub.disabled === true ? sub.disabledReason : sub.label}
               onClick={() => { sub.run?.(); onClose() }}
             >
+              {sub.checked !== undefined && <CheckIcon className="context-menu-check" on={sub.checked} />}
               {sub.label}
             </button>
           ))}

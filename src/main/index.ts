@@ -10,7 +10,8 @@ import { type LayoutFlushCoordinator } from './windows/layoutFlushCoordinator'
 import type { TabRegistry } from './windows/tabRegistry'
 import { pruneStaleLive } from './windows/sessionLayoutRestore'
 import { readsClaudeKeychain, resolveConfigRoot } from './app/config'
-import { createContainer, containerPaths } from './app/container'
+import { createContainer } from './app/container'
+import { containerPaths } from './app/containerPaths'
 import { buildMenu } from './app/menu'
 import { writeZshShim } from './pty/promptPath'
 import type { ThemeGenerator } from './theme/themeGenerator'
@@ -297,7 +298,7 @@ async function start(): Promise<void> {
   // Before any window exists: each window asks for its theme synchronously as it loads.
   const safeTheme = env.safeTheme
   const ipc = registerIpc({
-    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, library: container.library, state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
+    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, library: container.library, accounts: container.accounts,state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
     pickFolder: (sender) => pickFolderOver(sender, env.pickFolder),
     onAutoImportIntervalChange: setAutoImportInterval,
     updater,
@@ -333,6 +334,8 @@ async function start(): Promise<void> {
   // `registerIpc` owned it, so a file written during that scan is not missed.
   sessionWatcher = container.sessionWatcher
   sessionWatcher.start()
+  // A `/login` typed in an account's terminal shows only as the file Claude rewrites.
+  container.accounts.startLoginChecks()
   await service.refresh()
   // The first refresh runs before the window exists, so nothing is listening for `treeChanged`
   // yet — importing here, before the window is created, is what makes everything already be in

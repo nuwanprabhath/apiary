@@ -258,6 +258,39 @@ export function auditUi(root: Element = document.body): UiViolation[] {
     })
   }
 
+  // Controls side by side on one line share a centre line, toolbar or not: a field with its Add and
+  // Cancel buttons 7px lower (Settings → Accounts, 1.43), a glyph beside the working dots and a
+  // chevron beside its text (1.41) were each a correction from the maintainer.
+  const SIDE_BY_SIDE = 'button, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select'
+  const controls = all.filter((el) => el.matches(SIDE_BY_SIDE) && el.closest('[role="toolbar"]') === null)
+  /** One row of the same piece of UI: a container within three levels holds both (not the sidebar beside a pane). */
+  const sameRow = (a: Element, b: Element): boolean => {
+    let up: Element | null = a.parentElement
+    for (let i = 0; up !== null && i < 3; i++, up = up.parentElement) {
+      if (!up.contains(b)) continue
+      let depth = 0
+      for (let cur = b.parentElement; cur !== null && cur !== up; cur = cur.parentElement) depth++
+      return depth < 3
+    }
+    return false
+  }
+  for (let i = 0; i < controls.length; i++) {
+    const a = controls[i]
+    if (a === undefined) continue
+    const ra = a.getBoundingClientRect()
+    for (let j = 0; j < controls.length; j++) {
+      const b = controls[j]
+      if (b === undefined || i === j || a.contains(b) || b.contains(a) || !sameRow(a, b) || a.closest(POPUP) !== b.closest(POPUP)) continue
+      const rb = b.getBoundingClientRect()
+      const gap = rb.left - ra.right
+      const oneLine = Math.max(ra.height, rb.height) <= 48
+      const sameLine = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top) > Math.min(ra.height, rb.height) / 2
+      if (gap < 0 || gap > 24 || !oneLine || !sameLine) continue
+      const off = Math.abs((ra.top + ra.height / 2) - (rb.top + rb.height / 2))
+      if (off > 2) add('misaligned-row', b, `${String(Math.round(off))}px off the centre line of ${describe(a)} beside it`)
+    }
+  }
+
   // Two controls, or two pieces of text, drawn over each other in the same layer.
   const leaves = all.filter((el) => el.matches(INTERACTIVE) || (ownText(el) !== '' && el.closest(PROSE) === null))
   const layerOf = (el: Element): Element | null => el.closest(POPUP)

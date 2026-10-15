@@ -2,6 +2,7 @@ import { createContext, use } from 'react'
 import type { ChatDecision, ChatEffort, ChatLifecycle, ChatModel, ChatPermissionMode, ChatState, TerminalBusy } from '@shared/domain/chat'
 import { asSessionId, type SessionId } from '@shared/domain/ids'
 import { createKeyedIpcStore } from './createIpcStore'
+import { cancelPendingSwitch } from './accountSwitch'
 import { surface } from './policy'
 import { onRemoteReconnected } from './remote'
 
@@ -66,7 +67,16 @@ export function useChat(sessionId: SessionId | ''): ChatState | null {
 
 export interface ChatStartOptions { takeOver: boolean; model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort }
 export const startChat = (sessionId: SessionId, options: ChatStartOptions): Promise<ChatState> => window.apiary.chatStart(sessionId, options)
-export const sendChat = (sessionId: SessionId, text: string): Promise<void> => window.apiary.chatSend(sessionId, text)
+export function sendChat(sessionId: SessionId, text: string): Promise<void> {
+  // Sending says the session should stay as it is: a switch waiting for this reply to end is dropped.
+  cancelPendingSwitch(sessionId)
+  return window.apiary.chatSend(sessionId, text)
+}
+
+/** The chat state as last read, without subscribing: for a gesture, not for drawing. */
+export function peekChat(sessionId: SessionId): ChatState | null {
+  return chatStore.getSnapshot(sessionId)
+}
 /** Whether the session's terminal Claude is mid-turn or has background tasks. */
 export const terminalBusy = (sessionId: SessionId): Promise<TerminalBusy> => window.apiary.terminalBusy(sessionId)
 

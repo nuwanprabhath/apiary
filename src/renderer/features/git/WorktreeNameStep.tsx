@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 import type { WorktreeCreateOptions } from '@shared/domain/git'
+import { focusAskedFor } from '../../ui/focusUnlessTyping'
 
 interface Props {
   name: string
@@ -22,8 +23,7 @@ export function WorktreeNameStep({ name, options, nameProblem, onName, onNext, o
         data-testid="new-worktree-name"
         placeholder="Folder name, e.g. species-list"
         value={name}
-        // eslint-disable-next-line apiary/focus-unless-typing -- the person chose this wizard step, so its field is what they asked for
-        autoFocus
+        ref={focusAskedFor}
         onChange={(e) => { onName(e.target.value) }}
       />
       <p className="new-worktree-hint" data-testid="new-worktree-location">

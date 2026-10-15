@@ -9,6 +9,11 @@ const ptySessionsStore = createIpcStore<Record<string, PtySessionInfo>>({
   subscribe: (push) => window.apiary.onPtySessionsChanged(push),
 })
 
+/** The same, as last read, without subscribing: for a gesture, not for drawing. */
+export function peekPtySessions(): Record<string, PtySessionInfo> {
+  return ptySessionsStore.getSnapshot()
+}
+
 export function usePtySessions(): Record<string, PtySessionInfo> {
   return ptySessionsStore.useStore()
 }

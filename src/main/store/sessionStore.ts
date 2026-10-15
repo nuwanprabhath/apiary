@@ -352,6 +352,19 @@ export class SessionStore {
     this.db.prepare('UPDATE session SET archived = ? WHERE session_id = ?').run(archived ? 1 : 0, sessionId)
   }
 
+  /** The account a session runs under, or null when none was ever chosen (the default applies). */
+  getSessionAccount(sessionId: string): string | null {
+    const row = this.db.prepare<[string], { account_id: string }>('SELECT account_id FROM session_account WHERE session_id = ?').get(sessionId)
+    return row?.account_id ?? null
+  }
+
+  setSessionAccount(sessionId: string, accountId: string): void {
+    this.db.prepare(`
+      INSERT INTO session_account (session_id, account_id) VALUES (?, ?)
+      ON CONFLICT(session_id) DO UPDATE SET account_id = excluded.account_id
+    `).run(sessionId, accountId)
+  }
+
   close(): void {
     this.db.close()
   }

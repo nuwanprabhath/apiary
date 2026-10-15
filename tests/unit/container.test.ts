@@ -23,7 +23,8 @@ vi.mock('electron-updater', () => ({
   },
 }))
 
-const { createContainer, containerPaths } = await import('../../src/main/app/container')
+const { createContainer } = await import('../../src/main/app/container')
+const { containerPaths } = await import('../../src/main/app/containerPaths')
 const { parseRuntimeEnv } = await import('../../src/main/app/env')
 
 let dir: string | null = null
@@ -47,6 +48,8 @@ describe('containerPaths', () => {
       remotePairingFile: '/u/remote-pairing.json',
       remotePairingCodesFile: '/u/remote-pairing-codes.json',
       libraryStateFile: '/u/library-state.json',
+      accountsFile: '/u/accounts.json',
+      accountsDir: '/u/accounts',
     })
     const real = containerPaths(parseRuntimeEnv({}, [], false), '/u', () => '/real/.claude')
     expect(real.configRoot).toBe('/real/.claude')

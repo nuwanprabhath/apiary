@@ -169,6 +169,20 @@ export const CHANNEL_SCOPES = {
   setLibraryState: 'remote',
   seedLibraryState: 'remote',
   libraryStateChanged: 'remote',
+  // Accounts are the work machine's folders and logins: a remote window reads them, but adding,
+  // removing or choosing the default acts on the machine it runs on.
+  accountsList: 'remote',
+  sessionAccountGet: 'remote',
+  accountsAdd: 'local',
+  accountsRemove: 'local',
+  accountsSetDefault: 'local',
+  accountsChanged: 'remote',
+  // A session's account is read and switched on the machine the session runs on; a login opens a
+  // `claude` in the work machine's home folder, so it follows the other account calls and stays local.
+  sessionAccountsList: 'remote',
+  sessionAccountsChanged: 'remote',
+  sessionAccountSwitch: 'local',
+  accountsLogin: 'local',
   openSettingsDialog: 'local',
   openImportDialog: 'local',
   toggleSidebar: 'local',

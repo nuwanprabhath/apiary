@@ -158,7 +158,7 @@ describe('PtyManager', () => {
       expect(m.screen('respawn')).toContain('NEW_READY')
       expect(m.screen('respawn')).not.toContain('OLD_READY')
       expect(m.outputCount('respawn')).toBeGreaterThan(0)
-      expect(m.tuiPids().has('respawn')).toBe(true)
+      expect(m.tuiProcesses().has('respawn')).toBe(true)
       expect(exits).toEqual([])
       expect(await m.snapshot('respawn')).not.toBeNull()
     } finally {

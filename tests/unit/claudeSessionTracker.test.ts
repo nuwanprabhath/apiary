@@ -57,8 +57,7 @@ describe('ClaudeSessionTracker', () => {
   it('reports when a terminal switches session — what /clear and /resume do — and not otherwise', () => {
     const seen: Array<Record<string, PtySessionInfo>> = []
     const tracker = new ClaudeSessionTracker({
-      sessionsDir: dir,
-      pids: () => new Map([['new:abc', 4242], ['shell:x:1', 5555]]),
+      processes: () => new Map([['new:abc', { pid: 4242, sessionsDir: dir }], ['shell:x:1', { pid: 5555, sessionsDir: dir }]]),
       onChange: (s) => { seen.push(s) },
     })
     writeFileSync(join(dir, '4242.json'), sessionFile(4242))
@@ -79,8 +78,8 @@ describe('ClaudeSessionTracker', () => {
 
   it('reports a rename, and forgets a terminal whose process has gone', () => {
     const seen: Array<Record<string, PtySessionInfo>> = []
-    let pids = new Map([['p', 10]])
-    const tracker = new ClaudeSessionTracker({ sessionsDir: dir, pids: () => pids, onChange: (s) => { seen.push(s) } })
+    let pids = new Map([['p', { pid: 10, sessionsDir: dir }]])
+    const tracker = new ClaudeSessionTracker({ processes: () => pids, onChange: (s) => { seen.push(s) } })
     writeFileSync(join(dir, '10.json'), sessionFile(10))
     tracker.poll()
     writeFileSync(join(dir, '10.json'), sessionFile(10, { name: 'Better name', nameSource: 'user' }))
@@ -90,5 +89,22 @@ describe('ClaudeSessionTracker', () => {
     pids = new Map()
     tracker.poll()
     expect(seen.at(-1)).toEqual({})
+  })
+
+  it("reads each pty's pid file from its own account's sessions folder", () => {
+    const other = mkdtempSync(join(tmpdir(), 'apiary-sessions-other-'))
+    try {
+      writeFileSync(join(dir, '7.json'), sessionFile(7, { sessionId: 'aaaaaaaa-0a4c-485e-ae6c-f3d8719c2ed0' }))
+      writeFileSync(join(other, '8.json'), sessionFile(8, { sessionId: 'bbbbbbbb-0a4c-485e-ae6c-f3d8719c2ed0' }))
+      const tracker = new ClaudeSessionTracker({
+        processes: () => new Map([['main-pty', { pid: 7, sessionsDir: dir }], ['work-pty', { pid: 8, sessionsDir: other }]]),
+        onChange: () => {},
+      })
+      tracker.poll()
+      expect(tracker.current()['main-pty'].sessionId).toBe('aaaaaaaa-0a4c-485e-ae6c-f3d8719c2ed0')
+      expect(tracker.current()['work-pty'].sessionId).toBe('bbbbbbbb-0a4c-485e-ae6c-f3d8719c2ed0')
+    } finally {
+      rmSync(other, { recursive: true, force: true })
+    }
   })
 })

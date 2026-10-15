@@ -40,7 +40,12 @@ export class ClaudeOneShot {
   /** Settles the running call as cancelled, without waiting for the process to exit. */
   private abort: (() => void) | null = null
 
-  constructor(private readonly opts: { claudeBin: () => string | null; shell?: string }) {}
+  constructor(private readonly opts: {
+    claudeBin: () => string | null
+    shell?: string
+    /** The environment to run under, asked at each run: the default account's (`AccountService.envFor`). */
+    env?: () => Record<string, string>
+  }) {}
 
   get busy(): boolean { return this.proc !== null }
 
@@ -70,7 +75,7 @@ export class ClaudeOneShot {
         // holding stdout would keep the call "running" until it finished by itself. Settles on
         // `close`, when stdout has drained, so the whole answer is in `out`.
         const proc = spawnLoginShell(
-          { command: { bin, flags, positional: [req.prompt] }, cwd, stdin: 'ignore', detached: true, shell: this.opts.shell, settleOn: 'close' },
+          { command: { bin, flags, positional: [req.prompt] }, cwd, stdin: 'ignore', detached: true, shell: this.opts.shell, settleOn: 'close', extraEnv: this.opts.env?.() },
         )
         const { child } = proc
         this.proc = proc

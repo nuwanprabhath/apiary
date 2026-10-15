@@ -28,7 +28,7 @@ function setup(initial: ConsentState) {
   const consent = new ConsentStore({ load: () => storage.load(), save: (s) => { saved.push(s); storage.save(s) } })
   const timers: { fn: () => void; ms: number }[] = []
   const plugin = createClaudeUsagePlugin({
-    configRoot: root, useKeychain: true, consent,
+    configRoot: root, useKeychain: true, consent, accounts: null,
     readKeychain: async () => { calls.keychain++; return '{"claudeAiOauth":{"accessToken":"from-keychain"}}' },
     fetchImpl: async () => { calls.fetch++; return new Response(JSON.stringify({ five_hour: { utilization: 42 } }), { status: 200 }) },
     setTimeout: (fn, ms) => { const t = { fn, ms }; timers.push(t); return t },
@@ -110,7 +110,7 @@ describe('Claude usage consent', () => {
     // Compile-time only: `tsc` fails these lines if the Consent parameter is ever dropped. Never called.
     const neverCalled = (): void => {
       // @ts-expect-error a Consent is required before a credential is read
-      void readAccessToken({ configRoot: '/nowhere', useKeychain: false })
+      void readAccessToken({ configRoot: '/nowhere', accountFolder: null, useKeychain: false })
       // @ts-expect-error a Consent is required before the token is sent anywhere
       void fetchLimits('token', (async () => new Response('{}')) as unknown as typeof fetch)
     }
@@ -132,7 +132,7 @@ describe('declining the usage prompt through the plugin service', () => {
       resolver: {} as unknown as PluginServiceDeps['resolver'],
       git: {} as unknown as PluginServiceDeps['git'],
       builtins: {
-        enabled: undefined, settings: undefined, glabPath: undefined, configRoot: '/nowhere', useKeychain: false,
+        enabled: undefined, settings: undefined, glabPath: undefined, configRoot: '/nowhere', useKeychain: false, accounts: null,
         consent: storage, persistEnabled: (id, enabled) => { persisted.push([id, enabled]) },
       },
     })

@@ -1,5 +1,6 @@
 import { type JSX } from 'react'
 import { PencilIcon, TrashIcon } from '../../ui/icons'
+import { focusAskedFor } from '../../ui/focusUnlessTyping'
 
 interface Props {
   tab: { id: string; name: string }
@@ -53,8 +54,7 @@ export function TerminalTabRow(
     >
       {editing ? (
         <input
-          // eslint-disable-next-line apiary/focus-unless-typing -- the person asked for the rename (button, double-click, or F2 from the terminal's text area), so the field is what they asked for
-          autoFocus
+          ref={focusAskedFor}
           className="terminal-tab-rename-input"
           data-testid="terminal-tab-rename-input"
           value={draft}

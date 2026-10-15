@@ -19,6 +19,8 @@ export interface LoginShellSpec {
   /** Which event ends `exited`: `exit` (the process is gone) or `close` (and its stdio has drained,
    *  which a caller reading all of stdout needs). Default `exit`. */
   settleOn?: 'exit' | 'close'
+  /** Environment merged over the inherited one, e.g. an account's `CLAUDE_CONFIG_DIR`. */
+  extraEnv?: Record<string, string>
 }
 
 interface LoginShellExit {
@@ -68,7 +70,7 @@ export function spawnLoginShell(
 export function spawnLoginShell(
   spec: LoginShellSpec & { stdin?: 'pipe' | 'ignore' }, spawn: LoginShellSpawn = nodeSpawn,
 ): LoginShellProcess<ChildProcess> {
-  const { file, args, env } = loginShellInvocation(spec.command, { shell: spec.shell })
+  const { file, args, env } = loginShellInvocation(spec.command, { shell: spec.shell, extraEnv: spec.extraEnv })
   const detached = spec.detached === true
   const child = spawn(file, args, {
     cwd: spec.cwd,

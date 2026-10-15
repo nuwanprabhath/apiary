@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { ChatManager } from '../../src/main/chat/chatManager'
+import { stubAccounts } from '../fixtures/launchAccounts'
 import type { ChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
 
@@ -28,6 +29,7 @@ function start(): { states: ChatState[]; until: (pred: (s: ChatState) => boolean
   const waiters: { pred: (s: ChatState) => boolean; resolve: (s: ChatState) => void }[] = []
   manager = new ChatManager({
     claudeBin: () => FAKE,
+    accounts: stubAccounts(),
     onChange: (s) => {
       states.push(s)
       for (const w of [...waiters]) if (w.pred(s)) { waiters.splice(waiters.indexOf(w), 1); w.resolve(s) }

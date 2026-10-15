@@ -334,6 +334,8 @@
   cursor: pointer;
   font: inherit;
 }
+/* In a flyout, one line per item: a long label is cut with an ellipsis (its title has the whole of it). */
+.context-menu-flyout .context-menu-item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .context-menu-item:disabled { color: var(--muted); cursor: default; }
 .context-menu-item:focus-visible { background: var(--hover); }
 .context-menu-item:hover:not(:disabled) { background: var(--hover); }
@@ -355,8 +357,7 @@
 .context-menu-arrow { flex: none; margin-left: auto; width: var(--icon-size); height: var(--icon-size); }
 .context-menu-sub { position: relative; }
 /* The top offset cancels the menu's padding and border, so the first flyout item lines up with its parent. */
-.context-menu-flyout { position: absolute; top: -5px; left: calc(100% + 6px); }
-.context-menu-flyout-left { left: auto; right: calc(100% + 6px); }
+.context-menu-flyout { position: absolute; top: -5px; left: calc(100% + 6px); width: max-content; max-width: 22em; }.context-menu-flyout-left { left: auto; right: calc(100% + 6px); }
 
 /* Dragging a tab to reorder it: the tab being carried fades, and the one it would land on shows an
    insertion edge. A border would shift the strip's layout as it appears, so the marker is an inset
@@ -742,3 +743,14 @@ button.folder-crumb:hover:not(:disabled) { background: var(--selected); color: v
 .folder-browser-error { margin: var(--control-gap) 0 0; color: var(--danger); overflow-wrap: anywhere; }
 .folder-start { min-width: 0; max-width: 18em; }
 .folder-start-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Settings → Accounts: a label and its login on the left, the row buttons on the right. */
+.account-row { gap: var(--space-sm); }
+.account-line { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-ml); width: 100%; }
+.account-who { display: flex; flex-direction: column; gap: var(--space-xs); min-width: 0; }
+.account-label, .account-detail { overflow-wrap: anywhere; }
+.account-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); flex-shrink: 0; }
+.account-add { display: flex; flex-direction: column; gap: var(--space-xs); width: 100%; }
+.account-add-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-ml); }
+/* `.modal .search` gives a dialog's field a bottom margin, which would lift it above its buttons. */
+.account-add-input.search { flex: 1 1 200px; min-width: 0; width: auto; margin-bottom: 0; }

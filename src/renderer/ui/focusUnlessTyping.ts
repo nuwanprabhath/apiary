@@ -12,3 +12,13 @@ function isTyping(el: Element | null): boolean {
 export function focusUnlessTyping(el: HTMLElement | null): void {
   if (el !== null && !isTyping(document.activeElement)) el.focus({ preventScroll: true })
 }
+
+/**
+ * A `ref` for a field the person just asked for (Rename, "No…", a wizard step, the pet chat): it
+ * takes focus as it mounts, even from another text field, because typing into it is the next thing
+ * they will do. The one way to do that: `autoFocus` is refused by `apiary/focus-unless-typing`, so
+ * a prompt that appears on its own cannot borrow it.
+ */
+export function focusAskedFor(el: HTMLElement | null): void {
+  el?.focus({ preventScroll: true })
+}

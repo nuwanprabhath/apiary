@@ -193,6 +193,13 @@ export async function buildLoopbackWorld(
     dbPath: join(home, 'apiary.db'),
     detectLive: async () => (liveSession === undefined ? new Map() : new Map([[liveSession, 4242]])),
     claudeBin: FAKE_CLAUDE,
+    homeDir: home,
+    accountsDir: join(home, 'accounts'),
+    accountsFile: join(home, 'accounts.json'),
+    // No Keychain: removing an account must not reach the machine's.
+    accountsOutside: { exec: async () => '', platform: 'linux' },
+    onAccountsChanged: () => { broadcast(IPC.accountsChanged, built.accounts.list()) },
+    onSessionAccountsChanged: () => { broadcast(IPC.sessionAccountsChanged, built.service.chat.liveSessionAccounts()) },
     tabs: tabRegistry,
     chat: {
       attachments: new WindowAttachments((id) => (id === fakeContents.id ? fakeContents : extras.virtualContents?.get(id) ?? null)),
@@ -205,6 +212,7 @@ export async function buildLoopbackWorld(
   service.plugins.startStatusBar()
 
   const settings = new SettingsService(join(home, 'settings.json'))
+  const { accounts } = built
   const petStore = new PetStore(join(home, 'pets.json'))
   const petService = new PetService({
     store: petStore, makeRunner, onChanged: () => { broadcast(IPC.petsChanged, petService.state()) },
@@ -247,8 +255,9 @@ export async function buildLoopbackWorld(
       file: join(home, 'library-state.json'), moved: settings.movedToLibrary(),
       onChanged: (snapshot) => { broadcast(IPC.libraryStateChanged, snapshot) },
     }),
+    accounts,
     state: buildIpcState(service, join(home, '.claude'), {
-      tabRegistry,
+      tabRegistry, accounts,
       ...(extras.virtualContents !== undefined ? { virtualContents: extras.virtualContents } : {}),
       windowNumberFor: (id) => (id === fakeContents.id ? THIS_WINDOW.number : null),
       openDetachedWindow: () => DETACHED_WINDOW_NUMBER,

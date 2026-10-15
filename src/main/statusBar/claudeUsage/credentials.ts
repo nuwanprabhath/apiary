@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createExec } from '../../exec/run'
+import { keychainServiceFor } from '../../accounts/keychainName'
 import type { ConsentPrompt } from '@shared/domain/statusBar'
 import type { Consent } from './consent'
 
@@ -11,7 +12,7 @@ import type { Consent } from './consent'
 export const CONSENT_PROMPT: ConsentPrompt = {
   title: 'Show your Claude usage?',
   lines: [
-    'To show your plan’s 5-hour and weekly limits, Apiary reads Claude Code’s sign-in token: from the macOS Keychain (the item “Claude Code-credentials”, where macOS may ask you to allow it) or from the credentials file in Claude’s config folder.',
+    'To show your plan’s 5-hour and weekly limits, Apiary reads Claude Code’s sign-in token, for the sign-in of each Claude account you use in Apiary: from the macOS Keychain (the item “Claude Code-credentials”, and one more for each added account, where macOS may ask you to allow it once per account) or from the credentials file in that account’s config folder.',
     'The token is sent only to Anthropic’s usage endpoint (api.anthropic.com), the one Claude Code’s own /usage reads. It goes nowhere else.',
     'Apiary never logs or stores the token. It is read for each request and dropped.',
     'If you decline, this plugin is turned off. You can turn it back on in Settings, Plugins, and you will be asked again.',
@@ -37,12 +38,15 @@ export const CONSENT_PROMPT: ConsentPrompt = {
  * test harness's fixture home): a Keychain read can put a macOS permission prompt on the screen.
  */
 export async function readAccessToken(_consent: Consent, opts: {
+  /** The account's config folder: where `.credentials.json` is. */
   configRoot: string
+  /** The folder of an added account; null for main, whose Keychain item has no suffix. */
+  accountFolder: string | null
   useKeychain: boolean
-  readKeychain?: () => Promise<string | undefined>
+  readKeychain?: (service: string) => Promise<string | undefined>
 }): Promise<string | undefined> {
   if (opts.useKeychain) {
-    const token = extractToken(await (opts.readKeychain ?? readMacKeychain)())
+    const token = extractToken(await (opts.readKeychain ?? readMacKeychain)(keychainServiceFor(opts.accountFolder)))
     if (token !== undefined) return token
   }
   try {
@@ -65,9 +69,9 @@ export function extractToken(raw: string | undefined): string | undefined {
 /** A Keychain read can wait on a permission prompt the user has to answer, hence the longer timeout. */
 const keychainExec = createExec({ timeoutMs: 10_000, scope: 'claude-usage' })
 
-async function readMacKeychain(): Promise<string | undefined> {
+async function readMacKeychain(service: string): Promise<string | undefined> {
   try {
-    return (await keychainExec('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'], process.cwd())).trim()
+    return (await keychainExec('security', ['find-generic-password', '-s', service, '-w'], process.cwd())).trim()
   } catch {
     return undefined
   }

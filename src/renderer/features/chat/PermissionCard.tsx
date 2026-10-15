@@ -2,7 +2,7 @@ import { type JSX, useEffect, useRef, useState } from 'react'
 import type { ChatDecision, ChatPermissionRequest } from '@shared/domain/chat'
 import { describeTool } from '@shared/chatTimeline'
 import { ASK_USER_QUESTION, isAskInput } from '@shared/askQuestion'
-import { focusUnlessTyping } from '../../ui/focusUnlessTyping'
+import { focusAskedFor, focusUnlessTyping } from '../../ui/focusUnlessTyping'
 import { QuestionCard } from './QuestionCard'
 
 /**
@@ -42,8 +42,7 @@ function ToolPermissionCard(
           <input
             className="chat-permission-reason"
             data-testid="chat-permission-reason"
-            // eslint-disable-next-line apiary/focus-unless-typing -- the user just clicked "No…" to write this note, so the field is what they asked for
-            autoFocus
+            ref={focusAskedFor}
             placeholder="Tell Claude what to do instead (optional)"
             value={reason}
             onChange={(e) => { setReason(e.target.value) }}

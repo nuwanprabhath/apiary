@@ -6,6 +6,7 @@ import { editableOf } from '../../ui/editableText'
 import { moveGroupBefore, type GroupState, type SessionGroup } from '../../state/groups'
 import { allFolderPaths } from './treeUtils'
 import type { GroupActions } from './useGroupActions'
+import { focusAskedFor } from '../../ui/focusUnlessTyping'
 
 /** The in-place rename box of a group heading. */
 function GroupRenameInput({ draft, onDraft, onCommit, onCancel }: {
@@ -16,8 +17,7 @@ function GroupRenameInput({ draft, onDraft, onCommit, onCancel }: {
 }): JSX.Element {
   return (
     <input
-      // eslint-disable-next-line apiary/focus-unless-typing -- the user just chose Rename, so the field is what they asked for
-      autoFocus
+      ref={focusAskedFor}
       className="search folder-group-rename"
       data-testid="folder-group-rename"
       value={draft}

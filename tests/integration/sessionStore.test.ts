@@ -108,6 +108,15 @@ describe('SessionStore', () => {
     store = new SessionStore(join(dir, 'apiary.db'))
   })
 
+  it('session_account survives reopening the database', () => {
+    expect(store.getSessionAccount('new-one')).toBeNull()
+    store.setSessionAccount('new-one', 'work')
+    store.setSessionAccount('new-one', 'personal')
+    store.close()
+    store = new SessionStore(join(dir, 'apiary.db'))
+    expect(store.getSessionAccount('new-one')).toBe('personal')
+  })
+
   it('archiving a session hides it without touching imported, and re-importing un-archives it', () => {
     store.syncProject(project('/home/nuwan/app'))
     store.syncSessions('/home/nuwan/app', [meta('s1', '/home/nuwan/app')])

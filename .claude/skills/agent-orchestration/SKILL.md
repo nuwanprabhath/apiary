@@ -24,6 +24,11 @@ Every rule here comes from the 1.35.0 release, which was built by headless Haiku
   - Create them from the release branch:
     `git worktree add .worktrees/<wp> -b <branch> <release-branch>`.
   - Then `ln -s ../../node_modules .worktrees/<wp>/node_modules`.
+  - `run-agent.sh` installs husky's hooks in the worktree before the agent starts. Before 1.43
+    worktrees had none, so agents' commits skipped lint-staged and commitlint.
+  - Never `git checkout <commit>` in the main checkout to compare. In 1.43 that detached HEAD, and
+    three lead commits landed off the release branch; `.husky/pre-commit` now refuses a commit on a
+    detached HEAD. Use `git show <rev>:<path>`, or a throwaway worktree.
 - **Permissions.** `--permission-mode auto` refused file writes in headless runs. The script uses
   `acceptEdits` plus a Bash allowlist, and denies push, tag, stash, `--no-verify`, installs and `gh`
   outright.

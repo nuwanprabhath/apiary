@@ -58,6 +58,9 @@ export const SANCTIONED = [
       'src/main/log/logger.ts',
       'src/main/media/imageStore.ts',
       'src/main/pty/promptPath.ts',
+      // An account folder is symlinks to the main config root, not app state; a real file at a
+      // link path is renamed aside rather than overwritten.
+      'src/main/accounts/accountFolder.ts',
     ],
     description: 'Persisted state is written only through src/main/fs.',
     message:
@@ -133,7 +136,7 @@ export const SANCTIONED = [
     name: 'construct-in-container',
     kind: 'syntax',
     files: MAIN,
-    selectors: ["NewExpression[callee.name=/^(PtyManager|SessionStore|SearchIndex|SearchService|ChatManager|PetService|PetStore|PetPlacement|ThemeStore|ClaudeOneShot|SessionWatcher|ClaudeProjectsSource|SettingsService|GitService|TerminalService|ImageStore|ChatService|PluginService|WorktreeResolver|BranchOps|MrStatusCache|TranscriptReader|SearchClient|ActiveTabsService|RemoteServer|VirtualContentsRegistry|RemoteWindows|RemoteClientService|HostDirectory|FolderBrowser|LibraryStateService)$/]"],
+    selectors: ["NewExpression[callee.name=/^(PtyManager|SessionStore|SearchIndex|SearchService|ChatManager|PetService|PetStore|PetPlacement|ThemeStore|ClaudeOneShot|SessionWatcher|ClaudeProjectsSource|SettingsService|GitService|TerminalService|ImageStore|ChatService|PluginService|WorktreeResolver|BranchOps|MrStatusCache|TranscriptReader|SearchClient|ActiveTabsService|RemoteServer|VirtualContentsRegistry|RemoteWindows|RemoteClientService|HostDirectory|FolderBrowser|LibraryStateService|AccountService)$/]"],
     // The search worker is its own thread with its own composition root: it opens its own SearchIndex.
     allow: ['src/main/app/container.ts', 'src/main/app/remoteContainer.ts', 'src/main/search/searchWorker.ts'],
     description: 'Long-lived objects are built only in the composition root.',
@@ -150,7 +153,8 @@ export const SANCTIONED = [
       'TemplateElement[value.raw=/Claude Code-credentials|\\.credentials\\.json|api\\.anthropic\\.com|find-generic-password/]',
     ],
     // The two functions that take a `Consent`: the token read, and the one request that sends it.
-    allow: ['src/main/statusBar/claudeUsage/credentials.ts', 'src/main/statusBar/claudeUsage/limits.ts'],
+    // keychainName.ts only names an account's item (so removing the account can delete it); it never reads the token.
+    allow: ['src/main/statusBar/claudeUsage/credentials.ts', 'src/main/statusBar/claudeUsage/limits.ts', 'src/main/accounts/keychainName.ts'],
     description: 'Claude Code\'s sign-in is read, and sent to Anthropic, only behind the user\'s consent.',
     message:
       'The Claude Code token (Keychain item, `.credentials.json`) and the api.anthropic.com usage endpoint are touched only in ' +
@@ -318,18 +322,18 @@ export const SANCTIONED = [
     message:
       'Move focus with `focusUnlessTyping(el)` (src/renderer/ui/focusUnlessTyping.ts): it leaves focus alone while a text field has it. ' +
       'A component that appears on its own (a permission prompt, a toast, an update) took focus with `autoFocus` or a mount effect, and the Enter meant to send a message approved a tool. ' +
-      'Dialogs and menus get focus from Modal and Menu. A field the user just asked for (inline rename, "No…") may disable this line with `-- <why>`.',
+      'Dialogs and menus get focus from Modal and Menu. A field the person just asked for (a rename, "No…", a wizard step) takes `ref={focusAskedFor}` from the same file, not `autoFocus`.',
   },
   {
     name: 'branded-ids-from-source',
     kind: 'import',
     files: RENDERER,
     sources: [/(^@shared|\/shared)\/domain\/ids$/],
-    importNames: ['asSessionId', 'asPtyId'],
+    importNames: ['asSessionId', 'asPtyId', 'asAccountId'],
     allow: ['src/renderer/state/**', 'src/renderer/features/workspace/**'],
     description: 'Branded ids are minted where data enters the renderer.',
     message:
-      'Carry a SessionId/PtyId from where it was minted (state/ or features/workspace) instead of casting at the call site. ' +
+      'Carry a SessionId/PtyId/AccountId from where it was minted (state/ or features/workspace) instead of casting at the call site. ' +
       'If the field you are reading is a plain string, brand that field in its shared type.',
   },
   {

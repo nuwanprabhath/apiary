@@ -8,6 +8,7 @@ import { useOutsideDismiss } from '../../ui/useOutsideDismiss'
 import { CloseIcon } from '../../ui/icons'
 import { describeError } from '../../ui/errors'
 import { chatWithPet } from '../../state/petsStore'
+import { focusAskedFor } from '../../ui/focusUnlessTyping'
 
 const WIDTH = 280
 
@@ -76,8 +77,7 @@ export function PetChat({ pet, anchor, history, onSaid, onClose }: Props): JSX.E
       <input
         className="search"
         data-testid="pet-chat-input"
-        // eslint-disable-next-line apiary/focus-unless-typing -- the person just opened the pet chat to talk, so the field is what they asked for
-        autoFocus
+        ref={focusAskedFor}
         placeholder={`Say something to ${pet.spec.name}…`}
         value={text}
         maxLength={500}

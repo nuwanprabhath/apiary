@@ -11,7 +11,7 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
  * compile error until it is added here. `tests/unit/logScopes.test.ts` proves it.
  */
 export type LogScope =
-  | 'app' | 'auto-import' | 'chat' | 'claude-usage' | 'exec' | 'git' | 'gitlab-mr' | 'ipc' | 'layout'
+  | 'accounts' | 'app' | 'auto-import' | 'chat' | 'claude-usage' | 'exec' | 'git' | 'gitlab-mr' | 'ipc' | 'layout'
   | 'library' | 'live-sessions' | 'mr-status' | 'navigation' | 'pets' | 'process' | 'prompt' | 'pty' | 'refresh' | 'remote' | 'rename'
   | 'rescan' | 'resume' | 'search' | 'session-tracker' | 'settings' | 'shell' | 'status-bar' | 'tabs' | 'theme'
   | 'update' | 'usage' | 'vscode' | 'vscode-detect' | 'watcher' | 'window' | 'worktree-resolve'

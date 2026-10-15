@@ -14,6 +14,11 @@ conversation as the VS Code extension does; it holds no chat state of its own.
 - `WorkingLine.tsx` (the line under the conversation while Claude works), `ChatStatus.tsx` (background
   tasks, last turn, recap), `useCopyOnSelect.ts`.
 
+- `AccountSwitchPrompt.tsx` (`AccountSwitchHost`, mounted by `DialogHost`): the "Claude is still
+  replying" question and the watchers behind "Switch when it finishes"; the state is
+  `state/accountSwitch.ts`, busy-ness is `state/sessionBusy.ts`. The "/" menu's Account row is a
+  `PaletteAction` with `opensList` (`paletteActions.ts`, `useAccountList.ts`, `AccountOptions.tsx`).
+
 The message box itself is `features/transcript/Composer.tsx`; the pure merge of streamed and
 persisted messages is `src/shared/chatTimeline.ts`.
 

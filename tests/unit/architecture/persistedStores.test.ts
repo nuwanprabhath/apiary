@@ -9,7 +9,7 @@ import { resolve } from 'node:path'
  * a new store would copy whichever neighbour the author happened to open — with or without an
  * fsync, with or without a version.
  *
- * Every `*.json` file `containerPaths` (src/main/app/container.ts) builds under userData must be
+ * Every `*.json` file `containerPaths` (src/main/app/containerPaths.ts) builds under userData must be
  * listed here with the module that owns it, and that module must open it through `new JsonStore`
  * and must not import the raw fs read/write calls itself. Adding a userData file without an entry
  * fails the first test; bypassing the store fails the second. (`apiary/no-raw-state-write` catches
@@ -24,6 +24,7 @@ const OWNERS: Record<string, string> = {
   'remote-pairing.json': 'src/main/remote/pairingStore.ts',
   'remote-pairing-codes.json': 'src/main/remote/savedPairingCodes.ts',
   'library-state.json': 'src/main/library/libraryStateService.ts',
+  'accounts.json': 'src/main/accounts/accountService.ts',
 }
 
 const root = resolve(__dirname, '../../..')
@@ -31,7 +32,7 @@ const read = (rel: string): string => readFileSync(resolve(root, rel), 'utf8')
 
 describe('persisted stores', () => {
   it('every userData JSON file in container.ts has a registered owner, and no owner is stale', () => {
-    const files = [...read('src/main/app/container.ts').matchAll(/join\(userData, '([^']+\.json)'\)/g)].map((m) => m[1])
+    const files = [...read('src/main/app/containerPaths.ts').matchAll(/join\(userData, '([^']+\.json)'\)/g)].map((m) => m[1])
     expect(files.length).toBeGreaterThan(0)
     expect([...files].sort()).toEqual(Object.keys(OWNERS).sort())
   })

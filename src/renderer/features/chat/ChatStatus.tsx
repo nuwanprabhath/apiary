@@ -2,6 +2,8 @@ import type { JSX } from 'react'
 import type { BackgroundTask } from '@shared/chatTimeline'
 import type { SessionId } from '@shared/domain/ids'
 import { formatDuration } from '@shared/time'
+import { usePendingSwitch } from '../../state/accountSwitch'
+import { accountById, hasSeveralAccounts, useAccounts, useSessionAccount } from '../../state/accountsStore'
 import { BackgroundTasksLine } from './BackgroundTasks'
 
 /** The past tense Claude Code's terminal picks for a finished turn ("✻ Brewed for 33s"). */
@@ -27,7 +29,11 @@ export interface ChatStatusInfo {
  * to say.
  */
 export function ChatStatus({ sessionId, tasks, turn, recap }: ChatStatusInfo & { sessionId: SessionId }): JSX.Element | null {
-  if (tasks.length === 0 && turn === null && recap === null) return null
+  const accounts = useAccounts()
+  const account = accountById(accounts, useSessionAccount(sessionId))
+  const waitingFor = accountById(accounts, usePendingSwitch(sessionId))
+  const pill = hasSeveralAccounts(accounts) ? account : null
+  if (tasks.length === 0 && turn === null && recap === null && pill === null && waitingFor === null) return null
   const verb = turn !== null ? DONE_VERBS[Math.floor((turn.endedAtMs ?? turn.durationMs) / 1000) % DONE_VERBS.length] : ''
   return (
     <div className="chat-status" data-testid="chat-status">
@@ -45,6 +51,12 @@ export function ChatStatus({ sessionId, tasks, turn, recap }: ChatStatusInfo & {
         </div>
       )}
       {tasks.length > 0 && <BackgroundTasksLine sessionId={sessionId} tasks={tasks} />}
+      {(pill !== null || waitingFor !== null) && (
+        <div className="chat-status-line" data-testid="chat-status-account">
+          {pill !== null && <span className="chat-account-pill" title={pill.email ?? 'Not logged in'}>{pill.label}</span>}
+          {waitingFor !== null && <span className="chat-account-switching" title={`Switching to ${waitingFor.label} after this reply`} data-testid="chat-status-switching">Switching to {waitingFor.label} after this reply</span>}
+        </div>
+      )}
     </div>
   )
 }

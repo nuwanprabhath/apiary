@@ -35,6 +35,7 @@ import type { ChatLifecycle } from '@shared/domain/chat'
 import type { PluginSettingValues } from '@shared/domain/plugins'
 import { fireAndForget } from '../log/fireAndForget'
 import { ClaudeSessionTracker } from '../claude/claudeSessionTracker'
+import { rememberAccounts, trackedProcesses, type TrackerAccounts } from '../claude/trackerAccounts'
 import { PtyDataCoalescer } from '../terminals/ptyDataCoalescer'
 import { ActivityBroadcaster } from '../terminals/activityBroadcaster'
 import { TabMover } from '../windows/tabMover'
@@ -68,6 +69,9 @@ import type { RuntimeEnv } from './env'
 import { SpellingService } from '../spelling/spellingService'
 import { FolderBrowser } from '../folders/folderBrowser'
 import { LibraryStateService } from '../library/libraryStateService'
+import { AccountService, createAccountsStore } from '../accounts/accountService'
+import { createExec, type ExecFn } from '../exec/run'
+import type { ContainerPaths } from './containerPaths'
 
 /**
  * The explicit composition root (MAIN-15 step 5): the one place that lists every long-lived
@@ -83,19 +87,6 @@ import { LibraryStateService } from '../library/libraryStateService'
  * auto-import timer from `index.ts`), starting the updater and status bar (after the first window),
  * and shutdown ordering (`index.ts`'s `shutdown`), none of which are construction.
  */
-export interface ContainerPaths {
-  configRoot: string
-  dbPath: string
-  settingsFile: string
-  sessionLayoutFile: string
-  themesFile: string
-  petsFile: string
-  remoteHostsFile: string
-  remotePairingFile: string
-  remotePairingCodesFile: string
-  libraryStateFile: string
-}
-
 export interface ContainerInputs {
   /** Resolved by `index.ts` (`detectVsCode` or the test override); null when VS Code was not found. */
   vsCodePath: string | null
@@ -128,15 +119,18 @@ export interface IpcStateInputs {
   windowNumberFor: (webContentsId: number) => number | null
   /** Remote windows, which `ptyData` reaches once they attach; none when omitted. */
   virtualContents?: VirtualContentsRegistry
+  /** Where each account's pid files are, and where a resolved session's account is recorded. */
+  accounts: TrackerAccounts
 }
 
 export function createIpcState(inputs: IpcStateInputs): IpcState {
   const ptyAttachments = new WindowAttachments((wcId) => webContents.fromId(wcId) ?? inputs.virtualContents?.get(wcId) ?? null)
   return {
     sessionTracker: new ClaudeSessionTracker({
-      sessionsDir: join(inputs.configRoot, 'sessions'),
-      pids: () => inputs.pty.tuiPids(),
+      // Each `claude` writes its pid file under its own account's config folder.
+      processes: () => trackedProcesses(inputs.pty, inputs.configRoot, inputs.accounts),
       onChange: (sessions) => {
+        rememberAccounts(sessions, inputs.pty, inputs.accounts)
         broadcast(IPC.ptySessionsChanged, sessions)
         broadcast(IPC.activeTabsChanged)
       },
@@ -198,6 +192,7 @@ export interface Container {
   hostDirectory: HostDirectory
   /** The sessions library's arrangement and reading preferences, mirrored to remote windows. */
   library: LibraryStateService
+  accounts: AccountService
 }
 
 /**
@@ -208,6 +203,17 @@ export interface Container {
 export interface ServicesOptions {
   configRoot: string
   dbPath: string
+  /** Where the Claude accounts live: the list file and the folders. Default: beside the database. */
+  accountsFile?: string
+  accountsDir?: string
+  /** The user's home folder: where the main account's Claude JSON sits, and where a login session runs. */
+  homeDir: string
+  /** Test-only: the command runner and platform removing an account's Keychain item goes through. */
+  accountsOutside?: { exec: ExecFn; platform: NodeJS.Platform }
+  /** An account was added, removed or made the default. */
+  onAccountsChanged?: () => void
+  /** A live session's account changed (`sessionAccountsChanged`). */
+  onSessionAccountsChanged?: () => void
   detectLive?: () => Promise<Map<string, number>>
   /** A scan outside a refresh pass changed who is live (the throttled follow-up): re-send the tree. */
   onLiveChanged?: () => void
@@ -282,6 +288,10 @@ export interface Services {
   activeTabs: ActiveTabsService
   /** The remote server asks it where a session's folder or a mentioned file is. */
   vscode: VsCodeService
+  /** The session database, shared with the account service for `session_account`. */
+  store: SessionStore
+  /** The Claude accounts; the terminals, the chats and the one-shot calls launch under them. */
+  accounts: AccountService
 }
 
 /**
@@ -310,8 +320,16 @@ export function createServices(options: ServicesOptions): Services {
     onIndexUpdated: options.onIndexUpdated,
     isDisposed: () => disposed.disposed,
   })
+  const homeDir = options.homeDir
+  const accounts = new AccountService({
+    mainRoot: options.configRoot, accountsDir: options.accountsDir ?? join(dataDir, 'accounts'), homeDir,
+    store: createAccountsStore(options.accountsFile ?? join(dataDir, 'accounts.json')),
+    sessions: { get: (id) => store.getSessionAccount(id), set: (id, accountId) => { store.setSessionAccount(id, accountId) } },
+    ...(options.accountsOutside ?? { exec: createExec({ scope: 'accounts' }), platform: process.platform }),
+  })
+  accounts.onChanged(() => { options.onAccountsChanged?.() })
   const terminals = new TerminalService({
-    pty, resolver, store, worktrees,
+    pty, resolver, store, worktrees, accounts, homeDir,
     claudeBin: options.claudeBin,
     promptPath: options.promptPath,
     zshPromptShim: options.zshPromptShim,
@@ -339,11 +357,13 @@ export function createServices(options: ServicesOptions): Services {
   })
   const chats: ChatManager = new ChatManager({
     claudeBin: () => terminals.getClaudeBin() ?? undefined,
+    accounts,
     onChange: (state) => { chat.onChanged(state) },
     spawn: options.chatSpawn,
   })
   const chat: ChatService = new ChatService({
-    chats, pty, resolver, store, terminals, catalog, transcripts,
+    chats, pty, resolver, store, terminals, catalog, transcripts, accounts,
+    sessionAccountsChanged: () => { options.onSessionAccountsChanged?.() },
     configRoot: options.configRoot,
     attachments: options.chat?.attachments ?? new WindowAttachments(() => null),
     announce: options.chat?.announce ?? (() => {}),
@@ -363,7 +383,7 @@ export function createServices(options: ServicesOptions): Services {
           settings: options.pluginSettings,
           glabPath: options.glabPath,
           configRoot: options.configRoot,
-          useKeychain: options.statusBarKeychain ?? false,
+          useKeychain: options.statusBarKeychain ?? false, accounts,
           consent: options.claudeUsageConsent,
           remoteClients: options.remoteClients,
           persistEnabled: options.persistPluginEnabled,
@@ -381,7 +401,7 @@ export function createServices(options: ServicesOptions): Services {
   const service = new AppService({
     pty, store, git, vscode, images, search, terminals, catalog, actions, transcripts, chat, plugins, disposed,
   })
-  return { service, source, activeTabs, vscode }
+  return { service, source, activeTabs, vscode, store, accounts }
 }
 
 export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: ContainerInputs): Container {
@@ -403,8 +423,11 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion, pairingFile: paths.remotePairingFile,
     settings: settingsService, layouts: () => sessionLayoutStore.snapshot().windows,
   })
-  const { service, source, activeTabs, vscode } = createServices({
+  const { service, source, activeTabs, vscode, accounts } = createServices({
     remoteClients: remoteServer, configRoot: paths.configRoot, dbPath: paths.dbPath, claudeBin: settings.claudeBin ?? undefined,
+    accountsFile: paths.accountsFile, accountsDir: paths.accountsDir, homeDir: inputs.homeDir,
+    onAccountsChanged: () => { broadcast(IPC.accountsChanged, accounts.list()) },
+    onSessionAccountsChanged: () => { broadcast(IPC.sessionAccountsChanged, service.chat.liveSessionAccounts()) },
     autoImportAll: settings.autoImportAll,
     searchChatContent: settings.searchChatContent, searchSessionNotes: settings.searchSessionNotes,
     promptPath: {
@@ -449,7 +472,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     },
   })
   const ipcState = createIpcState({
-    pty: service.pty, configRoot: paths.configRoot, tabRegistry, virtualContents,
+    pty: service.pty, configRoot: paths.configRoot, tabRegistry, virtualContents, accounts,
     openDetachedWindow: (tab, at) => windowManager.create({ detach: tab, at }),
     windowNumberFor: (id) => windowManager.windowNumberFor(id),
   })
@@ -460,7 +483,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   }, realConnectingOutside(inputs.host))
   const updater = createUpdater(settingsService, env, inputs.macSigned)
   // One runner per kind of call, over whichever `claude` is configured at the time it runs.
-  const makeRunner = (): ClaudeOneShot => new ClaudeOneShot({ claudeBin: () => service.claudeBin })
+  const makeRunner = (): ClaudeOneShot => new ClaudeOneShot({ claudeBin: () => service.claudeBin, env: () => accounts.defaultEnv() })
   const themeGenerator = new ThemeGenerator({ runner: makeRunner() })
   // APIARY_DEFAULT_THEME=original is test-only: the E2E suite is written against the original
   // look, so a fresh profile there starts on it rather than on the default theme.
@@ -483,24 +506,6 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry,
     windowManager, service, chat: service.chat, plugins: service.plugins, spelling, folderBrowser, ipcState, sessionWatcher, updater,
     themeStore, themeGenerator, petStore, petService, petPlacement, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory,
-    library,
-  }
-}
-
-/** The on-disk locations that sit beside `userData`, in one place. */
-export function containerPaths(
-  env: RuntimeEnv, userData: string, defaultConfigRoot: () => string,
-): ContainerPaths {
-  return {
-    configRoot: env.configRoot ?? defaultConfigRoot(),
-    dbPath: env.dbPath ?? join(userData, 'apiary.db'),
-    settingsFile: join(userData, 'settings.json'),
-    sessionLayoutFile: join(userData, 'session-layout.json'),
-    themesFile: join(userData, 'themes.json'),
-    petsFile: join(userData, 'pets.json'),
-    remoteHostsFile: join(userData, 'remote-hosts.json'),
-    remotePairingFile: join(userData, 'remote-pairing.json'),
-    remotePairingCodesFile: join(userData, 'remote-pairing-codes.json'),
-    libraryStateFile: join(userData, 'library-state.json'),
+    library, accounts,
   }
 }

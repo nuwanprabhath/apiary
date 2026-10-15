@@ -58,9 +58,9 @@ describe('credentials', () => {
     writeFileSync(join(root, '.credentials.json'), '{"claudeAiOauth":{"accessToken":"from-file"}}')
     let asked = false
     const readKeychain = async (): Promise<string | undefined> => { asked = true; return '{"claudeAiOauth":{"accessToken":"kc"}}' }
-    expect(await readAccessToken(granted(), { configRoot: root, useKeychain: false, readKeychain })).toBe('from-file')
+    expect(await readAccessToken(granted(), { configRoot: root, accountFolder: null, useKeychain: false, readKeychain })).toBe('from-file')
     expect(asked).toBe(false)
-    expect(await readAccessToken(granted(), { configRoot: root, useKeychain: true, readKeychain })).toBe('kc')
+    expect(await readAccessToken(granted(), { configRoot: root, accountFolder: null, useKeychain: true, readKeychain })).toBe('kc')
   })
 })
 
@@ -138,7 +138,7 @@ describe('the Claude usage plugin', () => {
     const timers: Timer[] = []
     let changes = 0
     const plugin = createClaudeUsagePlugin({
-      configRoot: root, useKeychain: false, fetchImpl: opts.fetch,
+      configRoot: root, useKeychain: false, accounts: null, fetchImpl: opts.fetch,
       consent: new ConsentStore(memoryConsentStorage('granted')),
       setTimeout: (fn, ms) => { const t = { fn, ms }; timers.push(t); return t },
       clearTimeout: (h) => { const i = timers.indexOf(h as Timer); if (i >= 0) timers.splice(i, 1) },

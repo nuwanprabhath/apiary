@@ -9,14 +9,17 @@ import { ChatService, type ChatServiceDeps } from '../../src/main/chat/chatServi
 import { WindowAttachments, type SendTarget } from '../../src/main/windows/windowAttachments'
 import type { ChatLifecycle, ChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
+import { stubAccounts, WORK } from '../fixtures/launchAccounts'
 
 const A = asSessionId('11111111-1111-4111-8111-111111111111')
 const B = asSessionId('22222222-2222-4222-8222-222222222222')
 
 /** A `claude` that starts and stays up until the test ends it with `exit()`. */
-function liveChild(): { spawn: () => never; exit: (code?: number) => void } {
+function liveChild(): { spawn: (file: string, args: string[], options: { env?: NodeJS.ProcessEnv }) => never; exit: (code?: number) => void; envs: NodeJS.ProcessEnv[] } {
   const emitters: EventEmitter[] = []
-  const spawn = (): never => {
+  const envs: NodeJS.ProcessEnv[] = []
+  const spawn = (_file: string, _args: string[], options: { env?: NodeJS.ProcessEnv }): never => {
+    envs.push(options.env ?? {})
     const child = Object.assign(new EventEmitter(), {
       stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
       pid: 4242, kill: vi.fn(() => true),
@@ -24,13 +27,14 @@ function liveChild(): { spawn: () => never; exit: (code?: number) => void } {
     emitters.push(child)
     return child as never
   }
-  return { spawn, exit: (code = 0) => { for (const c of emitters) c.emit('exit', code, null) } }
+  return { spawn, envs, exit: (code = 0) => { for (const c of emitters) c.emit('exit', code, null) } }
 }
 
 interface Window extends SendTarget { got: { channel: string; state: ChatState }[] }
 
 function setup(overrides: Partial<ChatServiceDeps> = {}) {
   const child = liveChild()
+  const accounts = stubAccounts()
   const windows = new Map<number, Window>()
   const open = (id: number): Window => {
     const w: Window = {
@@ -45,27 +49,34 @@ function setup(overrides: Partial<ChatServiceDeps> = {}) {
   const announced: ChatLifecycle[] = []
   const chats = new ChatManager({
     claudeBin: () => 'claude',
+    accounts,
     onChange: (state) => { service.onChanged(state) },
     spawn: child.spawn,
   })
   const pty = {
     has: vi.fn(() => false), killAndWait: vi.fn(async () => {}), screen: vi.fn(() => ''), lastOutputAt: vi.fn(() => 0),
+    tuiProcesses: vi.fn(() => new Map()),
   }
+  const sessionAccountsChanged = vi.fn()
   const store = { getSession: vi.fn(() => null), setImported: vi.fn() }
   const resolver = { requireSession: vi.fn(() => ({ cwd: dir, filePath: join(dir, 'x.jsonl') })) }
   const resume = vi.fn(async () => {})
+  const respawn = vi.fn(async () => {})
   const checkConflict = vi.fn(async () => null)
   const activityChanged = vi.fn()
   const deps = {
-    chats, pty, resolver, store, attachments, configRoot: dir, activityChanged,
+    chats, pty, resolver, store, attachments, configRoot: dir, activityChanged, accounts, sessionAccountsChanged,
     announce: (c: ChatLifecycle) => { announced.push(c) },
-    terminals: { resume },
+    terminals: { resume, respawn },
     catalog: { checkConflict },
     transcripts: { runningBackgroundTasks: async () => 0 },
     ...overrides,
   } as unknown as ChatServiceDeps
   const service = new ChatService(deps)
-  return { service, chats, open, attachments, announced, child, pty, store, resolver, resume, checkConflict, activityChanged }
+  return {
+    service, chats, open, attachments, announced, child, pty, store, resolver, resume, respawn, checkConflict, activityChanged,
+    accounts, sessionAccountsChanged,
+  }
 }
 
 let dir = ''
@@ -245,6 +256,48 @@ describe('ChatService and the terminal', () => {
     await service.resumeInTerminal(A)
     expect(stop).toHaveBeenCalledWith(A)
     expect(resume).toHaveBeenCalledWith(A)
+  })
+
+  it('switching a running chat stops it and starts it with the new env', async () => {
+    const { service, chats, child, accounts, sessionAccountsChanged } = setup()
+    await service.start(A, { takeOver: false, model: 'opus', permissionMode: 'plan' })
+    expect(child.envs[0].CLAUDE_CONFIG_DIR).toBeUndefined()
+    vi.spyOn(chats, 'stop').mockImplementation(async () => { child.exit() })
+
+    await service.switchAccount(A, WORK)
+
+    expect(accounts.stored.get(A)).toBe(WORK)
+    expect(child.envs).toHaveLength(2)
+    expect(child.envs[1].CLAUDE_CONFIG_DIR).toBe('/accounts/work')
+    expect(chats.has(A)).toBe(true)
+    expect(chats.launchOf(A)).toMatchObject({ account: WORK, opts: { model: 'opus', permissionMode: 'plan' } })
+    expect(sessionAccountsChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('switching an idle session with no process only stores it', async () => {
+    const { service, child, accounts, resume, respawn, sessionAccountsChanged } = setup()
+    await service.switchAccount(A, WORK)
+    expect(accounts.stored.get(A)).toBe(WORK)
+    expect(child.envs).toHaveLength(0)
+    expect(respawn).not.toHaveBeenCalled()
+    expect(resume).not.toHaveBeenCalled()
+    expect(sessionAccountsChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('switching a session running in a terminal respawns that terminal', async () => {
+    const { service, pty, respawn } = setup()
+    pty.has.mockReturnValue(true)
+    await service.switchAccount(A, WORK)
+    expect(respawn).toHaveBeenCalledWith(A)
+  })
+
+  it('a chat starts under its session\'s account, and that account is in use while it runs', async () => {
+    const { service, accounts, child } = setup()
+    accounts.stored.set(A, WORK)
+    await service.start(A, { takeOver: false })
+    expect(child.envs[0].CLAUDE_CONFIG_DIR).toBe('/accounts/work')
+    expect(service.accountInUse(WORK)).toBe(true)
+    expect(service.liveSessionAccounts()).toEqual({ [A]: WORK })
   })
 
   it('adopts a session a chat moved onto once its file is in the store, and only once', async () => {

@@ -9,6 +9,7 @@ import { StatusSections } from './StatusSections'
 import { StatusPanelDialog } from './StatusPanelDialog'
 import { ConsentDialog } from './ConsentDialog'
 import { ActivityIndicator } from './ActivityIndicator'
+import { useAccountUsageItems } from './useAccountUsageItems'
 import { useActivities } from '../../state/activityStore'
 import { HOVER_DELAY_MS } from '../../ui/HoverCard'
 
@@ -36,7 +37,7 @@ interface Props {
  * for its action. Nothing here knows what any item is about.
  */
 export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element | null {
-  const items = useStatusBar()
+  const items = useAccountUsageItems(useStatusBar())
   const busy = useActivities().length > 0
   const [panel, setPanel] = useState<{ item: StatusBarItem; data: StatusBarPanel | null } | null>(null)
   // Plugins whose consent prompt was closed without an answer. The prompt opens by itself the first

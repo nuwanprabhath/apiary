@@ -11,7 +11,10 @@ import { usePopover } from './usePopover'
 import { useChatSettings } from '../../state/chatSettingsStore'
 import { useLibraryState } from '../../state/libraryStateStore'
 import { useVsCodeAvailable } from '../../state/vsCodeStore'
-import { PALETTE_ACTIONS, paletteActionRows, type PaletteAction } from './paletteActions'
+import { AccountOptions } from './AccountOptions'
+import { type AccountList, useAccountList } from './useAccountList'
+import { PALETTE_ACTIONS, paletteActionRows, type PaletteAction, type PaletteContext } from './paletteActions'
+import { Row } from './PaletteRow'
 import { CHAT_SETTINGS_REGISTRY, chatSettingRows, chatSettingValue, type ChatSetting } from '../../state/chatSettings'
 
 /** More than this and the list is a scroll of things nobody is looking for. */
@@ -37,6 +40,8 @@ interface SettingItem {
 interface RegistryItem {
   kind: 'action'
   action: PaletteAction
+  label: string
+  description: string
 }
 
 type Action = ActionItem | SettingItem | RegistryItem
@@ -64,36 +69,6 @@ interface Props {
   keyHandler: RefObject<((e: KeyboardEvent) => boolean) | null>
   onRun: (command: string) => void
   onInsert: (command: string) => void
-}
-
-function Row({ id, selected, testId, extra, title, onEnter, onClick, children }: {
-  id: string
-  selected: boolean
-  testId: string
-  extra: Record<string, string>
-  title?: string
-  onEnter: () => void
-  onClick: () => void
-  children: JSX.Element[]
-}): JSX.Element {
-  return (
-    <button
-      id={id}
-      type="button"
-      role="option"
-      tabIndex={-1}
-      aria-selected={selected}
-      className="chat-command-option"
-      data-testid={testId}
-      title={title}
-      onMouseEnter={onEnter}
-      onClick={onClick}
-      ref={(el) => { if (selected) el?.scrollIntoView?.({ block: 'nearest' }) }}
-      {...extra}
-    >
-      {children}
-    </button>
-  )
 }
 
 function ActionsList({ shown, active, listId, onMouseEnter, onChoose }: {
@@ -146,8 +121,8 @@ function ActionsList({ shown, active, listId, onMouseEnter, onChoose }: {
             onClick={() => { onChoose(a) }}
           >
             {[
-              <span key="n" className="chat-command-name" title={a.action.label}>{a.action.label}</span>,
-              <span key="d" className="chat-command-desc">{a.action.description}</span>,
+              <span key="n" className="chat-command-name" title={a.label}>{a.label}</span>,
+              <span key="d" className="chat-command-desc">{a.description}</span>,
             ]}
           </Row>
         )
@@ -183,10 +158,42 @@ function ActionsList({ shown, active, listId, onMouseEnter, onChoose }: {
 
 function footerText(a: Action | undefined): string {
   if (a === undefined) return ''
-  if (a.kind === 'action') return a.action.description
+  if (a.kind === 'action') return a.description
   if (a.kind === 'setting') return `${a.label}: ${a.value ? 'On' : 'Off'} — this chat only`
   const c = a.command
   return [`/${c.name}`, c.argumentHint, c.description !== '' ? `— ${c.description}` : ''].filter((p) => p !== '').join(' ')
+}
+
+function EmptyNote({ started }: { started: boolean }): JSX.Element {
+  return (
+    <p className="chat-command-empty">
+      {started ? 'No matching actions' : 'Claude lists its commands once the chat has started. Type one and press Enter to run it.'}
+    </p>
+  )
+}
+
+/** The rows the full list shows for what is typed: chat settings, then actions, then commands. */
+function useShownRows({ sessionId, commands, query, folderExists, accountList }: {
+  sessionId: SessionId | null
+  commands: readonly ChatCommand[] | null
+  query: string
+  folderExists: boolean
+  accountList: AccountList
+}): { shown: Action[]; ctx: PaletteContext | null } {
+  const { hideToolCallIo: globalHideToolCalls } = useLibraryState()
+  const vsCodeAvailable = useVsCodeAvailable()
+  const { values: perChatSettings } = useChatSettings(sessionId)
+  const { accounts, account } = accountList
+  return useMemo(() => {
+    const q = query.trim().replace(/^\//, '')
+    const read = (setting: ChatSetting): boolean => chatSettingValue(setting, perChatSettings, { hideToolCallIo: globalHideToolCalls })
+    const settings: Action[] = chatSettingRows(CHAT_SETTINGS_REGISTRY, q, read)
+      .map(({ setting, value }) => ({ kind: 'setting', settingId: setting.id, label: setting.label, value }))
+    const ctx = sessionId === null ? null : { sessionId, vsCodeAvailable, folderExists, accounts, account }
+    const actions: Action[] = ctx === null ? [] : paletteActionRows(PALETTE_ACTIONS, q, ctx)
+      .map((action) => ({ kind: 'action', action, label: action.label(ctx), description: action.description(ctx) }))
+    return { shown: [...settings, ...actions, ...matchActions(commands ?? [], query)].slice(0, MAX_SHOWN), ctx }
+  }, [commands, query, perChatSettings, globalHideToolCalls, sessionId, vsCodeAvailable, folderExists, accounts, account])
 }
 
 export function CommandPalette({ sessionId, commands, folderExists, onFocusBox, composerText, keyHandler, onRun, onInsert }: Props): JSX.Element {
@@ -195,9 +202,7 @@ export function CommandPalette({ sessionId, commands, folderExists, onFocusBox, 
   const [active, setActive] = useState(0)
   const [dismissedFor, setDismissedFor] = useState<string | null>(null)
   const listId = useId()
-  const { hideToolCallIo: globalHideToolCalls } = useLibraryState()
-  const vsCodeAvailable = useVsCodeAvailable()
-  const { values: perChatSettings, set: setPerChatSetting } = useChatSettings(sessionId)
+  const { set: setPerChatSetting } = useChatSettings(sessionId)
 
   const typed = !buttonOpen && TYPED_SLASH.test(composerText) && dismissedFor !== composerText
   const open = buttonOpen || typed
@@ -206,26 +211,21 @@ export function CommandPalette({ sessionId, commands, folderExists, onFocusBox, 
   useEffect(() => { setActive(0) }, [query])
   useEffect(() => { if (!TYPED_SLASH.test(composerText)) setDismissedFor(null) }, [composerText])
 
-  const shown = useMemo(() => {
-    const q = query.trim().replace(/^\//, '')
-    const read = (setting: ChatSetting): boolean => chatSettingValue(setting, perChatSettings, { hideToolCallIo: globalHideToolCalls })
-    const settings: Action[] = chatSettingRows(CHAT_SETTINGS_REGISTRY, q, read)
-      .map(({ setting, value }) => ({ kind: 'setting', settingId: setting.id, label: setting.label, value }))
-    const actions: Action[] = sessionId === null ? [] : paletteActionRows(PALETTE_ACTIONS, q, { sessionId, vsCodeAvailable, folderExists })
-      .map((action) => ({ kind: 'action', action }))
-    return [...settings, ...actions, ...matchActions(commands ?? [], query)].slice(0, MAX_SHOWN)
-  }, [commands, query, perChatSettings, globalHideToolCalls, sessionId, vsCodeAvailable, folderExists])
-
   const close = (): void => {
     setButtonOpen(false)
     setButtonQuery('')
     if (typed) setDismissedFor(composerText)
   }
+  const accountList = useAccountList({ sessionId, menuOpen: open, setActive, close, onFocusBox })
+  const { accounts } = accountList
+
+  const { shown, ctx } = useShownRows({ sessionId, commands, query, folderExists, accountList })
 
   const choose = (action: Action): void => {
-    if (action.kind === 'action') {
+    if (action.kind === 'action' && action.action.opensList === true) accountList.open()
+    else if (action.kind === 'action') {
       close()
-      if (sessionId !== null) action.action.run({ sessionId, vsCodeAvailable, folderExists })
+      if (ctx !== null) action.action.run(ctx)
       onFocusBox()
     } else if (action.kind === 'command') {
       const c = action.command
@@ -246,29 +246,39 @@ export function CommandPalette({ sessionId, commands, folderExists, onFocusBox, 
     if (!typedRef.current) focusUnlessTyping(el)
   }, [])
 
-  const { onKeyDown } = useListboxNav({
-    count: shown.length,
+  const inAccounts = accountList.showing
+  const { onKeyDown: navKeyDown } = useListboxNav({
+    count: inAccounts ? accounts.accounts.length : shown.length,
     active,
     setActive,
     onChoose: () => {
+      if (inAccounts) {
+        const chosen = accounts.accounts[active]
+        if (chosen !== undefined) accountList.pick(chosen.id)
+        return
+      }
       const picked = shown[active]
       if (picked !== undefined) choose(picked)
       else if (query.trim() !== '') { close(); onRun(`/${query.trim().replace(/^\//, '')}`) }
     },
   })
 
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (inAccounts && e.key === 'ArrowLeft') { e.preventDefault(); accountList.back() } else navKeyDown(e)
+  }
+
   // In the message box, keys the menu does not use (and Enter with nothing to pick) stay the box's.
   keyHandler.current = typed
     ? (e) => {
-        if (e.key === 'Escape') { setDismissedFor(composerText); return true }
-        if (e.key === 'Enter' && shown.length === 0) return false
-        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'Enter') return false
+        if (e.key === 'Escape') { if (inAccounts) accountList.back(); else setDismissedFor(composerText); return true }
+        if (e.key === 'Enter' && shown.length === 0 && !inAccounts) return false
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'Enter' && !(inAccounts && e.key === 'ArrowLeft')) return false
         onKeyDown(e)
         return true
       }
     : null
 
-  const footer = footerText(shown[active])
+  const footer = inAccounts ? '' : footerText(shown[active])
 
   return (
     <div ref={root}>
@@ -304,13 +314,14 @@ export function CommandPalette({ sessionId, commands, folderExists, onFocusBox, 
             aria-controls={listId}
             aria-activedescendant={shown[active] === undefined ? undefined : optionId(listId, active)}
           />
-          {shown.length > 0 && <ActionsList shown={shown} active={active} listId={listId} onMouseEnter={setActive} onChoose={choose} />}
-          {commands !== null && shown.length === 0 && <p className="chat-command-empty">No matching actions</p>}
-          {commands === null && shown.length === 0 && (
-            <p className="chat-command-empty">
-              Claude lists its commands once the chat has started. Type one and press Enter to run it.
-            </p>
+          {inAccounts && (
+            <AccountOptions
+              accounts={accounts.accounts} currentId={accountList.currentId} active={active} listId={listId}
+              onMouseEnter={setActive} onChoose={(a) => { accountList.pick(a.id) }}
+            />
           )}
+          {!inAccounts && shown.length > 0 && <ActionsList shown={shown} active={active} listId={listId} onMouseEnter={setActive} onChoose={choose} />}
+          {!inAccounts && shown.length === 0 && <EmptyNote started={commands !== null} />}
           {footer !== '' && <div className="chat-command-footer" data-testid="composer-command-footer">{footer}</div>}
         </Popover>
       )}

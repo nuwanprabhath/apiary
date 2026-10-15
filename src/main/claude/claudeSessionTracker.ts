@@ -48,9 +48,8 @@ function signature(map: Record<string, PtySessionInfo>): string {
 }
 
 export interface TrackerOptions {
-  sessionsDir: string
-  /** pty id → pid, for every live TUI pty. */
-  pids: () => Map<string, number>
+  /** pty id → pid and the `sessions` folder of the account it runs under, for every live TUI pty. */
+  processes: () => Map<string, { pid: number; sessionsDir: string }>
   /** Called when any pty's session or name changes — not on status alone, which flips constantly. */
   onChange: (sessions: Record<string, PtySessionInfo>) => void
   intervalMs?: number
@@ -82,8 +81,8 @@ export class ClaudeSessionTracker {
   /** One pass: read every pty's file, log what moved, and report if anything did. */
   poll(): void {
     const next: Record<string, PtySessionInfo> = {}
-    for (const [ptyId, pid] of this.opts.pids()) {
-      const info = readClaudeSession(this.opts.sessionsDir, pid)
+    for (const [ptyId, { pid, sessionsDir }] of this.opts.processes()) {
+      const info = readClaudeSession(sessionsDir, pid)
       if (info !== null) next[ptyId] = info
     }
     // Logged per transition because this is the one fact that would have explained the stuck

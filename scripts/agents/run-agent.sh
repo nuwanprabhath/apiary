@@ -48,6 +48,11 @@ DENY=("Bash(git push:*)" "Bash(git tag:*)" "Bash(git stash:*)" "Bash(git commit 
 COMMON=("${MODEL[@]}" --permission-mode acceptEdits --add-dir "$RUN_DIR" --allowedTools "${ALLOW[@]}" --disallowedTools "${DENY[@]}" --output-format stream-json --verbose)
 
 cd "$WT" || { echo "no worktree $WT" >&2; exit 2; }
+# Husky's hook folder (.husky/_) is generated, not committed, and core.hooksPath points at it
+# relative to the checkout: a new worktree has none, so every commit an agent made in 1.35-1.43
+# skipped pre-commit (lint-staged, the detached-HEAD guard) and commit-msg (commitlint, no AI
+# attribution). Generate it before the agent starts.
+[ -f .husky/_/h ] || npx husky >/dev/null || { echo "could not install the git hooks in $WT" >&2; exit 2; }
 # The Stop hook judges the agent's own commits: everything since it left the release branch.
 export APIARY_BASE_REF="${APIARY_BASE_REF:-$(git -C "$ROOT" branch --show-current)}"
 

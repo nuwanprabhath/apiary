@@ -71,6 +71,7 @@ const { SettingsService } = await import('../../src/main/settings/settingsServic
 const { SpellingService } = await import('../../src/main/spelling/spellingService')
 const { FolderBrowser } = await import('../../src/main/folders/folderBrowser')
 const { LibraryStateService } = await import('../../src/main/library/libraryStateService')
+const { AccountService, createAccountsStore } = await import('../../src/main/accounts/accountService')
 await import('../../src/preload/index')
 
 let home: string
@@ -101,6 +102,10 @@ beforeEach(async () => {
     spelling: new SpellingService(),
     folderBrowser: new FolderBrowser({ home }),
     library: new LibraryStateService({ file: join(home, 'library-state.json'), moved: {}, onChanged: () => {} }),
+    accounts: new AccountService({
+      mainRoot: join(home, '.claude'), accountsDir: join(home, 'accounts'), homeDir: home, store: createAccountsStore(join(home, 'accounts.json')),
+      sessions: { get: () => null, set: () => {} }, exec: async () => '', platform: 'linux',
+    }),
     state: buildIpcState(service, join(home, '.claude')),
     settings: new SettingsService(join(home, 'settings.json')),
     theme: {

@@ -1,4 +1,5 @@
 import type { JSX } from 'react'
+import { focusAskedFor } from '../../ui/focusUnlessTyping'
 
 interface Props {
   branchName: string
@@ -28,8 +29,7 @@ export function WorktreeNewBranchStep(
         data-testid="new-worktree-branch-name"
         placeholder="Name for the new branch"
         value={branchName}
-        // eslint-disable-next-line apiary/focus-unless-typing -- the person chose this wizard step, so its field is what they asked for
-        autoFocus
+        ref={focusAskedFor}
         onChange={(e) => { onBranchName(e.target.value) }}
       />
       <p className="new-worktree-hint">

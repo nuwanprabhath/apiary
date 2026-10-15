@@ -27,3 +27,4 @@ topic doc doesn't have to repeat it.
 | [0017](0017-chat-defaults-to-auto-permission-mode.md) | A chat starts in `auto` permission mode unless Claude Code's settings choose one |
 | [0018](0018-pets-render-cache-in-indexeddb.md) | Pet renders are cached in IndexedDB, a second renderer persistence |
 | [0019](0019-claude-usage-asks-before-reading-the-token.md) | The Claude usage plugin asks once before it reads Claude Code's token |
+| [0020](0020-per-session-accounts-are-linked-config-folders.md) | A session's Claude account is a config folder linked back to the main one |

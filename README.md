@@ -39,6 +39,8 @@ pick it up where it left off, and work on several side by side, even on another 
 - **Open in VS Code**, locally or over Remote-SSH from a remote window.
 - **Themes**, including Liquid Glass, or describe one and Claude designs it.
 - **Pets** (optional): small 3D characters on the status bar that react to what Claude is doing.
+- **Several Claude accounts:** new sessions start in the default account from Settings, and any
+  session can move to another one from its `/` menu or tab, without signing out anywhere else.
 - **Remembers everything** across restarts: windows, layouts, tabs, and sessions that were running.
 - **Keeps itself up to date** from GitHub releases.
 - **Errors in plain words**, with the raw error a click away, and an opt-in diagnostic log that

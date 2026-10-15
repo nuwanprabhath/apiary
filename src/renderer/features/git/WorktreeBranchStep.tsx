@@ -2,6 +2,7 @@ import { type JSX, useRef } from 'react'
 import type { WorktreeCreateOptions } from '@shared/domain/git'
 import { BRANCH_ROW_SELECTOR } from './branchRows'
 import { useRovingList } from '../../ui/useRovingList'
+import { focusAskedFor } from '../../ui/focusUnlessTyping'
 
 interface Props {
   /** 'branch' picks the branch to check out; 'base' picks what a new branch starts from. */
@@ -34,8 +35,7 @@ export function WorktreeBranchStep(
         data-testid="new-worktree-branch-search"
         placeholder={mode === 'branch' ? 'Select a branch to check out, or create a new one' : 'Filter branches'}
         value={query}
-        // eslint-disable-next-line apiary/focus-unless-typing -- the person chose this wizard step, so its field is what they asked for
-        autoFocus
+        ref={focusAskedFor}
         onChange={(e) => { onQuery(e.target.value) }}
         onKeyDown={rows.onKeyDown}
       />

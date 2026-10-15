@@ -1,2 +1,16 @@
+# A commit on a detached HEAD belongs to no branch: the next checkout leaves it behind, and work
+# meant for a release branch is silently missing from it. In 1.43 three commits landed on a HEAD
+# that `git checkout <commit> --` had detached, and the build lacked two merged packages. Rebase
+# and cherry-pick detach on purpose and finish on a branch, so they are let through.
+if ! git symbolic-ref -q HEAD >/dev/null; then
+  gitdir=$(git rev-parse --git-dir)
+  if [ ! -d "$gitdir/rebase-merge" ] && [ ! -d "$gitdir/rebase-apply" ] && [ ! -f "$gitdir/CHERRY_PICK_HEAD" ]; then
+    echo "pre-commit: HEAD is detached, so this commit would belong to no branch." >&2
+    echo "  Switch to the branch first (git switch <branch>), or make one here (git switch -c <name>)." >&2
+    echo "  To look at an old version of a file, use 'git show <rev>:<path>', not 'git checkout <rev>'." >&2
+    exit 1
+  fi
+fi
+
 # Staged files only, so a commit stays quick: lint and autofix what is being committed.
 npx lint-staged

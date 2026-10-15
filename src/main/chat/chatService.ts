@@ -1,11 +1,13 @@
 import { existsSync } from 'node:fs'
 import { IPC } from '@shared/api'
-import type {
-  ChatDecision, ChatEffort, ChatLifecycle, ChatModel, ChatPermissionMode, ChatState, TerminalBusy,
+import {
+  isChatPermissionMode,
+  type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatModel, type ChatPermissionMode, type ChatState, type TerminalBusy,
 } from '@shared/domain/chat'
 import type { ResumeConflict } from '@shared/types'
 import { chatActivity, classifyActivity, type ActivityStatus } from '@shared/activity'
-import type { SessionId } from '@shared/domain/ids'
+import { asSessionId, UUID_RE, type AccountId, type SessionId } from '@shared/domain/ids'
+import type { LaunchAccounts } from '../accounts/accountService'
 import type { PtyManager } from '../pty/ptyManager'
 import type { SessionResolver } from '../sessions/sessionResolver'
 import type { SessionCatalog } from '../sessions/sessionCatalog'
@@ -34,6 +36,9 @@ export interface ChatServiceDeps {
   announce: (change: ChatLifecycle) => void
   /** Asks the windows for the Active section again: a chat's activity has moved (`activeTabsChanged`). */
   activityChanged: () => void
+  accounts: LaunchAccounts
+  /** The account of a live session changed (`sessionAccountsChanged`). */
+  sessionAccountsChanged: () => void
 }
 
 /**
@@ -109,6 +114,48 @@ export class ChatService {
   setEffort(sessionId: SessionId, effort: ChatEffort): void { this.deps.chats.setEffort(sessionId, effort) }
   async stop(sessionId: SessionId): Promise<void> { await this.deps.chats.stop(sessionId) }
   async stopAll(): Promise<void> { await this.deps.chats.stopAll() }
+
+  /**
+   * Runs the session under another account from now on. A chat is stopped and started again with
+   * the model, mode and effort it had; a terminal's `claude` is killed and the resume command
+   * spawned on the same pty id, so the windows showing it keep their tab; with nothing running
+   * only the choice is stored.
+   */
+  async switchAccount(sessionId: SessionId, accountId: AccountId): Promise<void> {
+    const { chats, pty, accounts, terminals } = this.deps
+    accounts.setAccountOf(sessionId, accountId)
+    const launch = chats.launchOf(sessionId)
+    if (launch !== null) {
+      const live = chats.state(sessionId)
+      await chats.stop(sessionId)
+      chats.forget(sessionId)
+      chats.start(sessionId, launch.cwd, {
+        model: live?.model ?? launch.opts.model,
+        permissionMode: isChatPermissionMode(live?.permissionMode) ? live.permissionMode : launch.opts.permissionMode,
+        effort: live?.effort ?? launch.opts.effort,
+      }, accountId)
+    } else if (pty.has(sessionId)) {
+      await terminals.respawn(sessionId)
+    }
+    this.deps.sessionAccountsChanged()
+  }
+
+  /** The account of every live session: chats, and terminals whose session has an id. */
+  liveSessionAccounts(): Record<SessionId, AccountId> {
+    const out: Record<SessionId, AccountId> = {}
+    for (const [id, process] of this.deps.pty.tuiProcesses()) {
+      if (process.accountId !== null && UUID_RE.test(id)) out[asSessionId(id)] = process.accountId
+    }
+    for (const [id, account] of this.deps.chats.accounts()) out[id] = account
+    return out
+  }
+
+  /** Whether a live terminal (even one still on a `new:` id) or chat runs under `accountId`. */
+  accountInUse(accountId: AccountId): boolean {
+    const { pty, chats } = this.deps
+    return [...pty.tuiProcesses().values()].some((p) => p.accountId === accountId)
+      || chats.accounts().some(([, account]) => account === accountId)
+  }
 
   /**
    * Opens the session in its terminal. One process per session: two `claude`s on one session

@@ -1,15 +1,17 @@
 import type { ChatDecision, ChatEffort, ChatModel, ChatPermissionMode, ChatState } from '@shared/domain/chat'
-import type { SessionId } from '@shared/domain/ids'
+import type { AccountId, SessionId } from '@shared/domain/ids'
+import type { LaunchAccounts } from '../accounts/accountService'
 import { buildChatCommand } from '../pty/resumeCommand'
 import { spawnLoginShell, type LoginShellSpawn } from '../exec/spawnLoginShell'
 import { log } from '../log/logger'
-import { ChatSession } from './chatSession'
+import { ChatSession, type ChatLaunch } from './chatSession'
 
 /** The `child_process.spawn` seam `spawnLoginShell` takes — a fake child in tests. */
 export type SpawnChat = LoginShellSpawn
 
 export interface ChatManagerDeps {
   claudeBin: () => string | undefined
+  accounts: LaunchAccounts
   onChange: (state: ChatState) => void
   /** Injectable for tests; the chat runs `command` in a login shell (`spawnLoginShell`), as terminals do. */
   spawn?: SpawnChat
@@ -47,11 +49,29 @@ export class ChatManager {
     if (this.sessions.get(sessionId)?.running === false) this.sessions.delete(sessionId)
   }
 
-  start(sessionId: SessionId, cwd: string, opts: { model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort } = {}): ChatState {
+  /** What the running chat was started with, for starting it again under another account. */
+  launchOf(sessionId: SessionId): ChatLaunch | null {
+    const session = this.sessions.get(sessionId)
+    return session?.running === true ? session.launch : null
+  }
+
+  /** The account of every running chat, by the session it is on now. */
+  accounts(): Array<[SessionId, AccountId]> {
+    const out: Array<[SessionId, AccountId]> = []
+    for (const [id, session] of this.sessions) {
+      if (session.running && session.launch !== null) out.push([id, session.launch.account])
+    }
+    return out
+  }
+
+  /** Runs under `account`, or under the session's own when none is given (a new chat is not a new session). */
+  start(
+    sessionId: SessionId, cwd: string, opts: ChatLaunch['opts'] = {}, account: AccountId = this.deps.accounts.accountOf(sessionId),
+  ): ChatState {
     const existing = this.sessions.get(sessionId)
     if (existing?.running === true) return existing.current
     const command = buildChatCommand(sessionId, { claudeBin: this.deps.claudeBin(), ...opts })
-    const proc = spawnLoginShell({ command, cwd }, this.deps.spawn)
+    const proc = spawnLoginShell({ command, cwd, extraEnv: this.deps.accounts.launchEnv(account) }, this.deps.spawn)
     const session = new ChatSession(sessionId, proc, (state) => {
       if (state.status === 'exited' && state.error !== null) log.warn('chat', 'exited', { sessionId: state.sessionId, error: state.error })
       this.deps.onChange(state)
@@ -59,8 +79,11 @@ export class ChatManager {
       // Filed under the session it now writes to, so `has`, `resume` and conflicts see it there.
       this.sessions.delete(from)
       this.sessions.set(to, session)
+      // The conversation `/clear` started belongs to the account the process runs under.
+      this.deps.accounts.setAccountOf(to, account)
       log.info('chat', 'moved to a new session', { from, to })
     })
+    session.launch = { cwd, opts, account }
     this.sessions.set(sessionId, session)
     log.info('chat', 'started', { sessionId, pid: proc.child.pid ?? null })
     this.deps.onChange(session.current)

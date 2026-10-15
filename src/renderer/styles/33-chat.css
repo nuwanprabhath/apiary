@@ -521,6 +521,20 @@
 .chat-status-line { display: flex; gap: var(--space-sm); align-items: baseline; min-width: 0; }
 .chat-status-glyph { flex: none; width: var(--chat-glyph-size); text-align: center; }
 .chat-status-recap { font-style: italic; }
+/* The account a chat runs under: a small muted pill, only when there is more than one account. */
+.chat-account-pill {
+  flex: none;
+  max-width: 16em;
+  padding: 0 var(--space-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-account-switching { overflow: hidden; min-width: 0; text-overflow: ellipsis; white-space: nowrap; }
+.chat-account-check { flex: none; width: var(--icon-size); height: var(--icon-size); margin-left: var(--space-sm); vertical-align: middle; }
 .chat-status-detail { overflow: hidden; min-width: 0; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 
 /* The background-task line is a quiet button that opens the task popup above it: one row that

@@ -4,6 +4,7 @@ import { PassThrough } from 'node:stream'
 import { ChatManager } from '../../src/main/chat/chatManager'
 import type { ChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
+import { stubAccounts } from '../fixtures/launchAccounts'
 
 const SESSION = asSessionId('11111111-2222-3333-4444-555555555555')
 
@@ -20,7 +21,7 @@ function failedChild(): never {
 describe('ChatManager when the process cannot be started (MAIN-19)', () => {
   it('ends the chat as exited with the reason, and stopAll still resolves', async () => {
     const states: ChatState[] = []
-    const manager = new ChatManager({ claudeBin: () => 'claude', onChange: (s) => { states.push(s) }, spawn: failedChild })
+    const manager = new ChatManager({ claudeBin: () => 'claude', accounts: stubAccounts(), onChange: (s) => { states.push(s) }, spawn: failedChild })
     manager.start(SESSION, process.cwd())
     await vi.waitFor(() => { expect(states[states.length - 1]?.status).toBe('exited') })
     expect(states[states.length - 1]?.error).toContain('ENOENT')
@@ -29,7 +30,7 @@ describe('ChatManager when the process cannot be started (MAIN-19)', () => {
   })
 
   it('stopAll resolves even when it is called before the error has been delivered', async () => {
-    const manager = new ChatManager({ claudeBin: () => 'claude', onChange: () => {}, spawn: failedChild })
+    const manager = new ChatManager({ claudeBin: () => 'claude', accounts: stubAccounts(), onChange: () => {}, spawn: failedChild })
     manager.start(SESSION, process.cwd())
     await expect(manager.stopAll()).resolves.toBeUndefined()
   })

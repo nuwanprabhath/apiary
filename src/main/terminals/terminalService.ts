@@ -10,7 +10,8 @@ import { promptPathEnv, type PromptPathOptions } from '../pty/promptPath'
 import { forkLabel } from '@shared/forkLabel'
 import { stripPasteControls } from '@shared/pasteSafe'
 import { newPendingPtyId, shellPtyId } from '@shared/domain/ptyId'
-import type { PtyId, SessionId } from '@shared/domain/ids'
+import { asSessionId, type AccountId, type PtyId, type SessionId } from '@shared/domain/ids'
+import type { LaunchAccounts } from '../accounts/accountService'
 import { log } from '../log/logger'
 import type { NewSessionInfo } from '@shared/types'
 
@@ -31,6 +32,10 @@ export interface TerminalServiceDeps {
   promptPath?: PromptPathOptions
   /** The zsh startup shim the minimal prompt needs (see pty/promptPath.ts), or none. */
   zshPromptShim?: string
+  /** Every `claude` it starts runs under an account's environment. */
+  accounts: LaunchAccounts
+  /** Where a login session runs. */
+  homeDir: string
 }
 
 /**
@@ -52,8 +57,12 @@ export class TerminalService {
   private claudeBin: string | undefined
   private promptPath: PromptPathOptions
   private readonly zshPromptShim: string | undefined
+  private readonly accounts: LaunchAccounts
+  private readonly homeDir: string
 
   constructor(deps: TerminalServiceDeps) {
+    this.accounts = deps.accounts
+    this.homeDir = deps.homeDir
     this.pty = deps.pty
     this.resolver = deps.resolver
     this.store = deps.store
@@ -93,6 +102,44 @@ export class TerminalService {
     return promptPathEnv(this.promptPath, this.zshPromptShim ?? null)
   }
 
+  /** What a `claude` under `account` runs with: the prompt settings, then the account's own folder. */
+  private claudeEnv(account: AccountId): Record<string, string> {
+    return { ...this.env(), ...this.accounts.launchEnv(account) }
+  }
+
+  /**
+   * Switching a running session's account: the `claude` is killed and the resume command spawned on
+   * the same pty id, at the size it had. The id keeps its views — `kill()` drops the old child's
+   * callbacks (they check they are still the occupant), so no window is told the pty died.
+   */
+  async respawn(sessionId: SessionId): Promise<void> {
+    const session = this.resolver.requireSession(sessionId)
+    const cwd = session.cwd
+    if (!cwd || !existsSync(cwd)) throw new Error(`The folder for this session no longer exists: ${cwd ?? 'unknown'}`)
+    const account = this.accounts.accountOf(sessionId)
+    await this.pty.killAndWait(sessionId)
+    this.pty.spawn({
+      id: sessionId, cwd, tui: true, account, ...this.pty.sizeOf(sessionId),
+      command: buildResumeCommand(sessionId, { claudeBin: this.claudeBin }),
+      env: this.claudeEnv(account),
+    })
+  }
+
+  /**
+   * Starts a new session under `accountId` for the user to log in: `claude` asks for a login on its
+   * own when the account has none. It runs in the home folder, and that folder is not made an
+   * auto-import project, since nothing is meant to be written there.
+   */
+  login(accountId: AccountId): NewSessionInfo {
+    const ptyId = newPendingPtyId(randomUUID())
+    this.pty.spawn({
+      id: ptyId, cwd: this.homeDir, tui: true, account: accountId,
+      command: buildNewSessionCommand({ claudeBin: this.claudeBin }),
+      env: this.claudeEnv(accountId),
+    })
+    return { ptyId, cwd: this.homeDir, label: 'Log in' }
+  }
+
   /**
    * Spawns `claude --resume` in the session's recorded cwd. Terminal id is the session id.
    *
@@ -115,17 +162,19 @@ export class TerminalService {
     if (!cwd || !existsSync(cwd)) {
       throw new Error(`The folder for this session no longer exists: ${cwd ?? 'unknown'}`)
     }
+    const account = this.accounts.accountOf(asSessionId(sessionId))
     this.pty.spawn({
       id: sessionId,
       cwd,
       command: buildResumeCommand(sessionId, { claudeBin: this.claudeBin }),
       tui: true,
+      account,
       // Claude takes the screen, so its own prompt is not bash's — but the shell is still there
       // underneath and is what you are left looking at the moment Claude exits, which is where a
       // 90-column worktree path greets you. This was missed when the setting was added: it reached
       // the shell tabs and not the session's own terminal, so the setting looked broken to anyone
       // who tried it on the terminal they actually use.
-      env: this.env(),
+      env: this.claudeEnv(account),
     })
   }
 
@@ -224,12 +273,15 @@ export class TerminalService {
     }
     this.store.setAutoImport(cwd, true)
     const ptyId = newPendingPtyId(randomUUID())
+    // The fork continues its parent's conversation, so it runs where the parent does.
+    const account = this.accounts.accountOf(asSessionId(sessionId))
     this.pty.spawn({
       id: ptyId,
       cwd,
       command: buildResumeCommand(sessionId, { fork: true, claudeBin: this.claudeBin }),
       tui: true,
-      env: this.env(),
+      account,
+      env: this.claudeEnv(account),
     })
     return { ptyId, cwd, label: forkLabel(session.title ?? (basename(cwd) || cwd)) }
   }
@@ -245,12 +297,14 @@ export class TerminalService {
     if (!existsSync(cwd)) throw new Error(`Working directory does not exist: ${cwd}`)
     this.store.setAutoImport(cwd, true)
     const ptyId = newPendingPtyId(randomUUID())
+    const account = this.accounts.defaultId()
     this.pty.spawn({
       id: ptyId,
       cwd,
       command: buildNewSessionCommand({ claudeBin: this.claudeBin }),
       tui: true,
-      env: this.env(),
+      account,
+      env: this.claudeEnv(account),
     })
     return { ptyId, cwd, label: basename(cwd) || cwd }
   }

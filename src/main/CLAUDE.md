@@ -4,7 +4,7 @@ Read with root CLAUDE.md; this covers settings storage and IPC, and points at th
 each subsystem. Subfolders with their own `CLAUDE.md`: [`chat/`](chat/CLAUDE.md),
 [`pets/`](pets/CLAUDE.md), [`pty/`](pty/CLAUDE.md), [`search/`](search/CLAUDE.md),
 [`statusBar/`](statusBar/CLAUDE.md), [`store/`](store/CLAUDE.md), [`update/`](update/CLAUDE.md),
-[`plugins/`](plugins/CLAUDE.md), [`log/`](log/CLAUDE.md). Windows and tabs
+[`plugins/`](plugins/CLAUDE.md), [`log/`](log/CLAUDE.md), [`accounts/`](accounts/CLAUDE.md). Windows and tabs
 (`windows/`) live in [docs/architecture/windows-and-tabs.md](../../docs/architecture/windows-and-tabs.md)
 because that topic spans main and renderer.
 

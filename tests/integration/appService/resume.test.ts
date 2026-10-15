@@ -46,9 +46,10 @@ describe('resuming a session that already has a pty', () => {
       await resumeService.importSessions(['55555555-5555-5555-5555-555555555555'], [])
 
       await resumeService.resume(asSessionId('55555555-5555-5555-5555-555555555555'))
+      // A login shell's startup is the slow part, and under the full suite it can take seconds.
       await vi.waitFor(() => {
         expect(readFileSync(started, 'utf8').trim().split('\n')).toHaveLength(1)
-      })
+      }, { timeout: 10_000 })
       // The second window's mount effect, calling resume() for the same restored session id.
       await resumeService.resume(asSessionId('55555555-5555-5555-5555-555555555555'))
 

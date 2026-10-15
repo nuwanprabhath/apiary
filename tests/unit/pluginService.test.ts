@@ -49,7 +49,7 @@ describe('PluginService', () => {
   it('registers the built-ins only when asked, with the user\'s own enablement winning over the default', () => {
     expect(build().service.list()).toEqual([])
     const { service } = build(undefined, {
-      enabled: { 'gitlab-mr': false }, settings: undefined, glabPath: undefined, configRoot: '/nowhere', useKeychain: false,
+      enabled: { 'gitlab-mr': false }, settings: undefined, glabPath: undefined, configRoot: '/nowhere', useKeychain: false, accounts: null,
     })
     const ids = service.list().map((p) => [p.id, p.enabled])
     expect(ids).toContainEqual(['gitlab-mr', false])

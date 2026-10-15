@@ -3,6 +3,7 @@ import * as pty from 'node-pty'
 import { ignoreErrors } from '@shared/ignoreErrors'
 import { loginShellInvocation } from '../exec/loginShell'
 import { log } from '../log/logger'
+import type { AccountId } from '@shared/domain/ids'
 import { ScreenBuffers, type ScreenSnapshot } from './screen'
 import { strippedMarkers } from './childEnv'
 
@@ -21,6 +22,8 @@ export interface SpawnOptions {
   tui?: boolean
   /** Extra environment for this child, merged over the inherited environment. */
   env?: Record<string, string>
+  /** The Claude account a `claude` pty runs under; the tracker reads that account's `sessions` folder. */
+  account?: AccountId
 }
 
 type DataHandler = (id: string, data: string) => void
@@ -70,6 +73,8 @@ interface PtyEntry {
   /** Output activity, so a caller can wait for the child to finish reacting to input. */
   lastDataAt: number
   outputCount: number
+  /** The account the process was started under; null for a plain shell. */
+  accountId: AccountId | null
 }
 
 export class PtyManager {
@@ -100,12 +105,23 @@ export class PtyManager {
    * own pid — the key of the `~/.claude/sessions/<pid>.json` file that says which session the
    * process is on right now. See `claudeSessionTracker.ts`.
    */
-  tuiPids(): Map<string, number> {
-    const out = new Map<string, number>()
+  tuiProcesses(): Map<string, { pid: number; accountId: AccountId | null }> {
+    const out = new Map<string, { pid: number; accountId: AccountId | null }>()
     for (const [id, entry] of this.entries) {
-      if (entry.child !== null && entry.expectTui) out.set(id, entry.child.pid)
+      if (entry.child !== null && entry.expectTui) out.set(id, { pid: entry.child.pid, accountId: entry.accountId })
     }
     return out
+  }
+
+  /** The account a live `claude` pty runs under, or null for a shell or an id that is not running. */
+  accountOf(id: string): AccountId | null {
+    const entry = this.entries.get(id)
+    return entry !== undefined && entry.child !== null ? entry.accountId : null
+  }
+
+  /** The size a live pty has now, so a respawn on the same id opens at the width the view is at. */
+  sizeOf(id: string): { cols: number; rows: number } | undefined {
+    return this.entries.get(id)?.size
   }
 
   spawn(opts: SpawnOptions): void {
@@ -133,6 +149,7 @@ export class PtyManager {
       tuiStarted: false,
       lastDataAt: Date.now(),
       outputCount: 0,
+      accountId: opts.account ?? null,
     }
     // Registered before the callbacks can run (they are delivered on later turns), and before the
     // first byte is rendered, so the pty's very first screen is at the right width.

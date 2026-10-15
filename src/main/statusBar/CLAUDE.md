@@ -37,6 +37,11 @@ and only built-in is the Claude usage plugin.
 - `tests/unit/statusBarRegistry.test.ts`: lifecycle, a throwing plugin, settings routing.
 - `tests/unit/claudeUsage.test.ts`: parsing, pricing, presentation.
 - `tests/unit/claudeUsageConsent.test.ts`: nothing read before the answer; decline turns the plugin off.
+- `tests/unit/claudeUsageAccounts.test.ts`, `tests/component/statusBarAccounts.test.tsx`: one meter per
+  signed-in account (`usage` for main, `usage:<id>` for the rest, each with its own limits, backoff and
+  timer); the renderer shows the focused session's account (`useAccountUsageItems`). An added
+  account's token is read from its own Keychain item (`keychainServiceFor`), then its
+  credentials file; one consent answer covers every account.
 - `tests/component/statusBar.test.tsx`, `tests/e2e/statusBar.spec.ts`.
 
 ## Pitfalls

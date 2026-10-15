@@ -13,7 +13,7 @@ import type { ChatService } from './chat/chatService'
 import type { PluginService } from './plugins/pluginService'
 import type { PromptPathOptions } from './pty/promptPath'
 import type { MrState } from './git/mrStatusCache'
-import type { PtyId, SessionId, TerminalRef } from '@shared/domain/ids'
+import type { AccountId, PtyId, SessionId, TerminalRef } from '@shared/domain/ids'
 import type {
   ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo, CheckoutOutcome, GitStatus, GitRefs, FolderWorktree,
 } from '@shared/types'
@@ -228,6 +228,10 @@ export class AppService {
 
   forkSession(sessionId: string): NewSessionInfo {
     return this.terminals.forkSession(sessionId)
+  }
+
+  loginToAccount(accountId: AccountId): NewSessionInfo {
+    return this.terminals.login(accountId)
   }
 
   /** Delivers a composed prompt to a session's running `claude` process. See

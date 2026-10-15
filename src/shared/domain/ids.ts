@@ -23,6 +23,9 @@ export type SessionId = string & { readonly [brand]: 'SessionId' }
  *  shell tab, and a session's own id for the pty running that session. */
 export type PtyId = string & { readonly [brand]: 'PtyId' }
 
+/** A Claude account (`shared/domain/accounts.ts`): `main`, or the slug of an added account's label. */
+export type AccountId = string & { readonly [brand]: 'AccountId' }
+
 /** Boundary conversions. Use where an id is minted or arrives from outside the typed world (a
  *  guard, a database row, persisted layout) — not to silence the compiler mid-flow. */
 export function asSessionId(id: string): SessionId {
@@ -30,6 +33,9 @@ export function asSessionId(id: string): SessionId {
 }
 export function asPtyId(id: string): PtyId {
   return id as PtyId
+}
+export function asAccountId(id: string): AccountId {
+  return id as AccountId
 }
 
 /** The pty that runs a real session is keyed by the session's own id. */

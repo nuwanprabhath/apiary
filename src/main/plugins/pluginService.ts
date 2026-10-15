@@ -6,6 +6,7 @@ import { BUILTIN_STATUS_BAR_PLUGINS } from '../statusBar/builtin'
 import type { RemoteClientsFeed } from '../statusBar/remoteClients'
 import type { StatusBarRegistry } from '../statusBar/registry'
 import { ConsentStore, memoryConsentStorage, type ConsentStorage } from '../statusBar/claudeUsage/consent'
+import type { UsageAccounts } from '../statusBar/claudeUsage/plugin'
 import { BUILTIN_PLUGINS } from './builtin'
 import type { PluginRegistry } from './registry'
 import type { PluginBarItem, PluginSettingValues } from './types'
@@ -22,6 +23,8 @@ interface BuiltinPluginConfig {
   configRoot: string
   /** Whether the usage plugin may read the macOS Keychain (never against a test fixture's root). */
   useKeychain: boolean
+  /** The Claude accounts the usage meter follows; null where there are none (a test harness). */
+  accounts: UsageAccounts | null
   /** Where the usage plugin's consent answer is remembered. Omitted: in memory, asked each launch. */
   consent?: ConsentStorage
   /** Remembers that a plugin was switched off by the user's own answer (a declined consent), so it
@@ -76,6 +79,7 @@ export class PluginService {
       const plugin = factory({
         configRoot: config.configRoot,
         useKeychain: config.useKeychain,
+        accounts: config.accounts,
         consent: new ConsentStore(config.consent ?? memoryConsentStorage()),
         remoteClients: config.remoteClients,
       })

@@ -35,6 +35,7 @@ import type { BackgroundTaskOutput } from '../chatTimeline'
 import type { BrowseView } from '../domain/folders'
 import type { AppSettingsPayload } from '../domain/settings'
 import { isLibraryPatch, type LibraryPatch, type LibrarySnapshot } from '../libraryState'
+import { isAccountId, isAccountLabel, type AccountId, type AccountsState } from '../domain/accounts'
 import type { LogLevel, LogScope, LogStatusPayload } from '../domain/log'
 import type { UpdateStatusPayload } from '../domain/update'
 import type { PluginInfoPayload, PluginBarItem as PluginBarItemPayload } from '../domain/plugins'
@@ -229,6 +230,21 @@ export const IPC = {
   /** Applied only while the state is unseeded; answers what main now holds either way. */
   seedLibraryState: invoke<[patch: LibraryPatch], LibrarySnapshot>('apiary:seed-library-state', tuple(isLibraryPatch)),
   libraryStateChanged: event<[snapshot: LibrarySnapshot]>('apiary:library-state-changed'),
+  // Claude accounts (shared/domain/accounts.ts): the list and default are owned by main; the
+  // account a session runs under is read here. `accountsChanged` follows an add, remove or default change.
+  accountsList: invoke<[], AccountsState>('apiary:accounts-list', tuple()),
+  accountsAdd: invoke<[label: string], AccountId>('apiary:accounts-add', tuple(isAccountLabel)),
+  accountsRemove: invoke<[id: AccountId], void>('apiary:accounts-remove', tuple(isAccountId)),
+  accountsSetDefault: invoke<[id: AccountId], void>('apiary:accounts-set-default', tuple(isAccountId)),
+  sessionAccountGet: invoke<[sessionId: SessionId], AccountId>('apiary:session-account-get', tuple(sessionIdArg)),
+  accountsChanged: event<[state: AccountsState]>('apiary:accounts-changed'),
+  /** Starts a new session under the account, for it to log in; the window puts it in a tab. */
+  accountsLogin: invoke<[id: AccountId], NewSessionInfo>('apiary:accounts-login', tuple(isAccountId)),
+  /** Runs the session under the account from now on; a running chat or terminal restarts under it. */
+  sessionAccountSwitch: invoke<[sessionId: SessionId, id: AccountId], void>('apiary:session-account-switch', tuple(sessionIdArg, isAccountId)),
+  /** The account of every live session; `sessionAccountsChanged` follows a switch. */
+  sessionAccountsList: invoke<[], Record<SessionId, AccountId>>('apiary:session-accounts-list', tuple()),
+  sessionAccountsChanged: event<[accounts: Record<SessionId, AccountId>]>('apiary:session-accounts-changed'),
   toggleSidebar: event('apiary:toggle-sidebar'),
 
   // Git.

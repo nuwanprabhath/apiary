@@ -3,6 +3,7 @@ import type { ThemeSpec } from '@shared/theme/spec'
 import { Swatches, effectsLabel } from './ThemeSwatches'
 import { activateTheme } from '../state/theme'
 import { surface } from '../state/policy'
+import { focusAskedFor } from '../ui/focusUnlessTyping'
 
 export type Naming = null | 'save' | 'rename' | 'save-preview'
 
@@ -32,8 +33,7 @@ export function ThemeCurrent(
       {naming !== null ? (
         <form className="theme-name-form" onSubmit={(e) => { e.preventDefault(); onSubmitName() }}>
           <input
-            // eslint-disable-next-line apiary/focus-unless-typing -- the person just clicked Save to name the theme, so the field is what they asked for
-            autoFocus
+            ref={focusAskedFor}
             className="search"
             data-testid="theme-save-name"
             value={name}

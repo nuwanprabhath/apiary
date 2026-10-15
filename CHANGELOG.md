@@ -4,6 +4,24 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.43.0] - 2026-10-16
+
+### Added
+
+- **Run a session as another Claude account.** Add your other accounts (work, personal) under
+  Settings → Accounts and log in to each once; Apiary keeps each login in its own folder, so
+  signing in to one never signs you out of another, and nothing changes for your terminals or VS
+  Code. New sessions start in the default account you pick there.
+- **Move one session to another account** from the `/` menu (Account: <name>) or the tab's
+  right-click menu. The session restarts in place on the same conversation. If Claude is mid-reply
+  you are asked first: stop and switch, switch when the reply finishes, or don't switch.
+- Each session remembers its account: reopening it, after a restart or from Recent, uses the same
+  one, and a fork starts in its parent's account. With more than one account, the tab's tooltip
+  and the chat's status line name it.
+- **The Claude usage meter follows the session you are in**, showing that account's 5-hour and
+  weekly limits ("Work · 5h 64%"). The one consent question covers every account; macOS may ask
+  once per account to let Apiary read its sign-in.
+
 ## [1.42.1] - 2026-10-15
 
 The first release of 1.42: everything listed under 1.42.0, plus this fix.

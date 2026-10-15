@@ -1,5 +1,8 @@
 import type { JSX } from 'react'
+import { hasSeveralAccounts, useAccounts, useSessionAccount } from '../../state/accountsStore'
+import { pickAccount, sessionOfTabKey } from '../../state/sessionBusy'
 import { ContextMenu } from '../../ui/ContextMenu'
+import type { ContextMenuItem } from '../../ui/contextMenuItem'
 
 interface Props {
   /** The tab the menu was opened on and where; null: closed. */
@@ -20,6 +23,20 @@ interface Props {
 export function TabContextMenu(
   { menu, isPending, pinnedKeys, onClose, onTogglePin, onFork, onDetach, onArrange, onDismiss }: Props,
 ): JSX.Element {
+  const accounts = useAccounts()
+  // A session tab's key is its session id; a new session has none yet, so it has nothing to switch.
+  const sessionId = menu === null || isPending(menu.key) ? null : sessionOfTabKey(menu.key)
+  const currentId = useSessionAccount(sessionId)
+  const accountItem: ContextMenuItem[] = sessionId === null || !hasSeveralAccounts(accounts) ? [] : [{
+    id: 'account',
+    label: 'Account',
+    submenu: accounts.accounts.map((a) => ({
+      id: `account-${a.id}`,
+      label: a.label,
+      checked: a.id === currentId,
+      run: () => { if (a.id !== currentId) pickAccount(sessionId, a.id) },
+    })),
+  }]
   return (
     <ContextMenu
       testId="tab-menu"
@@ -35,6 +52,7 @@ export function TabContextMenu(
           disabledReason: 'Available once the session has started — send it a message first',
           run: () => onFork(menu.key),
         },
+        ...accountItem,
         {
           id: 'detach',
           label: 'Move into New Window',

@@ -31,4 +31,10 @@ CREATE TABLE IF NOT EXISTS session (
 
 CREATE INDEX IF NOT EXISTS session_by_project ON session(project_path);
 CREATE INDEX IF NOT EXISTS session_by_imported ON session(imported, archived);
+
+-- No foreign key: a session started in an account is recorded before its file is scanned.
+CREATE TABLE IF NOT EXISTS session_account (
+  session_id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL
+);
 `

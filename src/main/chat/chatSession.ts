@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { asSessionId, UUID_RE, type SessionId } from '@shared/domain/ids'
+import { asSessionId, UUID_RE, type AccountId, type SessionId } from '@shared/domain/ids'
 import {
   emptyChatState, type ChatDecision, type ChatEffort, type ChatModel, type ChatPermissionMode, type ChatState,
 } from '@shared/domain/chat'
@@ -16,11 +16,20 @@ const STDERR_TAIL = 2000
 /** How long a stopped process gets to exit before it is killed outright. */
 const STOP_GRACE_MS = 3000
 
+/** What a chat was started with, kept so it can be started again under another account. */
+export interface ChatLaunch {
+  cwd: string
+  opts: { model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort }
+  account: AccountId
+}
+
 /**
  * One session's `claude` process in chat mode. Turns its stdout into `ChatState` (protocol.ts does
  * the reading) and the window's actions into lines on its stdin.
  */
 export class ChatSession {
+  /** Set by `ChatManager.start`, which owns what a process was launched with. */
+  launch: ChatLaunch | null = null
   private state: ChatState
   private readonly pending = new Map<string, PendingPermission>()
   private buffer = ''
