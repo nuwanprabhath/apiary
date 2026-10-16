@@ -37,7 +37,7 @@ interface ViewInput {
 
 /** What the transcript draws, derived from the loaded messages and the chat's live part. */
 export function useTranscriptView({ sessionId, messages, showSidechain, chatMode, chat, terminalRunning }: ViewInput) {
-  // UI-8: filtering on every render built a fresh array even when nothing about `messages` or
+  // Filtering on every render built a fresh array even when nothing about `messages` or
   // `showSidechain` had changed — cheap for one render, but this list only grows, and a filter
   // over the whole thing ran on every unrelated re-render of `Transcript` too.
   const { hideToolCallIo: globalHideToolCalls } = useLibraryState()

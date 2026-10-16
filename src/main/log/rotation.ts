@@ -6,9 +6,7 @@
  * the first. The size budget wins, because it is the one that protects the machine — age only
  * decides *which* files go first.
  *
- * Pure, so the decisions are testable without a filesystem: the mistakes in rotation are all
- * off-by-one — deleting the file currently being written, or keeping every file because the
- * budget was compared against the wrong total.
+ * Pure, so the decisions are testable without a filesystem.
  */
 
 export interface LogFile {

@@ -111,8 +111,7 @@ export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarP
 
   return {
     id: 'gitlab-mr',
-    // On unless the user has actually said otherwise (`BuiltinPluginConfig.enabled` still wins) — the
-    // literal `?? true` this replaces used to live in `AppService`'s constructor instead of here.
+    // On unless the user has said otherwise (`BuiltinPluginConfig.enabled` still wins).
     defaultEnabled: true,
     name: 'GitLab merge request',
     description: 'Shows the merge request for the branch you are on, and opens it in a click. '

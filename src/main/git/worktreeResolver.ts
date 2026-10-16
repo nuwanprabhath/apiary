@@ -7,11 +7,8 @@ import { branchFromRef } from './refs'
 
 export interface WorktreeResolverOptions {
   /**
-   * Runs `git`. MAIN-23: the same `createExec` wrapper `BranchOps` uses, at this module's own 5s
-   * timeout — unlike `BranchOps`, a failure here is swallowed to `null` (best-effort project
-   * detection), never thrown, so `createExec`'s normalised error text is simply discarded. Injected
-   * (the container builds the real one) so a test can pin that null-on-failure contract without a
-   * git repository.
+   * Runs `git`. Unlike `BranchOps`, a failure here is swallowed to `null` (best-effort project
+   * detection), never thrown. Injected so a test can pin that contract without a git repository.
    */
   exec: ExecFn
 }
@@ -21,22 +18,10 @@ export function createResolverExec(): ExecFn {
   return createExec({ timeoutMs: 5000, scope: 'worktree-resolve' })
 }
 
-/**
- * Resolves a folder to its project: repository root, worktree or not, branch. Owns the cache of
- * answers and the count of `git` spawns it cost — the "measure before fixing"
- * number for MAIN-1 and MAIN-3: a cache hit costs none, and the single-spawn rewrite in MAIN-3 made
- * an uncached folder cost 2 rather than 3. One instance, built in the container; a test builds its own.
- *
- * The cache states its invalidation: an answer is stored with the fingerprint of the folder's
- * `HEAD` file (the one a `git checkout` rewrites, in `.git` or in `.git/worktrees/<name>` for a
- * linked worktree), and is used only while that fingerprint is unchanged. A checkout done outside
- * Apiary therefore shows on the next scoped pass, with no full pass needed. `forceResolve` and
- * `clearCache` remain for a caller that knows better (a worktree removed, a mutation Apiary made).
- */
 interface CacheEntry {
   info: ProjectInfo
   /** The `HEAD` file this answer was read beside and its fingerprint then; null when the folder is
-   *  not a repository (or exec gave no git dir), which has no key and so stays cached as before. */
+   *  not a repository (or exec gave no git dir), which has no key and so stays cached. */
   head: { file: string; stamp: string } | null
 }
 
@@ -51,6 +36,16 @@ async function headStamp(file: string): Promise<string | null> {
   }
 }
 
+/**
+ * Resolves a folder to its project: repository root, worktree or not, branch. Owns the cache of
+ * answers and the count of `git` spawns it cost: a cache hit costs none, an uncached folder costs 2.
+ *
+ * The cache states its invalidation: an answer is stored with the fingerprint of the folder's
+ * `HEAD` file (the one a `git checkout` rewrites, in `.git` or in `.git/worktrees/<name>` for a
+ * linked worktree), and is used only while that fingerprint is unchanged. A checkout done outside
+ * Apiary therefore shows on the next scoped pass, with no full pass needed. `forceResolve` and
+ * `clearCache` remain for a caller that knows better (a worktree removed, a mutation Apiary made).
+ */
 export class WorktreeResolver {
   /** Invalidated by the folder's HEAD fingerprint (see the class note), `forceResolve` and `clearCache`. */
   private readonly cache = new Map<string, CacheEntry>()
@@ -78,7 +73,7 @@ export class WorktreeResolver {
 
   async resolveProject(
     path: string,
-    opts?: { /** Bypasses the cache — used right after a mutation that is the reason it's stale (MAIN-4). */ forceResolve?: boolean },
+    opts?: { /** Bypasses the cache — used right after a mutation that is the reason it's stale. */ forceResolve?: boolean },
   ): Promise<ProjectInfo> {
     const cache = this.cache
     const cached = opts?.forceResolve ? undefined : cache.get(path)
@@ -106,7 +101,6 @@ export class WorktreeResolver {
     let head: CacheEntry['head'] = null
 
     if (exists) {
-      // One spawn instead of two: git prints both answers, one per line, for a single call.
       const both = await this.git(canonicalPath, ['rev-parse', '--git-common-dir', '--show-toplevel', '--absolute-git-dir'])
       const [commonDir, topLevel, gitDir] = both ? both.split('\n') : [undefined, undefined, undefined]
       if (commonDir && topLevel) {
@@ -114,9 +108,6 @@ export class WorktreeResolver {
         const absCommon = isAbsolute(commonDir) ? commonDir : resolve(canonicalPath, commonDir)
         const repoRoot = dirname(absCommon)
         const isWorktree = absCommon !== join(topLevel, '.git')
-        // `symbolic-ref` (unlike `rev-parse --abbrev-ref HEAD`) also succeeds on an unborn branch
-        // (a freshly `git init`ed repo with no commits yet), and fails on a detached HEAD exactly
-        // as the old call did — both map to `branch: null` below, same as before.
         // Fingerprinted before the branch is read: a checkout between the two makes the stored
         // stamp older than the answer, so the next lookup re-resolves rather than trusting it.
         if (gitDir) {
@@ -124,6 +115,8 @@ export class WorktreeResolver {
           const stamp = await headStamp(file)
           if (stamp !== null) head = { file, stamp }
         }
+        // `symbolic-ref` (unlike `rev-parse --abbrev-ref HEAD`) also succeeds on an unborn branch,
+        // and fails on a detached HEAD; both give `branch: null`.
         const headRef = await this.git(canonicalPath, ['symbolic-ref', '-q', 'HEAD'])
         const branch = headRef === null ? null : branchFromRef(headRef)
         info = {

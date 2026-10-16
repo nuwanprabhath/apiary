@@ -1,7 +1,7 @@
 import type { JSX } from 'react'
 
 /**
- * The number-with-clamp pattern repeated 6 times across SettingsDialog (UI-20): a typed value
+ * The number-with-clamp pattern: a typed value
  * below `min` or not a number at all falls back to `min` rather than being left invalid, and a
  * typed value above `max` is capped rather than accepted.
  */

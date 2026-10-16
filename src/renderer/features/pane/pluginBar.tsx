@@ -5,14 +5,7 @@ import { MergeRequestIcon, LinkIcon, PlusIcon, AlertIcon } from '../../ui/icons'
 import type { ToolbarButtonSpec } from './Toolbar'
 import { onPluginsChanged, readPluginBar, refreshPluginBar, runPluginAction } from '../../state/plugins'
 
-/**
- * The renderer's half of the session-bar plugins.
- *
- * A plugin describes a button; this turns that description into one. The mapping from an icon
- * *name* to an actual glyph lives here and nowhere else — the main process never sends markup, so
- * a plugin cannot put arbitrary content in the window, only choose from what this file knows how
- * to draw.
- */
+// Main never sends markup: a plugin can only choose from the icons this file knows how to draw.
 
 const ICONS: Record<PluginBarItemPayload['icon'], JSX.Element> = {
   'merge-request': <MergeRequestIcon />,
@@ -23,20 +16,14 @@ const ICONS: Record<PluginBarItemPayload['icon'], JSX.Element> = {
   alert: <AlertIcon />,
 }
 
-/**
- * Keeps one session's plugin buttons up to date.
- *
- * Re-asked whenever the session or its branch changes — a branch switch is the event that changes
- * which merge request is the relevant one — and whenever the main process says a background lookup
- * came back with something different.
- */
+/** Re-asked when the session or branch changes (which decides the relevant merge request) and when
+ *  a background lookup in main came back different. */
 export function usePluginBar(terminal: TerminalRef | null, branch: string | null): {
   items: PluginBarItemPayload[]
   refresh: () => void
 } {
   const [items, setItems] = useState<PluginBarItemPayload[]>([])
-  /** Which tab's request is the current one, so a slower response for a tab left behind cannot
-   *  put its plugin buttons (e.g. its merge request) on the tab now in front (UI-14). */
+  // A slower response for a tab left behind must not put its buttons on the tab in front.
   const requestKey = useRef<string | null>(null)
 
   const load = useCallback(() => {
@@ -58,7 +45,6 @@ export function usePluginBar(terminal: TerminalRef | null, branch: string | null
   return { items, refresh }
 }
 
-/** Turns plugin descriptions into toolbar buttons. */
 export function pluginButtons(items: PluginBarItemPayload[]): ToolbarButtonSpec[] {
   return items.map((item) => ({
     id: `plugin:${item.pluginId}:${item.id}`,

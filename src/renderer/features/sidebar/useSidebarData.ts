@@ -7,13 +7,13 @@ import { flattenTree } from '@shared/treeWalk'
 import { groupFolders, type GroupState } from '../../state/groups'
 import { selectRecent, type DismissedMap } from '../../state/recentSessions'
 import { createdWorktreeRoots, onlyWanted, withAllWorktrees } from './model/allWorktrees'
+import { hideOldSessions } from './hideOldSessions'
 import { useAllWorktrees } from './model/useAllWorktrees'
 
 /**
- * The Pinned and Recent lists, resolved against the *filtered* tree so a search narrows them too:
- * a pinned session that doesn't match what you typed would otherwise be the one row on screen
- * that ignores the search box. Pinned rows keep the order they were pinned in, not the tree's.
- * `activeTabs` keeps Recent from repeating a session the Active section already shows.
+ * The Pinned and Recent lists, resolved against the *filtered* tree so a search narrows them too.
+ * Pinned rows keep the order they were pinned in, not the tree's. `activeTabs` keeps Recent from
+ * repeating a session the Active section already shows.
  */
 export function usePinnedAndRecent({ tree, pinned, activeTabs, dismissedRecent, recentSectionEnabled, recentSectionHours }: {
   tree: ProjectNode[]
@@ -28,7 +28,6 @@ export function usePinnedAndRecent({ tree, pinned, activeTabs, dismissedRecent, 
   const pinnedSessions = useMemo(() => {
     return pinned.map((id) => sessionsById.get(id)).filter((s): s is SessionNode => s !== undefined)
   }, [sessionsById, pinned])
-  /** Keys of every tab the Active section is already showing, so Recent never repeats one. */
   const activeIds = useMemo(() => new Set(activeTabs.map((t) => t.key)), [activeTabs])
   const recentSessions = useMemo(() => {
     if (!recentSectionEnabled) return []
@@ -43,11 +42,12 @@ export function usePinnedAndRecent({ tree, pinned, activeTabs, dismissedRecent, 
  * The top level, as the user arranged it: their groups first, then everything ungrouped, with the
  * worktrees the user asked to see added under their folders.
  *
- * Searching deliberately bypasses the arrangement — while a query is on, the tree is already a
- * filtered subset, and hiding matches inside collapsed groups would defeat the point of typing.
+ * Searching bypasses the arrangement: hiding matches inside collapsed groups would defeat typing.
  */
-export function useArrangedTree({ tree, rawTree, groupState, showAllWorktrees, createdWorktrees, refreshNonce }: {
+export function useArrangedTree({ tree, rawTree, groupState, showAllWorktrees, createdWorktrees, refreshNonce, hideOld }: {
   tree: ProjectNode[]
+  /** Set while "hide old sessions" is on and nothing is searched; pinned and open sessions are kept. */
+  hideOld: { days: number; pinned: string[]; activeTabs: ActiveTabPayload[] } | null
   rawTree: ProjectNode[]
   groupState: GroupState
   showAllWorktrees: string[]
@@ -67,7 +67,15 @@ export function useArrangedTree({ tree, rawTree, groupState, showAllWorktrees, c
     () => onlyWanted(listed, showAllWorktrees, createdRoots),
     [listed, showAllWorktrees, createdRoots],
   )
-  const withWorktrees = useMemo(() => withAllWorktrees(tree, extraWorktrees), [tree, extraWorktrees])
+  const hideDays = hideOld?.days ?? null
+  const hidePinned = hideOld?.pinned
+  const hideTabs = hideOld?.activeTabs
+  const withWorktrees = useMemo(() => {
+    const all = withAllWorktrees(tree, extraWorktrees)
+    if (hideDays === null) return all
+    const keep = new Set([...(hidePinned ?? []), ...(hideTabs ?? []).map((t) => t.key)])
+    return hideOldSessions(all, { days: hideDays, now: Date.now(), keep })
+  }, [tree, extraWorktrees, hideDays, hidePinned, hideTabs])
   const arranged = useMemo(
     () => groupFolders(
       withWorktrees, (n) => n.path,
@@ -79,30 +87,21 @@ export function useArrangedTree({ tree, rawTree, groupState, showAllWorktrees, c
 }
 
 /**
- * The flat, ranked results shown while searching — ranked over every match `tree` holds (which
- * is uncapped; see `filterTreeLocal`), with the cap applied here, to the *ranked* list, so the
- * best matches survive it rather than whichever `SEARCH_RESULT_CAP` sessions a folder walk
- * happened to reach first. Memoized because `rankSessions` runs over the full match set and
- * re-ranking on every unrelated render (an Active-section poll, a git-status refresh) would
- * reintroduce exactly the per-render cost this feature exists to avoid.
+ * The flat, ranked results shown while searching: ranked over every match `tree` holds (uncapped;
+ * see `filterTreeLocal`), with the cap applied here to the ranked list so the best matches
+ * survive it. Memoized because `rankSessions` runs over the full match set.
  *
- * Keyed on `settledQuery`, never the live `query`. Keying on the live one made the memo miss on
- * every keystroke while `tree` still held the *previous* query's matches — so each character
- * typed re-ranked the widest match set there is (a one-character query matches nearly every
- * session), synchronously, before the character could be painted, and then ranked it again when
- * the debounce settled. That was the beach ball: typing the second letter of a search stalled
- * the whole window.
+ * Keyed on `settledQuery`, never the live `query`: the live one misses the memo on every keystroke
+ * while `tree` still holds the previous query's matches, re-ranking the widest match set
+ * synchronously before the character paints, which stalled the window.
  */
 export function useRankedResults(
   tree: ProjectNode[], settledQuery: string, matchedByContent: Set<string>, pinnedSet: Set<string>,
 ): ReturnType<typeof rankSessions> {
   return useMemo(
     () => rankSessions(tree, settledQuery, matchedByContent)
-      // Pinned matches are already on screen in the Pinned section above, which a search narrows
-      // the same way it narrows this list — so leaving them in showed the same session twice. The
-      // tree does exactly this (`SessionTree` renders only a folder's unpinned sessions); the flat
-      // results list simply never learned to. Filtered before the cap, so excluding a pinned row
-      // gives its place back to the next-best match rather than shortening the list.
+      // Pinned matches are already in the Pinned section above, as in the tree. Filtered before
+      // the cap, so a pinned row's place goes to the next-best match.
       .filter(({ session }) => !pinnedSet.has(session.sessionId))
       .slice(0, SEARCH_RESULT_CAP),
     [tree, settledQuery, matchedByContent, pinnedSet],

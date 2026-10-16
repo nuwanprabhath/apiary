@@ -27,8 +27,7 @@ export function settingsHandlers(deps: SettingsDeps): Pick<Handlers, HandledKeys
       const settings = settingsService.get()
       return {
         ...pickPayload(settings),
-        // The two fields the plugins own: what is on, and each plugin's values, come from the
-        // plugin registry rather than from settings.json.
+        // Owned by the plugin registry, not settings.json.
         plugins: Object.fromEntries(plugins.list().map((p) => [p.id, p.enabled])),
         pluginSettings: Object.fromEntries(plugins.list().map((p) => [p.id, p.values])),
       }
@@ -36,12 +35,10 @@ export function settingsHandlers(deps: SettingsDeps): Pick<Handlers, HandledKeys
     settingsSet: async (_e, next) => {
       const current = settingsService.get()
       // See `mergeSettingsPayload` (src/main/settings.ts) for why a missing field must mean "leave
-      // it alone", never "off" (the bug that made session notes stop being indexed), and for the
-      // SEC-8 validation on claudeBin, the numeric fields and pluginSettings.
+      // it alone", never "off", and for the validation on claudeBin, numbers and pluginSettings.
       const knownPluginIds = new Set(plugins.list().map((p) => p.id))
       const merged = settingsService.applyPayload(next, knownPluginIds)
-      // The schedule has to follow the settings immediately: switching checks off and having one
-      // fire ten minutes later is the kind of thing that makes a toggle look broken.
+      // The update schedule follows the settings immediately, or a toggle looks broken.
       updater?.settingsChanged()
       service.setClaudeBin(merged.claudeBin)
       service.setAutoImportAll(merged.autoImportAll)
@@ -53,16 +50,14 @@ export function settingsHandlers(deps: SettingsDeps): Pick<Handlers, HandledKeys
       for (const [id, values] of Object.entries(merged.pluginSettings)) {
         plugins.setSettings(id, values)
       }
-      // Switching a plugin off changes what every open bar should show, and nothing else would
-      // tell the windows: the bar only re-reads on a branch change or on this signal.
+      // The bar only re-reads on a branch change or on this signal.
       broadcast(IPC.pluginsChanged)
       service.setPromptPath({
         enabled: merged.terminalShortenPath,
         segments: merged.terminalPathSegments,
         minimal: merged.terminalMinimalPrompt,
       })
-      // Applied immediately: switching diagnostics off has to stop writing now, not at next
-      // launch, or "off" is a promise the app keeps only eventually.
+      // Switching diagnostics off stops writing now, not at next launch.
       configureLogging(merged)
       log.info('settings', 'settings saved', {
         diagnosticsEnabled: merged.diagnosticsEnabled,
@@ -70,11 +65,9 @@ export function settingsHandlers(deps: SettingsDeps): Pick<Handlers, HandledKeys
         terminalPathSegments: merged.terminalPathSegments,
         terminalMinimalPrompt: merged.terminalMinimalPrompt,
       })
-      // Switching content search on should not mean waiting until the next rescan to be able to
-      // use it, so the first pass starts now; it is a background chore either way.
+      // The first indexing pass starts now rather than at the next rescan.
       if (merged.searchChatContent) void service.updateSearchIndex()
       onAutoImportIntervalChange?.(merged.autoImportIntervalMinutes)
-      // If autoImportAll was just switched ON, import everything right away.
       if (merged.autoImportAll && !current.autoImportAll) {
         await service.importAllDiscovered()
         broadcast(IPC.treeChanged)

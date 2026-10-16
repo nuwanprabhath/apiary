@@ -47,10 +47,8 @@ export class TranscriptService {
 
   async page(sessionId: string, beforeIndex?: number): Promise<TranscriptPage> {
     const session = this.deps.resolver.requireSession(sessionId)
-    // Claude's own session files can be deleted out from under Apiary — most often by removing
-    // the git worktree the session ran in, which takes its whole `~/.claude/projects/<slug>`
-    // directory with it. Saying so in one sentence is far more use than the raw
-    // `ENOENT: no such file or directory, stat '/…'` this would otherwise reject with.
+    // Removing a git worktree takes its `~/.claude/projects/<slug>` directory with it, so the file
+    // can vanish under Apiary.
     if (!existsSync(session.filePath)) {
       throw new Error(
         `This session's transcript file is no longer on disk: ${session.filePath}. ` +
@@ -107,8 +105,7 @@ export class TranscriptService {
   async backgroundTaskOutput(sessionId: string, taskId: string): Promise<BackgroundTaskOutput> {
     const session = this.deps.resolver.findSession(sessionId)
     if (session === null) return { available: false, lines: [] }
-    // The same incremental read as the running count: a popup refreshing every 1.5 s must not
-    // re-read a transcript that can run to tens of megabytes from its start each time.
+    // Incremental, as for the running count: a transcript can run to tens of megabytes and the popup refreshes every 1.5 s.
     const { tally } = await this.caughtUp(sessionId, session.filePath)
     const output = tally.outputFile(taskId)
     if (output === null) return { available: false, lines: [] }

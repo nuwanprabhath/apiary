@@ -20,25 +20,19 @@ interface Props {
 /**
  * The one right-click menu, shared by the tab strip, the terminal, the sidebar and the text menus.
  *
- * Fixed to the viewport rather than positioned within its opener, so it is never clipped by the
- * scrolling or overflow of whatever it was opened from — the tab strip scrolls horizontally and the
- * sidebar vertically, and a menu that disappeared into either would be useless.
+ * Fixed to the viewport so it is never clipped by the scrolling or overflow of its opener (the tab
+ * strip and the sidebar both scroll).
  *
- * Portalled to the body for the same reason one level up: fixed positioning escapes overflow but
- * not a stacking context, and glass isolates each panel into one (`isolation: isolate`). Drawn
- * inside the sidebar, the menu's z-index counted only within it, and the session pane beside it
- * painted over whatever part of the menu reached across.
+ * Portalled to the body: fixed positioning escapes overflow but not a stacking context, and glass
+ * isolates each panel into one (`isolation: isolate`), so inside the sidebar the pane beside it
+ * painted over the part of the menu that reached across.
  */
 export function ContextMenu({ items, position, onClose, testId, focusOnOpen = true }: Props): JSX.Element | null {
   const rootRef = useRef<HTMLElement | null>(null)
 
   /**
-   * Nudged back on screen when opened near an edge.
-   *
-   * Measured after rendering at the requested point, not before: the menu has no size until it is
-   * in the document, so gating the render on having measured it would mean never rendering it at
-   * all. A layout effect corrects it before the browser paints, so this reads as one position
-   * rather than a visible jump.
+   * Nudged back on screen when opened near an edge. Measured after rendering at the requested
+   * point, since the menu has no size until it is in the document; the layout effect runs before paint.
    */
   const [nudge, setNudge] = useState<{ top: number; left: number } | null>(null)
   useLayoutEffect(() => {
@@ -56,9 +50,8 @@ export function ContextMenu({ items, position, onClose, testId, focusOnOpen = tr
     setNudge(left === position.x && top === position.y ? null : { top, left })
   }, [position])
 
-  // Escape closes it via the shared stack (UI-13) — only the top-most open layer reacts, so a
-  // context menu opened from inside another popup doesn't also close that popup. A press anywhere
-  // outside is still handled here directly.
+  // Escape goes through the shared stack, so a context menu opened from inside another popup
+  // doesn't also close that popup. A press anywhere outside is handled here directly.
   useEscape(onClose, { enabled: position !== null })
   useOutsideDismiss(onClose, { enabled: position !== null, inside: [rootRef] })
 
@@ -89,8 +82,6 @@ interface PanelProps {
 /** Holds which submenu is open, so it starts closed each time the menu opens. */
 function ContextMenuPanel({ items, onClose, testId, focusOnOpen, rootRef, style }: PanelProps): JSX.Element {
   const [openId, setOpenId] = useState<string | null>(null)
-  // UI-26: `Menu` focuses the first item on open, steps with arrow/Home/End and restores focus
-  // to whatever opened the menu on close.
   return (
     <Menu className="context-menu-floating" testId={testId} ref={rootRef} focusOnOpen={focusOnOpen} style={style}>
       {items.map((item) => (

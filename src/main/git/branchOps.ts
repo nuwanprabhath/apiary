@@ -2,9 +2,7 @@ import { createExec, type ExecFn } from '../exec/run'
 import type { GitStatus, GitRefEntry, GitRefs } from '@shared/types'
 import { branchFromRef, listRefsArgs, parseRefRows, type RefNamespace, type RefRow } from './refs'
 
-/** Parses `%(upstream)<TAB>%(upstream:track,nobracket)` — see `status()` below. Empty
- *  `upstream` (no such remote-tracking ref configured) means no upstream at all; a present
- *  upstream with an empty `track` means the branch is even with it. */
+/** Parses `%(upstream)<TAB>%(upstream:track,nobracket)`. An empty upstream means none; an empty `track` means even with it. */
 function parseUpstreamTrack(raw: string): { hasUpstream: boolean; ahead: number; behind: number } {
   const [upstream = '', track = ''] = raw.split('\t')
   if (upstream === '') return { hasUpstream: false, ahead: 0, behind: 0 }
@@ -24,9 +22,7 @@ function toEntry({ name, fields }: RefRow): GitRefEntry {
   return { name, relativeDate, author, shortSha, subject: subject.join('\t') }
 }
 
-/** Rejects a user-typed ref name that git could misinterpret as a flag (e.g. "-x"). Names that
- *  come back from `listRefs` are always safe (git produced them itself) — this guards only the
- *  free-typed "create new branch" name. */
+/** Rejects a free-typed branch name that git could read as a flag; names from `listRefs` are git's own. */
 function assertSafeRefName(name: string): void {
   if (name.trim() === '' || name.startsWith('-')) {
     throw new Error(`Invalid branch name: "${name}"`)
@@ -35,12 +31,10 @@ function assertSafeRefName(name: string): void {
 
 /**
  * Rejects a ref that git could read as a flag. A ref starting with "-", fetched from a hostile
- * remote, is a valid ref even though `git branch`/`git tag` refuse to *create* one that way.
+ * remote, is valid even though `git branch`/`git tag` refuse to create one.
  *
- * Checked here rather than with `--end-of-options`: before git 2.44, `checkout` (which keeps
- * `--` for itself) did not understand `--end-of-options` and counted it as a second ref, so every
- * branch switch failed with "fatal: only one reference expected, 2 given" on Ubuntu 24.04's git
- * 2.43. No ref Apiary offers starts with "-", so refusing those loses nothing.
+ * Not `--end-of-options`: before git 2.44, `checkout` (which keeps `--` for itself) counted it as
+ * a second ref and failed with "only one reference expected, 2 given" on Ubuntu 24.04's git 2.43.
  */
 function assertNotOption(ref: string): void {
   if (ref.startsWith('-')) throw new Error(`Refusing a ref that looks like an option: "${ref}"`)
@@ -53,13 +47,9 @@ export interface WorktreeEntry {
 }
 
 /**
- * Parses `git worktree list --porcelain`.
- *
- * Porcelain rather than the human format, and a parser of its own rather than a regex over
- * git's prose: the message that sends us here — "'dev/1.0.12' is already used by worktree at
- * '/…'" — is English, quoted, and not a stable interface, while the porcelain output is exactly
- * that. A branch name may contain a slash, a worktree path may contain a space, and both are
- * ordinary here.
+ * Parses `git worktree list --porcelain`, not the error prose ("'dev/1.0.12' is already used by
+ * worktree at '/…'"), which is not a stable interface. A branch name may contain a slash and a
+ * path a space.
  *
  * Records are blank-line separated; each starts with `worktree <path>` and carries either
  * `branch refs/heads/<name>` or a bare `detached`.
@@ -86,33 +76,23 @@ export function parseWorktreeList(stdout: string): WorktreeEntry[] {
   return out
 }
 
-/** Whether a failed checkout failed *because* the branch is checked out in another worktree. */
 export function isWorktreeConflict(message: string): boolean {
   return /already used by worktree at/i.test(message)
 }
 
 export interface BranchOpsOptions {
-  /**
-   * Runs `git`. MAIN-23: `createExec` already normalises a failure exactly the way this module's
-   * `git()` used to build its own message (stderr first, then stdout, then the raw message), so the
-   * swap was behaviour-for-behaviour identical. Injected (the container builds the real one) so a
-   * test can pin the error-normalisation contract without a real git repository; the integration
-   * tests run it against real git.
-   */
+  /** Runs `git`. `createExec` normalises a failure to stderr, then stdout, then the raw message. */
   exec: ExecFn
 }
 
-/** The 15 s `git` runner a `BranchOps` is built with in the app. */
 export function createBranchExec(): ExecFn {
   return createExec({ timeoutMs: 15000, scope: 'git' })
 }
 
 /**
- * Every `git` operation on a branch, worktree or remote, run through the injected `exec`. Counts
- * the spawns it makes (`spawnCount`), the "measure before fixing" number for MAIN-9. Failures
- * throw with git's real stderr text — unlike `WorktreeResolver` (which swallows failures to `null`
- * for best-effort project detection), every caller here is a user-initiated action whose failure
- * must reach the UI. One instance, built in the container.
+ * Every `git` operation on a branch, worktree or remote. Failures throw with git's real stderr,
+ * unlike `WorktreeResolver` (best-effort, swallows to `null`): every caller here is a user action
+ * whose failure must reach the UI.
  */
 export class BranchOps {
   private spawns = 0
@@ -128,8 +108,7 @@ export class BranchOps {
     return stdout.trim()
   }
 
-  /** Same as `git()`, but resolves to `null` on failure instead of throwing — for probes like
-   *  "does an upstream exist" where a non-zero exit is an expected, meaningful outcome. */
+  /** `git()` resolving to `null` on failure, for probes where a non-zero exit is an answer. */
   private async tryGit(cwd: string, args: string[]): Promise<string | null> {
     try {
       return await this.git(cwd, args)
@@ -139,27 +118,17 @@ export class BranchOps {
   }
 
   /**
-   * The sidebar's git-status poll (MAIN-9): 4 sequential spawns collapsed to 2 for the common case
-   * (a branch, with or without an upstream) and to 2 for the uncommon ones (detached HEAD, not a
-   * repository at all) too — previously either case still paid for the upstream lookup regardless.
+   * The sidebar's git-status poll: 2 spawns for a branch, with or without an upstream.
    *
-   * `symbolic-ref` gets the branch in one call, in place of the previous `rev-parse --git-dir`
-   * (repo-validity probe) followed by `rev-parse --abbrev-ref HEAD` — and it fails identically for
-   * a detached HEAD and for "not a repository at all", so those two only cost a second spawn (the
-   * validity check, thrown from as before) instead of every poll paying for it up front. `ahead`/
-   * `behind` and the upstream's name come from one `for-each-ref` call instead of a separate
-   * `rev-parse @{u}` probe plus a `rev-list --count` — `%(upstream:track)` is a format atom, not
-   * prose (CLAUDE.md: git's prose is not an interface; this is not that).
+   * `symbolic-ref` fails identically for a detached HEAD and for "not a repository", so only
+   * those pay a second spawn (the validity check). `ahead`/`behind` and the upstream's name come
+   * from one `for-each-ref`; `%(upstream:track)` is a format atom, not prose.
    */
   async status(cwd: string): Promise<GitStatus | null> {
     const branch = await this.currentBranch(cwd)
     if (branch === null) {
-      // Verify repo validity only for this less common case. "Not a repository" is an outcome, not
-      // an error (MAIN-9): a folder without a `.git` is polled every 5s per pane exactly like any
-      // other, and before this it threw every single time, which meant a diagnostic log filled with
-      // non-errors and `ipc.ts` logging "handler failed" on a schedule for something that never
-      // failed at all. `null` is reserved for exactly that case — anything else `git` says here
-      // (a real error: permissions, a corrupt repo) still rejects, same as before.
+      // "Not a repository" is an outcome, not an error: a folder without `.git` is polled every 5s,
+      // and throwing would fill the log. Anything else (permissions, a corrupt repo) still rejects.
       try {
         await this.git(cwd, ['rev-parse', '--git-dir'])
       } catch (e) {
@@ -199,9 +168,7 @@ export class BranchOps {
 
   async checkoutBranch(cwd: string, name: string): Promise<void> {
     assertNotOption(name)
-    // The trailing `--` guarantees `name` cannot fall back to being read as a pathspec, which is
-    // what "git checkout <name>" does when no such ref exists — and silently discards local edits
-    // to a file of that name (SEC-9).
+    // Without `--`, a missing ref makes git read `name` as a pathspec and discard local edits to that file.
     await this.git(cwd, ['checkout', name, '--'])
   }
 
@@ -210,11 +177,8 @@ export class BranchOps {
   }
 
   /**
-   * Where `branch` is checked out, or null when it is not checked out anywhere.
-   *
-   * This is how the worktree that blocks a checkout is found. It is deliberately *not* read out of
-   * git's error message: the renderer never supplies a path (see CLAUDE.md), so the path the app
-   * then acts on has to be one the main process derived itself from the repository.
+   * Where `branch` is checked out, or null. Finds the worktree that blocks a checkout, derived
+   * from the repository rather than git's error message: the app acts on this path.
    */
   async worktreeForBranch(cwd: string, branch: string): Promise<string | null> {
     const found = (await this.listWorktrees(cwd)).find((w) => w.branch === branch)
@@ -245,10 +209,8 @@ export class BranchOps {
   }
 
   /**
-   * `git worktree add` for each way the New worktree dialog can pick a branch — the same three the
-   * simple-worktrees extension offers. A remote branch reuses a local branch of the same name when
-   * one exists (checking out `origin/x` twice as two tracking branches is never what was meant),
-   * and otherwise creates a local branch tracking it.
+   * `git worktree add` for each way the New worktree dialog picks a branch. A remote branch reuses
+   * a local branch of the same name when one exists, otherwise creates one tracking it.
    */
   async addWorktree(
     cwd: string,
@@ -275,8 +237,7 @@ export class BranchOps {
     }
   }
 
-  /** Plain `git pull`, reporting how many commits HEAD moved by — git's own output is not shown, so
-   *  without a count "pulled" read the same whether ten commits arrived or none did. */
+  /** Plain `git pull`, reporting how many commits HEAD moved by (git's output is not shown). */
   async pull(cwd: string): Promise<{ commits: number }> {
     const before = await this.git(cwd, ['rev-parse', 'HEAD'])
     await this.git(cwd, ['pull'])
@@ -291,17 +252,10 @@ export class BranchOps {
   }
 
   /**
-   * Brings a worktree's branch up to date with its upstream, but only by fast-forwarding.
-   *
-   * `--ff-only` rather than the plain `pull()` above, because of where this is offered: a one-click
-   * button on a folder's hover card, for a worktree the user is usually *not* looking at. Plain
-   * `git pull` does whatever the user's config says — merge or rebase — and either can leave that
-   * worktree mid-conflict with nobody at a terminal in it. A fast-forward cannot conflict: it
-   * either moves the branch to what the remote has, or refuses and changes nothing, and git's own
-   * refusal ("Not possible to fast-forward", "would be overwritten") is what gets shown.
-   *
-   * Returns how many commits arrived, measured from HEAD before and after, so the caller can say
-   * "already up to date" instead of reporting a success that did nothing.
+   * Fast-forward-only pull of a worktree's branch. Offered as a one-click button for a worktree
+   * the user is not looking at, where the configured merge or rebase of plain `pull()` could leave
+   * it mid-conflict with nobody at a terminal. A fast-forward moves the branch or refuses and
+   * changes nothing; git's refusal is what gets shown. Returns how many commits arrived.
    */
   async pullFastForward(cwd: string): Promise<{ commits: number }> {
     const before = await this.git(cwd, ['rev-parse', 'HEAD'])
@@ -310,9 +264,8 @@ export class BranchOps {
   }
 
   /**
-   * Brings any local branch up to date with its upstream — the pull button beside each branch in
-   * the branch list — by fast-forwarding only, for the same reason as `pullFastForward`: a click in
-   * a list must not be able to start a merge or leave a conflict behind.
+   * Fast-forward-only update of any local branch (the pull button in the branch list), for the
+   * reason `pullFastForward` gives.
    *
    * - The branch checked out here: `git pull --ff-only`.
    * - Checked out in another worktree: the same, run in that worktree (git will not move a branch
@@ -345,11 +298,9 @@ export class BranchOps {
     return { commits: Number(await this.git(cwd, ['rev-list', '--count', `${before}..${after}`])) }
   }
 
-  /** Plain `git push`; if the branch has no upstream yet, retries once as
-   *  `git push -u origin HEAD` instead of requiring a separate "publish branch" step.
-   *
-   *  The count is measured before pushing: commits ahead of the upstream, or — for a branch being
-   *  published — commits no remote has yet. It is what was sent, as far as this clone knows. */
+  /** Plain `git push`; with no upstream yet, retries once as `git push -u origin HEAD`.
+   *  The count is measured before pushing: commits ahead of the upstream, or for a published
+   *  branch, commits no remote has. */
   async push(cwd: string): Promise<{ commits: number; published: boolean }> {
     const ahead = await this.tryGit(cwd, ['rev-list', '--count', '@{upstream}..HEAD'])
     try {
@@ -365,18 +316,14 @@ export class BranchOps {
     }
   }
 
-  /** Merges a ref (branch, tag or commit) into HEAD with `--no-edit`.
-   *
-   *  A conflict deliberately leaves the tree mid-merge rather than running `merge --abort`: the
-   *  shell sitting directly below this toolbar is where the conflict gets resolved, and rolling the
-   *  merge back would throw away the one state from which that is possible. The thrown error
-   *  carries git's own "CONFLICT (content): ..." text, which arrives on stdout — see `git()`. */
+  /** Merges a ref into HEAD with `--no-edit`. A conflict deliberately leaves the tree mid-merge:
+   *  the shell below the toolbar is where it gets resolved. The thrown error carries git's
+   *  "CONFLICT (content): ..." text, which arrives on stdout. */
   async merge(cwd: string, ref: string): Promise<void> {
     assertNotOption(ref)
     await this.git(cwd, ['merge', '--no-edit', ref])
   }
 
-  /** Fetches from all remotes and prunes stale remote-tracking refs. */
   async fetch(cwd: string): Promise<void> {
     await this.git(cwd, ['fetch', '--prune'])
   }

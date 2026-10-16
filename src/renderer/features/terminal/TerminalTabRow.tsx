@@ -63,7 +63,7 @@ export function TerminalTabRow(
           onKeyDown={(e) => {
             if (e.key === 'Enter') { e.preventDefault(); onCommit() }
             // Stopped rather than left to bubble: this panel can be showing while a dialog or
-            // menu is open on the shared Escape stack (UI-13), and Escape here should cancel
+            // menu is open on the shared Escape stack, and Escape here should cancel
             // just the rename, not also close that layer.
             if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onCancel() }
           }}

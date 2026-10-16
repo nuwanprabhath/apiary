@@ -15,9 +15,8 @@ export interface ShellTerminals {
   /** F2 in a shell: which terminal to rename. See TerminalListPanel's `renameRequest`. */
   renameRequest: { id: string } | null
   setRenameRequest: (request: { id: string } | null) => void
-  /** Bumped per terminal whose process was started again, so its view remounts and attaches the
-   *  way a fresh terminal's does — snapshot, fit, resize — rather than staying on the dead pty's
-   *  blank screen at the default 80x24. */
+  /** Bumped per terminal whose process was started again, so its view remounts and attaches like a
+   *  fresh terminal's rather than staying on the dead pty's blank 80x24 screen. */
   revivals: Map<string, number>
   terminalsFor: (tabKey: string) => TerminalTab[]
   activeTerminalFor: (tabKey: string) => string | null
@@ -32,11 +31,8 @@ export interface ShellTerminals {
 }
 
 /**
- * One pane's shell terminals: the open/closed state of its shell card, and the terminals listed
- * under the session in front. The lists themselves live in the workspace (`shellTabs`,
- * `activeTerminal`), filed under `keyFor(tab)`, so two panes showing the same split session share
- * one set; this reads this pane's entries (`workspace`) and writes through the workspace rather than
- * taking setters as props.
+ * One pane's shell terminals. The lists live in the workspace (`shellTabs`, `activeTerminal`) under
+ * `keyFor(tab)`, so two panes showing the same split session share one set.
  */
 export function useShellTerminals({ activeKey, terminal, isActive, keyFor, workspace }: {
   activeKey: string | null
@@ -75,18 +71,11 @@ export function useShellTerminals({ activeKey, terminal, isActive, keyFor, works
     await spawnShell(terminal, id)
   }, [terminal])
 
-  // Guards `ensureShellFor` against firing twice for the same key before its first spawn has
-  // committed to `shellTabs` — a ref (not state) because the check must be synchronous, and
-  // because two columns showing the *same* split session share one `shellTabs` entry, so a
-  // second column's own render could otherwise race a spawn already in flight from the first.
+  // A ref because the check must be synchronous, and two columns showing the same split session
+  // share one `shellTabs` entry, so the second could race a spawn already in flight.
   const spawningRef = useRef<Set<string>>(new Set())
 
-  /**
-   * Spawns a first terminal for `key` if it has none *live*. Shared by the "Show shell" button
-   * and the auto-open effect below, so a session that already has a shell never gets a second
-   * spawned out from under it, and a session whose shell was exited (`exit` at the prompt, its
-   * dead tab pruned by App's pty-exit handler) reliably gets a fresh one either way.
-   */
+  // Spawns a first terminal for `key` if it has none live; shared by "Show shell" and the auto-open effect.
   const ensureShellFor = useCallback(async (key: string): Promise<void> => {
     if ((shellTabs.get(key) ?? []).length > 0) return
     if (spawningRef.current.has(key)) return
@@ -118,17 +107,9 @@ export function useShellTerminals({ activeKey, terminal, isActive, keyFor, works
     setShellOpen(true)
   }, [shellKey, shellOpen, ensureShellFor, notifyError])
 
-  /**
-   * Auto-opens a shell for a tab that switches into view while the pane is already open but that
-   * tab itself has never had one. `shellOpen` lives at the column level, not per tab — switching
-   * to a session you have never shown the shell for used to leave the pane rendering nothing at
-   * all (no terminal exists for that key yet, and nothing spawns one without a click), which read
-   * as "Show shell did nothing" even though the pane genuinely was open. See
-   * sessionTabs.spec.ts's "switching to a tab that never had a shell open" for the regression.
-   *
-   * Restricted to the focused column: two columns can show the same split session and would
-   * otherwise both race to spawn its first terminal the moment either one opens its shell.
-   */
+  // Auto-opens a shell for a tab switched into view that never had one: `shellOpen` is per column,
+  // not per tab, so the pane would render nothing. Restricted to the focused column, or two columns
+  // on the same split session would race to spawn its first terminal.
   useEffect(() => {
     if (!isActive || !shellOpen || shellKey === null) return
     if ((shellTabs.get(shellKey) ?? []).length > 0) return
@@ -138,8 +119,7 @@ export function useShellTerminals({ activeKey, terminal, isActive, keyFor, works
   const addTerminalTab = useCallback(async () => {
     if (shellKey === null) return
     const existing = shellTabs.get(shellKey) ?? []
-    // Ids climb forever within a session rather than reusing a freed number, so a just-deleted
-    // tab's pty id can never collide with a new one's; the name follows the id for the same reason.
+    // Ids are never reused, so a just-deleted tab's pty id cannot collide with a new one's.
     const maxId = existing.reduce((m, t) => Math.max(m, Number(t.id)), 0)
     const newId = String(maxId + 1)
     try {
@@ -147,8 +127,7 @@ export function useShellTerminals({ activeKey, terminal, isActive, keyFor, works
       setShellTabs((prev) => new Map(prev).set(shellKey, [...existing, { id: newId, name: `Terminal ${newId}` }]))
       setActiveTerminal((prev) => new Map(prev).set(shellKey, newId))
       setShellOpen(true)
-      // Reveal the list too: a new terminal is otherwise indistinguishable from the one already on
-      // screen, so the click reads as having done nothing at all.
+      // A new terminal looks identical to the one on screen unless the list is revealed.
       setTabListOpen(true)
     } catch (e) {
       notifyError(e, 'Could not open a new terminal')

@@ -11,7 +11,7 @@ import { LayoutIcon } from '../ui/icons'
  * What the layout menus, drag-to-swap and the tab bar's split button do to the pane grid, as the
  * two contexts every consumer reads.
  *
- * UI-5: `isOpen` and `dropPaneOn` read the current columns / moving pane through a ref, so the
+ * `isOpen` and `dropPaneOn` read the current columns / moving pane through a ref, so the
  * actions object is built once and never changes identity — otherwise every SessionRow,
  * FolderHeader and tab strip re-rendered on every change to them.
  */
@@ -21,8 +21,6 @@ export function usePaneLayout(
   columns: Column[],
   openDialog: (request: DialogRequest) => void,
 ) {
-  // UI-3: read through a ref (rather than depending on `columns`) wherever an effect or a stable
-  // callback needs the current columns without re-running when they change.
   const columnsRef = useRef(columns)
   columnsRef.current = columns
   /** The pane being dragged onto another by its tab bar — see `swapPanes`. */
@@ -75,8 +73,7 @@ export function usePaneLayout(
     movingPane,
   }), [layout.preset, paneCount, movingPane])
 
-  /** The window-layout button shown at the top-right pane — same element every render (`applyLayout`
-   *  is stable), rather than a fresh one built inline for whichever column happens to sit there. */
+  /** The window-layout button shown at the top-right pane; one element, stable across renders. */
   const layoutMenuButton = useMemo(() => (
     <LayoutMenuButton
       className="session-tab-split"

@@ -11,17 +11,12 @@ import type {
 export type { Capability, OpenInstallerResult }
 
 /**
- * The updater's state machine and scheduler.
- *
- * Everything that talks to Electron, the network or the disk is behind `UpdateBackend`, so the
- * rules here — when to check, what to offer, what a "skip" means, what happens when a download
- * fails halfway — are testable in plain Node against a stub. That matters more than usual for this
- * feature: the real thing can only be exercised by publishing a release, so anything not covered
- * by a test here is covered by nothing until it reaches a user.
+ * The updater's state machine and scheduler. Everything that talks to Electron, the network or the
+ * disk is behind `UpdateBackend`, so the rules are testable in plain Node against a stub; the real
+ * path can only be exercised by publishing a release.
  */
 
-/** Kept as an alias: `UpdateStatusPayload` (shared/domain/update.ts) is the canonical name, since
- *  it is also the wire shape `ApiaryApi.updateStatus` returns — see MAIN-22 / SHARED-2. */
+/** An alias of the wire shape `ApiaryApi.updateStatus` returns. */
 export type UpdateStatus = UpdateStatusPayload
 
 export interface FeedResult {
@@ -74,12 +69,7 @@ export interface UpdateServiceOptions {
   }
 }
 
-/**
- * How long after launch the first automatic check happens.
- *
- * Not zero: startup is already scanning sessions, opening the database and spawning the window,
- * and a network round trip in the middle of that competes with the thing the user is waiting for.
- */
+/** How long after launch the first automatic check happens; not zero, so it does not compete with startup. */
 export const FIRST_CHECK_DELAY_MS = 30_000
 
 const MIN_INTERVAL_HOURS = 1
@@ -160,12 +150,9 @@ export class UpdateService {
   }
 
   /**
-   * Asks the feed whether there is anything newer.
-   *
-   * A manual check reports its outcome either way — that is the whole point of pressing the
-   * button. An automatic one stays silent unless it has something to offer, and swallows its
-   * errors into the status rather than interrupting: a laptop that woke up on a captive-portal
-   * wifi should not produce a dialog about it.
+   * Asks the feed whether there is anything newer. A manual check reports its outcome either way;
+   * an automatic one stays silent unless it has something to offer, and puts its errors in the
+   * status rather than interrupting (a laptop waking on captive-portal wifi).
    */
   async check({ manual }: { manual: boolean }): Promise<UpdateStatus> {
     if (this.capability.kind === 'unsupported') {
@@ -184,9 +171,7 @@ export class UpdateService {
       if (found === null || !shouldOffer({
         current: this.status.currentVersion,
         candidate: found.version,
-        // A manual check ignores the skip: pressing "Check for Updates" is asking about the
-        // version you skipped as much as any other, and having it answer "up to date" when it is
-        // not would be a lie.
+        // A manual check ignores the skip: "up to date" would be a lie about the skipped version.
         skipped: manual ? null : settings.skippedVersion,
         allowPrerelease: settings.allowPrerelease,
       })) {
@@ -230,8 +215,6 @@ export class UpdateService {
     this.patch({ phase: 'downloading', progressPercent: 0, error: null })
 
     const onProgress = (percent: number): void => {
-      // Only the percentage changes here, and it changes often; sending a whole status object per
-      // network chunk is what makes a progress bar cost more than the download.
       this.patch({ progressPercent: Math.max(0, Math.min(100, Math.round(percent))) })
     }
 
@@ -247,8 +230,7 @@ export class UpdateService {
         this.patch({ openResult })
       }
     } catch (e) {
-      // Back to `available`, not to `idle`: the update is still there and still worth offering,
-      // and a failed download is a thing to retry rather than a thing to forget.
+      // Back to `available`, not `idle`: the update is still worth offering and the download can be retried.
       this.patch({
         phase: 'available',
         progressPercent: null,

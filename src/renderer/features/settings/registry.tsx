@@ -17,8 +17,7 @@ import { DiagnosticsSection } from './sections/DiagnosticsSection'
 /**
  * Everything any section could need. A section takes only the slice it uses — see each one's own
  * props — and `registry.ts` wires the full bag down to it, rather than every section's signature
- * having to agree on one shape (UI-20's registry, replacing the 600-line ternary chain that used
- * to be SettingsDialog.tsx).
+ * having to agree on one shape.
  */
 interface SectionProps {
   draft: SettingsDraft

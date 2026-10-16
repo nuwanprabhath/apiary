@@ -7,32 +7,23 @@ import type {
 /**
  * Holds the plugins and asks them all for their contribution to one session's bar.
  *
- * Two rules, both about not letting a plugin damage the app around it:
+ * **A plugin that throws contributes nothing, and nothing else notices.**
  *
- * **A plugin that throws contributes nothing, and nothing else notices.** The bar carries git
- * state that matters; an integration failing to reach its API must not take that with it.
- *
- * **A plugin that is slow is answered from the cache.** The bar re-renders whenever the session,
- * the branch or the git status changes, and a plugin that shells out to the network cannot be on
- * that path. Results are cached per folder+branch for `ttlMs`, so switching between two sessions
- * is instant and the network is hit at most once per branch per TTL.
+ * **A slow plugin is answered from the cache.** The bar re-renders on every session, branch or git
+ * status change, so a networked plugin cannot be on that path. Results are cached per
+ * folder+branch for `ttlMs`.
  */
 
 interface CacheEntry {
   at: number
   items: PluginBarItem[]
-  /** Kept so a settings change can recompute what is cached without waiting to be asked again. */
+  /** Kept so a settings change can recompute what is cached. */
   ctx: PluginTarget
-  /** Last time this key was actually asked about, via `items()` — separate from `at` (when it was
-   *  last *computed*), so a key nobody has drawn the bar for in a while can be told apart from one
-   *  that is merely between `ttlMs` refreshes (MAIN-17). */
+  /** Last time `items()` asked about this key, as opposed to `at` (last computed). */
   lastRead: number
 }
 
-/** How long a session's cached plugin answers are kept once nothing has asked about it — a folder
- *  closed, a session no longer open. Without this the cache held one entry per cwd+branch ever
- *  seen, for the life of the process (MAIN-17): a long-running Apiary that had opened hundreds of
- *  folders over weeks kept every one of them, including branches long since deleted. */
+/** How long cached plugin answers are kept once nothing asks about them; bounds the cache to what is shown. */
 const IDLE_EVICT_MS = 10 * 60 * 1000
 
 /** One plugin: what it is, whether it is on, and what the user set for it (before defaults). */
@@ -42,11 +33,7 @@ interface PluginRecord {
   settings: PluginSettingValues | undefined
 }
 
-/**
- * One folder+branch the bar has been drawn for: its last answer, and the lookup running for it, so
- * a burst of renders produces one lookup rather than ten, and a caller that asks during one *joins*
- * it rather than being handed the stale answer it was trying to get past.
- */
+/** One folder+branch the bar has been drawn for: its last answer and the running lookup, which a caller joins. */
 interface TargetRecord {
   cached: CacheEntry | null
   inFlight: Promise<PluginBarItem[]> | null
@@ -59,24 +46,22 @@ export interface RegistryOptions {
   now?: () => number
   /** Called when a background refresh produced something different, so the UI can re-read. */
   onChanged?: () => void
-  /** How a folder's remote URL is looked up for `PluginContext.remoteUrl()`; injected so tests
-   *  need no git. Defaults to `git remote get-url origin`. */
+  /** How a folder's remote URL is looked up for `PluginContext.remoteUrl()`; defaults to `git remote get-url origin`. */
   remoteUrl?: (cwd: string) => Promise<string | null>
 }
 
 const DEFAULT_TTL_MS = 60_000
 
 export class PluginRegistry {
-  /** By plugin id, in the order they were registered (the order they are asked and listed in). */
+  /** By plugin id, in registration order. */
   private readonly plugins = new Map<string, PluginRecord>()
   /** By folder+branch (`key`). The cached answers are invalidated by age (`ttlMs`), by `revalidate`
    *  when an input to `evaluate` changes, by `clearCache`, and dropped when idle (`evictIdle`). */
   private readonly targets = new Map<string, TargetRecord>()
   /**
    * Bumped whenever an input to `evaluate` changes (a setting, a plugin switched on or off). A
-   * lookup started under an older value answered with the old inputs: it is not cached as fresh,
-   * and it is looked up again. Joining it instead lost a setting changed while it ran, and the bar
-   * kept the old target branch for the whole TTL.
+   * lookup started under an older value is not cached as fresh and is looked up again; joining it
+   * would keep the old inputs for the whole TTL.
    */
   private inputs = 0
   private readonly ttlMs: number
@@ -103,11 +88,7 @@ export class PluginRegistry {
   }
 
   /**
-   * Replaces a plugin's settings.
-   *
-   * Clears the cache, because a setting is an input to `evaluate` — changing the target branch and
-   * having the button keep the old URL for another minute is exactly the kind of thing that makes
-   * a setting look broken.
+   * Replaces a plugin's settings, then revalidates: a setting is an input to `evaluate`.
    */
   setSettings(pluginId: string, values: PluginSettingValues): void {
     const record = this.plugins.get(pluginId)
@@ -119,11 +100,8 @@ export class PluginRegistry {
   /**
    * Recomputes everything cached, because an input to `evaluate` has changed.
    *
-   * Deliberately *not* a `cache.clear()`. Clearing leaves the bar with nothing to show until a
-   * fresh lookup lands, so the buttons blink out and — worse — for that moment the window is still
-   * holding the answer computed under the old settings, which is a click on a button that does the
-   * thing you just changed. Recomputing in place keeps the old answer visible until the new one
-   * replaces it, and the replacement announces itself through `onChanged`.
+   * Not a `cache.clear()`: that would blank the bar until the lookup lands. Recomputing in place
+   * keeps the old answer visible until the new one replaces it and announces itself via `onChanged`.
    */
   private revalidate(): void {
     this.inputs += 1
@@ -170,13 +148,9 @@ export class PluginRegistry {
   }
 
   /**
-   * What to draw on the bar right now.
-   *
-   * Returns the cached answer immediately when there is a fresh one. When there is not, it returns
-   * whatever it has — a stale answer, or nothing on the very first call — and refreshes in the
-   * background, announcing through `onChanged` when the result actually differs. The bar is never
-   * held up by a plugin, which is the whole point: a network call must not decide how fast
-   * switching sessions feels.
+   * What to draw on the bar right now: the fresh cached answer, else whatever it has (stale, or
+   * nothing on the first call) while refreshing in the background and announcing via `onChanged`
+   * when the result differs. The bar is never held up by a plugin.
    */
   items(ctx: PluginTarget): PluginBarItem[] {
     this.evictIdle()
@@ -188,11 +162,7 @@ export class PluginRegistry {
     return hit?.items ?? []
   }
 
-  /** Drops any cached session nobody has asked about (via `items()`) for `IDLE_EVICT_MS` — see the
-   *  constant's own comment. Swept on every `items()` call rather than on a timer: the cache is
-   *  small (one entry per folder+branch a window has actually shown), so an O(n) scan here costs
-   *  nothing next to the plugin lookups it might otherwise trigger, and it needs no lifecycle of
-   *  its own to start or stop. */
+  /** Drops any cached session nobody has asked about for `IDLE_EVICT_MS`; swept on each `items()` call, not on a timer. */
   private evictIdle(): void {
     const cutoff = this.now() - IDLE_EVICT_MS
     for (const [key, target] of this.targets) {
@@ -222,7 +192,7 @@ export class PluginRegistry {
 
   private async lookup(target: PluginTarget, record: TargetRecord): Promise<PluginBarItem[]> {
     const inputs = this.inputs
-    // One remote lookup per evaluation, shared by every plugin that asks (MAIN-17).
+    // One remote lookup per evaluation, shared by every plugin that asks.
     let remote: Promise<string | null> | undefined
     const ctx: PluginContext = {
       ...target,
@@ -233,19 +203,15 @@ export class PluginRegistry {
         if (!this.isEnabled(plugin.id)) return null
         try {
           const result = await plugin.evaluate(ctx, this.settingsFor(plugin.id))
-          // Stamped here rather than trusted from the plugin (MAIN-17): an item can no longer
-          // disagree with the plugin that produced it, and a plugin no longer has to know its own
-          // id as a string literal repeated at every item it builds.
+          // Stamped here so an item cannot disagree with its plugin.
           return result === null ? null : { ...result, pluginId: plugin.id }
         } catch {
-          // Contained on purpose: one integration's bad day is not the bar's.
           return null
         }
       }))
       const items = results.filter((item): item is PluginBarItem => item !== null)
       const before = record.cached
-      // A revalidate-triggered recompute (settings/enabled change) is not someone looking at the
-      // bar, so it must not reset the idle clock — only `items()` does that.
+      // A revalidate recompute must not reset the idle clock; only `items()` does.
       const current = inputs === this.inputs
       record.cached = { at: current ? this.now() : Number.NEGATIVE_INFINITY, items, ctx: target, lastRead: before?.lastRead ?? this.now() }
       if (before === null || !sameItems(before.items, items)) this.onChanged?.()
@@ -257,14 +223,12 @@ export class PluginRegistry {
     }
   }
 
-  /** Drops every cached answer — used when a setting that plugins read has changed. */
+  /** Drops every cached answer. */
   clearCache(): void {
     for (const target of this.targets.values()) target.cached = null
   }
 
-  /** Releases every plugin that holds something of its own (a timer, a socket) — called once, on
-   *  app quit (MAIN-17/MAIN-20). None of the current plugins need this; it exists so a future one
-   *  that does is not the first to have to invent a teardown path. */
+  /** Releases every plugin that holds something of its own (a timer, a socket); called once, on app quit. */
   dispose(): void {
     for (const { plugin } of this.plugins.values()) plugin.dispose?.()
     this.targets.clear()

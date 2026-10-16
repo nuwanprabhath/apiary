@@ -10,9 +10,8 @@ export interface VsCodeServiceDeps {
 }
 
 /**
- * Whether VS Code is available, and opening a session's folder in it (MAIN-14 step 4) — pure move
- * out of `AppService`. `vsCodePath` is checked once at launch and never re-probed per hover; see
- * `tests/unit/vscodeService.test.ts`.
+ * Whether VS Code is available, and opening a session's folder in it. `vsCodePath` is checked
+ * once at launch and never re-probed per hover.
  */
 export class VsCodeService {
   private readonly resolver: SessionResolver

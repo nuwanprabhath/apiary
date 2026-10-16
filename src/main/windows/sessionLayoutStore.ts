@@ -33,9 +33,8 @@ function isWindowRecord(v: unknown): v is WindowLayoutRecord {
 
 /**
  * The on-disk record as a `JsonStore`: an empty file on anything unreadable or malformed. The
- * caller (main/index.ts) treats an empty file exactly like "no record for this window" and opens a
- * single default window — restore must never fail the whole launch over one bad record. Files
- * written before it carried a `version` read as `undefined`, which is fine: there is one shape.
+ * caller (main/index.ts) treats an empty file like "no record for this window" and opens a single
+ * default window: restore must never fail the whole launch over one bad record.
  */
 function createLayoutFileStore(file: string): JsonStore<SessionLayoutFile> {
   return new JsonStore<SessionLayoutFile>({
@@ -57,17 +56,16 @@ export interface SessionLayoutStore {
 const EMPTY_BOUNDS: WindowBounds = { x: 0, y: 0, width: 1400, height: 900 }
 
 /**
- * In-memory record of every open window, written to disk debounced. Two independent debounces are
- * deliberately one: the renderer already waits ~500ms after its own last change before calling
- * `reportLayout`, so a further main-side delay only needs to coalesce a burst of *different*
- * windows reporting close together (e.g. all four resizing at relaunch) into one disk write.
+ * In-memory record of every open window, written to disk debounced. The renderer already waits
+ * ~500ms after its own last change before calling `reportLayout`, so the main-side delay only
+ * coalesces a burst of *different* windows reporting close together into one disk write.
  */
 export function createSessionLayoutStore(file: string, writeDelayMs = 500): SessionLayoutStore {
   const fileStore = createLayoutFileStore(file)
   const windows = new Map<number, WindowLayoutRecord>(
     fileStore.load().windows.map((w) => [w.number, w]),
   )
-  /** A read-only home directory should not crash the app — same bargain as settings.ts. */
+  /** A read-only home directory should not crash the app. */
   const write = (): void => {
     try {
       fileStore.save({ windows: [...windows.values()] })
@@ -92,11 +90,9 @@ export function createSessionLayoutStore(file: string, writeDelayMs = 500): Sess
       scheduleWrite()
     },
     reportBounds(windowNumber, bounds) {
-      // A bounds report can arrive before the window's first layout report (e.g. right after
-      // open, before the renderer's own 500ms debounce fires) — start a record rather than
-      // dropping it, so the bounds are not lost once the layout report does land. Marked
-      // `hasLayout: false` so a restore reading this before the real layout ever arrives (quit
-      // landing inside that debounce) can tell it apart from a window genuinely closed empty.
+      // Can arrive before the window's first layout report (inside the renderer's 500ms
+      // debounce): start a record rather than drop the bounds. `hasLayout: false` tells a restore
+      // apart from a window genuinely closed empty.
       const existing = windows.get(windowNumber)
       windows.set(windowNumber, existing === undefined
         ? { number: windowNumber, bounds, layout: { preset: 'single', panes: [] }, live: [], hasLayout: false }

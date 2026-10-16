@@ -189,7 +189,12 @@ committed, and described features that did not exist. For every package:
    or a Stop hook check), prove it fires on the agent's real worktree, and commit the guard with
    that proof. The Stop hook checks in `.claude/hooks/definition-of-done.mjs` each came from one
    such finding.
-6. **If an agent did the work but skipped a mechanical step** (it left a correct, verified tree
+6. **Trim the branch's comments** with the `trim-comments` skill before merging: spawn its trimmer
+   on the branch's diff (`git diff <release-branch>...r<NNN>/<wp>`), review every hunk, and prove
+   it changed comments only (`node .claude/skills/trim-comments/codeUnchanged.mjs <release-branch>`
+   in the worktree). Agents narrate: in 1.44 a quarter of `src/` was comments. This step is not
+   optional and not the maintainer's to ask for.
+7. **If an agent did the work but skipped a mechanical step** (it left a correct, verified tree
    uncommitted), do the step yourself rather than spend a whole session on it, and still add the
    guard.
 

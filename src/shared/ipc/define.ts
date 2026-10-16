@@ -8,20 +8,16 @@ import type { Guard } from './guards'
 
 export interface Invoke<A extends unknown[], R> { kind: 'invoke'; channel: string; args: Guard<A>; loose?: true; _r?: R }
 export interface Send<A extends unknown[]> { kind: 'send'; channel: string; args: Guard<A>; loose?: true }
-/** An event main pushes to the renderer. `P` is the payload; `broadcast`, the per-window send
- *  helpers (`main/windows`) and the preload's `on*` subscriptions are all typed from it. */
+/** An event main pushes to the renderer; `P` is the payload. */
 export interface EventSpec<P extends unknown[]> { kind: 'event'; channel: string; _p?: P }
 export interface Sync<R> { kind: 'sync'; channel: string; _r?: R }
 /** A preload-only API: `window.apiary` answers it synchronously, and it never crosses IPC. `args` is the
  *  guard the preload applies before the implementation in `src/preload/local.ts` runs; `R` is the result. */
 export interface Local<A extends unknown[], R> { kind: 'local'; args: Guard<A>; _r?: R }
 
-// `args` is a `Guard<A>` for the declared argument tuple `A`: a guard that proves less than `A`
-// (an `obj` standing in for a typed patch) is a compile error, so a handler never receives a
-// value typed more narrowly than anything checked. The few channels whose real validator lives
-// elsewhere — and so whose guard here proves only "an array of the right length" — are declared
-// with `invokeLoose`/`sendLoose` instead, each with a comment naming that validator. They are
-// greppable, and `tests/unit/architecture/looseGuards.test.ts` pins the set.
+// `args` is a `Guard<A>`: a guard that proves less than `A` is a compile error. Channels whose
+// real validator lives elsewhere are declared with `invokeLoose`/`sendLoose` and a comment naming
+// it; `tests/unit/architecture/looseGuards.test.ts` pins the set.
 export const invoke = <A extends unknown[], R>(channel: string, args: Guard<A>): Invoke<A, R> =>
   ({ kind: 'invoke', channel, args })
 export const send = <A extends unknown[]>(channel: string, args: Guard<A>): Send<A> =>

@@ -1,22 +1,16 @@
 /**
  * Captures real Claude Code terminal output as fixtures for `classifyActivity`.
  *
- * Why this exists: the Active section's status dot was wrong twice, and both times the mistake was
- * the same one — guessing at what a Claude Code terminal actually contains in a given state and
- * writing a pattern against the guess. A hand-written fixture proves only that the pattern matches
- * the fixture. So these are recorded from a genuine session, through the same pty plumbing the app
- * uses, with the same replay buffer the classifier is handed at runtime.
+ * Fixtures are recorded from a genuine session, through the app's own pty plumbing and replay
+ * buffer, because a hand-written fixture proves only that a pattern matches the fixture.
  *
- * Run it deliberately, not in CI — it spends real tokens (Haiku, and as few as the scenarios
- * allow) and needs `claude` on PATH:
+ * Run it deliberately, not in CI — it spends real tokens (Haiku) and needs `claude` on PATH:
  *
  *     npm run rebuild:node && node scripts/capture-activity-fixtures.mjs
  *
  * Each scenario writes `tests/fixtures/activity/<name>.txt` (raw bytes, escapes and all) plus a
  * `<name>.json` recording how long before the snapshot the last output landed — the second input
- * `classifyActivity` takes, and the one a text file alone cannot carry. Review a regenerated
- * fixture by eye before committing it: it is evidence, and evidence nobody looked at is a guess
- * with extra steps.
+ * `classifyActivity` takes. Review a regenerated fixture by eye before committing it.
  */
 import { spawn } from 'node-pty'
 import headless from '@xterm/headless'
@@ -55,7 +49,6 @@ child.onExit(() => { exited = true })
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-/** Waits until nothing has been printed for `ms`, or `timeout` elapses. */
 async function quiet(ms, timeout = 120_000) {
   const deadline = Date.now() + timeout
   while (Date.now() < deadline) {
@@ -66,12 +59,9 @@ async function quiet(ms, timeout = 120_000) {
 }
 
 /**
- * The screen as a person sees it, using the same renderer the app does.
- *
- * Claude Code 2.x lays words out by jumping the cursor (`ESC[12G`) instead of printing spaces, so
- * a raw `buffer.includes('Do you want to proceed?')` never matches anything on screen. Rendering
- * is the only way to wait on text. What the fixture records is still the untouched bytes — the
- * renderer is applied to the *waiting*, never to what is written out.
+ * The screen as a person sees it, using the app's renderer. Claude Code 2.x lays words out by
+ * jumping the cursor (`ESC[12G`) instead of printing spaces, so a raw `buffer.includes(...)` never
+ * matches. Only the *waiting* is rendered; the fixture records the untouched bytes.
  */
 function render(raw) {
   const term = new Terminal({ cols: 120, rows: 40, scrollback: 0, allowProposedApi: true })
@@ -88,7 +78,6 @@ function render(raw) {
   })
 }
 
-/** Waits until the rendered screen contains `needle`. */
 async function until(needle, timeout = 120_000) {
   const deadline = Date.now() + timeout
   while (Date.now() < deadline) {

@@ -47,6 +47,13 @@ bad change and show the error. A check that never failed has not been shown to w
 same way locally and in CI (`.github/workflows/ci.yml`). An exception goes on the offending line
 with a reason, the way disable comments already do here (`-- <reason>`).
 
+## Constraint comments
+
+A comment that states a rule ("never…", "do not remove…", "must stay in this order") is a rule
+nothing enforces. When `/correct` finds one, it is a class of its own: move it up a level like any
+other rule, then delete the prose with the `trim-comments` skill. A comment that only explains a
+platform's behaviour or a measurement stays (see that skill's keep list).
+
 ## Keep the rule table
 
 Keep the pairing of each rule with what enforces it in root `CLAUDE.md` ("Never", "Hard rules").

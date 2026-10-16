@@ -19,35 +19,23 @@ interface Props {
   onPointerEnter?: () => void
   onPointerLeave?: () => void
   /**
-   * Whether this open should steal keyboard focus. True for a click, a keyboard activation or
-   * `requestPicker`'s context-menu picker — all of them the pointer resting somewhere is not an
-   * answer to. False for a picker that opened because the pointer merely stopped moving over a
-   * button: resting on a tab's arrange button or a row's split button while typing in the composer
-   * or a terminal must not steal the keystrokes going there (UI-28).
+   * Whether this open should take keyboard focus. True for a click, a keyboard activation or
+   * `requestPicker`'s context-menu picker. False when the pointer merely stopped over a button:
+   * resting there while typing in the composer or a terminal must not steal the keystrokes.
    */
   focusOnOpen: boolean
 }
 
-/**
- * The layout picker: the eight presets as thumbnails, in the style of the macOS window-tiling menu
- * and Windows' Snap Layouts.
- *
- * In place mode every zone of every thumbnail is its own button, so "put this session *there*" is
- * one click on the exact spot. Portalled and fixed like the hover card, for the same reason: it is
- * opened from inside scrolling containers that would clip it.
- */
+/** Portalled and fixed like the hover card, since it opens from inside scrolling containers that would clip it. */
 export function LayoutPicker({
   anchor, mode, heading, current, onPick, onClose, onPointerEnter, onPointerLeave, focusOnOpen,
 }: Props): JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
 
-  // Whatever had focus before this picker opened, so it can be given back — not just on `onClose`
-  // (Escape, picking a target), but on *every* way the picker goes away, including the parent
-  // unmounting it from `scheduleClose` once the pointer wanders off, which calls no callback here
-  // at all. Captured once, at construction, together with whether this open is even allowed to
-  // steal focus in the first place: a hover-opened picker never took it, so there is nothing to
-  // give back when one of those closes.
+  // Focus is given back on every way the picker goes away, including the parent unmounting it
+  // from `scheduleClose`, which calls no callback here. Captured once with `focusOnOpen`: a
+  // hover-opened picker never took focus, so has nothing to give back.
   const previousActiveRef = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null)
   const focusOnOpenAtMountRef = useRef(focusOnOpen)
   useEffect(() => () => {
@@ -58,35 +46,27 @@ export function LayoutPicker({
     const el = ref.current
     if (el === null) return
     const box = el.getBoundingClientRect()
-    // Beside the button, not beneath it. Directly below puts the picker on top of the next
-    // session rows, so the pointer travelling to it crosses them — and each one it crosses arms
-    // its own hover card, which takes the gesture away before the picker can be clicked. To the
-    // right there is nothing between the button and the menu.
+    // Beside the button, not beneath it: below, the pointer would cross the next session rows,
+    // and each arms its own hover card, which takes the gesture away.
     const right = anchor.right + POPOVER_GAP
     const left = fitsHorizontally(right, box.width)
       ? right
       : Math.max(POPOVER_MARGIN, anchor.left - POPOVER_GAP - box.width)
-    // Top-aligned with the button, pulled up only as far as staying on screen requires.
     setPos({ left, top: clampTop(anchor.top, box.height) })
   }, [anchor])
 
-  // Focus the first target once the picker actually has a position — not in the same effect that
-  // computes `pos`, because at that point the div is still rendered with `visibility: hidden` (the
-  // very first render, before its size can be measured), and a hidden element silently refuses
-  // focus. Keyed on `pos === null` rather than `pos` itself so a later reposition (the window
-  // resizing while the picker is open) doesn't steal focus back from whatever the arrow keys moved
-  // it to.
+  // Focus the first target once placed: until then the div is `visibility: hidden`, which refuses
+  // focus. Keyed on `pos === null`, not `pos`, so a later reposition does not steal focus back
+  // from where the arrow keys moved it.
   const hasPos = pos !== null
   useEffect(() => {
     if (!hasPos || !focusOnOpen) return
     ref.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true })
   }, [hasPos, focusOnOpen])
 
-  // The shared Escape stack (UI-13) rather than relying on DOM focus being inside the picker: a
-  // plain click on the button that opened it (as opposed to the hover path, which focuses the
-  // picker's own first target) can leave native focus sitting on that outer button, where the
-  // div's own onKeyDown below would never see the key. It also means only the top-most open layer
-  // reacts, so this picker closing on Escape doesn't also close a dialog it was opened from within.
+  // The shared Escape stack, not DOM focus: after a plain click, native focus can stay on the
+  // opening button, where the div's onKeyDown would never see the key. Only the top-most layer
+  // reacts, so a dialog this was opened from is not also closed.
   useEscape(onClose)
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
@@ -116,14 +96,13 @@ export function LayoutPicker({
       testId="layout-picker"
       data-mode={mode}
       label={heading}
-      // It moves focus itself (to its first target, once placed), and a hover-opened picker was
-      // never opened from a focused control to return to.
+      // It moves focus itself, and a hover-opened picker has no focused control to return to.
       restoreFocus={false}
       style={pos ?? { visibility: 'hidden', left: 0, top: 0 }}
       onMouseEnter={onPointerEnter}
       onMouseLeave={onPointerLeave}
-      // As with the hover card: a portal still bubbles React events to whatever rendered it, and a
-      // row that hides things on mousedown would unmount this before the click landed.
+      // A portal still bubbles React events to what rendered it, and a row that hides things on
+      // mousedown would unmount this before the click landed.
       onMouseDown={(e) => { e.stopPropagation() }}
       onKeyDown={onKeyDown}
     >

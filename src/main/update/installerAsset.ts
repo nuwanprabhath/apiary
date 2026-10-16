@@ -30,13 +30,10 @@ export interface BackendOptions {
  *
  * Linux gets the **.deb**, never the AppImage. This function only serves the *assisted* path, and
  * on Linux that path is taken by exactly one kind of installation: one installed from a .deb (an
- * AppImage run updates itself, through electron-updater — see `decideCapability`). It used to
- * pick the AppImage here, so every .deb install was handed a different packaging from the one it
- * came from — one that on a stock Ubuntu 22.04 or later cannot even start, because those releases
- * no longer ship the libfuse2 AppImages need ("dlopen(): error loading libfuse.so.2"). The
- * `sudo apt install` instruction written for the .deb case could never be shown either, since the
- * downloaded file never ended in `.deb`. No .deb in a release is an error, not a reason to fall
- * back to the AppImage and repeat that.
+ * AppImage run updates itself, through electron-updater — see `decideCapability`). An AppImage
+ * cannot start on a stock Ubuntu 22.04 or later, which no longer ships the libfuse2 it needs
+ * ("dlopen(): error loading libfuse.so.2"). No .deb in a release is an error, not a reason to
+ * fall back to the AppImage.
  *
  * Where a release carries several architectures, the name has to match this machine's — handing
  * an arm64 build to an Intel Mac is a download that ends in a shrug.
@@ -50,7 +47,7 @@ export function pickInstaller(
   const candidates = files.filter((f) => f.url.endsWith(extension))
   if (candidates.length === 0) return null
 
-  // Debian names architectures its own way (`apiary_1.18.1_amd64.deb`), and always names them.
+  // Debian names architectures its own way (`apiary_X.Y.Z_amd64.deb`), and always names them.
   if (extension === '.deb') {
     const debArch = arch === 'x64' ? 'amd64' : arch
     return candidates.find((f) => f.url.endsWith(`_${debArch}.deb`)) ?? null

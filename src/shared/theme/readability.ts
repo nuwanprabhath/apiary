@@ -4,10 +4,8 @@ import { EFFECTS } from './effects'
 import { auroraColors } from './effects/aurora'
 
 /**
- * `validateTheme`'s readability pass, split out of `validate.ts` (SHARED-8) so the security
- * boundary file — reading untrusted input and deciding what a theme is allowed to contain — stays
- * short enough to review on its own. Everything here runs only on a spec that has already been
- * through the rest of validation; it never sees raw untrusted input.
+ * `validateTheme`'s readability pass, kept out of `validate.ts` so that security boundary stays
+ * short enough to review. It runs only on a spec that has already been validated.
  */
 
 export interface ThemeReport {
@@ -89,9 +87,8 @@ function looks(token: PaletteToken, resolved: (t: PaletteToken) => RGBA, behind:
 }
 
 /**
- * Fixes readability in place. Only a pair the theme itself touched is checked — a theme that
- * sets nothing is the original, which is readable by design, and nudging a default the theme
- * never mentioned would be changing something nobody asked about.
+ * Fixes readability in place. Only a pair the theme itself touched is checked; a default it never
+ * mentioned is readable by design.
  *
  * On a see-through surface a colour is readable only if it is readable over everything that can
  * show through. The text is first fitted to the usual case (the surface over the window colour);
@@ -161,9 +158,7 @@ export function ensureReadable(spec: ThemeSpec, report: ThemeReport): void {
   if (spec.terminal.foreground !== undefined || spec.terminal.background !== undefined) {
     let fg = term('foreground')
     let bg = term('background')
-    // A see-through terminal sits in the shell card, over the window: it gets the same treatment
-    // as any other pane — fitted to the usual case, then thickened (itself if its own colour
-    // contrasts with the text, else the panel under it), and the text moved only as a last resort.
+    // A see-through terminal sits in the shell card, over the window, and is treated like any other pane.
     const shows = (): RGBA[] => (bg.a >= 1 ? [bg] : looks('bg-panel', resolved, behind).map((u) => composite(bg, u)))
     const failing = (): boolean => shows().some((b) => contrastRatio(fg, b) < 4.5)
     const usual = shows()[0]

@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 // Refuses to push a release tag until CI has passed on the commit it tags. Run by .husky/pre-push.
 //
-// The release workflow runs the same checks as CI, on Linux, before it builds anything. Five tags
-// (v1.22.0, v1.26.0, v1.31.10, v1.35.0, v1.41.0) were pushed while CI on their commit was still
-// running or had already failed: each release stopped at those checks, published nothing, and the
-// version had to be bumped again. 1.41.0 passed every suite on macOS and failed CI on Linux font
-// widths, which only CI could see.
+// The release workflow runs the same checks as CI, on Linux, before it builds anything. A tag
+// pushed while CI on its commit was still running or had failed stops at those checks, publishes
+// nothing, and the version has to be bumped again. A suite can pass on macOS and fail on Linux font
+// widths, which only CI can see.
 import { execFileSync } from 'node:child_process'
 
 /**

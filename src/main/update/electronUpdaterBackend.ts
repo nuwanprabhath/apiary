@@ -17,15 +17,13 @@ import { pickInstaller, type BackendOptions } from './installerAsset'
 /**
  * The real updater, wired to electron-updater and GitHub Releases.
  *
- * electron-updater is used for two of the three jobs — asking the feed what exists, and (where the
- * platform allows it) staging and installing. The third, the assisted download, is done here by
- * hand, because electron-updater's macOS download path exists only to feed Squirrel and cannot be
- * asked for "just the .dmg, on disk, verified". It is a small amount of code: fetch the asset named
- * in the release metadata, hash it, compare to the hash the metadata gives.
+ * electron-updater asks the feed what exists and, where the platform allows, stages and installs.
+ * The assisted download is done here by hand: electron-updater's macOS download path only feeds
+ * Squirrel and cannot give "just the .dmg, on disk, verified". It fetches the asset named in the
+ * release metadata, hashes it and compares to the metadata's hash.
  *
- * The metadata comes from `latest-mac.yml` / `latest-linux.yml`, which electron-builder generates
- * beside the installers and the release workflow uploads with them. Without those files in the
- * release, no client can tell what the newest version is — see the Releasing section of CLAUDE.md.
+ * The metadata is `latest-mac.yml` / `latest-linux.yml`, which electron-builder generates and the
+ * release workflow uploads; without them no client can tell what the newest version is.
  */
 
 // electron-updater ships as CommonJS; the named exports are not reachable through a bare ESM
@@ -55,25 +53,17 @@ async function fetchStream(url: string, redirectsLeft = 5): Promise<IncomingMess
 }
 
 /**
- * How long to wait for the desktop to take a downloaded installer off our hands before giving up
- * on hearing back. Long enough that a slow file manager still reports its own error, short enough
- * that the button is never permanently stuck.
- *
- * Exported so it can be driven from a test rather than duplicated as a magic number.
+ * How long to wait for the desktop to take a downloaded installer before giving up on hearing
+ * back. Exported for tests.
  */
 export const OPEN_TIMEOUT_MS = 10_000
 
 const execQuarantine = createExec({ timeoutMs: 10_000, scope: 'update' })
 
 /**
- * Sets `com.apple.quarantine` on a verified download so Gatekeeper still evaluates it when the
- * user opens it (SEC-5, partial). `createWriteStream` does not set this flag itself, so the
- * assisted download bypassed the same check a browser download gets — the file was verified
- * against a hash served by the same release as the installer, with nothing beyond that. Signing
- * the update metadata with an offline key (the rest of SEC-5) is not done here: it needs a key
- * pair generated and kept off CI, which is release infrastructure this change does not set up.
- * Best-effort and macOS-only: a failure here must not stop the user getting a verified installer,
- * only the extra OS-level nudge to double check it.
+ * Sets `com.apple.quarantine` on a verified download so Gatekeeper still evaluates it;
+ * `createWriteStream` does not set it. The update metadata is not signed with an offline key: the
+ * file is verified only against a hash served by the same release. Best-effort and macOS-only.
  */
 type ExecFileFn = (file: string, args: readonly string[]) => Promise<unknown>
 
@@ -111,18 +101,14 @@ function writeHashed(
 
 export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
   autoUpdater.autoDownload = false
-  // Never install behind the user's back on quit: with `assisted` platforms in the mix, "you
-  // quit the app and it changed underneath you" would be a different behaviour per platform.
+  // Never install on quit: it would behave differently per platform.
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.logger = null
 
-  /** The metadata from the last successful check, needed to download the right asset. */
   let latest: UpdateInfo | null = null
   /**
-   * The sha512 a downloaded file was verified against, keyed by its final path. Consulted again in
-   * `openInstaller` right before `shell.openPath` (SEC-7): the earlier check only covers the
-   * moment of download, and the feed controls a path on disk that then sits there, unwatched, until
-   * the user clicks Open.
+   * The sha512 a downloaded file was verified against, keyed by its final path; `openInstaller`
+   * re-checks it right before `shell.openPath`, since the file sits unwatched until the user clicks Open.
    */
   const verifiedSha512ByPath = new Map<string, string>()
 
@@ -152,8 +138,7 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
     },
 
     install(): void {
-      // `isSilent: false, isForceRunAfter: true` — show the installer's own UI where it has one,
-      // and come back up afterwards rather than leaving the user staring at a closed app.
+      // `isSilent: false, isForceRunAfter: true`: show the installer's own UI and relaunch afterwards.
       autoUpdater.quitAndInstall(false, true)
     },
 
@@ -166,11 +151,8 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
 
       const dir = opts.downloadDir ?? app.getPath('downloads')
       await mkdir(dir, { recursive: true })
-      // `basename` rather than trusting the decoded string directly (SEC-7): the feed's `url` is
-      // remote data, and a name of `..%2F..%2FLibrary%2Fx.dmg` would otherwise escape `dir`
-      // entirely. A name that needed stripping down to get here is refused outright rather than
-      // silently corrected — the feed described a path, not a filename, and downloading it
-      // anywhere is the wrong response to that.
+      // The feed's `url` is remote data: a name of `..%2F..%2FLibrary%2Fx.dmg` would escape `dir`.
+      // A name that `basename` had to strip is refused, not corrected.
       const decoded = decodeURIComponent(file.url.split('/').pop() ?? `Apiary-${latest.version}`)
       const name = basename(decoded)
       if (name === '' || name !== decoded || name.startsWith('.')) {
@@ -178,11 +160,9 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
       }
       const target = join(dir, name)
 
-      // Downloaded into a private temporary directory first, and only moved into `dir` once
-      // verified (SEC-7): the file that is opened later should be provably the file that was
-      // hashed, not a target path that anything else on the machine could have raced to fill or
-      // replace between the write and the check. `wx` refuses to follow a symlink or overwrite an
-      // existing entry left at the temp path by anything else.
+      // Downloaded into a private temporary directory and moved into `dir` only once verified, so
+      // nothing can race to replace the file between the write and the check. `wx` refuses to
+      // follow a symlink or overwrite an existing entry at the temp path.
       const tmpDir = await mkdtemp(join(app.getPath('temp'), 'apiary-update-'))
       const tmpTarget = join(tmpDir, name)
       try {
@@ -193,20 +173,15 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
         if (digest !== file.sha512) {
           throw new Error('The downloaded file did not match the checksum in the release, so it was discarded')
         }
-        // Nothing else should be able to produce a zero-length "verified" file, but the cost of
-        // being sure is one stat.
         if ((await stat(tmpTarget)).size === 0) throw new Error('The download was empty')
 
-        // A previous attempt's leftovers would otherwise be appended to or block the rename,
-        // failing for a reason nobody would guess from the message.
+        // A previous attempt's leftovers would block the rename.
         await rm(target, { force: true })
-        // EXDEV: the temp directory and Downloads can be on different filesystems, so a rename
-        // cannot work; the copy fallback keeps the same "never overwrite" guarantee (`target` has
-        // just been cleared of its own leftovers).
+        // EXDEV: the temp directory and Downloads can be on different filesystems; the copy
+        // fallback keeps the "never overwrite" guarantee.
         await moveFile(tmpTarget, target, { copyAcrossDevices: true })
       } finally {
-        // The temp copy is either moved (rename) or copied-then-orphaned (copyFile), so this
-        // always has something to clean up on the success path too, on top of any failed attempt.
+        // After a copyFile the temp copy is orphaned, so the success path cleans up too.
         await rm(tmpDir, { recursive: true, force: true })
       }
 
@@ -221,13 +196,10 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
     },
 
     async openInstaller(path: string, action: 'open' | 'reveal'): Promise<OpenInstallerResult> {
-      // Bounded, because `shell.openPath` waits for the program it launched to *exit*. Where the
-      // desktop hands the file to something long-lived, that is a promise that settles when the
-      // user closes an unrelated window — and an `ipcMain.handle` that never returns is an
-      // `invoke` that never resolves, which the renderer eventually reports as "reply was never
-      // sent": an Electron message about our plumbing, in front of a user who only wanted their
-      // installer. Measured on Ubuntu 24.04: with `gio` present this returns in ~10ms even when
-      // the handler stays open, so the bound is for the cases that are not that one.
+      // Bounded, because `shell.openPath` waits for the launched program to *exit*: a long-lived
+      // handler would leave the `invoke` unresolved and the renderer reporting "reply was never
+      // sent". Measured on Ubuntu 24.04: with `gio` present it returns in ~10ms even when the
+      // handler stays open.
       const settle = <T>(promise: Promise<T>, fallback: T): Promise<T> => Promise.race([
         promise,
         new Promise<T>((resolve) => setTimeout(() => resolve(fallback), OPEN_TIMEOUT_MS)),
@@ -244,24 +216,17 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
         }
       }
 
-      // `reveal` is not a fallback here, it is the answer — and not for the reason first
-      // assumed. Measured on Ubuntu 24.04 in Docker: with no handler registered, `openPath`
-      // fails fast ("A required tool could not be found", xdg-open's exit 3); with a handler and
-      // `gio` present, as on a real GNOME desktop, it succeeds in ~10ms and launches it. Neither
-      // outcome installs anything, because installing a `.deb` needs root and no desktop app can
-      // do it for you. So handing the file over is the wrong gesture whatever the desktop does:
-      // show the user where it is and give them the command instead (see `installInstructions`).
+      // `reveal` is the answer, not a fallback. Measured on Ubuntu 24.04 in Docker: with no handler,
+      // `openPath` fails fast (xdg-open exit 3); with a handler and `gio` it succeeds in ~10ms. Neither
+      // installs anything, since a `.deb` needs root, so show the file and give the command (see
+      // `installInstructions`).
       if (action === 'reveal') {
         log.info('update', 'revealing installer', { path, action })
         return reveal()
       }
 
-      // Re-checked right before the file is opened, not just at the moment it finished downloading
-      // (SEC-7): the verified file sits in Downloads, unwatched, for however long the user takes
-      // to click Open, and the only integrity check so far covered the moment of download, not the
-      // moment of use. Only applies to a path this same backend instance verified — an unknown
-      // path (nothing recorded for it, for instance a fresh process) is opened as before rather
-      // than refused for a check that was never possible to make.
+      // Re-checked right before opening. Only a path this backend instance verified is checked; an
+      // unknown path (a fresh process) is opened as before.
       const expected = verifiedSha512ByPath.get(path)
       if (expected !== undefined) {
         const current = await hashFile(path).catch((e: unknown) => {
@@ -274,8 +239,6 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
         }
       }
 
-      // Every branch below is logged, because this is the call that produced a bug nobody could
-      // reproduce: what the desktop did with the file is the one fact that was missing.
       log.info('update', 'opening installer', { path, action })
       const started = Date.now()
       const TIMED_OUT = Symbol('timed out')
@@ -286,9 +249,7 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
         ms: Date.now() - started, error: error === '' ? null : error, timedOut,
       })
 
-      // A timeout means the opener is still running, which is not the same thing as it having
-      // launched — the caller cannot tell the difference from here, so it is reported the same
-      // way a deliberate `reveal` is: shown, not claimed to have opened.
+      // A timeout means the opener is still running, not that it launched: reported like `reveal`.
       if (!timedOut && error === '') return { ok: 'opened' }
       if (!timedOut) log.warn('update', 'could not open installer, revealing instead', { path, error })
       return reveal()

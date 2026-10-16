@@ -8,23 +8,14 @@ import { parseLaunchMode } from './launchMode'
  * anything that can set a launched process's environment (`launchctl setenv`, a `.desktop` file,
  * a wrapper script) could otherwise use one to redirect the config root, disable the real
  * updater, or — `ELECTRON_RENDERER_URL` — load an arbitrary remote page with the full preload
- * bridge (SEC-3). `--safe-theme` / `APIARY_SAFE_THEME` are deliberately not read through this: they
+ * bridge. `--safe-theme` / `APIARY_SAFE_THEME` are deliberately not read through this: they
  * are a user recovery path, not a test hook.
- *
- * Pulled out as a pure function (rather than reading `app.isPackaged` and `process.env` inline)
- * so the packaged/unpackaged behaviour is unit-testable without importing `electron`.
  */
 export function readTestEnv(name: string, env: NodeJS.ProcessEnv, isPackaged: boolean): string | undefined {
   return isPackaged ? undefined : env[name]
 }
 
-/**
- * Every test-only override and launch flag `main/index.ts` used to read at scattered points
- * (MAIN-15) — `APIARY_CONFIG_ROOT`/`APIARY_DB_PATH`/`APIARY_FAKE_LIVE` at startup,
- * `APIARY_CODE_PATH`, `APIARY_GLAB_PATH`, `APIARY_DEFAULT_THEME`, `APIARY_FAKE_UPDATE(_MODE)`,
- * `APIARY_HEADLESS`, and `ELECTRON_RENDERER_URL`. Computed once, in one place, so the app's own
- * test surface is discoverable by reading a type rather than by grepping.
- */
+/** Every test-only override and launch flag, computed once so the test surface is one type. */
 export interface RuntimeEnv {
   /** Overrides `resolveConfigRoot()` — a fixture's `~/.claude` in E2E. */
   configRoot: string | undefined
@@ -62,15 +53,21 @@ export interface RuntimeEnv {
   /** JSON for the renderer's test seams (`renderer/state/testSeams.ts`), passed to every window in
    *  its URL — component-style speed-ups an e2e spec may want (pets' scenes in seconds). */
   rendererSeams: string | undefined
+  /** How long a window closed while others stay open keeps its layout (`closeGraceMs` in windowManager.ts), in ms —
+   *  E2E only, so "closed on purpose" can be shown without waiting out the real minute. */
+  closeGraceMs: number | undefined
   /** `ssh -F <file>` for remote connections — test-only (the Docker SSH test bed); never set when packaged. */
   sshConfig: string | undefined
   /** `--background`: services and remote server with no window (`app/launchMode.ts`). A launch flag, honoured when packaged. */
   background: boolean
 }
 
-/** Parses every runtime override in one place. `argv`/`env`/`isPackaged` are passed in rather
- *  than read from `process`/`app` directly, so this is a pure function a unit test can call
- *  without importing `electron`. */
+function positiveInt(raw: string | undefined): number | undefined {
+  const n = raw === undefined ? NaN : Number(raw)
+  return Number.isInteger(n) && n > 0 ? n : undefined
+}
+
+/** Pure: `argv`, `env` and `isPackaged` are passed in so a unit test needs no `electron`. */
 export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackaged: boolean): RuntimeEnv {
   const test = (name: string): string | undefined => readTestEnv(name, env, isPackaged)
   return {
@@ -91,6 +88,7 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackag
     windowChrome: test('APIARY_WINDOW_CHROME'),
     rendererSeams: test('APIARY_RENDERER_SEAMS'),
     sshConfig: test('APIARY_SSH_CONFIG'),
+    closeGraceMs: positiveInt(test('APIARY_CLOSE_GRACE_MS')),
     background: parseLaunchMode(argv).background,
   }
 }

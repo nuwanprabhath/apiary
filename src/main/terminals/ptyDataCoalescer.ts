@@ -1,20 +1,3 @@
-/**
- * Coalesces pty output into at most one broadcast per pty per tick (MAIN-26 step 1).
- *
- * `node-pty` emits many small chunks for a single TUI repaint, and `ipc/handlers/tabs.ts` used to
- * turn each one straight into a `broadcast()` — one `webContents.send` per open window, per chunk.
- * With several windows open, a busy terminal (a build log, a fast-scrolling `ls -R`) serialised
- * and sent the same bytes across the IPC boundary once per window for every chunk `node-pty`
- * happened to emit them in, which is an artifact of its read buffer size, not of anything the UI
- * needs to see separately.
- *
- * Buffering per pty id and flushing on `setImmediate` — VS Code's terminal does the same — keeps
- * chunks that arrive within one microtask-queue drain together as one larger write, without
- * introducing a visible delay: `setImmediate` runs before the next I/O callback, well under a
- * frame. Chunks for one pty are joined in the order they arrived, so a flush is exactly what
- * sending each chunk individually would have produced, concatenated — nothing is reordered or
- * dropped, which matters here because xterm parses a pty's output as one continuous stream.
- */
 export interface PtyDataCoalescerOptions {
   /** Called with the concatenated chunks for one pty, at most once per scheduled flush. */
   onFlush: (id: string, data: string) => void
@@ -22,6 +5,18 @@ export interface PtyDataCoalescerOptions {
   schedule?: (cb: () => void) => { cancel: () => void }
 }
 
+/**
+ * Coalesces pty output into at most one broadcast per pty per tick.
+ *
+ * `node-pty` emits many small chunks for a single TUI repaint (the chunking is an artifact of its
+ * read buffer size); sending each one as a `broadcast()` is one `webContents.send` per open window,
+ * per chunk.
+ *
+ * Buffering per pty id and flushing on `setImmediate` keeps chunks that arrive within one
+ * microtask-queue drain together, without a visible delay: `setImmediate` runs before the next I/O
+ * callback, well under a frame. Chunks are joined in arrival order, so nothing is reordered or
+ * dropped; xterm parses a pty's output as one continuous stream.
+ */
 export class PtyDataCoalescer {
   private readonly buffers = new Map<string, string[]>()
   private readonly scheduled = new Map<string, { cancel: () => void }>()

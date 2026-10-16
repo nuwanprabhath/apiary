@@ -1,23 +1,14 @@
 /**
  * Regenerates the Apiary app icon from its parametric source.
  *
- * There are two generated masters, sharing the same honeycomb artwork but with different
- * backgrounds:
+ * Two generated masters share the honeycomb artwork:
  *   build/icon.svg       transparent corners, artwork fills the canvas — used everywhere except
- *                         the packaged macOS app (dev Dock icon via app.dock.setIcon, Linux
- *                         packaging, and the generic electron-builder fallback).
- *   build/icon-mac.svg   opaque white square, artwork scaled down and centred — used only to
- *                         build build/icon.icns.
+ *                         the packaged macOS app (dev Dock icon, Linux, electron-builder fallback).
+ *   build/icon-mac.svg   opaque white square, artwork scaled down and centred — builds icon.icns.
  *
- * Why macOS needs a different one: macOS 26 (Tahoe) force-masks every packaged app's icon onto
- * its own rounded tile shape, regardless of what shape the icon itself draws. `icon.svg`'s
- * artwork is a hexagon with transparent corners, so once the OS masks it, those corners get
- * filled with a default grey plate instead of showing through — the icon looks like it has a
- * grey background in the Dock/Finder. Filling the whole canvas edge-to-edge with white means
- * there is no transparent corner left for the OS to backfill, so the mask just clips a white
- * square into its tile and the honeycomb rides on top of it. This only affects the *packaged*
- * app: in dev mode `app.dock.setIcon()` sets the Dock image at runtime and bypasses the mask
- * entirely, which is why `npm start`'s icon already looks correct today.
+ * macOS 26 (Tahoe) force-masks a packaged app's icon onto its own rounded tile and fills any
+ * transparent corner with a grey plate, so the mac master has no transparent corner. Dev mode
+ * (`app.dock.setIcon()`) bypasses the mask.
  *
  * From `icon.svg`/`icon-mac.svg`, rasterises everything electron-builder and the runtime need:
  *   build/icon.png      1024px, the source electron-builder falls back to for any platform
@@ -130,14 +121,12 @@ function artwork() {
   </g>`
 }
 
-/** Transparent-corner variant: the artwork alone, filling the canvas. Used everywhere but macOS. */
 function buildSvg() {
   return `<svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">
   ${artwork()}
 </svg>`
 }
 
-/** Full-bleed white variant for macOS: opaque background, artwork scaled down and centred. */
 function buildMacSvg() {
   // Scale the artwork as a group about the canvas centre, so every constant above stays untouched.
   const t = `translate(${CX} ${CY}) scale(${MAC_SCALE}) translate(${-CX} ${-CY})`

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Runs the system `shellcheck` binary over every tracked shell script.
 //
-// The npm `shellcheck` package used to provide this, but it fetches the real binary through
+// The npm `shellcheck` package is avoided because it fetches the real binary through
 // `decompress`, an unmaintained archive-extraction library with a long-standing zip-slip flaw
 // (npm audit flags it critical, with no fixed version to upgrade to — the only "fix" audit offers
 // is a downgrade to an equally-vulnerable release). shellcheck itself never had a vulnerability;

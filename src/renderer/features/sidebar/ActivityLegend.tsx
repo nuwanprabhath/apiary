@@ -6,16 +6,8 @@ import { clampLeft, clampTop, fitsHorizontally, POPOVER_GAP } from '../../ui/pop
 
 /**
  * What each status dot in the Active section means, shown when the pointer rests on the section
- * header.
- *
- * Four coloured dots with four different motions is a language nobody was taught. The dots are
- * worth keeping — they are readable at a glance once you know them, which is the entire point of
- * a mission-control list — so the legend teaches them where the question is asked, rather than
- * pushing the explanation into a settings page or a README nobody opens mid-task.
- *
- * Each row draws a real `.status-dot`, not a picture of one, so the animation in the legend is
- * literally the animation on the row above it. A still swatch would explain the colours and leave
- * the motion — the part that actually distinguishes "working" from "needs you" — undocumented.
+ * header. Each row draws a real `.status-dot`, so its animation is the one on the rows: a still
+ * swatch would leave the motion, which separates "working" from "needs you", undocumented.
  */
 const ENTRIES: { status: ActivityStatus; meaning: string }[] = [
   { status: 'running', meaning: 'Claude is working. Nothing needed from you.' },
@@ -28,15 +20,12 @@ export function ActivityLegend({ anchor }: { anchor: DOMRect }): React.ReactElem
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
 
-  // Measured after paint, like HoverCard: the width is content-driven, so where it has to sit to
-  // stay on screen cannot be known until it has been laid out once.
+  // Measured after layout, like HoverCard: the width is content-driven.
   useLayoutEffect(() => {
     const el = ref.current
     if (el === null) return
     const box = el.getBoundingClientRect()
-    // Beside the header, not below it: below puts the panel straight over the Active rows, which
-    // are the very dots it is explaining — you would be reading the key with the map covered up.
-    // It falls back to below only when there is genuinely no room to the right.
+    // Beside the header, not below it: below would cover the very dots it explains.
     const beside = anchor.right + POPOVER_GAP
     const left = fitsHorizontally(beside, box.width) ? beside : clampLeft(beside, box.width)
     setPos({ left, top: clampTop(anchor.top, box.height) })

@@ -18,9 +18,8 @@ interface Props {
 }
 
 /**
- * One pet. It is drawn in 3D (`render3d/`): rendered once, in a worker, into an image per part
- * and per expression, which this stacks. Until those are ready — or where WebGL is not available —
- * it draws the flat version from `parts.tsx` in the same layers.
+ * Stacks the images `render3d/` renders in a worker; until they are ready, or where WebGL is not
+ * available, it draws the flat version from `parts.tsx` in the same layers.
  *
  * Each moving part is an HTML layer of its own. That is for speed, measured: Chromium composites a
  * CSS transform animation on an HTML element on the GPU, but one on an element *inside* an SVG
@@ -72,7 +71,6 @@ function Rendered({ size, activity, face, facing, spec, images, onRail = false }
   const props = useProps()
   const view = viewOf(activity, onRail)
   const v = images[view]
-  // Only props drawn for this view: a profile's laptop would float beside a pet facing us.
   const held = props !== null ? (HELD[activity] ?? []).filter((h) => PROP_VIEW[h.prop] === view) : []
   const propsAt = (at: 'front' | 'hand' | 'ground'): JSX.Element[] => props === null ? [] : held.filter((h) => h.at === at).map((h) => (
     <div key={h.prop} className="pet-part pet-held" data-prop={h.prop}><img src={props.held[h.prop]} alt="" draggable={false} /></div>

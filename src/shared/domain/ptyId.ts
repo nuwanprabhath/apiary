@@ -1,14 +1,8 @@
 /**
- * Pty and tab id conventions, minted in main and parsed in the renderer (and vice versa) — a
- * cross-process protocol that used to be built independently on both sides (MAIN-21, UI-17,
- * SHARED-3's pty-id part). A mismatch here is exactly the bug class CLAUDE.md's "Windows, and what
- * belongs to which" section describes: a shell keyed under the wrong id looks like nothing is
- * running, or — the incident that section records — kills a live process out from under a build.
+ * Pty and tab id conventions, minted in main and parsed in the renderer (and vice versa). A shell
+ * keyed under the wrong id looks like nothing is running, or kills a live process.
  *
- * This is deliberately the small, safe half of MAIN-21: the mint/parse helpers, unifying eight call
- * sites into one definition each, with no behaviour change (ids are byte-identical to before,
- * since `session-layout.json` on disk already contains them). The branded `SessionId`/`PtyId`
- * types and `TerminalRef` (which replaced the 17 `(key, isPtyId)` `ApiaryApi` parameter pairs)
+ * The ids are persisted in `session-layout.json`, so their format cannot change. The branded types
  * live in `ids.ts`; the helpers here mint and parse `PtyId`s.
  */
 
@@ -20,7 +14,6 @@ export function newPendingPtyId(uuid: string): PtyId {
   return asPtyId(`new:${uuid}`)
 }
 
-/** Whether `id` is a pending pty id rather than a real session id. */
 export function isPendingPtyId(id: string): boolean {
   return id.startsWith('new:')
 }
@@ -31,11 +24,8 @@ export function shellPtyId(owner: string, terminalId: string | number): PtyId {
 }
 
 /**
- * Splits a `shell:<owner>:<terminalId>` id back into its parts, or null if `id` is not one.
- *
- * The owner group is greedy: `owner` can itself contain a colon (a pending id's uuid never does,
- * but this stays correct regardless), so only the *last* colon-separated segment is taken as the
- * terminal id.
+ * Splits a `shell:<owner>:<terminalId>` id back into its parts, or null if `id` is not one. The
+ * owner may itself contain a colon, so only the *last* segment is the terminal id.
  */
 export function parseShellPtyId(id: string): { owner: string; terminalId: string } | null {
   const match = /^shell:(.+):([^:]+)$/.exec(id)

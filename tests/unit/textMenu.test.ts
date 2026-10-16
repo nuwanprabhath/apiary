@@ -7,7 +7,7 @@ const ALL_EDITS = { canCut: true, canCopy: true, canPaste: true, canSelectAll: t
 function request(over: Partial<ContextMenuRequest> = {}): ContextMenuRequest {
   return {
     x: 0, y: 0, isEditable: false, selectionText: '', misspelledWord: '', dictionarySuggestions: [],
-    editFlags: ALL_EDITS, ...over,
+    editFlags: ALL_EDITS, mediaType: 'none', ...over,
   }
 }
 
@@ -75,5 +75,27 @@ describe('suggestionItems', () => {
     expect(labels(items)).toEqual(['the', 'ten'])
     items[1].run?.()
     expect(choose).toHaveBeenCalledWith('ten')
+  })
+})
+
+describe('textMenuItems over an image', () => {
+  it('offers an enabled "Copy image" and no disabled lone "Copy"', () => {
+    const items = textMenuItems(
+      request({ mediaType: 'image', editFlags: { canCut: false, canCopy: false, canPaste: false, canSelectAll: false } }),
+      { edit: vi.fn() },
+    )
+    expect(labels(items)).toEqual(['Copy image'])
+    expect(items[0].disabled).toBeFalsy()
+  })
+
+  it("asks main to copy the image at the request's own coordinates", () => {
+    const edit = vi.fn()
+    textMenuItems(request({ mediaType: 'image', x: 41, y: 17 }), { edit })[0].run?.()
+    expect(edit).toHaveBeenCalledWith({ action: 'copyImageAt', x: 41, y: 17 })
+  })
+
+  it('keeps the text items when text is also selected', () => {
+    expect(labels(textMenuItems(request({ mediaType: 'image', selectionText: 'words' }), { edit: vi.fn() })))
+      .toEqual(['Copy image', 'Copy'])
   })
 })

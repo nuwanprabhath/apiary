@@ -7,19 +7,16 @@ import { minimumWidth, widenedBounds } from './windowWidth'
 import { guardNavigation } from './navigationGuard'
 import { watchContextMenu } from './contextMenu'
 import { log } from '../log/logger'
+import { closeGraceMs } from './closeGrace'
 import { fireAndForget } from '../log/fireAndForget'
 import type { SessionLayoutStore, WindowLayoutRecord } from './sessionLayoutStore'
 import type { TabRegistry } from './tabRegistry'
 import type { TabTransfer } from '@shared/types'
 
 /**
- * A window that shows one session and nothing else.
- *
- * Dragging a tab out of the window, or `Move into New Window`, gives you the conversation and its
- * shell with no sidebar in the way — which is the point of the gesture: a session you want to read
- * or work in without the library beside it. The key travels in the URL for the same reason the
- * window number does (see below): the renderer needs it at first render, before an IPC round trip
- * could answer, or the window flashes the full layout before rearranging itself.
+ * A window that shows one session and nothing else (a tab dragged out, or `Move into New Window`).
+ * The key travels in the URL because the renderer needs it at first render, before an IPC round
+ * trip could answer.
  */
 export interface NewWindowOptions {
   /** The tab this window opens on its own, with no sidebar. */
@@ -32,15 +29,14 @@ export interface NewWindowOptions {
   remote?: { host: string; /** The work machine's layout record for the window being copied (`RemoteWindowLayout.layout`), if it has one. */ layout?: unknown }
 }
 
-/** A window just created: its page has been asked to load but has not run yet. */
+/** Its page has been asked to load but has not run yet. */
 export interface OpenedWindow {
   number: number
   webContentsId: number
   onClosed(listener: () => void): void
 }
 
-/** The two settings a window reads, and the one it writes back (the first window's geometry). The
- *  settings service satisfies it; window code does not import settings to say so. */
+/** The settings a window reads, and the one it writes back (the first window's geometry). */
 interface WindowSettings {
   get(): { windowBounds: WindowBounds | null; systemTitleBar: boolean }
   patch(change: { windowBounds: WindowBounds }): unknown
@@ -52,59 +48,32 @@ export interface WindowManagerDeps {
   tabRegistry: TabRegistry | null
   /** Keeps every window off-screen, for a test run that must not steal focus (see `index.ts`). */
   headless: boolean
-  /** The directory `index.ts` itself resolves from (`fileURLToPath(new URL('.', import.meta.url))`),
-   *  for locating the preload script and the packaged icon/renderer HTML the same way it always did. */
+  /** The directory `index.ts` resolves from, for the preload script, icon and renderer HTML. */
   dirname: string
-  /** The Vite dev server origin, when running unbuilt — `undefined` in a packaged build. */
+  /** The Vite dev server origin when running unbuilt; `undefined` when packaged. */
   rendererUrl: string | undefined
-  /** Whether the app has started quitting — read by the `closed` handler; see its own comment. */
   isQuitting: () => boolean
   /** `APIARY_WINDOW_CHROME`, test-only: overrides which title bar windows get. */
   chromeOverride?: string
   /** `APIARY_RENDERER_SEAMS`, test-only (undefined when packaged): reaches the renderer as `?seams=`. */
   rendererSeams?: string
-  /** How long a closed window's layout record outlives it while other windows stay open — see
-   *  `CLOSE_GRACE_MS`. Injectable so tests need not wait out the real one. */
+  /** Overrides `closeGraceMs`, so tests need not wait it out. */
   closeGraceMs?: number
 }
 
-/**
- * How long a window closed while others are still open keeps its saved layout. Ubuntu's dock
- * "Quit" (and closing each window's X in turn) closes the windows one at a time with no app-level
- * quit first, so every window but the last used to count as "closed by the user" and lose its
- * record — two windows quit that way came back as one. Windows that all close within this long of
- * each other are a quit, and all come back; one closed while the app carries on is dropped once
- * it has passed.
- */
-const CLOSE_GRACE_MS = 3000
-
-/**
- * Window creation, numbering, focus tracking and the one window's persisted bounds (MAIN-15 step
- * 3) — pure move out of `index.ts`'s `createWindow`/`mainWindow`/`windowsOpened`/
- * `windowNumberByWebContentsId`. Behaviour, ordering and every comment explaining a past bug are
- * unchanged; only the mutable state they described moved from module-level variables to fields on
- * this class, constructed once in `index.ts`'s `start()`.
- */
+/** Window creation, numbering, focus tracking and the first window's persisted bounds. */
 export class WindowManager {
   private readonly deps: WindowManagerDeps
   /**
-   * How many windows have ever been opened this run, which is what gives each one its identity.
-   *
-   * Windows share one main process — and therefore one set of sessions, terminals and settings —
-   * but not one layout: which tabs and columns a window has open is its own. The renderer keys its
-   * persisted layout on this number (see uiState.ts), so a second window is a second workspace
-   * over the same sessions rather than a duplicate that fights the first over the same stored
-   * state. Numbers are not reused, so closing window 2 and opening another gives a fresh workspace
-   * rather than inheriting a dead one's arrangement.
+   * Windows opened this run; each window's identity. The renderer keys its persisted layout on the
+   * number (uiState.ts), so a second window is its own workspace. Numbers are not reused: a new
+   * window never inherits a closed one's arrangement.
    */
   private windowsOpened = 0
   private mainWindow: BrowserWindow | null = null
-  /** `webContents.id` -> the window number it was created with, so a `reportTabs` call (which only
-   *  carries the sender's webContents) can be filed under the same number `SessionLayoutStore` and
-   *  the `?w=` URL already use for that window. Populated and cleared right alongside the window
-   *  itself in `create()`, the same lifecycle `sessionLayoutStore`'s per-window bookkeeping follows. */
+  /** `webContents.id` -> window number, so a call carrying only the sender's webContents (`reportTabs`) can be filed under it. */
   private readonly windowNumberByWebContentsId = new Map<number, { number: number; remote: boolean; baseMinWidth: number }>()
-  /** Closed windows whose layout record is waiting out `CLOSE_GRACE_MS` before it is removed. */
+  /** Closed windows whose layout record is waiting out `closeGraceMs` before it is removed. */
   private readonly pendingRemovals = new Map<number, NodeJS.Timeout>()
   /** Told when a local window closes, and whether that is the app quitting (the pets' owners move). */
   private readonly closeListeners: ((number: number, quitting: boolean) => void)[] = []
@@ -113,13 +82,30 @@ export class WindowManager {
     this.deps = deps
   }
 
-  /** The window the menu and native dialogs act on — whichever one is currently in front. */
   /** Every window has closed: those still in their grace period went with the rest, as a quit. */
   private cancelPendingRemovals(): void {
     for (const timer of this.pendingRemovals.values()) clearTimeout(timer)
     this.pendingRemovals.clear()
   }
 
+  /** A closed window's record: kept when it was the last one, otherwise dropped after the grace. */
+  private keepOrForget(windowNumber: number, remote: boolean): void {
+    const { isQuitting, sessionLayoutStore } = this.deps
+    const remaining = BrowserWindow.getAllWindows().length
+    log.info('window', 'closed', { number: windowNumber, remaining, quitting: isQuitting() })
+    if (remaining === 0) {
+      this.cancelPendingRemovals()
+    } else if (!isQuitting() && !remote) {
+      this.pendingRemovals.set(windowNumber, setTimeout(() => {
+        this.pendingRemovals.delete(windowNumber)
+        if (isQuitting() || BrowserWindow.getAllWindows().length === 0) return
+        sessionLayoutStore?.removeWindow(windowNumber)
+        log.info('window', 'forgotten: closed while others stayed open', { number: windowNumber })
+      }, this.deps.closeGraceMs ?? closeGraceMs(process.platform)))
+    }
+  }
+
+  /** The window the menu and native dialogs act on: whichever is in front. */
   front(): BrowserWindow | null {
     return this.mainWindow
   }
@@ -156,10 +142,7 @@ export class WindowManager {
     this.closeListeners.push(listener)
   }
 
-  /**
-   * Advances the "windows opened" counter to at least `n`, so a freshly opened window after a
-   * multi-window restore does not collide with a recorded number. Called once, before restoring.
-   */
+  /** Raises the counter to at least `n`, so a new window after a restore does not collide with a recorded number. */
   advanceOpenedTo(n: number): void {
     this.windowsOpened = Math.max(this.windowsOpened, n)
   }
@@ -168,7 +151,7 @@ export class WindowManager {
     return this.open(opts).number
   }
 
-  /** `create`, also telling the caller which webContents it got — so it can bind the window before the page's first call. */
+  /** `create`, also returning the webContents, so the caller can bind the window before the page's first call. */
   open(opts: NewWindowOptions = {}): OpenedWindow {
     const { settingsService, sessionLayoutStore, tabRegistry, headless, dirname, rendererUrl, isQuitting } = this.deps
     this.windowsOpened += 1
@@ -184,18 +167,14 @@ export class WindowManager {
       saved && boundsAreOnScreen(saved, screen.getAllDisplays().map((d) => d.workArea))
         ? saved
         : { width: 1400, height: 900 }
-    // A restored window's own recorded bounds are more specific than the app's last-known single
-    // position, so they take precedence over `restored` when they still land on a connected display.
+    // A restored window's own bounds are more specific than the last-known single position.
     const restoreBounds = opts.restore !== undefined
       && boundsAreOnScreen(opts.restore.bounds, screen.getAllDisplays().map((d) => d.workArea))
       ? opts.restore.bounds
       : null
-    // Only the first window restores its saved position. A second window opening exactly on top of
-    // the first looks like nothing happened, so it cascades instead — the convention every
-    // multi-window app uses, and the reason `windowNumber` is not reset.
+    // Only the first window restores its saved position; a second exactly on top of it looks like
+    // nothing happened, so it cascades.
     const offset = isFirst ? 0 : ((windowNumber - 1) % 5) * 30
-    // `restoreBounds` takes precedence over the single-window `windowBounds` fallback: a restored
-    // window's own recorded bounds are more specific than the app's last-known single position.
     const effectiveBounds: { x?: number; y?: number; width: number; height: number } = restoreBounds ?? restored
     const effectivePos = typeof effectiveBounds.x === 'number' && typeof effectiveBounds.y === 'number'
       ? { x: effectiveBounds.x, y: effectiveBounds.y }
@@ -203,9 +182,7 @@ export class WindowManager {
     const bounds = restoreBounds ?? (isFirst && !detached
         ? effectiveBounds
         : {
-          // A detached window has no sidebar, so it does not need the width for one — and a window
-          // torn off by dragging should appear under the pointer that tore it off, not cascaded
-          // from wherever the last window happened to be.
+          // A detached window has no sidebar, and one torn off by dragging appears under the pointer.
           width: detached ? Math.min(effectiveBounds.width, 1000) : effectiveBounds.width,
           height: effectiveBounds.height,
           ...(opts.at !== undefined
@@ -226,14 +203,10 @@ export class WindowManager {
       minHeight: 400,
       show: false,
       title: remote === undefined ? 'Apiary' : `${remote.host} — Apiary`,
-      // A *packaged* macOS app takes its window/dock icon from the .app bundle (see
-      // `mac.icon` in electron-builder.yml) and ignores this option entirely — but `npm start`
-      // runs the bare Electron binary with no bundle at all, so without `setDevDockIcon()`
-      // (index.ts) the Dock falls back to Electron's own default icon. Linux and Windows always
-      // read the icon from the running process, packaged or not, so they need this option either
-      // way. `build/icon.png` is listed in electron-builder.yml's `files`, so this same
-      // project-relative path resolves both from the source tree in dev and from inside
-      // app.asar once packaged.
+      // A packaged macOS app takes its icon from the .app bundle (`mac.icon` in
+      // electron-builder.yml) and ignores this option; `npm start` has no bundle (`setDevDockIcon()`
+      // in index.ts). Linux and Windows always read it from here. `build/icon.png` is in
+      // electron-builder.yml's `files`, so the path resolves in dev and inside app.asar.
       ...(process.platform === 'darwin'
         ? {}
         : { icon: join(dirname, '../../build/icon.png') }),
@@ -242,41 +215,26 @@ export class WindowManager {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
-        // A window that is never shown is, as far as Chromium is concerned, a background window: it
-        // throttles timers and stops servicing requestAnimationFrame. Both are load-bearing here
-        // (the terminal fits itself in a rAF, the transcript scrolls in one), so a headless run
-        // would hang on things that work perfectly when visible. Only relaxed when hidden — a
-        // visible window should keep the power-saving behaviour it has always had.
+        // Chromium treats a never-shown window as background: it throttles timers and stops
+        // requestAnimationFrame, which the terminal fit and transcript scroll rely on.
         ...(headless ? { backgroundThrottling: false } : {}),
       },
     })
     log.info('window', 'created', { number: windowNumber, detached, at: opts.at !== undefined, chrome })
-    // The menu is still the application menu — its accelerators keep working — but on a custom
-    // title bar it is drawn by the renderer (see TitleBar.tsx), not as a GTK/Win32 bar above it.
+    // On a custom title bar the menu is drawn by the renderer (TitleBar.tsx); accelerators still work.
     if (chrome === 'custom') win.setMenuBarVisibility(false)
     guardNavigation(win.webContents, (url) => shell.openExternal(url))
     watchContextMenu(win.webContents)
-    // Captured now, not read back off `win.webContents` in the `closed` handler below: by the time
-    // `closed` fires the window (and its webContents) has already been destroyed, and touching
-    // `win.webContents` at that point throws `Object has been destroyed` — uncaught, since `closed`
-    // is an Electron event emitter callback, which took the whole main process down with a native
-    // error dialog every time a window closed.
+    // Captured now: by the time `closed` fires the webContents is destroyed, and touching it throws
+    // `Object has been destroyed`, uncaught in an emitter callback.
     const webContentsId = win.webContents.id
     this.windowNumberByWebContentsId.set(webContentsId, { number: windowNumber, remote: remote !== undefined, baseMinWidth: detached ? 520 : 900 })
     this.mainWindow = win
-    // The menu and native dialogs act on whichever window is in front, so this follows focus rather
-    // than staying pinned to the first window opened.
     win.on('focus', () => { this.mainWindow = win })
 
-    // Only the first window's geometry is remembered in settings.json: with several open there is
-    // no single "the window" to restore, and letting each one write would mean the last window
-    // moved silently decides where the app opens next time. The session-layout store is different —
-    // it tracks every window by number, so every window's bounds go there regardless.
-    // Debounced (MAIN-10): Electron documents `moved` on macOS as an alias of `move`, which can
-    // fire continuously through a drag — each call was a synchronous settings-file read (even for
-    // every window but the first, which never writes) followed by a write for the first window.
-    // A trailing 300ms debounce turns a drag's whole burst into one read and, for the first window,
-    // one write once the drag actually settles.
+    // Only the first window's geometry goes to settings.json (with several open, the last one moved
+    // would silently decide); the session-layout store gets every window's. Debounced because
+    // Electron documents `moved` on macOS as an alias of `move`, which fires through a drag.
     let boundsTimer: NodeJS.Timeout | null = null
     if (!detached && remote === undefined) {
       const persistBounds = (): void => {
@@ -292,34 +250,13 @@ export class WindowManager {
       win.on('moved', persistBounds)
     }
     win.on('closed', () => {
-      // A pending debounced write must not fire after the window (and its `getNormalBounds()`) is
-      // gone.
       if (boundsTimer) { clearTimeout(boundsTimer); boundsTimer = null }
-      // A window the user closed while carrying on working is genuinely gone and its record should
-      // go with it. A window closing *because the app is shutting down* is not — and the ordinary
-      // way to quit on Linux (and Windows) is the last window's X button, whose Electron ordering is
-      // `closed` -> `window-all-closed` -> `app.quit()` -> `before-quit`. So by the time
-      // `before-quit` flushes the store, the record it should be writing has already been deleted
-      // and the file is written empty: the whole layout is discarded on every quit but Cmd+Q.
-      //
-      // A `quitting` flag alone cannot fix this, because nothing has decided to quit yet when
-      // `closed` fires; neither can snapshotting in `before-quit`, which runs after the deletion.
-      // What is knowable here is that no windows are left, and "no windows" is never a layout worth
-      // persisting — there would be nothing to restore. So the last window out leaves its record
-      // behind, and whatever comes next (a quit, or on macOS a new window from the dock reporting
-      // its own layout) overwrites it.
-      //
-      // Nor is it removed at once when other windows remain: see `CLOSE_GRACE_MS`. If the rest
-      // close before the grace runs out, this was one step of a quit and every pending record stays.
-      if (BrowserWindow.getAllWindows().length === 0) {
-        this.cancelPendingRemovals()
-      } else if (!isQuitting() && remote === undefined) {
-        this.pendingRemovals.set(windowNumber, setTimeout(() => {
-          this.pendingRemovals.delete(windowNumber)
-          if (isQuitting() || BrowserWindow.getAllWindows().length === 0) return
-          sessionLayoutStore?.removeWindow(windowNumber)
-        }, this.deps.closeGraceMs ?? CLOSE_GRACE_MS))
-      }
+      // On Linux and Windows quitting is the last window's X button: `closed` -> `window-all-closed`
+      // -> `app.quit()` -> `before-quit`. Nothing has decided to quit when `closed` fires and
+      // `before-quit` runs after any deletion, so the last window out leaves its record behind
+      // (otherwise every quit but Cmd+Q writes an empty layout). With other windows remaining the
+      // record goes after `closeGraceMs`, in case this was one step of a quit.
+      this.keepOrForget(windowNumber, remote !== undefined)
       tabRegistry?.unregisterWindow(windowNumber)
       this.windowNumberByWebContentsId.delete(webContentsId)
       if (remote === undefined) {
@@ -329,26 +266,17 @@ export class WindowManager {
       if (this.mainWindow === win) this.mainWindow = BrowserWindow.getAllWindows()[0] ?? null
     })
 
-    // Deliberately never shown in headless mode: `show: false` above is the initial state, and this
-    // is the line that would undo it.
     if (!headless) win.on('ready-to-show', () => win.show())
 
-    // The window's number reaches the renderer through the URL rather than the preload bridge: it is
-    // needed before anything else to pick which stored layout to load, and a query string is
-    // available synchronously at first render.
+    // The number travels in the URL: it picks the stored layout and is needed synchronously at first render.
     const query: Record<string, string> = { w: String(windowNumber), chrome }
     if (opts.detach !== undefined) {
       query.detach = opts.detach.key
-      // The rest of the tab rides alongside the key: which process it runs under and which shells
-      // hang off it. See TabTransfer.
       query.transfer = JSON.stringify(opts.detach)
     }
     if (opts.restore !== undefined) {
-      // `bounds` and `hasLayout` are stripped because the renderer never needs either: `bounds` is
-      // a main/OS concept (consistent with the renderer never handling window geometry anywhere
-      // else in this file), and `hasLayout` is main's own signal for whether a record is safe to
-      // restore at all — by the time a record reaches here it has already passed that check (see
-      // the `records` filter in `index.ts`'s `start()`), so the renderer has nothing to do with it.
+      // The renderer never needs `bounds` (window geometry) or `hasLayout` (checked by the
+      // `records` filter in `index.ts`'s `start()`).
       query.restore = JSON.stringify({ ...opts.restore, bounds: undefined, hasLayout: undefined })
     }
     if (remote !== undefined) {
@@ -367,7 +295,6 @@ export class WindowManager {
   }
 }
 
-/** Which title bar a new window gets — see `WindowChrome`. */
 function windowChromeFor(platform: NodeJS.Platform, systemTitleBar: boolean): WindowChrome {
   if (systemTitleBar) return 'system'
   return platform === 'darwin' ? 'mac' : 'custom'
@@ -379,8 +306,7 @@ export const TITLE_BAR_HEIGHT = 32
 function chromeOptions(chrome: WindowChrome): Electron.BrowserWindowConstructorOptions {
   if (chrome === 'mac') return { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 12, y: 10 } }
   if (chrome === 'custom') {
-    // Neutral until the renderer reports its theme's colours (setTitleBarColors) — a fraction of
-    // a second after the first paint.
+    // Neutral until the renderer reports its theme's colours (setTitleBarColors).
     return { titleBarStyle: 'hidden', titleBarOverlay: { color: '#1b1c1e', symbolColor: '#e6e6e6', height: TITLE_BAR_HEIGHT } }
   }
   return {}

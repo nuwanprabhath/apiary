@@ -57,14 +57,10 @@ function colors<K extends string>(input: unknown, names: readonly K[], report: T
 }
 
 /**
- * How see-through a surface may be. Background effects show through translucent chrome (the
- * sidebar, tab strips, toolbars), which is most of what makes a Matrix or synthwave theme feel like
- * one — but text is read on the transcript and in terminals, so on solid panels those stay solid,
- * and chrome keeps enough body that its own text stays legible.
- *
- * Glass goes further — everything but the window itself may be see-through — because glass always
- * blurs what is behind it (at least `LIMITS.glassMinBlur`), and `ensureReadable` then checks text
- * against every colour that can show through and thickens the pane wherever one would win.
+ * How see-through a surface may be. Background effects show through translucent chrome, but the
+ * transcript and terminals stay solid on solid panels, and chrome keeps enough body to stay legible.
+ * Glass may make everything but the window see-through, because it always blurs what is behind it
+ * (at least `LIMITS.glassMinBlur`) and `ensureReadable` thickens a pane wherever text would lose.
  */
 const MIN_ALPHA: Record<MaterialSpec['kind'], Partial<Record<PaletteToken, number>>> = {
   solid: { 'bg-window': 1, 'bg': 1, 'bg-terminal': 1, 'bg-panel': 0.6, 'control-bg': 0.6, 'field-bg': 0.85 },
@@ -160,7 +156,6 @@ export function validateTheme(input: unknown): { spec: ThemeSpec; report: ThemeR
   return { spec, report }
 }
 
-/** The one line the Themes screen shows about what validation changed, or null for nothing. */
 export function describeReport(r: ThemeReport): string | null {
   const parts: string[] = []
   const n = (count: number, one: string, many: string): string => `${String(count)} ${count === 1 ? one : many}`

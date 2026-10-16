@@ -2,14 +2,11 @@
  * Variables a running Claude Code session sets for *its own* children, which must not leak into
  * the sessions Apiary starts.
  *
- * Apiary inherits its environment from whatever launched it. Launched from a shell that Claude
- * Code itself opened — `npm start` typed in a Claude terminal, or a VS Code window with the Claude
- * extension — that environment carries the parent session's markers, and every `claude` Apiary
- * then starts believes it is a sub-process of that other session. The visible consequence,
- * measured: `CLAUDE_CODE_CHILD_SESSION` makes the child print "Transcript saving is off" and write
- * no JSONL and no `~/.claude/sessions/<pid>.json` at all. With nothing written, a new or forked
- * session's tab can never be matched to a session id, and stays a `new:<uuid>` pty forever —
- * unpinnable, missing from Recent, untitled in Active, and unforkable.
+ * Launched from a shell Claude Code opened (`npm start` in a Claude terminal, or a VS Code window
+ * with the Claude extension), Apiary inherits the parent session's markers, and every `claude` it
+ * starts believes it is a sub-process of that session. Measured: `CLAUDE_CODE_CHILD_SESSION` makes
+ * the child print "Transcript saving is off" and write no JSONL and no
+ * `~/.claude/sessions/<pid>.json`, so the tab can never be matched to a session id.
  *
  * An explicit list rather than every `CLAUDE_CODE_*`: `CLAUDE_CODE_USE_BEDROCK`,
  * `CLAUDE_CODE_USE_VERTEX` and similar are real user configuration and must keep reaching Claude.

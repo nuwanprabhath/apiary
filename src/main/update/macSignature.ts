@@ -10,10 +10,9 @@ import { errorMessage } from '@shared/errors'
  * (what an unsigned build gets) requires an exact hash of itself, which no other build can match.
  *
  * `codesign -dv` writes its report to stderr (also when it succeeds) and exits non-zero for an
- * unsigned bundle, so a failure and a report with no Developer ID authority are both folded into
- * "not signed" — the honest answer for anything we cannot positively confirm. A
- * wrong answer in this direction costs an unnecessary manual install; the other direction costs a
- * download that fails at the very end.
+ * unsigned bundle, so a failure and a report with no Developer ID authority both mean "not signed".
+ * A wrong answer in that direction costs an unnecessary manual install; the other direction costs
+ * a download that fails at the very end.
  */
 const codesign = createExecWithStderr({ timeoutMs: 5000, scope: 'update' })
 const DEVELOPER_ID = /Authority=Developer ID Application/

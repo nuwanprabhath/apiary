@@ -6,20 +6,12 @@ import type { PtySnapshot } from '@shared/api'
  * A headless terminal per pty, so the app can read what is *on the screen* rather than what was
  * sent to it.
  *
- * This exists because the two are not the same thing, and the difference is not cosmetic. Claude
- * Code is a full-screen TUI: it repaints in place, positions words by jumping the cursor
- * (`ESC[12G` between words rather than a space), moves up to redraw earlier lines, and erases and
- * rewrites its footer several times a second. Pattern-matching the raw byte stream therefore fails
- * in two ways at once — "Do you want to proceed?" is never contiguous in the bytes, so a literal
- * match can never fire; and the stream's newlines are not screen lines, so "the last twelve lines"
- * can reach back across the whole session instead of showing the twelve lines a person can see.
- *
- * Both of those shipped, and the status dot was wrong twice because of them. Rendering is the only
- * honest fix: feed the bytes to a terminal emulator and read its grid.
- *
- * Cheaper than what it replaces, too. The old classifier ran a global regex and a split over the
- * whole 256KB replay buffer on every poll; this writes each chunk once, as it arrives, and reading
- * the screen afterwards is a walk over 40 lines.
+ * Claude Code is a full-screen TUI: it repaints in place, positions words by jumping the cursor
+ * (`ESC[12G` between words rather than a space), moves up to redraw earlier lines, and rewrites its
+ * footer several times a second. In the raw byte stream "Do you want to proceed?" is never
+ * contiguous, and its newlines are not screen lines, so "the last twelve lines" can reach back
+ * across the whole session. Feeding the bytes to a terminal emulator and reading its grid fixes
+ * both, and each chunk is written once, as it arrives.
  */
 
 /** Used until the real pty reports its size, and by `renderScreen` for recorded fixtures. */
@@ -77,10 +69,8 @@ export class ScreenBuffers {
   /**
    * Keeps a pty's screen the same shape as the real terminal showing it.
    *
-   * Not cosmetic. Claude Code lays its boxes out to the width it is given, so rendering a 200-column
-   * session into a 120-column grid re-wraps every line — and a wrap landing mid-phrase is enough to
-   * break a match that would otherwise be exact. The grid has to be the size the program thinks it
-   * is drawing on.
+   * Claude Code lays its boxes out to the width it is given, so a 200-column session in a
+   * 120-column grid re-wraps every line, and a wrap mid-phrase breaks an exact match.
    */
   resize(id: string, cols: number, rows: number): void {
     const screen = this.screens.get(id) ?? { size: null, live: null }
@@ -128,9 +118,8 @@ export class ScreenBuffers {
    * What is on `id`'s screen now, as plain text lines. Empty for a pty with no screen, which reads
    * the same as a blank one to every caller.
    *
-   * Note that `Terminal.write` is asynchronous — a chunk written microseconds ago may not be in the
-   * grid yet. That is correct for this caller: the classifier is describing a session a human is
-   * looking at, and a repaint that has not landed yet is one they cannot see either.
+   * `Terminal.write` is asynchronous, so a chunk written just now may not be in the grid yet;
+   * the classifier wants what a person could see.
    */
   read(id: string): string {
     const live = this.screens.get(id)?.live

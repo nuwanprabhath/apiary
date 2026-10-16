@@ -1,11 +1,6 @@
 import type { ProjectNode } from '@shared/types'
 
-/**
- * Each session's *folder* branch, by session id.
- *
- * The pinned section draws rows outside the tree that holds them, so the project node — and with
- * it the branch its worktree is on — is not to hand. The lookup is built alongside the flatten.
- */
+/** The pinned section draws rows outside the tree that holds them, so the project node's branch is not to hand. */
 export function folderBranches(nodes: ProjectNode[], into = new Map<string, string | null>()): Map<string, string | null> {
   for (const node of nodes) {
     for (const s of node.sessions) into.set(s.sessionId, node.branch)
@@ -14,7 +9,6 @@ export function folderBranches(nodes: ProjectNode[], into = new Map<string, stri
   return into
 }
 
-/** The folder at `path`, at any depth. */
 export function findFolder(nodes: ProjectNode[], path: string): ProjectNode | null {
   for (const node of nodes) {
     if (node.path === path) return node
@@ -24,17 +18,11 @@ export function findFolder(nodes: ProjectNode[], path: string): ProjectNode | nu
   return null
 }
 
-/** Every folder path in the tree, at every depth — the full list ordering is resolved against. */
 export function allFolderPaths(nodes: ProjectNode[]): string[] {
   return nodes.flatMap((n) => [n.path, ...allFolderPaths(n.children)])
 }
 
-/**
- * The chain of folder paths leading to a session, outermost first.
- *
- * Revealing a session means nothing while the folder holding it is collapsed — the row does not
- * exist to scroll to. These are the folders that have to be opened for it to.
- */
+/** The folders, outermost first, that must be open for the session's row to exist. */
 export function pathsToSession(nodes: ProjectNode[], id: string, trail: string[] = []): string[] | null {
   for (const node of nodes) {
     const here = [...trail, node.path]

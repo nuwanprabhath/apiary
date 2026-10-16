@@ -5,7 +5,7 @@ import { crashNotice } from '../../ui/errors'
 import { useNotifications } from '../../ui/notifications'
 
 /**
- * Confines a dialog's render fault to the dialog (B11, UI-24). `DialogHost` renders its dialogs
+ * Confines a dialog's render fault to the dialog. `DialogHost` renders its dialogs
  * inside the layout, so one that throws and has no boundary of its own replaces the whole window.
  * The fallback is itself a dialog, so the user can try again or close it: the crash pane the
  * self-wrapping dialogs use would land in the layout grid, not over the window.

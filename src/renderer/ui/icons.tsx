@@ -38,7 +38,6 @@ export function CopyIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** A window with its left-hand panel marked — the sidebar show/hide control. */
 export function SidebarIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -60,7 +59,6 @@ export function CollapseAllIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** Four panes — the layout picker's button. */
 export function LayoutIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -87,17 +85,11 @@ export function ListIcon({ className }: IconProps): JSX.Element {
 }
 
 /**
- * The refresh glyph: two arrows chasing each other round a circle, the shape VS Code, GitHub and
- * every browser's reload button use. It replaced a single arc with one line-drawn arrowhead,
- * which read as "a circle with an arrow stuck in it" rather than as refresh.
+ * The arrowheads are filled triangles and each arc stops well short of the other, because at the
+ * 13px it is drawn at in the sidebar a 1.3px chevron is a smudge and a 50° gap is the only thing
+ * telling the eye these are arrows and not a ring.
  *
- * The arrowheads are filled triangles rather than two strokes meeting at a point, and each arc
- * stops well short of the other so the pair never closes into a plain ring. Both are because of
- * the size this is actually drawn at — 13px in the sidebar, where a 1.3px chevron is a smudge and
- * a 50° gap is the only thing telling the eye these are arrows and not a circle.
- *
- * It spins in place via the shared `.spinner` class rather than the button swapping its label for
- * a bare glyph, which used to change the button's width mid-click.
+ * It spins in place via the shared `.spinner` class.
  */
 export function RefreshIcon({ className }: IconProps): JSX.Element {
   return (
@@ -110,7 +102,6 @@ export function RefreshIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** The horizontal ellipsis VS Code uses for an overflow menu of further commands. */
 export function EllipsisIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -121,7 +112,6 @@ export function EllipsisIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** A pencil, for the "rename" action on a terminal tab. */
 export function PencilIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -150,7 +140,6 @@ export function CloseIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** VS Code's "split editor" glyph: a pane divided down the middle. */
 export function SplitIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -160,11 +149,7 @@ export function SplitIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/**
- * A pushpin seen from the side, the same glyph filled or outlined depending on state — an
- * outline reads as "pin this", the filled one as "this is pinned, click to unpin", without
- * needing two different shapes the eye has to learn.
- */
+/** Outlined reads as "pin this", filled as "pinned, click to unpin": one shape for both. */
 export function PinIcon({ className, filled = false }: IconProps & { filled?: boolean }): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -178,11 +163,7 @@ export function PinIcon({ className, filled = false }: IconProps & { filled?: bo
   )
 }
 
-/**
- * A note: a page with lines of writing on it. Filled in with a corner fold when the session
- * already has one, so a glance down the sidebar tells you which sessions you have annotated
- * without hovering each in turn.
- */
+/** Filled when the session already has a note, so the sidebar shows which are annotated. */
 export function NoteIcon({ className, filled = false }: IconProps & { filled?: boolean }): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -200,12 +181,7 @@ export function NoteIcon({ className, filled = false }: IconProps & { filled?: b
   )
 }
 
-/**
- * A tick, used to acknowledge a copy without changing the button's size — and, with `on` set, the
- * toggle mark beside a checked `ContextMenu` item (UI-32: this duplicated `ContextMenu`'s own
- * inline `<svg>`, byte-for-byte apart from the `data-on` attribute its `.context-menu-check`
- * CSS rule keys off; `on` is that one difference, not a new icon).
- */
+/** With `on` set, the mark beside a checked `ContextMenu` item (`data-on`, keyed by `.context-menu-check`). */
 export function CheckIcon({ className, on }: IconProps & { on?: boolean }): JSX.Element {
   return (
     <svg
@@ -222,20 +198,12 @@ export function CheckIcon({ className, on }: IconProps & { on?: boolean }): JSX.
 }
 
 /**
- * GitLab's merge-request glyph: a branch line merging back into the trunk — one family, three
- * states, because "!1274" beside a branch says nothing about whether that work has landed, and
- * that is the first question anyone asks about a merge request.
- *
- * The state is carried by the *target* node alone, so all three share a silhouette and the eye
- * only has to read one small difference rather than learn three shapes. What that difference is
- * was decided by rendering all three at 14px (the size this is actually drawn at on the bar) and
- * looking, the same way the refresh icon was:
+ * GitLab's merge-request glyph: a branch line merging back into the trunk. The state is carried
+ * by the *target* node alone, so all three share a silhouette (drawn at 14px on the bar):
  *
  * - **open** — an outlined ring, the branch arriving at it.
- * - **merged** — the same ring filled solid. A filled 3.6px disc against a 1.2px ring is the
- *   largest difference available in that space, and it is the GitHub/GitLab convention besides.
- * - **closed** — a cross where the ring would be. A ring with something *inside* it turns to mush
- *   at this size; a bare cross keeps two clean strokes.
+ * - **merged** — the same ring filled solid, the largest difference available at that size.
+ * - **closed** — a cross where the ring would be; a ring with something inside it turns to mush.
  */
 export function MergeRequestIcon(
   { className, state = 'open' }: IconProps & { state?: 'open' | 'merged' | 'closed' },
@@ -259,7 +227,6 @@ export function MergeRequestIcon(
   )
 }
 
-/** A generic external link, for plugin buttons that only open something. */
 export function LinkIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -269,7 +236,6 @@ export function LinkIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** Something a plugin needs the user to know about before its button can work. */
 export function AlertIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -288,7 +254,6 @@ export function PlusBoldIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** A pencil on a sheet's corner: rename the session title in place. */
 export function RenameIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -300,7 +265,6 @@ export function RenameIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** The arrow on a menu item that opens a submenu. */
 export function SubmenuArrowIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -309,7 +273,6 @@ export function SubmenuArrowIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** A small speedometer: VS Code's `$(dashboard)`, which the usage extension shows. */
 export function GaugeIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -329,7 +292,6 @@ export function HistoryIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** A box with a slash in it: the slash-command button. */
 export function SlashBoxIcon({ className }: IconProps): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
@@ -396,7 +358,6 @@ export function BoltIcon({ className }: IconProps): JSX.Element {
   )
 }
 
-/** How full Claude's context is, as a ring with the percentage inside it. */
 export function ContextRingIcon({ pct }: { pct: number }): JSX.Element {
   const r = 9
   const circumference = 2 * Math.PI * r
@@ -414,10 +375,7 @@ export function ContextRingIcon({ pct }: { pct: number }): JSX.Element {
   )
 }
 
-/**
- * A single glyph per notification kind, so the strip is legible at a glance without reading it —
- * and so a screenshot of a failure says "error" even in greyscale, which colour alone would not.
- */
+/** One glyph per kind, so a failure reads as "error" without colour. */
 export function NotificationKindIcon({ kind }: { kind: NotificationKind }): JSX.Element {
   const common = { viewBox: '0 0 16 16', fill: 'none', xmlns: 'http://www.w3.org/2000/svg', 'aria-hidden': true } as const
   if (kind === 'error') {

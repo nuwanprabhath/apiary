@@ -19,10 +19,8 @@ import { moveSession, saveSessionNote } from '../../state/sessions'
 import { surface } from '../../state/policy'
 
 /**
- * Renders whichever dialogs `useDialogs` has open (UI-1 step 5). The dialogs that are only IPC
- * (move, note) are finished here; the ones whose outcome changes workspace or `ui` state hand
- * back to App through the `on…` props, after closing themselves — the order each inline handler
- * used before.
+ * Renders whichever dialogs `useDialogs` has open. Move and note finish here; the ones that change
+ * workspace or `ui` state close themselves, then hand back to App through the `on…` props.
  */
 export function DialogHost({
   dialogs, currentPreset, isTabOpen, onPlace,
@@ -35,7 +33,6 @@ export function DialogHost({
   /** Whether a tab is still open in this window — the arrange picker's target may have closed. */
   isTabOpen: (key: string) => boolean
   onPlace: (target: PlaceTarget, preset: PresetId, zone: number) => void
-  /** Forking goes through the fork path, not through resume-with-a-flag. */
   onFork: (sessionId: SessionId) => void
   onOpenAnyway: (session: SessionNode) => void
   onConfirmDelete: (session: SessionNode) => void
@@ -71,10 +68,8 @@ export function DialogHost({
           onCancel={() => { close('conflict') }}
           onFork={() => {
             close('conflict')
-            // Forking goes through the fork path, not through resume-with-a-flag. The old code
-            // marked the *original* session resumed and pointed its tab at a pty that was in fact
-            // running a different, newly-minted session — so the original's transcript never
-            // moved and the fork turned up later as a row with no terminal behind it.
+            // Not resume-with-a-flag: that would mark the original session resumed and point its tab
+            // at a pty running the newly minted fork.
             onFork(conflict.session.sessionId)
           }}
           onOpenAnyway={() => { close('conflict'); onOpenAnyway(conflict.session) }}
@@ -94,7 +89,7 @@ export function DialogHost({
       {changeBranchFor !== null && (
         <DialogBoundary onClose={closeChangeBranch}>
           <FolderBranchDialog
-            // A fresh picker for each folder, never one carrying the last folder's query or step.
+            // A fresh picker per folder, not one carrying the last folder's query or step.
             key={changeBranchFor.path}
             path={changeBranchFor.path}
             label={changeBranchFor.label}
@@ -159,11 +154,9 @@ export function DialogHost({
   )
 }
 
-/** The layout picker opened from a context menu's "Arrange…", inside its own boundary (B11). */
 function ArrangePicker({ request, currentPreset, isTabOpen, onPlace, onClose }: {
   request: { target: PlaceTarget; at: DOMRect }
   currentPreset: PresetId
-  /** Whether a tab is still open in this window — the picker's target may have closed. */
   isTabOpen: (key: string) => boolean
   onPlace: (target: PlaceTarget, preset: PresetId, zone: number) => void
   onClose: () => void
@@ -175,14 +168,11 @@ function ArrangePicker({ request, currentPreset, isTabOpen, onPlace, onClose }: 
         mode="place"
         heading="Arrange"
         current={currentPreset}
-        // Opened from a context-menu command, never from the pointer merely resting somewhere —
-        // always takes focus (UI-28).
         focusOnOpen
         onPick={(preset, zone) => {
           onClose()
-          // The target was captured when the picker opened; by the time a zone is picked the
-          // tab it named may have closed. Placing it then would reopen a session nobody asked
-          // for, so a tab target that is no longer open in the window is silently dropped.
+          // The tab named when the picker opened may have closed; placing it would reopen a
+          // session nobody asked for.
           if (request.target.kind === 'tab' && !isTabOpen(request.target.key)) return
           onPlace(request.target, preset, zone)
         }}

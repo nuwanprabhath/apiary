@@ -18,7 +18,6 @@ const TAILSCALE_PATHS = ['tailscale', '/Applications/Tailscale.app/Contents/MacO
 
 interface HostsFile { hosts: string[] }
 
-/** What the last probe of one host found. */
 /** `seq` is when the probe started, in `HostDirectory.seq` order: an older probe never replaces a newer result. */
 interface Probed { status: RemoteHostState; detail?: string; checkedAt: number; seq: number }
 

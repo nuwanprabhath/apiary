@@ -4,6 +4,41 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.44.1] - 2026-10-16
+
+### Changed
+
+- **Source comments cut to the facts the code cannot carry.** About 3,150 comment lines of
+  narration and history (version numbers, review ids, "this used to…") are gone from `src/`, with
+  the measurements, platform behaviour and reasons kept. No change to how the app behaves: a script
+  checked that only comments changed. A test now refuses a comment that cites an Apiary version or
+  a review id, and every agent branch gets the same trim before it merges.
+
+## [1.44.0] - 2026-10-16
+
+### Added
+
+- **Hide sessions you haven't used for a while.** Settings → Sidebar → "Hide sessions not used for
+  a while" drops sessions older than the number of days you set (30 to start with) out of the
+  sidebar. Search still finds them, and pinned, open and running sessions always show. Off unless
+  you turn it on.
+- **Copy an image from the conversation.** Right-click an image you sent, or one in Claude's reply,
+  and choose Copy image. Before, the menu offered only a greyed-out Copy.
+
+### Fixed
+
+- **All your windows come back after closing them one by one on Linux and Windows.** Closing two
+  windows by their X a few seconds apart counted the first as closed on purpose, so only the last
+  came back. Windows closed within a minute of the last one now all reopen; on a Mac, where closing
+  a window never quits, it stays a few seconds. The log now records each window closing and which
+  windows a launch restores.
+- **Up moves the cursor up a long message before it recalls an older one.** On a message that wraps
+  onto a second line, Up from that line recalled the previous message instead of moving the
+  cursor to the first line. History now starts only from the first line you can see; Down likewise
+  from the last.
+- **Panes no longer redraw every few seconds while Apiary is in front.** Each pane re-reads its
+  branch on a timer and whenever the window comes forward, and redrew even when nothing had changed.
+
 ## [1.43.0] - 2026-10-16
 
 ### Added

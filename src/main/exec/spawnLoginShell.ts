@@ -35,7 +35,7 @@ export interface LoginShellProcess<C extends ChildProcess> {
   /**
    * Settles exactly once, and always: on the process ending, or on the child's `'error'` event
    * (a login shell that does not exist, a cwd that is gone). It never rejects and cannot be left
-   * pending by a failed spawn, so a caller that awaits it on quit cannot hang (MAIN-19). Await it
+   * pending by a failed spawn, so a caller that awaits it on quit cannot hang. Await it
    * rather than listening to the child's own events.
    */
   exited: Promise<LoginShellExit>

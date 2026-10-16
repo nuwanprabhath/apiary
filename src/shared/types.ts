@@ -1,7 +1,5 @@
 /**
- * A barrel: these types used to be defined directly here, split by topic into `shared/domain/*`
- * now (SHARED-1). Re-exported under the same names so existing `from '@shared/types'` imports are
- * unaffected — the split changed where things live, not what anything is called.
+ * A barrel: the types are defined by topic in `shared/domain/*` and re-exported here.
  */
 export type { SessionMeta, ProjectInfo, SessionNode, ProjectNode } from './domain/session'
 export { UNTITLED_SESSION } from './domain/session'

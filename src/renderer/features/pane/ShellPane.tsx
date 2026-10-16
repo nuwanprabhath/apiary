@@ -40,9 +40,8 @@ export function ShellPane({
         <div className="bottom-resizer" data-testid="bottom-resizer" {...bottomResizer} />
       )}
 
-      {/* UI-6: `var(--drag-bottom-height, …)` reads the live value App's resize drag writes
-          straight onto the document root while dragging, falling back to the committed
-          `bottomHeight` prop otherwise — the same fallback pattern as the sidebar's width. */}
+      {/* `--drag-bottom-height` is the live value App's resize drag writes onto the document root;
+          `bottomHeight` is the committed one. */}
       <div
         className="bottom-pane shell-card"
         data-testid="shell-card"
@@ -51,18 +50,13 @@ export function ShellPane({
       >
         <ShellToolbar shell={shell} git={git} gitStatus={gitStatus} pluginItems={pluginItems} />
         <div className="terminal-panel-row">
-          {/* As with the claude terminals, every open tab's shell terminals stay mounted
-           *  so their scrollback survives switching session — a dev server you left running in
-           *  one session is still showing its log when you come back to it. */}
+          {/* Every open tab's shell terminals stay mounted so their scrollback survives switching session. */}
           {column.tabs.flatMap((tab) => {
             const key = keyFor(tab.key)
             const shownTerminal = activeTerminalFor(tab.key)
             return terminalsFor(tab.key).map((terminal) => {
-              // Note `shellOpen` is part of *visibility*, not of whether this is rendered at
-              // all: collapsing the pane used to unmount every terminal in it, so hiding and
-              // reshowing the shell threw away the scrollback of anything running in it. A
-              // hidden terminal has no box for FitAddon to measure, so it never resizes its
-              // pty while collapsed either — the process is left completely undisturbed.
+              // `shellOpen` only hides: unmounting would drop the scrollback. A hidden terminal has
+              // no box for FitAddon to measure, so it never resizes its pty while collapsed.
               const visible = shellOpen && tab.key === activeKey && terminal.id === shownTerminal
               return (
                 <div

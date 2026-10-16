@@ -27,8 +27,6 @@ export function buildMenu(
       label: app.name,
       submenu: [
         { role: 'about' },
-        // Where every Mac app keeps it, directly under About — the two questions "what am I
-        // running" and "is there something newer" are asked in the same breath.
         { label: 'Check for Updates...', click: onCheckForUpdates },
         { type: 'separator' },
         { role: 'quit' },
@@ -91,11 +89,8 @@ export function buildMenu(
           click: onToggleSidebar,
         },
         {
-          // The way back from any theme. Its shortcut works however unreadable a theme has made the
-          // window: it is an application-menu accelerator, handled by Electron before the page.
-          // On Windows and Linux that menu is drawn by Apiary in the theme (TitleBar.tsx), but its
-          // colours pass the same readability check as everything else, and "Use the system title
-          // bar" and `--safe-theme` both still bring back an OS-drawn way out.
+          // The way back from any theme: an application-menu accelerator, handled by Electron
+          // before the page, so it works however unreadable a theme has made the window.
           id: 'reset-theme',
           label: 'Reset Theme',
           accelerator: 'CmdOrCtrl+Alt+Shift+T',

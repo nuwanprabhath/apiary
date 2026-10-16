@@ -15,11 +15,7 @@ import type { LaunchAccounts } from '../accounts/accountService'
 import { log } from '../log/logger'
 import type { NewSessionInfo } from '@shared/types'
 
-/**
- * Terminal bracketed-paste markers. Sending a multi-line prompt as a *paste* rather than as
- * keystrokes is what stops the receiving TUI treating the first newline as "submit" and firing off
- * a half-written message — the same mechanism a terminal uses when you paste into it by hand.
- */
+/** Bracketed-paste markers: a multi-line prompt sent as a paste is not submitted at its first newline. */
 const PASTE_START = '\x1b[200~'
 const PASTE_END = '\x1b[201~'
 
@@ -40,14 +36,9 @@ export interface TerminalServiceDeps {
 
 /**
  * Resuming, forking, starting and attaching to Claude sessions and plain shells, plus delivering a
- * composed prompt (MAIN-14 step 4) — pure move out of `AppService`. Every attach-instead-of-spawn
- * guard, every comment explaining a past bug (CLAUDE.md's "never spawn over a live id", the
- * bracketed-paste and settle-timing rules in `sendPrompt`) is unchanged; see
- * `tests/integration/appService/composer.test.ts`, which still exercises all of this through `AppService`'s
- * unchanged delegating methods.
- *
- * Owns `claudeBin` and `promptPath` — both used only by the methods here (and by `AppService`'s
- * public `claudeBin` getter/`setClaudeBin`/`setPromptPath`, which now delegate to this class).
+ * composed prompt. Every attach-instead-of-spawn guard (CLAUDE.md's "never spawn over a live id")
+ * and the bracketed-paste and settle-timing rules in `sendPrompt` live here; see
+ * `tests/integration/appService/composer.test.ts`.
  */
 export class TerminalService {
   private readonly pty: PtyManager
@@ -87,8 +78,6 @@ export class TerminalService {
    * setting's help text says the change applies to new terminals.
    */
   setPromptPath(options: PromptPathOptions): void {
-    // The exact answer to "I turned the setting on and my prompt is still long": what the app
-    // decided, and what it will actually put in the environment.
     log.info('prompt', 'prompt trim configured', {
       enabled: options.enabled,
       segments: options.segments,
@@ -143,14 +132,10 @@ export class TerminalService {
   /**
    * Spawns `claude --resume` in the session's recorded cwd. Terminal id is the session id.
    *
-   * **An already-running pty is attached to, never replaced.** The same session can legitimately
-   * be live in two windows at once (see `AppService.checkConflict`'s own comment), and each window
-   * is a separate renderer that cannot see what another one has already started — this is exactly
-   * what surfaced restoring after a relaunch: both windows recorded the session as `live` at quit,
-   * both call `resume()` independently on mount, and without this check the second call would hit
-   * `spawn()`'s unconditional `kill()` and restart the pty out from under the first window
-   * mid-startup. `this.pty.has` is the same check `openShell` already makes for the equivalent
-   * shell-tab collision.
+   * **An already-running pty is attached to, never replaced.** The same session can be live in two
+   * windows, and each renderer calls `resume()` on its own (after a relaunch both do), so without
+   * this check the second call would hit `spawn()`'s unconditional `kill()` and restart the pty
+   * under the first window.
    */
   async resume(sessionId: string): Promise<void> {
     if (this.pty.has(sessionId)) {
@@ -169,11 +154,7 @@ export class TerminalService {
       command: buildResumeCommand(sessionId, { claudeBin: this.claudeBin }),
       tui: true,
       account,
-      // Claude takes the screen, so its own prompt is not bash's — but the shell is still there
-      // underneath and is what you are left looking at the moment Claude exits, which is where a
-      // 90-column worktree path greets you. This was missed when the setting was added: it reached
-      // the shell tabs and not the session's own terminal, so the setting looked broken to anyone
-      // who tried it on the terminal they actually use.
+      // The shell under Claude is what is left on screen when Claude exits, so it needs the prompt settings too.
       env: this.claudeEnv(account),
     })
   }
@@ -183,12 +164,9 @@ export class TerminalService {
    * than one tab can exist per session; each is addressed by its own tabId.
    *
    * **An existing shell is attached to, never replaced.** Shell tab ids are minted per window and
-   * the first one is always `1`, so opening the shell for a session that is already open in
-   * another window asked for the id that window was using — and `spawn()` kills whatever is under
-   * an id before taking it. A build, a `tail -f`, an editor, anything running in the first
-   * window's shell died the moment the second window showed the same session, with nothing said.
-   * Attaching is now a real answer rather than a blank pane, because a view that arrives late is
-   * caught up from a rendered snapshot (see `PtyManager.snapshot`), not a raw byte replay.
+   * the first is always `1`, so a second window showing the session asks for the id the first
+   * is using, and `spawn()` kills whatever is under an id. A late view is caught up from a rendered
+   * snapshot (see `PtyManager.snapshot`).
    */
   async openShell(sessionId: SessionId, tabId: string): Promise<void> {
     const id = shellPtyId(sessionId, tabId)
@@ -205,10 +183,7 @@ export class TerminalService {
     })
   }
 
-  /**
-   * Same as `openShell`, but for a new session's pty before it has a real session id yet, keyed
-   * `shell:<ptyId>:<tabId>`.
-   */
+  /** `openShell` for a new session's pty, which has no session id yet: keyed `shell:<ptyId>:<tabId>`. */
   async openShellForPty(ptyId: PtyId, tabId: string): Promise<void> {
     const id = shellPtyId(ptyId, tabId)
     if (this.pty.has(id)) return
@@ -230,8 +205,7 @@ export class TerminalService {
   async newSessionInProject(path: string): Promise<NewSessionInfo> {
     const project = this.store.getProject(path)
     if (project) return this.startNewSession(project.path)
-    // Neither a worktree `listWorktrees` found in git nor a repository heading has a project row
-    // yet. One is made first, so the auto-import flag `startNewSession` sets has a row to go on.
+    // A worktree found in git or a repository heading may have no project row yet; `startNewSession` sets a flag on one.
     if (!this.resolver.isKnownWorktree(path)) this.resolver.requireFolder(path)
     const info = await this.worktrees.resolveProject(path)
     this.store.syncProject(info)
@@ -253,17 +227,11 @@ export class TerminalService {
 
   /**
    * Forks a session: starts `claude --resume <id> --fork-session`, which replays the conversation
-   * so far into a *new* session rather than continuing the old one.
+   * so far into a *new* session and leaves the original untouched.
    *
-   * Deliberately routed through the same `new:<uuid>` pty bookkeeping as starting a session from
-   * scratch, not through `resume()`. A fork's session id does not exist yet — Claude mints it and
-   * writes the JSONL itself — so there is nothing to key the terminal by until the watcher finds
-   * it, which is exactly the problem the pending-session machinery already solves. The one thing
-   * that differs is the label, and the renderer carries that across as a rename once the real id
-   * appears.
-   *
-   * The original is untouched, which is the point of forking rather than branching in place: the
-   * conversation you forked from is still there to go back to.
+   * Routed through the `new:<uuid>` pending pty bookkeeping, not `resume()`: Claude mints the
+   * fork's session id and writes the JSONL itself, so nothing can key the terminal until the
+   * watcher finds it. The renderer carries the label across as a rename once the real id appears.
    */
   forkSession(sessionId: string): NewSessionInfo {
     const session = this.resolver.requireSession(sessionId)
@@ -273,7 +241,7 @@ export class TerminalService {
     }
     this.store.setAutoImport(cwd, true)
     const ptyId = newPendingPtyId(randomUUID())
-    // The fork continues its parent's conversation, so it runs where the parent does.
+    // A fork runs under its parent's account.
     const account = this.accounts.accountOf(asSessionId(sessionId))
     this.pty.spawn({
       id: ptyId,
@@ -287,11 +255,9 @@ export class TerminalService {
   }
 
   /**
-   * Spawns `claude` (no `--resume`) in `cwd`, keyed under a fresh `new:<uuid>` pty id — there is
-   * no session id yet, so it cannot be keyed like `resume()`/`openShell()` are. Also flips the
-   * project's `auto_import` flag so the session the watcher discovers once Claude writes its
-   * JSONL (and any future session started in this folder) shows up in the sidebar on its own,
-   * the same mechanism ticking a folder header in the import dialog already uses.
+   * Spawns `claude` (no `--resume`) in `cwd`, keyed under a fresh `new:<uuid>` pty id (no session
+   * id yet). Also sets the project's `auto_import` flag so the session the watcher discovers, and
+   * later ones in this folder, show up in the sidebar.
    */
   private startNewSession(cwd: string): NewSessionInfo {
     if (!existsSync(cwd)) throw new Error(`Working directory does not exist: ${cwd}`)
@@ -312,27 +278,21 @@ export class TerminalService {
   /**
    * Delivers a composed prompt to a session's running `claude` process.
    *
-   * Wrapped in bracketed-paste markers so the whole thing arrives as one paste: without them a
-   * multi-line message submits at its first newline, sending a fragment and leaving the rest to be
-   * interpreted as new prompts. The trailing carriage return is the actual "send".
+   * Wrapped in bracketed-paste markers so a multi-line message arrives as one paste; the trailing
+   * carriage return is the actual "send".
    *
-   * Both waits are load-bearing, and both were found by measuring a real `claude` rather than
-   * reasoning about it:
+   * Both waits are load-bearing (measured on a real `claude`):
    *
-   * - Before the paste, because sending a message resumes a stopped session first, and the pty
-   *   exists a good second before `claude` is listening. Written into that gap, the message is
-   *   swallowed by the terminal's line discipline instead (see `whenQuiet`) — it appears in the
-   *   input box, unsent, with its return turned into a newline, and needs an Enter by hand.
-   * - Before the return, because it only counts as "submit" once the TUI has taken the paste in.
-   *   Measured at ~20ms on an idle session but ~90ms on a busy one, so a fixed delay is a guess;
-   *   waiting for the TUI to stop drawing is the thing that was actually being guessed at.
+   * - Before the paste: resuming a stopped session leaves the pty up a good second before `claude`
+   *   listens, and a message written into that gap is swallowed by the line discipline (see
+   *   `whenQuiet`): it sits unsent in the input box.
+   * - Before the return: it only submits once the TUI has taken the paste in, which took ~20ms on
+   *   an idle session and ~90ms on a busy one.
    */
   async sendPrompt(ptyId: string, text: string): Promise<void> {
     if (!this.pty.has(ptyId)) throw new Error('This session is not running.')
-    // Stripped before wrapping: an ESC[201~ in the text would close the bracketed paste early,
-    // and everything after it would run as keystrokes instead of arriving as literal text
-    // (SEC-6) — the classic pastejacking bypass, since bracketed paste only protects a payload
-    // that cannot spell its own end marker.
+    // Stripped before wrapping: an ESC[201~ in the text would end the paste early and run the rest
+    // as keystrokes (pastejacking).
     const normalised = stripPasteControls(text.replace(/\r\n/g, '\n').replace(/\s+$/, ''))
     if (normalised === '') return
     await this.pty.whenQuiet(ptyId, { quietMs: 250, capMs: 20_000 })

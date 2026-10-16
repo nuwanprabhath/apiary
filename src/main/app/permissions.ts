@@ -4,19 +4,16 @@ import type { Session } from 'electron'
  * Electron grants every permission a page asks for by default, with no handler installed at all.
  * The renderer only ever needs the clipboard (`TerminalView.tsx`'s paste path reads it, and xterm's
  * own copy writes it) — camera, microphone, screen capture, geolocation, notifications and
- * HID/serial/USB are not features of this app, so they are refused outright (SEC-10): least
+ * HID/serial/USB are not features of this app, so they are refused outright: least
  * privilege, so a future renderer bug cannot also turn on the camera.
  */
 const ALLOWED_PERMISSIONS = new Set(['clipboard-read', 'clipboard-sanitized-write'])
 
 /**
- * Whether `url` is this app's own page, judged the same way the *old* `navigationGuard` judged a
- * same-app navigation: exact pathname for a packaged `file:` build (its origin is opaque, so
- * "the app" means the very same file), same origin otherwise (the dev server). This is
- * deliberately looser than `decideNavigation`'s post-SEC-2 exact-URL rule — that rule exists to
- * stop a transcript link from reloading the window with a different query, which is not a concern
- * here: a permission check only has to say "is the caller Apiary's own renderer", not "is this
- * the exact page currently on screen".
+ * Whether `url` is this app's own page: exact pathname for a packaged `file:` build (its origin is
+ * opaque, so "the app" means the very same file), same origin otherwise (the dev server). This is
+ * deliberately looser than `decideNavigation`'s exact-URL rule: a permission check only has to say
+ * "is the caller Apiary's own renderer", not "is this the exact page currently on screen".
  */
 export function isAppUrl(url: string, currentUrl: string): boolean {
   let target: URL
@@ -42,8 +39,7 @@ export function installPermissionGuards(session: Session): void {
   })
   session.setPermissionCheckHandler((webContents, permission, requestingOrigin) =>
     allowPermission(permission, requestingOrigin, webContents?.getURL() ?? ''))
-  // HID, serial and USB each have their own device-picker handler; Electron shows nothing (and so
-  // grants nothing) without one, but denying explicitly is the point being made, not an accident
-  // of no handler existing.
+  // HID, serial and USB have their own device-picker handler; deny explicitly rather than rely on
+  // none being installed.
   session.setDevicePermissionHandler(() => false)
 }

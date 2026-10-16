@@ -52,3 +52,42 @@ describe('message box history', () => {
     expect(box.value).toBe('line one\nline two')
   })
 })
+
+const LONG = 'a long sentence with no newline that the narrow box wraps onto several visual lines of its own'
+
+describe('message box history on a wrapped line', () => {
+  it('Up from the second visual line moves the caret; only the first visual line recalls', async () => {
+    const box = await openWithHistory()
+    box.style.width = '120px'
+    await userEvent.fill(box, LONG)
+    box.setSelectionRange(box.value.length, box.value.length)
+    await userEvent.keyboard('{ArrowUp}')
+    expect(box.value).toBe(LONG)
+    box.setSelectionRange(3, 3)
+    await userEvent.keyboard('{ArrowUp}')
+    await until(() => box.value === 'second ask')
+  })
+
+  it('Down from the first visual line of a recalled wrapped message does not step forward', async () => {
+    await renderApp({
+      sessions: [{
+        sessionId: '99999999-9999-9999-9999-999999999999',
+        title: 'Wrapped history',
+        projectPath: '/fixture/work-a',
+        messages: [message('u1', 'user', LONG), message('a1', 'assistant', 'ok')],
+      }],
+    })
+    await userEvent.click(sidebarSession('Wrapped history'))
+    await userEvent.click(page.getByTestId('composer-input'))
+    const box = page.getByTestId('composer-input').element() as HTMLTextAreaElement
+    box.style.width = '120px'
+    await userEvent.keyboard('{ArrowUp}')
+    await until(() => box.value === LONG)
+    box.setSelectionRange(2, 2)
+    await userEvent.keyboard('{ArrowDown}')
+    expect(box.value).toBe(LONG)
+    box.setSelectionRange(box.value.length, box.value.length)
+    await userEvent.keyboard('{ArrowDown}')
+    await until(() => box.value === '')
+  })
+})

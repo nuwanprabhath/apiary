@@ -6,19 +6,14 @@ import { log } from '../log/logger'
 /**
  * Full-text search over what was actually said in a session.
  *
- * Kept in a database of its own rather than alongside the session store. An index over months of
- * transcripts is much larger than the metadata it sits beside, is derived data that can always be
- * rebuilt from the JSONL files, and has a schema that will change as search improves — so it gets
- * its own file, which can be deleted wholesale without touching anything the app cannot recreate.
+ * Kept in a database of its own: derived data, much larger than the session store, that can be
+ * deleted wholesale and rebuilt from the JSONL files.
  *
- * **Tokenisation is the whole design.** The searches this exists to serve are for identifiers:
- * `!1257`, `#2902`, `2260-remove-prefill`. The default `unicode61` tokeniser splits on punctuation,
- * which is exactly what makes those work — `!1257` indexes as the token `1257`, so both `!1257` and
- * `1257` find it, and `2260-remove-prefill` indexes as three tokens, so the whole branch name finds
- * it *and* so does `prefill` on its own. Adding `-` or `!` to `tokenchars` would make each of those
- * one indivisible token, which buys exactness on the full string at the cost of every partial
- * search anyone would actually type. Queries are put through the same shape (see `toMatchQuery`),
- * so what the user types and what was indexed agree.
+ * **Tokenisation is the whole design.** Searches are for identifiers: `!1257`, `#2902`,
+ * `2260-remove-prefill`. The default `unicode61` tokeniser splits on punctuation, so `!1257` indexes
+ * as `1257` and the branch name as three tokens, and `prefill` alone finds it. Adding `-` or `!` to
+ * `tokenchars` would make each an indivisible token and break partial search. Queries go through
+ * the same reduction (see `toMatchQuery`).
  */
 
 /** A session that matched, with the highest-ranked passage from it. */
@@ -28,45 +23,31 @@ export interface SearchHit {
   snippet: string
 }
 
-/**
- * Per-session cap on indexed text. A handful of very long sessions would otherwise dominate both
- * the index's size and the time the first pass takes, for material nobody searches for: what people
- * remember and search by turns up in what was said, not in the thousandth tool result.
- */
+/** Per-session cap on indexed text, so a few very long sessions do not dominate index size and first-pass time. */
 export const MAX_TEXT_PER_SESSION = 2 * 1024 * 1024
 
 /** Above this, `put`'s synchronous FTS5 tokenisation (on the main thread) is worth a log line
- *  (MAIN-24: measure before cutting anything here). */
+ *  (measure before cutting anything here). */
 const PUT_SLOW_MS = 50
 
 /**
  * Turns what someone typed into an FTS5 MATCH expression.
  *
- * FTS5's query language treats `!`, `#`, `-`, `*` and quotes as syntax, so a raw query like
- * `!1257` is a syntax error rather than a search. Everything is therefore reduced to bare tokens
- * the same way the tokeniser reduces the indexed text, then quoted and ANDed. The final token gets
- * a `*` so the results narrow as you type rather than only on word boundaries — but only once it
- * is long enough to be worth it. See MIN_PREFIX_CHARS.
+ * FTS5 treats `!`, `#`, `-`, `*` and quotes as syntax, so a raw `!1257` is a syntax error. Input is
+ * reduced to bare tokens the way the tokeniser reduces indexed text, then quoted and ANDed. The
+ * final token gets a `*` once it is long enough (see MIN_PREFIX_CHARS).
  *
  * Returns null when there is nothing left to search for, which the caller reads as "no query".
  */
 /**
  * How long the final token must be before it is searched as a prefix.
  *
- * A prefix term makes FTS5 walk every token in the index that starts with it, so the cost is
- * inversely proportional to how much has been typed: the *first* letter is the most expensive
- * query the index can be asked. Measured on a real library, `"t"*` took **7.7 seconds** while
- * `"te"*` took 143ms and a whole word took single digits.
+ * A prefix term makes FTS5 walk every token starting with it, so the first letter is the most
+ * expensive query. Measured on a real library: `"t"*` took **7.7 seconds**, `"te"*` 143ms, a whole
+ * word single-digit ms. `better-sqlite3` is synchronous, so that froze typing in every window.
  *
- * That was not merely slow. `better-sqlite3` is synchronous, so the query ran on the main
- * process's main thread — and since input reaches a renderer *through* main, typing froze for the
- * whole 7.7 seconds and the keystrokes arrived afterwards in a burst. The renderer was idle
- * throughout, which is why it looked like a rendering problem and was twice diagnosed as one.
- *
- * Three characters is where the cost becomes ordinary. Below it the token is still searched, just
- * exactly rather than as a prefix — and titles, paths and branches are filtered in the renderer
- * against a cached tree, so a one-letter query still narrows the sidebar instantly. What is given
- * up is content matches for a one- or two-letter fragment, which was never a useful search.
+ * Below three characters the token is searched exactly, not as a prefix; titles, paths and
+ * branches are filtered in the renderer, so a short query still narrows the sidebar.
  */
 const MIN_PREFIX_CHARS = 3
 
@@ -86,9 +67,7 @@ export class SearchIndex {
   constructor(dbPath: string) {
     mkdirSync(dirname(dbPath), { recursive: true })
     this.db = new Database(dbPath)
-    // WAL so a read during indexing is never blocked by the write in progress; the index is
-    // rebuildable, so the durability trade-off of NORMAL is free here in a way it would not be
-    // for the session store.
+    // WAL so a read during indexing is not blocked by the write; NORMAL durability is fine for a rebuildable index.
     this.db.pragma('journal_mode = WAL')
     this.db.pragma('synchronous = NORMAL')
     this.db.exec(`
@@ -119,12 +98,7 @@ export class SearchIndex {
     `)
   }
 
-  /**
-   * Whether this session's file has changed since it was last indexed.
-   *
-   * Size and mtime rather than a hash: session files are append-only and reach tens of megabytes,
-   * so hashing them to find out whether to read them would cost more than the indexing does.
-   */
+  /** Whether this session's file has changed since it was last indexed: size and mtime, since hashing tens of megabytes costs more than indexing. */
   needsIndexing(sessionId: string, size: number, mtimeMs: number): boolean {
     const row = this.db
       .prepare('SELECT size, mtime FROM indexed WHERE session_id = ?')
@@ -132,7 +106,6 @@ export class SearchIndex {
     return row === undefined || row.size !== size || row.mtime !== Math.floor(mtimeMs)
   }
 
-  /** Replaces everything indexed for one session. */
   put(sessionId: string, text: string, size: number, mtimeMs: number): void {
     const write = this.db.transaction(() => {
       this.db.prepare('DELETE FROM chunks WHERE session_id = ?').run(sessionId)
@@ -143,15 +116,14 @@ export class SearchIndex {
     })
     const started = Date.now()
     write()
-    // MAIN-24: "measure before fixing" — put() tokenises up to 2MB of text synchronously on the
-    // main thread. Nothing narrows what it does yet; this only says when it is worth looking at.
+    // put() tokenises up to 2MB of text synchronously on the main thread.
     const durationMs = Date.now() - started
     if (durationMs > PUT_SLOW_MS) {
       log.debug('search', 'slow index write', { sessionId, durationMs, textLength: text.length })
     }
   }
 
-  /** Replaces the indexed note for one session. An empty or absent note removes the entry. */
+  /** An empty or absent note removes the entry. */
   putNote(sessionId: string, note: string | null): void {
     const write = this.db.transaction(() => {
       this.db.prepare('DELETE FROM notes WHERE session_id = ?').run(sessionId)
@@ -164,7 +136,7 @@ export class SearchIndex {
     write()
   }
 
-  /** Session ids whose *note* matches. Separate from `search` so the two can be enabled apart. */
+  /** Session ids whose *note* matches. */
   searchNotes(raw: string, limit = 200): SearchHit[] {
     const match = toMatchQuery(raw)
     if (match === null) return []
@@ -181,21 +153,11 @@ export class SearchIndex {
     }
   }
 
-  /** Empties only the notes, for when note indexing is switched off. */
   clearNotes(): void {
     this.db.exec('DELETE FROM notes')
   }
 
-  /**
-   * Replaces every indexed note in one commit (MAIN-7).
-   *
-   * `syncNoteIndex` used to call `clearNotes()` (its own commit) and then `putNote` per note
-   * (each its own commit) — N+1 commits on every refresh pass, and a window between the delete
-   * committing and the re-inserts landing where the search worker (a separate WAL reader) could
-   * observe an empty notes table and a concurrent note search would find nothing. Doing the whole
-   * resync inside one transaction removes both: nothing else reading the database ever sees a
-   * state this process did not intend to leave it in.
-   */
+  /** Replaces every indexed note in one commit; separate clear and insert would let the search worker (a WAL reader) see an empty table. */
   replaceNotes(entries: { sessionId: string; note: string }[]): void {
     const write = this.db.transaction(() => {
       this.db.exec('DELETE FROM notes')
@@ -208,13 +170,11 @@ export class SearchIndex {
     write()
   }
 
-  /** How many notes are indexed — shown in Settings beside the transcript count. */
   noteCount(): number {
     const row = this.db.prepare('SELECT COUNT(*) AS n FROM notes').get() as { n: number }
     return row.n
   }
 
-  /** Drops a session from the index — used when it is removed from view. */
   forget(sessionId: string): void {
     const write = this.db.transaction(() => {
       this.db.prepare('DELETE FROM chunks WHERE session_id = ?').run(sessionId)
@@ -224,7 +184,6 @@ export class SearchIndex {
     write()
   }
 
-  /** Empties the index, so the next pass rebuilds it from scratch. */
   clear(): void {
     this.db.exec('DELETE FROM chunks; DELETE FROM indexed; DELETE FROM notes;')
   }
@@ -243,13 +202,11 @@ export class SearchIndex {
       `).all(match, limit) as SearchHit[]
       return rows
     } catch {
-      // A query that FTS5 still refuses (an unbalanced construct we did not anticipate) should
-      // read as "nothing matched" rather than breaking the search box as you type.
+      // A query FTS5 still refuses reads as "nothing matched".
       return []
     }
   }
 
-  /** How many sessions are currently indexed — shown in Settings so the state is visible. */
   count(): number {
     const row = this.db.prepare('SELECT COUNT(*) AS n FROM indexed').get() as { n: number }
     return row.n

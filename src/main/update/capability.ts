@@ -6,7 +6,6 @@ export type { Capability, InstallInstructions } from '@shared/domain/update'
 /**
  * What this particular installation is allowed to do about an update.
  *
- * This is the constraint the whole updater is shaped around, so it is worth stating plainly.
  * Squirrel.Mac will only replace an app bundle whose code signature satisfies the *running*
  * app's designated requirement. Apiary ships unsigned (an ad-hoc signature, whose requirement is
  * a hash of the bundle itself), so a downloaded build can never satisfy it and an in-place install
@@ -53,15 +52,14 @@ export function installInstructions(input: CapabilityInput, path: string): Insta
       action: 'reveal',
     }
   }
-  // No AppImage branch, deliberately. It used to hand out `chmod +x <file> && <file>` — the command
-  // that failed on Ubuntu 22.04+ with "error loading libfuse.so.2" — for a download that only ever
-  // reached a .deb installation by mistake. `pickInstaller` now always fetches the .deb on Linux.
+  // No AppImage branch, deliberately: `pickInstaller` always fetches the .deb on Linux, and an
+  // AppImage fails on Ubuntu 22.04+ with "error loading libfuse.so.2".
   if (input.platform === 'darwin') {
     return {
       hint: 'Open it and drag Apiary into Applications to finish updating.',
       // One line rather than three separate steps to copy: mount the image quietly at a mountpoint
       // of our own, copy the bundle over whatever is already installed, detach so the Finder
-      // window does not linger. Mounting at a fixed `/Volumes/${MAC_APP_NAME}` (SEC-7) copied from
+      // window does not linger. Mounting at a fixed `/Volumes/${MAC_APP_NAME}` copied from
       // whatever was already mounted there if a volume of that name existed — `hdiutil` appends
       // " 1" to the name it actually uses in that case, silently mounting the new image elsewhere
       // while the command still read from the old path. `mktemp -d` guarantees this run gets its

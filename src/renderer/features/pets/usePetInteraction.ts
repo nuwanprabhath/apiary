@@ -26,10 +26,7 @@ interface Deps {
   onOpenSettings: (section: string) => void
 }
 
-/**
- * Moving, chatting with and asking things of a pet by hand: the drag (written straight onto the
- * element, no React render per pointer move), the keyboard's equivalents, and the pet menu.
- */
+/** The drag is written straight onto the element: no React render per pointer move. */
 export function usePetInteraction({ pets, habitat, brain, poses, setPoses, onOpenSettings }: Deps) {
   const [held, setHeld] = useState<string | null>(null)
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null)
@@ -81,8 +78,6 @@ export function usePetInteraction({ pets, habitat, brain, poses, setPoses, onOpe
     brain.current?.send({ kind: 'poke', id })
   }
 
-  /** The keyboard's way to what a click and a right-click do: Enter or Space chats, the context-menu
-   *  key or Shift+F10 opens the menu where the pet stands. */
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>, pet: PetRecord): void => {
     if (e.target !== e.currentTarget) return
     if (e.key === 'Enter' || e.key === ' ') {

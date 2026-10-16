@@ -11,7 +11,6 @@ import { BUILTIN_PLUGINS } from './builtin'
 import type { PluginRegistry } from './registry'
 import type { PluginBarItem, PluginSettingValues } from './types'
 
-/** What registers the plugins Apiary ships with: the user's own settings, and what a plugin needs. */
 interface BuiltinPluginConfig {
   /** Which plugins are switched on, by plugin id (`settings.plugins`). */
   enabled: Record<string, boolean> | undefined
@@ -48,8 +47,7 @@ export interface PluginServiceDeps {
 }
 
 /**
- * The session-bar and status-bar plugins (MAIN-17, §3.1 of the previous review), moved out of
- * `AppService`: both registries, how the built-ins are registered, and what a plugin is asked
+ * The session-bar and status-bar plugins: both registries, how the built-ins are registered, and what a plugin is asked
  * about (a session's folder and branch). Settings has one Plugins section for both kinds, so
  * enabling and configuring go through here and find the registry that owns the id.
  */
@@ -68,9 +66,7 @@ export class PluginService {
     this.persistEnabled = deps.builtins?.persistEnabled ?? (() => {})
     const config = deps.builtins
     if (config === undefined) return
-    // Registration has nothing plugin-specific in it (MAIN-17): a new entry in `BUILTIN_PLUGINS`
-    // is a new plugin, with no change here. What the user has actually set wins over the plugin's
-    // own `defaultEnabled`, for someone who has never touched this plugin's setting at all.
+    // What the user has set wins over the plugin's own `defaultEnabled`.
     for (const factory of BUILTIN_PLUGINS) {
       const plugin = factory({ glabPath: config.glabPath })
       this.plugins.register(plugin, config.enabled?.[plugin.id] ?? plugin.defaultEnabled ?? true)
@@ -100,18 +96,12 @@ export class PluginService {
     return ctx === null ? [] : this.plugins.items(ctx)
   }
 
-  /** Forces a lookup, for the bar's own refresh action. */
   async refreshBar(terminal: TerminalRef): Promise<PluginBarItem[]> {
     const ctx = this.contextOf(terminal)
     return ctx === null ? [] : this.plugins.refresh(ctx)
   }
 
-  /**
-   * The folder and branch a plugin is asked about.
-   *
-   * Null rather than a throw for a session whose folder has gone: the bar is drawn for such a
-   * session too (it is how you find out the folder has gone), and it simply has no plugin buttons.
-   */
+  /** Null, not a throw, for a session whose folder has gone: its bar is still drawn, without plugin buttons. */
   private contextOf(terminal: TerminalRef): { cwd: string; branch: string | null } | null {
     let cwd: string
     try {
@@ -132,7 +122,6 @@ export class PluginService {
     else this.plugins.setSettings(pluginId, values)
   }
 
-  /** Session-bar and status-bar plugins together: Settings has one Plugins section for both. */
   list(): ReturnType<PluginRegistry['list']> {
     return [...this.plugins.list(), ...this.statusBar.list()]
   }
@@ -170,8 +159,6 @@ export class PluginService {
     this.statusBar.stop()
   }
 
-  /** Releases any plugin holding something of its own (MAIN-17/MAIN-20). No current plugin needs
-   *  this; it exists so a future one that does has somewhere to put its teardown. */
   dispose(): void {
     this.plugins.dispose()
   }

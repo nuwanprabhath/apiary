@@ -7,22 +7,17 @@ interface Props {
 }
 
 /**
- * The session header's title, editable in place — hover reveals a pencil button (the same
- * affordance VS Code's own tab rename uses); clicking it swaps the heading for a text input.
- * Enter or blur commits, Escape cancels. An empty/whitespace-only submission is treated as "no
- * change" here (the input just reverts) rather than clearing the title — `onRename` itself still
- * accepts an empty string to mean "clear back to the auto-derived title" for a caller that wants
- * that, but there is no UI path to type nothing and hit Enter to get it, since that reads more
- * like an accidental empty submit than a deliberate reset.
+ * The session header's title, editable in place: hover reveals a pencil button that swaps the
+ * heading for a text input. Enter or blur commits, Escape cancels. An empty submission reverts
+ * rather than clearing the title; `onRename('')` still means "back to the auto-derived title" for
+ * a caller that wants it.
  */
 export function EditableSessionTitle({ title, onRename }: Props): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(title)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
-  // Keep the draft in sync with the real title while not editing (e.g. switching to a
-  // different session, or this same session's title changing elsewhere) so a later edit starts
-  // from the current value rather than one left over from a previous session's edit.
+  // A later edit starts from the current title, not one left over from another session.
   useEffect(() => { if (!editing) setDraft(title) }, [title, editing])
 
   useEffect(() => {
@@ -49,9 +44,7 @@ export function EditableSessionTitle({ title, onRename }: Props): JSX.Element {
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === 'Enter') { e.preventDefault(); commit() }
-          // Stopped here rather than left to bubble: this input can be open while some other
-          // layer (a dialog, a menu) is also open on the shared Escape stack (UI-13), and Escape
-          // should cancel the edit in place, not also close whatever else is open.
+          // Not left to bubble: Escape cancels the edit, not also a dialog or menu on the shared Escape stack.
           if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setDraft(title); setEditing(false) }
         }}
       />

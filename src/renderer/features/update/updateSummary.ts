@@ -1,12 +1,6 @@
 import type { UpdateStatusPayload } from '@shared/api'
 
-/**
- * The pure half of the updater's UI: turning a status into words.
- *
- * Kept apart from `useUpdate` — which touches `window` and so belongs to the renderer alone —
- * so these can be tested in plain Node, where the rules about what a check actually said are
- * cheap to pin down.
- */
+// The pure half of the updater's UI, apart from `useUpdate` (which touches `window`) so it tests in plain Node.
 
 /** A version string for display: `1.9.0` reads better than `v1.9.0` beside a label saying Version. */
 export function formatVersion(version: string): string {
@@ -25,14 +19,9 @@ export function formatChecked(at: number | null): string {
 }
 
 /**
- * What to say beside "Check now" once a check the user pressed for has finished.
- *
- * The status is taken from what the call itself resolved with, rather than from the pushed
- * subscription the banner listens to, for two reasons. A check that could not run at all (a dev
- * run, an unsupported platform) pushes nothing, so the subscription never fires and the button
- * appears to do nothing. And the banner the push feeds is drawn *behind* the settings dialog's
- * backdrop — so even when it works, the answer to a question asked inside the dialog was
- * somewhere the user could not see until they closed it.
+ * What to say beside "Check now". The status comes from what the call resolved with, not the pushed
+ * subscription: a check that could not run (dev run, unsupported platform) pushes nothing, and the
+ * banner the push feeds is drawn behind the settings dialog's backdrop.
  */
 export function describeCheck(status: UpdateStatusPayload): string {
   if (status.capability.kind === 'unsupported') return status.capability.reason

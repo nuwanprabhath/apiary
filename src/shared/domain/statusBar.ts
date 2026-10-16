@@ -1,19 +1,15 @@
 /**
- * Status-bar plugins: things that contribute an item to the bar along the bottom of the session
- * area, as VS Code extensions contribute to its status bar. Unlike a session-bar plugin, which is
- * asked about one folder and branch, a status-bar item is about the whole app — Claude's usage
- * limits are the first.
+ * Status-bar plugins: items on the bar along the bottom of the session area. Unlike a session-bar
+ * plugin, which is asked about one folder and branch, an item is about the whole app.
  *
- * The same rule as session-bar plugins (src/main/plugins/CLAUDE.md): everything that crosses to
- * the renderer is data. An item's hover detail and its dashboard are lists of typed sections the
- * renderer knows how to draw — tables, gauges, charts, notes — never markup, so a plugin cannot
- * put arbitrary content in the window.
+ * As for session-bar plugins (src/main/plugins/CLAUDE.md), everything that crosses to the renderer
+ * is data: hover detail and dashboards are typed sections (tables, gauges, charts, notes), never
+ * markup, so a plugin cannot put arbitrary content in the window.
  */
 
 /** Colours an item or a gauge: the plugin says how urgent, the theme says what colour that is. */
 export type StatusTone = 'normal' | 'warning' | 'danger'
 
-/** The icons the renderer can draw for a status-bar item. */
 export type StatusIcon = 'gauge' | 'refresh' | 'alert' | 'history' | 'link'
 
 /** A chart series colour, from the theme's own palette. */
@@ -46,7 +42,6 @@ export interface ConsentPrompt {
   deny: string
 }
 
-/** What clicking an item does. */
 export type StatusAction =
   /** Asks the user's permission first (`ConsentPrompt`); the dialog opens by itself the first time. */
   | { kind: 'consent'; prompt: ConsentPrompt }

@@ -7,11 +7,9 @@ import { logLine } from '../../state/log'
 /**
  * Starts a listed terminal again when it comes on screen with no process behind it.
  *
- * Shells end with the app, but the restored layout still lists them — and "Show shell" only
- * spawns for a session with *no* terminal listed, so after a relaunch it found the listing,
- * spawned nothing, and showed a pty that no longer existed: a blinking cursor with no prompt,
- * which hiding and showing again could not fix, while "+" (a new id) worked. The terminal is
- * restarted under its own id and name, so the list the user arranged stays as it was.
+ * Shells end with the app, but the restored layout still lists them, and "Show shell" only spawns
+ * for a session with no terminal listed. The terminal is restarted under its own id and name, so
+ * the list the user arranged stays as it was.
  *
  * `shownShellPty` is the pty of the terminal now on screen (null: none is). Returns the revival
  * count per pty, bumped so the view remounts and attaches the way a fresh terminal's does.

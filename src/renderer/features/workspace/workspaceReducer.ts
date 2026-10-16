@@ -1,12 +1,6 @@
 /**
- * The pure state transitions behind an App window's open tabs, terminals and pane layout.
- *
- * This exists to take the "hand-ordered cluster of setters" App.tsx used to run these as (a rekey
- * was six separate `useState` setter calls; the cwd reconciler was five) and make each transition
- * one atomic, testable update. Every case here ports an *existing* transition's exact semantics —
- * see the case-by-case comments for the App.tsx behaviour each one replaces. Side effects (IPC
- * calls such as `renameSession`, `logWrite`) are deliberately not here: callers decide those, then
- * dispatch the resulting action. This module must stay pure — no `window`, no React.
+ * Side effects (IPC calls such as `renameSession`, `logWrite`) are not here: callers decide those,
+ * then dispatch the resulting action. This module must stay pure — no `window`, no React.
  *
  * This file only routes: the types are in `workspaceTypes.ts`, the tab and layout transitions in
  * `tabReducers.ts`, the session, pending and pty ones in `sessionReducers.ts`.
@@ -34,7 +28,6 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
   return key === null || already ? next : unfoldWhereShown(next, key)
 }
 
-/** The key an action brings to the front of a pane, for the actions that open something. */
 function openedKey(action: WorkspaceAction): string | null {
   if (action.type === 'session/open') return action.session.sessionId
   if (action.type === 'tab/adopt') return action.transfer.key
@@ -89,8 +82,7 @@ function route(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
   }
 }
 
-/** Every session id currently open in some column, matching `PRESETS`' shape — used by callers
- *  that need it (e.g. the pty/running effect) without walking `state.layout.panes` themselves. */
+/** Every key currently open in some column. */
 export function openKeysOf(state: WorkspaceState): Set<string> {
   return new Set(state.layout.panes.flatMap((c) => c.tabs.map((t) => t.key)))
 }

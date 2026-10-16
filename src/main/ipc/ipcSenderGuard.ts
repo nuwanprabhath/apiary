@@ -1,9 +1,6 @@
 /**
  * Whether an IPC message's sender frame is Apiary's own renderer page, not some other page a
- * compromised or buggy renderer had navigated to (SEC-8 step 8 — one of the two SEC-8 items the
- * lead review reserved for MAIN-11's registrar; landed standalone here since the registrar itself
- * was judged too large a change to take on safely alongside this work package's other findings —
- * see the WP report).
+ * compromised or buggy renderer had navigated to.
  *
  * The renderer's real URL always carries a window-number query, and a detached window's carries
  * `?detach=`/`?transfer=` on top of that — so this compares scheme and pathname (a packaged

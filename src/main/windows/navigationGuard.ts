@@ -5,9 +5,8 @@ import { log } from '../log/logger'
 /**
  * Keeps every window showing Apiary, and sends links to the system browser.
  *
- * Transcripts render Markdown, and Markdown links are ordinary `<a href>` elements. With nothing
- * intercepting them, clicking one navigated the window itself to that page: Apiary became a bare
- * browser with no address bar and no back button, and the only way out was to close the window.
+ * Transcripts render Markdown, and Markdown links are ordinary `<a href>` elements; unintercepted,
+ * a click would navigate the window itself away from Apiary.
  *
  * `will-navigate` catches a link clicked in place; `setWindowOpenHandler` catches `target=_blank`
  * and `window.open`. Both land on the same decision.
@@ -30,12 +29,11 @@ function stripHash(href: string): string {
  *
  * Navigating within the app's own origin is allowed only when it is an exact reload of the
  * current page (ignoring the hash) — not merely the same pathname or origin. A transcript
- * rendered as markdown can contain a link to `?restore={...}`; DOMPurify now strips relative
- * hrefs (see `MarkdownText.tsx`), but this is the second layer: even a same-origin link with a
- * changed query is refused, so clicking one can never reload the window with an attacker-chosen
- * query that auto-resumes whatever sessions it names (SEC-2). A genuine reload — the app's own
- * "Reset" or a dev-server hot reload — always targets the exact same URL, so this loses nothing
- * legitimate.
+ * rendered as markdown can contain a link to `?restore={...}`; DOMPurify strips relative hrefs
+ * (see `MarkdownText.tsx`), and this is the second layer: a same-origin link with a changed query
+ * is refused, so it can never reload the window with an attacker-chosen query that auto-resumes
+ * whatever sessions it names. A genuine reload (the app's "Reset", a dev-server hot reload)
+ * targets the exact same URL.
  */
 export function decideNavigation(current: string, target: string): NavigationDecision {
   const to = ignoreErrors(() => new URL(target), 'an unparseable target is blocked')

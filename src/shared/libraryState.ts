@@ -9,15 +9,13 @@
  * window's calls reach the work machine, so it shows the work machine's arrangement, not home's
  * (docs/architecture/library-state.md).
  *
- * A mirrored preference is one entry in `LIBRARY_STATE`: its guard and its default. The type
- * (`LibraryState`), the defaults, the validation of a patch arriving over IPC (`isLibraryPatch`),
- * the reading of the file (`parseLibraryState`) and the component tests' fake derive from it.
- * Modelled on `SETTINGS` (`shared/settings/schema.ts`).
+ * A mirrored preference is one entry in `LIBRARY_STATE`: its guard and its default. The type, the
+ * defaults, `isLibraryPatch`, `parseLibraryState` and the component tests' fake derive from it,
+ * as with `SETTINGS` (`shared/settings/schema.ts`).
  */
 import { isRecord } from './guards'
 import { arr, bool, num, str, type Guard } from './ipc/guards'
 
-/** A top-level heading the user files folders under in the sidebar. */
 export interface SessionGroup {
   id: string
   name: string
@@ -77,7 +75,7 @@ export interface LibrarySnapshot {
   state: LibraryState
   /**
    * False until the first `seedLibraryState` or `setLibraryState`. A local window that finds it
-   * false sends what it kept in localStorage before 1.39, once; a seed after that is refused, so a
+   * false sends what it kept in localStorage, once; a seed after that is refused, so a
    * home machine can never overwrite a work machine's arrangement with its own.
    */
   seeded: boolean

@@ -16,8 +16,7 @@ interface Session {
   /** Bumped to tear this view's xterm down and build a fresh one on the same pty. */
   generation: number
   host: RefObject<HTMLDivElement | null>
-  /** The live xterm instance, for effects outside this one; cleared on teardown so a late
-   *  callback can't touch a disposed terminal. */
+  /** Cleared on teardown so a late callback can't touch a disposed terminal. */
   termRef: RefObject<Terminal | null>
   /** Times of recent rebuilds; outlives each xterm. */
   rebuildsRef: RefObject<number[]>
@@ -30,9 +29,6 @@ interface Session {
   setSuspended: (suspended: boolean) => void
 }
 
-/** Builds the xterm for a pty inside `host`, wires it to the pty's output, input, size and the
- *  theme, and tears it all down again (the pty itself keeps running) when the pty or generation
- *  changes. */
 export function useTerminalSession(s: Session): void {
   const { ptyId, generation, host, termRef, rebuildsRef, rebuild, keys, resume, setSuspended } = s
   useEffect(() => {
@@ -73,9 +69,8 @@ export function useTerminalSession(s: Session): void {
       term.write(`\r\n[process exited with code ${String(code)}]\r\n`)
     })
     const disposeInput = term.onData((data) => {
-      // A suspended Claude reads nothing until it is continued, and whatever reaches the pty
-      // meanwhile is typed into its prompt afterwards — `fg`, most likely, since that is what it
-      // tells you to type. Ctrl+C would kill it outright. So nothing is passed on; Enter resumes.
+      // Input reaching a suspended Claude is typed into its prompt afterwards (Ctrl+C would kill
+      // it), so nothing is passed on; Enter resumes.
       if (keys.claude() && keys.suspended()) {
         if (data === '\r') resume()
         return
@@ -86,16 +81,10 @@ export function useTerminalSession(s: Session): void {
     // Via xterm's hook, not a DOM listener, so a key can be swallowed before it reaches the pty.
     term.attachCustomKeyEventHandler(createTerminalKeyHandler(term, keys))
 
-    // Coalesce bursts of ResizeObserver callbacks (e.g. a drag of the bottom-pane resizer fires
-    // many in one frame) into a single measurement per animation frame, and only actually fit
-    // and tell the PTY about it when the computed cols/rows differ from what was last sent. The
-    // guard is not just an optimization: if layout were ever unstable enough to oscillate
-    // between two sizes (as it did before centre-pane clipped its overflow — see the comment on
-    // .centre-pane in styles.css), calling fit()/ptyResize unconditionally on every callback
-    // would keep both fit() and the PTY resize going, repainting the TUI's prompt at alternating
-    // row counts. Gating on an actual change makes a no-op resize inert even if the observer
-    // still fires. Until the snapshot is painted the view is deliberately at the snapshot's size,
-    // not the pane's; `refit` does nothing then.
+    // One measurement per animation frame (a resizer drag fires many callbacks per frame), and the
+    // pty is told only when cols/rows changed: if layout ever oscillated between two sizes,
+    // resizing unconditionally would repaint the TUI at alternating row counts. Until the snapshot
+    // is painted the view is at the snapshot's size, and `refit` does nothing.
     let rafId: number | null = null
     const observer = new ResizeObserver(() => {
       if (rafId !== null) return
@@ -106,9 +95,7 @@ export function useTerminalSession(s: Session): void {
     })
     observer.observe(host.current)
 
-    // A theme change repaints the terminal in place — new palette, new font — rather than only
-    // taking effect for terminals opened afterwards. A different font changes the cell size, so
-    // the view is refitted and the pty told if that changed its rows or columns.
+    // A different font changes the cell size, so the view is refitted.
     const onTheme = (): void => {
       term.options.theme = themeFromTokens()
       term.options.fontFamily = fontFromTokens()

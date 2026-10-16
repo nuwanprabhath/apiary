@@ -9,15 +9,14 @@ interface Props {
 
 export function DeleteSessionDialog({ title, onCancel, onConfirm }: Props): JSX.Element {
   return (
-    // A render crash here used to fall through to the root boundary, which replaces the whole
-    // window — panes and terminals included — for what should be confined to one confirm dialog
-    // (UI-24). Every other dialog below wraps itself the same way, for the same reason.
+    // Without this a render crash falls through to the root boundary, which replaces the whole
+    // window — panes and terminals included. Every other dialog wraps itself the same way.
     <ErrorBoundary label="This dialog">
       <Modal
         testId="delete-session-dialog"
         titleId="delete-session-title"
         onClose={onCancel}
-        // A destructive confirm defaults to the safe answer (UI-25): landing on "Remove" would
+        // A destructive confirm defaults to the safe answer: landing on "Remove" would
         // make a stray Enter — muscle memory from dismissing the last thing that popped up — delete
         // the session instead of doing nothing.
         initialFocusSelector='[data-testid="delete-session-cancel"]'

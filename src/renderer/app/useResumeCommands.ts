@@ -14,10 +14,9 @@ interface Deps {
 }
 
 /**
- * Resuming and deleting a session (`confirmDelete` is the delete half: both go through the one
- * workspace-store read below, so they live together). Handlers every pane receives read the workspace through the
+ * Resuming and deleting a session. Handlers every pane receives read the workspace through the
  * store when they run, not through a render's closure: one that closed over `resumed` got a new
- * identity on every change to it and re-rendered every pane (review §7.2).
+ * identity on every change to it and re-rendered every pane.
  */
 export function useResumeCommands({ dispatch, notifyError, openDialog, unpin }: Deps) {
   const store = useWorkspaceStore()
@@ -35,8 +34,6 @@ export function useResumeCommands({ dispatch, notifyError, openDialog, unpin }: 
   const confirmDelete = useCallback(async (target: SessionNode) => {
     try {
       await removeSession(target.sessionId)
-      // A session that is no longer in the tree has nothing left to show, so close every tab
-      // pointing at it rather than leaving a stale header behind in some column.
       dispatch({ type: 'session/removed', sessionId: target.sessionId })
       unpin(target.sessionId)
     } catch (e) {
@@ -54,9 +51,7 @@ export function useResumeCommands({ dispatch, notifyError, openDialog, unpin }: 
       if (existing !== null) { openDialog({ kind: 'conflict', session, conflict: existing }); return }
       await startResume(session)
     } catch (e) {
-      // User-initiated (UI-23): clicking a session is the one reason this runs, so a failure here
-      // — main's own callers (`onResumeClick`) `void` this — is worth naming, not the generic
-      // "Unexpected error" the window-level net would otherwise print.
+      // Callers `void` this, so name the failure here rather than leave the generic window-level error.
       notifyError(e, 'Could not resume this session')
     }
   }, [store, startResume, dispatch, notifyError, openDialog])

@@ -1,7 +1,7 @@
 import type { JSX } from 'react'
 
 /**
- * The disclosure chevron used by every collapsible row (UI-19/UI-32): a folder, a group, Pinned,
+ * The disclosure chevron used by every collapsible row: a folder, a group, Pinned,
  * Recent. `data-expanded` is what styles.css rotates on — keep that attribute name and the
  * `chevron` class name if this is ever restyled, since CSS selects on both.
  */

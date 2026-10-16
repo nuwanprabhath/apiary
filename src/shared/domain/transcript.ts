@@ -29,8 +29,7 @@ export interface TranscriptPage {
 }
 
 /**
- * How many messages one transcript page holds. Shared so the real reader and the component fake
- * page identically (TEST-5: the fake paged at 50 while main paged at 200, so a component test of
- * "Load earlier messages" exercised a different boundary than the app).
+ * How many messages one transcript page holds; shared so the real reader and the component fake
+ * page identically.
  */
 export const TRANSCRIPT_PAGE_SIZE = 200

@@ -10,9 +10,8 @@ interface Props {
   /** Passed to the crash fallback, so it still lands in its pane's grid zone when its child throws
    *  before ever rendering the element that would otherwise carry that style. */
   style?: CSSProperties
-  /** When this changes while the fallback is showing, the boundary tries its children again — so a
-   *  pane that crashed on one session recovers on its own when the pane is pointed at another,
-   *  without the user pressing "Try again". Unchanged while the children are fine. */
+  /** When this changes while the fallback is showing, the boundary tries its children again (a
+   *  pane that crashed on one session recovers when pointed at another). */
   resetKey?: unknown
   /** What to show instead of the crash pane. `null` shows nothing, for a purely decorative layer
    *  (the effects canvas, the pets) whose absence is no loss worth a pane; a function is handed the
@@ -29,16 +28,12 @@ interface State {
 }
 
 /**
- * Stops a render-time exception from taking the window with it.
+ * Stops a render-time exception from taking the window with it: React unmounts the whole tree
+ * when a render throws uncaught. Anything thrown below here is shown in place, with the stack
+ * behind a disclosure and a button to try again.
  *
- * React unmounts the whole tree when a render throws and nothing catches it — which is exactly
- * the blank window this exists to prevent. Anything thrown below here is caught, described, and
- * shown in place, with the stack behind a disclosure and a button to try again; the rest of the
- * app (the sidebar, the other columns) keeps working.
- *
- * Note what this does *not* cover, by React's design: event handlers, timers, and rejected
- * promises never pass through a boundary. Those are the notification provider's window-level
- * listeners' job — the two together are what make "no failure disappears silently" true.
+ * By React's design, event handlers, timers and rejected promises never pass through a boundary;
+ * the notification provider's window-level listeners cover those.
  */
 export class ErrorBoundary extends Component<Props, State> {
   override state: State = { message: null, detail: null }

@@ -26,7 +26,7 @@ export function ColumnGitDialogs({ terminal, git, gitStatus, loadGitStatus, shel
         <BranchSwitcher
           // Remounts (resetting the query, step and error) if the active tab changes under the
           // open modal — e.g. another window switching it — rather than quietly going on showing
-          // the wrong repo's branches (UI-15 item 3).
+          // the wrong repo's branches.
           key={terminal.id}
           terminal={terminal}
           mode={git.branchPicker === 'merge' ? 'merge' : 'checkout'}

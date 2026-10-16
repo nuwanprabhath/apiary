@@ -42,9 +42,7 @@ export function useGitActions({ terminal, gitStatus, loadGitStatus, onSessionSta
     if (terminal === null) return
     setGitBusy(kind)
     try {
-      // All three are silent when they succeed, which reads identically to nothing having
-      // happened — the same confusion the Refresh button had before it grew a spinner. Pull and
-      // push say how many commits moved, so "nothing to do" is distinguishable too.
+      // Success is announced: silence reads as nothing having happened. Pull and push say how many commits moved.
       let message: string
       const branch = gitStatus?.branch ?? 'the branch'
       if (kind === 'pull') message = pullMessage((await trackPull(branch, gitPull(terminal))).commits)
@@ -62,11 +60,6 @@ export function useGitActions({ terminal, gitStatus, loadGitStatus, onSessionSta
     }
   }, [terminal, gitStatus?.branch, loadGitStatus, notify, notifyError])
 
-  /**
-   * The "..." menu's commands, grouped the way VS Code groups its own: the everyday remote
-   * operations first, then everything branch-shaped behind one submenu, then the odds and ends.
-   * Kept as data rather than markup so adding a command later is one more entry here.
-   */
   const gitMenuItems: GitMenuItem[] = [
     { id: 'pull', label: 'Pull', disabled: gitBusy !== null, run: () => { void runGitAction('pull') } },
     { id: 'push', label: 'Push', disabled: gitBusy !== null, run: () => { void runGitAction('push') } },

@@ -21,6 +21,7 @@ import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { clickRowAction, nextFrames, sidebarSession, until } from './helpers'
 import { trackRenders } from './renderTracker'
+import type { FakeApiary } from './fakeApiary'
 
 interface Fiber {
   type: unknown
@@ -45,6 +46,18 @@ function propsOfAncestor(el: Element, name: string): Record<string, unknown> {
   throw new Error(`No "${name}" ancestor fiber found above this element`)
 }
 
+/** `read()` once it has returned the same objects for five frames in a row. */
+async function steadyProps<T extends Record<string, unknown>>(read: () => T): Promise<T> {
+  let last = read()
+  for (let same = 0; same < 5;) {
+    await nextFrames(1)
+    const now = read()
+    same = Object.keys(now).every((k) => now[k] === last[k]) ? same + 1 : 0
+    last = now
+  }
+  return last
+}
+
 describe('App prop stability and memoisation (UI-1 step 1, UI-4)', () => {
   it('skips Sidebar and SessionColumn on a render of App that has nothing to do with either', async () => {
     const { fake } = await renderApp()
@@ -52,10 +65,12 @@ describe('App prop stability and memoisation (UI-1 step 1, UI-4)', () => {
 
     const sidebarEl = page.getByTestId('sidebar').element()
     const columnEl = document.querySelector('[data-testid="session-column"]')!
-    const before = {
+    // Taken once the startup loads have landed: on a busy machine one still arriving after this
+    // point re-rendered App with new props for a reason that has nothing to do with the change below.
+    const before = await steadyProps(() => ({
       sidebar: propsOfAncestor(sidebarEl, 'SidebarShell'),
       column: propsOfAncestor(columnEl, 'SessionColumnView'),
-    }
+    }))
 
     // An unrelated update: a theme option change, read by ThemeEffects alone — nothing Sidebar or
     // SessionColumn receive — driven through the real bridge call the Settings dialog itself uses.
@@ -108,8 +123,8 @@ describe('a change in one pane does not render another (§7.2)', () => {
   }
 
   /** Two panes side by side, the focused one (A) holding two tabs, the other (B) one. */
-  async function twoPanes(): Promise<{ a: string; b: string }> {
-    await renderApp()
+  async function twoPanes(): Promise<{ a: string; b: string; fake: FakeApiary }> {
+    const { fake } = await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await clickRowAction('Add worktree switcher', 'split-session-button')
     await until(() => document.querySelectorAll('[data-testid="session-column"]').length === 2)
@@ -119,7 +134,21 @@ describe('a change in one pane does not render another (§7.2)', () => {
     await userEvent.click(focused)
     await userEvent.click(sidebarSession('Repo root session'))
     await until(() => focused.querySelectorAll('[data-testid="session-tab"]').length === 2)
-    return panes()
+    await panesQuiet()
+    return { ...panes(), fake }
+  }
+
+  /** Neither pane has rendered for five frames: the opening clicks' own renders (late on a busy
+   *  machine) are over, so a count that starts now sees only what the test does next. */
+  async function panesQuiet(): Promise<void> {
+    const renders = trackRenders('SessionColumnView')
+    const total = (): number => [...renders.read().values()].reduce((a, b) => a + b, 0)
+    for (let still = 0; still < 5;) {
+      const before = total()
+      await nextFrames(1)
+      still = total() === before ? still + 1 : 0
+    }
+    renders.stop()
   }
 
   /** Two animation frames: the commit a dispatch caused, and any effect it scheduled, are done. */
@@ -151,6 +180,22 @@ describe('a change in one pane does not render another (§7.2)', () => {
     await until(() => document.querySelectorAll(`[data-column-id="${a}"] [data-testid="session-tab"]`).length === 3)
     await settle()
     expect(renders.read().get(a) ?? 0).toBeGreaterThan(0)
+    expect(renders.read().get(b) ?? 0).toBe(0)
+    renders.stop()
+  })
+
+  it('the window coming back to the front renders neither pane when no branch changed', async () => {
+    // Each pane re-reads its git status on window focus and on the focused tick; storing an equal
+    // answer as a new object rendered every pane every few seconds, and made the test above fail
+    // whenever a click in the full suite gave the page focus.
+    const { a, b, fake } = await twoPanes()
+    const reads = (): number => fake.callsTo('gitStatus').length
+    const before = reads()
+    const renders = trackRenders('SessionColumnView')
+    window.dispatchEvent(new Event('focus'))
+    await until(() => reads() >= before + 2)
+    await settle()
+    expect(renders.read().get(a) ?? 0).toBe(0)
     expect(renders.read().get(b) ?? 0).toBe(0)
     renders.stop()
   })

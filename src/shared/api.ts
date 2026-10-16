@@ -1,19 +1,11 @@
 /**
  * `ApiaryApi`: the renderer's one bridge into main, implemented by `src/preload/index.ts` and
  * type-checked against by `tests/component/fakeApiary.ts`. `CHANNELS` are the wire names it and
- * `main/ipc/registrar.ts` share. Both are now *derived* from `shared/ipc/contract.ts` (MAIN-11),
- * which is the single source of truth for the channel name, its argument shape and its result —
- * this file only re-exports them so existing `from '@shared/api'` imports keep working unchanged.
- *
- * The payload types it uses live in `shared/domain/*` and `shared/theme/*`, grouped by subject
- * rather than piled up here (SHARED-1) — this file re-exports the ones that used to be defined
- * here so existing `from '@shared/api'` imports keep working unchanged.
+ * `main/ipc/registrar.ts` share. Both derive from `shared/ipc/contract.ts`; this file only
+ * re-exports them and the payload types from `shared/domain/*` and `shared/theme/*`.
  */
 export { CHANNELS, IPC, type ApiaryApi } from './ipc/contract'
 
-// Re-exported under their old names/locations so nothing importing `@shared/api` has to change
-// (SHARED-1's barrel rule). `PluginSettingFieldPayload` used to be defined here; the canonical
-// shared name (used by both main and the renderer) is `PluginSettingField`.
 export type { DiscoveredSession } from './domain/session'
 export type { TabTransfer, ActiveTabPayload } from './domain/tabs'
 export type { AppSettingsPayload } from './domain/settings'

@@ -93,9 +93,8 @@ export function ShellToolbar({ shell, git, gitStatus, pluginItems }: {
 }): JSX.Element {
   const { shellOpen, tabListOpen, setTabListOpen } = shell
   /**
-   * The "..." button itself is what the git menu opens from — not the toolbar around it, which
-   * starts at the far left of the pane and so put the menu at the opposite end from the button
-   * that opened it.
+   * The git menu opens from the "..." button itself, not the toolbar around it, which starts at the
+   * far left of the pane.
    */
   const gitMenuButtonRef = useRef<HTMLButtonElement>(null)
   /** The » button: the git menu opens from it while its own button is in the overflow menu. */
@@ -116,9 +115,7 @@ export function ShellToolbar({ shell, git, gitStatus, pluginItems }: {
           left={[
             {
               id: 'shell-toggle',
-              // Rotates like every other chevron in the app (⌄ open, › closed), so the button
-              // states which way it will move the pane. The word hides whole before anything else
-              // is cut, leaving the chevron.
+              // The word hides whole before anything else is cut, leaving the chevron.
               icon: <ChevronIcon expanded={shellOpen} />,
               label: 'Shell',
               labelMode: 'collapse',
@@ -133,8 +130,7 @@ export function ShellToolbar({ shell, git, gitStatus, pluginItems }: {
           ]}
           right={[
             ...(gitStatus !== null ? gitButtons(git, gitMenuButtonRef) : []),
-            // Plugin buttons sit after git's: they are about the same checkout, and anything
-            // contributed belongs after what Apiary itself owns.
+            // Contributed buttons sit after what Apiary itself owns.
             ...pluginButtons(pluginItems).map((spec) => ({ ...spec, priority: 3 })),
             {
               id: 'terminal-add',

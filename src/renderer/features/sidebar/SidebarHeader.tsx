@@ -28,8 +28,7 @@ export function SidebarHeader({
   return (
     <div className="sidebar-header">
       {onHide !== undefined && (
-        // First in the row, at the edge it folds towards — where the rail's button that brings it
-        // back will be, so hiding and showing is the same spot under the pointer.
+        // First in the row, where the rail's button that brings it back will be.
         <button
           className="icon-button sidebar-hide"
           data-testid="sidebar-hide"
@@ -50,8 +49,7 @@ export function SidebarHeader({
         data-refreshing={refreshing}
         disabled={refreshing}
         onClick={() => {
-          // What the list holds before the rescan, so the notification afterwards can say what
-          // the rescan actually found rather than only that it happened.
+          // What the list holds before the rescan, so the notification can say what it found.
           const before = countSessions(tree)
           setRefreshing(true)
           void rescanSessions()

@@ -7,9 +7,9 @@ export function loginShell(env: NodeJS.ProcessEnv = process.env): string {
 
 /**
  * What the login shell runs. A string is a ready-made shell command (`exec claude --resume …`,
- * built and quoted by `pty/resumeCommand.ts`). `{ bin, args }` is a binary plus arguments handed
- * over as positional parameters (`exec "$0" "$@"`), so nothing in them — a prompt, a path — is ever
- * parsed by the shell.
+ * built and quoted by `pty/resumeCommand.ts`). `{ bin, flags, positional }` is a binary plus
+ * arguments handed over as positional parameters (`exec "$0" "$@"`), so nothing in them — a prompt,
+ * a path — is ever parsed by the shell.
  *
  * In the `{ bin }` form, `flags` is fixed options the app wrote and `positional` is text that may
  * come from a user (a prompt). The invocation puts `--` between them, so a value starting with "-"

@@ -47,7 +47,6 @@ export function askQuestionsOf(input: AskInput): AskQuestion[] {
   }))
 }
 
-/** How a multi-select answer joins its labels. */
 const JOIN = ', '
 
 /**
@@ -70,7 +69,6 @@ export function answersProblem(input: unknown, answers: Record<string, string> |
   return null
 }
 
-/** The chosen labels of a multi-select answer, joined as Claude Code expects. */
 export function joinLabels(labels: string[]): string {
   return labels.join(JOIN)
 }

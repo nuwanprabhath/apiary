@@ -13,9 +13,7 @@ interface Props {
 /**
  * While another pane is dragged by its tab bar, this pane is where it can land — a layer over
  * everything rather than handlers on the column itself, so a terminal or a text box underneath
- * cannot take the drop for itself. Pulled out of SessionColumn.tsx (UI-21): its own drag-over
- * state is unrelated to anything else in that file.
- */
+ * cannot take the drop for itself. */
 export function PaneDropOverlay({ columnId, movingPane, onDrop }: Props): JSX.Element | null {
   const [over, setOver] = useState(false)
   if (movingPane === null || movingPane === columnId) return null

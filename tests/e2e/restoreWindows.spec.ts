@@ -126,9 +126,19 @@ test('two windows quit one after another, as Ubuntu\'s dock Quit does, both come
   await expect.poll(titlesAcrossWindows).toEqual(['Add worktree switcher', 'Fix CSV export bug'])
 })
 
-test('a window closed while the app carries on is not reopened', async () => {
+test('two windows closed by their X a few seconds apart both come back', async () => {
+  // 1.43 on Ubuntu: closed 5 s apart, the first window was forgotten under the 3 s grace. The grace
+  // is set here so the spec means the same on a Mac (3 s) as on Linux (a minute).
+  await relaunchApiary(h, { APIARY_CLOSE_GRACE_MS: '20000' })
   await twoWindows()
-  // Longer than the close grace (CLOSE_GRACE_MS): the first window was closed on purpose.
+  await relaunchApiaryClosingEachWindow(h, 4500)
+  await expect.poll(() => h.app.windows().length).toBe(2)
+})
+
+test('a window closed while the app carries on is not reopened', async () => {
+  await relaunchApiary(h, { APIARY_CLOSE_GRACE_MS: '2000' })
+  await twoWindows()
+  // Longer than the close grace: the first window was closed on purpose.
   await relaunchApiaryClosingEachWindow(h, 4500)
   await expect.poll(() => h.app.windows().length).toBe(1)
 })

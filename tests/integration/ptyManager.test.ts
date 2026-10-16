@@ -155,12 +155,15 @@ describe('PtyManager', () => {
 
       expect(m.has('respawn')).toBe(true)
       expect(m.getCwd('respawn')).toBe(dir)
+      // `screen()` reads the grid without waiting for writes still queued in the emulator (by
+      // design, see `ScreenStore.read`); `snapshot()` waits for them. Read without it, the screen
+      // was still blank whenever the machine was busy: the test failed in every parallel agent run.
+      expect(await m.snapshot('respawn')).not.toBeNull()
       expect(m.screen('respawn')).toContain('NEW_READY')
       expect(m.screen('respawn')).not.toContain('OLD_READY')
       expect(m.outputCount('respawn')).toBeGreaterThan(0)
       expect(m.tuiProcesses().has('respawn')).toBe(true)
       expect(exits).toEqual([])
-      expect(await m.snapshot('respawn')).not.toBeNull()
     } finally {
       logged.mockRestore()
       await m.killAll()

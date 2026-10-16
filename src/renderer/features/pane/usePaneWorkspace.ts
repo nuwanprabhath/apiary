@@ -4,12 +4,9 @@ import { ptyKeyOf, useWorkspaceSelector, type TerminalTab, type WorkspaceState }
 import type { PendingTabInfo } from './paneTypes'
 
 /**
- * What one pane reads of the window's workspace: the entries that belong to its own tabs, and
- * nothing else (review §7.2). A pane used to take the whole of `openSessions`, `pending` and
- * `resumed` as props and the shell maps from context, so a change anywhere in the window — a
- * pending session in another pane, a shell added to another tab — rendered every pane. Each map
- * here is the subset for this pane's tabs and keeps its identity until one of those entries
- * changes, so `memo(SessionColumn)` holds for everything that is not this pane's business.
+ * What one pane reads of the window's workspace: only the entries for its own tabs. Each map keeps
+ * its identity until one of those entries changes, so `memo(SessionColumn)` holds against changes
+ * in other panes.
  */
 export interface PaneWorkspace {
   /** The row behind each of this pane's tabs, where there is one. */
@@ -75,7 +72,6 @@ function selectPane(state: WorkspaceState, tabKeys: readonly string[]): PaneWork
   return { sessions, pending, resumed, ptyOverrides, shellTabs, activeTerminal }
 }
 
-/** The workspace entries behind a pane's tabs; re-renders the pane only when one of them changes. */
 export function usePaneWorkspace(tabKeys: readonly string[]): PaneWorkspace {
   return useWorkspaceSelector((state) => selectPane(state, tabKeys), paneWorkspaceEqual)
 }

@@ -1,13 +1,11 @@
 /**
  * What to say after the Refresh button has done its work.
  *
- * Pressing Refresh usually changes nothing visible — the watcher has normally already noticed
- * whatever is on disk — so without a sentence afterwards the only feedback is a spinner that
- * stops, which is indistinguishable from a button that does nothing. This says what the rescan
- * found, in the terms of the list the user is looking at.
+ * Refresh usually changes nothing visible (the watcher has already noticed), so without a sentence
+ * the feedback is a spinner that stops. This says what the rescan found, in the terms of the list
+ * on screen.
  *
- * It counts what is *listed*, which with a search in the box means what matches it — hence the
- * `filtered` wording, rather than claiming a number of sessions that is not the whole library.
+ * It counts what is listed, which with a search means what matches it, hence the `filtered` wording.
  */
 export function describeRefresh(before: number, after: number, filtered: boolean): string {
   const noun = (n: number): string => {

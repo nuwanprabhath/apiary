@@ -40,10 +40,6 @@ import type { PairingStore } from '../remote/pairingStore'
 import type { RemoteServer } from '../remote/remoteServer'
 import type { SpellingService } from '../spelling/spellingService'
 
-/**
- * Everything `registerIpc` needs, replacing the 11 positional parameters (up to 8 of them
- * optional, one — `getWindow` — unused) `ipc.ts`'s `registerIpc` used to take (MAIN-13 step 1).
- */
 export interface IpcDeps {
   service: AppService
   /** Chat mode and the plugins have services of their own, which their handlers call directly. */
@@ -51,7 +47,7 @@ export interface IpcDeps {
   plugins: PluginService
   /** Built in the container; see `IpcState`. */
   state: IpcState
-  /** The single owner of `settings.json` (MAIN-16) — see `settings/settingsService.ts`. */
+  /** The single owner of `settings.json` — see `settings/settingsService.ts`. */
   settings: SettingsService
   /** The sessions library's arrangement and reading preferences (`library-state.json`). */
   library: LibraryStateService
@@ -83,7 +79,7 @@ export interface IpcDeps {
   /** The native folder picker, over the asking window. Resolves null when cancelled. Injected so
    *  this module does not own the dialog (or its E2E stand-in, `APIARY_PICK_FOLDER`). */
   pickFolder: ((sender: WebContents) => Promise<string | null>) | null
-  /** Where the app's own renderer is expected to be loaded from (SEC-8 step 8). Required, so the
+  /** Where the app's own renderer is expected to be loaded from. Required, so the
    *  check cannot be forgotten: a test harness that calls handlers without a frame passes
    *  `UNCHECKED_SENDERS` (see `ipcSenderGuard.ts`); anything else rejects a message with no frame. */
   senderPolicy: SenderPolicy
@@ -92,9 +88,7 @@ export interface IpcDeps {
   theme: ThemeDeps
   /** The pet store and service, built in the container. */
   pets: PetDeps
-  // The remote-access deps are required, `null` where the feature does not exist: index.ts once
-  // left three of them out, and the connect dialog's host list and the work machine's clients,
-  // Disconnect all and pairing code did nothing in the real app while every faked test passed.
+  // The remote-access deps are required, `null` where the feature does not exist, so index.ts cannot leave one out.
   /** Routes a window showing a work machine's calls (`remote/remoteWindows.ts`); none where remote windows do not exist. */
   router: CallRouter | null
   /** The home side of remote access (`remote/remoteClientService.ts`); none where remote windows do not exist. */
@@ -107,14 +101,9 @@ export interface IpcDeps {
 }
 
 /**
- * The composition root for every IPC channel, main's half of MAIN-11: each domain's handlers live
- * in `ipc/handlers/*.ts`, a thin adapter over `AppService` and the other collaborators — parse,
- * call a service, map the DTO, broadcast if the mutation means the UI is now stale. This function
- * only builds them, merges their `Pick<Handlers, …>` slices into one object satisfying the full
- * `Handlers` type (so a channel with no handler anywhere is a compile error, not a "No handler
- * registered" at runtime), and hands that to the registrar — which is also where the theme
- * channels join the same logging/sender-check/argument-guard wrapper as everything else
- * (MAIN-19 item 4; `themeIpc.ts` used to call `ipcMain.handle`/`.on` directly and skip it).
+ * The composition root for every IPC channel: merges each domain's `Pick<Handlers, …>` slice
+ * (`ipc/handlers/*.ts`) into one object satisfying the full `Handlers` type, so a channel with no
+ * handler is a compile error, and hands it to the registrar.
  */
 export function registerIpc(
   deps: IpcDeps,

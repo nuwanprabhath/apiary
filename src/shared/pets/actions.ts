@@ -17,7 +17,7 @@ const VERBS: Record<string, string> = {
  * What Claude is doing right now, as one short phrase: the latest tool call's name and its title —
  * "Edit: csvWriter.ts", "Bash: Run the e2e suite" — and nothing else. Never the command, never a
  * file's contents or a tool's output, never anything said in the conversation: that is what the
- * user agreed pets may see (1.31.0). Null while Claude is only writing.
+ * user agreed pets may see. Null while Claude is only writing.
  */
 export function latestAction(messages: TranscriptMessage[]): string | null {
   for (let i = messages.length - 1; i >= 0; i--) {

@@ -12,25 +12,18 @@ import { PANE_MIME, TAB_MIME, indexInRest, insertionIndex, readTransfer } from '
 
 
 interface Props {
-  /** The pane this strip belongs to — carried on a place/arrange target so a key open in more
-   *  than one pane at once (a split) is placed from the pane the user actually picked, not
-   *  whichever pane happens to be found first. */
+  /** Carried on a place/arrange target so a key open in several panes is placed from the picked one. */
   columnId: string
   tabs: SessionTabView[]
   activeKey: string | null
   onActivate: (key: string) => void
   onClose: (key: string) => void
-  /** Splits the active tab into a column of its own, the way VS Code's editor-title split does. */
+  /** Splits the active tab into a column of its own. */
   onSplitActive: () => void
   /**
-   * Puts `key` at `toIndex` in this column's strip, after a drag. The tab may have come from this
-   * strip (a reorder) or from another column's (a move); the strip does not distinguish between
-   * them, because to the person dragging it they are the same gesture.
-   */
-  /**
-   * A tab was dropped on this strip. `transfer` is the whole tab as its own window described it,
-   * present when the drag carried one — which is what lets a strip take a tab from another window
-   * on a platform that delivers the drop here (see `tabAdoptHere`).
+   * A tab was dropped on this strip at `toIndex`; a reorder and a move from another column are the
+   * same call. `transfer` is the whole tab as its own window described it, present when the drag
+   * carried one, so a strip can take a tab from another window (see `tabAdoptHere`).
    */
   onDropTab: (key: string, toIndex: number, transfer: TabTransfer | null) => void
   /** Describes a tab for the drag payload, so another window can take it whole. */
@@ -76,40 +69,27 @@ function FoldButton({ fold, onFold }: { fold: FoldState; onFold?: (folded: boole
   )
 }
 
-/**
- * One column's strip of open sessions. Which sessions are open and which is active is the column
- * model's business (see state/columns.ts); the strip owns only the gestures on top of it — dragging
- * a tab to a new position, and the right-click menu.
- *
- * The close button is a sibling of the tab button rather than nested inside it: a <button> cannot
- * contain another interactive element, the same constraint the sidebar rows work around.
- */
+/** One column's strip of open sessions; it owns only the drag gestures and the right-click menu. */
 export function SessionTabBar(
   {
     columnId, tabs, activeKey, onActivate, onClose, onSplitActive, onDropTab, transferFor, pinnedKeys,
     onTogglePin, onFork, onTabDropped, onDetach, layoutButton, viewToggle, fold = 'none', onFold,
   }: Props,
 ): JSX.Element {
-  /**
-   * The tab being dragged, and where it would land: an index into the strip *without* the dragged
-   * tab, so 0 means "first". Tracking the insertion point rather than the tab being hovered is what
-   * makes the ends reachable — dropping on the left half of the first tab means before it, which is
-   * otherwise a position no drop target corresponds to.
-   */
+  // dropAt is an index into the strip without the dragged tab (0 = first). Tracking the insertion
+  // point, not the hovered tab, is what makes the ends reachable.
   const [dragKey, setDragKey] = useState<string | null>(null)
   const [dropAt, setDropAt] = useState<number | null>(null)
   const { place, requestPicker, startPaneMove, endPaneMove } = useLayoutActions()
   const { paneCount } = useLayoutState()
 
-  /** Where a drop on this tab would insert, given which half of it the pointer is over. */
   const insertionFor = (e: { currentTarget: HTMLElement; clientX: number }, index: number): number =>
     insertionIndex(e, tabs, dragKey, index)
   const [menu, setMenu] = useState<{ key: string; x: number; y: number } | null>(null)
 
   const endDrag = (): void => { setDragKey(null); setDropAt(null) }
-  // A tab dropped into another column or window leaves this strip before its dragend can fire (the
-  // event goes to an element no longer in the page), so the drag would never end here: the
-  // insertion line it last drew stayed on a tab for good.
+  // A tab dropped into another column or window leaves this strip before its dragend fires (the
+  // event goes to an element no longer in the page), so the drag must end here explicitly.
   const draggedAway = dragKey !== null && !tabs.some((t) => t.key === dragKey)
   useEffect(() => { if (draggedAway) endDrag() }, [draggedAway])
   const { activeRef, registerButton, onTabListKeyDown } = useTabStripKeys(tabs, activeKey, onActivate, onClose)
@@ -124,9 +104,8 @@ export function SessionTabBar(
         role="tablist"
         aria-orientation="horizontal"
         onKeyDown={onTabListKeyDown}
-        // The strip's empty space moves the whole pane onto another, as VS Code's does for an
-        // editor group. The tabs are draggable themselves and win inside their own bounds, but
-        // their dragstart bubbles here, hence the target checks.
+        // The strip's empty space moves the whole pane. Tabs are draggable themselves, but their
+        // dragstart bubbles here, hence the target checks.
         draggable={paneCount > 1}
         onDragStart={(e) => {
           if (e.target !== e.currentTarget) return
@@ -135,8 +114,7 @@ export function SessionTabBar(
           startPaneMove(columnId)
         }}
         onDragEnd={(e) => { if (e.target === e.currentTarget) endPaneMove() }}
-        // The strip's own empty space is a target too, so a tab can be dropped onto a column that
-        // has none of its own yet — and dropping past the end means "last", rather than nothing.
+        // Empty space is a target too: a column with no tabs can take one, and past the end means "last".
         onDragOver={(e) => {
           if (!e.dataTransfer.types.includes(TAB_MIME)) return
           e.preventDefault()
@@ -193,9 +171,6 @@ export function SessionTabBar(
 
       {viewToggle}
 
-      {/* Pinned to the right of the strip, where VS Code keeps its own split action — reaching a
-       *  session that is already open in this column shouldn't mean going back to the sidebar to
-       *  find its row again just to use the split button there. */}
       {layoutButton}
 
       {activeKey !== null && (

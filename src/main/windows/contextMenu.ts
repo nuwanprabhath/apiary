@@ -13,6 +13,7 @@ interface EditTarget {
   paste(): void
   selectAll(): void
   replaceMisspelling(word: string): void
+  copyImageAt(x: number, y: number): void
 }
 
 export function watchContextMenu(contents: MenuContents): void {
@@ -23,5 +24,6 @@ export function watchContextMenu(contents: MenuContents): void {
 
 export function runEditCommand(target: EditTarget, command: EditCommand): void {
   if (command.action === 'replaceMisspelling') target.replaceMisspelling(command.word)
+  else if (command.action === 'copyImageAt') target.copyImageAt(command.x, command.y)
   else target[command.action]()
 }

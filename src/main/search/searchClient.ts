@@ -19,10 +19,9 @@ export class SearchClient {
   private pending = new Map<number, (ids: string[] | null) => void>()
 
   /**
-   * `workerPath` is an escape hatch for tests only (TEST-7): under Vitest, `import.meta.url`
-   * resolves inside `src/`, where `searchWorker.js` has never been built, so `ensure()` always hit
-   * `fail()` and every test exercised only the in-process fallback. Production code never passes
-   * it — electron-vite always emits the worker beside this bundle.
+   * `workerPath` is for tests only: under Vitest, `import.meta.url` resolves inside `src/`, where
+   * `searchWorker.js` is never built. Production code never passes it — electron-vite always
+   * emits the worker beside this bundle.
    */
   constructor(private readonly dbPath: string, private readonly workerPath?: string) {}
 

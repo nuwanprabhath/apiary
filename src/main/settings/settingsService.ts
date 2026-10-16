@@ -4,19 +4,10 @@ import type { JsonStore } from '../fs/jsonStore'
 import { type AppSettings, createSettingsStore, saveSettings, mergeSettingsPayload } from '../settings'
 
 /**
- * Owns the in-memory `AppSettings` for the whole app (MAIN-16). Before this, `loadSettings` was
- * called anew at every read (about 10 call sites across `index.ts` and the IPC handlers), so every
- * read was a synchronous disk hit and every writer had to remember to re-read first or clobber a
- * change made in between. `SettingsService` reads the file once at construction (migrating and
- * writing back, exactly as `index.ts` used to do by hand) and keeps the result as its one source of
- * truth; every mutation goes through `patch`/`applyPayload`, which update the in-memory copy and
- * the file together, then notify subscribers.
- *
- * Each service that used to have its own settings mutator (`setClaudeBin`, `setAutoImportAll`,
- * `setSearchChatContent`, `setSearchSessionNotes`, `setPromptPath`, `setPluginEnabled`,
- * `setPluginSettings`, the updater's `saveSettings` callback) can instead call `onChange` and react
- * to the fields it cares about — see `main/ipc/index.ts` for where those subscriptions are wired up
- * during the migration to this class.
+ * Owns the in-memory `AppSettings` for the whole app. It reads the file once at construction
+ * (migrating and writing back) and keeps the result as its one source of truth; every mutation
+ * goes through `patch`/`applyPayload`, which update the in-memory copy and the file together, then
+ * notify subscribers. A service that cares about a field calls `onChange` and reacts to it.
  */
 export class SettingsService {
   private current: AppSettings
@@ -31,9 +22,8 @@ export class SettingsService {
     this.store = createSettingsStore(file, (moved) => { this.moved = moved })
     const loaded = this.store.load()
     this.current = loaded
-    // Written straight back, so a migration applied on read is recorded — see `migrateSettings`'s
-    // own doc comment ("Changing a default reaches nobody", CLAUDE.md). Without this it would be
-    // re-applied on every launch, silently undoing a later deliberate change.
+    // Written straight back, so a migration applied on read is recorded; otherwise it would be
+    // re-applied on every launch, undoing a later deliberate change.
     saveSettings(this.store, loaded)
   }
 

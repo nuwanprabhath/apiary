@@ -29,11 +29,11 @@ export function defineSpellingClauses(ctx: Ctx): void {
 
     it('a right-click the page does not answer reaches the renderer as the request main built', async () => {
       ctx.bridge.rightClick({
-        x: 12, y: 34, isEditable: true, selectionText: '', misspelledWord: 'teh', dictionarySuggestions: ['the', 'ten'], editFlags: EDIT_FLAGS,
+        x: 12, y: 34, isEditable: true, selectionText: '', misspelledWord: 'teh', dictionarySuggestions: ['the', 'ten'], editFlags: EDIT_FLAGS, mediaType: 'none',
       })
       await expect.poll(() => ctx.heard.count('contextMenuRequested')).toBe(1)
       expect(ctx.heard.payloads('contextMenuRequested')).toEqual([[{
-        x: 12, y: 34, isEditable: true, selectionText: '', misspelledWord: 'teh', dictionarySuggestions: ['the', 'ten'], editFlags: EDIT_FLAGS,
+        x: 12, y: 34, isEditable: true, selectionText: '', misspelledWord: 'teh', dictionarySuggestions: ['the', 'ten'], editFlags: EDIT_FLAGS, mediaType: 'none',
       }]])
     })
   })

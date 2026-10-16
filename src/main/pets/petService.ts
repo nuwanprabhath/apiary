@@ -12,7 +12,7 @@ import { log } from '../log/logger'
 import { readTextFile, writeTextFile } from '../fs/textFile'
 import type { PetStore } from './petStore'
 
-/** A pet's lines are written afresh at most this often — the "batched voice" the user chose. */
+/** A pet's lines are written afresh at most this often. */
 export const VOICE_INTERVAL_MS = 60 * 60 * 1000
 /** At most one remark on Claude's work this often, across all pets — about 15 calls an hour, at most. */
 export const COMMENT_INTERVAL_MS = 3 * 60 * 1000

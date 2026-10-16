@@ -16,9 +16,10 @@ test('the machine has a spellchecker dictionary, which flags "recieve" and sugge
   const languages = await h.app.evaluate(({ session }) => session.defaultSession.availableSpellCheckerLanguages)
   expect(languages, 'this proof needs a spellchecker dictionary installed on the machine').not.toHaveLength(0)
 
-  const { misspelled, suggestions } = await h.page.evaluate(() => window.apiary.spellingCheck('recieve'))
-  expect(misspelled).toBe(true)
-  expect(suggestions).toContain('receive')
+  // Chromium loads the dictionary after launch, and until it has, `isWordMisspelled` calls every word
+  // correct: read once, this failed whenever the machine was busy at startup.
+  await expect.poll(() => h.page.evaluate(() => window.apiary.spellingCheck('recieve')), { timeout: 10_000 })
+    .toMatchObject({ misspelled: true, suggestions: expect.arrayContaining(['receive']) })
 })
 
 test('a left-click on a misspelled word offers the suggestions, and choosing one replaces the word', async () => {

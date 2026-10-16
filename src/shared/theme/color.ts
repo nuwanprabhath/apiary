@@ -1,11 +1,9 @@
 /**
  * Colour values a theme may contain, and the arithmetic the readability guard needs.
  *
- * Deliberately a whitelist of syntaxes with numbers only, never a general CSS colour parser: a
- * theme's colours end up as custom-property values, and anything that is not unmistakably a
- * colour — a keyword, `url()`, `var()`, a string with a `;` in it — is refused rather than
- * interpreted. What is accepted is re-serialised as `#rrggbbaa`, so the value that reaches CSS is
- * always one Apiary wrote itself.
+ * Deliberately a whitelist of numeric syntaxes, never a general CSS colour parser: colours end up
+ * as custom-property values, so a keyword, `url()`, `var()` or a string with a `;` is refused.
+ * What is accepted is re-serialised as `#rrggbbaa`.
  */
 
 import { clamp } from '../guards'
@@ -122,14 +120,12 @@ export function nudgeForContrast(fg: RGBA, bg: RGBA, min: number): RGBA {
   return contrastRatio(white, bg) >= contrastRatio(black, bg) ? white : black
 }
 
-/** The same colour, `deg` degrees round the hue wheel. */
 export function rotateHue(c: RGBA, deg: number): RGBA {
   const { h, s, l } = rgbToHsl(c)
   const { r, g, b } = hslToRgb((((h + deg) % 360) + 360) % 360, s, l)
   return { r, g, b, a: c.a }
 }
 
-/** The same colour with its HSL saturation multiplied by `factor` (clamped to 100%). */
 export function saturate(c: RGBA, factor: number): RGBA {
   const { h, s, l } = rgbToHsl(c)
   const { r, g, b } = hslToRgb(h, clamp(s * factor, 0, 100), l)

@@ -19,30 +19,25 @@ const BLUR_PAUSE_MS = 30_000
 
 interface Props {
   effects: EffectSpec[]
-  /** The Animated effects setting. Off (or the OS asking for reduced motion) draws a still frame. */
+  /** Off (or the OS asking for reduced motion) draws a still frame. */
   animated: boolean
-  /** The global intensity multiplier, 0–1. */
+  /** 0–1. */
   intensity: number
   /**
-   * A glass theme's blur and saturation. Glass is done here, not with `backdrop-filter` on the
-   * panels: what shows through a pane is only this canvas and the window colour, so blurring it
-   * once where it is drawn looks the same and costs almost nothing, where a live backdrop filter
-   * per pane re-ran on every frame and, without GPU compositing, made hovering lag by most of a
-   * second (tests/e2e/bench/themePerf.spec.ts). The back canvas is drawn at a fraction of the
-   * window's resolution and scaled up, which is the blur; the colours are saturated as drawn.
+   * A glass theme's blur and saturation. Done here, not with `backdrop-filter` on the panels: a
+   * live backdrop filter per pane re-ran every frame and, without GPU compositing, made hovering
+   * lag by most of a second (tests/e2e/bench/themePerf.spec.ts). The back canvas is drawn at a
+   * fraction of the window's resolution and scaled up, which is the blur.
    */
   glass?: { blur: number; saturation: number } | null
-  /** True when Chromium composites in software: fewer, cheaper frames (see LOW_POWER_FPS). */
+  /** True when Chromium composites in software (see LOW_POWER_FPS). */
   lowPower?: boolean
 }
 
 /**
- * The theme's effects: one canvas behind the panels and one over them, both ignoring the pointer.
- *
- * Everything drawn comes from the catalogue in shared/theme/effects — this component only decides
- * *when* to draw: at most 30 fps, never while the window is hidden, not after it has been in the
- * background for 30 seconds, and just once (a still frame) when motion is off. With no effects it
- * renders nothing at all, so the original look costs nothing.
+ * One canvas behind the panels and one over them; the drawing is `shared/theme/effects`, this
+ * decides *when*: at most 30 fps, never while the window is hidden, not after 30 s in the
+ * background, one still frame when motion is off, and nothing at all with no effects.
  */
 export function ThemeEffects({ effects, animated, intensity, glass = null, lowPower = false }: Props): JSX.Element | null {
   const back = useRef<HTMLCanvasElement | null>(null)
@@ -69,8 +64,7 @@ export function ThemeEffects({ effects, animated, intensity, glass = null, lowPo
 
     const size = (): void => {
       const dpr = Math.min(window.devicePixelRatio || 1, lowPower ? LOW_POWER_DPR : MAX_DPR)
-      // Behind glass: about one canvas pixel per third of the blur radius, so the browser's own
-      // smoothing when it scales the canvas up does the blurring.
+      // Behind glass: about one canvas pixel per third of the blur radius; the browser's smoothing does the blurring.
       const backScale = glass === null ? dpr : Math.min(dpr, 3 / Math.max(3, glass.blur))
       for (const [c, scale] of [[back.current, backScale], [front.current, dpr]] as const) {
         if (c === null) continue
@@ -109,9 +103,8 @@ export function ThemeEffects({ effects, animated, intensity, glass = null, lowPo
       raf = null
       if (document.hidden) return
       if (blurredAt !== null && now - blurredAt > BLUR_PAUSE_MS) return
-      // Held on its last frame while a divider is being dragged: every pointer move then
-      // re-lays-out the panels, and a new effects frame on top of that is what made dragging a
-      // frame or three late on animated themes (the benchmark's "drag the shell handle").
+      // Held while a divider is dragged: a new effects frame on top of the re-layout made dragging a
+      // frame or three late on animated themes.
       const dragging = document.body.classList.contains('resizing-active')
       if (!dragging && now - last >= 1000 / (lowPower ? LOW_POWER_FPS : FPS)) { last = now; drawAt(now / 1000, false) }
       raf = requestAnimationFrame(tick)
@@ -144,7 +137,6 @@ export function ThemeEffects({ effects, animated, intensity, glass = null, lowPo
       window.removeEventListener(THEME_CHANGE_EVENT, onTheme)
       reducedMotion.removeEventListener('change', start)
     }
-    // `signature` stands in for the effects array, which is a new object on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `signature` stands in for the effects array, a new object every render
   }, [signature, animated, intensity, glass?.blur, glass?.saturation, lowPower])
 

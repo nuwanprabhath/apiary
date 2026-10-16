@@ -7,7 +7,7 @@ import { CheckboxSetting } from '../fields/CheckboxSetting'
  * though only this section shows it: the shell also loads it once on open and re-reads it on every
  * tree change for the dialog's whole life (see SettingsDialog.tsx), and scoping that to this
  * component's own mount would refetch every time this tab is revisited instead of only once —
- * a behaviour change the registry split (UI-20) is not meant to make.
+ * a behaviour change the registry split is not meant to make.
  */
 export function SearchSection(
   { draft, patch, indexed, notesIndexed, rebuilding, onRebuild }: {

@@ -36,10 +36,8 @@ export function ImportDialog({ onClose, onImported, width, onWidthChange }: Prop
   const [rows, setRows] = useState<DiscoveredSession[]>([])
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
-  /* Folder paths the user has collapsed. Absent = expanded, so a folder that appears later (or
-   * after the search filter changes) starts open, with no separate "seen before" bookkeeping —
-   * the sidebar tracks its own collapsed folders the same way. Ticking a collapsed folder's
-   * checkbox still selects everything inside it; collapsing only hides rows. */
+  /* Folder paths the user has collapsed; absent = expanded, so a new folder starts open.
+   * Ticking a collapsed folder's checkbox still selects everything inside it. */
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
 
   const toggleCollapsed = (path: string): void => {
@@ -52,24 +50,16 @@ export function ImportDialog({ onClose, onImported, width, onWidthChange }: Prop
   }
 
   useEffect(() => {
-    // User-initiated (UI-23): opening this dialog is the one reason to fetch the list, so a
-    // failure here means the dialog itself has nothing to show — worth a toast naming what
-    // failed, not an empty list that reads as "there is nothing to import".
+    // A toast, not an empty list that would read as "there is nothing to import".
     void listDiscoveredSessions().then(setRows).catch((e: unknown) => {
       notifyError(e, 'Could not list sessions to import')
     })
   }, [notifyError])
 
-  /**
-   * Whether the "import everything automatically" setting is on. When it is, this dialog has
-   * nothing left to decide — everything is already imported, or is about to be — so it says so
-   * rather than presenting a list of ticked, disabled rows with no explanation for why.
-   */
+  /** When "import everything automatically" is on there is nothing to choose, and the dialog says so. */
   const [autoImportAll, setAutoImportAll] = useState(false)
   useEffect(() => {
-    // Background read (UI-23): a failure just leaves this at its default (false), which shows the
-    // ordinary per-row checkboxes — a reasonable fallback, not a reason to interrupt opening the
-    // dialog with a toast over one flag.
+    // A failed read leaves the default (false): the ordinary per-row checkboxes.
     void bestEffort(readSettings(), 'settings').then((s) => { if (s !== null) setAutoImportAll(s.autoImportAll) })
   }, [])
 
@@ -99,10 +89,7 @@ export function ImportDialog({ onClose, onImported, width, onWidthChange }: Prop
   }
 
   return (
-    // UI-24: confines a render fault to this dialog instead of the whole window.
     <ErrorBoundary label="This dialog">
-      {/* UI-25: onto the shared Modal primitive (Escape already worked via UI-13; this adds a
-       *  labelled role, a Tab trap and focus restore on close). */}
       <Modal testId="import-dialog" titleId="import-dialog-title" onClose={onClose} wide className="import-dialog" style={{ width: `var(--drag-import-width, ${String(width)}px)` }}>
         {/* Edges, not tab stops: only the pointer half of the separator. */}
         <div className="dialog-resizer dialog-resizer-left" data-testid="import-resizer-left" onPointerDown={leftEdge.separatorProps.onPointerDown} />

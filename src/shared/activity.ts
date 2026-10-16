@@ -6,12 +6,8 @@ export type ActivityStatus = 'running' | 'waiting' | 'idle' | 'stopped'
 const RUNNING_WINDOW_MS = 2000
 
 /**
- * How much of the screen the patterns below look at.
- *
- * Claude Code's state lives in the furniture at the bottom — the composer, the spinner line, a
- * prompt box — while the space above it is conversation. Scanning the whole grid would put every
- * pattern at the mercy of whatever Claude happened to print, which is exactly how the first
- * version came to read its own prose as a question.
+ * How much of the screen the patterns below look at. Claude Code's state lives at the bottom (the
+ * composer, the spinner line, a prompt box); above it is conversation, which could match a pattern.
  */
 const TAIL_LINES = 15
 
@@ -20,10 +16,8 @@ function tail(screen: string): string {
 }
 
 /**
- * A prompt that is unambiguously waiting for the user, as Claude Code actually draws it.
- *
- * Every alternative here was read off a recorded session (see `tests/fixtures/activity/`), not
- * imagined:
+ * A prompt that is unambiguously waiting for the user, as Claude Code draws it. Every alternative
+ * was read off a recorded session (`tests/fixtures/activity/`):
  *
  * - `Do you want to proceed?` — the permission box's question line.
  * - `Enter to confirm · Esc to cancel` — the footer under any selection list, including the
@@ -32,8 +26,7 @@ function tail(screen: string): string {
  *
  * These are contiguous strings only because the classifier is handed a *rendered screen*. In the
  * raw pty stream they are not: Claude positions each word with its own cursor-move escape, so
- * `Do you want to proceed?` never appears as those bytes in that order anywhere. A pattern matched
- * against the stream could not have fired, and did not.
+ * `Do you want to proceed?` never appears as those bytes in that order anywhere.
  */
 const PROMPT_PATTERN = /Do you want to proceed\?|Enter to confirm|❯\s*\d+\./
 
@@ -46,11 +39,8 @@ const PROMPT_PATTERN = /Do you want to proceed\?|Enter to confirm|❯\s*\d+\./
 const WORKING_PATTERN = /\(\d+s\b[^)]*\)|esc to interrupt/i
 
 /**
- * A human-readable name for a status, for the Active section's status dot.
- *
- * The dot otherwise carries its meaning in colour and motion alone — invisible to a screen reader
- * and indistinguishable to anyone who cannot tell the hues apart. This is what an `aria-label` on
- * the dot reads instead, and what `ActivityLegend` titles each row with.
+ * A human-readable name for a status: the status dot's `aria-label` (its colour and motion alone
+ * reach neither a screen reader nor colour-blind users) and `ActivityLegend`'s row titles.
  */
 export function describeActivityStatus(status: ActivityStatus): string {
   switch (status) {
@@ -65,14 +55,11 @@ export function describeActivityStatus(status: ActivityStatus): string {
  * What a session is doing right now, from the text on its terminal screen.
  *
  * `screen` is a *rendered* grid — `ScreenBuffers.read()` in `src/main/pty/screen.ts` — not the raw
- * pty stream. That distinction is the whole reason this function is trustworthy now and was not
- * before: a TUI repaints in place, so the bytes it sent and the text a person can see are
- * different things, and two shipped bugs came from confusing them.
+ * pty stream: a TUI repaints in place, so the bytes it sent are not the text a person sees.
  *
- * The order is deliberate. A prompt outranks everything, because a prompt box repaints its own
- * footer while it waits and would otherwise keep reading as "running". Claude's own spinner comes
- * next. Only then does bare recency apply, which is what covers a tab running something that is
- * not Claude at all — a build, a test run, a plain shell.
+ * The order matters. A prompt outranks everything, because a prompt box repaints its own footer
+ * while it waits and would keep reading as "running". Then Claude's spinner. Only then bare
+ * recency, which covers a tab running something that is not Claude (a build, a plain shell).
  */
 export function classifyActivity(
   screen: string,
@@ -89,10 +76,6 @@ export function classifyActivity(
 }
 
 /**
- * A background task runs with nothing on the screen, so an idle claude with tasks still going is
- * working, not idle.
- */
-/**
  * The one status that speaks for several (a session open in several windows, the tabs of a pane):
  * running if any is, then waiting (it needs you), then whichever came first; null for none.
  */
@@ -100,6 +83,7 @@ export function strongestActivity(statuses: readonly ActivityStatus[]): Activity
   return statuses.find((s) => s === 'running') ?? statuses.find((s) => s === 'waiting') ?? statuses[0] ?? null
 }
 
+/** A background task runs with nothing on the screen, so an idle claude with tasks going is working. */
 export function withBackgroundTasks(status: ActivityStatus, running: number): ActivityStatus {
   return status === 'idle' && running > 0 ? 'running' : status
 }

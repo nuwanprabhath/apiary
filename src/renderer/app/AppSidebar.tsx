@@ -12,7 +12,7 @@ import { onToggleSidebar } from '../state/windowChrome'
 import { windowNumber } from '../state/windowParams'
 import { SidebarIcon } from '../ui/icons'
 
-/** How the toggle's shortcut is written on this platform — see the View menu in main/menu.ts. */
+/** Matches the View menu in main/menu.ts. */
 const SIDEBAR_SHORTCUT = navigator.userAgent.includes('Mac') ? '⌘B' : 'Ctrl+Shift+B'
 
 interface Props {
@@ -41,11 +41,9 @@ export function AppSidebar({
   const { ui, toggleSidebar } = uiState
   const activeTabs = useActiveTabs()
   const {
-    revealActiveInSidebar, recentSectionEnabled, recentSectionHours, searchChatContent, searchSessionNotes,
+    revealActiveInSidebar, recentSectionEnabled, recentSectionHours, hideOldSessionsEnabled, hideOldSessionsDays, searchChatContent, searchSessionNotes,
   } = useAppSettings()
 
-  /** Sidebar's `groupState` — one object rather than four scalars, kept stable across renders that
-   *  don't touch grouping so it never busts a memo below Sidebar on its own. */
   const groupState = useMemo(() => ({
     groups: ui.groups,
     assignments: ui.groupAssignments,
@@ -55,8 +53,7 @@ export function AppSidebar({
 
   const collapsed = useMemo(() => new Set(ui.collapsed), [ui.collapsed])
 
-  /** Pending new sessions not already reachable as a tab anywhere — see Sidebar's own `pending`
-   *  prop doc. Recomputed only when what it actually depends on changes. */
+  // Pending sessions not already reachable as a tab anywhere.
   const sidebarPending = useMemo(
     () => [...pending.values()]
       .filter((p) => !openKeys.has(p.ptyId) && !activeTabs.some((t) => t.key === p.ptyId))
@@ -64,20 +61,13 @@ export function AppSidebar({
     [pending, openKeys, activeTabs],
   )
 
-  /**
-   * Opens a session in the focused column, or in a brand-new column beside it when splitting.
-   *
-   * A session already open somewhere is focused where it is rather than opened again: the second
-   * copy would be the same conversation and the same underlying process, so it reads as a split
-   * that cannot be told apart from the first. Splitting is the way to ask for it twice deliberately.
-   */
+  // A session already open somewhere is focused there, not opened again: a second copy would be
+  // the same conversation and process. Splitting is the deliberate way to ask for two.
   const openSessionTab = useCallback((session: SessionNode, split: boolean) => {
     dispatch({ type: 'session/open', session, split })
   }, [dispatch])
-  // The View menu's (and the shortcut's) sidebar toggle, sent by main.
   useEffect(() => onToggleSidebar(toggleSidebar), [toggleSidebar])
   const onSelect = useCallback((session: SessionNode) => { openSessionTab(session, false) }, [openSessionTab])
-  /** The split button: same session, but in a column of its own beside the current one. */
   const onSplitSession = useCallback((session: SessionNode) => { openSessionTab(session, true) }, [openSessionTab])
   const onFork = useCallback((sessionId: SessionId) => { void forkSession(sessionId) }, [forkSession])
   const onNew = useCallback((path: string) => { void onNewSession(path) }, [onNewSession])
@@ -95,8 +85,7 @@ export function AppSidebar({
   return (
     <>
       {ui.sidebarHidden && (
-        // A rail rather than nothing: a sidebar hidden with no visible way back is one someone has
-        // to remember a shortcut to recover, which is a sidebar that has gone missing.
+        // A rail, so a hidden sidebar has a visible way back.
         <div className="sidebar-rail" data-testid="sidebar-rail">
           <button
             className="icon-button"
@@ -111,8 +100,7 @@ export function AppSidebar({
       )}
       <Sidebar
         key={treeNonce}
-        // Hidden, not unmounted, so the search typed into it and where it was scrolled to are
-        // still there when it comes back.
+        // Hidden, not unmounted, to keep its search text and scroll position.
         hidden={ui.sidebarHidden}
         onHide={toggleSidebar}
         hideTitle={`Hide sidebar (${SIDEBAR_SHORTCUT})`}
@@ -139,6 +127,8 @@ export function AppSidebar({
         onPinnedCollapsedChange={uiState.setPinnedCollapsed}
         recentSectionEnabled={recentSectionEnabled}
         recentSectionHours={recentSectionHours}
+        hideOldSessionsEnabled={hideOldSessionsEnabled}
+        hideOldSessionsDays={hideOldSessionsDays}
         dismissedRecent={ui.dismissedRecent}
         recentCollapsed={ui.recentCollapsed}
         onRecentCollapsedChange={uiState.setRecentCollapsed}

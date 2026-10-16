@@ -208,6 +208,20 @@ describe('mergeSettingsPayload', () => {
     expect(mergeSettingsPayload(current, {}, noPlugins).recentSectionHours).toBe(12)
   })
 
+  it('hideOldSessions is off at 30 days by default, and the days are clamped', () => {
+    expect(DEFAULT_SETTINGS.hideOldSessionsEnabled).toBe(false)
+    expect(DEFAULT_SETTINGS.hideOldSessionsDays).toBe(30)
+    expect(mergeSettingsPayload(DEFAULT_SETTINGS, { hideOldSessionsDays: 0 }, noPlugins).hideOldSessionsDays).toBe(1)
+    expect(mergeSettingsPayload(DEFAULT_SETTINGS, { hideOldSessionsDays: 99999 }, noPlugins).hideOldSessionsDays).toBe(3650)
+  })
+
+  it('an old settings file without hideOldSessions gets the defaults', () => {
+    writeFileSync(file(), JSON.stringify({ recentSectionHours: 5 }))
+    const loaded = createSettingsStore(file()).load()
+    expect(loaded.hideOldSessionsEnabled).toBe(false)
+    expect(loaded.hideOldSessionsDays).toBe(30)
+  })
+
   it('pluginSettings drops an id this build does not know about (SEC-8)', () => {
     const merged = mergeSettingsPayload(
       DEFAULT_SETTINGS,

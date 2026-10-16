@@ -149,11 +149,9 @@ export interface ChatState {
 }
 
 /**
- * What every window hears about a chat, whether or not it shows that session (`chatLifecycle`):
- * the chat's state itself goes only to windows attached to it (`chatAttach`), but a window with
- * the session open in a tab has to know that a chat took the terminal over, or moved onto a new
- * session with `/clear`, even while the tab is in the background. Rare and tiny, unlike
- * `ChatState`, which changes about every 40 ms while a reply streams.
+ * What every window hears about a chat, whether or not it shows that session (`chatLifecycle`).
+ * `ChatState` goes only to attached windows (`chatAttach`) and changes about every 40 ms while a
+ * reply streams; a background tab still has to learn that a chat took over or moved on (`/clear`).
  */
 export interface ChatLifecycle {
   sessionId: SessionId
@@ -163,7 +161,6 @@ export interface ChatLifecycle {
   running: boolean
 }
 
-/** What `terminalBusy` says about a session's terminal: nothing to lose by stopping it, or not. */
 export interface TerminalBusy {
   /** Claude is working, or waiting on a question, in the terminal. */
   busy: boolean

@@ -1,18 +1,12 @@
 /**
  * Lets `before-quit` wait for a specific renderer's final `reportLayout` call, bounded by a short
- * timeout, instead of guessing how long an IPC round trip takes.
+ * timeout.
  *
- * The problem this solves: the renderer debounces `reportLayout` ~500ms, so a quit landing inside
- * that window is not hypothetical — closing the last tab in a pane and pressing Cmd+Q well within
- * half a second is an ordinary gesture. `before-quit` asks every window to flush immediately
- * (`CHANNELS.requestLayoutFlush`), but it still needs to know *when* each window's resulting
- * `reportLayout` call has actually landed in `SessionLayoutStore`, so it does not call
- * `SessionLayoutStore.flush()` (which writes to disk) too early. `ipc.ts`'s `reportLayout` handler
- * calls `onReport` with the sender's `webContents.id` the moment it updates the store — that is
- * what resolves the wait.
- *
- * Kept as its own pure module, independent of Electron, the way `sessionLayoutStore.ts` is — so
- * the wait/resolve race can be tested with fake timers rather than a real IPC round trip.
+ * The renderer debounces `reportLayout` ~500ms, so a quit can land inside that window.
+ * `before-quit` asks every window to flush immediately (`CHANNELS.requestLayoutFlush`) and must
+ * know when each resulting `reportLayout` has landed in `SessionLayoutStore` before it calls
+ * `SessionLayoutStore.flush()`. The `reportLayout` handler calls `onReport` with the sender's
+ * `webContents.id` the moment it updates the store, which resolves the wait.
  */
 export interface LayoutFlushCoordinator {
   /** Call from the `reportLayout` IPC handler, keyed by `event.sender.id`. */

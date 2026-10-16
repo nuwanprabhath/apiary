@@ -16,7 +16,7 @@ interface Props {
  */
 export function MoveSessionDialog({ sessionTitle, fromPath, toPath, onCancel, onConfirm }: Props): JSX.Element {
   return (
-    // UI-24: confines a render fault to this dialog instead of the whole window.
+    // Confines a render fault to this dialog instead of the whole window.
     <ErrorBoundary label="This dialog">
       <Modal testId="move-session-dialog" titleId="move-session-title" onClose={onCancel}>
         <h2 id="move-session-title">Move this session?</h2>

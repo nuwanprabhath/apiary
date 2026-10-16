@@ -66,10 +66,7 @@ export function sessionsHandlers(deps: SessionsDeps): Pick<Handlers, HandledKeys
       if (title.trim() !== '') {
         fireAndForget(renameInClaude(renameDeps(), id, title), 'rename') // the Apiary rename already succeeded; a failure here is only logged
       }
-      // Nothing on disk changed, so the filesystem watcher will never fire for this — push the
-      // same "tree changed" signal it uses so every open view (the sidebar list here, and any
-      // other window) picks up the new title immediately instead of only on its next unrelated
-      // refresh.
+      // Nothing on disk changed, so the filesystem watcher never fires: push its "tree changed" signal.
       broadcast(IPC.treeChanged)
     },
     removeSession: async (_e, id) => {
@@ -78,15 +75,12 @@ export function sessionsHandlers(deps: SessionsDeps): Pick<Handlers, HandledKeys
     },
     moveSession: async (_e, id, targetPath) => {
       await service.moveSession(id, targetPath)
-      // Same signal a rename or an archive sends: the sidebar re-reads the (unfiltered, cached)
-      // tree, which now shows the session under its new project instead of the old one.
       await service.refresh()
       broadcast(IPC.treeChanged)
     },
     setSessionNote: async (_e, id, note) => {
       await service.setSessionNote(id, note)
-      // The note shows in the sidebar's hover card and changes what searches match, so every
-      // window needs to re-read the tree — the same signal a rename sends.
+      // The note shows in the hover card and changes what searches match.
       broadcast(IPC.treeChanged)
     },
     sessionNote: (_e, id) => service.sessionNote(id),

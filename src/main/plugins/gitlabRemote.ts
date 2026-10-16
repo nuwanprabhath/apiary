@@ -59,10 +59,8 @@ function build(hostname: string, rawProject: string): GitLabRemote | null {
 /**
  * GitLab's "new merge request" page for a branch.
  *
- * The query parameter is the one GitLab's own UI uses when you click "Create merge request" on a
- * branch, so the form opens with the source branch chosen and the rest left to the user — which is
- * the point: creating an MR involves a title, a description and reviewers, and a button in a
- * terminal app has no business inventing those.
+ * The query parameter is the one GitLab's own UI uses, so the form opens with the source branch
+ * chosen and the title, description and reviewers left to the user.
  */
 export function newMergeRequestUrl(
   remote: GitLabRemote,
@@ -71,9 +69,8 @@ export function newMergeRequestUrl(
 ): string {
   const params = new URLSearchParams()
   params.set('merge_request[source_branch]', branch)
-  // Left out entirely when there is none, so GitLab falls back to the project's default branch —
-  // which is the right answer when the user has expressed no preference, and is what an empty
-  // `target_branch` parameter would *not* produce.
+  // Left out when there is none: GitLab then uses the default branch, which an empty
+  // `target_branch` parameter would not give.
   if (targetBranch !== undefined && targetBranch !== null && targetBranch.trim() !== '') {
     params.set('merge_request[target_branch]', targetBranch.trim())
   }

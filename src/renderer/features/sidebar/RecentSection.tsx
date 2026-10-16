@@ -5,8 +5,7 @@ import { SectionHeader } from './SectionHeader'
 import { SessionRow } from './SessionRow'
 import type { RowActions } from './rowActions'
 
-/** Recently used sessions, resolved against the same filtered tree Pinned is. UI-27: its own flat
- *  tree — time-ordered, not part of the folder hierarchy. */
+/** Recently used sessions, resolved against the same filtered tree Pinned is; its own flat tree. */
 export function RecentSection({
   sessions, selectedId, folderBranches, collapsed, onCollapsedChange, onDismiss, actions,
 }: {

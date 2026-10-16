@@ -12,7 +12,6 @@
  */
 export type WindowChrome = 'custom' | 'mac' | 'system'
 
-/** The application menu as the renderer draws it: data only, read from main's real menu. */
 export interface AppMenuNode {
   label: string
   kind: 'normal' | 'separator' | 'checkbox' | 'radio' | 'submenu'
@@ -23,7 +22,7 @@ export interface AppMenuNode {
   submenu?: AppMenuNode[]
 }
 
-/** "CmdOrCtrl+Shift+N" → "Ctrl+Shift+N" (or "⌘⇧N"-free "Cmd+Shift+N" on a Mac), for display only. */
+/** "CmdOrCtrl+Shift+N" → "Ctrl+Shift+N" ("Cmd+Shift+N" on a Mac), for display only. */
 export function displayAccelerator(accelerator: string, isMac: boolean): string {
   return accelerator
     .replace(/CommandOrControl|CmdOrCtrl/g, isMac ? 'Cmd' : 'Ctrl')

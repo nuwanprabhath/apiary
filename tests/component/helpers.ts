@@ -32,14 +32,41 @@ export async function sessionRow(title: string): Promise<HTMLElement> {
   return sessionRows(title)[0]
 }
 
-/** Hovers a session row and clicks one of its hover-revealed buttons (pin, split, remove, note). */
+/**
+ * Hovers `el` once it has stopped moving. Opening a session adds it to the Active section, which
+ * slides every sidebar row down; on a busy machine that slide was still running when a test hovered
+ * the next row, the pointer ended up over another row, the row's hover-revealed button hid again,
+ * and the click on it waited out the whole test timeout (appPropStability, paneLayouts: every
+ * parallel agent run in 1.41-1.44).
+ */
+export async function hoverWhenStill(el: Element): Promise<void> {
+  await settled(() => {
+    const r = el.getBoundingClientRect()
+    return `${r.x},${r.y},${r.width},${r.height}`
+  })
+  await userEvent.hover(el)
+}
+
+/**
+ * Hovers a session row and clicks one of its hover-revealed buttons (pin, split, remove, note).
+ * Hover, see the button, click: all three again if the row moved or re-rendered in between, which
+ * hides the button until the pointer moves again. A button that never shows still fails.
+ */
 export async function clickRowAction(title: string, testId: string): Promise<void> {
-  const row = await sessionRow(title)
-  const wrap = row.closest<HTMLElement>('.session-row-wrap') ?? row
-  await userEvent.hover(wrap)
-  const button = wrap.querySelector(`[data-testid="${testId}"]`)
-  if (!(button instanceof HTMLElement)) throw new Error(`No ${testId} on the row "${title}"`)
-  await userEvent.click(button)
+  for (let attempt = 1; ; attempt++) {
+    const row = await sessionRow(title)
+    const wrap = row.closest<HTMLElement>('.session-row-wrap') ?? row
+    const button = wrap.querySelector(`[data-testid="${testId}"]`)
+    if (!(button instanceof HTMLElement)) throw new Error(`No ${testId} on the row "${title}"`)
+    try {
+      await hoverWhenStill(wrap)
+      await until(() => button.checkVisibility({ visibilityProperty: true, opacityProperty: true }), 1000)
+      await userEvent.click(button, { timeout: 2000 })
+      return
+    } catch (e) {
+      if (attempt === 4) throw e
+    }
+  }
 }
 
 /** The element's box, as `getBoundingClientRect` reports it — for the geometry checks. */

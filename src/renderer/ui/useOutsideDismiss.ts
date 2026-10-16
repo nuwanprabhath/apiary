@@ -13,8 +13,7 @@ interface Options {
 
 /**
  * Calls `onDismiss` for a press anywhere outside `inside` / `insideSelector` — the click-outside
- * half of a popup, next to `useEscape` for the keyboard half. The one place this is written; six
- * copies had drifted on which event, which phase and what "inside" means.
+ * half of a popup, next to `useEscape` for the keyboard half.
  *
  * - **On press, not on click**: a press on some other button dismisses the popup and still lets
  *   that button's click through, because the popup is already gone when the click completes.

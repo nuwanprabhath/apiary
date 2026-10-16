@@ -12,7 +12,7 @@ interface Props {
 
 export function ConflictDialog({ conflict, onFork, onOpenAnyway, onCancel }: Props): JSX.Element {
   return (
-    // UI-24: confines a render fault to this dialog instead of the whole window.
+    // Confines a render fault to this dialog instead of the whole window.
     <ErrorBoundary label="This dialog">
       <Modal testId="conflict-dialog" titleId="conflict-dialog-title" onClose={onCancel}>
         <h2 id="conflict-dialog-title">This session is already running</h2>

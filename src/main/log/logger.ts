@@ -8,27 +8,14 @@ import { filesToPrune, shouldRotate, type LogFile } from './rotation'
 export type { LogLevel } from '@shared/domain/log'
 
 /**
- * The diagnostic log.
+ * The diagnostic log. Rationale and rules: `src/main/log/CLAUDE.md`.
  *
- * It exists because of a bug that could not be reproduced: "Open installer" failed on one user's
- * Ubuntu with an Electron IPC message, and every hypothesis about why was disproved in a
- * container because the trigger lived in their desktop session. Nothing in the app recorded what
- * it had actually tried, so there was nothing to read.
- *
- * Four things decide its shape:
- *
- * - **Off unless asked for.** Disabled is the default and disabled means *nothing*: no directory
- *   is created, no file is opened, `log()` returns immediately. A diagnostic feature that writes
- *   by default is a diagnostic feature that writes things nobody agreed to.
- * - **Structured, and redacted on the way in.** Every field goes through `redact` (see
- *   `shared/redact.ts`) before it is serialised, so redaction cannot be forgotten at a call site.
- *   Message text, prompts and transcript content are never passed at all.
- * - **Synchronous appends.** The volume is low by design — events, not streams, and never PTY
- *   output — and a log that is buffered when the process dies is missing the lines that matter
- *   most. The one thing worth having in a crash is the last line before it.
- * - **It must never be the thing that breaks the app.** Every entry point swallows its own
- *   errors: a full disk, a read-only directory or a vanished folder makes logging stop, not the
- *   feature the user was actually using.
+ * - **Off unless asked for.** Disabled means no directory, no file, and `log()` returns immediately.
+ * - **Redacted on the way in.** Every field goes through `redact` (`shared/redact.ts`) before it is
+ *   serialised. Message text, prompts and transcript content are never passed at all.
+ * - **Synchronous appends.** The volume is low (events, never PTY output), and a buffered log
+ *   loses the last line before a crash.
+ * - **Never breaks the app.** Every entry point swallows its own errors.
  */
 
 export interface LoggerOptions {
@@ -41,7 +28,7 @@ export interface LoggerOptions {
   home?: string
 }
 
-/** Kept as an alias: `LogStatusPayload` is the canonical (shared) name — see SHARED-2. */
+/** An alias: `LogStatusPayload` is the canonical (shared) name. */
 export type LogStatus = LogStatusPayload
 
 const ACTIVE = 'apiary.log'
@@ -59,14 +46,11 @@ export class Logger {
 
   configure(opts: LoggerOptions): void {
     this.opts = opts
-    // Always re-read the world rather than trusting the size carried from before: `configure`
-    // means something changed, and the active file's size is the one piece of state here that
-    // something *outside* this process can have changed — a rotation by another instance, or a
-    // folder the user emptied by hand.
+    // Re-read the active file's size: another instance's rotation or a folder emptied by hand
+    // changes it from outside this process.
     this.ready = false
     this.activeBytes = 0
     if (!opts.enabled) return
-    // See the note on never breaking the app: a directory that cannot be made means no logging.
     ignoreErrors(() => {
       this.prepare()
       this.prune()
@@ -118,8 +102,7 @@ export class Logger {
   /** Rolls the active file aside under a sortable, timestamped name. */
   private rotate(): void {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-    // A rename that fails leaves the active file in place: it keeps growing, and the size
-    // budget still removes older files. Worse than rotating, better than losing the log.
+    // A failed rename leaves the active file growing; the size budget still removes older files.
     ignoreErrors(() => {
       renameSync(join(this.opts.dir, ACTIVE), join(this.opts.dir, `${PREFIX}-${stamp}${SUFFIX}`))
       this.activeBytes = 0
@@ -129,14 +112,10 @@ export class Logger {
 
   log(level: LogLevel, scope: LogScope | `renderer:${LogScope}`, message: string, fields: LogFields = {}): void {
     if (!this.enabled) return
-    // Deliberately silent. Reporting a logging failure through the UI would turn a diagnostic
-    // aid into a source of its own errors, which is precisely backwards.
     ignoreErrors(() => {
       this.prepare()
-      // The redacted `fields` are spread *before* the four fixed keys, not after: `renderer:${scope}`
-      // messages (logWrite, ipc.ts) carry a caller-chosen `scope` and `message`, and if `fields`
-      // could win over these, a field literally named "msg" or "scope" would let unredacted text
-      // reach the log despite `redactString` running on the real ones right below (SEC-11).
+      // `fields` is spread before the fixed keys so a field named "msg" or "scope" (renderer
+      // messages carry caller-chosen ones) cannot override the redacted values.
       const entry = {
         ...(redact(fields, { home: this.opts.home }) as LogFields),
         ts: new Date().toISOString(),
@@ -168,7 +147,7 @@ export class Logger {
     }
   }
 
-  /** Deletes every log file. Offered in Settings, and the honest counterpart to switching it on. */
+  /** Deletes every log file. Offered in Settings. */
   clear(): void {
     for (const file of this.listFiles()) {
       ignoreErrors(() => { rmSync(join(this.opts.dir, file.name), { force: true }) }, 'it can go next time')
@@ -177,12 +156,5 @@ export class Logger {
   }
 }
 
-/**
- * The app's logger.
- *
- * A module singleton so that `ptyManager`, `branchOps` and the update backend can record what
- * they did without every one of them being handed a logger through three constructors. It is
- * inert until `configure` is called from startup, which means importing it costs nothing and a
- * unit test that never configures it writes no files.
- */
+/** The app's logger: a module singleton, inert until startup calls `configure`, so a test that never does writes no files. */
 export const log = new Logger()

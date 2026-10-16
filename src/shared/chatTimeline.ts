@@ -2,11 +2,9 @@ import type { TranscriptMessage } from './domain/transcript'
 import { ASK_USER_QUESTION, summarizeQuestions } from './askQuestion'
 
 /**
- * The transcript as the chat view draws it — the VS Code extension's shape: your messages as
- * boxes, Claude's prose, "Thought" rows, and each tool call as one row with its input and its
- * output together. In the session file a tool call and its result are two messages (the call in
- * Claude's, the result in the next "user" one); here they are paired by tool-use id, and a user
- * message that only carried results disappears into the calls it answered.
+ * The transcript as the chat view draws it. In the session file a tool call and its result are two
+ * messages; here they are paired by tool-use id, and a user message that only carried results
+ * disappears into the calls it answered.
  */
 export type ChatItem =
   | { kind: 'user'; key: string; text: string; images: string[]; timestampMs: number | null }
@@ -144,7 +142,6 @@ export function lastPrompt(items: ChatItem[]): Extract<ChatItem, { kind: 'user' 
   return null
 }
 
-/** A background task Claude started and has not heard back from. */
 export interface BackgroundTask {
   taskId: string
   description: string

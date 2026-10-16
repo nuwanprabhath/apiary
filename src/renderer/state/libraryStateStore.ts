@@ -8,18 +8,13 @@ import { legacyLibraryRecords } from './uiState'
 import { remoteHost } from './windowParams'
 
 /**
- * The sessions library's arrangement and reading preferences (`shared/libraryState.ts`): pins,
- * groups, folder order, Recent dismissals, each chat's settings, whether tool calls start hidden.
+ * The sessions library's arrangement and reading preferences (`shared/libraryState.ts`). Main owns
+ * it on the machine whose sessions it describes; in a remote window its calls reach the work
+ * machine. Main pushes every change to every window.
  *
- * Main owns it, on the machine whose sessions it describes, so this store is the same in every
- * window: in a remote window its calls are `remote` and reach the work machine, which is how home
- * shows the work machine's groups and tool-call choices. Main pushes every change to every window
- * (`libraryStateChanged`), which is also what keeps two local windows in step.
- *
- * Before 1.39 the sidebar half lived in this window's localStorage (`apiary.shared`) and the
- * per-chat half under `apiary.chatSettings`. The first local window to find main's state unseeded
- * sends those, once (`seedLibraryState`); main refuses a seed once anything is written. A remote
- * window never seeds: home's localStorage describes home's sessions, not the work machine's.
+ * The first local window to find main's state unseeded sends the old localStorage records once
+ * (`seedLibraryState`); main refuses a seed once anything is written. A remote window never seeds:
+ * home's localStorage describes home's sessions, not the work machine's.
  */
 const store = createIpcStore<LibrarySnapshot>({
   scope: 'library',
@@ -35,7 +30,6 @@ const store = createIpcStore<LibrarySnapshot>({
   },
 })
 
-/** What an older Apiary kept in this machine's localStorage, as far as the registry recognises it. */
 function legacySeed(): LibraryPatch {
   const { arrangement, chats } = legacyLibraryRecords()
   return { ...pickLibraryPatch(arrangement), ...pickLibraryPatch({ chatSettings: chats }) }
@@ -43,7 +37,7 @@ function legacySeed(): LibraryPatch {
 
 const stateOf = (snapshot: LibrarySnapshot): LibraryState => snapshot.state
 
-/** The library state, in a component. Defaults until main's answer lands. */
+/** Defaults until main's answer lands. */
 export function useLibraryState(): LibraryState {
   return store.useStore(stateOf)
 }
@@ -52,10 +46,9 @@ export function useLibraryState(): LibraryState {
 export const readLibraryState = async (): Promise<LibraryState> => (await store.current()).state
 
 /**
- * The change still being sent, answering the state main returned for it. A change asked for while
- * one is in flight builds on that answer, not on the last push: over a remote connection main
- * answers a round trip later, and a second pin made meanwhile, worked out from the state before the
- * first, sent a `pinned` without the first and unpinned it.
+ * The change still being sent. A change asked for meanwhile builds on its answer, not the last
+ * push: over a remote connection a second pin worked out from the state before the first sent a
+ * `pinned` without the first and unpinned it.
  */
 let inFlight: Promise<LibraryState> | null = null
 
@@ -66,10 +59,8 @@ function latest(): Promise<LibraryState> {
 }
 
 /**
- * Changes the fields `change` returns, worked out from the latest state (see `inFlight`), one change
- * at a time. Policy 1: the screen follows main's push, so a failure leaves it showing what is really
- * stored, and is logged. A change asked for before the first answer waits for it, so it never builds
- * on the defaults.
+ * Policy 1: the screen follows main's push, so a failure leaves it showing what is stored, and is
+ * logged. A change asked for before the first answer waits for it, so it never builds on defaults.
  */
 export function updateLibraryState(change: (state: LibraryState) => LibraryPatch): void {
   const sent = latest().then(async (state) => (await window.apiary.setLibraryState(change(state))).state)
@@ -80,5 +71,5 @@ export function updateLibraryState(change: (state: LibraryState) => LibraryPatch
   background(sent, 'library')
 }
 
-/** Saves fields the caller awaits (the Settings dialog's Save). Policy 3. */
+/** Policy 3: the Settings dialog's Save awaits it. */
 export const saveLibraryState = (patch: LibraryPatch): Promise<LibrarySnapshot> => window.apiary.setLibraryState(patch)

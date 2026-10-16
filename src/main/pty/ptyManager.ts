@@ -14,11 +14,7 @@ export interface SpawnOptions {
   command: string
   cols?: number
   rows?: number
-  /**
-   * Whether the child is a full-screen program that reads keys itself (Claude Code), as opposed to
-   * a plain shell. Such a program is only safe to type into once it has actually started: see
-   * `whenQuiet()`.
-   */
+  /** A full-screen program that reads keys itself (Claude Code), not a plain shell: see `whenQuiet()`. */
   tui?: boolean
   /** Extra environment for this child, merged over the inherited environment. */
   env?: Record<string, string>
@@ -30,47 +26,30 @@ type DataHandler = (id: string, data: string) => void
 type ExitHandler = (id: string, exitCode: number) => void
 
 /**
- * Per-process cap, in `killAll()`, on how long we wait for a killed PTY's real exit before
- * giving up on it. Measured directly on this machine (macOS, node-pty spawning `/bin/bash`):
- * a normal login shell's `onExit` fires ~5-200ms after `kill()` (a plain `sleep 30` under a
- * default-handling shell exited ~205ms after the kill signal was sent). A shell that traps and
- * ignores SIGHUP/SIGTERM, by contrast, did not exit within 3000ms at all — i.e. some processes
- * will not die from this signal within any bounded wait, by design. 1500ms was chosen as
- * comfortably above the observed well-behaved case (roughly 7-10x headroom) while still keeping
- * `app.quit()` responsive; it was NOT derived from timing a real `claude --resume` child, which
- * was not measured here. A well-behaved shell or `claude` process should clear this bound with
- * room to spare; a process that ignores the signal will hit the timeout and be abandoned
- * regardless of what this constant is set to — see the comment on `killAll()`.
+ * Per-process cap, in `killAll()`, on how long we wait for a killed PTY's real exit. Measured on
+ * macOS with node-pty spawning `/bin/bash`: a normal login shell's `onExit` fires ~5-200ms after
+ * `kill()`; a shell that traps SIGHUP/SIGTERM did not exit within 3000ms at all. 1500ms is
+ * 7-10x the well-behaved case while keeping `app.quit()` responsive. Not measured against a real
+ * `claude --resume` child.
  */
 const PTY_KILL_TIMEOUT_MS = 1500
 
-/**
- * Switching to the alternate screen buffer. A full-screen program emits this as it takes over the
- * terminal, which is also the point at which it has put the tty into raw mode — so it doubles as
- * the signal that input written now will reach the program as keystrokes rather than being
- * mangled by the line discipline first. See `whenQuiet()`.
- */
+/** Switch to the alternate screen: a full-screen program emits it once the tty is in raw mode, so input written now arrives as keystrokes. */
 const ALT_SCREEN = '\x1b[?1049h'
 
 /**
- * Everything the manager knows about one pty id, in one record, so spawning, killing and exiting
- * replace or drop it as a unit. It used to be nine maps keyed by id, and a late `onExit` from a
- * killed child cleaned up whatever the id's *current* occupant had put in them (MAIN-6).
+ * Everything the manager knows about one pty id, replaced or dropped as a unit.
  *
- * `child` is also the identity of the occupant: every callback a child registers compares its own
- * IPty with `entry.child` before it touches anything, so a stale child cannot act on its
- * successor. It is null once the process has exited on its own; the entry then stays only for
- * `cwd` (a pending id's cwd is still read afterwards, `resolveShellCwd`), and `kill()` or a
- * respawn removes it.
+ * `child` is the occupant's identity: every callback compares its own IPty with `entry.child`
+ * before acting. It is null once the process exited on its own; the entry then stays only for
+ * `cwd` (`resolveShellCwd` reads it afterwards), until `kill()` or a respawn removes it.
  */
 interface PtyEntry {
   child: pty.IPty | null
   cwd: string
   size: { cols: number; rows: number }
-  /** Whether a full-screen child is expected, and whether it has actually started. */
   expectTui: boolean
   tuiStarted: boolean
-  /** Output activity, so a caller can wait for the child to finish reacting to input. */
   lastDataAt: number
   outputCount: number
   /** The account the process was started under; null for a plain shell. */
@@ -80,8 +59,7 @@ interface PtyEntry {
 export class PtyManager {
   /** The one place per-pty state lives: never add a second map keyed by pty id. */
   private entries = new Map<string, PtyEntry>()
-  /** A headless terminal per pty, so `screen()` can report what is actually on screen rather than
-   *  what was sent — see `screen.ts` for why those differ and why it matters. */
+  /** A headless terminal per pty: what is on screen differs from what was sent (see `screen.ts`). */
   private screens = new ScreenBuffers()
   private dataHandlers: DataHandler[] = []
   private exitHandlers: ExitHandler[] = []
@@ -91,19 +69,13 @@ export class PtyManager {
   has(id: string): boolean { return this.liveChild(id) !== undefined }
   private liveChild(id: string): pty.IPty | undefined { return this.entries.get(id)?.child ?? undefined }
 
-  /**
-   * The cwd a still-running pty was actually spawned with. Lets a caller (e.g. opening a shell
-   * alongside a not-yet-resolved new session) key a second pty off an already-running one's real
-   * directory without the renderer ever having to send a raw filesystem path across IPC.
-   */
+  /** The cwd a pty was spawned with, so a second pty can be keyed off it without the renderer sending a path. */
   getCwd(id: string): string | undefined { return this.entries.get(id)?.cwd }
 
   /**
-   * The process id behind each live pty that was started as a TUI (a `claude`, not a plain shell).
-   *
-   * Sessions run as `$SHELL -l -c 'exec claude …'`, and `exec` keeps the pid, so this is Claude's
-   * own pid — the key of the `~/.claude/sessions/<pid>.json` file that says which session the
-   * process is on right now. See `claudeSessionTracker.ts`.
+   * The process id behind each live TUI pty. Sessions run as `$SHELL -l -c 'exec claude …'` and
+   * `exec` keeps the pid, so this is the key of `~/.claude/sessions/<pid>.json`
+   * (see `claudeSessionTracker.ts`).
    */
   tuiProcesses(): Map<string, { pid: number; accountId: AccountId | null }> {
     const out = new Map<string, { pid: number; accountId: AccountId | null }>()
@@ -113,7 +85,6 @@ export class PtyManager {
     return out
   }
 
-  /** The account a live `claude` pty runs under, or null for a shell or an id that is not running. */
   accountOf(id: string): AccountId | null {
     const entry = this.entries.get(id)
     return entry !== undefined && entry.child !== null ? entry.accountId : null
@@ -130,8 +101,6 @@ export class PtyManager {
     }
     this.kill(opts.id)
 
-    // The login-shell recipe (shell, `-l -c`, env) is `exec/loginShell.ts`'s, shared with
-    // `spawnLoginShell`; only the node-pty spawn itself stays here.
     const shell = loginShellInvocation(opts.command, { extraEnv: opts.env })
     const child = pty.spawn(shell.file, shell.args, {
       name: 'xterm-256color',
@@ -151,13 +120,11 @@ export class PtyManager {
       outputCount: 0,
       accountId: opts.account ?? null,
     }
-    // Registered before the callbacks can run (they are delivered on later turns), and before the
-    // first byte is rendered, so the pty's very first screen is at the right width.
+    // Registered before the first byte is rendered, so the first screen is at the right width.
     this.entries.set(opts.id, entry)
     this.screens.resize(opts.id, entry.size.cols, entry.size.rows)
 
     child.onData((data) => {
-      // A killed child can still deliver output; it is not this id's output any more.
       if (this.entries.get(opts.id)?.child !== child) return
       this.screens.write(opts.id, data)
       entry.lastDataAt = Date.now()
@@ -168,71 +135,46 @@ export class PtyManager {
     child.onExit(({ exitCode }) => {
       log.info('pty', 'exited', { id: opts.id, exitCode })
       const current = this.entries.get(opts.id)
-      // A killed child's exit arrives after `kill()` and, if the id was respawned meanwhile, after
-      // the new child took the entry: it must not wipe it, nor tell the views the new pty died.
+      // A killed child's exit can arrive after a respawn took the entry.
       if (current !== undefined && current.child !== child) return
       if (current !== undefined) {
-        // Exited on its own (not `kill()`ed): release the process and the headless `Terminal`
-        // (up to 1,000 lines of scrollback) — every `new:<uuid>` id is minted once, so this used
-        // to leak one per session whose Claude ever exited normally (MAIN-6). `cwd` is kept.
+        // Exited on its own: release the headless `Terminal` (up to 1,000 lines of scrollback). `cwd` is kept.
         current.child = null
         this.screens.dispose(opts.id)
       }
       for (const h of this.exitHandlers) h(opts.id, exitCode)
     })
 
-    // Logged because "which pty, in which directory, with what extra environment" answered two
-    // separate bugs: a second window killing the first's shell, and a prompt setting that never
-    // reached the terminal it was meant for. The command is *not* logged — it can carry a session
-    // id and, for a shell, whatever the user configured.
+    // The command is not logged: it can carry a session id and whatever the user configured.
     log.info('pty', 'spawned', {
       id: opts.id,
       cwd: opts.cwd,
       tui: opts.tui ?? false,
       env: Object.keys(opts.env ?? {}),
-      // Another Claude session's markers removed from the inherited environment (see childEnv.ts).
-      // Non-empty only when Apiary itself was started from inside a Claude Code session.
+      // Non-empty only when Apiary was started from inside a Claude Code session (see childEnv.ts).
       stripped: strippedMarkers(process.env),
       cols: opts.cols ?? 80,
       rows: opts.rows ?? 24,
     })
   }
 
-  /**
-   * This pty's screen, history included, as something a view can paint — see
-   * `ScreenBuffers.snapshot` for why a late-attaching view is given this rendered picture rather
-   * than the raw byte stream (see the removed `replay()` — MAIN-5: it had no production caller,
-   * only this rendered snapshot is used to catch a view up). Null for a pty that has printed
-   * nothing (or does not exist); the view then simply starts empty.
-   */
+  /** The screen, history included, for a late-attaching view (see `ScreenBuffers.snapshot`). Null if nothing was printed or the pty does not exist. */
   snapshot(id: string): Promise<ScreenSnapshot | null> {
     return this.screens.snapshot(id)
   }
 
-  /**
-   * What is on this pty's screen right now, as plain text — the input `classifyActivity` needs.
-   * Rendered here from the headless terminal, not read out of a raw byte stream: this is the
-   * picture, for code that needs to *read* the terminal rather than show it.
-   */
+  /** What is on the screen right now as plain text, rendered from the headless terminal: the input `classifyActivity` needs. */
   screen(id: string): string {
     return this.screens.read(id)
   }
 
-  /**
-   * How many chunks of output this pty has produced. Only useful as a before/after comparison:
-   * pass it to `whenQuiet` as `after` to wait for the child to react to something you wrote,
-   * rather than mistaking the quiet that preceded your write for the quiet that follows it.
-   */
+  /** Chunks of output so far; pass it to `whenQuiet` as `after` so the quiet before your write is not mistaken for the quiet after. */
   outputCount(id: string): number {
     const entry = this.entries.get(id)
     return entry?.child ? entry.outputCount : 0
   }
 
-  /**
-   * When this pty last produced output, for `classifyActivity` (`shared/activity.ts`) to tell a
-   * session that just went quiet from one that has been sitting at a prompt for a while. 0 for a
-   * pty that has never existed, which reads the same as "not recently" to that classifier.
-   */
+  /** When this pty last produced output, for `classifyActivity`; 0 for an id that never existed. */
   lastOutputAt(id: string): number {
     const entry = this.entries.get(id)
     return entry?.child ? entry.lastDataAt : 0
@@ -241,16 +183,12 @@ export class PtyManager {
   /**
    * Resolves once the pty looks ready to be written to.
    *
-   * Writing to a pty is not the same as a program receiving what you wrote. Until a full-screen
-   * program starts and puts the tty into raw mode, the terminal's line discipline is still in
-   * canonical mode, where it buffers input by line and — the part that actually bit us —
-   * translates carriage return to newline (ICRNL). A prompt delivered in that window arrives after
-   * the program starts, but as text it never sees as a paste and with its submitting return turned
-   * into a plain newline: it lands in the input box and just sits there.
+   * Until a full-screen program puts the tty into raw mode, the line discipline is in canonical
+   * mode and translates carriage return to newline (ICRNL): a prompt written then lands in the
+   * input box and never submits.
    *
-   * So for a `tui` pty this waits for the child to take the screen, and in every case waits for its
-   * output to go quiet, meaning it has finished drawing and is listening. `capMs` bounds both: a
-   * child that never gets there is written to anyway, which is no worse than not waiting at all.
+   * A `tui` pty waits for the child to take the screen; every pty waits for its output to go
+   * quiet. `capMs` bounds both: a child that never gets there is written to anyway.
    */
   whenQuiet(
     id: string,
@@ -274,57 +212,33 @@ export class PtyManager {
   }
 
   write(id: string, data: string): void {
-    // The process can exit between the renderer sending a keystroke and this call landing.
     ignoreErrors(() => this.entries.get(id)?.child?.write(data), 'the pty can exit before the keystroke lands')
   }
 
   /**
-   * Resizes the pty to the requested size. If the requested size is unchanged from the size we
-   * last applied, the OS's TIOCSWINSZ ioctl is a no-op — the kernel only raises SIGWINCH when
-   * the new size actually differs from the pty's current size — so nothing tells a
-   * readline-based shell to redraw its prompt. That matters when `TerminalView` mounts onto an
-   * already-running pty at its existing size (a tab switch back, not a fresh spawn): the new
-   * xterm instance starts with empty scrollback, and without a redraw the pane looks blank.
+   * An unchanged size raises no SIGWINCH, so a readline shell does not redraw; a `TerminalView`
+   * mounting onto a running pty at its existing size would look blank.
    *
-   * Two things were tried and rejected before landing on the approach below (both verified
-   * directly against a real interactive login shell sitting idle at its prompt, not just this
-   * synthetic-signal test):
+   * Measured against a real idle login shell, two approaches fail:
+   * - A bare `child.kill('SIGWINCH')`: readline redisplays only when its TIOCGWINSZ query, made
+   *   in the handler, reports an actual change.
+   * - Two `resize()` calls in the same synchronous turn (one row off, then back): POSIX signals of
+   *   one type coalesce before the child runs its handler, so the shell sees no change.
    *
-   * - Delivering a bare SIGWINCH via `child.kill('SIGWINCH')` on a detected no-op: this does
-   *   NOT redraw anything. Readline only redisplays the current line when its own TIOCGWINSZ
-   *   query — made when it handles the signal — reports an actual dimension change, not merely
-   *   on receiving the signal with the winsize unchanged.
-   * - Two `resize()` calls back-to-back in the same synchronous turn (kick to one row off the
-   *   target, then immediately back): this ALSO produced no redraw. Two same-type POSIX signals
-   *   delivered before the child gets scheduled to handle the first one coalesce into a single
-   *   delivery (non-realtime signals aren't queued), so by the time the shell's signal handler
-   *   actually runs and queries the size, the two ioctls have already cancelled out and it sees
-   *   no change at all.
-   *
-   * What works, and what's used here: kick to one row off the target, then defer the second
-   * `resize()` back to the target by one microtask turn (`queueMicrotask`). That's enough of a
-   * gap for the kernel to actually schedule and deliver the first SIGWINCH before the second
-   * ioctl reverts the size, so both real, distinct kernel-level size changes register and the
-   * shell redraws twice (settling on the correct, unchanged-looking content). It is not a full
-   * event-loop turn, so nothing else running on the main process — another IPC message
-   * included — can land between the two calls; this is what actually closes the race the old
-   * renderer-side version had, where the two halves were separate fire-and-forget
-   * `ipcRenderer.send` calls with no such guarantee. It only fires on a genuine no-op, so a
-   * resize that really changes the size never pays for it.
+   * What works: kick to one row off the target, then resize back to the target one microtask
+   * later. That gap lets the kernel deliver the first SIGWINCH, so the shell redraws. A microtask
+   * is not an event-loop turn, so no other IPC message can land between the two calls. Only a
+   * genuine no-op pays for it.
    */
   resize(id: string, cols: number, rows: number): void {
     const entry = this.entries.get(id)
     const child = entry?.child
     if (entry === undefined || !child) return
-    // `Math.max(1, x)` alone let a NaN (from a bad renderer message) or an unbounded number
-    // through to node-pty's own resize, which sizes a headless xterm in this process to whatever
-    // was asked (SEC-8). Any real terminal is well inside these bounds; anything outside them is
-    // not a size a renderer should ever legitimately send.
+    // A bad renderer message must not size the headless xterm in this process without bound.
     const clampedCols = Number.isFinite(cols) ? Math.min(1000, Math.max(1, Math.trunc(cols))) : 80
     const clampedRows = Number.isFinite(rows) ? Math.min(500, Math.max(1, Math.trunc(rows))) : 24
     const last = entry.size
     const isNoOp = last.cols === clampedCols && last.rows === clampedRows
-    // The process can exit between the renderer measuring and this call.
     ignoreErrors(() => {
       if (isNoOp) {
         const kickedRows = clampedRows > 1 ? clampedRows - 1 : clampedRows + 1
@@ -343,15 +257,13 @@ export class PtyManager {
   /**
    * Continues a program that suspended itself (SIGCONT to the pty's process group).
    *
-   * Claude Code handles Ctrl+Z itself: it restores the terminal, prints "Claude Code has been
-   * suspended. Run `fg` to bring Claude Code back." and waits for SIGCONT. Under a shell with job
-   * control, `fg` sends that. Here it runs as `exec claude` with no shell in front of it, so there
-   * is no `fg` to type — and anything typed lands in its prompt once it does come back. Measured
-   * on Claude Code 2.1.284: the process is not even in the stopped state (`ps` shows `S`, not
-   * `T`), it is waiting, and a SIGCONT to its group brings it back with the draft intact.
+   * Claude Code handles Ctrl+Z itself: it prints "Claude Code has been suspended. Run `fg`…" and
+   * waits for SIGCONT. It runs as `exec claude` with no shell, so there is no `fg`. Measured on
+   * Claude Code 2.1.284: the process is not stopped (`ps` shows `S`, not `T`), and a SIGCONT to
+   * its group brings it back with the draft intact.
    *
-   * The group, not just the pid: the pty's process is the session leader (`exec`), so its pid is
-   * the group id, and anything it had started (a tool call's shell) is continued with it.
+   * The group, not just the pid: the process is the session leader, so its pid is the group id
+   * and anything it started (a tool call's shell) is continued too.
    */
   resume(id: string): void {
     const child = this.entries.get(id)?.child
@@ -374,27 +286,18 @@ export class PtyManager {
   }
 
   /**
-   * Kills every live PTY and waits for each to actually exit (bounded by `timeoutMs` per
-   * process) before resolving. Used on app quit: node-pty marshals a killed process's exit
-   * event into JS from a background thread, and if that delivery is still in flight when
-   * Electron's own teardown begins, it can throw with no JS context left to catch it — an
-   * uncaught native exception that aborts the whole process.
+   * Kills every live PTY and waits for each real exit (bounded by `timeoutMs` per process). On
+   * quit: node-pty delivers a killed process's exit from a background thread, and if that is in
+   * flight when Electron's teardown begins it throws with no JS context and aborts the process.
    *
-   * This *reduces* that race, it does not eliminate it. For any PTY whose `onExit` fires before
-   * `timeoutMs`, the race is fully closed — we only resolve once the real exit has happened. But
-   * if a child ignores the kill signal (or is wedged) and outlives the timeout, we give up
-   * waiting on it and resolve anyway so `app.quit()` cannot hang forever. In that case the
-   * abandoned child's `onExit` can still fire later on node-pty's background thread, after Node
-   * teardown has begun — the exact race this function exists to prevent, just for that one
-   * straggler. See the `PTY_KILL_TIMEOUT_MS` comment above for why 1500ms was chosen and what it
-   * is (and isn't) based on.
+   * This reduces the race, it does not eliminate it: a child that ignores the kill is abandoned
+   * after the timeout so `app.quit()` cannot hang, and its late `onExit` can still hit it.
    */
   async killAll(timeoutMs = PTY_KILL_TIMEOUT_MS): Promise<void> {
     await Promise.all([...this.entries.keys()].map((id) => this.killAndWait(id, timeoutMs)))
   }
 
-  /** `kill(id)`, resolving once the process has really exited (or after `timeoutMs` regardless) —
-   *  for a caller about to start another process on the same session (chat mode taking over). */
+  /** `kill(id)`, resolving once the process has really exited, or after `timeoutMs`. */
   killAndWait(id: string, timeoutMs = PTY_KILL_TIMEOUT_MS): Promise<void> {
     const child = this.entries.get(id)?.child
     if (!child) return Promise.resolve()

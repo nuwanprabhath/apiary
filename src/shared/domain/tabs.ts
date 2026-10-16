@@ -1,19 +1,14 @@
 import type { ActivityStatus } from '../activity'
 import type { PtyId } from './ids'
 
-/** What a tab shows: a session's conversation, or a terminal attached to its pty. Repeated as a
- *  literal union in several places before this (SHARED-3); this is the one definition. */
+/** What a tab shows: a session's conversation, or a terminal attached to its pty. */
 export type TabView = 'transcript' | 'terminal'
 
 /**
- * A session tab on its way from one window to another.
- *
- * The key alone is not enough to carry a *running* session across. A session started or forked
- * here runs under a `new:<uuid>` pty id that only the window which started it knows belongs to
- * the session, and its bottom shells hang off that same id — so a window handed the bare session
- * id finds no process behind it and shows the session as stopped, while the process runs on with
- * nothing showing it. Everything the receiving window needs to pick the same processes back up
- * travels here instead.
+ * A session tab on its way from one window to another. The key alone cannot carry a *running*
+ * session: one started or forked here runs under a `new:<uuid>` pty id that only the starting
+ * window knows belongs to it, as do its bottom shells, so a window handed the bare session id
+ * would show it as stopped while the process runs on. The pty id and shells travel here.
  */
 export interface TabTransfer {
   key: string
@@ -25,7 +20,6 @@ export interface TabTransfer {
   activeShell: string | null
 }
 
-/** A tab strip's shell tabs, the shape shared by `TabTransfer` and `PersistedTab`. */
 function isShellList(value: unknown): value is { id: string; name: string }[] {
   return Array.isArray(value) && value.every((s: unknown) => typeof s === 'object' && s !== null
     && typeof (s as Record<string, unknown>).id === 'string'
@@ -43,23 +37,20 @@ export function isTabTransfer(value: unknown): value is TabTransfer {
     && (v.activeShell === null || typeof v.activeShell === 'string')
 }
 
-/** One tab of a persisted window layout — same shape as `TabTransfer` minus `ptyId`, since a
- *  record written to disk and read back on the next launch has no live pty to point at. */
+/** `TabTransfer` minus `ptyId`: a record read back on the next launch has no live pty. */
 export type PersistedTab = Omit<TabTransfer, 'ptyId'>
 
 export interface PersistedPane {
   id: string
   tabs: PersistedTab[]
   activeTab: string | null
-  /** Folded down to its tab bar; absent when open (and in records written before folding). */
+  /** Folded down to its tab bar; absent when open. */
   collapsed?: boolean
 }
 
 /**
- * `preset` is kept as a plain string, not the renderer's `PresetId`: this file is imported by
- * both `main/` (no DOM lib) and the renderer, and `renderer/state/layout.ts` is renderer-only
- * state, not a shared pure helper — pulling it in here would drag renderer code into the main
- * tsconfig project the way `shared/promptPreview.ts`'s own comment warns against.
+ * `preset` is a plain string, not the renderer's `PresetId`: this file is imported by `main/` too,
+ * and `renderer/state/layout.ts` is renderer-only.
  */
 export interface PersistedLayout {
   preset: string
@@ -92,10 +83,8 @@ function isPersistedPane(value: unknown): value is PersistedPane {
 }
 
 /**
- * Whether something read out of a URL is a well-formed `WindowLayoutReport` — used by the
- * renderer to validate `?restore=`, the previous run's record for this window (main strips
- * `bounds`/`hasLayout` before sending it, since neither is a renderer concern — see
- * `createWindow` in `main/index.ts`), the same way `isTabTransfer` validates `?transfer=`.
+ * Whether something read out of a URL is a well-formed `WindowLayoutReport`: validates
+ * `?restore=` (main strips `bounds`/`hasLayout` first), as `isTabTransfer` validates `?transfer=`.
  */
 export function isWindowLayoutReport(value: unknown): value is WindowLayoutReport {
   if (typeof value !== 'object' || value === null) return false
@@ -123,13 +112,10 @@ export interface OpenTab {
   label: string | null
 }
 
-/** What `reportTabs` sends: an `OpenTab` before main knows which window it came from — that is
- *  filled in from the IPC event's sender, not supplied by the renderer. */
+/** What `reportTabs` sends; main fills `windowNumber` in from the IPC event's sender. */
 export type ReportedTab = Omit<OpenTab, 'windowNumber'>
 
-/** A tab open somewhere, with the activity `classifyActivity` derived for it, for the sidebar's
- *  Active section. Same identity as `OpenTab` plus its computed status, minus the pty id (the
- *  renderer never needs it — only main resolves activity from it). */
+/** An `OpenTab` with its computed status for the sidebar's Active section, minus the pty id (only main needs it). */
 export interface ActiveTabPayload {
   windowNumber: number
   key: string

@@ -2,6 +2,7 @@ import type { SessionId } from '@shared/domain/ids'
 import { sentPrompts } from '@shared/chatTimeline'
 import { type KeyboardEvent, useCallback, useRef } from 'react'
 import { loadTranscript } from '../../state/transcript'
+import { caretOnFirstLine, caretOnLastLine } from '../../ui/caretLine'
 import { logBackgroundFailure } from '../../ui/fireAndForget'
 
 /** How far into the session's history a message sent from this box is looked for before it is
@@ -49,13 +50,13 @@ export function useSentHistory(sessionId: SessionId, setText: (text: string) => 
     const box = e.currentTarget
     if (box.selectionStart !== box.selectionEnd) return false
     if (e.key === 'ArrowUp') {
-      // Only from the first line: further down, Up moves the caret through the message itself.
-      if (box.value.slice(0, box.selectionStart).includes('\n')) return false
+      // Only from the first visual line: further down, Up moves the caret through the message itself.
+      if (!caretOnFirstLine(box)) return false
       if (at.current === -1) start(box.value)
       else if (at.current < entries.current.length - 1) setText(entries.current[++at.current])
       return true
     }
-    if (at.current === -1 || box.value.slice(box.selectionEnd).includes('\n')) return false
+    if (at.current === -1 || !caretOnLastLine(box)) return false
     at.current -= 1
     setText(at.current === -1 ? draft.current : entries.current[at.current])
     return true

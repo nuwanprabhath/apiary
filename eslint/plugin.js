@@ -6,16 +6,12 @@ import { SANCTIONED } from './sanctioned.js'
 /**
  * The `apiary/*` ESLint rules: "there is one sanctioned way to do X here", one rule per X.
  *
- * Why a local plugin rather than `no-restricted-imports`/`no-restricted-syntax` blocks: those take
- * their allowlist from flat-config `files`/`ignores`, and a later block that sets the same rule for
- * the same files *replaces* the earlier options instead of merging them. Three allowlisted
- * restrictions in `src/main` would need a block per combination, and adding the fourth silently
- * dropped one of the others. Here every rule carries its own allowlist (globs relative to the repo
- * root) and its own name, so `eslint-suppressions.json` can baseline each one separately and a
- * new violation of one rule is never hidden by an old violation of another.
+ * A local plugin rather than `no-restricted-imports`/`no-restricted-syntax` blocks, because a later
+ * flat-config block that sets the same rule for the same files *replaces* the earlier options
+ * instead of merging them, silently dropping an allowlist. Here every rule carries its own
+ * allowlist (globs relative to the repo root) and name.
  *
- * The definitions live in `sanctioned.js` — that file is the table to read or extend. Each
- * message names the replacement, because an agent fixes what the error tells it to.
+ * The definitions live in `sanctioned.js`.
  */
 
 /** @param {string} filename @param {string} cwd */

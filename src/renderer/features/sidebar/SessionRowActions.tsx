@@ -27,7 +27,7 @@ export function SessionRowActions({
         data-has-note={hasNote}
         title={hasNote ? 'Edit this session’s note' : 'Add a note to this session'}
         aria-label={`${hasNote ? 'Edit' : 'Add'} note for session ${session.title}`}
-        // UI-27 step 1: row-action buttons are not Tab stops (with 500 sessions that would be
+        // Row-action buttons are not Tab stops (with 500 sessions that would be
         // 2000+ of them); the row's own context menu (Shift+F10 / the Menu key, wired at the
         // tree's root) offers the same actions.
         tabIndex={-1}

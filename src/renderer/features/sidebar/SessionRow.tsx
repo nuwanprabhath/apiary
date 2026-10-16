@@ -18,50 +18,36 @@ interface Props {
   onSplit: (session: SessionNode) => void
   onDelete: (session: SessionNode) => void
   onTogglePin: (session: SessionNode) => void
-  /** Opens the note editor for this session. */
   onEditNote: (session: SessionNode) => void
-  /** Right-click. The menu itself belongs to the sidebar, which is the only thing that can
-   *  position one over the whole pane rather than inside a clipped, scrolling row. */
+  /** Right-click. The menu belongs to the sidebar, the only thing that can position one over the
+   *  whole pane rather than inside a clipped, scrolling row. */
   onMenu?: (session: SessionNode, x: number, y: number) => void
   /**
    * The branch the session's folder is on *now*, from the scan — the same value the session bar
-   * shows. Distinct from `session.gitBranch`, which is the branch recorded in the JSONL at the
-   * time the session ran and can be months out of date.
+   * shows. Distinct from `session.gitBranch`, the branch recorded in the JSONL when it ran.
    */
   folderBranch?: string | null
-  /** Shown under the title instead of the row's usual folder-branch tooltip context — the flat
-   *  search list's way of saying which worktree a result lives in, since there is no folder header
-   *  above it to say so. */
+  /** Names the worktree a flat search result lives in, since there is no folder header above it. */
   subtitle?: string | null
   /**
-   * Offers a "dismiss" action in the row's own button strip — the Recent section's way of letting
-   * a session drop out of the list. Part of the strip rather than a button laid over the row: laid
-   * over it, a full-size control sat on top of the layout button, and the pointer crossing it on
-   * the way to the layout picker closed the picker.
+   * Offers a "dismiss" action in the row's own button strip (Recent). Part of the strip, not a
+   * button laid over the row: a full-size control on top of the layout button closed the layout
+   * picker when the pointer crossed it.
    */
   onDismiss?: (session: SessionNode) => void
   /**
-   * UI-27: this row as a WAI-ARIA treeitem. `treeTabIndex` is the roving-tabindex value the
-   * containing tree computed (0 for the tree's one Tab stop, -1 otherwise) — the row itself has no
-   * way to know that on its own, since it depends on what else is focused in the same tree.
-   * `treeLevel` is `aria-level`; both default to values that make sense for a row rendered outside
-   * any tree at all (a plain list item, level 1, not a Tab stop of its own — callers that do want
-   * one pass 0 explicitly).
+   * This row as a WAI-ARIA treeitem. `treeTabIndex` is the roving-tabindex value the containing
+   * tree computed (0 for its one Tab stop, -1 otherwise); `treeLevel` is `aria-level`. Defaults
+   * suit a row outside any tree: level 1, not a Tab stop.
    */
   treeTabIndex?: number
   treeLevel?: number
 }
 
 /**
- * One session in the sidebar — used both inside its folder in the tree and, unchanged, in the
- * pinned section above it, so a pinned session looks and behaves exactly like the row it was
- * pinned from.
- *
- * The age and the row's buttons deliberately occupy the *same* space at the right-hand end: the
- * age is what you want while scanning the list, the buttons only once you have settled on a row,
- * and swapping one for the other on hover means neither has to give up width to the other (see
- * `.session-row-wrap:hover .session-time` in styles.css). The buttons are siblings of the row
- * rather than children of it because a <button> cannot contain another interactive element.
+ * The age and the row's buttons deliberately occupy the same space at the right-hand end, swapped
+ * on hover, so neither gives up width (see `.session-row-wrap:hover .session-time` in styles.css).
+ * The buttons are siblings of the row because a <button> cannot contain another interactive element.
  */
 function SessionRowView({
   session, selected, pinned, onSelect, onSplit, onDelete, onTogglePin, onEditNote, onMenu,
@@ -75,8 +61,7 @@ function SessionRowView({
   const vsCodeAvailable = useVsCodeAvailable()
   const canOpenInVsCode = vsCodeAvailable && session.cwdExists
 
-  // Resolves `!<iid>` references named in the title and the note independently, so the hover
-  // card — a pure display component with no IPC calls of its own — is simply handed the answer.
+  // The hover card is pure display, so the `!<iid>` references are resolved here.
   const mrStatuses = useMrStatuses(session.sessionId, session.title)
   const noteMrStatuses = useMrStatuses(session.sessionId, session.note ?? '')
 
@@ -86,11 +71,8 @@ function SessionRowView({
       data-pinned={pinned}
       data-session-id={session.sessionId}
       role="treeitem"
-      // A stable name rather than the row's full visible text (title, relative age, "has a note"):
-      // without it, the row's accessible name changed under a test (or a screen reader) the moment
-      // a note was added or the age ticked over, and anything holding onto that name — including
-      // the component-test harness's own element-to-locator resolution for `userEvent.hover` —
-      // could no longer find the row it already had a reference to.
+      // A stable name rather than the visible text, which changes when a note is added or the age
+      // ticks over, so anything holding the old name could no longer find the row.
       aria-label={session.title}
       aria-selected={selected}
       aria-level={treeLevel}
@@ -99,11 +81,9 @@ function SessionRowView({
       data-own-context-menu={onMenu === undefined ? undefined : true}
       tabIndex={treeTabIndex}
       ref={wrapRef}
-      // A pinned row is already wrapped in its own draggable div (the pin-reorder gesture — see
-      // Sidebar.tsx); nesting a second draggable element inside it would make a native drag pick
-      // the innermost one and silently break reordering, since only one `dragstart` ever fires
-      // for a real mouse drag. The pinned section is never a valid move target anyway (it mirrors
-      // a folder row's session, it is not one), so the move gesture only makes sense here.
+      // A pinned row is already inside a draggable div (the pin-reorder gesture); a nested
+      // draggable would win the native drag and break reordering. The pinned section mirrors a
+      // folder row's session and is never a move target.
       draggable={!pinned}
       onDragStart={pinned ? undefined : (e) => {
         e.dataTransfer.effectAllowed = 'move'
@@ -112,22 +92,16 @@ function SessionRowView({
       onContextMenu={(e) => {
         if (onMenu === undefined) return
         e.preventDefault()
-        // The hover card would otherwise sit over the menu that was just asked for.
         hideNow()
         onMenu(session, e.clientX, e.clientY)
       }}
       onMouseEnter={arm}
       onMouseLeave={scheduleClose}
-      // UI-26: a keyboard user Tabbing through the row's own buttons (open, note, pin, split,
-      // delete) could never reach the card at all — it opened only on `mouseenter`. `onFocus`/
-      // `onBlur` on the wrap reuse the exact same arm/close timers a mouse hover does (React's
-      // synthetic focus events bubble like `focusin`/`focusout`, so this fires for focus landing on
-      // any button inside, not just the wrap itself), including the short grace period that lets
-      // Tab move from the row into the card's own buttons without it closing first.
+      // Keyboard users reach the card through focus, with the hover timers. React's focus events
+      // bubble like `focusin`, so focus on any inner button counts, and the grace period lets Tab
+      // move into the card's own buttons.
       onFocus={arm}
       onBlur={scheduleClose}
-      // Any click hides it: the card is for deciding which row you want, and it has no business
-      // sitting over the session you just opened.
       onMouseDown={hideNow}
     >
       {cardAnchor !== null && (
@@ -136,13 +110,8 @@ function SessionRowView({
           title={session.title}
           path={session.cwd}
           branch={folderBranch ?? session.gitBranch}
-          /*
-           * Only when it differs from where the folder is now. Reported as a contradiction: the
-           * card said `dev/1.0.12` while the bar under the session said `dev/1.0.11`, both
-           * labelled "Branch". They were two different facts — the branch the session was recorded
-           * on, and the branch its worktree is checked out to today — so the card now leads with
-           * the live one and names the other for what it is.
-           */
+          /* Only when it differs from where the folder is now: two "Branch" labels with different
+           * values read as a contradiction, so the card leads with the live one. */
           recordedBranch={
             folderBranch !== undefined && folderBranch !== null
             && session.gitBranch !== null && session.gitBranch !== folderBranch
@@ -166,9 +135,8 @@ function SessionRowView({
         data-testid="session-item"
         data-selected={selected}
         data-live={session.isLive}
-        // UI-27: the row itself is a WAI-ARIA treeitem (the wrap, above) with its own roving
-        // tabindex; this inner button stays clickable but is not a Tab stop of its own, or Tab
-        // would reach every row a second time on top of the tree's own Up/Down navigation.
+        // The wrap is the treeitem with the roving tabindex; a Tab stop here too would reach
+        // every row twice.
         tabIndex={-1}
         onClick={() => onSelect(session)}
       >
@@ -178,8 +146,6 @@ function SessionRowView({
         </span>
         {subtitle !== null && subtitle !== undefined && <span className="session-subtitle" data-testid="session-subtitle">{subtitle}</span>}
         {hasNote && (
-          // Marked in the row itself, not only in the actions: which sessions you have annotated
-          // is worth knowing while scanning the list, and the actions only appear on hover.
           <span className="session-note-mark" data-testid="session-note-mark" aria-label="has a note">
             <NoteIcon filled />
           </span>
@@ -213,7 +179,7 @@ function SessionRowView({
 }
 
 /**
- * Memoized (UI-4): a sidebar render caused by something the row does not show — an activity
+ * Memoized: a sidebar render caused by something the row does not show — an activity
  * broadcast changing `activeTabs`, a search keystroke settling — hands every row the same props
  * (callbacks come from `Sidebar`'s `rowActions`, which only changes when one of them does), so
  * only a row whose own session, selection or tab stop changed re-renders.

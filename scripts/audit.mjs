@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// `npm audit --audit-level=low` over every dependency, dev included (SEC-1: `--omit=dev` hid
+// `npm audit --audit-level=low` over every dependency, dev included (`--omit=dev` hides
 // Electron's own CVEs), except advisories named below.
 //
 // An advisory goes here only when no fixed version exists and it cannot reach us. Each entry has a

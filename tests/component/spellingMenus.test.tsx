@@ -16,6 +16,7 @@ function request(over: Partial<ContextMenuRequest> = {}): ContextMenuRequest {
     misspelledWord: '',
     dictionarySuggestions: [],
     editFlags: ALL_EDITS,
+    mediaType: 'none',
     ...over,
   }
 }

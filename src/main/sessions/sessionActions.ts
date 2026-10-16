@@ -1,7 +1,7 @@
 /*
- * SessionActions (MAIN-14 step 6): the per-session mutations - rename, note, remove, move. Owns no
+ * SessionActions: the per-session mutations - rename, note, remove, move. Owns no
  * state. Liveness is read from SessionCatalog (`isLive`, the last scan) plus the pty manager (this
- * process's own ptys), exactly as `moveSession` did before the split; every id goes through
+ * process's own ptys); every id goes through
  * SessionResolver.requireSession first.
  */
 import { existsSync } from 'node:fs'
@@ -30,11 +30,8 @@ export class SessionActions {
   constructor(private readonly deps: SessionActionsDeps) {}
 
   /**
-   * Saves the user's note for a session, and keeps the index in step with it.
-   *
-   * The index write happens here rather than being left to the next background pass: a note is
-   * written so it can be found again, and a note that is not searchable until some later rescan
-   * is a note that appears not to work.
+   * Saves the user's note for a session, and writes it to the index here rather than leaving it to
+   * the next background pass, so it is searchable at once.
    */
   async setSessionNote(sessionId: string, note: string): Promise<void> {
     this.deps.resolver.requireSession(sessionId)
@@ -44,10 +41,8 @@ export class SessionActions {
   }
 
   /**
-   * The note for one session, for the editor to open with what is already there.
-   *
-   * `getSession` is an indexed lookup by primary key; `allSessions().find(...)` (MAIN-10) mapped
-   * and scanned every row in the store to find one.
+   * The note for one session. `getSession` is an indexed lookup by primary key; `allSessions().find(...)`
+   * would map and scan every row in the store.
    */
   sessionNote(sessionId: string): string {
     return this.deps.store.getSession(sessionId)?.note ?? ''
@@ -55,8 +50,7 @@ export class SessionActions {
 
   /**
    * Sets (or, given an empty/whitespace-only string, clears) a session's user-facing title.
-   * Validated the same way every other id-carrying call is: the session must already be one this
-   * store knows about, never trusted purely because the renderer sent an id that looks right.
+   * The session must already be one this store knows about.
    */
   async renameSession(sessionId: string, title: string): Promise<void> {
     this.deps.resolver.requireSession(sessionId)
@@ -85,23 +79,18 @@ export class SessionActions {
    */
   async moveSession(sessionId: string, targetProjectPath: string): Promise<void> {
     const session = this.deps.resolver.requireSession(sessionId)
-    // Both sources of liveness, because neither one alone is current. `this.live` is the external
-    // process scan, refreshed only by `refresh()` — so a session the user resumed *here* a moment
-    // ago is not in it until the next rescan. `this.deps.pty.has()` is this process's own ptys, which
-    // is what `resume()` and `openShell()` already trust, and it knows immediately. With only the
-    // stale half, clicking Resume and then dragging that session onto another worktree passed the
-    // guard and renamed the JSONL out from under a running Claude Code, which simply recreated the
-    // file at the old path — the history then split in two, with the store pointing at the copy
-    // that stopped being written to.
+    // Both sources, because neither alone is current: the catalog's external process scan lags
+    // behind a session resumed *here* a moment ago, while `pty.has()` knows at once. Moving the
+    // JSONL out from under a running Claude Code makes it recreate the file at the old path,
+    // splitting the history.
     if (this.deps.pty.has(sessionId) || this.deps.catalog.isLive(sessionId)) {
       throw new Error('This session is still running — stop it before moving it to another worktree.')
     }
     if (!existsSync(session.filePath)) {
       throw new Error(`This session's transcript file is no longer on disk: ${session.filePath}`)
     }
-    // The renderer only ever hands back a path it was shown in the tree (a project row's own
-    // path), but it is still checked against a row this store already holds before it is used to
-    // touch the filesystem — the same rule newSessionInProject follows for the same reason.
+    // The renderer's path is checked against a row this store already holds before it touches the
+    // filesystem (as `newSessionInProject` does).
     const known = this.deps.store.getProject(targetProjectPath)
     if (!known) throw new Error(`Unknown project: ${targetProjectPath}`)
     const target = await this.deps.worktrees.resolveProject(known.path)

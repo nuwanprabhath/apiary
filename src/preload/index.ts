@@ -9,18 +9,12 @@ function subscribe(channel: string, cb: (...args: unknown[]) => void): () => voi
 }
 
 /**
- * The bridge, built from `shared/ipc/contract.ts` instead of one hand-written line per channel
- * (MAIN-11): a channel added to the contract appears here automatically, and one left out of the
- * contract cannot appear here at all — the two can no longer drift apart the way the three
- * hand-maintained copies (this file, `shared/api.ts`, `main/ipc.ts`) used to.
- *
- * `initialTheme` stays the one hand-written entry: it is read synchronously once, at import time,
- * so the window's first paint is already themed (see `ApiaryApi.initialTheme`'s doc comment) —
- * every other entry is a function the renderer calls or subscribes to later.
+ * The bridge, built from `shared/ipc/contract.ts`: a channel added to the contract appears here
+ * automatically. `initialTheme` is the one hand-written entry, read synchronously at import time
+ * so the window's first paint is already themed.
  */
 const api: Record<string, unknown> = {
-  // Synchronous on purpose, and once: an async answer would arrive after React had painted the
-  // original look.
+  // Synchronous: an async answer would arrive after React had painted the original look.
   initialTheme: ipcRenderer.sendSync(IPC.themeInitial.channel) as ThemeState,
 }
 
@@ -40,13 +34,10 @@ for (const [key, spec] of Object.entries(IPC)) {
       return impl(...a)
     }
   }
-  // 'sync' (themeInitial) is handled once, above — every other kind of entry is covered.
 }
 
-// The cast is the one place this file is not statically checked against `ApiaryApi` — the loop
-// above builds it from `IPC`'s keys, which TypeScript cannot follow value-by-value. What *is*
-// checked: `tests/component/fakeApiary.ts` is typed as `ApiaryApi` (a channel this file forgot
-// would be a type error there, not a silent gap), and every main-side handler is checked against
-// the same contract by `main/ipc/registrar.ts`'s `Handlers`/`Listeners` types.
+// The cast is the one place this file is not checked against `ApiaryApi`: TypeScript cannot follow
+// the loop value-by-value. `tests/component/fakeApiary.ts` is typed as `ApiaryApi`, and main-side
+// handlers are checked against the same contract by `main/ipc/registrar.ts`.
 const typedApi: ApiaryApi = api as ApiaryApi
 contextBridge.exposeInMainWorld('apiary', typedApi)

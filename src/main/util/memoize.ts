@@ -1,6 +1,6 @@
 /**
  * Wraps a single-argument synchronous function so repeated calls with the same argument only run
- * it once. Built for `AppService.tree()` (MAIN-10): `buildTree` asks `cwdExists` once per
+ * it once. Built for `AppService.tree()`: `buildTree` asks `cwdExists` once per
  * *session*, not once per distinct cwd, so a folder with several sessions turned into that many
  * synchronous `existsSync` calls on every `tree()` — which every window calls on every
  * `treeChanged` broadcast (after every watcher pass, every index update). A fresh memo per `tree()`

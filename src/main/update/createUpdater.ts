@@ -7,26 +7,22 @@ import { IPC } from '@shared/api'
 import { broadcast } from '../windows/broadcast'
 import type { SettingsService } from '../settings/settingsService'
 
-/**
- * Builds the updater, or returns null where there is nothing it could do (MAIN-15 step 2 — pure
- * move out of `index.ts`).
- *
- * `macSigned` is whether `codesign` found a Developer ID authority on the running bundle
- * (`macSignature.ts`, asked once by `index.ts` at startup, asynchronously): an ad-hoc signature
- * (what an unsigned build gets) has none, and Squirrel will refuse to replace such a bundle — see
- * `capability.ts`. Asking at startup rather than at check time keeps the answer out of the path
- * the user is waiting on.
- */
 /** The two test hooks (`APIARY_FAKE_UPDATE*`, parsed in `app/env.ts`) the updater reads. */
 interface UpdaterEnv {
   fakeUpdate: string | undefined
   fakeUpdateMode: string | undefined
 }
 
+/**
+ * Builds the updater, or returns null where there is nothing it could do.
+ *
+ * `macSigned` is whether `codesign` found a Developer ID authority on the running bundle
+ * (`macSignature.ts`, asked once by `index.ts` at startup): an ad-hoc signature has none, and
+ * Squirrel will refuse to replace such a bundle (`capability.ts`).
+ */
 export function createUpdater(settings: SettingsService, env: UpdaterEnv, macSigned: boolean): UpdateService | null {
   const repo = 'nuwanprabhath/apiary'
-  // Test-only: pretend a release exists, so the banner and the Settings panel can be driven
-  // end-to-end. Nothing here reaches the network or the disk. Same shape as APIARY_FAKE_LIVE.
+  // Test-only: pretend a release exists. Nothing here reaches the network or the disk.
   const fake = env.fakeUpdate
   const faking = fake !== undefined && fake !== ''
 

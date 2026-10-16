@@ -23,10 +23,8 @@ export interface OverflowToolbarItem {
   testId: string
   disabled?: boolean
   active?: boolean
-  /** Sets `aria-expanded`, for an item that opens or closes something. */
   expanded?: boolean
   tone?: 'normal' | 'suggest' | 'problem'
-  /** Set when something opens from this button and needs its box to position against. */
   buttonRef?: RefObject<HTMLButtonElement | null>
   /** Lower numbers are more important and stay visible longer; higher numbers overflow first. */
   priority?: number
@@ -39,7 +37,6 @@ export interface OverflowToolbarItem {
 
 interface Props {
   items: OverflowToolbarItem[]
-  /** Names the row (`role="toolbar"`). */
   label?: string
   /** The » button, for a caller that opens something from it when its own button is in the menu. */
   moreRef?: RefObject<HTMLButtonElement | null>
@@ -48,15 +45,12 @@ interface Props {
 const DEFAULT_PRIORITY = 100
 
 /**
- * A toolbar that moves items that do not fit, whole, into a "More actions" (») menu: a popup
- * rendered on the viewport (a portal), under the » button with its right edge on the button's, or
- * above it when there is no room below. Items keep their array order on screen; `priority` only
- * decides who goes first (higher numbers overflow first). A `pinned` item never moves: its label
- * gives way instead (see `labelMode`).
+ * A toolbar that moves items that do not fit, whole, into a "More actions" (») menu. Items keep
+ * their array order; `priority` only decides who overflows first. A `pinned` item never moves: its
+ * label gives way instead (see `labelMode`).
  *
- * Widths come from a hidden copy of every item, so an item that is in the menu can still be
- * measured and comes back when the room does. A ResizeObserver on the row and on that copy
- * re-runs the fit. The row is one line tall whatever is in the menu.
+ * Widths come from a hidden copy of every item, so an item in the menu can still be measured and
+ * comes back when the room does.
  */
 export function OverflowToolbar({ items, label = 'Actions', moreRef }: Props): JSX.Element {
   const rowRef = useRef<HTMLDivElement>(null)
@@ -108,7 +102,6 @@ export function OverflowToolbar({ items, label = 'Actions', moreRef }: Props): J
   const firstEnd = visibleItems.find((i) => i.end)?.id
   const menuOpen = open && overflowItems.length > 0
 
-  // Placed against the » button once the menu has a size; the menu is hidden until then.
   useLayoutEffect(() => {
     if (!menuOpen) { setPosition(null); return }
     const anchor = ownMoreRef.current
@@ -159,11 +152,7 @@ export function OverflowToolbar({ items, label = 'Actions', moreRef }: Props): J
   )
 }
 
-/**
- * How much label to give up so the kept items fit: 0 none, 1 the shrinking label (the branch name)
- * is hidden, 2 the collapsing label (the word "Shell") too. Computed from the measured copy in the
- * same pass as the fit, so the row never has a frame with something cut off.
- */
+/** How much label to give up: 0 none, 1 the shrinking label is hidden, 2 the collapsing one too. */
 function chooseCompact(
   items: OverflowToolbarItem[],
   keep: ReadonlySet<string>,
@@ -178,7 +167,7 @@ function chooseCompact(
   return total - shrinking <= m.available ? 1 : 2
 }
 
-/** The popup: on the viewport, hidden until `position` says where (it needs its own size first). */
+/** Hidden until `position` says where (it needs its own size first). */
 function OverflowMenu({ menuRef, position, items, onClose }: {
   menuRef: RefObject<HTMLElement | null>
   position: { left: number; top: number } | null

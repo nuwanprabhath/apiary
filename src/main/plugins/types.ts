@@ -1,10 +1,8 @@
 /**
  * Session bar plugins.
  *
- * The bar under a session (shell toggle, branch, pull/push) is where things that are *about the
- * checkout in front of you* belong. A merge-request button is the first of those that Apiary
- * itself has no business knowing about — it is GitLab's idea, not Apiary's — and it will not be
- * the last. So the bar takes contributions instead of growing another hardcoded button.
+ * The bar under a session (shell toggle, branch, pull/push) takes contributions from plugins
+ * instead of growing a hardcoded button for each provider.
  *
  * The shape of a plugin is deliberately narrow:
  *
@@ -22,9 +20,8 @@
 
 import type { PluginSettingField, PluginSettingValues, PluginBarItem } from '@shared/domain/plugins'
 
-// Canonical definitions moved to shared/domain/plugins.ts (MAIN-22 / SHARED-2): the renderer draws
-// these same shapes, so mirroring them here risked drifting apart. Re-exported so existing
-// `from './types'` imports in this directory are unaffected.
+// Canonical definitions live in shared/domain/plugins.ts: the renderer draws these same shapes.
+// Re-exported for `from './types'` imports in this directory.
 export type {
   PluginSettingField, PluginSettingValues, PluginBarItem,
 } from '@shared/domain/plugins'
@@ -57,7 +54,7 @@ export interface PluginTarget {
 /** What a plugin is told about the session whose bar it is contributing to. */
 export interface PluginContext extends PluginTarget {
   /**
-   * The folder's `origin` remote URL, or null when there is none (MAIN-17). Asked of the context
+   * The folder's `origin` remote URL, or null when there is none. Asked of the context
    * rather than shelled out for by each plugin, so two plugins evaluating one folder spawn
    * `git remote get-url` once: the registry memoises it for the length of one evaluation.
    */
@@ -70,9 +67,8 @@ export interface SessionBarPlugin {
   name: string
   /** A sentence under the name saying what the plugin does. */
   description?: string
-  /** Whether a plugin nobody has configured starts on. Read once, at registration (MAIN-17) —
-   *  `BuiltinPluginConfig.enabled` still wins when the user has actually set it. Defaults to `true`
-   *  so an existing plugin that does not set this keeps behaving as it always did. */
+  /** Whether a plugin nobody has configured starts on. Read once, at registration —
+   *  `BuiltinPluginConfig.enabled` still wins when the user has actually set it. Defaults to `true`. */
   defaultEnabled?: boolean
   /** The settings this plugin declares; Settings draws them, and they come back to `evaluate`. */
   settings?: PluginSettingField[]
@@ -82,13 +78,13 @@ export interface SessionBarPlugin {
    * May be slow (this one shells out to `glab`, which goes to the network), so the registry caches
    * and never blocks the bar on it. Throwing is allowed and contained: see the registry.
    *
-   * Returns everything but `pluginId` (MAIN-17): the registry stamps that itself from `id` above,
-   * so an item can no longer disagree with the plugin that produced it.
+   * Returns everything but `pluginId`: the registry stamps that itself from `id` above, so an item
+   * cannot disagree with the plugin that produced it.
    */
   evaluate(
     ctx: PluginContext, settings: PluginSettingValues,
   ): Promise<Omit<PluginBarItem, 'pluginId'> | null>
   /** Released when the app quits, or the plugin is otherwise torn down — for a plugin that ever
-   *  holds a timer, a socket or a subscription of its own. None of the current plugins need one. */
+   *  holds a timer, a socket or a subscription of its own. */
   dispose?(): void
 }

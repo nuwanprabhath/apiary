@@ -7,14 +7,11 @@
  * - `files`: where the rule applies (globs from the repo root).
  * - `allow`: the sanctioned homes — the only files that may do the thing directly. Changing this
  *   list is a design decision, visible in review; it is not how to make an error go away.
- * - Code that broke a rule before the rule existed is baselined in `eslint-suppressions.json`,
- *   which may only shrink: fixing a site makes `eslint` fail until `npm run lint:prune` removes its
- *   entry. A new violation fails at once.
  * - `message` is what the agent reads when the rule fires: say what to use instead and where it
  *   lives, then why, in that order.
  *
- * To add a rule: one entry here, then `npm run lint:baseline` once to record today's violations,
- * and prove it fires on a real past mistake (see `.claude/skills/correct/SKILL.md`).
+ * To add a rule: one entry here, and prove it fires on a real past mistake (see
+ * `.claude/skills/correct/SKILL.md`).
  *
  * @typedef {{ name: string, description: string, message: string, files: readonly string[], allow?: readonly string[] }} Base
  * @typedef {Base & { kind: 'syntax', selectors: readonly string[] }} SyntaxRule
@@ -195,7 +192,7 @@ export const SANCTIONED = [
       'src/renderer/state/createIpcStore.ts',
       'src/renderer/state/createLocalStore.ts',
       // Special stores with a documented shape of their own: the theme snapshot read before first
-      // paint (bridgeBinding.ts), and the workspace reducer's selector store (A5).
+      // paint (bridgeBinding.ts), and the workspace reducer's selector store.
       'src/renderer/state/themeStore.ts',
       'src/renderer/features/workspace/useWorkspaceSelector.ts',
     ],
@@ -420,7 +417,7 @@ export const SANCTIONED = [
     files: SRC,
     selectors: [
       "TSAsExpression > TSAsExpression[typeAnnotation.type='TSUnknownKeyword']",
-      // `as never` fits anywhere: a 1.35.0 agent used it to widen the preload bridge's type.
+      // `as never` fits anywhere, so it can widen any type, such as the preload bridge's.
       "TSAsExpression[typeAnnotation.type='TSNeverKeyword']",
     ],
     description: 'No `x as unknown as T` and no `x as never`.',

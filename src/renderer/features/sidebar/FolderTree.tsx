@@ -8,8 +8,8 @@ import type { GroupActions } from './useGroupActions'
 import type { useMainTreeNav } from './useMainTreeNav'
 
 /**
- * The whole folder/session/group hierarchy as one WAI-ARIA tree (UI-27 steps 1-2 — see
- * `useMainTreeNav`): the user's groups first, then every folder not filed in one.
+ * The whole folder/session/group hierarchy as one WAI-ARIA tree (see `useMainTreeNav`): the
+ * user's groups first, then every folder not filed in one.
  */
 export function FolderTree({
   mainTree, arranged, groupState, groups, collapsed, onCollapsedChange, treeProps, setMenu, onNewSessionInPickedFolder,

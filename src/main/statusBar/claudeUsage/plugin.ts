@@ -147,7 +147,6 @@ function mainOnlyAccounts(configRoot: string): UsageAccounts {
   }
 }
 
-/** One item per account, then the shared refresh item. */
 function accountItems(
   accountStates: AccountState[],
   o: { several: boolean; stats: TokenStats | undefined; nowMs: number; thresholds: Thresholds; busy: boolean },
@@ -233,7 +232,6 @@ export function createClaudeUsagePlugin(deps: ClaudeUsageDeps): StatusBarPlugin 
   /** Main always; an added account once it is signed in (its `.claude.json` names an email). */
   const polled = (): AccountInfo[] => accounts.list().accounts.filter((a) => a.isMain || a.email !== null)
 
-  /** Adds state (and a first poll) for an account that appeared, drops it for one that went. */
   const syncAccounts = (): void => {
     const wanted = polled()
     for (const [id, acc] of states) {

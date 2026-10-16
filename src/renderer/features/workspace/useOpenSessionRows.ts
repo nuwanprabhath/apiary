@@ -18,26 +18,18 @@ export function useOpenSessionRows(): void {
   )
 
   /**
-   * Keeps the rows behind the open tabs current. Titles change (Claude writes one asynchronously,
-   * and the user can rename), and a session goes live or stops being live — a tab holding a frozen
-   * copy from the moment it was opened would show stale text and a stale resume state.
+   * Keeps the rows behind the open tabs current: titles change (Claude writes one asynchronously)
+   * and a session goes live or stops, so a frozen copy would show stale text and resume state.
    */
   useEffect(() => treeStore.onChanged(() => {
-    // Background (UI-23): re-run on every `treeChanged`, so a failed read here just leaves the
-    // open tabs' rows one refresh stale — the next tree change gives it another chance.
+    // Re-run on every `treeChanged`, so a failed read just leaves the rows one refresh stale.
     background(treeStore.current().then((nodes) => {
-      // One flatten instead of one `findSessionById` walk per open tab (UI-3).
+      // One flatten instead of one `findSessionById` walk per open tab.
       dispatch({ type: 'openSessions/refresh', known: flattenTree(nodes) })
     }), 'refresh')
   }), [dispatch])
 
-  /**
-   * Fills in the SessionNode behind any tab this window has not looked up yet.
-   *
-   * A tab normally arrives through `openSessionTab`, which brings its node with it — but a tab
-   * dropped in from *another window* arrives as a bare key, and without this the column would have
-   * a tab with no session behind it: no title on the strip, and a blank header over a blank pane.
-   */
+  /** Fills in the SessionNode behind a tab dropped in from another window, which arrives as a bare key. */
   useEffect(() => {
     const keys = openKeysSignature === '' ? [] : openKeysSignature.split(' ')
     const unknown = keys.filter((k) => !pending.has(k) && !openSessions.has(k))

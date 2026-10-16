@@ -1,14 +1,9 @@
 /**
  * Which window a tab was dropped on, given where the pointer was released.
  *
- * Moving a tab between windows cannot use drag-and-drop data, because there is none to use: an
- * HTML5 drag started in one `BrowserWindow` delivers no `dragover` or `drop` to another, so the
- * receiving window never hears about the gesture at all. What *does* survive is `dragend` in the
- * window the drag started in, carrying the screen coordinates of the release — so the drop target
- * is worked out from geometry in the main process instead of from an event that never arrives.
- *
- * Kept pure and free of Electron so the rule can be tested: the ambiguity below is the whole
- * reason it is worth testing.
+ * An HTML5 drag started in one `BrowserWindow` delivers no `dragover` or `drop` to another, so the
+ * receiving window never hears about it. What survives is `dragend` in the source window, carrying
+ * the screen coordinates of the release; the drop target is worked out from geometry in main.
  */
 
 export interface WindowRect {

@@ -8,8 +8,7 @@ import type { CHANNEL_SCOPES } from '../remote/scopes'
 import { isTrustedSender, type SenderPolicy } from './ipcSenderGuard'
 
 /**
- * The main-side registrar (MAIN-11, MAIN-13, MAIN-19 item 4): the one place every `invoke` and
- * `send` channel is wired up, instead of `ipc.ts`'s repeated `ipcMain.handle`/`ipcMain.on` calls.
+ * The main-side registrar: the one place every `invoke` and `send` channel is wired up.
  *
  * `Handlers`/`Listeners` are keyed by the contract's `InvokeKey`/`SendKey`, so a domain module
  * that forgets a channel — or a channel added to the contract with no handler anywhere — is a
@@ -39,12 +38,9 @@ export interface Dispatcher {
  * one (`RemoteServer`) alike:
  *
  * - **Argument-guarded**: the contract's own `Guard` runs before the handler does, so a malformed
- *   call from a stale or compromised renderer (a `reportTabs` that is not an array of tabs, a
- *   `settingsSet` that is not an object) is rejected here instead of throwing a `TypeError` deep
- *   inside a handler — which, for a `send` channel with nothing to catch it, used to be an
- *   uncaught exception that took the whole main process down (MAIN-19).
- * - **Logged**: a slow `invoke` (>2s) and any handler or listener that throws are logged, the
- *   instrumentation the "Open installer" bug needed and did not have.
+ *   call from a stale or compromised renderer is rejected here instead of throwing a `TypeError`
+ *   inside a handler, which for a `send` channel would be an uncaught exception in main.
+ * - **Logged**: a slow `invoke` (>2s) and any handler or listener that throws.
  *
  * Who may call is not decided here: `registerAll` checks the sender frame, the remote server checks
  * the channel's scope.
@@ -63,12 +59,10 @@ export function createDispatcher(handlers: Partial<Handlers>, listeners: Partial
         if (fn === undefined) throw new Error('No handler registered.')
         const result = await fn(event, ...raw)
         const ms = Date.now() - started
-        // Only the slow ones: logging every call would bury the interesting lines in traffic.
         if (ms > 2000) log.warn('ipc', 'slow handler', { channel: spec.channel, ms })
         return result
       } catch (error) {
-        // `warn`, not `error`: a rejecting handler is usually an *expected* failure on its way to
-        // being shown to the user — see the renderer's uncaught-error net for what `error` means.
+        // `warn`, not `error`: a rejecting handler is usually an expected failure on its way to the user.
         log.warn('ipc', 'handler failed', { channel: spec.channel, ms: Date.now() - started, error })
         throw error
       }
@@ -83,22 +77,13 @@ export function createDispatcher(handlers: Partial<Handlers>, listeners: Partial
         const fn = listeners[key] as ((e: unknown, ...a: unknown[]) => void) | undefined
         fn?.(event, ...raw)
       } catch (error) {
-        // `ipcMain.on` has no return value for anything to await, so before this wrapper existed
-        // a listener that threw (a malformed `reportTabs` doing `tabs.map`) was an uncaught
-        // exception in the main process — see `index.ts`'s "took the whole main process down"
-        // note and MAIN-19.
+        // `ipcMain.on` has nothing to await, so a throw would be an uncaught exception in main.
         log.warn('ipc', 'listener failed', { channel: spec.channel, error })
       }
     },
   }
 }
 
-/**
- * Registers every handler and listener of `dispatcher` on `ipcMain`, **sender-checked** (SEC-8):
- * rejects anything not from Apiary's own renderer page.
- *
- * Returns a disposer that removes every channel this call registered.
- */
 /** What `registerAll` asks before a bound window's call reaches the local dispatcher (`remote/remoteWindows.ts`). */
 export interface CallRouter {
   /** `undefined`: handle it at home. Otherwise the call's outcome. */
@@ -107,6 +92,12 @@ export interface CallRouter {
   routeSend(senderId: number, key: SendKey, raw: unknown[]): boolean
 }
 
+/**
+ * Registers every handler and listener of `dispatcher` on `ipcMain`, **sender-checked**:
+ * rejects anything not from Apiary's own renderer page.
+ *
+ * Returns a disposer that removes every channel this call registered.
+ */
 export function registerAll(
   handlers: Handlers,
   listeners: Listeners,

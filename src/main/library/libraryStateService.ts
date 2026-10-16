@@ -51,7 +51,7 @@ export class LibraryStateService {
     return { state, seeded }
   }
 
-  /** Applies a validated patch (the contract's guard ran), persists it and tells every window. */
+  /** The contract's guard has already validated `patch`; persists it and tells every window. */
   set(patch: LibraryPatch): LibrarySnapshot {
     return this.apply(patch)
   }

@@ -2,13 +2,8 @@ import type { Terminal } from '@xterm/xterm'
 import type { PtyId } from '@shared/domain/ids'
 import { logLine } from '../../state/log'
 
-/**
- * How long after output arrives xterm may take to parse it and draw, before the view counts as
- * stuck and is rebuilt (what closing and reopening the tab did by hand). Generous: a busy terminal
- * parses in time slices, and drawing waits for the next frame.
- */
+/** Generous: a busy terminal parses in time slices, and drawing waits for the next frame. */
 const STALL_MS = 4000
-/** A view rebuilt this many times in a minute stops trying, rather than rebuilding forever. */
 const MAX_REBUILDS_PER_MINUTE = 3
 
 /** On screen and in front: the only state in which "nothing was drawn" means something is wrong.
@@ -20,8 +15,7 @@ function inView(el: HTMLElement | null): boolean {
   return r.width > 0 && r.height > 0
 }
 
-/** Rebuilds the view (`bump`) unless it already did so too often in the last minute. `history`
- *  holds the times of recent rebuilds and outlives the xterm it guards. */
+/** `history` holds the times of recent rebuilds and outlives the xterm it guards. */
 export function requestRebuild(history: number[], ptyId: PtyId, why: Record<string, unknown>, bump: () => void): void {
   const now = Date.now()
   const recent = history.filter((t) => now - t < 60_000)
@@ -36,19 +30,14 @@ export function requestRebuild(history: number[], ptyId: PtyId, why: Record<stri
 }
 
 export interface StallWatchdog {
-  /** Output arrived (shown or queued); remembered so a check that ends healthy knows whether
-   *  output that came in after its probe still needs checking. */
+  /** Output arrived (shown or queued), so a healthy check knows if later output needs checking. */
   noteData: () => void
-  /** Output was shown: check, at most once per `STALL_MS`, that xterm parses and draws it. */
+  /** At most once per `STALL_MS`. */
   check: () => void
   dispose: () => void
 }
 
-/**
- * The stall watchdog. After output arrives, checks that xterm both parsed it and drew afterwards;
- * if either never happens while the terminal is on screen and in front, `rebuild` is called — the
- * view then becomes a fresh xterm caught up from a fresh snapshot.
- */
+/** If xterm never parses or never draws output while the terminal is in view, `rebuild` is called. */
 export function createStallWatchdog(
   term: Terminal,
   host: () => HTMLElement | null,
@@ -71,8 +60,7 @@ export function createStallWatchdog(
       if (disposed) return
       if (!inView(host())) { again(); return }
       if (!parsed) { rebuild({ parsed }); return }
-      // Parsed: now ask for a full redraw and see whether one happens. A renderer that has
-      // paused itself (xterm pauses while it believes it is off screen) never draws again.
+      // xterm pauses its renderer while it believes it is off screen, and then never draws again.
       const askedAt = performance.now()
       term.refresh(0, term.rows - 1)
       watch = window.setTimeout(() => {

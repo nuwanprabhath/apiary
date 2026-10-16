@@ -2,9 +2,7 @@ import type { PtyId } from '@shared/domain/ids'
 import type { JSX } from 'react'
 import { CloseIcon } from '../../ui/icons'
 
-/** A new-session pty still awaiting its first JSONL. Listed so a pending session other than the
- *  one currently shown can still be reached and switched back to, rather than being silently
- *  unreachable while it resolves in the background. */
+/** A new-session pty still awaiting its first JSONL, listed so it stays reachable while it resolves. */
 export interface PendingSessionSummary {
   ptyId: PtyId
   label: string
@@ -12,16 +10,14 @@ export interface PendingSessionSummary {
 }
 
 /**
- * Claude sessions started here that Claude has not named yet: it writes a session — and its title —
+ * Claude sessions started here that Claude has not named yet: it writes a session and its title
  * only once there is a first message, so until then all there is to show is the folder. Only the
- * ones with no tab in any window are listed (an open one is in Active); they used to sit here
- * unlabelled, which read as mystery rows.
+ * ones with no tab in any window are listed (an open one is in Active).
  */
 export function PendingSection({ pending, onSelect, onStop }: {
   pending: PendingSessionSummary[]
-  /** Switches the main pane to a pending session's terminal. */
   onSelect: (ptyId: PtyId) => void
-  /** Ends a pending session's Claude — the row's stop button. */
+  /** The row's stop button. */
   onStop?: (ptyId: PtyId) => void
 }): JSX.Element {
   return (

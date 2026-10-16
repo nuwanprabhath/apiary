@@ -2,8 +2,8 @@
  * Version arithmetic for the updater, kept pure and away from Electron so the rules that decide
  * whether to bother the user are testable without packaging an app.
  *
- * Apiary's tags are plain semver (`v1.8.2`), with the occasional pre-release suffix
- * (`v1.9.0-beta.1`). Nothing here needs the full semver range grammar — only "is this one newer
+ * Apiary's tags are plain semver (`vX.Y.Z`), with the occasional pre-release suffix
+ * (`vX.Y.Z-beta.1`). Nothing here needs the full semver range grammar — only "is this one newer
  * than that one", which is small enough to own outright rather than take a dependency for.
  */
 
@@ -15,7 +15,7 @@ export interface Version {
   prerelease: (string | number)[]
 }
 
-/** Parses `1.9.0`, `v1.9.0` or `1.9.0-beta.2`. Returns null for anything that isn't one. */
+/** Parses `X.Y.Z`, `vX.Y.Z` or `X.Y.Z-beta.2`. Returns null for anything that isn't one. */
 export function parseVersion(raw: string): Version | null {
   const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(raw.trim())
   if (match === null) return null
@@ -37,7 +37,7 @@ function isPrerelease(raw: string): boolean {
 /**
  * Compares two versions: negative if `a` is older, positive if newer, 0 if the same.
  *
- * Pre-releases sort *before* the release they lead to (1.9.0-beta.1 < 1.9.0), which is the rule
+ * Pre-releases sort *before* the release they lead to (X.Y.Z-beta.1 < X.Y.Z), which is the rule
  * that stops someone on a beta being told to "update" to the stable version they are ahead of and
  * then handed an older build.
  */
@@ -67,7 +67,6 @@ export function compareVersions(a: Version, b: Version): number {
   return 0
 }
 
-/** Whether `candidate` is a version worth moving to from `current`. */
 export function isNewer(current: string, candidate: string): boolean {
   const from = parseVersion(current)
   const to = parseVersion(candidate)
@@ -89,11 +88,9 @@ export interface OfferInput {
 /**
  * Whether an available version should actually be put in front of the user.
  *
- * Three things have to hold, and each of them is a bug someone has shipped before: it has to be
- * newer than what is running (not merely *different* — a downgrade after a pulled release is the
- * classic one); it has to be a stable release unless pre-releases were asked for, *unless* the
- * user is already running a pre-release, in which case they are plainly on that track and stopping
- * their updates would strand them; and it must not be the exact version they already dismissed.
+ * It must be newer than what is running (not merely different: a pulled release must not offer a
+ * downgrade); a stable release unless pre-releases were asked for or the user already runs one
+ * (stopping their updates would strand them); and not the exact version they dismissed.
  */
 export function shouldOffer({ current, candidate, skipped, allowPrerelease }: OfferInput): boolean {
   if (!isNewer(current, candidate)) return false

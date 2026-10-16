@@ -1,10 +1,8 @@
 import type { FolderWorktree, ProjectNode } from '@shared/types'
 
 /**
- * Adds the worktrees `extras` lists to their folders, as empty folders beside the ones the tree
- * already has — "Show all worktrees" in a folder's menu. A worktree the tree already shows (it has
- * sessions) is left as it is, so this only ever adds rows. Kept in label order, as `buildTree`
- * orders the rest.
+ * Adds the worktrees `extras` lists as empty folders beside the ones the tree already has. A
+ * worktree the tree already shows is left as it is. Kept in label order, as `buildTree` orders the rest.
  */
 export function withAllWorktrees(tree: ProjectNode[], extras: ReadonlyMap<string, FolderWorktree[]>): ProjectNode[] {
   if (extras.size === 0) return tree
@@ -50,8 +48,6 @@ export function createdWorktreeRoots(
   return roots
 }
 
-/** What git listed, cut down to what is wanted: every worktree of a folder showing all of them,
- *  only the made ones of any other. */
 export function onlyWanted(
   listed: ReadonlyMap<string, FolderWorktree[]>, showAll: readonly string[], created: ReadonlyMap<string, Set<string>>,
 ): ReadonlyMap<string, FolderWorktree[]> {

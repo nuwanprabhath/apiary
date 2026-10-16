@@ -10,11 +10,6 @@ import { useSyncExternalStore } from 'react'
  * - it is saved per viewer (sizes, collapsed sections) → `state/uiState.ts`;
  * - only this window needs it, in memory → this.
  *
- * Before this existed, a store like that was hand-written each time: a `Set` of listeners, a
- * `subscribe`, `useSyncExternalStore`, and some way for component tests to start clean. The first
- * hand-written copy was caught by the duplicate-symbol test and renamed past it, which is why
- * `apiary/stores-via-factory` now keeps `useSyncExternalStore` inside the store factories.
- *
  * Component tests swap `window.apiary` for a new fake on every `renderApp()`; production never
  * replaces it. A local store, like `createIpcStore`, starts over from `initial` when it notices a
  * new bridge, so no test sees state another left behind and no store needs test plumbing of its own.

@@ -1,13 +1,10 @@
 /**
- * The one declarative IPC contract (MAIN-11): every channel Apiary's renderer and main process
+ * The one declarative IPC contract: every channel Apiary's renderer and main process
  * share, its wire name, its positional argument shape (as a runtime `Guard`) and its result type.
  * `CHANNELS`, `ApiaryApi` (the renderer's bridge type) and the main-side `Handlers`/`Listeners`
- * types used by `main/ipc/registrar.ts` are all *derived* from this map, so they cannot drift
- * from one another the way three hand-written copies (`shared/api.ts`, `preload/index.ts`,
- * `main/ipc.ts`) used to.
+ * types used by `main/ipc/registrar.ts` are all *derived* from this map, so they cannot drift.
  *
- * Channel strings and positional argument order are unchanged from before this file existed —
- * the e2e harness stubs some of them directly (`tests/e2e/helpers.ts`) and `describeError` strips
+ * The e2e harness stubs some channels directly (`tests/e2e/helpers.ts`) and `describeError` strips
  * `'apiary:…'` out of Electron's own error text (`renderer/errors.ts`). Do not rename a channel or
  * reorder its arguments here without checking both.
  *
@@ -54,10 +51,8 @@ import type { VoiceContext } from '../pets/prompt'
 import { isPetPatch, isVoiceContext } from '../pets/ipcGuards'
 import { isPairingCode, isRemoteHost, type RemoteClientInfo, type RemoteHost, type RemoteServerState, type RemoteStatus } from '../domain/remote'
 
-// Boundary guards for branded ids (MAIN-21): the one place a string arriving over IPC becomes a
-// `SessionId`/`PtyId`/`TerminalRef`, so handlers receive branded values with no cast of their own.
-// The wire is unchanged — the ids are still plain strings; only `TerminalRef` is a (tiny) object,
-// replacing what used to be a `key, isPtyId` argument pair.
+// Boundary guards for branded ids: the one place a string arriving over IPC becomes a branded id.
+// On the wire the ids are plain strings; only `TerminalRef` is an object.
 const sessionIdArg: Guard<SessionId> = (v): v is SessionId => typeof v === 'string'
 const ptyIdArg: Guard<PtyId> = (v): v is PtyId => typeof v === 'string'
 const terminalRefArg: Guard<TerminalRef> = isTerminalRef
@@ -81,9 +76,7 @@ const point: Guard<{ x: number; y: number }> = (v): v is { x: number; y: number 
   typeof v === 'object' && v !== null
   && typeof (v as { x?: unknown }).x === 'number' && typeof (v as { y?: unknown }).y === 'number'
 
-/** Loose on purpose: `reportTabs` used to crash the main process on a malformed array from a
- *  stale renderer (`tabs.map`, MAIN-19) because nothing checked its shape before use. This proves
- *  every element is at least an object with the right field types before the handler ever runs. */
+/** A malformed array from a stale renderer would crash `tabs.map` in main, so every element is checked. */
 const isReportedTab: Guard<ReportedTab> = (v): v is ReportedTab => {
   if (typeof v !== 'object' || v === null) return false
   const t = v as Record<string, unknown>
@@ -218,7 +211,7 @@ export const IPC = {
   settingsGet: invoke<[], AppSettingsPayload>('apiary:settings-get', tuple()),
   // A partial payload is deliberate (CLAUDE.md "Settings arriving over IPC"): a missing field
   // means "leave it alone", so this only proves an object arrived — `mergeSettingsPayload`
-  // (src/main/settings.ts) does the field-by-field validation SEC-8 added.
+  // (src/main/settings.ts) does the field-by-field validation.
   settingsSet: invokeLoose<[settings: AppSettingsPayload], void>('apiary:settings-set', tuple(obj)),
   openSettingsDialog: event('apiary:open-settings-dialog'),
 
@@ -451,17 +444,15 @@ export type ArgsOf<K extends IpcKey> = Spec[K] extends Invoke<infer A, unknown> 
 export type ResultOf<K extends InvokeKey | LocalKey> = Spec[K] extends Invoke<unknown[], infer R> | Local<unknown[], infer R> ? R : never
 export type PayloadOf<K extends EventKey> = Spec[K] extends EventSpec<infer P> ? P : never
 
-/** Kept for e2e/tests and existing imports: identical strings to before this file existed. */
+/** The wire name of every channel, for e2e and tests. */
 export const CHANNELS = Object.fromEntries(
   Object.entries(IPC).flatMap(([k, s]) => (s.kind === 'local' ? [] : [[k, s.channel] as const])),
 ) as { [K in Exclude<IpcKey, LocalKey>]: Spec[K] extends { channel: infer C } ? C : never }
 
 /**
  * What `window.apiary` is: derived, so it can never disagree with what main registers.
- * `main/ipc/registrar.ts`'s `Handlers`/`Listeners` types are derived from the same `InvokeKey`/
- * `SendKey`, so a channel with no main-side handler — or one whose handler's signature drifted
- * from this — is a compile error on the main side, not a "No handler registered" thrown at
- * runtime the first time someone clicks the button.
+ * `main/ipc/registrar.ts`'s `Handlers`/`Listeners` derive from the same keys, so a channel with no
+ * handler, or a drifted signature, is a compile error.
  */
 export type ApiaryApi =
   { [K in InvokeKey]: (...a: ArgsOf<K>) => Promise<ResultOf<K>> }

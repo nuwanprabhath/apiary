@@ -33,9 +33,7 @@ export interface Column {
 }
 
 let nextColumnId = 0
-/** An injectable id, defaulted from a module-global counter — a test that wants ids independent
- *  of what ran before it (and therefore of test order) can pass its own rather than share this
- *  counter, which nothing resets between tests. */
+/** `id` defaults from a module-global counter that nothing resets; a test wanting stable ids passes its own. */
 export function newColumn(tabs: OpenTab[] = [], id: string = `col-${String(++nextColumnId)}`): Column {
   return { id, tabs, activeKey: tabs[0]?.key ?? null }
 }
@@ -44,24 +42,12 @@ export function findTab(column: Column, key: string): OpenTab | null {
   return column.tabs.find((t) => t.key === key) ?? null
 }
 
-/**
- * The column already showing `key`, if any.
- *
- * Clicking a session in the sidebar should go to where it already is rather than opening a second
- * copy of it: the same conversation in two columns is never what was meant, and the duplicate
- * shares the one underlying session, so it looks like a split that cannot be told apart.
- */
+/** The column already showing `key`, if any. */
 export function findColumnWithTab(columns: Column[], key: string): Column | null {
   return columns.find((c) => findTab(c, key) !== null) ?? null
 }
 
-/**
- * Moves a tab to `toIndex` within its column, for drag-to-reorder.
- *
- * The index is taken against the list *without* the dragged tab in it, which is what a drop
- * position means: dropping on the tab currently at index 2 should land at index 2 whichever side
- * the tab came from, rather than one place off when dragging rightwards.
- */
+/** `toIndex` is taken against the list *without* the dragged tab: dropping on index 2 lands at 2 from either side. */
 export function moveTab(column: Column, key: string, toIndex: number): Column {
   const from = column.tabs.findIndex((t) => t.key === key)
   if (from === -1) return column
@@ -71,18 +57,7 @@ export function moveTab(column: Column, key: string, toIndex: number): Column {
   return { ...column, tabs: [...rest.slice(0, clamped), tab, ...rest.slice(clamped)] }
 }
 
-/**
- * Moves a tab into another column, at `toIndex` within that column's strip.
- *
- * Dragging a tab onto a *different* column's strip is the same gesture as reordering within one,
- * and every tabbed editor treats it as one: a tab bar that accepted a drop only from its own
- * column looked broken rather than restrained, because nothing about the drag says which strip the
- * tab started in. The tab keeps its view (transcript or terminal) so it arrives showing what it
- * was showing, and becomes the target column's active tab — it is what was just dropped there.
- *
- * Emptied columns are not pruned here: that is `tidyLayout`'s single responsibility (layout.ts),
- * applied to every column update centrally.
- */
+/** The tab keeps its view and becomes the target's active tab. Emptied columns are left to `tidyLayout`. */
 export function moveTabToColumn(
   columns: Column[],
   key: string,
@@ -92,7 +67,6 @@ export function moveTabToColumn(
   const tab = columns.flatMap((c) => c.tabs).find((t) => t.key === key)
   const target = columns.find((c) => c.id === toColumnId)
   if (tab === undefined || target === undefined) return columns
-  // Already there: this is an ordinary reorder within the one column.
   if (findTab(target, key) !== null) {
     return columns.map((c) => (c.id === toColumnId ? moveTab(c, key, toIndex) : c))
   }
@@ -110,20 +84,12 @@ export function moveTabToColumn(
   })
 }
 
-/** Adds `key` to the column if it isn't already there, and makes it active either way. */
 export function openTab(column: Column, key: string): Column {
   if (findTab(column, key) !== null) return { ...column, activeKey: key }
   return { ...column, tabs: [...column.tabs, { key, view: 'transcript' }], activeKey: key }
 }
 
-/**
- * Adds `key` directly to the right of `afterKey`, rather than at the end of the strip.
- *
- * This is what forking a session needs: the fork belongs beside the conversation it came from, so
- * the pair can be read against each other without hunting along the strip for whichever tab landed
- * last. Falls back to appending when `afterKey` is not in this column, which is the honest answer
- * — there is nothing to sit beside.
- */
+/** Adds `key` right after `afterKey` (a fork sits beside its source); appends when `afterKey` is not in this column. */
 export function openTabAfter(column: Column, key: string, afterKey: string): Column {
   if (findTab(column, key) !== null) return { ...column, activeKey: key }
   const at = column.tabs.findIndex((t) => t.key === afterKey)
@@ -136,14 +102,7 @@ export function openTabAfter(column: Column, key: string, afterKey: string): Col
   }
 }
 
-/**
- * Puts a tab that is not in this window at `toIndex` of `toColumnId`.
- *
- * Distinct from `moveTabToColumn`, which lifts a tab out of the column it is already in. A tab
- * arriving from *another window* is in none of them, so there is nothing to lift — and treating
- * the two as one case meant a cross-window drop landed on a column that had never heard of the
- * key and quietly did nothing.
- */
+/** Puts a tab arriving from another window at `toIndex` of `toColumnId`; unlike `moveTabToColumn` there is nothing to lift. */
 export function adoptTab(
   columns: Column[],
   key: string,
@@ -163,10 +122,8 @@ export function adoptTab(
 }
 
 /**
- * Removes a tab. The next tab to activate is the one to the right, falling back to the one to the
- * left when the closed tab was last — the behaviour every tabbed editor has trained people to
- * expect. Returns a column with no tabs (rather than null) so the caller decides whether an empty
- * column is dropped or kept as the last one standing.
+ * Removes a tab; the one to the right activates, else the one to the left. May return a column
+ * with no tabs: the caller decides whether it is dropped.
  */
 export function closeTab(column: Column, key: string): Column {
   const index = column.tabs.findIndex((t) => t.key === key)
@@ -181,7 +138,6 @@ export function setTabView(column: Column, key: string, view: OpenTab['view']): 
   return { ...column, tabs: column.tabs.map((t) => (t.key === key ? { ...t, view } : t)) }
 }
 
-/** Swaps a pending tab's pty-id key for the real session id it resolved into. */
 export function rekeyTab(column: Column, from: string, to: string): Column {
   if (findTab(column, from) === null) return column
   return {

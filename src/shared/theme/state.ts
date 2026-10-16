@@ -1,12 +1,6 @@
 import type { ThemeSpec } from './spec'
 import type { ThemeModel } from './models'
 
-/**
- * The wire shapes for a theme as a whole — as opposed to `spec.ts`'s allowlists for what one may
- * contain. Moved out of `api.ts` (SHARED-1 / SHARED-8) so theme state lives beside the rest of the
- * theme feature instead of in the general IPC grab-bag.
- */
-
 /** A theme the user saved (see main/theme/themeStore.ts). Its spec has been validated. */
 export interface SavedTheme {
   id: string

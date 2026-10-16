@@ -13,32 +13,21 @@ export interface SearchServiceDeps {
   createClient: () => SearchClient
   searchChatContent?: boolean
   searchSessionNotes?: boolean
-  /**
-   * Called after an index pass that actually changed something. Indexing runs behind whatever the
-   * user is doing, so a search typed while it was still running would otherwise sit on results
-   * that were incomplete at the moment they were fetched, with nothing to prompt a re-query.
-   */
+  /** Called after an index pass that changed something, so a search typed mid-pass can be re-queried. */
   onIndexUpdated?: () => void
-  /** Whether `AppService` has started disposing — checked before starting or continuing a pass,
-   *  so nothing here runs against a store or index that is about to close. Owned by `AppService`,
-   *  read here rather than duplicated. */
+  /** Whether `AppService` has started disposing; checked before starting or continuing a pass. */
   isDisposed: () => boolean
 }
 
 /**
  * Content and note search: index/client lifecycle, note sync, rebuild, counts and
- * `updateSearchIndex` (MAIN-14 step 4) — pure move out of `AppService`. Behaviour, ordering and
- * every comment explaining a past bug (the 7.7s main-thread freeze, MAIN-7's note-index rewrite,
- * MAIN-8's overlapping-pass race) are unchanged; see `tests/unit/searchService.test.ts`.
+ * `updateSearchIndex`; see `tests/unit/searchService.test.ts`.
  */
 export class SearchService {
   private readonly store: SessionStore
   private readonly onIndexUpdated: (() => void) | undefined
   private readonly isDisposed: () => boolean
-  /**
-   * The full-text index, created on first use. Lazy because it is only worth the file handle and
-   * the schema when content search is actually on, and it can be switched off in Settings.
-   */
+  /** The full-text index, created on first use: content search can be switched off in Settings. */
   private searchIndex: SearchIndex | null = null
   /** Owns the worker thread the content search runs on — see `search`. */
   private searchClient: SearchClient | null = null
@@ -63,10 +52,8 @@ export class SearchService {
   /**
    * Which sessions match `query` by conversation content or by note.
    *
-   * Runs in a worker thread (`SearchClient`), not here. `better-sqlite3` is synchronous, so doing
-   * this inline put an FTS query on the thread that also routes window input — and a slow query
-   * therefore froze typing in every window rather than merely delaying results. See
-   * `searchWorker.ts`; the 7.7-second case that proved it is described in `searchIndex.ts`.
+   * Runs in a worker thread (`SearchClient`): `better-sqlite3` is synchronous, so an inline FTS
+   * query froze typing in every window. See `searchWorker.ts` and `searchIndex.ts`.
    */
   async search(query: string): Promise<string[]> {
     if (!this.searchChatContent && !this.searchSessionNotes) return []
@@ -77,10 +64,8 @@ export class SearchService {
     })
     if (fromWorker !== null) return fromWorker
 
-    // No worker available — search in-process rather than pretending nothing matched. This blocks
-    // the main thread, which is the very thing the worker exists to avoid, so it is a fallback and
-    // not a mode: `SearchClient` logs loudly when it cannot start one. It is also the path the
-    // integration tests take, since they run the source directly with no bundled worker beside it.
+    // No worker: search in-process (blocks the main thread; `SearchClient` logs when it cannot start
+    // one). The integration tests take this path, with no bundled worker beside the source.
     try {
       const ids = new Set<string>()
       if (this.searchChatContent) {
@@ -91,20 +76,17 @@ export class SearchService {
       }
       return [...ids]
     } catch {
-      // Search is an enhancement to the sidebar, never a reason for it to fail to load.
       return []
     }
   }
 
-  /** The index, opened on first use. */
   private index(): SearchIndex {
     this.searchIndex ??= this.createIndex()
     return this.searchIndex
   }
 
   setChatContentEnabled(enabled: boolean): void {
-    // Anything that is not a boolean is a caller that does not know about this setting, not a
-    // request to turn it off. See the note on the settings merge in ipc.ts.
+    // A non-boolean is a caller that does not know this setting, not a request to turn it off.
     if (typeof enabled !== 'boolean') return
     this.searchChatContent = enabled
   }
@@ -112,14 +94,11 @@ export class SearchService {
   /**
    * Turns note indexing on or off.
    *
-   * Switching it off empties the note index rather than merely ignoring it — a search index of
-   * things the user asked not to be searched should not sit on disk. Switching it back on
-   * repopulates from the session store, which is the record of the notes themselves; this is
-   * immediate and cheap, because a note is a line of text and no transcript has to be re-read.
+   * Switching it off empties the note index rather than ignoring it. Switching it back on
+   * repopulates from the session store, which is cheap: no transcript is re-read.
    */
   setSessionNotesEnabled(enabled: boolean): void {
-    // Guarded before the comparison, because the damage here is not just a flag: switching off
-    // empties the note index, so a stray `undefined` would silently delete it.
+    // Guarded first: a stray `undefined` would count as "off" and empty the note index.
     if (typeof enabled !== 'boolean') return
     if (enabled === this.searchSessionNotes) return
     this.searchSessionNotes = enabled
@@ -132,28 +111,20 @@ export class SearchService {
     }
   }
 
-  /**
-   * Rewrites the note index from the store in one commit (MAIN-7) — used when note indexing is
-   * switched back on, and as the safety net every refresh pass runs to pick up a note written
-   * before indexing was ever turned on.
-   */
+  /** Rewrites the note index from the store in one commit: on switch-on, and in every refresh pass. */
   private syncNoteIndex(): void {
     this.index().replaceNotes(this.store.sessionsWithNotes())
   }
 
   /**
-   * Keeps the note index in step with a note `AppService.setSessionNote` just wrote to the store.
-   * The index write happens here rather than being left to the next background pass: a note is
-   * written so it can be found again, and a note that is not searchable until some later rescan is
-   * a note that appears not to work. A failure here is swallowed — the note itself is already
-   * saved in the store, and a rebuild recovers the index.
+   * Keeps the note index in step with a note `AppService.setSessionNote` just wrote, so it is
+   * searchable at once. A failure is swallowed: the note is saved in the store.
    */
   putNoteIfEnabled(sessionId: string, note: string | null): void {
     if (!this.searchSessionNotes) return
     try {
       this.index().putNote(sessionId, note)
     } catch (e) {
-      // Saved either way: the note lives in the session store, and a rebuild recovers the index.
       log.warn('search', 'could not index a note', { error: errorMessage(e) })
     }
   }
@@ -161,24 +132,21 @@ export class SearchService {
   /** Wipes the index so the next pass rebuilds it — the "Rebuild index" action in Settings. */
   async rebuild(): Promise<void> {
     if (!this.searchChatContent && !this.searchSessionNotes) return
-    // A background pass may already be walking the sessions. Let it finish first: clearing the
-    // index underneath it would leave whatever it had already walked past missing afterwards, and
-    // `ApiaryApi.searchRebuild` promises the index is fully rebuilt once it resolves.
+    // Let a running pass finish first: clearing under it would leave what it already walked past
+    // missing, and `ApiaryApi.searchRebuild` promises a full rebuild once it resolves.
     // `runSearchIndexPass` logs its own failure, so the pass promise never rejects.
     if (this.indexPass) await this.indexPass
     this.index().clear()
-    // Notes come back from the store immediately; transcripts are the slow part and are left to
-    // the pass below.
     if (this.searchSessionNotes) this.syncNoteIndex()
     await this.runSearchIndexPass()
   }
 
-  /** How many sessions are indexed, for Settings to show that the index exists and is populated. */
+  /** How many sessions are indexed. */
   indexCount(): number {
     return this.searchChatContent ? this.index().count() : 0
   }
 
-  /** How many notes are indexed, shown beside the session count in Settings. */
+  /** How many notes are indexed. */
   noteCount(): number {
     return this.searchSessionNotes ? this.index().noteCount() : 0
   }
@@ -186,14 +154,11 @@ export class SearchService {
   /**
    * Brings the index up to date for every imported session.
    *
-   * Never awaited by `AppService.refresh()`: indexing is a background chore, and a rescan that
-   * waited for it would make the Refresh button as slow as the slowest thing in the index. The
-   * `indexPass` guard means overlapping refreshes queue no work rather than racing each other over
-   * the same files.
+   * Never awaited by `AppService.refresh()`, so Refresh is not as slow as the index. The
+   * `indexPass` guard stops overlapping refreshes racing over the same files.
    */
   async update(): Promise<void> {
-    // Notes are kept in step by whoever changes them, but a pass is also where a note written
-    // before indexing was switched on gets picked up.
+    // Also picks up a note written before indexing was switched on.
     if (this.searchSessionNotes && !this.isDisposed()) {
       try {
         this.syncNoteIndex()
@@ -206,10 +171,7 @@ export class SearchService {
     await this.runSearchIndexPass()
   }
 
-  /**
-   * Runs one indexing pass, tracked as a promise so `rebuild` can await whatever is already
-   * running instead of racing it (MAIN-8).
-   */
+  /** Runs one indexing pass, tracked as a promise so `rebuild` can await it. */
   private async runSearchIndexPass(): Promise<void> {
     const pass = (async () => {
       try {
@@ -234,10 +196,8 @@ export class SearchService {
   }
 
   /**
-   * Closes the index and the search worker's own SQLite handle (MAIN-20) — called from
-   * `AppService.dispose()`. `isDisposed()` already tells a running index pass to stop between
-   * files, so this waits on nothing: the worst case is one file's read finishing against a handle
-   * about to close.
+   * Closes the index and the search worker's SQLite handle; called from `AppService.dispose()`.
+   * `isDisposed()` stops a running pass between files, so this waits on nothing.
    */
   async close(): Promise<void> {
     this.searchIndex?.close()

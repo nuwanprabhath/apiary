@@ -8,7 +8,6 @@ import { allFolderPaths } from './treeUtils'
 import type { GroupActions } from './useGroupActions'
 import { focusAskedFor } from '../../ui/focusUnlessTyping'
 
-/** The in-place rename box of a group heading. */
 function GroupRenameInput({ draft, onDraft, onCommit, onCancel }: {
   draft: string
   onDraft: (next: string) => void
@@ -29,16 +28,13 @@ function GroupRenameInput({ draft, onDraft, onCommit, onCancel }: {
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') onCommit()
-        // Stopped rather than left to bubble: this rename can be in progress while
-        // some other layer is open on the shared Escape stack (UI-13), and Escape
-        // should cancel just the rename, not also close that layer.
+        // Stopped so Escape cancels just the rename, not a layer open on the shared Escape stack.
         if (e.key === 'Escape') { e.stopPropagation(); onCancel() }
       }}
     />
   )
 }
 
-/** A group's heading row: the treeitem (rename in place, drag to reorder) with its "+" and collapse-all buttons. */
 export function FolderGroupHeader({
   group, folders, open, groupState, groups, collapsed, onCollapsedChange,
   tabIndex, onMenu, onNewSessionInPickedFolder,
@@ -50,10 +46,9 @@ export function FolderGroupHeader({
   groups: GroupActions
   collapsed: Set<string>
   onCollapsedChange: (next: Set<string>) => void
-  /** The header's roving-tabindex value in the sidebar's one tree. */
   tabIndex: number
   onMenu: (x: number, y: number) => void
-  /** A group's "+": pick a folder, start a session there. Resolves the folder, or null. */
+  /** Resolves the picked folder, or null. */
   onNewSessionInPickedFolder?: () => Promise<string | null>
 }): JSX.Element {
   const { patchGroups, assignFolder, renamingGroup, setRenamingGroup, renameDraft, setRenameDraft, commitRename } = groups
@@ -62,8 +57,7 @@ export function FolderGroupHeader({
       className="folder-group-header-wrap"
       data-group-id={group.id}
       role="treeitem"
-      // Stable, like the folder and session rows' — a renaming group swaps its header
-      // for an input, which must not also change the treeitem's own accessible name.
+      // Stable, like the other rows': renaming swaps the header for an input.
       aria-label={group.name}
       aria-expanded={open}
       aria-level={1}
@@ -71,8 +65,7 @@ export function FolderGroupHeader({
       data-own-context-menu
       data-tree-key={group.id}
       tabIndex={tabIndex}
-      // Groups reorder by dragging their headings, the same gesture as everything else
-      // in this sidebar; the menu keeps Move up/down for keyboard and precision.
+      // The menu keeps Move up/down for keyboard and precision.
       draggable={renamingGroup !== group.id}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'move'
@@ -109,8 +102,7 @@ export function FolderGroupHeader({
           className="folder-group-header"
           data-testid="folder-group-toggle"
           aria-expanded={open}
-          // UI-27: the wrap above is the treeitem, whose Enter/ArrowRight/ArrowLeft
-          // already toggle the same state.
+          // The wrap is the treeitem, whose Enter/ArrowRight/ArrowLeft already toggle this.
           tabIndex={-1}
           onClick={() => patchGroups({
             collapsed: open
@@ -131,9 +123,8 @@ export function FolderGroupHeader({
           aria-label={`New Claude Code session in a folder, filed under ${group.name}`}
           onClick={(e) => {
             e.stopPropagation()
-            // A group is the user's own arrangement, not a folder, so its "+" asks
-            // which folder — any folder, even one Apiary has never seen — and files
-            // it here once the session has started.
+            // A group is not a folder, so its "+" asks which one (even one Apiary has never
+            // seen) and files it here once the session has started.
             void onNewSessionInPickedFolder().then((folder) => {
               if (folder !== null) assignFolder(folder, group.id)
             })
@@ -150,9 +141,7 @@ export function FolderGroupHeader({
           aria-label={`Collapse all folders in ${group.name}`}
           onClick={(e) => {
             e.stopPropagation()
-            // Every folder in the group, at every depth, and the group itself opened —
-            // what the folder rows' own button does one level down: the click asks to
-            // see the list of folders, closed.
+            // Every folder in the group at every depth is closed, and the group itself opened.
             const next = new Set(collapsed)
             for (const p of allFolderPaths(folders)) next.add(p)
             onCollapsedChange(next)

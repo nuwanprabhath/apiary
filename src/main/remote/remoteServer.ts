@@ -52,7 +52,6 @@ function sameCode(given: string, expected: string): boolean {
   return timingSafeEqual(a, b)
 }
 
-/** What `checkHello` decides: accept, or refuse with a reason and the words for it. */
 type HelloVerdict = { ok: true } | { ok: false; reason: RefusalReason; message: string }
 
 interface Live { id: string; client: string; connectedAt: number; windows: Map<number, VirtualContents> }
@@ -99,7 +98,6 @@ export class RemoteServer {
   /** Whether the server listens, is off, or its last start was refused (with the reason). */
   serverState(): RemoteServerState { return this.current }
 
-  /** Called with the new state whenever it changes. */
   subscribeState(listener: (state: RemoteServerState) => void): () => void {
     this.stateListeners.add(listener)
     return () => { this.stateListeners.delete(listener) }

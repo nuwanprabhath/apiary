@@ -53,17 +53,14 @@ export function SessionTab(p: Props): JSX.Element {
       onDragStart={(e) => {
         p.onDragStartTab(tab.key)
         e.dataTransfer.effectAllowed = 'move'
-        // A typed payload, so a strip can tell a tab being dragged from anywhere in the window
-        // apart from a folder, a pinned row or a plain text selection. `text/plain` is kept
-        // beside it because Firefox refuses to start a drag with no standard payload at all.
+        // A typed payload tells a tab from a folder, a pinned row or a text selection;
+        // `text/plain` is there because Firefox refuses a drag with no standard payload.
         e.dataTransfer.setData(TAB_MIME, tab.key)
         e.dataTransfer.setData('text/plain', tab.key)
         if (p.transferFor !== undefined) e.dataTransfer.setData(TRANSFER_MIME, JSON.stringify(p.transferFor(tab.key)))
       }}
       onDragOver={(e) => {
-        // Keyed off the payload type rather than off `dragKey`, which is set only in the strip
-        // the drag started in: a tab dragged from another column would otherwise find no
-        // target here at all, because without `preventDefault` no drop ever fires.
+        // Keyed off the payload type, not `dragKey`, which is set only in the originating strip.
         if (!e.dataTransfer.types.includes(TAB_MIME)) return
         e.preventDefault()
         e.dataTransfer.dropEffect = 'move'
@@ -73,19 +70,13 @@ export function SessionTab(p: Props): JSX.Element {
         const key = e.dataTransfer.getData(TAB_MIME)
         if (key === '') return
         e.preventDefault()
-        // The strip behind this tab is a drop target of its own (for the empty space past the
-        // last tab); without this the drop would count twice and the second, coarser one would
-        // win, sending every tab to the end.
+        // The strip behind is a drop target too; without this the coarser drop would win twice.
         e.stopPropagation()
         p.onDropTab(key, p.insertionFor(e), readTransfer(e.dataTransfer))
         p.onEndDrag()
       }}
       onDragEnd={(e) => {
-        // Nothing in this window took the tab. Where it went is decided in the main process
-        // from where the pointer was released — another of our windows, or the desktop — and
-        // that is the only way it *can* be decided: an HTML5 drag started here delivers no
-        // drop event to another window at all, so there is nothing on the receiving side to
-        // ask. Releasing over this same window resolves to "nothing happened".
+        // Main decides from the release point: an HTML5 drag delivers no drop event to another window.
         if (e.dataTransfer.dropEffect === 'none' && !tab.isPending) {
           p.onTabDropped(tab.key, { x: e.screenX, y: e.screenY })
         }
@@ -104,8 +95,7 @@ export function SessionTab(p: Props): JSX.Element {
         id={`session-tab-${columnId}-${tab.key}`}
         aria-selected={isActive}
         aria-controls={isActive ? `session-tabpanel-${columnId}` : undefined}
-        // Roving tabindex (WAI-ARIA tablist pattern): only the active tab is a Tab stop: the
-        // others are reached by arrow key, not by Tab, the same as a browser's own tab strip.
+        // Roving tabindex: only the active tab is a Tab stop.
         tabIndex={isActive ? 0 : -1}
         title={tooltip}
         onClick={() => p.onActivate(tab.key)}

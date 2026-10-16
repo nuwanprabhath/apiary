@@ -5,17 +5,13 @@ import { log } from '../log/logger'
 
 const run = promisify(execFile)
 
-/** The `(file, args, cwd) => stdout` shape already used as an injectable seam in
- *  `plugins/gitlabMr.ts`, `git/mrStatusCache.ts` and `vscode/detectVsCode.ts` (MAIN-23) — kept as
- *  the one signature rather than introducing a second, so those call sites (and their tests, which
- *  already pass fakes of this shape) do not have to change. */
+/** The injectable `(file, args, cwd) => stdout` seam. */
 export type ExecFn = (file: string, args: string[], cwd: string) => Promise<string>
 
 export interface CreateExecOptions {
   timeoutMs?: number
   maxBuffer?: number
-  /** A tag for the slow/failed-spawn log line — which caller this is, since `file`+`args` alone
-   *  can be long. */
+  /** Tags the slow/failed-spawn log line with the caller. */
   scope?: LogScope
 }
 
@@ -26,13 +22,9 @@ const SLOW_SPAWN_MS = 2000
 export interface ExecOutput { stdout: string; stderr: string }
 
 /**
- * Builds an `ExecFn` with one timeout/buffer policy and consistent logging (MAIN-23) — before
- * this, `worktreeResolver.ts`, `branchOps.ts`, `liveSessionDetector.ts`, `mrStatusCache.ts` and
- * `gitlabMr.ts` each called `promisify(execFile)` directly, with a different timeout and buffer
- * size and no record of a slow or failed spawn anywhere. Errors are normalised the way
- * `branchOps.git()` already did it: stderr first, then stdout, then the raw message, since a
- * conflicting operation's useful diagnostic often lands on stdout while stderr carries only
- * progress noise.
+ * Builds an `ExecFn` with one timeout/buffer policy and consistent logging. Errors are normalised:
+ * stderr first, then stdout, then the raw message, since a conflicting operation's useful
+ * diagnostic often lands on stdout while stderr carries only progress noise.
  *
  * `execFile` only, never a shell string (CLAUDE.md's security rule) — this wraps `execFile`
  * itself, so nothing built on it can regress that.

@@ -26,11 +26,7 @@ interface NotifyInput {
   timeoutMs?: number | null
 }
 
-/**
- * How long each kind stays up before dismissing itself. Errors never do: an error the user
- * blinked past is exactly the failure mode this whole system exists to fix, so they are pinned
- * until acknowledged. Warnings linger longer than the merely informational.
- */
+/** Errors are pinned until acknowledged: one the user blinked past is the failure this system exists to fix. */
 const DEFAULT_TIMEOUT_MS: Record<NotificationKind, number | null> = {
   error: null,
   warning: 12000,
@@ -38,7 +34,6 @@ const DEFAULT_TIMEOUT_MS: Record<NotificationKind, number | null> = {
   success: 4000,
 }
 
-/** At most this many at once; the oldest fall off the top rather than filling the window. */
 const MAX_VISIBLE = 4
 
 interface NotificationsApi {
@@ -51,24 +46,16 @@ interface NotificationsApi {
 
 const NotificationsContext = createContext<NotificationsApi | null>(null)
 
-// Split from NotificationsApi (UI-5): `items` changes on every toast shown or auto-dismissed,
-// which used to give every useNotifications() consumer — App, Sidebar, every SessionRow and
-// FolderHeader, Composer, ThemesSection, UpdateBanner — a new context value on every toast, even
-// though only NotificationCenter reads `items`. The actions object is now stable across toasts.
+// Split from NotificationsApi: `items` changes on every toast shown or auto-dismissed, and only
+// NotificationCenter reads it. The actions object stays stable across toasts.
 const NotificationItemsContext = createContext<Notification[] | null>(null)
 
 /**
- * The app's single channel for anything the user needs told: failures, warnings, confirmations.
- *
- * Also the safety net of last resort — it subscribes to `error` and `unhandledrejection` on the
- * window, so a rejected promise nobody caught surfaces as a message instead of only ever
- * appearing in a devtools console the user never opens. (A crash *during render* is the error
- * boundary's job, not this one's; see ErrorBoundary.tsx.)
+ * The app's single channel for anything the user needs told. Also subscribes to `error` and
+ * `unhandledrejection`, so an uncaught rejection surfaces. A crash during render is ErrorBoundary's.
  */
 export function NotificationProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const [items, setItems] = useState<Notification[]>([])
-  // Timers are keyed by notification id so dismissing early can cancel the pending auto-dismiss
-  // rather than leaving it to fire against an id that no longer exists.
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
 
   const dismiss = useCallback((id: string) => {
@@ -94,8 +81,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       action: input.action ?? null,
     }
     setItems((prev) => {
-      // An identical message already on screen is repeated noise, not new information — the
-      // live-refresh loops in this app can fire the same failure several times a second.
+      // Live-refresh loops can fire the same failure several times a second.
       const deduped = prev.filter((n) => !(n.kind === next.kind && n.message === next.message))
       return [...deduped, next].slice(-MAX_VISIBLE)
     })

@@ -22,10 +22,6 @@ export interface ImageStoreOptions {
   dir: string
 }
 
-/**
- * Pasted-image storage (MAIN-14 step 4), pure move out of `AppService`. Behaviour, error text and
- * the confinement check in `readImage` are unchanged; see `tests/unit/imageStore.test.ts`.
- */
 export class ImageStore {
   private readonly dir: string
 
@@ -73,8 +69,7 @@ export class ImageStore {
       const bytes = await readFile(full)
       return { dataUrl: `data:${mediaType};base64,${bytes.toString('base64')}` }
     } catch {
-      // A pasted image the user has since deleted is not an error worth interrupting them over —
-      // the thumbnail simply doesn't render.
+      // An image the user has since deleted: the thumbnail just doesn't render.
       return null
     }
   }

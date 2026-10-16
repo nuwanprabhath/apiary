@@ -40,7 +40,11 @@ Rules for this task:
     `npx playwright test <spec> --project=parallel --no-deps`. A spec "touches" your change when it
     names a `data-testid` or a visible text you changed: `grep -rln "<test id>" tests/e2e`. (A 1.35.0
     agent changed a button's label markup, fixed the component tests, and left an e2e spec red.)
-  - Other agents share this machine. Rerun a failure alone before calling it a regression.
+  - Other agents share this machine. Rerun a failure alone before calling it a regression, but a
+    test that fails only under load is still a bug in that test: list it by name under "Flaky" in
+    your report with its error line. Two tests waved through as "machine contention" in every run
+    from 1.40 to 1.44 were each a real race (a screen read before the emulator caught up, a hover
+    on a row still sliding).
   - After any e2e run, kill leftover Electron processes started from this worktree. Never launch a
     packaged app.
 - UI work (anything under `src/renderer/` a person sees) follows `.claude/skills/ui-review/SKILL.md`:

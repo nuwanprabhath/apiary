@@ -1,5 +1,5 @@
 /*
- * SessionCatalog (MAIN-14 step 5) - design note.
+ * SessionCatalog - design note.
  *
  * What it owns: the `live` map (session id -> pid of an external claude process, from
  * `detectLive`), the refresh state machine, and the sidebar read model (tree, discovered, import*).
@@ -45,16 +45,10 @@ import { memoize } from '../util/memoize'
 import type { ProjectNode, ResumeConflict, SessionMeta, ProjectInfo } from '@shared/types'
 import type { SessionId } from '@shared/domain/ids'
 
-/** What a refresh pass was asked to cover — see `refresh()`. */
 interface RefreshRequest {
-  /** A full rescan: every transcript is stat'd (unchanged ones are still skipped — see
-   *  `isUnchanged` below), and every distinct cwd the store knows about is re-resolved through
-   *  git, not just the ones with a changed file. This is what the Refresh button, the app menu
-   *  and the `refresh` IPC channel ask for, and what every caller gets by omitting `opts`
-   *  entirely — the behaviour this class had before MAIN-1. */
+  /** Every transcript is stat'd (unchanged ones skipped) and every known cwd re-resolved. */
   full: boolean
-  /** A scoped pass (MAIN-1): only these transcript paths are re-read, and only their cwds are
-   *  re-resolved. Ignored when `full` is true. */
+  /** A scoped pass re-reads only these transcripts and re-resolves their cwds. Ignored when `full`. */
   paths: Set<string>
 }
 
@@ -63,9 +57,7 @@ interface RefreshRequest {
  *  (a pass per second) stops costing a `ps` per pass. */
 const LIVE_MIN_INTERVAL_MS = 3000
 
-/** How many folders are resolved concurrently in one refresh pass (MAIN-1 step 7). Resolution is
- *  a few sequential git spawns per folder; a small cap keeps a large library from serializing
- *  entirely on process-spawn latency without opening hundreds of git processes at once. */
+/** Folders resolved concurrently per pass: each is a few git spawns, so a cap avoids hundreds at once. */
 const RESOLVE_CONCURRENCY = 8
 
 export interface SessionCatalogOptions {
@@ -125,35 +117,9 @@ export class SessionCatalog {
   }
 
   /**
-   * Rescans the config root and refreshes live-session state.
-   *
-   * Reentrancy guard: the filesystem watcher, the IPC handler, and app
-   * startup can all call this concurrently — most acutely the watcher, whose
-   * 1s debounce only guards a *pending* timer, not an in-flight `refresh()`,
-   * so on a machine with many projects (each `resolveProject` shelling out
-   * to `git`) a single refresh can easily outlast the debounce window while
-   * Claude keeps appending to session files. If a run is already in flight,
-   * this joins that run's promise rather than starting a second one
-   * immediately (so two runs never race on `worktrees.clearCache()`/git work
-   * at once) — but it also sets `pendingRefresh`, so the change that
-   * triggered this call is not silently lost. Once the in-flight run
-   * finishes, `finally` checks that flag and, if set, runs exactly one more
-   * pass before resolving; because the second pass is chained onto the same
-   * returned promise, every caller — including the one that only joined —
-   * still ends up awaiting a refresh that actually observed its own
-   * trigger. This is a single pending-rerun flag, not a queue: calls that
-   * arrive while the rerun itself is in flight just re-set the same flag,
-   * so this can never accumulate a backlog, only ever run one extra pass
-   * per already-running pass. `disposed` (set by `dispose()`) stops a new
-   * pass from ever being scheduled once shutdown has started, so a
-   * fire-and-forget rerun can never land after the store is closed.
-   */
-  /**
-   * `opts` omitted (every pre-MAIN-1 caller: the Refresh button, the menu, the `refresh` IPC
-   * channel, `moveSession`) means a full rescan, exactly as before. `{ paths }` is a scoped pass
-   * — what the filesystem watcher now asks for: only those transcripts are re-read, and only
-   * their cwds are re-resolved through git, instead of every session in the library and every
-   * folder it has ever seen (MAIN-1).
+   * `opts` omitted (the Refresh button, the menu, the `refresh` IPC channel, `moveSession`) means
+   * a full rescan. `{ paths }` is a scoped pass, which the filesystem watcher asks for: only
+   * those transcripts are re-read, and only their cwds are re-resolved through git.
    */
   private normalizeRefreshRequest(opts?: { full?: boolean; paths?: string[] }): RefreshRequest {
     if (!opts || opts.full === true || !opts.paths || opts.paths.length === 0) {
@@ -187,9 +153,7 @@ export class SessionCatalog {
     try {
       await this.runRefresh(req)
     } catch (e) {
-      // A rejection must not wedge future refreshes: clear both the in-flight pointer and
-      // any pending-rerun request, then propagate the failure to everyone awaiting this run
-      // (the original caller and anyone who joined it) exactly as before this fix.
+      // A rejection must not wedge future refreshes.
       this.pendingRefresh = null
       this.refreshPromise = null
       throw e
@@ -197,9 +161,7 @@ export class SessionCatalog {
     if (this.pendingRefresh && !this.opts.isDisposed()) {
       const next = this.pendingRefresh
       this.pendingRefresh = null
-      // Chain the rerun onto this same promise so every caller of this run — including one
-      // that only joined an in-flight refresh — actually observes a pass that ran after their
-      // trigger, not the stale snapshot the joined pass started with.
+      // Chained onto this same promise so a caller that only joined sees a pass that ran after its trigger.
       this.refreshPromise = this.runRefreshLoop(next)
       return this.refreshPromise
     }
@@ -208,9 +170,8 @@ export class SessionCatalog {
 
   private async runRefresh(req: RefreshRequest): Promise<void> {
     const started = Date.now()
-    // A full pass re-resolves every folder from scratch (a checkout done outside Apiary, a
-    // worktree removed); a scoped pass keeps the resolver's structural answers from earlier
-    // passes and only re-resolves the folders whose files actually changed.
+    // A scoped pass keeps the resolver's earlier answers; only a full pass sees a checkout or
+    // worktree removal done outside Apiary.
     if (req.full) this.opts.worktrees.clearCache()
     this.opts.worktrees.resetSpawnCount()
 
@@ -218,9 +179,7 @@ export class SessionCatalog {
     let filesSeen: number
     let filesParsed = 0
     if (req.full) {
-      // The store already knows every session's file size and mtime; skip re-reading (and
-      // re-parsing up to 128KB of) a file whose stat matches what is already on record. This is
-      // the same technique the search indexer already uses (indexer.ts).
+      // Skip re-parsing (up to 128KB of) a file whose size and mtime match the store's record.
       const stamps = this.store.fileStamps()
       const stats = { filesSeen: 0, filesParsed: 0 }
       metas = await this.source.scan({
@@ -233,16 +192,12 @@ export class SessionCatalog {
       filesSeen = stats.filesSeen
       filesParsed = stats.filesParsed
     } else {
-      // Scoped: the watcher already told us exactly which files changed, so there is no directory
-      // to walk — each path is re-read directly, unconditionally (the watcher's own
-      // `awaitWriteFinish` is what decided this file is worth looking at again).
+      // The watcher named the changed files, so each is re-read unconditionally, with no directory walk.
       metas = []
       filesSeen = req.paths.size
       for (const path of req.paths) {
         if (this.opts.isDisposed()) return
         if (!path.endsWith('.jsonl')) continue
-        // Deleted between the watcher event and this read, or unreadable — a scoped pass simply
-        // leaves that session's row as it was; a later full pass reconciles it.
         const meta = await ignoreErrorsAsync(() => extractMeta(path), 'deleted or unreadable: the row stays as it was')
         if (meta !== undefined) {
           metas.push(meta)
@@ -250,37 +205,27 @@ export class SessionCatalog {
         }
       }
     }
-    // A pass can take a long time — resolving each folder is a few git calls, and a library of a
-    // few hundred folders measured ~35s — and quitting waits for the pass in flight (see
-    // `dispose()`). So it checks at every step whether shutdown has started, and stops: everything
-    // it would have written is derived from the JSONL and is rebuilt by the next launch's scan.
-    // Without this a quit during a big rescan left the process running, windowless, for as long
-    // as the rescan had left.
+    // A library of a few hundred folders measured ~35s per pass, and quitting waits for the pass
+    // in flight, so every step checks for shutdown and stops: what it would have written is
+    // rebuilt from the JSONL by the next launch's scan.
     if (this.opts.isDisposed()) return
 
     const byRawCwd = new Map<string, SessionMeta[]>()
     for (const m of metas) {
-      if (!m.cwd) continue // Without a cwd there is nothing to group or resume against.
+      if (!m.cwd) continue
       const list = byRawCwd.get(m.cwd) ?? []
       list.push(m)
       byRawCwd.set(m.cwd, list)
     }
 
-    // On a full pass every distinct cwd the store already knows about is re-resolved, not just
-    // the ones with a changed file this pass — a folder's branch or worktree status can change
-    // with nobody ever touching a transcript in it. A scoped pass only re-resolves the cwds of
-    // the files that actually changed.
+    // A full pass re-resolves every known cwd: a folder's branch can change with no transcript touched.
     const cwdsToResolve = new Set(byRawCwd.keys())
     if (req.full) {
       for (const cwd of this.store.distinctCwds()) cwdsToResolve.add(cwd)
     }
 
-    // Resolve every distinct raw cwd to its canonical project path first, then
-    // group by that canonical key. Two JSONL files that record the same
-    // directory via different routes (e.g. one through a symlink) must land
-    // under one project row, not split across two: resolveProject already
-    // canonicalizes with realpath, so syncProject and syncSessions must be
-    // keyed on ProjectInfo.path rather than the raw string read from the JSONL.
+    // Grouped by canonical path (`resolveProject` uses realpath), not the raw JSONL string, so
+    // two routes to one directory (a symlink) land under one project row.
     const byCanonicalCwd = new Map<string, SessionMeta[]>()
     const infoByCanonicalCwd = new Map<string, ProjectInfo>()
     const rawCwds = [...cwdsToResolve]
@@ -311,10 +256,8 @@ export class SessionCatalog {
       if (!info) continue
       entries.push({ info, metas: list })
     }
-    // One commit for the whole pass instead of two fsyncing transactions per project (MAIN-2).
     this.store.syncAll(entries)
 
-    // "Measure before fixing" (CLAUDE.md): what MAIN-1 set out to cut down, on every pass.
     log.info('refresh', 'pass', {
       full: req.full,
       files: filesSeen,
@@ -328,9 +271,7 @@ export class SessionCatalog {
     if (req.full || this.liveWindowElapsed()) await this.scanLive()
     else this.armLiveScan()
     if (this.opts.isDisposed()) return
-    // Inside the refresh itself, rather than at each of its callers: the Refresh button, the file
-    // watcher and the periodic rescan all arrive here, and a setting called "import everything
-    // automatically" that only held for some of those routes would be the worst kind of half-true.
+    // Here rather than at each caller, so every route into a refresh honours the setting.
     if (this.autoImportAll) {
       await this.importAllDiscovered()
     }
@@ -367,26 +308,15 @@ export class SessionCatalog {
   }
 
   /**
-   * Re-resolves and syncs one folder's project row through git — without touching a single
-   * transcript or resolving any other folder (MAIN-4). Used after a git mutation that can change
-   * what the sidebar shows for this one folder (a checkout, a new branch), so the answer comes
-   * back in git time instead of waiting for (and paying for) a full-library rescan.
-   *
-   * Bypasses the resolver's cache deliberately: the mutation this follows is the reason the
-   * cached answer is now stale.
+   * Re-resolves one folder's project row without a full rescan, after a git mutation (a checkout,
+   * a new branch). Bypasses the resolver's cache: the mutation is why the cached answer is stale.
    */
   async refreshProject(cwd: string): Promise<void> {
     const info = await this.opts.worktrees.resolveProject(cwd, { forceResolve: true })
     this.store.syncProject(info)
   }
 
-  /**
-   * `buildTree` calls `cwdExists` once per *session*, not once per distinct cwd (MAIN-10) — every
-   * window calls `tree()` on every `treeChanged` (after every watcher pass, every index update),
-   * so a library with many sessions per folder turned into that many synchronous `existsSync`
-   * calls per broadcast. Memoised per call here rather than in `buildTree` itself, which stays a
-   * pure function of whatever `cwdExists` it is handed.
-   */
+  /** `existsSync` is memoised per call (`buildTree` asks once per session, every window on every `treeChanged`); `buildTree` stays pure. */
   async tree(): Promise<ProjectNode[]> {
     return buildTree(
       this.store.visibleProjects(),
@@ -420,16 +350,10 @@ export class SessionCatalog {
   /**
    * Marks sessions imported. Paths in `autoImportProjects` also get the
    * auto-import flag so future sessions there appear without a re-import.
-   * Callers may pass a raw (possibly symlinked) cwd, so each path is
-   * canonicalized the same way `refresh()` keys project rows — otherwise the
-   * flag would be written under a path no project row actually has.
+   * Each path is canonicalized the way `refresh()` keys project rows, so the flag lands on a real row.
    *
-   * Each path must already name a project this store knows about (SEC-8): the renderer's own
-   * caller only ever offers back a `projectPath` this process handed it through `discovered()`,
-   * but the IPC boundary does not know that — and `resolveProject` runs `git` with `cwd` set to
-   * whatever it is given, which is exactly the "renderer supplies a filesystem path" pattern
-   * CLAUDE.md says main never accepts. `getProject` is the same check `newSessionInProject` uses
-   * for the identical reason.
+   * Each path must already name a known project: `resolveProject` runs `git` in whatever cwd it
+   * is given, and the IPC boundary cannot assume the renderer only echoes paths from `discovered()`.
    */
   async importSessions(sessionIds: string[], autoImportProjects: string[]): Promise<void> {
     for (const path of autoImportProjects) {
@@ -450,11 +374,8 @@ export class SessionCatalog {
   }
 
   /**
-   * Whether `sessionId` can still be resumed: it must resolve in the store, its transcript file
-   * must still exist (it can be deleted by removing the worktree it lived in — see `resume()`
-   * above), and its cwd must still exist. Unlike `requireSession`, this never throws — restore
-   * calls it once per recorded live session and a stale one is meant to be dropped, not to abort
-   * the whole launch.
+   * Whether `sessionId` can still be resumed: in the store, transcript file present (removing its
+   * worktree deletes it) and cwd present. Never throws: restore drops a stale one.
    */
   sessionIsResumable(sessionId: string): boolean {
     const session = this.store.getSession(sessionId)

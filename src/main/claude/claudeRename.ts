@@ -83,8 +83,6 @@ async function sendRename(deps: RenameDeps, ptyId: string, sessionId: string, cl
     }
     await t.sleep(t.pollMs)
   }
-  // Logged either way: "I renamed it in Apiary but VS Code still shows the old name" is
-  // answered by whether this ran, and why not.
   log.info('rename', sent ? 'sent to claude' : 'not sent to claude', { ptyId, sessionId })
   return sent ? 'renamed' : 'never-idle'
 }

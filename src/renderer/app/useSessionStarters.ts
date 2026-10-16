@@ -35,16 +35,9 @@ export function useSessionStarters({ addPending, notify, notifyError, requestFol
     }
   }, [addPending, notifyError])
 
-  /**
-   * Forks a session from a tab or a sidebar row: a new conversation seeded with this one's, opened
-   * beside it, leaving the original untouched.
-   *
-   * The fork has no session id yet — Claude mints one when it writes the JSONL — so this goes
-   * through exactly the same pending-pty bookkeeping as starting a session from scratch, and the
-   * `fork: …` title rides along as a `titleOverride` that is applied as a real rename the moment
-   * the session resolves. Doing it that way rather than renaming afterwards means there is never a
-   * moment where the fork and its original are two rows with the same name.
-   */
+  // The fork has no session id until Claude writes the JSONL, so it goes through the pending
+  // bookkeeping; `titleOverride` is applied as a rename on resolve, so the fork and its original
+  // are never two rows with the same name.
   const forkSession = useCallback(async (sessionId: SessionId) => {
     try {
       const [info, nodes] = await Promise.all([
@@ -91,9 +84,6 @@ export function useSessionStarters({ addPending, notify, notifyError, requestFol
   }, [addPending, notifyError])
 
   const onSessionStarted = useCallback((info: NewSessionInfo) => {
-    // A session started from the worktree-conflict dialog is a new session like any other: it has
-    // no id until Claude writes one, so it goes through the same pending bookkeeping rather than a
-    // path of its own.
     void treeStore.current().then((nodes) => { addPending(info, nodes) })
       .catch((e: unknown) => { notifyError(e, 'Could not open that session') })
   }, [addPending, notifyError])

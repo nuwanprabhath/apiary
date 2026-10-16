@@ -5,8 +5,7 @@ import { type KeyboardEvent, type RefObject, useCallback, useRef } from 'react'
  * ours. `current` is the focused item's index, or -1 when focus is outside the list (a search box
  * above it): ArrowDown then enters at the first item and ArrowUp at the last.
  *
- * The one arithmetic behind every arrow-key list — `Menu`, `useRovingList`, `useListboxNav` — which
- * had four hand-written variants that disagreed on wrapping and on where "no current item" lands.
+ * The one arithmetic behind every arrow-key list — `Menu`, `useRovingList`, `useListboxNav`.
  */
 export function nextIndex(key: string, current: number, count: number, wrap: boolean): number | null {
   if (count === 0) return null

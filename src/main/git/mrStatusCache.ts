@@ -12,11 +12,9 @@ interface CacheEntry {
 /**
  * How long an answer is trusted, by what it says.
  *
- * An open merge request is the one whose state is expected to change — it gets merged, which is
- * the news a user watches for — so it is re-checked after two minutes. Merged and closed are final
- * in practice, and re-asking GitLab about them every few minutes is wasted calls. A null (lookup
- * failed) is retried soon, since the cause is often transient. It was ten minutes for everything,
- * which is how a merged `!1328` could keep saying "opened" long after the merge.
+ * An open merge request is expected to change (it gets merged), so it is re-checked after two
+ * minutes. Merged and closed are final in practice. A null (lookup failed) is retried soon, since
+ * the cause is often transient.
  */
 function ttlFor(state: MrState | null): number {
   if (state === 'merged' || state === 'closed') return 60 * 60 * 1000
@@ -24,8 +22,7 @@ function ttlFor(state: MrState | null): number {
   return 2 * 60 * 1000
 }
 
-/** The `glab` runner a `MrStatusCache` is built with in the app: `exec/run.ts`'s `createExec`
- *  (MAIN-23), as `plugins/gitlabMr.ts` uses, not an `execFile` of its own. */
+/** The `glab` runner a `MrStatusCache` is built with in the app. */
 export function createMrExec(): MrExec {
   return createExec({ timeoutMs: 8000, maxBuffer: 1024 * 1024, scope: 'mr-status' })
 }
@@ -101,8 +98,7 @@ export class MrStatusCache {
 
     const hit = this.cache.get(key)
     if (hit !== undefined && now() - hit.at < ttlFor(hit.state)) return hit.state
-    // Only fresh lookups are logged — a cached answer is served many times a minute. "Why does it
-    // still say opened?" is answered by whether, and when, GitLab was last actually asked.
+    // Only fresh lookups are logged: a cached answer is served many times a minute.
 
     const running = this.inFlight.get(key)
     if (running !== undefined) return running

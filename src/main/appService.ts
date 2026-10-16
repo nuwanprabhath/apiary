@@ -89,7 +89,7 @@ export class AppService {
     return this.catalog.refresh(opts)
   }
 
-  /** One folder's project row re-resolved through git (MAIN-4); see SessionCatalog. */
+  /** One folder's project row re-resolved through git; see SessionCatalog. */
   async refreshProject(cwd: string): Promise<void> {
     return this.catalog.refreshProject(cwd)
   }
@@ -161,8 +161,6 @@ export class AppService {
     return this.actions.sessionNote(sessionId)
   }
 
-  // Search: every method is a one-line delegate to SearchService (MAIN-14 step 4).
-
   /**
    * Session ids matched by anything other than their title: the conversation, the user's note, or
    * both, according to which of the two are switched on. They are independent — a note is a line
@@ -197,9 +195,7 @@ export class AppService {
     return this.search.update()
   }
 
-  // Terminals: resume, openShell*, newSessionIn*, forkSession and sendPrompt are one-line delegates
-  // to TerminalService (MAIN-14 step 4); `resume` goes through the chat first, which stops a chat
-  // running on the session (one process per session).
+  // `resume` goes through the chat first, which stops a chat running on the session.
 
   async resume(sessionId: SessionId): Promise<void> {
     return this.chat.resumeInTerminal(sessionId)
@@ -258,8 +254,6 @@ export class AppService {
     this.terminals.setClaudeBin(path)
   }
 
-  // VS Code and pasted images.
-
   /** Whether VS Code was found on this machine at launch. Checked once; does not change at runtime. */
   vsCodeAvailable(): boolean {
     return this.vscode.available()
@@ -290,8 +284,6 @@ export class AppService {
   async readImage(path: string): Promise<{ dataUrl: string } | null> {
     return this.images.read(path)
   }
-
-  // Git: every method is a one-line delegate to GitService (MAIN-14 step 3).
 
   async gitStatus(terminal: TerminalRef): Promise<GitStatus | null> {
     return this.git.status(terminal)
@@ -397,10 +389,8 @@ export class AppService {
     // the database — otherwise it could try to write through a closed better-sqlite3 handle.
     await this.catalog.whenIdle()
     this.store.close()
-    // Closes the index and the content-search worker thread's own SQLite handle (MAIN-20) — see
-    // `SearchService.close`.
+    // Also closes the content-search worker thread's own SQLite handle.
     await this.search.close()
-    // Releases any plugin holding something of its own (MAIN-17/MAIN-20).
     this.plugins.dispose()
   }
 }

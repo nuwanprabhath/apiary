@@ -4,15 +4,12 @@ import {
   presetDef, dragTracks, boundaryAt, type PresetId, type Tracks, type DividerDef,
 } from '../../state/layout'
 
-/** Below these a pane shows nothing usable: the toolbar and a few terminal rows, or a readable
- *  column. The same floor the column dividers had. */
 /** A pane's floor (`.session-column`'s min-width): no divider drag goes below it, and the window
  *  is widened rather than run a pane off its edge (`useWindowFitsPanes`). */
 export const MIN_PANE_WIDTH = 280
 const MIN_PANE_HEIGHT = 180
 
-/** How far an arrow key moves a divider (UI-27): pointer-only before this, with no keyboard
- *  alternative at all. */
+/** How far an arrow key moves a divider. */
 const KEYBOARD_STEP_PX = 16
 
 interface Props {
@@ -33,9 +30,8 @@ function visiblePart(d: DividerDef, hidden: Set<number>): DividerDef | null {
 /**
  * The draggable boundaries of the current layout, laid over the grid.
  *
- * Overlaid rather than taking a grid track of their own: a divider that is a track would need
- * every preset's template to interleave them, and `main-right2`'s horizontal divider exists on
- * one side only — as an overlay it is simply a shorter handle.
+ * Overlaid, not grid tracks: a track would need every preset's template to interleave them, and
+ * `main-right2`'s horizontal divider exists on one side only.
  */
 export function PaneDividers({ preset, tracks, onChange, hiddenCols }: Props): JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null)
@@ -67,7 +63,7 @@ export function PaneDividers({ preset, tracks, onChange, hiddenCols }: Props): J
 }
 
 /**
- * One boundary: a separator you drag or step with the arrow keys (UI-27). Both go through
+ * One boundary: a separator you drag or step with the arrow keys. Both go through
  * `useResizeDrag`, in percent of the grid so `aria-valuenow` reads 0–100; `dragTracks` clamps to
  * the minimum pane size whichever way the value arrives, so Home/End land on the nearest pane
  * minimum rather than off the grid.
@@ -86,7 +82,6 @@ function Divider({ def: d, tracks, onChange, hostRef, style }: {
     const rect = hostRef.current?.parentElement?.getBoundingClientRect()
     return (col ? rect?.width : rect?.height) ?? 1
   }
-  /** Moves this boundary to `percent` of the grid, as far as the minimum pane size allows. */
   const apply = (percent: number): void => {
     const { tracks: now, onChange: emit } = latest.current
     const along = col ? now.cols : now.rows
@@ -107,7 +102,6 @@ function Divider({ def: d, tracks, onChange, hostRef, style }: {
       return col ? ((e.clientX - rect.left) / rect.width) * 100 : ((e.clientY - rect.top) / rect.height) * 100
     },
     step: () => (KEYBOARD_STEP_PX / size()) * 100,
-    // The panes follow the pointer as it moves, as they always have; the release only settles it.
     onLive: apply,
     onEnd: apply,
   })

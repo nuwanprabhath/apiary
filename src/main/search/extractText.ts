@@ -4,8 +4,7 @@
  * What goes in is what someone might remember and search by: what they asked, what Claude said, and
  * the *names* in tool calls — a branch checked out, a file edited, a merge request opened. What
  * stays out is bulk tool output, which is where most of the bytes are and almost none of the
- * recall: nobody searches for the 400 lines a test run printed, but the index pays for them twice,
- * once in size and once in every query that has to rank them.
+ * recall; the index would pay for them twice, in size and in every query that ranks them.
  */
 
 /** Text blocks, plus short string fields from tool inputs (paths, branches, commands, urls). */
@@ -21,8 +20,7 @@ function fromContent(content: unknown, out: string[]): void {
     if (b.type === 'text' && typeof b.text === 'string') out.push(b.text)
     if (b.type === 'tool_use' && typeof b.input === 'object' && b.input !== null) {
       for (const value of Object.values(b.input as Record<string, unknown>)) {
-        // Short strings only: a tool input's long fields are file contents and diffs, which are
-        // the same bulk this deliberately leaves out.
+        // Short strings only: long fields are file contents and diffs, the bulk left out above.
         if (typeof value === 'string' && value.length <= 400) out.push(value)
       }
     }
@@ -45,8 +43,7 @@ export function extractLineText(line: string): string | null {
   }
 
   const out: string[] = []
-  // The session's own title is worth indexing with the body, so a title match and a content match
-  // are one search rather than two that have to be combined by the caller.
+  // Indexed with the body so a title match and a content match are one search.
   if (typeof entry.title === 'string') out.push(entry.title)
 
   const message = entry.message

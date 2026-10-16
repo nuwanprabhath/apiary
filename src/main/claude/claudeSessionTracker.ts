@@ -12,15 +12,11 @@ import { log } from '../log/logger'
  * session's JSONL, which is only written on the first message — `/clear` and `/resume` change its
  * `sessionId` in place, `/rename` changes its `name`, and it is removed when the process exits.
  *
- * Before this, a terminal was tied to a session by guesswork: a new or forked session's tab
- * waited for an unseen JSONL to appear in the same folder and assumed it was the one. That guess
- * is wrong whenever the process switches to a session that already existed — `/resume` inside a
- * new session — and the tab then stayed a `new:<uuid>` pty forever, which is why it could not be
- * pinned, never reached Recent, showed its pty id in Active, and could not be forked. Reading the
- * answer is not a guess.
+ * Matching an unseen JSONL in the same folder is wrong whenever the process switches to a session
+ * that already existed (`/resume` inside a new session), so this file is the source of truth.
  *
- * A missing or unreadable file is simply "unknown": older Claude versions do not write one, and
- * the renderer keeps its folder-matching fallback for that case.
+ * A missing or unreadable file is "unknown": older Claude versions do not write one, and the
+ * renderer keeps its folder-matching fallback for that case.
  */
 export function readClaudeSession(sessionsDir: string, pid: number): PtySessionInfo | null {
   let raw: string
@@ -78,15 +74,13 @@ export class ClaudeSessionTracker {
     return this.latest
   }
 
-  /** One pass: read every pty's file, log what moved, and report if anything did. */
   poll(): void {
     const next: Record<string, PtySessionInfo> = {}
     for (const [ptyId, { pid, sessionsDir }] of this.opts.processes()) {
       const info = readClaudeSession(sessionsDir, pid)
       if (info !== null) next[ptyId] = info
     }
-    // Logged per transition because this is the one fact that would have explained the stuck
-    // `new:<uuid>` tabs at a glance: which pty moved to which session, and when.
+    // Logged per transition: which pty moved to which session, and when.
     for (const [ptyId, info] of Object.entries(next)) {
       const before = this.latest[ptyId]
       if (before?.sessionId !== info.sessionId) {

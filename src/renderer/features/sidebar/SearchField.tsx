@@ -1,30 +1,22 @@
 import { type JSX, useCallback, useEffect, useRef, useState } from 'react'
 import { CloseIcon } from '../../ui/icons'
 
-/** How long the box waits, after the last keystroke, before the rest of the app hears about it. */
+/** Wait after the last keystroke before the rest of the app hears about it. */
 const DEBOUNCE_MS = 150
 
 interface Props {
   /** Called with the settled query — never per keystroke. Must be referentially stable. */
   onChange: (query: string) => void
-  /**
-   * The query the results currently on screen were built from. When it differs from what has been
-   * typed, the field shows that it is still catching up.
-   */
+  /** The query the results on screen were built from; when it differs from the text, the field shows it is catching up. */
   resultsFor: string
 }
 
 /**
  * The search box, and the only component that re-renders while someone is typing.
  *
- * The text lives here rather than in `Sidebar` on purpose. Held one level up, every keystroke
- * re-rendered the whole sidebar — and with a few hundred sessions that is hundreds of rows of
- * React work between pressing a key and seeing the letter. The symptom is a box that stops at "te"
- * and catches up with "test" a second later, which is the worst kind of slow: the machine appears
- * to have lost your input.
- *
- * So the typed text stays local, and the rest of the app only learns the query once it settles.
- * Filtering hundreds of sessions is allowed to take a moment; typing is not.
+ * The text lives here, not in `Sidebar`: held one level up, every keystroke re-rendered hundreds of
+ * rows and the box lagged behind the typing. The rest of the app only learns the query once it
+ * settles.
  */
 export function SearchField({ onChange, resultsFor }: Props): JSX.Element {
   const [text, setText] = useState('')
@@ -37,14 +29,11 @@ export function SearchField({ onChange, resultsFor }: Props): JSX.Element {
 
   const clear = useCallback(() => {
     setText('')
-    // Published straight away rather than waiting out the debounce: clearing is a deliberate act
-    // with an obvious expected result, and 150ms of the old results after it reads as a stutter.
+    // Published straight away: old results lingering after a deliberate clear read as a stutter.
     onChange('')
     inputRef.current?.focus()
   }, [onChange])
 
-  // Only ever true when there is something typed that the results do not yet reflect — so it
-  // appears while a large library is being filtered and never merely because the box is empty.
   const catchingUp = text.trim() !== resultsFor.trim()
 
 

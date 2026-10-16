@@ -8,12 +8,11 @@ import { background } from '../../state/policy'
 /**
  * Keeps this window's tabs in step with chats, wherever they were started:
  *
- * - A session that starts as a chat has no terminal claude any more — main stopped it — so it is
- *   no longer resumed here: its dead terminal goes, and the Resume button comes back as the way to
- *   continue the same conversation in Claude Code's terminal.
- * - A chat Claude moved onto a new session (`/clear`) takes its tabs with it, once the new
- *   session is in the tree. That can be a while: claude writes the new session's file only with
- *   its first message, so this waits on the tree for as long as the window is open.
+ * - A session that starts as a chat has no terminal claude (main stopped it), so it is no longer
+ *   resumed here: its dead terminal goes and Resume comes back.
+ * - A chat Claude moved onto a new session (`/clear`) takes its tabs with it once the new session
+ *   is in the tree. claude writes that file only with its first message, so this waits on the
+ *   tree for as long as the window is open.
  */
 export function useChatTakeover(): void {
   const dispatch = useWorkspaceDispatch()
@@ -35,9 +34,7 @@ export function useChatTakeover(): void {
       following.set(from, stop)
       attempt()
     }
-    // `chatLifecycle`, not the chat's own push: this window may have the session open in a
-    // background tab, which shows no chat and so is attached to none, and these two facts are all
-    // it needs.
+    // `chatLifecycle`, not the chat's own push: a background tab shows no chat and is attached to none.
     const unsubscribe = onChatLifecycle((change) => {
       if (change.running) dispatch({ type: 'resumed/remove', key: change.sessionId })
       if (change.previousSessionId !== null) follow(change.previousSessionId, change.sessionId)

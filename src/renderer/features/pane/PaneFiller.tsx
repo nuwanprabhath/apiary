@@ -28,7 +28,7 @@ export function PaneFiller({ openTabs, exclude, onMoveHere, onOpenHere, onCloseP
 
   useEffect(() => {
     let cancelled = false
-    // UI-3: shares the cache App's own effects use instead of always starting its own fetch — a
+    // Shares the cache App's own effects use instead of always starting its own fetch — a
     // pane emptying right after a tree change (the common case: closing the last tab in it) often
     // lands while that change's fetch is still in flight, or has only just finished.
     // Recent sessions are a convenience: the open tabs are still offered when this read fails.

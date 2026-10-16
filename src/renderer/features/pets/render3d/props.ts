@@ -19,7 +19,6 @@ const mat = (color: THREE.ColorRepresentation, o: Partial<THREE.MeshPhysicalMate
 
 function box(w: number, h: number, d: number, m: THREE.Material, r = 0.02): THREE.Mesh {
   const geometry = new THREE.BoxGeometry(w, h, d, 4, 4, 4)
-  // Round the corners a little: nothing in a pet's world is sharp.
   const p = geometry.getAttribute('position')
   const v = new THREE.Vector3()
   for (let i = 0; i < p.count; i++) {
@@ -52,7 +51,6 @@ function feltBlob(sdf: Sdf, extent: number, color: string, sheen: string): THREE
   return furry(meshFromSdf(sdf, extent, 44), { color, sheen, length: 0.05, density: 230, shells: 22 })
 }
 
-/** A prop a pet holds or sits in, in the pets' own frame. */
 export function buildHeld(kind: HeldProp): THREE.Object3D {
   const g = new THREE.Group()
   switch (kind) {
@@ -106,14 +104,12 @@ export function buildHeld(kind: HeldProp): THREE.Object3D {
         sprinkle.rotation.z = t * 3
         donut.add(sprinkle)
       }
-      // Held up before the mouth, turned to us: a donut reads best face on.
       donut.position.set(-0.08, -0.2, 0.62)
       donut.rotation.y = -SIDE_TURN + 0.25
       g.add(donut)
       break
     }
     case 'juice': {
-      // Held up to the mouth, the straw in it.
       const pack = new THREE.Group()
       const carton = box(0.13, 0.2, 0.09, mat('#ffb21a', { roughness: 0.5 }), 0.015)
       const label = new THREE.Mesh(new THREE.CircleGeometry(0.04, 24), new THREE.MeshBasicMaterial({ color: '#ff6a00' }))
@@ -155,7 +151,6 @@ export function buildHeld(kind: HeldProp): THREE.Object3D {
       break
     }
     case 'rod': {
-      // Out over the water ahead, the line straight down into it.
       const rod = tube([[-0.3, -0.42, 0.42], [-0.22, 0.05, 0.72], [-0.14, 0.5, 1.0]], 0.014, mat('#8b5a2b', { roughness: 0.7 }))
       const line = tube([[-0.14, 0.5, 1.0], [-0.14, 0.0, 1.0], [-0.14, -0.62, 1.0]], 0.003, new THREE.MeshBasicMaterial({ color: '#e8edff' }))
       const bob = ball(0.035, mat('#ff3b3b', { clearcoat: 1 }))
@@ -181,10 +176,8 @@ export function buildHeld(kind: HeldProp): THREE.Object3D {
       break
     }
     case 'car': {
-      // A little open-top car, nose forward: the pet sits in it, its legs hidden by the doors.
       const paint = mat('#ff3b3b', { roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.05 })
       const bodyGeo = meshFromSdf((x, y, z) => {
-        // A rounded tub with a bonnet in front: a toy, not a box.
         const tub = Math.hypot(x / 0.4, y / 0.26, z / 0.62) - 1
         const bonnet = Math.hypot(x / 0.34, (y + 0.02) / 0.2, (z - 0.45) / 0.34) - 1
         const seat = Math.hypot(x / 0.3, (y - 0.3) / 0.14, (z + 0.02) / 0.36) - 1
@@ -217,7 +210,6 @@ export function buildHeld(kind: HeldProp): THREE.Object3D {
       break
     }
     case 'skateboard': {
-      // Under the pet's feet, nose forward, kicked up at both ends.
       const deck = mat('#9b5cff', { roughness: 0.35, clearcoat: 0.8 })
       const board = box(0.26, 0.035, 0.62, deck, 0.015)
       board.position.set(0, -0.79, 0.05)
@@ -237,7 +229,6 @@ export function buildHeld(kind: HeldProp): THREE.Object3D {
       break
     }
     case 'easel': {
-      // A painting in progress, turned to show us, on a little easel ahead of the pet.
       const wood = mat('#b5793d', { roughness: 0.75 })
       const stand = new THREE.Group()
       for (const [x, z] of [[-0.18, 0], [0.18, 0], [0, -0.16]] as const) {
@@ -252,7 +243,6 @@ export function buildHeld(kind: HeldProp): THREE.Object3D {
         if (ctx !== null) {
           ctx.fillStyle = '#fdfaf2'
           ctx.fillRect(0, 0, 64, 56)
-          // A sunny hill: sky, a sun, a hill, a flower.
           ctx.fillStyle = '#9fdcff'; ctx.fillRect(4, 4, 56, 30)
           ctx.fillStyle = '#ffd400'; ctx.beginPath(); ctx.arc(46, 15, 7, 0, Math.PI * 2); ctx.fill()
           ctx.fillStyle = '#5bd65b'; ctx.beginPath(); ctx.ellipse(26, 52, 34, 22, 0, Math.PI, 0); ctx.fill()
@@ -268,7 +258,6 @@ export function buildHeld(kind: HeldProp): THREE.Object3D {
       backing.position.set(0, 0.02, 0.04)
       stand.add(ledge, backing, canvas)
       stand.position.set(0.05, -0.22, 0.98)
-      // Facing back towards the pet, and round to us.
       stand.rotation.y = -SIDE_TURN - 0.75
       g.add(stand)
       break
@@ -296,7 +285,6 @@ export function buildHeld(kind: HeldProp): THREE.Object3D {
       break
     }
     case 'book': {
-      // Held open towards the pet: we see its covers and spine, and the pet peeks over the top.
       const cover = mat('#3b6cff', { roughness: 0.6 })
       const page = mat('#fdf6e3', { roughness: 0.9 })
       for (const s of [-1, 1]) {
@@ -407,7 +395,6 @@ export function buildScenery(kind: SceneryProp): THREE.Object3D {
       break
     }
     case 'ball': {
-      // A fuzzy tennis ball: felt, like the pets.
       g.add(feltBlob((x, y, z) => Math.hypot(x, y, z) - 0.12, 0.2, '#d8f24a', '#ffffff'))
       break
     }

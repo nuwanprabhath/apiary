@@ -15,7 +15,6 @@ import { logLine } from '../../state/log'
  * real `SessionNode` once the watcher finds it (the reconciler), and rekeys a live tab whose pty
  * Claude reports on another session (the rekey). Both end in the same `session/follow` action.
  *
- * Side effects (the rename IPC, the log line) are decided here; the state change is one dispatch.
  * Neither effect ever spawns a pty — "never spawn over a live id" depends on the rekey putting the
  * pty id in `ptyOverrides` in the same update as the tab's new key.
  */
@@ -23,33 +22,23 @@ export function useSessionFollowing(): void {
   const dispatch = useWorkspaceDispatch()
   const { layout, ptyOverrides, pending } = useWorkspace()
   const columns = layout.panes
-  /** Which Claude session each terminal is on, from Claude itself — see the rekey effect. */
   const ptySessions = usePtySessions()
 
-  // Once a "new session" pty is running (either entry point), watch for the SessionNode Claude's
-  // own JSONL write eventually produces. When it appears, fold the pending terminal into the
-  // normal resumed-session bookkeeping — same pty id, now addressed by its real session id — so
-  // there is never a second terminal spawned for the same running process.
+  // Folds each still-pending entry into the SessionNode Claude's JSONL write eventually produces:
+  // same pty id, now addressed by its real session id, so no second terminal is spawned.
   //
-  // Every still-pending entry is reconciled independently on each tick, not just the visible one,
-  // so a second "+" click (on the same folder or a different one) before the first resolves can
-  // never orphan the first pty. Matching by cwd alone is ambiguous when a folder already holds —
-  // or is about to hold — more than one new session, so a candidate is excluded once it is: (a) an
-  // id that already existed before this particular pending entry was created (`knownSessionIds`),
-  // (b) claimed by another pending entry earlier in this same pass (`claimed`), or (c) claimed by
-  // any pending entry in an earlier pass (`ptyOverrides`, which accumulates for the app's lifetime
-  // and is fresh here because resolving an entry changes `pending`, which re-creates this effect
-  // with a closure over the latest `ptyOverrides`). That leaves exactly one irreducible case: two
-  // brand-new sessions in the *same* folder whose JSONLs both appear for the very first time in
-  // the very same tick. Nothing distinguishes them from cwd alone, so which pty gets labelled
-  // which session id is arbitrary — but each still gets a distinct, unclaimed one, so neither pty
-  // is ever orphaned and neither session ever ends up double-claimed.
+  // Every pending entry is reconciled on each tick, so a second "+" before the first resolves
+  // never orphans the first pty. Matching by cwd alone is ambiguous, so a candidate is excluded
+  // once it (a) existed before this entry was created (`knownSessionIds`), (b) was claimed earlier
+  // in this pass (`claimed`), or (c) was claimed in an earlier pass (`ptyOverrides`, fresh here
+  // because resolving an entry changes `pending`, which re-creates this effect). One case stays
+  // irreducible: two new sessions in the same folder whose JSONLs first appear in the same tick.
+  // Which pty gets which id is then arbitrary, but each gets a distinct, unclaimed one.
   useEffect(() => {
     if (pending.size === 0) return
     let cancelled = false
     const check = (): void => {
-      // Background (UI-23): re-run on every `treeChanged`, so a failed read here just means this
-      // pass finds nothing new — the next tree change gives it another chance.
+      // Re-run on every `treeChanged`, so a failed read just means this pass finds nothing new.
       background(treeStore.current().then((nodes) => {
         if (cancelled) return
         const claimed = new Set<string>()
@@ -61,17 +50,12 @@ export function useSessionFollowing(): void {
           const found = findNewSessionByCwd(nodes, info.cwd, exclude)
           if (!found) continue
           claimed.add(found.sessionId)
-          // A rename typed in while this was still pending (see PendingSession.titleOverride)
-          // had nowhere to persist against until now — apply it the moment a real session id
-          // exists. Applied optimistically to the SessionNode used below too, so the header
-          // shows the renamed title immediately rather than flashing the scanner's own title
-          // until the resulting `treeChanged` push round-trips back.
+          // A rename typed while pending (PendingSession.titleOverride) had nothing to persist
+          // against until a real session id exists. `session/follow` applies it to the node too,
+          // so the header does not flash the scanner's title until `treeChanged` round-trips.
           if (info.titleOverride !== null) {
             renameSession(found.sessionId, info.titleOverride)
           }
-          // `session/follow` also applies the override title to the node, takes the pty over
-          // (`ptyOverrides`), marks it resumed, rekeys the tab in place — wherever it is — onto the
-          // terminal view and drops the pending entry: one atomic update.
           dispatch({ type: 'session/follow', from: ptyId, to: found, ptyId: info.ptyId, titleOverride: info.titleOverride })
         }
       }), 'tabs')
@@ -82,29 +66,19 @@ export function useSessionFollowing(): void {
   }, [pending, ptyOverrides, ptySessions, dispatch])
 
   /**
-   * Keeps every tab on the session its terminal is *actually* on, as Claude reports it.
-   *
-   * A tab is keyed by a session id, but the process behind it can move: a new or forked session
-   * starts under a `new:<uuid>` pty id and only later has an id of its own, and `/clear` or
-   * `/resume` typed in any session switch the process to another session in place. The folder
-   * matching above can only guess at the first case and cannot see the others — a new session in
-   * which you typed `/resume` switched to a session that already existed, which that matching
-   * deliberately excludes, so the tab stayed `new:<uuid>` for good: unpinnable, absent from
-   * Recent, showing its pty id in Active, and unforkable.
+   * The process behind a tab can move: a new or forked session starts under a `new:<uuid>` pty id
+   * and only later has an id of its own, and `/clear` or `/resume` switch it in place. The folder
+   * matching above cannot see those (it excludes a session that already existed).
    *
    * `ptySessions` is Claude's own answer (`~/.claude/sessions/<pid>.json`), so no matching is
-   * needed: a tab whose pty is on another session that the tree knows is rekeyed to it, carrying
-   * its pty, its shells and any rename typed while it was pending. It works in any window,
-   * including one a tab was moved into while still pending, which never had a pending entry for
-   * it at all. A session with no JSONL yet (nothing has been typed in it) is not in the tree, so
-   * the tab simply waits — never guesses.
+   * needed: a tab whose pty is on another session the tree knows is rekeyed to it, carrying its
+   * pty, shells and any pending rename. It works in any window, including one a tab was moved into
+   * while pending. A session with no JSONL yet is not in the tree, so the tab waits, never guesses.
    */
   /** Waits already logged by the effect below, so each is logged once rather than per tree change. */
   const loggedWaitsRef = useRef(new Set<string>())
-  // UI-3: read through a ref inside the effect below rather than depending on `columns` directly,
-  // so switching the active tab or moving one between panes — neither of which changes *which*
-  // keys are open — does not refetch the tree. `rekeyOpenKeysSignature` (just the open key set,
-  // order-independent) is what the effect actually depends on.
+  // Read through a ref so switching or moving tabs, which does not change *which* keys are open,
+  // does not refetch the tree; `rekeyOpenKeysSignature` (the open key set) is the dependency.
   const columnsRef = useRef(columns)
   columnsRef.current = columns
   const rekeyOpenKeysSignature = [...new Set(columns.flatMap((c) => c.tabs.map((t) => t.key)))]
@@ -115,10 +89,7 @@ export function useSessionFollowing(): void {
     // Re-checked on every tree change, not only when `ptySessions` changes. Claude writes its
     // session file at startup but the session's JSONL only on the first message, so the first
     // check finds nothing in the tree and `ptySessions` never changes again to prompt another.
-    // Missed by a stand-in whose session already existed; caught by the live Haiku spec.
     const check = (): void => {
-      // Background (UI-23): re-run on every `treeChanged`, so a failed read here just means this
-      // pass finds nothing new — the next tree change gives it another chance.
       background(treeStore.current().then((nodes) => {
       if (cancelled) return
       const known = flattenTree(nodes)
@@ -132,8 +103,6 @@ export function useSessionFollowing(): void {
         // Not in the tree yet (no message sent in it), or already open in its own tab here —
         // rekeying onto an open tab would leave two tabs claiming one key.
         if (target === undefined || openKeys.has(now)) {
-          // Logged once per wait: "Active still shows new:…" was unanswerable from the log, which
-          // showed the terminal on a session and then nothing. This says why it did not follow.
           const waitKey = `${key}>${now}`
           if (!loggedWaitsRef.current.has(waitKey)) {
             loggedWaitsRef.current.add(waitKey)
@@ -148,8 +117,6 @@ export function useSessionFollowing(): void {
       }
       if (moves.length === 0) return
       for (const { from, to, ptyId } of moves) {
-        // Logged because a tab stuck on the wrong session was invisible from outside: which tab
-        // was rekeyed, from what to what, and whether it had been pending.
         logLine('info', 'tabs', 'tab follows its terminal', {
           from, to: to.sessionId, ptyId, wasPending: pending.has(from),
         })

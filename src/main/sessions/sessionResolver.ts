@@ -9,15 +9,12 @@ export interface SessionResolverDeps {
 }
 
 /**
- * The trust boundary shared by the git, shell, plugin and VS Code paths (MAIN-14 step 2): every
+ * The trust boundary shared by the git, shell, plugin and VS Code paths: every
  * cwd-carrying IPC call resolves through `resolveShellCwd`, and every renderer-supplied session or
  * folder id is checked against a row this process already knows about before anything acts on it.
- * Moved out of `AppService` as a pure move — behaviour, ordering and error text are unchanged; see
- * `tests/unit/sessionResolver.test.ts`.
  *
- * Owns `listedWorktrees` (the worktree paths `listWorktrees` has reported), which used to be a
- * private `AppService` field written from one method and read from another. It moves here in its
- * entirety rather than being duplicated, so there is exactly one place that can go stale.
+ * Owns `listedWorktrees` (the worktree paths `listWorktrees` has reported), so there is exactly
+ * one place that can go stale.
  */
 export class SessionResolver {
   private readonly store: SessionStore
@@ -54,8 +51,7 @@ export class SessionResolver {
 
   /**
    * Resolves a session id or (for a `pty` ref) a still-pending session's pty id to its real,
-   * existing cwd — the one trust boundary every cwd-carrying IPC call (shells, and now git
-   * operations) goes through, so the renderer never gets to hand in a raw filesystem path.
+   * existing cwd, so the renderer never hands in a raw filesystem path.
    */
   resolveShellCwd(terminal: TerminalRef): string {
     const cwd = terminal.kind === 'pty' ? this.pty.getCwd(terminal.id) : this.requireSession(terminal.id).cwd

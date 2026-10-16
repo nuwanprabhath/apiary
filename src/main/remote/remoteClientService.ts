@@ -53,7 +53,6 @@ export interface RemoteClientDeps {
   startPollMs?: number
 }
 
-/** One ssh tunnel, its temp directory and the connection over it. */
 interface Link { dir: string; tunnel: SshTunnel; connection: ClientConnection }
 
 /** Everything one work machine's windows share; it ends when the last window closes. */
@@ -200,7 +199,6 @@ export class RemoteClientService {
     await this.connect(host)
   }
 
-  /** On quit: every ssh stops. */
   async dispose(): Promise<void> {
     this.disposed = true
     const settling = [...this.pending.values()].map((p) => ignoreErrorsAsync(() => p, 'the caller of connect hears why it failed; dispose only waits'))
@@ -269,7 +267,6 @@ export class RemoteClientService {
     throw new Error(`${host} did not answer.`)
   }
 
-  /** What to send as the pairing code: the one just typed, else the saved one, else none. */
   private codeFor(host: string, typed: string | undefined): CodeToSend {
     if (typed !== undefined) return { code: typed, saved: false }
     const saved = this.deps.pairingCodes?.get(host) ?? null

@@ -6,7 +6,7 @@ import type { PendingSession } from '../features/workspace/workspaceReducer'
 /**
  * What the window derives from its columns and pending sessions, each memoized so the components
  * it feeds (every SessionColumn and PaneFiller) get the same reference on a render that changed
- * none of it (UI-1). It also returns `pendingTabInfo` (the labels of the pending tabs), derived
+ * none of it. It also returns `pendingTabInfo` (the labels of the pending tabs), derived
  * from the same `pending` map and memoized for the same reason.
  */
 export function useOpenTabKeys(columns: Column[], pending: Map<string, PendingSession>) {

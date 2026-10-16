@@ -8,8 +8,7 @@ export interface FakeUpdateBackendConfig {
 }
 
 /**
- * The E2E test backend for `UpdateService` (MAIN-15 / TEST-6), moved out of `index.ts` so it can
- * be built and tested on its own. Touches nothing real: no network, no disk write, no install.
+ * The E2E test backend for `UpdateService`. Touches nothing real: no network, no disk write, no install.
  * `openInstaller`'s `{ ok: 'opened' }` and `install()`'s no-op both exist because a test must never
  * actually quit the app or open a real file.
  */

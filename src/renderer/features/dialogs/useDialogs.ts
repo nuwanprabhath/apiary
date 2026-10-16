@@ -18,8 +18,7 @@ export type DialogRequest =
   /** A sidebar folder's "Change branch…". */
   | { kind: 'changeBranch'; path: string; label: string }
   | { kind: 'import' }
-  /** Which settings section to land on — one value, so the dialog cannot open without saying what
-   *  it should show ("Update settings" in the update banner is the reason). */
+  /** The dialog cannot open without saying which section to land on. */
   | { kind: 'settings'; section: string }
   /** The layout picker opened from a context menu's "Arrange…", which has no button to hang it from. */
   | { kind: 'arrange'; target: PlaceTarget; at: { x: number; y: number } }
@@ -43,11 +42,7 @@ export interface DialogsApi {
   close: (kind: DialogRequest['kind']) => void
 }
 
-/**
- * The state behind every dialog App can show (UI-1 step 5). Each kind keeps its own slot, as the
- * separate `useState`s did: opening one never closes another, so behaviour is unchanged. Rendering
- * lives in `DialogHost`; this also owns the two native-menu requests (File > Import, Settings).
- */
+/** Each kind keeps its own slot: opening one never closes another. Also owns the two native-menu requests (File > Import, Settings). */
 export function useDialogs(): DialogsApi {
   const [conflict, setConflict] = useState<DialogState['conflict']>(null)
   const [deleteTarget, setDeleteTarget] = useState<DialogState['deleteTarget']>(null)
@@ -92,8 +87,7 @@ export function useDialogs(): DialogsApi {
   useEffect(() => onOpenImportDialog(() => { setImportOpen(true) }), [])
   useEffect(() => onOpenSettingsDialog(() => { setSettingsSection('sessions') }), [])
 
-  // A requested picker (opened from a context menu, with no button of its own to anchor a
-  // blur/mousedown handler to) has to close itself on an outside click.
+  // A picker opened from a context menu has no button to anchor an outside-click handler to.
   useOutsideDismiss(() => { setRequestedPicker(null) }, {
     enabled: requestedPicker !== null,
     insideSelector: '[data-testid="layout-picker"]',
@@ -106,16 +100,14 @@ export function useDialogs(): DialogsApi {
   return useMemo(() => ({ state, open, close }), [state, open, close])
 }
 
-/** The window's stable `open`, so a component deep in the tree can put a dialog up without App
- *  threading `onDeleteSession`/`onEditNote`-style props down to it (UI-1 step 5). */
+/** The window's stable `open`, so a deep component can put a dialog up without props threaded down. */
 export const DialogOpenContext = createContext<DialogsApi['open'] | null>(null)
 
 export interface DialogActions {
   deleteSession: (session: SessionNode) => void
   /** A session dropped onto a folder row: confirm before its transcript is moved. */
   moveSession: (session: SessionNode, toPath: string) => void
-  /** Reads the saved note first, so the editor opens on what is actually stored even if this
-   *  window's tree is a moment out of date. */
+  /** Reads the saved note first, since this window's tree can lag it. */
   editNote: (session: SessionNode) => void
   newWorktree: (path: string, label: string) => void
   changeBranch: (path: string, label: string) => void
@@ -129,7 +121,7 @@ export function useDialogActions(): DialogActions {
     deleteSession: (session) => { open({ kind: 'delete', session }) },
     moveSession: (session, toPath) => { open({ kind: 'move', session, toPath }) },
     editNote: (session) => {
-      // The saved note is the truth; the one on the row can lag it, and stands in if main cannot say.
+      // The row's note stands in if main cannot say.
       void loadSessionNote(session.sessionId).then((note) => { open({ kind: 'note', session, note: note ?? session.note ?? '' }) })
     },
     newWorktree: (path, label) => { open({ kind: 'newWorktree', path, label }) },

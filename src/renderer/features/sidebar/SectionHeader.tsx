@@ -2,7 +2,7 @@ import type { JSX } from 'react'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
 
 /**
- * The shared `.pinned-header` button — chevron, label, count — behind Pinned and Recent (UI-19).
+ * The shared `.pinned-header` button — chevron, label, count — behind Pinned and Recent.
  * Active has no chevron (it cannot be collapsed) and the folder-group header has extra drag
  * handlers and a different label class, so neither uses this; both still reuse `ChevronIcon`.
  */

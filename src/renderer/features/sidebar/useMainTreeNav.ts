@@ -5,16 +5,11 @@ import type { GroupedFolders, GroupState } from '../../state/groups'
 import type { SidebarMenu } from './useSidebarMenu'
 
 /**
- * UI-27 steps 1-2: the folder/session/group hierarchy as one WAI-ARIA tree (group headers included
- * — a group is a treeitem whose children are the folders filed into it, same as a folder is a
- * treeitem whose children are its sessions and sub-worktrees). One tree rather than one per group:
- * a group is part of the same hierarchy the folders and sessions are, not an unrelated list the way
- * Active/Pinned/Recent are (each its own flat tree).
+ * One tree, not one per group, unlike Active/Pinned/Recent (each its own flat tree).
  *
- * `focusKey` is which item currently holds the tree's one Tab stop — `null` until a real focus
- * event names one, at which point it behaves exactly like a roving tabindex the user has already
- * moved through. Until then, the very first item (the first group's header, or the first ungrouped
- * folder) is it, computed from data already at hand rather than a DOM query.
+ * `focusKey` is the item holding the tree's one Tab stop: `null` until a focus event names one,
+ * and until then the first item (first group header, or first ungrouped folder), computed from
+ * data rather than a DOM query.
  */
 export function useMainTreeNav({
   arranged, collapsed, onCollapsedChange, groupState, patchGroups, sessionsById, onSelect, onSplitSession, setMenu,

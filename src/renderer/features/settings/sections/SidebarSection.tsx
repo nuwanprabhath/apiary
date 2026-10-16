@@ -49,6 +49,33 @@ export function SidebarSection(
           />
         </div>
       )}
+
+      <CheckboxSetting
+        testId="setting-hide-old-enabled"
+        checked={draft.hideOldSessionsEnabled}
+        onChange={(checked) => { patch({ hideOldSessionsEnabled: checked }) }}
+        label="Hide sessions not used for a while"
+        help={(
+          <>
+            Sessions you haven't worked in for longer than this drop out of the sidebar.
+            Search still finds them, and pinned or open sessions always show.
+          </>
+        )}
+      />
+
+      {draft.hideOldSessionsEnabled && (
+        <div className="settings-row settings-row-indent">
+          <NumberSetting
+            testId="setting-hide-old-days"
+            label="Not used in"
+            unit="days"
+            min={SETTINGS.hideOldSessionsDays.range.min}
+            max={SETTINGS.hideOldSessionsDays.range.max}
+            value={draft.hideOldSessionsDays}
+            onChange={(n) => { patch({ hideOldSessionsDays: n }) }}
+          />
+        </div>
+      )}
     </>
   )
 }

@@ -25,8 +25,6 @@ function readAsBase64(file: File): Promise<string> {
     const reader = new FileReader()
     reader.onerror = () => reject(new Error(`Could not read ${file.name}`))
     // readAsDataURL gives "data:<type>;base64,<payload>"; only the payload crosses the bridge.
-    // `reader.result` is always a string for readAsDataURL (never an ArrayBuffer), but the
-    // DOM type covers both, so it is narrowed explicitly rather than blindly stringified.
     reader.onload = () => {
       const result = reader.result
       const text = typeof result === 'string' ? result : ''

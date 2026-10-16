@@ -30,9 +30,8 @@ export function ModelPicker({ model, effort, models, onModel, onEffort }: Props)
   const current = model === null ? undefined : runningModelEntry(model, list)
   // Effort levels: the running model's own, or every level before claude has said.
   const efforts: readonly ChatEffort[] = models === null ? CHAT_EFFORTS : current?.efforts ?? []
-  // The menu opens from the button's left edge, and its pane clips it: in a narrow pane it ran past
-  // the pane's right edge. Once open, it slides left by just what keeps it inside the pane (its
-  // width is capped at the message box's in CSS).
+  // The menu opens from the button's left edge and the pane clips it, so once open it slides left
+  // by just what keeps it inside the pane (its width is capped at the message box's in CSS).
   useLayoutEffect(() => {
     const menu = open ? root.current?.querySelector<HTMLElement>('.chat-model-menu') : null
     if (menu === null || menu === undefined) return

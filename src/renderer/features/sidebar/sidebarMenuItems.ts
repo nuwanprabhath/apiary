@@ -27,7 +27,6 @@ export type GroupMenu = MenuPosition & { kind: 'group'; id: string }
  *  `nested`: a folder inside another (a worktree under its repository). */
 export type SidebarMenu = SessionMenu | FolderMenu | GroupMenu
 
-/** Fork, arrange, and (for a pinned session) reorder within Pinned. */
 export function sessionMenuItems(
   menu: SessionMenu,
   d: {
@@ -41,8 +40,7 @@ export function sessionMenuItems(
 ): ContextMenuItem[] {
   const { pinned, onReorderPinned } = d
   const session = flattenTree(d.tree).get(menu.id)
-  // A pinned session can be reordered from its context menu, the keyboard-reachable
-  // equivalent of dragging it in the Pinned section — see the drop handler there.
+  // The keyboard-reachable equivalent of dragging it in the Pinned section.
   const pinnedIndex = pinned.indexOf(menu.id)
   return [
     {
@@ -80,7 +78,6 @@ export function sessionMenuItems(
   ]
 }
 
-/** Rename, reorder and delete for a group heading. */
 export function groupMenuItems(
   menu: GroupMenu,
   groupState: GroupState,
@@ -150,7 +147,6 @@ export function showAllWorktreesItem(
   }
 }
 
-/** Move up/down, filing into a group and removing from one, for a top-level folder. */
 export function folderArrangeItems(
   menu: FolderMenu,
   groupState: GroupState,

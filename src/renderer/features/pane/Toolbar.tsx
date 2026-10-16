@@ -40,14 +40,8 @@ interface Props {
   moreRef?: RefObject<HTMLButtonElement | null>
 }
 
-/**
- * Renders the bottom pane's header from an array of button descriptors instead of hardcoded
- * JSX per button, so a future button is one more array entry, not new markup wired in by hand at
- * every call site.
- *
- * On screen the order is left, then right, then the » button, always last. Items that do not fit
- * move, whole, into that menu.
- */
+/** On screen the order is left, then right, then the » button, always last. Items that do not fit
+ *  move, whole, into that menu. */
 export function Toolbar({ left, right, moreRef }: Props): JSX.Element {
   const items: OverflowToolbarItem[] = [
     ...left.map((item) => toOverflowItem(item, 0, true, false)),

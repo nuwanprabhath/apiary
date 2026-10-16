@@ -3,11 +3,8 @@ import { DEFAULT_PALETTE, PALETTE_TOKENS, TERMINAL_COLORS, type ThemeSpec, type 
 
 /**
  * A validated theme as CSS custom properties — the only thing a theme ever does to the page.
- *
- * Every key is drawn from a fixed list and every value is one Apiary formatted itself (a
- * `#rrggbbaa` from the validator, a pixel count, a plain number), so nothing here can carry CSS of
- * the theme's own. A token the theme leaves out produces no property at all, and the stylesheet's
- * own default shows.
+ * Every key is from a fixed list and every value one Apiary formatted itself, so nothing here can
+ * carry CSS of the theme's own. A token the theme leaves out produces no property.
  */
 
 const termVar = (c: TerminalColor): string =>
@@ -56,7 +53,6 @@ function glassVars(spec: ThemeSpec): Record<string, string> {
     `inset 0 0 0 1px ${white(0.16 * h)}`,
     `inset 0 -1px 0 0 ${white(0.06 * h)}`,
   ]
-  // The bent, brightened band just inside a lens's edge, as a soft inner glow.
   if (r > 0) rim.push(`inset 0 0 ${String(Math.round(8 + 16 * r))}px ${String(Math.round(r * 2))}px ${white(0.12 * r)}`)
   return {
     '--glass-rim': rim.join(', '),

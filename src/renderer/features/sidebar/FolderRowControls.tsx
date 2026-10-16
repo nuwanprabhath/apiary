@@ -65,7 +65,7 @@ export function FolderRowControls({
         data-testid="project-toggle"
         onClick={() => onToggle(node.path)}
         aria-expanded={isOpen}
-        // UI-27: the wrap above is the treeitem, and Enter/ArrowRight/ArrowLeft on it already
+        // The wrap above is the treeitem, and Enter/ArrowRight/ArrowLeft on it already
         // toggle the same state — a second Tab stop here would be redundant.
         tabIndex={-1}
       >

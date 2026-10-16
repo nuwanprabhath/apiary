@@ -4,7 +4,7 @@ import { log } from './logger'
 
 /**
  * Runs a background task without waiting on it, but never silently: a rejection is logged instead
- * of becoming an unobserved promise rejection (MAIN-19).
+ * of becoming an unobserved promise rejection.
  *
  * Use this in place of `void promise.then(...)` for anything started and left running — a rescan
  * kicked off by a menu item or the watcher, a window load — so a failure at least ends up in the

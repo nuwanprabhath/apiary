@@ -3,7 +3,7 @@ import type { EventSpec } from '@shared/ipc/contract'
 import { sendEvent } from './sendEvent'
 
 /**
- * Which windows have a view attached to which thing (MAIN-26 step 2), so a high-rate push (a
+ * Which windows have a view attached to which thing, so a high-rate push (a
  * pty's `ptyData`, a chat's `chatChanged`) goes only to the windows that show it instead of to
  * every window.
  *

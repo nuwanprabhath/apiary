@@ -28,7 +28,7 @@ export function meshFromSdf(sdf: Sdf, extent = 1, res = MESH_RES): THREE.BufferG
         const px = (x - n / 2) / (n / 2)
         const py = (y - n / 2) / (n / 2)
         const pz = (z - n / 2) / (n / 2)
-        // Inside (negative distance) is above the isolation level; the gradient gives the normals.
+        // Inside (negative distance) is above the isolation level.
         mc.field[x + y * n + z * n * n] = 80 - (sdf(px * extent, py * extent, pz * extent) / extent) * 400
       }
     }
@@ -40,7 +40,7 @@ export function meshFromSdf(sdf: Sdf, extent = 1, res = MESH_RES): THREE.BufferG
   geometry.setAttribute('position', new THREE.BufferAttribute((src.getAttribute('position').array as Float32Array).slice(0, count * 3), 3))
   geometry.setAttribute('normal', new THREE.BufferAttribute((src.getAttribute('normal').array as Float32Array).slice(0, count * 3), 3))
   // Marching cubes leaves the field's raw gradient as the normal; everything below wants unit
-  // normals (an unnormalised one made the whole underside black — a band across every body).
+  // normals (an unnormalised one made the whole underside black).
   geometry.normalizeNormals()
   geometry.scale(extent, extent, extent)
   // Ambient occlusion, from the shape itself: a point with more of the body close around it
@@ -57,7 +57,6 @@ export function meshFromSdf(sdf: Sdf, extent = 1, res = MESH_RES): THREE.BufferG
     const nz = nor.getZ(i)
     let occ = 0
     for (const d of [0.05, 0.1, 0.2, 0.32]) occ += Math.max(0, d - sdf(x + nx * d, y + ny * d, z + nz * d)) / d
-    // The underside sits in its own shadow too.
     const v = Math.min(1, Math.max(0.35, 1 - occ * 0.22 - Math.max(0, -ny) * 0.25))
     ao[i * 3] = v
     ao[i * 3 + 1] = v
@@ -137,7 +136,6 @@ function furMaterial(o: FurOptions, layer: number): THREE.MeshPhysicalMaterial {
   return m
 }
 
-/** A furry mesh: the skin and its shells, as one group. */
 export function furry(geometry: THREE.BufferGeometry, o: FurOptions): THREE.Group {
   const group = new THREE.Group()
   for (let i = 0; i <= o.shells; i++) {
@@ -148,7 +146,6 @@ export function furry(geometry: THREE.BufferGeometry, o: FurOptions): THREE.Grou
   return group
 }
 
-/** Glossy black, like the eyes of a plush toy: mostly reflection. */
 export function glossy(color: THREE.ColorRepresentation): THREE.MeshPhysicalMaterial {
   return new THREE.MeshPhysicalMaterial({ color, roughness: 0.12, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04 })
 }

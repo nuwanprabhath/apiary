@@ -31,35 +31,21 @@ export function useTranscriptPages(sessionId: SessionId, tail: TailRefs): Transc
   const [error, setError] = useState<DescribedError | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
-  // Bumped by the error pane's "Try again" button; the initial-load effect keys off it as well as
-  // the session id, so a retry re-runs exactly the same load without needing to leave and return.
+  // Bumped by "Try again"; the initial-load effect keys off it as well as the session id.
   const [reloadNonce, setReloadNonce] = useState(0)
 
-  // Monotonically incrementing generation counter, bumped once per initial-load effect run
-  // (i.e. once per "visit" to a session — including a second visit to the *same* session id).
-  // `loadEarlier` is a callback, not an effect, so it has no built-in cancellation like the
-  // effect's `cancelled` flag — this ref lets a paging response that lands after the user has
-  // navigated away recognise itself as stale and no-op instead of corrupting whatever is now
-  // on screen.
-  //
-  // A session-id comparison is NOT sufficient here: switching A -> B -> A re-enters the same
-  // session id, so a stale response from the *first* visit to A would compare equal to the
-  // *second* visit's id and be wrongly treated as fresh, prepending onto (and overwriting the
-  // cursor of) a transcript that has already been reloaded. Two visits to the same session id
-  // get two different generations, so this discriminates them correctly.
+  // Bumped once per initial-load run (once per "visit" to a session). A paging response that lands
+  // after the user navigated away recognises itself as stale. A session-id comparison is not
+  // enough: A -> B -> A re-enters the same id, so a stale response from the first visit would
+  // compare equal and prepend onto an already reloaded transcript.
   const generationRef = useRef(0)
-  // Guards against a second "Load earlier" click landing before the first request resolves.
-  // A ref (not just the `loadingEarlier` state) is required because the check must happen
-  // synchronously inside the click handler, before React has necessarily re-rendered the
-  // disabled button — state alone could still let a second synchronous click through.
+  // A ref, not the `loadingEarlier` state: the check must be synchronous in the click handler,
+  // before React re-renders the disabled button.
   const loadingEarlierRef = useRef(false)
-  // Mirrors `loading` in a ref so the `onTreeChanged` live-refresh handler (registered once per
-  // session, not re-created on every render) can see an up-to-date value without becoming a
-  // dependency that would force us to resubscribe on every loading-state flip.
+  // Mirrors `loading` so the once-per-session `onTreeChanged` handler sees a current value without
+  // resubscribing on every flip.
   const loadingRef = useRef(true)
-  // Guards against a live refresh firing while a previous one is still in flight — `onTreeChanged`
-  // can fire again before a slow `transcript()` call resolves, and we don't want overlapping
-  // refreshes racing (or stacking network calls) on top of each other.
+  // `onTreeChanged` can fire again before a slow `transcript()` call resolves; no overlapping refreshes.
   const refreshingRef = useRef(false)
 
   useEffect(() => {
@@ -67,8 +53,7 @@ export function useTranscriptPages(sessionId: SessionId, tail: TailRefs): Transc
     loadingEarlierRef.current = false
     setLoadingEarlier(false)
     refreshingRef.current = false
-    // A brand-new visit to a session should always open at the bottom and start "stuck" there,
-    // regardless of whatever scroll state the previously-viewed session left behind.
+    // A new visit opens at the bottom, stuck there.
     stickToBottomRef.current = true
     let cancelled = false
     setLoading(true)
@@ -78,9 +63,7 @@ export function useTranscriptPages(sessionId: SessionId, tail: TailRefs): Transc
     loadTranscript(sessionId)
       .then((page) => {
         if (cancelled) return
-        // Force the post-render scroll-to-bottom once these messages actually paint — see the
-        // layout effect in useTranscriptScroll. Must be set before `setMessages` so it's already
-        // true by the time that state update commits.
+        // Set before `setMessages` so it is armed when the layout effect in useTranscriptScroll runs.
         forceScrollRef.current = true
         setMessages(page.messages)
         setCursor(page.earlierCursor)
@@ -91,37 +74,25 @@ export function useTranscriptPages(sessionId: SessionId, tail: TailRefs): Transc
     return () => { cancelled = true }
   }, [sessionId, reloadNonce, stickToBottomRef, forceScrollRef])
 
-  // Live updates: `onTreeChanged` fires (debounced ~1s in the main process) whenever any session
-  // file on disk changed, with no per-session payload — so on every firing we just re-fetch this
-  // session's latest page and merge in whatever's new. Subscribed once per session visit.
+  // `onTreeChanged` (debounced ~1s in main) carries no per-session payload, so each firing
+  // re-fetches this session's latest page and merges it.
   useEffect(() => {
     const unsubscribe = treeStore.onChanged(() => {
-      // Don't refresh while the initial load is still in flight (its own response will already
-      // contain the freshest tail) or while a previous refresh hasn't resolved yet.
+      // The initial load's own response already has the freshest tail.
       if (loadingRef.current || refreshingRef.current) return
-      // Captured *now* (not when the effect was set up) so it reflects the current visit even
-      // though this callback is registered once per session and invoked repeatedly.
+      // Captured per firing, not at setup, so it reflects the current visit.
       const requestedGeneration = generationRef.current
       refreshingRef.current = true
       loadTranscript(sessionId)
         .then((page) => {
-          // Same staleness guard `loadEarlier` uses: a refresh that resolves after the user has
-          // navigated away from (or back around to) this session must not touch state that now
-          // belongs to a different visit.
           if (generationRef.current !== requestedGeneration) return
-          // Decide *before* merging, based on where the user was sitting before this update
-          // arrived — appending messages doesn't itself move their scroll position, so this
-          // reflects their actual intent (reading history vs. watching the tail).
+          // Decided before merging: appending does not move the scroll position, so this still
+          // reflects whether they were reading history or watching the tail.
           if (stickToBottomRef.current) forceScrollRef.current = true
           setMessages((prev) => mergeLatestPage(prev, page.messages))
-          // Deliberately not touching `cursor`/`skipped`: a tail-only refresh has no idea where
-          // the *earlier* boundary of the file is, so overwriting them would corrupt "Load
-          // earlier messages" (either resetting a cursor the user already paged past, or losing
-          // the running skipped-line count).
+          // `cursor`/`skipped` stay: a tail-only refresh does not know the earlier boundary.
         })
-        // The user is looking at a perfectly good transcript already; a background refresh failing
-        // (a transient read error while the file is mid-write) is logged, not shown: the next
-        // tree change tries again.
+        // A transient read error mid-write is logged, not shown: the next tree change retries.
         .catch((e: unknown) => { logBackgroundFailure(e, 'refresh') })
         .finally(() => { refreshingRef.current = false })
     })
@@ -135,9 +106,6 @@ export function useTranscriptPages(sessionId: SessionId, tail: TailRefs): Transc
     setLoadingEarlier(true)
     void loadTranscript(sessionId, cursor)
       .then((page) => {
-        // Stale response for a generation (session visit) the user has since navigated away
-        // from — including a round trip back to the same session id — drop it rather than
-        // corrupting whatever visit is now on screen.
         if (generationRef.current !== requestedGeneration) return
         setMessages((prev) => [...page.messages, ...prev])
         setCursor(page.earlierCursor)

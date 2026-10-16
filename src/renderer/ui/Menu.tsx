@@ -4,26 +4,15 @@ import { rovingKeyDown } from './useRovingList'
 const ITEM_SELECTOR = ['menuitem', 'menuitemcheckbox', 'menuitemradio'].map((role) => `[role="${role}"]:not([disabled])`).join(', ')
 
 /**
- * Every enabled menu item that belongs to `root`'s own level, in DOM order — not a descendant
- * submenu's.
- *
- * `GitMenu`'s submenu is a nested `<ul role="menu">` inside the parent item's `<li>`, so a plain
- * `querySelectorAll` rooted at the outer `<ul>` would also return a *closed* submenu's items, and
- * Up/Down at the top level would silently start visiting them. Filtering to items whose nearest
- * `[role="menu"]` ancestor is `root` itself keeps each level's roving focus scoped to what is
- * actually showing.
+ * Every enabled item at `root`'s own level, not a descendant submenu's: `GitMenu`'s submenu is a
+ * nested `<ul role="menu">`, and a plain `querySelectorAll` would also return a *closed*
+ * submenu's items.
  */
 export function itemsIn(root: HTMLElement): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>(ITEM_SELECTOR)]
     .filter((el) => el.closest('[role="menu"]') === root)
 }
 
-/**
- * Focuses the first enabled item in `root` once `enabled` becomes true, and restores focus to
- * whatever had it beforehand once `enabled` goes false again (the menu closing, however that
- * happens). A layout effect, like `Modal`'s initial-focus effect, so focus lands before the first
- * paint the menu is visible in.
- */
 function useMenuOpenFocus(root: RefObject<HTMLElement | null>, enabled: boolean): void {
   useLayoutEffect(() => {
     if (!enabled) return
@@ -35,35 +24,23 @@ function useMenuOpenFocus(root: RefObject<HTMLElement | null>, enabled: boolean)
   }, [enabled])
 }
 
-/**
- * ArrowUp/ArrowDown/Home/End among the items directly inside `root` — the roving-focus part of the
- * WAI-ARIA menu pattern. A plain function rather than a hook, so a caller with more than one level
- * of items open at once (`GitMenu`'s submenu) can call it once per level, each scoped to its own
- * `<ul>`, and add ArrowRight/ArrowLeft for moving between levels itself: there is no one `root` a
- * hook could bind to that would mean "whichever list currently has focus."
- */
 function onMenuKeyDown(e: React.KeyboardEvent, root: HTMLElement): void {
   if (rovingKeyDown(e, itemsIn(root), { wrap: true })) e.stopPropagation()
 }
 
 type MenuProps = Omit<HTMLAttributes<HTMLElement>, 'role'> & {
-  /** The element to render: a `ul` for a list of `li`s, a `div` otherwise. */
   as?: 'div' | 'ul'
   ref?: Ref<HTMLElement>
   testId?: string
-  /** Focus the first item on mount and give focus back on unmount. Default true; off for a menu
-   *  that is mounted before it can take focus (hidden while it is measured) and does it itself. */
+  /** Off for a menu mounted before it can take focus (hidden while measured), which does it itself. */
   focusOnOpen?: boolean
 }
 
 /**
- * A `role="menu"` with the keyboard contract that role promises: it takes focus when it opens
- * (first item), ArrowUp/ArrowDown/Home/End move between its items — menuitem, menuitemcheckbox and
- * menuitemradio — and focus goes back to where it was when it closes. Escape and outside clicks
- * stay with the owner (`useEscape`, `useOutsideDismiss`).
+ * A `role="menu"` with its keyboard contract: focus on open and back on close, arrows/Home/End
+ * between items. Escape and outside clicks stay with the owner (`useEscape`, `useOutsideDismiss`).
  *
- * A caller's own `onKeyDown` runs first; if it calls `preventDefault` the default keys step aside
- * (a submenu's ArrowLeft, say). Left/Right between menus is the owner's to add.
+ * A caller's own `onKeyDown` runs first; `preventDefault` there makes the default keys step aside.
  */
 export function Menu({ as = 'div', ref, testId, focusOnOpen = true, onKeyDown, className, ...rest }: MenuProps): JSX.Element {
   const own = useRef<HTMLElement | null>(null)
@@ -82,8 +59,6 @@ export function Menu({ as = 'div', ref, testId, focusOnOpen = true, onKeyDown, c
       if (!e.defaultPrevented && own.current !== null) onMenuKeyDown(e, own.current)
     },
     ...rest,
-    // The popup surface is not the caller's to forget: a menu with no class used to render as a
-    // bare list with browser bullets.
     className: className === undefined ? 'context-menu' : `context-menu ${className}`,
   })
 }

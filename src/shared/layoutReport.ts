@@ -5,11 +5,8 @@ import type { PersistedLayout } from './types'
  * The structural subset of the renderer's `Layout`/`Column`/`OpenTab` (`renderer/state/layout.ts`,
  * `renderer/state/columns.ts`) that `buildPersistedLayout` needs.
  *
- * Named separately here, rather than importing those renderer types, because `tsconfig.node.json`
- * has no DOM lib — a shared file that imported renderer state would drag renderer code into main's
- * tsconfig project the same way pulling `PresetId` in here would (see `PersistedLayout`'s own
- * comment in `types.ts`). TypeScript's structural typing means the renderer's real `Layout` value
- * satisfies this shape unchanged, so `App.tsx` passes it straight through.
+ * Named here rather than importing the renderer types, because `tsconfig.node.json` has no DOM
+ * lib. The renderer's real `Layout` satisfies this shape structurally.
  */
 export interface LayoutLike {
   preset: string
@@ -23,10 +20,6 @@ export interface LayoutLike {
 
 /**
  * Walks a window's live layout state into the plain shape `reportLayout` sends to main.
- *
- * Lives here rather than in `App.tsx` only because it is pure and its own unit tests are cheaper
- * to write against a shared file than against a renderer component (CLAUDE.md Conventions).
- * Today it has one caller, `App.tsx`; `src/main/` does not import it.
  */
 export function buildPersistedLayout(
   layout: LayoutLike,
@@ -39,11 +32,10 @@ export function buildPersistedLayout(
     panes: layout.panes.map((pane) => ({
       id: pane.id,
       activeTab: pane.activeKey,
-      // Only a folded pane says so, so an open one's record is what it was before folding existed.
+      // Only a folded pane says so.
       ...(pane.collapsed === true ? { collapsed: true } : {}),
       tabs: pane.tabs.map((tab) => {
-        // A pending session is keyed by its real (or eventual) session id in the layout, but its
-        // shells hang off the pty id it actually started under — see `ptyOverrides`'s own comment.
+        // A pending session is keyed by its session id in the layout, but its shells hang off the pty id it started under.
         const shellKey = ptyOverrides.get(tab.key) ?? tab.key
         return {
           key: tab.key,

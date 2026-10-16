@@ -9,8 +9,7 @@ import { deserialize, serialize } from 'node:v8'
  *   window (`undefined`, `Date`, `Map` and typed arrays survive; a function fails here as there).
  * - **JSON (kind 2)**, for the handshake (`hello`, `welcome`, `refused`): V8's format changes between
  *   Electron versions, and two machines on different Apiary versions must still read each other's
- *   hello, or the user gets a decoding error instead of "update one of them". Found when a plain
- *   Node client could not read an Electron server's frames (the Docker test bed).
+ *   hello, or the user gets a decoding error instead of "update one of them".
  */
 
 /** A message larger than this is refused: no legitimate call or event comes near it (a transcript

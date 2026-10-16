@@ -14,8 +14,7 @@ export function useTree(
   tree: ProjectNode[]
   /** The query `tree` was actually filtered by — the raw one, debounced. Anything that ranks or
    *  scores these results must use *this*, not the live input value: the two disagree for 150ms
-   *  after every keystroke, and scoring a tree against a query it was not filtered by is both
-   *  wrong and, because it re-runs on each keystroke instead of once per pause, slow. */
+   *  after every keystroke. */
   settledQuery: string
   /** The unfiltered tree underneath `tree` — every session known anywhere, regardless of what is
    *  typed into the search box. The Active section resolves its titles against this rather than
@@ -35,9 +34,8 @@ export function useTree(
   const { notifyError } = useNotifications()
   const [matchedByContent, setMatchedByContent] = useState<Set<string>>(() => new Set())
 
-  // Superseded rather than awaited: a slow content search for an old query must never land after
-  // a fast one for a newer query and put stale ids on screen — the same shape of bug `useTree`'s
-  // old `latest` ref existed to prevent for the whole tree.
+  // Superseded rather than awaited: a slow search for an old query must never land after a fast
+  // one for a newer query.
   const requestId = useRef(0)
   /** So a failing index is reported once, not on every keystroke — see the catch below. */
   const reportedSearchFailure = useRef(false)
@@ -55,37 +53,27 @@ export function useTree(
       .catch((error: unknown) => {
         if (requestId.current !== id) return
         // Content matches are dropped, not left stale: the sidebar keeps filtering by title, path
-        // and branch, so a failed content search narrows the list less rather than showing results
-        // for a query nobody typed.
+        // and branch.
         setMatchedByContent(new Set())
-        // Reported once per mount rather than per keystroke. Unreported, this is close to
-        // invisible — the sidebar simply stops finding things by what was said in a session, looks
-        // like a search that found nothing, and stays that way. Reported every time, a broken
-        // index would bury the user in identical toasts as they type.
+        // Once per mount: unreported, a broken index looks like a search that found nothing;
+        // reported per keystroke, it buries the user in identical toasts.
         if (reportedSearchFailure.current) return
         reportedSearchFailure.current = true
         notifyError(error, 'Searching conversation contents failed')
       })
-    // `rawTree` is a dependency on purpose: it changes when the main process says the tree changed,
-    // and that is also what it says when the search index has caught up (`onIndexUpdated`). Without
-    // it, a query typed in the first second after launch — before indexing had finished — got the
-    // empty answer and kept it until the user typed something else, so searching by what was said
-    // found nothing. The e2e spec for content search hit exactly that race once it went the other way.
+    // `rawTree` is a dependency on purpose: main says the tree changed when the search index has
+    // caught up (`onIndexUpdated`). Without it, a query typed before indexing finished keeps its
+    // empty answer until the user types something else.
   }, [query, options.searchChatContent, options.searchSessionNotes, rawTree, notifyError])
 
-  // Memoized on the debounced query, not the raw one: `Sidebar` re-renders on every keystroke
-  // (its own `query` state updates in `onChange`), and without this the filter would still run on
-  // every one of those renders even though `query` had not settled yet — the exact
-  // per-keystroke cost this memoization exists to remove, just moved from IPC into a local render.
+  // Memoized on the debounced query: `Sidebar` re-renders on every keystroke, and the filter should
+  // not run on each of those.
   const { tree, totalMatches } = useMemo(
     () => filterTreeLocal(rawTree, query, matchedByContent),
     [rawTree, query, matchedByContent],
   )
-  // Only ever true while something is actually being searched for. `filterTreeLocal` counts the
-  // *whole* tree for an empty query — it has nothing to filter by — so a bare `totalMatches >
-  // SEARCH_RESULT_CAP` meant anyone with more than 200 sessions read "Showing first 200 results."
-  // permanently, above a complete, uncapped tree. Gated on the debounced query rather than the
-  // raw one so the note appears and disappears in step with the results it describes.
+  // Only true while something is searched for: `filterTreeLocal` counts the *whole* tree for an
+  // empty query. Gated on the debounced query so the note moves in step with the results.
   const capped = query.trim() !== '' && totalMatches > SEARCH_RESULT_CAP
   return {
     tree, rawTree, settledQuery: query, matchedByContent, totalMatches, capped, loading,

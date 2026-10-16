@@ -28,8 +28,7 @@ function initWorkspaceState(
   if (arrival?.activeShell !== null && arrival?.activeShell !== undefined) {
     activeTerminal.set(arrival.ptyId ?? arrival.key, arrival.activeShell)
   }
-  // Sessions started via newSessionInProject()/newSessionInFolder() whose pty id differs from the
-  // session's own id; a torn-off window starts out knowing the pty its tab runs under.
+  // A torn-off window starts out knowing the pty its tab runs under, which differs from the session id.
   const ptyOverrides = arrival?.ptyId !== null && arrival?.ptyId !== undefined
     ? new Map([[arrival.key, arrival.ptyId]])
     : new Map<string, PtyId>()
@@ -38,11 +37,8 @@ function initWorkspaceState(
     shellTabs, activeTerminal,
   }
   if (restored === null) return { layout: initialLayout(), activeColumnId: null, ...base }
-  // Panes get fresh ids from `newColumn` rather than reusing the persisted ones: `id` is a
-  // per-window runtime identity, not something anything on disk needs to stay stable across a
-  // restart, and reusing "col-1"/"col-2" verbatim would leave the module's own `nextColumnId`
-  // counter at 0, so the very next split would mint "col-1" again and collide with a pane
-  // already on screen.
+  // Panes get fresh ids from `newColumn`, not the persisted ones: reusing "col-1"/"col-2" would
+  // leave its `nextColumnId` counter at 0, so the next split would mint "col-1" and collide.
   const panes = restored.layout.panes.map((pane) => ({
     ...newColumn(pane.tabs.map((t) => ({ key: t.key, view: t.view }))),
     activeKey: pane.activeTab,
@@ -65,8 +61,7 @@ export function WorkspaceProvider({ restored, arrival, children }: {
   return <StoreContext value={store}>{children}</StoreContext>
 }
 
-/** The shell-tab and active-terminal maps' setters in the `useState` shape `SessionColumn` was
- *  written against; stable, and each one a single reducer action. */
+/** The shell-tab and active-terminal maps' setters in `useState` shape; stable, each one a single reducer action. */
 export function useShellSetters(): {
   setShellTabs: Dispatch<SetStateAction<Map<string, TerminalTab[]>>>
   setActiveTerminal: Dispatch<SetStateAction<Map<string, string>>>

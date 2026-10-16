@@ -1,20 +1,14 @@
 #!/usr/bin/env node
-// DOC-11: fails the build when a documented path no longer exists, so a rename orphans a
+// Fails the build when a documented path no longer exists, so a rename orphans a
 // paragraph in CLAUDE.md the same way it would orphan a broken import — instead of silently.
 //
-// Scope, deliberately narrow: root CLAUDE.md, every nested `**/CLAUDE.md`, `docs/architecture/**`
-// and `CONTRIBUTING.md` — the docs an agent is expected to trust and act on. It does not check
-// docs/reviews, docs/history or docs/superpowers, which are historical/working notes where a
-// stale path is expected and already disclaimed.
+// Scope: root CLAUDE.md, every nested `**/CLAUDE.md`, `docs/architecture/**` and `CONTRIBUTING.md`,
+// not docs/reviews, docs/history or docs/superpowers, where stale paths are expected.
 //
-// Method: pull every backtick code span out of those files, and inside each span look for tokens
-// that look like a repo path — something with a `/` in it, or a bare filename ending in one of a
-// known set of extensions. A path containing a placeholder character (`<`, `>`, `*`) is skipped —
-// those are prose conventions (`<config>/sessions/<pid>.json`, `latest-*.yml`), not real paths. A
-// bare filename (no `/`) is resolved by searching the whole repo for a unique basename match,
-// since several nested CLAUDE.md files refer to a file in their own directory by name only.
-//
-// No dependencies beyond Node's own `fs`/`path`, so this stays fast and has nothing to install.
+// Method: take every backtick code span and look for tokens that look like a repo path (a `/`, or
+// a bare filename with a known extension). A path with a placeholder character (`<`, `>`, `*`) is
+// skipped. A bare filename is resolved by a unique basename match anywhere in the repo, since
+// nested CLAUDE.md files name files in their own directory only.
 
 import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
@@ -105,8 +99,8 @@ const SKIP_DIRS = new Set([
   'out', 'test-results', 'release', 'coverage',
 ])
 // Tracked files only: a path that exists on this machine because a script generated it (the
-// gitignored `ui-review/shots/`) does not exist on CI, and a doc naming it failed the 1.35.0 release
-// after passing every local run.
+// gitignored `ui-review/shots/`) does not exist on CI, so a doc naming it passes locally and fails
+// the release.
 const TRACKED = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean)
 const TRACKED_FILES = new Set(TRACKED)
 const TRACKED_DIRS = new Set(TRACKED.flatMap((f) => f.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))))

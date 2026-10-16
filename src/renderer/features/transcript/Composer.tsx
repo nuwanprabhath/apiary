@@ -13,7 +13,7 @@ import { useComposerSend } from './useComposerSend'
 import { useSentHistory } from './useSentHistory'
 
 interface Props {
-  /** The pane this composer sits in: its message box folds and unfolds on its own. */
+  /** The pane this composer sits in; its message box folds per pane. */
   columnId: string
   session: SessionNode
   /** The pty this session's `claude` runs under, or null while it has none. */
@@ -45,10 +45,9 @@ interface ChatControlsProps {
   send: (command?: string) => Promise<void>
 }
 
-/** Chat mode's controls before the hint: the "/" menu, the context ring and the model picker. */
 function ChatControls(p: ChatControlsProps): JSX.Element {
   const { chat, choices, text } = p
-  /** The chat, only while it is running: before that the choices made for its start show. */
+  // Before the chat runs, the choices made for its start show.
   const live = p.chatRunning ? chat : null
   return (
     <>
@@ -83,14 +82,9 @@ function ChatControls(p: ChatControlsProps): JSX.Element {
 }
 
 /**
- * The chat box under the transcript.
- *
- * It is not a second conversation: everything typed here is delivered into the very same
- * `claude --resume` process the Terminal tab shows, as a paste followed by a return. That keeps one
- * source of truth — the session's own JSONL — so the transcript above continues to be a faithful
- * record rather than something this component has to keep in step. It also means an image has to
- * reach Claude the way a file does: pasted images are written to disk, and the message carries
- * their paths for Claude to read.
+ * The chat box under the transcript. Everything typed is delivered into the same `claude --resume`
+ * process the Terminal tab shows, as a paste followed by a return, so the session's JSONL stays the
+ * one source of truth. Pasted images are written to disk and the message carries their paths.
  */
 export function Composer({
   columnId, session, ptyId, running, onResume, onShowSession, onOpenImage, chatMode = false, chat = null,
@@ -101,7 +95,7 @@ export function Composer({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fold = useComposerFold(textareaRef, columnId)
   const { collapsed, inputId } = fold
-  /** The "/" menu's keys, set while typing "/" has it open; it sees Up/Down/Enter/Escape first. */
+  // Sees Up/Down/Enter/Escape first.
   const menuKeys = useRef<((e: KeyboardEvent) => boolean) | null>(null)
   const { dragging, separatorProps, fitAgain } = useComposerHeight(textareaRef, text, !collapsed)
   const { attachments, addImages, removeImage, clear } = useImageAttachments()
@@ -159,7 +153,6 @@ export function Composer({
         onPaste={(e) => {
           const images = imagesFrom(e.clipboardData)
           if (images.length === 0) return
-          // Only swallow the paste when it actually carried an image; pasting text must still work.
           e.preventDefault()
           void addImages(images)
         }}

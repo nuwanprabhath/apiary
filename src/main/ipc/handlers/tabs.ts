@@ -45,17 +45,16 @@ export function tabsHandlers(deps: TabsDeps): {
   // delaying it by up to half a second would be felt.
   tabRegistry?.onChange(() => broadcast(IPC.activeTabsChanged))
 
-  // Neither `PtyManager` nor `TabRegistry` can unsubscribe a listener today (MAIN-20, not in
-  // scope here) — these subscriptions outlive a `dispose()` exactly as they did before this file
-  // existed; a second `registerIpc` call in the same process (tests aside) would double them up.
+  // Neither `PtyManager` nor `TabRegistry` can unsubscribe a listener, so these subscriptions
+  // outlive a `dispose()`; a second `registerIpc` call in the same process (tests aside) would
+  // double them up.
   /** Drops a window's attachments when it goes away or reloads (a reloaded renderer re-attaches
    *  as its views mount). Registered once per webContents, on its first attach. */
   const watchLifetime = windowLifetimeWatcher((id) => { attachments.detachWindow(id) })
   service.pty.onData((id, data) => ptyCoalescer.push(id, data))
   service.pty.onExit((id, code) => broadcast(IPC.ptyExit, id, code))
-  // Activity coalescing still observes every raw chunk, not the coalesced flush — it only cares
-  // that output happened, and the interval it broadcasts on (500ms) is coarser than the few
-  // milliseconds `PtyDataCoalescer` ever delays a chunk by.
+  // Activity observes every raw chunk, not the coalesced flush: it only cares that output
+  // happened, and its 500ms broadcast interval is coarser than `PtyDataCoalescer`'s delay.
   service.pty.onData(() => activity.notify())
   service.pty.onExit(() => activity.notify())
 
@@ -73,34 +72,28 @@ export function tabsHandlers(deps: TabsDeps): {
         focusTab(BrowserWindow.getAllWindows(), windowNumber, key)
       },
       tabDropped: (e, tab, at) => {
-        // The guard has already checked `tab` is a well-formed `TabTransfer` (contract, MAIN-11).
+        // The guard has already checked `tab` is a well-formed `TabTransfer` (contract).
         const { key } = tab
         const target = tabMover.windowUnder(at)
-        // The whole decision, because this gesture shipped once doing nothing at all and there
-        // was no way to tell from outside whether the drop had even been noticed.
         log.info('tabs', 'tab dropped', {
           at,
           from: e.sender.id,
           target: target?.webContents.id ?? null,
           outcome: target === null ? 'detach' : target.webContents.id === e.sender.id ? 'same-window' : 'move',
         })
-        // Released over the window it came from — the transcript, the sidebar, anywhere that is
-        // not a tab strip. Nothing happened, and tearing a window off for that would be a
-        // surprise.
+        // Released over the window it came from (anywhere that is not a tab strip): not a detach.
         if (target === null ? false : target.webContents.id === e.sender.id) return
 
         if (target !== null) {
           sendEvent(target.webContents, IPC.tabAdopt, tab)
           tabMover.handOver(tab, tabMover.windowNumberFor(target.webContents.id))
-          // Brought to the front: the tab is now there, and a move whose result is behind another
-          // window looks exactly like a move that did not happen.
+          // Raised, or a move whose result is behind another window looks like it did not happen.
           target.focus()
           tabMover.announceClaimed(key, target.webContents.id)
           return
         }
 
-        // Dropped on the desktop: a window of its own. Announced before the window is made — see
-        // below.
+        // Dropped on the desktop: a window of its own, announced before it is made (see `tabDetach`).
         tabMover.announceClaimed(key, null)
         tabMover.handOver(tab, tabMover.openDetachedWindow(tab, at))
       },

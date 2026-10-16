@@ -19,25 +19,21 @@ import { fireAndForget, logBackgroundFailure } from '../ui/fireAndForget'
  * (`no-silent-catch`, `no-void-bridge-call`) say so.
  */
 
-/** What `NotificationProvider` registers: `notifyError` of the live provider. */
 type FailureSink = (thrown: unknown, context?: string) => void
 
 let sink: FailureSink | null = null
 
-/** Wired by `NotificationProvider` for as long as it is mounted. */
 export function setFailureSink(next: FailureSink | null): void {
   sink = next
 }
 
-/** Shows one failure to the user — or, when no notification centre is mounted (a window still
- *  starting, a bare component), writes it to the diagnostic log so it is still findable. */
+/** With no notification centre mounted (a window still starting), writes to the diagnostic log instead. */
 export function reportFailure(thrown: unknown, context: string): void {
   if (sink !== null) sink(thrown, context)
   else logBackgroundFailure(thrown, 'app')
 }
 
-/** Policy 2: tell the user if it failed, and resolve to whether it succeeded so a caller can
- *  follow up (a "Copied" tick) without a catch of its own. Never rejects. */
+/** Policy 2; resolves to whether it succeeded, never rejects. */
 export async function attempt(promise: Promise<unknown>, context: string): Promise<boolean> {
   try {
     await promise
@@ -58,8 +54,7 @@ export function background(promise: Promise<unknown>, scope: LogScope): void {
   fireAndForget(promise, scope)
 }
 
-/** Policy 1 when the answer is wanted if it comes: the value, or null after logging the failure.
- *  For a read or a nudge whose failure just leaves things as they were. */
+/** Policy 1 returning the value, or null after logging the failure. */
 export async function bestEffort<T>(promise: Promise<T>, scope: LogScope): Promise<T | null> {
   try {
     return await promise

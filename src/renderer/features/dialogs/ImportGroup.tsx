@@ -3,11 +3,7 @@ import type { DiscoveredSession } from '@shared/api'
 import type { SessionId } from '@shared/domain/ids'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
 
-/**
- * What the hover tooltip says about a row: its full title (the visible one is ellipsized to fit)
- * and how long ago it was last touched, in both the relative form you actually think in and the
- * absolute one you need when comparing two of them.
- */
+/** The hover tooltip: the full title (the visible one is ellipsized) and the last activity, relative and absolute. */
 function describeSession(s: DiscoveredSession): string {
   if (s.lastActiveAtMs === null) return s.title
   const when = new Date(s.lastActiveAtMs)
@@ -31,21 +27,14 @@ export function ImportGroup(
   { path, sessions, picked, collapsed, onToggleCollapsed, onToggleGroup, onToggleSession }: Props,
 ): JSX.Element {
   const selectable = sessions.filter((s) => !s.imported)
-  // "In" means the session will be in the sidebar once this dialog is confirmed —
-  // whether it was already imported on a previous visit or has just been ticked here.
-  // Counting only the freshly-ticked ones is what used to leave a folder whose every
-  // session was already imported showing an *unchecked* header, which reads as "none of
-  // this folder is imported" when in fact all of it is.
+  // "In" means in the sidebar once confirmed: already imported or just ticked. Counting only the
+  // ticked would show an unchecked header for a folder that is fully imported.
   const isIn = (s: DiscoveredSession): boolean => s.imported || picked.has(s.sessionId)
   const allPicked = sessions.length > 0 && sessions.every(isIn)
-  // Some but not all: the header shows the tri-state dash rather than claiming either.
   const somePicked = !allPicked && sessions.some(isIn)
   return (
     <section data-testid="import-group">
-      {/* The chevron is a sibling of the label rather than inside it: a <label> forwards
-       *  every click within it to its own control, so a nested collapse button would
-       *  toggle the folder's checkbox on the way past. Same reason the sidebar's row
-       *  buttons sit beside their row rather than inside it. */}
+      {/* The chevron sits beside the label: a <label> forwards every click inside it to its checkbox. */}
       <div className="import-group-head">
         <button
           className="import-group-toggle"
@@ -61,8 +50,7 @@ export function ImportGroup(
             type="checkbox"
             data-testid="import-group-checkbox"
             checked={allPicked}
-            // `indeterminate` is a DOM property with no HTML attribute behind it, so it
-            // can only be set through the element itself, not through JSX.
+            // `indeterminate` has no HTML attribute, so it is set on the element.
             ref={(el) => { if (el !== null) el.indeterminate = somePicked }}
             disabled={selectable.length === 0}
             onChange={(e) => { onToggleGroup(e.target.checked) }}

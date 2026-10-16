@@ -6,8 +6,6 @@
  * `AppSettingsPayload` (the type), `DEFAULT_SETTINGS_PAYLOAD` (`shared/settingsDefaults.ts`),
  * `AppSettings` (`main/settings.ts`, which adds the main-only fields), the `settingsGet` mapping,
  * `mergeSettingsPayload`'s validation of whatever arrives over IPC, and the component tests' fake.
- * Before this, adding one setting meant 6 to 8 hand-edited files, and the merge only checked
- * `!== undefined`, so a boolean or the `plugins` map crossed the IPC boundary unchecked.
  *
  * Adding a setting is an entry here plus its control in `renderer/features/settings/sections/`.
  * Changing an *existing* default for people who already have a `settings.json` is not enough on its
@@ -63,14 +61,14 @@ const isPluginSettings: Guard<PluginSettings> = (v): v is PluginSettings =>
 
 /**
  * A non-null value becomes the binary `resumeCommand` and the theme generator invoke, and is
- * persisted and re-read on every launch (SEC-8), so it must be an absolute, bounded-length path.
+ * persisted and re-read on every launch, so it must be an absolute, bounded-length path.
  */
 const absolutePathOrNull = (v: string | null, ctx: SettingContext): string | null | undefined =>
   v === null || (ctx.isAbsolutePath(v) && v.length <= 4096) ? v : undefined
 
 /**
  * Plugin ids this build does not know about are dropped, and so is any value that is not a string,
- * number or boolean (SEC-8): the dialog only sends back what it was given, but the IPC boundary
+ * number or boolean: the dialog only sends back what it was given, but the IPC boundary
  * cannot assume that, and an unbounded object would be persisted and re-read by whatever the
  * plugin's own settings code expects.
  */
@@ -99,71 +97,52 @@ export const SETTINGS = {
   remoteAccessPairing: flag(false),
   /** Minutes between automatic rescans, or null when periodic scanning is off. */
   autoImportIntervalMinutes: intOrNull(null, 1, 1440),
-  /**
-   * Whether activating a tab scrolls the sidebar to that session and highlights it. On by default:
-   * with months of history in the tree, finding the row for the session you are looking at is
-   * otherwise a hunt. Off for anyone who would rather the sidebar stayed where they left it.
-   */
+  /** Whether activating a tab scrolls the sidebar to that session and highlights it. */
   revealActiveInSidebar: flag(true),
   /**
-   * Use the operating system's own title bar and menu bar instead of Apiary's themed ones. Off by
-   * default; for a window manager that does not get on with a custom title bar (some tiling ones).
-   * Read when a window opens, so it applies to windows opened after the change (or a restart).
+   * Use the operating system's own title bar and menu bar instead of Apiary's themed ones (for
+   * tiling window managers that fight a custom one). Read when a window opens, so it applies to
+   * windows opened after the change.
    */
   systemTitleBar: flag(false),
   /**
-   * The transcript's message box drives the session as a chat, the way the VS Code extension does:
-   * replies stream into the transcript, tools ask for permission there, and the view stays put.
-   * Off: the message goes to the session's terminal, which is brought to the front.
+   * The transcript's message box drives the session as a chat: replies stream into the transcript
+   * and tools ask for permission there. Off: the message goes to the session's terminal.
    */
   transcriptChat: flag(false),
-  /**
-   * Whether the search box also matches the *contents* of conversations, not just their titles.
-   * On by default; turning it off falls back to title-only search and stops the indexer running.
-   */
+  /** Whether search also matches conversation contents; off falls back to titles and stops the indexer. */
   searchChatContent: flag(true),
-  /**
-   * Whether the notes people write on sessions are searchable. Separate from `searchChatContent`
-   * because it is a different bargain: a note is a line the user typed on purpose, so indexing it
-   * costs nothing and is what makes it findable later.
-   */
+  /** Whether session notes are searchable. Separate from `searchChatContent`: a note is a line typed on purpose. */
   searchSessionNotes: flag(true),
   /** Whether the Recent section (sessions active in the last `recentSectionHours`) is shown. */
   recentSectionEnabled: flag(true),
   /** How far back "recent" looks. Clamped to 1..168 by the settings dialog, same as the update-check interval. */
   recentSectionHours: int(24, 1, 168),
+  /** Whether sessions not used for `hideOldSessionsDays` drop out of the sidebar tree (search still finds them). */
+  hideOldSessionsEnabled: flag(false),
+  /** How many days without activity before a session is hidden from the tree. */
+  hideOldSessionsDays: int(30, 1, 3650),
   /**
    * Trim the working directory in the prompt of shells Apiary starts, to the last
    * `terminalPathSegments` folders. See pty/promptPath.ts — bash 4+ only, by design.
-   *
-   * One folder, not two. The paths this exists for look like
-   * `~/projects/thing.worktrees/pipeline-issues`, and keeping two of those keeps
-   * `thing.worktrees/pipeline-issues` — almost the whole thing. The last component is the one that
-   * says which worktree you are in; everything before it is what was in the way.
+   * The default is one folder: in `~/projects/thing.worktrees/pipeline-issues` the last component
+   * is the one that says which worktree you are in.
    */
   terminalShortenPath: flag(true),
   /** How many trailing folders the trimmed prompt keeps. */
   terminalPathSegments: int(1, 1, MAX_SEGMENTS),
   /**
    * Show nothing but `$` as the prompt of shells Apiary starts — the path, user and host all go.
-   * On by default: a terminal pane is narrow, and the session's header already says where it is.
    * See pty/promptPath.ts for how it is done in bash and zsh.
    */
   terminalMinimalPrompt: flag(true),
-  /**
-   * Which session-bar plugins are on, by plugin id. A map rather than a field per plugin so
-   * adding one does not mean touching the settings shape — which is the point of plugins.
-   */
+  /** Which session-bar plugins are on, by plugin id. */
   plugins: setting<Record<string, boolean>>({ guard: isBooleanMap, default: {} }),
-  /**
-   * Each plugin's own settings, namespaced by plugin id. Plugins declare what they take (see
-   * plugins/types.ts) and Settings draws it, so nothing here needs a field per plugin.
-   */
+  /** Each plugin's own settings, namespaced by plugin id; plugins declare them (see plugins/types.ts). */
   pluginSettings: setting<PluginSettings>({ guard: isPluginSettings, default: {}, constrain: knownPluginsOnly }),
   /**
-   * Update preferences. Checking is on by default — an app that can update itself and doesn't
-   * mention it is how people end up months behind — but nothing is ever downloaded or installed
-   * without the user saying so, which is what `updateAutoDownload: false` means.
+   * Update preferences. Nothing is downloaded or installed without the user saying so, which is
+   * what `updateAutoDownload: false` means.
    */
   updateAutomaticChecks: flag(true),
   /** Hours between automatic checks. Clamped to 1..168 by the service. */
@@ -173,9 +152,7 @@ export const SETTINGS = {
   /** Offer pre-release builds. */
   updateAllowPrerelease: flag(false),
   /**
-   * Write a diagnostic log to disk. **Off by default and off means nothing is written** — see
-   * main/log/logger.ts. It exists so a bug that only happens on someone else's machine leaves
-   * something to read.
+   * Write a diagnostic log to disk. **Off means nothing is written** — see main/log/logger.ts.
    */
   diagnosticsEnabled: flag(false),
   /** How long archived log files are kept. */

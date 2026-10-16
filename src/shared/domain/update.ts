@@ -1,8 +1,8 @@
 /**
  * The updater's types, canonical here rather than mirrored — see `main/update/updateService.ts`
- * and `capability.ts`, which import these instead of redeclaring them (MAIN-22 / SHARED-2).
+ * and `capability.ts`, which import these instead of redeclaring them.
  * `CapabilityInput` stays in main: it carries `NodeJS.Platform`, which shared code must never
- * depend on (SHARED-5).
+ * depend on.
  */
 
 export type UpdatePhase =
@@ -30,7 +30,7 @@ export interface Capability {
 
 /**
  * What the user has to do with an `assisted` download, once it is on disk. Decided in main, where
- * the platform is already known, and travels to the UI as words rather than being reinvented there.
+ * the platform is known.
  */
 export interface InstallInstructions {
   /** The sentence the banner shows once the file is downloaded. */
@@ -44,13 +44,11 @@ export interface InstallInstructions {
   action: 'open' | 'reveal'
 }
 
-/** What the last attempt to open or reveal a downloaded installer actually did. */
 export type OpenInstallerResult =
   | { ok: 'opened' }
   | { ok: 'revealed' }
   | { ok: 'failed'; reason: string }
 
-/** The updater's full state, for the banner and the Settings panel. */
 export interface UpdateStatusPayload {
   phase: UpdatePhase
   capability: Capability
@@ -69,7 +67,7 @@ export interface UpdateStatusPayload {
    * only on the platform, so it cannot be decided up front with the capability.
    */
   install: InstallInstructions | null
-  /** What the last attempt to open/reveal the installer actually did. Null until one has run. */
+  /** Null until an open or reveal has run. */
   openResult: OpenInstallerResult | null
   error: string | null
   lastCheckedAt: number | null

@@ -1,30 +1,16 @@
 #!/usr/bin/env node
 // Runs electron-builder scoped to the host machine's own architecture.
 //
-// electron-builder.yml declares both arm64 and x64 for the mac dmg target
-// (matching the packaging brief), but building a *foreign* arch from a
-// single host requires @electron/rebuild to cross-compile native modules
-// (better-sqlite3, node-pty) for that other arch, which pulls in node-gyp's
-// Python toolchain (distutils/setuptools) — not something every machine has
-// set up, and not something `npm run dist` should silently depend on.
+// electron-builder.yml declares both arm64 and x64 for the mac dmg target, but building a
+// *foreign* arch needs @electron/rebuild to cross-compile native modules (better-sqlite3,
+// node-pty), which pulls in node-gyp's Python toolchain. So `npm run dist` builds the host arch
+// only; the other mac arch is an opt-in first CLI arg (`node scripts/dist.mjs arm64` / `x64`, as
+// `dist:mac:arm64` / `dist:mac:x64` do). `dist:mac:all` / `dist:linux` bypass this script.
 //
-// So `npm run dist` builds host-arch only, which works out of the box
-// everywhere. Building the other mac arch is an explicit opt-in — pass it
-// as the first CLI arg (`node scripts/dist.mjs arm64` / `x64`), which is
-// what `dist:mac:arm64` / `dist:mac:x64` in package.json do. With no arg,
-// this defaults to the host's own arch (`process.arch`) — `npm run dist`'s
-// existing, verified behaviour is unchanged. See the README for the
-// `dist:mac:all` / `dist:linux` scripts, which do not go through this
-// dispatcher (they don't rely on a flag to narrow anything).
-//
-// Implementation note: electron-builder's config loader *always*
-// auto-discovers `electron-builder.yml` in the project root, even when a
-// config object is passed programmatically, and then deep-merges the two —
-// merging concatenates array fields rather than replacing them, so a
-// narrowed `mac.target[].arch` passed inline ends up unioned right back
-// with the file's `[arm64, x64]`. Writing the narrowed config out to its
-// own temp file and pointing `--config` at that file avoids the merge
-// entirely: electron-builder reads only the file named by `--config`.
+// electron-builder always auto-discovers `electron-builder.yml` and deep-merges a programmatic
+// config into it, concatenating arrays, so a narrowed `mac.target[].arch` would be unioned back
+// with `[arm64, x64]`. The narrowed config is written to its own temp file and passed as
+// `--config`, which electron-builder reads alone.
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

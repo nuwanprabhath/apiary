@@ -39,10 +39,7 @@ import { shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitIdleBack
 
 const dirname = fileURLToPath(new URL('.', import.meta.url))
 
-/**
- * Every test-only override and launch flag, parsed once (MAIN-15) — see `app/env.ts` for what
- * each one does and why a packaged build ignores all but `--safe-theme`.
- */
+/** Every test-only override and launch flag; see `app/env.ts`. */
 const env: RuntimeEnv = parseRuntimeEnv(process.env, process.argv, app.isPackaged)
 const launchMode = { background: env.background }
 
@@ -60,12 +57,7 @@ if (shouldHoldSingleInstanceLock(launchMode, app.isPackaged)) {
   }
 }
 
-// Nothing in `src/main` registered either of these before (MAIN-19): an unobserved rejection was
-// silent, and an uncaught exception took the whole process down with Electron's own native error
-// dialog — no diagnostic recorded either way. The diagnostic log exists for exactly this ("Open
-// installer", CLAUDE.md). Note that listening for `uncaughtException` replaces the default
-// handling: Electron no longer shows its dialog, and the process carries on — as it already did
-// after that dialog — so the log line is now the record of it.
+// Listening for `uncaughtException` replaces Electron's native error dialog; the log line is the record.
 process.on('unhandledRejection', (reason) => {
   log.error('process', 'unhandled rejection', {
     error: errorMessage(reason),
@@ -81,10 +73,7 @@ let disposeRemote: (() => Promise<void>) | null = null
 /** Quits a background-started app with no window and remote access off; set once remote access starts. */
 let quitIfIdleBackground: () => void = () => {}
 
-/**
- * Runs the remote-access server while the "Allow remote access over SSH" setting is on: started
- * now if it is, and started or stopped as the setting changes. Returns the disposer for quit.
- */
+/** Runs the remote-access server while "Allow remote access over SSH" is on, following the setting. Returns the disposer for quit. */
 function startRemoteAccess(container: Container, dispatcher: Dispatcher): () => Promise<void> {
   const { remoteServer, virtualContents, settingsService: settings } = container
   remoteServer.attachDispatcher(dispatcher)
@@ -141,10 +130,7 @@ function openRemoteHost(client: RemoteClientService, host: string): void {
 }
 
 let sessionWatcher: SessionWatcher | null = null
-/** Window creation, numbering and focus tracking (MAIN-15 step 3) — constructed once in `start()`,
- *  once its dependencies (`settingsService`, `sessionLayoutStore`, `tabRegistry`) exist. */
 let windowManager: WindowManager | null = null
-/** The single owner of `settings.json` (MAIN-16) — constructed once in `start()`. */
 let settingsService: SettingsService | null = null
 let sessionLayoutStore: SessionLayoutStore | null = null
 let layoutFlushCoordinator: LayoutFlushCoordinator | null = null
@@ -156,16 +142,11 @@ let resetTheme: (route: string) => void = () => {}
 let autoImportTimer: NodeJS.Timeout | null = null
 
 /**
- * Starts, stops or re-times the periodic rescan.
+ * Starts, stops or re-times the periodic rescan, for sessions that appear without a watched file
+ * changing (one started in a terminal outside Apiary). Off by default (null interval): every pass
+ * shells out to git once per project directory.
  *
- * The chokidar watcher in ipc.ts already notices session files as they change, so this is not
- * about *those*: it is for the sessions that appear without any file this app is watching having
- * changed in a way it sees — one started in a terminal outside Apiary, most often. Off by default
- * (a null interval), because a machine with many projects pays a real cost per scan: every pass
- * shells out to git once per distinct project directory.
- *
- * Re-armed after each run rather than on a fixed `setInterval`, so a scan that outlives its own
- * interval on a slow machine can't have the next one stacked up behind it.
+ * Re-armed after each run rather than a `setInterval`, so a slow scan is not stacked behind itself.
  */
 function setAutoImportInterval(intervalMinutes: number | null): void {
   if (autoImportTimer) {
@@ -175,8 +156,7 @@ function setAutoImportInterval(intervalMinutes: number | null): void {
   if (intervalMinutes === null || intervalMinutes <= 0) return
   const scheduleNextRefresh = (): void => {
     autoImportTimer = setTimeout(() => {
-      // Every window, not just the front one (MAIN-12): a periodic rescan importing a session
-      // discovered outside Apiary must not leave a background window's sidebar stale.
+      // Every window, so a background window's sidebar is not stale.
       const refresh = service?.refresh().then(() => broadcast(IPC.treeChanged))
       if (refresh) fireAndForget(refresh, 'auto-import')
       scheduleNextRefresh()
@@ -186,15 +166,13 @@ function setAutoImportInterval(intervalMinutes: number | null): void {
 }
 
 /**
- * `npm start` runs the bare Electron binary with no .app bundle, so the Dock has nothing to
- * read a custom icon from and falls back to Electron's own default — a packaged build never
- * needs this, since it takes its icon from the bundle itself (see `mac.icon` in
- * electron-builder.yml). `app.dock` only exists on macOS.
+ * `npm start` runs the bare Electron binary with no .app bundle, so the Dock shows Electron's
+ * default icon; a packaged build takes it from the bundle (`mac.icon` in electron-builder.yml).
+ * `app.dock` only exists on macOS.
  */
 function setDevDockIcon(): void {
   if (app.isPackaged || process.platform !== 'darwin') return
-  // A headless test run has no window to show, so no Dock tile either: the suite launches the app
-  // hundreds of times in a row, and the Dock fell behind and piled up a row of icons while it ran.
+  // The suite launches the app hundreds of times in a row, and the Dock piled up a row of icons.
   if (headless) {
     app.dock?.hide()
     return
@@ -202,21 +180,10 @@ function setDevDockIcon(): void {
   app.dock?.setIcon(join(dirname, '../../build/icon.png'))
 }
 
-/**
- * Whether to leave the window off-screen entirely.
- *
- * For test runs: a suite that steals focus and flashes windows for several minutes makes the
- * machine unusable while it runs. The renderer still runs, lays out and responds to input exactly
- * as it would visibly — Playwright drives it through the debugging protocol, which does not care
- * whether anything is on screen — so the tests exercise the same code either way.
- */
+/** Test runs keep windows off-screen so the suite does not steal focus; the renderer behaves the same. */
 const headless = env.headless
 
-/**
- * `File > New Session in Folder...`. The folder comes from Electron's own native picker, never
- * from the renderer, so it can be passed straight to `AppService.newSessionInFolder()` without
- * the store-lookup validation `newSessionInProject()` needs for a renderer-supplied identifier.
- */
+/** `File > New Session in Folder...`. The folder comes from the native picker, never the renderer, so it needs no store-lookup validation. */
 async function onNewSessionInFolder(): Promise<void> {
   const mainWindow = windowManager?.front()
   if (!mainWindow || !service) return
@@ -226,9 +193,7 @@ async function onNewSessionInFolder(): Promise<void> {
     const info = await service.newSessionInFolder(result.filePaths[0])
     sendEvent(mainWindow.webContents, IPC.newSessionStarted, info)
   } catch (e) {
-    // Folder picked via a live native dialog should always exist; a spawn failure here has no
-    // dedicated renderer-facing channel, so it is surfaced the same way other main-process
-    // spawn errors that predate this feature are: logged rather than silently swallowed.
+    // No renderer-facing channel for a spawn failure here.
     console.error('Failed to start new session in folder:', e)
   }
 }
@@ -245,14 +210,11 @@ async function pickFolderOver(sender: WebContents, preset: string | undefined): 
 
 async function start(): Promise<void> {
   setDevDockIcon()
-  // Before any window is created: Electron's default is to grant every permission a page asks
-  // for, and that default applies to any request made before a handler is registered (SEC-10).
+  // Before any window: Electron grants every permission requested before a handler is registered.
   installPermissionGuards(session.defaultSession)
   const userData = app.getPath('userData')
   const paths = containerPaths(env, userData, resolveConfigRoot)
-  // Test-only, like APIARY_GLAB_PATH: substitutes a fake `code` binary for E2E, and an empty
-  // string simulates VS Code not being found at all. Undefined (never set outside tests) means
-  // run the real detection.
+  // Test-only: a fake `code` binary for E2E; an empty string simulates VS Code not found.
   const codePathOverride = env.codePathOverride
   const vsCodePath = codePathOverride === undefined
     ? await detectVsCode()
@@ -261,8 +223,6 @@ async function start(): Promise<void> {
   const fakeUpdate = env.fakeUpdate
   const macSigned = process.platform === 'darwin' && app.isPackaged && (fakeUpdate === undefined || fakeUpdate === '')
     && await hasDeveloperIdSignature()
-  // Everything long-lived is built in `app/container.ts` (MAIN-15 step 5); what is left in this
-  // function is the order things start in.
   const container = createContainer(env, paths, {
     vsCodePath,
     macSigned,
@@ -285,7 +245,6 @@ async function start(): Promise<void> {
   themeGenerator = container.themeGenerator
   petService = container.petService
   const settings = settingsService.get()
-  // Before anything else that might be worth recording. Off unless the user switched it on.
   configureLogging(settings)
   log.info('app', 'started', {
     version: app.getVersion(),
@@ -306,14 +265,10 @@ async function start(): Promise<void> {
     tabRegistry, windowNumberFor: (id) => windowManager!.windowNumberFor(id),
     requireWindowWidth: (win, width) => { windowManager!.requireWidth(win, width) },
     activeTabs: container.activeTabs,
-    // SEC-8 step 8: the renderer is always loaded from one of these two places (see
-    // `WindowManager.create` above) — a dev-server origin (`ELECTRON_RENDERER_URL`, test/dev only) or the
-    // packaged app's own `renderer/index.html`. `parseRuntimeEnv` already keeps the dev-server URL
-    // out of a packaged build's environment (SEC-3), so `devServerOrigin` is always null there.
+    // `parseRuntimeEnv` keeps the dev-server URL out of a packaged build, so the origin is null there.
     senderPolicy: { devServerOrigin: env.rendererUrl ? new URL(env.rendererUrl).origin : null },
     theme: {
-      // APIARY_DEFAULT_THEME=original is test-only: the E2E suite is written against the original
-      // look, so a fresh profile there starts on it rather than on the default theme.
+      // APIARY_DEFAULT_THEME=original is test-only: the E2E suite is written against that look.
       store: container.themeStore,
       safeMode: safeTheme,
       generator: themeGenerator,
@@ -330,16 +285,13 @@ async function start(): Promise<void> {
   resetTheme = ipc.resetTheme
   disposeIpc = ipc.dispose
   disposeRemote = startRemoteAccess(container, ipc.dispatcher)
-  // New session files appear without a restart. Started before the first refresh, as it was when
-  // `registerIpc` owned it, so a file written during that scan is not missed.
+  // Started before the first refresh, so a file written during that scan is not missed.
   sessionWatcher = container.sessionWatcher
   sessionWatcher.start()
   // A `/login` typed in an account's terminal shows only as the file Claude rewrites.
   container.accounts.startLoginChecks()
   await service.refresh()
-  // The first refresh runs before the window exists, so nothing is listening for `treeChanged`
-  // yet — importing here, before the window is created, is what makes everything already be in
-  // the tree by the time the sidebar first asks for it.
+  // Before the window exists, so everything is in the tree when the sidebar first asks.
   if (settings.autoImportAll) {
     await service.importAllDiscovered()
   }
@@ -350,8 +302,6 @@ async function start(): Promise<void> {
     buildMenu(
       () => sendEvent(windowManager?.front()?.webContents, IPC.openImportDialog),
       () => {
-        // Every window, not just the front one (MAIN-12): background windows kept a stale tree
-        // after Rescan Sessions from the menu.
         const refresh = service?.refresh().then(() => broadcast(IPC.treeChanged))
         if (refresh) fireAndForget(refresh, 'rescan')
       },
@@ -359,8 +309,7 @@ async function start(): Promise<void> {
       () => { void onNewSessionInFolder() },
       () => windowManager!.create(),
       () => {
-        // A manual check should show its answer, whatever the answer is, so the window comes to
-        // the front and the banner reports "up to date" and errors as well as updates.
+        // A manual check shows its answer, "up to date" and errors included.
         windowManager?.front()?.show()
         void updater?.check({ manual: true })
       },
@@ -376,13 +325,13 @@ async function start(): Promise<void> {
   const records = stored.windows
     .map((r) => pruneStaleLive(r, (id) => service!.sessionIsResumable(id)))
     .filter((r) => r.layout.panes.some((p) => p.tabs.length > 0))
+  log.info('window', 'restoring', {
+    saved: stored.windows.map((r) => r.number), restoring: records.map((r) => r.number),
+  })
   if (!shouldOpenFirstWindow(launchMode, false)) { /* background: no window until a normal launch */ } else if (records.length === 0) {
     windowManager.create()
   } else {
-    // Advanced to the highest recorded window number before restore begins, so a freshly opened
-    // window after restore does not collide with a recorded number.
     windowManager.advanceOpenedTo(Math.max(0, ...records.map((r) => r.number)))
-    // Never combined with { detach }: restored windows are only ever opened here, never through the drag/tear-off or registerIpc paths.
     for (const record of records) windowManager.create({ restore: record })
   }
   // Every window the restore will open is open: a pet whose window did not come back goes to one that did.
@@ -395,10 +344,8 @@ async function start(): Promise<void> {
   })
 }
 
-// If `start()` throws — a locked or corrupt database, an unwritable userData directory writing
-// the zsh shim, a native ABI mismatch (see CLAUDE.md's ABI trap) — the app previously showed
-// nothing and logged nothing: no window is ever created, and there is no window to report an
-// error to. Guarded here so a launch failure is at least visible and recorded (MAIN-19).
+// If `start()` throws (a corrupt database, an unwritable userData, a native ABI mismatch) no window
+// exists to report it, so the failure is shown and logged here.
 void app.whenReady().then(async () => {
   try {
     await start()
@@ -410,37 +357,23 @@ void app.whenReady().then(async () => {
   }
 })
 
-// Deferred until the async shutdown() below actually finishes (MAIN-15 step 4) — see
-// app/lifecycle.ts's own doc comment for why (the native-abort risk from a PTY event landing
-// after Node's teardown has already started). `isQuitting` is what `WindowManager`'s `closed`
-// handler reads to tell "the user closed this window" from "the app is quitting", above.
+// Quit waits for `shutdown()`; see app/lifecycle.ts. `isQuitting` tells `WindowManager`'s `closed` handler a quit from a user closing a window.
 const { isQuitting } = installQuitDeferral(() => shutdown())
 
 async function shutdown(): Promise<void> {
   try {
     // Before dispose(), so a pending rescan can never fire against a closed store.
     setAutoImportInterval(null)
-    // An in-progress theme generation is `claude -p` running detached in its own process group
-    // (themeGenerator.ts) — nothing on this path used to stop it, so it kept running, and
-    // spending tokens, after Apiary had already quit (MAIN-20).
+    // `claude -p` runs detached in its own process group (themeGenerator.ts): cancel it or it
+    // keeps spending tokens after quit. The pets' calls likewise.
     themeGenerator?.cancel()
-    // The pets' `claude -p` calls likewise.
     petService?.dispose()
     updater?.stop()
-    // The renderer keeps its UI state (selected session, sidebar width, pins) in localStorage, and
-    // Chromium commits that to disk on a batching timer rather than on write. Quitting shortly
-    // after a change could therefore drop it — you would come back to the app having forgotten
-    // which session you had open. This forces the pending write out before shutdown continues.
+    // Chromium commits localStorage (UI state) on a batching timer; a quick quit could drop it.
     session.defaultSession.flushStorageData()
-    // Ask every window to report its layout right now, bypassing its own 500ms debounce, and wait
-    // (briefly, bounded — the same shape as the PTY wait above) for each one's `reportLayout` to
-    // actually land before writing the file. Without this, quitting within that debounce window
-    // (e.g. closing the last tab in a pane, then Cmd+Q) would persist an already-stale layout.
-    //
-    // Per window, and every failure swallowed: a window can be destroyed between the
-    // `isDestroyed()` check and the `send()` (there is no way to close that race from here), and
-    // an unhandled throw at that point would take the flush, the dispose and the quit with it.
-    // One window failing to report must cost only that window's layout, never the others'.
+    // Each window reports its layout now, bypassing its 500ms debounce, so a quit inside that
+    // window does not persist a stale layout. A window can be destroyed between `isDestroyed()`
+    // and `send()`, so each failure is swallowed to cost only that window's layout.
     if (layoutFlushCoordinator !== null) {
       const coordinator = layoutFlushCoordinator
       await Promise.all(BrowserWindow.getAllWindows().map(async (win) => {
@@ -458,9 +391,7 @@ async function shutdown(): Promise<void> {
     }
     sessionLayoutStore?.flush()
   } finally {
-    // Runs even if the layout side threw: the PTYs still have to be reaped before Electron starts
-    // tearing the Node environment down (see the comment above `before-quit`), which is the whole
-    // reason quitting is deferred at all.
+    // Even if the layout side threw: the PTYs must be reaped before Electron tears Node down.
     sessionWatcher?.dispose()
     disposeIpc?.()
     await disposeRemote?.()

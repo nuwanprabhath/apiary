@@ -46,7 +46,7 @@ export function updateHandlers(deps: UpdateDeps): Pick<Handlers, HandledKeys> {
       (await updater?.openDownloaded()) ?? { ok: 'failed', reason: 'Running from source — there is no updater.' },
     // `UpdateService.skip()` already persists the skip through its own injected `saveSettings`
     // callback (wired to `SettingsService.patch` in `main/index.ts`), so nothing here writes
-    // settings again — that used to be a second, redundant write to the same field (MAIN-16).
+    // settings again.
     updateSkip: () => { updater?.skip() },
     updateDismiss: () => { updater?.dismiss() },
   }

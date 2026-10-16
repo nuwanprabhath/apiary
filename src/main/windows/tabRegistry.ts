@@ -3,9 +3,8 @@ import { IPC } from '@shared/api'
 import type { OpenTab } from '@shared/domain/tabs'
 import { sendEvent } from './sendEvent'
 
-// Canonical definition moved to shared/domain/tabs.ts (MAIN-22 / SHARED-2): the wire type
-// `ApiaryApi.reportTabs` takes is the same shape minus `windowNumber`, and mirroring it here let
-// the two drift into three near-identical inline copies (api.ts, ipc.ts, this file).
+// Defined in shared/domain/tabs.ts: the wire type `ApiaryApi.reportTabs` takes is the same shape
+// minus `windowNumber`, and a mirrored copy drifts.
 export type { OpenTab } from '@shared/domain/tabs'
 
 /**
@@ -21,9 +20,7 @@ export class TabRegistry {
   onChange(handler: () => void): void { this.handlers.push(handler) }
   private notify(): void { for (const h of this.handlers) h() }
 
-  /** Replaces everything window `windowNumber` has open. A tab that existed before and is absent
-   *  from `tabs` is gone — closing a tab is reported by simply not including it next time, the
-   *  same way a window's full set is reported rather than diffed. */
+  /** Replaces everything window `windowNumber` has open: a tab absent from `tabs` is closed. */
   report(windowNumber: number, tabs: OpenTab[]): void {
     this.byWindow.set(windowNumber, tabs)
     this.notify()
@@ -53,10 +50,8 @@ export class TabRegistry {
 }
 
 /**
- * The window number a `BrowserWindow` was created with, read back from its own `?w=` query — the
- * same convention `stateKey()` reads in the renderer (see `uiState.ts`) and `createWindow` writes
- * in `main/index.ts`. Reading it from the URL, rather than needing a second id->number map handed
- * in here, keeps this file free of anything but the one piece of Electron it actually needs.
+ * The window number a `BrowserWindow` was created with, read back from its own `?w=` query (the
+ * convention `stateKey()` reads in the renderer and `createWindow` writes in `main/index.ts`).
  */
 function windowNumberOf(win: BrowserWindow): number | null {
   try {
@@ -71,8 +66,7 @@ function windowNumberOf(win: BrowserWindow): number | null {
  * Raises the window showing `windowNumber` and tells it to select `key` — the far side of a click
  * on an Active row in another window's sidebar.
  *
- * A free function, not a method on `TabRegistry`, because it needs `BrowserWindow`, and that has
- * to stay out of anything meant to be unit-testable without Electron (see the class above).
+ * Not a method on `TabRegistry`: that class stays unit-testable without Electron.
  */
 export function focusTab(windows: BrowserWindow[], windowNumber: number, key: string): void {
   const target = windows.find((w) => !w.isDestroyed() && windowNumberOf(w) === windowNumber)

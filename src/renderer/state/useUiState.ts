@@ -92,17 +92,14 @@ export function useUiState(recentSectionHours: number): UiStateActions {
   const [viewer, setViewer] = useState<ViewerUiState>(() => loadUiState())
   const library = useLibraryState()
 
-  // Saved on every change, synchronously. A debounce was tried (UI-6) and lost the last change
-  // before a quit or reload: a real quit tears the renderer down without a React unmount, so a
-  // pending timer simply never fires. The expensive case it was meant for — a drag writing on
-  // every mousemove — is gone at the source: resize drags commit `ui` once, on mouseup (see
-  // `setSidebarWidth`/`setBottomHeight`, called only from a `mouseup` handler).
+  // Saved synchronously on every change: a debounce loses the last change before a quit or reload,
+  // since a real quit tears the renderer down without a React unmount. Resize drags commit once,
+  // on mouseup (see `setSidebarWidth`/`setBottomHeight`).
   useEffect(() => { saveUiState(viewer) }, [viewer])
 
   /**
-   * Drops dismissals old enough that they could never hide a session again, so the map does not
-   * grow without bound across months of use. A no-op prune returns the same reference (see
-   * `pruneDismissed`), so this only writes when there is actually something to drop.
+   * Drops dismissals old enough that they could never hide a session again. A no-op prune returns
+   * the same reference (see `pruneDismissed`), so this only writes when something is dropped.
    */
   useEffect(() => {
     const now = Date.now()
@@ -122,8 +119,7 @@ export function useUiState(recentSectionHours: number): UiStateActions {
     })
   }, [])
 
-  // Written only from a `mouseup` handler (see CLAUDE.md/UI-6): React hears about a resize drag
-  // once, at the end, not on every `mousemove`.
+  // Written only from a `mouseup` handler: React hears about a resize drag once, at the end.
   const setSidebarWidth = useCallback((width: number) => {
     setViewer((prev) => (prev.sidebarWidth === width ? prev : { ...prev, sidebarWidth: width }))
   }, [])

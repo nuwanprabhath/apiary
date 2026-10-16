@@ -45,14 +45,10 @@ const toProject = (r: ProjectRow): StoredProject => ({
 const toSession = (r: SessionRow): StoredSession => ({
   sessionId: asSessionId(r.session_id),
   projectPath: r.project_path,
-  // A user-set title always wins over whatever the scanner most recently read from the JSONL
-  // (its own `ai-title`, or none at all) — otherwise the very next rescan would silently revert
-  // a rename the moment Claude's own title-generation caught up or the file was re-read.
+  // A user-set title wins over what the scanner read, or a rescan would revert a rename.
   title: r.custom_title ?? r.title,
   firstPrompt: r.first_prompt,
-  // A move's own record always wins over whatever the scanner most recently read out of the
-  // transcript — the transcript's own recorded cwd never changes (the JSONL isn't rewritten), so
-  // without this the very next rescan would put the session back where it started.
+  // A move's override wins: the JSONL's recorded cwd never changes, so a rescan would undo the move.
   cwd: r.cwd_override ?? r.cwd,
   gitBranch: r.git_branch,
   startedAtMs: r.started_at_ms,
@@ -68,9 +64,7 @@ const toSession = (r: SessionRow): StoredSession => ({
 
 export class SessionStore {
   private db: Database.Database
-  // Prepared once, after `migrate()` has settled the schema, rather than by the `better-sqlite3`
-  // call re-preparing the same SQL text on every invocation (MAIN-2) — `getSession` in particular
-  // sits behind `requireSession`, which most IPC handlers call at least once.
+  // Prepared once, after `migrate()` has settled the schema; `getSession` sits behind `requireSession`, which most IPC handlers call.
   private readonly stmtUpsertProject: Database.Statement
   private readonly stmtUpsertSession: Database.Statement
   private readonly stmtGetSession: Database.Statement
@@ -117,11 +111,8 @@ export class SessionStore {
   }
 
   /**
-   * `CREATE TABLE IF NOT EXISTS` in schema.ts only shapes a brand-new database — an existing
-   * `session` table from before a column was added keeps whatever shape it already had, so a
-   * column introduced later needs an explicit, idempotent `ALTER TABLE` here instead. Checked via
-   * `PRAGMA table_info` rather than a version counter to keep this self-contained and safe to run
-   * on every startup regardless of what schema version (if any) the file was created with.
+   * `CREATE TABLE IF NOT EXISTS` in schema.ts only shapes a brand-new database, so a later column
+   * needs an idempotent `ALTER TABLE` here, checked via `PRAGMA table_info` (no version counter).
    */
   private migrate(): void {
     const columns = this.db.prepare<[], { name: string }>('PRAGMA table_info(session)').all()
@@ -175,12 +166,10 @@ export class SessionStore {
   }
 
   /**
-   * Syncs every project and its sessions from one refresh pass in a single commit (MAIN-2).
+   * Syncs every project and its sessions from one refresh pass in a single commit.
    *
-   * `syncProject`/`syncSessions` each open their own transaction, so a full-library refresh with
-   * P projects cost 2P fsyncing commits on the main thread before this existed. One commit for the
-   * whole pass is both faster and more correct: a refresh that throws partway through (a stubbed
-   * failure in a test, or a real one) now leaves no partial set of project rows behind.
+   * `syncProject`/`syncSessions` each open their own transaction (2P fsyncing commits for P
+   * projects); one commit is faster, and a refresh that throws partway leaves no partial rows.
    */
   syncAll(entries: { info: ProjectInfo; metas: SessionMeta[] }[]): void {
     this.db.transaction(() => {
@@ -192,9 +181,8 @@ export class SessionStore {
   }
 
   /**
-   * Every known session's file size and mtime, keyed by its transcript path — what a scoped
-   * refresh pass (MAIN-1) checks a freshly-`stat`ed file against to decide whether it needs
-   * re-reading at all.
+   * Every known session's file size and mtime, keyed by transcript path; a scoped refresh checks
+   * a freshly-`stat`ed file against it.
    */
   fileStamps(): Map<string, { size: number; mtimeMs: number }> {
     const rows = this.db
@@ -250,10 +238,8 @@ export class SessionStore {
   }
 
   /**
-   * Looks up a project row by its canonical path. Used to validate a project identifier that
-   * came from the renderer (e.g. the sidebar's "new session" button) before it is ever used as
-   * a spawn cwd — the renderer's string is only trusted once it matches a row this store
-   * already holds; an unknown path is rejected rather than spawned into.
+   * Looks up a project row by canonical path. Validates a renderer-supplied project identifier
+   * before it is used as a spawn cwd: only a path matching a stored row is trusted.
    */
   getProject(path: string): StoredProject | null {
     const row = this.stmtGetProject.get(path) as ProjectRow | undefined
@@ -261,9 +247,8 @@ export class SessionStore {
   }
 
   /**
-   * Whether `path` is the repository some stored worktree belongs to. The tree draws that
-   * repository as a folder of its own — the heading its worktrees sit under — even when it has no
-   * project row, because nobody has run Claude in the repository folder itself.
+   * Whether `path` is the repository some stored worktree belongs to; the tree draws it as a
+   * heading even with no project row of its own.
    */
   isRepoRootOfWorktree(path: string): boolean {
     return this.db
@@ -277,10 +262,8 @@ export class SessionStore {
   }
 
   /**
-   * Marking a session imported also un-archives it: explicitly ticking a session in the Import
-   * dialog is a deliberate "show this" action, so it overrides a prior delete (which only ever
-   * sets `archived`, never touches `imported`) rather than leaving it invisible despite being
-   * ticked. Marking a session *not* imported leaves `archived` untouched either way.
+   * Marking a session imported also un-archives it: ticking it in the Import dialog overrides a
+   * prior delete (which only sets `archived`). Marking it *not* imported leaves `archived` alone.
    */
   setImported(sessionIds: string[], imported: boolean): void {
     const stmt = this.db.prepare(
@@ -305,9 +288,8 @@ export class SessionStore {
   /**
    * The user's note for a session; `null` removes it.
    *
-   * Kept in the session store rather than the search index because it is the user's own writing —
-   * the one thing here that cannot be reconstructed from `~/.claude/projects` if the file is
-   * deleted. The index gets a copy, and can be rebuilt from this.
+   * Kept here, not in the search index: it is the one thing that cannot be rebuilt from
+   * `~/.claude/projects`. The index gets a copy.
    */
   setNote(sessionId: string, note: string | null): void {
     this.db.prepare('UPDATE session SET note = ? WHERE session_id = ?').run(note, sessionId)
@@ -329,11 +311,9 @@ export class SessionStore {
   }
 
   /**
-   * Records that a session's transcript now lives under a different project. `cwd_override` and
-   * `project_path` are never written by `syncSessions` (see its column list), so a rescan — which
-   * reads the *stale* cwd still recorded inside the moved JSONL — cannot undo this. `file_path` is
-   * set here too, immediately, rather than waiting for the rescan the caller will also trigger, so
-   * the session is resumable the instant this returns.
+   * Records that a session's transcript now lives under a different project. `syncSessions` never
+   * writes `cwd_override` or `project_path`, so a rescan cannot undo this. `file_path` is set
+   * here too so the session is resumable the instant this returns.
    */
   recordSessionMove(sessionId: string, projectPath: string, cwd: string, filePath: string): void {
     this.db.prepare(
@@ -342,11 +322,9 @@ export class SessionStore {
   }
 
   /**
-   * Hides (or restores) a session from every visible-session query, without touching the JSONL
-   * file it was read from — `~/.claude/projects` is strictly read-only, so "deleting" a session
-   * from Apiary only ever means removing it from view here. Re-importing the same session later
-   * (it still shows up in Import Claude Sessions, since `allSessions()` ignores `archived`) clears
-   * this back to visible.
+   * Hides (or restores) a session from every visible-session query; `~/.claude/projects` is
+   * read-only, so "deleting" only removes it from view. Re-importing (`allSessions()` ignores
+   * `archived`) clears it.
    */
   setArchived(sessionId: string, archived: boolean): void {
     this.db.prepare('UPDATE session SET archived = ? WHERE session_id = ?').run(archived ? 1 : 0, sessionId)

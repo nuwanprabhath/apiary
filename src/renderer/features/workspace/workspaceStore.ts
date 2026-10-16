@@ -1,13 +1,9 @@
 import { workspaceReducer, type WorkspaceAction, type WorkspaceState } from './workspaceReducer'
 
 /**
- * The window's workspace state behind a subscribe/getState pair, so a component reads only the
- * slice it needs (`useWorkspaceSelector`) instead of re-rendering on every transition (review §7.2).
- *
- * The reducer is the same pure one `useReducer` ran; `dispatch` applies it synchronously and in
- * call order, so two dispatches in one handler compose exactly as they did, and a listener is told
- * only when the state really changed (a reducer that returns the same object is a no-op). No
- * React in here: the hook lives in `useWorkspaceSelector.ts`.
+ * `dispatch` applies the pure reducer synchronously and in call order, like `useReducer`'s queue,
+ * and a listener is told only when the state really changed (returning the same object is a
+ * no-op). No React in here: the hook lives in `useWorkspaceSelector.ts`.
  */
 export interface WorkspaceStore {
   /** The current state; the same object until a transition changes it. */

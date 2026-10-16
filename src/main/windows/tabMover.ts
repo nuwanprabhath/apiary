@@ -5,7 +5,7 @@ import type { TabRegistry } from './tabRegistry'
 import { sendEvent } from './sendEvent'
 
 /** The slice of `BrowserWindow` (and its `webContents`) `TabMover` needs — narrowed so a unit test
- *  can pass a plain object instead of a real Electron window (MAIN-13 step 3). */
+ *  can pass a plain object instead of a real Electron window. */
 export interface MovableWindow {
   webContents: { id: number; send: (channel: string, ...args: unknown[]) => void }
   isDestroyed: () => boolean
@@ -26,9 +26,8 @@ export interface TabMoverDeps {
 
 /**
  * Cross-window tab moves: focus-order tracking, hit-testing, hand-over and claim announcements
- * (MAIN-13 step 3), pulled out of `ipc/handlers/tabs.ts`'s composition so the decision — which
- * window a drop lands on, and who gets told to give the tab up — can be driven with fake windows in
- * a unit test.
+ * so the decision — which window a drop lands on, and who gets told to give the tab up — can be
+ * driven with fake windows in a unit test.
  *
  * See CLAUDE.md "Windows, and what belongs to which": an HTML5 drag started in one `BrowserWindow`
  * delivers no `dragover`/`drop` to another, so the drop target is worked out from geometry

@@ -18,8 +18,7 @@ type ListboxProps = Omit<HTMLAttributes<HTMLElement>, 'role' | 'aria-activedesce
  * list itself). Pair it with `useListboxNav` for the keys; rows are `role="option"` with an `id`
  * from `optionId` and `aria-selected` for the current one.
  *
- * The widget roles live in `ui/` so a listbox is never announced without the keys it promises —
- * `ModeMenu` and `ModelPicker` once declared `role="menu"` and handled none.
+ * The widget roles live in `ui/` so a listbox is never announced without the keys it promises.
  */
 export function Listbox({ label, activeId, as = 'div', ref, testId, ...rest }: ListboxProps): JSX.Element {
   return createElement(as, {

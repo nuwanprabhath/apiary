@@ -11,7 +11,6 @@ const REMOTE_HOST_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9._%+@:[\]-]{0,252}$/
 export const isRemoteHost: Guard<string> = (v): v is string =>
   typeof v === 'string' && REMOTE_HOST_PATTERN.test(v)
 
-/** What a remote window hears about its connection to the work machine. */
 export interface RemoteStatus {
   state: 'connected' | 'disconnected' | 'reconnecting'
   /** The work machine's name, as its Apiary reported it. */
@@ -22,7 +21,6 @@ export interface RemoteStatus {
   attempt?: number
 }
 
-/** A home machine connected to this machine's Apiary (the work machine's own view). */
 export interface RemoteClientInfo {
   id: string
   /** The home machine's name, as it said in `hello`. Informational: never trusted for anything. */
@@ -39,7 +37,6 @@ export type RemoteServerState = { state: 'off' | 'listening' } | { state: 'faile
 /** A time of day as a person reads it ("10:12"), for "since …" in the lists of who is connected. */
 export const clockTime = (at: number): string => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
-/** Why a work machine refused a connection. */
 export type RefusalReason = 'version' | 'pairing-required' | 'pairing-wrong' | 'rate-limited'
 
 /** The pairing code: 8 characters from an alphabet without 0/O or 1/I, shown as `XXXX-XXXX`. */
@@ -71,7 +68,7 @@ const UNSAVED_NOTE = ' It cannot be remembered on this computer.'
 
 export type PairingRefusal = 'pairing-required' | 'pairing-wrong' | 'rate-limited'
 
-/** The error text for a pairing refusal; `pairingError` recognises the first two. */
+/** `pairingError` recognises the first two. */
 export function pairingErrorMessage(reason: PairingRefusal, host: string, canSave = true): string {
   const note = canSave ? '' : UNSAVED_NOTE
   switch (reason) {
@@ -97,7 +94,6 @@ export type RemoteHostSource = 'recent' | 'ssh-config' | 'tailscale'
 /** What a probe found: `unknown` means not probed yet; `refused` means ssh got there and was refused the login. */
 export type RemoteHostState = 'ready' | 'off' | 'stopped' | 'refused' | 'unreachable' | 'unknown'
 
-/** A host the connect dialog and File → Open Remote Session offer, with the last probe's answer. */
 export interface RemoteHost {
   name: string
   source: RemoteHostSource

@@ -9,7 +9,7 @@ import {
  * good answer likely, they are not what makes an answer safe.
  */
 
-/** A `claude -p --output-format json` envelope's structured output — the same reader themes use. */
+/** A `claude -p --output-format json` envelope's structured output, read as themes read it. */
 export { extractThemeJson as extractStructured } from '../theme/prompt'
 
 export interface VoiceContext {

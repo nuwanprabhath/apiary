@@ -74,18 +74,13 @@ import { createExec, type ExecFn } from '../exec/run'
 import type { ContainerPaths } from './containerPaths'
 
 /**
- * The explicit composition root (MAIN-15 step 5): the one place that lists every long-lived
- * main-process object and what each is built from.
+ * The composition root: every long-lived main-process object and what it is built from.
  *
- * Construction only. Nothing here opens a window, starts a timer, polls, refreshes, registers an
- * IPC handler or touches `electron`'s `app`: whatever needs Electron (paths, `isPackaged`, the
- * zsh shim written to disk, VS Code detection, the dock) is resolved by `index.ts` and passed in,
- * which is also what lets a unit test build the whole graph. (`SettingsService`'s constructor
- * does read and migrate `settings.json` — that is its documented contract, MAIN-16.)
- *
- * What stays outside, deliberately: `registerIpc` (it needs the dialog-backed `pickFolder` and the
- * auto-import timer from `index.ts`), starting the updater and status bar (after the first window),
- * and shutdown ordering (`index.ts`'s `shutdown`), none of which are construction.
+ * Construction only: nothing here opens a window, starts a timer, refreshes, registers a handler
+ * or touches `electron`'s `app`. What needs Electron is resolved by `index.ts` and passed in,
+ * which lets a unit test build the whole graph. (`SettingsService`'s constructor does read and
+ * migrate `settings.json`.) `registerIpc`, starting the updater and status bar, and shutdown
+ * ordering stay in `index.ts`.
  */
 export interface ContainerInputs {
   /** Resolved by `index.ts` (`detectVsCode` or the test override); null when VS Code was not found. */
@@ -106,8 +101,6 @@ export interface ContainerInputs {
   appVersion: string
 }
 
-/** How often, at most, the Active section's activity broadcast goes out while a pty is producing
- *  output. See `ActivityBroadcaster`. */
 const ACTIVITY_BROADCAST_MS = 500
 
 export interface IpcStateInputs {
@@ -195,11 +188,7 @@ export interface Container {
   accounts: AccountService
 }
 
-/**
- * What the session-side services are built from (formerly `AppServiceOptions`). Plain data and a
- * few callbacks; every optional field has the default the app wants, so a test names only what it
- * cares about.
- */
+/** What the session-side services are built from; optional fields default to the app's, so a test names only what it needs. */
 export interface ServicesOptions {
   configRoot: string
   dbPath: string
@@ -258,20 +247,13 @@ export interface ServicesOptions {
   remoteClients?: RemoteClientsFeed
   /** Remembers a plugin the user's own answer switched off (a declined consent). */
   persistPluginEnabled?: (pluginId: string, enabled: boolean) => void
-  /**
-   * Called after an index pass that actually changed something. Indexing runs behind whatever the
-   * user is doing, so a search typed while it was still running would otherwise sit on results
-   * that were incomplete at the moment they were fetched, with nothing to prompt a re-query.
-   */
+  /** After an index pass that changed something, so a search typed mid-pass can re-query. */
   onIndexUpdated?: () => void
-  /** Where sessions come from (MAIN-18). Defaults to `ClaudeProjectsSource`, built from
-   *  `configRoot` — the only source that exists today, and built here exactly once. */
+  /** Defaults to `ClaudeProjectsSource` built from `configRoot`. */
   source?: SessionSource
   /**
-   * Injectable collaborators (TEST-6 / MAIN-14 step 1). Each defaults to today's construction, so a
-   * test can pass a fake `pty` or `store` instead of getting a real node-pty process or a real
-   * SQLite file. `plugins` and `statusBar`, if supplied, are used as-is — the built-in plugins are
-   * then not registered, since a caller handing in a whole registry has already decided what is in it.
+   * Injectable collaborators, defaulting to the real ones. Supplied `plugins` and `statusBar` are
+   * used as-is: the built-in plugins are not registered into them.
    */
   deps?: {
     pty?: PtyManager
@@ -295,10 +277,8 @@ export interface Services {
 }
 
 /**
- * Builds the session-side services and wires them to one another: the one place their
- * collaborators are chosen. No window, timer or refresh starts here (`AppService.startStatusBar`
- * and the watcher are started by `index.ts`), so a test builds the whole graph around a temp
- * directory with `createServices({ configRoot, dbPath })`.
+ * Builds the session-side services and wires them together. Nothing starts here, so a test builds
+ * the graph around a temp directory with `createServices({ configRoot, dbPath })`.
  */
 export function createServices(options: ServicesOptions): Services {
   const source = options.source ?? new ClaudeProjectsSource(options.configRoot)
@@ -374,8 +354,6 @@ export function createServices(options: ServicesOptions): Services {
     statusBar: options.deps?.statusBar ?? new StatusBarRegistry({ onChanged: () => options.onStatusBarChanged?.() }),
     resolver,
     git,
-    // A caller that injected its own registries decided what is in them, so the built-ins are not
-    // added on top.
     ...(options.deps?.plugins === undefined && options.deps?.statusBar === undefined
       ? {
         builtins: {
@@ -408,14 +386,13 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   const sessionLayoutStore = createSessionLayoutStore(paths.sessionLayoutFile)
   const layoutFlushCoordinator = createLayoutFlushCoordinator()
   const tabRegistry = new TabRegistry()
-  // Reads the file once, migrates it and writes the migration back — see `SettingsService`'s own
-  // doc comment (MAIN-16). Every later read/write in this process goes through this one instance.
   const settingsService = new SettingsService(paths.settingsFile)
   const windowManager = new WindowManager({
     settingsService, sessionLayoutStore, tabRegistry, headless: env.headless,
     dirname: inputs.dirname, rendererUrl: env.rendererUrl, isQuitting: inputs.isQuitting,
     ...(env.windowChrome !== undefined ? { chromeOverride: env.windowChrome } : {}),
     ...(env.rendererSeams !== undefined ? { rendererSeams: env.rendererSeams } : {}),
+    ...(env.closeGraceMs !== undefined ? { closeGraceMs: env.closeGraceMs } : {}),
   })
   const settings = settingsService.get()
   const fakeLive = env.fakeLive
@@ -461,8 +438,6 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
       ? async () => new Map([[fakeLive, 4242]])
       : undefined,
   })
-  // New session files appear without a restart, debounced into scoped refresh requests (MAIN-1) —
-  // see `SessionWatcher` for the depth/ignore rationale (MAIN-25). Built here, started by `index.ts`.
   const sessionWatcher = new SessionWatcher({
     dir: source.watchDir,
     onChange: (changed) => {
@@ -485,8 +460,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   // One runner per kind of call, over whichever `claude` is configured at the time it runs.
   const makeRunner = (): ClaudeOneShot => new ClaudeOneShot({ claudeBin: () => service.claudeBin, env: () => accounts.defaultEnv() })
   const themeGenerator = new ThemeGenerator({ runner: makeRunner() })
-  // APIARY_DEFAULT_THEME=original is test-only: the E2E suite is written against the original
-  // look, so a fresh profile there starts on it rather than on the default theme.
+  // APIARY_DEFAULT_THEME=original is test-only: the E2E suite is written against that look.
   const themeStore = new ThemeStore(paths.themesFile, env.defaultThemeOriginal ? null : DEFAULT_THEME_ID)
   const petStore = new PetStore(paths.petsFile)
   const petsChanged = (): void => { broadcast(IPC.petsChanged, petService.state()) }

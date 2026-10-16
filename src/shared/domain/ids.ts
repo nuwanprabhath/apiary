@@ -1,6 +1,5 @@
 /**
- * Branded identifier types (MAIN-21, UI-17). At runtime these are exactly the strings they always
- * were — over IPC, in `session-layout.json`, in SQLite — the brand exists only for the compiler,
+ * Branded identifier types. At runtime these are plain strings — over IPC, in `session-layout.json`, in SQLite — the brand exists only for the compiler,
  * so a session id cannot be passed where a pty id is wanted, nor a bare string where either is.
  *
  * Brand at the boundaries, not at the use sites: ids are *minted* (`newPendingPtyId`,
@@ -26,8 +25,7 @@ export type PtyId = string & { readonly [brand]: 'PtyId' }
 /** A Claude account (`shared/domain/accounts.ts`): `main`, or the slug of an added account's label. */
 export type AccountId = string & { readonly [brand]: 'AccountId' }
 
-/** Boundary conversions. Use where an id is minted or arrives from outside the typed world (a
- *  guard, a database row, persisted layout) — not to silence the compiler mid-flow. */
+/** Boundary conversions, for where an id is minted or arrives from outside the typed world. */
 export function asSessionId(id: string): SessionId {
   return id as SessionId
 }
@@ -38,16 +36,13 @@ export function asAccountId(id: string): AccountId {
   return id as AccountId
 }
 
-/** The pty that runs a real session is keyed by the session's own id. */
 export function ptyIdOfSession(id: SessionId): PtyId {
   return asPtyId(id)
 }
 
 /**
- * Names the terminal a cwd-carrying call is about, replacing the `(key, isPtyId)` parameter pair
- * (17 `ApiaryApi` channels used to take it): either a stored session, resolved through the store,
- * or a pty that has no stored session yet, resolved through the pty manager. A union instead of a
- * flag, so `id` is branded for whichever kind it is and the two cannot be crossed.
+ * Names the terminal a cwd-carrying call is about: a stored session (resolved through the store)
+ * or a pty with no stored session yet (resolved through the pty manager).
  */
 export type TerminalRef =
   | { kind: 'session'; id: SessionId }
@@ -59,7 +54,6 @@ export function terminalRef(key: string, isPtyId: boolean): TerminalRef {
   return isPtyId ? { kind: 'pty', id: asPtyId(key) } : { kind: 'session', id: asSessionId(key) }
 }
 
-/** The runtime check behind `TerminalRef` arriving over IPC. */
 export function isTerminalRef(v: unknown): v is TerminalRef {
   if (typeof v !== 'object' || v === null) return false
   const r = v as { kind?: unknown; id?: unknown }

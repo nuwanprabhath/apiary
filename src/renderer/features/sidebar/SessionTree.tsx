@@ -21,33 +21,26 @@ interface Props {
   onToggle: (path: string) => void
   selectedId: string | null
   onSelect: (session: SessionNode) => void
-  /** Starts a brand-new Claude Code session in this project's folder. */
   onNewSession: (path: string) => void
   /** Opens the New worktree dialog for a git folder. Absent: "+" only starts a session. */
   onNewWorktree?: (path: string, label: string) => void
-  /** Asks to remove a session from view (confirmation, if any, is the caller's concern). */
+  /** Confirmation, if any, is the caller's concern. */
   onDeleteSession: (session: SessionNode) => void
-  /** Opens the session in a column of its own beside the current one. */
   onSplitSession: (session: SessionNode) => void
   /** Session ids currently pinned. These are drawn in the sidebar's pinned section instead of
    *  here, so the same row is never listed twice. */
   pinned: Set<string>
   onTogglePin: (session: SessionNode) => void
-  /** Opens the note editor for a session. */
   onEditNote: (session: SessionNode) => void
   /**
-   * Drag-to-reorder, at every level. The worktrees under a repository are as much a list with an
-   * order worth having as the top-level folders are — 1.0.11 before 1.0.12, or the other way
-   * round, is the user's call. Ordering is stored by absolute path, which is unique across the
-   * whole tree, so one list serves every level without them interfering.
+   * Drag-to-reorder, at every level. Ordering is stored by absolute path, which is unique across
+   * the whole tree, so one list serves every level without them interfering.
    */
   onReorderFolder?: (path: string, beforePath: string) => void
   /** Filing into groups stays a top-level idea: a worktree belongs to its repository, not a group.
    *  So a nested folder's menu (`nested`) only has what applies to it — its branch: change it, pull it. */
   onFolderMenu?: (path: string, x: number, y: number, nested: boolean) => void
-  /** Right-click on a session row. */
   onSessionMenu?: (session: SessionNode, x: number, y: number) => void
-  /** Orders a level's folders by the user's arrangement. */
   orderFolders?: (nodes: ProjectNode[]) => ProjectNode[]
   /** Collapses every folder beneath `path`, leaving `path` itself open so what is left is the
    *  short list of its worktrees. */
@@ -56,16 +49,13 @@ interface Props {
    *  accepting a session drop entirely (the flat search-result list has no folder rows to drop on). */
   onSessionDrop?: (sessionId: string, folderPath: string) => void
   /**
-   * UI-27: `aria-level` for this level's rows — 1 at the tree's own root, one more at each level
-   * of recursion. Kept apart from `depth` (which drives indentation and DnD grouping and must stay
-   * 0 at the top of *every* section, groups included, so a folder-in-a-group indents exactly like
-   * one that is not) so the two can disagree where a group header adds a level of ARIA nesting
-   * without an extra visual indent to match.
+   * `aria-level` for this level's rows: 1 at the tree's root, one more per recursion. Kept apart
+   * from `depth` (indentation and DnD grouping, 0 at the top of every section, groups included) so
+   * a group header can add ARIA nesting without a visual indent.
    */
   level?: number
-  /** This level's roving-tabindex value for a given treeitem key — 0 for the tree's one Tab stop,
-   *  -1 for every other row. Threaded down rather than computed here, since it depends on what
-   *  else in the *whole* tree currently holds it, not on anything a single level knows. */
+  /** Roving-tabindex value for a treeitem key — 0 for the tree's one Tab stop, -1 otherwise.
+   *  Threaded down because it depends on what in the whole tree holds the stop. */
   rovingTabIndex?: (kind: 'folder' | 'session', key: string) => number
 }
 
@@ -76,17 +66,14 @@ export function SessionTree({
 }: Props): JSX.Element {
   const rearrangeable = onReorderFolder !== undefined
   const ordered = orderFolders === undefined ? nodes : orderFolders(nodes)
-  // Only a folder's own children are a WAI-ARIA "group" (owned by its treeitem); the outermost
-  // list at each section's top — the group's folders, or the ungrouped list — has no owner of its
-  // own and sits directly under the `role="tree"` container Sidebar wraps everything in.
+  // Only a folder's own children are a WAI-ARIA "group"; the outermost list sits directly under
+  // the `role="tree"` container.
   return (
     <ul className="tree" role={depth === 0 ? undefined : 'group'} style={{ paddingLeft: depth === 0 ? 0 : 14 }}>
       {ordered.map((node) => {
         const isOpen = !collapsed.has(node.path)
         const childProjects = node.children
-        // A folder whose every session is pinned still shows its header: it keeps its "+" button,
-        // so starting a new session there is still one click, and the folder doesn't appear to
-        // have vanished just because its contents were promoted to the top of the sidebar.
+        // A folder whose every session is pinned still shows its header, and its "+" button.
         const unpinned = node.sessions.filter((s) => !pinned.has(s.sessionId))
         return (
           <li key={node.path} data-testid="project-group">
@@ -177,19 +164,11 @@ interface FolderHeaderProps {
   onFolderMenu?: (path: string, x: number, y: number, nested: boolean) => void
   /** Present only on a folder that has folders beneath it. */
   onCollapseBeneath?: () => void
-  /** A session row was dropped on this folder — the drag-to-move gesture. */
   onSessionDrop?: (sessionId: string, folderPath: string) => void
-  /** This folder's roving-tabindex value — see `Props.rovingTabIndex`. */
   tabIndex: number
 }
 
-/**
- * A folder's row: the toggle, its hover-revealed buttons, and a hover card with the full path.
- *
- * The card is here because a worktree's label is only its last path segment, and the folder a
- * worktree lives in is the one thing needed to go and work in it from somewhere else — which, with
- * nothing but the label on screen, meant going and finding it.
- */
+/** The hover card carries the full path, since a worktree's label is only its last path segment. */
 function FolderHeader({
   node, depth, level, isOpen, rearrangeable, onToggle, onNewSession, onNewWorktree, onReorderFolder, onFolderMenu,
   onCollapseBeneath, onSessionDrop, tabIndex,
@@ -198,24 +177,20 @@ function FolderHeader({
   // A nested folder's menu would be "Change branch…" alone; one git does not know has none.
   const folderMenu = onFolderMenu !== undefined && (depth === 0 || isGit) ? onFolderMenu : undefined
   const card = useHoverCard<HTMLDivElement>()
-  // Highlights the row while a session is dragged over it — a folder drag has its own dropEffect
-  // feedback already, but a session drop had nothing to show it would land here at all.
   const [sessionOver, setSessionOver] = useState(false)
   return (
     <div
       ref={card.ref}
       className="project-row-wrap"
       data-folder-path={node.path}
-      // Depth is explicit because it decides what a folder can do: only the outermost
-      // level can be filed into a group, and a CSS selector cannot tell the levels apart
-      // without encoding the nesting of the markup into every query that asks.
+      // Explicit because only the outermost level can be filed into a group, and a CSS selector
+      // cannot tell the levels apart.
       data-depth={depth}
       data-own-context-menu={folderMenu === undefined ? undefined : true}
       data-drop-target={sessionOver}
       data-no-sessions={node.isWorktree && node.sessions.length === 0 && node.children.length === 0}
       role="treeitem"
-      // Stable, like SessionRow's — the row's full text also carries the branch name, which
-      // changes independently of anything a test or a screen reader is doing with the row.
+      // Stable, like SessionRow's: the row's text also carries the branch name.
       aria-label={node.label}
       aria-expanded={isOpen}
       aria-level={level}
@@ -255,12 +230,9 @@ function FolderHeader({
         const dragged = e.dataTransfer.getData('application/x-apiary-folder')
         if (dragged === '' || dragged === node.path) return
         e.preventDefault()
-        // A row inside a group sits inside the group's own drop target, which covers the
-        // whole section. Both handlers would then fire and both would write back the
-        // whole arrangement from the render they were created in — so the group's copy,
-        // landing second, restored the order this drop had just changed. The row is the
-        // more specific target and already files the folder into the right group itself,
-        // so the drop stops here.
+        // A row inside a group is also inside the group's drop target. Both handlers would write
+        // back the whole arrangement from their own render, and the group's, landing second,
+        // would undo this drop. The row already files the folder into the right group.
         e.stopPropagation()
         onReorderFolder(dragged, node.path)
       }}

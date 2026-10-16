@@ -20,10 +20,9 @@ interface Props {
 }
 
 /**
- * Where the dialog is. The order is the simple-worktrees VS Code extension's, deliberately — the
- * same person uses both: name the folder, then pick the branch to check out in it; "Create new
- * branch…" asks for a base (current HEAD, or any branch) and then the new branch's name, which
- * defaults to the folder's.
+ * The order follows the simple-worktrees VS Code extension's: name the folder, then pick the
+ * branch to check out in it; "Create new branch…" asks for a base (current HEAD, or any branch)
+ * and then the new branch's name, which defaults to the folder's.
  */
 type Step =
   | { kind: 'name' }

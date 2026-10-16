@@ -61,10 +61,8 @@ function parseThemeFile(raw: unknown): ThemeFile {
  * `themes.json`: the user's saved themes, which one is active, and the effects options.
  *
  * Kept out of settings.json on purpose (see CLAUDE.md, "Changing a default reaches nobody").
- * Everything read back is validated again — the file is the user's to edit, and may be from a
- * newer or older Apiary — so a theme on disk can never reach the page without passing
- * `validateTheme`. Writes go to a temp file and are renamed into place, so a crash mid-write
- * leaves the previous file, never half of one (`JsonStore`).
+ * The file is the user's to edit and may be from another Apiary, so everything read back passes
+ * `validateTheme` again before it can reach the page.
  */
 export class ThemeStore {
   private data: ThemeFile

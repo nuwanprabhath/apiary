@@ -13,32 +13,24 @@ export interface TerminalKeyContext {
 }
 
 /**
- * The terminal's key handler, installed with `term.attachCustomKeyEventHandler` (copy/paste via
- * xterm's own hook rather than a DOM listener).
+ * The terminal's key handler, installed with `term.attachCustomKeyEventHandler`. It must run before
+ * xterm processes the key: a DOM listener fires after xterm has written to the pty, so it would
+ * copy the selection and still send SIGINT. Returning false stops the key reaching the terminal.
  *
- * This has to run *before* xterm processes the key and be able to swallow it: a listener on the
- * host element fires after xterm has already written to the pty, so calling preventDefault
- * there would copy the selection and still send SIGINT. Returning false here is what stops the
- * key reaching the terminal at all.
- *
- * Ctrl+C only copies when something is selected — with no selection it must still interrupt
- * whatever is running, which is the single most important key in a terminal. Ctrl+Shift+C
- * always copies (the Linux convention), and paste is Ctrl+Shift+V, or Cmd+V on macOS, since a
- * bare Ctrl+V is a control character a terminal is entitled to receive.
+ * Ctrl+C copies only with a selection, else it interrupts. Ctrl+Shift+C always copies, and paste
+ * is Ctrl+Shift+V (Cmd+V on macOS), since a bare Ctrl+V is a control character.
  */
 export function createTerminalKeyHandler(term: Terminal, ctx: TerminalKeyContext): (e: KeyboardEvent) => boolean {
   const isMac = navigator.userAgent.includes('Mac')
   return (e) => {
     if (e.type !== 'keydown') return true
-    // F2 is the rename key almost everywhere a list of named things exists, and no shell or
-    // common terminal program here depends on it — so it is taken before the pty sees it.
+    // No shell or common terminal program here uses F2, so it is taken before the pty sees it.
     const rename = ctx.renameKey()
     if (e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && rename !== undefined) {
       rename()
       return false
     }
-    // Ctrl+Z is "undo" everywhere else people type, and Claude Code takes it as "suspend".
-    // Asked first, with "don't" as the default; see SuspendConfirmDialog.
+    // Claude Code takes Ctrl+Z as "suspend"; asked first (see SuspendConfirmDialog).
     if (ctx.claude() && !ctx.suspended() && isSuspendChord(e)) {
       e.preventDefault()
       ctx.askSuspend()
@@ -57,19 +49,12 @@ export function createTerminalKeyHandler(term: Terminal, ctx: TerminalKeyContext
     }
 
     if (key === 'v' && (e.shiftKey || (isMac && e.metaKey))) {
-      // Returning false below stops xterm's own *keydown*-driven handling, but it does not
-      // stop the browser's default action for this chord — on Linux, Chromium treats
-      // Ctrl+Shift+V as a native paste shortcut in its own right and, left unprevented, fires
-      // a 'paste' DOM event on the textarea as a result of this same keypress. xterm listens
-      // for that event independently (see terminalPaste.ts) and would call its own paste()
-      // a second time from it. preventDefault() here is what stops that second, browser-issued
-      // paste from ever starting — measured against a real Ubuntu 24.04 run, which is the only
-      // way this doubling reproduces (a macOS run does not hit it: Ctrl+Shift+V has no native
-      // paste action there, only Cmd+V does).
+      // Returning false does not stop the browser's default action: on Linux, Chromium treats
+      // Ctrl+Shift+V as a native paste and fires a 'paste' event that xterm also handles (see
+      // terminalPaste.ts), pasting twice. Reproduces only on Ubuntu 24.04; macOS has no native
+      // Ctrl+Shift+V paste.
       e.preventDefault()
-      // Read the clipboard ourselves only to hand the text to xterm's own `paste()` — not to
-      // write it to the pty directly. `paste()` is the same call the browser's native paste
-      // event would otherwise drive, so there is exactly one write path instead of two.
+      // The text goes through xterm's `paste()`, the same single write path a native paste uses.
       void readClipboardText().then((text) => { if (text !== null) pasteText(term, text) })
       return false
     }
@@ -78,10 +63,7 @@ export function createTerminalKeyHandler(term: Terminal, ctx: TerminalKeyContext
   }
 }
 
-/**
- * Watches for Claude Code's own "has been suspended" screen, whoever caused it — the Suspend
- * button, or a Ctrl+Z that reached it some other way. Checked once per frame at most.
- */
+/** Watches for Claude Code's "has been suspended" screen, whoever caused it. At most once per frame. */
 export function watchForSuspension(
   term: Terminal,
   claude: () => boolean,

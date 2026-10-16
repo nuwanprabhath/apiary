@@ -73,8 +73,7 @@ export async function extractMeta(filePath: string): Promise<SessionMeta> {
   // extension's rename — which Claude records as `custom-title` and re-appends each turn, so the
   // tail normally has the latest. It outranks Claude's own generated `ai-title`: a name somebody
   // chose beats one a model guessed. (A rename made in Apiary still outranks both — see
-  // SessionStore's `custom_title`.) Until this was read, renaming a session in Claude changed its
-  // name everywhere except Apiary.
+  // SessionStore's `custom_title`.)
   const customTitle = latestCustomTitle(tail) ?? latestCustomTitle(head)
 
   return {
@@ -96,15 +95,14 @@ export async function extractMeta(filePath: string): Promise<SessionMeta> {
 interface ScanStats {
   /** How many `.jsonl` files were found under `projectsRoot`. */
   filesSeen: number
-  /** How many of those were actually opened and re-parsed (MAIN-1: the rest were skipped by
-   *  `isUnchanged`). */
+  /** How many of those were actually opened and re-parsed (the rest were skipped by `isUnchanged`). */
   filesParsed: number
 }
 
 export interface ScanOptions {
   /**
    * Lets a caller skip re-reading a file whose size and mtime match what it already has on
-   * record — the store already keeps both per session (MAIN-1). Omit it (the default) to always
+   * record — the store already keeps both per session. Omit it (the default) to always
    * parse every file, which is what every existing caller and test expects.
    */
   isUnchanged?(path: string, size: number, mtimeMs: number): boolean

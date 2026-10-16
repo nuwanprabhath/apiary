@@ -5,15 +5,10 @@ import { rebindOnNewBridge } from './bridgeBinding'
 
 /**
  * One shared timer, one shared `onMrStatusesInvalidated` listener, and one `gitlabMrRefStatus`
- * request per session per tick — instead of every mounted `useMrStatuses` owning its own 2-minute
- * `setInterval` and its own invalidation listener (UI-10). `SessionRow` alone calls the hook twice
- * (title and note), which used to mean two separate IPC round trips and two timers for the same
- * session; this unions whatever every mounted consumer for a session is asking about into one
- * request.
+ * request per session per tick. `SessionRow` alone calls the hook twice (title and note); this
+ * unions whatever every mounted consumer for a session is asking about into one request.
  *
- * Kept as a plain module store rather than React state so a title's and a note's subscribe calls,
- * which land in the same render, can be coalesced before either one's request goes out — see
- * `scheduleFetch`'s microtask delay.
+ * A plain module store, so subscribe calls landing in one render can be coalesced (`scheduleFetch`).
  */
 
 type Listener = (statuses: Record<number, MrState | null>) => void
@@ -29,8 +24,8 @@ interface SessionEntry {
   fetchScheduled: boolean
 }
 
-/** How often a session with something mounted re-asks. Matches the per-row interval this
- *  replaces; the main process's cache decides whether re-asking actually reaches GitLab. */
+/** How often a session with something mounted re-asks; the main process's cache decides whether
+ *  re-asking actually reaches GitLab. */
 const REFRESH_MS = 2 * 60 * 1000
 
 const sessions = new Map<SessionId, SessionEntry>()
@@ -51,8 +46,7 @@ function scheduleFetch(sessionId: SessionId): void {
   const entry = sessions.get(sessionId)
   if (entry === undefined || entry.fetchScheduled) return
   entry.fetchScheduled = true
-  // Deferred a tick so sibling hooks subscribing in the same render (a row's title and its note)
-  // land before the request goes out, and are asked about in one call rather than two.
+  // Deferred a tick so sibling hooks subscribing in one render share one request.
   queueMicrotask(() => {
     entry.fetchScheduled = false
     const iids = [...new Set([...entry.consumers.values()].flatMap((c) => c.iids))]
@@ -66,9 +60,7 @@ function scheduleFetch(sessionId: SessionId): void {
   })
 }
 
-/** Whatever this session's most recent fetch returned, before a new subscriber's own request (if
- *  any) lands — lets a fresh subscriber paint immediately instead of blanking until the round
- *  trip returns. */
+/** This session's most recent fetch result, so a fresh subscriber can paint before its own request lands. */
 export function currentMrStatuses(sessionId: SessionId): Record<number, MrState | null> {
   return sessions.get(sessionId)?.statuses ?? {}
 }

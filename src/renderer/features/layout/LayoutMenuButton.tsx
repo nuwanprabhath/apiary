@@ -10,26 +10,20 @@ interface Props {
   testId: string
   title: string
   ariaLabel: string
-  /** What a plain click does — the button's job before the picker existed. */
   onClick?: () => void
-  /** Called as the picker appears, so whatever else the pointer opened on the way here (the row's
-   *  own hover card) can get out of its way. Two popups from one gesture, overlapping each other,
-   *  is not a menu — it is a mess. */
+  /** Called as the picker appears, so whatever else the pointer opened on the way (the row's
+   *  hover card) gets out of its way. */
   onOpen?: () => void
   heading: string
   mode?: 'place' | 'layout'
   onPick: (preset: PresetId, zone: number) => void
   children: ReactNode
-  /** UI-27: unset by default (a normal Tab stop); a row inside a WAI-ARIA tree passes -1 so only
-   *  the row's own treeitem is one, reached instead through its context menu. */
+  /** Unset by default (a normal Tab stop); a row inside a WAI-ARIA tree passes -1 so only the
+   *  row's treeitem is one. */
   tabIndex?: number
 }
 
-/**
- * A button that still does its own job on click, and offers the layout picker when the pointer
- * rests on it — the green-button gesture from macOS. Without an `onClick`, a click opens the
- * picker straight away.
- */
+/** Without an `onClick`, a click opens the picker. */
 export function LayoutMenuButton({
   className, testId, title, ariaLabel, onClick, onOpen, heading, mode = 'place', onPick, children,
   tabIndex,
@@ -43,10 +37,8 @@ export function LayoutMenuButton({
     if (hover.anchor !== null && !wasOpen.current) onOpen?.()
     wasOpen.current = hover.anchor !== null
   }, [hover.anchor, onOpen])
-  // Whether the *current* open (if any) is this click, as opposed to the pointer merely resting on
-  // the button — the only distinction `LayoutPicker` needs to decide whether to take keyboard focus
-  // (UI-28). Reset on every `mouseenter` so a later hover-open after a earlier click-open does not
-  // inherit a stale `true`.
+  // Whether the current open is a click rather than the pointer resting: it decides whether
+  // `LayoutPicker` takes keyboard focus. Reset on `mouseenter` so a later hover-open is not stale.
   const openedByClickRef = useRef(false)
   return (
     <>

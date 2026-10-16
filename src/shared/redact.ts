@@ -20,8 +20,7 @@
  * - **Anything very long**, truncated. A field that grew without bound is how transcript text
  *   would end up in a log by mistake.
  *
- * Kept pure and in `shared/` so both processes redact identically and so the rules are testable
- * without a filesystem — these are the assertions that decide whether the feature is safe.
+ * Pure and in `shared/` so both processes redact identically.
  */
 
 /** Longer than this and a field is a payload, not a diagnostic. */
@@ -56,7 +55,6 @@ export interface RedactOptions {
   home?: string
 }
 
-/** Escapes a string for literal use inside a RegExp. */
 function escapeRe(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -75,12 +73,9 @@ export function redactString(value: string, { home }: RedactOptions = {}): strin
 }
 
 /**
- * Redacts a whole structured value, recursively.
- *
- * Objects and arrays are walked; anything that is not a string, number, boolean or null is
- * described rather than serialised, because "what type was it" is the useful part and an unknown
- * object is exactly where something unintended would hide. Cycles are cut rather than thrown on:
- * a logger must never be the thing that crashes the app.
+ * Redacts a whole structured value, recursively. Anything that is not a string, number, boolean
+ * or null is described rather than serialised: an unknown object is where something unintended
+ * would hide. Cycles are cut rather than thrown on: a logger must never crash the app.
  */
 export function redact(value: unknown, options: RedactOptions = {}, seen = new Set<unknown>()): unknown {
   if (typeof value === 'string') return redactString(value, options)
@@ -93,7 +88,6 @@ export function redact(value: unknown, options: RedactOptions = {}, seen = new S
   if (seen.has(value)) return '[circular]'
   seen.add(value)
   if (Array.isArray(value)) {
-    // Capped: a long array in a log line is a payload by another name.
     const items = value.slice(0, 50).map((v) => redact(v, options, seen))
     return value.length > 50 ? [...items, `[+${String(value.length - 50)} more]`] : items
   }

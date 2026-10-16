@@ -3,12 +3,9 @@ import { createIpcStore } from './createIpcStore'
 import { background } from './policy'
 
 /**
- * The updater's state, as the UI sees it.
- *
- * One subscription, shared by the banner and the Settings panel, so the two can never disagree
- * about whether a download is running. The main process is the only source of truth — it owns the
- * schedule and the download — and pushes the whole status on every transition rather than the UI
- * polling for it. A transition pushed while the first read is still in flight wins over it.
+ * The updater's state, as the UI sees it: one subscription shared by the banner and the Settings
+ * panel. Main owns the state and pushes the whole status on every transition; one pushed while the
+ * first read is in flight wins over it.
  */
 const updateStore = createIpcStore<UpdateStatusPayload | null>({
   scope: 'update',
@@ -21,8 +18,8 @@ export function useUpdate(): UpdateStatusPayload | null {
   return updateStore.useStore()
 }
 
-// -- Commands. The pushed status is the feedback (a progress bar, a phase change, an error phase), so
-// -- the banner's buttons are fire-and-forget: a failure is logged, not toasted over the banner.
+// The pushed status is the feedback, so the banner's buttons are fire-and-forget: a failure is
+// logged, not toasted over the banner.
 
 export function downloadUpdate(): void { background(window.apiary.updateDownload(), 'update') }
 export function installUpdate(): void { background(window.apiary.updateInstall(), 'update') }

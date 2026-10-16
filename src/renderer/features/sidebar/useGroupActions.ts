@@ -21,8 +21,6 @@ export interface GroupActions {
   topLevelPaths: Set<string>
 }
 
-/** The user's arrangement of the top level — groups, which folder is filed where, and folder
- *  order — and every way the sidebar changes it. */
 export function useGroupActions(
   groupState: GroupState,
   onGroupStateChange: (next: GroupState) => void,
@@ -50,7 +48,6 @@ export function useGroupActions(
       groups: [...groupState.groups, group],
       assignments: { ...groupState.assignments, [withFolder]: group.id },
     })
-    // Straight into rename, so naming it is the same gesture as making it rather than a second one.
     setRenamingGroup(group.id)
     setRenameDraft('New group')
   }
@@ -62,12 +59,8 @@ export function useGroupActions(
     patchGroups({ groups: groupState.groups.map((g) => (g.id === id ? { ...g, name } : g)) })
   }
 
-  /**
-   * UI-27 step 3: the folder a path sits among at its own level, in the order `SessionTree` would
-   * actually render them (`orderFolders` applied) — a top-level folder's siblings are its own
-   * group's `folders` list or `arranged.ungrouped`, never the whole tree, matching what dragging it
-   * onto a neighbour already does.
-   */
+  // In the order `SessionTree` renders them: a top-level folder's siblings are its group's
+  // `folders` or `arranged.ungrouped`, never the whole tree.
   const folderSiblings = (path: string): string[] | null => {
     for (const { folders } of arranged.groups) {
       const ids = orderFolders(folders, (n) => n.path, groupState.folderOrder).map((n) => n.path)
@@ -83,9 +76,8 @@ export function useGroupActions(
     patchGroups({
       folderOrder: moveFolder(groupState.folderOrder, allFolderPaths(tree), path, beforePath),
     })
-    // Dropping a top-level folder onto another files it into that one's group too, which is the
-    // other half of what dragging it means. Nested folders (a repository's worktrees) are not in
-    // groups at all, so this only applies where both are top level.
+    // Dropping a top-level folder onto another files it into that one's group too. Nested folders
+    // (worktrees) are in no group, so this applies only where both are top level.
     if (!topLevelPaths.has(path) || !topLevelPaths.has(beforePath)) return
     const target = groupState.assignments[beforePath]
     if (target !== groupState.assignments[path]) assignFolder(path, target ?? null)

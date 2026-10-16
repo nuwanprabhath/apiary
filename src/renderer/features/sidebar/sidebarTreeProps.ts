@@ -48,8 +48,7 @@ export function buildTreeProps(d: TreeDeps): SharedTreeProps {
     onReorderFolder: d.onReorderFolder,
     onFolderMenu: (path, x, y, nested) => d.setMenu({ kind: 'folder', id: path, x, y, nested }),
     onSessionMenu: d.onSessionMenu,
-    // Resolved against the unfiltered tree — a session being dragged is on screen and therefore in
-    // `tree` too, but there is no reason to make this depend on the search box being empty.
+    // Resolved against the unfiltered tree so it does not depend on the search box being empty.
     onSessionDrop: (sessionId, folderPath) => {
       const session = d.activeSessionsById.get(sessionId)
       if (session !== undefined) d.onSessionDropped(session, folderPath)
@@ -58,8 +57,7 @@ export function buildTreeProps(d: TreeDeps): SharedTreeProps {
     onCollapseBeneath: (path, beneath) => {
       const next = new Set(d.collapsed)
       for (const p of beneath) next.add(p)
-      // Opened, if it was not: collapsing what is inside a closed folder would look like nothing
-      // happened, and the list of worktrees is what the click is asking to see.
+      // Opened if closed: collapsing inside a closed folder would look like nothing happened.
       next.delete(path)
       d.onCollapsedChange(next)
     },

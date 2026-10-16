@@ -51,8 +51,8 @@ export interface ResizeSeparatorProps {
 const DEFAULT_STEP_PX = 16
 
 /**
- * A drag that updates the DOM live and tells React only once, on release (UI-1 step 6 / UI-6), and
- * the keyboard alternative to it (UI-27) — the one place either is written.
+ * A drag that updates the DOM live and tells React only once, on release, and the keyboard
+ * alternative to it — the one place either is written.
  *
  * While a drag runs the body carries `resizing-active` (suppressing text selection, which the
  * repeated move-over-text of a drag is otherwise indistinguishable from) and `resizing-col`/`-row`

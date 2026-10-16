@@ -47,11 +47,7 @@ function claudeCounts(tabs: ActiveTabPayload[]): { working: number; waiting: num
   return { working, waiting, statuses }
 }
 
-/**
- * Everything between the pets and their brain worker: the poses it commands, the scenery it asks
- * for, what Claude is doing (from every window's tabs) and the hourly voice check. The pointer
- * and menu handling that moves a pet by hand is `usePetInteraction`.
- */
+/** Everything between the pets and their brain worker. Moving a pet by hand is `usePetInteraction`. */
 export function usePetBrain(
   pets: PetRecord[], habitat: Habitat, tabs: ActiveTabPayload[], titleOf: (key: string) => string | null,
 ) {
@@ -111,7 +107,6 @@ export function usePetBrain(
         }
         return next
       })
-      // Scenery fades away, then goes.
       for (const item of items) {
         if (!item.show) later(() => { setScenery((p) => { const { [item.key]: _gone, ...rest } = p; return rest }) }, 700)
       }

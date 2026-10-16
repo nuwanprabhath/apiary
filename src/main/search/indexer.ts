@@ -5,26 +5,19 @@ import { ignoreErrorsAsync } from '@shared/ignoreErrors'
 import { extractLineText } from './extractText'
 import { MAX_TEXT_PER_SESSION, type SearchIndex } from './searchIndex'
 
-/** A line longer than this is skipped before it is even parsed (SEC-12): a multi-hundred-MB line
- *  (a base64 blob, a pasted log) would otherwise be `JSON.parse`d synchronously on the main thread
- *  regardless of whether any of it ends up indexed — indexing runs there by design (see the file
- *  comment), so a pathological line is a real, measurable freeze, not just wasted work. */
+/** A longer line (a base64 blob, a pasted log) is skipped unparsed: `JSON.parse` would freeze the main thread. */
 const MAX_LINE_LENGTH = 1_000_000
 
 /**
- * Keeps the search index up to date without the app noticing.
+ * Keeps the search index up to date on the main thread.
  *
- * **Why this is not a worker thread.** The renderer is already its own process, so indexing can
- * never freeze what is on screen; the only thing at stake is how quickly the main process answers
- * IPC. That makes the cost of a worker — a second bundled entry point, a second database
- * connection, and a message protocol — buy very little over simply yielding often enough, which is
- * what this does: one file at a time, yielding to the event loop between each, so no single pass
- * holds the loop for longer than one file takes to read. If a session file ever gets large enough
- * that reading one is itself too long a pause, the fix is to yield inside the read (the line reader
- * below already streams rather than slurping), not to move the whole thing off-thread.
+ * **Why this is not a worker thread.** The renderer is its own process, so indexing cannot freeze
+ * what is on screen; only the main process's IPC latency is at stake, and yielding to the event
+ * loop between files covers that without a second entry point, database connection and message
+ * protocol. If one file's read ever pauses too long, yield inside the read (the line reader
+ * already streams) rather than moving it off-thread.
  *
- * Work is incremental: a session whose file has not changed since it was last indexed is skipped
- * without being opened, so the steady-state cost after the first pass is close to nothing.
+ * Incremental: a session whose file has not changed is skipped without being opened.
  */
 
 export interface IndexableSession {
@@ -43,11 +36,8 @@ export interface IndexRunResult {
 /**
  * Reads one session's JSONL and returns the text worth indexing from it.
  *
- * Stops collecting once the running length passes `MAX_TEXT_PER_SESSION` (SEC-12) rather than
- * joining everything first and truncating in `searchIndex.ts` afterwards — a session with enough
- * lines could otherwise hold an unbounded array in memory for a result that was going to be cut
- * down to 2MB anyway. A line over `MAX_LINE_LENGTH` is skipped before `extractLineText` ever
- * `JSON.parse`s it.
+ * Stops collecting once the length passes `MAX_TEXT_PER_SESSION`, so a huge session never holds an
+ * unbounded array that `searchIndex.ts` would cut down anyway.
  */
 export async function readSearchText(file: string): Promise<string> {
   const parts: string[] = []
@@ -72,7 +62,6 @@ export async function readSearchText(file: string): Promise<string> {
   return parts.join('\n')
 }
 
-/** Lets the event loop run. Between files, so IPC is never waiting on the whole queue. */
 const yieldToLoop = (): Promise<void> => new Promise((resolve) => { setImmediate(resolve) })
 
 /**
@@ -98,8 +87,7 @@ export async function runIndexPass(
       size = info.size
       mtimeMs = info.mtimeMs
     } catch {
-      // A session whose file has gone is simply dropped from the index rather than reported: the
-      // tree will stop listing it too, and a missing file is not a failure worth interrupting for.
+      // A vanished file is dropped from the index, not reported.
       index.forget(session.sessionId)
       continue
     }

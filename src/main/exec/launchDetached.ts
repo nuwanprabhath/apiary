@@ -15,7 +15,7 @@ export type LaunchSpawn = (command: string, args: string[], options: Record<stri
  *
  * `spawn` returns before the child exists, so a missing or unexecutable binary surfaces
  * asynchronously as an `'error'` event, not a throw. With no listener Node re-throws it as an
- * uncaught exception in main (MAIN-19), so one is always attached and logged under `scope`. A
+ * uncaught exception in main, so one is always attached and logged under `scope`. A
  * synchronous throw from `spawn` itself (bad arguments) reaches the caller.
  */
 export function launchDetached(command: string, args: string[], scope: LogScope, spawn: LaunchSpawn = nodeSpawn): void {

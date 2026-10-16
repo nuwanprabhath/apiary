@@ -3,10 +3,9 @@ import type { TranscriptMessage } from '@shared/types'
 import type { ChatState } from '@shared/domain/chat'
 
 // How close to the bottom (in pixels) counts as being at it, for following new content again.
-// Deliberately tight: this used to be 64px, and a trackpad scrolls up a few pixels per event — so
-// the first events of a scroll up still counted as "at the bottom", and the next streamed word
-// (every 40ms in a chat) pulled the view back down. Leaving the bottom is now decided by the
-// direction you scroll (see handleScroll), and only coming back all the way re-attaches.
+// Tight on purpose: a trackpad scrolls up a few pixels per event, so a wide threshold lets the next
+// streamed word (every 40ms in a chat) pull the view back down. Leaving the bottom is decided by
+// scroll direction (see onScroll); only coming back all the way re-attaches.
 const STICKY_BOTTOM_THRESHOLD_PX = 4
 // Scrolled up further than this, the "Jump to latest" button shows.
 const JUMP_BUTTON_THRESHOLD_PX = 240
@@ -15,21 +14,16 @@ const JUMP_BUTTON_THRESHOLD_PX = 240
 export interface TailRefs {
   /** The scroll container. */
   containerRef: RefObject<HTMLDivElement | null>
-  /** Whether the user is currently at (or very near) the bottom, so a live refresh knows
-   *  whether it's allowed to auto-scroll. */
+  /** Whether the user is at (or very near) the bottom, so a live refresh may auto-scroll. */
   stickToBottomRef: RefObject<boolean>
   /**
-   * Set to true whenever the *next* commit of `messages` should be force-scrolled to the bottom
-   * regardless of `stickToBottomRef` (a fresh session load, or a live update that arrived while
-   * already stuck to the bottom). Consumed and cleared by the layout effect in the scroll hook. A
-   * ref (not state) because setting it must never itself trigger an extra render.
+   * The *next* commit of `messages` is force-scrolled to the bottom regardless of
+   * `stickToBottomRef`. Consumed by the layout effect in the scroll hook. A ref so setting it never
+   * triggers a render.
    */
   forceScrollRef: RefObject<boolean>
 }
 
-/** Scroll container + "is the user currently at (or very near) the bottom" tracking, used for
- *  both requirements: scrolling to the bottom on open, and re-sticking to the bottom on live
- *  updates only if the user hadn't scrolled away to read history. */
 export function useTailRefs(): TailRefs {
   return { containerRef: useRef(null), stickToBottomRef: useRef(true), forceScrollRef: useRef(false) }
 }
@@ -57,41 +51,26 @@ export function useTranscriptScroll({ tail, messages, visible, chatMode, chat }:
 } {
   const { containerRef, stickToBottomRef, forceScrollRef } = tail
 
-  // Scroll-to-bottom effect. Runs after `messages` has actually committed to the DOM (layout
-  // effect, not a regular effect), so it never scrolls a container that's still empty from the
-  // pre-load reset. It re-runs on every `messages` change but only acts when `forceScrollRef` was
-  // armed (initial load finishing, or a live update landing while already at the bottom) —
-  // otherwise a `loadEarlier` prepend (which also changes `messages`) would yank the view down to
-  // the bottom right after the user asked to see *earlier* content.
+  // A layout effect, so it never scrolls a container still empty from the pre-load reset. It acts
+  // only when `forceScrollRef` was armed: a `loadEarlier` prepend also changes `messages` and must
+  // not yank the view to the bottom.
   useLayoutEffect(() => {
     if (!forceScrollRef.current) return
-    // Stay armed while hidden rather than consuming the flag here. A display:none element has no
-    // scrollHeight and ignores scrollTop, so running now would silently do nothing *and* throw
-    // away the instruction — which is exactly how watching a session run in the terminal and then
-    // switching to its transcript used to land you at the oldest message instead of the newest.
-    // The visibility effect below performs the deferred scroll instead.
+    // Stay armed while hidden: a display:none element has no scrollHeight and ignores scrollTop,
+    // so running now would do nothing and discard the instruction. The visibility effect below
+    // performs the deferred scroll.
     if (!visible) return
     forceScrollRef.current = false
     const el = containerRef.current
     if (el === null) return
     el.scrollTop = el.scrollHeight
-    // We just landed exactly at the bottom, so the user counts as "stuck" again for the next
-    // live update.
     stickToBottomRef.current = true
   }, [messages, visible, containerRef, forceScrollRef, stickToBottomRef])
 
-  /**
-   * Catches the transcript up the moment it comes back on screen.
-   *
-   * While the live terminal is in front this component keeps running — it still receives every
-   * `onTreeChanged` and merges in new messages — so the content is already current. What it cannot
-   * do while hidden is move its own scroll position. Switching back therefore has to re-run the
-   * scroll that was deferred above, so you land on what the session has just said rather than on
-   * wherever the view happened to be parked when you left it.
-   *
-   * Only when the reader was following the tail: someone who deliberately scrolled up to read
-   * history, then glanced at the terminal, should come back to the same place they left.
-   */
+  // Re-runs the scroll deferred above when the transcript comes back on screen. Content is already
+  // current (the component keeps merging while hidden); only the scroll position could not move.
+  // Only when the reader was following the tail: someone who scrolled up to read history returns
+  // to where they left.
   useEffect(() => {
     if (!visible) return
     if (!stickToBottomRef.current && !forceScrollRef.current) return
@@ -104,12 +83,8 @@ export function useTranscriptScroll({ tail, messages, visible, chatMode, chat }:
     return () => cancelAnimationFrame(id)
   }, [visible, containerRef, forceScrollRef, stickToBottomRef])
 
-  // Tracks whether the user is currently at (or very near) the bottom, so a live refresh knows
-  // whether it's allowed to auto-scroll.
-  //
   // Moving up at all leaves the bottom; only reaching it again re-attaches. Content growing never
-  // moves `scrollTop`, and content shrinking under you while you sit at the bottom leaves you at
-  // the bottom, so a move up is always you (or "go to this message", which is also you).
+  // moves `scrollTop`, and shrinking leaves you at the bottom, so a move up is always the reader.
   const lastScrollTopRef = useRef(0)
   const [showJump, setShowJump] = useState(false)
   const onScroll = useCallback(() => {
@@ -122,8 +97,8 @@ export function useTranscriptScroll({ tail, messages, visible, chatMode, chat }:
     else if (movedUp) stickToBottomRef.current = false
     setShowJump(!stickToBottomRef.current && distanceFromBottom > JUMP_BUTTON_THRESHOLD_PX)
   }, [containerRef, stickToBottomRef])
-  // A wheel or key turned upwards says "stop following" before the scroll event even lands — the
-  // first notch would otherwise race a streamed word that puts the view straight back down.
+  // An upward wheel or key stops following before the scroll event lands, or the first notch races
+  // a streamed word that puts the view back down.
   const stopFollowing = useCallback(() => { stickToBottomRef.current = false }, [stickToBottomRef])
   const onWheel = useCallback((e: { deltaY: number }) => { if (e.deltaY < 0) stopFollowing() }, [stopFollowing])
   const onKeyDown = useCallback((e: { key: string }) => {
@@ -137,8 +112,8 @@ export function useTranscriptScroll({ tail, messages, visible, chatMode, chat }:
     setShowJump(false)
   }, [containerRef, stickToBottomRef])
 
-  // A streamed word, a permission prompt or the working line appearing keeps the view at the
-  // bottom — the same rule a new message from the file follows: only if you were already there.
+  // Streamed words, prompts and the working line follow the same rule as new messages: only if
+  // you were already at the bottom.
   useLayoutEffect(() => {
     if (!chatMode || chat === null || !stickToBottomRef.current) return
     const el = containerRef.current

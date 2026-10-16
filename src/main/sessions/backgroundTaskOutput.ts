@@ -7,7 +7,6 @@ import { toMessage } from '../transcript/transcriptReader'
 
 /** How much of the end of an output file is read: enough for the lines shown, never a whole log. */
 export const TASK_OUTPUT_TAIL_BYTES = 32 * 1024
-/** How many lines the popup shows. */
 export const TASK_OUTPUT_LINES = 40
 /** How much of an agent step's command shows when the step has no title of its own. */
 const STEP_DETAIL_CHARS = 80
@@ -23,8 +22,6 @@ export interface TaskOutputRoots {
   agentRoots: string[]
 }
 
-/** Claude Code's task folders live under the OS temp dir or `/tmp` (macOS keeps them apart); an
- *  agent's output links to its transcript under the projects folder Apiary already watches. */
 export function claudeTaskRoots(projectsDir: string): TaskOutputRoots {
   return { tempRoots: [tmpdir(), '/tmp'], agentRoots: [projectsDir] }
 }
@@ -49,7 +46,6 @@ export async function readTaskOutput(
   try {
     text = await readTail(real, TASK_OUTPUT_TAIL_BYTES)
   } catch {
-    // A task's file that went away or cannot be read is "not available", as the popup says.
     return UNAVAILABLE
   }
   return { available: true, lines: kind === 'agent' ? agentSteps(text) : shellLines(text) }
@@ -128,7 +124,6 @@ function agentSteps(text: string): string[] {
     for (const b of message.blocks) {
       if (b.type === 'text') steps.push(...b.text.split('\n').map((l) => l.trimEnd()).filter((l) => l !== ''))
       else if (b.type === 'tool_use') {
-        // A call with no title (a command run without a description) shows its command instead.
         const { title, input } = describeTool(b.name, b.input)
         const what = title !== '' ? title : (input.split('\n')[0] ?? '').slice(0, STEP_DETAIL_CHARS)
         steps.push(what === '' ? `→ ${b.name}` : `→ ${b.name}  ${what}`)

@@ -69,19 +69,11 @@ interface Props {
 }
 
 /**
- * One editor group: a strip of open session tabs, the active session's transcript or live
- * terminal, and that session's own shell pane underneath. Several of these sit side by side when
- * the user splits (see state/columns.ts), each with its own shell — so a split gives you a second
- * session *and* a second set of terminals, which is what "split the shell along with the session"
- * asks for.
+ * One editor group: a strip of session tabs, the active session's transcript or terminal, and its
+ * own shell pane underneath. A split gives a second session and a second set of terminals.
  *
- * Memoized (UI-4): with App's props stable (see tests/component/appPropStability.test.tsx) a
- * column whose own tabs did not change skips the render an activity broadcast or another pane's
- * change would otherwise cost it. The shell terminals and workspace maps are read from context
- * (`useShellTerminals`, `useSessionKeys`), so no setter is threaded through.
- *
- * It composes `SessionHeader`, `SessionBody` and `ShellPane`; the git and shell state they share
- * lives in `useGitStatus`, `useGitActions` and `useShellTerminals`.
+ * Memoized: with App's props stable (tests/component/appPropStability.test.tsx) a column whose own
+ * tabs did not change skips renders caused by other panes.
  */
 function SessionColumnView(props: Props): JSX.Element {
   const {
@@ -96,7 +88,6 @@ function SessionColumnView(props: Props): JSX.Element {
   // Folded, the pane's body is hidden, so its bar says when something inside is still working.
   const paneActivity = usePaneActivity(folded ? column.tabs.map((t) => t.key) : [])
 
-  /** The image being shown full size, from either the transcript or the composer. */
   const [lightbox, setLightbox] = useState<string | null>(null)
   const {
     workspace, resumed, activeKey, activeSession, activePending, keyFor, shellKey, terminal,
@@ -104,8 +95,7 @@ function SessionColumnView(props: Props): JSX.Element {
   } = useColumnSession(column)
 
   const { gitStatus, loadGitStatus } = useGitStatus(terminal)
-  // Plugins are asked again when the branch changes, which is the event that decides which merge
-  // request (if any) belongs to what is in front of you.
+  // The branch decides which merge request (if any) belongs to the session in front.
   const { items: pluginItems } = usePluginBar(terminal, gitStatus?.branch ?? null)
   const git = useGitActions({ terminal, gitStatus, loadGitStatus, onSessionStarted })
   const shell = useShellTerminals({ activeKey, terminal, isActive, keyFor, workspace })
@@ -119,7 +109,7 @@ function SessionColumnView(props: Props): JSX.Element {
       className="session-column"
       data-testid="session-column"
       data-column-id={column.id}
-      // Which session is in front here — the pets walk under it to point at it (features/pets).
+      // The pets walk under it to point at the session in front (features/pets).
       data-session-key={activeKey ?? undefined}
       style={{ gridArea }}
       data-active={isActive}
@@ -130,8 +120,6 @@ function SessionColumnView(props: Props): JSX.Element {
       onMouseDownCapture={onFocus}
     >
       <PaneDropOverlay columnId={column.id} movingPane={movingPane} onDrop={dropPaneOn} />
-      {/* One card: the session (tabs, header, transcript or terminal) and, as its footer below a
-       *  hairline, the shell bar and its terminals. The resize handle sits on the boundary. */}
       <div className="session-card" data-testid="session-card" data-glow={foldedGlow(folded, paneActivity)}>
       <SessionTabBar
         columnId={column.id}

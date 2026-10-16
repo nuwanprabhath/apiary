@@ -5,7 +5,7 @@ export interface TextMenuActions {
   edit: (command: EditCommand) => void
 }
 
-type SimpleEdit = Exclude<EditCommand['action'], 'replaceMisspelling'>
+type SimpleEdit = 'cut' | 'copy' | 'paste' | 'selectAll'
 
 export function suggestionItems(suggestions: readonly string[], choose: (word: string) => void): ContextMenuItem[] {
   return suggestions.map((word, i) => ({ id: `spell-${i}`, label: word, run: () => { choose(word) } }))
@@ -13,8 +13,12 @@ export function suggestionItems(suggestions: readonly string[], choose: (word: s
 
 export function textMenuItems(request: ContextMenuRequest, act: TextMenuActions): ContextMenuItem[] {
   if (request.isEditable) return editableItems(request, act)
-  if (request.selectionText === '') return []
-  return [{ id: 'copy', label: 'Copy', disabled: !request.editFlags.canCopy, run: () => { act.edit({ action: 'copy' }) } }]
+  const image: ContextMenuItem[] = request.mediaType === 'image'
+    ? [{ id: 'copy-image', label: 'Copy image', run: () => { act.edit({ action: 'copyImageAt', x: request.x, y: request.y }) } }]
+    : []
+  if (request.selectionText === '') return image
+  const copy: ContextMenuItem = { id: 'copy', label: 'Copy', disabled: !request.editFlags.canCopy, run: () => { act.edit({ action: 'copy' }) } }
+  return [...image, copy]
 }
 
 function editableItems(request: ContextMenuRequest, act: TextMenuActions): ContextMenuItem[] {

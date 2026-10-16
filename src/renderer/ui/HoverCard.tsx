@@ -6,25 +6,11 @@ import { copyText } from '../state/clipboard'
 import { clampLeft, clampTop, fitsHorizontally, POPOVER_MARGIN } from './popoverPlacement'
 
 /**
- * A hover card for a sidebar row.
+ * A hover card for a sidebar row. Not a `title` attribute: the OS tooltip is slow, system-styled
+ * and truncates multi-line text differently per platform.
  *
- * This replaces a plain `title` attribute, which was the first attempt and looked right in a test
- * — the attribute was there and its contents were correct — while being close to invisible in
- * use: the OS tooltip takes a second or more to appear, renders in the system style, and truncates
- * multi-line text differently on each platform. A row's details are worth reading at a glance, so
- * they are drawn here instead, on a delay short enough to feel like an answer and long enough not
- * to flicker as the pointer crosses the list.
- *
- * Positioned `fixed` and portalled to the body: the sidebar is a scroll container, and a card
- * inside it is clipped by its edge exactly where the card needs to overhang.
- *
- * It sits *below* the row rather than beside it. Beside meant the card covered the sessions either
- * side of the one being pointed at, which are exactly the rows someone is comparing it against; a
- * card underneath pushes into the space below the pointer, which is where the eye already is.
- *
- * It is also interactive — it has a button on it — so it stays up while the pointer is on it. The
- * gap between the row and the card is crossed without the card closing, because the two are
- * treated as one hover region by the caller (see SessionRow).
+ * Portalled to the body: the sidebar is a scroll container whose edge would clip the card where it
+ * needs to overhang. It has buttons, so the caller treats row and card as one hover region.
  */
 export const HOVER_DELAY_MS = 350
 
@@ -62,11 +48,8 @@ interface Props {
 
 const CARD_GAP = 8
 
-/** Which value was just copied, for the tick on its button. */
 function useCopiedTick(): { copied: 'branch' | 'path' | null; setCopied: (v: 'branch' | 'path') => void } {
   const [copied, setCopied] = useState<'branch' | 'path' | null>(null)
-  // The tick is an acknowledgement, not a state worth keeping: it goes back to the copy glyph so
-  // the button does not claim a copy made a minute ago is the one just now.
   useEffect(() => {
     if (copied === null) return
     const timer = window.setTimeout(() => { setCopied(null) }, 1200)
@@ -77,27 +60,21 @@ function useCopiedTick(): { copied: 'branch' | 'path' | null; setCopied: (v: 'br
 
 function useCardPlacement(anchor: Props['anchor']): { ref: React.RefObject<HTMLDivElement | null>; pos: { left: number; top: number } | null } {
   const ref = useRef<HTMLDivElement | null>(null)
-  // Placed once its own size is known: a card is positioned relative to its width, which cannot
-  // be measured before it renders. It starts offscreen rather than at 0,0 so the first paint is
-  // never a flash in the corner of the window.
+  // Null until the card's own size is measured; it renders hidden meanwhile.
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
 
   useLayoutEffect(() => {
     const el = ref.current
     if (el === null) return
     const box = el.getBoundingClientRect()
-    // Beside the row, out past the sidebar's edge, top-aligned with it. Below the row the card
-    // covered the next several sessions — the very rows you look at and move to next — so you
-    // could neither read them nor hover the next one without first backing out of this one.
-    // Out to the side, the list stays whole, and reaching the card is a straight move right that
-    // crosses no other row.
+    // Beside the row: below it the card would cover the sessions someone compares against, and
+    // reaching it beside crosses no other row.
     const beside = anchor.right + CARD_GAP
     if (fitsHorizontally(beside, box.width)) {
       setPos({ left: beside, top: clampTop(anchor.top, box.height) })
       return
     }
-    // A window too narrow to fit it beside: below the row, flipping above only when the bottom of
-    // the window leaves no room — a card run off the bottom edge is one whose last lines are lost.
+    // Too narrow to fit beside: below the row, flipping above only when the window's bottom leaves no room.
     const below = anchor.bottom + CARD_GAP
     const top = below + box.height + POPOVER_MARGIN <= window.innerHeight
       ? below
@@ -116,7 +93,6 @@ export function HoverCard(
   }: Props,
 ): JSX.Element {
   const { copied, setCopied } = useCopiedTick()
-  /** A pull in flight: the button is disabled so a second click cannot start a second pull. */
   const [pulling, setPulling] = useState(false)
   const { ref, pos } = useCardPlacement(anchor)
 
@@ -125,13 +101,7 @@ export function HoverCard(
       ref={ref}
       className="hover-card"
       data-testid={testId}
-      // UI-26: was `role="tooltip"`, which promises the browser's own tooltip contract — never
-      // interactive, dismissed the instant the pointer or focus leaves. This card holds real
-      // buttons (copy path/branch, pull, "Open in VS Code"), which a `tooltip` cannot correctly
-      // contain: assistive tech is not obliged to let focus reach into one. `role="dialog"` with
-      // `aria-modal="false"` describes what this actually is — a non-modal panel of controls that
-      // stays open while it or its anchor has focus — without claiming the modal behaviour (an
-      // inert backdrop, a focus trap) that `Modal.tsx` provides for actual dialogs.
+      // Not `role="tooltip"`: a tooltip is never interactive, and this card holds real buttons.
       role="dialog"
       aria-modal="false"
       aria-label={title}
@@ -140,15 +110,12 @@ export function HoverCard(
         : { left: pos.left, top: pos.top }}
       onMouseEnter={onPointerEnter}
       onMouseLeave={onPointerLeave}
-      // A portal moves the card in the DOM but not in the React tree, so its events still bubble
-      // to the row that rendered it — including to the row's "hide when clicked" handler, which
-      // unmounted the card from under the pointer before the click on this button could land.
+      // Portal events bubble through the React tree to the row, whose "hide when clicked" handler
+      // would unmount the card before a click on its button landed.
       onMouseDown={(e) => { e.stopPropagation() }}
     >
       <div className="hover-card-title">{title}</div>
       {note !== null && note !== undefined && note !== '' && (
-        // Above the path rather than below it: the note is why someone wrote anything at all, and
-        // burying it under the metadata would make it the last thing read.
         <div className="hover-card-note" data-testid="hover-card-note">
           <MrRefText text={note} statuses={noteMrStatuses ?? {}} />
         </div>

@@ -16,9 +16,8 @@ function lookKey(spec: PetSpec): string {
   return `v${String(RENDER_VERSION)}:${JSON.stringify({ body, eyes, cheeks, arms, legs, accessories })}`
 }
 
-// -- saved renders: a pet takes the better part of a second to render, so it is done once and
-// kept in IndexedDB, and comes back instantly on the next launch. Every access is allowed to
-// fail (a private profile, cleared storage) — then it is simply rendered again.
+// Saved renders: a pet takes the better part of a second to render, so it is kept in IndexedDB.
+// Every access may fail (a private profile, cleared storage); the pet is then rendered again.
 
 const DB = 'apiary-pets'
 const STORE = 'renders'
@@ -61,7 +60,6 @@ async function save(key: string, images: PetImages | PropImages): Promise<void> 
   try {
     const store = d.transaction(STORE, 'readwrite').objectStore(STORE)
     store.put({ images, at: Date.now() }, key)
-    // Then trim to the newest few: walk them all once, delete the oldest.
     const rows: { key: IDBValidKey; at: number }[] = []
     const cursor = store.openCursor()
     cursor.onsuccess = () => {
@@ -77,8 +75,6 @@ async function save(key: string, images: PetImages | PropImages): Promise<void> 
   // eslint-disable-next-line apiary/no-silent-catch -- IndexedDB can be blocked or full; this is only a cache
   } catch { /* see above */ }
 }
-
-// -- the worker
 
 let worker: Worker | null = null
 let broken = false

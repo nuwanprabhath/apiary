@@ -6,8 +6,7 @@ export interface WindowBounds {
   height: number
 }
 
-/** A plain rectangle shape — deliberately not Electron.Display, so this module stays
- *  dependency-free and testable without pulling Electron into the import graph. */
+/** A plain rectangle, not `Electron.Display`, so this module needs no Electron import. */
 export interface DisplayRect {
   x: number
   y: number
@@ -16,23 +15,16 @@ export interface DisplayRect {
 }
 
 /**
- * Minimum overlap, in pixels, required in each dimension for a saved window position to be
- * considered "on screen". The property that actually matters isn't any overlap at all — it's
- * that the user can grab the title bar and drag the window back into full view. A single
- * pixel of corner overlap satisfies "some intersection" but gives no usable grab target. 40px
- * approximates a comfortably clickable strip of title bar (larger than a cursor hit-target,
- * smaller than any real title bar), so it screens out unreachable corner-only overlaps while
- * still accepting a legitimately half-offscreen window, whose overlap with some display is
- * typically hundreds of pixels.
+ * Minimum overlap, in pixels, in each dimension for a saved position to count as "on screen": what
+ * matters is that the user can grab the title bar and drag the window back, and a pixel of corner
+ * overlap gives no grab target. 40px is a clickable strip of title bar, smaller than any real one.
  */
 const MIN_REACHABLE_OVERLAP = 40
 
 /**
- * Saved bounds can point at a display that no longer exists (an external monitor unplugged
- * since the last run), or at a position only barely clipping a connected display. Restoring
- * either verbatim would place the window out of comfortable reach, so a saved rect is only
- * honoured when it overlaps some currently connected display's work area by at least
- * MIN_REACHABLE_OVERLAP pixels in both dimensions — enough for the user to grab the title bar.
+ * Saved bounds can point at a display that is gone (an unplugged monitor) or barely clip one, so a
+ * saved rect is honoured only when it overlaps some connected display's work area by at least
+ * MIN_REACHABLE_OVERLAP pixels in both dimensions.
  */
 export function boundsAreOnScreen(bounds: WindowBounds, displays: DisplayRect[]): boolean {
   return displays.some((area) => {

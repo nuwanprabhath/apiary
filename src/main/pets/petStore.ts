@@ -12,12 +12,11 @@ interface PetsFile { enabled: boolean; pets: PetRecord[] }
 
 const clampSize = (n: unknown): number =>
   isFiniteNumber(n) ? Math.round(clamp(n, PET_SIZES.min, PET_SIZES.max)) : PET_SIZES.default
-/** A window number as `WindowManager` hands them out; anything else (or none, from before 1.41) is unassigned. */
+/** A window number as `WindowManager` hands them out; anything else (or none) is unassigned. */
 const asWindowNumber = (n: unknown): number | null => (typeof n === 'number' && Number.isSafeInteger(n) && n >= 0 ? n : null)
 const clampPlace = (p: unknown): PetPlace | null =>
   isPetPlace(p) ? { region: p.region, at: clamp(p.at, 0, 1) } : null
 
-/** Everything read back is re-validated; a pet that cannot be read is dropped and the rest kept. */
 function parsePetsFile(raw: unknown): PetsFile {
   const r = isRecord(raw) ? raw : {}
   const pets: PetRecord[] = []
@@ -49,7 +48,7 @@ function parsePetsFile(raw: unknown): PetsFile {
  * Its own file, like `themes.json`, rather than a field in settings.json — a default written into
  * settings.json can never be changed for anyone (main/CLAUDE.md). Everything read back is validated
  * again, so a pet on disk can never reach the window without passing `validatePet`; a pet that
- * cannot be read is dropped and the rest kept. Reads and writes go through `JsonStore`.
+ * cannot be read is dropped and the rest kept.
  */
 export class PetStore {
   private data: PetsFile

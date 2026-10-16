@@ -37,7 +37,7 @@ function cleanText(v: unknown, max: number): string {
   return [...s].slice(0, max).join('').trim()
 }
 
-/** One line a pet says: plain, short, one line. Null when nothing is left of it. */
+/** Null when nothing is left of the line. */
 export function cleanLine(v: unknown): string | null {
   const s = cleanText(v, LIMITS.line)
   return s === '' ? null : s

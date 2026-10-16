@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { sidebarSession, box, mouse, until } from './helpers'
+import { sidebarSession, box, mouse, until, hoverWhenStill, clickRowAction } from './helpers'
 
 /**
  * Arranging sessions into a layout of up to four panes, from a hover picker — the macOS
@@ -37,9 +37,11 @@ async function openPickerOn(button: Element, hoverFirst: Element, session: strin
   // reflow on a slow machine) restarts the picker's hover delay, and a pointer that stays put never
   // gets another mouseenter to start it again. A picker that never opens still fails.
   for (let attempt = 1; ; attempt++) {
-    await userEvent.hover(hoverFirst)
-    await userEvent.hover(button)
     try {
+      await hoverWhenStill(hoverFirst)
+      // The row's buttons show only while it is hovered; a row that moved since hides them again.
+      await until(() => (button as HTMLElement).checkVisibility({ visibilityProperty: true, opacityProperty: true }), 1000)
+      await userEvent.hover(button, { timeout: 2000 })
       await until(() => ours() !== undefined && all('layout-picker').length === 1, 2000)
       return ours()!
     } catch (e) {
@@ -67,9 +69,7 @@ describe('pane layouts', () => {
   it('a plain click on the split button still opens to the side', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
-    const target = row('Add worktree switcher')
-    await userEvent.hover(target)
-    await userEvent.click(within(target, 'split-session-button')[0])
+    await clickRowAction('Add worktree switcher', 'split-session-button')
     await until(() => all('session-column').length === 2)
     expect(all('layout-picker')).toHaveLength(0)
   })
@@ -77,9 +77,7 @@ describe('pane layouts', () => {
   it('a sidebar row\'s split button focuses the pane it just opened, not pane one', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
-    const target = row('Add worktree switcher')
-    await userEvent.hover(target)
-    await userEvent.click(within(target, 'split-session-button')[0])
+    await clickRowAction('Add worktree switcher', 'split-session-button')
     await until(() => all('session-column').length === 2)
     const last = all('session-column')[1]
     expect(last.textContent).toContain('Add worktree switcher')

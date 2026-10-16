@@ -1,13 +1,9 @@
 /**
- * Tiny, dependency-free runtime guards for IPC arguments (MAIN-11). Each channel in
- * `shared/ipc/contract.ts` carries one of these, so the main-side registrar
- * (`main/ipc/registrar.ts`) can reject a malformed call before a handler ever sees it, instead of
- * every handler trusting its declared TypeScript types against a boundary that crosses processes.
+ * Dependency-free runtime guards for IPC arguments. Each channel in `shared/ipc/contract.ts`
+ * carries one, so `main/ipc/registrar.ts` rejects a malformed call before a handler sees it.
  *
- * Kept permissive on purpose for payloads that already have their own structural validator
- * (`isTabTransfer`, `isWindowLayoutReport`, `mergeSettingsPayload`'s field-by-field checks): this
- * file only proves "the right number of arguments of roughly the right shape arrived", not full
- * domain validation, which stays where it already lived rather than being duplicated here.
+ * Permissive on purpose for payloads that have their own structural validator (`isTabTransfer`,
+ * `mergeSettingsPayload`, …): this proves the right arguments of roughly the right shape arrived.
  */
 export type Guard<T> = (v: unknown) => v is T
 
@@ -21,10 +17,9 @@ export const record: Guard<Record<string, unknown>> = (v): v is Record<string, u
   typeof v === 'object' && v !== null
 
 /**
- * The escape hatches (`any`, `obj`, `anyStr`). They prove less than the type a channel declares (`any` proves nothing,
- * `obj` an object of unknown shape, `anyStr` a string), so a channel that uses one is declared with
- * `invokeLoose`/`sendLoose` in the contract and its real validator is named there. `tuple`,
- * `opt`, `nullable` and `arr` carry the mark outward, which is what lets
+ * The escape hatches (`any`, `obj`, `anyStr`) prove less than the type a channel declares, so a
+ * channel using one is declared with `invokeLoose`/`sendLoose` and names its real validator.
+ * `tuple`, `opt`, `nullable` and `arr` carry the mark outward, which lets
  * `tests/unit/architecture/looseGuards.test.ts` check the declaration against the guard.
  */
 const loose = new WeakSet<object>()

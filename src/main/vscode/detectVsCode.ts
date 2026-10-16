@@ -16,10 +16,7 @@ export interface DetectVsCodeOptions {
   exists?: (path: string) => boolean
 }
 
-/** MAIN-23: same wrapper the other git/exec call sites use. `code --version` takes no meaningful
- *  cwd, so `process.cwd()` is passed through unconditionally — the same as before this migration,
- *  when `run()` was called with no `cwd` option (Node's default `maxBuffer`, 1MB, is also
- *  `createExec`'s default, so neither changes). */
+/** `code --version` takes no meaningful cwd, so `process.cwd()` is passed through unconditionally. */
 const execViaWrapper = createExec({ timeoutMs: 5000, scope: 'vscode-detect' })
 async function codeVersionExec(file: string, args: string[]): Promise<string> {
   return execViaWrapper(file, args, process.cwd())
@@ -59,7 +56,7 @@ export interface OpenInVsCodeOptions {
 /**
  * Opens `folder` in VS Code, detached from Apiary's own process so quitting Apiary does not take
  * the editor window with it. `launchDetached` owns the no-shell argument array and the `'error'`
- * listener for a binary that has gone missing since `detectVsCode` last ran (MAIN-19).
+ * listener for a binary that has gone missing since `detectVsCode` last ran.
  */
 export function openFileInVsCode(codePath: string, file: string, line: number | null, options: OpenInVsCodeOptions = {}): void {
   // `file` is a real, absolute path, so it can never be read as a flag.

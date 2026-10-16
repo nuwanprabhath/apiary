@@ -215,7 +215,12 @@ describe('sidebarPopups', () => {
     await until(() => page.getByTestId('session-hover-card').elements().length === 1)
 
     const cardBox = page.getByTestId('session-hover-card').element().getBoundingClientRect()
-    await mouse.move(cardBox.x + 20, cardBox.y + 12, 12)
+    const rowBox = sidebarSession('Fix CSV export bug').element().getBoundingClientRect()
+    // Along the row to its edge, then over the gap in one move. Twelve steps across the gap took
+    // longer than the 160 ms grace on a busy machine (each test mouse step is a round trip), which
+    // no real hand needs: the card closed under a pointer that was still on its way.
+    await mouse.move(rowBox.right - 4, rowBox.y + rowBox.height / 2, 6)
+    await mouse.move(cardBox.x + 20, cardBox.y + 12, 1)
     // Proving the card survives the crossing rather than closing a moment after the move completes.
     await stays(() => page.getByTestId('session-hover-card').elements().length === 1, 400, 'the card to survive the crossing')
     await expect.element(page.getByTestId('session-hover-card')).toBeVisible()

@@ -2,11 +2,9 @@ import type { ProjectNode } from './types'
 import { fuzzyScore } from './fuzzy'
 import { countSessions } from './treeWalk'
 
-/** Results shown before "showing first 200" replaces the rest — applied by the caller once results
- *  are ranked (see `rankSessions` in `./sessionRank`), never by `filterTreeLocal` itself. Capping
- *  here, before ranking, would keep whichever matches happen to come first in tree-walk order and
- *  discard better matches that come later — an exact title match in the fiftieth project losing to
- *  weak subsequence matches in the first forty-nine, which is exactly the bug this was found doing. */
+/** Results shown before "showing first 200" replaces the rest. The caller applies it after ranking
+ *  (`rankSessions`), never `filterTreeLocal`: capping first would keep matches in tree-walk order
+ *  and lose a better one found later. */
 export const SEARCH_RESULT_CAP = 200
 
 function projectMatches(node: ProjectNode, query: string): boolean {
@@ -31,14 +29,8 @@ function filterNode(node: ProjectNode, query: string, alsoMatched: Set<string>):
 
 /**
  * Title/path/branch filtering, run in the renderer against the cached, unfiltered tree —
- * `matchedByContent` folds in whatever the main process's FTS index additionally matched, exactly
- * as `AppService.tree()` used to before this moved.
- *
- * Returns every match, uncapped. The cap is the caller's job, applied *after* `rankSessions` has
- * ordered the full match set — this function used to cap here instead, which meant showing
- * whichever `SEARCH_RESULT_CAP` sessions were encountered first while walking folders, not the
- * `SEARCH_RESULT_CAP` best matches. `totalMatches` is still the true count, for the "showing first
- * 200" note.
+ * `matchedByContent` folds in whatever the main process's FTS index additionally matched.
+ * Returns every match, uncapped (see `SEARCH_RESULT_CAP`); `totalMatches` is the true count.
  */
 export function filterTreeLocal(
   tree: ProjectNode[],

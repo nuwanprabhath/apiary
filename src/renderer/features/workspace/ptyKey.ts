@@ -2,12 +2,8 @@ import { asPtyId, asSessionId, type PtyId, type SessionId } from '@shared/domain
 
 /**
  * The id every pty for a tab hangs off — see `useSessionKeys`. Pure, so the selector in
- * `pane/usePaneWorkspace` and the hook agree on it.
- *
- * This is where a bare tab key becomes a `PtyId`: tab keys are plain strings (a session id or a
- * pending `new:<uuid>` pty id, whichever the tab was opened under), and a session's pty is keyed
- * by its own id, so the key itself is the id unless the session was started under another pty
- * (`ptyOverrides`).
+ * `pane/usePaneWorkspace` and the hook agree on it. The key itself, unless the session was started
+ * under another pty (`ptyOverrides`).
  */
 export function ptyKeyOf(
   pending: { has: (key: string) => boolean },

@@ -6,13 +6,10 @@ import { UpdateBannerBody } from './UpdateBannerBody'
 /**
  * The strip that appears when there is an update, and at no other time.
  *
- * Deliberately not a modal. An update is never urgent enough to take the keyboard away from
- * someone mid-sentence in a session, and a dialog that appears over the app every few hours is
- * how people learn to dismiss updates without reading them. It sits above the workspace, it can
- * be dismissed, and it comes back at the next check unless the version was skipped.
- *
- * What the buttons say depends on what this installation can actually do — an unsigned macOS
- * build cannot replace itself (see main/update/capability.ts), so it must not offer to.
+ * Deliberately not a modal: an update is never urgent enough to take the keyboard from someone
+ * mid-sentence. It can be dismissed, and comes back at the next check unless the version was
+ * skipped. What the buttons say depends on what this installation can do: an unsigned macOS build
+ * cannot replace itself (see main/update/capability.ts).
  */
 export function UpdateBanner(
   { status, onOpenSettings }: { status: UpdateStatusPayload; onOpenSettings: () => void },
@@ -29,8 +26,7 @@ export function UpdateBanner(
       <div className="update-banner-text">
         <UpdateBannerBody status={status} />
         {phase === 'available' && capability.kind === 'assisted' && (
-          // Said before they click, not after: an unsigned build cannot install itself, and
-          // finding that out at the end of a download is the thing this sentence prevents.
+          // Said before the click: an unsigned build cannot install itself.
           <span className="update-banner-note">{capability.reason}</span>
         )}
       </div>

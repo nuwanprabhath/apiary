@@ -101,7 +101,6 @@ function eye(spec: PetSpec, a: Anchors, x: number, face: FaceKey): THREE.Object3
     g.add(heart)
     return g
   }
-  // Looking up at Claude while it works; wide-eyed when surprised.
   const look = face === 'focused' ? new THREE.Vector2(0.012, 0.035) : new THREE.Vector2(0, 0)
   const big = face === 'surprised' ? 1.18 : 1
   switch (spec.eyes.style) {
@@ -122,7 +121,6 @@ function eye(spec: PetSpec, a: Anchors, x: number, face: FaceKey): THREE.Object3
       ball.position.set(x + look.x, y + look.y, z + 0.02)
       g.add(ball)
       if (spec.eyes.style === 'sparkle') {
-        // A painted catch-light, as on an anime plush.
         const glint = sphere(0.022, new THREE.MeshBasicMaterial({ color: '#ffffff' }))
         glint.position.set(x + look.x - 0.025, y + look.y + 0.04, z + 0.075)
         g.add(glint)
@@ -132,7 +130,6 @@ function eye(spec: PetSpec, a: Anchors, x: number, face: FaceKey): THREE.Object3
     case 'sleepy': {
       const ball = sphere(0.07, ink(spec), 0.9, 1, 0.55)
       ball.position.set(x + look.x, y - 0.015 + look.y, z + 0.02)
-      // A heavy lid of the body's own felt over the top half.
       const lid = sphere(0.085, new THREE.MeshPhysicalMaterial({ color: spec.body.color, roughness: 0.9, sheen: 1, sheenColor: new THREE.Color(spec.body.accent) }), 1, 0.55, 0.6)
       lid.position.set(x, y + 0.035, z + 0.04)
       g.add(ball, lid)
@@ -142,7 +139,6 @@ function eye(spec: PetSpec, a: Anchors, x: number, face: FaceKey): THREE.Object3
   return g
 }
 
-/** The eyes, mouth, cheeks and brows for one expression. */
 export function buildFace(spec: PetSpec, a: Anchors, face: FaceKey): THREE.Group {
   const g = new THREE.Group()
   g.add(eye(spec, a, -EYE_X, face), eye(spec, a, EYE_X, face))
@@ -209,7 +205,6 @@ function felt(geometry: THREE.BufferGeometry, color: string, accent: string, tex
 export function buildBody(spec: PetSpec, geometry: THREE.BufferGeometry): THREE.Group {
   const g = felt(geometry, spec.body.color, spec.body.accent, spec.body.texture)
   if (spec.body.texture === 'glossy') {
-    // A glossy coat: a clear varnish over short felt.
     const coat = new THREE.Mesh(geometry, new THREE.MeshPhysicalMaterial({ color: spec.body.color, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08, transparent: true, opacity: 0.35 }))
     coat.scale.setScalar(1.035)
     g.add(coat)
@@ -241,14 +236,13 @@ export function buildArm(spec: PetSpec, a: Anchors, side: 'l' | 'r', view: PetVi
   const g = new THREE.Group()
   g.add(arm)
   if (view === 'side') {
-    // Hanging straight down the flank from the shoulder, so the page swings it forward and back.
+    // The page swings it forward and back.
     const s = shoulderOf(a, view)
     // Standing out from the surface by its own thickness, or the body would hide most of it.
     arm.rotation.z = dir * 0.12
     arm.position.set(dir * (s.x + Math.sin(SIDE_SHOULDER) * r), s.y - len / 2 - r * 0.4, s.z + Math.cos(SIDE_SHOULDER) * r)
     return g
   }
-  // Hanging down and a little out from the shoulder.
   arm.rotation.z = dir * (spec.arms === 'noodle' ? 0.5 : 0.75)
   arm.position.set(dir * (a.shoulder.x + 0.02), a.shoulder.y - 0.12, 0.05)
   if (spec.arms === 'mitten') {
@@ -418,7 +412,6 @@ function accessory(kind: Accessory, color: string, a: Anchors): THREE.Object3D {
     }
     case 'scarf': {
       const y = a.bottom + 0.24
-      // Snug: as wide as the body is at the neck.
       const w = a.widthAt(y) + 0.04
       const dz = a.depthAt(y) + 0.04
       const scarf = hatFelt((x, yy, z) => {

@@ -1,13 +1,8 @@
 import { newColumn, findTab, closeTab, type Column, type OpenTab } from './columns'
 
 /**
- * How a window's panes are arranged.
- *
- * A fixed set of presets rather than a general split tree, on purpose: the eight shapes are what
- * the picker offers (macOS's "Move & Resize"/"Fill & Arrange" and VS Code's editor layouts), and
- * with only those shapes every rule — which pane is "number three", what closing one turns into —
- * is a table lookup rather than a tree operation. A pane is a `Column`, unchanged: its own tab
- * strip, its own active tab, and its own terminals for that tab.
+ * How a window's panes are arranged: a fixed set of presets rather than a split tree, so which
+ * pane is "number three" and what closing one turns into are table lookups. A pane is a `Column`.
  */
 
 export type PresetId =
@@ -134,9 +129,7 @@ export function applyPreset(layout: Layout, preset: PresetId): Layout {
  * empty is dropped before filling, so it cannot occupy a zone as a blank.
  *
  * `fromPaneId`, when given, picks which pane is the source. A key can be open in more than one
- * pane at once (split), and without it the first pane holding the key would always be treated as
- * the source regardless of which one the caller actually meant — moving the wrong pane, focusing
- * the wrong one, and leaving the other copy of the key behind unnoticed.
+ * pane at once (split); without it the first pane holding the key is the source.
  */
 export function placeInZone(
   layout: Layout,
@@ -166,12 +159,8 @@ export function placeInZone(
 
   const slots: (Column | null)[] = Array.from({ length: cap }, (_, i) => (i === at ? moved : null))
   const panes = fill(slots, rest, spare)
-  // `moved` occupies its own zone directly (fill only ever touches the null slots), so the pane it
-  // ends up as — even folded into by a merge, which keeps the target's id — is found by identity,
-  // not by searching for the key: a duplicate left in another pane must never be mistaken for it.
+  // By identity, not key: a duplicate left in another pane must not be mistaken for it.
   const placed = panes.find((p) => p.id === moved.id)
-  // The placed tab is what the user just chose, so it is in front even where the fill merged
-  // other tabs into its pane.
   const final = panes.map((p) => (p === placed ? { ...p, activeKey: key } : p))
   return { layout: { preset, panes: final }, paneId: placed?.id ?? moved.id }
 }
@@ -215,8 +204,6 @@ export function closePane(layout: Layout, paneId: string, activePaneId: string |
   const ordered = active === undefined ? rest : [active, ...rest.filter((p) => p !== active)]
   let preset = DOWN[layout.preset]
   while (capacity(preset) < ordered.length) preset = UP[preset]
-  // A waiting zone is not a pane anyone needs kept in place, but its id is worth keeping if the
-  // reflow still has a leftover zone for it — see `fill`.
   const occupied = ordered.filter((p) => p.tabs.length > 0)
   const spare = ordered.filter((p) => p.tabs.length === 0 && p.placeholder === true)
   const slots: (Column | null)[] = Array.from({ length: capacity(preset) }, () => null)
@@ -228,10 +215,8 @@ export function closePane(layout: Layout, paneId: string, activePaneId: string |
 /**
  * Trades the places of two panes, for dragging one pane onto another.
  *
- * A swap rather than an insert: the zones of a preset are fixed, so moving one pane into another's
- * zone has to put that pane somewhere, and the only place that disturbs nothing else is the zone
- * just vacated. Both panes travel whole — tabs, active tab and terminals — and the layout and its
- * sizes stay as they were.
+ * A swap rather than an insert: the zones of a preset are fixed, and the zone just vacated is the
+ * only place that disturbs nothing else. Both panes travel whole; layout and sizes stay.
  */
 export function swapPanes(layout: Layout, fromId: string, toId: string): Layout {
   const from = layout.panes.findIndex((p) => p.id === fromId)
@@ -243,8 +228,7 @@ export function swapPanes(layout: Layout, fromId: string, toId: string): Layout 
 }
 
 /**
- * The one rule every change to a window's panes goes through (formerly `pruneColumns`, renamed
- * when it grew beyond just pruning).
+ * The one rule every change to a window's panes goes through.
  *
  * A pane that has become empty is closed — unless it was made empty on purpose, as a zone waiting
  * to be filled. A waiting pane that has received a tab stops waiting. A layout holding more panes
@@ -278,8 +262,7 @@ export function tidyLayout(layout: Layout, activePaneId: string | null): Layout 
  * "Open to the side": a waiting zone if there is one, otherwise a new pane by growing the layout,
  * and once there are four, a tab in the pane after the active one — there is no fifth pane.
  *
- * Unlike `placeInZone` this does not move a tab that is already open; splitting a session to see
- * it twice is what the split button has always done.
+ * Unlike `placeInZone` this does not move a tab that is already open: splitting shows a session twice.
  */
 export function openBeside(
   layout: Layout,
@@ -330,8 +313,7 @@ export function boundaryAt(tracks: number[], index: number): number {
 
 /**
  * Moves the boundary between track `index` and the next to `pointer`, both as fractions of the
- * axis. Only that pair changes, and its combined weight is kept — the same arithmetic the column
- * dividers used, which is what keeps repeated drags stable. `minShare` is the floor for either
+ * axis. Only that pair changes, and its combined weight is kept, which keeps repeated drags stable. `minShare` is the floor for either
  * side, as a fraction of the whole axis.
  */
 export function dragTracks(tracks: number[], index: number, pointer: number, minShare: number): number[] {

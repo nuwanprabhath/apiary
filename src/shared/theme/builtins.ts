@@ -1,7 +1,6 @@
 import { DEFAULT_MATERIAL, type ThemeSpec } from './spec'
 
-/** The prefix that marks a theme id as one of these, rather than a saved (user) theme's uuid —
- *  named once (SHARED-3) rather than repeated as a literal at every check. */
+/** The prefix that marks a theme id as one of these, rather than a saved (user) theme's uuid. */
 export const BUILTIN_THEME_PREFIX = 'builtin:'
 
 /**

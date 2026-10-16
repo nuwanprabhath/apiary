@@ -7,18 +7,11 @@ import { createIpcStore } from './createIpcStore'
 import { readLibraryState, saveLibraryState } from './libraryStateStore'
 
 /**
- * Settings the renderer itself acts on, read fresh from main rather than kept in sync with it.
+ * Settings the renderer itself acts on: every setting the schema declares (`shared/settings/schema.ts`).
  *
- * These change only when someone changes them, and only from the Settings dialog — there is no
- * other writer, and no push from main when they change elsewhere (there is nowhere else). So a
- * read when the first reader arrives, plus `reload()` called when the dialog closes, is the whole
- * of it; a push subscription would be solving a problem this state doesn't have. Defaults are in
- * place until the read lands, and stay if it fails (the failure is logged).
- *
- * The mirror is every setting the schema declares (`shared/settings/schema.ts`), with its defaults
- * until the read lands. It used to be a hand-picked subset re-listed four times here (type,
- * defaults, equality, mapping), so a new setting the renderer reads needed edits in this file too —
- * the one-file schema recipe was quietly two files. Deriving it makes the schema the only list.
+ * Only the Settings dialog writes them and main pushes nothing, so a read when the first reader
+ * arrives plus `reload()` when the dialog closes is the whole of it. Defaults stand until the read
+ * lands, and stay if it fails (the failure is logged).
  */
 export interface AppSettingsMirror extends AppSettingsPayload {
   /** Re-reads every field from main — call after the Settings dialog closes. */
@@ -27,7 +20,7 @@ export interface AppSettingsMirror extends AppSettingsPayload {
 
 const SETTING_KEYS = Object.keys(SETTINGS) as SettingKey[]
 
-/** Same for rendering: every value equal, by value for the few that are objects (`plugins`). */
+/** Every value equal, by value for the few that are objects (`plugins`). */
 const sameSettings = (a: AppSettingsPayload, b: AppSettingsPayload): boolean =>
   SETTING_KEYS.every((k) => Object.is(a[k], b[k]) || JSON.stringify(a[k]) === JSON.stringify(b[k]))
 
@@ -36,7 +29,6 @@ const settingsStore = createIpcStore<AppSettingsPayload>({
   initial: DEFAULT_SETTINGS_PAYLOAD,
   equal: sameSettings,
   fetch: () => window.apiary.settingsGet(),
-  // Nothing is pushed: see above.
   subscribe: () => () => undefined,
 })
 

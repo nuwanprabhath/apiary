@@ -23,8 +23,6 @@ const FRAMES: Record<BodyShape, Frame> = {
   cube: { top: 28, eyes: 54, shoulder: [19, 81], bottom: 88 },
 }
 
-// -- colour helpers (inputs are validated #rrggbb)
-
 function rgb(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
@@ -60,7 +58,6 @@ const BODY_PATHS: Record<Exclude<BodyShape, 'puff' | 'cube'>, string> = {
   ghost: 'M21 56 C21 37 34 24 50 24 C66 24 79 37 79 56 L79 86 C75 82 71 82 67 86 C63 90 59 90 55 86 C51 82 47 82 43 86 C39 90 35 90 31 86 C27 82 23 82 21 86 Z',
 }
 
-/** The body: shape, shading and texture, with the shadow it casts on the glass beneath it. */
 export function Body({ spec, uid }: { spec: PetSpec; uid: string }): JSX.Element {
   const { shape, color, accent, texture } = spec.body
   const fill = `url(#${uid}-fill)`
@@ -171,7 +168,6 @@ function Heart({ cx, cy }: { cx: number; cy: number }): JSX.Element {
 function Eye({ style, face, cx, cy, ink, lid }: { style: EyeStyle; face: Face; cx: number; cy: number; ink: string; lid: string }): JSX.Element {
   if (face === 'sleepy') return <path d={`M${String(cx - 6)} ${String(cy)} Q${String(cx)} ${String(cy + 4.5)} ${String(cx + 6)} ${String(cy)}`} stroke={ink} strokeWidth="2.4" strokeLinecap="round" fill="none" />
   if (face === 'love') return <Heart cx={cx} cy={cy} />
-  // Looking up at Claude while it works; wide-eyed when surprised.
   const dx = face === 'focused' ? 1.2 : 0
   const dy = face === 'focused' ? -2.6 : 0
   const pupil = face === 'surprised' ? 3 : 5
@@ -214,7 +210,6 @@ function Eye({ style, face, cx, cy, ink, lid }: { style: EyeStyle; face: Face; c
         <g>
           <circle cx={cx + dx} cy={cy + 1 + dy} r="5.2" fill={ink} />
           <circle cx={cx + dx - 1.6} cy={cy + dy} r="1.4" fill="#ffffff" />
-          {/* A heavy lid in the body's colour over the top half. */}
           <path d={`M${String(cx - 7)} ${String(cy + 0.5)} Q${String(cx)} ${String(cy - 9)} ${String(cx + 7)} ${String(cy + 0.5)} Z`} fill={lid} />
           <path d={`M${String(cx - 6.5)} ${String(cy + 0.5)} L${String(cx + 6.5)} ${String(cy + 0.5)}`} stroke={ink} strokeWidth="1.4" strokeLinecap="round" />
         </g>
@@ -381,7 +376,6 @@ export function Accessories({ spec }: { spec: PetSpec }): JSX.Element | null {
   )
 }
 
-/** What a pet holds or has about it while doing something: a book, Zzz, a sweat drop, sparkles. */
 export function Props({ spec, activity }: { spec: PetSpec; activity: Activity }): JSX.Element | null {
   const f = FRAMES[spec.body.shape]
   if (activity === 'read') {

@@ -5,8 +5,7 @@ import { useFlatTreeNav } from '../../ui/Tree'
 import { SessionRow } from './SessionRow'
 import type { RowActions } from './rowActions'
 
-/** The flat, ranked results shown while searching. UI-27: its own flat tree — a ranked search
- *  result is not a folder listing. */
+/** The flat, ranked results shown while searching; its own flat tree. */
 export function SearchResults({ results, selectedId, pinned, actions }: {
   results: RankedSession[]
   selectedId: string | null

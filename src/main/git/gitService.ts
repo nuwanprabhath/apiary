@@ -28,15 +28,8 @@ export interface GitServiceDeps {
 }
 
 /**
- * Every `git*` operation `AppService` used to implement inline (MAIN-14 step 3): status, refs,
- * checkout/branch/pull/push/merge/fetch, worktree lookups, and the GitLab MR-reference resolver.
- * Every cwd comes from `resolver.resolveShellCwd`/`requireFolder` — this class never receives a
- * raw filesystem path from the renderer. Pure move: behaviour, ordering and error text are
- * unchanged from what `AppService` did; see `tests/unit/gitService.test.ts`.
- *
- * Owns `lastBranch` (moved out of `AppService`, which only ever wrote it from `status()` and read
- * it from `pluginContext()`) — a folder's last-seen branch is git state, so it lives beside the
- * rest of it rather than being a second field on the class that merely calls this one.
+ * Every `git*` operation, and the GitLab MR-reference resolver. Every cwd comes from
+ * `resolver.resolveShellCwd`/`requireFolder`: no raw renderer path reaches git.
  */
 export class GitService {
   private readonly resolver: SessionResolver
@@ -45,9 +38,7 @@ export class GitService {
   private readonly glabPath: string | undefined
   private readonly refreshProject: (cwd: string) => Promise<void>
   private readonly startSessionIn: (folder: string) => Promise<NewSessionInfo>
-  /** Which branch each folder was last seen on, filled in by `status()` — read by `AppService`'s
-   *  plugin context so the bar's own git polling is what keeps plugins current, with no second
-   *  `git` call of their own. */
+  /** Each folder's branch as last seen by `status()`, so plugins need no `git` call of their own. */
   private readonly lastBranch = new Map<string, string | null>()
 
   constructor(deps: GitServiceDeps) {
@@ -64,8 +55,7 @@ export class GitService {
     this.mrStatus.invalidate()
   }
 
-  /** The folder's branch as of its last `status()` call, or null if none has been made (or the
-   *  folder was not a repository). Used by `AppService.pluginContext`. */
+  /** The branch as of the last `status()` call; null if none was made or it is not a repository. */
   lastBranchFor(cwd: string): string | null {
     return this.lastBranch.get(cwd) ?? null
   }
@@ -83,8 +73,8 @@ export class GitService {
     return folder
   }
 
-  /** Null means `cwd` is not (or is no longer) a git repository — an outcome, not a failure: see
-   *  MAIN-9. Anything else `git` gets wrong there still rejects. */
+  /** Null means `cwd` is not (or is no longer) a git repository — an outcome, not a failure.
+   *  Anything else `git` gets wrong there still rejects. */
   async status(terminal: TerminalRef): Promise<GitStatus | null> {
     const cwd = this.resolver.resolveShellCwd(terminal)
     const status = await this.branchOps.status(cwd)
@@ -97,11 +87,9 @@ export class GitService {
   }
 
   /**
-   * Resolves each `!<iid>` reference named in a session's title or note against its GitLab
-   * remote, the way the session-bar plugin resolves its own button: through `glab`, never a
-   * stored token. No remote, no `glab`, a non-zero exit or a timeout all map every iid to `null`
-   * rather than throwing — an unresolved reference is meant to render exactly as if this call
-   * had never been made.
+   * Resolves each `!<iid>` in a session's title or note against its GitLab remote through `glab`,
+   * never a stored token. No remote, no `glab`, a non-zero exit or a timeout map every iid to
+   * `null` rather than throwing.
    */
   async mrRefStatus(
     terminal: TerminalRef, iids: number[],
@@ -120,17 +108,10 @@ export class GitService {
   }
 
   /**
-   * Checks out a branch, reporting the one failure that is not really a failure.
-   *
-   * Git refuses to check out a branch that another worktree already has, and says so in prose. On
-   * a repository with a worktree per ticket that is the *normal* answer, not an error: the branch
-   * exists and is up the road in another directory. Returning it as an outcome lets the UI offer
-   * the two things wanted at that point — update it where it lives, or open a session there —
-   * instead of printing git's sentence and leaving the user to go and find the folder.
-   *
-   * The worktree's path is looked up with `git worktree list --porcelain` rather than scraped out
-   * of the message. The message is English and quoted; the porcelain output is an interface. It
-   * also keeps the rule that a path the app later acts on is one the main process derived itself.
+   * Checks out a branch. Git refusing because another worktree has it is the normal answer with a
+   * worktree per ticket, so it is an outcome the UI can act on (update it there, or open a
+   * session there), not an error. The path comes from `git worktree list --porcelain`, not the
+   * message, so the app only acts on a path main derived itself.
    */
   async checkoutBranch(target: GitTarget, name: string): Promise<CheckoutOutcome> {
     const cwd = this.cwdOf(target)
@@ -144,21 +125,14 @@ export class GitService {
       log.info('git', 'checkout refused: branch is in another worktree', {
         branch: name, cwd, worktreePath,
       })
-      // Git said a worktree has it but the list does not agree — rather than invent an answer,
-      // let the original error through, which at least says what git said.
+      // Git said a worktree has it but the list disagrees: let git's own error through.
       if (worktreePath === null) throw e
       const { current, choices } = await this.choicesFor(cwd).catch(() => ({ current: null, choices: [] }))
       return { ok: false, conflict: { branch: name, worktreePath, label: basename(worktreePath), current, choices } }
     }
   }
 
-  /**
-   * Resolves the worktree holding `branch`, for the two follow-ups a conflict offers.
-   *
-   * The renderer names the *branch*, never the path: this is the same trust boundary every other
-   * cwd-carrying call goes through, and the answer is re-derived each time because a worktree can
-   * be removed between the refusal and the click.
-   */
+  /** The worktree holding `branch`. The renderer names the branch, never the path, and the answer is re-derived each time: a worktree can be removed between the refusal and the click. */
   async requireWorktreeFor(target: GitTarget, branch: string): Promise<string> {
     return this.worktreeHolding(this.cwdOf(target), branch)
   }
@@ -182,11 +156,10 @@ export class GitService {
   }
 
   /**
-   * Checks `branch` out in `target` after switching the worktree that has it to `otherTo` — the
-   * conflict dialog's way of doing both in one go. When `otherTo` is the branch checked out here
-   * (a swap), this folder lets go of it first by detaching, and takes it back if the other
-   * worktree then cannot switch. Git refusing either checkout (local changes in the way, say)
-   * rejects with what git said; the other worktree's path is returned so its row can be refreshed.
+   * Checks `branch` out in `target` after switching the worktree that has it to `otherTo`. When
+   * `otherTo` is the branch checked out here (a swap), this folder detaches first and takes it
+   * back if the other worktree cannot switch. Git's refusal rejects; the other worktree's path is
+   * returned so its row can be refreshed.
    */
   async checkoutMovingOther(target: GitTarget, branch: string, otherTo: string): Promise<string> {
     const cwd = this.cwdOf(target)
@@ -197,8 +170,7 @@ export class GitService {
     try {
       await this.branchOps.checkoutBranch(other, otherTo)
     } catch (e) {
-      // Put `cwd` back where it was; the checkout error below is what the caller sees, so a failed
-      // rollback is logged rather than allowed to replace it.
+      // A failed rollback is logged so it does not replace the error the caller sees.
       if (swap) {
         await this.branchOps.checkoutBranch(cwd, otherTo).catch((err: unknown) => {
           log.warn('git', 'could not restore the branch after a failed swap', { error: errorMessage(err) })
@@ -261,22 +233,15 @@ export class GitService {
     return this.branchOps.updateBranch(this.cwdOf(target), branch)
   }
 
-  /**
-   * Fast-forwards a folder's branch from its upstream — the pull button on a folder's hover card.
-   * `path` comes from the renderer, so it is checked against a stored project row before git
-   * runs anywhere, the same rule `newSessionInProject` keeps.
-   */
+  /** Fast-forwards a folder's branch (the hover card's pull button); `path` is checked against a stored project row. */
   async pullFolder(path: string): Promise<{ commits: number }> {
     return this.branchOps.pullFastForward(this.resolver.requireFolder(path))
   }
 
   /**
-   * Every other worktree of a folder's repository, whether or not a session has ever been started
-   * in it — the folder menu's "Show all worktrees". `path` is checked against a stored project row
-   * like every renderer-supplied path; the worktrees reported are remembered on the resolver, so
-   * starting a session in one (`newSessionInProject`) accepts a path the main process derived
-   * itself from git rather than one the renderer made up. Not a repository, or git failing, is
-   * simply no worktrees.
+   * Every other worktree of a folder's repository (the folder menu's "Show all worktrees"). They
+   * are remembered on the resolver so `newSessionInProject` accepts a path derived from git. Not
+   * a repository, or git failing, is simply no worktrees.
    */
   async listWorktrees(path: string): Promise<FolderWorktree[]> {
     const folder = this.resolver.requireFolder(path)
@@ -286,11 +251,7 @@ export class GitService {
     return others
   }
 
-  /**
-   * What the New worktree dialog offers for a sidebar folder. The folder must be one Apiary
-   * already knows (`requireFolder`); every path in the answer is derived from git's porcelain
-   * output, so the renderer never names where a worktree goes.
-   */
+  /** What the New worktree dialog offers; every path is derived from git, so the renderer never names where a worktree goes. */
   async worktreeCreateOptions(path: string): Promise<WorktreeCreateOptions> {
     const folder = this.resolver.requireFolder(path)
     const all = await this.branchOps.listWorktrees(folder)

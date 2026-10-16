@@ -1,11 +1,7 @@
 /**
- * One shared `onPtyData`/`onPtyExit` subscription, dispatching to per-pty listeners by id (UI-10).
- *
- * Before this, every mounted `TerminalView` called `window.apiary.onPtyData` for itself and
- * filtered by id inline — and terminals stay mounted (hidden, not unmounted) for every open tab by
- * design, so 10 tabs × 3 terminals meant 30 `ipcRenderer.on('apiary:pty-data', …)` listeners in one
- * window, past Node's `EventEmitter` default of 10. This collapses that to exactly one listener
- * per channel, no matter how many terminals are on screen.
+ * One shared `onPtyData`/`onPtyExit` subscription, dispatching to per-pty listeners by id.
+ * Terminals stay mounted (hidden) for every open tab, so per-terminal `ipcRenderer.on` listeners
+ * would pass Node's `EventEmitter` default of 10; this keeps it to one per channel.
  *
  * Rebinds through `rebindOnNewBridge` for the reason given there: `tests/component` swaps in a
  * brand new `fakeApiary` on every `renderApp()`, and the bus has to resubscribe to the new one.

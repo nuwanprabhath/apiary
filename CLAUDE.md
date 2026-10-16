@@ -135,6 +135,7 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | The version is the same in `package.json`, `package-lock.json` and the newest changelog heading | `tests/unit/architecture/versionConsistency.test.ts` | `npm version <x.y.z> --no-git-tag-version`, then a new changelog section |
 | What a tab shows is `TabView`, never a retyped `'transcript' \| 'terminal'` | `tab-view-type` | `TabView` from `@shared/domain/tabs` |
 | Log scopes are known | `LogScope` type | add the scope in `shared/domain/log.ts` |
+| A source comment carries a fact that still holds, never history (an Apiary version, a review id); narration and apologies go, the code that needed them is renamed or reshaped | `tests/unit/architecture/commentHistory.test.ts`; the `trim-comments` skill on every agent branch before it merges (`agent-orchestration` review step) | keep the fact, drop the history; `CHANGELOG.md` and git hold the rest |
 | Renderer-only packages are `devDependencies`; one `@keyframes` name; no raw control bytes | `dependencyPlacement`, `cssKeyframes`, `noControlBytes` tests | move the package; rename the animation; write `\u001b` |
 | What a person sees is not broken: no clipped labels, cut-off controls, overlaps, controls side by side off each other's centre line, see-through popups, browser-default controls, bullets in chrome; every class used is styled | UI audit (`tests/component/ui/audit.ts`) in every UI scenario; `classesDefined` test; Stop hook (a renderer change needs a scenario) | a scenario in `tests/component/ui/` with `reviewUi`; `npm run ui:review`; `.claude/skills/ui-review/SKILL.md` |
 | Each `apiary/*` rule still fires | `tests/unit/architecture/sanctionedRules.test.ts` | add a case for a new rule |
@@ -233,7 +234,7 @@ Generators write stubs that fail until finished, never ones that are green and w
   [`docs/packaging.md`](docs/packaging.md).
 - [`docs/adr/`](docs/adr/README.md): decisions with a rejected alternative, each naming its check.
 - `docs/history/`, `docs/superpowers/`, `docs/reviews/`: history. The code wins where they differ.
-- `.claude/skills/`: `verify-apiary` (and `maintain-verify-apiary`, the audit that keeps its feature map true), `blast-radius`, `correct`, `architecture-drift`, `ui-review`
+- `.claude/skills/`: `verify-apiary` (and `maintain-verify-apiary`, the audit that keeps its feature map true), `blast-radius`, `correct`, `trim-comments`, `architecture-drift`, `ui-review`
   (designing UI, the UI audit and the screenshot review), and
   `agent-orchestration` (running Haiku, Sonnet or Opus agents in worktrees with `scripts/agents/run-agent.sh`).
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): the human onboarding path and the linter breakdown.

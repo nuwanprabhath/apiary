@@ -29,7 +29,6 @@ export function formatMessageTime(ms: number, now: number = Date.now(), locale?:
   return at.toLocaleString(locale, { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }), ...TIME })
 }
 
-/** The full date and time, for a tooltip. */
 export function formatMessageDateTime(ms: number, locale?: string): string {
   return new Date(ms).toLocaleString(locale, { dateStyle: 'full', timeStyle: 'medium' })
 }

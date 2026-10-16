@@ -29,10 +29,8 @@ export const startSshTunnel: StartSshTunnel = (flags, host, cwd) => {
 }
 
 /**
- * A short ssh call through the login shell, shaped like `createExec`'s `ExecFn`. The first step of a
- * connection (asking for the work machine's home) used `createExec`, which runs without the login
- * environment: from the Dock it could miss an agent the tunnel then found, and fail where the
- * tunnel would not. Both now see the same environment.
+ * A short ssh call through the login shell, shaped like `createExec`'s `ExecFn`. `createExec` runs
+ * without the login environment, so from the Dock it could miss an agent the tunnel finds.
  *
  * `args` are ssh's: options, then `--`, then the host and the remote command. It resolves with
  * stdout; it rejects with ssh's stderr, `cause.killed` set when the timeout stopped it.

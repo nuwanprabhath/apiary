@@ -35,20 +35,10 @@ import { useWorkspaceFollowing } from './useWorkspaceFollowing'
 import { WindowContextProvider } from './windowContexts'
 
 export function App(): JSX.Element {
-  /**
-   * The tab this window was torn off to show, or null for an ordinary window. Read once: a window
-   * does not stop being a detached one, and re-reading the URL per render would be a lie waiting to
-   * happen.
-   */
+  // The three are read once: a window does not stop being detached or restored. `restoredWindow`
+  // returns null for a detached window, so `restored` and `detached` are mutually exclusive.
   const [detached] = useState<string | null>(detachedKey)
-  /** The rest of that tab — the processes it runs, which a torn-off window has to start out knowing
-   *  (see TabTransfer). Read once, like `detached`. */
   const [arrival] = useState<TabTransfer | null>(detachedTransfer)
-  /**
-   * The previous run's record for this window, or null for an ordinary launch — see
-   * `restoredWindow`. Read once, like `detached`/`arrival`. `restoredWindow` itself already returns
-   * null for a detached window, so this and `detached` are mutually exclusive.
-   */
   const [restored] = useState<WindowLayoutReport | null>(restoredWindow)
   return (
     <WorkspaceProvider restored={restored} arrival={arrival}>
@@ -60,7 +50,7 @@ export function App(): JSX.Element {
 /**
  * Everything an App window passes down is a stable reference — a `useCallback`/`useMemo` here or in
  * a hook beside this file — because `Sidebar`, `SessionColumn` and `SessionRow` are `React.memo`
- * (UI-1; tests/component/appPropStability.test.tsx). Handlers every pane receives read the
+ * (tests/component/appPropStability.test.tsx). Handlers every pane receives read the
  * workspace through the store when they run, not through a render's closure.
  */
 function AppWindow({ detached, arrival, restored }: {
@@ -74,16 +64,12 @@ function AppWindow({ detached, arrival, restored }: {
   const store = useWorkspaceStore()
   const { layout, activeColumnId, openSessions, pending } = workspace
   const { addPending, setPendingTitle } = useWorkspaceFollowing()
-  /**
-   * Settings the renderer itself acts on. Re-read when the settings dialog closes rather than
-   * subscribed to: these change only when someone changes them, and only from that one dialog.
-   * Read before `useUiState` because its dismissed-Recent prune needs `recentSectionHours`.
-   */
+  // Re-read when the settings dialog closes: they change only from there. Read before `useUiState`,
+  // whose dismissed-Recent prune needs `recentSectionHours`.
   const { recentSectionHours, transcriptChat, reload: loadUiSettings } = useAppSettings()
   const uiState = useUiState(recentSectionHours)
   const { ui, updateUi: setUi, togglePin, unpin } = uiState
   const updateStatus = useUpdate()
-  /** Every dialog's state; rendered by `DialogHost` below. */
   const dialogs = useDialogs()
   const { open: openDialog } = dialogs
   const { request: requestFolder, element: folderBrowserElement } = useFolderBrowserRequest(remoteHost())
@@ -117,10 +103,9 @@ function AppWindow({ detached, arrival, restored }: {
   } = useTabKeyHandlers({ dispatch, store, togglePin, forkSession, transferFor, onResume })
   const { onOpenSettings, titleOf } = useTabTitleAndSettings(openSessions, pendingTabInfo, openDialog)
 
-  // Read once: it decides the layout from the first paint, and does not change for this window.
   const [chrome] = useState(windowChrome)
 
-  // Called after every hook above on purpose (see useWindowReady).
+  // Last on purpose (see useWindowReady).
   useWindowReady()
 
   return (
@@ -129,7 +114,6 @@ function AppWindow({ detached, arrival, restored }: {
     <div className="app-shell">
       <WindowHeader
         chrome={chrome}
-        // The title bar names what is in front, as an editor's names the open file.
         title={activeKey !== null ? titleOf(activeKey) : null}
         updateStatus={updateStatus}
         onOpenSettings={onOpenSettings}

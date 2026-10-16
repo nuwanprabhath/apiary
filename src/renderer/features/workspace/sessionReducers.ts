@@ -6,8 +6,8 @@ import { openTab, openTabAfter, closeTab, setTabView, rekeyTab, findColumnWithTa
 import { dropKey, targetColumnId, updateColumns } from './columnUpdates'
 import type { ActionOf, WorkspaceState } from './workspaceTypes'
 
-/** Every session id present in the tree — ports `collectSessionIds` (App.tsx), used to tell a
- *  freshly discovered session apart from one that already existed before a pending request. */
+/** Every session id present in the tree, to tell a freshly discovered session apart from one that
+ *  already existed before a pending request. */
 function collectSessionIds(nodes: ProjectNode[]): Set<string> {
   const ids = new Set<string>()
   const walk = (list: ProjectNode[]): void => {

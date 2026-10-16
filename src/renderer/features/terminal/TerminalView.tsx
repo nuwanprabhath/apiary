@@ -13,11 +13,8 @@ import { useTerminalSession } from './useTerminalSession'
 interface Props {
   ptyId: PtyId
   testId: string
-  /**
-   * Whether this terminal is the one currently on screen. Terminals are hidden rather than
-   * unmounted when you switch away from them (that is what preserves their scrollback), so
-   * "became visible" is a prop change here, not a mount — see the scroll effect below.
-   */
+  /** Terminals are hidden, not unmounted, when switched away from (that keeps scrollback), so
+   *  "became visible" is a prop change, not a mount. */
   visible?: boolean
   /** F2 on this terminal: rename it. Absent where a terminal has no name to change. */
   onRenameKey?: () => void
@@ -29,8 +26,7 @@ interface Props {
   claude?: boolean
 }
 
-/** The right-click menu's items. Built on the render the menu opens in, so "Copy" reflects the
- *  selection as it is at that moment rather than whatever it was at the last unrelated render. */
+/** Built on the render the menu opens in, so "Copy" reflects the current selection. */
 function terminalMenuItems(termRef: RefObject<Terminal | null>): ContextMenuItem[] {
   const hasSelection = (termRef.current?.getSelection() ?? '') !== ''
   return [
@@ -78,9 +74,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
   // at mount would rename whichever terminal list was current when the terminal was created.
   const onRenameKeyRef = useRef(onRenameKey)
   onRenameKeyRef.current = onRenameKey
-  // The live xterm instance, exposed to effects outside the mount effect that owns it (the
-  // scroll-on-show effect below). Cleared on teardown so a late callback can't touch a disposed
-  // terminal.
+  // Cleared on teardown so a late callback can't touch a disposed terminal.
   const termRef = useRef<Terminal | null>(null)
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(
     null,
@@ -91,8 +85,7 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
   const [confirmingSuspend, setConfirmingSuspend] = useState(false)
   const [suspended, setSuspended] = useState(false)
   const suspendedRef = useRef(false)
-  // Bumped to tear this view's xterm down and build a fresh one on the same pty — the session
-  // effect depends on it. Only the stall watchdog does this.
+  // Bumped by the stall watchdog to rebuild this view's xterm on the same pty.
   const [generation, setGeneration] = useState(0)
   const rebuildsRef = useRef<number[]>([])
 
@@ -122,21 +115,10 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
     ptyId, generation, host, termRef, rebuildsRef, rebuild, keys, resume: resumeCurrent, setSuspended: setSuspendedBoth,
   })
 
-  /**
-   * Snap to the bottom whenever this terminal becomes the visible one.
-   *
-   * A backgrounded terminal keeps running and keeps emitting output, but xterm only follows new
-   * output while its viewport is already parked at the bottom. A long-running process (a dev
-   * server, say) that printed while you were looking at another tab therefore leaves the viewport
-   * stranded wherever it was, so switching back shows a frozen mid-scroll view rather than what
-   * the process is doing now.
-   *
-   * Deliberately keyed on `visible` rather than done from the ResizeObserver: a resize also fires
-   * when the window changes size, and yanking someone to the bottom because they dragged the
-   * window edge — while they were reading further up — would be its own bug. The rAF lets the
-   * newly-shown pane lay out (and the observer's fit run) first; scrolling a zero-height viewport
-   * silently does nothing.
-   */
+  // xterm only follows new output while its viewport is parked at the bottom, so a backgrounded
+  // terminal that printed is stranded mid-scroll; snap to the bottom when it becomes visible. Keyed
+  // on `visible`, not the ResizeObserver: a window resize must not yank a reader to the bottom.
+  // The rAF lets the shown pane lay out first; scrolling a zero-height viewport does nothing.
   useEffect(() => {
     if (!visible) return
     const id = requestAnimationFrame(() => { termRef.current?.scrollToBottom() })
@@ -187,16 +169,12 @@ function TerminalViewImpl({ ptyId, testId, visible = true, onRenameKey, claude =
 }
 
 /**
- * UI-4 step 5: every mounted terminal (there is one per tab, hidden ones included — see
- * SessionColumn) used to re-render on every App/SessionColumn render, rebuilding its context-menu
- * items and calling `getSelection()` for a component that is 99% of the time not even visible.
+ * Every mounted terminal (one per tab, hidden ones included) must not re-render on every
+ * SessionColumn render: that rebuilds its context-menu items and calls `getSelection()`.
  *
- * Deliberately ignores `onRenameKey`: SessionColumn passes a fresh closure for it on every render
- * (it captures nothing that varies — see its call site), and the callback is read through
- * `onRenameKeyRef` above rather than captured at mount, so a stale reference between two renders
- * that this lets through is harmless — same as it always was for the mount effect itself, which
- * never re-subscribed on identity change to begin with. Exported so `terminalViewMemo.test.ts`
- * can test the contract directly rather than trying to detect a `memo` bailout from outside.
+ * Ignores `onRenameKey`: SessionColumn passes a fresh closure every render, and the callback is
+ * read through `onRenameKeyRef`, so a stale reference is harmless. Exported so
+ * `terminalViewMemo.test.ts` can test the contract directly.
  */
 export function terminalViewPropsEqual(prev: Props, next: Props): boolean {
   return prev.ptyId === next.ptyId && prev.testId === next.testId

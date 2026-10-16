@@ -19,23 +19,17 @@ interface Props {
   onError: (message: string) => void
   /** Raised instead of an error when the branch is already checked out in another worktree. */
   onWorktreeConflict: (conflict: WorktreeConflict) => void
-  /**
-   * What picking a ref from the list does. 'checkout' is the branch switcher proper; 'merge'
-   * reuses the very same searchable list of branches, remotes and tags to choose what to merge
-   * *into* the current branch, rather than building a second, near-identical picker for it.
-   */
+  /** What picking a ref does: 'checkout', or 'merge' to choose what to merge into the current branch. */
   mode?: 'checkout' | 'merge'
   /** Current branch name, only used to say what a merge would be merging into. */
   currentBranch?: string | null
-  /** Opens straight into naming a new branch, for the menu's "Create Branch..." command, rather
-   *  than making the user find that action inside the list first. */
+  /** Opens straight into naming a new branch, for the menu's "Create Branch..." command. */
   startAt?: 'list' | 'name'
   /** A one-line result to show (the pull button's "Pulled 3 commits into main."). */
   onNotice?: (message: string) => void
   /** A branch moved (the pull button): the toolbar's ahead/behind is out of date. */
   onBranchUpdated?: () => void
-  /** Said above the search box. A pane's picker needs none — it opens from that pane's toolbar —
-   *  but one opened from a sidebar folder's menu says which folder it changes. */
+  /** Said above the search box; a sidebar folder's picker says which folder it changes. */
   heading?: string
 }
 
@@ -76,11 +70,8 @@ export function BranchSwitcher({
     busy, errorMessage, setErrorMessage, updateBranch, checkout, checkoutRemote, checkoutDetached, mergeRef, createBranch,
   } = useBranchActions({ terminal, onClose, onCheckedOut, onWorktreeConflict, onNotice, onBranchUpdated, setRefs })
 
-  // `onError` is a fresh arrow function on every render of the parent (SessionColumn re-renders on
-  // every git-status poll), so it cannot honestly go in the fetch effect's deps below without
-  // refetching the ref list on every one of those renders. A ref kept current on every render, and
-  // never listed as a dependency, is the standard way to call "whatever the latest callback is"
-  // from an effect that should not itself re-run when that callback changes identity.
+  // `onError` is a fresh function on every parent render (every git-status poll), so it cannot go
+  // in the fetch effect's deps without refetching the refs each time.
   const onErrorRef = useRef(onError)
   onErrorRef.current = onError
 
@@ -90,15 +81,10 @@ export function BranchSwitcher({
       .then((r) => { if (!cancelled) setRefs(r) })
       .catch((e: Error) => { if (!cancelled) onErrorRef.current(e.message) })
     return () => { cancelled = true }
-    // Deliberately keyed on [terminal] only, not `query`: re-fetching on every keystroke
-    // of the search would be pointless work for a list that is filtered client-side. If the active
-    // tab changes under an open modal (another window switches it), this now re-lists for the new
-    // terminal instead of quietly going on showing the old repo's refs.
+    // Keyed on [terminal] only: the list is filtered client-side, so `query` need not refetch. If
+    // the active tab changes under an open modal, it re-lists for the new terminal.
   }, [terminal])
 
-  // UI-25: onto the shared Modal primitive, which registers Escape on the stack (UI-13) itself —
-  // "dismisses the whole popup, from any step" is now Modal's own onClose contract, not something
-  // this component wires up by hand.
   const listRef = useRef<HTMLUListElement | null>(null)
   const rows = useRovingList(listRef, { itemSelector: BRANCH_ROW_SELECTOR })
 
@@ -109,7 +95,6 @@ export function BranchSwitcher({
     ? exactRefMatch(refs ?? { local: [], remote: [] }, query.trim())
     : null
 
-  /** What a click on a ref row does, given which job this picker is currently doing. */
   const pickRef = (name: string, kind: 'local' | 'remote' | 'tag'): void => {
     if (mode === 'merge') { void mergeRef(name); return }
     if (step.kind === 'pick-base') { setNameDraft(''); setStep({ kind: 'name', from: name }); return }
@@ -134,17 +119,12 @@ export function BranchSwitcher({
   }
 
   const pickingBase = pickingBaseNow(step)
-  // In merge mode the create/detached actions are meaningless — this list is only being used to
-  // answer "merge what?".
   const showActions = !pickingBase && mode === 'checkout'
   const placeholder = mode === 'merge'
     ? `Select a branch to merge into ${currentBranch ?? 'HEAD'}`
     : pickingBase ? 'Select a ref to branch from' : 'Select a branch or tag to checkout'
 
   return (
-    // UI-25: onto the shared Modal primitive (Escape already worked via UI-13; this adds a
-    // labelled role, a Tab trap and focus restore on close). `closeOnBackdropClick` keeps the
-    // click-outside-closes behaviour this dialog already had.
     <Modal
       testId="branch-switcher"
       titleId="branch-switcher-title"

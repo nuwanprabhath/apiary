@@ -4,31 +4,21 @@ import { createIpcStore } from './createIpcStore'
 import { onRemoteReconnected } from './remote'
 
 /**
- * The session tree, and the one place the renderer reads it or hears that it changed (UI-3).
+ * The session tree, and the one place the renderer reads it or hears that it changed.
+ * `onTreeChanged` fires roughly once a second while any Claude session is writing, so each reader
+ * fetching for itself would cost several full-tree round trips per change.
  *
- * Before this, three separate effects in `App.tsx` — the pending-session reconciler, the
- * terminal-follows-its-session rekey, and the open tabs' title/liveness refresh — each called
- * `window.apiary.tree()` for themselves on every `onTreeChanged` push, which fires roughly once a
- * second while any Claude session is writing: 3 full-tree IPC round trips, each walked again in
- * main, for one change; the sidebar's search cache made a 4th. And every hook that wanted to know
- * the tree had changed registered its own `onTreeChanged` listener.
- *
- * Now it is a `createIpcStore`: `window.apiary.onTreeChanged` is listened to once, and a signal
+ * `window.apiary.onTreeChanged` is listened to once, and a signal
  *
  * 1. starts the store's own re-fetch (when something is rendering the tree — the sidebar), then
  * 2. calls everything registered with `onChanged`, synchronously and in order, in the same tick.
  *
- * The effects that only need to *check against* the tree call `current()`: it joins a fetch that
- * was started since the last signal (the sidebar's, or the first effect's), so one `treeChanged`
- * costs one `tree()` call, and it never reuses a fetch that predates the signal — so the tree an
- * effect sees is always at least as fresh as the signal that woke it. (An earlier version cached
- * "until something marks it stale" with a listener that had to run before the callers checking it;
- * JS does not order independently registered listeners, so it froze on the first tree it ever
- * loaded, and `sessionFollowing.spec.ts` caught it. Joining is by signal count, not by listener
- * order, which is what makes this safe.)
+ * Effects that only need to check against the tree call `current()`: it joins a fetch started
+ * since the last signal and never reuses one that predates it, so one `treeChanged` costs one
+ * `tree()` call and the tree an effect sees is at least as fresh as its signal. Joining is by
+ * signal count, not listener order (JS does not order independently registered listeners).
  *
- * It keeps the last tree for the life of the window (see `createIpcStore`'s note on lifetime), so
- * `findSessionById` can answer from the most recent fetch without a round trip.
+ * The last tree is kept for the life of the window, so `findSessionById` needs no round trip.
  */
 const store = createIpcStore<ProjectNode[]>({
   scope: 'refresh',
@@ -41,8 +31,7 @@ const store = createIpcStore<ProjectNode[]>({
   },
 })
 
-/** `SessionNode`s by id, memoised per tree — rebuilt at most once per change no matter how many
- *  callers ask, instead of each walking the tree again for its own id. */
+/** `SessionNode`s by id, memoised per tree: rebuilt at most once per change. */
 let byIdFor: ProjectNode[] | null = null
 let byId = new Map<string, SessionNode>()
 

@@ -36,11 +36,7 @@ export interface SessionNode {
   messageCount: number | null
   isLive: boolean
   cwdExists: boolean
-  /**
-   * The user's own note about this session — what they were doing, the ticket or MR it belongs to.
-   * Null when there is none, which is the normal case; shown in the row's hover card and searched
-   * alongside titles and transcripts.
-   */
+  /** The user's own note about this session; null when there is none. Searched alongside titles and transcripts. */
   note: string | null
 }
 
@@ -80,9 +76,7 @@ export interface NewSessionInfo {
 }
 
 /**
- * What a session is called when it has neither a title nor a first prompt yet — which is a session
- * nobody has typed in: `/clear` starts one, and a new session is one until its first message.
- * It used to fall back to the raw session id, so the header and Active showed
- * `d81148ef-1230-4160-…` for exactly the session the user had just started.
+ * What a session is called when it has neither a title nor a first prompt yet (a new session, or
+ * one `/clear` started), instead of a raw session id.
  */
 export const UNTITLED_SESSION = 'New session'

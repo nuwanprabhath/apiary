@@ -4,11 +4,9 @@ import { createIpcStore } from './createIpcStore'
 import { onRemoteReconnected } from './remote'
 
 /**
- * Field-by-field equality on the payload's own fields (UI-4): main coalesces `activeTabsChanged`
- * to twice a second while any pty is printing, so without this every tick handed out a fresh array
- * — even when nothing in it actually changed — and every consumer (App, and anything reading
- * activity status) re-rendered on the same schedule. `windowNumber`/`key` identify the tab;
- * `view`/`status`/`label` are the only fields that can change under it.
+ * Field-by-field equality: main coalesces `activeTabsChanged` to twice a second while any pty is
+ * printing, so without this every tick gave consumers a fresh array. `windowNumber`/`key` identify
+ * the tab; `view`/`status`/`label` are the only fields that can change under it.
  */
 export function tabsEqual(a: ActiveTabPayload[], b: ActiveTabPayload[]): boolean {
   if (a === b) return true
@@ -35,8 +33,6 @@ export function tabsEqual(a: ActiveTabPayload[], b: ActiveTabPayload[]): boolean
 const activeTabsStore = createIpcStore<ActiveTabPayload[]>({
   scope: 'tabs',
   initial: [],
-  // Keep the previous array (and its identity) when nothing in it actually changed, so a memoised
-  // consumer downstream does not re-render on every coalesced broadcast.
   equal: tabsEqual,
   fetch: () => window.apiary.activeTabs(),
   subscribe: (_push, invalidate) => {

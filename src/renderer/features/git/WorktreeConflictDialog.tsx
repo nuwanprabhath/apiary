@@ -15,25 +15,14 @@ interface Props {
 }
 
 /**
- * What to do about a branch that is already checked out somewhere else.
- *
- * Git refuses this checkout, and on a repository with a worktree per ticket that refusal is the
- * normal answer rather than a failure — the branch exists and is up the road. The things anyone
- * wants at that moment are the buttons here: bring it up to date where it actually lives, go and
- * work in it, or have it here after all by moving that worktree to another branch (or swapping
- * with this one) in the same step. Before this, the app printed git's sentence ("fatal:
- * 'dev/1.0.12' is already used by worktree at '/…'") and left the user to go and find that
- * directory by hand, which is the slow part.
- *
- * The path is shown but never sent back: every action names the *branch*, and the main process
- * re-derives the worktree from the repository each time (see `requireWorktreeFor`).
+ * The path is shown but never sent back: every action names the *branch*, and main re-derives the
+ * worktree from the repository each time (see `requireWorktreeFor`).
  */
 export function WorktreeConflictDialog(
   { conflict, busy, onPull, onOpenSession, onMoveOther, onCancel }: Props,
 ): JSX.Element {
   const hasChoices = conflict.choices.length > 0
   return (
-    // UI-24: confines a render fault to this dialog instead of the whole window.
     <ErrorBoundary label="This dialog">
       <Modal
         testId="worktree-conflict-dialog"
@@ -71,11 +60,10 @@ export function WorktreeConflictDialog(
 }
 
 /**
- * Which branch the other worktree moves to: a search box over a short list, as the branch picker
- * has, since a repository with a worktree per ticket has dozens of branches and a native dropdown
- * of them can only be scrolled. The highlighted row is the choice; typing keeps it on a row still
- * shown, the arrow keys move it, Enter or "Switch both" acts on it, and a double-click acts at once.
- * This folder's own branch comes first, as a swap.
+ * Which branch the other worktree moves to: a search box over a short list, since there can be
+ * dozens of branches. The highlighted row is the choice; typing keeps it on a row still shown,
+ * arrows move it, Enter or "Switch both" acts on it, a double-click acts at once. This folder's
+ * own branch comes first, as a swap.
  */
 function OtherBranchPicker(
   { conflict, busy, onMoveOther }: { conflict: WorktreeConflict; busy: boolean; onMoveOther: (otherTo: string) => void },
@@ -91,8 +79,7 @@ function OtherBranchPicker(
   // The choice is always a row on screen, so Enter never acts on one the filter has hidden.
   const chosen = shown.includes(picked) ? picked : (shown[0] ?? null)
 
-  // Held at the height it opened with: the dialog is centred, so a list shrinking as you type
-  // moved the search box out from under the cursor.
+  // Held at the opening height: the dialog is centred, so a shrinking list moves the search box.
   useLayoutEffect(() => {
     const list = listRef.current
     if (list !== null) list.style.minHeight = `${String(list.offsetHeight)}px`

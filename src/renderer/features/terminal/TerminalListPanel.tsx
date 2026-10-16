@@ -13,11 +13,9 @@ interface Props {
   onDelete: (tabId: string) => void
   /** Moves a terminal to sit where the one it was dropped on was. */
   onReorder: (tabId: string, beforeId: string) => void
-  /** Asks for a terminal to go into rename mode — F2 pressed in the terminal itself. A fresh
-   *  object each time, so pressing it twice for the same terminal still counts. */
+  /** F2 pressed in the terminal itself. A fresh object each time, so pressing it twice still counts. */
   renameRequest?: { id: string } | null
-  /** Called once a request has been acted on, so a list that is hidden and shown again does not
-   *  act on it a second time. */
+  /** Called once a request has been acted on, so a re-shown list does not act on it again. */
   onRenameRequestHandled?: () => void
   /** The width the user dragged the list to, or null to fit the longest terminal name. */
   width?: number | null
@@ -29,19 +27,13 @@ interface Props {
 const TERMINAL_LIST_MIN = 96
 const TERMINAL_LIST_MAX = 480
 
-/** The side panel listing every open terminal for the current session — click switches; a rename
- *  and a trash button appear on hover (double-clicking the label also renames, for muscle
- *  memory), so with several terminals open there's always a visible way to tidy them up.
- *  Arrow keys navigate the list when focused: ArrowDown moves to the next shell, ArrowUp to the
- *  previous, and switching shells as you navigate (roving-focus listbox pattern). */
+/** Arrow keys walk the list and switch shells as they go (roving-focus listbox pattern). */
 export function TerminalListPanel(
   { tabs, activeId, onSwitch, onRename, onDelete, onReorder, renameRequest = null, onRenameRequestHandled, width = null, onResize }: Props,
 ): JSX.Element {
-  /** The width while a drag is under way; committed through onResize when it ends. */
   const [dragWidth, setDragWidth] = useState<number | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
-  /** Which terminal has keyboard focus. Starts at the active terminal; arrow keys move it. */
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const listRef = useRef<HTMLElement | null>(null)
 
@@ -56,7 +48,6 @@ export function TerminalListPanel(
     if (renameRequest === null) return
     startRename(renameRequest.id)
     onRenameRequestHandled?.()
-    // Only a new request starts a rename; `tabs` changing under an open editor must not restart it.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new rename request starts a rename; `tabs` changing must not restart it
   }, [renameRequest])
 
@@ -77,11 +68,8 @@ export function TerminalListPanel(
       if (nextId === undefined) return
       setFocusedId(nextId)
       onSwitch(nextId)
-      // Keyboard focus belongs to the list, not to the row that happened to be clicked first.
-      // Left on that row's button, the browser draws its own focus ring around it the moment a
-      // key is pressed — a full box around a row, which is exactly what a row here looks like
-      // while it is being renamed, and on the wrong row besides, since the arrow has already
-      // moved to another one.
+      // Focus stays on the list: left on a clicked row's button, the browser draws a focus ring
+      // around that (now wrong) row on the next key.
       listRef.current?.focus()
     },
   })
@@ -105,7 +93,6 @@ export function TerminalListPanel(
   }
 
   const handleListFocus = (): void => {
-    // Initialize keyboard focus to the active terminal if nothing is focused yet
     if (focusedId === null && activeId !== null) {
       setFocusedId(activeId)
     }
@@ -146,8 +133,7 @@ export function TerminalListPanel(
       testId="terminal-list-panel"
       label="Open terminals"
       tabIndex={0}
-      // The focused row is named rather than focused in the DOM (the roving-focus listbox
-      // pattern), so assistive technology follows the arrow keys without focus leaving the list.
+      // The focused row is named, not focused in the DOM, so assistive technology follows the arrows.
       activeId={focusedId === null ? undefined : `terminal-tab-${focusedId}`}
       onKeyDown={handleListKeyDown}
       onFocus={handleListFocus}

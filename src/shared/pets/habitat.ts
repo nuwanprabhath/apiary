@@ -48,7 +48,6 @@ export function placeToPoint(h: Habitat, p: PetPlace, size: number): Point {
   return { x: left + at * (right - left), y: h.bar.y + h.bar.height - INSET }
 }
 
-/** The place nearest a point — where a pet dropped there lands. */
 export function nearestPlace(h: Habitat, pt: Point, size: number): PetPlace {
   const { left, right } = barSpan(h.bar, size)
   const barAt = right > left ? clamp01((pt.x - left) / (right - left)) : 0
@@ -81,7 +80,6 @@ export function walkDistance(h: Habitat, a: PetPlace, b: PetPlace, size: number)
   return Math.abs(s(a) - s(b))
 }
 
-/** The lengths the brain walks along, in pixels. */
 export function habitatLengths(h: Habitat, size: number): { rail: number; bar: number } {
   const { left, right } = barSpan(h.bar, size)
   if (h.rail === null) return { rail: 0, bar: right - left }

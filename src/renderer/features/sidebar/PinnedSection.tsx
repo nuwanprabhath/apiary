@@ -7,8 +7,7 @@ import type { RowActions } from './rowActions'
 
 /**
  * Pinned rows, in the order they were pinned rather than the order the tree happens to hold them.
- * UI-27: its own flat tree — a manually curated shortlist, not part of the folder hierarchy any
- * more than Active or Recent are.
+ * Its own flat tree, not part of the folder hierarchy.
  */
 export function PinnedSection({
   sessions, selectedId, folderBranches, collapsed, onCollapsedChange, onReorderPinned, actions,

@@ -3,15 +3,12 @@ import type { VoiceContext } from './prompt'
 import { isPetPlace, PET_MODELS, type PetPatch } from './state'
 
 /**
- * What the renderer may send for the two pet calls that carry an object (`petUpdate`,
- * `petVoice`), as guards the contract can hold (`shared/ipc/contract.ts`) so the handler receives
- * a value that is already the declared type — no cast, no hand-cleaning in `handlers/pets.ts`.
- * Like `validatePet`, they sit on a trust boundary: a field of the wrong kind rejects the call;
- * a field that is merely out of range is limited by `limitVoiceContext` / the store.
+ * Guards for the two pet calls that carry an object (`petUpdate`, `petVoice`). On a trust
+ * boundary: a field of the wrong kind rejects the call; one merely out of range is limited by
+ * `limitVoiceContext` / the store.
  */
 
-/** A patch to a pet: any subset of its editable fields, each of the right kind. Fields it does
- *  not know are ignored (`pickPetPatch` drops them), as before. */
+/** Unknown fields are ignored (`pickPetPatch` drops them). */
 export function isPetPatch(v: unknown): v is PetPatch {
   if (!isRecord(v)) return false
   return (v.name === undefined || typeof v.name === 'string')
@@ -21,8 +18,7 @@ export function isPetPatch(v: unknown): v is PetPatch {
     && (v.place === undefined || v.place === null || isPetPlace(v.place))
 }
 
-/** The patch as the store applies it: only the fields it knows, so nothing else a renderer
- *  attached rides along. */
+/** Only the fields the store knows, so nothing else a renderer attached rides along. */
 export function pickPetPatch(patch: PetPatch): PetPatch {
   const out: PetPatch = {}
   if (patch.name !== undefined) out.name = patch.name
@@ -33,7 +29,6 @@ export function pickPetPatch(patch: PetPatch): PetPatch {
   return out
 }
 
-/** What a pet's voice is asked about: counts, a few session titles and the local hour. */
 export function isVoiceContext(v: unknown): v is VoiceContext {
   if (!isRecord(v)) return false
   return isFiniteNumber(v.working) && isFiniteNumber(v.waiting) && isFiniteNumber(v.finished)

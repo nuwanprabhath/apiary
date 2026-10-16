@@ -4,12 +4,7 @@ import { errorMessage } from '@shared/errors'
 import { logBackgroundFailure } from '../ui/fireAndForget'
 
 /**
- * The one way the renderer reads data that main owns and pushes (UI-3, UI-10, review §7.1).
- *
- * Seven hooks used to repeat "fetch once, subscribe to a push, guard against a stale answer", each
- * with a different degree of correctness: two let an old initial fetch overwrite a newer pushed
- * value, and two subscribed once per caller (`useChat` ran twice per pane, so a streaming chat's
- * ~25 pushes a second reached every closure in the window). A store built here instead has:
+ * The one way the renderer reads data that main owns and pushes. A store built here has:
  *
  * - **One subscription and one in-flight fetch** per store (per key, for a keyed store), however
  *   many components read it. The push is wired when the first reader arrives and unwired when the
@@ -19,7 +14,7 @@ import { logBackgroundFailure } from '../ui/fireAndForget'
  *   slow answer never lands on top of a fast newer one.
  * - **`useStore(selector?)`** (`useSyncExternalStore`), `getSnapshot()` and `refresh()`.
  *
- * Lifetime, deliberately the one `treeStore` already had: an unkeyed store keeps its last value for
+ * Lifetime: an unkeyed store keeps its last value for
  * the life of the window, and re-reads it (stale-while-revalidate) when a reader arrives after
  * none was left, because pushes were not being heard in between. A keyed store forgets a key as
  * soon as its last reader leaves — a chat's whole message list is not worth keeping for a pane that
@@ -146,7 +141,6 @@ function makeCell<T>(initial: T): Cell<T> {
   return { value: initial, loaded: false, listeners: new Set(), fetchId: 0, pushSeq: 0, flight: null, detach: null }
 }
 
-/** Makes `next` the cell's value unless `equal` says it already is, and tells its readers. */
 function applyValue<T>(cell: Cell<T>, next: T, equal: (a: T, b: T) => boolean): void {
   const same = equal(cell.value, next)
   const first = !cell.loaded
@@ -156,7 +150,6 @@ function applyValue<T>(cell: Cell<T>, next: T, equal: (a: T, b: T) => boolean): 
   for (const listener of [...cell.listeners]) listener()
 }
 
-/** Forgets what the cell held and abandons whatever is in flight for it. */
 function resetCell<T>(cell: Cell<T>, initial: T): void {
   cell.value = initial
   cell.loaded = false
@@ -204,7 +197,6 @@ function createCore<T>(o: KeyedIpcStoreOptions<T>, retain: boolean): Core<T> {
   const pushListeners = new Set<(value: T) => void>()
   let boundTo: unknown = NO_BRIDGE
   let unbind: (() => void) | null = null
-  /** Bumped by every invalidation signal. */
   let epoch = 0
 
   const newCell = (): Cell<T> => makeCell(o.initial)
@@ -215,7 +207,6 @@ function createCore<T>(o: KeyedIpcStoreOptions<T>, retain: boolean): Core<T> {
     return false
   }
 
-  /** A fetch nobody awaits: a failure is reported, not dropped. */
   function load(cell: Cell<T>, key: string): void {
     const flight = cell.flight
     // A fetch already under way since the last signal and push is as good as a new one.
@@ -252,7 +243,6 @@ function createCore<T>(o: KeyedIpcStoreOptions<T>, retain: boolean): Core<T> {
     unbind = null
   }
 
-  /** Starts over when `window.apiary` is not the bridge this store holds data from. */
   function ensureBridge(): void {
     const now = bridge()
     if (now === boundTo) return

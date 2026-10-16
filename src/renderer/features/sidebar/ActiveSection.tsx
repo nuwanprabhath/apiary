@@ -12,13 +12,7 @@ import { sessionIdOfTabKey } from '../workspace'
 import { useMrStatuses } from './useMrStatuses'
 import { remoteHost, windowNumber } from '../../state/windowParams'
 
-/**
- * An Active row's title, with any `!<iid>` in it resolved to its merge-request state.
- *
- * Its own component because the lookup is a hook, and the rows are produced in a `map` where a
- * hook cannot go. Active is the section meant to be read at a glance without opening anything, so
- * it is the last place that should be showing a staler title than the tree.
- */
+/** Its own component because the lookup is a hook and the rows are produced in a `map`. */
 function ActiveTabTitle({ sessionId, title }: { sessionId: SessionId; title: string }): JSX.Element {
   const statuses = useMrStatuses(sessionId, title)
   return <span className="session-title"><MrRefText text={title} statuses={statuses} /></span>
@@ -45,24 +39,16 @@ const activeKeyOf = (t: ActiveTabPayload): string => t.key
  *  screen, at all). */
 const targetWindow = (row: ActiveRow, own: number): number => (row.windows.includes(own) ? own : row.windowNumber)
 
-/** Every open tab across every window, above Pinned. */
 export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote }: {
   activeTabs: ActiveTabPayload[]
-  /** Every session known anywhere, unfiltered — what titles are resolved against. Using the
-   *  search-filtered tree here would turn a row for a tab open in *another* window into a bare,
-   *  unreadable session id the moment this window's own search box excludes that tab's project. */
+  /** Every session known anywhere, unfiltered — what titles are resolved against. The
+   *  search-filtered tree would leave a tab open in another window as a bare session id. */
   sessionsById: Map<string, SessionNode>
-  /** Raises the window showing a tab and switches it to that tab. */
   onFocusTab: (windowNumber: number, key: string) => void
   onEditNote: (session: SessionNode) => void
 }): JSX.Element {
-  /** The Active header's rect while the pointer (or focus) is on it — see ActivityLegend. */
   const [legendAnchor, setLegendAnchor] = useState<DOMRect | null>(null)
-  /**
-   * UI-27: Active is its own flat WAI-ARIA tree — a list of open tabs across every window, not
-   * part of the folder/session hierarchy, so it gets no expand/collapse and Enter just raises the
-   * tab's own window (`onFocusTab`), same as a click.
-   */
+  // Its own flat WAI-ARIA tree: no expand/collapse, and Enter raises the tab's window like a click.
   const rows = useMemo(() => groupActiveTabs(activeTabs), [activeTabs])
   const own = windowNumber()
   const host = remoteHost()
@@ -78,8 +64,7 @@ export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote
   })
   return (
     <section className="active-section" data-testid="active-section" aria-label="Active sessions">
-      {/* Focusable, and it answers hover as well as focus: the legend below is the only place
-          the four dots are ever explained, so it has to be reachable without a pointer. */}
+      {/* Focusable: the legend is the only place the four dots are explained. */}
       <div
         className="pinned-header active-header"
         data-testid="active-header"
@@ -110,8 +95,7 @@ export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote
             key={key}
             className="session-row-wrap active-row-wrap"
             role="treeitem"
-            // Stable, like the other rows' — an unresolved tab's title changes once Claude
-            // writes it, and that must not also change the treeitem's own accessible name.
+            // Stable, like the other rows': an unresolved tab's title changes once Claude writes it.
             aria-label={session?.title ?? t.label ?? UNTITLED_SESSION}
             aria-level={1}
             data-tree-kind="active"
@@ -126,7 +110,7 @@ export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote
               title={isInert(t)
                 ? `Open on ${host ?? 'the work machine'}'s screen`
                 : t.windows.length === 1 ? `Window ${String(t.windowNumber)}` : `Windows ${t.windows.join(', ')}`}
-              // UI-27: the wrap above is the treeitem; Enter on it already raises this tab's
+              // The wrap above is the treeitem; Enter on it already raises this tab's
               // window, so this stays clickable but is not a second Tab stop.
               tabIndex={-1}
             >

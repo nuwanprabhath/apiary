@@ -19,17 +19,9 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
   const { service } = deps
 
   /**
-   * The "rescan and broadcast" step every git mutation needs, done once instead of pasted at
-   * every call site (MAIN-4). Before this, every one of these awaited a *full* library rescan —
-   * every transcript re-read, every folder re-resolved — just to answer "what does the sidebar
-   * show now", because `tree()`'s `branch` column is only ever written by `resolveProject`
-   * (see CLAUDE.md's cwd-override section for the same principle applied to `cwd_override`).
-   *
-   * `branchMayChange` is the only thing that decides whether git needs asking again at all:
-   * `buildTree.ts` reads a project's `branch` column and nothing else about its git state, so a
-   * fetch, merge or plain pull — which can only move commits, never the checked-out branch name —
-   * has nothing to re-resolve. The broadcast still goes out unconditionally, so anything else
-   * listening for `treeChanged` (the plugin bar, MR-status invalidation) still hears about it.
+   * `buildTree.ts` reads only a project's `branch` column, so a mutation that cannot change the
+   * checked-out branch (fetch, merge, pull) skips the re-resolve. The broadcast always goes out:
+   * the plugin bar and MR-status invalidation listen for `treeChanged`.
    */
   const afterGitMutation = async (
     target: GitTarget, branchMayChange: boolean,
@@ -58,8 +50,6 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
     },
     gitPullWorktree: async (_e, terminal, branch) => {
       const outcome = await service.gitPullWorktree(terminal, branch)
-      // A fast-forward pull cannot change which branch is checked out, only its commit — nothing
-      // `tree()` shows, so no re-resolve, just the broadcast every mutation sends.
       await afterGitMutation(terminal, false)
       return outcome
     },
@@ -80,9 +70,7 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
     gitUpdateBranch: (_e, terminal, branch) => service.gitUpdateBranch(terminal, branch),
     gitPullFolder: async (_e, path) => {
       const outcome = await service.gitPullFolder(path)
-      // New commits can only move the folder's branch forward, never change which one is checked
-      // out, so nothing needs re-resolving — the broadcast is only worth sending when something on
-      // screen actually changed (a no-op pull happens on every hover-card poll).
+      // A no-op pull happens on every hover-card poll, so broadcast only when commits arrived.
       if (outcome.commits > 0) broadcast(IPC.treeChanged)
       return outcome
     },
@@ -92,12 +80,10 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
     gitPush: (_e, terminal) => service.gitPush(terminal),
     gitMerge: async (_e, terminal, ref) => {
       await service.gitMerge(terminal, ref)
-      // A merge moves commits onto the current branch, never changes which one is current.
       await afterGitMutation(terminal, false)
     },
     gitFetch: async (_e, terminal) => {
       await service.gitFetch(terminal)
-      // Fetch only updates remote-tracking refs; the checked-out branch cannot change.
       await afterGitMutation(terminal, false)
     },
     vsCodeAvailable: () => service.vsCodeAvailable(),

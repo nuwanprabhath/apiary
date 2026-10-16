@@ -8,9 +8,8 @@ export const IMAGE_PATH_LINE = /^\s*(\/\S+\.(?:png|jpe?g|gif|webp))\s*$/i
  * A thumbnail of an image that lives on disk (one pasted into the composer earlier in this
  * session), loaded through the main process because the renderer cannot read files itself.
  *
- * Renders nothing at all when the file has gone or sits outside the directory the main process is
- * willing to serve: a deleted screenshot should leave the message it accompanied looking ordinary,
- * not broken.
+ * Shows `fallbackText` when the file has gone or sits outside the directory the main process is
+ * willing to serve.
  */
 export function TranscriptImageFile(
   { path, fallbackText, onOpen }:
@@ -27,9 +26,8 @@ export function TranscriptImageFile(
     return () => { cancelled = true }
   }, [path])
 
-  // Falls back to showing the line exactly as it was sent. A path Apiary will not serve — one
-  // outside its own images directory, or a screenshot since deleted — must not silently erase a
-  // line the user actually wrote; better a visible path than a message with a hole in it.
+  // A path Apiary will not serve (outside its images directory, or deleted) must not silently
+  // erase a line the user wrote: show it as sent.
   if (dataUrl === null) return <p className="composer-path-fallback">{fallbackText}</p>
   return <ImageThumbnail src={dataUrl} title={path} onOpen={onOpen} />
 }

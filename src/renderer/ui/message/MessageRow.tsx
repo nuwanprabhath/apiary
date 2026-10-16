@@ -6,18 +6,12 @@ import { MarkdownText } from './MarkdownText'
 import { ImageThumbnail, TranscriptImageFile, IMAGE_PATH_LINE } from './TranscriptImage'
 
 /**
- * Renders a text block, turning any line that is just the path to an image into a thumbnail.
- *
- * That shape is exactly what the composer sends: Claude reads an image from its path, so an image
- * pasted into the chat box arrives in the transcript as a line of prose plus a path. Showing the
- * picture back is what makes the sent message look like the message that was written.
+ * A text block, with any line that is just the path to an image shown as a thumbnail: the composer
+ * sends a pasted image to Claude as a path on its own line.
  */
 export function TextBlock(
   { text, onOpenImage }: { text: string; onOpenImage: (src: string) => void },
 ): JSX.Element {
-  // UI-8: re-deriving this by splitting `text` and running the image regex on every render was
-  // wasted work whenever the row re-rendered for a reason that had nothing to do with this block
-  // (`showThinking` toggling elsewhere in the same message, most commonly).
   const segments = useMemo(() => {
     const result: Array<{ kind: 'text' | 'image'; value: string }> = []
     for (const line of text.split('\n')) {
@@ -35,8 +29,6 @@ export function TextBlock(
 
   return (
     <>
-      {/* Segments are re-derived from `text` on every render in a fixed order with no id of
-          their own, so the index is a stable, correct key here. */}
       {segments.map((seg, i) => (seg.kind === 'image'
         // eslint-disable-next-line @eslint-react/no-array-index-key -- segments have no identity; re-derived in a fixed order from `text` each render
         ? <TranscriptImageFile key={i} path={seg.value} fallbackText={seg.value} onOpen={onOpenImage} />
@@ -55,22 +47,14 @@ function summarise(input: unknown): string {
   }
 }
 
-/**
- * UI-8: a `tool_use` block used to call `summarise` — `JSON.stringify(input, null, 2)` for
- * anything but a plain string — inline in `MessageRow`'s render, so it reran for every block in a
- * message whenever *any* block in that message re-rendered (`showThinking` toggling on an
- * unrelated block in the same message, most commonly). `input` never changes after the message is
- * parsed, so memoising it here means a block's own summary is computed once and reused.
- */
+/** `input` never changes after the message is parsed, so its summary is computed once per block. */
 function ToolUseBlock({ name, input }: { name: string; input: unknown }): JSX.Element {
   const detail = useMemo(() => summarise(input), [input])
   return <ToolBlock name={name} detail={detail} />
 }
 
-// UI-4 step 3: `mergeLatestPage` (Transcript.tsx) keeps object identity for messages already in the
-// list, and `onOpenImage` is a setState function (stable across renders), so an unmemoised row
-// re-rendered on every App render — including every ~1s live-refresh tick — even when its own
-// message and callback had not changed at all.
+// `mergeLatestPage` keeps object identity for messages already in the list, and `onOpenImage` is a
+// stable setState function, so memo skips the row on every ~1s live-refresh tick.
 export const MessageRow = memo(function MessageRow(
   { message, onOpenImage }: { message: TranscriptMessage; onOpenImage: (src: string) => void },
 ): JSX.Element | null {
@@ -90,8 +74,6 @@ export const MessageRow = memo(function MessageRow(
       <div className="message-body">
         {message.role !== 'user' && message.blocks.some((b) => b.type === 'text') && <MessageTime ms={message.timestampMs} inline />}
         {message.blocks.map((block, i) => {
-          // Blocks have no id of their own and this message's block list never reorders or
-          // mutates in place after being parsed from the JSONL, so the index is a stable key.
           switch (block.type) {
             case 'text':
               // eslint-disable-next-line @eslint-react/no-array-index-key -- blocks have no identity; this message's block order is fixed

@@ -56,6 +56,7 @@ export const fakeContents = {
   copy: () => { loopback.editLog.push({ action: 'copy' }) },
   paste: () => { loopback.editLog.push({ action: 'paste' }) },
   selectAll: () => { loopback.editLog.push({ action: 'selectAll' }) },
+  copyImageAt: (x: number, y: number) => { loopback.editLog.push({ action: 'copyImageAt', x, y }) },
   replaceMisspelling: (word: string) => { loopback.editLog.push({ action: 'replaceMisspelling', word }) },
 }
 

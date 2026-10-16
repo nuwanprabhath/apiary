@@ -1,13 +1,10 @@
 /**
- * One visual effect: a pure function of time that draws a frame. No state lives between frames —
- * positions are derived from `t` and a seeded hash — so the same `t` always draws the same frame,
- * a paused effect can be redrawn exactly, and the "still" frame (reduced motion, effects off) is
- * simply `t = 0`.
+ * One visual effect: a pure function of time that draws a frame. No state lives between frames,
+ * so the same `t` always draws the same frame and the "still" frame is simply `t = 0`.
  */
 /**
- * The slice of a 2D canvas context the effects use. Declared here rather than taken from the DOM
- * so the effects live in shared/ and are tested in plain Node; a real
- * `CanvasRenderingContext2D` satisfies it.
+ * The slice of a 2D canvas context the effects use, declared here so the effects live in shared/
+ * and are tested in plain Node; a real `CanvasRenderingContext2D` satisfies it.
  */
 export interface Ctx2D {
   globalAlpha: number

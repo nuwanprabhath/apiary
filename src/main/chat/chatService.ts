@@ -43,8 +43,7 @@ export interface ChatServiceDeps {
 
 /**
  * Chat mode (`main/chat/`), as a service: everything that decides *whether and how* a session
- * runs as a chat, around `ChatManager`, which only holds the processes. Moved out of `AppService`
- * (MAIN-14): take-over of a terminal, the working-directory check, the permission default, the
+ * runs as a chat, around `ChatManager`, which only holds the processes: take-over of a terminal, the working-directory check, the permission default, the
  * `/clear` adoptions, and who gets to hear about it.
  *
  * Delivery is per window, as for ptys (`WindowAttachments`): a renderer attaches the session its

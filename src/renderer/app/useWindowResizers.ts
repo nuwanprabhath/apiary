@@ -13,7 +13,7 @@ const MAX_BOTTOM_HEIGHT = 560
  * The sidebar's and the bottom shell pane's resize drags. `useResizeDrag` owns the
  * `resizing-active` body class and the listeners.
  *
- * UI-6: the live value goes straight onto an element's style as a CSS custom property, which the
+ * The live value goes straight onto an element's style as a CSS custom property, which the
  * layout reads with the committed width as its fallback; React only hears about the final width,
  * once, on `mouseup`, and it is persisted like any other ui change.
  */
@@ -40,9 +40,8 @@ export function useWindowResizers(
     },
   })
 
-  // Same pattern for the bottom shell pane's height. Dragging up (decreasing clientY) should grow
-  // the pane, so height is measured from the cursor to the bottom of the window. Set on the root,
-  // not `layoutRef`: every open `SessionColumn`'s shell pane reads this, and panes are siblings.
+  // Height is measured from the cursor to the bottom of the window. Set on the root, not
+  // `layoutRef`: every open `SessionColumn`'s shell pane reads this, and panes are siblings.
   const bottomResize = useResizeDrag({
     axis: 'row',
     value: bottomHeight,

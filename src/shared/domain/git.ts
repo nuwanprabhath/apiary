@@ -8,7 +8,6 @@ import { isTerminalRef, type TerminalRef } from './ids'
  */
 export type GitTarget = TerminalRef | { kind: 'folder'; path: string }
 
-/** The runtime check behind `GitTarget` arriving over IPC. */
 export function isGitTarget(v: unknown): v is GitTarget {
   if (isTerminalRef(v)) return true
   if (typeof v !== 'object' || v === null) return false
@@ -23,7 +22,6 @@ export interface GitStatus {
   hasUpstream: boolean
 }
 
-/** One row in the branch switcher's branch/remote/tag lists. */
 export interface GitRefEntry {
   name: string
   relativeDate: string
@@ -51,13 +49,9 @@ export interface FolderWorktree {
 }
 
 /**
- * A checkout refused because the branch is already checked out in another worktree.
- *
- * Reported rather than thrown, because it is not really a failure — the branch *is* available,
- * just somewhere else, and the two things anyone actually wants at that moment (bring it up to
- * date where it lives, or go and work in it) are both doable from here. Being told "fatal: …
- * already used by worktree at …" and left to go and find that directory by hand is the part
- * this replaces.
+ * A checkout refused because the branch is already checked out in another worktree. Reported
+ * rather than thrown: the branch is available elsewhere, and both things one wants then (update it
+ * there, or work in it) are doable from here.
  */
 export interface WorktreeConflict {
   branch: string
@@ -74,7 +68,6 @@ export interface WorktreeConflict {
   choices: string[]
 }
 
-/** What a branch checkout did. A worktree conflict is an outcome, not an error. */
 export type CheckoutOutcome =
   | { ok: true }
   | { ok: false; conflict: WorktreeConflict }
@@ -83,10 +76,9 @@ export type CheckoutOutcome =
 export type MrState = 'opened' | 'merged' | 'closed' | 'locked'
 
 /**
- * What the "New worktree" dialog needs to know about a repository before asking anything, all
- * derived by main from git itself (the renderer only names the sidebar folder it came from).
- * Worktrees go beside the main checkout as `<main>.worktrees/<name>` — the same layout the
- * simple-worktrees VS Code extension uses, so the two agree on where things are.
+ * What the "New worktree" dialog needs to know about a repository, all derived by main from git.
+ * Worktrees go beside the main checkout as `<main>.worktrees/<name>`, the layout the
+ * simple-worktrees VS Code extension uses.
  */
 export interface WorktreeCreateOptions {
   /** `<main checkout>.worktrees` — where the new folder will be created. */

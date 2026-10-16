@@ -42,8 +42,7 @@ const Thought = memo(function Thought(
   const label = timing === undefined
     ? 'Thought'
     : `Thought for ${formatDuration(timing.seconds * 1000)}${timing.tokens !== null ? ` · ${timing.tokens.toLocaleString()} tokens` : ''}`
-  // Claude Code keeps only a signature for most thinking, not the text, so there is often nothing
-  // to expand into; the row then just says that Claude thought, and for how long.
+  // Claude Code keeps only a signature for most thinking, so there is often nothing to expand.
   const hasText = text.trim() !== ''
   return (
     <div className="chat-row" data-testid="chat-thought">
@@ -96,12 +95,8 @@ function Item({ item, chat, onOpenImage }: { item: ChatItem; chat: ChatState | n
 }
 
 /**
- * The latest prompt, pinned to the top once the message itself has scrolled out above — the
- * extension's way of keeping what you are reading in the light of what you asked. While the
- * message is on screen there is nothing to pin: it would only show the same words twice.
- *
- * The pin has no height of its own (the box hangs out of a zero-height sticky row), so it coming
- * and going never moves the conversation under it.
+ * The latest prompt, pinned once the message itself has scrolled out above. The pin has no height
+ * of its own (the box hangs out of a zero-height sticky row), so it never moves the conversation.
  */
 function StickyPrompt({ prompt }: { prompt: { key: string; text: string } }): JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null)
@@ -122,7 +117,6 @@ function StickyPrompt({ prompt }: { prompt: { key: string; text: string } }): JS
       {above && (
         <button
           className="chat-sticky-prompt"
-          // Floats over the conversation scrolling under it, as the find bar does: its own layer.
           data-popup=""
           data-testid="chat-sticky-prompt"
           title="Go to this message"
@@ -138,12 +132,8 @@ function StickyPrompt({ prompt }: { prompt: { key: string; text: string } }): JS
   )
 }
 
-/**
- * The transcript drawn as the VS Code extension draws a conversation (the "Run sessions as a chat"
- * setting). Everything above the live part comes from the session's JSONL, so it looks the same
- * whether or not the session is running; the live part — the reply being written, permission
- * prompts, the working line — comes from the chat process.
- */
+/** Everything above the live part comes from the session's JSONL; the live part (streamed reply,
+ *  permission prompts, working line) comes from the chat process. */
 export function ChatTimeline({ items, chat, queued, onOpenImage, onDecide }: Props): JSX.Element {
   const prompt = lastPrompt(items)
   const streaming = chat?.streaming ?? null
@@ -159,8 +149,6 @@ export function ChatTimeline({ items, chat, queued, onOpenImage, onDecide }: Pro
         </div>
       )}
       {queued.map((q) => (
-        // Sent, and waiting for Claude to reach a point where it reads it: then it joins the
-        // conversation above, where Claude took it in.
         <Fragment key={q.id}>
         <MessageTime ms={q.sentAt} />
         <div className="chat-user chat-queued" data-testid="chat-queued">

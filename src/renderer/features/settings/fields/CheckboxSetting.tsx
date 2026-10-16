@@ -1,7 +1,7 @@
 import type { JSX, ReactNode } from 'react'
 
 /**
- * The checkbox-row markup repeated throughout SettingsDialog (UI-20): a checkbox, a bold label
+ * The checkbox-row markup: a checkbox, a bold label
  * and a help sentence underneath. `dataDisabled` is separate from `disabled` because exactly one
  * caller (the terminal section's "shorten the path" row) puts a `data-disabled` attribute on the
  * row itself for CSS to dim it, and every other row has no such attribute at all — passing

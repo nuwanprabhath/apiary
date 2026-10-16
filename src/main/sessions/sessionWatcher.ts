@@ -10,7 +10,7 @@ export type WatchFn = (
 export interface SessionWatcherOptions {
   /** `~/.claude/projects`, or a fixture root in tests. */
   dir: string
-  /** Called once per debounce window with every path that changed during it (MAIN-1: scoped,
+  /** Called once per debounce window with every path that changed during it (scoped,
    *  not a signal to rescan everything). */
   onChange: (paths: string[]) => void
   /** How long to wait after the last change before calling `onChange` — Claude writes to a
@@ -22,14 +22,13 @@ export interface SessionWatcherOptions {
 
 /**
  * Watches `~/.claude/projects` for transcript changes and debounces them into scoped refresh
- * requests (MAIN-13 step 2). Pulled out of `ipc/index.ts`'s composition so the debounce/coalescing
- * behaviour — previously only reachable through a live chokidar instance under `ipcMain` — can be
- * driven directly in a unit test via the injectable `watch`.
+ * requests. The debounce/coalescing behaviour can be driven directly in a unit test via the
+ * injectable `watch`.
  *
  * Built in the container (so construction opens nothing) and started by `start()` from `index.ts`,
  * which is what puts a file handle and a timer behind it.
  *
- * `depth: 1` and the `ignored` filter (MAIN-25) exist because the scanner only ever reads
+ * `depth: 1` and the `ignored` filter exist because the scanner only ever reads
  * `<projects>/<slug>/*.jsonl`: a slug directory is depth 1, and anything else changing under it
  * (depth 2, or a non-`.jsonl` file) is not worth a rescan.
  */

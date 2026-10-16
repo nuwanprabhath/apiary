@@ -1,18 +1,14 @@
 /**
- * Coalesces pty data/exit events into at most one `onBroadcast` call per `intervalMs` (MAIN-13 step
- * 3), pulled out of `ipc/handlers/tabs.ts`'s composition so the leading/trailing-edge behaviour can
- * be driven directly in a unit test with fake timers, instead of only through a live `PtyManager`.
+ * Coalesces pty data/exit events into at most one `onBroadcast` call per `intervalMs`.
  *
- * A pty's own data/exit changes what `classifyActivity` would say about it without any window
- * re-reporting its tabs, so the Active section's dots have to be re-broadcast on those too — but
- * pty output is not an event, it is a stream: broadcasting per chunk meant a build log in one
- * terminal put out hundreds of broadcasts a second, each of which made every open window re-read
- * every tab's status and re-sort the Recent section.
+ * A pty's own data/exit changes what `classifyActivity` says about it without any window
+ * re-reporting its tabs, so the Active section's dots are re-broadcast on those too. Per chunk, a
+ * build log would put out hundreds of broadcasts a second, each making every window re-read every
+ * tab's status.
  *
- * Leading edge, then at most one broadcast per interval: the first chunk after a quiet period flips
- * the dot to `running` immediately, and the trailing call is what makes the *last* chunk count —
- * without it a session that stops producing output would sit showing `running` until something
- * unrelated happened to broadcast.
+ * Leading edge, then at most one per interval: the first chunk after a quiet period flips the dot
+ * to `running` at once, and the trailing call makes the last chunk count, so a session that stops
+ * producing output does not stay `running`.
  */
 export class ActivityBroadcaster {
   private timer: NodeJS.Timeout | null = null

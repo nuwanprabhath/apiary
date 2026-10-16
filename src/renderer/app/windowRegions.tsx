@@ -17,24 +17,20 @@ import { crashNotice } from '../ui/errors'
 import { useNotifications } from '../ui/notifications'
 
 /*
- * B11 (UI-24): every region beside the layout fails alone. The decorative layers vanish with a
- * notification; the bars show a one-line fallback with a retry. Without these boundaries, a throw
- * in any of them was caught only by the root boundary and replaced the whole window.
+ * Every region beside the layout fails alone. The decorative layers vanish with a
+ * notification; the bars show a one-line fallback with a retry.
  */
 
 /** The theme's back effects layer, which also owns what it needs: the theme and the GPU probe. */
 export function ThemeEffectsLayer(): JSX.Element {
   const { notify } = useNotifications()
-  /** The theme, applied by the hook itself; kept here for the effects layer. */
   const theme = useThemeState()
   /** What is on screen — a preview included — for the effects layer. */
   const applied = useAppliedTheme()
   // Assumed until main answers (a moment after start-up); only effects' frame rate depends on it.
   const [gpuCompositing, setGpuCompositing] = useState(true)
   useEffect(() => {
-    // Background probe (UI-23): a failure leaves `gpuCompositing` at its assumed-true default,
-    // which only affects the effects layer's frame rate — nothing the user asked for, and nothing
-    // worth a toast over.
+    // A failed probe leaves the assumed default; only the effects' frame rate depends on it.
     void readGpuCompositing().then((on) => { if (on !== null) setGpuCompositing(on) })
   }, [])
   return (
@@ -55,7 +51,6 @@ export function ThemeEffectsLayer(): JSX.Element {
   )
 }
 
-/** The title bar, the remote-window banner and the update banner, above the layout. */
 export function WindowHeader({ chrome, title, updateStatus, onOpenSettings }: {
   chrome: ReturnType<typeof windowChrome>
   /** What is in front, as an editor's title bar names the open file; null for just the app name. */
@@ -88,7 +83,6 @@ export function WindowHeader({ chrome, title, updateStatus, onOpenSettings }: {
   )
 }
 
-/** The status bar, the pets and the spelling menu — part of the window, not cards in the pane grid. */
 export function WindowFooter({ sidebarHidden, titleOf, onOpenSettings }: {
   sidebarHidden: boolean
   /** The pets' hourly lines mention what the open sessions are about — by title only. */
@@ -100,8 +94,7 @@ export function WindowFooter({ sidebarHidden, titleOf, onOpenSettings }: {
   const activeTabs = useActiveTabs()
   return (
     <>
-      {/* Part of the window: the whole width under the sidebar and the panes alike, as VS Code's
-       *  status bar is. */}
+      {/* The whole width under the sidebar and the panes alike. */}
       <ErrorBoundary
         label="The status bar"
         compact

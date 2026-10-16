@@ -54,7 +54,7 @@ async function toDataUrl(canvas: Canvas): Promise<string> {
 /**
  * Renders pets with three.js, once per pet (and again only when what it looks like changes) —
  * never per frame. It runs in a worker on an OffscreenCanvas (`petRender.worker.ts`); the page
- * gets back images, and moves them with CSS exactly as it moved the drawn parts before.
+ * gets back images and moves them with CSS.
  *
  * Every layer is rendered with the same camera, so they line up. A layer that sits on the body
  * (the face, an arm) is rendered with the body present but invisible — writing depth, not colour —
@@ -113,7 +113,6 @@ export class PetRenderer {
 
   async render(spec: PetSpec): Promise<PetImages> {
     const a = anchorsOf(spec.body.shape)
-    // The body as an invisible shape that hides what is behind it.
     const bodyGeometry = meshFromSdf(BODY_SDF[spec.body.shape])
     const occluder = new THREE.Mesh(bodyGeometry, new THREE.MeshBasicMaterial({ colorWrite: false }))
     occluder.renderOrder = -1

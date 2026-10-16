@@ -3,7 +3,6 @@ import type { GitRefEntry } from '@shared/types'
 import { CopyIcon, CheckIcon, ArrowDownIcon } from '../../ui/icons'
 import { copyText } from '../../state/clipboard'
 
-/** The rows above the ref list that start something other than a plain checkout. */
 export function BranchActions(
   { onCreate, onCreateFrom, onDetached }: { onCreate: () => void; onCreateFrom: () => void; onDetached: () => void },
 ): JSX.Element {
@@ -64,9 +63,8 @@ export function BranchSection(
 }
 
 /**
- * Brings a local branch up to date with its upstream without picking it — beside the copy button,
- * shown the same way. Fast-forward only (see branchOps.updateBranch); busy while it runs, so one
- * click cannot start two pulls.
+ * Brings a local branch up to date with its upstream without picking it. Fast-forward only (see
+ * branchOps.updateBranch); busy while it runs, so one click cannot start two pulls.
  */
 function PullRefButton({ name, onPull }: { name: string; onPull: (name: string) => Promise<void> }): JSX.Element {
   const [busy, setBusy] = useState(false)

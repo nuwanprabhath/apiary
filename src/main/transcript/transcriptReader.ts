@@ -6,16 +6,13 @@ import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 const DEFAULT_LIMIT = TRANSCRIPT_PAGE_SIZE
 
 /**
- * A line longer than this is skipped rather than `JSON.parse`d (SEC-12): a multi-hundred-MB line
- * (a base64 blob, a pasted log, hostile or otherwise) would otherwise be parsed synchronously on
- * the main thread on every page that includes it, which is a real, measurable freeze — the same
- * reasoning as the search indexer's own per-line cap (`search/indexer.ts`).
+ * A line longer than this is skipped rather than `JSON.parse`d: a multi-hundred-MB line (a base64
+ * blob, a pasted log) would freeze the main thread on every page that includes it. The search
+ * indexer has the same cap (`search/indexer.ts`).
  */
 export const MAX_LINE_CHARS = 1_000_000
 
-/** Coerces a JSONL field of unknown shape to a string without ever falling through to
- *  `Object.prototype.toString` — real transcripts only ever put strings and numbers in these
- *  fields, but a malformed line should degrade to `fallback`, not '[object Object]'. */
+/** Coerces a JSONL field of unknown shape to a string; a malformed line gives `fallback`, not '[object Object]'. */
 function asString(value: unknown, fallback: string): string {
   if (typeof value === 'string') return value
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)
@@ -27,18 +24,11 @@ interface Index {
   messageCount: number
   mtimeMs: number
   size: number
-  /** Whether the last line scanned ended with `\n`. Only true, the fast path below can trust that
-   *  a byte appended after `size` starts a *new* line at exactly `size` — otherwise the "new"
-   *  bytes are actually the tail of what was already the last line, and a full rescan is needed to
-   *  get that line's offset and content right. */
+  /** Whether the last line scanned ended with `\n`; only then does a byte appended after `size` start a new line. */
   endsWithNewline: boolean
 }
 
-/** How many transcripts' offset arrays are kept at once (MAIN-24). Unbounded before this: one
- *  entry per transcript ever opened, for the life of the process. A user who has opened this many
- *  distinct sessions in one run is rare enough that evicting the least-recently-used one costs a
- *  full rescan next time it is reopened, which is the same amount of work a cold session already
- *  pays. */
+/** How many transcripts' offset arrays are kept at once; evicting one costs a full rescan on reopen. */
 const MAX_CACHE_ENTRIES = 50
 
 /** Whether a raw line is a message someone wrote — by substring, without parsing. A message sent
@@ -51,10 +41,6 @@ function countsAsMessage(line: string): boolean {
 /**
  * Records the byte offset of every non-empty line from `startByte` onward, and counts message
  * lines by substring test. No JSON parsing, so this stays cheap on multi-megabyte files.
- *
- * `startLineStart` is normally equal to `startByte` (a fresh scan starts counting from byte 0, an
- * appended-bytes scan starts counting from the byte the previous scan ended at) — kept as a
- * separate parameter only so the arithmetic below reads the same regardless of which caller it is.
  */
 async function scanFrom(
   filePath: string,
@@ -66,10 +52,8 @@ async function scanFrom(
   let position = startLineStart
   let lineStart = startLineStart
   let pending = ''
-  // The true byte length buffered for the current (still unterminated) line, tracked separately
-  // from `pending`'s own length: `pending` is capped at `MAX_LINE_CHARS` below (SEC-12), but the
-  // byte offsets recorded for every *later* line still have to be exact, so this keeps counting
-  // even once `pending` itself stops growing.
+  // True byte length of the current unterminated line: `pending` stops growing at `MAX_LINE_CHARS`,
+  // but later lines' offsets must stay exact.
   let pendingBytes = 0
   let endsWithNewline = true
 
@@ -96,7 +80,6 @@ async function scanFrom(
         pendingBytes = 0
         from = nl + 1
       }
-      // Account for the bytes buffered in `pending` on the next iteration.
       position = lineStart + pendingBytes
     })
     stream.on('end', () => {
@@ -137,10 +120,8 @@ function mapBlocks(_role: 'user' | 'assistant', content: unknown): TranscriptBlo
         })
         break
       case 'image': {
-        // Claude records a pasted image the way the API carries one: base64 plus its media type.
-        // Turning it into a data URL here keeps that shape out of the renderer, which only ever
-        // needs something it can put in a src attribute. Anything else (a URL source, a shape from
-        // a future version) is skipped rather than guessed at.
+        // Claude records a pasted image as base64 plus media type; a data URL keeps that shape out of
+        // the renderer. Any other source shape is skipped.
         const source = (b as { source?: { type?: string; media_type?: string; data?: string } }).source
         if (source?.type === 'base64' && typeof source.data === 'string' && source.data !== '') {
           const mediaType = typeof source.media_type === 'string' ? source.media_type : 'image/png'
@@ -183,11 +164,9 @@ export function toMessage(entry: Record<string, unknown>): TranscriptMessage | n
 type MessageBase = Pick<TranscriptMessage, 'uuid' | 'timestampMs' | 'isSidechain'>
 
 /**
- * A message you sent while Claude was mid-turn. Claude Code folds it into the turn in progress and
- * records it, not as a `user` entry, but as an `attachment` of type `queued_command` — where it was
- * read, after the tool result it followed. Its `source_uuid` is the uuid the message had when it
- * was sent (and the one chat mode's stream replays it under), so it is filed under that one: the
- * live copy and this one are then the same message rather than two.
+ * A message sent while Claude was mid-turn. Claude Code records it not as a `user` entry but as an
+ * `attachment` of type `queued_command`, after the tool result it followed. It is filed under its
+ * `source_uuid` (the uuid chat mode's stream replays it under) so the live copy and this one merge.
  */
 function queuedMessage(entry: Record<string, unknown>, base: MessageBase): TranscriptMessage | null {
   const a = entry.attachment as { type?: unknown; prompt?: unknown; source_uuid?: unknown } | undefined
@@ -227,19 +206,12 @@ interface IndexedMessage {
   message: TranscriptMessage
 }
 
-/**
- * Reads a session's JSONL a page at a time. Owns the line-offset index it builds for each file it
- * has been asked about (bounded at `MAX_CACHE_ENTRIES`, least recently used out) — one instance,
- * built in the container, so a test builds its own and no state outlives it.
- */
+/** Reads a session's JSONL a page at a time, keeping a line-offset index per file (bounded at `MAX_CACHE_ENTRIES`). */
 export class TranscriptReader {
   /** Invalidated by the file's size and mtime (checked on every read) and by the LRU cap. */
   private readonly cache = new Map<string, Index>()
 
-  /** Records `entry` as the most recently used, evicting the least recently used past the cap. A
-   *  `Map` already iterates in insertion order, so "oldest" is just its first key — re-inserting on
-   *  every touch (hit or write) is what keeps that order meaning "least recently used" rather than
-   *  "first ever inserted". */
+  /** Records `entry` as most recently used, evicting past the cap. Re-inserting on every touch keeps `Map` order meaning LRU. */
   private remember(filePath: string, entry: Index): void {
     this.cache.delete(filePath)
     this.cache.set(filePath, entry)
@@ -252,11 +224,9 @@ export class TranscriptReader {
   /**
    * Records the byte offset of every non-empty line and counts message lines by substring test.
    *
-   * **Append-only fast path (MAIN-24):** a live session's transcript is only ever appended to, so
-   * when the cached size grew and the cached scan ended cleanly on a newline, only the new bytes are
-   * read — the old offsets are still correct and are kept as-is. A file that shrank (or whose last
-   * cached line had no trailing newline yet) falls back to a full rescan, since neither case can be
-   * trusted to mean "unchanged content plus an append".
+   * **Append-only fast path:** when the file grew and the cached scan ended on a newline, only the
+   * new bytes are read. A file that shrank, or whose last cached line had no trailing newline,
+   * gets a full rescan.
    */
   async indexTranscript(
     filePath: string,
@@ -291,17 +261,13 @@ export class TranscriptReader {
   /**
    * Backward paging over the offset index.
    *
-   * Widens the scan window [nextStart, end) geometrically until it holds more
-   * messages than `limit` (so we know there is a real earlier boundary to
-   * report) or reaches line index 0 (the true start of the file, so there is
-   * nothing earlier left to report). Each widened window is re-parsed from
-   * scratch — cheap relative to the I/O, and simple to reason about.
+   * Widens the scan window [nextStart, end) geometrically until it holds more messages than
+   * `limit` (so a real earlier boundary exists) or reaches line index 0. Each window is re-parsed
+   * from scratch.
    *
-   * `earlierCursor` is derived from the line index of the earliest message
-   * kept on the page, never from the scan's window boundary: the window can
-   * extend further back than is needed to fill the page (it doubles each
-   * retry), and it can also contain non-message lines, so window-relative
-   * arithmetic does not line up with real message positions in general.
+   * `earlierCursor` comes from the line index of the earliest message kept on the page, never from
+   * the window boundary: the window can reach further back than the page needs and contains
+   * non-message lines.
    */
   async readTranscriptPage(
     filePath: string,
@@ -310,18 +276,14 @@ export class TranscriptReader {
     const limit = opts.limit ?? DEFAULT_LIMIT
     const { offsets } = await this.indexTranscript(filePath)
     const info = await stat(filePath)
-    // A renderer-supplied cursor that is not a real, non-negative index (NaN, most concretely) must
-    // not reach the arithmetic below: `Math.min(NaN, n)` is `NaN`, which makes `windowStart === 0`
-    // never hold and the loop below spin forever, opening and closing the file on every pass (SEC-8).
-    // Anything not a safe non-negative integer is treated as "no cursor", the same as omitting it.
+    // A renderer-supplied NaN cursor would make `windowStart === 0` never hold and spin the loop
+    // forever; anything not a safe non-negative integer counts as "no cursor".
     const beforeIndex = Number.isSafeInteger(opts.beforeIndex) && (opts.beforeIndex as number) >= 0
       ? opts.beforeIndex
       : undefined
     const end = Math.max(0, Math.min(beforeIndex ?? offsets.length, offsets.length))
     if (!Number.isFinite(end)) throw new Error('Could not resolve a valid transcript window')
 
-    // Assigned unconditionally on every iteration before the loop's only `break`, so these are
-    // definitely assigned by the time they're read below without needing a throwaway initial value.
     let windowMessages: IndexedMessage[]
     let skippedLines: number
     let windowStart: number
@@ -357,9 +319,7 @@ export class TranscriptReader {
       }
 
       windowStart = nextStart
-      // Strictly more than `limit`, not >=: landing exactly on `limit` while
-      // windowStart is still > 0 would leave us unable to tell whether earlier
-      // messages exist, so keep widening until that ambiguity is resolved.
+      // Strictly more than `limit`: exactly `limit` with windowStart > 0 cannot tell whether earlier messages exist.
       if (windowMessages.length > limit || windowStart === 0) break
       span *= 2
     }

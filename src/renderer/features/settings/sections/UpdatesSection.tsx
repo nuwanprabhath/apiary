@@ -12,9 +12,7 @@ const UPDATE_INTERVAL_PRESETS = [1, 6, 12, 24]
 
 /**
  * `update` comes from App, which already holds the one shared `useUpdate()` subscription the
- * banner reads — this section used to open a second one of its own (UI-20), which is the bug
- * `useUpdate.ts`'s own comment ("One subscription, shared by the banner and the Settings panel")
- * describes but the old code did not actually honour.
+ * banner reads, so the two never disagree.
  */
 export function UpdatesSection(
   { draft, patch, update }: {
@@ -59,9 +57,7 @@ export function UpdatesSection(
           <button
             className="btn"
             data-testid="update-check-now"
-            // A check that cannot run is not offered. On a build with no updater at all
-            // the press used to be swallowed silently, which is indistinguishable from
-            // a broken button — the reason is already spelled out above.
+            // A check that cannot run is not offered; the reason is already spelled out above.
             disabled={
               canCheck === false
               || checking || update?.phase === 'checking' || update?.phase === 'downloading'

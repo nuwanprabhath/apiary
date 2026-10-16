@@ -71,7 +71,7 @@ export class ChatSession {
       this.refreshContext()
     }), 'chat')
     // `exited` settles on the process ending *or* failing to start (`spawnLoginShell`), so a chat
-    // whose shell cannot be run still ends as `exited` rather than leaving `stop()` waiting (MAIN-19).
+    // whose shell cannot be run still ends as `exited` rather than leaving `stop()` waiting.
     this.exited = proc.exited.then(({ code, signal, error }) => {
       const clean = error === undefined && (this.stopping || code === 0)
       this.update({
@@ -251,9 +251,8 @@ export class ChatSession {
   }
 
   /**
-   * The one place the state changes. `exited` is final: a reply that was in flight when the
-   * process ended (`initialize`, `get_settings`) settles afterwards and used to re-emit the
-   * exited state, so the chat looked like it ended twice. Once exited, nothing is emitted again.
+   * The one place the state changes. `exited` is final: a reply still in flight when the process
+   * ended (`initialize`, `get_settings`) settles afterwards, and must not announce the end twice.
    */
   private update(next: ChatState, now: boolean): void {
     if (this.state.status === 'exited') return

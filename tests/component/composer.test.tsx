@@ -75,6 +75,30 @@ describe('composer images', () => {
     await userEvent.click(thumb)
     await expect.element(page.getByTestId('image-lightbox-image')).toBeVisible()
   })
+
+  it('right-clicking an image in the transcript offers Copy image, which copies at the click point', async () => {
+    const { fake } = await renderApp({
+      sessions: [{
+        sessionId: '99999999-9999-9999-9999-999999999999',
+        title: 'Has an image in it',
+        projectPath: '/fixture/work-a',
+        messages: [{
+          ...message('with-image', 'user', 'here is a screenshot'),
+          blocks: [{ type: 'image', dataUrl: `data:image/png;base64,${TINY_PNG}` }],
+        }],
+      }],
+    })
+    await userEvent.click(sidebarSession('Has an image in it'))
+    await until(() => document.querySelector('[data-testid="image-thumb"]') !== null)
+    document.querySelector('[data-testid="image-thumb"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    fake.emit('contextMenuRequested', {
+      x: 120, y: 80, isEditable: false, selectionText: '', misspelledWord: '', dictionarySuggestions: [],
+      editFlags: { canCut: false, canCopy: false, canPaste: false, canSelectAll: false }, mediaType: 'image',
+    })
+    await userEvent.click(page.getByTestId('context-menu-copy-image'))
+    await until(() => fake.callsTo('editCommand').length > 0)
+    expect(fake.callsTo('editCommand')).toEqual([[{ action: 'copyImageAt', x: 120, y: 80 }]])
+  })
 })
 
 describe('composer draft isolation', () => {

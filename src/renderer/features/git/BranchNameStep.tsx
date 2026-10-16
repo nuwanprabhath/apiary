@@ -16,9 +16,6 @@ export function BranchNameStep(
   { nameDraft, busy, errorMessage, onNameDraft, onCreate, onBack, onClose }: Props,
 ): JSX.Element {
   return (
-    // UI-25: onto the shared Modal primitive (Escape already worked via UI-13; this adds a
-    // labelled role, a Tab trap and focus restore on close). `closeOnBackdropClick` keeps the
-    // click-outside-closes behaviour this dialog already had.
     <Modal
       testId="branch-switcher"
       titleId="branch-switcher-title"

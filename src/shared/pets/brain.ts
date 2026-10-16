@@ -190,7 +190,6 @@ export class Brain {
   private readonly sceneEvery: [number, number]
   private readonly commentEvery: [number, number]
   private readonly sceneKinds: SceneKind[] | null
-  /** Active conversation between two pets. */
   private conversation: Conversation | null = null
 
   constructor(seed: number, opts: BrainOptions = {}) {
@@ -309,7 +308,6 @@ export class Brain {
     return [...this.minds.values()].map((m) => ({ id: m.pet.id, s: this.toS(m.pet.place), size: m.pet.size, moving: MOVING.has(m.activity), activity: m.activity }))
   }
 
-  /** The scene under way, for tests. */
   currentScene(): { kind: SceneKind; members: string[]; phase: 'gather' | 'play' } | null {
     return this.scene === null ? null : { kind: this.scene.kind, members: [...this.scene.members], phase: this.scene.phase }
   }
@@ -458,7 +456,6 @@ export class Brain {
     const errand = this.afterWalk.get(m.pet.id)
     this.afterWalk.delete(m.pet.id)
     if (errand === 'point') {
-      // Arrived under a finished session: point at it, with a hop, and say so.
       this.become(m, 'point', 'happy', 5000)
       this.speak(m, 'finished', 'speech', 0)
       return [this.withSaid(m)]
@@ -470,9 +467,7 @@ export class Brain {
     if (errand === 'greet' && !this.reducedMotion) {
       const out: Command[] = []
 
-      // Start a new conversation or continue an existing one
       if (this.conversation === null || !this.conversation.petIds.includes(m.pet.id)) {
-        // Find the nearest pet to converse with
         const others = [...this.minds.values()].filter((o) => o !== m && !MOVING.has(o.activity))
         if (others.length === 0) return [this.command(m)]
         others.sort((a, b) => Math.abs(this.toS(a.pet.place) - this.toS(m.pet.place)) - Math.abs(this.toS(b.pet.place) - this.toS(m.pet.place)))
@@ -487,20 +482,16 @@ export class Brain {
         return [this.command(m)]
       }
 
-      // Determine situation based on turn (wrap-up at turn 4)
       const situation: Situation = this.conversation.turns >= 4 ? 'wrappedUp' : this.conversation.turns === 0 ? 'greet' : 'conversation'
 
-      // Visitor speaks
       this.become(m, 'wave', 'happy', 2000)
       this.speak(m, situation, 'speech', EVENT_SPEECH_GAP_MS)
       out.push(this.withSaid(m))
 
-      // Visited pet responds
       this.become(visitedPet, 'wave', 'happy', 2000)
       this.speak(visitedPet, situation, 'speech', EVENT_SPEECH_GAP_MS)
       out.push(this.withSaid(visitedPet))
 
-      // Progress conversation
       this.conversation.turns++
       if (this.conversation.turns >= 5) this.conversation = null
 
@@ -595,7 +586,6 @@ export class Brain {
     const members = sc.members.map((id) => this.minds.get(id)).filter((m): m is PetMind => m !== undefined)
     if (sc.phase === 'gather') return sc.left <= 0 ? this.play(sc, members) : []
     const out: Command[] = []
-    // Scene beats within play.
     if (sc.kind === 'drive') {
       const m = members[0]
       if (m.left <= 0) {
@@ -740,7 +730,6 @@ export class Brain {
         break
       case 'drive': {
         const m = members[0]
-        // A lap: to one end, the other, and back to about where it started.
         const here = this.toS(m.pet.place)
         sc.legs = [this.bar * this.between(0.75, 0.95), this.bar * this.between(0.05, 0.2), here]
         sc.left = 1e12
@@ -750,7 +739,6 @@ export class Brain {
       }
       case 'parachute': {
         const m = members[0]
-        // Off the top of the rail, floating down to its foot.
         out.push(this.walkTo(m, -HOP_PX, 'parachute', PARACHUTE_PX_PER_S))
         sc.left = 1e12
         return out
@@ -823,7 +811,6 @@ export class Brain {
     const fits = (v: number): boolean => outside(v) && [...this.minds.values()].every((o) => o === m || Math.abs(this.toS(o.pet.place) - v) >= this.gap(m, o) - 0.5)
     const start = clamp(target)
     if (fits(start)) return start
-    // Look either side, a few pixels at a time, nearest first.
     for (let d = 4; d <= hi - lo; d += 4) {
       if (fits(clamp(start + d))) return clamp(start + d)
       if (fits(clamp(start - d))) return clamp(start - d)

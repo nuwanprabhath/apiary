@@ -21,9 +21,8 @@ import { broadcast } from '../windows/broadcast'
 import { sendEvent } from '../windows/sendEvent'
 
 /**
- * Remote access's part of the composition root (docs/proposals/2026-10-10-remote-access.md), split
- * out of `container.ts` when it outgrew one file. The `construct-in-container` rule allows exactly
- * these two files to build long-lived objects.
+ * Remote access's part of the composition root (docs/proposals/2026-10-10-remote-access.md). The
+ * `construct-in-container` rule allows exactly `container.ts` and this file to build long-lived objects.
  *
  * Two phases, because the session services sit between them. The work machine's side (the server
  * and the windows it serves) is built before the services, whose status-bar item lists the server's
@@ -86,9 +85,7 @@ export interface ConnectingInputs {
 /**
  * Everything the home side reaches outside this process: ssh, the `tailscale` CLI, sockets, temp
  * folders and the keychain. The app passes `realConnectingOutside`; the contract loopback passes stubs
- * and so runs this file's own wiring (the broadcasts, `onConnected`, `probe`) rather than a copy of
- * it. 1.37.0 shipped with `index.ts` handing the registrar no host directory, server or pairing
- * store, and every test passed because each built its own.
+ * and so runs this file's own wiring (the broadcasts, `onConnected`, `probe`) rather than a copy of it.
  */
 export interface ConnectingOutside {
   /** Runs the `tailscale` CLI for the host list. */

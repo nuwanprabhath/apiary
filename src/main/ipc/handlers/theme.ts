@@ -21,14 +21,11 @@ type HandledKeys =
 type ListenedKeys = 'themeGenerateCancel'
 
 /**
- * The theme calls, and the one broadcast that keeps every window in the same theme. Registered
- * through the same `registerAll` wrapper as everything else (MAIN-19 item 4) — before this,
- * `themeIpc.ts` called `ipcMain.handle`/`.on` directly, so a rejecting theme handler skipped the
- * logging and sender check every other channel got.
+ * The theme calls, and the one broadcast that keeps every window in the same theme.
  *
- * `themeInitial` is the one exception, registered here rather than through `registerAll`: it is a
- * `sendSync` (`ApiaryApi.initialTheme`'s doc comment explains why), and the registrar only wires
- * up `invoke`/`send` channels.
+ * `themeInitial` is registered here rather than through `registerAll`: it is a `sendSync`
+ * (`ApiaryApi.initialTheme`'s doc comment explains why), and the registrar only wires up
+ * `invoke`/`send` channels.
  *
  * Nothing the renderer sends is trusted: a spec to save is validated by the store, an id must name
  * a theme that exists, and options are clamped there too.

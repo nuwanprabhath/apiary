@@ -1,8 +1,6 @@
 /**
- * The two pieces every hand-rolled module store here (`ptyBus`, `mrStatusStore`, `themeStore`) used
- * to write for itself. A store that fans a push out to many listeners, or runs a timer, does not
- * fit `createIpcStore`'s fetch-plus-push shape, but it still has to do these two things the same
- * way.
+ * The two pieces a module store that does not fit `createIpcStore`'s fetch-plus-push shape (a
+ * fan-out to many listeners, a timer: `ptyBus`, `mrStatusStore`, `themeStore`) still needs.
  */
 
 /**

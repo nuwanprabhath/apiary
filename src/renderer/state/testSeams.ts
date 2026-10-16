@@ -5,9 +5,8 @@ import { isFiniteNumber, isRecord } from '@shared/guards'
  * The renderer's one test seam: the few behaviours a test must change that no user setting
  * reaches (how fast the pets' scenes come round, drawing pets flat).
  *
- * Inert in a packaged build. A seam used to be a `globalThis.__apiary*` property read in
- * production code, so any script in the page could switch it. Now the values come from exactly
- * two places:
+ * Inert in a packaged build: a `globalThis.__apiary*` property would let any script in the page
+ * switch a seam, so the values come from exactly two places:
  *
  * - the window's own URL (`?seams=<json>`), which main puts there only when `APIARY_RENDERER_SEAMS`
  *   is set (`main/app/env.ts`, which reads nothing when the app is packaged), and

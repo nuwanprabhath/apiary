@@ -8,14 +8,12 @@ import { Menu } from '../../ui/Menu'
 import { readAppMenu, runMenuItem } from '../../state/windowChrome'
 
 /**
- * The application menu, drawn in the theme instead of as a GTK/Win32 bar (Windows and Linux; a
- * Mac keeps its system menu bar). It draws main's real menu (`appMenu`) and runs items through it
- * (`appMenuInvoke`), so there is one menu: every command, label and shortcut is defined once in
- * `main/app/menu.ts`, and the shortcuts keep working because that menu is still the application
- * menu, only no longer shown by the OS.
+ * The application menu drawn in the theme (Windows and Linux; a Mac keeps its system bar). It
+ * draws main's real menu (`appMenu`) and runs items through it (`appMenuInvoke`), so every command,
+ * label and shortcut is defined once in `main/app/menu.ts`.
  *
- * Focus is left where it was when a menu is opened by mouse (the terminal, a text box), and put
- * back before an item runs — Edit → Paste has to paste into whatever had focus, not into the menu.
+ * Focus stays where it was when a menu is opened by mouse, and is put back before an item runs:
+ * Edit → Paste has to paste into whatever had focus, not into the menu.
  */
 export function MenuBar(): JSX.Element {
   const [menu, setMenu] = useState<AppMenuNode[]>([])
@@ -26,8 +24,8 @@ export function MenuBar(): JSX.Element {
   const load = (): void => {
     void readAppMenu().then(setMenu)
   }
-  // Main sets the menu before opening any window, but a window it did not open itself (a reload
-  // in development) can still ask first — so an empty answer is asked again, once, shortly after.
+  // A window main did not open itself (a development reload) can ask before the menu is set, so an
+  // empty answer is asked again once.
   useEffect(() => {
     let cancelled = false
     let retry: number | null = null
@@ -82,7 +80,6 @@ export function MenuBar(): JSX.Element {
           aria-haspopup="menu"
           aria-expanded={open === i}
           data-open={open === i}
-          // Keeps focus where it was (a terminal, a text box) — see the component comment.
           onMouseDown={(e) => {
             e.preventDefault()
             if (open === null && document.activeElement instanceof HTMLElement) returnFocus.current = document.activeElement
@@ -161,8 +158,8 @@ function MenuDropdown({ nodes, path, at, onInvoke, onClose, onSibling, onBack, t
   }
 
   return createPortal(
-    // Up/Down/Home/End are `Menu`'s; Left/Right are this one's, for moving between levels and
-    // menus. Focus is taken in the layout effect above, once the dropdown has its final position.
+    // Up/Down/Home/End are `Menu`'s; Left/Right are this one's. Focus is taken in the layout
+    // effect above, once the dropdown has its final position.
     <Menu
       as="ul"
       ref={root}

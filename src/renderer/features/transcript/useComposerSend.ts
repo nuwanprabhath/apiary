@@ -37,17 +37,14 @@ export function useComposerSend(d: SendDeps): { sending: boolean, send: (command
     if (body === '' && images.length === 0) return
     setSending(true)
     try {
-      // Claude reads an image from its path, so that is what the message carries. One per line,
-      // under the prose, so the wording still reads as the sentence it was written as.
+      // Claude reads an image from its path, so that is what the message carries, one per line under the prose.
       const lines = [body, ...images.map((a) => a.path)].filter((l) => l !== '')
       if (chatMode) {
         // The chat takes the session over from its terminal if one is running: a session runs in
-        // one place at a time (main stops the terminal's claude first), and the conversation
-        // carries on from the same file. Nothing switches views — the reply streams in above.
+        // one place at a time (main stops the terminal's claude first), on the same file.
         //
-        // Never at a cost, though. A terminal mid-turn, or with background tasks still running
-        // (its children: they die with it), keeps the session — the message is typed into it, and
-        // the transcript, which reads the same file, shows it arrive. Claude Code queues a message
+        // Not when the terminal is mid-turn or has background tasks running (they die with it):
+        // it keeps the session and the message is typed into it. Claude Code queues a message
         // typed while it works, as the chat does.
         const sessionId = chat?.sessionId ?? session.sessionId
         if (!chatRunning && running && ptyId !== null) {
@@ -72,8 +69,7 @@ export function useComposerSend(d: SendDeps): { sending: boolean, send: (command
       }
       let target: PtyId | null = ptyId
       if (!running || target === null) {
-        // Resuming is what makes there be anything to type into. Doing it here rather than making
-        // the user find the Resume button first is the whole point of a chat box.
+        // Resuming is what makes there be anything to type into.
         await onResume()
         target = ptyIdOfSession(session.sessionId)
       }

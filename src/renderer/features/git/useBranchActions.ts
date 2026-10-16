@@ -17,13 +17,7 @@ interface Deps {
   setRefs: (refs: GitRefs) => void
 }
 
-/**
- * The git actions the branch switcher runs, behind one busy flag and one error banner. Shown
- * inside the modal itself — the modal's own backdrop (position:fixed, full-viewport, 55% black
- * wash) sits above everything behind it, so a failed checkout/create is reported there rather than
- * only through the parent's `onError` (a toast), which would show the same failure a second time
- * and read the Electron IPC wrapping raw if it did (see `run`).
- */
+/** The error banner is inside the modal, whose backdrop covers everything behind it, so not the parent's `onError` toast. */
 export function useBranchActions(
   { terminal, onClose, onCheckedOut, onWorktreeConflict, onNotice, onBranchUpdated, setRefs }: Deps,
 ) {
@@ -31,12 +25,9 @@ export function useBranchActions(
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   /**
-   * Runs one git action behind the shared busy flag, with one place that turns a failure into
-   * something readable: `describeError` strips Electron's IPC wrapping (`Error invoking remote
-   * method '…': Error: …`) rather than showing that raw text in the banner. Reported once, in the
-   * banner only — `onError`'s toast would otherwise fire too, and duplicate every failure. Success
-   * (`onCheckedOut`/`onClose`) is `op`'s to call, not `run`'s: `checkout`'s worktree-conflict case
-   * closes without either, and a conflicting merge must not close at all (see `mergeRef`).
+   * `describeError` strips Electron's IPC wrapping (`Error invoking remote method '…': Error: …`).
+   * Success (`onCheckedOut`/`onClose`) is `op`'s to call: `checkout`'s
+   * worktree-conflict case closes without either, and a conflicting merge must not close at all.
    */
   const run = async (op: () => Promise<void>): Promise<void> => {
     setErrorMessage(null)
@@ -51,9 +42,7 @@ export function useBranchActions(
   }
   const done = (): void => { onCheckedOut(); onClose() }
 
-  /** The pull button beside a local branch: fast-forwards it from its upstream, in place. Not
-   *  routed through `run`: it has its own per-row busy state (`PullRefButton`) and must not
-   *  disable the rest of the list while one branch updates. */
+  /** Not routed through `run`: it has per-row busy state (`PullRefButton`) and must not disable the rest of the list. */
   const updateBranch = async (name: string): Promise<void> => {
     setErrorMessage(null)
     try {
@@ -70,8 +59,7 @@ export function useBranchActions(
   const checkout = (name: string): Promise<void> => run(async () => {
     const outcome = await git.gitCheckout(terminal, name)
     if (!outcome.ok) {
-      // Not an error, and not this popover's to solve: hand the conflict up and get out of the
-      // way, so the choice is made in a dialog rather than inside a branch list.
+      // Not an error: hand the conflict up so the choice is made in a dialog.
       onClose()
       onWorktreeConflict(outcome.conflict)
       return
@@ -90,10 +78,8 @@ export function useBranchActions(
     done()
   })
 
-  // A conflicting merge leaves the tree mid-merge on purpose (see branchOps.merge), so `run`'s
-  // catch reporting the error in the banner, without either onCheckedOut or onClose, is exactly
-  // right: the popup stays open with git's own CONFLICT text in it rather than closing over a repo
-  // the user now has to notice is halfway through something.
+  // A conflicting merge leaves the tree mid-merge on purpose (see branchOps.merge): the popup stays
+  // open with git's CONFLICT text rather than closing over a half-merged repo.
   const mergeRef = (ref: string): Promise<void> => run(async () => {
     await git.mergeRef(terminal, ref)
     done()

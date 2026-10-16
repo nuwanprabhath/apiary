@@ -5,18 +5,16 @@ import type { PresetId } from '../../state/layout'
 /**
  * What a picker is placing: a tab already in the window, or a session from the sidebar.
  *
- * A tab target carries the pane it was picked from: the same key can be open in more than one
- * pane at once (a split), and without knowing which one the picker was opened from, placing would
- * always act on the first pane holding that key rather than the one the user actually meant.
+ * A tab target carries the pane it was picked from: the same key can be open in several panes,
+ * and placing would otherwise act on the first one holding it.
  */
 export type PlaceTarget = { kind: 'tab'; key: string; paneId: string } | { kind: 'session'; session: SessionNode }
 
 /**
- * The callbacks a picker or row invokes. Kept apart from `LayoutState` (UI-5) so a context holding
- * only these can be made referentially stable across App renders — `isOpen` reads the open-key set
- * through a ref rather than closing over `columns`, so it does not need a new identity when the
- * layout changes. Every `SessionRow`, `FolderHeader` and tab strip reads this context, so a value
- * that changed every render defeated `React.memo` on all of them (see UI-4).
+ * The callbacks a picker or row invokes. Kept apart from `LayoutState` so this context is
+ * referentially stable across App renders (`isOpen` reads the open-key set through a ref): every
+ * `SessionRow`, `FolderHeader` and tab strip reads it, and a value that changed every render
+ * defeated `React.memo` on all of them.
  */
 export interface LayoutActions {
   place: (target: PlaceTarget, preset: PresetId, zone: number) => void
@@ -40,10 +38,6 @@ export interface LayoutState {
   movingPane: string | null
 }
 
-/**
- * The window's layout, offered to the tab strips and the sidebar rows without threading it
- * through every component in between.
- */
 export const LayoutContext = createContext<LayoutActions>({
   place: () => {},
   apply: () => {},
