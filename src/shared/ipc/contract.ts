@@ -227,9 +227,10 @@ export const IPC = {
   seedLibraryState: invoke<[patch: LibraryPatch], LibrarySnapshot>('apiary:seed-library-state', tuple(isLibraryPatch)),
   libraryStateChanged: event<[snapshot: LibrarySnapshot]>('apiary:library-state-changed'),
   // Claude accounts (shared/domain/accounts.ts): the list and default are owned by main; the
-  // account a session runs under is read here. `accountsChanged` follows an add, remove or default change.
+  // account a session runs under is read here. `accountsChanged` follows an add, rename, remove or default change.
   accountsList: invoke<[], AccountsState>('apiary:accounts-list', tuple()),
   accountsAdd: invoke<[label: string], AccountId>('apiary:accounts-add', tuple(isAccountLabel)),
+  accountsRename: invoke<[id: AccountId, label: string], void>('apiary:accounts-rename', tuple(isAccountId, isAccountLabel)),
   accountsRemove: invoke<[id: AccountId], void>('apiary:accounts-remove', tuple(isAccountId)),
   accountsSetDefault: invoke<[id: AccountId], void>('apiary:accounts-set-default', tuple(isAccountId)),
   sessionAccountGet: invoke<[sessionId: SessionId], AccountId>('apiary:session-account-get', tuple(sessionIdArg)),

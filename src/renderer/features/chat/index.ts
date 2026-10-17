@@ -1,5 +1,6 @@
 // What the rest of the renderer may import from the chat feature (dependency-cruiser:
 // renderer-feature-public-face).
+export { AccountPill } from './AccountPill'
 export { AccountSwitchHost } from './AccountSwitchPrompt'
 export { ChatStatus } from './ChatStatus'
 export { ChatTimeline } from './ChatTimeline'

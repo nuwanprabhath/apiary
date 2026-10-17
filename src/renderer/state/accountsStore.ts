@@ -60,6 +60,9 @@ export function useSessionAccount(sessionId: SessionId | null): AccountId | null
 /** Adds an account and answers its id. Returned: the Settings section shows an inline error. */
 export const addAccount = (label: string): Promise<AccountId> => window.apiary.accountsAdd(label)
 
+/** Renames an account, main included. Returned, for the Settings section's inline error. */
+export const renameAccount = (id: AccountId, label: string): Promise<void> => window.apiary.accountsRename(id, label)
+
 /** Removes an added account. Returned: main refuses while a session runs under it, and says why. */
 export const removeAccount = (id: AccountId): Promise<void> => window.apiary.accountsRemove(id)
 

@@ -24,8 +24,11 @@ function twoAccounts(fake: FakeApiary): void {
   }
 }
 
-async function openChat(several = true): Promise<{ fake: FakeApiary; sessionId: string }> {
-  const { fake } = await renderApp({ settings: { transcriptChat: true } }, several ? twoAccounts : undefined)
+async function openChat(several = true, onWork = false): Promise<{ fake: FakeApiary; sessionId: string }> {
+  const { fake } = await renderApp({ settings: { transcriptChat: true } }, several ? (f) => {
+    twoAccounts(f)
+    if (onWork) f.state.sessionAccounts.set(f.state.sessions.find((s) => s.title === TITLE)!.sessionId, WORK)
+  } : undefined)
   await userEvent.click(sidebarSession(TITLE))
   await expect.element(page.getByTestId('chat-timeline')).toBeVisible()
   return { fake, sessionId: fake.state.sessions.find((s) => s.title === TITLE)!.sessionId }
@@ -56,6 +59,19 @@ describe('switching a session’s account', () => {
     await expect.element(page.getByTestId('composer-command-menu')).toBeVisible()
     expect(document.querySelector('[data-action="account"]')).toBeNull()
     expect(document.querySelector('.chat-account-pill')).toBeNull()
+  })
+
+  it('a chat in the default account shows no account pill', async () => {
+    await openChat()
+    await expect.element(page.getByTestId('composer-commands')).toBeVisible()
+    expect(document.querySelector('[data-testid="chat-account-pill"]')).toBeNull()
+  })
+
+  it('a chat in another account shows it in the message box’s bottom bar', async () => {
+    await openChat(true, true)
+    await expect.element(page.getByTestId('chat-account-pill')).toHaveTextContent('Work')
+    expect(page.getByTestId('chat-account-pill').element().closest('[data-testid="composer"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="chat-status"] .chat-account-pill')).toBeNull()
   })
 
   it('the / menu lists accounts with the current one checked', async () => {

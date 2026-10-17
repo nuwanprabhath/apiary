@@ -43,6 +43,13 @@ describe('UI: Settings → Accounts', () => {
     await reviewUi('accounts add row', { widths: WIDTHS })
   })
 
+  it('accounts: renaming main', async () => {
+    await openAccounts([MAIN, added('work', 'Work', 'work@example.com')])
+    await userEvent.click(page.getByTestId('account-rename-main'))
+    await userEvent.fill(page.getByTestId('account-rename-input-main'), 'Personal account on this Mac')
+    await reviewUi('accounts rename row', { widths: WIDTHS })
+  })
+
   it('accounts: a refused remove', async () => {
     const fake = await openAccounts([MAIN, added('work', 'Work', 'work@example.com')])
     fake.override('accountsRemove', async () => { throw new Error('Close the sessions using Work first') })

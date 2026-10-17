@@ -2,7 +2,7 @@ import type { PtyId, SessionId } from '@shared/domain/ids'
 import { type JSX, type KeyboardEvent, type RefObject, useCallback, useRef, useState } from 'react'
 import type { ChatState } from '@shared/domain/chat'
 import type { SessionNode } from '@shared/types'
-import { ContextRing, ModelPicker, ModeMenu, CommandPalette } from '../chat'
+import { AccountPill, ContextRing, ModelPicker, ModeMenu, CommandPalette } from '../chat'
 import { interruptChat } from '../../state/chatStore'
 import { AttachmentStrip, imagesFrom, useImageAttachments } from './composerAttachments'
 import { FoldButton, PeekButton, useComposerFold } from './composerFold'
@@ -77,6 +77,7 @@ function ChatControls(p: ChatControlsProps): JSX.Element {
         onModel={choices.chooseChatModel}
         onEffort={choices.chooseEffort}
       />
+      <AccountPill sessionId={p.sessionId} />
     </>
   )
 }

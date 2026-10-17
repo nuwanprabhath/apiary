@@ -43,6 +43,17 @@ describe('AccountService', () => {
     expect(s.add('work team')).toBe('work-team-2')
   })
 
+  it('renames an added account and main, keeping their ids, and the names survive a restart', () => {
+    const s = make()
+    const id = s.add('Work')
+    s.rename(id, '  Uni  ')
+    s.rename(MAIN_ACCOUNT_ID, 'Personal')
+    const labels = (svc: AccountService): Array<[string, string]> => svc.list().accounts.map((a) => [a.id, a.label])
+    expect(labels(s)).toEqual([[MAIN_ACCOUNT_ID, 'Personal'], [id, 'Uni']])
+    expect(labels(make())).toEqual([[MAIN_ACCOUNT_ID, 'Personal'], [id, 'Uni']])
+    expect(() => { s.rename(asAccountId('ghost'), 'X') }).toThrow()
+  })
+
   it('remove refuses main', () => {
     expect(() => { make().remove(MAIN_ACCOUNT_ID) }).toThrow()
   })
@@ -135,6 +146,13 @@ describe('AccountService', () => {
 })
 
 describe('a hand-edited accounts.json', () => {
+  it('keeps a usable main name and ignores a blank or non-string one', () => {
+    const base = { version: 1, accounts: [], defaultId: MAIN_ACCOUNT_ID }
+    expect(parseAccountsFile({ ...base, mainLabel: 'Home' }).mainLabel).toBe('Home')
+    expect(parseAccountsFile({ ...base, mainLabel: '  ' }).mainLabel).toBeUndefined()
+    expect(parseAccountsFile({ ...base, mainLabel: 7 }).mainLabel).toBeUndefined()
+  })
+
   it('drops an id that is not a slug, so removing it can never delete outside accounts/', () => {
     const outside = join(dir, 'outside')
     mkdirSync(outside)

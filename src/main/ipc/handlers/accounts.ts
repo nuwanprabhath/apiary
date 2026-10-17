@@ -3,7 +3,7 @@ import type { ChatService } from '../../chat/chatService'
 import type { AppService } from '../../appService'
 import type { Handlers } from '../registrar'
 
-type HandledKeys = 'accountsList' | 'accountsAdd' | 'accountsRemove' | 'accountsSetDefault' | 'sessionAccountGet'
+type HandledKeys = 'accountsList' | 'accountsAdd' | 'accountsRename' | 'accountsRemove' | 'accountsSetDefault' | 'sessionAccountGet'
   | 'accountsLogin' | 'sessionAccountSwitch' | 'sessionAccountsList'
 
 /**
@@ -17,6 +17,7 @@ export function accountsHandlers(
   return {
     accountsList: () => accounts.list(),
     accountsAdd: (_e, label) => accounts.add(label),
+    accountsRename: (_e, id, label) => { accounts.rename(id, label) },
     accountsRemove: (_e, id) => {
       if (chat.accountInUse(id)) {
         const label = accounts.list().accounts.find((a) => a.id === id)?.label ?? id

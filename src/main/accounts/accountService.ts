@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { isRecord } from '@shared/guards'
 import {
-  MAIN_ACCOUNT_ID, accountSlug, isAccountId, type AccountId, type AccountInfo, type AccountsState,
+  MAIN_ACCOUNT_ID, accountSlug, isAccountId, isAccountLabel, type AccountId, type AccountInfo, type AccountsState,
 } from '@shared/domain/accounts'
 import { asAccountId, type SessionId } from '@shared/domain/ids'
 import type { ExecFn } from '../exec/run'
@@ -10,7 +10,15 @@ import { fireAndForget } from '../log/fireAndForget'
 import { ensureAccountLinks, removeAccountFolder } from './accountFolder'
 import { claudeJsonStamp, readOauthEmail, syncClaudeJson } from './claudeJsonSync'
 
-export interface AccountsFile { version: 1; accounts: Array<{ id: string; label: string }>; defaultId: string }
+export interface AccountsFile {
+  version: 1
+  accounts: Array<{ id: string; label: string }>
+  defaultId: string
+  /** The main account's name when the user renamed it; absent means "Main". */
+  mainLabel?: string
+}
+
+const MAIN_LABEL = 'Main'
 
 export interface AccountServiceDeps {
   mainRoot: string
@@ -46,6 +54,7 @@ export function parseAccountsFile(raw: unknown): AccountsFile {
         && !out.accounts.some((x) => x.id === a.id)) out.accounts.push({ id: a.id, label: a.label })
     }
   }
+  if (isAccountLabel(raw.mainLabel)) out.mainLabel = raw.mainLabel.trim()
   if (typeof raw.defaultId === 'string' && (raw.defaultId === MAIN_ACCOUNT_ID || out.accounts.some((a) => a.id === raw.defaultId))) {
     out.defaultId = raw.defaultId
   }
@@ -74,7 +83,7 @@ export class AccountService {
     const added = this.file.accounts.map((a): AccountInfo => ({
       id: asAccountId(a.id), label: a.label, email: this.emailIn(this.folderOf(a.id)), isMain: false,
     }))
-    const main: AccountInfo = { id: MAIN_ACCOUNT_ID, label: 'Main', email: this.emailIn(null), isMain: true }
+    const main: AccountInfo = { id: MAIN_ACCOUNT_ID, label: this.file.mainLabel ?? MAIN_LABEL, email: this.emailIn(null), isMain: true }
     return { accounts: [main, ...added], defaultId: this.defaultId() }
   }
 
@@ -83,6 +92,14 @@ export class AccountService {
     ensureAccountLinks(this.folderOf(id), this.deps.mainRoot)
     this.update({ ...this.file, accounts: [...this.file.accounts, { id, label: label.trim() }] })
     return id
+  }
+
+  /** Renames any account, main included; the id (and so its folder) stays. */
+  rename(id: AccountId, label: string): void {
+    const name = label.trim()
+    if (id === MAIN_ACCOUNT_ID) { this.update({ ...this.file, mainLabel: name }); return }
+    if (!this.file.accounts.some((a) => a.id === id)) throw new Error(`Unknown account ${id}`)
+    this.update({ ...this.file, accounts: this.file.accounts.map((a) => (a.id === id ? { ...a, label: name } : a)) })
   }
 
   remove(id: AccountId): void {

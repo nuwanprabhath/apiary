@@ -34,6 +34,26 @@ describe('Settings → Accounts', () => {
     expect(el('account-main')?.textContent).toContain('Main')
   })
 
+  it('renames main and an added account; Escape keeps the old name', async () => {
+    const fake = await openAccounts(() => undefined, () => addAccount('Work'))
+    await until(() => el('account-rename-work') !== null)
+    await userEvent.click(page.getByTestId('account-rename-main'))
+    await userEvent.fill(page.getByTestId('account-rename-input-main'), 'Personal')
+    await userEvent.keyboard('{Enter}')
+    await until(() => el('account-main')?.querySelector('.account-label')?.textContent === 'Personal')
+    await userEvent.click(page.getByTestId('account-rename-work'))
+    await userEvent.fill(page.getByTestId('account-rename-input-work'), 'Uni')
+    await userEvent.click(page.getByTestId('account-rename-save-work'))
+    await until(() => el('account-work')?.querySelector('.account-label')?.textContent === 'Uni')
+    expect([...(el('account-default-select') as HTMLSelectElement).options].map((o) => o.text)).toEqual(['Personal', 'Uni'])
+    await userEvent.click(page.getByTestId('account-rename-work'))
+    await userEvent.fill(page.getByTestId('account-rename-input-work'), 'Nope')
+    await userEvent.keyboard('{Escape}')
+    await until(() => el('account-rename-input-work') === null)
+    expect(fake.callsTo('accountsRename')).toEqual([['main', 'Personal'], ['work', 'Uni']])
+    expect(el('settings-dialog')).not.toBeNull()
+  })
+
   it('main has no Remove', async () => {
     await openAccounts()
     expect(el('account-login-main')).not.toBeNull()

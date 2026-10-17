@@ -186,6 +186,10 @@
 /* Giving way as the pane narrows, in this order: the hint (below; its words are in Send's title), the
    "Model" label, the mode button's text (its name stays in the title and aria-label), then the
    model chip's text truncates. The row never wraps, so Send stays on it at the right. */
+/* The account pill shrinks first, ending in an ellipsis (its name is in its title), and goes in a
+   narrow pane: the tab's tooltip and the "/" menu still say which account it is. */
+.composer-actions > .chat-account-pill { flex: 0 1 auto; min-width: 3em; }
+@container (max-width: 480px) { .composer-actions > .chat-account-pill { display: none; } }
 @container (max-width: 440px) { .composer-model > span { display: none; } }
 @container (max-width: 400px) { .chat-mode-button > span { display: none; } }
 /* Then the model chip shrinks, its name ending in an ellipsis (the full name is in its title), but
@@ -751,5 +755,9 @@ button.folder-crumb:hover:not(:disabled) { background: var(--selected); color: v
 .account-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); flex-shrink: 0; }
 .account-add { display: flex; flex-direction: column; gap: var(--space-xs); width: 100%; }
 .account-add-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-ml); }
+/* While an account is renamed its row is the name field and its two buttons, across the whole row. */
+.account-who:has(.account-rename) { flex: 1; }
+.account-rename { flex-wrap: nowrap; }
+.account-rename .account-add-input { flex: 1; min-width: 0; }
 /* `.modal .search` gives a dialog's field a bottom margin, which would lift it above its buttons. */
 .account-add-input.search { flex: 1 1 200px; min-width: 0; width: auto; margin-bottom: 0; }

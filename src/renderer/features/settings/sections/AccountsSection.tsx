@@ -4,7 +4,7 @@ import type { AccountId } from '@shared/domain/ids'
 import type { NewSessionInfo } from '@shared/types'
 import { errorMessage } from '@shared/errors'
 import {
-  addAccount, removeAccount, setDefaultAccount, startAccountLogin, useAccounts,
+  addAccount, removeAccount, renameAccount, setDefaultAccount, startAccountLogin, useAccounts,
 } from '../../../state/accountsStore'
 import { ErrorBoundary } from '../../../ui/ErrorBoundary'
 import { Modal } from '../../../ui/Modal'
@@ -39,6 +39,31 @@ function RemoveDialog({ label, onCancel, onConfirm }: { label: string; onCancel:
   )
 }
 
+/** An account's name as an input, saved with Enter or Rename and dropped with Escape or Cancel. */
+function RenameLine({ account, onSave, onCancel }: { account: AccountInfo; onSave: (label: string) => void; onCancel: () => void }): JSX.Element {
+  const [label, setLabel] = useState(account.label)
+  const save = (): void => { if (label.trim() !== '') onSave(label.trim()) }
+  return (
+    <span className="account-add-line account-rename">
+      <input
+        className="search account-add-input"
+        data-testid={`account-rename-input-${account.id}`}
+        aria-label={`New name for ${account.label}`}
+        value={label}
+        maxLength={MAX_LABEL}
+        ref={focusAskedFor}
+        onChange={(e) => { setLabel(e.target.value) }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); save() }
+          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onCancel() }
+        }}
+      />
+      <button className="btn primary small" data-testid={`account-rename-save-${account.id}`} disabled={label.trim() === ''} onClick={save}>Rename</button>
+      <button className="btn small" onClick={onCancel}>Cancel</button>
+    </span>
+  )
+}
+
 /**
  * Settings → Accounts. Changes here are not part of the dialog's draft: main applies each at once
  * and every window hears `accountsChanged`, so an email appears by itself after a login.
@@ -48,6 +73,7 @@ export function AccountsSection({ onLoginStarted }: { onLoginStarted: (info: New
   const { accounts, defaultId } = useAccounts()
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [removing, setRemoving] = useState<AccountInfo | null>(null)
+  const [renaming, setRenaming] = useState<AccountId | null>(null)
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
   const [addError, setAddError] = useState<string | null>(null)
@@ -63,6 +89,11 @@ export function AccountsSection({ onLoginStarted }: { onLoginStarted: (info: New
     setRemoving(null)
     clear(a.id)
     try { await removeAccount(a.id) } catch (e) { fail(a.id, e) }
+  }
+  const rename = async (id: AccountId, label: string): Promise<void> => {
+    setRenaming(null)
+    clear(id)
+    try { await renameAccount(id, label) } catch (e) { fail(id, e) }
   }
   const add = async (): Promise<void> => {
     const label = name.trim()
@@ -83,15 +114,18 @@ export function AccountsSection({ onLoginStarted }: { onLoginStarted: (info: New
         <div className="settings-row settings-row-stacked account-row" key={a.id} data-testid={`account-${a.id}`}>
           <div className="account-line">
             <span className="account-who">
-              <strong className="account-label">{a.label}</strong>
+              {renaming === a.id
+                ? <RenameLine account={a} onSave={(label) => { void rename(a.id, label) }} onCancel={() => { setRenaming(null) }} />
+                : <strong className="account-label">{a.label}</strong>}
               <span className="settings-help account-detail">{detail(a)}</span>
             </span>
-            <span className="account-actions">
+            {renaming !== a.id && <span className="account-actions">
+              <button className="btn quiet small" data-testid={`account-rename-${a.id}`} onClick={() => { setRenaming(a.id) }}>Rename</button>
               <button className="btn quiet small" data-testid={`account-login-${a.id}`} onClick={() => { void login(a.id) }}>Log in</button>
               {!a.isMain && (
                 <button className="btn quiet small danger" data-testid={`account-remove-${a.id}`} onClick={() => { setRemoving(a) }}>Remove…</button>
               )}
-            </span>
+            </span>}
           </div>
           {(errors[a.id] ?? '') !== '' && (
             <span className="settings-help remote-pairing-error" role="alert" data-testid={`account-error-${a.id}`}>{errors[a.id]}</span>

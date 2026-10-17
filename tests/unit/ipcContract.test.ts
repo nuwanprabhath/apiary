@@ -98,6 +98,7 @@ describe('the IPC contract', () => {
       libraryStateChanged: 'apiary:library-state-changed',
       accountsList: 'apiary:accounts-list',
       accountsAdd: 'apiary:accounts-add',
+      accountsRename: 'apiary:accounts-rename',
       accountsRemove: 'apiary:accounts-remove',
       accountsSetDefault: 'apiary:accounts-set-default',
       sessionAccountGet: 'apiary:session-account-get',

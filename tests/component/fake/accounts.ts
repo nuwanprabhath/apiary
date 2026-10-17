@@ -1,6 +1,6 @@
 /**
  * Claude accounts in the fake, modelled on `AccountService` (src/main/accounts): `main` is always
- * there and cannot be removed, an id is the label's slug made unique, removing the default falls
+ * there and cannot be removed, an id is the label's slug made unique, renaming keeps the id, removing the default falls
  * back to `main`, a session with no recorded account (or a removed one) runs under the default,
  * and every change tells every window with `accountsChanged`. The contract
  * (`tests/contract/clauses/accounts.ts`) pins it.
@@ -11,7 +11,7 @@ import { asAccountId, asSessionId, type AccountId, type SessionId } from '@share
 import type { Env } from './state'
 
 type AccountsApi = Pick<ApiaryApi,
-  'accountsList' | 'accountsAdd' | 'accountsRemove' | 'accountsSetDefault' | 'sessionAccountGet'
+  'accountsList' | 'accountsAdd' | 'accountsRename' | 'accountsRemove' | 'accountsSetDefault' | 'sessionAccountGet'
   | 'accountsLogin' | 'sessionAccountSwitch' | 'sessionAccountsList'>
 
 const FAKE_HOME = '/fixture'
@@ -42,6 +42,10 @@ export function accountsApi(env: Env): AccountsApi {
       const id = asAccountId(accountSlug(label, new Set(state.accounts.accounts.map((a) => a.id))))
       set({ ...state.accounts, accounts: [...state.accounts.accounts, { id, label: label.trim(), email: null, isMain: false }] })
       return id
+    },
+    accountsRename: async (id, label) => {
+      if (!state.accounts.accounts.some((a) => a.id === id)) throw new Error(`Unknown account ${id}`)
+      set({ ...state.accounts, accounts: state.accounts.accounts.map((a) => (a.id === id ? { ...a, label: label.trim() } : a)) })
     },
     accountsRemove: async (id) => {
       if (id === MAIN_ACCOUNT_ID) throw new Error('The main account cannot be removed')

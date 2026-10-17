@@ -175,6 +175,7 @@ export const CHANNEL_SCOPES = {
   accountsList: 'remote',
   sessionAccountGet: 'remote',
   accountsAdd: 'local',
+  accountsRename: 'local',
   accountsRemove: 'local',
   accountsSetDefault: 'local',
   accountsChanged: 'remote',

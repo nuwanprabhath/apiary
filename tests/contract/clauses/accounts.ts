@@ -5,7 +5,7 @@ import { isPendingPtyId } from '@shared/domain/ptyId'
 import { STANDARD_SESSIONS as STD } from '../../fixtures/standard'
 import { LONG_SESSION, skipOnRemote, type Ctx } from '../support'
 
-const LOCAL_ONLY = 'add, remove and the default act on the machine the window runs on, which the loopback does not model'
+const LOCAL_ONLY = 'add, rename, remove and the default act on the machine the window runs on, which the loopback does not model'
 
 export function defineAccountsClauses(ctx: Ctx): void {
   describe('accounts', () => {
@@ -37,6 +37,18 @@ export function defineAccountsClauses(ctx: Ctx): void {
       expect(now.defaultId).toBe(MAIN_ACCOUNT_ID)
       expect(now.accounts.map((a) => a.id)).toEqual([MAIN_ACCOUNT_ID])
       await expect.poll(() => ctx.heard.payloads('accountsChanged').at(-1)?.[0]).toEqual(now)
+    })
+
+    it('a rename changes the label, never the id, main included, and tells every window', async (t) => {
+      skipOnRemote(t, ctx.bridge, LOCAL_ONLY)
+      const id = await ctx.api.accountsAdd('Work')
+      await ctx.api.accountsRename(id, 'Uni')
+      await ctx.api.accountsRename(MAIN_ACCOUNT_ID, 'Personal')
+      const now = await ctx.api.accountsList()
+      expect(now.accounts.map((a) => [a.id, a.label])).toEqual([[MAIN_ACCOUNT_ID, 'Personal'], [id, 'Uni']])
+      await expect.poll(() => ctx.heard.payloads('accountsChanged').at(-1)?.[0]).toEqual(now)
+      await expect(ctx.api.accountsRename(id, '   ')).rejects.toThrow()
+      await expect(ctx.api.accountsRename(asAccountId('ghost'), 'X')).rejects.toThrow()
     })
 
     it('main cannot be removed, and an unknown account cannot be the default', async (t) => {

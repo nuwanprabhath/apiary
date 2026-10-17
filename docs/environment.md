@@ -51,7 +51,7 @@ or a stand-in binary, and none of them must be usable to redirect a real install
 | `themes.json` | `main/theme/` (`ThemeStore`) |
 | `pets.json` | `main/pets/` (`PetStore`) — whether pets are on, every installed pet, where it stands and the number of the window it is out in (`window`; absent before 1.41, read as unassigned) |
 | `library-state.json` | `main/library/libraryStateService.ts` — the sessions library's arrangement (pins, groups, folder order, Recent dismissals) and reading preferences (each chat's settings, hide tool calls), mirrored to remote windows; see [library-state](architecture/library-state.md) |
-| `accounts.json` | `main/accounts/accountService.ts` — the added Claude accounts (id, label) and the default one; emails are read from each account's `.claude.json`, never stored |
+| `accounts.json` | `main/accounts/accountService.ts` — the added Claude accounts (id, label), the main account's name if renamed, and the default one; emails are read from each account's `.claude.json`, never stored |
 | `accounts/<id>/` | `main/accounts/accountFolder.ts` — an added account's `CLAUDE_CONFIG_DIR`: its own login, `.claude.json` and `sessions/`, with symlinks back to the main config root for transcripts, history, settings and extensions ([ADR-0020](adr/0020-per-session-accounts-are-linked-config-folders.md)) |
 | `prompt-shim/zsh` | `main/pty/promptPath.ts` (written at startup) |
 | `pasted-images/` | `main/` `ImageStore` (chat image attachments) |

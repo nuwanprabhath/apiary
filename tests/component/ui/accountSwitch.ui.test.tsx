@@ -8,15 +8,16 @@ import { sidebarSession, until } from '../helpers'
 import type { FakeApiary } from '../fakeApiary'
 import { reviewUi } from './review'
 
-/** Switching a session's account: the "/" menu row and list, the tab submenu, the busy question, the status line. */
+/** Switching a session's account: the "/" menu row and list, the tab submenu, the busy question, the pill in the message box bar, the waiting line. */
 const WORK = asAccountId('work')
 const TITLE = 'Fix CSV export bug'
 const WIDTHS = { widths: [1000] as [1000] }
 
 const exists = (testId: string): boolean => document.querySelector(`[data-testid="${testId}"]`) !== null
 
-async function openChat(): Promise<{ fake: FakeApiary; id: string }> {
+async function openChat(onWork = false): Promise<{ fake: FakeApiary; id: string }> {
   const { fake } = await renderApp({ settings: { transcriptChat: true } }, (f) => {
+    if (onWork) f.state.sessionAccounts.set(f.state.sessions.find((s) => s.title === TITLE)?.sessionId ?? '', WORK)
     f.state.accounts = {
       accounts: [
         { id: MAIN_ACCOUNT_ID, label: 'Main', email: 'someone.with.a.long.address@example.test', isMain: true },
@@ -94,9 +95,13 @@ describe('UI: switching an account', () => {
     await reviewUi('busy question', { ...WIDTHS, open: async () => { await until(() => exists('account-switch-prompt')) } })
   })
 
-  it('account pill and waiting line', async () => {
+  it('account pill in the message box bar', async () => {
+    await openChat(true)
+    await reviewUi('account pill in the message box bar', { ...WIDTHS, open: async () => { await until(() => exists('chat-account-pill')) } })
+  })
+
+  it('waiting line', async () => {
     const { fake, id } = await openChat()
-    await reviewUi('account pill in the status line', { ...WIDTHS, open: async () => { await until(() => exists('chat-status-account')) } })
     busy(fake, id)
     await userEvent.click(page.getByTestId('composer-commands'))
     await userEvent.click(page.getByTestId('composer-action-option').first())

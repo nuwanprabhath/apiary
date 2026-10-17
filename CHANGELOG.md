@@ -4,6 +4,20 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.3] - 2026-10-17
+
+### Added
+
+- **Accounts can be renamed**, the main one included: Settings → Accounts → Rename. The new name
+  shows everywhere the account does (the `/` menu, the tab's tooltip, the status bar's usage).
+
+### Changed
+
+- **The account a chat runs under shows only when it is not the default one**, as a small label in
+  the message box's bottom bar beside the model. Before, every chat showed its account ("Main")
+  above the message box as soon as a second account was added. Hover it for the account's login.
+  It gives way in a narrow pane.
+
 ## [1.46.2] - 2026-10-17
 
 ### Added
