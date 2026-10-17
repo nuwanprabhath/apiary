@@ -4,6 +4,105 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.2] - 2026-10-17
+
+### Added
+
+- **A second README picture shows remote access.** `npm run screenshot:remote` connects this
+  machine's Apiary to the Docker test bed over real SSH and photographs the work machine's window:
+  its sessions, a live chat and the `/` command menu. It needs Docker.
+
+## [1.46.1] - 2026-10-17
+
+### Fixed
+
+- **A chat no longer shows old messages below the newest ones.** In a session that had run as a chat,
+  a window opened later (a reload, a remote window, or a new window) could show the newest messages
+  and then, below them, a block of messages from hours earlier, so the latest replies seemed missing
+  until you scrolled up. Messages appeared and then seemed to vanish. The chat keeps its newest 200
+  messages, while a window first reads only the newest page of the session file; messages from
+  before that page were added at the end. Now only messages newer than what the window shows are
+  added. Found from a real session on Ubuntu: its newest page started at 9:57 and the misplaced block
+  was 9:40 to 9:47.
+
+## [1.46.0] - 2026-10-17
+
+### Changed
+
+- **Long sessions no longer keep growing Apiary's memory.** A transcript following the newest messages
+  now holds the latest 500 to 600 of them; older ones drop out of the window and load back from the
+  session file when you scroll up, by themselves as you near the top ("Load earlier messages" is still
+  there). Each message held cost about 53 KB of the window's memory, so an agent writing for hours used
+  to add hundreds of MB per pane. Nothing is dropped while you are reading further up or searching.
+- **A session that is being written refreshes with only what is new.** Each change to a session file
+  used to re-read and re-send the newest 200 messages to every pane showing it (about 650 KB a second
+  with six agents); it now reads only the lines after the last one shown.
+
+### Added
+
+- The load benchmark samples each window's JS heap and DOM nodes, counts invoke replies, and runs
+  without Playwright tracing (its screenshots filled the temp folder on long runs).
+
+## [1.45.1] - 2026-10-17
+
+### Fixed
+
+- **The load benchmark's typing times no longer drift with the clock.** A key's time was taken from
+  the window's page-load clock and compared with the test's wall clock; a wall clock adjusted
+  mid-run (25 ms, in a container) skewed every later key. Keys are now stamped with the wall clock
+  when the window handles them. `docs/perf/2026-10-17-load-benchmark.md` has the before-and-after
+  numbers for 1.44.3–1.45.0: with six agents on Linux drawing in software, typing p95 92 → 23 ms.
+
+## [1.45.0] - 2026-10-17
+
+### Added
+
+- **Animations: Automatic, Full or Reduced** (Settings → Themes). Automatic, the default, stops the
+  animations that never end (the spinning ring on a running session, the working line's glyph, the
+  pulses on tool calls, moving theme effects) when your system asks for less motion, or when
+  Apiary is drawing without the graphics card. There they recomposited the whole window on the
+  processor every frame, and with six agents running that alone kept typing behind. A running
+  session still shows a still three-quarter ring, so it reads as running without moving. On a
+  machine whose graphics card is in use nothing changes. Full and Reduced choose for you.
+
+## [1.44.4] - 2026-10-17
+
+### Changed
+
+- **Typing in the message box no longer measures the whole window on every key.** The box now
+  grows with its text by itself (up to 40% of the window, then scrolls), where before each key
+  forced a layout of everything on screen, streamed replies included. Dragging its top edge and
+  double-clicking to fit work as before.
+- **A chat update redraws only what changed.** Rows of the conversation draw again only when their
+  own content changes, not on every streamed word; the reply being written parses only its last
+  paragraph; and following the newest text measures the window once per frame instead of once per
+  update.
+
+## [1.44.3] - 2026-10-17
+
+### Changed
+
+- **Chat updates are a fraction of the size, and arrive about 8 times a second instead of 25.**
+  A streaming chat used to send its whole state to the window on every update, including the last
+  200 messages with full tool results: 160–340 KB each time, several MB a second with six agents.
+  Now an update carries only what changed (87–90% less), and streamed text reaches the window
+  every 120 ms. A window that opens a chat mid-reply catches up from the next update. Less for the
+  window to parse and draw, so typing keeps up while agents stream.
+
+## [1.44.2] - 2026-10-17
+
+### Added
+
+- **A load benchmark you can rerun.** `npm run bench:load` opens Apiary with six chat sessions in
+  two windows (or any number you set), starts an agent in each, types into a message box and records
+  every process's CPU and memory, the time from each key press to the frame that shows it, dropped
+  frames, IPC and the main process's stalls, with optional CPU profiles and a Chromium trace. Agents
+  are real Haiku sessions, or recordings of them played back with no tokens.
+  `npm run bench:report` compares runs as tables and charts. The findings that started it are in
+  `docs/perf/2026-10-17-load-benchmark.md`: under six agents, typing on a Linux desktop drawing
+  without its GPU lags because of continuous animations and the chat update stream, not the main
+  process.
+
 ## [1.44.1] - 2026-10-16
 
 ### Changed

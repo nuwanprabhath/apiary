@@ -1,10 +1,11 @@
 import type { SessionId } from '@shared/domain/ids'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { TranscriptMessage } from '@shared/types'
 import { mergeLatestPage } from '../../state/transcriptMerge'
+import { windowHeld } from '../../state/transcriptWindow'
 import { treeStore } from '../../state/treeStore'
 import { describeError, type DescribedError } from '../../ui/errors'
-import { loadTranscript } from '../../state/transcript'
+import { loadTranscript, loadTranscriptAfter } from '../../state/transcript'
 import { logBackgroundFailure } from '../../ui/fireAndForget'
 import type { TailRefs } from './useTranscriptScroll'
 
@@ -23,7 +24,12 @@ export interface TranscriptPages {
 
 /** The session's messages: the newest page on open, earlier pages on request, and the newest
  *  page again whenever a session file changes on disk. */
-export function useTranscriptPages(sessionId: SessionId, tail: TailRefs): TranscriptPages {
+export function useTranscriptPages(
+  sessionId: SessionId,
+  tail: TailRefs,
+  /** Whether the find bar is open: while it is, nothing is trimmed. */
+  findOpenRef: RefObject<boolean>,
+): TranscriptPages {
   const { stickToBottomRef, forceScrollRef } = tail
   const [messages, setMessages] = useState<TranscriptMessage[]>([])
   const [cursor, setCursor] = useState<number | null>(null)
@@ -47,6 +53,17 @@ export function useTranscriptPages(sessionId: SessionId, tail: TailRefs): Transc
   const loadingRef = useRef(true)
   // `onTreeChanged` can fire again before a slow `transcript()` call resolves; no overlapping refreshes.
   const refreshingRef = useRef(false)
+  // Mirror `messages` and `cursor` for the async handlers, which must read what is held now.
+  const messagesRef = useRef<TranscriptMessage[]>([])
+  const cursorRef = useRef<number | null>(null)
+  // The scroll height before an earlier page landed on a container scrolled to its top, or null.
+  const topAnchorRef = useRef<number | null>(null)
+  const commit = useCallback((next: TranscriptMessage[], nextCursor: number | null) => {
+    messagesRef.current = next
+    cursorRef.current = nextCursor
+    setMessages(next)
+    setCursor(nextCursor)
+  }, [])
 
   useEffect(() => {
     generationRef.current += 1
@@ -59,20 +76,19 @@ export function useTranscriptPages(sessionId: SessionId, tail: TailRefs): Transc
     setLoading(true)
     loadingRef.current = true
     setError(null)
-    setMessages([])
+    commit([], null)
     loadTranscript(sessionId)
       .then((page) => {
         if (cancelled) return
-        // Set before `setMessages` so it is armed when the layout effect in useTranscriptScroll runs.
+        // Set before the commit so it is armed when the layout effect in useTranscriptScroll runs.
         forceScrollRef.current = true
-        setMessages(page.messages)
-        setCursor(page.earlierCursor)
+        commit(page.messages, page.earlierCursor)
         setSkipped(page.skippedLines)
       })
       .catch((e: unknown) => { if (!cancelled) setError(describeError(e)) })
       .finally(() => { if (!cancelled) { setLoading(false); loadingRef.current = false } })
     return () => { cancelled = true }
-  }, [sessionId, reloadNonce, stickToBottomRef, forceScrollRef])
+  }, [sessionId, reloadNonce, stickToBottomRef, forceScrollRef, commit])
 
   // `onTreeChanged` (debounced ~1s in main) carries no per-session payload, so each firing
   // re-fetches this session's latest page and merges it.
@@ -83,21 +99,35 @@ export function useTranscriptPages(sessionId: SessionId, tail: TailRefs): Transc
       // Captured per firing, not at setup, so it reflects the current visit.
       const requestedGeneration = generationRef.current
       refreshingRef.current = true
-      loadTranscript(sessionId)
+      // Only what follows the last held message, when it has a line index to ask after.
+      const lastIndex = messagesRef.current.at(-1)?.index
+      ;(lastIndex === undefined ? loadTranscript(sessionId) : loadTranscriptAfter(sessionId, lastIndex))
         .then((page) => {
           if (generationRef.current !== requestedGeneration) return
+          if (page.messages.length === 0) return
           // Decided before merging: appending does not move the scroll position, so this still
           // reflects whether they were reading history or watching the tail.
-          if (stickToBottomRef.current) forceScrollRef.current = true
-          setMessages((prev) => mergeLatestPage(prev, page.messages))
-          // `cursor`/`skipped` stay: a tail-only refresh does not know the earlier boundary.
+          const following = stickToBottomRef.current
+          if (following) forceScrollRef.current = true
+          const trimmable = following && !findOpenRef.current
+          // A burst of more than a page: the newest page does not join what is held, so while
+          // following it replaces it, and the held messages load back through the new cursor.
+          if (trimmable && page.earlierCursor !== null) {
+            commit(page.messages, page.earlierCursor)
+            return
+          }
+          const merged = mergeLatestPage(messagesRef.current, page.messages)
+          if (merged === messagesRef.current) return
+          const held = trimmable ? windowHeld(merged, cursorRef.current) : { messages: merged, cursor: cursorRef.current }
+          commit(held.messages, held.cursor)
+          // `skipped` stays: a tail-only refresh does not know the earlier boundary.
         })
         // A transient read error mid-write is logged, not shown: the next tree change retries.
         .catch((e: unknown) => { logBackgroundFailure(e, 'refresh') })
         .finally(() => { refreshingRef.current = false })
     })
     return unsubscribe
-  }, [sessionId, stickToBottomRef, forceScrollRef])
+  }, [sessionId, stickToBottomRef, forceScrollRef, findOpenRef, commit])
 
   const loadEarlier = useCallback(() => {
     if (cursor === null || loadingEarlierRef.current) return
@@ -107,8 +137,11 @@ export function useTranscriptPages(sessionId: SessionId, tail: TailRefs): Transc
     void loadTranscript(sessionId, cursor)
       .then((page) => {
         if (generationRef.current !== requestedGeneration) return
-        setMessages((prev) => [...page.messages, ...prev])
-        setCursor(page.earlierCursor)
+        // Chromium does not scroll-anchor a container at its very top, so a prepend there would
+        // leave the reader at the new first row; remember the height to restore the offset.
+        const el = tail.containerRef.current
+        if (el !== null && el.scrollTop === 0) topAnchorRef.current = el.scrollHeight
+        commit([...page.messages, ...messagesRef.current], page.earlierCursor)
         setSkipped((prev) => prev + page.skippedLines)
       })
       .catch((e: unknown) => {
@@ -120,7 +153,14 @@ export function useTranscriptPages(sessionId: SessionId, tail: TailRefs): Transc
         loadingEarlierRef.current = false
         setLoadingEarlier(false)
       })
-  }, [cursor, sessionId])
+  }, [cursor, sessionId, commit, tail.containerRef])
+
+  useLayoutEffect(() => {
+    const before = topAnchorRef.current
+    const el = tail.containerRef.current
+    topAnchorRef.current = null
+    if (before !== null && el !== null) el.scrollTop = el.scrollHeight - before
+  }, [messages, tail.containerRef])
 
   const retry = useCallback(() => { setReloadNonce((n) => n + 1) }, [])
   return { messages, cursor, skipped, error, loading, loadingEarlier, loadEarlier, retry }

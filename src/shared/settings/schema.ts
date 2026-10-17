@@ -37,6 +37,10 @@ export interface SettingDef<T> {
 }
 
 const setting = <T>(def: SettingDef<T>): SettingDef<T> => def
+export type MotionSetting = 'auto' | 'full' | 'reduced'
+const MOTION_SETTINGS: readonly MotionSetting[] = ['auto', 'full', 'reduced']
+const isMotionSetting: Guard<MotionSetting> = (v): v is MotionSetting => MOTION_SETTINGS.some((m) => m === v)
+
 const flag = (def: boolean) => setting<boolean>({ guard: bool, default: def })
 
 const clampToRange = (min: number, max: number) => (n: number): number => clamp(Math.round(n), min, max)
@@ -161,6 +165,11 @@ export const SETTINGS = {
   logMaxSizeMb: int(20, 1, 500),
   /** Spellcheck language code (e.g. 'fr-FR'), or 'system' to follow the system language. */
   proofingLanguage: setting<string>({ guard: str, default: 'system' }),
+  /**
+   * Continuous animations in the chrome. `auto` turns them off when the system asks for less motion
+   * or Apiary composites without the GPU; `full` and `reduced` are the person's explicit choice.
+   */
+  motion: setting<MotionSetting>({ guard: isMotionSetting, default: 'auto' }),
 }
 
 export type SettingKey = keyof typeof SETTINGS

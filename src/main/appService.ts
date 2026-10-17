@@ -131,6 +131,10 @@ export class AppService {
     return this.transcripts.page(sessionId, beforeIndex)
   }
 
+  async transcriptAfter(sessionId: string, afterIndex: number): Promise<TranscriptPage> {
+    return this.transcripts.after(sessionId, afterIndex)
+  }
+
   /** The end of a background task's output; see `TranscriptService.backgroundTaskOutput`. */
   async backgroundTaskOutput(sessionId: string, taskId: string): Promise<BackgroundTaskOutput> {
     return this.transcripts.backgroundTaskOutput(sessionId, taskId)

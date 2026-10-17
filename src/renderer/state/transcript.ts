@@ -7,6 +7,9 @@ import { bestEffort } from './policy'
 export const loadTranscript = (sessionId: SessionId, beforeIndex?: number): Promise<TranscriptPage> =>
   window.apiary.transcript(sessionId, beforeIndex)
 
+export const loadTranscriptAfter = (sessionId: SessionId, afterIndex: number): Promise<TranscriptPage> =>
+  window.apiary.transcriptAfter(sessionId, afterIndex)
+
 /** The end of a background task's output, for the task popup; a failed read is "not available"
  *  there, never a toast. */
 export const loadTaskOutput = async (sessionId: SessionId, taskId: string): Promise<BackgroundTaskOutput> =>

@@ -49,11 +49,23 @@ function synthetic(text: string): { kind: 'notice'; text: string; status: string
   return null
 }
 
-/** `persisted` (read from the file) followed by whichever `live` messages it does not have yet. */
+/**
+ * `persisted` (read from the file) followed by the `live` messages that are newer than it and it does
+ * not have yet. `live` keeps a chat's newest 200 messages of the whole run, while `persisted` may hold
+ * only the file's newest page (a window opened later, or one that trimmed its oldest): live messages
+ * from before that page must not be appended, or they show below the newest ones. So only what follows
+ * the last live message the file part has is new; with none in common, only live messages no older
+ * than the file part's newest.
+ */
 export function mergeLive(persisted: TranscriptMessage[], live: TranscriptMessage[]): TranscriptMessage[] {
   if (live.length === 0) return persisted
   const seen = new Set(persisted.map((m) => m.uuid))
-  const fresh = live.filter((m) => !seen.has(m.uuid))
+  let anchor = -1
+  for (let i = live.length - 1; i >= 0; i--) if (seen.has(live[i].uuid)) { anchor = i; break }
+  const newest = persisted.reduce<number | null>((t, m) => (m.timestampMs !== null && (t === null || m.timestampMs > t) ? m.timestampMs : t), null)
+  const fresh = anchor >= 0
+    ? live.slice(anchor + 1).filter((m) => !seen.has(m.uuid))
+    : live.filter((m) => !seen.has(m.uuid) && (newest === null || m.timestampMs === null || m.timestampMs >= newest))
   return fresh.length === 0 ? persisted : [...persisted, ...fresh]
 }
 

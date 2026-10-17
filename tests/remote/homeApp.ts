@@ -14,12 +14,12 @@ export interface HomeApp {
  * the screen), `APIARY_SSH_CONFIG` pointing at the bed. Mirrors `launchApiary` in tests/e2e/helpers.ts,
  * which imports Playwright's test runner and so cannot be loaded under Vitest.
  */
-export async function launchHome(root: string, sshConfig: string): Promise<HomeApp> {
+export async function launchHome(root: string, sshConfig: string, opts: { headed?: boolean; env?: Record<string, string>; settings?: Record<string, unknown> } = {}): Promise<HomeApp> {
   const home = join(root, 'home')
   const userData = join(home, 'userdata')
   mkdirSync(join(home, 'projects'), { recursive: true })
   mkdirSync(userData, { recursive: true })
-  writeFileSync(join(userData, 'settings.json'), JSON.stringify({ plugins: { 'claude-usage': false } }))
+  writeFileSync(join(userData, 'settings.json'), JSON.stringify({ plugins: { 'claude-usage': false }, ...opts.settings }))
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) {
     if (k !== 'ELECTRON_RUN_AS_NODE' && v !== undefined) env[k] = v
@@ -33,8 +33,9 @@ export async function launchHome(root: string, sshConfig: string): Promise<HomeA
       APIARY_DB_PATH: join(home, 'apiary.db'),
       APIARY_GLAB_PATH: '',
       APIARY_CODE_PATH: '',
-      APIARY_HEADLESS: '1',
+      ...(opts.headed === true ? {} : { APIARY_HEADLESS: '1' }),
       APIARY_SSH_CONFIG: sshConfig,
+      ...opts.env,
     },
   })
   const page = await app.firstWindow()

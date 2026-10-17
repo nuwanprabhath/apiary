@@ -33,8 +33,9 @@ turns its output into one `ChatState` per session (`shared/domain/chat.ts`).
    `chatStartMode` (`auto` unless Claude Code's own settings choose one).
 3. `ChatManager.start` builds the command (`buildChatCommand`) and starts it with `spawnLoginShell`.
 4. `ChatSession` writes the user line to stdin and reads stdout. Streamed text is emitted at most
-   every 40 ms. Every state goes to `ChatService.onChanged`.
-5. `onChanged` sends `chatChanged` only to windows attached to that session, and announces
+   every 120 ms. Every state goes to `ChatService.onChanged`.
+5. `onChanged` sends `chatChanged` (a `ChatPush`: the whole state the first time, then only the
+   fields that changed, with the `seq` they apply onto) only to windows attached to that session, and announces
    `chatLifecycle` to every window when the chat started, moved or ended.
 6. The renderer's `chatStore` applies the push to that session's key. Only that session's readers
    re-render.
@@ -44,7 +45,7 @@ only covers the gap until the transcript has read them (`mergeLive` in `shared/c
 
 ## Delivery is per window
 
-A chat streams about 25 pushes a second. Sending that to every window woke every pane.
+A chat streams about 8 pushes a second (one per 120 ms, each carrying only the fields that changed). Sending that to every window woke every pane.
 
 - A renderer sends `chatAttach(sessionId)` when a session's key gets its first reader in
   `chatStore`, and `chatDetach` when the last reader leaves. Attach is sent before the state is read,

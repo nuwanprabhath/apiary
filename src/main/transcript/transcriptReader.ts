@@ -206,6 +206,33 @@ interface IndexedMessage {
   message: TranscriptMessage
 }
 
+/** The messages in a run of whole lines, each with its line index (`firstIndex` is the first line's). */
+function parseMessageLines(text: string, firstIndex: number): { messages: IndexedMessage[]; skippedLines: number } {
+  const messages: IndexedMessage[] = []
+  let skippedLines = 0
+  let lineIndex = firstIndex
+  for (const line of text.split('\n')) {
+    if (line.length === 0) continue
+    if (line.length > MAX_LINE_CHARS) {
+      skippedLines++
+      lineIndex++
+      continue
+    }
+    let entry: Record<string, unknown>
+    try {
+      entry = JSON.parse(line) as Record<string, unknown>
+    } catch {
+      skippedLines++
+      lineIndex++
+      continue
+    }
+    const m = toMessage(entry)
+    if (m) messages.push({ index: lineIndex, message: m })
+    lineIndex++
+  }
+  return { messages, skippedLines }
+}
+
 /** Reads a session's JSONL a page at a time, keeping a line-offset index per file (bounded at `MAX_CACHE_ENTRIES`). */
 export class TranscriptReader {
   /** Invalidated by the file's size and mtime (checked on every read) and by the LRU cap. */
@@ -293,30 +320,9 @@ export class TranscriptReader {
       const nextStart = Math.max(0, end - span)
       const byteStart = nextStart < offsets.length ? offsets[nextStart] : info.size
       const byteEnd = end < offsets.length ? offsets[end] : info.size
-      const text = await readRange(filePath, byteStart, byteEnd)
-
-      windowMessages = []
-      skippedLines = 0
-      let lineIndex = nextStart
-      for (const line of text.split('\n')) {
-        if (line.length === 0) continue
-        if (line.length > MAX_LINE_CHARS) {
-          skippedLines++
-          lineIndex++
-          continue
-        }
-        let entry: Record<string, unknown>
-        try {
-          entry = JSON.parse(line) as Record<string, unknown>
-        } catch {
-          skippedLines++
-          lineIndex++
-          continue
-        }
-        const m = toMessage(entry)
-        if (m) windowMessages.push({ index: lineIndex, message: m })
-        lineIndex++
-      }
+      const parsed = parseMessageLines(await readRange(filePath, byteStart, byteEnd), nextStart)
+      windowMessages = parsed.messages
+      skippedLines = parsed.skippedLines
 
       windowStart = nextStart
       // Strictly more than `limit`: exactly `limit` with windowStart > 0 cannot tell whether earlier messages exist.
@@ -329,9 +335,29 @@ export class TranscriptReader {
     const earlierCursor = overflow > 0 ? page[0].index : null
 
     return {
-      messages: page.map((p) => p.message),
+      messages: page.map((p) => ({ ...p.message, index: p.index })),
       earlierCursor,
       skippedLines,
+    }
+  }
+
+  /**
+   * The messages on lines after `afterIndex`, for a transcript that already holds everything up to
+   * it. More than a page of them (a burst) answers the newest page with `earlierCursor` set, which
+   * the caller appends without an overlap, as the full-page refresh does.
+   */
+  async readTranscriptAfter(filePath: string, afterIndex: number): Promise<TranscriptPage> {
+    const { offsets } = await this.indexTranscript(filePath)
+    const info = await stat(filePath)
+    const first = Number.isSafeInteger(afterIndex) && afterIndex >= 0 ? afterIndex + 1 : 0
+    if (first >= offsets.length) return { messages: [], earlierCursor: null, skippedLines: 0 }
+    const parsed = parseMessageLines(await readRange(filePath, offsets[first], info.size), first)
+    const overflow = Math.max(0, parsed.messages.length - DEFAULT_LIMIT)
+    const page = parsed.messages.slice(overflow)
+    return {
+      messages: page.map((p) => ({ ...p.message, index: p.index })),
+      earlierCursor: overflow > 0 ? page[0].index : null,
+      skippedLines: parsed.skippedLines,
     }
   }
 }

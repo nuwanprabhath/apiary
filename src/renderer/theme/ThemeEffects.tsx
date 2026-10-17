@@ -19,7 +19,7 @@ const BLUR_PAUSE_MS = 30_000
 
 interface Props {
   effects: EffectSpec[]
-  /** Off (or the OS asking for reduced motion) draws a still frame. */
+  /** Off (or reduced motion in effect, `state/motion.ts`) draws a still frame. */
   animated: boolean
   /** 0–1. */
   intensity: number
@@ -49,7 +49,6 @@ export function ThemeEffects({ effects, animated, intensity, glass = null, lowPo
 
   useEffect(() => {
     if (canvasEffects.length === 0) return
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
     let colors = new Map<string, string>()
     const readColors = (): void => {
       const css = getComputedStyle(document.documentElement)
@@ -98,7 +97,7 @@ export function ThemeEffects({ effects, animated, intensity, glass = null, lowPo
     let raf: number | null = null
     let last = 0
     let blurredAt: number | null = document.hasFocus() ? null : performance.now()
-    const moving = (): boolean => animated && !reducedMotion.matches
+    const moving = (): boolean => animated
     const tick = (now: number): void => {
       raf = null
       if (document.hidden) return
@@ -127,7 +126,6 @@ export function ThemeEffects({ effects, animated, intensity, glass = null, lowPo
     window.addEventListener('blur', onBlur)
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener(THEME_CHANGE_EVENT, onTheme)
-    reducedMotion.addEventListener('change', start)
     return () => {
       if (raf !== null) cancelAnimationFrame(raf)
       window.removeEventListener('resize', start)
@@ -135,7 +133,6 @@ export function ThemeEffects({ effects, animated, intensity, glass = null, lowPo
       window.removeEventListener('blur', onBlur)
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener(THEME_CHANGE_EVENT, onTheme)
-      reducedMotion.removeEventListener('change', start)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `signature` stands in for the effects array, a new object every render
   }, [signature, animated, intensity, glass?.blur, glass?.saturation, lowPower])

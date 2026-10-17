@@ -227,9 +227,7 @@
   box-shadow: 0 0 var(--status-spinner-glow) color-mix(in sRGB, var(--status-running) 40%, transparent);
   animation: status-spin var(--status-spinner-duration) linear infinite;
 }
-@media (prefers-reduced-motion: reduce) {
-  .session-tab-ring { animation: none; border-color: var(--status-running); border-top-color: color-mix(in sRGB, var(--status-running) var(--status-spinner-track), transparent); }
-}
+:root[data-motion="reduced"] .session-tab-ring { animation: none; border-color: var(--status-running); border-top-color: color-mix(in sRGB, var(--status-running) var(--status-spinner-track), transparent); }
 /* Six letters of title at the least: the tab's floor (`min-width: min-content` above) is built on it. */
 .session-tab-text { min-width: 6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-tab[data-activity="running"] .session-tab-text { color: var(--status-running); }
@@ -459,9 +457,6 @@ button.activity-indicator:focus-visible { outline: none; box-shadow: var(--focus
 .activity-more { flex: none; }
 .activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--control-gap); }
 .activity-row { display: flex; align-items: center; gap: var(--control-gap); white-space: nowrap; }
-@media (prefers-reduced-motion: reduce) {
-  .activity-indicator .spinner, .activity-row .spinner { animation: none; }
-}
 
 .status-item {
   display: inline-flex;
@@ -485,9 +480,9 @@ button.activity-indicator:focus-visible { outline: none; box-shadow: var(--focus
 .status-item[data-tone="danger"] { background: var(--danger); color: var(--accent-contrast); }
 .status-item[data-stale="true"] .status-item-text { opacity: 0.75; }
 
-@media (prefers-reduced-motion: reduce) {
-  .status-item .spinner { animation: none; }
-}
+:root[data-motion="reduced"] .activity-indicator .spinner,
+:root[data-motion="reduced"] .activity-row .spinner,
+:root[data-motion="reduced"] .status-item .spinner { animation: none; }
 
 /* The hover detail: solid, like every floating surface (see src/renderer/CLAUDE.md). */
 .status-hover {

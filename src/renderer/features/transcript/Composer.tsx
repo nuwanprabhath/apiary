@@ -97,7 +97,7 @@ export function Composer({
   const { collapsed, inputId } = fold
   // Sees Up/Down/Enter/Escape first.
   const menuKeys = useRef<((e: KeyboardEvent) => boolean) | null>(null)
-  const { dragging, separatorProps, fitAgain } = useComposerHeight(textareaRef, text, !collapsed)
+  const { dragging, boxStyle, separatorProps, fitAgain } = useComposerHeight(textareaRef)
   const { attachments, addImages, removeImage, clear } = useImageAttachments()
   const choices = useChatChoices(chat, chatRunning, session.sessionId)
   const history = useSentHistory(session.sessionId, setText)
@@ -139,7 +139,7 @@ export function Composer({
         id={inputId}
         className="composer-input"
         data-testid="composer-input"
-        rows={3}
+        style={boxStyle}
         placeholder={
           !session.cwdExists
             ? 'This session’s folder no longer exists'

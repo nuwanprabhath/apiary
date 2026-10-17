@@ -283,9 +283,7 @@
 }
 .chat-question-other:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 
-@media (prefers-reduced-motion: reduce) {
-  .chat-tool[data-status="pending"] .chat-dot { animation: none; }
-}
+:root[data-motion="reduced"] .chat-tool[data-status="pending"] .chat-dot { animation: none; }
 
 /* The message box's model button and its menu (ModelPicker.tsx), after the extension's. */
 .chat-model { position: relative; }
@@ -632,9 +630,7 @@
   from { opacity: 0.9; transform: scale(1); }
   to { opacity: 0; transform: scale(2.6); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .chat-status-pulse::after { animation: none; opacity: 0; }
-}
+:root[data-motion="reduced"] .chat-status-pulse::after { animation: none; opacity: 0; }
 
 /* "Jump to the latest", while you read further up and more is arriving (Transcript). */
 .chat-jump {

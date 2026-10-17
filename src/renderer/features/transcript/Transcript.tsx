@@ -1,4 +1,4 @@
-import { type JSX, useState } from 'react'
+import { type JSX, useEffect, useRef, useState } from 'react'
 import type { SessionNode } from '@shared/types'
 import type { ChatDecision, ChatState } from '@shared/domain/chat'
 import { ChatTimeline, ChatStatus, useCopyOnSelect } from '../chat'
@@ -7,6 +7,7 @@ import { FileMentionsProvider } from '../../ui/message/FileMentions'
 import { FindBar } from './FindBar'
 import { TranscriptError } from './TranscriptError'
 import { useTranscriptFind } from './useTranscriptFind'
+import { useLoadEarlierOnScroll } from './useLoadEarlierOnScroll'
 import { useTranscriptPages } from './useTranscriptPages'
 import { useTailRefs, useTranscriptScroll } from './useTranscriptScroll'
 import { useTranscriptView } from './transcriptView'
@@ -35,8 +36,11 @@ export function Transcript({
 }: TranscriptProps): JSX.Element {
   const [showSidechain, setShowSidechain] = useState(false)
   const tail = useTailRefs()
-  const pages = useTranscriptPages(session.sessionId, tail)
+  // Set from the find bar below; read when messages arrive, to leave history alone while searching.
+  const findOpenRef = useRef(false)
+  const pages = useTranscriptPages(session.sessionId, tail, findOpenRef)
   const { messages, cursor, skipped, loading, loadingEarlier, loadEarlier } = pages
+  const sentinelRef = useLoadEarlierOnScroll({ containerRef: tail.containerRef, cursor, loadingEarlier, loadEarlier })
   const scroll = useTranscriptScroll({ tail, messages, visible, chatMode, chat })
   const { onContextMenu, menu: copyMenu } = useCopyOnSelect(tail.containerRef)
   const { visibleMessages, items, queued, status } = useTranscriptView({
@@ -45,6 +49,8 @@ export function Transcript({
   const find = useTranscriptFind({
     containerRef: tail.containerRef, visible, sessionId: session.sessionId, contentKey: visibleMessages, hasEarlier: cursor !== null, loadEarlier,
   })
+
+  useEffect(() => { findOpenRef.current = find.open }, [find.open])
 
   if (pages.error !== null) return <TranscriptError error={pages.error} onRetry={pages.retry} />
 
@@ -78,6 +84,7 @@ export function Transcript({
         )}
       </div>
 
+      {cursor !== null && <div ref={sentinelRef} data-testid="load-earlier-sentinel" aria-hidden="true" />}
       {cursor !== null && (
         <button
           className="load-earlier"

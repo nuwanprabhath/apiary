@@ -19,6 +19,8 @@ export interface TranscriptMessage {
   timestampMs: number | null
   isSidechain: boolean
   blocks: TranscriptBlock[]
+  /** The message's line index in the session file; absent on a message not read from it (chat's live ones). */
+  index?: number
 }
 
 export interface TranscriptPage {

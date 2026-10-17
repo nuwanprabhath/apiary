@@ -23,15 +23,17 @@ afterEach(async () => {
   dir = null
 })
 
-function start(): { states: ChatState[]; until: (pred: (s: ChatState) => boolean) => Promise<ChatState> } {
+function start(): { states: ChatState[]; stamps: number[]; until: (pred: (s: ChatState) => boolean) => Promise<ChatState> } {
   dir = mkdtempSync(join(tmpdir(), 'apiary-chat-'))
   const states: ChatState[] = []
+  const stamps: number[] = []
   const waiters: { pred: (s: ChatState) => boolean; resolve: (s: ChatState) => void }[] = []
   manager = new ChatManager({
     claudeBin: () => FAKE,
     accounts: stubAccounts(),
     onChange: (s) => {
       states.push(s)
+      stamps.push(Date.now())
       for (const w of [...waiters]) if (w.pred(s)) { waiters.splice(waiters.indexOf(w), 1); w.resolve(s) }
     },
   })
@@ -41,18 +43,36 @@ function start(): { states: ChatState[]; until: (pred: (s: ChatState) => boolean
     if (last !== undefined && pred(last)) return Promise.resolve(last)
     return new Promise((r) => waiters.push({ pred, resolve: r }))
   }
-  return { states, until }
+  return { states, stamps, until }
 }
 
 const textOf = (s: ChatState): string[] =>
   s.live.flatMap((m) => m.blocks).map((b) => (b.type === 'text' ? b.text : b.type === 'tool_result' ? b.content : ''))
 
 describe('ChatManager', () => {
+  it('emits streamed text at most every ~120 ms, and the text arrives intact', async () => {
+    const { states, stamps, until } = start()
+    manager!.send(SESSION, 'slow')
+    const reached = await until((s) => (s.streaming?.text ?? '').includes('word30 '))
+    const text = reached.streaming?.text ?? ''
+    expect(text.startsWith('word0 word1 word2 ')).toBe(true)
+    // Between two states that only grew the streamed text, a fresh emit never comes sooner than the interval (less scheduling slack).
+    const gaps: number[] = []
+    for (let i = 1; i < states.length; i++) {
+      const prev = states[i - 1].streaming?.text ?? ''
+      if (prev.length > 0 && states[i].status === states[i - 1].status && (states[i].streaming?.text ?? '').startsWith(prev) && states[i].streaming!.text !== prev) gaps.push(stamps[i] - stamps[i - 1])
+    }
+    expect(gaps.length).toBeGreaterThan(3)
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(100)
+    manager!.interrupt(SESSION)
+  }, 20000)
   it('sends a message and streams the reply into live messages, ending idle', async () => {
     const { states, until } = start()
-    manager!.send(SESSION, 'hello there')
+    // Long enough that the reply is still being written when a 120 ms emit comes round.
+    const message = 'hello there ' + Array.from({ length: 20 }, (_, i) => `w${i}`).join(' ')
+    manager!.send(SESSION, message)
     const done = await until((s) => s.status === 'idle' && s.live.length >= 2)
-    expect(textOf(done)).toEqual(['hello there', 'You said: hello there'])
+    expect(textOf(done)).toEqual([message, `You said: ${message}`])
     expect(done.model).toBe('claude-fake-1')
     expect(done.contextWindow).toBe(200000)
     // The reply was seen being written before it was whole.

@@ -1,4 +1,4 @@
-import { type JSX, useEffect, useState } from 'react'
+import type { JSX } from 'react'
 import type { UpdateStatusPayload } from '@shared/api'
 import { StatusBar } from '../features/statusBar/StatusBar'
 import { PetLayer, petsOut } from '../features/pets/PetLayer'
@@ -9,7 +9,7 @@ import { UpdateBanner } from '../features/update/UpdateBanner'
 import { usePets } from '../state/petsStore'
 import { useActiveTabs } from '../state/activeTabsStore'
 import { remoteHost, type windowChrome } from '../state/windowParams'
-import { readGpuCompositing } from '../state/theme'
+import { useGpuCompositing, useMotionAttribute } from '../state/motion'
 import { ThemeEffects } from '../theme/ThemeEffects'
 import { useAppliedTheme, useThemeState } from '../theme/useTheme'
 import { ErrorBoundary } from '../ui/ErrorBoundary'
@@ -27,12 +27,8 @@ export function ThemeEffectsLayer(): JSX.Element {
   const theme = useThemeState()
   /** What is on screen — a preview included — for the effects layer. */
   const applied = useAppliedTheme()
-  // Assumed until main answers (a moment after start-up); only effects' frame rate depends on it.
-  const [gpuCompositing, setGpuCompositing] = useState(true)
-  useEffect(() => {
-    // A failed probe leaves the assumed default; only the effects' frame rate depends on it.
-    void readGpuCompositing().then((on) => { if (on !== null) setGpuCompositing(on) })
-  }, [])
+  const gpuCompositing = useGpuCompositing()
+  const motion = useMotionAttribute()
   return (
     <ErrorBoundary
       label="The theme effects"
@@ -42,7 +38,7 @@ export function ThemeEffectsLayer(): JSX.Element {
     >
       <ThemeEffects
         effects={applied?.effects ?? []}
-        animated={theme.options.animated}
+        animated={theme.options.animated && motion === 'full'}
         intensity={theme.options.intensity}
         glass={applied?.material.kind === 'glass' ? applied.material : null}
         lowPower={!gpuCompositing}

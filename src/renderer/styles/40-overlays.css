@@ -473,11 +473,9 @@ body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-he
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-@media (prefers-reduced-motion: reduce) {
-  /* A one-shot 140ms slide is brief, but it is still motion triggered without the user asking
+/* A one-shot 140ms slide is brief, but it is still motion triggered without the user asking
      for it — the toast still appears, just without the slide-and-fade. */
-  .notification { animation: none; }
-}
+:root[data-motion="reduced"] .notification { animation: none; }
 .notification[data-kind="error"] { border-left-color: var(--danger); }
 .notification[data-kind="warning"] { border-left-color: var(--warning); }
 .notification[data-kind="info"] { border-left-color: var(--info); }

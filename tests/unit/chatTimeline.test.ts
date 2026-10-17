@@ -55,6 +55,24 @@ describe('chat timeline', () => {
     expect(mergeLive(persisted, [])).toBe(persisted)
   })
 
+  it('never appends live messages older than the file part: a window that loaded only the newest page keeps them out', () => {
+    // A long chat: its live list still holds messages from before the newest file page, which a
+    // fresh window (or a trimmed one) does not hold. Appended at the end they showed below the newest.
+    const at = (uuid: string, t: number): TranscriptMessage => ({ ...msg(uuid, 'assistant', [{ type: 'text', text: uuid }]), timestampMs: t })
+    const persisted = [at('p300', 300), at('p301', 301), at('p302', 302)]
+    const live = [at('o100', 100), at('o101', 101), at('p301', 301), at('p302', 302), at('n303', 303)]
+    expect(mergeLive(persisted, live).map((m) => m.uuid)).toEqual(['p300', 'p301', 'p302', 'n303'])
+    // No live message in the file part: only those no older than its newest are new.
+    expect(mergeLive(persisted, [at('o100', 100), at('n304', 304)]).map((m) => m.uuid)).toEqual(['p300', 'p301', 'p302', 'n304'])
+    expect(mergeLive(persisted, [at('o100', 100)])).toBe(persisted)
+  })
+
+  it('keeps a live message after the last one the file has, whatever its timestamp (a queued message claude takes in later)', () => {
+    const at = (uuid: string, t: number | null): TranscriptMessage => ({ ...msg(uuid, 'user', [{ type: 'text', text: uuid }]), timestampMs: t })
+    const persisted = [at('p1', 10), at('p2', 20)]
+    expect(mergeLive(persisted, [at('p2', 20), at('q', 15), at('n', null)]).map((m) => m.uuid)).toEqual(['p1', 'p2', 'q', 'n'])
+  })
+
   it('describes a call by what matters for its tool', () => {
     expect(describeTool('Bash', { command: 'ls -la', description: 'List files' })).toEqual({ title: 'List files', input: 'ls -la' })
     expect(describeTool('Read', { file_path: '/repo/src/app.ts' })).toEqual({ title: 'app.ts', input: '/repo/src/app.ts' })

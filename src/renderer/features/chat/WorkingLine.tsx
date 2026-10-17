@@ -1,5 +1,6 @@
 import { type JSX, useEffect, useState } from 'react'
 import { formatDuration } from '@shared/time'
+import { useMotion } from '../../state/motion'
 
 /** The glyph Claude Code animates while it works, frame by frame. */
 const FRAMES = ['·', '✢', '✳', '✶', '✻', '✽', '✻', '✶', '✳', '✢']
@@ -11,10 +12,6 @@ const VERBS = [
 const FRAME_MS = 120
 const VERB_MS = 3000
 
-function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
-
 /**
  * The line under the conversation while Claude is working, as the extension and the CLI show it:
  * an animated glyph, a changing verb, and how long it has been at it. While a thinking block is
@@ -24,7 +21,7 @@ function prefersReducedMotion(): boolean {
  */
 export function WorkingLine({ since, thinkingTokens }: { since: number | null; thinkingTokens: number | null }): JSX.Element {
   const [now, setNow] = useState(() => Date.now())
-  const [reduced] = useState(prefersReducedMotion)
+  const reduced = useMotion() === 'reduced'
   useEffect(() => {
     // eslint-disable-next-line apiary/no-polling-in-features -- an animation clock for the glyph and the elapsed seconds; there is nothing to push or share
     const timer = window.setInterval(() => { setNow(Date.now()) }, reduced ? 1000 : FRAME_MS)

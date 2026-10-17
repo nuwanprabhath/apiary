@@ -25,7 +25,7 @@ async function openWithTasks(tasks: BackgroundTask[], arrange?: (fake: FakeApiar
   await expect.element(page.getByTestId('chat-timeline')).toBeVisible()
   const next = { ...emptyChatState(asSessionId(sessionId)), status: 'idle' as const, backgroundTasks: tasks }
   fake.state.chats.set(sessionId, next)
-  fake.emit('chatChanged', next)
+  fake.emit('chatChanged', { kind: 'full', state: next })
   await expect.element(page.getByTestId('chat-status-tasks')).toBeVisible()
   return { fake, sessionId }
 }

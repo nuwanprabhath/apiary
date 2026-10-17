@@ -16,7 +16,7 @@ async function openChat(patch: object): Promise<void> {
   const sessionId = fake.state.sessions.find((s) => s.title === TITLE)!.sessionId
   const next = { ...(fake.state.chats.get(sessionId) ?? { ...emptyChatState(asSessionId(sessionId)), status: 'idle' as const }), ...patch }
   fake.state.chats.set(sessionId, next)
-  fake.emit('chatChanged', next)
+  fake.emit('chatChanged', { kind: 'full', state: next })
 }
 
 const reply = { uuid: 'a1', role: 'assistant' as const, timestampMs: null, isSidechain: false, blocks: [{ type: 'text' as const, text: 'Looking into the export.' }] }

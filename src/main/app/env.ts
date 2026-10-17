@@ -56,6 +56,8 @@ export interface RuntimeEnv {
   /** How long a window closed while others stay open keeps its layout (`closeGraceMs` in windowManager.ts), in ms —
    *  E2E only, so "closed on purpose" can be shown without waiting out the real minute. */
   closeGraceMs: number | undefined
+  /** JSON the Claude usage plugin shows instead of calling Anthropic, with a stand-in sign-in and consent — test-only (the README screenshot); never set when packaged. */
+  fakeUsage: string | undefined
   /** `ssh -F <file>` for remote connections — test-only (the Docker SSH test bed); never set when packaged. */
   sshConfig: string | undefined
   /** `--background`: services and remote server with no window (`app/launchMode.ts`). A launch flag, honoured when packaged. */
@@ -87,6 +89,7 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackag
     petImportPath: test('APIARY_PET_IMPORT_PATH'),
     windowChrome: test('APIARY_WINDOW_CHROME'),
     rendererSeams: test('APIARY_RENDERER_SEAMS'),
+    fakeUsage: test('APIARY_FAKE_USAGE'),
     sshConfig: test('APIARY_SSH_CONFIG'),
     closeGraceMs: positiveInt(test('APIARY_CLOSE_GRACE_MS')),
     background: parseLaunchMode(argv).background,

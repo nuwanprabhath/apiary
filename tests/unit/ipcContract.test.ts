@@ -18,6 +18,7 @@ describe('the IPC contract', () => {
       discovered: 'apiary:discovered',
       importSessions: 'apiary:import',
       transcript: 'apiary:transcript',
+      transcriptAfter: 'apiary:transcript-after',
       backgroundTaskOutput: 'apiary:background-task-output',
       checkConflict: 'apiary:check-conflict',
       resume: 'apiary:resume',

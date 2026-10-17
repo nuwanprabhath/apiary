@@ -51,8 +51,16 @@ export const readSettings = async (): Promise<SettingsDraft> => {
   return { ...settings, hideToolCallIo: library.hideToolCallIo }
 }
 /** Saves the draft; the dialog stays open and says why when it fails. The library preference is
- *  sent only when it changed, so opening and saving the dialog leaves library state alone. */
+ *  sent only when it changed, so opening and saving the dialog leaves library state alone. `motion`
+ *  is sent as saved now: its control saves it at once, and the draft still holds what it was when
+ *  the dialog opened. */
 export const saveSettingsDraft = async ({ hideToolCallIo, ...settings }: SettingsDraft): Promise<void> => {
-  await window.apiary.settingsSet(settings)
+  await window.apiary.settingsSet({ ...settings, motion: (await window.apiary.settingsGet()).motion })
   if (hideToolCallIo !== (await readLibraryState()).hideToolCallIo) await saveLibraryState({ hideToolCallIo })
+}
+
+/** Saves the animations setting at once (it has no Save button, like the theme options) and re-reads. */
+export const saveMotionSetting = async (motion: AppSettingsPayload['motion']): Promise<void> => {
+  await window.apiary.settingsSet({ ...(await window.apiary.settingsGet()), motion })
+  settingsStore.reload()
 }

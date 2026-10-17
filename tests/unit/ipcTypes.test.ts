@@ -7,7 +7,7 @@ import { Logger } from '../../src/main/log/logger'
 import type { LogScope } from '@shared/domain/log'
 import type { PetPatch, PetsState } from '@shared/pets/state'
 import type { VoiceContext } from '@shared/pets/prompt'
-import type { ChatState } from '@shared/domain/chat'
+import type { ChatPush, ChatState } from '@shared/domain/chat'
 import type { SessionId } from '@shared/domain/ids'
 
 /**
@@ -59,7 +59,7 @@ describe('contract types', () => {
 
   it('the renderer subscription is typed from the same payload', () => {
     expectTypeOf<Parameters<Parameters<ApiaryApi['onPetsChanged']>[0]>>().toEqualTypeOf<[state: PetsState]>()
-    expectTypeOf<Parameters<Parameters<ApiaryApi['onChatChanged']>[0]>>().toEqualTypeOf<[state: ChatState]>()
+    expectTypeOf<Parameters<Parameters<ApiaryApi['onChatChanged']>[0]>>().toEqualTypeOf<[push: ChatPush]>()
     expect(IPC.petsChanged.kind).toBe('event')
   })
 

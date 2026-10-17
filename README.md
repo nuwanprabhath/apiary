@@ -3,7 +3,11 @@
 One desktop app for every Claude Code session on your machine: find any conversation in seconds,
 pick it up where it left off, and work on several side by side, even on another computer.
 
-![Apiary in its default Liquid Glass theme: a searchable sidebar with an Active section listing open sessions, Pinned and grouped sessions below it, and three sessions arranged in a layout on the right — a live Claude Code session in the large pane, two transcripts stacked beside it, and a shell with a minimal `$` prompt running under the live one — with three fuzzy pets on the status bar along the bottom](docs/screenshot.png)
+![Apiary in its default Liquid Glass theme: a searchable sidebar with an Active section listing open sessions, Pinned and grouped sessions below it, and three sessions arranged in a layout — a chat in the large pane in the middle of a long run, with finished and pending tool calls, a thinking row, code and the working timer counting up above its message box; Claude Code's own terminal on the top right; and a chat on the bottom right where Claude asks a single multiple-choice question and the message box is folded away — with three fuzzy pets and the Claude plan-usage meter on the status bar along the bottom](docs/screenshot.png)
+
+![Remote access: a window titled with the work machine's name and a remote badge in the title bar, its sidebar listing that machine's sessions grouped by project folder, and a chat session in the main pane with finished tool calls and a thinking row, the message box showing the slash-command menu (/clear, /compact, /context, /review, /security-review, /init) above the model pill, context meter and Stop button](docs/screenshot-remote.png)
+
+*Remote access: run Apiary on your work machine and use it from home over SSH or Tailscale. This window is the work machine's sessions, chats and slash commands, live.*
 
 ## Why Apiary
 
@@ -88,17 +92,25 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the contributor workflow. Q
     npm run test:e2e:smoke # the ~1 minute subset that also runs in CI
     npm run typecheck
     npm run lint            # eslint, stylelint, markdownlint, shellcheck, dependency-cruiser
-    npm run screenshot      # regenerate docs/screenshot.png (the README image above)
+    npm run screenshot         # regenerate docs/screenshot.png (the first README image)
+    npm run screenshot:remote  # regenerate docs/screenshot-remote.png (needs Docker)
 
-`npm run screenshot` launches the real app against a representative fixture (three
-project folders, a git worktree, a few sessions with human-sounding titles), opens
-three of them in a layout (placing one in the large pane through the layout picker) with
-a shell running under it, and resumes that one so the
-picture shows a live session rather than only transcripts, before overwriting
-`docs/screenshot.png` — see `scripts/screenshot/screenshot.spec.ts`. The resumed session runs
-`scripts/screenshot/fake-claude.sh`, a stand-in that prints a fixed, believable Claude
-Code session: the real CLI needs an API key and a network and would render something
-different every run, neither of which belongs in a committed image. It's a Playwright
+`npm run screenshot` launches the real app against a representative fixture (project
+folders, a git worktree, sessions with human-sounding titles), opens three sessions in a
+layout, and overwrites `docs/screenshot.png` — see `scripts/screenshot/screenshot.spec.ts`.
+The two chat panes open on conversations written by `scripts/screenshot/stories.ts` and
+continue them with `scripts/screenshot/fake-claude-chat.mjs` (one turn that never finishes,
+one that ends in a question); the terminal pane runs `scripts/screenshot/fake-claude.sh`,
+which prints a fixed Claude Code screen. The usage meter shows numbers fed through
+`APIARY_FAKE_USAGE`, so nothing reads a real token. The real CLI needs an API key and a
+network and would render something different every run, neither of which belongs in a
+committed image. The script waits about a minute so the chat's timer reads over a minute.
+`npm run screenshot:remote` makes the second picture for real: it builds and starts the
+Docker test bed of `npm run test:remote` (an Ubuntu container running the built app as the
+work machine), connects this machine's app to it over SSH, sends one message in a chat and
+opens the `/` menu, then photographs only the remote window. The first run builds the image
+(minutes, several GB; keep disk free). See `scripts/screenshot/remote.shot.ts`. The container's
+`claude` is the same stand-in. It's a Playwright
 script, not a test (it asserts nothing, and lives outside `tests/e2e` so
 `npm run test:e2e` never runs it); run it by hand whenever a change is significant
 enough that the README's picture of the app should catch up.

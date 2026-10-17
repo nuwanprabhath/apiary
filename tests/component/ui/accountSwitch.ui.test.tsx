@@ -30,7 +30,7 @@ async function openChat(): Promise<{ fake: FakeApiary; id: string }> {
   const id = fake.state.sessions.find((s) => s.title === TITLE)?.sessionId ?? ''
   const next = { ...emptyChatState(asSessionId(id)), status: 'idle' as const }
   fake.state.chats.set(id, next)
-  fake.emit('chatChanged', next)
+  fake.emit('chatChanged', { kind: 'full', state: next })
   await until(() => exists('composer-input'))
   return { fake, id }
 }
@@ -38,7 +38,7 @@ async function openChat(): Promise<{ fake: FakeApiary; id: string }> {
 const busy = (fake: FakeApiary, id: string): void => {
   const next = { ...emptyChatState(asSessionId(id)), status: 'busy' as const }
   fake.state.chats.set(id, next)
-  fake.emit('chatChanged', next)
+  fake.emit('chatChanged', { kind: 'full', state: next })
 }
 
 const openMenu = async (): Promise<void> => {

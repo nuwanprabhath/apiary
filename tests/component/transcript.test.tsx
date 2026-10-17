@@ -123,7 +123,9 @@ describe('transcript', () => {
 
       const button = page.getByTestId('load-earlier')
       await expect.element(button).toBeVisible()
-      await userEvent.click(button)
+      // A raw click: scrolling the button into view, as a locator click does, would itself load
+      // the page (scrolling to the top loads earlier messages by itself).
+      ;(button.element() as HTMLButtonElement).click()
 
       await until(() => page.getByTestId('message').elements().length === TOTAL)
       expect(page.getByText('start of the long session', { exact: true }).elements()).toHaveLength(1)
@@ -142,7 +144,7 @@ describe('transcript', () => {
       fake.override('transcript', () => new Promise((resolve) => { resolveFetch = resolve }))
 
       const button = page.getByTestId('load-earlier')
-      await userEvent.click(button)
+      ;(button.element() as HTMLButtonElement).click()
       // The IPC round trip is asynchronous even for a fast local fetch, so the click handler's
       // synchronous state update (disabling the button) is observable before the response lands.
       await expect.element(button).toBeDisabled()

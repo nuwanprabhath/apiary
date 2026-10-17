@@ -154,6 +154,9 @@ async function closeApp(app: ElectronApplication): Promise<void> {
  * few percent, and `stopTracingAndScreenshot` below discards it on a pass.
  */
 async function startTracing(app: ElectronApplication): Promise<void> {
+  // The load benchmark turns it off: over minutes its screenshots grew to 1–6 GB per run in the
+  // temp folder, and the screencast is work inside the app being measured.
+  if (process.env.APIARY_E2E_NO_TRACE === '1') return
   await app.context().tracing.start({ screenshots: true, snapshots: true })
 }
 
@@ -268,6 +271,8 @@ export async function launchApiary(
     windowChrome?: 'custom' | 'mac' | 'system'
     /** Further settings to seed the fresh profile with, alongside `claudeBin`. */
     settings?: Record<string, unknown>
+    /** Files to write into the fresh `--user-data-dir` before launch, by name (the load benchmark seeds `session-layout.json`). */
+    userDataFiles?: Record<string, string>
   } = {},
 ): Promise<Harness> {
   // realpath the root up front: on macOS os.tmpdir() is under /var, a symlink to /private/var,
@@ -389,6 +394,7 @@ export async function launchApiary(
     join(userDataDir, 'settings.json'),
     JSON.stringify({ ...(claudeBin !== null ? { claudeBin } : {}), plugins: { 'claude-usage': false }, ...opts.settings }),
   )
+  for (const [name, content] of Object.entries(opts.userDataFiles ?? {})) writeFileSync(join(userDataDir, name), content)
 
   const electronArgs = opts.electronArgs ?? []
   const env = launchEnv(home, {

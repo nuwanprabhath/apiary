@@ -36,7 +36,7 @@ async function textOf(testId: string, expected: string | RegExp, last = false): 
 function play(fake: FakeApiary, sessionId: string, patch: Partial<ChatState>): void {
   const next = { ...(fake.state.chats.get(sessionId) ?? { ...emptyChatState(asSessionId(sessionId)), status: 'idle' as const }), ...patch }
   fake.state.chats.set(sessionId, next)
-  fake.emit('chatChanged', next)
+  fake.emit('chatChanged', { kind: 'full', state: next })
 }
 
 /** True when the two boxes share no area: one sits beside the other, not over it. */

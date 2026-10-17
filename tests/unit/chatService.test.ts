@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { ChatManager } from '../../src/main/chat/chatManager'
 import { ChatService, type ChatServiceDeps } from '../../src/main/chat/chatService'
 import { WindowAttachments, type SendTarget } from '../../src/main/windows/windowAttachments'
-import type { ChatLifecycle, ChatState } from '@shared/domain/chat'
+import type { ChatLifecycle, ChatPush, ChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
 import { stubAccounts, WORK } from '../fixtures/launchAccounts'
 
@@ -30,7 +30,7 @@ function liveChild(): { spawn: (file: string, args: string[], options: { env?: N
   return { spawn, envs, exit: (code = 0) => { for (const c of emitters) c.emit('exit', code, null) } }
 }
 
-interface Window extends SendTarget { got: { channel: string; state: ChatState }[] }
+interface Window extends SendTarget { got: { channel: string; push: ChatPush; state: Partial<ChatState> & Pick<ChatState, 'sessionId'> }[] }
 
 function setup(overrides: Partial<ChatServiceDeps> = {}) {
   const child = liveChild()
@@ -40,7 +40,10 @@ function setup(overrides: Partial<ChatServiceDeps> = {}) {
     const w: Window = {
       got: [],
       isDestroyed: () => false,
-      send(channel: string, state?: unknown) { this.got.push({ channel, state: state as ChatState }) },
+      send(channel: string, arg?: unknown) {
+        const push = arg as ChatPush
+        this.got.push({ channel, push, state: push.kind === 'full' ? push.state : { sessionId: push.sessionId, ...push.changes } })
+      },
     }
     windows.set(id, w)
     return w
@@ -176,6 +179,65 @@ describe('ChatService lifecycle on stop (B21)', () => {
     expect(states.at(-1)?.status).toBe('exited')
     spy.mockRestore()
     expect(chats.state(A)?.status).toBe('exited')
+  })
+})
+
+describe('ChatService pushes', () => {
+  it('sends the first push whole, then only what changed since the one before', async () => {
+    const { service, open, chats } = setup()
+    const shown = open(1)
+    service.attach(1, A)
+    await service.start(A, { takeOver: false })
+    shown.got.length = 0
+    const state = chats.state(A)!
+    service.onChanged({ ...state, seq: 50 })
+    service.onChanged({ ...state, seq: 51, permissionMode: 'plan' })
+    const streaming = { text: 'x', thinking: false, thinkingSince: null, thinkingTokens: null }
+    service.onChanged({ ...state, seq: 52, permissionMode: 'plan', streaming })
+    expect(shown.got.map((g) => g.push)).toEqual([
+      { kind: 'delta', sessionId: A, previousSessionId: null, base: expect.any(Number) as number, seq: 50, changes: {} },
+      { kind: 'delta', sessionId: A, previousSessionId: null, base: 50, seq: 51, changes: { permissionMode: 'plan' } },
+      { kind: 'delta', sessionId: A, previousSessionId: null, base: 51, seq: 52, changes: { streaming } },
+    ])
+  })
+
+  it('answers chatState with the state last pushed, so a window that fetches mid-stream can apply the next delta', async () => {
+    const { service, chats } = setup()
+    await service.start(A, { takeOver: false })
+    const state = chats.state(A)!
+    service.onChanged({ ...state, seq: 50 })
+    // Newer states coalesce in the session until the next push; a fetch must not land between them.
+    expect(service.state(A)?.seq).toBe(50)
+  })
+
+  it('sends the first push of a session, a /clear move and an exit whole', async () => {
+    const { service, open, chats, child } = setup()
+    const shown = open(1)
+    service.attach(1, A)
+    await service.start(A, { takeOver: false })
+    expect(shown.got[0].push.kind).toBe('full')
+    shown.got.length = 0
+    service.onChanged({ ...chats.state(A)!, sessionId: B, previousSessionId: A })
+    expect(shown.got.map((g) => g.push.kind)).toEqual(['full'])
+    service.attach(1, B)
+    child.exit()
+    await vi.waitFor(() => { expect(shown.got.at(-1)?.push.kind).toBe('full') })
+    expect(shown.got.at(-1)?.state).toMatchObject({ status: 'exited' })
+  })
+
+  it('forgets what it pushed when the chat is swept, so a new run starts with a whole state', async () => {
+    const { service, open, child } = setup()
+    const shown = open(1)
+    service.attach(1, A)
+    await service.start(A, { takeOver: false })
+    child.exit()
+    await vi.waitFor(() => { expect(shown.got.at(-1)?.state.status).toBe('exited') })
+    service.detach(1, A)
+    expect(service.state(A)).toBeNull()
+    shown.got.length = 0
+    service.attach(1, A)
+    await service.start(A, { takeOver: false })
+    expect(shown.got[0].push.kind).toBe('full')
   })
 })
 

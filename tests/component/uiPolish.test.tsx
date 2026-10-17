@@ -30,7 +30,9 @@ describe('ui polish', () => {
     await until(() => getComputedStyle(runningDot).animationName === 'none')
     // Colour is no longer the only thing telling `running` apart from `idle` once the motion that
     // used to do that job is gone (WCAG 1.4.1) — it keeps a shape cue too.
-    expect(getComputedStyle(runningDot).boxShadow).not.toBe('none')
+    // Reduced drops the blurred glow too (it costs a recomposite without the GPU).
+    expect(getComputedStyle(runningDot).boxShadow).toBe('none')
+    expect(getComputedStyle(runningDot).borderTopColor).not.toBe(getComputedStyle(runningDot).borderRightColor)
   })
 
   it('reduced motion stops the one-shot notification entrance animation too (UI-29)', async () => {

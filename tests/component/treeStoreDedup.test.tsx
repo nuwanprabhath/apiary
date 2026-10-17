@@ -41,7 +41,7 @@ describe('treeStore de-duplication (UI-3)', () => {
 
     // A live pty — activates the rekey effect (it only runs `check()` while `ptySessions` is
     // non-empty; the id does not need to correspond to anything real for that guard alone).
-    fake.emit('ptySessionsChanged', { 'new:fake-1': { sessionId: 'unrelated', name: null, nameIsUser: false } })
+    fake.emit('ptySessionsChanged', { 'new:fake-1': { sessionId: 'unrelated', name: null, nameIsUser: false, status: null } })
     await until(() => fake.callsTo('ptySessions').length >= 0) // flush the microtask queue
 
     const before = fake.callsTo('tree').length

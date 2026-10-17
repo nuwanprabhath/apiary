@@ -6,6 +6,7 @@ import { formatDuration } from '@shared/time'
 import { TextBlock } from '../../ui/message/MessageRow'
 import { ImageThumbnail } from '../../ui/message/TranscriptImage'
 import { MarkdownText } from '../../ui/message/MarkdownText'
+import { StreamingMarkdown } from './StreamingMarkdown'
 import { MessageTime } from '../../ui/MessageTime'
 import { ToolCall } from './ToolCall'
 import { PermissionCard } from './PermissionCard'
@@ -57,7 +58,27 @@ const Thought = memo(function Thought(
   )
 })
 
-function Item({ item, chat, onOpenImage }: { item: ChatItem; chat: ChatState | null; onOpenImage: (src: string) => void }): JSX.Element {
+type Timing = { seconds: number; tokens: number | null } | undefined
+
+/** `chatItems` rebuilds every item on each update, so rows are compared by what they draw. */
+function sameItem(a: ChatItem, b: ChatItem): boolean {
+  if (a === b) return true
+  if (a.kind !== b.kind || a.key !== b.key) return false
+  switch (a.kind) {
+    case 'user': return b.kind === 'user' && a.text === b.text && a.timestampMs === b.timestampMs && a.images.join('\n') === b.images.join('\n')
+    case 'text': return b.kind === 'text' && a.text === b.text && a.timestampMs === b.timestampMs
+    case 'thinking': return b.kind === 'thinking' && a.text === b.text && a.uuid === b.uuid
+    case 'tool': return b.kind === 'tool' && a.name === b.name
+      && (a.input === b.input || JSON.stringify(a.input) === JSON.stringify(b.input))
+      && a.result?.content === b.result?.content && a.result?.isError === b.result?.isError
+    case 'interrupted': return true
+    case 'notice': return b.kind === 'notice' && a.text === b.text && a.status === b.status
+  }
+}
+
+const Item = memo(function Item(
+  { item, timing, onOpenImage }: { item: ChatItem; timing: Timing; onOpenImage: (src: string) => void },
+): JSX.Element {
   switch (item.kind) {
     case 'user':
       return (
@@ -79,7 +100,7 @@ function Item({ item, chat, onOpenImage }: { item: ChatItem; chat: ChatState | n
         </>
       )
     case 'thinking':
-      return <Thought text={item.text} timing={chat?.thoughts[item.uuid]} />
+      return <Thought text={item.text} timing={timing} />
     case 'tool':
       return <ToolCall name={item.name} input={item.input} result={item.result} />
     case 'interrupted':
@@ -92,7 +113,8 @@ function Item({ item, chat, onOpenImage }: { item: ChatItem; chat: ChatState | n
         </div>
       )
   }
-}
+}, (prev, next) => prev.timing?.seconds === next.timing?.seconds && prev.timing?.tokens === next.timing?.tokens
+  && prev.onOpenImage === next.onOpenImage && sameItem(prev.item, next.item))
 
 /**
  * The latest prompt, pinned once the message itself has scrolled out above. The pin has no height
@@ -141,11 +163,11 @@ export function ChatTimeline({ items, chat, queued, onOpenImage, onDecide }: Pro
   return (
     <div className="chat-timeline" data-testid="chat-timeline">
       {prompt !== null && <StickyPrompt prompt={prompt} />}
-      {items.map((item) => <Item key={item.key} item={item} chat={chat} onOpenImage={onOpenImage} />)}
+      {items.map((item) => <Item key={item.key} item={item} timing={item.kind === 'thinking' ? chat?.thoughts[item.uuid] : undefined} onOpenImage={onOpenImage} />)}
       {streaming !== null && streaming.text !== '' && (
         <div className="chat-row chat-streaming" data-testid="chat-streaming">
           <span className="chat-dot" aria-hidden="true" />
-          <div className="chat-row-body"><MarkdownText text={streaming.text} /></div>
+          <div className="chat-row-body"><StreamingMarkdown text={streaming.text} /></div>
         </div>
       )}
       {queued.map((q) => (

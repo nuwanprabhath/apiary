@@ -11,9 +11,7 @@ function reducedMotionRules(): CSSStyleRule[] {
   const rules: CSSStyleRule[] = []
   for (const sheet of Array.from(document.styleSheets)) {
     for (const rule of Array.from(sheet.cssRules)) {
-      if (rule instanceof CSSMediaRule && rule.conditionText.includes('prefers-reduced-motion')) {
-        for (const inner of Array.from(rule.cssRules)) if (inner instanceof CSSStyleRule) rules.push(inner)
-      }
+      if (rule instanceof CSSStyleRule && rule.selectorText.startsWith(':root[data-motion="reduced"]')) rules.push(rule)
     }
   }
   return rules

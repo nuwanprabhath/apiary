@@ -20,7 +20,7 @@
  * lean on sharing an object with the fake's state.
  */
 import type { ApiaryApi } from '@shared/api'
-import { IPC } from '@shared/ipc/contract'
+import { IPC, type PayloadOf } from '@shared/ipc/contract'
 import { asPtyId } from '@shared/domain/ids'
 import type { NewSessionInfo } from '@shared/types'
 import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
@@ -172,7 +172,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
   }
   // What crosses the bridge is a copy, as over Electron's IPC: every listener gets its own, so a
   // component cannot lean on sharing an object with the fake's state (or with another window).
-  const emit = (event: FakeEvent, ...args: unknown[]): void => {
+  const emit = <K extends FakeEvent>(event: K, ...args: PayloadOf<K>): void => {
     for (const cb of [...(listeners.get(event) ?? [])]) cb(...structuredClone(args))
   }
 

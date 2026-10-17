@@ -93,7 +93,9 @@ test.describe('paging responses across a session round trip', () => {
     // Switch the intercept back to passthrough first — otherwise this click's own paging
     // request would itself be held open by the still-active 'hold' behavior.
     await interceptTranscriptPaging(h.app, { kind: 'passthrough' })
-    await button.click()
+    // dispatchEvent, not click(): scrolling the button into view loads the page by itself and
+    // would remove the button from under the click.
+    await button.dispatchEvent('click')
     await expect(h.page.getByTestId('message')).toHaveCount(252)
     await expect(h.page.getByText('start of the long session')).toHaveCount(1)
     await expect(h.page.getByText(/^pad-0 /)).toHaveCount(1)
@@ -128,7 +130,9 @@ test.describe('paging responses across a session round trip', () => {
     await expect(button).toBeEnabled()
 
     // Paging genuinely works again, not merely "looks enabled": the click actually completes.
-    await button.click()
+    // dispatchEvent, not click(): scrolling the button into view loads the page by itself and
+    // would remove the button from under the click.
+    await button.dispatchEvent('click')
     await expect(h.page.getByTestId('message')).toHaveCount(252)
     await expect(button).toHaveCount(0)
   })

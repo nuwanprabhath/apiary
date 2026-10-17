@@ -116,7 +116,7 @@ describe('composer collapse', () => {
     await fold()
     const next = { ...emptyChatState(asSessionId(sessionId)), status: 'busy' as const }
     fake.state.chats.set(sessionId, next)
-    fake.emit('chatChanged', next)
+    fake.emit('chatChanged', { kind: 'full', state: next })
     await userEvent.click(page.getByTestId('composer-stop'))
     await until(() => fake.callsTo('chatInterrupt').length === 1)
     expect(fake.callsTo('chatInterrupt')[0]).toEqual([sessionId])

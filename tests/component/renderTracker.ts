@@ -15,6 +15,8 @@
 
 interface Fiber {
   type: unknown
+  key: string | null
+  return: Fiber | null
   flags: number
   child: Fiber | null
   sibling: Fiber | null
@@ -25,7 +27,9 @@ const PERFORMED_WORK = 1
 
 interface Tracking {
   componentName: string
-  /** Renders per `data-column-id` of the section the component renders. */
+  /** Names the instance a fiber is, or null to skip it. */
+  idOf: (fiber: Fiber) => string | null
+  /** Renders per instance id (by default the `data-column-id` of the section the component renders). */
   counts: Map<string, number>
   seen: Map<string, Fiber>
 }
@@ -43,7 +47,7 @@ function paneIdOf(fiber: Fiber): string | null {
 function visit(fiber: Fiber | null, t: Tracking): void {
   for (let f = fiber; f !== null; f = f.sibling) {
     if (typeof f.type === 'function' && (f.type as { name: string }).name === t.componentName) {
-      const id = paneIdOf(f)
+      const id = t.idOf(f)
       if (id !== null) {
         const previous = t.seen.get(id)
         if (previous !== f && (f.flags & PERFORMED_WORK) !== 0) t.counts.set(id, (t.counts.get(id) ?? 0) + 1)
@@ -77,11 +81,13 @@ host.__REACT_DEVTOOLS_GLOBAL_HOOK__ ??= hook
 
 /** Starts counting renders of every mounted `componentName` (found by its function name). Returns
  *  the counts per pane id since this call; `read()` snapshots, `stop()` ends it. */
-export function trackRenders(componentName: string): {
+export function trackRenders(componentName: string, byKey = false): {
   read: () => Map<string, number>
   stop: () => void
 } {
-  const t: Tracking = { componentName, counts: new Map(), seen: new Map() }
+  // A keyed list row: the key sits on the fiber itself, or on the `memo` wrapper above it.
+  const idOf = byKey ? (f: Fiber): string | null => f.key ?? f.return?.key ?? null : paneIdOf
+  const t: Tracking = { componentName, idOf, counts: new Map(), seen: new Map() }
   // Note what is on screen now without counting it: those fibers carry the flags of whatever
   // rendered them last.
   visit(latest, t)

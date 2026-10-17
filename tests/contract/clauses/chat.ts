@@ -40,8 +40,8 @@ export function defineChatClauses(ctx: Ctx): void {
 
       ctx.api.chatAttach(SESSION)
       await start()
-      expect(ctx.heard.payloads('chatChanged')[0][0]).toMatchObject({ sessionId: SESSION, status: 'idle' })
-      expect(ctx.heard.payloads('chatChanged').every(([state]) => state.sessionId === SESSION)).toBe(true)
+      expect(ctx.heard.payloads('chatChanged')[0][0]).toMatchObject({ kind: 'full', state: { sessionId: SESSION, status: 'idle' } })
+      expect(ctx.heard.payloads('chatChanged').every(([p]) => (p.kind === 'full' ? p.state.sessionId : p.sessionId) === SESSION)).toBe(true)
 
       // Detached again, a window hears no more of it, whatever the chat does.
       ctx.api.chatDetach(SESSION)
@@ -69,7 +69,13 @@ export function defineChatClauses(ctx: Ctx): void {
       await start()
       await ctx.api.chatSetPermissionMode(SESSION, 'plan')
       expect((await ctx.api.chatState(SESSION))?.permissionMode).toBe('plan')
-      expect(ctx.heard.payloads('chatChanged').at(-1)?.[0].permissionMode).toBe('plan')
+      // Only the field that changed travels, with the seq it applies onto.
+      const push = ctx.heard.payloads('chatChanged').at(-1)?.[0]
+      expect(push).toMatchObject({ kind: 'delta', sessionId: SESSION, changes: { permissionMode: 'plan' } })
+      if (push?.kind !== 'delta') throw new Error('expected a delta')
+      expect(Object.keys(push.changes)).toEqual(['permissionMode'])
+      expect(push.seq).toBeGreaterThan(push.base)
+      expect((await ctx.api.chatState(SESSION))?.seq).toBe(push.seq)
     })
 
     it('accepts an interrupt, an answer to a question nobody asked, a model and an effort for a chat that is running', async () => {

@@ -164,6 +164,7 @@
   width: 100%;
   /* Sized by Composer: it grows with what is typed, and the handle above sets its height. */
   resize: none;
+  field-sizing: content;
   /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the message box's minimum height: three lines of text */
   min-height: 58px;
   border: 1px solid var(--border);
@@ -713,9 +714,7 @@ button.layout-thumb:hover .layout-zone, button.layout-thumb:focus-visible .layou
   border-radius: 50%;
   animation: spin var(--search-spinner-duration) linear infinite;
 }
-@media (prefers-reduced-motion: reduce) {
-  .btn-spinner { animation: none; }
-}
+:root[data-motion="reduced"] .btn-spinner { animation: none; }
 
 /* The folder browser a remote window shows in place of the native picker (features/folderBrowser). */
 .folder-browser-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -10,7 +10,7 @@ net.createServer((c) => c.on('data', (d) => c.write(d))).listen(path, () => fs.c
 `
 
 /** The built app under xvfb as `dev`, against the fixture home. Mirrors e2e's `launchApiary`. */
-export async function launchApp(bed: Bed, settings: Record<string, unknown>): Promise<void> {
+export async function launchApp(bed: Bed, settings: Record<string, unknown>, extraEnv: Record<string, string> = {}): Promise<void> {
   // The log is the proof the window loaded, and diagnostics are off by default.
   const home = writeFixtureHome(bed.dir, { diagnosticsEnabled: true, ...settings })
   // `docker cp` into an existing directory nests the copy inside it, so a relaunch would read the
@@ -25,6 +25,8 @@ export async function launchApp(bed: Bed, settings: Record<string, unknown>): Pr
     'APIARY_HEADLESS=1',
     'APIARY_GLAB_PATH=',
     'APIARY_CODE_PATH=',
+    // Later assignments win: the README screenshot asks for the real default theme with APIARY_DEFAULT_THEME=.
+    ...Object.entries(extraEnv).map(([k, v]) => `${k}=${v}`),
   ].join(' ')
   const cmd = `cd /app && ${env} nohup xvfb-run -a ./node_modules/.bin/electron . --no-sandbox --disable-gpu `
     + '--user-data-dir=/home/dev/fixture/userdata > /home/dev/app.out 2>&1 & echo $! > /home/dev/app.pid'

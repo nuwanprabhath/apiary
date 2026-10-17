@@ -7,6 +7,7 @@ import type { RemoteClientsFeed } from '../statusBar/remoteClients'
 import type { StatusBarRegistry } from '../statusBar/registry'
 import { ConsentStore, memoryConsentStorage, type ConsentStorage } from '../statusBar/claudeUsage/consent'
 import type { UsageAccounts } from '../statusBar/claudeUsage/plugin'
+import { usageStandIn } from '../statusBar/claudeUsage/standIn'
 import { BUILTIN_PLUGINS } from './builtin'
 import type { PluginRegistry } from './registry'
 import type { PluginBarItem, PluginSettingValues } from './types'
@@ -26,6 +27,8 @@ interface BuiltinPluginConfig {
   accounts: UsageAccounts | null
   /** Where the usage plugin's consent answer is remembered. Omitted: in memory, asked each launch. */
   consent?: ConsentStorage
+  /** Test-only: what the usage plugin reads and fetches instead of the real sign-in and endpoint. */
+  fakeUsage?: string
   /** Remembers that a plugin was switched off by the user's own answer (a declined consent), so it
    *  stays off at the next launch. Omitted: only this run. */
   persistEnabled?: (pluginId: string, enabled: boolean) => void
@@ -74,9 +77,10 @@ export class PluginService {
     for (const factory of BUILTIN_STATUS_BAR_PLUGINS) {
       const plugin = factory({
         configRoot: config.configRoot,
-        useKeychain: config.useKeychain,
+        useKeychain: config.fakeUsage !== undefined || config.useKeychain,
+        ...(config.fakeUsage !== undefined ? usageStandIn(config.fakeUsage) : {}),
         accounts: config.accounts,
-        consent: new ConsentStore(config.consent ?? memoryConsentStorage()),
+        consent: new ConsentStore(config.fakeUsage !== undefined ? memoryConsentStorage('granted') : config.consent ?? memoryConsentStorage()),
         remoteClients: config.remoteClients,
       })
       this.statusBar.register(plugin, config.enabled?.[plugin.id] ?? plugin.defaultEnabled ?? true)

@@ -3,6 +3,8 @@ import { THEME_MODELS, type ThemeModel } from '@shared/theme/models'
 import { THEME_MODEL_LABELS } from '../ui/modelLabels'
 import { setThemeOptions } from '../state/theme'
 import { surface } from '../state/policy'
+import { saveMotionSetting, useAppSettings } from '../state/settingsStore'
+import type { MotionSetting } from '@shared/settings/schema'
 
 const MODELS: Array<{ id: ThemeModel; label: string }> =
   THEME_MODELS.map((id) => ({ id, label: THEME_MODEL_LABELS[id] }))
@@ -13,6 +15,7 @@ interface Props {
 
 /** The model that designs themes, and the effects options (animation, intensity). */
 export function ThemeOptionsRows({ options }: Props): JSX.Element {
+  const { motion } = useAppSettings()
   return (
     <>
       <label className="settings-row theme-intensity">
@@ -39,10 +42,29 @@ export function ThemeOptionsRows({ options }: Props): JSX.Element {
         <span>
           <strong>Animated effects</strong>
           <span className="settings-help">
-            Off shows each effect as a still picture. Effects never move when your system asks for
-            reduced motion, whatever this says.
+            Off shows each effect as a still picture. Effects never move while Animations below is
+            reduced, whatever this says.
           </span>
         </span>
+      </label>
+      <label className="settings-row theme-intensity">
+        <span>
+          <strong>Animations</strong>
+          <span className="settings-help">
+            Automatic turns continuous animations off when your system asks for less motion, or when
+            Apiary is drawing without the graphics card, where they slow typing.
+          </span>
+        </span>
+        <select
+          className="theme-model"
+          data-testid="setting-motion"
+          value={motion}
+          onChange={(e) => { surface(saveMotionSetting(e.target.value as MotionSetting), 'Could not change the setting') }}
+        >
+          <option value="auto">Automatic</option>
+          <option value="full">Full</option>
+          <option value="reduced">Reduced</option>
+        </select>
       </label>
       <label className="settings-row theme-intensity">
         <span>

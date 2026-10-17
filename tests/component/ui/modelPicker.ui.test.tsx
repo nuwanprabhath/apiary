@@ -27,7 +27,7 @@ describe('UI: the model picker', () => {
       ],
     }
     fake.state.chats.set(session.sessionId, next)
-    fake.emit('chatChanged', next)
+    fake.emit('chatChanged', { kind: 'full', state: next })
     await until(() => document.querySelector('[data-testid="composer-model-pill"]')?.textContent?.includes('Medium') === true)
     await reviewUi('model menu with effort', {
       open: async () => {

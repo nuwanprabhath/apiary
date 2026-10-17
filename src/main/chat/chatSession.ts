@@ -10,7 +10,7 @@ import {
 } from './protocol'
 
 /** How often a burst of streamed text reaches the window: often enough to read as live. */
-const EMIT_EVERY_MS = 40
+const EMIT_EVERY_MS = 120
 /** How much of stderr is kept, to say why a process stopped. */
 const STDERR_TAIL = 2000
 /** How long a stopped process gets to exit before it is killed outright. */
@@ -256,7 +256,7 @@ export class ChatSession {
    */
   private update(next: ChatState, now: boolean): void {
     if (this.state.status === 'exited') return
-    this.state = next
+    this.state = { ...next, seq: this.state.seq + 1 }
     if (now) {
       if (this.emitTimer !== null) { clearTimeout(this.emitTimer); this.emitTimer = null }
       this.onChange(this.state)

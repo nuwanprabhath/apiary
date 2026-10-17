@@ -10,6 +10,7 @@
  */
 import type { ApiaryApi } from '@shared/api'
 import { chatActivity, type ActivityStatus } from '@shared/activity'
+import { chatPush } from '@shared/chatPush'
 import { emptyChatState, type ChatState } from '@shared/domain/chat'
 import type { Env } from './state'
 
@@ -26,6 +27,8 @@ export function chatApi(env: Env): ChatApi {
   const announced = new Map<string, string>()
   /** The last activity announced per session, so only a change is. */
   const activities = new Map<string, ActivityStatus>()
+  /** The last state pushed per session, which the next push is diffed against, as main's `ChatService` does. */
+  const pushed = new Map<string, ChatState>()
   let taskCount = 0
   const keysOf = (c: ChatState): string[] => (c.previousSessionId === null ? [c.sessionId] : [c.sessionId, c.previousSessionId])
 
@@ -36,14 +39,19 @@ export function chatApi(env: Env): ChatApi {
       state.chats.delete(c.sessionId)
       announced.delete(c.sessionId)
       activities.delete(c.sessionId)
+      pushed.delete(c.sessionId)
     }
   }
   /** Records a chat's new state and tells the renderer, as main does: the state to a window that
    *  attached the session (or the one `/clear` left), every window a lifecycle change, and every
    *  window an activity change. */
   const setChat = (next: ChatState): void => {
+    const stamped = { ...next, seq: (state.chats.get(next.sessionId)?.seq ?? 0) + 1 }
+    next = stamped
     state.chats.set(next.sessionId, next)
-    if (keysOf(next).some((k) => state.chatAttached.has(k))) emit('chatChanged', next)
+    if (keysOf(next).some((k) => state.chatAttached.has(k))) emit('chatChanged', chatPush(pushed.get(next.sessionId) ?? null, next))
+    if (next.status === 'exited') pushed.delete(next.sessionId)
+    else pushed.set(next.sessionId, next)
     const key = `${next.status === 'exited' ? 'exited' : 'running'}|${next.previousSessionId ?? ''}`
     if (announced.get(next.sessionId) !== key) {
       announced.set(next.sessionId, key)

@@ -239,7 +239,7 @@ export interface ServicesOptions {
   chatSpawn?: SpawnChat
   /** Let the Claude usage plugin read the macOS Keychain: only against the real `~/.claude`,
    *  never a test fixture's, since a Keychain read can put a permission prompt on screen. */
-  statusBarKeychain?: boolean
+  statusBarKeychain?: boolean; fakeUsage?: string // fakeUsage, test-only (`APIARY_FAKE_USAGE`): the JSON the usage plugin shows in place of the sign-in and the usage endpoint
   /** Where the answer to the usage plugin's consent prompt is kept. Omitted: in memory only, so
    *  a test (or a caller that persists nothing) is asked, and reads nothing, until it answers. */
   claudeUsageConsent?: ConsentStorage
@@ -361,7 +361,7 @@ export function createServices(options: ServicesOptions): Services {
           settings: options.pluginSettings,
           glabPath: options.glabPath,
           configRoot: options.configRoot,
-          useKeychain: options.statusBarKeychain ?? false, accounts,
+          useKeychain: options.statusBarKeychain ?? false, accounts, fakeUsage: options.fakeUsage,
           consent: options.claudeUsageConsent,
           remoteClients: options.remoteClients,
           persistEnabled: options.persistPluginEnabled,
@@ -424,7 +424,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
       announce: (change) => { broadcast(IPC.chatLifecycle, change) },
       activityChanged: () => { broadcast(IPC.activeTabsChanged) },
     },
-    statusBarKeychain: inputs.statusBarKeychain,
+    statusBarKeychain: inputs.statusBarKeychain, fakeUsage: env.fakeUsage,
     claudeUsageConsent: {
       load: () => settingsService.get().claudeUsageConsent,
       save: (state) => { settingsService.patch({ claudeUsageConsent: state }) },

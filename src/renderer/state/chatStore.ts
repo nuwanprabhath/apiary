@@ -1,5 +1,6 @@
 import { createContext, use } from 'react'
-import type { ChatDecision, ChatEffort, ChatLifecycle, ChatModel, ChatPermissionMode, ChatState, TerminalBusy } from '@shared/domain/chat'
+import { applyChatPush } from '@shared/chatPush'
+import type { ChatDecision, ChatEffort, ChatLifecycle, ChatModel, ChatPermissionMode, ChatPush, ChatState, TerminalBusy } from '@shared/domain/chat'
 import { asSessionId, type SessionId } from '@shared/domain/ids'
 import { createKeyedIpcStore } from './createIpcStore'
 import { cancelPendingSwitch } from './accountSwitch'
@@ -16,7 +17,7 @@ export function useChatMode(): boolean {
 /*
  * Every session's chat-mode state as main last reported it, null when it never ran as a chat.
  * A key's first reader attaches it (`chatAttach`) and its last detaches it, so main pushes
- * (`onChatChanged`, ~25 a second while streaming) wake only windows and readers of that session.
+ * (`onChatChanged`, about 8 a second while streaming) wake only windows and readers of that session.
  *
  * A chat `/clear` moved onto a new session is still the old tab's chat until the tab follows it
  * there (`useChatTakeover`), so a state naming a `previousSessionId` belongs to both keys.
@@ -28,7 +29,15 @@ const chatStore = createKeyedIpcStore<ChatState | null>({
   scope: 'chat',
   initial: null,
   fetch: (sessionId) => (sessionId === '' ? Promise.resolve(null) : window.apiary.chatState(sessionOfKey(sessionId))),
-  subscribe: (push) => window.apiary.onChatChanged(push),
+  // A delta applies onto the snapshot it was computed from, else the keys are fetched again.
+  subscribe: (push, invalidate) => window.apiary.onChatChanged((p: ChatPush) => {
+    const keys = p.kind === 'full'
+      ? [p.state.sessionId]
+      : p.previousSessionId === null ? [p.sessionId] : [p.sessionId, p.previousSessionId]
+    const next = applyChatPush(keys.map((k) => chatStore.getSnapshot(k)).find((s) => s !== null) ?? null, p)
+    if (next === 'refetch') keys.forEach((k) => { invalidate(k) })
+    else push(next)
+  }),
   // Attached before the state is asked for: IPC from one renderer is ordered, so no update falls between.
   attach: (sessionId) => {
     if (sessionId === '') return () => {}

@@ -174,10 +174,8 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   border-radius: 50%;
   animation: spin var(--search-spinner-duration) linear infinite;
 }
-@media (prefers-reduced-motion: reduce) {
-  /* Still visible, still meaningful — just not rotating. */
-  .search-spinner { animation: none; border-top-color: var(--accent); }
-}
+/* Still visible, still meaningful — just not rotating. */
+:root[data-motion="reduced"] .search-spinner { animation: none; border-top-color: var(--accent); }
 
 .icon-button { color: var(--muted); padding: 0 var(--space-md); }
 
@@ -190,9 +188,7 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 }
 /* An icon spinning forever is exactly the kind of motion prefers-reduced-motion asks apps to
  * drop; it stays visible (still a spinner glyph, just not rotating) rather than disappearing. */
-@media (prefers-reduced-motion: reduce) {
-  .icon-button .spinner { animation: none; }
-}
+:root[data-motion="reduced"] .icon-button .spinner { animation: none; }
 
 /*
  * A fixed-width, icon-plus-label button, so triggering it never resizes it. The icon used to be
@@ -278,26 +274,21 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   border: var(--status-ring-width) solid var(--status-idle);
 }
 
-/* Colour alone told `running` and `idle` apart once their animation stopped here (UI-29, WCAG
- * 1.4.1) — this is one of several `prefers-reduced-motion` rules in the file now (see also
- * `.icon-button .spinner`, `.toolbar-button .spinner`, `.spinner-dot` and `.notification`), each
- * kept beside the rule it silences rather than collected in one place, the way `.search-spinner`
- * already did above. */
-@media (prefers-reduced-motion: reduce) {
-  .status-dot[data-status="running"],
-  .status-dot[data-status="waiting"] {
-    animation: none;
-  }
-  /* With motion off, the one state that still has to stand out keeps a static halo — the row
-     highlight below is unaffected either way, so "needs you" never depends on movement alone. */
-  .status-dot[data-status="waiting"] {
-    box-shadow: 0 0 0 var(--status-ring-width) var(--pulse-color);
-  }
-  /* `running` keeps a shape cue too, not just its colour: a still three-quarter ring. */
-  .status-dot[data-status="running"] {
-    border-color: var(--status-running);
-    border-top-color: color-mix(in sRGB, var(--status-running) var(--status-spinner-track), transparent);
-  }
+/* Colour alone must not tell `running` and `idle` apart once their animation stops (WCAG 1.4.1). */
+:root[data-motion="reduced"] .status-dot[data-status="running"],
+:root[data-motion="reduced"] .status-dot[data-status="waiting"] {
+  animation: none;
+}
+/* With motion off, the one state that still has to stand out keeps a static halo — the row
+   highlight below is unaffected either way, so "needs you" never depends on movement alone. */
+:root[data-motion="reduced"] .status-dot[data-status="waiting"] {
+  box-shadow: 0 0 0 var(--status-ring-width) var(--pulse-color);
+}
+/* `running` keeps a shape cue too, not just its colour: a still three-quarter ring. */
+:root[data-motion="reduced"] .status-dot[data-status="running"] {
+  border-color: var(--status-running);
+  border-top-color: color-mix(in sRGB, var(--status-running) var(--status-spinner-track), transparent);
+  box-shadow: none;
 }
 
 .tree { list-style: none; margin: 0; padding: 0; }

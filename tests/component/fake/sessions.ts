@@ -14,7 +14,7 @@ import { asSessionId } from '@shared/domain/ids'
 import type { Env, FakeSession } from './state'
 
 type SessionsApi = Pick<ApiaryApi,
-  | 'refresh' | 'tree' | 'discovered' | 'importSessions' | 'transcript' | 'backgroundTaskOutput' | 'checkConflict' | 'resume' | 'renameSession'
+  | 'refresh' | 'tree' | 'discovered' | 'importSessions' | 'transcript' | 'transcriptAfter' | 'backgroundTaskOutput' | 'checkConflict' | 'resume' | 'renameSession'
   | 'renameTerminalInClaude' | 'removeSession' | 'moveSession' | 'newSessionInProject' | 'newSessionInPickedFolder'
   | 'forkSession' | 'setSessionNote' | 'sessionNote' | 'openShell' | 'openShellForPty' | 'ptyWrite' | 'ptyResize'
   | 'ptyKill' | 'ptyResume' | 'ptyAttach' | 'ptyDetach' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
@@ -63,7 +63,18 @@ export function sessionsApi(env: Env): SessionsApi {
     const end = beforeIndex ?? all.length
     // The same page size as transcriptReader.ts (TEST-5; the contract suite pins the two together).
     const start = Math.max(0, end - TRANSCRIPT_PAGE_SIZE)
-    return { messages: all.slice(start, end), earlierCursor: start > 0 ? start : null, skippedLines: 0 }
+    return { messages: all.slice(start, end).map((m, i) => ({ ...m, index: start + i })), earlierCursor: start > 0 ? start : null, skippedLines: 0 }
+  }
+  // A message's line index is its position, so "after" is a slice; a burst answers the newest page.
+  const transcriptAfter = (id: string, afterIndex: number): TranscriptPage => {
+    const all = find(id)?.messages ?? [message(`${id}-u`, 'user', 'fix the export'), message(`${id}-a`, 'assistant', 'done')]
+    const first = afterIndex + 1
+    const start = Math.max(first, all.length - TRANSCRIPT_PAGE_SIZE)
+    return {
+      messages: all.slice(start).map((m, i) => ({ ...m, index: start + i })),
+      earlierCursor: start > first ? start : null,
+      skippedLines: 0,
+    }
   }
   const requireSession = (id: string): FakeSession => {
     const s = find(id)
@@ -87,6 +98,7 @@ export function sessionsApi(env: Env): SessionsApi {
     })),
     importSessions: async (ids) => { for (const id of ids) state.imported.add(id) },
     transcript: async (id, before) => transcript(id, before),
+    transcriptAfter: async (id, after) => transcriptAfter(id, after),
     // As in main, a task nobody wrote output for (or an unknown session) is "not available", not an error.
     backgroundTaskOutput: async (id, taskId) => state.taskOutputs.get(`${id}:${taskId}`) ?? { available: false, lines: [] },
     // Someone else's process is running the session: the conflict names it.

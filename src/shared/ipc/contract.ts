@@ -40,7 +40,7 @@ import type { PtySessionInfo, PtySnapshot } from '../domain/pty'
 import type { StatusBarItem, StatusBarPanel } from '../domain/statusBar'
 import {
   isChatDecision, isChatEffort, isChatModel, isChatPermissionMode,
-  type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatModel, type ChatPermissionMode, type ChatState,
+  type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatPush, type ChatModel, type ChatPermissionMode, type ChatState,
   type TerminalBusy,
 } from '../domain/chat'
 import type { AppMenuNode } from '../domain/windowChrome'
@@ -95,6 +95,9 @@ export const IPC = {
   importSessions: invoke<[sessionIds: SessionId[], autoImportProjects: string[]], void>(
     'apiary:import', tuple(arr(sessionIdArg), arr(str)),
   ),
+  /** The messages on lines after `afterIndex`, for a transcript that holds everything up to it; the newest page with `earlierCursor` set after a burst. */
+  transcriptAfter: invoke<[sessionId: SessionId, afterIndex: number], TranscriptPage>(
+    'apiary:transcript-after', tuple(sessionIdArg, num)),
   transcript: invoke<[sessionId: SessionId, beforeIndex?: number], TranscriptPage>(
     'apiary:transcript', tuple(sessionIdArg, opt(num)),
   ),
@@ -311,7 +314,7 @@ export const IPC = {
    *  update falls between the two. */
   chatAttach: send<[sessionId: SessionId]>('apiary:chat-attach', tuple(sessionIdArg)),
   chatDetach: send<[sessionId: SessionId]>('apiary:chat-detach', tuple(sessionIdArg)),
-  chatChanged: event<[state: ChatState]>('apiary:chat-changed'),
+  chatChanged: event<[push: ChatPush]>('apiary:chat-changed'),
   /** A chat started, moved onto a new session, or ended — to every window, shown or not. */
   chatLifecycle: event<[change: ChatLifecycle]>('apiary:chat-lifecycle'),
   /** The application menu, for the themed title bar to draw on Windows and Linux. */

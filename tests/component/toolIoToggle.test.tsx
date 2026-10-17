@@ -50,7 +50,7 @@ function sessionIdOf(fake: FakeApiary, title: string): string {
 function play(fake: FakeApiary, sessionId: string, extra: Partial<ChatState> = {}): void {
   const next: ChatState = { ...emptyChatState(asSessionId(sessionId)), status: 'idle', live: CONVERSATION, ...extra }
   fake.state.chats.set(sessionId, next)
-  fake.emit('chatChanged', next)
+  fake.emit('chatChanged', { kind: 'full', state: next })
 }
 
 /** Opens the chat with main's library state (the tool-call default, each chat's own choice) as given. */

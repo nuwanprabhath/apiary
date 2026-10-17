@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { launchApiary, relaunchApiary, importAll, clickRowAction, sidebarSession, type Harness } from '../../tests/e2e/helpers'
 import { STARTER_PET } from '../../src/shared/pets/builtins'
+import { invoiceStory, syncStory, themeStory } from './stories'
 
 /** Three pets, made by hand rather than by Claude so the picture is the same every time. */
 const PETS = [
@@ -19,6 +20,76 @@ const PETS = [
   },
 ]
 
+const FAKE_CLAUDE = join(process.cwd(), 'scripts', 'screenshot', 'fake-claude.sh')
+
+/** The sessions the layout shows, written as Claude Code writes them, in folders of their own. */
+const SESSIONS = {
+  invoices: { id: 'a1b2c3d4-0001-4a00-8a00-000000000001', folder: 'billing-api', title: 'Fix duplicate invoice emails on webhook retry' },
+  theme: { id: 'a1b2c3d4-0002-4a00-8a00-000000000002', folder: 'web-app', title: 'Add a dark mode toggle to settings' },
+  sync: { id: 'a1b2c3d4-0003-4a00-8a00-000000000003', folder: 'data-pipeline', title: 'Nightly sync times out on large accounts' },
+}
+
+function writeSession(h: Harness, s: { id: string; folder: string; title: string }, lines: string[]): void {
+  mkdirSync(join(h.home, s.folder), { recursive: true })
+  const dir = join(h.projectsRoot, `-${s.folder}`)
+  mkdirSync(dir, { recursive: true })
+  const tail = JSON.stringify({ type: 'ai-title', aiTitle: s.title, sessionId: s.id })
+  writeFileSync(join(dir, `${s.id}.jsonl`), `${[...lines, tail].join('\n')}\n`)
+}
+
+/** What the usage endpoint would answer, for the plugin's stand-in (`APIARY_FAKE_USAGE`): nothing real is read or sent. */
+function standInUsage(): string {
+  const inHours = (h: number): string => new Date(Date.now() + h * 3_600_000).toISOString()
+  return JSON.stringify({ five_hour: { utilization: 42, resets_at: inHours(2.4) }, seven_day: { utilization: 18, resets_at: inHours(80) } })
+}
+
+/**
+ * A roomy window with the fixture's sessions, three more of ours, the pets and the usage meter.
+ * The pets and the meter need the app relaunched to read them, so the fixture is written first.
+ */
+async function launchShowcase(): Promise<Harness> {
+  // The test suite runs the app off-screen so it doesn't take the machine over for minutes at a
+  // time; this one is the exception, because a picture of the app is the entire output.
+  process.env.APIARY_HEADED = '1'
+  const h: Harness = await launchApiary({
+    fakeLiveSessionId: '33333333-3333-3333-3333-333333333333', // "Repo root session": the Active dot
+    // What a new install looks like: the default theme (Liquid Glass), not the test suite's original look.
+    realDefaultTheme: true,
+    // One stand-in `claude` for terminal and chat panes alike (fake-claude.sh hands chats on).
+    claudeBin: FAKE_CLAUDE,
+    settings: { transcriptChat: true, plugins: { 'claude-usage': true } },
+  })
+  writeSession(h, SESSIONS.invoices, invoiceStory(SESSIONS.invoices.id, join(h.home, SESSIONS.invoices.folder)))
+  writeSession(h, SESSIONS.theme, themeStory(SESSIONS.theme.id, join(h.home, SESSIONS.theme.folder)))
+  writeSession(h, SESSIONS.sync, syncStory(SESSIONS.sync.id, join(h.home, SESSIONS.sync.folder)))
+  // Pets out, standing along the bottom-left. Written straight into the profile — no `claude`
+  // call, and `voicedAt` now, so none asks for new lines.
+  const userData = await h.app.evaluate(({ app }) => app.getPath('userData'))
+  writeFileSync(join(userData, 'pets.json'), JSON.stringify({
+    version: 1, enabled: true,
+    pets: PETS.map((spec, i) => ({ id: `pet-${String(i)}`, spec, model: 'haiku', size: 92, active: true, place: { region: 'bar', at: 0.04 + i * 0.07 }, createdAt: 0, voicedAt: Date.now() })),
+  }))
+  await relaunchApiary(h, { APIARY_FAKE_USAGE: standInUsage() })
+  await importAll(h.page)
+  await h.page.getByTestId('sidebar-refresh').click()
+  await h.app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].setSize(1760, 1050) })
+  return h
+}
+
+/** Opens `titles` in a layout of one large pane and two stacked ones, the first title in the large one. */
+async function openLayout(h: Harness, titles: [string, string, string]): Promise<void> {
+  await sidebarSession(h.page, titles[0]).click()
+  for (const title of titles.slice(1)) {
+    await clickRowAction(h.page.locator('.session-row-wrap').filter({ hasText: title }), 'split-session-button')
+  }
+  await expect(h.page.getByTestId('content')).toHaveAttribute('data-preset', 'main-right2')
+}
+
+async function send(column: ReturnType<Harness['page']['getByTestId']>, text: string): Promise<void> {
+  await column.getByTestId('composer-input').fill(text)
+  await column.getByTestId('composer-input').press('Enter')
+}
+
 /**
  * Not a test — a one-off Playwright script that launches the real app against a representative
  * fixture, arranges the UI to show off its main features, and overwrites `docs/screenshot.png`
@@ -30,101 +101,41 @@ const PETS = [
  * discovers this file, and it asserts nothing anyway — its only job is the PNG it writes.
  */
 test('capture the README screenshot', async () => {
-  test.setTimeout(180000)
-  // The test suite runs the app off-screen so it doesn't take the machine over for minutes at a
-  // time; this one is the exception, because a picture of the app is the entire output.
-  process.env.APIARY_HEADED = '1'
-  // The default fixture (see helpers.ts) is exactly what a README picture wants: three distinct
-  // project folders, one of them a git repo with a real nested worktree, four sessions with
-  // human-sounding titles — a believable slice of a real dev's history rather than contrived
-  // "Test Session 1/2/3" rows. One is flagged live, so the sidebar shows its running-session dot
-  // without needing an actual `claude` process (which may not even be on this machine's PATH).
-  const h: Harness = await launchApiary({
-    fakeLiveSessionId: '33333333-3333-3333-3333-333333333333', // "Repo root session"
-    // What a new install looks like: the default theme (Liquid Glass), not the test suite's
-    // original look.
-    realDefaultTheme: true,
-  })
-  // Pets out, standing along the bottom-left. Written straight into the profile and the app
-  // relaunched to read it — no `claude` call, and `voicedAt` now, so none asks for new lines.
-  const userData = await h.app.evaluate(({ app }) => app.getPath('userData'))
-  writeFileSync(join(userData, 'pets.json'), JSON.stringify({
-    version: 1, enabled: true,
-    pets: PETS.map((spec, i) => ({ id: `pet-${String(i)}`, spec, model: 'haiku', size: 92, active: true, place: { region: 'bar', at: 0.04 + i * 0.07 }, createdAt: 0, voicedAt: Date.now() })),
-  }))
-  await relaunchApiary(h)
-  await importAll(h.page)
-  await h.page.getByTestId('sidebar-refresh').click()
-
-  // A roomy window — big enough for a large pane and two stacked ones, each with a shell, without
-  // either the sidebar or a pane looking cramped.
-  await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].setSize(1760, 1050)
-  })
-
-  // Pin the session you'd actually be checking on, to show the Pinned section doing its job.
-  const pinRow = h.page.locator('.session-row-wrap').filter({ hasText: 'Repo root session' })
-  await clickRowAction(pinRow, 'pin-session-button')
-
-  // Point the app at a stand-in `claude` before resuming anything, so a pane can show a session
-  // actually running. The real CLI needs an API key and a network, and would render something
-  // different on every run — none of which belongs in a committed picture. This goes through the
-  // app's own Settings rather than a fixture file, because that is the path that also tells the
-  // running service about it.
-  await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
-  })
-  await h.page.getByTestId('settings-nav-general').click()
-  await h.page.getByTestId('claude-bin-input').fill(join(process.cwd(), 'scripts', 'screenshot', 'fake-claude.sh'))
-  await h.page.getByTestId('settings-save').click()
-  await h.page.getByTestId('settings-dialog').waitFor({ state: 'detached' })
-
-  // Three sessions in a layout — search on the left, several conversations open at once, the large
-  // one with its shell running underneath it. Three splits give "main and two on the right".
-  await sidebarSession(h.page, 'Repo root session').click()
-  for (const title of ['Add worktree switcher', 'Worktree session']) {
-    const target = h.page.locator('.session-row-wrap').filter({ hasText: title })
-    await clickRowAction(target, 'split-session-button')
-  }
-  await expect(h.page.getByTestId('content')).toHaveAttribute('data-preset', 'main-right2')
-
-  // The session about to be resumed goes into the large pane, through the layout picker on its own
-  // tab — the feature the picture is showing off. Not the fixture's "already running elsewhere"
-  // session, because resuming that one deliberately asks before doing anything.
-  const tab = h.page.getByTestId('session-tab').filter({ hasText: 'Add worktree switcher' })
-  await expect(async () => {
-    await tab.hover({ timeout: 2000 })
-    await tab.getByTestId('session-tab-layout').hover({ timeout: 2000 })
-    await expect(h.page.getByTestId('layout-picker')).toBeVisible({ timeout: 2000 })
-  }).toPass({ timeout: 20000 })
-  await h.page.getByTestId('layout-zone-main-right2-1').click()
-  await expect(h.page.getByTestId('layout-picker')).toHaveCount(0)
-
+  test.setTimeout(300000)
+  const h = await launchShowcase()
+  await clickRowAction(h.page.locator('.session-row-wrap').filter({ hasText: SESSIONS.invoices.title }), 'pin-session-button')
+  await openLayout(h, [SESSIONS.invoices.title, SESSIONS.sync.title, SESSIONS.theme.title])
   const columns = h.page.getByTestId('session-column')
+  const [chat, terminal, question] = [columns.nth(0), columns.nth(1), columns.nth(2)]
 
-  // Resume it, so the picture shows what the app is actually for: a live Claude Code session
-  // running inside it. The others stay on their transcripts, which is the other half of what it
-  // does — reading history and working in it, side by side.
-  const live = columns.first()
-  await live.getByTestId('resume-button').click()
-  await expect(live.getByTestId('terminal-session')).toContainText('Claude Code', { timeout: 20000 })
+  // Large pane: a chat in the middle of a long run. The turn it starts never finishes, so the
+  // working line keeps counting; the elapsed time is waited for below, not faked.
+  await expect(chat.getByTestId('chat-tool').first()).toBeVisible({ timeout: 30000 })
+  await send(chat, 'Both are in, thanks. Now run the whole suite and the linter, and fix anything else that breaks.')
+  await expect(chat.getByTestId('chat-working')).toBeVisible({ timeout: 30000 })
 
-  // A shell under the large pane only: the two stacked panes are half height, and a shell in each
-  // leaves their transcripts no room to be read — which is the half of the picture they are for.
-  const shellPanes = 1
-  for (let i = 0; i < shellPanes; i++) {
-    await columns.nth(i).getByTestId('shell-toggle').click()
+  // Top right: the session as Claude Code's own terminal.
+  await terminal.getByTestId('resume-button').click()
+  await expect(terminal.getByTestId('terminal-session')).toContainText('Worked for', { timeout: 20000 })
+
+  // Bottom right: Claude asks one question, then the message box is folded away to leave it room.
+  await send(question, 'Make it follow the system setting by default, with a manual override.')
+  await expect(question.getByTestId('chat-question')).toBeVisible({ timeout: 30000 })
+  // On a short screen the window is smaller than asked for and the card is cut off at the top, under
+  // the person's last message, which sticks there: the divider between the two stacked panes moves
+  // up by what is missing.
+  const stickyMessage = 52
+  const cut = (await question.getByTestId('chat-timeline').boundingBox())!.y + stickyMessage - (await question.getByTestId('chat-question-card').boundingBox())!.y
+  if (cut > 0) {
+    const divider = (await h.page.getByTestId('row-resizer').boundingBox())!
+    await h.page.mouse.move(divider.x + divider.width / 2, divider.y + divider.height / 2)
+    await h.page.mouse.down()
+    await h.page.mouse.move(divider.x + divider.width / 2, divider.y - cut - 12, { steps: 8 })
+    await h.page.mouse.up()
   }
-  for (let i = 0; i < shellPanes; i++) {
-    const shell = columns.nth(i).getByTestId('terminal-shell')
-    await shell.click()
-    // This is a real, live shell in whatever directory the session ran in — genuinely running,
-    // which is the point — but its default prompt bakes in this machine's hostname and username.
-    // Since this screenshot is committed to a public README, replace it with a plain, generic
-    // one instead of publishing whoever happened to run this script's login name.
-    await h.page.keyboard.type('export PS1="$ "; clear\n')
-  }
-  // The pets in 3D, not the moment before they are drawn.
+  await question.getByTestId('composer-collapse').click()
+
+  // The pets in 3D, not the moment before they are drawn...
   await expect(h.page.locator('.pet-sprite[data-render="3d"]')).toHaveCount(PETS.length, { timeout: 30000 })
   // ...and caught standing apart, not mid-stroll past one another.
   await expect.poll(() => h.page.evaluate(() => {
@@ -133,14 +144,13 @@ test('capture the README screenshot', async () => {
     const boxes = pets.map((p) => p.getBoundingClientRect()).sort((a, b) => a.left - b.left)
     return boxes.every((b, i) => i === 0 || b.left >= boxes[i - 1].left + boxes[i - 1].width * 0.9)
   }), { timeout: 90000 }).toBe(true)
-  // Give each shell a moment to apply the new prompt and settle, and move the pointer off the
-  // panes so no hover card or picker is caught in the picture.
-  await h.page.mouse.move(2, 2)
-  // eslint-disable-next-line playwright/no-wait-for-timeout -- pacing for the committed screenshot: gives the shell prompt a moment to repaint after the typed command, with no UI signal to assert on instead
-  await h.page.waitForTimeout(1000)
+  await expect(h.page.getByTestId('status-item-claude-usage-usage')).toContainText('5h 42%')
+  // The working line has been counting since the message was sent: wait until it reads over a minute.
+  await expect(chat.getByTestId('chat-working')).toContainText(/\d+m \d+s/, { timeout: 120000 })
 
-  // The Refresh above reports what it found, which is useful in the app and noise in a README
-  // image. Close whatever is still on screen rather than waiting out its dwell time.
+  // Move the pointer off the panes so no hover card or picker is caught in the picture, and close
+  // the Refresh report, which is useful in the app and noise in a README image.
+  await h.page.mouse.move(2, 2)
   for (const close of await h.page.getByTestId('notification-close').all()) await close.click()
   await expect(h.page.getByTestId('notification')).toHaveCount(0)
 

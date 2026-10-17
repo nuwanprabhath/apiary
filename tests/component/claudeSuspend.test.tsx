@@ -1,3 +1,4 @@
+import { asPtyId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
@@ -30,7 +31,7 @@ describe('Ctrl+Z in a Claude Code terminal', () => {
     const { fake } = await renderApp()
     const ptyId = await openClaudeTerminal(fake)
 
-    fake.emit('ptyData', ptyId, 'Claude Code has been suspended. Run `fg` to bring Claude Code back.\r\n'
+    fake.emit('ptyData', asPtyId(ptyId), 'Claude Code has been suspended. Run `fg` to bring Claude Code back.\r\n'
       + 'Note: ctrl + z now suspends Claude Code, ctrl + _ undoes input.\r\n')
     await expect.element(page.getByTestId('terminal-suspended')).toBeVisible()
 
@@ -47,7 +48,7 @@ describe('Ctrl+Z in a Claude Code terminal', () => {
   it('the Resume button continues it too', async () => {
     const { fake } = await renderApp()
     const ptyId = await openClaudeTerminal(fake)
-    fake.emit('ptyData', ptyId, 'Claude Code has been suspended. Run `fg` to bring Claude Code back.\r\n')
+    fake.emit('ptyData', asPtyId(ptyId), 'Claude Code has been suspended. Run `fg` to bring Claude Code back.\r\n')
     await userEvent.click(page.getByTestId('terminal-resume'))
     await expect.poll(() => fake.callsTo('ptyResume')).toEqual([[ptyId]])
   })

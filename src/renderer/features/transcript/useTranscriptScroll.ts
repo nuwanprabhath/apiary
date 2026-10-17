@@ -114,11 +114,22 @@ export function useTranscriptScroll({ tail, messages, visible, chatMode, chat }:
 
   // Streamed words, prompts and the working line follow the same rule as new messages: only if
   // you were already at the bottom.
-  useLayoutEffect(() => {
-    if (!chatMode || chat === null || !stickToBottomRef.current) return
-    const el = containerRef.current
-    if (el !== null) el.scrollTop = el.scrollHeight
+  // Updates arrive many times a frame under load; the layout is read once per frame, when the
+  // reader is still following, instead of once per update.
+  const followFrame = useRef<number | null>(null)
+  useEffect(() => {
+    if (!chatMode || chat === null || followFrame.current !== null) return
+    followFrame.current = requestAnimationFrame(() => {
+      followFrame.current = null
+      if (!stickToBottomRef.current) return
+      const el = containerRef.current
+      if (el !== null) el.scrollTop = el.scrollHeight
+    })
   }, [chatMode, chat, containerRef, stickToBottomRef])
+  useEffect(() => () => {
+    if (followFrame.current !== null) cancelAnimationFrame(followFrame.current)
+    followFrame.current = null
+  }, [])
 
   return { showJump, onScroll, onWheel, onKeyDown, jumpToLatest }
 }

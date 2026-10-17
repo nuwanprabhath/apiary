@@ -1,3 +1,4 @@
+import { asPtyId } from '@shared/domain/ids'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { Terminal } from '@xterm/xterm'
@@ -41,7 +42,7 @@ describe('a terminal that stops drawing', () => {
     const ptyId = await openClaudeTerminal(fake)
     const resizesBefore = fake.callsTo('ptyResize').length
 
-    fake.emit('ptyData', ptyId, 'LIVE_AFTER_A_STALLED_CATCH_UP\r\n')
+    fake.emit('ptyData', asPtyId(ptyId), 'LIVE_AFTER_A_STALLED_CATCH_UP\r\n')
     await until(() => screen().includes('LIVE_AFTER_A_STALLED_CATCH_UP'), 8000)
     expect(fake.callsTo('ptyResize').length).toBeGreaterThan(resizesBefore)
     expect(logged(fake)).toContain('terminal catch-up stalled; showing live output')
@@ -50,7 +51,7 @@ describe('a terminal that stops drawing', () => {
   it('rebuilds a view whose xterm stopped parsing, and the rebuilt one draws', async () => {
     const { fake } = await renderApp()
     const ptyId = await openClaudeTerminal(fake)
-    fake.emit('ptyData', ptyId, 'BEFORE\r\n')
+    fake.emit('ptyData', asPtyId(ptyId), 'BEFORE\r\n')
     await until(() => screen().includes('BEFORE'))
 
     // Wedge this view's xterm the way an exception inside its parse loop does: from here on,
@@ -65,11 +66,11 @@ describe('a terminal that stops drawing', () => {
       if (this === wedged) return
       realWrite.call(this, data, callback)
     })
-    fake.emit('ptyData', ptyId, 'NEVER_DRAWN\r\n')
+    fake.emit('ptyData', asPtyId(ptyId), 'NEVER_DRAWN\r\n')
 
     await until(() => logged(fake).includes('terminal stopped drawing; rebuilt it'), 10000)
     // The rebuilt view is a fresh xterm on the same pty, and it draws.
-    fake.emit('ptyData', ptyId, 'AFTER_REBUILD\r\n')
+    fake.emit('ptyData', asPtyId(ptyId), 'AFTER_REBUILD\r\n')
     await until(() => screen().includes('AFTER_REBUILD'), 8000)
     expect(screen()).not.toContain('NEVER_DRAWN')
   })

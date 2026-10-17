@@ -47,9 +47,7 @@
 .theme-describe-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .theme-busy { display: inline-flex; align-items: center; gap: var(--space-sm); color: var(--muted); }
 .spinner-dot { width: var(--dot-size-lg); height: var(--dot-size-lg); border-radius: 50%; background: var(--accent); animation: status-breathe var(--status-breathe-duration) ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) {
-  .spinner-dot { animation: none; }
-}
+:root[data-motion="reduced"] .spinner-dot { animation: none; }
 .theme-error { color: var(--danger); margin: 0; }
 .theme-preview-bar {
   display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-ml) var(--space-lg);

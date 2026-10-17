@@ -1,4 +1,4 @@
-import { type RefObject, useLayoutEffect, useState } from 'react'
+import { type CSSProperties, type RefObject, useState } from 'react'
 import { useResizeDrag } from '../../ui/useResizeDrag'
 import { loadComposerHeight, saveComposerHeight } from '../../state/uiState'
 
@@ -11,23 +11,15 @@ const MAX_SHARE = 0.75
 /** The message box's height: fitted to its text, or dragged (and remembered) taller. */
 export function useComposerHeight(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
-  text: string,
-  /** False while the box is folded away: it is measured again when it comes back. */
-  shown: boolean,
-): { dragging: boolean, separatorProps: ReturnType<typeof useResizeDrag>['separatorProps'], fitAgain: () => void } {
+): { dragging: boolean, boxStyle: CSSProperties, separatorProps: ReturnType<typeof useResizeDrag>['separatorProps'], fitAgain: () => void } {
   // The height the box was dragged to, which it never shrinks below; null to fit what is typed.
   const [dragged, setDragged] = useState<number | null>(() => loadComposerHeight(MIN_HEIGHT))
 
-  // Fits the box to its text, so a long message can be read whole before it is sent: from the
-  // dragged height (or the minimum) up to a share of the window, scrolling only past that.
-  useLayoutEffect(() => {
-    const el = textareaRef.current
-    if (el === null) return
-    const floor = dragged ?? MIN_HEIGHT
-    const cap = Math.max(floor, window.innerHeight * GROW_SHARE)
-    el.style.height = 'auto'
-    el.style.height = `${String(Math.min(cap, Math.max(floor, el.scrollHeight + 2)))}px`
-  }, [textareaRef, text, dragged, shown])
+  // The box fits its text (`field-sizing: content`), so a long message can be read whole before it
+  // is sent: from the dragged height (or the minimum) up to a share of the window, scrolling only
+  // past that. The browser does the fitting; measuring `scrollHeight` per key forced a layout.
+  const floor = dragged ?? MIN_HEIGHT
+  const boxStyle: CSSProperties = { minHeight: floor, maxHeight: Math.max(floor, window.innerHeight * GROW_SHARE) }
 
   // The top edge drags the box taller (up grows it) and, with the keyboard, steps it the same way.
   // The height is committed — and saved — once, on release or key press; `onLive` only moves the
@@ -52,6 +44,7 @@ export function useComposerHeight(
 
   return {
     dragging,
+    boxStyle,
     separatorProps,
     fitAgain: () => {
       setDragged(null)

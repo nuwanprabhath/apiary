@@ -5,6 +5,7 @@ import {
   type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatModel, type ChatPermissionMode, type ChatState, type TerminalBusy,
 } from '@shared/domain/chat'
 import type { ResumeConflict } from '@shared/types'
+import { chatPush } from '@shared/chatPush'
 import { chatActivity, classifyActivity, type ActivityStatus } from '@shared/activity'
 import { asSessionId, UUID_RE, type AccountId, type SessionId } from '@shared/domain/ids'
 import type { LaunchAccounts } from '../accounts/accountService'
@@ -48,7 +49,7 @@ export interface ChatServiceDeps {
  *
  * Delivery is per window, as for ptys (`WindowAttachments`): a renderer attaches the session its
  * pane shows (`chatAttach`) and gets that chat's `chatChanged` only, instead of every window
- * getting every chat's full state about every 40 ms. What every window does need to hear —
+ * getting every chat's state about every 120 ms (and only the fields that changed, `ChatPush`). What every window does need to hear —
  * a chat took the terminal over, or `/clear` moved it onto a new session — travels separately as
  * the rare, tiny `chatLifecycle`.
  *
@@ -70,11 +71,19 @@ export class ChatService {
    *  state of that run must not announce its end a second time, and the next run's `running`
    *  replaces the entry. */
   private readonly announced = new Map<string, { lifecycle: string; activity: ActivityStatus }>()
+  /**
+   * The last state pushed per session, what the next push is diffed against (`chatPush`).
+   * Invalidated by: the chat exiting, or `sweep` forgetting it.
+   */
+  private readonly pushed = new Map<string, ChatState>()
 
   constructor(private readonly deps: ChatServiceDeps) {}
 
+  /** The state last pushed to windows, not a newer one still coalescing: a window that fetches
+   *  mid-stream then holds the `seq` the next delta is computed from. */
   state(sessionId: SessionId): ChatState | null {
-    return this.deps.chats.state(sessionId)
+    const current = this.deps.chats.state(sessionId)
+    return current === null ? null : (this.pushed.get(current.sessionId) ?? current)
   }
 
   /**
@@ -216,7 +225,9 @@ export class ChatService {
     if (state.previousSessionId !== null && !this.adopted.has(state.sessionId)) this.adoptions.add(state.sessionId)
     // Windows showing the session it is now on, and those still on the one `/clear` left: they
     // follow the chat until their tab does (`useChatTakeover`).
-    this.deps.attachments.sendTo(this.keysOf(state), IPC.chatChanged, state)
+    this.deps.attachments.sendTo(this.keysOf(state), IPC.chatChanged, chatPush(this.pushed.get(state.sessionId) ?? null, state))
+    if (state.status === 'exited') this.pushed.delete(state.sessionId)
+    else this.pushed.set(state.sessionId, state)
     this.observe(state)
     if (state.status === 'exited') this.sweep()
   }
@@ -243,6 +254,7 @@ export class ChatService {
     const { chats, attachments } = this.deps
     for (const state of chats.exitedStates()) {
       if (this.keysOf(state).some((key) => attachments.isAttached(key))) continue
+      this.pushed.delete(state.sessionId)
       chats.forget(state.sessionId)
     }
   }

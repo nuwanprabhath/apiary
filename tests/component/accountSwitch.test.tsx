@@ -34,7 +34,7 @@ async function openChat(several = true): Promise<{ fake: FakeApiary; sessionId: 
 function play(fake: FakeApiary, sessionId: string, patch: Partial<ChatState>): void {
   const next = { ...(fake.state.chats.get(sessionId) ?? { ...emptyChatState(asSessionId(sessionId)), status: 'idle' as const }), ...patch }
   fake.state.chats.set(sessionId, next)
-  fake.emit('chatChanged', next)
+  fake.emit('chatChanged', { kind: 'full', state: next })
 }
 
 const switches = (fake: FakeApiary): unknown[][] => fake.callsTo('sessionAccountSwitch')

@@ -51,7 +51,7 @@ persisted messages is `src/shared/chatTimeline.ts`.
 
 - **A background tab shows no chat and gets no pushes.** It fetches `chatState` when it becomes the
   active tab. Anything that must hear about every chat uses `onChatLifecycle`, not `useChat`.
-- **A streaming chat pushes about 25 times a second.** Keep rows memoised and read only your
+- **A streaming chat pushes about 8 times a second.** Keep rows memoised and read only your
   session's key; a selector must return a stable value.
 - **A queued message shows once.** Claude writes a taken-in message to the file before it confirms,
   so `stillQueued` hides a queued entry once your message has reached the transcript. **Send now**

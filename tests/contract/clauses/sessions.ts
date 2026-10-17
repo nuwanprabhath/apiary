@@ -123,6 +123,26 @@ export function defineSessionClauses(ctx: Ctx): void {
       expect(all[0]).toContain('fix the export')
       expect(all.at(-1)).toContain('done')
     })
+
+    it('stamps each message with its line index and answers only what follows an index', async () => {
+      const total = TRANSCRIPT_PAGE_SIZE + 50
+      await ctx.restart({ longSessionMessages: total })
+      const newest = await ctx.api.transcript(LONG_SESSION.id)
+      const last = newest.messages.at(-1)?.index
+      expect(last).toBeTypeOf('number')
+      const indexes = newest.messages.map((m) => m.index as number)
+      expect(indexes).toEqual([...indexes].sort((a, b) => a - b))
+
+      expect((await ctx.api.transcriptAfter(LONG_SESSION.id, last as number)).messages).toEqual([])
+      const tail = await ctx.api.transcriptAfter(LONG_SESSION.id, indexes[indexes.length - 4])
+      expect(tail.messages.map((m) => m.index)).toEqual(indexes.slice(-3))
+      expect(tail.earlierCursor).toBeNull()
+
+      const burst = await ctx.api.transcriptAfter(LONG_SESSION.id, indexes[0] - 1)
+      expect(burst.messages).toHaveLength(TRANSCRIPT_PAGE_SIZE)
+      expect(burst.messages.at(-1)?.index).toBe(last)
+      await expect(ctx.api.transcriptAfter(LONG_SESSION.id, 'x' as never)).rejects.toThrow()
+    })
   })
 
   describe('starting sessions', () => {

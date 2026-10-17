@@ -1,5 +1,4 @@
 {
-  "scripts/screenshot/screenshot.spec.ts": 1,
   "src/main/exec/spawnLoginShell.ts": 1,
   "src/main/pets/petService.ts": 1,
   "src/main/sessions/transcriptService.ts": 1,
@@ -27,6 +26,7 @@
   "tests/component/regionBoundaries.test.tsx": 1,
   "tests/component/terminalStuck.test.tsx": 2,
   "tests/e2e/activeSection.spec.ts": 1,
+  "tests/e2e/bench/loadPerf.spec.ts": 1,
   "tests/e2e/bench/themePerf.spec.ts": 5,
   "tests/e2e/helpers.ts": 3,
   "tests/e2e/live/haikuSessions.spec.ts": 8,

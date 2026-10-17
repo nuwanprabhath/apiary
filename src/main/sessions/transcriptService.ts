@@ -46,6 +46,14 @@ export class TranscriptService {
   constructor(private readonly deps: TranscriptServiceDeps) {}
 
   async page(sessionId: string, beforeIndex?: number): Promise<TranscriptPage> {
+    return this.read(sessionId, (path) => this.deps.reader.readTranscriptPage(path, { beforeIndex }))
+  }
+
+  async after(sessionId: string, afterIndex: number): Promise<TranscriptPage> {
+    return this.read(sessionId, (path) => this.deps.reader.readTranscriptAfter(path, afterIndex))
+  }
+
+  private async read(sessionId: string, readFile: (path: string) => Promise<TranscriptPage>): Promise<TranscriptPage> {
     const session = this.deps.resolver.requireSession(sessionId)
     // Removing a git worktree takes its `~/.claude/projects/<slug>` directory with it, so the file
     // can vanish under Apiary.
@@ -56,7 +64,7 @@ export class TranscriptService {
         'Remove the session from the sidebar to stop it being listed.',
       )
     }
-    const page = await this.deps.reader.readTranscriptPage(session.filePath, { beforeIndex })
+    const page = await readFile(session.filePath)
     if (session.messageCount === null) {
       const { messageCount } = await this.deps.reader.indexTranscript(session.filePath)
       this.deps.store.setMessageCount(sessionId, messageCount)

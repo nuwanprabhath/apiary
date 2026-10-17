@@ -20,8 +20,14 @@
 # Message lines are still kept under ~52 columns, so they read as a narrow column the way they do
 # in the app rather than running the full width of a wide window.
 #
-# Arguments (`--resume <id>`) are ignored on purpose: what is being shown is the terminal, not the
+# Started in chat mode (`--input-format stream-json`) it is not a terminal at all: it hands over to
+# fake-claude-chat.mjs, so the one `claudeBin` setting serves both kinds of pane. Otherwise its
+# arguments (`--resume <id>`) are ignored on purpose: what is being shown is the terminal, not the
 # session plumbing behind it.
+
+case " $* " in
+  *" --input-format "*) exec node "$(dirname "$0")/fake-claude-chat.mjs" "$@" ;;
+esac
 
 esc=$(printf '\033')
 off="${esc}[0m"; bold="${esc}[1m"
@@ -39,23 +45,26 @@ draw() {
   rule="${rule// /─}"
 
   local body=(
+    "${pink}✻${off} ${bold}Claude Code${off} ${grey}v2.1.286${off}"
+    "  ${grey}Sonnet 5.5 · $(basename "$PWD")${off}"
     ''
-    "${pink}✻${off} ${bold}Claude Code${off} ${grey}v2.1.268${off}"
-    "  ${grey}Sonnet 5 · $(basename "$PWD")${off}"
+    "${grey}❯${off} the nightly sync times out on big"
+    '  accounts. why?'
     ''
-    "${grey}❯${off} the export is empty"
+    "${white}⏺${off} It loads every account into memory"
+    '  before batching, so one large tenant'
+    '  exhausts the heap. Streaming instead.'
     ''
-    "${white}⏺${off} Found it — the CSV writer never"
-    '  flushed its buffer, so the file was'
-    '  closed before the rows were written.'
+    "${green}⏺${off} ${bold}Update(src/jobs/nightlySync.ts)${off}"
+    "  ${grey}⎿  Updated with 11 additions, 6 removals${off}"
     ''
-    "${green}⏺${off} ${bold}Update(src/export/csvWriter.ts)${off}"
-    "  ${grey}⎿  +4 -1${off}"
+    "${green}⏺${off} ${bold}Bash(npm test -- nightlySync)${off}"
+    "  ${grey}⎿  Tests: 9 passed, 9 total${off}"
     ''
-    "${white}⏺${off} Added the flush, and a test that"
-    '  fails without it.'
+    "${white}⏺${off} Fixed. The job now reads accounts in"
+    '  pages of 500; peak memory stays flat.'
     ''
-    "${grey}✻ Churned for 6s${off}"
+    "${grey}✻ Worked for 38s${off}"
   )
   local footer=(
     "${grey} ${rule}${off}"

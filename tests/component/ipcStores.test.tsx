@@ -48,7 +48,24 @@ describe('IPC stores', () => {
     // And a push for it reaches both.
     const next = { ...emptyChatState(asSessionId(sessionId)), status: 'idle' as const }
     fake.state.chats.set(sessionId, next)
-    fake.emit('chatChanged', next)
+    fake.emit('chatChanged', { kind: 'full', state: next })
     await until(() => document.querySelectorAll('[data-testid="composer-input"]').length === 2)
+  })
+
+  it('a chat delta onto a state the window does not have is dropped and the chat is read again', async () => {
+    const { fake } = await renderApp({ settings: { transcriptChat: true } })
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await expect.element(page.getByTestId('chat-timeline')).toBeVisible()
+    const sessionId = asSessionId(fake.state.sessions.find((s) => s.title === 'Fix CSV export bug')!.sessionId)
+    const reads = (): number => fake.callsTo('chatState').filter((a) => a[0] === sessionId).length
+    const held = { ...emptyChatState(sessionId), status: 'idle' as const, seq: 5 }
+    fake.state.chats.set(sessionId, held)
+    fake.emit('chatChanged', { kind: 'full', state: held })
+    await until(() => document.querySelector('[data-testid="composer-input"]') !== null)
+    const before = reads()
+    // main moved on (a change this window never heard); the next delta names a base this window lacks.
+    fake.state.chats.set(sessionId, { ...held, seq: held.seq + 2, permissionMode: 'plan' })
+    fake.emit('chatChanged', { kind: 'delta', sessionId, previousSessionId: null, base: held.seq + 1, seq: held.seq + 2, changes: { permissionMode: 'plan' } })
+    await until(() => reads() === before + 1)
   })
 })

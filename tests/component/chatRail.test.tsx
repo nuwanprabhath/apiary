@@ -25,7 +25,7 @@ describe.each([0.8, 1])('chat rail at density %s', (density) => {
     const send = (patch: object): void => {
       const next = { ...(fake.state.chats.get(sessionId) ?? { ...emptyChatState(asSessionId(sessionId)), status: 'idle' as const }), ...patch }
       fake.state.chats.set(sessionId, next)
-      fake.emit('chatChanged', next)
+      fake.emit('chatChanged', { kind: 'full', state: next })
     }
     send({
       live: [{ uuid: 'a1', role: 'assistant', timestampMs: null, isSidechain: false, blocks: [{ type: 'text', text: 'Hello there' }] }],

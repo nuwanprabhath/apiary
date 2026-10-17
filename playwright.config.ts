@@ -16,6 +16,9 @@ import { defineConfig } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './tests/e2e',
+  // The load benchmark runs only when asked for (`npm run bench:load`): minutes long, it measures the
+  // machine, and its default mode spends real tokens.
+  testIgnore: process.env.APIARY_BENCH_LOAD === '1' ? [] : ['**/bench/loadPerf.spec.ts'],
   // Fetches Electron's binary once, before the workers race to (see the file).
   globalSetup: './tests/e2e/globalSetup.ts',
   timeout: 60000,

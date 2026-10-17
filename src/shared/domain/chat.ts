@@ -103,6 +103,8 @@ export type ChatStatus = 'starting' | 'idle' | 'busy' | 'exited'
 
 export interface ChatState {
   sessionId: SessionId
+  /** Rises with every state a `ChatSession` emits; a `ChatPush` delta applies only onto the state it names. */
+  seq: number
   status: ChatStatus
   /** The model the session is actually running (claude's `applied` setting), e.g.
    *  `claude-haiku-4-5-20251001` — not whatever the picker last asked for. */
@@ -150,7 +152,7 @@ export interface ChatState {
 
 /**
  * What every window hears about a chat, whether or not it shows that session (`chatLifecycle`).
- * `ChatState` goes only to attached windows (`chatAttach`) and changes about every 40 ms while a
+ * `ChatState` goes only to attached windows (`chatAttach`) and changes about every 120 ms while a
  * reply streams; a background tab still has to learn that a chat took over or moved on (`/clear`).
  */
 export interface ChatLifecycle {
@@ -175,9 +177,19 @@ export interface ChatCommand {
   argumentHint: string
 }
 
+/**
+ * What `chatChanged` carries: the whole state, or only the top-level fields that changed since the
+ * push before it (`base`), so a streaming reply does not re-send 200 messages 8 times a second.
+ * A window applies a delta only onto a snapshot whose `seq` is `base`, else it fetches again.
+ */
+export type ChatPush =
+  | { kind: 'full'; state: ChatState }
+  | { kind: 'delta'; sessionId: SessionId; previousSessionId: SessionId | null; base: number; seq: number; changes: Partial<ChatState> }
+
 export function emptyChatState(sessionId: SessionId): ChatState {
   return {
     sessionId,
+    seq: 0,
     status: 'starting',
     model: null,
     effort: null,

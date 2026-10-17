@@ -5,6 +5,7 @@ import { habitatLengths, nearestPlace, normalisePlace, type Habitat } from '@sha
 import type { VoiceContext } from '@shared/pets/prompt'
 import type { PetPlace, PetRecord } from '@shared/pets/state'
 import { askPetVoice, latestClaudeAction, onPetVoiceCheck, petRemark, watchClaudeActions } from '../../state/petsStore'
+import { useMotion } from '../../state/motion'
 import { BrainClient } from './brainClient'
 import type { FromBrain } from './petBrain.worker'
 
@@ -113,21 +114,24 @@ export function usePetBrain(
     }
   }, [later, remark])
 
+  const reduced = useMotion() === 'reduced'
+  const reducedRef = useRef(reduced)
+  useEffect(() => {
+    reducedRef.current = reduced
+    brain.current?.send({ kind: 'reducedMotion', on: reduced })
+  }, [reduced])
+
   // The brain: one worker for every pet, paused while the window is hidden.
   useEffect(() => {
     const client = new BrainClient(apply)
     brain.current = client
     const visibility = (): void => { if (document.visibilityState === 'hidden') client.pause(); else client.resume() }
-    const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const onMotion = (): void => { client.send({ kind: 'reducedMotion', on: motion.matches }) }
-    onMotion()
+    client.send({ kind: 'reducedMotion', on: reducedRef.current })
     visibility()
     document.addEventListener('visibilitychange', visibility)
-    motion.addEventListener('change', onMotion)
     const pending = timers.current
     return () => {
       document.removeEventListener('visibilitychange', visibility)
-      motion.removeEventListener('change', onMotion)
       for (const t of pending) window.clearTimeout(t)
       pending.clear()
       client.dispose()

@@ -18,7 +18,7 @@ async function open(): Promise<{ busy: () => void }> {
     busy: () => {
       const next = { ...emptyChatState(asSessionId(sessionId)), status: 'busy' as const }
       fake.state.chats.set(sessionId, next)
-      fake.emit('chatChanged', next)
+      fake.emit('chatChanged', { kind: 'full', state: next })
     },
   }
 }
@@ -38,6 +38,12 @@ describe('UI composer collapse', () => {
   it('composer expanded', async () => {
     await open()
     await reviewUi('composer expanded', scoped({ widths: [620, 1000] }))
+  })
+
+  it('composer grown to fit a multi-line draft', async () => {
+    await open()
+    await userEvent.fill(page.getByTestId('composer-input'), Array.from({ length: 30 }, (_, i) => `line ${String(i + 1)}`).join('\n'))
+    await reviewUi('composer grown draft', scoped({ widths: [620, 1000] }))
   })
 
   it('composer collapsed empty', async () => {

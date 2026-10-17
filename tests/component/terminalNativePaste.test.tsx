@@ -1,3 +1,4 @@
+import { asPtyId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
@@ -56,7 +57,7 @@ describe('a native paste into a terminal (SEC-6)', () => {
   it('is bracketed exactly once when the program asked for bracketed paste', async () => {
     const { fake } = await renderApp()
     const ptyId = await openClaudeTerminal(fake)
-    fake.emit('ptyData', ptyId, `${ESC}[?2004h`)
+    fake.emit('ptyData', asPtyId(ptyId), `${ESC}[?2004h`)
     // Parsing is asynchronous; a probe write that has come back means the mode is on.
     await until(() => fake.callsTo('ptySnapshot').length > 0)
     await new Promise((r) => requestAnimationFrame(r))

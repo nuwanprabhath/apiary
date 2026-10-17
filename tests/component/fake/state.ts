@@ -11,7 +11,7 @@ import type { GitTarget } from '@shared/domain/git'
 import type { RemoteClientInfo, RemoteHost, RemoteServerState, RemoteStatus } from '@shared/domain/remote'
 import type { ChatState, TerminalBusy } from '@shared/domain/chat'
 import type { BackgroundTaskOutput } from '@shared/chatTimeline'
-import type { EventKey } from '@shared/ipc/contract'
+import type { EventKey, PayloadOf } from '@shared/ipc/contract'
 import type { LibraryPatch, LibrarySnapshot } from '@shared/libraryState'
 import type { AccountsState } from '@shared/domain/accounts'
 import type { PetSpec } from '@shared/pets/spec'
@@ -84,8 +84,8 @@ export type FakeApiary = ApiaryApi & {
   calls: FakeCall[]
   /** The arguments of each call to `name`. */
   callsTo(name: keyof ApiaryApi): unknown[][]
-  /** Fires one of the `on…` subscriptions, as the main process would. */
-  emit(event: FakeEvent, ...args: unknown[]): void
+  /** Fires one of the `on…` subscriptions, as the main process would, with that event's payload type. */
+  emit<K extends FakeEvent>(event: K, ...args: PayloadOf<K>): void
   /** Replace what a method does, for one test (a rejection, a slow answer, a different result). */
   override<K extends keyof ApiaryApi>(name: K, impl: ApiaryApi[K]): void
   /** The mutable state behind the fake — sessions, settings, refs — for arranging a test. */
@@ -196,7 +196,7 @@ export interface FakeState {
 /** What each area of the fake is handed. */
 export interface Env {
   state: FakeState
-  emit: (event: FakeEvent, ...args: unknown[]) => void
+  emit: <K extends FakeEvent>(event: K, ...args: PayloadOf<K>) => void
   find: (id: string) => FakeSession | undefined
   /** Mints a pending terminal for a session started in `cwd`. */
   newSession: (cwd: string) => NewSessionInfo

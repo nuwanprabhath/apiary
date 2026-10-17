@@ -164,9 +164,7 @@
 .toolbar-button:disabled { cursor: default; opacity: 0.5; }
 .toolbar-button[data-active="true"] { background: var(--selected); color: var(--text); border-color: var(--border); }
 .toolbar-button .spinner { animation: spin 0.6s linear infinite; }
-@media (prefers-reduced-motion: reduce) {
-  .toolbar-button .spinner { animation: none; }
-}
+:root[data-motion="reduced"] .toolbar-button .spinner { animation: none; }
 
 .error-banner { margin: 0; padding: var(--space-md) var(--space-xl); background: var(--danger-bg); color: var(--danger); }
 

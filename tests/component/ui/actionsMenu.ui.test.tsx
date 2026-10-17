@@ -27,7 +27,7 @@ async function openChat(): Promise<void> {
   const id = fake.state.sessions.find((s) => s.title === 'Fix CSV export bug')?.sessionId ?? ''
   const next = { ...emptyChatState(asSessionId(id)), status: 'idle' as const, commands: COMMANDS }
   fake.state.chats.set(id, next)
-  fake.emit('chatChanged', next)
+  fake.emit('chatChanged', { kind: 'full', state: next })
   await until(() => document.querySelector('[data-testid="composer-input"]') !== null)
 }
 

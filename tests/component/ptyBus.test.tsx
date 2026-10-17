@@ -1,3 +1,4 @@
+import { asPtyId } from '@shared/domain/ids'
 /**
  * UI-10: `ptyBus` replaces one `window.apiary.onPtyData`/`onPtyExit` subscription per mounted
  * `TerminalView` with a single shared one, dispatching by pty id. Tested against the fake bridge
@@ -16,7 +17,7 @@ describe('ptyBus', () => {
     ptyBus.onData('pty-a', forA)
     ptyBus.onData('pty-b', forB)
 
-    fake.emit('ptyData', 'pty-a', 'hello')
+    fake.emit('ptyData', asPtyId('pty-a'), 'hello')
 
     expect(forA).toHaveBeenCalledExactlyOnceWith('hello')
     expect(forB).not.toHaveBeenCalled()
@@ -39,9 +40,9 @@ describe('ptyBus', () => {
     const { fake } = await renderApp()
     const cb = vi.fn()
     const off = ptyBus.onData('pty-a', cb)
-    fake.emit('ptyData', 'pty-a', 'first')
+    fake.emit('ptyData', asPtyId('pty-a'), 'first')
     off()
-    fake.emit('ptyData', 'pty-a', 'second')
+    fake.emit('ptyData', asPtyId('pty-a'), 'second')
 
     expect(cb).toHaveBeenCalledExactlyOnceWith('first')
   })
@@ -53,7 +54,7 @@ describe('ptyBus', () => {
     ptyBus.onExit('pty-a', forA)
     ptyBus.onExit('pty-b', forB)
 
-    fake.emit('ptyExit', 'pty-a', 0)
+    fake.emit('ptyExit', asPtyId('pty-a'), 0)
 
     expect(forA).toHaveBeenCalledExactlyOnceWith(0)
     expect(forB).not.toHaveBeenCalled()
@@ -71,10 +72,10 @@ describe('ptyBus', () => {
     const second = await renderApp()
     ptyBus.onData('pty-unrelated', () => {})
 
-    first.fake.emit('ptyData', 'pty-a', 'from the old bridge')
+    first.fake.emit('ptyData', asPtyId('pty-a'), 'from the old bridge')
     expect(cb).not.toHaveBeenCalled()
 
-    second.fake.emit('ptyData', 'pty-a', 'from the new bridge')
+    second.fake.emit('ptyData', asPtyId('pty-a'), 'from the new bridge')
     expect(cb).toHaveBeenCalledExactlyOnceWith('from the new bridge')
   })
 })

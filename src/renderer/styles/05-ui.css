@@ -126,9 +126,7 @@
   animation: border-glow var(--glow-duration) linear infinite;
 }
 [data-glow="waiting"]::after { background: var(--status-waiting); }
-@media (prefers-reduced-motion: reduce) {
-  [data-glow="running"]::after {
-    animation: none;
-    background: var(--status-running);
-  }
+:root[data-motion="reduced"] [data-glow="running"]::after {
+  animation: none;
+  background: var(--status-running);
 }

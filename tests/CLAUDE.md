@@ -132,6 +132,15 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
 - `APIARY_BENCH=1 npm run test:e2e -- tests/e2e/bench/` (`APIARY_BENCH_GPU=off` for software
   compositing) — measures theme performance. See
   [src/shared/theme/CLAUDE.md](../src/shared/theme/CLAUDE.md).
+- `npm run bench:load` (`APIARY_BENCH_*` settings in the header of `tests/e2e/bench/loadPerf.spec.ts`) —
+  N chat sessions in M windows (default 6 in 2, glass theme) while a message box is typed into:
+  CPU and memory of every process (`app.getAppMetrics()` plus `ps` or `/proc` for `claude` and
+  shells), main's event-loop delay, IPC per channel, frame times and key-to-paint latency, with
+  optional CPU profiles and a Chromium trace. Real `claude --model haiku` by default (spends tokens);
+  `APIARY_BENCH_CLAUDE=record` also records each session, and `replay` plays recordings back with no
+  tokens or login (`tests/fixtures/bench/`). Results go to `bench-results/<label>/` (gitignored);
+  `npm run bench:report -- --out <dir> <run dir>...` compares runs as a table and SVG charts.
+  Findings: [docs/perf/2026-10-17-load-benchmark.md](../docs/perf/2026-10-17-load-benchmark.md).
 - `npm run test:packaged` — packages the app with `electron-builder --dir` (host platform, no
   installers, no publishing) and runs `tests/packaged/` (its own `playwright.packaged.config.ts`)
   against the packaged binary: window, sidebar sessions, a shell that echoes (node-pty from the asar
