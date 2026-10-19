@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.8] - 2026-10-19
+
+### Changed
+
+- **GitHub actions.** actions/setup-node 7.1.0, actions/upload-artifact 7.0.2 and
+  actions/download-artifact 8.0.2.
+
 ## [1.46.7] - 2026-10-19
 
 ### Changed
