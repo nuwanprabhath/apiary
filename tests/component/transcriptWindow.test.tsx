@@ -73,6 +73,17 @@ describe('a transcript holds a bounded window of messages', () => {
     expect(el.scrollTop).toBeGreaterThan(0)
   })
 
+  it('a failed earlier page, reached by scrolling, is asked for once and shows the error', async () => {
+    const fake = await open()
+    fake.override('transcript', async () => { throw new Error('simulated paging failure') })
+    const pages = (): number => fake.callsTo('transcript').filter((a) => a[1] !== undefined).length
+    const el = scroller()
+    el.dispatchEvent(new WheelEvent('wheel', { deltaY: -10, bubbles: true }))
+    el.scrollTop = 0
+    await until(() => document.querySelector('[data-testid="transcript-error"]')?.textContent?.includes('simulated paging failure') === true)
+    await stays(() => pages() === 1, 500, 'one request for the earlier page, not a retry loop')
+  })
+
   it('does not trim while scrolled up, however many messages arrive', async () => {
     const fake = await open()
     const el = scroller()

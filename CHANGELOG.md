@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.6] - 2026-10-19
+
+### Fixed
+
+- **The nightly e2e run no longer fails on transcript paging on macOS.** Two tests clicked "Load
+  earlier" in a way that first scrolled it into view, and since 1.46.0 that scroll loads the earlier
+  page by itself, racing the click. They now press the button without scrolling. Tests only; the app
+  is unchanged.
+
 ## [1.46.5] - 2026-10-19
 
 ### Fixed

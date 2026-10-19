@@ -56,8 +56,9 @@ test.describe('paging responses across a session round trip', () => {
     await expect(h.page.getByTestId('message')).toHaveCount(200)
 
     // Click "Load earlier" — this paging request is now held open by the intercept and will
-    // not resolve until the test releases it, below.
-    await h.page.getByTestId('load-earlier').click()
+    // not resolve until the test releases it, below. dispatchEvent, not click(): click() scrolls
+    // the button into view first, and that scroll starts the same load by itself, racing the click.
+    await h.page.getByTestId('load-earlier').dispatchEvent('click')
     await expect(h.page.getByTestId('load-earlier')).toBeDisabled()
 
     // Switch to session B. Its own initial load passes through the intercept untouched.
@@ -108,7 +109,10 @@ test.describe('paging responses across a session round trip', () => {
     await sidebarSession(h.page, 'Long paging session').click()
     await expect(h.page.getByTestId('message')).toHaveCount(200)
 
-    await h.page.getByTestId('load-earlier').click()
+    // dispatchEvent, not click(): click() scrolls the button into view, that scroll starts the
+    // load by itself, and its rejection replaces the transcript (button and all) with the error
+    // before the click lands. That race failed this test on the macOS CI runner.
+    await h.page.getByTestId('load-earlier').dispatchEvent('click')
 
     const error = h.page.getByTestId('transcript-error')
     await expect(error).toBeVisible()
