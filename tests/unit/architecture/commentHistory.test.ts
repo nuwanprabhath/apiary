@@ -43,6 +43,10 @@ describe('source comments carry facts, not history', () => {
   it('cites no Apiary version and no review id', () => {
     const hits: string[] = []
     for (const rel of walk(DIRS, EXTS)) {
+      // A comment can only match where the file's text does, so most files are never parsed: parsing
+      // all of them took this past the 5 s test timeout on CI's two-core runner under coverage.
+      const text = read(rel)
+      if (!APIARY_VERSION.test(text) && !REVIEW_ID.test(text)) continue
       for (const c of comments(rel)) {
         const m = APIARY_VERSION.exec(c.text) ?? REVIEW_ID.exec(c.text)
         if (m) hits.push(`${rel}:${String(c.line)} cites "${m[0]}"`)

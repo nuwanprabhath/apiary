@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.46.4] - 2026-10-19
+## [1.46.5] - 2026-10-19
+
+### Fixed
+
+- **CI's unit tests no longer time out on the comment-history check.** It parsed every source file
+  and took over 5 seconds on CI's two-core runner; it now parses only files whose text could match,
+  with the same result. Includes 1.46.4, which did not ship: its CI run stopped there.
+
+## [1.46.4] - 2026-10-19 (not released: CI failed)
 
 ### Changed
 
