@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.7] - 2026-10-19
+
+### Changed
+
+- **Dependencies.** @electron/rebuild 4.2.1, @eslint-react/eslint-plugin 5.26.0, @playwright/test
+  1.64.0, dependency-cruiser 18.6.0, electron 44.7.0, eslint-plugin-playwright 2.12.1, js-yaml
+  5.4.3, knip 6.41.0, marked 18.1.0, playwright 1.64.0, typescript-eslint 8.71.1 and vite 7.3.7.
+
 ## [1.46.6] - 2026-10-19
 
 ### Fixed
