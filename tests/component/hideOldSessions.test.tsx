@@ -18,7 +18,7 @@ async function saveSettings(): Promise<void> {
   await until(() => document.querySelector('[data-testid="settings-dialog"]') === null)
 }
 
-describe('hide old sessions', () => {
+describe('sessions the tree leaves out', () => {
   it('is off by default, and the days field appears only when it is checked', async () => {
     const { fake } = await renderApp()
     await openSidebarSettings(fake)
@@ -55,6 +55,24 @@ describe('hide old sessions', () => {
     await openSidebarSettings(fake)
     await userEvent.click(page.getByTestId('setting-hide-old-enabled'))
     await saveSettings()
+    await until(() => page.getByTestId('session-item').elements().length === 4)
+  })
+
+  it('always leaves out a session whose folder is gone, but search finds it and an open tab keeps it', async () => {
+    const { fake } = await renderApp()
+    await until(() => page.getByTestId('session-item').elements().length === 4)
+    const gone = fake.state.sessions.find((s) => s.title === OLD)
+    if (gone === undefined) throw new Error('fixture session missing')
+    gone.cwdExists = false
+    fake.emit('treeChanged')
+    await until(() => page.getByTestId('session-item').elements().length === 3)
+    expect(document.querySelector('.missing')).toBeNull()
+
+    await userEvent.fill(page.getByTestId('search-input'), 'csv')
+    await until(() => page.getByTestId('session-item').elements().length === 1)
+    await expect.element(page.getByTestId('session-item').getByText('folder gone')).toBeVisible()
+    await userEvent.click(sidebarSession(OLD))
+    await userEvent.fill(page.getByTestId('search-input'), '')
     await until(() => page.getByTestId('session-item').elements().length === 4)
   })
 })

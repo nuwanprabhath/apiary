@@ -16,6 +16,17 @@ export function sidebarSession(title: string): Locator {
   return page.getByTestId('sidebar').getByText(title, { exact: true }).last()
 }
 
+/**
+ * Opens a session by searching for it, the way a person reaches one the tree leaves out (its
+ * folder is gone, or it is old), and clears the search again.
+ */
+export async function openBySearch(title: string): Promise<void> {
+  await userEvent.fill(page.getByTestId('search-input'), title)
+  await until(() => sessionRows(title).length > 0)
+  await userEvent.click(sidebarSession(title))
+  await userEvent.fill(page.getByTestId('search-input'), '')
+}
+
 /** Every session row (tree, Pinned, Recent — not Active) whose text contains `title`. */
 export function sessionRows(title: string): HTMLElement[] {
   return [...document.querySelectorAll<HTMLElement>('[data-testid="session-item"]')]

@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from '../renderApp'
-import { sidebarSession, until } from '../helpers'
+import { openBySearch, sidebarSession, until } from '../helpers'
 import { FIXTURE_SESSIONS } from '../fakeApiary'
 import { reviewUi } from './review'
 
@@ -12,7 +12,8 @@ async function openSession(cwdExists = true): Promise<void> {
   await renderApp(cwdExists ? undefined : {
     sessions: FIXTURE_SESSIONS.map((s) => (s.title === TITLE ? { ...s, cwdExists: false } : s)),
   })
-  await userEvent.click(sidebarSession(TITLE))
+  if (cwdExists) await userEvent.click(sidebarSession(TITLE))
+  else await openBySearch(TITLE)
   await until(() => document.querySelector('[data-testid="view-toggle"]') !== null)
 }
 

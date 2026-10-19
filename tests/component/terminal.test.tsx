@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { sidebarSession, box, mouse } from './helpers'
+import { openBySearch, sidebarSession, box, mouse } from './helpers'
 import { FIXTURE_SESSIONS } from './fakeApiary'
 
 describe('the terminal panes', () => {
@@ -11,7 +11,7 @@ describe('the terminal panes', () => {
         s.title === 'Fix CSV export bug' ? { ...s, cwdExists: false } : s
       )),
     })
-    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await openBySearch('Fix CSV export bug')
 
     await expect.element(page.getByTestId('resume-button')).toBeDisabled()
     await expect.element(page.getByTestId('resume-button')).toHaveAttribute('data-cwd-exists', 'false')

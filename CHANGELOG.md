@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.4] - 2026-10-19
+
+### Changed
+
+- **Sessions whose folder is gone no longer show in the sidebar.** A session whose folder was deleted
+  (a removed worktree, an agent's temporary folder) cannot be resumed, so the tree and Recent leave
+  it out, and a folder left with nothing in it goes too. Search still finds them, marked "folder
+  gone", so you can read the conversation. A pinned session, one open in a tab and one still
+  running stay where they are.
+
 ## [1.46.3] - 2026-10-17
 
 ### Added

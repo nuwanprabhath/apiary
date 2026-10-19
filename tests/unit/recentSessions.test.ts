@@ -31,6 +31,12 @@ describe('selectRecent', () => {
     expect(result.map((s) => s.sessionId)).toEqual(['plain'])
   })
 
+  it('leaves out a session whose folder is gone, unless it is running', () => {
+    const gone = (id: string, isLive: boolean): SessionNode => ({ ...session(id, now - HOUR), cwdExists: false, isLive })
+    const result = selectRecent([gone('gone', false), gone('gone-live', true), session('here', now - HOUR)], new Set(), new Set(), {}, now, 24)
+    expect(result.map((s) => s.sessionId)).toEqual(['gone-live', 'here'])
+  })
+
   it('hides a dismissed session, and brings it back once it is active again', () => {
     const dismissedAt = now - 1 * HOUR
     const sessions = [session('a', now - 3 * HOUR)]

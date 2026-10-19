@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
-import { sidebarSession, box, until } from './helpers'
+import { openBySearch, sidebarSession, box, until } from './helpers'
 import { FIXTURE_SESSIONS } from './fakeApiary'
 
 const open = async (): Promise<Awaited<ReturnType<typeof renderApp>>> => {
@@ -48,7 +48,7 @@ describe('the Chat | Terminal toggle', () => {
     await renderApp({
       sessions: FIXTURE_SESSIONS.map((s) => (s.title === 'Fix CSV export bug' ? { ...s, cwdExists: false } : s)),
     })
-    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await openBySearch('Fix CSV export bug')
     await expect.element(page.getByTestId('resume-button')).toBeDisabled()
     expect(page.getByTestId('resume-button').element().getAttribute('title')).toBe('This folder no longer exists')
   })

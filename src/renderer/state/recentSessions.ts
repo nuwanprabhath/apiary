@@ -4,8 +4,9 @@ import type { SessionNode } from '@shared/types'
 export interface DismissedMap { [sessionId: string]: number }
 
 /**
- * Sessions for the Recent section: active inside the window, not pinned, not already shown in
- * Active, not dismissed since their last activity — newest first.
+ * Sessions for the Recent section: active inside the window, their folder still there (one that
+ * is gone cannot be resumed), not pinned, not already shown in Active, not dismissed since their
+ * last activity — newest first.
  *
  * A session is hidden by dismissal only while it stays quiet: `lastActiveAtMs <= dismissed[id]`
  * is exactly "nothing has happened here since you dismissed it." Using the session again moves
@@ -23,6 +24,7 @@ export function selectRecent(
   const windowMs = windowHours * 3600_000
   return sessions
     .filter((s) => s.lastActiveAtMs !== null && now - s.lastActiveAtMs <= windowMs)
+    .filter((s) => s.cwdExists || s.isLive)
     .filter((s) => !pinnedIds.has(s.sessionId) && !activeIds.has(s.sessionId))
     .filter((s) => {
       const at = dismissed[s.sessionId]

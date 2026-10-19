@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { message, type FakeSession } from './fakeApiary'
-import { sidebarSession, stays, until } from './helpers'
+import { openBySearch, sidebarSession, stays, until } from './helpers'
 
 const SESSION: FakeSession = {
   sessionId: '00000000-0000-4000-8000-0000000000e1',
@@ -18,7 +18,9 @@ async function openMenu(opts: { vsCode: boolean; cwdExists?: boolean }): Promise
     vsCode: opts.vsCode,
     settings: { transcriptChat: true },
   })
-  await userEvent.click(sidebarSession('Palette chat'))
+  // A session whose folder is gone is not in the tree; search still finds it.
+  if (opts.cwdExists === false) await openBySearch('Palette chat')
+  else await userEvent.click(sidebarSession('Palette chat'))
   await expect.element(page.getByTestId('composer-commands')).toBeVisible()
   await userEvent.click(page.getByTestId('composer-commands'))
   await expect.element(page.getByTestId('composer-command-menu')).toBeVisible()

@@ -145,7 +145,7 @@ function SidebarInner({
   const searching = deferredQuery.trim() !== ''
   const { withWorktrees, arranged } = useArrangedTree({
     tree, rawTree, groupState, showAllWorktrees, createdWorktrees, refreshNonce: worktreeRefreshNonce,
-    hideOld: hideOldSessionsEnabled && !searching ? { days: hideOldSessionsDays, pinned, activeTabs } : null,
+    prune: searching ? null : { days: hideOldSessionsEnabled ? hideOldSessionsDays : null, pinned, activeTabs },
   })
   const rankedResults = useRankedResults(tree, settledQuery, matchedByContent, pinnedSet)
 

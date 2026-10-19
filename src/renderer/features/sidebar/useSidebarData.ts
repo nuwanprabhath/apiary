@@ -7,7 +7,7 @@ import { flattenTree } from '@shared/treeWalk'
 import { groupFolders, type GroupState } from '../../state/groups'
 import { selectRecent, type DismissedMap } from '../../state/recentSessions'
 import { createdWorktreeRoots, onlyWanted, withAllWorktrees } from './model/allWorktrees'
-import { hideOldSessions } from './hideOldSessions'
+import { pruneSidebarTree } from './pruneSidebarTree'
 import { useAllWorktrees } from './model/useAllWorktrees'
 
 /**
@@ -44,10 +44,10 @@ export function usePinnedAndRecent({ tree, pinned, activeTabs, dismissedRecent, 
  *
  * Searching bypasses the arrangement: hiding matches inside collapsed groups would defeat typing.
  */
-export function useArrangedTree({ tree, rawTree, groupState, showAllWorktrees, createdWorktrees, refreshNonce, hideOld }: {
+export function useArrangedTree({ tree, rawTree, groupState, showAllWorktrees, createdWorktrees, refreshNonce, prune }: {
   tree: ProjectNode[]
-  /** Set while "hide old sessions" is on and nothing is searched; pinned and open sessions are kept. */
-  hideOld: { days: number; pinned: string[]; activeTabs: ActiveTabPayload[] } | null
+  /** Set while nothing is searched: drops folder-gone sessions, and old ones when `days` is set; pinned and open sessions are kept. */
+  prune: { days: number | null; pinned: string[]; activeTabs: ActiveTabPayload[] } | null
   rawTree: ProjectNode[]
   groupState: GroupState
   showAllWorktrees: string[]
@@ -67,15 +67,15 @@ export function useArrangedTree({ tree, rawTree, groupState, showAllWorktrees, c
     () => onlyWanted(listed, showAllWorktrees, createdRoots),
     [listed, showAllWorktrees, createdRoots],
   )
-  const hideDays = hideOld?.days ?? null
-  const hidePinned = hideOld?.pinned
-  const hideTabs = hideOld?.activeTabs
+  const hideDays = prune?.days ?? null
+  const keepPinned = prune?.pinned
+  const keepTabs = prune?.activeTabs
   const withWorktrees = useMemo(() => {
     const all = withAllWorktrees(tree, extraWorktrees)
-    if (hideDays === null) return all
-    const keep = new Set([...(hidePinned ?? []), ...(hideTabs ?? []).map((t) => t.key)])
-    return hideOldSessions(all, { days: hideDays, now: Date.now(), keep })
-  }, [tree, extraWorktrees, hideDays, hidePinned, hideTabs])
+    if (keepPinned === undefined || keepTabs === undefined) return all
+    const keep = new Set([...keepPinned, ...keepTabs.map((t) => t.key)])
+    return pruneSidebarTree(all, { days: hideDays, now: Date.now(), keep })
+  }, [tree, extraWorktrees, hideDays, keepPinned, keepTabs])
   const arranged = useMemo(
     () => groupFolders(
       withWorktrees, (n) => n.path,
