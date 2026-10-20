@@ -78,6 +78,11 @@ describe('sidebarGroups', () => {
     await rightClick(page.getByTestId('folder-group-toggle').element())
     await userEvent.click(page.getByTestId('context-menu-rename-group'))
     const rename = page.getByTestId('folder-group-rename')
+    // Opened with the name selected, so typing replaces it.
+    await expect.poll(() => {
+      const input = rename.element() as HTMLInputElement
+      return input.value.slice(input.selectionStart ?? 0, input.selectionEnd ?? 0)
+    }).toBe('Old name')
     await userEvent.fill(rename, 'Archive')
     await userEvent.keyboard('{Enter}')
 

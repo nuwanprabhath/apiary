@@ -38,6 +38,18 @@ const POPUP = '[role="menu"], [role="listbox"], [role="dialog"], [role="tooltip"
 /** Content, not chrome: prose the user or Claude wrote, where lists and long lines are content. */
 const PROSE = '.markdown, [data-prose]'
 
+/** Drawn over the page rather than laid out in it: something of its own (or a wrapper it sits in) is
+ *  taken out of the flow. A listbox that is a panel of its own, the shell's terminal list, has
+ *  nothing behind it to show through. */
+function floats(el: Element): boolean {
+  if (el.matches('[data-popup], :modal, :popover-open')) return true
+  for (let cur: Element | null = el; cur !== null && cur !== document.body; cur = cur.parentElement) {
+    const position = getComputedStyle(cur).position
+    if (position === 'absolute' || position === 'fixed') return true
+  }
+  return false
+}
+
 export function describe(el: Element): string {
   const parts: string[] = []
   let cur: Element | null = el
@@ -219,7 +231,7 @@ export function auditUi(root: Element = document.body): UiViolation[] {
     }
 
     // A popup the page shows through: transcript text bleeding across menu items.
-    if (el.matches(POPUP)) {
+    if (el.matches(POPUP) && floats(el)) {
       const bg = rgba(s.backgroundColor)
       const blurred = /blur\(\s*([\d.]+)px/.exec(s.backdropFilter)
       const opaqueEnough = bg[3] >= 0.9 || (blurred !== null && parseFloat(blurred[1] ?? '0') >= 8 && bg[3] >= 0.55)

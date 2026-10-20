@@ -119,7 +119,7 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | Renderer storage goes through `state/uiState.ts` | `no-raw-storage` | `uiState.ts` |
 | A `role="button"` on a non-button is focusable and key-operable | `role-button-is-operable` | a real `<button>`, or `tabIndex={0}` plus `onKeyDown` for Enter and Space |
 | Icons, widget roles, drags, outside-click close come from `ui/` | `icons-from-ui`, `roles-via-primitives`, `drag-via-use-resize-drag`, `outside-dismiss-via-ui` | the primitive in `src/renderer/ui/` |
-| Something that appears on its own never takes focus from a text field; a field the person asked for takes it with one helper, never `autoFocus` | `focus-unless-typing`; `transcriptChat` and `focusAskedFor` component tests | `focusUnlessTyping` / `ref={focusAskedFor}` in `ui/focusUnlessTyping.ts` |
+| Something that appears on its own never takes focus from a text field; a field the person asked for takes it with one helper, never `autoFocus`, and opens with its text selected | `focus-unless-typing`; `transcriptChat` and `focusAskedFor` component tests | `focusUnlessTyping` / `ref={focusAskedFor}` in `ui/focusUnlessTyping.ts` |
 | Branded ids are minted where data enters | `branded-ids-from-source`; types | carry the id; brand the field in its shared type |
 | No swallowed errors; one error-to-text helper; no `as unknown as` | `no-silent-catch`, `error-message-helper`, `no-cast-through-unknown` | `background`/`surface` (renderer), `fireAndForget`, `ignoreErrors` (expected and harmless: say why), `errorMessage`, a type guard from `@shared/guards` |
 | Every IPC guard proves its declared types | `invoke`/`send` types; `looseGuards` test | `invokeLoose` plus a named validator and an allowlist entry |

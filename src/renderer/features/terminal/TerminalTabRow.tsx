@@ -53,6 +53,11 @@ export function TerminalTabRow(
       }}
     >
       {editing ? (
+        <>
+        {/* The name, unseen, keeps the row as wide as it was: the field sits over it rather than
+            sizing the row, as an input's default width of about 20 characters widened a list fitted
+            to its names the moment a rename began. */}
+        <span className="terminal-tab-label terminal-tab-label-sizer" aria-hidden="true">{tab.name}</span>
         <input
           ref={focusAskedFor}
           className="terminal-tab-rename-input"
@@ -68,6 +73,7 @@ export function TerminalTabRow(
             if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onCancel() }
           }}
         />
+        </>
       ) : (
         <button
           className="terminal-tab-label"

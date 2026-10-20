@@ -1,5 +1,6 @@
-import { type JSX, useEffect, useRef, useState } from 'react'
+import { type JSX, useEffect, useState } from 'react'
 import { RenameIcon } from '../../ui/icons'
+import { focusAskedFor } from '../../ui/focusUnlessTyping'
 
 interface Props {
   title: string
@@ -15,17 +16,9 @@ interface Props {
 export function EditableSessionTitle({ title, onRename }: Props): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(title)
-  const inputRef = useRef<HTMLInputElement | null>(null)
 
   // A later edit starts from the current title, not one left over from another session.
   useEffect(() => { if (!editing) setDraft(title) }, [title, editing])
-
-  useEffect(() => {
-    if (editing) {
-      inputRef.current?.focus()
-      inputRef.current?.select()
-    }
-  }, [editing])
 
   const commit = (): void => {
     setEditing(false)
@@ -36,7 +29,7 @@ export function EditableSessionTitle({ title, onRename }: Props): JSX.Element {
   if (editing) {
     return (
       <input
-        ref={inputRef}
+        ref={focusAskedFor}
         className="title-edit-input"
         data-testid="session-title-input"
         value={draft}

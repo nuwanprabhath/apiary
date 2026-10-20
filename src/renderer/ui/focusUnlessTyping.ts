@@ -16,9 +16,12 @@ export function focusUnlessTyping(el: HTMLElement | null): void {
 /**
  * A `ref` for a field the person just asked for (Rename, "No…", a wizard step, the pet chat): it
  * takes focus as it mounts, even from another text field, because typing into it is the next thing
- * they will do. The one way to do that: `autoFocus` is refused by `apiary/focus-unless-typing`, so
+ * they will do. A one-line field opens with its text selected, so typing replaces the name being
+ * changed or the suggestion offered; a text area keeps its caret, as a draft there is not replaced
+ * by one key. The one way to do that: `autoFocus` is refused by `apiary/focus-unless-typing`, so
  * a prompt that appears on its own cannot borrow it.
  */
 export function focusAskedFor(el: HTMLElement | null): void {
   el?.focus({ preventScroll: true })
+  if (el instanceof HTMLInputElement) el.select()
 }

@@ -4,6 +4,34 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.10] - 2026-10-20
+
+### Fixed
+
+- **Every rename opens with the name selected**, so typing replaces it: a folder group, an
+  account and a theme opened their rename with the caret at the end, where only a session title and
+  (since 1.46.9) a terminal selected it. A new-worktree step opened on a name already typed does the
+  same. The field the person asked for is focused by one helper, which now also selects its text,
+  so a new rename field cannot leave it out.
+
+## [1.46.9] - 2026-10-20 (not released; shipped in 1.46.10)
+
+### Fixed
+
+- **The chat view shows Claude working in the session's terminal.** A session started in its
+  terminal and then viewed as a chat showed the replies arriving but no working line, so it looked
+  idle. The line now shows while Claude works there, timed from when the turn began; it leaves out
+  "esc to interrupt", which stops a chat turn, not a terminal's.
+- **Renaming a terminal no longer widens the terminal list.** A list fitted to its names grew to
+  the rename field's default width (about 20 characters) the moment a rename began.
+- **Renaming a terminal selects its whole name**, so typing replaces it, as renaming a session does.
+
+### Changed
+
+- **The terminal list highlights the terminal in front as the sidebar highlights the selected
+  session**, with the same fill and corners, instead of a raised chip with a shadow. Its close button
+  is hidden while a terminal is being renamed.
+
 ## [1.46.8] - 2026-10-19
 
 ### Changed

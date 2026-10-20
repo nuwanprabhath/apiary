@@ -78,6 +78,21 @@ describe('transcript chat', () => {
     expect(document.querySelector('[data-testid="chat-sticky-prompt"]')).toBeNull()
   })
 
+  it('shows the working line while Claude works in the session\'s terminal, with no chat running', async () => {
+    const { fake, sessionId } = await openChat()
+    const pty = (status: 'busy' | 'idle'): void => {
+      fake.emit('ptySessionsChanged', { 'pty-1': { sessionId, name: null, nameIsUser: false, status } })
+    }
+    pty('busy')
+    await expect.element(page.getByTestId('chat-working')).toBeVisible()
+    // Timed from when the terminal started working, not from the session's last (weeks-old) prompt.
+    await textOf('chat-working', /\([01]s\)/)
+    // Esc in the message box stops a chat turn, not a terminal's; the line does not offer it.
+    expect(page.getByTestId('chat-working').element().textContent).not.toMatch(/esc to interrupt/)
+    pty('idle')
+    await expect.element(page.getByTestId('chat-working')).not.toBeInTheDocument()
+  })
+
   it('pins your last message once it scrolls out above, and going back to it lands it in view', async () => {
     const { fake, sessionId } = await openChat()
     const long = Array.from({ length: 80 }, (_, i) => `line ${String(i)}`).join('\n\n')

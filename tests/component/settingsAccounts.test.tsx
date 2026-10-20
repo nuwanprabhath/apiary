@@ -38,6 +38,11 @@ describe('Settings → Accounts', () => {
     const fake = await openAccounts(() => undefined, () => addAccount('Work'))
     await until(() => el('account-rename-work') !== null)
     await userEvent.click(page.getByTestId('account-rename-main'))
+    // Opened with the name selected, so typing replaces it.
+    await expect.poll(() => {
+      const input = page.getByTestId('account-rename-input-main').element() as HTMLInputElement
+      return input.value.slice(input.selectionStart ?? 0, input.selectionEnd ?? 0)
+    }).toBe('Main')
     await userEvent.fill(page.getByTestId('account-rename-input-main'), 'Personal')
     await userEvent.keyboard('{Enter}')
     await until(() => el('account-main')?.querySelector('.account-label')?.textContent === 'Personal')

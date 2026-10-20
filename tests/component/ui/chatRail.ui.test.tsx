@@ -3,7 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { emptyChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
 import { renderApp } from '../renderApp'
-import { sidebarSession } from '../helpers'
+import { mouse, sidebarSession, until } from '../helpers'
 import { reviewUi } from './review'
 
 /** The working line and the status lines under the conversation share the timeline's dot rail. */
@@ -36,5 +36,18 @@ describe('UI chat rail', () => {
     await openChat({ live: [reply], status: 'busy', turnStartedAt: Date.now() })
     await expect.element(page.getByTestId('chat-working')).toBeVisible()
     await reviewUi('chat rail working', { widths: [1000, 1400], themes: ['paper', 'glass'] })
+  })
+
+  it('working in the session\'s terminal, with no chat running', async () => {
+    const { fake } = await renderApp({ settings: { transcriptChat: true } })
+    await userEvent.click(sidebarSession(TITLE))
+    await expect.element(page.getByTestId('chat-timeline')).toBeVisible()
+    const sessionId = fake.state.sessions.find((s) => s.title === TITLE)!.sessionId
+    fake.emit('ptySessionsChanged', { 'pty-1': { sessionId, name: null, nameIsUser: false, status: 'busy' } })
+    await expect.element(page.getByTestId('chat-working')).toBeVisible()
+    // The sidebar row's hover card, opened by the click above, would cover the line.
+    await mouse.move(1, 1)
+    await until(() => document.querySelector('.hover-card') === null)
+    await reviewUi('chat rail working in its terminal', { widths: [1000, 1400], themes: ['paper', 'glass'] })
   })
 })

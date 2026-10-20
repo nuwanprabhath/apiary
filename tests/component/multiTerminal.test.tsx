@@ -194,19 +194,51 @@ describe('multi-terminal', () => {
     await expect.element(rows.all()[1]).toHaveAttribute('data-active', 'true')
   })
 
-  it('the terminal in front is a lifted chip, not a bar down its edge', async () => {
+  it('the terminal in front is highlighted as the selected session in the sidebar is', async () => {
     await open()
     await userEvent.click(page.getByTestId('terminal-add'))
     const rows = page.getByTestId('terminal-tab-row')
     await userEvent.click(rows.all()[1].getByTestId('terminal-tab-label'), NAME_START)
     await userEvent.keyboard('{ArrowUp}')
     await expect.element(rows.all()[0]).toHaveAttribute('data-active', 'true')
-    // A ring and a soft drop shadow, as on the active tab (polled: it eases in) — and no inset bar.
-    await until(() => getComputedStyle(rows.all()[0].element()).boxShadow.includes('0px 1px 3px'))
-    const row = rows.all()[0].element()
-    const shadow = getComputedStyle(row).boxShadow
-    const labelShadow = getComputedStyle(row.querySelector('.terminal-tab-label')!).boxShadow
-    expect(shadow).not.toContain('inset')
-    expect(labelShadow).toBe('none')
+    const selected = document.querySelector('.session-row-wrap:has(.session-row[data-selected="true"])')!
+    // Polled: the background eases in.
+    await until(() => getComputedStyle(rows.all()[0].element()).backgroundColor === getComputedStyle(selected).backgroundColor)
+    const row = getComputedStyle(rows.all()[0].element())
+    expect(row.boxShadow).toBe('none')
+    expect(row.borderRadius).toBe(getComputedStyle(selected).borderRadius)
+  })
+
+  it('double-clicking a name selects all of it, so typing replaces it', async () => {
+    await open()
+    await userEvent.click(page.getByTestId('terminal-list-toggle'))
+    await userEvent.dblClick(page.getByTestId('terminal-tab-label'), NAME_START)
+    const input = page.getByTestId('terminal-tab-rename-input').element() as HTMLInputElement
+    await until(() => document.activeElement === input)
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 'Terminal 1'.length])
+    await userEvent.keyboard('Logs')
+    await expect.element(page.getByTestId('terminal-tab-rename-input')).toHaveValue('Logs')
+  })
+
+  it('hovering a terminal does not change the width of a list fitted to its names', async () => {
+    await open()
+    await userEvent.click(page.getByTestId('terminal-list-toggle'))
+    const list = page.getByTestId('terminal-list-panel').element()
+    await expect.element(page.getByTestId('terminal-list-panel')).toHaveAttribute('data-fitted', 'true')
+    const before = list.getBoundingClientRect().width
+    await userEvent.hover(page.getByTestId('terminal-tab-label'), NAME_START)
+    await expect.element(page.getByTestId('terminal-tab-delete')).toBeVisible()
+    expect(list.getBoundingClientRect().width).toBe(before)
+  })
+
+  it('renaming a terminal does not change the width of a list fitted to its names', async () => {
+    await open()
+    await userEvent.click(page.getByTestId('terminal-list-toggle'))
+    const list = page.getByTestId('terminal-list-panel').element()
+    await expect.element(page.getByTestId('terminal-list-panel')).toHaveAttribute('data-fitted', 'true')
+    const before = list.getBoundingClientRect().width
+    await userEvent.dblClick(page.getByTestId('terminal-tab-label'), NAME_START)
+    await expect.element(page.getByTestId('terminal-tab-rename-input')).toBeVisible()
+    expect(list.getBoundingClientRect().width).toBe(before)
   })
 })

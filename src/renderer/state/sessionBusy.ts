@@ -5,9 +5,14 @@ import { chooseAccount } from './accountSwitch'
 import { peekChat, useChat } from './chatStore'
 import { peekPtySessions, usePtySessions } from './ptySessionsStore'
 
+/** Whether Claude is mid-reply in `sessionId` in a terminal's pty. */
+function terminalBusyOf(ptys: Record<string, PtySessionInfo>, sessionId: SessionId): boolean {
+  return Object.values(ptys).some((p) => p.sessionId === sessionId && p.status === 'busy')
+}
+
 /** Whether Claude is mid-reply in `sessionId`, as a chat turn or in a terminal's pty. */
 export function busyOf(chat: ChatState | null, ptys: Record<string, PtySessionInfo>, sessionId: SessionId): boolean {
-  return chat?.status === 'busy' || Object.values(ptys).some((p) => p.sessionId === sessionId && p.status === 'busy')
+  return chat?.status === 'busy' || terminalBusyOf(ptys, sessionId)
 }
 
 /** The session a tab's key names; null for a key that is not a session id (a new session has none yet). */
@@ -23,6 +28,11 @@ function isSessionBusy(sessionId: SessionId): boolean {
 /** `busyOf`, kept up to date. */
 export function useSessionBusy(sessionId: SessionId): boolean {
   return busyOf(useChat(sessionId), usePtySessions(), sessionId)
+}
+
+/** `terminalBusyOf`, kept up to date: Claude working in the session's terminal rather than as a chat. */
+export function useTerminalBusy(sessionId: SessionId): boolean {
+  return terminalBusyOf(usePtySessions(), sessionId)
 }
 
 /** The "pick an account" gesture of the `/` menu and the tab menu: switch, or ask when busy. */

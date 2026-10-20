@@ -230,26 +230,20 @@
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-sm);
   padding: 2px;
   transition: background-color 0.12s, box-shadow 0.12s;
   /* Anchors the rename/close buttons that float over its end (.terminal-tab-actions). */
   position: relative;
 }
 .terminal-tab-row + .terminal-tab-row { margin-top: 2px; }
-.terminal-tab-row:hover { background: var(--hover); }
-/* The terminal in front is a lifted chip, the same as the tab in front (see .session-tab) — not
- * an accent bar down its leading edge, which was the generated-dashboard look the tabs dropped. */
-.terminal-tab-row[data-active="true"] {
-  background: var(--bg);
-  box-shadow: 0 0 0 1px var(--border), var(--shadow-chip);
-}
-/* Keyboard focus: a quiet ring, as on the tabs. The list owns it (roving focus), so a label that
- * ends up focused must not also draw Chromium's default ring in the OS accent. */
-.terminal-tab-row[data-keyboard-focused="true"] { box-shadow: 0 0 0 1px var(--muted); }
-.terminal-tab-row[data-keyboard-focused="true"][data-active="true"] {
-  box-shadow: 0 0 0 1px var(--muted), var(--shadow-chip);
-}
+/* Highlighted as a session row in the sidebar is (.session-row-wrap): one fill for the row under
+ * the pointer and the one in front, so the two lists read as the same kind of list. */
+.terminal-tab-row:hover,
+.terminal-tab-row[data-active="true"] { background: var(--selected); }
+/* Keyboard focus on a row that is not in front: a quiet ring. The list owns focus (roving focus),
+ * so a label that ends up focused must not also draw Chromium's default ring in the OS accent. */
+.terminal-tab-row[data-keyboard-focused="true"]:not([data-active="true"]) { box-shadow: 0 0 0 1px var(--muted); }
 .terminal-tab-label {
   flex: 1;
   min-width: 0;
@@ -268,8 +262,11 @@
   white-space: nowrap;
 }
 .terminal-tab-label:focus-visible { outline: none; }
+/* Holds the row's width while it is renamed; the field is laid over it (see TerminalTabRow). */
+.terminal-tab-label-sizer { visibility: hidden; }
 .terminal-tab-rename-input {
-  flex: 1;
+  position: absolute;
+  inset: 2px;
   min-width: 0;
   border: 1px solid var(--accent);
   border-radius: var(--radius);
@@ -302,6 +299,8 @@
   gap: 2px;
 }
 .terminal-tab-row:hover .terminal-tab-actions, .terminal-tab-row:focus-within .terminal-tab-actions { display: flex; }
+/* While a row is renamed its field fills it; Enter and Escape end the rename, so nothing floats over it. */
+.terminal-tab-row:has(.terminal-tab-rename-input) .terminal-tab-actions { display: none; }
 .terminal-tab-action {
   flex: none;
   display: none;

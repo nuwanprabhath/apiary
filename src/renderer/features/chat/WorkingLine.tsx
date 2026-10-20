@@ -17,10 +17,17 @@ const VERB_MS = 3000
  * an animated glyph, a changing verb, and how long it has been at it. While a thinking block is
  * streaming it says so, with Claude's running token estimate; Esc stops it (the composer listens).
  * A screen reader hears the state ("Claude is working") once; the verb and the clock change every
- * few seconds and are hidden from it, or it would read "N s" all turn long.
+ * few seconds and are hidden from it, or it would read "N s" all turn long. `interruptible` is false
+ * for a turn running in the session's terminal, which the message box's Esc does not stop.
  */
-export function WorkingLine({ since, thinkingTokens }: { since: number | null; thinkingTokens: number | null }): JSX.Element {
+export function WorkingLine({ since, thinkingTokens, interruptible = true }: {
+  since: number | null
+  thinkingTokens: number | null
+  interruptible?: boolean
+}): JSX.Element {
   const [now, setNow] = useState(() => Date.now())
+  // With no `since`, the turn is timed from when this line appeared.
+  const [shownAt] = useState(now)
   const reduced = useMotion() === 'reduced'
   useEffect(() => {
     // eslint-disable-next-line apiary/no-polling-in-features -- an animation clock for the glyph and the elapsed seconds; there is nothing to push or share
@@ -28,14 +35,14 @@ export function WorkingLine({ since, thinkingTokens }: { since: number | null; t
     return () => { window.clearInterval(timer) }
   }, [reduced])
 
-  const start = since ?? now
+  const start = since ?? shownAt
   const elapsedMs = Math.max(0, now - start)
   const frame = reduced ? FRAMES[4] : FRAMES[Math.floor(now / FRAME_MS) % FRAMES.length]
   // Seeded by when the turn started, so two windows on the same turn say the same word.
   const verb = VERBS[(Math.floor(start / 1000) + Math.floor(elapsedMs / VERB_MS)) % VERBS.length]
   const detail = [formatDuration(elapsedMs)]
   if (thinkingTokens !== null) detail.push(`↓ ${thinkingTokens.toLocaleString()} tokens`)
-  detail.push('esc to interrupt')
+  if (interruptible) detail.push('esc to interrupt')
 
   return (
     <div className="chat-working" data-testid="chat-working">

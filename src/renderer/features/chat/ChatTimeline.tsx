@@ -21,6 +21,8 @@ interface Props {
   queued: QueuedMessage[]
   onOpenImage: (src: string) => void
   onDecide: (requestId: string, decision: ChatDecision) => void
+  /** Claude is working in the session's terminal: the reply arrives through the JSONL, not `chat`. */
+  terminalBusy?: boolean
 }
 
 function QueuedSendButton({ sessionId, queuedId }: { sessionId: SessionId; queuedId: string }): JSX.Element {
@@ -154,12 +156,22 @@ function StickyPrompt({ prompt }: { prompt: { key: string; text: string } }): JS
   )
 }
 
+/** Whether `busy` was already true when this mounted and has not stopped since: the view opened
+ *  mid-turn, so it never saw the turn start. */
+function useOpenedMidTurn(busy: boolean): boolean {
+  const [midTurn, setMidTurn] = useState(busy)
+  if (midTurn && !busy) setMidTurn(false)
+  return midTurn
+}
+
 /** Everything above the live part comes from the session's JSONL; the live part (streamed reply,
  *  permission prompts, working line) comes from the chat process. */
-export function ChatTimeline({ items, chat, queued, onOpenImage, onDecide }: Props): JSX.Element {
+export function ChatTimeline({ items, chat, queued, onOpenImage, onDecide, terminalBusy = false }: Props): JSX.Element {
   const prompt = lastPrompt(items)
   const streaming = chat?.streaming ?? null
   const busy = chat?.status === 'busy'
+  const chatRunning = chat !== null && chat.status !== 'exited'
+  const openedMidTurn = useOpenedMidTurn(terminalBusy)
   return (
     <div className="chat-timeline" data-testid="chat-timeline">
       {prompt !== null && <StickyPrompt prompt={prompt} />}
@@ -192,6 +204,11 @@ export function ChatTimeline({ items, chat, queued, onOpenImage, onDecide }: Pro
           since={chat.turnStartedAt}
           thinkingTokens={streaming?.thinking === true ? streaming.thinkingTokens : null}
         />
+      )}
+      {!chatRunning && terminalBusy && (
+        // Seen starting, the line times itself from when it appeared; opened mid-turn, from the
+        // prompt that began the turn.
+        <WorkingLine since={openedMidTurn ? prompt?.timestampMs ?? null : null} thinkingTokens={null} interruptible={false} />
       )}
       {chat?.status === 'exited' && chat.error !== null && (
         <div className="chat-error" data-testid="chat-error">Claude stopped: {chat.error}</div>

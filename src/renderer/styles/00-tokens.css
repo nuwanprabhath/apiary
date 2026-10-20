@@ -96,9 +96,8 @@
 
   /* Lift for anything that floats over the rest of the app (notifications, popovers). */
   --shadow-overlay: 0 8px 28px rgb(0 0 0 / 45%);
-  /* The lifted-chip shadow (the active session/terminal tab): a hairline edge plus this drop,
-   * composed with a border colour that varies by state — see the .session-tab[data-active]
-   * and .terminal-tab-row[data-active] rules. */
+  /* The lifted-chip shadow (the active session tab): a hairline edge plus this drop, composed with
+   * a border colour that varies by state — see the .session-tab[data-active] rule. */
   --shadow-chip: 0 1px 3px rgb(0 0 0 / 28%);
   /* The lightbox's own backdrop, darker than --bg-overlay because it sits behind a photo rather
    * than behind UI chrome. */

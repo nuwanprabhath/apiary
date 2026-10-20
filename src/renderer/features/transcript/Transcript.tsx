@@ -11,6 +11,7 @@ import { useLoadEarlierOnScroll } from './useLoadEarlierOnScroll'
 import { useTranscriptPages } from './useTranscriptPages'
 import { useTailRefs, useTranscriptScroll } from './useTranscriptScroll'
 import { useTranscriptView } from './transcriptView'
+import { useTerminalBusy } from '../../state/sessionBusy'
 
 interface TranscriptProps {
   session: SessionNode
@@ -49,6 +50,8 @@ export function Transcript({
   const find = useTranscriptFind({
     containerRef: tail.containerRef, visible, sessionId: session.sessionId, contentKey: visibleMessages, hasEarlier: cursor !== null, loadEarlier,
   })
+
+  const terminalBusy = useTerminalBusy(session.sessionId)
 
   useEffect(() => { findOpenRef.current = find.open }, [find.open])
 
@@ -99,7 +102,7 @@ export function Transcript({
       {loading && <p className="empty">Loading chat...</p>}
 
       {chatMode
-        ? <ChatTimeline items={items} chat={chat} queued={queued} onOpenImage={onOpenImage} onDecide={(id, d) => { onDecide?.(id, d) }} />
+        ? <ChatTimeline items={items} chat={chat} queued={queued} onOpenImage={onOpenImage} onDecide={(id, d) => { onDecide?.(id, d) }} terminalBusy={terminalBusy} />
         : visibleMessages.map((m, i) => (
           <MessageRow
             // eslint-disable-next-line @eslint-react/no-array-index-key -- falls back to the index only for the rare message with no uuid; the uuid is the real, stable key
