@@ -93,6 +93,9 @@
   --series-2: var(--mr-merged);
   --series-3: var(--warning);
   --series-4: var(--success);
+  /* Claude's own orange, for the working animation's "Claude" colour: a brand colour, so no theme
+   * recolours it. */
+  --claude: #d97757;
 
   /* Lift for anything that floats over the rest of the app (notifications, popovers). */
   --shadow-overlay: 0 8px 28px rgb(0 0 0 / 45%);

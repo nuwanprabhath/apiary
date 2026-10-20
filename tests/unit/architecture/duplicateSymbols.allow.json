@@ -36,10 +36,6 @@
     "reason": "Unrelated: 2D SVG eye x positions and a 3D eye offset"
   },
   {
-    "key": "FRAMES",
-    "reason": "Unrelated: the working-line spinner glyphs and the pet body frames"
-  },
-  {
     "key": "HEX",
     "reason": "Different regexes on purpose: pets accept 3 or 6 digits, themes also accept 4 and 8 (alpha)"
   },

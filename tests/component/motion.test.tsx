@@ -3,6 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { emptyChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
 import type { MotionSetting } from '@shared/settings/schema'
+import { BUSY_ANIMATION_IDS, BUSY_COLOR_IDS } from '@shared/domain/busyAnimation'
 import { renderApp } from './renderApp'
 import { sidebarSession, until } from './helpers'
 
@@ -118,4 +119,16 @@ describe('reduced motion has no infinite animation in the chrome', () => {
     await expect.poll(motionOf).toBe('reduced')
     expect(infiniteAnimations().map((a) => (a as CSSAnimation).animationName)).toEqual([])
   })
+
+  it.each(BUSY_ANIMATION_IDS.flatMap((animation) => BUSY_COLOR_IDS.map((color) => [animation, color] as const)))(
+    'Reduced mode runs none for the %s working animation in %s, and still draws it',
+    async (busyAnimation, busyAnimationColor) => {
+      const { fake } = await renderApp({ settings: { transcriptChat: true, motion: 'reduced', busyAnimation, busyAnimationColor } })
+      await busyChat(fake)
+      await expect.poll(motionOf).toBe('reduced')
+      expect(infiniteAnimations().map((a) => (a as CSSAnimation).animationName)).toEqual([])
+      const marks = document.querySelectorAll('[data-testid="chat-working"] :is(.busy-dot, .busy-spark)')
+      expect(marks.length).toBeGreaterThan(0)
+    },
+  )
 })

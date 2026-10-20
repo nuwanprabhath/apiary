@@ -206,7 +206,9 @@
 
 .chat-working { display: flex; gap: var(--space-md); align-items: baseline; }
 .chat-working-glyph { flex: none; width: var(--chat-glyph-size); margin-left: var(--chat-rail-offset); color: var(--accent); text-align: center; }
-.chat-working-verb { color: var(--accent); }
+/* Centred on the timeline's dots: the animation fills the rail's glyph column. */
+.chat-working-glyph .busy-glyph { width: 100%; }
+.chat-working-verb { color: var(--busy-tint, var(--accent)); }
 .chat-working-detail { color: var(--muted); font-size: 12px; }
 
 .chat-permission {

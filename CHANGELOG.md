@@ -4,6 +4,28 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.47.0] - 2026-10-20
+
+### Added
+
+- **Choose the working animation**, the mark beside "Claude is working" (Settings → Themes →
+  Working animation, each shown live):
+  - **Orbit**, the three planets of Claude's app: they circle on an orbit that rocks between
+    edge-on, where they pass in front of one another, and open, where they make a triangle. The
+    near ones are larger. Measured frame by frame from a recording of Claude's iOS app.
+  - **Comet**, the same orbit, quicker, each planet trailing a fading tail.
+  - **Atom**, three electrons on crossed rings, at different speeds, round a faint nucleus.
+  - **Spark**, Claude Code's own glyph, as before and still the default.
+- **Choose its colour**: Claude's orange, the theme's accent, monochrome, or the theme's palette
+  (a colour per planet; the spark drifts through them). The words beside it take the colour too.
+  Each animation lists the colours it offers.
+
+### Changed
+
+- **The working line no longer re-renders eight times a second.** Every animation, the spark
+  included, moves in CSS; the line's own clock ticks once a second for the elapsed time. Under
+  reduced motion each animation is a still frame.
+
 ## [1.46.10] - 2026-10-20
 
 ### Fixed

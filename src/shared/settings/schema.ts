@@ -14,6 +14,7 @@
 import { clamp, isRecord, own } from '../guards'
 import { bool, nullable, num, str, type Guard } from '../ipc/guards'
 import { MAX_SEGMENTS } from '../promptPreview'
+import { isBusyAnimationId, isBusyColorId, type BusyAnimationId, type BusyColorId } from '../domain/busyAnimation'
 
 /** What a constraint may need that a pure shared module cannot look up for itself. */
 export interface SettingContext {
@@ -170,7 +171,16 @@ export const SETTINGS = {
    * or Apiary composites without the GPU; `full` and `reduced` are the person's explicit choice.
    */
   motion: setting<MotionSetting>({ guard: isMotionSetting, default: 'auto' }),
+  /** The animation beside "Claude is working" (`shared/domain/busyAnimation.ts`). */
+  busyAnimation: setting<BusyAnimationId>({ guard: isBusyAnimationId, default: 'spark' }),
+  /** Its colour; an animation that does not offer it uses its own first (`busyColorFor`). */
+  busyAnimationColor: setting<BusyColorId>({ guard: isBusyColorId, default: 'theme' }),
 }
+
+/** Settings whose control saves them at once, outside the dialog's Save (Themes: Animations, and
+ *  the working animation). The dialog's draft still holds what they were when it opened. */
+export const INSTANT_SETTINGS = ['motion', 'busyAnimation', 'busyAnimationColor'] as const satisfies readonly SettingKey[]
+export type InstantSettingKey = (typeof INSTANT_SETTINGS)[number]
 
 export type SettingKey = keyof typeof SETTINGS
 type ValueOf<D> = D extends SettingDef<infer T> ? T : never

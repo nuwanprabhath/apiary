@@ -28,6 +28,34 @@
 .theme-intensity { align-items: center; justify-content: space-between; }
 .theme-intensity input[type="range"] { accent-color: var(--accent); width: 160px; }
 
+/* The working animation (BusyAnimationRows): cards like the theme grid, each animating live, and
+ * colour chips. The radios are hidden; the card or chip around one is what shows it is chosen. */
+.busy-settings { gap: var(--space-md); }
+.busy-choices { align-self: stretch; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: var(--space-md); }
+.busy-choice {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-xs);
+  padding: var(--space-ml); border: 1px solid var(--border); border-radius: var(--radius-panel);
+  background: var(--control-bg); cursor: pointer;
+}
+.busy-choice:hover { background: var(--control-bg-hover); }
+.busy-choice[data-active="true"] { border-color: var(--accent); box-shadow: var(--focus-ring); }
+/* The stage is sized from the glyph's own font, so a larger preview stays in proportion. */
+.busy-choice-preview { display: grid; place-items: center; width: 100%; height: 1.4em; font-size: 40px; }
+.busy-choice-name { font-weight: 600; }
+.busy-choice-help { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.busy-colors { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.busy-color {
+  display: inline-flex; align-items: center; gap: var(--space-sm);
+  min-height: var(--control-height-sm); padding: 0 var(--space-ml);
+  border: 1px solid var(--border); border-radius: var(--radius-pill);
+  background: var(--control-bg); cursor: pointer;
+}
+.busy-color:hover { background: var(--control-bg-hover); }
+.busy-color[data-active="true"] { border-color: var(--accent); }
+.busy-choice:has(input:focus-visible), .busy-color:has(input:focus-visible) { outline: none; box-shadow: var(--focus-ring); }
+.busy-swatch { display: inline-flex; gap: 2px; }
+.busy-swatch-dot { width: var(--dot-size); height: var(--dot-size); border-radius: 50%; background: var(--busy-color); }
+
 /*
  * Anything that floats over the app is solid, whatever the theme. Themes may make panel chrome
  * translucent so background effects show through it; a dialog or menu drawn in that same colour

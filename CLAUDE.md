@@ -216,6 +216,12 @@ Generators write stubs that fail until finished, never ones that are green and w
   or read) rather than the screen: one entry in `LIBRARY_STATE` (`shared/libraryState.ts`), read with
   `useLibraryState`, written with `updateLibraryState`. A remote window then shows the work
   machine's. Never a `uiState` field ([library-state](docs/architecture/library-state.md)).
+- **A working animation, or a colour for one.** An id and its entry in
+  `src/shared/domain/busyAnimation.ts` (label, description, the colours it offers), its view in
+  `src/renderer/ui/BusyGlyph.tsx`, and its CSS in `src/renderer/styles/35-busy.css` with a
+  `:root[data-motion="reduced"]` still frame; the orbit engine there draws any dots-on-a-circle
+  variation from per-dot variables. The `Record`s make a missing piece a compile error;
+  `tests/component/busyAnimation.test.tsx` and `tests/component/motion.test.tsx` cover every id.
 - **A session-bar plugin.** A factory in `BUILTIN_PLUGINS` (`main/plugins/builtin.ts`); pass it what
   it needs in `PluginService`. See [`src/main/plugins/CLAUDE.md`](src/main/plugins/CLAUDE.md).
 - **A status-bar item, a theme token or effect, a log line.** [`src/main/statusBar/CLAUDE.md`](src/main/statusBar/CLAUDE.md),

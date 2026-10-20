@@ -1,0 +1,132 @@
+/*
+ * The animation beside "Claude is working" (`ui/BusyGlyph.tsx`; the choices are declared in
+ * `shared/domain/busyAnimation.ts`). All of it is CSS: no timer re-renders the line, and each
+ * animation has a still frame under `:root[data-motion="reduced"]`.
+ */
+
+/* Colour. Set on the glyph and on whatever wears its tint (the working line's verb). */
+[data-busy-color="theme"] { --busy-color: var(--accent); --busy-tint: var(--accent); }
+[data-busy-color="claude"] { --busy-color: var(--claude); --busy-tint: var(--claude); }
+[data-busy-color="mono"] { --busy-color: var(--text); --busy-tint: var(--text); }
+/* The theme's chart palette, one colour per planet; the words stay in the accent. */
+[data-busy-color="aurora"] { --busy-color: var(--series-1); --busy-tint: var(--accent); }
+[data-busy-color="aurora"] :is(.busy-dot, .busy-swatch-dot)[data-planet="2"] { --busy-color: var(--series-2); }
+[data-busy-color="aurora"] :is(.busy-dot, .busy-swatch-dot)[data-planet="3"] { --busy-color: var(--series-3); }
+
+/* Sized in em, so a larger font (the Settings preview) draws a larger one. Overflow shows: an
+ * orbit is wider than the glyph column it is centred on. */
+.busy-glyph {
+  --busy-r: 0.54em;
+  --busy-dot: 0.2em;
+  position: relative;
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.12em;
+  color: var(--busy-color);
+}
+
+/* Spark: Claude Code's own glyph, frame by frame (ten frames, 120 ms each). */
+.busy-spark { position: absolute; inset: 0; display: grid; place-items: center; line-height: 1; }
+.busy-spark::before { content: "✻"; animation: busy-spark 1.2s steps(1) infinite; }
+@keyframes busy-spark {
+  0% { content: "·"; }
+  10% { content: "✢"; }
+  20% { content: "✳"; }
+  30% { content: "✶"; }
+  40% { content: "✻"; }
+  50% { content: "✽"; }
+  60% { content: "✻"; }
+  70% { content: "✶"; }
+  80% { content: "✳"; }
+  90% { content: "✢"; }
+}
+:root[data-motion="reduced"] .busy-spark::before { animation: none; content: "✻"; }
+/* In the palette, the spark drifts through it. */
+[data-busy-color="aurora"] .busy-spark { animation: busy-aurora 4.8s linear infinite; }
+@keyframes busy-aurora {
+  0%, 100% { color: var(--series-1); }
+  25% { color: var(--series-2); }
+  50% { color: var(--series-3); }
+  75% { color: var(--series-4); }
+}
+:root[data-motion="reduced"] [data-busy-color="aurora"] .busy-spark { animation: none; color: var(--series-1); }
+
+/*
+ * The orbit engine, shared by Orbit, Comet and Atom. Two animated angles on the glyph drive every
+ * dot: `--busy-spin` turns the orbit, `--busy-tilt` rocks its plane between edge-on (a line, the
+ * planets passing in front of each other) and open (a triangle). A dot is at angle `--a` on a
+ * circle of `--busy-r`; `sin(--a)` is its depth, which lifts it, grows it and stacks it in front.
+ * Per dot: `--phase` (where on the orbit), `--speed` (whole turns per spin, so the loop is
+ * seamless), `--trail` (how far behind its planet a tail dot is), `--tilt` (a fixed plane instead
+ * of the rocking one), `--plane` (the plane turned in the picture), `--size` and `--fade`.
+ * Measured from Claude's iOS app: a planet takes the next one's place every 1.8 s, the plane rocks
+ * through edge-on every 1.8 s and opens to about 40 degrees, a near planet is twice a far one.
+ */
+@property --busy-spin { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+@property --busy-tilt { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+
+.busy-dot {
+  --a: calc(var(--busy-spin) * var(--speed, 1) + var(--phase, 0deg) + var(--trail, 0deg));
+  --depth: sin(var(--a));
+  --x0: calc(cos(var(--a)) * var(--busy-r));
+  --y0: calc(var(--depth) * var(--busy-r) * sin(var(--tilt, var(--busy-tilt))));
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--busy-dot);
+  height: var(--busy-dot);
+  margin: calc(var(--busy-dot) / -2) 0 0 calc(var(--busy-dot) / -2);
+  border-radius: 50%;
+  background: var(--busy-color);
+  opacity: var(--fade, 1);
+  transform:
+    translate(
+      calc(var(--x0) * cos(var(--plane, 0deg)) - var(--y0) * sin(var(--plane, 0deg))),
+      calc(var(--x0) * sin(var(--plane, 0deg)) + var(--y0) * cos(var(--plane, 0deg)))
+    )
+    scale(calc((1 + 0.33 * var(--depth)) * var(--size, 1)));
+  z-index: calc(10 + round(var(--depth) * 10));
+}
+.busy-dot[data-planet="2"] { --phase: 120deg; }
+.busy-dot[data-planet="3"] { --phase: 240deg; }
+
+/* The orbit turns toward smaller angles (the far planet travels left, as in Claude's app). */
+@keyframes busy-spin { to { --busy-spin: -360deg; } }
+@keyframes busy-tilt {
+  0% { --busy-tilt: 0deg; animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  25% { --busy-tilt: 40deg; animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  50% { --busy-tilt: 0deg; animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  75% { --busy-tilt: -40deg; animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  100% { --busy-tilt: 0deg; }
+}
+
+/* Orbit: the planets of Claude's app. Still, a triangle seen from a little above. */
+.busy-glyph[data-busy-animation="orbit"] { animation: busy-spin 5.4s linear infinite, busy-tilt 3.6s linear infinite; }
+:root[data-motion="reduced"] .busy-glyph[data-busy-animation="orbit"] { animation: none; --busy-spin: -30deg; --busy-tilt: 30deg; }
+
+/* Comet: quicker, each planet trailing two fading dots a little behind it on the orbit. */
+.busy-glyph[data-busy-animation="comet"] { animation: busy-spin 3.6s linear infinite, busy-tilt 3.6s linear infinite; }
+:root[data-motion="reduced"] .busy-glyph[data-busy-animation="comet"] { animation: none; --busy-spin: -30deg; --busy-tilt: 30deg; }
+.busy-glyph[data-busy-animation="comet"] .busy-dot[data-tail="1"] { --trail: 16deg; --size: 0.8; --fade: 0.6; }
+.busy-glyph[data-busy-animation="comet"] .busy-dot[data-tail="2"] { --trail: 32deg; --size: 0.6; --fade: 0.32; }
+
+/* Atom: each electron on its own ring, the rings crossed at 60 degrees and the electrons at
+ * different whole speeds, around a faint nucleus. */
+.busy-glyph[data-busy-animation="atom"] { --busy-r: 0.6em; animation: busy-spin 4s linear infinite; }
+:root[data-motion="reduced"] .busy-glyph[data-busy-animation="atom"] { animation: none; --busy-spin: -40deg; }
+.busy-glyph[data-busy-animation="atom"] .busy-dot { --tilt: 28deg; }
+.busy-glyph[data-busy-animation="atom"] .busy-dot[data-planet="2"] { --plane: 60deg; --speed: -1; }
+.busy-glyph[data-busy-animation="atom"] .busy-dot[data-planet="3"] { --plane: 120deg; --speed: 2; }
+.busy-nucleus {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--busy-dot);
+  height: var(--busy-dot);
+  margin: calc(var(--busy-dot) / -2) 0 0 calc(var(--busy-dot) / -2);
+  border-radius: 50%;
+  background: var(--busy-color);
+  opacity: 0.45;
+  z-index: 10;
+}

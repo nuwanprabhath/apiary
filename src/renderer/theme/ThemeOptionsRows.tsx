@@ -3,7 +3,7 @@ import { THEME_MODELS, type ThemeModel } from '@shared/theme/models'
 import { THEME_MODEL_LABELS } from '../ui/modelLabels'
 import { setThemeOptions } from '../state/theme'
 import { surface } from '../state/policy'
-import { saveMotionSetting, useAppSettings } from '../state/settingsStore'
+import { saveInstantSetting, useAppSettings } from '../state/settingsStore'
 import type { MotionSetting } from '@shared/settings/schema'
 
 const MODELS: Array<{ id: ThemeModel; label: string }> =
@@ -59,7 +59,7 @@ export function ThemeOptionsRows({ options }: Props): JSX.Element {
           className="theme-model"
           data-testid="setting-motion"
           value={motion}
-          onChange={(e) => { surface(saveMotionSetting(e.target.value as MotionSetting), 'Could not change the setting') }}
+          onChange={(e) => { surface(saveInstantSetting({ motion: e.target.value as MotionSetting }), 'Could not change the setting') }}
         >
           <option value="auto">Automatic</option>
           <option value="full">Full</option>

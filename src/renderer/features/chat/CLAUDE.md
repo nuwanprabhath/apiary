@@ -11,7 +11,8 @@ conversation as the VS Code extension does; it holds no chat state of its own.
   to use a tool, in the conversation.
 - `ModeMenu.tsx` (permission mode), `ModelPicker.tsx` (model, effort scale, context ring),
   `CommandPalette.tsx` (the "/" menu), `usePopover.ts` (open and close for those three).
-- `WorkingLine.tsx` (the line under the conversation while Claude works), `ChatStatus.tsx` (background
+- `WorkingLine.tsx` (the line under the conversation while Claude works; its animation is
+  `src/renderer/ui/BusyGlyph.tsx`, chosen in Settings → Themes), `ChatStatus.tsx` (background
   tasks, last turn, recap), `useCopyOnSelect.ts`.
 
 - `AccountSwitchPrompt.tsx` (`AccountSwitchHost`, mounted by `DialogHost`): the "Claude is still

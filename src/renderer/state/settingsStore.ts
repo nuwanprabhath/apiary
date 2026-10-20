@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import type { AppSettingsPayload } from '@shared/domain/settings'
-import { SETTINGS, type SettingKey } from '@shared/settings/schema'
+import { INSTANT_SETTINGS, SETTINGS, type InstantSettingKey, type SettingKey } from '@shared/settings/schema'
 import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
 import type { LibraryState } from '@shared/libraryState'
 import { createIpcStore } from './createIpcStore'
@@ -51,16 +51,18 @@ export const readSettings = async (): Promise<SettingsDraft> => {
   return { ...settings, hideToolCallIo: library.hideToolCallIo }
 }
 /** Saves the draft; the dialog stays open and says why when it fails. The library preference is
- *  sent only when it changed, so opening and saving the dialog leaves library state alone. `motion`
- *  is sent as saved now: its control saves it at once, and the draft still holds what it was when
- *  the dialog opened. */
+ *  sent only when it changed, so opening and saving the dialog leaves library state alone. The
+ *  `INSTANT_SETTINGS` are sent as saved now: their controls save them at once, and the draft still
+ *  holds what they were when the dialog opened. */
 export const saveSettingsDraft = async ({ hideToolCallIo, ...settings }: SettingsDraft): Promise<void> => {
-  await window.apiary.settingsSet({ ...settings, motion: (await window.apiary.settingsGet()).motion })
+  const saved = await window.apiary.settingsGet()
+  const instant = Object.fromEntries(INSTANT_SETTINGS.map((k) => [k, saved[k]])) as Pick<AppSettingsPayload, InstantSettingKey>
+  await window.apiary.settingsSet({ ...settings, ...instant })
   if (hideToolCallIo !== (await readLibraryState()).hideToolCallIo) await saveLibraryState({ hideToolCallIo })
 }
 
-/** Saves the animations setting at once (it has no Save button, like the theme options) and re-reads. */
-export const saveMotionSetting = async (motion: AppSettingsPayload['motion']): Promise<void> => {
-  await window.apiary.settingsSet({ ...(await window.apiary.settingsGet()), motion })
+/** Saves one of the `INSTANT_SETTINGS` at once (it has no Save button, like the theme options) and re-reads. */
+export const saveInstantSetting = async (patch: Partial<Pick<AppSettingsPayload, InstantSettingKey>>): Promise<void> => {
+  await window.apiary.settingsSet({ ...(await window.apiary.settingsGet()), ...patch })
   settingsStore.reload()
 }

@@ -23,6 +23,8 @@ function alternate(key: SettingKey): unknown {
   if (key === 'claudeBin') return '/opt/claude'
   if (key === 'proofingLanguage') return 'fr-FR'
   if (key === 'motion') return 'reduced'
+  if (key === 'busyAnimation') return 'orbit'
+  if (key === 'busyAnimationColor') return 'claude'
   if (key === 'plugins') return { known: false }
   if (key === 'pluginSettings') return { known: { port: 8080 } }
   throw new Error(`settingsSchema.test.ts cannot build a sample for "${key}": add one to alternate()`)

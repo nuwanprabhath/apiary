@@ -7,6 +7,7 @@ import { ThemeCurrent, type Naming } from './ThemeCurrent'
 import { ThemeDescribe } from './ThemeDescribe'
 import { ThemeGrid, type ThemeEntry } from './ThemeGrid'
 import { ThemeOptionsRows } from './ThemeOptionsRows'
+import { BusyAnimationRows } from './BusyAnimationRows'
 import { ThemePreviewBar, type Preview } from './ThemePreviewBar'
 import { activateTheme, generateTheme, renameTheme, saveTheme } from '../state/theme'
 import { surface } from '../state/policy'
@@ -135,6 +136,7 @@ export function ThemesSection(): JSX.Element {
       />
 
       <ThemeOptionsRows options={theme.options} />
+      <BusyAnimationRows />
       <p className="settings-help">
         If a theme ever makes Apiary hard to use, View → Reset Theme (Cmd/Ctrl+Alt+Shift+T) always
         brings back the original look.
