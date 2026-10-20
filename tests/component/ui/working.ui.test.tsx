@@ -32,4 +32,11 @@ describe('UI working sessions', () => {
     await openThree()
     await reviewUi('working tabs narrow', { widths: [620, 760], themes: ['default'] })
   })
+
+  it('the running tab in front: its glow and the bar under its name together', async () => {
+    await openThree()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await until(() => document.querySelector('[data-testid="session-tab"][data-active="true"][data-activity="running"]') !== null)
+    await reviewUi('working tab in front', { widths: [620, 1400] })
+  })
 })

@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.47.1] - 2026-10-20
+
+### Fixed
+
+- **The tab in front is marked even beside a working tab.** A running tab's glow and a waiting
+  tab's ring outshone the quiet chip that marked the tab in front, so the glowing tab beside it
+  read as the one in front, and a reply could go to the wrong chat. The tab in front now also has
+  a bar under its name, in the text colour, which no status uses. It shows with the glow when the
+  tab in front is the running one.
+
 ## [1.47.0] - 2026-10-20
 
 ### Added
