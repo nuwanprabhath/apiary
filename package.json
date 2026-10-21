@@ -1,6 +1,6 @@
 {
   "name": "apiary",
-  "version": "1.47.2",
+  "version": "1.47.3",
   "private": true,
   "type": "module",
   "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",
@@ -134,7 +134,8 @@
   },
   "overrides": {
     "markdownlint-cli2": {
-      "smol-toml": "^1.9.0"
+      "smol-toml": "^1.9.0",
+      "markdown-it": "^15.0.3"
     },
     "micromark-extension-math": {
       "katex": "^0.18.2"

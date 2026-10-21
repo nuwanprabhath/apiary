@@ -4,7 +4,17 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.47.2] - 2026-10-21
+## [1.47.3] - 2026-10-21
+
+### Security
+
+- **markdown-it 15.0.3**, for three advisories published after 1.47.2 was tagged: GHSA-r7fv-28h4-cvq7,
+  GHSA-gfr2-rv44-r23c and GHSA-vfgh-jcmw-g37q, each a quadratic-time denial of service. It is only
+  reached through markdownlint-cli2, a dev tool run on this repository's own Markdown. It is pinned
+  by an override, since the markdownlint-cli2 that ships it (0.24.0) was published only hours earlier.
+  The audit gate failed CI on them, as it should.
+
+## [1.47.2] - 2026-10-21 (not released: the audit gate failed on new markdown-it advisories; shipped in 1.47.3)
 
 ### Fixed
 
