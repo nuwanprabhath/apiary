@@ -195,22 +195,33 @@
 /*
  * The chip alone was not enough beside a working tab: a running tab's glow (a lit ring and halo) and
  * a waiting tab's ring outshone it, and the glowing tab next to the one in front read as the one in
- * front, so a reply went to the wrong chat. The tab in front also carries a bar under its name: a
- * shape no status uses (they are rings around the tab), so the two never compete and both show on
- * a tab in front that is itself running. In the text colour, not the accent, which in some themes
- * is the waiting colour. `::after` is the glow's (`data-glow`, styles/05-ui.css).
+ * front, so a reply went to the wrong chat. So the tab in front also lights its bottom edge. On a
+ * quiet tab that is a soft line along the chip's own edge, clear of the name (an underline under the
+ * name crowded it and outshone it). On a glowing tab it is the glow's own bottom edge, brighter, not
+ * a line of its own. Never the accent, which in some themes is the waiting colour. `::after` is the
+ * glow (`data-glow`, styles/05-ui.css); this sits above it.
  */
 .session-tab[data-active="true"]::before {
   content: "";
   position: absolute;
-  right: var(--space-md);
-  /* Clear of the tab's edge, where a glowing tab's ring runs and would swallow it. */
-  bottom: calc(var(--glow-width) + 1px);
-  left: var(--space-md);
+  right: var(--space-sm);
+  bottom: 0;
+  left: var(--space-sm);
+  z-index: 1;
   height: 2px;
   border-radius: var(--radius-pill);
-  background: var(--text);
+  background: color-mix(in sRGB, var(--text) 45%, transparent);
   pointer-events: none;
+}
+.session-tab[data-active="true"][data-glow="running"]::before {
+  height: var(--glow-width);
+  background: color-mix(in sRGB, var(--status-running) 45%, var(--text));
+  box-shadow: 0 0 var(--glow-halo-outer) var(--status-running);
+}
+.session-tab[data-active="true"][data-glow="waiting"]::before {
+  height: var(--glow-width);
+  background: color-mix(in sRGB, var(--status-waiting) 45%, var(--text));
+  box-shadow: 0 0 var(--glow-halo-outer) var(--status-waiting);
 }
 .session-tab-strip[draggable="true"] .session-tab { cursor: default; }
 /* Keyboard focus, and only keyboard focus: a quiet ring, not the OS accent around the whole tab

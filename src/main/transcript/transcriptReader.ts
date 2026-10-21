@@ -158,7 +158,22 @@ export function toMessage(entry: Record<string, unknown>): TranscriptMessage | n
   if (role !== 'user' && role !== 'assistant') return null
   const message = entry.message as { content?: unknown } | undefined
   if (!message) return null
-  return { ...base, role, blocks: mapBlocks(role, message.content) }
+  const blocks = mapBlocks(role, message.content)
+  const peer = role === 'user' ? peerMessage(entry.origin, blocks) : null
+  return { ...base, role, blocks: peer === null ? blocks : [peer] }
+}
+
+/**
+ * Another Claude session's message (a subagent reporting back), which Claude Code writes as a
+ * `user` entry with `origin: { kind: 'peer', name, body }` (measured on 2.1.302). `body` is the
+ * sender's own words, without the framing around them in the entry's text.
+ */
+function peerMessage(origin: unknown, blocks: TranscriptBlock[]): TranscriptBlock | null {
+  const o = origin as { kind?: unknown; name?: unknown; body?: unknown } | undefined
+  if (o?.kind !== 'peer') return null
+  const body = typeof o.body === 'string' && o.body.trim() !== '' ? o.body : null
+  const text = body ?? blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n')
+  return { type: 'peer_message', from: typeof o.name === 'string' && o.name !== '' ? o.name : null, text }
 }
 
 type MessageBase = Pick<TranscriptMessage, 'uuid' | 'timestampMs' | 'isSidechain'>

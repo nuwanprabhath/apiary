@@ -11,7 +11,7 @@ vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFs>()
   return { ...actual, createReadStream: vi.fn(actual.createReadStream) }
 })
-import { TranscriptReader } from '../../src/main/transcript/transcriptReader'
+import { TranscriptReader, toMessage } from '../../src/main/transcript/transcriptReader'
 
 let dir: string
 let reader: TranscriptReader
@@ -329,5 +329,26 @@ describe('indexTranscript incremental fast path (MAIN-24)', () => {
     // happened).
     const { messageCount } = await indexTranscript(files[0])
     expect(messageCount).toBe(1)
+  })
+})
+
+describe('another session\'s message', () => {
+  const entry = (origin: unknown): Record<string, unknown> => ({
+    type: 'user', uuid: 'p1', timestamp: '2026-10-20T07:21:00Z', isMeta: true, origin,
+    message: { role: 'user', content: 'Another Claude session sent a message:\n<agent-message from="a1">framing and the report</agent-message>' },
+  })
+
+  it('is read as one peer block: the sender\'s name and its own words, without the framing', () => {
+    const m = toMessage(entry({ kind: 'peer', from: 'a1', name: 'general-purpose', body: 'I added the tests. All 25 pass.' }))
+    expect(m?.blocks).toEqual([{ type: 'peer_message', from: 'general-purpose', text: 'I added the tests. All 25 pass.' }])
+  })
+
+  it('falls back to the entry\'s text when the origin carries no body', () => {
+    const block = toMessage(entry({ kind: 'peer', name: '' }))?.blocks[0]
+    expect(block?.type === 'peer_message' ? [block.from, block.text.includes('the report')] : null).toEqual([null, true])
+  })
+
+  it('leaves a user message with no peer origin as text', () => {
+    expect(toMessage(entry(undefined))?.blocks[0]?.type).toBe('text')
   })
 })

@@ -108,6 +108,16 @@ describe('ChatManager', () => {
     expect(textOf(done)).toContain('[Request interrupted by user]')
   }, 20000)
 
+  it('Stop ends a chat left busy with no turn running, which claude answers with no result', async () => {
+    const { until } = start()
+    manager!.send(SESSION, '/silent')
+    await until((s) => s.status === 'busy')
+    manager!.interrupt(SESSION)
+    const done = await until((s) => s.status === 'idle')
+    expect(done.turnStartedAt).toBeNull()
+    expect(done.streaming).toBeNull()
+  }, 20000)
+
   it('a message sent while Claude is still answering waits as queued, then joins that turn and keeps it busy until answered', async () => {
     const { states, until } = start()
     // "linger" holds the turn open until the second message joins it, so it cannot end first.

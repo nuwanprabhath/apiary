@@ -4,6 +4,26 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.47.2] - 2026-10-21
+
+### Fixed
+
+- **Stop always stops the working line.** Apiary marks a chat busy the moment a message is sent,
+  and only Claude's end-of-turn clears it. A message Claude took in without starting a turn left the
+  chat busy with nothing running, and Stop could not clear it: with no turn to stop, Claude answers
+  an interrupt and says nothing more. Stop now ends such a turn itself a moment later, as Claude's
+  own end would, and still sends any message held for it.
+
+### Changed
+
+- **The tab in front is marked more quietly.** 1.47.1's bar under the name crowded the name and
+  drew more attention than it. Now a quiet tab in front has a soft line along its own bottom edge,
+  and a glowing one has the bottom of its glow lit brighter, with no line of its own.
+- **A message from another Claude session, such as a subagent's report back, is labelled and
+  folded.** It says which agent sent it and shows the report itself, without the framing around it.
+  A long one is folded to its first line, so scrolling back past a few no longer takes pages; its
+  header opens it.
+
 ## [1.47.1] - 2026-10-20
 
 ### Fixed

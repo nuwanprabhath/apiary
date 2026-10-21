@@ -15,6 +15,8 @@ export type ChatItem =
   /** Something Claude Code itself put in the conversation as "you": a background task finishing
    *  (`<task-notification>`), a local command's output. Shown as a quiet line, never as a prompt. */
   | { kind: 'notice'; key: string; text: string; status: string | null }
+  /** Another Claude session's message to this one: a subagent's report back, for one. */
+  | { kind: 'peer'; key: string; from: string | null; text: string; timestampMs: number | null }
 
 const INTERRUPTED = /^\[Request interrupted by user[^\]]*\]$/
 
@@ -101,6 +103,8 @@ export function chatItems(messages: TranscriptMessage[]): ChatItem[] {
   const items: ChatItem[] = []
   for (const m of messages) {
     if (m.role === 'user') {
+      const peer = m.blocks.find((b) => b.type === 'peer_message')
+      if (peer !== undefined) { items.push({ kind: 'peer', key: m.uuid, from: peer.from, text: peer.text, timestampMs: m.timestampMs }); continue }
       const text = m.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim()
       const images = m.blocks.flatMap((b) => (b.type === 'image' ? [b.dataUrl] : []))
       const made = synthetic(text)

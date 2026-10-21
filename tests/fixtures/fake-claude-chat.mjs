@@ -85,6 +85,10 @@ async function turn(text) {
     out({ type: 'result', subtype: 'success', is_error: false, session_id: sessionId, modelUsage: {} })
     return
   }
+  // A message that ends no turn: no reply and no `result`. Apiary marks a chat busy when it sends,
+  // so this is the chat left busy with nothing running, which only Stop can end; an interrupt with
+  // no turn running is answered and nothing more (measured on claude 2.1.302).
+  if (text === '/silent') return
   if (text === '/context') {
     assistant([{ type: 'text', text: '## Context Usage\n\n**Tokens:** 4k / 200k (2%)' }])
     out({ type: 'result', subtype: 'success', is_error: false, session_id: sessionId, modelUsage: {} })

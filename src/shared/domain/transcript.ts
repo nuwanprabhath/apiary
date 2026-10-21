@@ -12,6 +12,9 @@ export type TranscriptBlock =
   | { type: 'turn_end'; durationMs: number }
   /** The recap Claude Code writes when you come back to a session (`system` `away_summary`). */
   | { type: 'recap'; text: string }
+  /** Another Claude session's message to this one, a subagent's report back among them: a `user`
+   *  entry Claude Code writes with `origin.kind: 'peer'`. `from` is the sender's name. */
+  | { type: 'peer_message'; from: string | null; text: string }
 
 export interface TranscriptMessage {
   uuid: string

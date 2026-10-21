@@ -56,6 +56,11 @@ message sent mid-turn, subagent messages) are in [`src/main/CLAUDE.md`](../CLAUD
 - **Only the newest 200 streamed messages are kept** (`MAX_LIVE`); the transcript has read the rest.
 - **A `result` ends the turn even with a queued message pending.** A message claude never takes in
   stays `queued`, and must not keep the chat busy, or the working line stays on after the turn.
+- **Stop must end a busy chat even when claude ends nothing.** `send` marks the chat busy at once,
+  and only a `result` clears it; an interrupt with no turn running gets a `control_response` and no
+  `result` (measured on 2.1.302). `ChatSession.interrupt` ends the same turn itself
+  `INTERRUPT_SETTLE_MS` after the answer, through `consume`, as a `result` would
+  (`tests/integration/chatManager.test.ts`, the fixture's `/silent`).
 - **An interrupt keeps a queued message claude had not taken in.** It stays `queued`, and Send now
   sends it as a turn of its own (`tests/integration/chatManager.test.ts`).
 - **A window's attachments follow the page it shows.** A link clicked in a reply starts a navigation

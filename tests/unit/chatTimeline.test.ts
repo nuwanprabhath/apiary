@@ -196,3 +196,12 @@ describe('BackgroundTaskTally', () => {
     expect(tally.tasks()).toMatchObject([{ taskId: 'b1', description: 'Task b1' }])
   })
 })
+
+describe('a peer message', () => {
+  it('is its own item, not a prompt you wrote, so it is never pinned as your last message', () => {
+    const peer: TranscriptMessage = { uuid: 'p1', role: 'user', timestampMs: 5, isSidechain: false, blocks: [{ type: 'peer_message', from: 'general-purpose', text: 'Report' }] }
+    const items = chatItems([peer])
+    expect(items).toEqual([{ kind: 'peer', key: 'p1', from: 'general-purpose', text: 'Report', timestampMs: 5 }])
+    expect(lastPrompt(items)).toBeNull()
+  })
+})

@@ -30,28 +30,36 @@ const inkOf = (cssColor: string): string => {
   return out
 }
 
+/** `color` as the browser resolves it (a token, or a `color-mix` of tokens). */
+const resolved = (color: string): string => inkOf(color)
+
 describe('the tab in front', () => {
-  it('carries a bar under its name, in the text colour, beside a running tab that glows', async () => {
+  it('lights its bottom edge, clear of the name, in a soft text colour, beside a tab that glows', async () => {
     await twoTabs((key) => (key === RUNNING ? 'running' : 'idle'))
     await until(() => tabs().some((t) => t.dataset.glow === 'running'))
     const front = tabs().find((t) => t.dataset.active === 'true')!
     const glowing = tabs().find((t) => t.dataset.glow === 'running')!
     expect(front).not.toBe(glowing)
 
-    const bar = marker(front)
-    expect(bar.content).not.toBe('none')
-    expect(parseFloat(bar.height)).toBeGreaterThanOrEqual(2)
-    expect(parseFloat(bar.width)).toBeGreaterThan(front.getBoundingClientRect().width / 2)
-    expect(bar.backgroundColor).toBe(inkOf(getComputedStyle(document.documentElement).getPropertyValue('--text')))
+    const edge = marker(front)
+    expect(edge.content).not.toBe('none')
+    // On the chip's own edge, not an underline under the name.
+    expect(parseFloat(edge.bottom)).toBe(0)
+    expect(parseFloat(edge.height)).toBeLessThanOrEqual(2)
+    expect(parseFloat(edge.width)).toBeGreaterThan(front.getBoundingClientRect().width / 2)
+    expect(edge.backgroundColor).toBe(resolved('color-mix(in sRGB, var(--text) 45%, transparent)'))
     // The other tab, glowing or not, has none.
     expect(marker(glowing).content).toBe('none')
   })
 
-  it('keeps the bar while it is the running one itself, under its glow', async () => {
+  it('when it is the running one, the glow\'s own bottom edge is brighter instead of a line of its own', async () => {
     await twoTabs(() => 'running')
     await until(() => tabs().every((t) => t.dataset.glow === 'running'))
     const front = tabs().find((t) => t.dataset.active === 'true')!
-    expect(marker(front).content).not.toBe('none')
+    const edge = marker(front)
+    expect(parseFloat(edge.bottom)).toBe(0)
+    expect(edge.height).toBe(getComputedStyle(front).getPropertyValue('--glow-width').trim())
+    expect(edge.backgroundColor).toBe(resolved('color-mix(in sRGB, var(--status-running) 45%, var(--text))'))
     expect(marker(tabs().find((t) => t !== front)!).content).toBe('none')
   })
 })

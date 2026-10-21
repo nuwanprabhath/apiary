@@ -6,6 +6,7 @@ import { formatDuration } from '@shared/time'
 import { TextBlock } from '../../ui/message/MessageRow'
 import { ImageThumbnail } from '../../ui/message/TranscriptImage'
 import { MarkdownText } from '../../ui/message/MarkdownText'
+import { PeerMessage } from '../../ui/message/PeerMessage'
 import { StreamingMarkdown } from './StreamingMarkdown'
 import { MessageTime } from '../../ui/MessageTime'
 import { ToolCall } from './ToolCall'
@@ -75,6 +76,7 @@ function sameItem(a: ChatItem, b: ChatItem): boolean {
       && a.result?.content === b.result?.content && a.result?.isError === b.result?.isError
     case 'interrupted': return true
     case 'notice': return b.kind === 'notice' && a.text === b.text && a.status === b.status
+    case 'peer': return b.kind === 'peer' && a.text === b.text && a.from === b.from && a.timestampMs === b.timestampMs
   }
 }
 
@@ -113,6 +115,13 @@ const Item = memo(function Item(
           <span className="chat-dot" aria-hidden="true" />
           <div className="chat-row-body">{item.text}</div>
         </div>
+      )
+    case 'peer':
+      return (
+        <>
+          <MessageTime ms={item.timestampMs} />
+          <PeerMessage from={item.from} text={item.text} />
+        </>
       )
   }
 }, (prev, next) => prev.timing?.seconds === next.timing?.seconds && prev.timing?.tokens === next.timing?.tokens

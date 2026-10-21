@@ -15,6 +15,14 @@ const EMIT_EVERY_MS = 120
 const STDERR_TAIL = 2000
 /** How long a stopped process gets to exit before it is killed outright. */
 const STOP_GRACE_MS = 3000
+/**
+ * How long after claude answers an interrupt its turn's `result` may still come. A turn it stops
+ * ends at once, its `result` right behind the answer; with no turn running, claude answers and
+ * sends nothing more (measured on 2.1.302).
+ */
+const INTERRUPT_SETTLE_MS = 2000
+/** The end of a turn claude never ended, applied as its own `result` would be. */
+const SETTLED_BY_STOP = { type: 'result', subtype: 'error_during_execution', is_error: true } as const
 
 /** What a chat was started with, kept so it can be started again under another account. */
 export interface ChatLaunch {
@@ -166,7 +174,20 @@ export class ChatSession {
     }), 'chat')
   }
 
-  interrupt(): void { this.write(controlLine(randomUUID(), { subtype: 'interrupt' })) }
+  /**
+   * Stops the turn. Apiary marks a chat busy as it sends, so a message claude takes in without
+   * ending a turn (a local command on some versions) leaves it busy with nothing running, and the
+   * interrupt then gets an answer and no `result`. If the same turn is still busy a moment after
+   * the answer, it is ended here as its `result` would end it, held Send-now messages included.
+   */
+  interrupt(): void {
+    const turn = this.state.turnStartedAt
+    fireAndForget(this.request({ subtype: 'interrupt' }).then(async () => {
+      await new Promise((r) => setTimeout(r, INTERRUPT_SETTLE_MS))
+      if (this.state.status !== 'busy' || this.state.turnStartedAt !== turn) return
+      this.update(this.consume(SETTLED_BY_STOP, this.state).next, true)
+    }), 'chat')
+  }
 
   setPermissionMode(mode: ChatPermissionMode): void {
     this.write(controlLine(randomUUID(), { subtype: 'set_permission_mode', mode }))
@@ -213,41 +234,51 @@ export class ChatSession {
       const event = parseLine(this.buffer.slice(0, newline))
       this.buffer = this.buffer.slice(newline + 1)
       if (event === null) continue
-      if (event.type === 'control_response') {
-        const response = event.response as Line | undefined
-        const id = typeof response?.request_id === 'string' ? response.request_id : null
-        const waiter = id !== null ? this.awaiting.get(id) : undefined
-        if (waiter !== undefined && id !== null) { this.awaiting.delete(id); waiter(response ?? {}) }
-        continue
-      }
-      if (event.type === 'system' && event.subtype === 'init') {
-        // `/clear` starts a new conversation in the same process: claude says so by initialising
-        // under a new session id. Everything after it belongs to that session, not this one.
-        if (typeof event.session_id === 'string' && UUID_RE.test(event.session_id) && event.session_id !== this.sessionId) {
-          const from = this.sessionId
-          const to = asSessionId(event.session_id)
-          this.sessionId = to
-          next = { ...next, sessionId: to, previousSessionId: from, live: [], thoughts: {}, contextUsed: null }
-          this.onRekey(from, to)
-          urgent = true
-        }
-        this.refreshApplied()
-        this.refreshContext()
-      }
-      const prompt = permissionRequestOf(event)
-      if (prompt !== null) this.pending.set(prompt.request.requestId, prompt.pending)
-      if (event.type === 'control_cancel_request' && typeof event.request_id === 'string') this.pending.delete(event.request_id)
-      if (event.type === 'result') this.pending.clear()
-      // A permission prompt or the end of a turn is shown at once; streamed text can wait a frame.
-      if (prompt !== null || event.type === 'result' || event.type === 'system') urgent = true
-      const waiting = event.type === 'result' ? this.takeSendNow(next) : []
-      next = reduce(next, event)
-      if (event.type === 'result') {
-        next = this.startSendNow(next, waiting)
-        this.refreshContext()
-      }
+      const step = this.consume(event, next)
+      next = step.next
+      urgent ||= step.urgent
     }
     if (next !== this.state) this.update(next, urgent)
+  }
+
+  /** One line of claude's output applied to `current`: the state after it, and whether to show it at once. */
+  private consume(event: Line, current: ChatState): { next: ChatState; urgent: boolean } {
+    let next = current
+    let urgent = false
+    if (event.type === 'control_response') {
+      const response = event.response as Line | undefined
+      const id = typeof response?.request_id === 'string' ? response.request_id : null
+      const waiter = id !== null ? this.awaiting.get(id) : undefined
+      if (waiter !== undefined && id !== null) { this.awaiting.delete(id); waiter(response ?? {}) }
+      return { next, urgent }
+    }
+    if (event.type === 'system' && event.subtype === 'init') {
+      // `/clear` starts a new conversation in the same process: claude says so by initialising
+      // under a new session id. Everything after it belongs to that session, not this one.
+      if (typeof event.session_id === 'string' && UUID_RE.test(event.session_id) && event.session_id !== this.sessionId) {
+        const from = this.sessionId
+        const to = asSessionId(event.session_id)
+        this.sessionId = to
+        next = { ...next, sessionId: to, previousSessionId: from, live: [], thoughts: {}, contextUsed: null }
+        this.onRekey(from, to)
+        urgent = true
+      }
+      this.refreshApplied()
+      this.refreshContext()
+    }
+    const prompt = permissionRequestOf(event)
+    if (prompt !== null) this.pending.set(prompt.request.requestId, prompt.pending)
+    if (event.type === 'control_cancel_request' && typeof event.request_id === 'string') this.pending.delete(event.request_id)
+    if (event.type === 'result') this.pending.clear()
+    // A permission prompt or the end of a turn is shown at once; streamed text can wait a frame.
+    if (prompt !== null || event.type === 'result' || event.type === 'system') urgent = true
+    const waiting = event.type === 'result' ? this.takeSendNow(next) : []
+    next = reduce(next, event)
+    if (event.type === 'result') {
+      next = this.startSendNow(next, waiting)
+      this.refreshContext()
+    }
+    return { next, urgent }
   }
 
   /**
