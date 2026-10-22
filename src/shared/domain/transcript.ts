@@ -15,6 +15,10 @@ export type TranscriptBlock =
   /** Another Claude session's message to this one, a subagent's report back among them: a `user`
    *  entry Claude Code writes with `origin.kind: 'peer'`. `from` is the sender's name. */
   | { type: 'peer_message'; from: string | null; text: string }
+  /** Text Claude Code put in the conversation for a tool rather than from you, such as a skill's
+   *  instructions when it loads: a `user` entry with `isMeta` and the `sourceToolUseID` of the call.
+   *  `name` is the skill's, when the text says which. */
+  | { type: 'loaded_context'; name: string | null; text: string }
 
 export interface TranscriptMessage {
   uuid: string

@@ -7,7 +7,7 @@ import { renderApp } from '../renderApp'
 import { mouse, sidebarSession, until } from '../helpers'
 import { reviewUi } from './review'
 
-/** A subagent's report back in the chat: folded (long), open, and short. */
+/** Messages you did not write, in the chat: a skill's instructions and a subagent's report, folded (long), open, and short. */
 const TITLE = 'Fix CSV export bug'
 const LONG = ['I added Strapi integration tests that sync the captured /bulk bodies from webapps 1.0.10, 1.0.11 and 1.0.12 to the new Core. All 25 new tests pass.', '', '**Files**', ...Array.from({ length: 8 }, (_, i) => `- \`species-info-compat/legacy-1.0.${String(i)}-bodies.json\``)].join('\n')
 const peer = (uuid: string, text: string): TranscriptMessage =>
@@ -18,7 +18,8 @@ async function open(): Promise<void> {
   await userEvent.click(sidebarSession(TITLE))
   await expect.element(page.getByTestId('chat-timeline')).toBeVisible()
   const sessionId = fake.state.sessions.find((s) => s.title === TITLE)!.sessionId
-  const next = { ...emptyChatState(asSessionId(sessionId)), status: 'idle' as const, live: [peer('p1', LONG), peer('p2', 'Done. Committed as 30fb0e9.')] }
+  const skill: TranscriptMessage = { uuid: 's1', role: 'user', timestampMs: null, isSidechain: false, blocks: [{ type: 'loaded_context', name: 'gitlab-pipeline-analysis', text: `Base directory for this skill: /home/me/.claude/skills/gitlab-pipeline-analysis\n\n# GitLab Pipeline Failure Analysis\n\n${LONG}` }] }
+  const next = { ...emptyChatState(asSessionId(sessionId)), status: 'idle' as const, live: [skill, peer('p1', LONG), peer('p2', 'Done. Committed as 30fb0e9.')] }
   fake.state.chats.set(sessionId, next)
   fake.emit('chatChanged', { kind: 'full', state: next })
   await until(() => document.querySelectorAll('[data-testid="peer-message"]').length === 2)

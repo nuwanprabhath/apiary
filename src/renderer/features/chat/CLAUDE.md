@@ -8,7 +8,8 @@ conversation as the VS Code extension does; it holds no chat state of its own.
 
 - `ChatTimeline.tsx`: the conversation, the pinned latest prompt, thinking rows, queued messages.
 - Another Claude session's message (a subagent reporting back; `origin.kind: 'peer'` in the file) is a
-  `peer_message` block and a `peer` item, drawn by `src/renderer/ui/message/PeerMessage.tsx`, folded when long.
+  `peer_message` block and a `peer` item, drawn by `src/renderer/ui/message/FoldedMessage.tsx`, folded when long. So is a
+  skill's instructions (`isMeta` with a `sourceToolUseID`): a `loaded_context` block and a `loaded` item.
 - `ToolCall.tsx`: one tool call (status dot, IN box, OUT box). `PermissionCard.tsx`: Claude asking
   to use a tool, in the conversation.
 - `ModeMenu.tsx` (permission mode), `ModelPicker.tsx` (model, effort scale, context ring),

@@ -654,11 +654,11 @@
 .chat-jump:hover { background: linear-gradient(var(--control-bg-hover), var(--control-bg-hover)), var(--bg); }
 
 /*
- * Another Claude session's message to this one (a subagent's report back): labelled with who sent
- * it, and a long one folded to its first line (ui/message/PeerMessage.tsx). Drawn like your own
- * messages' box, but quieter, since you did not write it.
+ * Something in the conversation you did not write (a subagent's report back, a skill's instructions):
+ * labelled with where it came from, and a long one folded to its first line
+ * (ui/message/FoldedMessage.tsx). Drawn like your own messages' box, but quieter.
  */
-.peer-message {
+.folded-message {
   margin-top: var(--space-sm);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -666,7 +666,7 @@
 }
 /* Who sent it, then (folded) its first line under that, at the full width and up to two lines: beside
  * the name, a narrow pane left it a word or two. */
-.peer-message-head {
+.folded-message-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
@@ -681,14 +681,14 @@
   font: inherit;
   text-align: left;
 }
-button.peer-message-head { cursor: pointer; }
-button.peer-message-head:hover { background: var(--hover); }
-button.peer-message-head:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.peer-message-chevron { display: inline-flex; grid-column: 1; }
-.peer-message-chevron svg { width: var(--icon-size-sm); height: var(--icon-size-sm); }
-.peer-message-from { grid-column: 2; font-size: 12px; font-weight: 600; }
-.peer-message-head > .peer-message-from:first-child { grid-column: 1 / -1; }
-.peer-message-first {
+button.folded-message-head { cursor: pointer; }
+button.folded-message-head:hover { background: var(--hover); }
+button.folded-message-head:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.folded-message-chevron { display: inline-flex; grid-column: 1; }
+.folded-message-chevron svg { width: var(--icon-size-sm); height: var(--icon-size-sm); }
+.folded-message-label { grid-column: 2; font-size: 12px; font-weight: 600; }
+.folded-message-head > .folded-message-label:first-child { grid-column: 1 / -1; }
+.folded-message-first {
   display: -webkit-box;
   grid-column: 2;
   overflow: hidden;
@@ -696,7 +696,7 @@ button.peer-message-head:focus-visible { outline: none; box-shadow: var(--focus-
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.peer-message-body { padding: 0 var(--space-lg) var(--space-md) var(--space-md); }
+.folded-message-body { padding: 0 var(--space-lg) var(--space-md) var(--space-md); }
 /* Under the sender's name, past the chevron, when there is a header to open and close it. */
-.peer-message:has(button.peer-message-head) .peer-message-body { padding-left: calc(var(--space-md) + var(--icon-size-sm) + var(--space-sm)); }
-.peer-message-body .markdown > :last-child { margin-bottom: 0; }
+.folded-message:has(button.folded-message-head) .folded-message-body { padding-left: calc(var(--space-md) + var(--icon-size-sm) + var(--space-sm)); }
+.folded-message-body .markdown > :last-child { margin-bottom: 0; }

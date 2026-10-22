@@ -159,8 +159,24 @@ export function toMessage(entry: Record<string, unknown>): TranscriptMessage | n
   const message = entry.message as { content?: unknown } | undefined
   if (!message) return null
   const blocks = mapBlocks(role, message.content)
-  const peer = role === 'user' ? peerMessage(entry.origin, blocks) : null
-  return { ...base, role, blocks: peer === null ? blocks : [peer] }
+  const folded = role === 'user' ? peerMessage(entry.origin, blocks) ?? loadedContext(entry, blocks) : null
+  return { ...base, role, blocks: folded === null ? blocks : [folded] }
+}
+
+/** How a skill's instructions begin when Claude Code loads them (measured on 2.1.302). */
+const SKILL_BASE = /^Base directory for this skill: (\S+)/
+
+/**
+ * Text Claude Code put in the conversation for a tool, not from you: a `user` entry with `isMeta`
+ * and the `sourceToolUseID` of the call that loaded it, a skill's instructions above all (pages of
+ * them, which the chat drew as if you had written them).
+ */
+function loadedContext(entry: Record<string, unknown>, blocks: TranscriptBlock[]): TranscriptBlock | null {
+  if (entry.isMeta !== true || typeof entry.sourceToolUseID !== 'string') return null
+  const text = blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n')
+  if (text.trim() === '') return null
+  const dir = SKILL_BASE.exec(text)?.[1] ?? null
+  return { type: 'loaded_context', name: dir === null ? null : dir.replace(/\/+$/, '').split('/').pop() ?? null, text }
 }
 
 /**

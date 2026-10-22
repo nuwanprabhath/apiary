@@ -292,6 +292,10 @@
 
   font-family: var(--font-ui);
   font-size: 13px;
+  /* Text reads as typed. A theme's code font can be Fira Code or JetBrains Mono, whose programming
+   * ligatures (contextual alternates, `calt`) draw `===` as one joined glyph that reads as "≡" and
+   * `!=` as "≠". Ordinary ligatures (fi, fl) stay; the terminal turns all of them off itself. */
+  font-variant-ligatures: no-contextual;
 }
 
 :root[data-ui-font="inter"] { --font-ui: "Inter", -apple-system, sans-serif; }

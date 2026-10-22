@@ -352,3 +352,21 @@ describe('another session\'s message', () => {
     expect(toMessage(entry(undefined))?.blocks[0]?.type).toBe('text')
   })
 })
+
+describe('text a tool loaded into the conversation', () => {
+  const skill = 'Base directory for this skill: /home/me/.claude/skills/gitlab-pipeline-analysis\n\n# GitLab Pipeline Failure Analysis\n\nSteps…'
+  const entry = (extra: Record<string, unknown>): Record<string, unknown> => ({
+    type: 'user', uuid: 's1', timestamp: '2026-10-22T09:37:00Z',
+    message: { role: 'user', content: [{ type: 'text', text: skill }] }, ...extra,
+  })
+
+  it('is a skill\'s instructions, named from its folder, kept whole', () => {
+    const m = toMessage(entry({ isMeta: true, sourceToolUseID: 'toolu_1' }))
+    expect(m?.blocks).toEqual([{ type: 'loaded_context', name: 'gitlab-pipeline-analysis', text: skill }])
+  })
+
+  it('is left as your own text without the meta mark and the tool call that loaded it', () => {
+    expect(toMessage(entry({ isMeta: true }))?.blocks[0]?.type).toBe('text')
+    expect(toMessage(entry({ sourceToolUseID: 'toolu_1' }))?.blocks[0]?.type).toBe('text')
+  })
+})

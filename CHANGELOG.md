@@ -4,6 +4,21 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.47.4] - 2026-10-22
+
+### Fixed
+
+- **Code shows `===` as three equals signs.** A theme's code font can be Fira Code or JetBrains
+  Mono, whose programming ligatures drew `===` as one long bar that read as "≡", `!=` as "≠" and
+  `->` as an arrow. The chat now shows code exactly as written; ordinary ligatures such as "fi"
+  stay. The terminal already did.
+
+### Changed
+
+- **A skill's instructions are folded** like a subagent's report: when a skill loads, its pages of
+  instructions show as one card, "Skill · <name>", with the skill's title, and its header opens it.
+  Before, they filled the chat as if you had written them.
+
 ## [1.47.3] - 2026-10-21
 
 ### Security

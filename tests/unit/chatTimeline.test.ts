@@ -205,3 +205,12 @@ describe('a peer message', () => {
     expect(lastPrompt(items)).toBeNull()
   })
 })
+
+describe('text a tool loaded', () => {
+  it('is its own item, never a prompt you wrote', () => {
+    const loaded: TranscriptMessage = { uuid: 's1', role: 'user', timestampMs: 5, isSidechain: false, blocks: [{ type: 'loaded_context', name: 'gitlab-pipeline-analysis', text: 'Base directory…' }] }
+    const items = chatItems([loaded])
+    expect(items).toEqual([{ kind: 'loaded', key: 's1', name: 'gitlab-pipeline-analysis', text: 'Base directory…' }])
+    expect(lastPrompt(items)).toBeNull()
+  })
+})

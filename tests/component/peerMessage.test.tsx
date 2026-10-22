@@ -57,4 +57,15 @@ describe('a message from another Claude session', () => {
     await expect.element(page.getByTestId('peer-message')).toBeVisible()
     expect(document.querySelector('[data-testid="chat-user"][data-key="p3"]')).toBeNull()
   })
+
+  it('a skill\'s instructions are folded too, named, and previewed by their title, not their folder', async () => {
+    const text = ['Base directory for this skill: /home/me/.claude/skills/gitlab-pipeline-analysis', '', '# GitLab Pipeline Failure Analysis', '', ...Array.from({ length: 30 }, (_, i) => `- step ${String(i)}`)].join('\n')
+    await chatWith([{ uuid: 's1', role: 'user', timestampMs: null, isSidechain: false, blocks: [{ type: 'loaded_context', name: 'gitlab-pipeline-analysis', text }] }])
+    await expect.element(page.getByTestId('loaded-message')).toBeVisible()
+    const shown = (): string => document.querySelector('[data-testid="loaded-message"]')?.textContent ?? ''
+    await expect.poll(shown).toMatch(/Skill · gitlab-pipeline-analysis\s*GitLab Pipeline Failure Analysis$/)
+    expect(shown()).not.toContain('step 29')
+    await userEvent.click(page.getByTestId('loaded-message-toggle'))
+    await expect.poll(shown).toContain('step 29')
+  })
 })
