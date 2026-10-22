@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.47.4] - 2026-10-22
+## [1.47.5] - 2026-10-22
+
+### Security
+
+- **Vitest 5.0.5** (all its packages together), for GHSA-p458-7748-mcp3, published after 1.47.4 was
+  tagged: a Vitest dev server could serve files it is meant to refuse, such as `.env`, private keys
+  and `.git`. It is a dev and test tool and is never in the app. The audit gate failed CI on it.
+
+## [1.47.4] - 2026-10-22 (not released: the audit gate failed on a new Vitest advisory; shipped in 1.47.5)
 
 ### Fixed
 
