@@ -200,6 +200,27 @@
 /* Claude Code speaking for itself: a background task reporting back, a command's output. */
 .chat-notice .chat-row-body { color: var(--muted); font-size: 12px; white-space: pre-wrap; }
 .chat-notice[data-status="failed"] .chat-row-body { color: var(--danger); }
+/* A long notice's first line, which opens the rest (ChatTimeline's Notice). */
+.chat-notice-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-notice-toggle:hover { color: var(--text); }
+.chat-notice-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.chat-notice-first { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-notice-chevron { display: inline-flex; flex: none; }
+.chat-notice-rest { margin-top: var(--space-xs); }
+.chat-notice-chevron svg { width: var(--icon-size-sm); height: var(--icon-size-sm); }
 
 .chat-interrupted, .chat-error { padding-left: var(--chat-gutter); color: var(--muted); font-style: italic; }
 .chat-error { color: var(--danger); font-style: normal; }

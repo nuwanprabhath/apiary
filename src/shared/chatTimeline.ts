@@ -197,6 +197,11 @@ type PendingCall = { kind: 'start'; task: Omit<BackgroundTask, 'taskId'> } | { k
  * result can fall in different batches, so a call waits here until its result arrives. A task ends
  * with its `<task-notification>`, or with a stop call (`TaskStop`) whose result is not an error.
  */
+/** The task ids a `<task-notification>` names. */
+export function taskNotificationIds(text: string): string[] {
+  return [...text.matchAll(/<task-id>([^<]+)<\/task-id>/g)].map((m) => m[1].trim())
+}
+
 export class BackgroundTaskTally {
   private readonly calls = new Map<string, PendingCall>()
   private readonly started = new Map<string, BackgroundTask>()
@@ -208,8 +213,9 @@ export class BackgroundTaskTally {
       for (const b of m.blocks) {
         if (b.type === 'tool_use') this.call(b.id, b.name, b.input, m.timestampMs)
         else if (b.type === 'tool_result') this.result(b.toolUseId, b.content, b.isError)
+        else if (b.type === 'task_ended') for (const id of b.taskIds) this.started.delete(id)
         else if (b.type === 'text' && b.text.startsWith('<task-notification>')) {
-          for (const done of b.text.matchAll(/<task-id>([^<]+)<\/task-id>/g)) this.started.delete(done[1].trim())
+          for (const id of taskNotificationIds(b.text)) this.started.delete(id)
         }
       }
     }

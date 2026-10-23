@@ -68,4 +68,20 @@ describe('a message from another Claude session', () => {
     await userEvent.click(page.getByTestId('loaded-message-toggle'))
     await expect.poll(shown).toContain('step 29')
   })
+
+  it('a long command output, such as /compact with a plugin\'s hooks, shows its first line and opens', async () => {
+    const out = ['Compacted PreCompact [bash "${CLAUDE_PLUGIN_ROOT}/hooks/run.py"] completed successfully: COMPACTION GUIDANCE', '', 'PRESERVE - High-value tool outputs:', ...Array.from({ length: 10 }, (_, i) => `  - /tmp/output-${String(i)}.png (3000 tokens)`)].join('\n')
+    await chatWith([{ uuid: 'c1', role: 'user', timestampMs: null, isSidechain: false, blocks: [{ type: 'text', text: `<local-command-stdout>${out}</local-command-stdout>` }] }])
+    const shown = (): string => document.querySelector('[data-testid="chat-notice"]')?.textContent ?? ''
+    await expect.poll(shown).toMatch(/^Compacted PreCompact/)
+    expect(shown()).not.toContain('output-9')
+    await userEvent.click(page.getByTestId('chat-notice-toggle'))
+    await expect.poll(shown).toContain('output-9')
+  })
+
+  it('a short command output is shown as it is, with nothing to open', async () => {
+    await chatWith([{ uuid: 'c2', role: 'user', timestampMs: null, isSidechain: false, blocks: [{ type: 'text', text: '<local-command-stdout>Compacted </local-command-stdout>' }] }])
+    await expect.poll(() => document.querySelector('[data-testid="chat-notice"]')?.textContent ?? '').toBe('Compacted')
+    expect(document.querySelector('[data-testid="chat-notice-toggle"]')).toBeNull()
+  })
 })

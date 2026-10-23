@@ -4,6 +4,24 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.47.6] - 2026-10-23
+
+### Fixed
+
+- **A tab no longer shows Claude working when it is idle.** A background command counts as running
+  until its "finished" notification, and Claude Code often only queues that notification and never
+  delivers it, when the session moves on or ends first. The task then looked as if it ran forever,
+  and its tab kept spinning. A queued notification now ends the task too.
+- **A subagent's report that arrives while Claude is working is folded too.** Claude Code records a
+  report that arrives mid-turn differently, as a queued message, and 1.47.2's fold missed that form.
+  It also drops the "[Subagent hand-back] The text below is the final report…" preamble, which is
+  addressed to Claude, and shows the report itself.
+
+### Changed
+
+- **A long command output is folded to its first line**, such as `/compact` followed by pages of a
+  plugin's hook output. The line opens the rest; a short one shows as before.
+
 ## [1.47.5] - 2026-10-22
 
 ### Security

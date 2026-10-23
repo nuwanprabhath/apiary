@@ -2,6 +2,7 @@ import { createReadStream } from 'node:fs'
 import { open, stat } from 'node:fs/promises'
 import type { TranscriptBlock, TranscriptMessage, TranscriptPage } from '@shared/types'
 import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
+import { taskNotificationIds } from '@shared/chatTimeline'
 
 const DEFAULT_LIMIT = TRANSCRIPT_PAGE_SIZE
 
@@ -155,6 +156,7 @@ export function toMessage(entry: Record<string, unknown>): TranscriptMessage | n
   const base = { uuid: asString(entry.uuid, ''), timestampMs: Number.isNaN(ts) ? null : ts, isSidechain: entry.isSidechain === true }
   if (role === 'attachment') return queuedMessage(entry, base)
   if (role === 'system') return systemEvent(entry, base)
+  if (role === 'queue-operation') return queuedTaskEnd(entry, base)
   if (role !== 'user' && role !== 'assistant') return null
   const message = entry.message as { content?: unknown } | undefined
   if (!message) return null
@@ -179,6 +181,15 @@ function loadedContext(entry: Record<string, unknown>, blocks: TranscriptBlock[]
   return { type: 'loaded_context', name: dir === null ? null : dir.replace(/\/+$/, '').split('/').pop() ?? null, text }
 }
 
+/** The preamble Claude Code puts before a subagent's report ("[Subagent hand-back] The text below is
+ *  the final report … The report follows:"), addressed to Claude, not to you. */
+const HANDBACK_FRAME = /^\s*\[Subagent hand-back\][\s\S]*?The report follows:\s*/
+
+function withoutHandbackFrame(body: string): string {
+  const report = body.replace(HANDBACK_FRAME, '')
+  return report.trim() === '' ? body : report
+}
+
 /**
  * Another Claude session's message (a subagent reporting back), which Claude Code writes as a
  * `user` entry with `origin: { kind: 'peer', name, body }` (measured on 2.1.302). `body` is the
@@ -187,7 +198,7 @@ function loadedContext(entry: Record<string, unknown>, blocks: TranscriptBlock[]
 function peerMessage(origin: unknown, blocks: TranscriptBlock[]): TranscriptBlock | null {
   const o = origin as { kind?: unknown; name?: unknown; body?: unknown } | undefined
   if (o?.kind !== 'peer') return null
-  const body = typeof o.body === 'string' && o.body.trim() !== '' ? o.body : null
+  const body = typeof o.body === 'string' && o.body.trim() !== '' ? withoutHandbackFrame(o.body) : null
   const text = body ?? blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n')
   return { type: 'peer_message', from: typeof o.name === 'string' && o.name !== '' ? o.name : null, text }
 }
@@ -200,11 +211,25 @@ type MessageBase = Pick<TranscriptMessage, 'uuid' | 'timestampMs' | 'isSidechain
  * `source_uuid` (the uuid chat mode's stream replays it under) so the live copy and this one merge.
  */
 function queuedMessage(entry: Record<string, unknown>, base: MessageBase): TranscriptMessage | null {
-  const a = entry.attachment as { type?: unknown; prompt?: unknown; source_uuid?: unknown } | undefined
+  const a = entry.attachment as { type?: unknown; prompt?: unknown; source_uuid?: unknown; origin?: unknown } | undefined
   if (a?.type !== 'queued_command') return null
   const blocks = mapBlocks('user', a.prompt)
   if (blocks.length === 0) return null
-  return { ...base, uuid: asString(a.source_uuid, base.uuid), role: 'user', blocks }
+  // A subagent's report that arrived mid-turn is queued like this, its peer origin inside.
+  const peer = peerMessage(a.origin, blocks)
+  return { ...base, uuid: asString(a.source_uuid, base.uuid), role: 'user', blocks: peer === null ? blocks : [peer] }
+}
+
+/**
+ * A background task's notification that Claude Code queued (`queue-operation` `enqueue`). It is
+ * often never delivered as a message (the session moved on or ended first), and without it the
+ * task looked as if it ran forever, keeping its tab "working" (measured on 2.1.302).
+ */
+function queuedTaskEnd(entry: Record<string, unknown>, base: MessageBase): TranscriptMessage | null {
+  if (entry.operation !== 'enqueue' || typeof entry.content !== 'string' || !entry.content.includes('<task-notification>')) return null
+  const taskIds = taskNotificationIds(entry.content)
+  if (taskIds.length === 0) return null
+  return { ...base, role: 'assistant', blocks: [{ type: 'task_ended', taskIds }] }
 }
 
 /** The two `system` entries the chat view shows: a turn's duration and a recap. */

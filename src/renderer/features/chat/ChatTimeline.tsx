@@ -7,6 +7,7 @@ import { TextBlock } from '../../ui/message/MessageRow'
 import { ImageThumbnail } from '../../ui/message/TranscriptImage'
 import { MarkdownText } from '../../ui/message/MarkdownText'
 import { LoadedMessage, PeerMessage } from '../../ui/message/FoldedMessage'
+import { ChevronIcon } from '../../ui/icons/ChevronIcon'
 import { StreamingMarkdown } from './StreamingMarkdown'
 import { MessageTime } from '../../ui/MessageTime'
 import { ToolCall } from './ToolCall'
@@ -81,6 +82,40 @@ function sameItem(a: ChatItem, b: ChatItem): boolean {
   }
 }
 
+/** Longer than this, a notice (a local command's output, which hooks can stretch to pages, as
+ *  `/compact` with a plugin's hooks does) shows its first line, and the line opens it. */
+const NOTICE_FOLD_LINES = 2
+const NOTICE_FOLD_CHARS = 240
+
+function Notice({ text, status }: { text: string; status: string | null }): JSX.Element {
+  const long = text.length > NOTICE_FOLD_CHARS || text.trim().split('\n').length > NOTICE_FOLD_LINES
+  const [open, setOpen] = useState(false)
+  const first = text.trim().split('\n')[0] ?? ''
+  return (
+    <div className="chat-row chat-notice" data-testid="chat-notice" data-status={status ?? ''}>
+      <span className="chat-dot" aria-hidden="true" />
+      <div className="chat-row-body">
+        {long ? (
+          <>
+            <button
+              type="button"
+              className="chat-notice-toggle"
+              data-testid="chat-notice-toggle"
+              aria-expanded={open}
+              title={open ? undefined : first}
+              onClick={() => { setOpen(!open) }}
+            >
+              <span className="chat-notice-first">{first}</span>
+              <span className="chat-notice-chevron" aria-hidden="true"><ChevronIcon expanded={open} /></span>
+            </button>
+            {open && <div className="chat-notice-rest">{text.trim().split('\n').slice(1).join('\n')}</div>}
+          </>
+        ) : text}
+      </div>
+    </div>
+  )
+}
+
 const Item = memo(function Item(
   { item, timing, onOpenImage }: { item: ChatItem; timing: Timing; onOpenImage: (src: string) => void },
 ): JSX.Element {
@@ -111,12 +146,7 @@ const Item = memo(function Item(
     case 'interrupted':
       return <div className="chat-interrupted" data-testid="chat-interrupted">Interrupted — tell Claude what to do instead.</div>
     case 'notice':
-      return (
-        <div className="chat-row chat-notice" data-testid="chat-notice" data-status={item.status ?? ''}>
-          <span className="chat-dot" aria-hidden="true" />
-          <div className="chat-row-body">{item.text}</div>
-        </div>
-      )
+      return <Notice text={item.text} status={item.status} />
     case 'peer':
       return (
         <>

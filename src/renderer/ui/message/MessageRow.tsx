@@ -61,7 +61,7 @@ export const MessageRow = memo(function MessageRow(
 ): JSX.Element | null {
   const [showThinking, setShowThinking] = useState(false)
   // A turn's end and a recap are the chat view's (ChatStatus); this view has no place for them.
-  if (message.blocks.every((b) => b.type === 'turn_end' || b.type === 'recap')) return null
+  if (message.blocks.every((b) => b.type === 'turn_end' || b.type === 'recap' || b.type === 'task_ended')) return null
 
   return (
     <article
@@ -113,6 +113,7 @@ export const MessageRow = memo(function MessageRow(
               return <LoadedMessage key="loaded" name={block.name} text={block.text} />
             case 'turn_end':
             case 'recap':
+            case 'task_ended':
               return null
           }
         })}

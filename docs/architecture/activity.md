@@ -60,7 +60,10 @@ but which still has one in flight is `running`, not `idle`: `withBackgroundTasks
   (`src/main/sessions/transcriptService.ts`). It reads the session file from the offset already read
   and feeds each line to a `BackgroundTaskTally` (`src/shared/chatTimeline.ts`): a `run_in_background`
   call stays open until its result reports `running in background with ID`, and a `task_notification`
-  closes it. The first read of a session in a launch scans the whole file.
+  closes it, as does the same notification merely queued (a `queue-operation` `enqueue`, read as a
+  `task_ended` block): Claude Code often queues it and never delivers it as a message, and a task
+  left open kept its tab "running" with nothing running. The first read of a session in a launch
+  scans the whole file.
 - **Either kind** reaches the sidebar as `activeTabsChanged`: a session file write (the watcher) or a
   chat's activity changing (`ChatService`). A chat's state is never broadcast, so the sidebar sees only
   the status.
