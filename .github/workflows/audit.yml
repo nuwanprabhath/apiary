@@ -1,0 +1,78 @@
+# The audit gate (scripts/audit.mjs) once a day on main, so an advisory published between releases
+# is known within a day rather than when the next tag fails CI. Three releases in a row (1.47.2,
+# 1.47.4, 1.47.6) were stopped by advisories published after their last CI run, two of them in
+# what the app ships (Electron, DOMPurify).
+#
+# It keeps one open issue, labelled `security-audit`: opened when the gate fails, updated with a
+# comment only when the list of advisories changes (one notification per new problem, not one a
+# day), and closed when the gate passes again. `npm audit` reads the lockfile, so nothing is installed.
+name: Security audit
+
+on:
+  schedule:
+    - cron: '41 21 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: security-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - id: audit
+        name: Run the audit gate
+        run: |
+          set +e
+          npm run --silent audit > audit.txt 2>&1
+          status=$?
+          set -e
+          cat audit.txt
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the issue
+        if: steps.audit.outputs.status != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "The daily audit of \`main\` failed. These advisories are not fixed and not allowed in \`scripts/audit.mjs\`:"
+            echo
+            echo '```'
+            grep -v '^audit: allowed until' audit.txt
+            echo '```'
+            echo
+            echo "Fix: update the package to its fixed version (\`npm ls <package>\` shows who pulls it in), then release. Allow an advisory only when no fix exists and it cannot reach us (see the comment in \`scripts/audit.mjs\`)."
+          } > body.md
+          gh label create security-audit --color B60205 --description "Opened by the daily security audit" --force
+          number=$(gh issue list --state open --label security-audit --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            gh issue create --title "Security audit: new advisories on main" --label security-audit --body-file body.md
+          elif [ "$(gh issue view "$number" --json body --jq .body)" != "$(cat body.md)" ]; then
+            gh issue edit "$number" --body-file body.md
+            gh issue comment "$number" --body "The advisories changed; the description above is the current list. Run: $RUN_URL"
+          fi
+          exit 1
+
+      - name: Close the issue once the audit passes
+        if: steps.audit.outputs.status == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          for number in $(gh issue list --state open --label security-audit --json number --jq '.[].number'); do
+            gh issue close "$number" --comment "The daily audit passes again: $RUN_URL"
+          done

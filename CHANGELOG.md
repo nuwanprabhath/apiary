@@ -4,6 +4,17 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.47.8] - 2026-10-26
+
+### Added
+
+- **A daily security audit of `main`** (`.github/workflows/audit.yml`): the same gate CI and the
+  release run, once a day, so an advisory published between releases is known within a day, not
+  when the next tag fails CI. Three releases in a row were stopped that way, and in 1.47.7 two of
+  the advisories were in what the app ships. While the audit fails, it keeps one open GitHub issue,
+  labelled `security-audit`, listing the advisories. It comments only when that list changes, and
+  closes the issue once the audit passes.
+
 ## [1.47.7] - 2026-10-26
 
 ### Security

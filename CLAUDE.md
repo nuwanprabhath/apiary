@@ -84,7 +84,9 @@ No command rebuilds a native module ([`docs/testing.md`](docs/testing.md)), so a
 - `CHANGELOG.md` is [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) (`### Added`, `### Changed`,
   `### Fixed`, `### Security`); a version that did not ship everywhere is annotated on its heading.
 - A `v*` tag starts `.github/workflows/release.yml`. Dependabot PRs get their bump from CI
-  (`scripts/dependabot-bump.mjs`); do not hand-bump them. `npm run audit` gates CI and the release.
+  (`scripts/dependabot-bump.mjs`); do not hand-bump them. `npm run audit` gates CI and the release,
+  and runs daily on main (`.github/workflows/audit.yml`), keeping one open `security-audit` issue
+  while it fails.
 
 ## Rules and what enforces them
 
