@@ -4,7 +4,24 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.47.6] - 2026-10-23
+## [1.47.7] - 2026-10-26
+
+### Security
+
+Advisories published since 1.47.5. The audit gate caught them before 1.47.6 could ship.
+
+- **Electron 44.9.3**, for GHSA-jr5w-w6x2-84p9 (high), fixed in 44.9.1. Electron is the app's own
+  runtime, so this one reaches you.
+- **DOMPurify 3.4.17**, for GHSA-cg2g-xh64-v4q7 (critical), GHSA-mrv2-3pqr-j5jr (high) and
+  GHSA-c6gr-qvv4-5v3f (low). The chat uses it to clean the Markdown it draws, so this one reaches you
+  too.
+- **zod 4.6.7** (GHSA-mrhx-c7xc-m3w5, high), **undici 6.29.1** (GHSA-xjj6-f33q-929c, high) and
+  **fast-uri 3.1.9** (four advisories, moderate and low). These are reached only through the lint
+  tools and the build (knip, the React lint rules, node-gyp, electron-builder), never by the app.
+- **The audit allowlist is empty.** The braces and sprintf-js advisories it held are no longer
+  reported, so their entries were removed, as the gate requires.
+
+## [1.47.6] - 2026-10-23 (not released: the audit gate failed on advisories published since 1.47.5; shipped in 1.47.7)
 
 ### Fixed
 

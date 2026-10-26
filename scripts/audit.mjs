@@ -7,21 +7,8 @@
 // advisory no longer shows up is reported so it can be removed.
 import { spawnSync } from 'node:child_process'
 
-const ALLOWED = {
-  'GHSA-vfj7-8cjw-p6xm': {
-    review: '2026-12-31',
-    why:
-      'braces <=3.0.3 (no fixed release): stack exhaustion on deeply nested glob patterns. ' +
-      'Only reached through markdownlint-cli2 and stylelint, dev tools fed our own fixed globs.',
-  },
-  'GHSA-hp3w-g68c-fv3c': {
-    review: '2026-12-31',
-    why:
-      'sprintf-js (every version, no fixed release): DoS through unbounded precision specifiers. ' +
-      "Only reached through electron-builder's @electron/get → global-agent → roarr logging, at " +
-      'build time, with format strings written by those packages, never by input.',
-  },
-}
+/** @type {Record<string, { review: string, why: string }>} */
+const ALLOWED = {}
 
 const run = spawnSync('npm', ['audit', '--json'], { encoding: 'utf8', maxBuffer: 64 << 20 })
 let report

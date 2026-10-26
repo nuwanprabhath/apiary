@@ -1,6 +1,6 @@
 {
   "name": "apiary",
-  "version": "1.47.6",
+  "version": "1.47.7",
   "private": true,
   "type": "module",
   "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",
@@ -99,8 +99,8 @@
     "@xterm/headless": "^6.0.0",
     "@xterm/xterm": "^6.0.0",
     "dependency-cruiser": "^18.6.0",
-    "dompurify": "^3.4.16",
-    "electron": "^44.7.0",
+    "dompurify": "^3.4.17",
+    "electron": "^44.9.3",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "esbuild": "^0.28.2",
