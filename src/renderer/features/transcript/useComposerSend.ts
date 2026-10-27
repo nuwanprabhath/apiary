@@ -1,3 +1,4 @@
+import { askAside, asideQuestion, openAside } from '../../state/chatAside'
 import { ptyIdOfSession, type PtyId } from '@shared/domain/ids'
 import { useCallback, useState } from 'react'
 import type { ChatState } from '@shared/domain/chat'
@@ -40,6 +41,18 @@ export function useComposerSend(d: SendDeps): { sending: boolean, send: (command
       // Claude reads an image from its path, so that is what the message carries, one per line under the prose.
       const lines = [body, ...images.map((a) => a.path)].filter((l) => l !== '')
       if (chatMode) {
+        // `/btw <question>`: a side question, answered apart from the conversation. Nothing is sent
+        // to the chat, so it can be asked mid-turn and starts or takes over nothing. (A terminal
+        // has Claude Code's own `/btw`; there the message goes to it, below.)
+        // `/btw` alone opens the thread as it was left, to carry on with it.
+        const aside = asideQuestion(body)
+        if (aside !== null) {
+          const asideSession = chat?.sessionId ?? session.sessionId
+          if (aside === '') openAside(asideSession)
+          else askAside(asideSession, aside)
+          if (command === undefined) onSent()
+          return
+        }
         // The chat takes the session over from its terminal if one is running: a session runs in
         // one place at a time (main stops the terminal's claude first), on the same file.
         //

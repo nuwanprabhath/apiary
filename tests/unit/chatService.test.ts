@@ -10,6 +10,7 @@ import { WindowAttachments, type SendTarget } from '../../src/main/windows/windo
 import type { ChatLifecycle, ChatPush, ChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
 import { stubAccounts, WORK } from '../fixtures/launchAccounts'
+import type { ClaudeOneShot, OneShotRequest } from '../../src/main/claude/claudeOneShot'
 
 const A = asSessionId('11111111-1111-4111-8111-111111111111')
 const B = asSessionId('22222222-2222-4222-8222-222222222222')
@@ -374,5 +375,63 @@ describe('ChatService and the terminal', () => {
     service.adoptSessions()
     expect(store.setImported).toHaveBeenCalledTimes(1)
     expect(store.setImported).toHaveBeenCalledWith([B], true)
+  })
+})
+
+describe('ChatService side questions (/btw)', () => {
+  const answered = (result: string, isError = false): string => JSON.stringify({ type: 'result', is_error: isError, result })
+
+  function withAside(reply: string) {
+    const run = vi.fn(async (_req: OneShotRequest) => reply)
+    const made = setup({ aside: () => ({ run }) as unknown as ClaudeOneShot })
+    return { ...made, run }
+  }
+
+  it('is asked in the session as a fork, under the session\'s account, and answers with Claude\'s words', async () => {
+    const { service, run, accounts } = withAside(answered('  BLUE-HERON  '))
+    accounts.setAccountOf(A, WORK)
+    expect(await service.askAside(A, ' what is the codename? ')).toBe('BLUE-HERON')
+    const req = run.mock.calls[0][0]
+    expect(req.resume).toBe(A)
+    expect(req.env).toEqual(accounts.launchEnv(WORK))
+    expect(req.prompt).toMatch(/side question \(\/btw\)[\s\S]*Side question: what is the codename\?$/)
+  })
+
+  it('a follow-up carries the thread\'s newest exchanges, which the session does not hold', async () => {
+    const { service, run } = withAside(answered('ok'))
+    const earlier = Array.from({ length: 8 }, (_, i) => ({ question: `q${String(i)}`, answer: `a${String(i)}` }))
+    await service.askAside(A, 'and the other one?', earlier)
+    const prompt = run.mock.calls[0][0].prompt
+    expect(prompt).toContain('Earlier in this side thread')
+    expect(prompt).not.toContain('Side question: q1\n')
+    expect(prompt).toMatch(/Side question: q2\nYour answer: a2[\s\S]*Side question: q7\nYour answer: a7[\s\S]*Side question: and the other one\?$/)
+  })
+
+  it('uses the model the session\'s chat is running, and claude\'s default with no chat', async () => {
+    const { service, run, chats } = withAside(answered('ok'))
+    await service.askAside(A, 'q')
+    expect(run.mock.calls[0][0].model).toBeUndefined()
+    await service.start(A, { takeOver: false })
+    chats.setModel(A, 'opus')
+    vi.spyOn(chats, 'state').mockReturnValue({ ...chats.state(A)!, model: 'claude-opus-5-5' })
+    await service.askAside(A, 'q')
+    expect(run.mock.calls[1][0].model).toBe('claude-opus-5-5')
+  })
+
+  it('leaves a running chat as it was: nothing is sent to it', async () => {
+    const { service, chats } = withAside(answered('ok'))
+    await service.start(A, { takeOver: false })
+    const before = chats.state(A)
+    await service.askAside(A, 'a side thing')
+    expect(chats.state(A)?.queued).toEqual(before?.queued)
+    expect(chats.state(A)?.status).toBe(before?.status)
+  })
+
+  it('refuses an empty or oversized question, and says so when Claude gives no answer', async () => {
+    const { service, run } = withAside(answered('boom', true))
+    await expect(service.askAside(A, '   ')).rejects.toThrow(/question/)
+    await expect(service.askAside(A, 'x'.repeat(4001))).rejects.toThrow(/at most/)
+    expect(run).not.toHaveBeenCalled()
+    await expect(service.askAside(A, 'q')).rejects.toThrow(/did not answer/)
   })
 })

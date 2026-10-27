@@ -41,7 +41,7 @@ import type { StatusBarItem, StatusBarPanel } from '../domain/statusBar'
 import {
   isChatDecision, isChatEffort, isChatModel, isChatPermissionMode,
   type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatPush, type ChatModel, type ChatPermissionMode, type ChatState,
-  type TerminalBusy,
+  type TerminalBusy, type AsideTurn,
 } from '../domain/chat'
 import type { AppMenuNode } from '../domain/windowChrome'
 import type { ThemeSpec } from '../theme/spec'
@@ -75,6 +75,11 @@ const chatEffortArg: Guard<ChatEffort> = isChatEffort
 const point: Guard<{ x: number; y: number }> = (v): v is { x: number; y: number } =>
   typeof v === 'object' && v !== null
   && typeof (v as { x?: unknown }).x === 'number' && typeof (v as { y?: unknown }).y === 'number'
+
+/** A side question's earlier exchange (`chatAside`): two strings, checked element by element. */
+const isAsideTurn: Guard<AsideTurn> = (v): v is AsideTurn =>
+  typeof v === 'object' && v !== null && typeof (v as Record<string, unknown>).question === 'string'
+  && typeof (v as Record<string, unknown>).answer === 'string'
 
 /** A malformed array from a stale renderer would crash `tabs.map` in main, so every element is checked. */
 const isReportedTab: Guard<ReportedTab> = (v): v is ReportedTab => {
@@ -296,6 +301,8 @@ export const IPC = {
     'apiary:chat-start', tuple(sessionIdArg, chatStartOptions),
   ),
   chatSend: invoke<[sessionId: SessionId, text: string], void>('apiary:chat-send', tuple(sessionIdArg, str)),
+  /** A side question (`/btw`) about the session's conversation, answered apart from it: Claude's answer. */
+  chatAside: invoke<[sessionId: SessionId, question: string, earlier: AsideTurn[]], string>('apiary:chat-aside', tuple(sessionIdArg, str, arr(isAsideTurn))),
   chatInterrupt: invoke<[sessionId: SessionId], void>('apiary:chat-interrupt', tuple(sessionIdArg)),
   chatSendNow: invoke<[sessionId: SessionId, queuedId: string], void>('apiary:chat-send-now', tuple(sessionIdArg, str)),
   chatRespond: invoke<[sessionId: SessionId, requestId: string, decision: ChatDecision], void>(

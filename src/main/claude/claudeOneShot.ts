@@ -1,12 +1,21 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { SessionId } from '@shared/domain/ids'
 import { spawnLoginShell, type NoStdinLoginShell } from '../exec/spawnLoginShell'
 
 export interface OneShotRequest {
   prompt: string
-  /** A `--model` alias (`haiku`, `sonnet`, `opus`). */
-  model: string
+  /** A `--model` alias (`haiku`, `sonnet`, `opus`), or none for claude's own default. */
+  model?: string
+  /**
+   * A session whose conversation the question is asked in (`--resume` with `--fork-session`): it
+   * reads the session and writes nothing back (`--no-session-persistence`), so the session's own
+   * file and its chat are untouched. A side question (`/btw`).
+   */
+  resume?: SessionId
+  /** The environment to run under for this call, over the runner's own (`env`): a session's account. */
+  env?: Record<string, string>
   /** When given, the answer is structured output matching it (`--json-schema`). */
   jsonSchema?: object
   timeoutMs: number
@@ -60,7 +69,9 @@ export class ClaudeOneShot {
   async run(req: OneShotRequest): Promise<string> {
     if (this.proc !== null) throw new Error(`Already working on ${req.what}.`)
     const flags = [
-      '-p', '--output-format', 'json', '--model', req.model,
+      '-p', '--output-format', 'json',
+      ...(req.model !== undefined ? ['--model', req.model] : []),
+      ...(req.resume !== undefined ? ['--resume', req.resume, '--fork-session'] : []),
       '--tools', '', '--safe-mode', '--strict-mcp-config', '--no-session-persistence',
       ...(req.jsonSchema !== undefined ? ['--json-schema', JSON.stringify(req.jsonSchema)] : []),
     ]
@@ -75,7 +86,7 @@ export class ClaudeOneShot {
         // holding stdout would keep the call "running" until it finished by itself. Settles on
         // `close`, when stdout has drained, so the whole answer is in `out`.
         const proc = spawnLoginShell(
-          { command: { bin, flags, positional: [req.prompt] }, cwd, stdin: 'ignore', detached: true, shell: this.opts.shell, settleOn: 'close', extraEnv: this.opts.env?.() },
+          { command: { bin, flags, positional: [req.prompt] }, cwd, stdin: 'ignore', detached: true, shell: this.opts.shell, settleOn: 'close', extraEnv: req.env ?? this.opts.env?.() },
         )
         const { child } = proc
         this.proc = proc
@@ -110,5 +121,19 @@ export class ClaudeOneShot {
       this.abort = null
       rmSync(cwd, { recursive: true, force: true })
     }
+  }
+}
+
+/** The plain-text answer of a `claude -p --output-format json` envelope, or null. */
+export function extractText(stdout: string): string | null {
+  try {
+    const e = JSON.parse(stdout.trim()) as unknown
+    if (typeof e !== 'object' || e === null) return null
+    const r = e as Record<string, unknown>
+    if (r.is_error === true || typeof r.result !== 'string') return null
+    const s = r.result.trim()
+    return s === '' ? null : s
+  } catch {
+    return null
   }
 }

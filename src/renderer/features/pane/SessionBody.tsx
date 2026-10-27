@@ -6,6 +6,7 @@ import type { SessionNode } from '@shared/types'
 import type { Column, OpenTab } from '../../state/columns'
 import { Transcript, Composer } from '../transcript'
 import { TerminalView } from '../terminal'
+import { AsideCard } from '../chat'
 
 /** The session's centre pane: its transcript with the composer, and every tab's claude terminal. */
 export function SessionBody({
@@ -59,6 +60,7 @@ export function SessionBody({
           {/* The chat box belongs to the transcript rather than the terminal: this is the
             * reading view, and being able to reply without switching to the raw terminal is
             * the whole point. What it types still goes to that terminal. */}
+          {chatMode && <AsideCard sessionId={sessionId ?? activeSession.sessionId} />}
           <Composer
             columnId={column.id}
             key={activeSession.sessionId}

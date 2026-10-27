@@ -186,7 +186,8 @@ describe('show tool calls', () => {
     play(fake, sessionId, { commands: COMMANDS })
     await openMenu()
     const search = page.getByTestId('composer-command-search')
-    expect(count('composer-command-option')).toBe(2)
+    // Claude's two commands, and Apiary's own /btw.
+    expect(count('composer-command-option')).toBe(3)
 
     await userEvent.fill(search, 'show tool')
     expect(count('composer-command-option')).toBe(0)

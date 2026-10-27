@@ -2,12 +2,12 @@ import { STARTER_PET } from '@shared/pets/builtins'
 import { cleanLine, validatePet } from '@shared/pets/validate'
 import {
   LINES_JSON_SCHEMA, PET_JSON_SCHEMA, buildChatPrompt, buildCommentPrompt, buildDesignPrompt, buildVoicePrompt,
-  extractStructured, extractText, CHAT_HISTORY, type ChatTurn, type VoiceContext,
+  extractStructured, CHAT_HISTORY, type ChatTurn, type VoiceContext,
 } from '@shared/pets/prompt'
 import { PET_MODELS, type PetArrival, type PetExportFile, type PetModel, type PetRecord, type PetsState } from '@shared/pets/state'
 import { errorMessage } from '@shared/errors'
 import { isRecord } from '@shared/guards'
-import type { ClaudeOneShot } from '../claude/claudeOneShot'
+import { extractText, type ClaudeOneShot } from '../claude/claudeOneShot'
 import { log } from '../log/logger'
 import { readTextFile, writeTextFile } from '../fs/textFile'
 import type { PetStore } from './petStore'

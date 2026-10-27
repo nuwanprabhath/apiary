@@ -721,3 +721,77 @@ button.folded-message-head:focus-visible { outline: none; box-shadow: var(--focu
 /* Under the sender's name, past the chevron, when there is a header to open and close it. */
 .folded-message:has(button.folded-message-head) .folded-message-body { padding-left: calc(var(--space-md) + var(--icon-size-sm) + var(--space-sm)); }
 .folded-message-body .markdown > :last-child { margin-bottom: 0; }
+
+/*
+ * A session's side questions (`/btw`) over the message box (features/chat/AsideCard.tsx): a thread
+ * with a box of its own for follow-ups. Not part of the conversation, so it floats as a solid card,
+ * up to about half the window; the thread scrolls and its box stays at the bottom.
+ */
+.chat-aside {
+  display: flex;
+  flex-direction: column;
+  max-height: 45vh;
+  margin: 0 var(--space-md) var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg);
+  box-shadow: var(--shadow-overlay);
+}
+.chat-aside-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-md);
+  border-bottom: 1px solid var(--border);
+}
+.chat-aside-label { flex: none; color: var(--accent); font-size: 12px; font-weight: 600; }
+.chat-aside-hint { flex: 1; min-width: 0; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.chat-aside-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-button-size);
+  height: var(--icon-button-size);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.chat-aside-button svg { width: var(--icon-size-sm); height: var(--icon-size-sm); }
+.chat-aside-button:disabled { opacity: 0.4; cursor: default; }
+.chat-aside-button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.chat-aside-button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.chat-aside-thread { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-sm) var(--space-md); }
+.chat-aside-turn + .chat-aside-turn { margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px dashed var(--border); }
+.chat-aside-question {
+  margin-bottom: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: var(--field-bg);
+  white-space: pre-wrap;
+}
+.chat-aside-answer .markdown > :last-child { margin-bottom: 0; }
+.chat-aside-asking { display: inline-flex; align-items: center; gap: var(--space-sm); color: var(--muted); }
+.chat-aside-error { color: var(--danger); }
+.chat-aside-empty { margin: 0; color: var(--muted); }
+.chat-aside-compose { display: flex; flex: none; align-items: flex-end; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-top: 1px solid var(--border); }
+.chat-aside-input {
+  flex: 1;
+  min-width: 0;
+  max-height: 6em;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-control);
+  background: var(--field-bg);
+  color: var(--text);
+  font: inherit;
+  resize: none;
+  field-sizing: content;
+}
+.chat-aside-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }

@@ -87,6 +87,7 @@ export const CHANNEL_SCOPES = {
   chatStart: 'remote',
   chatStop: 'remote',
   chatSend: 'remote',
+  chatAside: 'remote',
   chatSendNow: 'remote',
   chatInterrupt: 'remote',
   chatRespond: 'remote',

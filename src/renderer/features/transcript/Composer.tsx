@@ -4,6 +4,7 @@ import type { ChatState } from '@shared/domain/chat'
 import type { SessionNode } from '@shared/types'
 import { AccountPill, ContextRing, ModelPicker, ModeMenu, CommandPalette } from '../chat'
 import { interruptChat } from '../../state/chatStore'
+import { readDraft, writeDraft } from '../../state/uiState'
 import { AttachmentStrip, imagesFrom, useImageAttachments } from './composerAttachments'
 import { FoldButton, PeekButton, useComposerFold } from './composerFold'
 import { ComposerActions } from './ComposerActions'
@@ -90,7 +91,13 @@ function ChatControls(p: ChatControlsProps): JSX.Element {
 export function Composer({
   columnId, session, ptyId, running, onResume, onShowSession, onOpenImage, chatMode = false, chat = null,
 }: Props): JSX.Element {
-  const [text, setText] = useState('')
+  // The unsent text belongs to the session, not to this box: it comes back after a tab switch, or in
+  // another window the tab is dragged to (`readDraft`, `state/uiState.ts`).
+  const [text, setText] = useState(() => readDraft(session.sessionId))
+  const editText = useCallback((next: string): void => {
+    setText(next)
+    writeDraft(session.sessionId, next)
+  }, [session.sessionId])
   const chatRunning = chat !== null && chat.status !== 'exited'
   const busy = chat?.status === 'busy'
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -101,8 +108,8 @@ export function Composer({
   const { dragging, boxStyle, separatorProps, fitAgain } = useComposerHeight(textareaRef)
   const { attachments, addImages, removeImage, clear } = useImageAttachments()
   const choices = useChatChoices(chat, chatRunning, session.sessionId)
-  const history = useSentHistory(session.sessionId, setText)
-  const onSent = useCallback(() => { history.sent(text); setText(''); clear() }, [clear, history, text])
+  const history = useSentHistory(session.sessionId, editText)
+  const onSent = useCallback(() => { history.sent(text); editText(''); clear() }, [clear, history, editText, text])
   const { sending, send } = useComposerSend({
     session, ptyId, running, onResume, onShowSession, chatMode, chat, chatRunning, choices, text, attachments, onSent,
   })
@@ -150,7 +157,7 @@ export function Composer({
         }
         disabled={!session.cwdExists || sending}
         value={text}
-        onChange={(e) => { history.edited(); setText(e.target.value) }}
+        onChange={(e) => { history.edited(); editText(e.target.value) }}
         onPaste={(e) => {
           const images = imagesFrom(e.clipboardData)
           if (images.length === 0) return
@@ -190,7 +197,7 @@ export function Composer({
             chatRunning={chatRunning}
             choices={choices}
             text={text}
-            setText={setText}
+            setText={editText}
             menuKeys={menuKeys}
             focusInput={() => { textareaRef.current?.focus() }}
             send={send}

@@ -15,7 +15,7 @@ import { emptyChatState, type ChatState } from '@shared/domain/chat'
 import type { Env } from './state'
 
 type ChatApi = Pick<ApiaryApi,
-  | 'chatState' | 'chatStart' | 'chatSend' | 'chatSendNow' | 'chatInterrupt' | 'chatRespond' | 'chatSetPermissionMode' | 'chatSetModel'
+  | 'chatState' | 'chatStart' | 'chatSend' | 'chatAside' | 'chatSendNow' | 'chatInterrupt' | 'chatRespond' | 'chatSetPermissionMode' | 'chatSetModel'
   | 'chatSetEffort' | 'chatStop' | 'terminalBusy' | 'chatAttach' | 'chatDetach'>
 
 /** How long the background task runs: as long as the fixture's `sleep 1`. */
@@ -105,6 +105,11 @@ export function chatApi(env: Env): ChatApi {
         queued: [...c.queued, { id: `queued-${String(c.queued.length + 1)}`, text, sentAt: Date.now() }],
       })
       if (text.includes('background')) endTurnWithBackgroundTask(id)
+    },
+    // As main does: refused when empty, otherwise answered apart from the chat, which is left as it was.
+    chatAside: async (_id, question, earlier) => {
+      if (question.trim() === '') throw new Error('Write a question after /btw.')
+      return `An aside about: ${question.trim()}${earlier.length > 0 ? ` (after ${String(earlier.length)} earlier)` : ''}`
     },
     chatSendNow: async (id, queuedId) => {
       const c = running(id)

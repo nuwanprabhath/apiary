@@ -4,6 +4,28 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.0] - 2026-10-27
+
+### Added
+
+- **`/btw` asks side questions without interrupting Claude.** In a chat, `/btw <question>`, or `/btw`
+  from the "/" menu, opens a "Side question" thread over the message box. Follow-ups go in the
+  thread's own box, so they stay in the thread and never reach the chat, and each carries the
+  thread's earlier answers. The thread is answered from the conversation so far, but apart from it:
+  nothing is sent to the chat, so it works while Claude is mid-turn, and none of it becomes part of
+  the session. Escape (inside the thread) or × closes it, `/btw` alone brings it back as it was left,
+  after a restart too, and the bin clears it. Claude Code's own `/btw` is not available in a chat's
+  stream-json mode, so Apiary answers it with a forked, unsaved `claude` that has no tools and runs
+  under the session's account. In a terminal session the message goes to the terminal, where Claude
+  Code's own `/btw` works.
+- **The mouse wheel scrolls the tab bar sideways** when it has more tabs than fit, as VS Code's does.
+
+### Changed
+
+- **An unsent message stays with its session.** What you typed and did not send is still there after
+  switching to another tab and back, and in another window when you drag the tab there. Each session
+  keeps its own; sending it clears it. Pasted images are not kept, only the text.
+
 ## [1.47.8] - 2026-10-26
 
 ### Added

@@ -46,6 +46,15 @@ interface RegistryItem {
 
 type Action = ActionItem | SettingItem | RegistryItem
 
+/** Commands Apiary answers itself, offered beside Claude's own: Claude Code's `/btw` is not
+ *  available in a chat's stream-json mode, so the message box answers it (`state/chatAside.ts`). */
+const APIARY_COMMANDS: readonly ChatCommand[] = [
+  { name: 'btw', description: 'Ask a side question without interrupting Claude', argumentHint: '<question>' },
+]
+/** Chosen from the menu, these run as they are rather than waiting for their argument: `/btw` opens
+ *  the side thread, whose own box takes the question. */
+const RUNS_BARE: ReadonlySet<string> = new Set(['btw'])
+
 function matchActions(commands: readonly ChatCommand[], query: string): Action[] {
   const q = query.trim().replace(/^\//, '')
   const scored = commands.flatMap((c) => {
@@ -192,7 +201,7 @@ function useShownRows({ sessionId, commands, query, folderExists, accountList }:
     const ctx = sessionId === null ? null : { sessionId, vsCodeAvailable, folderExists, accounts, account }
     const actions: Action[] = ctx === null ? [] : paletteActionRows(PALETTE_ACTIONS, q, ctx)
       .map((action) => ({ kind: 'action', action, label: action.label(ctx), description: action.description(ctx) }))
-    return { shown: [...settings, ...actions, ...matchActions(commands ?? [], query)].slice(0, MAX_SHOWN), ctx }
+    return { shown: [...settings, ...actions, ...matchActions([...(commands ?? []), ...APIARY_COMMANDS], query)].slice(0, MAX_SHOWN), ctx }
   }, [commands, query, perChatSettings, globalHideToolCalls, sessionId, vsCodeAvailable, folderExists, accounts, account])
 }
 
@@ -230,7 +239,7 @@ export function CommandPalette({ sessionId, commands, folderExists, onFocusBox, 
     } else if (action.kind === 'command') {
       const c = action.command
       close()
-      if (c.argumentHint !== '') onInsert(`/${c.name} `)
+      if (c.argumentHint !== '' && !RUNS_BARE.has(c.name)) onInsert(`/${c.name} `)
       else onRun(`/${c.name}`)
     } else {
       setPerChatSetting(action.settingId, !action.value)

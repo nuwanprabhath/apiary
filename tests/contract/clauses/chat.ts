@@ -56,6 +56,11 @@ export function defineChatClauses(ctx: Ctx): void {
       expect(said).toEqual([`${OTHER}:true`, `${SESSION}:true`, `${OTHER}:false`, `${SESSION}:false`])
     })
 
+    it('a side question with nothing in it is refused, and starts nothing', async () => {
+      await expect(ctx.api.chatAside(SESSION, '   ', [])).rejects.toThrow(/question/)
+      expect(await ctx.api.chatState(SESSION)).toBeNull()
+    })
+
     it('a message sent makes the chat busy and waits in its queue until Claude reads it', async () => {
       await start()
       await ctx.api.chatSend(SESSION, 'hello there')

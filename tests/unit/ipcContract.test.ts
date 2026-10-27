@@ -144,6 +144,7 @@ describe('the IPC contract', () => {
       chatState: 'apiary:chat-state',
       chatStart: 'apiary:chat-start',
       chatSend: 'apiary:chat-send',
+      chatAside: 'apiary:chat-aside',
       chatInterrupt: 'apiary:chat-interrupt',
       chatSendNow: 'apiary:chat-send-now',
       chatRespond: 'apiary:chat-respond',

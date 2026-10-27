@@ -1,6 +1,7 @@
 import { type JSX, useEffect, useState, type ReactNode } from 'react'
 import { LayoutIcon, SplitIcon } from '../../ui/icons'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
+import { wheelScrollsSideways } from '../../ui/wheelScrollsSideways'
 import type { FoldState } from '../../state/layout'
 import { TabContextMenu } from './TabContextMenu'
 import { useTabStripKeys } from './useTabStripKeys'
@@ -101,6 +102,7 @@ export function SessionTabBar(
       <div
         className="session-tab-strip"
         data-testid="session-tab-strip"
+        ref={wheelScrollsSideways}
         role="tablist"
         aria-orientation="horizontal"
         onKeyDown={onTabListKeyDown}

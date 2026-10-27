@@ -2,6 +2,7 @@
 // renderer-feature-public-face).
 export { AccountPill } from './AccountPill'
 export { AccountSwitchHost } from './AccountSwitchPrompt'
+export { AsideCard } from './AsideCard'
 export { ChatStatus } from './ChatStatus'
 export { ChatTimeline } from './ChatTimeline'
 export { CommandPalette } from './CommandPalette'

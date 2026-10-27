@@ -10,6 +10,13 @@ conversation as the VS Code extension does; it holds no chat state of its own.
 - Another Claude session's message (a subagent reporting back; `origin.kind: 'peer'` in the file) is a
   `peer_message` block and a `peer` item, drawn by `src/renderer/ui/message/FoldedMessage.tsx`, folded when long. So is a
   skill's instructions (`isMeta` with a `sourceToolUseID`): a `loaded_context` block and a `loaded` item.
+- `AsideCard.tsx`: a session's side questions (`/btw`), a thread over the message box with its own
+  box for follow-ups; the thread is kept per session in `uiState` (`readAsideThread`), so `/btw`
+  alone reopens it. Claude Code's own `/btw` is not
+  available in stream-json mode, so `/btw <question>` in a chat never reaches it: `state/chatAside.ts`
+  asks main (`chatAside`), which answers from a forked, unsaved `claude -p` of the session
+  (`ChatService.askAside`). Nothing is sent to the chat, so it works mid-turn. In a terminal
+  session the message goes to the terminal, whose Claude Code has `/btw` itself.
 - `ToolCall.tsx`: one tool call (status dot, IN box, OUT box). `PermissionCard.tsx`: Claude asking
   to use a tool, in the conversation.
 - `ModeMenu.tsx` (permission mode), `ModelPicker.tsx` (model, effort scale, context ring),

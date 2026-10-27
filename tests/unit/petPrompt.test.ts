@@ -1,6 +1,7 @@
+import { extractText } from '../../src/main/claude/claudeOneShot'
 import { describe, it, expect } from 'vitest'
 import {
-  PET_JSON_SCHEMA, LINES_JSON_SCHEMA, buildDesignPrompt, buildVoicePrompt, buildChatPrompt, extractText, extractStructured,
+  PET_JSON_SCHEMA, LINES_JSON_SCHEMA, buildDesignPrompt, buildVoicePrompt, buildChatPrompt, extractStructured,
 } from '@shared/pets/prompt'
 import { ACCESSORIES, BODY_SHAPES, SITUATIONS } from '@shared/pets/spec'
 import { STARTER_PET } from '@shared/pets/builtins'

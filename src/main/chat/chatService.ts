@@ -2,11 +2,12 @@ import { existsSync } from 'node:fs'
 import { IPC } from '@shared/api'
 import {
   isChatPermissionMode,
-  type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatModel, type ChatPermissionMode, type ChatState, type TerminalBusy,
+  type AsideTurn, type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatModel, type ChatPermissionMode, type ChatState, type TerminalBusy,
 } from '@shared/domain/chat'
 import type { ResumeConflict } from '@shared/types'
 import { chatPush } from '@shared/chatPush'
 import { chatActivity, classifyActivity, type ActivityStatus } from '@shared/activity'
+import { extractText, type ClaudeOneShot } from '../claude/claudeOneShot'
 import { asSessionId, UUID_RE, type AccountId, type SessionId } from '@shared/domain/ids'
 import type { LaunchAccounts } from '../accounts/accountService'
 import type { PtyManager } from '../pty/ptyManager'
@@ -18,6 +19,26 @@ import type { WindowAttachments } from '../windows/windowAttachments'
 import type { TranscriptService } from '../sessions/transcriptService'
 import type { ChatManager } from './chatManager'
 import { chatStartMode } from './startMode'
+
+const MAX_ASIDE_CHARS = 4000
+const ASIDE_TIMEOUT_MS = 3 * 60_000
+
+/** How much of a side thread goes back with a follow-up: its newest exchanges, each answer capped. */
+const ASIDE_EARLIER_TURNS = 6
+const ASIDE_EARLIER_ANSWER_CHARS = 4000
+
+/**
+ * The side question as asked: about the conversation above, which goes on without it. A follow-up
+ * carries the thread's earlier exchanges, which are not in the session (nothing of a side question is
+ * saved), so "and the other one?" can be answered.
+ */
+function asidePrompt(question: string, earlier: readonly AsideTurn[]): string {
+  const thread = earlier.slice(-ASIDE_EARLIER_TURNS).map((t) => `Side question: ${t.question}\nYour answer: ${t.answer.slice(0, ASIDE_EARLIER_ANSWER_CHARS)}`)
+  return 'This is a side question (/btw) about the conversation above, asked while it carries on. '
+    + 'Answer it briefly from what is above. You have no tools here; do not continue, repeat or redo the main task.\n\n'
+    + (thread.length > 0 ? `Earlier in this side thread:\n\n${thread.join('\n\n')}\n\n` : '')
+    + `Side question: ${question}`
+}
 
 export interface ChatServiceDeps {
   /** Built in the container with `onChange` pointing back at `ChatService.onChanged`. */
@@ -38,6 +59,8 @@ export interface ChatServiceDeps {
   /** Asks the windows for the Active section again: a chat's activity has moved (`activeTabsChanged`). */
   activityChanged: () => void
   accounts: LaunchAccounts
+  /** A fresh one-shot `claude` for a side question (`askAside`); one per question, so two can run. */
+  aside: () => ClaudeOneShot
   /** The account of a live session changed (`sessionAccountsChanged`). */
   sessionAccountsChanged: () => void
 }
@@ -257,5 +280,31 @@ export class ChatService {
       this.pushed.delete(state.sessionId)
       chats.forget(state.sessionId)
     }
+  }
+
+  /**
+   * A side question (`/btw`): answered from the session's conversation so far, by a `claude` of its
+   * own that resumes the session as a fork and writes nothing back, with no tools. The session,
+   * its file and a chat running in it are untouched, so it can be asked mid-turn. Claude Code's own
+   * `/btw` is not available in stream-json mode ("isn't available in this environment", 2.1.302).
+   */
+  async askAside(sessionId: SessionId, question: string, earlier: readonly AsideTurn[] = []): Promise<string> {
+    const text = question.trim()
+    if (text === '') throw new Error('Write a question after /btw.')
+    if (text.length > MAX_ASIDE_CHARS) throw new Error(`A side question is at most ${String(MAX_ASIDE_CHARS)} characters.`)
+    const model = this.deps.chats.state(sessionId)?.model ?? undefined
+    const stdout = await this.deps.aside().run({
+      prompt: asidePrompt(text, earlier),
+      model: model === null ? undefined : model,
+      resume: sessionId,
+      env: this.deps.accounts.launchEnv(this.deps.accounts.accountOf(sessionId)),
+      timeoutMs: ASIDE_TIMEOUT_MS,
+      maxStdout: 256 * 1024,
+      what: 'an answer',
+      tag: 'btw',
+    })
+    const answer = extractText(stdout)
+    if (answer === null) throw new Error('Claude did not answer the side question.')
+    return answer
   }
 }

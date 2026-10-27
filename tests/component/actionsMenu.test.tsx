@@ -62,7 +62,8 @@ describe('the "/" actions menu', () => {
     await until(() => count('composer-command-menu') === 1)
     expect(document.activeElement).toBe(page.getByTestId('composer-command-search').element())
     expect(count('composer-setting-option')).toBe(1)
-    expect(count('composer-command-option')).toBe(3)
+    // Claude's three commands, then Apiary's own /btw.
+    expect(count('composer-command-option')).toBe(4)
     expect(text('composer-command-footer')).toContain('Show tool calls')
 
     await userEvent.keyboard('{ArrowDown}')

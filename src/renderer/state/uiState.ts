@@ -126,3 +126,77 @@ export function saveFoldedPanes(panes: Record<string, true>): void {
   ignoreErrors(() => { localStorage.setItem(KEY, JSON.stringify({ ...read(KEY), foldedPanes: panes })) }, 'storage can be unavailable; the boxes just start open next time')
 }
 
+
+/**
+ * What was typed into a session's message box and not sent, by session. One record for every
+ * window (no window suffix), so a tab dragged to another window finds its draft there, and written
+ * on each change rather than on unmount, which the receiving window can mount before. The newest
+ * `MAX_DRAFTS` are kept.
+ */
+const DRAFTS_KEY = 'apiary.drafts'
+const MAX_DRAFTS = 50
+
+function readDrafts(): Array<[string, string]> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(DRAFTS_KEY) ?? '[]')
+    return Array.isArray(parsed)
+      ? parsed.filter((e): e is [string, string] => Array.isArray(e) && typeof e[0] === 'string' && typeof e[1] === 'string')
+      : []
+  } catch {
+    return []
+  }
+}
+
+export function readDraft(sessionId: string): string {
+  return readDrafts().find(([id]) => id === sessionId)?.[1] ?? ''
+}
+
+/** An empty text forgets the session's draft. */
+export function writeDraft(sessionId: string, text: string): void {
+  const others = readDrafts().filter(([id]) => id !== sessionId)
+  const next = text === '' ? others : [...others, [sessionId, text] as [string, string]].slice(-MAX_DRAFTS)
+  ignoreErrors(() => { localStorage.setItem(DRAFTS_KEY, JSON.stringify(next)) }, 'storage can be full or blocked; the draft then lives only as long as the box')
+}
+
+/**
+ * Each session's side-question thread (`/btw`), so a later `/btw` reopens it, after the card was
+ * closed, in another window, or after a restart. Only finished exchanges are kept: the newest
+ * `MAX_ASIDE_TURNS` of the newest `MAX_ASIDE_THREADS` sessions.
+ */
+export interface StoredAsideTurn {
+  question: string
+  answer: string | null
+  error: string | null
+}
+
+const ASIDES_KEY = 'apiary.asides'
+const MAX_ASIDE_THREADS = 30
+const MAX_ASIDE_TURNS = 20
+
+const isStoredTurn = (t: unknown): t is StoredAsideTurn => {
+  if (typeof t !== 'object' || t === null) return false
+  const r = t as Record<string, unknown>
+  return typeof r.question === 'string' && (r.answer === null || typeof r.answer === 'string') && (r.error === null || typeof r.error === 'string')
+}
+
+function readAsides(): Array<[string, StoredAsideTurn[]]> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(ASIDES_KEY) ?? '[]')
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((e): Array<[string, StoredAsideTurn[]]> =>
+      (Array.isArray(e) && typeof e[0] === 'string' && Array.isArray(e[1]) ? [[e[0], e[1].filter(isStoredTurn)]] : []))
+  } catch {
+    return []
+  }
+}
+
+export function readAsideThread(sessionId: string): StoredAsideTurn[] {
+  return readAsides().find(([id]) => id === sessionId)?.[1] ?? []
+}
+
+/** An empty thread forgets the session's. */
+export function writeAsideThread(sessionId: string, turns: readonly StoredAsideTurn[]): void {
+  const others = readAsides().filter(([id]) => id !== sessionId)
+  const next = turns.length === 0 ? others : [...others, [sessionId, turns.slice(-MAX_ASIDE_TURNS)] as [string, StoredAsideTurn[]]].slice(-MAX_ASIDE_THREADS)
+  ignoreErrors(() => { localStorage.setItem(ASIDES_KEY, JSON.stringify(next)) }, 'storage can be full or blocked; the thread then lasts only as long as this window')
+}

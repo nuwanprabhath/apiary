@@ -249,3 +249,9 @@ function tidyModelId(model: string): string {
 export const CHAT_EFFORT_LABELS: Record<ChatEffort, string> = {
   low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max',
 }
+
+/** One earlier exchange of a side question's thread (`/btw`), sent back so a follow-up has it. */
+export interface AsideTurn {
+  question: string
+  answer: string
+}

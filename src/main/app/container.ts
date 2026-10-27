@@ -342,7 +342,7 @@ export function createServices(options: ServicesOptions): Services {
     spawn: options.chatSpawn,
   })
   const chat: ChatService = new ChatService({
-    chats, pty, resolver, store, terminals, catalog, transcripts, accounts,
+    chats, pty, resolver, store, terminals, catalog, transcripts, accounts, aside: () => new ClaudeOneShot({ claudeBin: () => terminals.getClaudeBin() }),
     sessionAccountsChanged: () => { options.onSessionAccountsChanged?.() },
     configRoot: options.configRoot,
     attachments: options.chat?.attachments ?? new WindowAttachments(() => null),
