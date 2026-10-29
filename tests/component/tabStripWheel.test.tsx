@@ -69,10 +69,14 @@ describe('the tab bar\'s arrows, when the tabs overflow', () => {
     await until(() => strip().scrollLeft > 0 && !arrow('left').disabled)
     expect(strip().dataset.moreLeft).toBe('true')
     expect(strip().clientWidth).toBe(width)
-    for (let i = 0; i < 10 && !arrow('right').disabled; i++) {
-      const at = strip().scrollLeft
+    // Each page settles before the next click: a click scrolls smoothly from wherever the strip is,
+    // so clicking mid-scroll restarts it and CI's slower runner never reached the end.
+    const end = (): number => strip().scrollWidth - strip().clientWidth
+    const page = Math.max(80, strip().clientWidth * 0.75)
+    for (let i = 0; i < 20 && !arrow('right').disabled; i++) {
+      const target = Math.min(end(), strip().scrollLeft + page)
       arrow('right').click()
-      await until(() => arrow('right').disabled || strip().scrollLeft > at)
+      await until(() => arrow('right').disabled || strip().scrollLeft >= target - 1)
     }
     expect(arrow('right').disabled).toBe(true)
     expect(Math.ceil(strip().scrollLeft + strip().clientWidth)).toBeGreaterThanOrEqual(strip().scrollWidth - 1)

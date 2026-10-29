@@ -4,7 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.48.1] - 2026-10-29
+## [1.48.2] - 2026-10-29
+
+### Fixed
+
+- **A tab-arrow test that failed on CI's slower runner.** It clicked "next" as soon as the strip
+  started moving. Each click scrolls smoothly from wherever the strip is, so ten rapid clicks
+  restarted one another and never reached the end. The test now waits for each page's scroll to
+  finish. The arrows themselves are unchanged.
+
+## [1.48.1] - 2026-10-29 (not released: CI failed on the arrow test above; shipped in 1.48.2)
 
 ### Added
 
