@@ -1,7 +1,7 @@
-import { type JSX, useEffect, useState, type ReactNode } from 'react'
+import { type HTMLAttributes, type JSX, useEffect, useState, type ReactNode } from 'react'
 import { LayoutIcon, SplitIcon } from '../../ui/icons'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
-import { wheelScrollsSideways } from '../../ui/wheelScrollsSideways'
+import { useStripOverflow, type StripOverflow } from './useStripOverflow'
 import type { FoldState } from '../../state/layout'
 import { TabContextMenu } from './TabContextMenu'
 import { useTabStripKeys } from './useTabStripKeys'
@@ -71,6 +71,67 @@ function FoldButton({ fold, onFold }: { fold: FoldState; onFold?: (folded: boole
 }
 
 /** One column's strip of open sessions; it owns only the drag gestures and the right-click menu. */
+/**
+ * The strip's own drag handlers. Its empty space moves the whole pane (tabs are draggable
+ * themselves, but their dragstart bubbles here, hence the target checks), and it is a drop target:
+ * a column with no tabs can take one, and past the end means "last".
+ */
+function stripDrag(
+  columnId: string,
+  pane: { start: (columnId: string) => void; end: () => void },
+  onDropLast: (key: string, transfer: ReturnType<typeof readTransfer>) => void,
+): Pick<
+  HTMLAttributes<HTMLDivElement>, 'onDragStart' | 'onDragEnd' | 'onDragOver' | 'onDrop'
+> {
+  return {
+    onDragStart: (e) => {
+      if (e.target !== e.currentTarget) return
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData(PANE_MIME, columnId)
+      pane.start(columnId)
+    },
+    onDragEnd: (e) => { if (e.target === e.currentTarget) pane.end() },
+    onDragOver: (e) => {
+      if (!e.dataTransfer.types.includes(TAB_MIME)) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+    },
+    onDrop: (e) => {
+      const key = e.dataTransfer.getData(TAB_MIME)
+      if (key === '') return
+      e.preventDefault()
+      onDropLast(key, readTransfer(e.dataTransfer))
+    },
+  }
+}
+
+/**
+ * Scrolls the tab strip a page towards its side; disabled at that end. Both show whenever the tabs
+ * overflow, so the strip keeps its width as you scroll, and they take their room from the strip
+ * alone (its wrapper), never from the rest of the bar. Holding a dragged tab over one scrolls too,
+ * to drop the tab past the tabs in view. Not a Tab stop: the arrow keys walk the tabs themselves.
+ */
+function StripArrow({ side, overflow }: { side: 'left' | 'right'; overflow: StripOverflow }): JSX.Element {
+  const direction = side === 'left' ? -1 : 1
+  const enabled = side === 'left' ? overflow.canLeft : overflow.canRight
+  return (
+    <button
+      type="button"
+      className="session-tab-scroll"
+      data-testid={`session-tab-scroll-${side}`}
+      data-side={side}
+      tabIndex={-1}
+      disabled={!enabled}
+      aria-label={side === 'left' ? 'Show the tabs to the left' : 'Show the tabs to the right'}
+      title={side === 'left' ? 'Earlier tabs' : 'More tabs'}
+      onClick={() => { overflow.page(direction) }}
+      onDragOver={(e) => { if (e.dataTransfer.types.includes(TAB_MIME)) overflow.nudge(direction) }}
+    >
+      <ChevronIcon expanded={false} />
+    </button>
+  )
+}
+
 export function SessionTabBar(
   {
     columnId, tabs, activeKey, onActivate, onClose, onSplitActive, onDropTab, transferFor, pinnedKeys,
@@ -94,41 +155,26 @@ export function SessionTabBar(
   const draggedAway = dragKey !== null && !tabs.some((t) => t.key === dragKey)
   useEffect(() => { if (draggedAway) endDrag() }, [draggedAway])
   const { activeRef, registerButton, onTabListKeyDown } = useTabStripKeys(tabs, activeKey, onActivate, onClose)
+  const overflow = useStripOverflow(tabs.length)
+  const overflowing = overflow.canLeft || overflow.canRight
 
 
   return (
     <div className="session-tab-bar" data-testid="session-tab-bar">
       <FoldButton fold={fold} onFold={onFold} />
+      <div className="session-tab-strip-wrap">
+      {overflowing && <StripArrow side="left" overflow={overflow} />}
       <div
         className="session-tab-strip"
         data-testid="session-tab-strip"
-        ref={wheelScrollsSideways}
+        data-more-left={overflow.canLeft}
+        data-more-right={overflow.canRight}
+        ref={overflow.ref}
         role="tablist"
         aria-orientation="horizontal"
         onKeyDown={onTabListKeyDown}
-        // The strip's empty space moves the whole pane. Tabs are draggable themselves, but their
-        // dragstart bubbles here, hence the target checks.
         draggable={paneCount > 1}
-        onDragStart={(e) => {
-          if (e.target !== e.currentTarget) return
-          e.dataTransfer.effectAllowed = 'move'
-          e.dataTransfer.setData(PANE_MIME, columnId)
-          startPaneMove(columnId)
-        }}
-        onDragEnd={(e) => { if (e.target === e.currentTarget) endPaneMove() }}
-        // Empty space is a target too: a column with no tabs can take one, and past the end means "last".
-        onDragOver={(e) => {
-          if (!e.dataTransfer.types.includes(TAB_MIME)) return
-          e.preventDefault()
-          e.dataTransfer.dropEffect = 'move'
-        }}
-        onDrop={(e) => {
-          const key = e.dataTransfer.getData(TAB_MIME)
-          if (key === '') return
-          e.preventDefault()
-          onDropTab(key, tabs.length, readTransfer(e.dataTransfer))
-          endDrag()
-        }}
+        {...stripDrag(columnId, { start: startPaneMove, end: endPaneMove }, (key, transfer) => { onDropTab(key, tabs.length, transfer); endDrag() })}
       >
       {tabs.map((tab, index) => (
         <SessionTab
@@ -169,6 +215,8 @@ export function SessionTabBar(
           )}
         />
       ))}
+      </div>
+      {overflowing && <StripArrow side="right" overflow={overflow} />}
       </div>
 
       {viewToggle}

@@ -138,6 +138,43 @@
 .session-tab-strip:hover::-webkit-scrollbar-thumb { background: var(--muted); }
 .session-tab-strip::-webkit-scrollbar-button { display: none; }
 
+/*
+ * The tab strip's arrows (SessionTabBar's StripArrow), shown while the tabs overflow: a page of tabs
+ * towards their side, and a target to hold a dragged tab over. They exist because the hairline
+ * scrollbar under the tabs was the only way to reach a hidden tab, and grabbing it usually grabbed a
+ * tab. They sit beside the strip inside its wrapper, so their room comes from the strip, never from
+ * the rest of the bar; a wrapper too narrow for them and a tab hides them (the wheel still scrolls).
+ */
+.session-tab-strip-wrap { display: flex; flex: 1; min-width: 0; container-type: inline-size; }
+.session-tab-scroll {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-button-size);
+  margin: 3px 0 var(--space-xs);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.session-tab-scroll svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
+.session-tab-scroll .chevron { color: inherit; }
+.session-tab-scroll[data-side="left"] .chevron { transform: scaleX(-1); }
+.session-tab-scroll:disabled { opacity: 0.35; cursor: default; }
+.session-tab-scroll:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+@container (max-width: 140px) {
+  .session-tab-scroll { display: none; }
+}
+/* Tabs fade out at an edge with more past it, so a strip that hides tabs says so at a glance. */
+.session-tab-strip[data-more-right="true"] { mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
+.session-tab-strip[data-more-left="true"] { mask-image: linear-gradient(to left, #000 calc(100% - 24px), transparent); }
+.session-tab-strip[data-more-left="true"][data-more-right="true"] {
+  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+
 .session-tab-split {
   flex: none;
   width: 30px;

@@ -4,6 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.1] - 2026-10-29
+
+### Added
+
+- **Arrows scroll the tab bar** when it has more tabs than fit. They appear at both ends of the tabs,
+  each disabled at its own end, and a click brings most of a strip's width of hidden tabs into view.
+  Holding a dragged tab over one scrolls too, so a tab can be dropped past the ones in view. Tabs
+  fade out at an edge that hides more. The hairline scrollbar was the only way to reach hidden tabs
+  with a mouse, and grabbing it usually picked up a tab instead. The arrows take their room from the
+  tabs alone, and a strip too narrow for them and a tab (a stacked pane in a small window) does
+  without them. The wheel scrolls the bar in either case.
+
 ## [1.48.0] - 2026-10-27
 
 ### Added

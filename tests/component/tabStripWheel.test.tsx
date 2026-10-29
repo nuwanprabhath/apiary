@@ -36,4 +36,73 @@ describe('the tab bar and the mouse wheel', () => {
     expect(wheel(120).defaultPrevented).toBe(false)
     expect(wheel(0, 120).defaultPrevented).toBe(false)
   })
+
+  it('has no arrows while the tabs fit', async () => {
+    await page.viewport(1400, 700)
+    await renderApp()
+    await userEvent.click(sidebarSession(TITLES[0]))
+    await until(() => document.querySelectorAll('[data-testid="session-tab"]').length === 1)
+    expect(document.querySelector('[data-testid="session-tab-scroll-left"]')).toBeNull()
+    expect(document.querySelector('[data-testid="session-tab-scroll-right"]')).toBeNull()
+  })
+})
+
+describe('the tab bar\'s arrows, when the tabs overflow', () => {
+  const arrow = (side: 'left' | 'right'): HTMLButtonElement => document.querySelector<HTMLButtonElement>(`[data-testid="session-tab-scroll-${side}"]`)!
+
+  async function overflowing(): Promise<void> {
+    await page.viewport(760, 700)
+    await renderApp()
+    for (const title of TITLES) await userEvent.click(sidebarSession(title))
+    await until(() => document.querySelector('[data-testid="session-tab-scroll-right"]') !== null)
+    strip().scrollLeft = 0
+    await until(() => arrow('left').disabled && !arrow('right').disabled)
+  }
+
+  it('page through the tabs, each disabled at its own end, and the strip fades at the side with more', async () => {
+    await overflowing()
+    expect(strip().dataset.moreRight).toBe('true')
+    expect(strip().dataset.moreLeft).toBe('false')
+    expect(getComputedStyle(arrow('right')).display).not.toBe('none')
+    const width = strip().clientWidth
+    await userEvent.click(arrow('right'))
+    await until(() => strip().scrollLeft > 0 && !arrow('left').disabled)
+    expect(strip().dataset.moreLeft).toBe('true')
+    expect(strip().clientWidth).toBe(width)
+    for (let i = 0; i < 10 && !arrow('right').disabled; i++) {
+      const at = strip().scrollLeft
+      arrow('right').click()
+      await until(() => arrow('right').disabled || strip().scrollLeft > at)
+    }
+    expect(arrow('right').disabled).toBe(true)
+    expect(Math.ceil(strip().scrollLeft + strip().clientWidth)).toBeGreaterThanOrEqual(strip().scrollWidth - 1)
+    arrow('left').click()
+    await until(() => !arrow('right').disabled)
+  })
+
+  it('scroll while a dragged tab is held over them, to drop it past the tabs in view', async () => {
+    await overflowing()
+    const data = new DataTransfer()
+    data.setData('application/x-apiary-tab', 'any')
+    for (let i = 0; i < 5; i++) arrow('right').dispatchEvent(new DragEvent('dragover', { dataTransfer: data, bubbles: true, cancelable: true }))
+    expect(strip().scrollLeft).toBeGreaterThan(0)
+    // Anything else held over them (a file) does nothing.
+    strip().scrollLeft = 0
+    const file = new DataTransfer()
+    file.setData('text/plain', 'x')
+    arrow('right').dispatchEvent(new DragEvent('dragover', { dataTransfer: file, bubbles: true, cancelable: true }))
+    expect(strip().scrollLeft).toBe(0)
+  })
+
+  it('a strip too narrow for them and a tab does without them; the wheel still scrolls it', async () => {
+    await page.viewport(620, 700)
+    await renderApp()
+    for (const title of TITLES) await userEvent.click(sidebarSession(title))
+    await until(() => strip().scrollWidth > strip().clientWidth)
+    await until(() => document.querySelector('[data-testid="session-tab-scroll-right"]') !== null)
+    expect(getComputedStyle(arrow('right')).display).toBe('none')
+    strip().scrollLeft = 0
+    expect(wheel(120).defaultPrevented).toBe(true)
+    expect(strip().scrollLeft).toBeGreaterThan(0)
+  })
 })
