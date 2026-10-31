@@ -78,7 +78,8 @@ describe('the tab bar\'s arrows, when the tabs overflow', () => {
       arrow('right').click()
       await until(() => arrow('right').disabled || strip().scrollLeft >= target - 1)
     }
-    expect(arrow('right').disabled).toBe(true)
+    // The arrows follow the strip's scroll events through React state, a frame behind the scroll.
+    await until(() => arrow('right').disabled)
     expect(Math.ceil(strip().scrollLeft + strip().clientWidth)).toBeGreaterThanOrEqual(strip().scrollWidth - 1)
     arrow('left').click()
     await until(() => !arrow('right').disabled)

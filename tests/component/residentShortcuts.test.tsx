@@ -29,15 +29,20 @@ function watchPopup(): void {
   probe.render(<Probe />)
 }
 
+// The platform's modifier: ⌘ on a Mac, Ctrl elsewhere (CI runs on Linux).
+const MOD = navigator.userAgent.includes('Mac') ? 'Meta' : 'Control'
+const SUMMON = `{${MOD}>}{Shift>} {/Shift}{/${MOD}}`
+const ASK = `{${MOD}>}{Enter}{/${MOD}}`
+
 const searchBox = (): HTMLInputElement => document.querySelector<HTMLInputElement>('[data-testid="search-input"]') as HTMLInputElement
 
 describe('resident shortcuts', () => {
   it("Cmd+Shift+Space toggles the enabled resident's popup", async () => {
     watchPopup()
     await renderApp({ settings: { residents: [{ ...regent, id: 'off', enabled: false }, regent] } })
-    await userEvent.keyboard('{Meta>}{Shift>} {/Shift}{/Meta}')
+    await userEvent.keyboard(SUMMON)
     await until(() => popup.openId === 'regent')
-    await userEvent.keyboard('{Meta>}{Shift>} {/Shift}{/Meta}')
+    await userEvent.keyboard(SUMMON)
     await until(() => popup.openId === null)
     expect(popup.ask).toBeNull()
   })
@@ -47,7 +52,7 @@ describe('resident shortcuts', () => {
     const { fake } = await renderApp({ settings: { residents: [regent] } })
     await userEvent.fill(page.getByTestId('search-input'), 'auth bug')
     expect(searchBox().title).toContain('asks Regent')
-    await userEvent.keyboard('{Meta>}{Enter}{/Meta}')
+    await userEvent.keyboard(ASK)
     await until(() => fake.callsTo('residentSend').length === 1)
     expect(fake.callsTo('residentSend')[0]).toEqual(['regent', 'auth bug'])
     expect(popup.openId).toBe('regent')
@@ -60,7 +65,7 @@ describe('resident shortcuts', () => {
     await renderApp({ settings: { residents: [{ ...regent, enabled: false }] } })
     await userEvent.fill(page.getByTestId('search-input'), 'auth bug')
     expect(searchBox().title).toBe('')
-    await userEvent.keyboard('{Meta>}{Enter}{/Meta}')
+    await userEvent.keyboard(ASK)
     expect(popup.ask).toBeNull()
     expect(popup.openId).toBeNull()
   })
