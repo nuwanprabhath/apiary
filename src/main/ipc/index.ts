@@ -33,6 +33,8 @@ import { remoteHostsHandlers } from './handlers/remoteHosts'
 import { remoteClientsHandlers } from './handlers/remoteClients'
 import { libraryStateHandlers } from './handlers/libraryState'
 import { accountsHandlers } from './handlers/accounts'
+import { residentsHandlers } from './handlers/residents'
+import type { ResidentService } from '../residents/residentService'
 import type { AccountService } from '../accounts/accountService'
 import type { LibraryStateService } from '../library/libraryStateService'
 import type { HostDirectory } from '../remote/hostDirectory'
@@ -53,6 +55,8 @@ export interface IpcDeps {
   library: LibraryStateService
   /** The Claude accounts (`accounts.json`) and each session's account. */
   accounts: AccountService
+  /** The resident agents (`residents/residentService.ts`), built in the container. */
+  residents: ResidentService
   spelling: SpellingService
   /** The in-app folder browser a remote window uses instead of the native picker; built in the container. */
   folderBrowser: FolderBrowser
@@ -130,6 +134,7 @@ export function registerIpc(
   const remoteClientsIpc = remoteClientsHandlers({ server: deps.remoteServer, pairing: deps.remotePairing })
   const libraryStateIpc = libraryStateHandlers(deps.library)
   const accountsIpc = accountsHandlers(deps.accounts, deps.chat, service)
+  const residentsIpc = residentsHandlers(deps.residents, deps.pickFolder)
 
   const handlers: Handlers = {
     ...sessions,
@@ -151,6 +156,7 @@ export function registerIpc(
     ...remoteClientsIpc,
     ...libraryStateIpc,
     ...accountsIpc,
+    ...residentsIpc,
   }
   const listeners: Listeners = {
     ...terminals.listeners,

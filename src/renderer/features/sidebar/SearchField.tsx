@@ -1,5 +1,10 @@
 import { type JSX, useCallback, useEffect, useRef, useState } from 'react'
 import { CloseIcon } from '../../ui/icons'
+import { openResidentPopup } from '../../state/residentPopup'
+import { useFirstEnabledResident } from '../../state/residentSummon'
+
+const isMac = navigator.userAgent.includes('Mac')
+const ASK_KEY = isMac ? '⌘↵' : 'Ctrl+↵'
 
 /** Wait after the last keystroke before the rest of the app hears about it. */
 const DEBOUNCE_MS = 150
@@ -20,6 +25,7 @@ interface Props {
  */
 export function SearchField({ onChange, resultsFor }: Props): JSX.Element {
   const [text, setText] = useState('')
+  const resident = useFirstEnabledResident()
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -45,7 +51,14 @@ export function SearchField({ onChange, resultsFor }: Props): JSX.Element {
         data-testid="search-input"
         placeholder="Search sessions"
         value={text}
+        title={resident === null ? undefined : `${ASK_KEY} asks ${resident.name}`}
         onChange={(e) => { setText(e.target.value) }}
+        onKeyDown={(e) => {
+          const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
+          if (e.key !== 'Enter' || !mod || resident === null || text.trim() === '') return
+          e.preventDefault()
+          openResidentPopup(resident.id, text)
+        }}
       />
       {catchingUp && (
         <span

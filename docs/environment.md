@@ -46,6 +46,7 @@ or a stand-in binary, and none of them must be usable to redirect a real install
 | --- | --- |
 | `apiary.db` (+ `-wal`/`-shm`) | `main/store/` — the session store |
 | `search.db` (+ `-wal`/`-shm`) | `main/search/` — the FTS5 index (derived, rebuildable) |
+| `knowledge.db` (+ `-wal`/`-shm`) | `main/knowledge/` — topic digests; costly to make, so not rebuilt with the search index |
 | `settings.json` | `main/settings.ts` |
 | `session-layout.json` | `main/windows/sessionLayoutStore.ts` |
 | `themes.json` | `main/theme/` (`ThemeStore`) |
@@ -53,6 +54,7 @@ or a stand-in binary, and none of them must be usable to redirect a real install
 | `library-state.json` | `main/library/libraryStateService.ts` — the sessions library's arrangement (pins, groups, folder order, Recent dismissals) and reading preferences (each chat's settings, hide tool calls), mirrored to remote windows; see [library-state](architecture/library-state.md) |
 | `accounts.json` | `main/accounts/accountService.ts` — the added Claude accounts (id, label), the main account's name if renamed, and the default one; emails are read from each account's `.claude.json`, never stored |
 | `accounts/<id>/` | `main/accounts/accountFolder.ts` — an added account's `CLAUDE_CONFIG_DIR`: its own login, `.claude.json` and `sessions/`, with symlinks back to the main config root for transcripts, history, settings and extensions ([ADR-0020](adr/0020-per-session-accounts-are-linked-config-folders.md)) |
+| `residents/<id>/` | `main/residents/residentSpace.ts` — a resident agent's space (mode 0700, the cwd of its `claude`): `history.json` (its visible chat, the last 500 messages), `state.json` (the claude session id for `--resume`), `notes.json` (its `note_*` tool), `mcp.json` (mode 0600: the MCP server's URL and the resident's token) |
 | `prompt-shim/zsh` | `main/pty/promptPath.ts` (written at startup) |
 | `pasted-images/` | `main/` `ImageStore` (chat image attachments) |
 | `logs/` | `main/log/` — only exists once Diagnostics is switched on |

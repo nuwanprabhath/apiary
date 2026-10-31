@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { log } from '../log/logger'
+import type { Ref } from '../knowledge/refs'
 
 /**
  * Full-text search over what was actually said in a session.
@@ -51,8 +52,13 @@ const PUT_SLOW_MS = 50
  */
 const MIN_PREFIX_CHARS = 3
 
+/** The words of a query, lowercased, the way the tokeniser would split indexed text. */
+export function queryTokens(raw: string): string[] {
+  return raw.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((t) => t !== '')
+}
+
 export function toMatchQuery(raw: string): string | null {
-  const tokens = raw.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((t) => t !== '')
+  const tokens = queryTokens(raw)
   if (tokens.length === 0) return null
   return tokens
     .map((t, i) => (
@@ -70,6 +76,8 @@ export class SearchIndex {
     // WAL so a read during indexing is not blocked by the write; NORMAL durability is fine for a rebuildable index.
     this.db.pragma('journal_mode = WAL')
     this.db.pragma('synchronous = NORMAL')
+    const hadRefs = this.db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'refs'").get() !== undefined
+    const hadIndexed = this.db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'indexed'").get() !== undefined
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS chunks USING fts5(
         session_id UNINDEXED,
@@ -95,7 +103,14 @@ export class SearchIndex {
         body,
         tokenize = 'unicode61 remove_diacritics 2'
       );
+      /* Cheap and rebuildable like the chunks, so they live and die together (see knowledge/CLAUDE.md). */
+      CREATE TABLE IF NOT EXISTS refs (session_id TEXT NOT NULL, kind TEXT NOT NULL, value TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS refs_by_value ON refs (kind, value);
+      CREATE INDEX IF NOT EXISTS refs_by_session ON refs (session_id);
     `)
+    // An index built before refs existed has none for the sessions it holds; forgetting what it
+    // indexed makes the next pass read them again.
+    if (hadIndexed && !hadRefs) this.db.exec('DELETE FROM indexed')
   }
 
   /** Whether this session's file has changed since it was last indexed: size and mtime, since hashing tens of megabytes costs more than indexing. */
@@ -106,13 +121,16 @@ export class SearchIndex {
     return row === undefined || row.size !== size || row.mtime !== Math.floor(mtimeMs)
   }
 
-  put(sessionId: string, text: string, size: number, mtimeMs: number): void {
+  put(sessionId: string, text: string, size: number, mtimeMs: number, refs: Ref[] = []): void {
     const write = this.db.transaction(() => {
       this.db.prepare('DELETE FROM chunks WHERE session_id = ?').run(sessionId)
       this.db.prepare('INSERT INTO chunks (session_id, body) VALUES (?, ?)')
         .run(sessionId, text.slice(0, MAX_TEXT_PER_SESSION))
       this.db.prepare('INSERT OR REPLACE INTO indexed (session_id, size, mtime) VALUES (?, ?, ?)')
         .run(sessionId, size, Math.floor(mtimeMs))
+      this.db.prepare('DELETE FROM refs WHERE session_id = ?').run(sessionId)
+      const addRef = this.db.prepare('INSERT INTO refs (session_id, kind, value) VALUES (?, ?, ?)')
+      for (const ref of refs) addRef.run(sessionId, ref.kind, ref.value)
     })
     const started = Date.now()
     write()
@@ -179,13 +197,14 @@ export class SearchIndex {
     const write = this.db.transaction(() => {
       this.db.prepare('DELETE FROM chunks WHERE session_id = ?').run(sessionId)
       this.db.prepare('DELETE FROM indexed WHERE session_id = ?').run(sessionId)
+      this.db.prepare('DELETE FROM refs WHERE session_id = ?').run(sessionId)
       this.db.prepare('DELETE FROM notes WHERE session_id = ?').run(sessionId)
     })
     write()
   }
 
   clear(): void {
-    this.db.exec('DELETE FROM chunks; DELETE FROM indexed; DELETE FROM notes;')
+    this.db.exec('DELETE FROM chunks; DELETE FROM indexed; DELETE FROM refs; DELETE FROM notes;')
   }
 
   /** Session ids whose conversation matches, best first. */
@@ -205,6 +224,19 @@ export class SearchIndex {
       // A query FTS5 still refuses reads as "nothing matched".
       return []
     }
+  }
+
+  /** Sessions that mentioned any of these refs, most-matched first. */
+  sessionsWithRefs(refs: Ref[]): string[] {
+    if (refs.length === 0) return []
+    const find = this.db.prepare('SELECT session_id AS sessionId FROM refs WHERE kind = ? AND value = ?')
+    const counts = new Map<string, number>()
+    for (const ref of refs) {
+      for (const row of find.all(ref.kind, ref.value) as { sessionId: string }[]) {
+        counts.set(row.sessionId, (counts.get(row.sessionId) ?? 0) + 1)
+      }
+    }
+    return [...counts].sort((a, b) => b[1] - a[1]).map(([id]) => id)
   }
 
   count(): number {

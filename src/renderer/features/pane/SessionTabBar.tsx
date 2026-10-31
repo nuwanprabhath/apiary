@@ -8,6 +8,7 @@ import { useTabStripKeys } from './useTabStripKeys'
 import { LayoutMenuButton, useLayoutActions, useLayoutState } from '../layout'
 import type { TabTransfer } from '@shared/types'
 import { SessionTab } from './SessionTab'
+import { TabListButton } from './TabListMenu'
 import type { SessionTabView } from './paneTypes'
 import { PANE_MIME, TAB_MIME, indexInRest, insertionIndex, readTransfer } from './tabDrag'
 
@@ -217,6 +218,13 @@ export function SessionTabBar(
       ))}
       </div>
       {overflowing && <StripArrow side="right" overflow={overflow} />}
+      <TabListButton
+        columnId={columnId}
+        tabs={tabs}
+        activeKey={activeKey}
+        onActivate={onActivate}
+        onMove={(key, toIndex) => onDropTab(key, toIndex, null)}
+      />
       </div>
 
       {viewToggle}

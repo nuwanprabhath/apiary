@@ -27,6 +27,14 @@ function alternate(key: SettingKey): unknown {
   if (key === 'busyAnimationColor') return 'claude'
   if (key === 'plugins') return { known: false }
   if (key === 'pluginSettings') return { known: { port: 8080 } }
+  if (key === 'residents') {
+    return [{
+      id: 'regent', kind: 'regent', name: 'Regent', enabled: true, model: 'sonnet', digestModel: 'haiku',
+      schedule: { days: [1, 2, 3, 4, 5], start: '09:00', end: '18:00' }, pauseAboveUsagePercent: 70,
+      permissionMode: 'manual', digestLookback: { amount: 2, unit: 'weeks' }, options: { project: 'grp/app' },
+      cycleEveryMinutes: 30,
+    }]
+  }
   throw new Error(`settingsSchema.test.ts cannot build a sample for "${key}": add one to alternate()`)
 }
 

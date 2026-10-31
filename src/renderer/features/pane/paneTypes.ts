@@ -11,4 +11,6 @@ export interface SessionTabView {
   isPending: boolean
   /** What the session is doing now, from the same store the Active section reads. */
   activity: ActivityStatus
+  /** The branch, else the folder's name, shown beside the title in the tab list; absent when unknown. */
+  hint?: string
 }

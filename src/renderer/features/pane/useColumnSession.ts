@@ -1,3 +1,4 @@
+import { lastPathSegment } from '@shared/text'
 import { useMemo } from 'react'
 import { strongestActivity, type ActivityStatus } from '@shared/activity'
 import { terminalRef, type TerminalRef } from '@shared/domain/ids'
@@ -39,8 +40,9 @@ export function useColumnSession(column: Column) {
   const tabViews: SessionTabView[] = column.tabs.map((tab) => {
     const p = pending.get(tab.key)
     const activity = activityOf(tab.key)
-    if (p !== undefined) return { key: tab.key, label: p.label, isPending: true, activity }
-    return { key: tab.key, label: sessions.get(tab.key)?.title ?? tab.key, isPending: false, activity }
+    if (p !== undefined) return { key: tab.key, label: p.label, isPending: true, activity, hint: folderName(p.cwd) }
+    const s = sessions.get(tab.key)
+    return { key: tab.key, label: s?.title ?? tab.key, isPending: false, activity, hint: s?.gitBranch ?? folderName(s?.cwd ?? null) }
   })
 
   /** A pending session has no transcript to show, so its tab is always the live terminal. */
@@ -53,4 +55,10 @@ export function useColumnSession(column: Column) {
     workspace, resumed, activeKey, activeSession, activePending, keyFor, shellKey, terminal,
     tabViews, viewOf, showTerminalFor, activeView,
   }
+}
+
+/** The last segment of a folder path, or undefined when there is none. */
+function folderName(cwd: string | null): string | undefined {
+  const name = cwd === null ? '' : lastPathSegment(cwd)
+  return name === '' ? undefined : name
 }

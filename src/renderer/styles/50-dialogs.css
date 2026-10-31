@@ -346,8 +346,12 @@
 .context-menu-item:hover:not(:disabled) { background: var(--hover); }
 /* A toggle's tick. Always takes its space, so a menu mixing toggles and actions keeps its labels
    lined up whether the toggle is on or off. */
-.context-menu-check { width: var(--icon-size-sm); height: var(--icon-size-sm); margin-right: 6px; vertical-align: -1px; }
+.context-menu-check { width: var(--icon-size-sm); height: var(--icon-size-sm); margin-right: var(--control-gap); vertical-align: -1px; }
 .context-menu-check[data-on="false"] { visibility: hidden; }
+/* A plain action in a menu that has toggles starts its label at the toggles' labels, past the tick. */
+.context-menu:has(.context-menu-check) > .context-menu-item:not(:has(.context-menu-check)) {
+  padding-left: calc(var(--space-md) + var(--icon-size-sm) + var(--control-gap));
+}
 /* A worktree listed by "Show all worktrees" that no session has been started in yet. */
 .project-row-wrap[data-no-sessions="true"] .project-label { color: var(--muted); }
 .context-menu-item[data-separator="true"] {
@@ -761,3 +765,29 @@ button.folder-crumb:hover:not(:disabled) { background: var(--selected); color: v
 .account-rename .account-add-input { flex: 1; min-width: 0; }
 /* `.modal .search` gives a dialog's field a bottom margin, which would lift it above its buttons. */
 .account-add-input.search { flex: 1 1 200px; min-width: 0; width: auto; margin-bottom: 0; }
+
+/* Settings → Residents: one card per resident, fields stacked label over control. */
+.residents-section { display: flex; flex-direction: column; gap: var(--space-lg); }
+.resident-add { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-sm); }
+.resident-card { display: flex; flex-direction: column; gap: var(--space-md); padding: var(--space-lg); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--control-bg); min-width: 0; }
+.resident-field { display: flex; flex-direction: column; gap: var(--space-xs); min-width: 0; }
+.resident-enabled { flex-direction: row; align-items: center; justify-content: space-between; }
+.resident-days { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.resident-cycle { display: flex; flex-direction: column; gap: var(--space-xs); min-width: 0; }
+.resident-cycle-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; }
+.resident-day { height: var(--control-height-sm); border-color: var(--border); }
+.resident-hours { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-md); }
+.resident-hour { display: inline-flex; align-items: center; gap: var(--space-sm); }
+.resident-digest { display: flex; flex-direction: column; gap: var(--space-xs); }
+.resident-progress { height: var(--space-sm); border-radius: var(--radius-pill); background: var(--border); overflow: hidden; }
+.resident-progress-fill { height: 100%; background: var(--accent); }
+.resident-actions { display: flex; flex-wrap: wrap; gap: var(--space-md); }
+.resident-card input.search, .resident-card select { max-width: 100%; }
+.resident-card[data-revealed="true"] { animation: resident-card-flash 1.6s ease-out; }
+.resident-add-kinds { display: flex; flex-direction: column; gap: var(--space-lg); }
+.resident-lookback { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+.resident-lookback .resident-lookback-amount.search { flex: none; width: 8ch; margin-bottom: 0; }
+.resident-folder { display: flex; align-items: center; gap: var(--space-md); min-width: 0; }
+/* A path is cut at its start: its end (the folder itself) is what matters. */
+.resident-folder-path { flex: 1; min-width: 0; overflow: hidden; color: var(--muted); direction: rtl; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.resident-required { color: var(--danger); font-size: 11px; font-weight: 400; }

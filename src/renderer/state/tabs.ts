@@ -1,4 +1,5 @@
 import type { ReportedTab, TabTransfer, WindowLayoutReport } from '@shared/domain/tabs'
+import type { SessionId } from '@shared/domain/ids'
 import { background, surface } from './policy'
 
 /** Tabs across windows: handing one to another window, and telling main what this one has open. */
@@ -30,5 +31,7 @@ export function reportTabs(tabs: ReportedTab[]): void { window.apiary.reportTabs
 export const onTabAdopt = (cb: (tab: TabTransfer) => void): (() => void) => window.apiary.onTabAdopt(cb)
 export const onTabClaimed = (cb: (key: string) => void): (() => void) => window.apiary.onTabClaimed(cb)
 export const onSelectTab = (cb: (key: string) => void): (() => void) => window.apiary.onSelectTab(cb)
+/** A resident asked this window to show a session. */
+export const onOpenSessionRequested = (cb: (sessionId: SessionId) => void): (() => void) => window.apiary.onOpenSessionRequested(cb)
 /** Main is about to quit and wants the layout now. */
 export const onRequestLayoutFlush = (cb: () => void): (() => void) => window.apiary.onRequestLayoutFlush(cb)

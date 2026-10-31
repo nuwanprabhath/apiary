@@ -455,6 +455,9 @@
 }
 /* Clear of the status bar along the window's bottom edge, when there is one to clear. */
 body:has(.status-bar) .notification-stack { bottom: calc(16px + var(--control-height-sm)); }
+/* A taller bar: clear the tallest height its tier allows (the chosen height is set on the bar itself). */
+body:has(.status-bar[data-size="comfortable"]) .notification-stack { bottom: calc(16px + 44px); }
+body:has(.status-bar[data-size="tall"]) .notification-stack { bottom: calc(16px + 64px); }
 .notification {
   pointer-events: auto;
   display: flex;

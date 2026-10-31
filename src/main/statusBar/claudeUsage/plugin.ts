@@ -8,6 +8,7 @@ import type { StatusBarPlugin, StatusBarPluginContext } from '../types'
 import type { ConsentStore } from './consent'
 import { CONSENT_PROMPT, readAccessToken } from './credentials'
 import { fetchLimits, HttpError, type Limits } from './limits'
+import type { UsageFeed } from './usageFeed'
 import { TokenAggregator, type TokenStats } from './tokens'
 import { dashboard, detailSections, statusText, statusTone, type Thresholds } from './present'
 
@@ -28,6 +29,8 @@ export interface ClaudeUsageDeps {
   consent: ConsentStore
   /** The Claude accounts. `null` where there are none to ask (a test harness): main alone is polled. */
   accounts: UsageAccounts | null
+  /** Told each account's limits as they are fetched, for the residents' usage pause. */
+  feed?: UsageFeed
   fetchImpl?: typeof fetch
   readKeychain?: (service: string) => Promise<string | undefined>
   now?: () => Date
@@ -122,12 +125,14 @@ async function pollLimits(
   if (token === undefined) {
     acc.signedOut = true
     acc.limits = undefined
+    deps.feed?.record(acc.info.id, undefined)
     acc.error = 'Claude Code credentials not found. Sign in with `claude /login` first.'
     return
   }
   acc.signedOut = false
   try {
     acc.limits = await fetchLimits(consent, token, deps.fetchImpl ?? fetch, () => now().getTime())
+    deps.feed?.record(acc.info.id, acc.limits)
     acc.error = undefined
     acc.backoffMs = 0
   } catch (e) {

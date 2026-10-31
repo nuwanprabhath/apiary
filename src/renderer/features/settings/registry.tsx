@@ -10,6 +10,7 @@ import { ThemesSectionEntry } from './sections/ThemesSectionEntry'
 import { TerminalSection } from './sections/TerminalSection'
 import { PluginsSection } from './sections/PluginsSection'
 import { PetsSection } from './sections/PetsSection'
+import { ResidentsSection } from './sections/ResidentsSection'
 import { UpdatesSection } from './sections/UpdatesSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { DiagnosticsSection } from './sections/DiagnosticsSection'
@@ -87,6 +88,12 @@ export const SECTIONS: Section[] = [
     label: 'Plugins',
     blurb: 'Extras that add a button to the bar under a session.',
     Component: ({ draft, patch, plugins }) => <PluginsSection draft={draft} patch={patch} plugins={plugins} />,
+  },
+  {
+    id: 'residents',
+    label: 'Residents',
+    blurb: 'Always-on helpers that live in Apiary. Each has its own name, hours and model.',
+    Component: () => <ResidentsSection />,
   },
   {
     id: 'updates',

@@ -133,12 +133,15 @@ export const SANCTIONED = [
     name: 'construct-in-container',
     kind: 'syntax',
     files: MAIN,
-    selectors: ["NewExpression[callee.name=/^(PtyManager|SessionStore|SearchIndex|SearchService|ChatManager|PetService|PetStore|PetPlacement|ThemeStore|ClaudeOneShot|SessionWatcher|ClaudeProjectsSource|SettingsService|GitService|TerminalService|ImageStore|ChatService|PluginService|WorktreeResolver|BranchOps|MrStatusCache|TranscriptReader|SearchClient|ActiveTabsService|RemoteServer|VirtualContentsRegistry|RemoteWindows|RemoteClientService|HostDirectory|FolderBrowser|LibraryStateService|AccountService)$/]"],
+    selectors: ["NewExpression[callee.name=/^(PtyManager|SessionStore|SearchIndex|SearchService|ChatManager|PetService|PetStore|PetPlacement|ThemeStore|ClaudeOneShot|SessionWatcher|ClaudeProjectsSource|SettingsService|GitService|TerminalService|ImageStore|ChatService|PluginService|WorktreeResolver|BranchOps|MrStatusCache|TranscriptReader|SearchClient|ActiveTabsService|RemoteServer|VirtualContentsRegistry|RemoteWindows|RemoteClientService|HostDirectory|FolderBrowser|LibraryStateService|AccountService|KnowledgeStore|KnowledgeService|Digester|ResidentService)$/]"],
+    // A subsystem's part of the composition root is its own `app/<name>Container.ts` (remote, knowledge,
+    // residents), called by createContainer: a home by its name, so a new one needs no edit here.
     // The search worker is its own thread with its own composition root: it opens its own SearchIndex.
-    allow: ['src/main/app/container.ts', 'src/main/app/remoteContainer.ts', 'src/main/search/searchWorker.ts'],
+    allow: ['src/main/app/container.ts', 'src/main/app/*Container.ts', 'src/main/search/searchWorker.ts'],
     description: 'Long-lived objects are built only in the composition root.',
     message:
-      'Build long-lived objects in `createContainer` (src/main/app/container.ts) and inject them. ' +
+      'Build long-lived objects in `createContainer` (src/main/app/container.ts), or in your subsystem\'s own ' +
+      '`src/main/app/<name>Container.ts` factory that createContainer calls (as knowledgeContainer.ts is), and inject them. ' +
       'An object built inside a service cannot be replaced in a test and gets built twice when a second caller copies the pattern (ClaudeProjectsSource was).',
   },
   {
@@ -341,6 +344,19 @@ export const SANCTIONED = [
     allow: ['src/renderer/ui/fireAndForget.ts'],
     description: 'A fire-and-forget bridge call is logged, not dropped.',
     message: 'Wrap it: `fireAndForget(window.apiary.x(...), \'scope\')` (ui/fireAndForget.ts), or handle the error with notifyError. `void` turns a failed IPC call into nothing at all.',
+  },
+
+  {
+    name: 'settings-write-via-store',
+    kind: 'syntax',
+    files: RENDERER,
+    selectors: ["MemberExpression[property.name='settingsSet']"],
+    allow: ['src/renderer/state/settingsStore.ts'],
+    description: 'Settings are written through the settings store, so the dialog\'s Save never puts back a setting a control already saved.',
+    message:
+      'Write settings through `src/renderer/state/settingsStore.ts`: `saveSettingsDraft` (the dialog\'s Save) or `saveInstantSetting` ' +
+      '(a control that saves at once; add its key to INSTANT_SETTINGS in shared/settings/schema.ts). A direct `settingsSet` from a ' +
+      'section inside the dialog is overwritten by Save, which sends the draft read when the dialog opened (Regent vanished on Save).',
   },
 
   {

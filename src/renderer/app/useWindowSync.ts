@@ -3,6 +3,7 @@ import { useChatTakeover } from '../features/workspace/useChatTakeover'
 import { useLayoutReporting } from '../features/workspace/useLayoutReporting'
 import { useOpenSessionRows } from '../features/workspace/useOpenSessionRows'
 import { useTabTransfer } from '../features/workspace/useTabTransfer'
+import { useOpenSessionRequests } from '../features/workspace/useOpenSessionRequests'
 
 /**
  * What keeps this window and main in step after the launch restore: the layout report main
@@ -14,5 +15,6 @@ export function useWindowSync(detached: string | null): { transferFor: (key: str
   useOpenSessionRows()
   const transfer = useTabTransfer()
   useChatTakeover()
+  useOpenSessionRequests()
   return transfer
 }

@@ -47,6 +47,7 @@ import { defineRemoteStatusNowClauses } from './clauses/remoteStatusNow'
 import { defineLibraryStateClauses } from './clauses/libraryState'
 import { defineBackgroundTaskOutputClauses } from './clauses/backgroundTaskOutput'
 import { defineAccountsClauses } from './clauses/accounts'
+import { defineResidentsClauses } from './clauses/residents'
 
 export { LONG_SESSION, STANDARD_TITLES }
 export type { Bridge, BridgeOptions, MakeBridge }
@@ -97,5 +98,6 @@ export function defineBridgeContract(name: string, makeBridge: MakeBridge, optio
     defineLibraryStateClauses(ctx)
     defineBackgroundTaskOutputClauses(ctx)
     defineAccountsClauses(ctx)
+    defineResidentsClauses(ctx)
   })
 }

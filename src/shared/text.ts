@@ -9,3 +9,12 @@ export function flattenText(text: string): string {
   // eslint-disable-next-line no-control-regex -- control characters are what is being removed
   return text.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
 }
+
+/**
+ * The last part of a file or folder path, `/` or `\` separated, ignoring a trailing separator; ''
+ * for an empty path. What a person recognises a folder by: a full path says where it is on disk,
+ * which is mostly noise in a list (and a temp path in a test fixture).
+ */
+export function lastPathSegment(path: string): string {
+  return path.split(/[\\/]/).filter((part) => part !== '').pop() ?? ''
+}

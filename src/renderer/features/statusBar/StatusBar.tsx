@@ -1,4 +1,4 @@
-import { type JSX, useEffect, useRef, useState } from 'react'
+import { type CSSProperties, type JSX, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { StatusBarItem, StatusBarPanel, StatusIcon } from '@shared/domain/statusBar'
 import { AlertIcon, GaugeIcon, HistoryIcon, LinkIcon, RefreshIcon } from '../../ui/icons'
@@ -12,6 +12,25 @@ import { ActivityIndicator } from './ActivityIndicator'
 import { useAccountUsageItems } from './useAccountUsageItems'
 import { useActivities } from '../../state/activityStore'
 import { HOVER_DELAY_MS } from '../../ui/HoverCard'
+import { ResidentBadges, useHasResidents } from '../residents'
+import { type StatusBarTier, useStatusBarSize } from '../../state/statusBarSize'
+import { LARGE_TEXT_FROM, residentSizesFor } from '../../state/residentSizes'
+import { ContextMenu } from '../../ui/ContextMenu'
+import { StatusBarResizeHandle, statusBarMenuItems } from './StatusBarResize'
+
+/** The height, and in the tall tier the resident sizes that follow it (styles/36-residents.css reads them). */
+function barStyle(height: number, tier: StatusBarTier): CSSProperties {
+  const px = (n: number): string => `${String(n)}px`
+  if (tier !== 'tall') return { '--status-bar-height': px(height) } as CSSProperties
+  const s = residentSizesFor(height)
+  return {
+    '--status-bar-height': px(height),
+    '--resident-orb-size-live': px(s.orb),
+    '--resident-bee-size-live': px(s.bee),
+    '--resident-pot-size-live': px(s.pot),
+    '--resident-badge-height-live': px(s.badge),
+  } as CSSProperties
+}
 
 function Icon({ icon, busy }: { icon: StatusIcon; busy: boolean }): JSX.Element {
   const cls = busy ? 'spinner' : undefined
@@ -39,11 +58,16 @@ interface Props {
 export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element | null {
   const items = useAccountUsageItems(useStatusBar())
   const busy = useActivities().length > 0
+  const residents = useHasResidents()
   const [panel, setPanel] = useState<{ item: StatusBarItem; data: StatusBarPanel | null } | null>(null)
   // Plugins whose consent prompt was closed without an answer. The prompt opens by itself the first
   // time an item asks, once; clicking the item brings it back.
   const [later, setLater] = useState<ReadonlySet<string>>(() => new Set())
   const asking = items.find((i) => i.action.kind === 'consent' && !later.has(i.pluginId))
+  const { height, tier } = useStatusBarSize()
+  const footer = useRef<HTMLElement | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+  const [resizing, setResizing] = useState(false)
 
   const openPanel = async (item: StatusBarItem): Promise<void> => {
     setPanel({ item, data: null })
@@ -67,16 +91,30 @@ export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element 
     return off
   }, [panel])
 
-  if (items.length === 0 && !keep && !busy) return null
+  if (items.length === 0 && !keep && !busy && !residents) return null
   return (
-    <footer className="status-bar" data-testid="status-bar" aria-label="Status bar">
+    <footer
+      ref={footer}
+      className="status-bar"
+      data-testid="status-bar"
+      aria-label="Status bar"
+      data-size={tier}
+      data-resizing={resizing ? 'true' : undefined}
+      data-text={height >= LARGE_TEXT_FROM ? 'large' : undefined}
+      style={barStyle(height, tier)}
+      // A badge with a menu of its own has already claimed the right-click.
+      onContextMenu={(e) => { if (e.defaultPrevented) return; e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }) }}
+    >
+      {resizing && <StatusBarResizeHandle height={height} bar={footer} onExit={() => { setResizing(false) }} />}
       <ActivityIndicator />
       {/* The free stretch left of the items: the floor pets walk on (features/pets). */}
       <span className="status-bar-spacer" data-testid="status-bar-floor" />
+      <ResidentBadges onOpenSettings={onOpenSettings} />
       {items.map((item) => (
         <StatusBarButton
           key={`${item.pluginId}:${item.id}`}
           item={item}
+          tier={tier}
           onClick={() => {
             if (item.action.kind === 'consent') setLater((cur) => new Set([...cur].filter((id) => id !== item.pluginId)))
             else if (item.action.kind === 'refresh') refreshStatusBarItem(item.pluginId)
@@ -85,6 +123,12 @@ export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element 
           }}
         />
       ))}
+      <ContextMenu
+        items={statusBarMenuItems(height, resizing, () => { setResizing((on) => !on) })}
+        position={menu}
+        onClose={() => { setMenu(null) }}
+        testId="status-bar-menu"
+      />
       {asking?.action.kind === 'consent' && (
         <ConsentDialog
           prompt={asking.action.prompt}
@@ -109,7 +153,19 @@ function itemTitle(item: StatusBarItem): string {
   return item.title !== '' ? item.title : item.text
 }
 
-function StatusBarButton({ item, onClick }: { item: StatusBarItem; onClick: () => void }): JSX.Element {
+/** In the tall bar an item's text reads as a headline over the rest: split on its " · " separators. */
+function ItemText({ text, tier }: { text: string; tier: StatusBarTier }): JSX.Element {
+  const [first, ...rest] = text.split(' · ')
+  if (tier !== 'tall' || rest.length === 0) return <span className="status-item-text">{text}</span>
+  return (
+    <span className="status-item-text status-item-lines">
+      <span className="status-item-line1">{first}</span>
+      <span className="status-item-line2">{rest.join(' · ')}</span>
+    </span>
+  )
+}
+
+function StatusBarButton({ item, tier, onClick }: { item: StatusBarItem; tier: StatusBarTier; onClick: () => void }): JSX.Element {
   const ref = useRef<HTMLButtonElement | null>(null)
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
   const timer = useRef<number | null>(null)
@@ -139,7 +195,7 @@ function StatusBarButton({ item, onClick }: { item: StatusBarItem; onClick: () =
         onBlur={() => { setAnchor(null) }}
       >
         {item.icon !== undefined && <Icon icon={item.icon} busy={item.busy === true} />}
-        {item.text !== '' && <span className="status-item-text">{item.text}</span>}
+        {item.text !== '' && <ItemText text={item.text} tier={tier} />}
         {item.stale === true && <HistoryIcon />}
       </button>
       {anchor !== null && createPortal(

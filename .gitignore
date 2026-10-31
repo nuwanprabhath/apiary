@@ -22,3 +22,7 @@ coverage/
 .env
 .env.*
 bench-results/
+
+# Compiled Python from the vendored mra program
+__pycache__/
+*.pyc

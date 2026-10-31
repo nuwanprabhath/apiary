@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { launchApiary, type Harness } from './helpers'
+import { launchApiary, relaunchApiary, type Harness } from './helpers'
 
 /**
  * The status bar's real wiring: main starts the Claude usage plugin and the window draws what it
@@ -58,4 +58,15 @@ test('the status bar runs the whole width of the window along its bottom edge, u
   expect(box.right).toBe(box.width)
   expect(Math.abs(box.bottom - box.height)).toBeLessThanOrEqual(1)
   expect(box.sidebarBottom).toBeLessThanOrEqual(box.top)
+})
+
+test('right-click the bar, choose Tall: the bar is 52 px, and still 52 px after a relaunch', async () => {
+  await h.page.getByTestId('status-consent-allow').click()
+  await h.page.getByTestId('status-bar-floor').click({ button: 'right' })
+  await h.page.getByTestId('context-menu-tall').click()
+  const height = (): Promise<number> => h.page.evaluate(() => document.querySelector('[data-testid="status-bar"]')!.getBoundingClientRect().height)
+  await expect.poll(height).toBe(52)
+  await relaunchApiary(h)
+  await expect(h.page.getByTestId('status-bar')).toHaveAttribute('data-size', 'tall')
+  await expect.poll(height).toBe(52)
 })

@@ -80,13 +80,16 @@ const host = globalThis as unknown as { __REACT_DEVTOOLS_GLOBAL_HOOK__?: unknown
 host.__REACT_DEVTOOLS_GLOBAL_HOOK__ ??= hook
 
 /** Starts counting renders of every mounted `componentName` (found by its function name). Returns
- *  the counts per pane id since this call; `read()` snapshots, `stop()` ends it. */
-export function trackRenders(componentName: string, byKey = false): {
+ *  the counts per pane id since this call (per React key with `by: 'key'`, or under `'one'` for a
+ *  component the window mounts once, such as `AppWindow`); `read()` snapshots, `stop()` ends it. */
+export function trackRenders(componentName: string, by: 'pane' | 'key' | 'one' = 'pane'): {
   read: () => Map<string, number>
   stop: () => void
 } {
   // A keyed list row: the key sits on the fiber itself, or on the `memo` wrapper above it.
-  const idOf = byKey ? (f: Fiber): string | null => f.key ?? f.return?.key ?? null : paneIdOf
+  const idOf = by === 'key' ? (f: Fiber): string | null => f.key ?? f.return?.key ?? null
+    : by === 'one' ? (): string => 'one'
+      : paneIdOf
   const t: Tracking = { componentName, idOf, counts: new Map(), seen: new Map() }
   // Note what is on screen now without counting it: those fibers carry the flags of whatever
   // rendered them last.

@@ -1,0 +1,521 @@
+/*
+ * Resident agents (features/residents): the bee in the status bar and its chat popup.
+ *
+ * The badge's three looks are pure CSS on `data-state`: asleep is a faded bee with a "z"; idle is a
+ * slow golden halo and a breathing glow; working spins the halo fast, flutters the wings and opens
+ * the badge into a pill that says what it is doing, while the bar grows to fit it. Every endless
+ * animation has a still frame under `:root[data-motion="reduced"]`.
+ */
+@property --resident-halo-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+@keyframes resident-halo-spin { to { --resident-halo-angle: 360deg; } }
+@keyframes resident-breathe { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.6; } }
+@keyframes resident-flutter { from { transform: scaleY(1); } to { transform: scaleY(0.55); } }
+@keyframes resident-sway {
+  0%, 100% { transform: translateX(-1px) rotate(-8deg); }
+  50% { transform: translateX(1px) rotate(8deg); }
+}
+@keyframes resident-stir {
+  0%, 100% { transform: translate(1px, 0) rotate(6deg); }
+  25% { transform: translate(0, 0.7px) rotate(-3deg); }
+  50% { transform: translate(-1px, 0) rotate(-12deg); }
+  75% { transform: translate(0, -0.7px) rotate(-3deg); }
+}
+@keyframes resident-streak-drift { 0%, 100% { transform: translateX(-1.2px); } 50% { transform: translateX(1.2px); } }
+@keyframes resident-streak-swirl {
+  0%, 100% { transform: translateX(-2px) scaleX(1); }
+  50% { transform: translateX(2px) scaleX(-1); }
+}
+@keyframes resident-needs-pulse {
+  0% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+@keyframes resident-hop {
+  0%, 21%, 100% { transform: translateY(0); }
+  10.5% { transform: translateY(-2px); }
+}
+/*
+ * The bee at rest: each motion has its own cycle (wings 7s, antennae 5.5s and 6.5s, body 11s) and
+ * moves in only a small part of it, so they drift in and out of step and rarely repeat together.
+ */
+@keyframes resident-bee-flap {
+  0%, 15%, 100% { transform: scaleY(1); }
+  2.5%, 7.5%, 12.5% { transform: scaleY(0.7); }
+  5%, 10% { transform: scaleY(1); }
+}
+@keyframes resident-antenna-front {
+  0%, 8%, 100% { transform: rotate(0); }
+  4% { transform: rotate(10deg); }
+}
+@keyframes resident-antenna-back {
+  0%, 10%, 18%, 100% { transform: rotate(0); }
+  14% { transform: rotate(10deg); }
+}
+@keyframes resident-bee-bob {
+  0%, 30%, 80%, 100% { transform: translateY(0) rotate(0); }
+  45% { transform: translateY(-0.5px) rotate(-4deg); }
+  65% { transform: translateY(-0.5px) rotate(4deg); }
+}
+/* The honey pot's surface swells now and then, as if a bubble rose, out of step with the sway. */
+@keyframes resident-pot-bubble {
+  0%, 82%, 100% { transform: scale(1); }
+  88% { transform: scale(1.04, 1.6); }
+  94% { transform: scale(1); }
+}
+@keyframes resident-card-flash {
+  0% { box-shadow: 0 0 0 2px var(--accent); }
+  100% { box-shadow: 0 0 0 2px transparent; }
+}
+
+/* The palette map: a kind's `appearance.palette` picks the tints every shared look below is drawn in. */
+.resident-badge,
+.resident-orb {
+  --resident-tint: var(--resident-gold);
+  --resident-tint-hi: var(--resident-gold-hi);
+  --resident-tint-deep: var(--resident-gold-deep);
+}
+.resident-badge[data-palette="amber"],
+.resident-orb[data-palette="amber"] {
+  --resident-tint: var(--resident-amber);
+  --resident-tint-hi: var(--resident-amber-hi);
+  --resident-tint-deep: var(--resident-amber-deep);
+}
+
+.status-bar { transition: height 160ms ease-out; }
+.status-bar:has(.resident-badge:is([data-state="working"], [data-needs])) {
+  height: max(var(--status-bar-height, var(--control-height-sm)), var(--status-bar-height-working));
+}
+
+.resident-badge {
+  --orb: var(--resident-orb-size);
+  /* How much of what the resident is doing its pill shows; the roomier bars show more. */
+  --resident-words: min(28ch, var(--resident-pill-max));
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: calc(var(--orb) + var(--space-xs) * 2 + 2px);
+  /* Whole pixels wide, like each status item, so the orbs to their left never land on a fraction. */
+  width: calc-size(max-content, round(up, size, 1px));
+  /* Never taller than the chosen bar, whatever a theme's density makes the small control. */
+  height: min(var(--control-height-sm), var(--status-bar-height, var(--control-height-sm)));
+  padding: 0 var(--space-xs);
+  /* Clipped for the pill's opening, with room around it for the needs-you ring and the count. */
+  overflow: clip;
+  overflow-clip-margin: var(--space-sm);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: max-width 220ms ease-out, background-color 220ms ease-out, border-color 220ms ease-out;
+}
+.resident-badge:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.resident-badge:is([data-state="working"], [data-needs]) {
+  max-width: round(down, calc(var(--orb) + var(--resident-words) + var(--space-sm) + var(--space-xs) * 2 + 2px), 1px);
+  padding-right: var(--space-sm);
+  border-color: color-mix(in sRGB, var(--resident-tint) 45%, transparent);
+  background: color-mix(in sRGB, var(--resident-tint) 14%, transparent);
+}
+.resident-badge[data-needs]:not([data-state="working"]) {
+  border-color: color-mix(in sRGB, var(--danger) 55%, transparent);
+  background: color-mix(in sRGB, var(--danger) 12%, transparent);
+}
+
+.resident-badge-orb { position: relative; display: inline-flex; flex: none; }
+.resident-count {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  z-index: var(--z-glass-rim);
+  min-width: var(--resident-count-min);
+  height: var(--resident-count-min);
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+  box-shadow: 0 0 0 1px var(--bg-window);
+  color: var(--accent-contrast);
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--resident-count-min);
+  text-align: center;
+}
+.resident-activity {
+  min-width: 0;
+  max-width: var(--resident-words);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resident-badge:not([data-state="working"], [data-needs]) .resident-activity { display: none; }
+
+/* The orb is drawn at each tier's size (width and height, never a scale), so the glyph stays crisp. */
+.status-bar:is([data-size="comfortable"], [data-size="tall"]) .resident-badge {
+  --resident-words: min(40ch, var(--resident-pill-max-roomy));
+}
+.status-bar[data-size="comfortable"] .resident-badge {
+  --orb: var(--resident-orb-size-lg);
+  --resident-bee-size: var(--resident-bee-size-lg);
+  height: var(--resident-badge-height-lg);
+}
+/* Tall, the sizes follow the height: StatusBar sets them inline from `residentSizesFor`. */
+.status-bar[data-size="tall"] .resident-badge {
+  --orb: var(--resident-orb-size-live);
+  --resident-bee-size: var(--resident-bee-size-live);
+  height: var(--resident-badge-height-live);
+}
+.status-bar[data-size="tall"] .resident-orb[data-glyph="honeypot"] { --resident-bee-size: var(--resident-pot-size-live); }
+.resident-lines { display: inline-flex; flex-direction: column; min-width: 0; line-height: 1.25; text-align: left; }
+.resident-name { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.status-bar[data-text="large"] .resident-badge { --resident-words: min(40ch, var(--resident-pill-max-large)); }
+.status-bar[data-text="large"] .resident-activity { font-size: 14px; }
+.status-bar[data-text="large"] .resident-name { font-size: 13px; }
+
+/* The orb: the bee on a circle, a halo ring (::before) and a soft glow (::after). */
+.resident-orb {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--orb, var(--resident-orb-size));
+  height: var(--orb, var(--resident-orb-size));
+  border-radius: var(--radius-pill);
+  background: radial-gradient(circle at 50% 35%, color-mix(in sRGB, var(--resident-night) 80%, var(--resident-tint-deep)), var(--resident-night) 70%);
+}
+.resident-orb[data-size="sm"] { --orb: var(--resident-orb-size-sm); }
+.resident-orb .resident-glyph { position: relative; z-index: var(--z-base); width: var(--resident-bee-size); height: var(--resident-bee-size); }
+.resident-orb::before,
+.resident-orb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-pill);
+  pointer-events: none;
+}
+.resident-orb::before {
+  background: conic-gradient(
+    from var(--resident-halo-angle),
+    var(--resident-tint-hi), var(--resident-tint), var(--resident-tint-deep), var(--resident-tint-hi), var(--resident-tint)
+  );
+  filter: blur(0.6px);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), var(--resident-ink) calc(100% - 2px));
+}
+.resident-orb::after { box-shadow: 0 0 6px 1px color-mix(in sRGB, var(--resident-tint) 55%, transparent); opacity: 0.4; }
+
+.resident-orb[data-state="idle"]::before { animation: resident-halo-spin 9s linear infinite; }
+.resident-orb[data-state="idle"]::after { animation: resident-breathe 4s ease-in-out infinite; }
+.resident-orb[data-state="working"]::before { animation: resident-halo-spin 1.6s linear infinite; }
+.resident-orb[data-state="working"]::after {
+  opacity: 0.85;
+  box-shadow:
+    0 0 6px 1px color-mix(in sRGB, var(--resident-tint) 55%, transparent),
+    0 0 12px 3px color-mix(in sRGB, var(--resident-tint) 30%, transparent);
+}
+
+/* The stir (`data-animation="stir"`): the dipper pivots about its foot in the pot's mouth. */
+.resident-orb .pot-dipper { transform-box: view-box; transform-origin: 12px 10.6px; }
+.resident-orb .pot-streak { transform-box: fill-box; transform-origin: 50% 50%; }
+/* Stirred honey catches the light: the surface brightens while it works. */
+.resident-orb[data-state="working"] .pot-surface { fill: var(--resident-amber-hi); }
+.resident-orb[data-animation="stir"][data-state="idle"] .pot-dipper { animation: resident-sway 3.2s ease-in-out infinite; }
+.resident-orb[data-animation="stir"][data-state="idle"] .pot-streak { animation: resident-streak-drift 3.2s ease-in-out infinite; }
+.resident-orb[data-animation="stir"][data-state="working"] .pot-dipper { animation: resident-stir 1.1s linear infinite; }
+.resident-orb[data-animation="stir"][data-state="working"] .pot-streak { animation: resident-streak-swirl 1.1s linear infinite; }
+.resident-orb .bee-wing-l,
+.resident-orb .bee-wing-r { transform-box: fill-box; transform-origin: 50% 100%; }
+.resident-orb[data-state="working"] .bee-wing-l,
+.resident-orb[data-state="working"] .bee-wing-r { animation: resident-flutter 90ms linear infinite alternate; }
+.resident-orb .bee-antenna-front { transform-box: view-box; transform-origin: 19.6px 10.6px; }
+.resident-orb .bee-antenna-back { transform-box: view-box; transform-origin: 18.2px 10.7px; }
+.resident-orb[data-state="idle"] .bee-wing-l,
+.resident-orb[data-state="idle"] .bee-wing-r { animation: resident-bee-flap 7s ease-in-out infinite; }
+.resident-orb[data-state="idle"] .bee-antenna-front { animation: resident-antenna-front 5.5s ease-in-out infinite; }
+.resident-orb[data-state="idle"] .bee-antenna-back { animation: resident-antenna-back 6.5s ease-in-out infinite; }
+.resident-orb[data-glyph="bee"][data-state="idle"] .resident-glyph { animation: resident-bee-bob 11s ease-in-out infinite; }
+.resident-orb[data-animation="stir"][data-state="idle"] .pot-surface {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: resident-pot-bubble 7.7s ease-in-out infinite;
+}
+
+.resident-orb[data-state="asleep"] { opacity: 0.55; filter: saturate(0.2); }
+.resident-orb[data-state="asleep"]::before,
+.resident-orb[data-state="asleep"]::after { display: none; }
+.resident-z {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1;
+}
+.resident-unread {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  z-index: var(--z-glass-rim);
+  width: var(--resident-unread-size);
+  height: var(--resident-unread-size);
+  border-radius: var(--radius-pill);
+  background: var(--resident-gold);
+  box-shadow: 0 0 0 1px var(--bg-window);
+}
+
+/* Needs you: a warm ring pulses out of the orb every 1.8 s, and the orb hops as each pulse starts. */
+.resident-badge[data-needs] .resident-badge-orb::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border: 2px solid var(--danger);
+  border-radius: var(--radius-pill);
+  pointer-events: none;
+  animation: resident-needs-pulse 1.8s ease-out infinite;
+}
+.resident-badge[data-needs] .resident-orb { animation: resident-hop 1.8s ease-out infinite; }
+
+:root[data-motion="reduced"] .resident-orb[data-state="idle"]::before,
+:root[data-motion="reduced"] .resident-orb[data-state="working"]::before { --resident-halo-angle: 40deg; animation: none; }
+:root[data-motion="reduced"] .resident-orb[data-state="idle"]::after { opacity: 0.5; animation: none; }
+:root[data-motion="reduced"] .resident-orb[data-state="working"] .bee-wing-l,
+:root[data-motion="reduced"] .resident-orb[data-state="working"] .bee-wing-r,
+:root[data-motion="reduced"] .resident-orb[data-state="idle"] .bee-wing-l,
+:root[data-motion="reduced"] .resident-orb[data-state="idle"] .bee-wing-r,
+:root[data-motion="reduced"] .resident-orb[data-state="idle"] .bee-antenna-front,
+:root[data-motion="reduced"] .resident-orb[data-state="idle"] .bee-antenna-back,
+:root[data-motion="reduced"] .resident-orb[data-glyph="bee"][data-state="idle"] .resident-glyph,
+:root[data-motion="reduced"] .resident-orb[data-animation="stir"][data-state="idle"] .pot-surface { transform: none; animation: none; }
+:root[data-motion="reduced"] .resident-orb[data-animation="stir"][data-state="idle"] .pot-dipper,
+:root[data-motion="reduced"] .resident-orb[data-animation="stir"][data-state="working"] .pot-dipper { transform: rotate(20deg); animation: none; }
+:root[data-motion="reduced"] .resident-orb[data-animation="stir"][data-state="idle"] .pot-streak,
+:root[data-motion="reduced"] .resident-orb[data-animation="stir"][data-state="working"] .pot-streak { animation: none; }
+:root[data-motion="reduced"] .resident-badge[data-needs] .resident-orb { animation: none; }
+:root[data-motion="reduced"] .resident-badge[data-needs] .resident-badge-orb::after { opacity: 1; transform: none; animation: none; }
+:root[data-motion="reduced"] .resident-badge,
+:root[data-motion="reduced"] .status-bar { transition: none; }
+
+/* The popup: a floating, opaque panel anchored bottom-right; only its X closes it. */
+.resident-popup {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  min-width: var(--resident-popup-min-width);
+  min-height: var(--resident-popup-min-height);
+  max-width: 92vw;
+  max-height: 85vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  /* The popover colour twice over: on glass it is ~94% opaque, and a panel read for minutes should
+   * not show the pane behind it through its text. */
+  background: linear-gradient(var(--bg-popover, var(--bg-panel)), var(--bg-popover, var(--bg-panel))), var(--bg-popover, var(--bg-panel));
+  box-shadow: var(--shadow-overlay);
+  color: var(--text);
+}
+.resident-popup-edge { position: absolute; z-index: var(--z-resizer); }
+.resident-popup-edge[data-edge="left"] { top: var(--space-md); bottom: 0; left: calc(var(--resident-edge-grip) / -2); width: var(--resident-edge-grip); cursor: ew-resize; }
+.resident-popup-edge[data-edge="top"] { top: calc(var(--resident-edge-grip) / -2); right: 0; left: var(--space-md); height: var(--resident-edge-grip); cursor: ns-resize; }
+.resident-popup-edge[data-edge="corner"] { top: calc(var(--resident-edge-grip) / -2); left: calc(var(--resident-edge-grip) / -2); width: var(--resident-corner-grip); height: var(--resident-corner-grip); cursor: nwse-resize; }
+
+.resident-popup-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-sm);
+  height: var(--resident-popup-header-height);
+  padding: 0 var(--space-sm) 0 var(--space-md);
+  border-bottom: 1px solid var(--border);
+  cursor: move;
+  user-select: none;
+}
+.resident-popup-title { display: flex; flex: 1; gap: var(--space-sm); align-items: baseline; min-width: 0; overflow: hidden; white-space: nowrap; }
+.resident-popup-doing { min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; }
+.resident-icon-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-button-size);
+  height: var(--icon-button-size);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.resident-icon-btn svg { width: var(--icon-size); height: var(--icon-size); }
+.resident-icon-btn:hover { background: var(--hover); color: var(--text); }
+.resident-icon-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.resident-confirm { display: inline-flex; flex: none; gap: var(--space-xs); align-items: center; color: var(--muted); }
+
+.resident-popup-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-height: 0;
+  padding: var(--space-md) var(--space-lg);
+  overflow-y: auto;
+}
+.resident-msg { min-width: 0; }
+.resident-msg-user {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--selected);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.resident-msg-assistant { align-self: stretch; min-width: 0; overflow-wrap: anywhere; }
+.resident-streaming { display: flex; flex: none; gap: var(--space-sm); align-items: center; color: var(--muted); min-width: 0; }
+.resident-streaming-text { min-width: 0; overflow-wrap: anywhere; }
+/* A quick action the person chose: a small muted chip on their side, not a message bubble. */
+.resident-action {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.resident-check-now { gap: var(--space-xs); }
+
+/* The badge's hover card: a muted blurb under the name, then labelled lines. The blurb wraps
+   rather than clipping: the card is the only place the whole of it shows. */
+.resident-hover-blurb { color: var(--muted); }
+.resident-hover-text { min-width: 0; overflow-wrap: anywhere; }
+.resident-session-chip {
+  display: inline-flex;
+  gap: var(--space-xs);
+  align-items: center;
+  max-width: 100%;
+  padding: 0 var(--space-sm);
+  border: 1px solid color-mix(in sRGB, var(--resident-gold) 45%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in sRGB, var(--resident-gold) 12%, transparent);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
+  vertical-align: baseline;
+  cursor: pointer;
+}
+.resident-session-chip::before { content: "◆"; color: var(--resident-gold); font-size: 0.7em; }
+.resident-session-chip:hover { border-color: var(--resident-gold); }
+.resident-session-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.resident-hits { display: flex; flex-direction: column; gap: var(--space-xs); align-self: stretch; }
+.resident-hits-label { color: var(--muted); font-size: 11px; }
+.resident-hit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.resident-hit:hover { background: var(--hover); }
+.resident-hit:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.resident-hit-title,
+.resident-hit-where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resident-hit-where { grid-column: 1; color: var(--muted); font-size: 12px; }
+.resident-hit-reason {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  max-width: 14ch;
+  padding: 0 var(--space-sm);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: color-mix(in sRGB, var(--resident-gold) 16%, transparent);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resident-empty { display: flex; flex-direction: column; gap: var(--space-sm); align-items: flex-start; margin: auto 0; color: var(--muted); }
+.resident-empty p,
+.resident-off p { margin: 0; }
+.resident-example { max-width: 100%; text-align: left; white-space: normal; }
+.resident-off { align-items: center; justify-content: center; color: var(--muted); }
+.resident-popup-error { padding: 0 var(--space-lg); color: var(--danger); font-size: 12px; }
+
+.resident-popup-composer {
+  display: flex;
+  flex: none;
+  gap: var(--space-sm);
+  align-items: flex-end;
+  padding: var(--space-sm) var(--space-md) var(--space-md);
+  border-top: 1px solid var(--border);
+}
+.resident-popup-input {
+  flex: 1;
+  min-width: 0;
+  max-height: calc(6lh + var(--space-sm) * 2 + 2px);
+  padding: var(--space-sm);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.4;
+  resize: none;
+}
+.resident-popup-input:focus { outline: none; border-color: var(--accent); }
+
+/* As in the chat timeline: the HTML's own newlines between list items must not render as blank lines. */
+.resident-msg-assistant .text-block { margin-bottom: 0; white-space: normal; line-height: 1.45; }
+.resident-msg-assistant .text-block p { margin-bottom: var(--space-sm); white-space: pre-wrap; }
+.resident-msg-assistant .markdown li { margin-bottom: 1px; }
+
+/* Wide command output (`mra desk` prints tables) scrolls inside its bubble instead of widening the popup. */
+.resident-msg-assistant .markdown :is(table, pre) { display: block; max-width: 100%; overflow-x: auto; overflow-wrap: normal; }
+.resident-msg-assistant .markdown :is(th, td) { white-space: nowrap; }
+
+/* Tool uses waiting for Allow or Deny, pinned above the composer. */
+.resident-permissions {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-xs);
+  max-height: 40%;
+  padding: var(--space-sm) var(--space-md);
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+}
+.resident-permission {
+  display: flex;
+  flex: none;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid color-mix(in sRGB, var(--danger) 45%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in sRGB, var(--danger) 8%, var(--bg));
+}
+.resident-permission-text { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.resident-permission-summary { min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+
+/* Why the resident cannot run yet, under the header. */
+.resident-setup {
+  display: flex;
+  flex: none;
+  gap: var(--space-md);
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in sRGB, var(--warning) 14%, var(--bg-popover, var(--bg-panel)));
+}
+.resident-setup-text { flex: 1; min-width: 0; }

@@ -60,6 +60,8 @@ const subscribed = new Set<string>()
 // Imported after the mock so both pick it up — see the comment above.
 const { buildServices, buildIpcState } = await import('../fixtures/buildService')
 const { registerIpc } = await import('../../src/main/ipc')
+const { createResidents } = await import('../../src/main/app/residentsContainer')
+const { TabRegistry } = await import('../../src/main/windows/tabRegistry')
 const { UNCHECKED_SENDERS } = await import('../../src/main/ipc/ipcSenderGuard')
 const { ThemeStore } = await import('../../src/main/theme/themeStore')
 const { ThemeGenerator } = await import('../../src/main/theme/themeGenerator')
@@ -90,6 +92,8 @@ beforeEach(async () => {
   ipcHandlers.clear()
   ipcListeners.clear()
   sent.length = 0
+  const state = buildIpcState(service, join(home, '.claude'))
+  const settings = new SettingsService(join(home, 'settings.json'))
   const ipc = registerIpc({
     senderPolicy: UNCHECKED_SENDERS,
     router: null, remoteClient: null, hostDirectory: null, remoteServer: null, remotePairing: null,
@@ -106,8 +110,12 @@ beforeEach(async () => {
       mainRoot: join(home, '.claude'), accountsDir: join(home, 'accounts'), homeDir: home, store: createAccountsStore(join(home, 'accounts.json')),
       sessions: { get: () => null, set: () => {} }, exec: async () => '', platform: 'linux',
     }),
-    state: buildIpcState(service, join(home, '.claude')),
-    settings: new SettingsService(join(home, 'settings.json')),
+    state,
+    settings,
+    residents: createResidents({
+      settingsService: settings, paths: { residentsDir: join(home, 'residents') }, store: built.store, accounts: built.accounts, knowledge: built.knowledge,
+      tabRegistry: new TabRegistry(), service, ipcState: state, windowManager: { windowNumberFor: () => null }, version: '0.0.0', resourcesDir: join(home, 'resources'),
+    }),
     theme: {
       store: new ThemeStore(join(home, 'themes.json')),
       safeMode: false,

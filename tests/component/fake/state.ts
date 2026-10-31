@@ -14,6 +14,7 @@ import type { BackgroundTaskOutput } from '@shared/chatTimeline'
 import type { EventKey, PayloadOf } from '@shared/ipc/contract'
 import type { LibraryPatch, LibrarySnapshot } from '@shared/libraryState'
 import type { AccountsState } from '@shared/domain/accounts'
+import type { ResidentAttention, ResidentMessage, ResidentPermissionRequest } from '@shared/domain/residents'
 import type { PetSpec } from '@shared/pets/spec'
 import type { PetsState } from '@shared/pets/state'
 import type { TerminalRef } from '@shared/domain/ids'
@@ -142,6 +143,21 @@ export interface FakeState {
   /** Main's Claude accounts (`accounts.json`) and which account each session was recorded under. */
   accounts: AccountsState
   sessionAccounts: Map<string, string>
+  /** Each resident's chat (`residentHistory`), and the residents answering now. */
+  residentHistory: Map<string, ResidentMessage[]>
+  residentBusy: Set<string>
+  /** What a busy resident says it is doing (main's tool-use words); unset, "Writing". */
+  residentActivity: Map<string, string>
+  /** Residents whose turns and commands a test holds: each one's ending waits in its list until the test calls it. */
+  residentHeld: Map<string, (() => void)[]>
+  /** When each resident's cycle is next due, as main's timer would say. */
+  residentNextCycle: Map<string, number>
+  /** What a resident flagged for the user (`set_attention`), until `residentSeen`. */
+  residentAttention: Map<string, ResidentAttention>
+  /** Tool uses each resident waits on, oldest first; a test puts them here, an answer removes one. */
+  residentPermissions: Map<string, ResidentPermissionRequest[]>
+  /** What main's folder dialog answers for `residentPickFolder` (null: cancelled). */
+  residentFolder: string | null
   theme: ThemeState
   refs: GitRefs
   /** Per branch name: whether it tracks an upstream, and how far ahead and behind it is. */

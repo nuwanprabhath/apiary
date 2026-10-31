@@ -100,3 +100,13 @@ correctly` error; run it with `--no-sandbox`, or install the `.deb` instead.
 `codesign --verify --deep --strict release/mac-arm64/Apiary.app` first. An
 invalid signature makes macOS kill the app at launch with an "Apiary quit
 unexpectedly" dialog rather than a useful error.
+
+## Bundled programs (`resources/`)
+
+`resources/residents/mra` is the MR desk resident's program (Python 3, standard library only, MIT;
+see its `README.md`). `extraResources` in `electron-builder.yml` copies `resources/residents` to
+`<resources>/residents` in the packaged app (minus `__pycache__` and the Python tests), outside the
+asar so `python3` can read it. Main finds it through one function, `resolveResourcesDir`
+(`src/main/app/resourcesDir.ts`): `process.resourcesPath` when packaged, `<repo>/resources` in
+development. `index.ts` passes the result in as `resourcesDir` and the container hands it to the
+resident kinds; nothing else computes it. `npm run test:mra` runs the Python tests.

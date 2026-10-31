@@ -4,6 +4,139 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.49.0] - 2026-10-30
+
+### Added
+
+- **Regent: a chief of staff over all your Claude sessions.**
+  - **Enabling it.** Turn it on in Settings → Residents. A gold bee then sits in the status bar, to
+    the left of Claude usage.
+  - **Asking it.** Click the bee, or press ⌘⇧Space, to open a small chat panel. You can move and
+    resize the panel, and it closes only with its X. Ask it things like "open the session for
+    !1175", "bring up the session where we designed the API interface", or "what auth did we design
+    between core and wildobs?".
+  - **What it does.** It finds the right session, opens it in the pane you last used (or jumps to the
+    tab if it is already open in any window), or answers from what those sessions say. The sessions
+    it used appear as chips you can click to open.
+  - **The bee.** It breathes while idle. While working it swirls in a golden halo and grows into a
+    pill that says what it is doing ("Searching sessions", "Reading API auth"). A dot tells you an
+    answer arrived while the panel was closed.
+  - **History.** The conversation is kept across restarts.
+  - **From the search box.** ⌘↵ in the sidebar search box asks Regent the same question.
+  - **A normal Claude session underneath.** Beyond your sessions, Regent can use everything a normal
+    Claude Code session can: the shell (so `glab` and `gh`), the web, your own MCP servers and
+    skills (so it can search or create tickets).
+    - It asks the way chat mode does, with the same permission modes (Auto by default).
+    - A request waiting for you shows as Allow / Deny in its panel.
+  - **It knows its own state.** It can tell you how far the digest has got.
+  - **Matches only when you look something up.** The possible-match cards appear only for a
+    message with a reference (`!1175`, a ticket, a link) or a lookup ("open", "find", "where did
+    we…"), so a follow-up like "can you check it now?" shows none.
+- **What Regent knows.** Apiary now indexes two things about every session:
+  - **References.** It indexes the references each session mentions: MR and issue numbers, ticket
+    keys, and GitLab, GitHub and Jira links. Pasting an MR or ticket link into the sidebar search
+    finds the session that mentioned it, Regent or not.
+  - **Topic digests.** During Regent's hours, a cheap model (Haiku by default) writes short topic
+    digests of every session, including the separate subjects inside one long session.
+    - It works through your whole history newest first, then keeps up as sessions change. A
+      lookback setting (days, weeks or months) limits it to recent sessions.
+    - It pauses when your 5-hour usage passes a level you choose (70% by default).
+    - The digests are kept apart from the search index, so rebuilding search never spends that
+      quota again.
+- **Settings → Residents.** You can:
+  - rename Regent;
+  - choose its chat model and its digest model;
+  - set its days and hours (9 to 6 on weekdays by default; outside them it still answers, but does
+    no background work);
+  - see how far the digest has got;
+  - clear its chat history;
+  - start the digest over.
+- **The MR desk: a second resident for the merge requests you review.** It is the GitLab MR agent
+  (gitlab-mr-agent), now part of Apiary.
+  - **The cycle.** Every 15 minutes in its hours it:
+    - reviews new MRs (with Opus, nothing posted to GitLab);
+    - checks whether your review threads were addressed, and resolves only your own;
+    - says which MRs are okay to approve, most urgent release first.
+  - **The honey pot.** It sits in the status bar, and its dipper stirs while it works. When MRs wait
+    on you, it pulses and shows a count, and its pill says what is waiting.
+  - **Right-click actions.** Show the desk and Stats run instantly, without a model, as do Check my
+    MRs now and Mark the backlog as seen.
+  - **Setup.** Set its GitLab project and choose your local clone in Settings. It needs `glab`
+    (logged in) and Python 3.
+- **Right-click any resident** for Open chat, its own actions, Turn on/off and Settings.
+- **A resident always says what it is doing.**
+  - **Words for every step.** Running a command ("Running mra prompt 1559"), a helper
+    ("Helper: reviewing !1559"), searching the web, editing a file, thinking or writing all show in
+    the badge's pill and as a working line with the busy animation at the end of its chat. A
+    working resident never shows an empty pill.
+  - **Hover the badge** to see what the resident is, what it is doing now, what it needs from you,
+    its next check and any setup it is missing.
+- **The MR desk's checks are visible and settable.** Its Settings card has **Check every** (5 to
+  60 minutes), the time of the next check, and **Check now**. The desk itself knows its schedule,
+  so it can tell you when it will next look. Its GitLab project can be pasted as a URL, including a
+  self-hosted GitLab's.
+- **Built for more than one resident.** Regent is the first kind of resident agent. Each resident
+  has its own name, schedule, model, private folder for its history and notes, and look. It acts on
+  Apiary only through tools that Apiary serves on this machine:
+  - finding sessions, reading part of one, listing open tabs, opening a session, and its own notes;
+  - each resident has its own token, and the token decides which of these tools it can see;
+  - no tool takes a file path.
+
+  A future resident, such as a GitLab MR agent, is a new kind with its own tools
+  ([ADR-0021](docs/adr/0021-resident-agents-get-tools-over-a-token-scoped-local-mcp-server.md)).
+- **A list of all of a pane's tabs.** A button at the end of each tab bar opens it.
+  - **Jumping.** Click a row to jump to that tab.
+  - **Reordering.** Drag rows, or use Alt+↑/↓, to reorder the tabs.
+  - **Filtering.** A filter appears when a pane has more than 8 tabs.
+- **A taller status bar, if you want one.** Right-click the status bar to choose its size:
+  - **The sizes:** Compact (as before), Comfortable or Tall. Or choose **Resize by dragging** and drag
+    its top edge, or use ↑/↓. It is saved on this machine and applies to every window.
+  - **Comfortable** makes the words and icons larger.
+  - **Tall** puts things on two lines: the usage meter shows the account over its limits, and a
+    resident's pill shows its name over what it is doing.
+  - **Room for the words.** In the larger sizes a resident's pill shows more of what it is doing,
+    as far as the window's width allows.
+  - **Crisp icons.** The bee and the honey pot are drawn at each size, never scaled, so they stay
+    crisp.
+- **A resident's chat never covers the status bar.** It stays above the bar at every size. That
+  holds when you change the bar's size, while the bar grows for a working resident, when you drag
+  the chat down, and for a position saved against a thinner bar. A long activity in its header has
+  the full text on hover.
+- **Every action you start shows that it is happening.** Choosing a resident's action shows your
+  request in its chat at once, with the busy animation and words for what it is doing ("Reading the
+  desk", "Counting last week's MRs", "Checking your MRs"). The same words show in the badge's pill
+  until it is done. Check now in Settings says "Checking…" while it runs, and turning a resident on
+  says "Starting".
+- **Regent lives at rest.** When idle, the bee beats its wings now and then, twitches its antennae
+  and bobs gently. Each motion repeats at its own pace, so it rarely does the same thing twice in a
+  row. The honey pot now bubbles on its own rhythm as well. All of this holds still when animations
+  are reduced.
+- **Bigger icons in a tall status bar.** From 44 px, the bee and the honey pot grow with the bar,
+  up to 50 px at its tallest, and are still drawn crisp at each size. From 58 px the bar's text is
+  a little larger too.
+- **Menus line up.** In a menu with ticks, a plain item's label now lines up with the ticked items'
+  labels.
+
+### Changed
+
+- **Dependencies.**
+  - **Build:** electron-vite 6 (from 5).
+  - **App:** Electron 44.10, React 19.3.1, electron-updater 6.8.10 (more reliable differential
+    updates), DOMPurify 3.4.17, marked 18.1.1 and js-yaml 5.5.
+  - **Tooling:** ESLint 10.13, typescript-eslint 8.71.2, Playwright 1.64.1, knip and commitlint.
+  - **The error fallback** now resets when its key changes during render instead of after it,
+    which is what the new React lint rule asks for.
+
+### Security
+
+- **minimatch 11.0.3** for Apiary's own glob matching and ESLint's
+  ([GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), a denial of service
+  from crafted glob patterns). None of the app's shipped dependencies use minimatch.
+- **The audit gate can allow an advisory in build tooling only.** The gate still fails if that
+  advisory reaches a shipped dependency, or after its review date. The minimatch advisory is
+  allowed this way until 2026-12-15, for electron-builder's packaging tools, which have no fixed
+  version.
+
 ## [1.48.2] - 2026-10-29
 
 ### Fixed

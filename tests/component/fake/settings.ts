@@ -10,6 +10,7 @@ import type { ApiaryApi, AppSettingsPayload, PluginInfoPayload } from '@shared/a
 import type { PluginSettingValues } from '@shared/domain/plugins'
 import { mergePayload } from '@shared/settings/schema'
 import type { Env } from './state'
+import { residentStatuses } from './residents'
 
 type SettingsApi = Pick<ApiaryApi,
   | 'settingsGet' | 'settingsSet' | 'pluginList' | 'pluginBarItems' | 'pluginBarRefresh' | 'pluginRunAction'
@@ -57,7 +58,10 @@ export function settingsApi(env: Env): SettingsApi {
       const wasAutoImporting = state.settings.autoImportAll
       const known = new Set(state.plugins.map((p) => p.id))
       const { merged } = mergePayload(state.settings, incoming, { knownPluginIds: known, isAbsolutePath: (p) => p.startsWith('/') })
+      const residentsBefore = JSON.stringify(residentStatuses(state))
       state.settings = merged
+      // Main's ResidentService follows the setting and says so when a status changed (a rename, an enable).
+      if (JSON.stringify(residentStatuses(state)) !== residentsBefore) emit('residentsChanged', residentStatuses(state))
       let statusBarChanged = false
       state.plugins = state.plugins.map((p) => {
         const enabled = merged.plugins[p.id] ?? p.enabled

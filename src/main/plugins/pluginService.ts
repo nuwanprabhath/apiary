@@ -8,6 +8,7 @@ import type { StatusBarRegistry } from '../statusBar/registry'
 import { ConsentStore, memoryConsentStorage, type ConsentStorage } from '../statusBar/claudeUsage/consent'
 import type { UsageAccounts } from '../statusBar/claudeUsage/plugin'
 import { usageStandIn } from '../statusBar/claudeUsage/standIn'
+import { UsageFeed } from '../statusBar/claudeUsage/usageFeed'
 import { BUILTIN_PLUGINS } from './builtin'
 import type { PluginRegistry } from './registry'
 import type { PluginBarItem, PluginSettingValues } from './types'
@@ -60,6 +61,8 @@ export class PluginService {
   private readonly resolver: SessionResolver
   private readonly git: GitService
   private readonly persistEnabled: (pluginId: string, enabled: boolean) => void
+  /** The limits the usage plugin last fetched, for code that must not fetch them (the residents' usage pause). */
+  readonly usage = new UsageFeed()
 
   constructor(deps: PluginServiceDeps) {
     this.plugins = deps.plugins
@@ -82,6 +85,7 @@ export class PluginService {
         accounts: config.accounts,
         consent: new ConsentStore(config.fakeUsage !== undefined ? memoryConsentStorage('granted') : config.consent ?? memoryConsentStorage()),
         remoteClients: config.remoteClients,
+        feed: this.usage,
       })
       this.statusBar.register(plugin, config.enabled?.[plugin.id] ?? plugin.defaultEnabled ?? true)
     }

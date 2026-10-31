@@ -15,6 +15,8 @@ import { clamp, isRecord, own } from '../guards'
 import { bool, nullable, num, str, type Guard } from '../ipc/guards'
 import { MAX_SEGMENTS } from '../promptPreview'
 import { isBusyAnimationId, isBusyColorId, type BusyAnimationId, type BusyColorId } from '../domain/busyAnimation'
+import type { ResidentConfig } from '../domain/residents'
+import { constrainResidents, isResidentList } from './residents'
 
 /** What a constraint may need that a pure shared module cannot look up for itself. */
 export interface SettingContext {
@@ -175,11 +177,15 @@ export const SETTINGS = {
   busyAnimation: setting<BusyAnimationId>({ guard: isBusyAnimationId, default: 'spark' }),
   /** Its colour; an animation that does not offer it uses its own first (`busyColorFor`). */
   busyAnimationColor: setting<BusyColorId>({ guard: isBusyColorId, default: 'theme' }),
+  /** The resident agents (`main/residents/`): each one's name, schedule and models, added one kind's defaults at a time. */
+  residents: setting<ResidentConfig[]>({ guard: isResidentList, default: [], constrain: constrainResidents }),
 }
 
-/** Settings whose control saves them at once, outside the dialog's Save (Themes: Animations, and
- *  the working animation). The dialog's draft still holds what they were when it opened. */
-export const INSTANT_SETTINGS = ['motion', 'busyAnimation', 'busyAnimationColor'] as const satisfies readonly SettingKey[]
+/** Settings whose control saves them at once, outside the dialog's Save (Themes: Animations, the
+ *  working animation, and every Residents card). The dialog's draft still holds what they were when
+ *  it opened, so its Save sends these as saved. A control that saves at once writes through
+ *  `saveInstantSetting`, which takes only these keys. */
+export const INSTANT_SETTINGS = ['motion', 'busyAnimation', 'busyAnimationColor', 'residents'] as const satisfies readonly SettingKey[]
 export type InstantSettingKey = (typeof INSTANT_SETTINGS)[number]
 
 export type SettingKey = keyof typeof SETTINGS

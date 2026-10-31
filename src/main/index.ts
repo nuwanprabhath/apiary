@@ -12,6 +12,7 @@ import { pruneStaleLive } from './windows/sessionLayoutRestore'
 import { readsClaudeKeychain, resolveConfigRoot } from './app/config'
 import { createContainer } from './app/container'
 import { containerPaths } from './app/containerPaths'
+import { resolveResourcesDir } from './app/resourcesDir'
 import { buildMenu } from './app/menu'
 import { writeZshShim } from './pty/promptPath'
 import type { ThemeGenerator } from './theme/themeGenerator'
@@ -28,6 +29,7 @@ import { parseRuntimeEnv, type RuntimeEnv } from './app/env'
 import { installPermissionGuards } from './app/permissions'
 import { broadcast, registerBroadcastSkip, registerBroadcastTargets } from './windows/broadcast'
 import type { Container } from './app/container'
+import type { KnowledgeParts } from './app/knowledgeContainer'
 import type { RemoteClientService } from './remote/remoteClientService'
 import type { RemoteHost } from '@shared/domain/remote'
 import type { Dispatcher } from './ipc/registrar'
@@ -68,8 +70,11 @@ process.on('uncaughtException', (error) => {
 })
 
 let service: AppService | null = null
+let knowledge: KnowledgeParts | null = null
 let disposeIpc: (() => void) | null = null
 let disposeRemote: (() => Promise<void>) | null = null
+/** Stops every resident's claude and the MCP server. */
+let disposeResidents: (() => Promise<void>) | null = null
 /** Quits a background-started app with no window and remote access off; set once remote access starts. */
 let quitIfIdleBackground: () => void = () => {}
 
@@ -234,13 +239,10 @@ async function start(): Promise<void> {
     homeDir: homedir(),
     host: hostname(),
     appVersion: app.getVersion(),
+    resourcesDir: resolveResourcesDir({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, appPath: app.getAppPath() }),
   })
   settingsService = container.settingsService
-  sessionLayoutStore = container.sessionLayoutStore
-  layoutFlushCoordinator = container.layoutFlushCoordinator
-  tabRegistry = container.tabRegistry
-  windowManager = container.windowManager
-  service = container.service
+  ;({ sessionLayoutStore, layoutFlushCoordinator, tabRegistry, windowManager, service, knowledge } = container)
   updater = container.updater
   themeGenerator = container.themeGenerator
   petService = container.petService
@@ -257,7 +259,7 @@ async function start(): Promise<void> {
   // Before any window exists: each window asks for its theme synchronously as it loads.
   const safeTheme = env.safeTheme
   const ipc = registerIpc({
-    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, library: container.library, accounts: container.accounts,state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
+    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, library: container.library, accounts: container.accounts, residents: container.residents, state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
     pickFolder: (sender) => pickFolderOver(sender, env.pickFolder),
     onAutoImportIntervalChange: setAutoImportInterval,
     updater,
@@ -339,6 +341,7 @@ async function start(): Promise<void> {
   // Started after the window exists, so the first status push has somewhere to land.
   updater?.start()
   container.plugins.startStatusBar()
+  disposeResidents = container.residents.start()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) { windowManager!.create(); container.petPlacement.rehome() }
   })
@@ -395,7 +398,9 @@ async function shutdown(): Promise<void> {
     sessionWatcher?.dispose()
     disposeIpc?.()
     await disposeRemote?.()
+    await disposeResidents?.()
     await service?.dispose()
+    knowledge?.store.close()
   }
 }
 

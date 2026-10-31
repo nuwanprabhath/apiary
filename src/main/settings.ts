@@ -6,6 +6,7 @@ import { JsonStore } from './fs/jsonStore'
 import { log } from './log/logger'
 import type { WindowBounds } from './windows/windowBounds'
 import { mergePayload } from '@shared/settings/schema'
+import { loadResidents } from '@shared/settings/residents'
 import type { ConsentState } from './statusBar/claudeUsage/consent'
 import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
 import type { LibraryPatch } from '@shared/libraryState'
@@ -115,6 +116,7 @@ export function createSettingsStore(file: string, onMoved?: (moved: LibraryPatch
         recentSectionHours: clampRecentHours(merged.recentSectionHours),
         // A hand-edited or future value is "not asked", never a grant.
         claudeUsageConsent: merged.claudeUsageConsent === 'granted' || merged.claudeUsageConsent === 'declined' ? merged.claudeUsageConsent : 'unknown',
+        residents: loadResidents(merged.residents),
       }
     },
     fallback: () => DEFAULT_SETTINGS,

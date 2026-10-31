@@ -57,9 +57,15 @@ const CASES: Record<string, Case> = {
     bad: { file: 'src/main/index.ts', code: "import { UNCHECKED_SENDERS } from './ipc/ipcSenderGuard'\nconsole.log(UNCHECKED_SENDERS)" },
     outside: { file: 'src/main/index.ts', code: "import { isTrustedSender } from './ipc/ipcSenderGuard'\nconsole.log(isTrustedSender)" },
   },
+  'settings-write-via-store': {
+    bad: { file: 'src/renderer/state/residentSettings.ts', code: 'declare const window: { apiary: { settingsSet(x: object): Promise<void> } }\nvoid window.apiary.settingsSet({})' },
+    allowed: { file: 'src/renderer/state/settingsStore.ts', code: 'declare const window: { apiary: { settingsSet(x: object): Promise<void> } }\nvoid window.apiary.settingsSet({})' },
+  },
   'construct-in-container': {
     bad: { file: 'src/main/pets/petService.ts', code: 'declare class ClaudeOneShot {}\nnew ClaudeOneShot()' },
-    allowed: { file: 'src/main/app/container.ts', code: 'declare class ClaudeOneShot {}\nnew ClaudeOneShot()' },
+    // A subsystem's own composition file beside container.ts (as knowledgeContainer.ts and residentsContainer.ts are)
+    // is a home by its name, so adding one never edits this rule's allow list.
+    allowed: { file: 'src/main/app/gardenContainer.ts', code: 'declare class ClaudeOneShot {}\nnew ClaudeOneShot()' },
   },
   'credentials-behind-consent': {
     // The shape of the mistake: a second reader of Claude Code's token, bypassing the consent gate.

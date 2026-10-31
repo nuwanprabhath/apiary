@@ -16,6 +16,10 @@ export interface ContainerPaths {
   accountsFile: string
   /** One folder per added Claude account. */
   accountsDir: string
+  /** The topic digests: costly to make, so a search rebuild leaves them be. */
+  knowledgeDbPath: string
+  /** One private folder per resident agent (`main/residents/residentSpace.ts`); the digester skips sessions run in it. */
+  residentsDir: string
 }
 
 export function containerPaths(
@@ -34,5 +38,7 @@ export function containerPaths(
     libraryStateFile: join(userData, 'library-state.json'),
     accountsFile: join(userData, 'accounts.json'),
     accountsDir: join(userData, 'accounts'),
+    knowledgeDbPath: join(userData, 'knowledge.db'),
+    residentsDir: join(userData, 'residents'),
   }
 }

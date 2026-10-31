@@ -1,0 +1,37 @@
+Check whether @$me's review threads on merge request $url ("$title", !$iid by @$author, `$source_branch` → `$target_branch`) have been addressed.
+
+The MR head ($sha) is checked out, detached, at `$worktree`. Read code there.
+Commits since @$me last looked: `git -C $worktree log --oneline $delta_base..HEAD` (if that base is empty, use `git -C $worktree diff origin/$target_branch...HEAD`). $delta_note
+
+Rules:
+- Read-only. Do not comment, resolve, approve, push or change anything in GitLab or the worktree.
+- Never start a CI pipeline or Cypress run.
+- Read every comment on the MR, including top-level ones, not just threads. If anyone has set a condition for approving or merging (an E2E run needed, "hold off until X", waiting on another MR, an open question for @$me), say so. Check whether the condition is met yet.
+- Threads marked "addressed" are resolved automatically, so be strict. Say addressed only when you've confirmed it in the code. Or say it when the author's reply gives a reason no change is needed and you've checked that reason against the code.
+
+Project notes:
+$review_notes
+
+Unresolved threads @$me started:
+
+$threads
+
+For each thread, decide on one verdict:
+- addressed: the concern is fixed, or correctly answered.
+- not_addressed: still a problem; say what's missing.
+- unclear: needs @$me's judgement (design disagreement, product call); say why.
+
+Point out any claim in the author's replies that the code contradicts, even when the thread is addressed.
+
+Then look at the new commits for problems that none of the threads covers. Report only ones you're certain of, and don't repeat existing comments, CodeRabbit's included.
+
+Format code references as markdown links to the absolute path in the worktree with a line anchor, e.g. [path:42]($worktree/path#L42).
+
+End your reply with this JSON block and nothing after it:
+
+```json
+{"threads": [{"id": "<discussion id>", "verdict": "addressed|not_addressed|unclear", "reason": "one or two sentences", "ref": "[path:line](link) or empty"}],
+ "author_claims_wrong": ["..."],
+ "approval_conditions": [{"by": "<username>", "condition": "...", "met": false, "url": "<mr url>#note_<id>"}],
+ "new_findings": [{"blocker": true, "ref": "[path:line](link)", "comment": "..."}]}
+```

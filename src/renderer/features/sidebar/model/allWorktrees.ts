@@ -1,3 +1,4 @@
+import { lastPathSegment } from '@shared/text'
 import type { FolderWorktree, ProjectNode } from '@shared/types'
 
 /**
@@ -15,7 +16,7 @@ export function withAllWorktrees(tree: ProjectNode[], extras: ReadonlyMap<string
       .map((w): ProjectNode => ({
         kind: 'project',
         path: w.path,
-        label: w.path.split(/[\\/]/).filter(Boolean).pop() ?? w.path,
+        label: lastPathSegment(w.path) || w.path,
         branch: w.branch,
         isWorktree: true,
         children: [],

@@ -1,0 +1,52 @@
+{
+  "gitlab_host": "gitlab.com",
+  "project": "group/project",
+  "username": null,
+  "repo_path": "~/code/project",
+  "worktree_root": null,
+  "release_branch_regex": "^(?:release/)?v?(\\d+)\\.(\\d+)\\.(\\d+)$",
+  "release_label_regex": "^release::(\\d+)\\.(\\d+)\\.(\\d+)$",
+  "release_active_days": 30,
+  "bump_labels": [
+    "Bug"
+  ],
+  "urgent_keywords": [
+    "urgent",
+    "blocker",
+    "hotfix",
+    "asap",
+    "critical",
+    "deadline",
+    "for release",
+    "for the release",
+    "production issue"
+  ],
+  "bot_username_regex": "(^project_\\d+_bot|coderabbit|^ghost$|-bot$)",
+  "include_drafts": false,
+  "max_agent_actions": 3,
+  "stale_days": 3,
+  "digest_hour": 9,
+  "worktree_max_age_days": 7,
+  "link_into_worktree": [
+    "node_modules"
+  ],
+  "review_notes": [],
+  "e2e_job_regex": null,
+  "active_hours": {
+    "days": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "start": "09:00",
+    "end": "18:00"
+  },
+  "poll_minutes": [
+    7,
+    22,
+    37,
+    52
+  ]
+}

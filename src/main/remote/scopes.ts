@@ -247,6 +247,22 @@ export const CHANNEL_SCOPES = {
   petClaudeActions: 'local',
   // A remote window never hosts a pet, so it never drops one; and the hit test reads this screen.
   petDropOutside: 'local',
+  // Resident agents run on this machine, over this machine's sessions, for v1.
+  residentsList: 'local',
+  residentsChanged: 'local',
+  residentsAdd: 'local',
+  residentHistory: 'local',
+  residentMessage: 'local',
+  residentSend: 'local',
+  residentStop: 'local',
+  residentClear: 'local',
+  residentRedigest: 'local',
+  residentPermissionAnswer: 'local',
+  residentQuickAction: 'local',
+  residentSeen: 'local',
+  residentPickFolder: 'local',
+  residentKinds: 'local',
+  openSessionRequested: 'local',
 } as const satisfies Record<IpcKey, ChannelScope>
 
 /** What a remote window is told when it calls an `unavailable` channel that has no fixed answer. */

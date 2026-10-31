@@ -3,10 +3,11 @@ import { stat } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import { ignoreErrorsAsync } from '@shared/ignoreErrors'
 import { extractLineText } from './extractText'
+import { extractRefs, type Ref } from '../knowledge/refs'
 import { MAX_TEXT_PER_SESSION, type SearchIndex } from './searchIndex'
 
 /** A longer line (a base64 blob, a pasted log) is skipped unparsed: `JSON.parse` would freeze the main thread. */
-const MAX_LINE_LENGTH = 1_000_000
+export const MAX_LINE_LENGTH = 1_000_000
 
 /**
  * Keeps the search index up to date on the main thread.
@@ -40,7 +41,13 @@ export interface IndexRunResult {
  * unbounded array that `searchIndex.ts` would cut down anyway.
  */
 export async function readSearchText(file: string): Promise<string> {
+  return (await readSearchData(file)).text
+}
+
+/** The searchable text of a session and the refs (MRs, issues, tickets, links) mentioned in it. */
+async function readSearchData(file: string): Promise<{ text: string; refs: Ref[] }> {
   const parts: string[] = []
+  const refs = new Map<string, Ref>()
   let length = 0
   const reader = createInterface({
     input: createReadStream(file, { encoding: 'utf8' }),
@@ -53,16 +60,17 @@ export async function readSearchText(file: string): Promise<string> {
       const text = extractLineText(line)
       if (text !== null) {
         parts.push(text)
+        for (const ref of extractRefs(text)) refs.set(`${ref.kind}|${ref.value}`, ref)
         length += text.length + 1 // +1 for the '\n' the eventual join() adds
       }
     }
   } finally {
     reader.close()
   }
-  return parts.join('\n')
+  return { text: parts.join('\n'), refs: [...refs.values()] }
 }
 
-const yieldToLoop = (): Promise<void> => new Promise((resolve) => { setImmediate(resolve) })
+export const yieldToLoop = (): Promise<void> => new Promise((resolve) => { setImmediate(resolve) })
 
 /**
  * Brings the index up to date for the given sessions.
@@ -98,8 +106,8 @@ export async function runIndexPass(
     }
 
     await ignoreErrorsAsync(async () => {
-      const text = await readSearchText(session.file)
-      index.put(session.sessionId, text, size, mtimeMs)
+      const { text, refs } = await readSearchData(session.file)
+      index.put(session.sessionId, text, size, mtimeMs, refs)
       indexed += 1
     }, 'one unreadable session must not stop the rest of the pass')
     await yieldToLoop()

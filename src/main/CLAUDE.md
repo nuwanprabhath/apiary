@@ -72,9 +72,11 @@ its class to the `construct-in-container` list in `eslint/sanctioned.js`, and ha
 handlers that need it. A new IPC call: `npm run new -- ipc <name>`.
 
 `app/container.ts` is the one place long-lived main-process objects are constructed, with
-`app/remoteContainer.ts` holding remote access's part of it (the construct-in-container lint rule
-allows those two; the one other exception is the search worker's own `SearchIndex`, on its own
-thread). `createRemoteConnecting` takes the outside world it reaches (ssh, the `tailscale` CLI, the
+a subsystem's part of it in its own `app/<name>Container.ts` factory that `createContainer` calls
+(`remoteContainer.ts`, `knowledgeContainer.ts`, `residentsContainer.ts`). The construct-in-container
+lint rule allows `container.ts` and any `app/*Container.ts` by name, so a new subsystem adds its file
+without touching the rule; the one other exception is the search worker's own `SearchIndex`, on its
+own thread. `createRemoteConnecting` takes the outside world it reaches (ssh, the `tailscale` CLI, the
 keychain) as one required `ConnectingOutside`, so the contract loopback stubs only that and runs the
 same wiring. Everything `registerIpc` is handed is required (`X | null` where it does not exist):
 `tests/unit/architecture/ipcDepsRequired.test.ts`. `createContainer(env, paths, inputs)` builds the windows, settings, updater,

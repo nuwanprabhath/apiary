@@ -4,6 +4,7 @@ import { errorMessage } from '@shared/errors'
 import { log } from '../log/logger'
 import { runIndexPass, type IndexableSession } from './indexer'
 import type { SessionStore } from '../store/sessionStore'
+import { refsInQuery } from '../knowledge/refs'
 
 export interface SearchServiceDeps {
   store: SessionStore
@@ -57,6 +58,24 @@ export class SearchService {
    */
   async search(query: string): Promise<string[]> {
     if (!this.searchChatContent && !this.searchSessionNotes) return []
+    const byRef = this.searchChatContent ? this.sessionsWithRefs(query) : []
+    const found = await this.searchText(query)
+    return byRef.length === 0 ? found : [...new Set([...byRef, ...found])]
+  }
+
+  /** Sessions that mentioned a ref the query holds; an indexed lookup, so it runs in-process. */
+  sessionsWithRefs(query: string): string[] {
+    const refs = refsInQuery(query)
+    if (refs.length === 0) return []
+    try {
+      return this.index().sessionsWithRefs(refs)
+    } catch (e) {
+      log.warn('search', 'ref lookup failed', { error: errorMessage(e) })
+      return []
+    }
+  }
+
+  private async searchText(query: string): Promise<string[]> {
     this.searchClient ??= this.createClient()
     const fromWorker = await this.searchClient.search(query, {
       content: this.searchChatContent,

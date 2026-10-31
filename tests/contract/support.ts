@@ -49,6 +49,8 @@ export interface Bridge {
     advanceRemote(): Promise<void>
     /** A home machine called `client` connects to this one over remote access (it shows in Settings' list of who is connected). */
     remoteClientConnects(client: string): Promise<void>
+    /** A running resident's claude calls Apiary's `open_session` tool for `sessionId` (resolves once the tool answered). */
+    residentOpensSession(residentId: string, sessionId: string): Promise<void>
   }
   /**
    * Set only when the window under test is a home window showing a work machine

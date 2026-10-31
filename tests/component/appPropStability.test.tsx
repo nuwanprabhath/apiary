@@ -213,3 +213,33 @@ describe('a change in one pane does not render another (§7.2)', () => {
     renders.stop()
   })
 })
+
+/**
+ * A resident pushes its status on every change of activity ("Searching sessions", "Reading …"),
+ * many times a turn. Window-level code that subscribed to those statuses (the ⌘⇧Space shortcut was
+ * first wired into AppWindow's own hook) re-rendered the whole window on each push; the badge and the
+ * popup subscribe themselves, so a push renders only them.
+ */
+describe('a resident status push does not render the window', () => {
+  it('AppWindow does not render while a resident works', async () => {
+    const regent = {
+      id: 'regent', kind: 'regent' as const, name: 'Regent', enabled: true, model: 'sonnet', digestModel: 'haiku',
+      schedule: { days: [0, 1, 2, 3, 4, 5, 6], start: '00:00', end: '00:00' }, pauseAboveUsagePercent: 70, permissionMode: 'auto' as const, digestLookback: null, options: {}, cycleEveryMinutes: null,
+    }
+    const { fake } = await renderApp({ settings: { residents: [regent] } })
+    await until(() => document.querySelector('[data-testid="resident-badge-regent"]') !== null)
+    await nextFrames(5)
+    const renders = trackRenders('AppWindow', 'one')
+    const status = (activity: string) => ({
+      id: 'regent', kind: 'regent' as const, name: 'Regent', enabled: true, state: 'working' as const, activity, onDuty: true,
+      appearance: { glyph: 'bee' as const, palette: 'gold' as const, animation: 'halo' as const }, digest: null, attention: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
+    })
+    for (const activity of ['Searching sessions', 'Reading CSV export', 'Opening CSV export', 'Writing']) {
+      fake.emit('residentsChanged', [status(activity)])
+      await until(() => document.querySelector('[data-testid="resident-badge-regent"]')?.textContent?.includes(activity) === true)
+    }
+    await nextFrames(2)
+    expect(renders.read().get('one') ?? 0).toBe(0)
+    renders.stop()
+  })
+})

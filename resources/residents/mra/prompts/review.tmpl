@@ -1,0 +1,35 @@
+Review merge request $url ("$title", !$iid by @$author, `$source_branch` → `$target_branch`).
+
+Ticket(s), read each one and all of its comments as well:
+$tickets
+
+$delta_note
+
+The MR head ($sha) is checked out, detached, at `$worktree`. Read code there.
+Diff against the target with `git -C $worktree diff origin/$target_branch...HEAD`.
+Use glab for the MR and tickets (`glab api projects/:id/merge_requests/$iid/discussions`, `glab mr view $iid -R $project`).
+
+Rules:
+- Read-only. Do not comment on the MR, resolve, approve, push or change anything in GitLab or the worktree.
+- Never start a CI pipeline or Cypress run.
+- Read every comment on the MR, including top-level ones, not just threads. If anyone has set a condition for approving or merging (an E2E run needed, "hold off until X", waiting on another MR, an open question for @$me), say so. Check whether the condition is met yet.
+- Read the existing comments, both people's and CodeRabbit's (it posts as a `project_..._bot` user), and don't repeat them.
+- Only give validated comments you are certain of. Open the code and confirm each one; drop anything you can't confirm.
+- Mention any merge blockers among the comments you suggest.
+
+Project notes:
+$review_notes
+
+Format every code reference as a markdown link to the absolute file path in the worktree with a line anchor, so a click opens it in VS Code. Example: [paratoo-webapp/src/x.js:42]($worktree/paratoo-webapp/src/x.js#L42).
+
+Reply in this shape and nothing else, under about 400 words:
+
+BLOCKERS: <number>
+CONDITIONS: <conditions others set for approval, each with its note link, and whether each is met; or "none">
+**Merge blockers**
+1. [path:line](link) comment
+**Other comments**
+1. [path:line](link) comment
+**Checked:** one line on what you read or ran.
+
+Write "None." under a heading with nothing in it.

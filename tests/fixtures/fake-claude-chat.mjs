@@ -7,7 +7,8 @@
 // to run a Bash command and waits for the answer; "slow" streams long enough to be interrupted;
 // "background" starts a background task that finishes a moment after the turn, which (as in the
 // real one) starts a turn of its own; "linger" holds the turn open after its reply until a message
-// joins it or it is interrupted (an interrupt ends it as an interrupted turn). A message sent mid-turn joins that turn: it is replayed
+// joins it or it is interrupted (an interrupt ends it as an interrupted turn). "find" first calls
+// Apiary's `find_sessions` MCP tool, as a resident does; "crash" dies part-way through its reply. A message sent mid-turn joins that turn: it is replayed
 // before the turn's end and answered in it, with one `result` for both. The session id comes from
 // `--resume <id>`.
 import { randomUUID } from 'node:crypto'
@@ -16,7 +17,7 @@ import { appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 const args = process.argv.slice(2)
-let sessionId = args[args.indexOf('--resume') + 1] ?? randomUUID()
+let sessionId = args.includes('--resume') ? args[args.indexOf('--resume') + 1] : randomUUID()
 // After /clear the new session is written to its own JSONL, as claude writes it, so Apiary can
 // index it and a tab can follow the chat there (sessions before it are the fixture's, not ours).
 let cleared = false
@@ -99,6 +100,19 @@ async function turn(text) {
     out({ type: 'system', subtype: 'init', session_id: sessionId, model, permissionMode: mode })
   }
   replay(text)
+  if (text.includes('crash')) {
+    // Dies mid-turn, as a claude that loses its API connection or is killed does.
+    await stream('Starting to ')
+    process.stderr.write('fatal: the fake fell over\n')
+    process.exit(3)
+  }
+  if (text.includes('find')) {
+    // A resident's turn: it calls one of Apiary's MCP tools, takes a moment over it, then answers.
+    const toolUseId = `toolu_${randomUUID()}`
+    assistant([{ type: 'tool_use', id: toolUseId, name: 'mcp__apiary__find_sessions', input: { query: text } }])
+    await sleep(400)
+    out({ type: 'user', uuid: randomUUID(), session_id: sessionId, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content: 'No sessions matched.' }] } })
+  }
   if (text.includes('background')) {
     const toolUseId = `toolu_${randomUUID()}`
     const taskId = `bfake${String(Date.now() % 100000)}`

@@ -34,6 +34,7 @@ import { spellingApi } from './fake/spelling'
 import { foldersApi } from './fake/folders'
 import { initialLibrary, libraryApi } from './fake/library'
 import { accountsApi, initialAccounts } from './fake/accounts'
+import { residentsApi } from './fake/residents'
 import { remoteApi } from './fake/remote'
 import type { Env, FakeApiary, FakeCall, FakeEvent, FakeOptions, FakeProject, FakeSession, FakeState } from './fake/state'
 import { initialThemeState, themesApi } from './fake/themes'
@@ -122,6 +123,14 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     settings: { ...DEFAULT_SETTINGS, ...opts.settings },
     library: initialLibrary(opts.library, opts.librarySeeded),
     accounts: initialAccounts(),
+    residentHistory: new Map(),
+    residentBusy: new Set(),
+    residentActivity: new Map(),
+    residentHeld: new Map(),
+    residentNextCycle: new Map(),
+    residentAttention: new Map(),
+    residentPermissions: new Map(),
+    residentFolder: null,
     sessionAccounts: new Map(),
     theme: initialThemeState(),
     refs: {
@@ -239,6 +248,10 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     ...accountsApi(env),
     onAccountsChanged: on('accountsChanged'),
     onSessionAccountsChanged: on('sessionAccountsChanged'),
+    ...residentsApi(env),
+    onResidentsChanged: on('residentsChanged'),
+    onResidentMessage: on('residentMessage'),
+    onOpenSessionRequested: on('openSessionRequested'),
   }
 
   // Every method goes through here, so calls are recorded and a test can swap one out. The theme

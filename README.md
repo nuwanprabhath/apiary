@@ -5,6 +5,10 @@ pick it up where it left off, and work on several side by side, even on another 
 
 ![Apiary in its default Liquid Glass theme: a searchable sidebar with an Active section listing open sessions, Pinned and grouped sessions below it, and three sessions arranged in a layout — a chat in the large pane in the middle of a long run, with finished and pending tool calls, a thinking row, code and the working timer counting up above its message box; Claude Code's own terminal on the top right; and a chat on the bottom right where Claude asks a single multiple-choice question and the message box is folded away — with three fuzzy pets and the Claude plan-usage meter on the status bar along the bottom](docs/screenshot.png)
 
+![Regent, Apiary's chief of staff, in a floating chat panel over a session pane: the earlier request "Open the session for !1175" with a possible-match card and a chip for the session it opened, which is open behind the panel, and the question "What auth did we design between core and wildobs?" answered in a short paragraph with two clickable session chips and a three-item bullet list; on the status bar below, the gold Regent bee and the MR desk's honey pot with a count badge and the text "2 MRs ready to approve"](docs/screenshot-regent.png)
+
+*Regent, a chief of staff over all your sessions: ask it to find, open or answer from any of them. Beside it, the MR desk's honey pot says two merge requests wait for you.*
+
 ![Remote access: a window titled with the work machine's name and a remote badge in the title bar, its sidebar listing that machine's sessions grouped by project folder, and a chat session in the main pane with finished tool calls and a thinking row, the message box showing the slash-command menu (/clear, /compact, /context, /review, /security-review, /init) above the model pill, context meter and Stop button](docs/screenshot-remote.png)
 
 *Remote access: run Apiary on your work machine and use it from home over SSH or Tailscale. This window is the work machine's sessions, chats and slash commands, live.*
@@ -14,6 +18,8 @@ pick it up where it left off, and work on several side by side, even on another 
 - **Every session in one place.** Apiary reads the session files Claude Code already writes, groups
   them by the folder they started in and nests git worktrees under their repository. There is
   nothing to set up and nothing copied.
+- **Ask, don't search.** Regent knows every session: the merge requests and tickets they mention,
+  and digests of the topics inside long ones. Ask it to open the right one, or to answer from them.
 - **Find it again.** Fuzzy search over titles and your own notes, plus Pinned, Active and Recent
   lists, so last month's session is a few keystrokes away.
 - **Pick up where you left off.** Resume any session in its own working directory, in a terminal or
@@ -37,6 +43,19 @@ pick it up where it left off, and work on several side by side, even on another 
   is checked out in another worktree.
 - **GitLab merge requests** for the current branch, and their status beside `!1234` in titles,
   through `glab` (no token stored).
+- **Residents** (optional, in Settings → Residents): always-on Claude agents with a badge on the
+  status bar, their own hours, and a chat panel. Right-click a badge for its quick actions, such
+  as turning it off, its settings, or the kind's own.
+  - **Regent** answers from all your sessions. Click the bee or press ⌘⇧Space, or press ⌘↵ in the
+    sidebar search. It opens a session or answers with chips that open the ones it used, and keeps
+    its history across restarts. It has Claude's full tools, asking permission in the chat as chat
+    mode does. During its hours, a cheap model writes topic digests of your sessions, looking back
+    as far as you choose and pausing when your 5-hour usage passes a level you set.
+  - **The MR desk** watches the GitLab merge requests you review through `glab`: it reviews new
+    ones, checks threads and tells you which are ready to approve. Its honey pot shows a count and
+    a line when something needs you. Right-click it for Show the desk and Stats.
+  - **Links find their session:** paste a merge request, issue or Jira link, or a ticket key, in the
+    sidebar search to find the session that mentioned it.
 - **Remote access** over SSH: hosts from `~/.ssh/config`, recent connections and Tailscale;
   reconnects on its own; starts Apiary on the work machine if it is not running; optional pairing
   code.
@@ -93,6 +112,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the contributor workflow. Q
     npm run typecheck
     npm run lint            # eslint, stylelint, markdownlint, shellcheck, dependency-cruiser
     npm run screenshot         # regenerate docs/screenshot.png (the first README image)
+    npm run screenshot:regent  # regenerate docs/screenshot-regent.png (Regent and the MR desk, with stand-in claude and glab)
     npm run screenshot:remote  # regenerate docs/screenshot-remote.png (needs Docker)
 
 `npm run screenshot` launches the real app against a representative fixture (project

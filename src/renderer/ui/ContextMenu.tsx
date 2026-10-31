@@ -33,21 +33,33 @@ export function ContextMenu({ items, position, onClose, testId, focusOnOpen = tr
   /**
    * Nudged back on screen when opened near an edge. Measured after rendering at the requested
    * point, since the menu has no size until it is in the document; the layout effect runs before paint.
+   * Measured again whenever the menu's size changes while open (its items change, or a theme with
+   * taller rows applies), or a menu opened from the status bar grows past the window's bottom.
    */
   const [nudge, setNudge] = useState<{ top: number; left: number } | null>(null)
   useLayoutEffect(() => {
-    if (position === null || rootRef.current === null) {
+    const root = rootRef.current
+    if (position === null || root === null) {
       setNudge(null)
       return
     }
-    const rect = rootRef.current.getBoundingClientRect()
-    const left = position.x + rect.width > window.innerWidth
-      ? Math.max(0, window.innerWidth - rect.width - 4)
-      : position.x
-    const top = position.y + rect.height > window.innerHeight
-      ? Math.max(0, window.innerHeight - rect.height - 4)
-      : position.y
-    setNudge(left === position.x && top === position.y ? null : { top, left })
+    const place = (): void => {
+      const rect = root.getBoundingClientRect()
+      const left = position.x + rect.width > window.innerWidth
+        ? Math.max(0, window.innerWidth - rect.width - 4)
+        : position.x
+      const top = position.y + rect.height > window.innerHeight
+        ? Math.max(0, window.innerHeight - rect.height - 4)
+        : position.y
+      setNudge((cur) => {
+        const next = left === position.x && top === position.y ? null : { top, left }
+        return cur?.top === next?.top && cur?.left === next?.left ? cur : next
+      })
+    }
+    place()
+    const observer = new ResizeObserver(place)
+    observer.observe(root)
+    return () => { observer.disconnect() }
   }, [position])
 
   // Escape goes through the shared stack, so a context menu opened from inside another popup

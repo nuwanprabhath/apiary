@@ -25,6 +25,8 @@ interface Props {
 interface State {
   message: string | null
   detail: string | null
+  /** The `resetKey` the children were last tried with. */
+  resetKey: unknown
 }
 
 /**
@@ -36,17 +38,15 @@ interface State {
  * the notification provider's window-level listeners cover those.
  */
 export class ErrorBoundary extends Component<Props, State> {
-  override state: State = { message: null, detail: null }
+  override state: State = { message: null, detail: null, resetKey: this.props.resetKey }
 
-  static getDerivedStateFromError(thrown: unknown): State {
-    const { message, detail } = describeError(thrown)
-    return { message, detail }
+  static getDerivedStateFromError(thrown: unknown): Partial<State> {
+    return describeError(thrown)
   }
 
-  override componentDidUpdate(prev: Props): void {
-    if (this.state.message !== null && !Object.is(prev.resetKey, this.props.resetKey)) {
-      this.setState({ message: null, detail: null })
-    }
+  static getDerivedStateFromProps(props: Props, state: State): Partial<State> | null {
+    if (Object.is(props.resetKey, state.resetKey)) return null
+    return { message: null, detail: null, resetKey: props.resetKey }
   }
 
   override componentDidCatch(thrown: unknown, info: ErrorInfo): void {

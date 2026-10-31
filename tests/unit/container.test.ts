@@ -50,6 +50,8 @@ describe('containerPaths', () => {
       libraryStateFile: '/u/library-state.json',
       accountsFile: '/u/accounts.json',
       accountsDir: '/u/accounts',
+      knowledgeDbPath: '/u/knowledge.db',
+      residentsDir: '/u/residents',
     })
     const real = containerPaths(parseRuntimeEnv({}, [], false), '/u', () => '/real/.claude')
     expect(real.configRoot).toBe('/real/.claude')
@@ -64,7 +66,7 @@ describe('createContainer', () => {
     const c = createContainer(env, paths, {
       vsCodePath: null, zshPromptShim: join(dir, 'zsh'), dirname: dir,
       statusBarKeychain: false, macSigned: false, isQuitting: () => false,
-      homeDir: dir, host: 'test-host', appVersion: '0.0.0',
+      homeDir: dir, host: 'test-host', appVersion: '0.0.0', resourcesDir: join(dir, 'resources'),
     })
     try {
       expect(c.service.pty).toBeDefined()

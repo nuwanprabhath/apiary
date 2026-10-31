@@ -15,7 +15,7 @@ import { ROOT, walk } from './allowlist'
  * indentation (a class method at two spaces, a top-level function at none), so a call in a nested
  * closure counts toward the method around it.
  */
-const DIRS = ['src/main/claude', 'src/main/chat', 'src/main/terminals']
+const DIRS = ['src/main/claude', 'src/main/chat', 'src/main/terminals', 'src/main/residents']
 const STARTS = /\b(buildResumeCommand|buildNewSessionCommand|buildChatCommand|spawnLoginShell)\(/
 const ENV = /\b(envFor\(|launchEnv\(|claudeEnv\(|extraEnv)/
 const HEADER = /^(?: {2}(?:(?:private|public|protected|static|async|readonly)\s+)*[A-Za-z_$][\w$]*\(|(?:export\s+)?(?:async\s+)?function\s)/

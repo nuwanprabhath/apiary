@@ -37,6 +37,15 @@ asarUnpack:
   # path resolves through app.asar.unpacked transparently. If it ever failed to start, search would
   # silently fall back to running on the main thread, which is the freeze it exists to prevent.
   - "out/main/searchWorker.js"
+# The MR desk resident's vendored program (Python scripts run as `python3 <resources>/residents/mra/bin/mra`).
+# They sit outside the asar so python3 can read them; main finds them through `resolveResourcesDir`.
+extraResources:
+  - from: resources/residents
+    to: residents
+    filter:
+      - "**/*"
+      - "!**/__pycache__/**"
+      - "!mra/tests/**"
 afterPack: build/afterPack.cjs
 # Electron fuses (SEC-3): a terminal host accumulates real macOS TCC grants (Documents, Desktop,
 # Full Disk Access), and any code that runs *as* the packaged Apiary binary inherits them. Nothing

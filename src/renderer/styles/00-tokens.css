@@ -102,6 +102,43 @@
   /* The lifted-chip shadow (the active session tab): a hairline edge plus this drop, composed with
    * a border colour that varies by state — see the .session-tab[data-active] rule. */
   --shadow-chip: 0 1px 3px rgb(0 0 0 / 28%);
+  /* The resident bee's gold (styles/36-residents.css): the same in every theme, as it is the bee's own. */
+  --resident-gold: #f5b301;
+  --resident-gold-hi: #ffe08a;
+  --resident-gold-deep: #d98a00;
+  --resident-ink: #3b2a05;
+  /* The orb's disc: near-black amber, so the gold bee stands out on light and dark themes alike. */
+  --resident-night: #1c1405;
+  --resident-wing: rgb(236 244 255 / 88%);
+  /* The MR desk's honey pot: an amber glow and a wooden dipper, the same in every theme. */
+  --resident-amber: #ff9f1a;
+  --resident-amber-hi: #ffd27a;
+  --resident-amber-deep: #e07000;
+  --resident-wood: #9a6a3a;
+  --resident-count-min: 14px;
+  --resident-orb-size: 20px;
+  --resident-orb-size-sm: 18px;
+  /* The orb in the comfortable status bar: drawn at size, never scaled, so it stays crisp. Orb, bee
+   * and badge sizes are all even, so each centres inside the next on whole pixels. The tall bar's
+   * follow its height (`--resident-*-live`, set by StatusBar from `residentSizesFor`). */
+  --resident-orb-size-lg: 26px;
+  --resident-bee-size: 16px;
+  --resident-bee-size-lg: 20px;
+  --resident-badge-height-lg: 30px;
+  --resident-pill-max: 220px;
+  /* The pill in the comfortable and tall bars, which exist to show more of the words: as narrow as
+   * the compact one in a narrow window: two pills share what the activity line and the usage meter
+   * (about 560px) leave. */
+  --resident-pill-max-roomy: clamp(200px, (100vw - 560px) / 2, 340px);
+  /* From 58 px the orbs and words are larger, so in a narrow window the pills give up more room. */
+  --resident-pill-max-large: clamp(130px, (100vw - 700px) / 2, 340px);
+  --resident-unread-size: 6px;
+  --resident-popup-header-height: 36px;
+  --resident-popup-min-width: 320px;
+  --resident-popup-min-height: 280px;
+  /* The popup's resize grips: its left and top edges, and the corner where they meet. */
+  --resident-edge-grip: 6px;
+  --resident-corner-grip: 12px;
   /* The lightbox's own backdrop, darker than --bg-overlay because it sits behind a photo rather
    * than behind UI chrome. */
   --bg-lightbox: rgb(0 0 0 / 85%);
@@ -164,6 +201,10 @@
    * (main's TITLE_BAR_HEIGHT) — change both together. */
   --title-bar-height: 32px;
   --control-height-sm: calc(22px * var(--density));
+  /* The status bar while a resident works: room for its pill. */
+  --status-bar-height-working: calc(var(--control-height-sm) + 6px);
+  /* Resize mode's handle along the status bar's top edge. */
+  --status-bar-handle-height: 4px;
   /* The strip a hidden sidebar leaves behind: one icon button and its breathing room. */
   --sidebar-rail-width: 40px;
   --control-padding-x: calc(10px * var(--density));

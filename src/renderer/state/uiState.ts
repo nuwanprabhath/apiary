@@ -200,3 +200,86 @@ export function writeAsideThread(sessionId: string, turns: readonly StoredAsideT
   const next = turns.length === 0 ? others : [...others, [sessionId, turns.slice(-MAX_ASIDE_TURNS)] as [string, StoredAsideTurn[]]].slice(-MAX_ASIDE_THREADS)
   ignoreErrors(() => { localStorage.setItem(ASIDES_KEY, JSON.stringify(next)) }, 'storage can be full or blocked; the thread then lasts only as long as this window')
 }
+
+/** The resident chat popup's rectangle, in px from the window's bottom-right corner (it is anchored there). */
+export interface ResidentPopupRect {
+  right: number
+  bottom: number
+  width: number
+  height: number
+}
+
+const RESIDENT_POPUP_KEY = 'residentPopup'
+
+const isPopupRect = (v: unknown): v is ResidentPopupRect => {
+  if (typeof v !== 'object' || v === null) return false
+  const r = v as Record<string, unknown>
+  return [r.right, r.bottom, r.width, r.height].every((n) => typeof n === 'number' && Number.isFinite(n))
+}
+
+/** This window's popup rectangle; null until it has been moved or resized here. */
+export function readResidentPopupRect(): ResidentPopupRect | null {
+  const stored = read(`${KEY}.${RESIDENT_POPUP_KEY}`)
+  return isPopupRect(stored) ? stored : null
+}
+
+export function writeResidentPopupRect(rect: ResidentPopupRect): void {
+  ignoreErrors(() => { localStorage.setItem(`${KEY}.${RESIDENT_POPUP_KEY}`, JSON.stringify(rect)) }, 'storage can be full or blocked; the popup then opens where it opens by default')
+}
+
+/** One string per resident, in one record every window shares. */
+function readPerResident(key: string): Record<string, string> {
+  return Object.fromEntries(Object.entries(read(key)).filter((e): e is [string, string] => typeof e[1] === 'string'))
+}
+
+function writePerResident(key: string, residentId: string, value: string, why: string): void {
+  const others = Object.entries(readPerResident(key)).filter(([id]) => id !== residentId)
+  const next = Object.fromEntries(value === '' ? others : [...others, [residentId, value]])
+  ignoreErrors(() => { localStorage.setItem(key, JSON.stringify(next)) }, why)
+}
+
+const RESIDENT_DRAFTS_KEY = 'apiary.residentDrafts'
+const RESIDENT_SEEN_KEY = 'apiary.residentSeen'
+
+/** What was typed to a resident and not sent. */
+export function readResidentDraft(residentId: string): string {
+  return readPerResident(RESIDENT_DRAFTS_KEY)[residentId] ?? ''
+}
+
+/** An empty text forgets the draft. */
+export function writeResidentDraft(residentId: string, text: string): void {
+  writePerResident(RESIDENT_DRAFTS_KEY, residentId, text, 'storage can be full or blocked; the draft then lives only as long as the box')
+}
+
+/** The id of the resident's newest message the person has seen in its popup, or null. */
+export function readResidentSeen(residentId: string): string | null {
+  return readPerResident(RESIDENT_SEEN_KEY)[residentId] ?? null
+}
+
+export function writeResidentSeen(residentId: string, messageId: string): void {
+  writePerResident(RESIDENT_SEEN_KEY, residentId, messageId, 'storage can be full or blocked; the unread dot then comes back after a reload')
+}
+
+const STATUS_BAR_HEIGHT_KEY = 'apiary.statusBarHeight'
+
+/** The status bar's chosen height in px, shared by every window of this machine; null when never set. */
+export function readStatusBarHeight(): number | null {
+  try {
+    const raw = localStorage.getItem(STATUS_BAR_HEIGHT_KEY)
+    const n = Number(raw)
+    return raw !== null && Number.isFinite(n) ? n : null
+  } catch {
+    return null
+  }
+}
+
+export function writeStatusBarHeight(height: number): void {
+  ignoreErrors(() => { localStorage.setItem(STATUS_BAR_HEIGHT_KEY, String(height)) }, 'storage can be full or blocked; the bar then starts at its default height next time')
+}
+
+/** Calls `listener` when another window of this machine saves a status bar height. */
+export function onStatusBarHeightStored(listener: (height: number | null) => void): () => void {
+  const onStorage = (e: StorageEvent): void => { if (e.key === STATUS_BAR_HEIGHT_KEY) listener(readStatusBarHeight()) }
+  window.addEventListener('storage', onStorage)
+  return () => { window.removeEventListener('storage', onStorage) }
+}

@@ -1,4 +1,5 @@
 import { contextMenuRequestFrom, isEditCommand, type ContextMenuParamsLike } from '@shared/domain/contextMenu'
+import { asSessionId } from '@shared/domain/ids'
 import { defineBridgeContract, LONG_SESSION } from '../contract/bridgeContract'
 import { BAR_ITEM, BAR_PLUGIN, CONSENT_ITEM, CONSENT_PLUGIN, FEED_VERSION, noMachineMessage, pairingSeenMessage, REMOTE_WORLD, STATUS_ITEM, STATUS_PANEL, STATUS_PLUGIN } from '../contract/world'
 import { createFakeApiary, FIXTURE_PROJECTS, FIXTURE_SESSIONS, fakeRef, message, type FakeSession } from './fakeApiary'
@@ -59,6 +60,13 @@ defineBridgeContract('fakeApiary', async ({ imported = true, longSessionMessages
       linkOutsideHome: (name) => { fake.state.homeLinks.add(name); return Promise.resolve() },
       commitLocally: () => { main().ahead += 1; return Promise.resolve() },
       advanceRemote: () => { main().pending += 1; return Promise.resolve() },
+      // As main: an enabled resident's `open_session` on a session Apiary knows asks the front window to show it.
+      residentOpensSession: (residentId, sessionId) => {
+        if (fake.state.settings.residents.find((c) => c.id === residentId)?.enabled !== true) return Promise.reject(new Error(`${residentId} is not running`))
+        if (!fake.state.sessions.some((s) => s.sessionId === sessionId)) return Promise.reject(new Error(`Unknown session id: ${sessionId}`))
+        fake.emit('openSessionRequested', asSessionId(sessionId))
+        return Promise.resolve()
+      },
       remoteClientConnects: (client) => {
         fake.state.remoteClients = [...fake.state.remoteClients, { id: `home-${String(fake.state.remoteClients.length + 1)}`, client, connectedAt: Date.now(), windows: 0 }]
         fake.emit('remoteClientsChanged', fake.state.remoteClients)

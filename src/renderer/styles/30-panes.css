@@ -491,17 +491,68 @@
   align-items: stretch;
   gap: 2px;
   flex: none;
-  height: var(--control-height-sm);
+  position: relative;
+  /* The person's chosen height (StatusBar sets it inline, state/statusBarSize.ts). */
+  height: var(--status-bar-height, var(--control-height-sm));
   padding: 0 var(--space-xs);
   background: none;
-  border-top: 1px solid var(--border);
+  /* A drawn line rather than a border, so the bar's whole height is room to centre in: a 1px border
+   * left an odd height, which put the resident orb on a half pixel and blurred it. */
+  box-shadow: inset 0 1px 0 var(--border);
   color: var(--text);
   font-size: 12px;
 }
 .status-bar-spacer { flex: 1; }
 
+/* The size tiers (data-size, from the height): bigger words and icons, and two lines when tall. */
+.status-bar:is([data-size="comfortable"], [data-size="tall"]) { --icon-size: var(--icon-size-lg); font-size: 13px; }
+.status-item-lines { display: inline-flex; flex-direction: column; min-width: 0; line-height: 1.25; text-align: left; }
+.status-item-line1, .status-item-line2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.status-item-line2 { color: var(--muted); font-size: 12px; }
+/* From 58 px (`data-text="large"`): a size up again, words and icons. */
+.status-bar[data-text="large"] { --icon-size: var(--icon-size-xl); font-size: 14px; }
+.status-bar[data-text="large"] .status-item-line2 { font-size: 13px; }
+.status-item[data-tone]:not([data-tone="normal"]) .status-item-line2 { color: inherit; }
+
+/* Resize mode: the top edge is a handle, with three dots for a grip and the height on a tag while it moves. */
+.status-bar-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: var(--z-resizer);
+  height: var(--status-bar-handle-height);
+  background: var(--accent);
+  cursor: ns-resize;
+}
+.status-bar-resize:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.status-bar-resize::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(50% - var(--space-md));
+  width: calc(var(--space-md) * 2);
+  height: var(--status-bar-handle-height);
+  background: radial-gradient(circle, var(--accent-contrast) 1px, transparent 1.5px) 0 0 / calc(var(--space-md) * 2 / 3) 100% repeat-x;
+}
+.status-bar-resize-tag {
+  position: absolute;
+  bottom: calc(100% + var(--space-sm));
+  left: 50%;
+  translate: -50% 0;
+  padding: var(--space-xs) var(--space-md);
+  background: var(--bg-popover, var(--bg-panel));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* What the app is doing (state/activityStore): left of the floor, one line, shrinks with an ellipsis. */
-.activity-region { display: flex; min-width: 0; max-width: 60%; }
+.activity-region { display: flex; flex-shrink: 100; min-width: 0; max-width: 60%; }
 .activity-indicator {
   display: inline-flex;
   align-items: center;
@@ -538,7 +589,14 @@ button.activity-indicator:focus-visible { outline: none; box-shadow: var(--focus
   font: inherit;
   cursor: pointer;
   white-space: nowrap;
+  /* Whole pixels wide: the items set where the resident orbs left of them land, and an orb on a
+   * fraction of a pixel is drawn blurred. */
+  width: calc-size(max-content, round(up, size, 1px));
 }
+/* When the bar runs short, the activity's words go first, then an item's text (its second line,
+ * when tall) ellipsizes; the full text is in its label and its hover detail. */
+.status-item:has(.status-item-text) { min-width: 0; }
+.status-item-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .status-item:disabled { cursor: default; }
 .status-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .status-item:hover:not(:disabled) { background: var(--hover); color: var(--text); }
@@ -612,3 +670,69 @@ button.activity-indicator:focus-visible { outline: none; box-shadow: var(--focus
 .status-line-label { fill: var(--muted); font-size: 11px; }
 
 .status-panel .status-sections { max-height: 70vh; overflow: auto; }
+
+/* The tab list (TabListMenu): every tab of the pane, to jump to one or to put them in order. */
+.tab-list-menu {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 220px;
+  max-width: 420px;
+  width: max-content;
+  max-height: 60vh;
+  padding: var(--space-xs);
+  border-radius: var(--radius-lg);
+  background: var(--bg-popover, var(--bg-panel));
+  box-shadow: 0 0 0 1px var(--border), var(--shadow-overlay);
+  outline: none;
+}
+.tab-list-filter { flex: none; margin-bottom: var(--space-xs); }
+.tab-list-rows { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; outline: none; }
+.tab-list-row {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--control-gap);
+  min-width: 0;
+  padding: var(--space-xs) var(--control-padding-x);
+  border: 0;
+  border-radius: var(--radius-row);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tab-list-row[data-highlighted="true"] { background: var(--hover); }
+.tab-list-row[aria-current="true"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: var(--space-xs);
+  bottom: var(--space-xs);
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.tab-list-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-list-row[aria-current="true"] .tab-list-title { font-weight: 600; }
+.tab-list-row[data-dragging="true"] { opacity: 0.5; }
+.tab-list-row[draggable="true"] { cursor: grab; }
+.tab-list-row[data-drop-before="true"]::after,
+.tab-list-row[data-drop-after="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+}
+.tab-list-row[data-drop-before="true"]::after { top: -1px; }
+.tab-list-row[data-drop-after="true"]::after { bottom: -1px; }
+/* One width for every status mark, so titles line up whether a row is idle, waiting or running. */
+.tab-list-mark { display: flex; flex: none; align-items: center; justify-content: center; width: var(--status-spinner-size); }
+.tab-list-hint { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
+.tab-list-empty { margin: 0; padding: var(--space-sm) var(--control-padding-x); color: var(--muted); }

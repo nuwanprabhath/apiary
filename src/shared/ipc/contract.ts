@@ -49,6 +49,11 @@ import type { SavedTheme, ThemeOptions, ThemeGenerateResult, ThemeState } from '
 import type { PetPatch, PetRecord, PetsState } from '../pets/state'
 import type { VoiceContext } from '../pets/prompt'
 import { isPetPatch, isVoiceContext } from '../pets/ipcGuards'
+import {
+  RESIDENT_KINDS, type ResidentConfig, type ResidentKindId, type ResidentKindInfo, type ResidentMessage, type ResidentMessagePush, type ResidentStatus, type SessionHit,
+} from '../domain/residents'
+import { RESIDENT_ID_RE } from '../settings/residents'
+import { isOneOf } from '../guards'
 import { isPairingCode, isRemoteHost, type RemoteClientInfo, type RemoteHost, type RemoteServerState, type RemoteStatus } from '../domain/remote'
 
 // Boundary guards for branded ids: the one place a string arriving over IPC becomes a branded id.
@@ -57,6 +62,11 @@ const sessionIdArg: Guard<SessionId> = (v): v is SessionId => typeof v === 'stri
 const ptyIdArg: Guard<PtyId> = (v): v is PtyId => typeof v === 'string'
 const terminalRefArg: Guard<TerminalRef> = isTerminalRef
 const gitTargetArg: Guard<GitTarget> = isGitTarget
+const residentIdArg: Guard<string> = (v): v is string => typeof v === 'string' && RESIDENT_ID_RE.test(v)
+const residentKindArg: Guard<ResidentKindId> = (v): v is ResidentKindId => isOneOf(RESIDENT_KINDS, v)
+const residentTextArg: Guard<string> = (v): v is string => typeof v === 'string' && v.length <= 8000
+/** A permission request id (claude's), a quick action's id or an option key: short, printable, no path. */
+const residentTokenArg: Guard<string> = (v): v is string => typeof v === 'string' && /^[\w.:-]{1,200}$/.test(v)
 
 type ChatStartOptions = { takeOver: boolean; model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort }
 const chatStartOptions: Guard<ChatStartOptions> = (v): v is ChatStartOptions => {
@@ -419,6 +429,39 @@ export const IPC = {
   remoteHosts: invoke<[probe: boolean], RemoteHost[]>('apiary:remote-hosts', tuple(bool)),
   /** A probe finished: the whole list again, with what is known now. */
   remoteHostsChanged: event<[hosts: RemoteHost[]]>('apiary:remote-hosts-changed'),
+
+  // Resident agents (`main/residents/`). All `local`: a resident is this machine's.
+  /** Every configured resident's status. */
+  residentsList: invoke<[], ResidentStatus[]>('apiary:residents-list', tuple()),
+  /** Some resident's status changed (state, activity, schedule, settings): all of them again. */
+  residentsChanged: event<[statuses: ResidentStatus[]]>('apiary:residents-changed'),
+  /** Adds a resident of `kind` with the kind's defaults and a fresh id (disabled until the user enables it). */
+  residentsAdd: invoke<[kind: ResidentKindId], ResidentConfig>('apiary:residents-add', tuple(residentKindArg)),
+  /** The resident's visible chat, oldest first. */
+  residentHistory: invoke<[id: string], ResidentMessage[]>('apiary:resident-history', tuple(residentIdArg)),
+  /** A message added to or updated in a resident's chat (streamed text arrives as repeated updates of one message). */
+  residentMessage: event<[push: ResidentMessagePush]>('apiary:resident-message'),
+  /** Sends to an enabled resident; answers at once with up to 3 sessions the index matched, before the model replies. */
+  residentSend: invoke<[id: string, text: string], SessionHit[]>('apiary:resident-send', tuple(residentIdArg, residentTextArg)),
+  /** Stops the resident's running turn. */
+  residentStop: invoke<[id: string], void>('apiary:resident-stop', tuple(residentIdArg)),
+  /** Empties the resident's chat and forgets its claude session. */
+  residentClear: invoke<[id: string], void>('apiary:resident-clear', tuple(residentIdArg)),
+  /** Forgets every topic digest and starts the digest again. */
+  residentRedigest: invoke<[id: string], void>('apiary:resident-redigest', tuple(residentIdArg)),
+  /** Allows or denies a tool use the resident waits on (`ResidentStatus.permissions`); an id already answered is ignored. */
+  residentPermissionAnswer: invoke<[id: string, requestId: string, allow: boolean], void>(
+    'apiary:resident-permission-answer', tuple(residentIdArg, residentTokenArg, bool)),
+  /** Runs one of the kind's quick actions (`ResidentStatus.quickActions`): a prompt goes to the chat, a command's output is added to it. */
+  residentQuickAction: invoke<[id: string, actionId: string], void>('apiary:resident-quick-action', tuple(residentIdArg, residentTokenArg)),
+  /** The user opened the resident's popup: clears what it flagged (`attention`). */
+  residentSeen: invoke<[id: string], void>('apiary:resident-seen', tuple(residentIdArg)),
+  /** Opens the folder dialog (in main) for one of the kind's folder options and stores the choice; answers the stored value, or null when cancelled. */
+  residentPickFolder: invoke<[id: string, key: string], string | null>('apiary:resident-pick-folder', tuple(residentIdArg, residentTokenArg)),
+  /** Every kind: its name, blurb, option fields, whether it digests and its look, for "Add …" and the settings fields. */
+  residentKinds: invoke<[], ResidentKindInfo[]>('apiary:resident-kinds', tuple()),
+  /** A resident asked to show this session: the front window focuses its tab, or opens it in the focused pane. */
+  openSessionRequested: event<[sessionId: SessionId]>('apiary:open-session-requested'),
 
   // Spelling.
   spellingGetLanguages: invoke<[], string[]>('apiary:spelling-get-languages', tuple()),

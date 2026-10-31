@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+"""Run as `python3 <dir>/bin/mra`: puts the package next to this folder on the path, no exec bit needed."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from mra.cli import main  # noqa: E402
+
+main()

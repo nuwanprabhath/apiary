@@ -34,7 +34,7 @@ describe('a chat update renders only what changed', () => {
     play({ status: 'busy', turnStartedAt: Date.now(), live, streaming: stream('The') })
     await until(() => document.querySelectorAll('[data-testid="chat-text"]').length === 4)
 
-    const renders = trackRenders('Item', true)
+    const renders = trackRenders('Item', 'key')
     for (const text of ['The parser', 'The parser reads', 'The parser reads the file']) {
       play({ streaming: stream(text) })
       await expect.poll(() => document.querySelector('[data-testid="chat-streaming"]')?.textContent?.trim()).toBe(text)

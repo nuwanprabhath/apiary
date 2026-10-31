@@ -61,6 +61,9 @@ export const saveSettingsDraft = async ({ hideToolCallIo, ...settings }: Setting
   if (hideToolCallIo !== (await readLibraryState()).hideToolCallIo) await saveLibraryState({ hideToolCallIo })
 }
 
+/** Re-reads the settings after a command outside the dialog changed them (`addResident`, `updateResident`). */
+export const reloadSettings = (): void => { settingsStore.reload() }
+
 /** Saves one of the `INSTANT_SETTINGS` at once (it has no Save button, like the theme options) and re-reads. */
 export const saveInstantSetting = async (patch: Partial<Pick<AppSettingsPayload, InstantSettingKey>>): Promise<void> => {
   await window.apiary.settingsSet({ ...(await window.apiary.settingsGet()), ...patch })

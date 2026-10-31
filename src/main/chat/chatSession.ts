@@ -10,17 +10,17 @@ import {
 } from './protocol'
 
 /** How often a burst of streamed text reaches the window: often enough to read as live. */
-const EMIT_EVERY_MS = 120
+export const EMIT_EVERY_MS = 120
 /** How much of stderr is kept, to say why a process stopped. */
-const STDERR_TAIL = 2000
+export const STDERR_TAIL = 2000
 /** How long a stopped process gets to exit before it is killed outright. */
-const STOP_GRACE_MS = 3000
+export const STOP_GRACE_MS = 3000
 /**
  * How long after claude answers an interrupt its turn's `result` may still come. A turn it stops
  * ends at once, its `result` right behind the answer; with no turn running, claude answers and
  * sends nothing more (measured on 2.1.302).
  */
-const INTERRUPT_SETTLE_MS = 2000
+export const INTERRUPT_SETTLE_MS = 2000
 /** The end of a turn claude never ended, applied as its own `result` would be. */
 const SETTLED_BY_STOP = { type: 'result', subtype: 'error_during_execution', is_error: true } as const
 

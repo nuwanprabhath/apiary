@@ -4,6 +4,7 @@ import { StatusBar } from '../features/statusBar/StatusBar'
 import { PetLayer, petsOut } from '../features/pets/PetLayer'
 import { TextMenuHost } from '../features/spelling'
 import { RemoteRoot } from '../features/remote'
+import { ResidentsRoot } from '../features/residents'
 import { TitleBar } from '../features/titleBar/TitleBar'
 import { UpdateBanner } from '../features/update/UpdateBanner'
 import { usePets } from '../state/petsStore'
@@ -117,6 +118,7 @@ export function WindowFooter({ sidebarHidden, titleOf, onOpenSettings }: {
       >
         <TextMenuHost />
       </ErrorBoundary>
+      <ResidentsRoot onOpenSettings={onOpenSettings} />
     </>
   )
 }

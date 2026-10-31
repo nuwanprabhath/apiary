@@ -1,5 +1,5 @@
 import { afterAll } from 'vitest'
-import { chmodSync, cpSync, mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { STARTER_PET } from '@shared/pets/builtins'
@@ -17,6 +17,8 @@ import type { Services } from '../../../src/main/app/container'
 import { registerIpc } from '../../../src/main/ipc'
 import { RemoteConnection } from '../../../src/main/remote/remoteConnection'
 import { createRemoteConnecting, createRemoteServing } from '../../../src/main/app/remoteContainer'
+import { createResidents } from '../../../src/main/app/residentsContainer'
+import { resolveResourcesDir } from '../../../src/main/app/resourcesDir'
 import type { CallRouter, Dispatcher } from '../../../src/main/ipc/registrar'
 import { UNCHECKED_SENDERS } from '../../../src/main/ipc/ipcSenderGuard'
 import { watchContextMenu } from '../../../src/main/windows/contextMenu'
@@ -238,6 +240,20 @@ export async function buildLoopbackWorld(
     hostsFile: seedRemoteHosts(home), pairingCodesFile: join(home, 'remote-pairing-codes.json'),
     windowManager: { open: () => ({ number: 9001, webContentsId: 9001, onClosed: () => {} }) },
   }, loopbackConnectingOutside(home))
+  const ipcState = buildIpcState(service, join(home, '.claude'), {
+    tabRegistry, accounts,
+    ...(extras.virtualContents !== undefined ? { virtualContents: extras.virtualContents } : {}),
+    windowNumberFor: (id) => (id === fakeContents.id ? THIS_WINDOW.number : null),
+    openDetachedWindow: () => DETACHED_WINDOW_NUMBER,
+  })
+  // The app's own factory. Its claude is pinned to the fake: a settings save re-applies `claudeBin`
+  // from the file (null, so PATH), and a clause enables a resident through the setting.
+  const residents = createResidents({
+    settingsService: settings, paths: { residentsDir: join(home, 'residents') }, store: built.store, accounts, knowledge: built.knowledge, tabRegistry,
+    service: { claudeBin: FAKE_CLAUDE, plugins: service.plugins }, ipcState, windowManager: { windowNumberFor: (id) => (id === fakeContents.id ? THIS_WINDOW.number : null) }, version: '0.0.0',
+    resourcesDir: resolveResourcesDir({ packaged: false, resourcesPath: '', appPath: process.cwd() }),
+  })
+  const disposeResidents = residents.start()
   const ipc = registerIpc({
     senderPolicy: UNCHECKED_SENDERS,
     remoteServer, remotePairing, remoteClient,
@@ -256,12 +272,8 @@ export async function buildLoopbackWorld(
       onChanged: (snapshot) => { broadcast(IPC.libraryStateChanged, snapshot) },
     }),
     accounts,
-    state: buildIpcState(service, join(home, '.claude'), {
-      tabRegistry, accounts,
-      ...(extras.virtualContents !== undefined ? { virtualContents: extras.virtualContents } : {}),
-      windowNumberFor: (id) => (id === fakeContents.id ? THIS_WINDOW.number : null),
-      openDetachedWindow: () => DETACHED_WINDOW_NUMBER,
-    }),
+    state: ipcState,
+    residents,
     settings,
     tabRegistry,
     windowNumberFor: (id) => (id === fakeContents.id ? THIS_WINDOW.number : null),
@@ -308,6 +320,20 @@ export async function buildLoopbackWorld(
         madeHere += 1
         commitFile(repoRoot, 'local.txt', `a commit made in a terminal (${String(madeHere)})`)
       },
+      residentOpensSession: async (residentId, sessionId) => {
+        // What the resident's claude does: call `open_session` on Apiary's MCP server with the token in its config.
+        const config = JSON.parse(readFileSync(join(home, 'residents', residentId, 'mcp.json'), 'utf8')) as {
+          mcpServers: { apiary: { url: string; headers: Record<string, string> } }
+        }
+        const { url, headers } = config.mcpServers.apiary
+        const reply = await fetch(url, {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'open_session', arguments: { sessionId } } }),
+        })
+        const body = await reply.json() as { result?: { isError?: boolean; content: { text: string }[] } }
+        if (body.result?.isError === true) throw new Error(body.result.content[0]?.text ?? 'open_session failed')
+      },
       remoteClientConnects: async (client) => {
         await remoteServer.start()
         homeMachines.push(await RemoteConnection.connect(remoteServer.socketPath, { appVersion: '0.0.0', host: 'loopback', client }))
@@ -322,6 +348,7 @@ export async function buildLoopbackWorld(
     },
     cleanup: async () => {
       ipc.dispose()
+      await disposeResidents()
       await remoteClient.dispose()
       for (const machine of homeMachines) machine.close()
       await remoteServer.stop()

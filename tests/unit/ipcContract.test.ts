@@ -199,6 +199,21 @@ describe('the IPC contract', () => {
       selectTab: 'apiary:select-tab',
       spellingGetLanguages: 'apiary:spelling-get-languages',
       spellingSetLanguage: 'apiary:spelling-set-language',
+      residentsList: 'apiary:residents-list',
+      residentsChanged: 'apiary:residents-changed',
+      residentsAdd: 'apiary:residents-add',
+      residentHistory: 'apiary:resident-history',
+      residentMessage: 'apiary:resident-message',
+      residentSend: 'apiary:resident-send',
+      residentStop: 'apiary:resident-stop',
+      residentClear: 'apiary:resident-clear',
+      residentRedigest: 'apiary:resident-redigest',
+      residentPermissionAnswer: 'apiary:resident-permission-answer',
+      residentQuickAction: 'apiary:resident-quick-action',
+      residentSeen: 'apiary:resident-seen',
+      residentPickFolder: 'apiary:resident-pick-folder',
+      residentKinds: 'apiary:resident-kinds',
+      openSessionRequested: 'apiary:open-session-requested',
     })
   })
 

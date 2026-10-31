@@ -10,7 +10,7 @@ import { defineConfig } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './scripts/screenshot',
-  testMatch: 'screenshot.spec.ts',
+  testMatch: ['screenshot.spec.ts', 'regent.spec.ts'],
   timeout: 60000,
   expect: { timeout: 15000 },
   workers: 1,

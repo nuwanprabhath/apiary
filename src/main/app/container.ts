@@ -27,6 +27,7 @@ import { ImageStore } from '../media/imageStore'
 import { ChatManager, type SpawnChat } from '../chat/chatManager'
 import { ChatService } from '../chat/chatService'
 import { ClaudeOneShot } from '../claude/claudeOneShot'
+import { createKnowledge, type KnowledgeParts, type KnowledgePaths } from './knowledgeContainer'
 import { PluginRegistry } from '../plugins/registry'
 import { PluginService } from '../plugins/pluginService'
 import { StatusBarRegistry } from '../statusBar/registry'
@@ -63,6 +64,7 @@ import type { RemoteWindows } from '../remote/remoteWindows'
 import type { RemoteClientService } from '../remote/remoteClientService'
 import type { HostDirectory } from '../remote/hostDirectory'
 import { createRemoteConnecting, createRemoteServing, realConnectingOutside } from './remoteContainer'
+import { createResidents } from './residentsContainer'
 import type { VirtualContentsRegistry } from '../remote/virtualContents'
 import { IPC } from '@shared/api'
 import type { RuntimeEnv } from './env'
@@ -99,6 +101,7 @@ export interface ContainerInputs {
   homeDir: string
   host: string
   appVersion: string
+  resourcesDir: string
 }
 
 const ACTIVITY_BROADCAST_MS = 500
@@ -185,7 +188,10 @@ export interface Container {
   hostDirectory: HostDirectory
   /** The sessions library's arrangement and reading preferences, mirrored to remote windows. */
   library: LibraryStateService
+  knowledge: KnowledgeParts
   accounts: AccountService
+  /** The resident agents; `index.ts` starts them once windows can hear them, and disposes of them on quit. */
+  residents: ReturnType<typeof createResidents>
 }
 
 /** What the session-side services are built from; optional fields default to the app's, so a test names only what it needs. */
@@ -212,6 +218,7 @@ export interface ServicesOptions {
   imagesDir?: string
   /** Where the full-text search index lives. Defaults beside the database. */
   searchDbPath?: string
+  knowledge?: KnowledgePaths
   /** Whether search also looks inside conversations. */
   searchChatContent?: boolean
   searchSessionNotes?: boolean
@@ -230,8 +237,7 @@ export interface ServicesOptions {
   onPluginsChanged?: () => void
   /** The status bar's items changed (a usage poll landed, a plugin was switched off). */
   onStatusBarChanged?: () => void
-  /** Which windows show which chat, how every window hears a chat started, moved or ended, and
-   *  that a chat's activity moved (see `ChatService`). Defaults to no windows. */
+  /** Which windows show which chat, how every window hears a chat start, move, end or change activity (see `ChatService`). Defaults to no windows. */
   chat?: { attachments: WindowAttachments; announce: (change: ChatLifecycle) => void; activityChanged: () => void }
   /** The open tabs the Active section reads. Defaults to none, so a test that shows no tabs needs no registry. */
   tabs?: Pick<TabRegistry, 'list'>
@@ -240,8 +246,7 @@ export interface ServicesOptions {
   /** Let the Claude usage plugin read the macOS Keychain: only against the real `~/.claude`,
    *  never a test fixture's, since a Keychain read can put a permission prompt on screen. */
   statusBarKeychain?: boolean; fakeUsage?: string // fakeUsage, test-only (`APIARY_FAKE_USAGE`): the JSON the usage plugin shows in place of the sign-in and the usage endpoint
-  /** Where the answer to the usage plugin's consent prompt is kept. Omitted: in memory only, so
-   *  a test (or a caller that persists nothing) is asked, and reads nothing, until it answers. */
+  /** Where the usage plugin's consent answer is kept. Omitted: in memory only, so a test is asked, and reads nothing, until it answers. */
   claudeUsageConsent?: ConsentStorage
   /** Who is connected to this machine over remote access, for the status bar; omitted where remote access does not exist. */
   remoteClients?: RemoteClientsFeed
@@ -251,10 +256,7 @@ export interface ServicesOptions {
   onIndexUpdated?: () => void
   /** Defaults to `ClaudeProjectsSource` built from `configRoot`. */
   source?: SessionSource
-  /**
-   * Injectable collaborators, defaulting to the real ones. Supplied `plugins` and `statusBar` are
-   * used as-is: the built-in plugins are not registered into them.
-   */
+  /** Injectable collaborators, defaulting to the real ones. Supplied `plugins` and `statusBar` are used as-is: the built-in plugins are not registered into them. */
   deps?: {
     pty?: PtyManager
     store?: SessionStore
@@ -274,6 +276,7 @@ export interface Services {
   store: SessionStore
   /** The Claude accounts; the terminals, the chats and the one-shot calls launch under them. */
   accounts: AccountService
+  knowledge: KnowledgeParts
 }
 
 /**
@@ -362,8 +365,7 @@ export function createServices(options: ServicesOptions): Services {
           glabPath: options.glabPath,
           configRoot: options.configRoot,
           useKeychain: options.statusBarKeychain ?? false, accounts, fakeUsage: options.fakeUsage,
-          consent: options.claudeUsageConsent,
-          remoteClients: options.remoteClients,
+          consent: options.claudeUsageConsent,          remoteClients: options.remoteClients,
           persistEnabled: options.persistPluginEnabled,
         },
       }
@@ -379,7 +381,8 @@ export function createServices(options: ServicesOptions): Services {
   const service = new AppService({
     pty, store, git, vscode, images, search, terminals, catalog, actions, transcripts, chat, plugins, disposed,
   })
-  return { service, source, activeTabs, vscode, store, accounts }
+  const knowledge = createKnowledge({ ...options.knowledge, dataDir, store, search, accounts, claudeBin: () => terminals.getClaudeBin() })
+  return { service, source, activeTabs, vscode, store, accounts, knowledge }
 }
 
 export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: ContainerInputs): Container {
@@ -400,16 +403,14 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion, pairingFile: paths.remotePairingFile,
     settings: settingsService, layouts: () => sessionLayoutStore.snapshot().windows,
   })
-  const { service, source, activeTabs, vscode, accounts } = createServices({
+  const { service, source, activeTabs, vscode, accounts, knowledge, store } = createServices({
     remoteClients: remoteServer, configRoot: paths.configRoot, dbPath: paths.dbPath, claudeBin: settings.claudeBin ?? undefined,
-    accountsFile: paths.accountsFile, accountsDir: paths.accountsDir, homeDir: inputs.homeDir,
+    accountsFile: paths.accountsFile, accountsDir: paths.accountsDir, homeDir: inputs.homeDir, knowledge: paths,
     onAccountsChanged: () => { broadcast(IPC.accountsChanged, accounts.list()) },
     onSessionAccountsChanged: () => { broadcast(IPC.sessionAccountsChanged, service.chat.liveSessionAccounts()) },
     autoImportAll: settings.autoImportAll,
     searchChatContent: settings.searchChatContent, searchSessionNotes: settings.searchSessionNotes,
-    promptPath: {
-      enabled: settings.terminalShortenPath, segments: settings.terminalPathSegments, minimal: settings.terminalMinimalPrompt,
-    },
+    promptPath: { enabled: settings.terminalShortenPath, segments: settings.terminalPathSegments, minimal: settings.terminalMinimalPrompt },
     zshPromptShim: inputs.zshPromptShim,
     plugins: settings.plugins,
     pluginSettings: settings.pluginSettings,
@@ -429,9 +430,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
       load: () => settingsService.get().claudeUsageConsent,
       save: (state) => { settingsService.patch({ claudeUsageConsent: state }) },
     },
-    persistPluginEnabled: (pluginId, enabled) => {
-      settingsService.patch({ plugins: { ...settingsService.get().plugins, [pluginId]: enabled } })
-    },
+    persistPluginEnabled: (pluginId, enabled) => { settingsService.patch({ plugins: { ...settingsService.get().plugins, [pluginId]: enabled } }) },
     onIndexUpdated: () => { broadcast(IPC.treeChanged) },
     onLiveChanged: () => { broadcast(IPC.treeChanged) },
     detectLive: fakeLive !== undefined && fakeLive !== ''
@@ -473,13 +472,10 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   const folderBrowser = new FolderBrowser({ home: inputs.homeDir })
   const library = new LibraryStateService({
     file: paths.libraryStateFile,
-    moved: settingsService.movedToLibrary(),
-    onChanged: (snapshot) => { broadcast(IPC.libraryStateChanged, snapshot) },
+    moved: settingsService.movedToLibrary(), onChanged: (snapshot) => { broadcast(IPC.libraryStateChanged, snapshot) },
   })
   return {
-    paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry,
-    windowManager, service, chat: service.chat, plugins: service.plugins, spelling, folderBrowser, ipcState, sessionWatcher, updater,
-    themeStore, themeGenerator, petStore, petService, petPlacement, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory,
-    library, accounts,
+    paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry, windowManager, service, chat: service.chat, plugins: service.plugins, spelling, folderBrowser, ipcState, sessionWatcher, updater,
+    themeStore, themeGenerator, petStore, petService, petPlacement, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory, library, accounts, knowledge, residents: createResidents({ settingsService, paths, store, accounts, knowledge, tabRegistry, service, ipcState, windowManager, version: inputs.appVersion, resourcesDir: inputs.resourcesDir }),
   }
 }
