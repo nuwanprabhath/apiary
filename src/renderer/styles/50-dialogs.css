@@ -35,6 +35,9 @@
 .settings-nav-item[data-active="true"] { background: var(--selected); color: var(--text); font-weight: 600; }
 
 .settings-pane { flex: 1; min-width: 0; overflow-y: auto; padding-right: var(--space-xs); }
+/* Whose settings, in a remote window: the Chat | Terminal pill, at the start of the row under the title. */
+.settings-machine-switch { align-self: flex-start; width: max-content; max-width: 100%; margin: var(--space-sm) 0 var(--space-lg); }
+.settings-screen-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin: var(--space-xl) 0 0; }
 .settings-blurb { margin: 0 0 14px; color: var(--muted); line-height: 1.5; }
 
 .settings-row {

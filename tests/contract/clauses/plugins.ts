@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { PluginBarItem } from '@shared/domain/plugins'
 import { STANDARD_SESSIONS as STD } from '../../fixtures/standard'
 import type { Ctx } from '../support'
@@ -75,17 +75,20 @@ export function definePluginClauses(ctx: Ctx): void {
       const items = async (): Promise<string[]> => (await ctx.api.statusBarItems()).map((i) => i.pluginId)
       await ctx.api.settingsSet({ plugins: { [STATUS_PLUGIN.id]: false } } as never)
       expect(await items()).toEqual([CONSENT_PLUGIN.id])
-      expect(ctx.heard.count('statusBarChanged')).toBe(1)
+      // In a remote window the event crosses the connection after the call has answered.
+      await vi.waitFor(() => { expect(ctx.heard.count('statusBarChanged')).toBe(1) })
       await ctx.api.settingsSet({ plugins: { [STATUS_PLUGIN.id]: true } } as never)
       expect(await items()).toEqual([STATUS_PLUGIN.id, CONSENT_PLUGIN.id])
-      expect(ctx.heard.count('statusBarChanged')).toBe(2)
+      await vi.waitFor(() => { expect(ctx.heard.count('statusBarChanged')).toBe(2) })
     })
 
     it('a refresh of a running plugin tells views its items may have changed; one of a plugin that is off or unknown does nothing', async () => {
       await ctx.api.statusBarRefresh(STATUS_PLUGIN.id)
-      expect(ctx.heard.count('statusBarChanged')).toBe(1)
+      await vi.waitFor(() => { expect(ctx.heard.count('statusBarChanged')).toBe(1) })
       await ctx.api.statusBarRefresh('nobody')
       await ctx.api.settingsSet({ plugins: { [STATUS_PLUGIN.id]: false } } as never)
+      // The switch-off says so too; wait for it, so nothing is still on its way after the reset.
+      await vi.waitFor(() => { expect(ctx.heard.count('statusBarChanged')).toBe(2) })
       ctx.heard.reset()
       await ctx.api.statusBarRefresh(STATUS_PLUGIN.id)
       expect(ctx.heard.count('statusBarChanged')).toBe(0)

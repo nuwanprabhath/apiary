@@ -31,6 +31,8 @@ interface SectionProps {
   onRebuild: () => void
   /** A login session an account started: the window opens it as a tab. */
   onLoginStarted: (info: NewSessionInfo) => void
+  /** The work machine's name while the dialog edits its settings from a remote window; null on this machine's. */
+  machineHost: string | null
 }
 
 export interface Section {
@@ -39,6 +41,13 @@ export interface Section {
   /** Shown under the section heading, saying what this group of settings is for. */
   blurb: string
   Component: (props: SectionProps) => JSX.Element
+  /** How this screen looks (themes, pets): never on the work machine's view of a remote window. */
+  screen?: true
+  /**
+   * Only on the work machine's view of a remote window: the residents there (their statuses, chats
+   * and badge) are the work machine's, so this machine's are managed from one of its own windows.
+   */
+  machineOnly?: true
 }
 
 export const SECTIONS: Section[] = [
@@ -67,6 +76,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: 'themes',
+    screen: true,
     label: 'Themes',
     blurb: 'How Apiary looks. A theme changes colours, type, shape and effects — never what is where.',
     Component: () => <ThemesSectionEntry />,
@@ -79,6 +89,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: 'pets',
+    screen: true,
     label: 'Pets',
     blurb: 'Little characters that keep you company along the edge of the window.',
     Component: () => <PetsSection />,
@@ -91,6 +102,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: 'residents',
+    machineOnly: true,
     label: 'Residents',
     blurb: 'Always-on helpers that live in Apiary. Each has its own name, hours and model.',
     Component: () => <ResidentsSection />,
@@ -105,7 +117,7 @@ export const SECTIONS: Section[] = [
     id: 'general',
     label: 'General',
     blurb: 'Where Apiary finds the tools it runs.',
-    Component: ({ draft, patch }) => <GeneralSection draft={draft} patch={patch} />,
+    Component: ({ draft, patch, machineHost }) => <GeneralSection draft={draft} patch={patch} machineHost={machineHost} />,
   },
   {
     id: 'accounts',

@@ -114,7 +114,7 @@ beforeEach(async () => {
     settings,
     residents: createResidents({
       settingsService: settings, paths: { residentsDir: join(home, 'residents') }, store: built.store, accounts: built.accounts, knowledge: built.knowledge,
-      tabRegistry: new TabRegistry(), service, ipcState: state, windowManager: { windowNumberFor: () => null }, version: '0.0.0', resourcesDir: join(home, 'resources'),
+      tabRegistry: new TabRegistry(), service, ipcState: state, windowManager: { windowNumberFor: () => null }, virtualContents: { list: () => [] }, version: '0.0.0', resourcesDir: join(home, 'resources'),
     }),
     theme: {
       store: new ThemeStore(join(home, 'themes.json')),

@@ -5,7 +5,9 @@ import {
 } from '@shared/domain/residents'
 import { clockText, dayClock } from '@shared/residentSchedule'
 import { runQuickAction } from '../../../state/residentChat'
-import { pickResidentFolder } from '../../../state/residentSettings'
+import { pickResidentFolder, setResidentFolderFromBrowse } from '../../../state/residentSettings'
+import { remoteHost } from '../../../state/windowParams'
+import { ChooseFolderDialog } from '../../folderBrowser'
 import { useAppSettings } from '../../../state/settingsStore'
 import { BusyGlyph } from '../../../ui/BusyGlyph'
 import { describeError } from '../../../ui/errors'
@@ -177,8 +179,11 @@ function TextOption({ config, field, save }: { config: ResidentConfig; field: Re
 }
 
 /** A folder option: the chosen path, read only, and Choose…, which asks main's folder dialog. */
+/** In a remote window the native dialog would open on the work machine's screen, so Choose… opens the in-app browser of that machine. */
 function FolderOption({ config, field }: { config: ResidentConfig; field: ResidentOptionField }): JSX.Element {
   const [error, setError] = useState<string | null>(null)
+  const [browsing, setBrowsing] = useState(false)
+  const host = remoteHost()
   const path = config.options[field.key] ?? ''
   return (
     <>
@@ -192,6 +197,7 @@ function FolderOption({ config, field }: { config: ResidentConfig; field: Reside
           data-testid={`resident-option-choose-${config.id}-${field.key}`}
           onClick={() => {
             setError(null)
+            if (host !== null) { setBrowsing(true); return }
             pickResidentFolder(config.id, field.key).catch((e: unknown) => { setError(describeError(e).message) })
           }}
         >
@@ -199,6 +205,13 @@ function FolderOption({ config, field }: { config: ResidentConfig; field: Reside
         </button>
       </div>
       {error !== null && <span className="settings-help remote-pairing-error" role="alert">{error}</span>}
+      {browsing && host !== null && (
+        <ChooseFolderDialog
+          host={host}
+          choose={(browseId) => setResidentFolderFromBrowse(config.id, field.key, browseId).then(() => { setBrowsing(false) })}
+          onClose={() => { setBrowsing(false) }}
+        />
+      )}
     </>
   )
 }

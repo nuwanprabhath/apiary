@@ -66,6 +66,16 @@ describe('the status bar', () => {
   })
 
   describe('a plugin asking for consent', () => {
+    it('in a remote window, names the work machine it asks for', async () => {
+      history.replaceState(null, '', location.pathname + '?chrome=custom&remote=work-box')
+      try {
+        await renderApp({ statusBar: [ASKING] })
+        await expect.element(page.getByRole('heading', { name: 'Show your Claude usage on work-box?' })).toBeVisible()
+      } finally {
+        history.replaceState(null, '', location.pathname)
+      }
+    })
+
     it('opens the question once by itself, says what the plugin said, and starts on the refusal', async () => {
       const { fake } = await renderApp({ statusBar: [ASKING] })
       const dialog = page.getByTestId('status-consent')

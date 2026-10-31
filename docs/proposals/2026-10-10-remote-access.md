@@ -156,3 +156,31 @@ home Apiary window ── remote preload (same ApiaryApi) ── home main: Remo
 4. **Look.** Remote windows use the home machine's theme and settings for look and feel, and the work
    machine's data. Agreed?
 5. **Running app or server.** Is "the work Apiary must be running" acceptable for the first version?
+
+## 1.50: residents, status bar and settings follow the window
+
+A remote window now shows the work machine's status bar and settings, not home's
+(`src/main/remote/scopes.ts`).
+
+- **Status bar and residents.** `statusBar*`, every `resident*` channel and `openSessionRequested`
+  are `remote`. The usage meter reads the work machine's Claude login, and its consent is answered
+  there: the dialog asks "Show your Claude usage on ‹host›?". A session a work-machine resident
+  opens goes to that machine's remote windows first, and to its own windows when none is open
+  (`sendOpenSession` in `src/main/app/residentsContainer.ts`). Home's own `remote`-scope events are
+  skipped for a remote window (`RemoteWindows.skipsBroadcast`), so it hears these from the work
+  machine only. `residentPickFolder` is `unavailable` (the dialog would open on the work machine's
+  screen); the resident card picks the folder with the in-app browser instead
+  (`residentUseBrowsedFolder`, which takes the browse's id, never a path).
+- **Settings.** Each `SETTINGS` entry is `machine` or `screen`. `machineSettingsGet`,
+  `machineSettingsSet` and `machineSettingsChanged` are `remote`; `machineSettingsSet` refuses a
+  `screen` key. Settings in a remote window opens on the work machine, with a `‹host› | This Mac`
+  switch. Themes, pets, animations, the title bar and spelling stay home's. Remote access is shown
+  read-only on the work machine's view: switching it off would cut the window's own connection.
+  The Residents section is shown only on the work machine's view.
+- **Security.** A paired home machine can now drive the work machine's residents, change its
+  machine settings and answer its residents' tool permissions. That is deliberate, and it is no more
+  than the SSH login the connection already rests on allows (a client could already run terminals
+  there). Nothing is weakened: each call still runs through the work machine's own guarded handler
+  (the contract's guards, then the resident service's checks), `machineSettingsSet` validates every
+  field with `mergeSettingsPayload` as `settingsSet` does, and no path crosses. A folder comes from a
+  browse the work machine holds and confines (ADR-0001).

@@ -2,6 +2,7 @@ import type { JSX } from 'react'
 import type { ConsentPrompt } from '@shared/domain/statusBar'
 import { ErrorBoundary } from '../../ui/ErrorBoundary'
 import { Modal } from '../../ui/Modal'
+import { remoteHost } from '../../state/windowParams'
 
 interface Props {
   prompt: ConsentPrompt
@@ -13,16 +14,19 @@ interface Props {
 /**
  * The one-time question a status-bar plugin asks before it touches something of the user's, drawn
  * from the plugin's own words. Focus starts on the refusal: this dialog appears on its own, and an
- * Enter meant for something else must never be the thing that grants access.
+ * Enter meant for something else must never be the thing that grants access. In a remote window the
+ * question is the work machine's (its plugin, its token), so the title names that machine.
  */
 export function ConsentDialog({ prompt, onAnswer, onLater }: Props): JSX.Element {
+  const host = remoteHost()
+  const title = host === null ? prompt.title : `${prompt.title.replace(/\?$/, '')} on ${host}?`
   return (
     <ErrorBoundary label="This dialog">
       <Modal
         testId="status-consent" titleId="status-consent-title" onClose={onLater}
         initialFocusSelector='[data-testid="status-consent-deny"]'
       >
-        <h2 id="status-consent-title">{prompt.title}</h2>
+        <h2 id="status-consent-title">{title}</h2>
         {prompt.lines.map((line) => <p key={line}>{line}</p>)}
         <div className="modal-actions">
           <button type="button" className="btn" data-testid="status-consent-deny" onClick={() => { onAnswer(false) }}>{prompt.deny}</button>

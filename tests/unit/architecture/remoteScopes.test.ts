@@ -50,3 +50,28 @@ describe("a remote channel's handler never acts on the work machine's screen", (
     expect(scope, `${key} (src/main/ipc/handlers/${file}) uses ${apis.join(', ')}, which act on the machine it runs on, but src/main/remote/scopes.ts scopes it 'remote', so a remote window runs it on the work machine's screen. Scope it 'local' (it needs nothing of the work machine's), 'bridged' (home acts on an answer from the work machine) or 'unavailable'.`).not.toBe('remote')
   })
 })
+
+// The status bar, the residents and the machine settings belong to the machine a window shows, so a
+// remote window reaches the work machine's; the folder picker needs the work machine's screen.
+describe('what follows the window to the work machine', () => {
+  const remote = [
+    'statusBarItems', 'statusBarRefresh', 'statusBarPanel', 'statusBarConsent', 'statusBarChanged',
+    'residentsList', 'residentsChanged', 'residentsAdd', 'residentHistory', 'residentMessage', 'residentSend',
+    'residentStop', 'residentClear', 'residentRedigest', 'residentPermissionAnswer', 'residentQuickAction',
+    'residentSeen', 'residentKinds', 'residentUseBrowsedFolder', 'openSessionRequested',
+    'machineSettingsGet', 'machineSettingsSet', 'machineSettingsChanged', 'machinePluginList',
+  ] as const
+
+  it.each(remote)('%s is remote', (key) => {
+    expect(CHANNEL_SCOPES[key]).toBe('remote')
+  })
+
+  it('residentPickFolder is unavailable', () => {
+    expect(CHANNEL_SCOPES.residentPickFolder).toBe('unavailable')
+  })
+
+  it('every resident channel but the picker is in the list above', () => {
+    const residentKeys = Object.keys(CHANNEL_SCOPES).filter((k) => k.startsWith('resident') && k !== 'residentPickFolder')
+    expect(residentKeys.filter((k) => !(remote as readonly string[]).includes(k))).toEqual([])
+  })
+})

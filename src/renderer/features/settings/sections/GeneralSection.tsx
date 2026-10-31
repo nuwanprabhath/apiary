@@ -5,7 +5,7 @@ import { CheckboxSetting } from '../fields/CheckboxSetting'
 import { RemoteAccessSetting } from './RemoteAccessSetting'
 
 export function GeneralSection(
-  { draft, patch }: { draft: SettingsDraft; patch: (fields: Partial<SettingsDraft>) => void },
+  { draft, patch, machineHost }: { draft: SettingsDraft; patch: (fields: Partial<SettingsDraft>) => void; machineHost: string | null },
 ): JSX.Element {
   const [languages, setLanguages] = useState<string[]>([])
   useEffect(() => {
@@ -30,6 +30,7 @@ export function GeneralSection(
         <code> which claude </code> in your shell to find it.
       </span>
     </label>
+    {machineHost === null && (
     <label className="settings-row settings-row-stacked">
       <strong>Proofing language</strong>
       <select
@@ -46,6 +47,8 @@ export function GeneralSection(
         On macOS this setting has no effect; spelling uses the languages in System Settings.
       </span>
     </label>
+    )}
+    {machineHost === null && (
     <CheckboxSetting
       testId="setting-system-title-bar"
       checked={draft.systemTitleBar}
@@ -60,6 +63,7 @@ export function GeneralSection(
         </>
       )}
     />
+    )}
     <CheckboxSetting
       testId="setting-transcript-chat"
       checked={draft.transcriptChat}
@@ -88,7 +92,25 @@ export function GeneralSection(
         </>
       )}
     />
-    <RemoteAccessSetting draft={draft} patch={patch} />
+    {machineHost === null
+      ? <RemoteAccessSetting draft={draft} patch={patch} />
+      : <RemoteAccessReadOnly host={machineHost} on={draft.remoteAccess} />}
     </>
+  )
+}
+
+/**
+ * Remote access on the work machine's view: its state only. Turning it off from here would cut the
+ * connection this window runs on, so the switch is not offered.
+ */
+function RemoteAccessReadOnly({ host, on }: { host: string; on: boolean }): JSX.Element {
+  return (
+    <div className="settings-row settings-row-stacked" data-testid="remote-access-readonly">
+      <strong>Remote access</strong>
+      <span className="settings-help">
+        {on ? `On: ${host} serves its sessions to other machines over SSH.` : 'Off.'}
+        {' '}This window runs over it, so it cannot be turned off from here.
+      </span>
+    </div>
   )
 }

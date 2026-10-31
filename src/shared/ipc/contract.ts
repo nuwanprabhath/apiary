@@ -53,7 +53,8 @@ import {
   RESIDENT_KINDS, type ResidentConfig, type ResidentKindId, type ResidentKindInfo, type ResidentMessage, type ResidentMessagePush, type ResidentStatus, type SessionHit,
 } from '../domain/residents'
 import { RESIDENT_ID_RE } from '../settings/residents'
-import { isOneOf } from '../guards'
+import { isOneOf, isRecord } from '../guards'
+import { SCREEN_SETTING_KEYS, type SettingKey } from '../settings/schema'
 import { isPairingCode, isRemoteHost, type RemoteClientInfo, type RemoteHost, type RemoteServerState, type RemoteStatus } from '../domain/remote'
 
 // Boundary guards for branded ids: the one place a string arriving over IPC becomes a branded id.
@@ -100,6 +101,10 @@ const isReportedTab: Guard<ReportedTab> = (v): v is ReportedTab => {
     && (t.ptyId === null || typeof t.ptyId === 'string')
     && (t.label === null || typeof t.label === 'string')
 }
+
+/** An object naming no `screen` setting: how a window's own screen looks is never another machine's to store. */
+const machineSettingsPatch: Guard<Record<string, unknown>> = (v): v is Record<string, unknown> =>
+  isRecord(v) && Object.keys(v).every((k) => !SCREEN_SETTING_KEYS.has(k as SettingKey))
 
 export const IPC = {
   // Sessions and the project tree.
@@ -232,6 +237,13 @@ export const IPC = {
   // (src/main/settings.ts) does the field-by-field validation.
   settingsSet: invokeLoose<[settings: AppSettingsPayload], void>('apiary:settings-set', tuple(obj)),
   openSettingsDialog: event('apiary:open-settings-dialog'),
+  // The settings of the machine a window shows (`machine`-scoped keys only, `SETTINGS`): this
+  // machine's in a local window, the work machine's in a remote one.
+  machineSettingsGet: invoke<[], Partial<AppSettingsPayload>>('apiary:machine-settings-get', tuple()),
+  // A patch of `machine` keys; a `screen` key refuses the whole call. Each field's value is then
+  // checked as `settingsSet` checks it (`mergeSettingsPayload`).
+  machineSettingsSet: invoke<[patch: Record<string, unknown>], void>('apiary:machine-settings-set', tuple(machineSettingsPatch)),
+  machineSettingsChanged: event('apiary:machine-settings-changed'),
 
   // Library state: the sessions library's arrangement and reading preferences, owned by the main
   // of the machine whose sessions it describes (shared/libraryState.ts). `remote` scope, so a
@@ -380,6 +392,8 @@ export const IPC = {
   // only `action` and opens an http(s) URL, nothing else of it is trusted.
   pluginRunAction: invokeLoose<[item: PluginBarItemPayload], void>('apiary:plugin-run-action', tuple(obj)),
   pluginList: invoke<[], PluginInfoPayload[]>('apiary:plugin-list', tuple()),
+  /** The plugins of the machine a window shows: `pluginList` in a local window, the work machine's in a remote one. */
+  machinePluginList: invoke<[], PluginInfoPayload[]>('apiary:machine-plugin-list', tuple()),
   pluginsChanged: event('apiary:plugins-changed'),
 
   // Diagnostic log.
@@ -458,6 +472,8 @@ export const IPC = {
   residentSeen: invoke<[id: string], void>('apiary:resident-seen', tuple(residentIdArg)),
   /** Opens the folder dialog (in main) for one of the kind's folder options and stores the choice; answers the stored value, or null when cancelled. */
   residentPickFolder: invoke<[id: string, key: string], string | null>('apiary:resident-pick-folder', tuple(residentIdArg, residentTokenArg)),
+  /** A remote window's stand-in for the dialog: stores the folder an in-app browse (`folderBrowse*`) is showing, by its id, and answers the stored value. */
+  residentUseBrowsedFolder: invoke<[id: string, key: string, browseId: string], string>('apiary:resident-use-browsed-folder', tuple(residentIdArg, residentTokenArg, str)),
   /** Every kind: its name, blurb, option fields, whether it digests and its look, for "Add …" and the settings fields. */
   residentKinds: invoke<[], ResidentKindInfo[]>('apiary:resident-kinds', tuple()),
   /** A resident asked to show this session: the front window focuses its tab, or opens it in the focused pane. */

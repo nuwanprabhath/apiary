@@ -4,6 +4,31 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.50.0] - 2026-10-31
+
+### Added
+
+- **A remote window shows the work machine's status bar.** A window onto another machine shows
+  that machine's Claude usage and its residents (Regent, the MR desk). Their chats, actions and
+  permission answers act on that machine, and a session one of them opens appears in that remote
+  window. The usage consent names the machine it asks for. A resident's folder there is chosen with
+  the in-app folder browser.
+- **Settings in a remote window opens on the work machine,** with a `‹host› | This Mac` switch, and
+  the title says which machine you are changing.
+  - **What the work machine's view covers:** sessions, search, sidebar, terminal, plugins, accounts,
+    residents, updates and diagnostics. You can add and turn on Regent on the work machine from
+    home.
+  - **What stays this Mac's:** themes, pets, animations, the title bar and spelling, because they
+    are about the screen you are looking at.
+  - **Remote access** shows its state but cannot be turned off from the window that runs over it.
+
+### Security
+
+- **A paired home machine can now drive the work machine's residents,** including answering their
+  tool permissions. Every call still goes through the work machine's own checks, and no file path
+  crosses the connection
+  ([remote access](docs/proposals/2026-10-10-remote-access.md)).
+
 ## [1.49.0] - 2026-10-30
 
 ### Added

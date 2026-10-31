@@ -251,6 +251,7 @@ export async function buildLoopbackWorld(
   const residents = createResidents({
     settingsService: settings, paths: { residentsDir: join(home, 'residents') }, store: built.store, accounts, knowledge: built.knowledge, tabRegistry,
     service: { claudeBin: FAKE_CLAUDE, plugins: service.plugins }, ipcState, windowManager: { windowNumberFor: (id) => (id === fakeContents.id ? THIS_WINDOW.number : null) }, version: '0.0.0',
+    virtualContents: extras.virtualContents ?? { list: () => [] },
     resourcesDir: resolveResourcesDir({ packaged: false, resourcesPath: '', appPath: process.cwd() }),
   })
   const disposeResidents = residents.start()

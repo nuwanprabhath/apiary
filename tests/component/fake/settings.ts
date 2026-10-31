@@ -8,12 +8,12 @@
  */
 import type { ApiaryApi, AppSettingsPayload, PluginInfoPayload } from '@shared/api'
 import type { PluginSettingValues } from '@shared/domain/plugins'
-import { mergePayload } from '@shared/settings/schema'
+import { machinePayload, mergePayload } from '@shared/settings/schema'
 import type { Env } from './state'
 import { residentStatuses } from './residents'
 
 type SettingsApi = Pick<ApiaryApi,
-  | 'settingsGet' | 'settingsSet' | 'pluginList' | 'pluginBarItems' | 'pluginBarRefresh' | 'pluginRunAction'
+  | 'settingsGet' | 'settingsSet' | 'machineSettingsGet' | 'machineSettingsSet' | 'pluginList' | 'machinePluginList' | 'pluginBarItems' | 'pluginBarRefresh' | 'pluginRunAction'
   | 'statusBarItems' | 'statusBarRefresh' | 'statusBarPanel' | 'statusBarConsent' | 'searchContent' | 'searchRebuild' | 'searchStatus'>
 
 /** A plugin's settings with its declared defaults filled in; a value of the wrong type is as good as absent. */
@@ -47,38 +47,47 @@ export function settingsApi(env: Env): SettingsApi {
     (s.messages ?? [{ blocks: [{ type: 'text', text: 'fix the export' }] }, { blocks: [{ type: 'text', text: 'done' }] }])
       .flatMap((m) => m.blocks.flatMap((b) => ('text' in b ? [b.text] : []))).join(' ')
 
+  const settingsGet = async (): Promise<AppSettingsPayload> => ({
+    ...state.settings,
+    // The two fields the plugins own: what is on, and each plugin's values.
+    plugins: Object.fromEntries(state.plugins.map((p) => [p.id, p.enabled])),
+    pluginSettings: Object.fromEntries(state.plugins.map((p) => [p.id, p.values])),
+  })
+  const settingsSet = async (incoming: Partial<AppSettingsPayload>): Promise<void> => {
+    const wasAutoImporting = state.settings.autoImportAll
+    const known = new Set(state.plugins.map((p) => p.id))
+    const { merged } = mergePayload(state.settings, incoming, { knownPluginIds: known, isAbsolutePath: (p) => p.startsWith('/') })
+    const residentsBefore = JSON.stringify(residentStatuses(state))
+    state.settings = merged
+    // Main's ResidentService follows the setting and says so when a status changed (a rename, an enable).
+    if (JSON.stringify(residentStatuses(state)) !== residentsBefore) emit('residentsChanged', residentStatuses(state))
+    let statusBarChanged = false
+    state.plugins = state.plugins.map((p) => {
+      const enabled = merged.plugins[p.id] ?? p.enabled
+      const values = withDefaults(p.fields, merged.pluginSettings[p.id] ?? p.values)
+      if (p.enabled !== enabled && state.statusBar.some((i) => i.pluginId === p.id)) statusBarChanged = true
+      return { ...p, enabled, values }
+    })
+    // Switching a plugin off changes what every open bar should show, and nothing else would tell the windows.
+    emit('pluginsChanged')
+    emit('machineSettingsChanged')
+    if (statusBarChanged) emit('statusBarChanged')
+    if (merged.autoImportAll && !wasAutoImporting) {
+      for (const s of state.sessions) state.imported.add(s.sessionId)
+      emit('treeChanged')
+    }
+  }
+
   return {
-    settingsGet: async (): Promise<AppSettingsPayload> => ({
-      ...state.settings,
-      // The two fields the plugins own: what is on, and each plugin's values.
-      plugins: Object.fromEntries(state.plugins.map((p) => [p.id, p.enabled])),
-      pluginSettings: Object.fromEntries(state.plugins.map((p) => [p.id, p.values])),
-    }),
-    settingsSet: async (incoming) => {
-      const wasAutoImporting = state.settings.autoImportAll
-      const known = new Set(state.plugins.map((p) => p.id))
-      const { merged } = mergePayload(state.settings, incoming, { knownPluginIds: known, isAbsolutePath: (p) => p.startsWith('/') })
-      const residentsBefore = JSON.stringify(residentStatuses(state))
-      state.settings = merged
-      // Main's ResidentService follows the setting and says so when a status changed (a rename, an enable).
-      if (JSON.stringify(residentStatuses(state)) !== residentsBefore) emit('residentsChanged', residentStatuses(state))
-      let statusBarChanged = false
-      state.plugins = state.plugins.map((p) => {
-        const enabled = merged.plugins[p.id] ?? p.enabled
-        const values = withDefaults(p.fields, merged.pluginSettings[p.id] ?? p.values)
-        if (p.enabled !== enabled && state.statusBar.some((i) => i.pluginId === p.id)) statusBarChanged = true
-        return { ...p, enabled, values }
-      })
-      // Switching a plugin off changes what every open bar should show, and nothing else would tell the windows.
-      emit('pluginsChanged')
-      if (statusBarChanged) emit('statusBarChanged')
-      if (merged.autoImportAll && !wasAutoImporting) {
-        for (const s of state.sessions) state.imported.add(s.sessionId)
-        emit('treeChanged')
-      }
-    },
+    settingsGet,
+    settingsSet,
+    // The fake is one machine, so a local window's machine view is these same settings.
+    machineSettingsGet: async () => machinePayload(await settingsGet()),
+    // A screen key is refused by the contract's guard before it gets here, as in main.
+    machineSettingsSet: (patch) => settingsSet(patch),
 
     pluginList: async () => state.plugins,
+    machinePluginList: async () => state.plugins,
     pluginBarItems: async (terminal) => {
       if (terminal.kind === 'session' && env.find(terminal.id) === undefined) return []
       return state.pluginBar.filter((item) => running(item.pluginId))

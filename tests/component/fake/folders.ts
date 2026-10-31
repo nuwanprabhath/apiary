@@ -8,10 +8,11 @@
 import type { ApiaryApi } from '@shared/api'
 import { BROWSE_MAX_ENTRIES, type BrowseView } from '@shared/domain/folders'
 import { BROWSE_HOME } from '../../contract/world'
+import { kindOf } from '../../../src/main/residents/kinds'
 import type { Env } from './state'
 
 type FoldersApi = Pick<ApiaryApi,
-  'folderBrowseOpen' | 'folderBrowseEnter' | 'folderBrowseUp' | 'folderBrowseCrumb' | 'folderBrowseClose' | 'newSessionInBrowsedFolder'>
+  'folderBrowseOpen' | 'folderBrowseEnter' | 'folderBrowseUp' | 'folderBrowseCrumb' | 'folderBrowseClose' | 'newSessionInBrowsedFolder' | 'residentUseBrowsedFolder'>
 
 interface Folder {
   repo?: boolean
@@ -91,5 +92,15 @@ export function foldersApi(env: Env): FoldersApi {
     },
     folderBrowseClose: (id) => { browses.delete(id) },
     newSessionInBrowsedFolder: async (id) => env.newSession([FAKE_HOME, ...at(id)].join('/')),
+    // As main: the resident must have that folder option, and the folder is where the browse is.
+    residentUseBrowsedFolder: async (residentId, key, browseId) => {
+      const config = state.settings.residents.find((c) => c.id === residentId)
+      if (config === undefined) throw new Error(`No resident ${residentId}`)
+      if (!kindOf(config.kind).optionFields.some((f) => f.key === key && f.input === 'folder')) throw new Error(`${config.name} has no folder option ${key}`)
+      const folder = [FAKE_HOME, ...at(browseId)].join('/')
+      const residents = state.settings.residents.map((c) => (c.id === residentId ? { ...c, options: { ...c.options, [key]: folder } } : c))
+      state.settings = { ...state.settings, residents }
+      return folder
+    },
   }
 }

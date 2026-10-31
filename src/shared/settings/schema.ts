@@ -90,96 +90,106 @@ const knownPluginsOnly = (raw: PluginSettings, ctx: SettingContext): PluginSetti
     ]),
 )
 
+/**
+ * Whose setting it is in a remote window (docs/proposals/2026-10-10-remote-access.md): `machine`
+ * describes the machine Apiary runs on (its sessions, terminals, plugins, residents), so a remote
+ * window's Settings reads and writes the work machine's; `screen` is how this screen looks, and
+ * always stays this machine's. Every entry declares one, so a new setting has to choose.
+ */
+export type SettingScope = 'machine' | 'screen'
+const machine = <D>(def: D): D & { scope: 'machine' } => ({ ...def, scope: 'machine' })
+const screen = <D>(def: D): D & { scope: 'screen' } => ({ ...def, scope: 'screen' })
+
 export const SETTINGS = {
   /** Explicit path to the claude binary, used when it is not on PATH. */
-  claudeBin: setting<string | null>({ guard: nullable(str), default: null, constrain: absolutePathOrNull }),
+  claudeBin: machine(setting<string | null>({ guard: nullable(str), default: null, constrain: absolutePathOrNull })),
   /** Import every discovered session automatically, instead of picking them by hand. */
-  autoImportAll: flag(false),
+  autoImportAll: machine(flag(false)),
   /**
    * Serve this machine's sessions to another Apiary over SSH, through a Unix socket in `~/.apiary`
    * (docs/proposals/2026-10-10-remote-access.md). Opens no network port. Off by default.
    */
-  remoteAccess: flag(false),
+  remoteAccess: machine(flag(false)),
   /** Also ask a home machine for the pairing code shown in Settings → General; SSH stays the authentication. */
-  remoteAccessPairing: flag(false),
+  remoteAccessPairing: machine(flag(false)),
   /** Minutes between automatic rescans, or null when periodic scanning is off. */
-  autoImportIntervalMinutes: intOrNull(null, 1, 1440),
+  autoImportIntervalMinutes: machine(intOrNull(null, 1, 1440)),
   /** Whether activating a tab scrolls the sidebar to that session and highlights it. */
-  revealActiveInSidebar: flag(true),
+  revealActiveInSidebar: machine(flag(true)),
   /**
    * Use the operating system's own title bar and menu bar instead of Apiary's themed ones (for
    * tiling window managers that fight a custom one). Read when a window opens, so it applies to
    * windows opened after the change.
    */
-  systemTitleBar: flag(false),
+  systemTitleBar: screen(flag(false)),
   /**
    * The transcript's message box drives the session as a chat: replies stream into the transcript
    * and tools ask for permission there. Off: the message goes to the session's terminal.
    */
-  transcriptChat: flag(false),
+  transcriptChat: machine(flag(false)),
   /** Whether search also matches conversation contents; off falls back to titles and stops the indexer. */
-  searchChatContent: flag(true),
+  searchChatContent: machine(flag(true)),
   /** Whether session notes are searchable. Separate from `searchChatContent`: a note is a line typed on purpose. */
-  searchSessionNotes: flag(true),
+  searchSessionNotes: machine(flag(true)),
   /** Whether the Recent section (sessions active in the last `recentSectionHours`) is shown. */
-  recentSectionEnabled: flag(true),
+  recentSectionEnabled: machine(flag(true)),
   /** How far back "recent" looks. Clamped to 1..168 by the settings dialog, same as the update-check interval. */
-  recentSectionHours: int(24, 1, 168),
+  recentSectionHours: machine(int(24, 1, 168)),
   /** Whether sessions not used for `hideOldSessionsDays` drop out of the sidebar tree (search still finds them). */
-  hideOldSessionsEnabled: flag(false),
+  hideOldSessionsEnabled: machine(flag(false)),
   /** How many days without activity before a session is hidden from the tree. */
-  hideOldSessionsDays: int(30, 1, 3650),
+  hideOldSessionsDays: machine(int(30, 1, 3650)),
   /**
    * Trim the working directory in the prompt of shells Apiary starts, to the last
    * `terminalPathSegments` folders. See pty/promptPath.ts — bash 4+ only, by design.
    * The default is one folder: in `~/projects/thing.worktrees/pipeline-issues` the last component
    * is the one that says which worktree you are in.
    */
-  terminalShortenPath: flag(true),
+  terminalShortenPath: machine(flag(true)),
   /** How many trailing folders the trimmed prompt keeps. */
-  terminalPathSegments: int(1, 1, MAX_SEGMENTS),
+  terminalPathSegments: machine(int(1, 1, MAX_SEGMENTS)),
   /**
    * Show nothing but `$` as the prompt of shells Apiary starts — the path, user and host all go.
    * See pty/promptPath.ts for how it is done in bash and zsh.
    */
-  terminalMinimalPrompt: flag(true),
+  terminalMinimalPrompt: machine(flag(true)),
   /** Which session-bar plugins are on, by plugin id. */
-  plugins: setting<Record<string, boolean>>({ guard: isBooleanMap, default: {} }),
+  plugins: machine(setting<Record<string, boolean>>({ guard: isBooleanMap, default: {} })),
   /** Each plugin's own settings, namespaced by plugin id; plugins declare them (see plugins/types.ts). */
-  pluginSettings: setting<PluginSettings>({ guard: isPluginSettings, default: {}, constrain: knownPluginsOnly }),
+  pluginSettings: machine(setting<PluginSettings>({ guard: isPluginSettings, default: {}, constrain: knownPluginsOnly })),
   /**
    * Update preferences. Nothing is downloaded or installed without the user saying so, which is
    * what `updateAutoDownload: false` means.
    */
-  updateAutomaticChecks: flag(true),
+  updateAutomaticChecks: machine(flag(true)),
   /** Hours between automatic checks. Clamped to 1..168 by the service. */
-  updateCheckIntervalHours: int(6, 1, 168),
+  updateCheckIntervalHours: machine(int(6, 1, 168)),
   /** Fetch the update as soon as it is found, instead of after the user agrees. */
-  updateAutoDownload: flag(false),
+  updateAutoDownload: machine(flag(false)),
   /** Offer pre-release builds. */
-  updateAllowPrerelease: flag(false),
+  updateAllowPrerelease: machine(flag(false)),
   /**
    * Write a diagnostic log to disk. **Off means nothing is written** — see main/log/logger.ts.
    */
-  diagnosticsEnabled: flag(false),
+  diagnosticsEnabled: machine(flag(false)),
   /** How long archived log files are kept. */
-  logRetentionDays: int(7, 1, 90),
+  logRetentionDays: machine(int(7, 1, 90)),
   /** Total disk the logs may take, across every file. */
-  logMaxSizeMb: int(20, 1, 500),
+  logMaxSizeMb: machine(int(20, 1, 500)),
   /** Spellcheck language code (e.g. 'fr-FR'), or 'system' to follow the system language. */
-  proofingLanguage: setting<string>({ guard: str, default: 'system' }),
+  proofingLanguage: screen(setting<string>({ guard: str, default: 'system' })),
   /**
    * Continuous animations in the chrome. `auto` turns them off when the system asks for less motion
    * or Apiary composites without the GPU; `full` and `reduced` are the person's explicit choice.
    */
-  motion: setting<MotionSetting>({ guard: isMotionSetting, default: 'auto' }),
+  motion: screen(setting<MotionSetting>({ guard: isMotionSetting, default: 'auto' })),
   /** The animation beside "Claude is working" (`shared/domain/busyAnimation.ts`). */
-  busyAnimation: setting<BusyAnimationId>({ guard: isBusyAnimationId, default: 'spark' }),
+  busyAnimation: screen(setting<BusyAnimationId>({ guard: isBusyAnimationId, default: 'spark' })),
   /** Its colour; an animation that does not offer it uses its own first (`busyColorFor`). */
-  busyAnimationColor: setting<BusyColorId>({ guard: isBusyColorId, default: 'theme' }),
+  busyAnimationColor: screen(setting<BusyColorId>({ guard: isBusyColorId, default: 'theme' })),
   /** The resident agents (`main/residents/`): each one's name, schedule and models, added one kind's defaults at a time. */
-  residents: setting<ResidentConfig[]>({ guard: isResidentList, default: [], constrain: constrainResidents }),
-}
+  residents: machine(setting<ResidentConfig[]>({ guard: isResidentList, default: [], constrain: constrainResidents })),
+} satisfies Record<string, { scope: SettingScope }>
 
 /** Settings whose control saves them at once, outside the dialog's Save (Themes: Animations, the
  *  working animation, and every Residents card). The dialog's draft still holds what they were when
@@ -242,4 +252,14 @@ export function mergePayload(
     else merged[key] = accepted
   }
   return { merged: merged as AppSettingsPayload, rejected }
+}
+
+/** The settings that are how this screen looks; the work machine never takes them from a remote window. */
+export const SCREEN_SETTING_KEYS: ReadonlySet<SettingKey> = new Set(
+  SETTING_ENTRIES.flatMap(([key]) => (SETTINGS[key].scope === 'screen' ? [key] : [])),
+)
+
+/** Just the `machine` keys present in `source`: what `machineSettingsGet` answers. */
+export function machinePayload(source: Partial<AppSettingsPayload>): Partial<AppSettingsPayload> {
+  return Object.fromEntries(Object.entries(source).filter(([key]) => !SCREEN_SETTING_KEYS.has(key as SettingKey)))
 }

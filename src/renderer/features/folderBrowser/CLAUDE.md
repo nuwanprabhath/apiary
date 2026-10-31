@@ -8,8 +8,9 @@ browser instead (`App` calls `useFolderBrowserRequest().request()` when `remoteH
   opaque browse id and sends a child's NAME, a crumb index or "up", never a path (ADR-0001). The
   commands are in `state/folderBrowser.ts`.
 - `FolderBrowserDialog` opens a browse on mount and sends `folderBrowseClose` on unmount. A refusal or
-  failure shows inline above the buttons. "Start session in X" starts in the folder being shown (X),
-  not the selected row: the button names it for that reason.
+  failure shows inline above the buttons. Its main button ("Start session in X", or "Use X" in
+  `ChooseFolderDialog`, the resident card's folder field in a remote window) acts on the folder being
+  shown (X), not the selected row: the button names it for that reason.
 - Keys, on the list: Up/Down select, Enter enters the selection, Backspace goes up, Escape closes
   (`Modal`). A double click enters.
 - `crumbs.ts` folds the middle of a deep path into one "…" (title: the whole path) so it never clips.

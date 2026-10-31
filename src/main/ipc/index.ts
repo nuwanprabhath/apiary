@@ -134,7 +134,7 @@ export function registerIpc(
   const remoteClientsIpc = remoteClientsHandlers({ server: deps.remoteServer, pairing: deps.remotePairing })
   const libraryStateIpc = libraryStateHandlers(deps.library)
   const accountsIpc = accountsHandlers(deps.accounts, deps.chat, service)
-  const residentsIpc = residentsHandlers(deps.residents, deps.pickFolder)
+  const residentsIpc = residentsHandlers(deps.residents, deps.pickFolder, deps.folderBrowser)
 
   const handlers: Handlers = {
     ...sessions,

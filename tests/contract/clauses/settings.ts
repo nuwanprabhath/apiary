@@ -59,4 +59,41 @@ export function defineSettingsClauses(ctx: Ctx): void {
       expect(ctx.heard.count('treeChanged')).toBeGreaterThan(0)
     })
   })
+
+  // In a local window "the machine it shows" is this one, so these read and write the same settings.
+  describe('machine settings', () => {
+    it('answers the machine keys of the settings and none of the screen ones', async () => {
+      const machine = await ctx.api.machineSettingsGet()
+      const all = await ctx.api.settingsGet()
+      expect(machine.recentSectionHours).toBe(all.recentSectionHours)
+      expect(machine).toHaveProperty('residents')
+      expect(machine).toHaveProperty('plugins')
+      expect(machine).not.toHaveProperty('motion')
+      expect(machine).not.toHaveProperty('proofingLanguage')
+    })
+
+    it('a machine patch is saved like settingsSet, and says the machine settings changed', async () => {
+      const before = ctx.heard.count('machineSettingsChanged')
+      await ctx.api.machineSettingsSet({ recentSectionHours: 5 })
+      expect((await ctx.api.settingsGet()).recentSectionHours).toBe(5)
+      expect((await ctx.api.machineSettingsGet()).recentSectionHours).toBe(5)
+      expect(ctx.heard.count('machineSettingsChanged')).toBeGreaterThan(before)
+    })
+
+    it('a patch naming a screen key is refused whole', async () => {
+      await expect(ctx.api.machineSettingsSet({ recentSectionHours: 9, motion: 'reduced' })).rejects.toThrow()
+      const settings = await ctx.api.settingsGet()
+      expect(settings.recentSectionHours).toBe(DEFAULT_SETTINGS_PAYLOAD.recentSectionHours)
+      expect(settings.motion).toBe(DEFAULT_SETTINGS_PAYLOAD.motion)
+    })
+
+    it('a value of the wrong type is refused as settingsSet refuses it', async () => {
+      await ctx.api.machineSettingsSet({ transcriptChat: 'no' })
+      expect((await ctx.api.settingsGet()).transcriptChat).toBe(DEFAULT_SETTINGS_PAYLOAD.transcriptChat)
+    })
+
+    it('the machine plugin list is this machine\'s plugin list', async () => {
+      expect(await ctx.api.machinePluginList()).toEqual(await ctx.api.pluginList())
+    })
+  })
 }

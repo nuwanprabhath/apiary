@@ -2,6 +2,7 @@ import { type JSX, useCallback, useRef, useState } from 'react'
 import type { NewSessionInfo } from '@shared/domain/session'
 import { DialogBoundary } from '../dialogs'
 import { FolderBrowserDialog } from './FolderBrowserDialog'
+import { startSessionInBrowsedFolder } from '../../state/folderBrowser'
 
 /**
  * Asks for a folder on the work machine. `request()` shows the browser and resolves with the
@@ -32,7 +33,11 @@ export function useFolderBrowserRequest(host: string | null): {
       // A fault in the dialog shows `DialogBoundary`'s own closable dialog instead of blanking the
       // window; closing it, like closing the browser, resolves the request with nothing.
       <DialogBoundary onClose={() => { finish(null) }}>
-        <FolderBrowserDialog host={host} onStarted={finish} onClose={() => { finish(null) }} />
+        <FolderBrowserDialog
+          host={host} verb="Start session in"
+          choose={(id) => startSessionInBrowsedFolder(id).then(finish)}
+          onClose={() => { finish(null) }}
+        />
       </DialogBoundary>
     )
     : null

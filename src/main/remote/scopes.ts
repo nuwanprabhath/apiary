@@ -9,7 +9,7 @@ import { IPC, type IpcKey } from '@shared/ipc/contract'
  *   through the same guarded handler a local window would reach. Events of this scope reach a
  *   remote window only from the work machine.
  * - `local`: the home machine's own look, devices and app (theme, pets, menus, clipboard,
- *   spelling, settings, the updater, the usage bar, logs). Handled at home as for any window.
+ *   spelling, the This-Mac settings, the updater, logs). Handled at home as for any window.
  * - `bridged`: the home machine handles the call, using an answer it asks the work machine for
  *   (`resolve`, `protocol.ts`). Opening VS Code is the case: the work machine resolves the path and
  *   home launches its own VS Code over Remote-SSH on it. The work machine never serves these keys.
@@ -117,9 +117,10 @@ export const CHANNEL_SCOPES = {
   mrStatusesInvalidated: 'remote',
 
   // The session bar's plugins act on the work machine's sessions, so a remote window's bar shows what
-  // the work machine's own plugin settings turn on. Settings → Plugins at home (`pluginList`) lists
-  // and configures home's plugins; its `pluginsChanged` is skipped for a remote window, whose bar
-  // hears the work machine's instead.
+  // the work machine's own plugin settings turn on. `pluginList` is home's (Settings in the This-Mac
+  // view); `machinePluginList` is the plugins of the machine the window shows, for Settings in the
+  // work-machine view. Home's `pluginsChanged` is skipped for a remote window, whose bar hears the
+  // work machine's instead.
   pluginBarItems: 'remote',
   pluginBarRefresh: 'remote',
   // The item carries its own URL (checked for http(s) in the handler), so opening it needs nothing
@@ -127,6 +128,7 @@ export const CHANNEL_SCOPES = {
   pluginRunAction: 'local',
   pluginsChanged: 'remote',
   pluginList: 'local',
+  machinePluginList: 'remote',
 
   // Tabs, layout and the Active section. The work machine keeps no record of a remote window's
   // layout (it has no window number there), so these answer for its tabs without storing them.
@@ -163,8 +165,14 @@ export const CHANNEL_SCOPES = {
   themeChanged: 'local',
   setTitleBarColors: 'local',
   requireWindowWidth: 'local',
+  // The whole payload, `screen` keys included: the This-Mac view of Settings.
   settingsGet: 'local',
   settingsSet: 'local',
+  // The machine part of the settings belongs to the machine the window shows, so Settings in a remote
+  // window opens on the work machine's. Its `screen` keys (themes, motion, spelling) are refused there.
+  machineSettingsGet: 'remote',
+  machineSettingsSet: 'remote',
+  machineSettingsChanged: 'remote',
   // How the work machine's sessions are arranged and read (pins, groups, tool calls) belongs to
   // those sessions, so a remote window reads and writes the work machine's (shared/libraryState.ts).
   libraryState: 'remote',
@@ -205,11 +213,6 @@ export const CHANNEL_SCOPES = {
   updateSkip: 'local',
   updateOpenDownloaded: 'local',
   updateChanged: 'local',
-  statusBarItems: 'local',
-  statusBarRefresh: 'local',
-  statusBarPanel: 'local',
-  statusBarConsent: 'local',
-  statusBarChanged: 'local',
   logWrite: 'local',
   logStatus: 'local',
   logClear: 'local',
@@ -247,22 +250,34 @@ export const CHANNEL_SCOPES = {
   petClaudeActions: 'local',
   // A remote window never hosts a pet, so it never drops one; and the hit test reads this screen.
   petDropOutside: 'local',
-  // Resident agents run on this machine, over this machine's sessions, for v1.
-  residentsList: 'local',
-  residentsChanged: 'local',
-  residentsAdd: 'local',
-  residentHistory: 'local',
-  residentMessage: 'local',
-  residentSend: 'local',
-  residentStop: 'local',
-  residentClear: 'local',
-  residentRedigest: 'local',
-  residentPermissionAnswer: 'local',
-  residentQuickAction: 'local',
-  residentSeen: 'local',
-  residentPickFolder: 'local',
-  residentKinds: 'local',
-  openSessionRequested: 'local',
+  // The status bar and the residents belong to the machine the window shows: its usage meter reads
+  // that machine's Claude login (the consent is decided there), and its residents work over that
+  // machine's sessions. A remote window drives the work machine's, through the same guarded handlers
+  // (the security note is in the proposal), and hears their events from there only; a session a
+  // resident opens goes to that machine's remote windows first.
+  statusBarItems: 'remote',
+  statusBarRefresh: 'remote',
+  statusBarPanel: 'remote',
+  statusBarConsent: 'remote',
+  statusBarChanged: 'remote',
+  residentsList: 'remote',
+  residentsChanged: 'remote',
+  residentsAdd: 'remote',
+  residentHistory: 'remote',
+  residentMessage: 'remote',
+  residentSend: 'remote',
+  residentStop: 'remote',
+  residentClear: 'remote',
+  residentRedigest: 'remote',
+  residentPermissionAnswer: 'remote',
+  residentQuickAction: 'remote',
+  residentSeen: 'remote',
+  residentKinds: 'remote',
+  openSessionRequested: 'remote',
+  // The native folder dialog would open on the work machine's screen; a remote window's resident
+  // card picks the folder with the in-app browser (`folderBrowse*`) instead.
+  residentPickFolder: 'unavailable',
+  residentUseBrowsedFolder: 'remote',
 } as const satisfies Record<IpcKey, ChannelScope>
 
 /** What a remote window is told when it calls an `unavailable` channel that has no fixed answer. */

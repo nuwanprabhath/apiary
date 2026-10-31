@@ -230,6 +230,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     onOpenSettingsDialog: on('openSettingsDialog'),
     onToggleSidebar: on('toggleSidebar'),
     onPluginsChanged: on('pluginsChanged'),
+    onMachineSettingsChanged: on('machineSettingsChanged'),
     onStatusBarChanged: on('statusBarChanged'),
     onChatChanged: on('chatChanged'),
     onChatLifecycle: on('chatLifecycle'),

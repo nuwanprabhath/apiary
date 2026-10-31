@@ -3,3 +3,4 @@
  * (dependency-cruiser: renderer-feature-public-face).
  */
 export { useFolderBrowserRequest } from './useFolderBrowserRequest'
+export { ChooseFolderDialog } from './ChooseFolderDialog'

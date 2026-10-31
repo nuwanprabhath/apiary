@@ -2,7 +2,7 @@ import type { ResidentConfig, ResidentKindId, ResidentKindInfo } from '@shared/d
 import { createIpcStore } from './createIpcStore'
 import { createLocalStore } from './createLocalStore'
 import { surface } from './policy'
-import { reloadSettings, saveInstantSetting } from './settingsStore'
+import { readSavedSettings, reloadSettings, saveInstantSetting } from './settingsStore'
 
 /** Turns a resident on or off from outside Settings (the badge's right-click menu). Failure is surfaced. */
 export function setResidentEnabled(id: string, enabled: boolean): void {
@@ -49,7 +49,7 @@ export async function addResident(kind: ResidentKindId): Promise<ResidentConfig>
  * card awaits it and shows a failure inline.
  */
 export async function updateResident(id: string, patch: Partial<Omit<ResidentConfig, 'id' | 'kind'>>): Promise<void> {
-  const saved = await window.apiary.settingsGet()
+  const saved = await readSavedSettings()
   if (!saved.residents.some((c) => c.id === id)) throw new Error(`No resident ${id}`)
   const residents = saved.residents.map((c) => (c.id === id ? { ...c, ...patch, id: c.id, kind: c.kind } : c))
   await saveInstantSetting({ residents })
@@ -65,6 +65,16 @@ export async function pickResidentFolder(id: string, key: string): Promise<strin
   const picked = await window.apiary.residentPickFolder(id, key)
   if (picked !== null) reloadSettings()
   return picked
+}
+
+/**
+ * A remote window's stand-in for `pickResidentFolder`: stores the folder the in-app browse `browseId`
+ * shows on the work machine (`folderBrowse*`), which resolves it there. Returned policy, as above.
+ */
+export async function setResidentFolderFromBrowse(id: string, key: string, browseId: string): Promise<string> {
+  const stored = await window.apiary.residentUseBrowsedFolder(id, key, browseId)
+  reloadSettings()
+  return stored
 }
 
 /**

@@ -1,7 +1,9 @@
 import { BrowserWindow, webContents, type WebContents } from 'electron'
 import { IPC } from '@shared/api'
+import type { SessionId } from '@shared/domain/ids'
 import type { AccountService } from '../accounts/accountService'
 import { createExec } from '../exec/run'
+import type { VirtualContentsRegistry } from '../remote/virtualContents'
 import { kindLookup } from '../residents/kinds'
 import { nodeKindFiles, searchPathFrom } from '../residents/kinds/kindHost'
 import { ResidentService } from '../residents/residentService'
@@ -9,7 +11,7 @@ import type { SettingsService } from '../settings/settingsService'
 import type { UsageFeed } from '../statusBar/claudeUsage/usageFeed'
 import type { SessionStore } from '../store/sessionStore'
 import { broadcast } from '../windows/broadcast'
-import { sendEvent } from '../windows/sendEvent'
+import { sendEvent, type EventTarget } from '../windows/sendEvent'
 import type { TabRegistry } from '../windows/tabRegistry'
 import type { ContainerPaths } from './containerPaths'
 import type { KnowledgeParts } from './knowledgeContainer'
@@ -33,6 +35,8 @@ export function createResidents(o: {
   service: { claudeBin: string | null; plugins: { usage: UsageFeed } }
   ipcState: { tabMover: { recentFirst(): readonly number[] } }
   windowManager: { windowNumberFor(webContentsId: number): number | null }
+  /** The remote windows showing this machine at a home machine: where a resident's "open this session" goes first. */
+  virtualContents: Pick<VirtualContentsRegistry, 'list'>
   version: string
   /** Where the bundled programs are (`resolveResourcesDir`). */
   resourcesDir: string
@@ -67,7 +71,7 @@ export function createResidents(o: {
         const found = o.store.getSession(id)
         return found === null || found.archived ? null : { title: found.title ?? found.firstPrompt ?? 'Untitled session' }
       },
-      openSession: (id) => { sendEvent(front(), IPC.openSessionRequested, id) },
+      openSession: (id) => { sendOpenSession(o.virtualContents.list(), front(), id) },
       openTabs: () => o.tabRegistry.list(),
       focusedWindow: () => {
         const target = front()
@@ -79,4 +83,14 @@ export function createResidents(o: {
     onMessage: (push) => { broadcast(IPC.residentMessage, push) },
     version: o.version,
   })
+}
+
+/**
+ * A session a resident opens goes to the remote windows showing this machine, when any is open: the
+ * person is looking at this machine from home, not at its own screen. Otherwise to `front`.
+ */
+export function sendOpenSession(remoteWindows: readonly (EventTarget & { isDestroyed(): boolean })[], front: EventTarget | null, id: SessionId): void {
+  const open = remoteWindows.filter((w) => !w.isDestroyed())
+  if (open.length === 0) { sendEvent(front, IPC.openSessionRequested, id); return }
+  for (const target of open) sendEvent(target, IPC.openSessionRequested, id)
 }

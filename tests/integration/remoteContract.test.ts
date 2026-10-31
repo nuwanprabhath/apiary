@@ -62,7 +62,9 @@ defineBridgeContract('remote: a home window over the remote protocol', async (op
   const disposeTargets = registerBroadcastTargets(() => registry.list())
   const disposeSkip = registerBroadcastSkip(windows.skipsBroadcast)
   windows.bind(fakeContents.id, connection, 1, 'work-box')
-  // The window is open on the work machine before the first call, as `open` is the first frame sent.
+  // A forwarded call follows the `open` frame, but a call handled at home can broadcast an event
+  // before the work machine has the window: wait for it, as a person cannot click that fast.
+  await vi.waitFor(() => { if (registry.list().length === 0) throw new Error('the work machine has not opened the window yet') })
   return {
     ...world.bridge,
     remote: {

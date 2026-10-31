@@ -1,12 +1,8 @@
 import type { TerminalRef } from '@shared/domain/ids'
-import type { PluginBarItem, PluginInfoPayload } from '@shared/domain/plugins'
+import type { PluginBarItem } from '@shared/domain/plugins'
 import { bestEffort, surface } from './policy'
 
-/** Session-bar plugins (merge-request buttons and the like) and the plugin list in Settings. */
-
-/** The plugins that exist; none when main could not say. */
-export const listPlugins = (): Promise<PluginInfoPayload[]> =>
-  bestEffort(window.apiary.pluginList(), 'app').then((list) => list ?? [])
+/** Session-bar plugins (merge-request buttons and the like). Settings lists them with `listSettingsPlugins` (`settingsStore.ts`). */
 
 /** The buttons for a tab; null when they could not be read. Nothing here is load-bearing, so a
  *  bar that cannot be read is an empty bar, never an error in front of the session. */

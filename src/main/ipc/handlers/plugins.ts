@@ -8,7 +8,7 @@ export interface PluginsDeps {
   plugins: PluginService
 }
 
-type HandledKeys = 'pluginBarItems' | 'pluginBarRefresh' | 'pluginRunAction' | 'pluginList'
+type HandledKeys = 'pluginBarItems' | 'pluginBarRefresh' | 'pluginRunAction' | 'pluginList' | 'machinePluginList'
   | 'statusBarItems' | 'statusBarRefresh' | 'statusBarPanel' | 'statusBarConsent'
 
 export function pluginsHandlers(deps: PluginsDeps): Pick<Handlers, HandledKeys> {
@@ -18,6 +18,7 @@ export function pluginsHandlers(deps: PluginsDeps): Pick<Handlers, HandledKeys> 
     pluginBarItems: (_e, terminal) => plugins.barItems(terminal),
     pluginBarRefresh: (_e, terminal) => plugins.refreshBar(terminal),
     pluginList: () => plugins.list(),
+    machinePluginList: () => plugins.list(),
     statusBarItems: () => plugins.statusBarItems(),
     statusBarRefresh: (_e, pluginId) => plugins.statusBarRefresh(pluginId),
     statusBarPanel: (_e, pluginId, itemId) => plugins.statusBarPanel(pluginId, itemId),

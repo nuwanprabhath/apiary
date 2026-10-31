@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { flatten, skipOnRemote, type Ctx } from '../support'
+import { BROWSE_HOME } from '../world'
 
 const RUNS_CLAUDE = 'a resident runs a claude on the machine the window runs on, over that machine\'s sessions'
 const ANSWER = { timeout: 15_000, interval: 100 }
@@ -128,6 +129,20 @@ export function defineResidentsClauses(ctx: Ctx): void {
       await expect(ctx.api.residentPickFolder('regent', 'clone')).rejects.toThrow()
       await expect(ctx.api.residentPickFolder('regent', '../etc')).rejects.toThrow()
       expect((await ctx.api.settingsGet()).residents[0].options).toEqual({})
+    })
+
+    // A remote window has no folder dialog: its resident card chooses with the in-app browser,
+    // which holds the position on the machine that stores it, so no path crosses.
+    it('a folder option can be set to the folder an in-app browse shows, and only a folder option', async () => {
+      await ctx.api.residentsAdd('mr-desk')
+      const { id } = await ctx.api.folderBrowseOpen()
+      await ctx.api.folderBrowseEnter(id, BROWSE_HOME.nested.parent)
+      const stored = await ctx.api.residentUseBrowsedFolder('mr-desk', 'repoPath', id)
+      expect(stored.endsWith(`/${BROWSE_HOME.nested.parent}`)).toBe(true)
+      expect((await ctx.api.settingsGet()).residents.find((c) => c.id === 'mr-desk')?.options.repoPath).toBe(stored)
+      await expect(ctx.api.residentUseBrowsedFolder('mr-desk', 'project', id)).rejects.toThrow()
+      ctx.api.folderBrowseClose(id)
+      await expect(ctx.api.residentUseBrowsedFolder('mr-desk', 'repoPath', id)).rejects.toThrow()
     })
   })
 }

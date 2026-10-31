@@ -476,6 +476,6 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   })
   return {
     paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry, windowManager, service, chat: service.chat, plugins: service.plugins, spelling, folderBrowser, ipcState, sessionWatcher, updater,
-    themeStore, themeGenerator, petStore, petService, petPlacement, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory, library, accounts, knowledge, residents: createResidents({ settingsService, paths, store, accounts, knowledge, tabRegistry, service, ipcState, windowManager, version: inputs.appVersion, resourcesDir: inputs.resourcesDir }),
+    themeStore, themeGenerator, petStore, petService, petPlacement, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory, library, accounts, knowledge, residents: createResidents({ settingsService, paths, store, accounts, knowledge, tabRegistry, service, ipcState, windowManager, virtualContents, version: inputs.appVersion, resourcesDir: inputs.resourcesDir }),
   }
 }

@@ -1,8 +1,7 @@
 import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowseEntry, BrowseView } from '@shared/domain/folders'
-import type { NewSessionInfo } from '@shared/domain/session'
 import {
-  closeFolderBrowse, enterBrowsedFolder, jumpToBrowsedCrumb, openFolderBrowse, startSessionInBrowsedFolder, upBrowsedFolder,
+  closeFolderBrowse, enterBrowsedFolder, jumpToBrowsedCrumb, openFolderBrowse, upBrowsedFolder,
 } from '../../state/folderBrowser'
 import { describeError } from '../../ui/errors'
 import { useListboxNav } from '../../ui/Listbox'
@@ -29,8 +28,10 @@ export interface FolderBrowse {
 /**
  * One folder browse of the work machine: opens on mount, closes on unmount, and runs each step
  * (enter, up, jump) one at a time. A refusal or failure lands in `error` and leaves the view as it was.
+ * `choose` acts on the folder being shown, by the browse's id (start a session there, or set a
+ * resident's folder); its failure lands in `error` too.
  */
-export function useFolderBrowse(onStarted: (info: NewSessionInfo) => void): FolderBrowse {
+export function useFolderBrowse(choose: (browseId: string) => Promise<void>): FolderBrowse {
   const [view, setView] = useState<BrowseView | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -82,7 +83,7 @@ export function useFolderBrowse(onStarted: (info: NewSessionInfo) => void): Fold
     const id = idRef.current
     if (id === null || busy) return
     setBusy(true)
-    startSessionInBrowsedFolder(id).then(onStarted, (e: unknown) => {
+    choose(id).catch((e: unknown) => {
       setError(describeError(e).message)
       setBusy(false)
     })

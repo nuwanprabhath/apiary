@@ -214,4 +214,31 @@ describe('Settings → Residents', () => {
     expect(fake.callsTo('residentPickFolder')[0]).toEqual(['mr-desk', 'clone'])
     await until(() => (el('resident-option-mr-desk-clone')?.textContent ?? '').includes(folder))
   })
+
+  it('in a remote window, Choose… browses the work machine in the app and stores the folder it shows', async () => {
+    history.replaceState(null, '', `${location.pathname}?chrome=custom&remote=work-box`)
+    try {
+      const fake = await openResidents([deskConfig()], (f) => {
+        withDeskFields(f)
+        f.override('machineSettingsGet', async () => ({ residents: f.state.settings.residents }))
+        f.override('residentUseBrowsedFolder', async (id: string, key: string, browseId: string) => {
+          const folder = `/home/work/${browseId}`
+          f.state.settings = { ...f.state.settings, residents: f.state.settings.residents.map((c) => (c.id === id ? { ...c, options: { ...c.options, [key]: folder } } : c)) }
+          return folder
+        })
+      })
+      await userEvent.click(page.getByTestId('resident-option-choose-mr-desk-clone'))
+      await expect.element(page.getByTestId('folder-browser')).toBeVisible()
+      await until(() => (el('folder-start')?.textContent ?? '').startsWith('Use '))
+      await expect.element(page.getByTestId('folder-start')).toBeEnabled()
+      await userEvent.click(page.getByTestId('folder-start'))
+      await until(() => fake.callsTo('residentUseBrowsedFolder').length === 1)
+      expect(fake.callsTo('residentUseBrowsedFolder')[0].slice(0, 2)).toEqual(['mr-desk', 'clone'])
+      expect(fake.callsTo('residentPickFolder')).toEqual([])
+      await expect.element(page.getByTestId('folder-browser')).not.toBeInTheDocument()
+      await until(() => (el('resident-option-mr-desk-clone')?.textContent ?? '').includes('/home/work/'))
+    } finally {
+      history.replaceState(null, '', location.pathname)
+    }
+  })
 })

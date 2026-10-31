@@ -1,5 +1,4 @@
 import type { JSX } from 'react'
-import type { NewSessionInfo } from '@shared/domain/session'
 import { BranchIcon, FolderIcon, ArrowUpIcon } from '../../ui/icons'
 import { Listbox, optionId } from '../../ui/Listbox'
 import { Modal } from '../../ui/Modal'
@@ -9,8 +8,10 @@ import { useFolderBrowse, type FolderBrowse } from './useFolderBrowse'
 interface Props {
   /** The work machine's name, for the title. */
   host: string
-  /** A session was started in the folder being shown. */
-  onStarted: (info: NewSessionInfo) => void
+  /** The main button's words before the folder's name: "Start session in", "Use". */
+  verb: string
+  /** Acts on the folder being shown, by the browse's id; the dialog shows a failure and stays open. */
+  choose: (browseId: string) => Promise<void>
   onClose: () => void
 }
 
@@ -80,11 +81,11 @@ function Rows({ b }: { b: FolderBrowse }): JSX.Element {
  * Has no boundary of its own: `useFolderBrowserRequest` wraps it in a `DialogBoundary`, whose fallback is a closable dialog.
  * "Choose a folder on HOST": the in-app stand-in for the native folder picker, which would open on
  * the work machine's screen. The work machine holds where the browse is; this shows its view and
- * sends a child's name, a crumb index or "up" (ADR-0001). "Start session" starts in the folder
- * being shown, not the row that is selected, which is why the button names that folder.
+ * sends a child's name, a crumb index or "up" (ADR-0001). The main button ("Start session in", "Use")
+ * acts on the folder being shown, not the row that is selected, which is why it names that folder.
  */
-export function FolderBrowserDialog({ host, onStarted, onClose }: Props): JSX.Element {
-  const b = useFolderBrowse(onStarted)
+export function FolderBrowserDialog({ host, verb, choose, onClose }: Props): JSX.Element {
+  const b = useFolderBrowse(choose)
   return (
     <Modal
       testId="folder-browser"
@@ -111,10 +112,10 @@ export function FolderBrowserDialog({ host, onStarted, onClose }: Props): JSX.El
           className="btn primary folder-start"
           data-testid="folder-start"
           disabled={b.view === null || b.busy}
-          title={b.view === null ? undefined : `Start session in ${b.here}`}
+          title={b.view === null ? undefined : `${verb} ${b.here}`}
           onClick={b.start}
         >
-          <span className="folder-start-label">Start session in {b.here === '' ? 'this folder' : b.here}</span>
+          <span className="folder-start-label">{verb} {b.here === '' ? 'this folder' : b.here}</span>
         </button>
       </div>
     </Modal>
