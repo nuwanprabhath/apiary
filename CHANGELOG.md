@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.51.1] - 2026-11-01
+
+### Changed
+
+- **Agent worktrees: cheaper disk, and cleared after a release.** The agent-orchestration guide now
+  says to clone `node_modules` copy-on-write (6 seconds, about 40 MB of real disk) when a
+  worktree's lockfile differs from main's, to delete a branch's `ui-review/` when it is done, and
+  to remove each package's worktree and branch once its release has published (`-D`, since
+  releases are squash-merged).
+
 ## [1.51.0] - 2026-11-01
 
 ### Added

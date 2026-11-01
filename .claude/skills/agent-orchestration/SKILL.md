@@ -23,7 +23,16 @@ Every rule here comes from the 1.35.0 release, which was built by headless Haiku
   worktrees lived in `.claude/worktrees/`.
   - Create them from the release branch:
     `git worktree add .worktrees/<wp> -b <branch> <release-branch>`.
-  - Then `ln -s ../../node_modules .worktrees/<wp>/node_modules`.
+  - Then `ln -s ../../node_modules .worktrees/<wp>/node_modules`. A symlink costs no disk, and is
+    right while the worktree's `package-lock.json` matches main's.
+  - **When the lockfile differs, or the worktree must stand alone, clone instead of `npm ci`.** A
+    fresh `npm ci` is about 0.9 GB. On APFS, `cp -Rc <main>/node_modules <worktree>/node_modules` is
+    a copy-on-write clone: measured on 1.51.0, 6 seconds and about 40 MB of real disk, with
+    Electron, `better-sqlite3` and the unit and integration tests all working in it. `du` still
+    reports 938 MB, so judge the cost by `df`. Replace the clone with `npm ci` when the lockfile
+    differs from main's.
+  - `ui-review/` (about 170 MB once scenarios have run) and `bench-results/` are untracked output:
+    delete a branch's `ui-review/` when it is done; `npm run ui:review` rebuilds it.
   - `run-agent.sh` installs husky's hooks in the worktree before the agent starts. Before 1.43
     worktrees had none, so agents' commits skipped lint-staged and commitlint.
   - Never `git checkout <commit>` in the main checkout to compare. In 1.43 that detached HEAD, and
@@ -207,6 +216,13 @@ committed, and described features that did not exist. For every package:
   - Take the release branch's copy (`git checkout --ours`), then run `npm run lint:prune`.
   - Run `npm run lint:arch:baseline` or `npm run lint:dead:baseline` only when the check reports
     nothing new, just stale entries.
+- **After the release workflow has published, clear what shipped.** `git worktree remove` each
+  package's worktree and `git branch -D` its branch (`git worktree prune` after that), and delete
+  the run's gitignored `.agent-reports/<run>/` only when the maintainer says so.
+  - **`-D`, not `-d`:** releases are squash-merged, so git does not count the branch as merged. The
+    tag keeps the released code.
+  - Keep a worktree that is in use, has work that was not merged, or that the maintainer asked to
+    keep. Check `git worktree list` first, and never remove one a running agent is in.
 - **Do not copy guard files into running worktrees.** Agents committed the copies, and they
   conflicted at merge. Tell the agent to `git merge --no-edit <release-branch>` at the start of its
   next round instead.
