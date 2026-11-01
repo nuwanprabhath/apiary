@@ -4,6 +4,36 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.51.0] - 2026-11-01
+
+### Added
+
+- **Install and restart.** The update banner installs the new version and restarts into it, on
+  macOS (an unsigned build) and on Ubuntu (a `.deb`). Download stays beside it for doing it by hand.
+  - **The password.** When `sudo` needs your password, the banner asks for it. It is passed to
+    `sudo` on stdin only, and is never saved, logged or sent anywhere else. A wrong one is said so,
+    with the field ready for another try.
+  - **Ubuntu:** the checked `.deb` is installed with `apt-get` while Apiary runs, then deleted, and
+    Apiary starts again. When it was started with `systemd-run --user`, the new instance gets a unit
+    of its own, so it outlives the old one and an SSH logout.
+  - **macOS:** a helper takes over once Apiary quits. It swaps the new `Apiary.app` in wherever
+    yours is installed, clears its quarantine (`xattr -cr`), deletes the `.dmg` and opens Apiary
+    again. If anything fails, the old app is put back, the `.dmg` kept, and the next start says why.
+  - **A failed install** keeps the download and offers Try again, Show in folder or the install
+    command.
+- **A remote window updates the work machine.** Its banner shows that machine's update, and Install
+  and restart (with that machine's password) installs it there; the window reconnects to the new
+  version.
+
+### Security
+
+- **The password for an update crosses the paired, encrypted remote connection** to reach the work
+  machine's `sudo`, and is logged on neither side. A paired machine could already run commands
+  there through its terminals, so this adds no new power
+  ([remote access](docs/proposals/2026-10-10-remote-access.md)).
+- **Test hooks stay out of releases.** A packaged build reads the `APIARY_*` test hooks only when it
+  is marked as a test build; a test and a release step check that no release carries the mark.
+
 ## [1.50.0] - 2026-10-31
 
 ### Added

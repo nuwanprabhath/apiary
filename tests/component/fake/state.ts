@@ -49,6 +49,12 @@ export interface FakeProject {
   detached?: boolean
 }
 
+/** sudo on the machine an update installs on: the password it wants (null: none), and an install failure to report. */
+export interface FakeSudo {
+  password: string | null
+  failure: string | null
+}
+
 export interface FakeOptions {
   projects?: FakeProject[]
   sessions?: FakeSession[]
@@ -62,6 +68,8 @@ export interface FakeOptions {
   update?: Partial<UpdateStatusPayload>
   /** The newest release the update feed offers; defaults to `update.availableVersion`, else none. */
   updateFeed?: string | null
+  /** What sudo does on the update's machine. Default: no password needed, and the install works. */
+  updateSudo?: Partial<FakeSudo>
   plugins?: PluginInfoPayload[]
   pluginBar?: PluginBarItemPayload[]
   refs?: Partial<GitRefs>
@@ -165,6 +173,7 @@ export interface FakeState {
   update: UpdateStatusPayload
   /** The newest release the update feed offers, or none. */
   updateFeed: string | null
+  updateSudo: FakeSudo
   plugins: PluginInfoPayload[]
   pluginBar: PluginBarItemPayload[]
   /** Every window's open tabs, this window's first. */

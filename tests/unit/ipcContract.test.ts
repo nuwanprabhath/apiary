@@ -178,6 +178,8 @@ describe('the IPC contract', () => {
       updateOpenDownloaded: 'apiary:update-open-downloaded',
       updateSkip: 'apiary:update-skip',
       updateDismiss: 'apiary:update-dismiss',
+      updatePrepareInstall: 'apiary:update-prepare-install',
+      updateInstallAndRestart: 'apiary:update-install-and-restart',
       updateChanged: 'apiary:update-changed',
       pluginBarItems: 'apiary:plugin-bar-items',
       pluginBarRefresh: 'apiary:plugin-bar-refresh',

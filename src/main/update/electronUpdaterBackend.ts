@@ -1,8 +1,7 @@
-import { createReadStream, createWriteStream } from 'node:fs'
+import { createWriteStream } from 'node:fs'
 import { errorMessage } from '@shared/errors'
 import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
-import { pipeline } from 'node:stream/promises'
 import { log } from '../log/logger'
 import { moveFile } from '../fs/moveFile'
 import { createExec } from '../exec/run'
@@ -13,6 +12,7 @@ import { app, shell } from 'electron'
 import electronUpdater, { type UpdateInfo } from 'electron-updater'
 import type { FeedResult, OpenInstallerResult, UpdateBackend } from './updateService'
 import { pickInstaller, type BackendOptions } from './installerAsset'
+import { hashFile, type PlatformInstaller } from './platformInstaller'
 
 /**
  * The real updater, wired to electron-updater and GitHub Releases.
@@ -72,13 +72,6 @@ export async function setQuarantine(path: string, run: ExecFileFn = (file, args)
   await run('xattr', ['-w', 'com.apple.quarantine', `0081;${hexTime};Apiary;`, path])
 }
 
-/** sha512, base64 — the same encoding `file.sha512` in the feed uses — of a file already on disk. */
-async function hashFile(path: string): Promise<string> {
-  const hash = createHash('sha512')
-  await pipeline(createReadStream(path), hash)
-  return hash.digest('base64')
-}
-
 /** Streams a response into `target` (never following or overwriting an existing entry), reporting percent; resolves to the sha512, base64, of what was written. */
 function writeHashed(
   response: IncomingMessage, target: string, total: number, onProgress: (percent: number) => void,
@@ -99,7 +92,8 @@ function writeHashed(
   })
 }
 
-export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
+/** `installer` does the installing for Install and restart; this backend finds and verifies what it installs. */
+export function createUpdateBackend(opts: BackendOptions, installer: PlatformInstaller): UpdateBackend {
   autoUpdater.autoDownload = false
   // Never install on quit: it would behave differently per platform.
   autoUpdater.autoInstallOnAppQuit = false
@@ -113,6 +107,12 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
   const verifiedSha512ByPath = new Map<string, string>()
 
   return {
+    needsPassword: (path) => installer.needsPassword(path),
+    stillVerified: (path) => installer.stillVerified(path),
+    installDownloaded: (path, o) => installer.installDownloaded(path, o),
+    restart: () => { installer.restart() },
+    takePreviousInstall: () => installer.takePreviousInstall(),
+
     async check({ allowPrerelease }): Promise<FeedResult | null> {
       autoUpdater.allowPrerelease = allowPrerelease
       const result = await autoUpdater.checkForUpdates()
@@ -192,6 +192,7 @@ export function createUpdateBackend(opts: BackendOptions): UpdateBackend {
       }
 
       verifiedSha512ByPath.set(target, file.sha512)
+      installer.recordVerified(target, file.sha512)
       return target
     },
 

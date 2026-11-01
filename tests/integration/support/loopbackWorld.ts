@@ -280,7 +280,7 @@ export async function buildLoopbackWorld(
     windowNumberFor: (id) => (id === fakeContents.id ? THIS_WINDOW.number : null),
     requireWindowWidth: null,
     pickFolder: async () => (cancelPicker ? null : picked),
-    updater: createUpdater(settings, { fakeUpdate: FEED_VERSION, fakeUpdateMode: undefined }, false),
+    updater: createUpdater(settings, { fakeUpdate: FEED_VERSION, fakeUpdateMode: undefined, fakeUpdateFile: undefined }, false),
     theme: {
       store: new ThemeStore(join(home, 'themes.json'), null),
       safeMode: false,

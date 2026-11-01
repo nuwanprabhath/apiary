@@ -36,6 +36,9 @@ vi.mock('node:child_process', () => ({ execFile: (...args: Parameters<typeof exe
 
 // Imported after the mocks above so the module picks them up.
 const { createUpdateBackend, setQuarantine, OPEN_TIMEOUT_MS } = await import('../../src/main/update/electronUpdaterBackend')
+const { createPlatformInstaller } = await import('../../src/main/update/platformInstaller')
+/** Never asked to install here: these tests are about finding, verifying and opening the download. */
+const stubInstaller = createPlatformInstaller({ platform: 'linux', resultFile: join(tmpdir(), 'apiary-no-result.json'), quit: () => {} })
 
 /** A response `node:https`'s `get` would hand back: a readable stream plus HTTP's own fields. */
 function fakeResponse(body: Buffer, statusCode = 200): PassThrough & { statusCode: number; headers: Record<string, string> } {
@@ -70,7 +73,7 @@ describe('downloadInstaller', () => {
       return { on: () => {} }
     })
 
-    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64', downloadDir: dir })
+    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64', downloadDir: dir }, stubInstaller)
     await backend.check({ allowPrerelease: false })
     const path = await backend.downloadInstaller(() => {})
 
@@ -92,7 +95,7 @@ describe('downloadInstaller', () => {
       return { on: () => {} }
     })
 
-    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'darwin', arch: 'arm64', downloadDir: dir })
+    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'darwin', arch: 'arm64', downloadDir: dir }, stubInstaller)
     await backend.check({ allowPrerelease: false })
     const path = await backend.downloadInstaller(() => {})
 
@@ -114,7 +117,7 @@ describe('downloadInstaller', () => {
       return { on: () => {} }
     })
 
-    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'darwin', arch: 'arm64', downloadDir: dir })
+    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'darwin', arch: 'arm64', downloadDir: dir }, stubInstaller)
     await backend.check({ allowPrerelease: false })
     const path = await backend.downloadInstaller(() => {})
     expect((await stat(path)).size).toBe(bytes.length)
@@ -129,7 +132,7 @@ describe('downloadInstaller', () => {
       updateInfo: { version: '1.18.2', releaseNotes: 'notes', files: [{ url: '..%2F..%2FLibrary%2Fx.dmg', sha512, size: bytes.length }] },
     })
     // pickInstaller matches on the raw `.dmg` suffix and the arch, both of which this satisfies.
-    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'darwin', arch: 'x64', downloadDir: dir })
+    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'darwin', arch: 'x64', downloadDir: dir }, stubInstaller)
     await backend.check({ allowPrerelease: false })
     await expect(backend.downloadInstaller(() => {})).rejects.toThrow(/not a plain filename/)
     expect(httpGet).not.toHaveBeenCalled()
@@ -149,7 +152,7 @@ describe('openInstaller', () => {
 
   it('reports "opened" when the OS launches it before the timeout', async () => {
     openPath.mockResolvedValue('')
-    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'darwin', arch: 'arm64' })
+    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'darwin', arch: 'arm64' }, stubInstaller)
     const result = await backend.openInstaller('/tmp/Apiary-1.18.0.dmg', 'open')
     expect(result).toEqual({ ok: 'opened' })
     expect(showItemInFolder).not.toHaveBeenCalled()
@@ -158,7 +161,7 @@ describe('openInstaller', () => {
   it('reports "revealed", not success, when the OS never comes back before the timeout', async () => {
     vi.useFakeTimers()
     openPath.mockReturnValue(new Promise(() => {})) // never resolves — the bug this exists for.
-    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64' })
+    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64' }, stubInstaller)
     const pending = backend.openInstaller('/home/nuwan/Downloads/apiary.deb', 'open')
     await vi.advanceTimersByTimeAsync(OPEN_TIMEOUT_MS)
     const result = await pending
@@ -168,7 +171,7 @@ describe('openInstaller', () => {
   })
 
   it('reveals rather than opens when the action is "reveal", and reports it', async () => {
-    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64' })
+    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64' }, stubInstaller)
     const result = await backend.openInstaller('/home/nuwan/Downloads/apiary.deb', 'reveal')
     expect(result).toEqual({ ok: 'revealed' })
     expect(openPath).not.toHaveBeenCalled()
@@ -176,7 +179,7 @@ describe('openInstaller', () => {
 
   it('reports "failed" with a reason when even revealing it throws', async () => {
     showItemInFolder.mockImplementation(() => { throw new Error('no file manager registered') })
-    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64' })
+    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64' }, stubInstaller)
     const result = await backend.openInstaller('/home/nuwan/Downloads/apiary.deb', 'reveal')
     expect(result).toEqual({ ok: 'failed', reason: 'no file manager registered' })
   })
@@ -196,7 +199,7 @@ describe('openInstaller', () => {
         cb(fakeResponse(bytes))
         return { on: () => {} }
       })
-      const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64', downloadDir: dir })
+      const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64', downloadDir: dir }, stubInstaller)
       await backend.check({ allowPrerelease: false })
       const path = await backend.downloadInstaller(() => {})
 
@@ -219,7 +222,7 @@ describe('openInstaller', () => {
         return { on: () => {} }
       })
       openPath.mockResolvedValue('')
-      const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64', downloadDir: dir })
+      const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64', downloadDir: dir }, stubInstaller)
       await backend.check({ allowPrerelease: false })
       const path = await backend.downloadInstaller(() => {})
 

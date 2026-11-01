@@ -60,9 +60,16 @@ describe('remote channel scopes', () => {
   })
 
   it('keeps the home machine\'s look, devices and app at home', () => {
-    for (const key of ['themeApply', 'settingsSet', 'copyToClipboard', 'appMenuInvoke', 'editCommand', 'petsState', 'updateInstall'] as const) {
+    for (const key of ['themeApply', 'settingsSet', 'copyToClipboard', 'appMenuInvoke', 'editCommand', 'petsState'] as const) {
       expect([key, scopeOf(key)]).toEqual([key, 'local'])
     }
+  })
+
+  it('sends the updater to the work machine, whose update the window shows; opening its installer is unavailable', () => {
+    for (const key of ['updateStatus', 'updateCheck', 'updatePrepareInstall', 'updateInstallAndRestart', 'updateInstall', 'updateChanged'] as const) {
+      expect([key, scopeOf(key)]).toEqual([key, 'remote'])
+    }
+    expect(scopeOf('updateOpenDownloaded')).toBe('unavailable')
   })
 
   it('sends sessions, chat, terminals and git to the work machine', () => {

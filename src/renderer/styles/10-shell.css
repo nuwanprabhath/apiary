@@ -26,7 +26,7 @@
   position: relative;
 }
 .update-banner[data-phase="error"] { border-bottom-color: var(--danger); }
-.update-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.update-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
 .update-banner-note { color: var(--muted); font-size: 12px; }
 .update-banner-actions { flex: none; display: flex; align-items: center; gap: var(--space-sm); }
 .update-banner-close {
@@ -43,6 +43,18 @@
   cursor: pointer;
 }
 .update-banner-close:hover { background: var(--hover); color: var(--text); }
+.update-password { display: flex; align-items: center; gap: var(--space-sm); }
+.update-password-input { width: 200px; min-width: 0; }
+/* With Install and restart beside them, the other offers give way as the window narrows: the
+   offer's sentence and its one button are what must stay readable. */
+@media (width <= 1100px) {
+  .update-banner[data-phase="available"] .update-banner-secondary,
+  .update-banner[data-phase="downloaded"] .update-banner-secondary { display: none; }
+}
+@media (width <= 760px) {
+  .update-banner[data-phase="available"] .update-banner-download { display: none; }
+  .update-password-input { width: 140px; }
+}
 .update-banner-close svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
 
 /* A hairline along the very bottom of the strip, so progress is legible without the layout

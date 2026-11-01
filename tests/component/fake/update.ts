@@ -6,10 +6,14 @@
  * pins it.
  */
 import type { ApiaryApi, UpdateStatusPayload } from '@shared/api'
+import { PASSWORD_NOT_ACCEPTED, type InstallOutcome } from '@shared/domain/update'
 import type { Env } from './state'
 
 type UpdateApi = Pick<ApiaryApi,
-  | 'updateStatus' | 'updateCheck' | 'updateDownload' | 'updateInstall' | 'updateOpenDownloaded' | 'updateSkip' | 'updateDismiss'>
+  | 'updateStatus' | 'updateCheck' | 'updateDownload' | 'updateInstall' | 'updateOpenDownloaded' | 'updateSkip' | 'updateDismiss'
+  | 'updatePrepareInstall' | 'updateInstallAndRestart'>
+
+const MAC_INSTALL = { hint: 'Open it and drag Apiary into Applications to finish updating.', command: null, action: 'open' } as const
 
 export function updateApi(env: Env): UpdateApi {
   const { state, emit } = env
@@ -39,7 +43,7 @@ export function updateApi(env: Env): UpdateApi {
         phase: 'downloaded',
         progressPercent: 100,
         downloadedPath: `/fixture/downloads/Apiary-${version}.dmg`,
-        install: { hint: 'Open it and drag Apiary into Applications to finish updating.', command: null, action: 'open' },
+        install: MAC_INSTALL,
         openResult: { ok: 'opened' },
       })
     },
@@ -53,7 +57,46 @@ export function updateApi(env: Env): UpdateApi {
       patch({ phase: 'idle', availableVersion: null, skippedVersion: version })
     },
     updateDismiss: async () => {
-      if (['available', 'up-to-date', 'error'].includes(state.update.phase)) patch({ phase: 'idle', error: null })
+      if (state.update.phase === 'needs-password') patch({ phase: 'available', installError: null })
+      else if (['available', 'up-to-date', 'error'].includes(state.update.phase)) patch({ phase: 'idle', error: null })
     },
+    updatePrepareInstall: async () => {
+      const { phase, availableVersion, capability } = state.update
+      if (capability.kind !== 'assisted' || availableVersion === null || (phase !== 'available' && phase !== 'downloaded')) {
+        return { needsPassword: false }
+      }
+      if (state.update.downloadedPath === null) {
+        patch({ phase: 'downloading', progressPercent: 0, error: null, installRequested: true, installError: null })
+        patch({ phase: 'downloaded', progressPercent: 100, downloadedPath: `/fixture/downloads/Apiary-${availableVersion}.dmg`, install: MAC_INSTALL })
+      }
+      patch({ installRequested: true, installError: null })
+      if (state.updateSudo.password !== null) {
+        patch({ phase: 'needs-password' })
+        return { needsPassword: true }
+      }
+      install(null)
+      return { needsPassword: false }
+    },
+    updateInstallAndRestart: async ({ password }) => {
+      if (state.update.phase !== 'needs-password') {
+        return { ok: false, reason: 'install', message: 'There is no verified installer waiting to be installed.' }
+      }
+      return install(password)
+    },
+  }
+
+  function install(password: string | null): InstallOutcome {
+    patch({ phase: 'installing', installError: null })
+    if (state.updateSudo.password !== null && password !== state.updateSudo.password) {
+      patch({ phase: 'needs-password', installError: PASSWORD_NOT_ACCEPTED })
+      return { ok: false, reason: 'password', message: PASSWORD_NOT_ACCEPTED }
+    }
+    if (state.updateSudo.failure !== null) {
+      patch({ phase: 'downloaded', installError: state.updateSudo.failure })
+      return { ok: false, reason: 'install', message: state.updateSudo.failure }
+    }
+    // Main quits here; the fixture must never quit anything.
+    patch({ phase: 'restarting', downloadedPath: null })
+    return { ok: true }
   }
 }

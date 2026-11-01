@@ -75,7 +75,7 @@ export const DEFAULT_SETTINGS = DEFAULT_SETTINGS_PAYLOAD
 
 const DEFAULT_UPDATE: FakeState['update'] = {
   phase: 'idle',
-  capability: { kind: 'assisted', reason: 'This build is not signed, so macOS will not let it replace itself.' },
+  capability: { kind: 'assisted', reason: 'Unsigned build — macOS will not let an app replace itself, so Install and restart replaces it with a helper once Apiary has quit.' },
   currentVersion: '1.24.1',
   availableVersion: null,
   releaseNotes: null,
@@ -85,6 +85,8 @@ const DEFAULT_UPDATE: FakeState['update'] = {
   install: null,
   openResult: null,
   error: null,
+  installRequested: false,
+  installError: null,
   lastCheckedAt: null,
   skippedVersion: null,
 }
@@ -143,6 +145,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     tracking: new Map((opts.upstream ?? []).map((branch) => [branch, { upstream: true, ahead: 0, behind: 0, pending: 0 }])),
     update,
     updateFeed: opts.updateFeed !== undefined ? opts.updateFeed : update.availableVersion,
+    updateSudo: { password: null, failure: null, ...opts.updateSudo },
     plugins,
     pluginBar: opts.pluginBar ?? [],
     tabs: [],

@@ -3,6 +3,8 @@ import { UpdateService, type UpdateSettings } from './updateService'
 import { decideCapability } from './capability'
 import { createUpdateBackend } from './electronUpdaterBackend'
 import { createFakeUpdateBackend } from './fakeBackend'
+import { createPlatformInstaller } from './platformInstaller'
+import { join } from 'node:path'
 import { IPC } from '@shared/api'
 import { broadcast } from '../windows/broadcast'
 import type { SettingsService } from '../settings/settingsService'
@@ -11,6 +13,7 @@ import type { SettingsService } from '../settings/settingsService'
 interface UpdaterEnv {
   fakeUpdate: string | undefined
   fakeUpdateMode: string | undefined
+  fakeUpdateFile: string | undefined
 }
 
 /**
@@ -55,12 +58,21 @@ export function createUpdater(settings: SettingsService, env: UpdaterEnv, macSig
     }
   }
 
-  return new UpdateService({
+  const installer = createPlatformInstaller({
+    platform: process.platform,
+    resultFile: join(app.getPath('userData'), 'update-result.json'),
+    quit: () => { app.quit() },
+  })
+  const fakeFile = env.fakeUpdateFile === undefined || env.fakeUpdateFile === ''
+    ? undefined
+    : { path: env.fakeUpdateFile, downloadDir: app.getPath('downloads'), installer }
+
+  const service = new UpdateService({
     currentVersion: app.getVersion(),
     capabilityInput,
     backend: faking
-      ? createFakeUpdateBackend({ fake, fakeMode })
-      : createUpdateBackend({ repo, platform: process.platform, arch: process.arch }),
+      ? createFakeUpdateBackend({ fake, fakeMode, fakeFile })
+      : createUpdateBackend({ repo, platform: process.platform, arch: process.arch }, installer),
     settings: readUpdateSettings,
     saveSettings: (patch) => {
       if (patch.skippedVersion !== undefined) {
@@ -69,4 +81,5 @@ export function createUpdater(settings: SettingsService, env: UpdaterEnv, macSig
     },
     onStatus: (status) => { broadcast(IPC.updateChanged, status) },
   })
+  return service
 }

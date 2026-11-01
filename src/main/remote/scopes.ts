@@ -5,11 +5,11 @@ import { IPC, type IpcKey } from '@shared/ipc/contract'
  * machine's windows, opened at home over SSH: docs/proposals/2026-10-10-remote-access.md).
  *
  * - `remote`: the work machine's data or processes (sessions, transcripts, chat, terminals, git,
- *   search). The home machine forwards the call over the connection; the work machine runs it
+ *   search, the updater). The home machine forwards the call over the connection; the work machine runs it
  *   through the same guarded handler a local window would reach. Events of this scope reach a
  *   remote window only from the work machine.
  * - `local`: the home machine's own look, devices and app (theme, pets, menus, clipboard,
- *   spelling, the This-Mac settings, the updater, logs). Handled at home as for any window.
+ *   spelling, the This-Mac settings, logs). Handled at home as for any window.
  * - `bridged`: the home machine handles the call, using an answer it asks the work machine for
  *   (`resolve`, `protocol.ts`). Opening VS Code is the case: the work machine resolves the path and
  *   home launches its own VS Code over Remote-SSH on it. The work machine never serves these keys.
@@ -205,14 +205,20 @@ export const CHANNEL_SCOPES = {
   spellingCheck: 'local',
   spellingGetLanguages: 'local',
   spellingSetLanguage: 'local',
-  updateStatus: 'local',
-  updateCheck: 'local',
-  updateDownload: 'local',
-  updateInstall: 'local',
-  updateDismiss: 'local',
-  updateSkip: 'local',
-  updateOpenDownloaded: 'local',
-  updateChanged: 'local',
+  // The update belongs to the machine the window shows: a remote window offers, downloads and
+  // installs the work machine's (its password goes to that machine's sudo, over the paired
+  // connection). Opening the installer needs the work machine's screen, so a remote window has
+  // Copy install command instead.
+  updateStatus: 'remote',
+  updateCheck: 'remote',
+  updateDownload: 'remote',
+  updateInstall: 'remote',
+  updateDismiss: 'remote',
+  updateSkip: 'remote',
+  updatePrepareInstall: 'remote',
+  updateInstallAndRestart: 'remote',
+  updateOpenDownloaded: 'unavailable',
+  updateChanged: 'remote',
   logWrite: 'local',
   logStatus: 'local',
   logClear: 'local',

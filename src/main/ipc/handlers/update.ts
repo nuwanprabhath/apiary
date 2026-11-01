@@ -11,7 +11,7 @@ export interface UpdateDeps {
 
 type HandledKeys =
   | 'updateStatus' | 'updateCheck' | 'updateDownload' | 'updateInstall' | 'updateOpenDownloaded'
-  | 'updateSkip' | 'updateDismiss'
+  | 'updateSkip' | 'updateDismiss' | 'updatePrepareInstall' | 'updateInstallAndRestart'
 
 /**
  * Every handler tolerates there being no updater at all — a dev run has none, and the renderer is
@@ -33,6 +33,8 @@ export function updateHandlers(deps: UpdateDeps): Pick<Handlers, HandledKeys> {
     install: null,
     openResult: null,
     error: null,
+    installRequested: false,
+    installError: null,
     lastCheckedAt: null,
     skippedVersion: null,
   })
@@ -49,5 +51,8 @@ export function updateHandlers(deps: UpdateDeps): Pick<Handlers, HandledKeys> {
     // settings again.
     updateSkip: () => { updater?.skip() },
     updateDismiss: () => { updater?.dismiss() },
+    updatePrepareInstall: async () => (await updater?.prepareInstall()) ?? { needsPassword: false },
+    updateInstallAndRestart: async (_e, { password }) => (await updater?.installAndRestart(password))
+      ?? { ok: false, reason: 'install', message: 'Running from source — there is no updater.' },
   }
 }

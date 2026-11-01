@@ -5,6 +5,8 @@
  * depend on.
  */
 
+import { isRecord } from '../guards'
+
 export type UpdatePhase =
   /** Nothing known yet, or a check found nothing and was not asked for by hand. */
   | 'idle'
@@ -16,6 +18,12 @@ export type UpdatePhase =
   | 'ready'
   /** `assisted`: the installer is on disk and has been handed to the OS. */
   | 'downloaded'
+  /** `assisted` install: the installer is verified and `sudo` wants the user's password. */
+  | 'needs-password'
+  /** `assisted` install: the verified installer is being installed. */
+  | 'installing'
+  /** Installed (or, on macOS, handed to the helper that installs after quit); Apiary is quitting. */
+  | 'restarting'
   /** A check the user asked for that found nothing — worth saying so, unlike a silent one. */
   | 'up-to-date'
   | 'error'
@@ -49,6 +57,35 @@ export type OpenInstallerResult =
   | { ok: 'revealed' }
   | { ok: 'failed'; reason: string }
 
+/** What `updatePrepareInstall` answers: whether `updateInstallAndRestart` needs a password. */
+export interface PrepareInstallResult {
+  needsPassword: boolean
+}
+
+/**
+ * `password`: sudo refused the password; `password-required`: sudo wanted one when none was sent
+ * (its cache expired after the probe), so nothing was refused; `install`: anything else went wrong.
+ */
+export type InstallOutcome =
+  | { ok: true }
+  | { ok: false; reason: 'password' | 'password-required' | 'install'; message: string }
+
+/** What `updateInstallAndRestart` is sent: the password for sudo, or null when none is needed. */
+export interface InstallRequest {
+  password: string | null
+}
+
+const MAX_PASSWORD_LENGTH = 1024
+
+export function isInstallRequest(v: unknown): v is InstallRequest {
+  if (!isRecord(v) || Object.keys(v).length !== 1) return false
+  const { password } = v
+  return password === null || (typeof password === 'string' && password.length <= MAX_PASSWORD_LENGTH)
+}
+
+/** The one sentence a refused password reads as, on every platform. */
+export const PASSWORD_NOT_ACCEPTED = 'That password was not accepted.'
+
 export interface UpdateStatusPayload {
   phase: UpdatePhase
   capability: Capability
@@ -70,6 +107,10 @@ export interface UpdateStatusPayload {
   /** Null until an open or reveal has run. */
   openResult: OpenInstallerResult | null
   error: string | null
+  /** The download in progress (or done) is for Install and restart, so nothing opens it. */
+  installRequested: boolean
+  /** Why the last install did not happen, in one sentence; null when nothing failed. */
+  installError: string | null
   lastCheckedAt: number | null
   skippedVersion: string | null
 }

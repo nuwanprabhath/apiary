@@ -127,6 +127,23 @@ jobs:
 
       - run: npm run ${{ matrix.script }}
 
+      # A packaged test build reads APIARY_* hooks (src/main/app/env.ts, isTestBuild); a release must
+      # never be one. An asar stores package.json uncompressed, so the marker's key is greppable.
+      - name: The built app is not a test build
+        shell: bash
+        run: |
+          set -euo pipefail
+          check() {
+            [ -f "$1" ] || { echo "::error::no app.asar in $2"; exit 1; }
+            if grep -qa '"apiaryTestBuild"' "$1"; then echo "::error::$2 is a test build"; exit 1; fi
+            echo "$2: not a test build"
+          }
+          if [ "$RUNNER_OS" = Linux ]; then
+            for deb in release/*.deb; do d=$(mktemp -d); dpkg-deb -x "$deb" "$d"; check "$(find "$d" -name app.asar | head -n 1)" "$deb"; done
+          else
+            for zip in release/*.zip; do d=$(mktemp -d); unzip -q "$zip" -d "$d"; check "$(find "$d" -name app.asar | head -n 1)" "$zip"; done
+          fi
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-${{ matrix.os }}

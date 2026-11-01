@@ -184,3 +184,22 @@ A remote window now shows the work machine's status bar and settings, not home's
   (the contract's guards, then the resident service's checks), `machineSettingsSet` validates every
   field with `mergeSettingsPayload` as `settingsSet` does, and no path crosses. A folder comes from a
   browse the work machine holds and confines (ADR-0001).
+
+## 1.51: updating the work machine
+
+In a remote window the update banner is the work machine's: every `update*` channel and
+`updateChanged` are `remote`, so the window offers, downloads and installs the work machine's
+update, and hears only its status. `updateOpenDownloaded` is `unavailable` (it would open a file on
+the work machine's screen); the banner shows Copy install command instead.
+
+- **Security.** Install and restart may need the work machine's sudo password, typed in the remote
+  window. It crosses the existing paired, encrypted connection as the argument of
+  `updateInstallAndRestart`, and reaches only the work machine's `sudo -S` on stdin
+  (`src/main/update/platformInstaller.ts`). It is never logged on either side, never in a status
+  payload, argv or file. The remote protocol's own logging records a refused call's key and the
+  type of a message that could not be sent, never call arguments, so nothing needs redacting. A
+  paired client could already run commands on the work machine through its terminals, so this adds
+  no new power.
+- **Reconnecting.** The work machine's Apiary quits and starts the new version; the remote window
+  shows its existing reconnecting state and retries until the new instance answers
+  (`RemoteClientService.reconnect` treats an unreachable socket as a restart, not a refusal).

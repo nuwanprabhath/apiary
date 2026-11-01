@@ -25,7 +25,9 @@ import { log } from './log/logger'
 import { configureLogging } from './log/configure'
 import { detectVsCode } from './vscode/detectVsCode'
 import { hasDeveloperIdSignature } from './update/macSignature'
-import { parseRuntimeEnv, type RuntimeEnv } from './app/env'
+import { isTestBuild, parseRuntimeEnv, type RuntimeEnv } from './app/env'
+import { readTextFile } from './fs/textFile'
+import { ignoreErrors } from '@shared/ignoreErrors'
 import { installPermissionGuards } from './app/permissions'
 import { broadcast, registerBroadcastSkip, registerBroadcastTargets } from './windows/broadcast'
 import type { Container } from './app/container'
@@ -41,8 +43,13 @@ import { shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitIdleBack
 
 const dirname = fileURLToPath(new URL('.', import.meta.url))
 
+/** A packaged build reads test hooks only when its own package.json is marked (`isTestBuild`). */
+const testBuild = app.isPackaged && isTestBuild(ignoreErrors(
+  () => JSON.parse(readTextFile(join(app.getAppPath(), 'package.json'))) as unknown,
+  'an unreadable package.json is not a test build',
+))
 /** Every test-only override and launch flag; see `app/env.ts`. */
-const env: RuntimeEnv = parseRuntimeEnv(process.env, process.argv, app.isPackaged)
+const env: RuntimeEnv = parseRuntimeEnv(process.env, process.argv, app.isPackaged, testBuild)
 const launchMode = { background: env.background }
 
 // One Apiary per profile: a second launch (the user starting it normally after a background start)
@@ -340,6 +347,7 @@ async function start(): Promise<void> {
   container.petPlacement.start()
   // Started after the window exists, so the first status push has somewhere to land.
   updater?.start()
+  if (updater !== null) fireAndForget(updater.restorePreviousInstall(), 'update')
   container.plugins.startStatusBar()
   disposeResidents = container.residents.start()
   app.on('activate', () => {

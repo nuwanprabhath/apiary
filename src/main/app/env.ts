@@ -1,3 +1,4 @@
+import { isRecord } from '@shared/guards'
 import { parseLaunchMode } from './launchMode'
 
 /**
@@ -10,9 +11,18 @@ import { parseLaunchMode } from './launchMode'
  * updater, or — `ELECTRON_RENDERER_URL` — load an arbitrary remote page with the full preload
  * bridge. `--safe-theme` / `APIARY_SAFE_THEME` are deliberately not read through this: they
  * are a user recovery path, not a test hook.
+ *
+ * The one packaged exception is a marked test build (`isTestBuild`): the Ubuntu e2e installs a real
+ * .deb with apt, which is packaged, and needs the fake updater. Releases never carry the marker
+ * (`tests/unit/architecture/noTestBuildMarker.test.ts`, and a check of the built .deb in `release.yml`).
  */
-export function readTestEnv(name: string, env: NodeJS.ProcessEnv, isPackaged: boolean): string | undefined {
-  return isPackaged ? undefined : env[name]
+export function readTestEnv(name: string, env: NodeJS.ProcessEnv, isPackaged: boolean, testBuild = false): string | undefined {
+  return isPackaged && !testBuild ? undefined : env[name]
+}
+
+/** Whether the app's own `package.json` carries `"apiaryTestBuild": true` (`-c.extraMetadata.apiaryTestBuild=true`). */
+export function isTestBuild(appPackageJson: unknown): boolean {
+  return isRecord(appPackageJson) && appPackageJson.apiaryTestBuild === true
 }
 
 /** Every test-only override and launch flag, computed once so the test surface is one type. */
@@ -36,6 +46,8 @@ export interface RuntimeEnv {
   fakeUpdate: string | undefined
   /** Which platform/packaging shape `fakeUpdate` should pretend to be. */
   fakeUpdateMode: string | undefined
+  /** A real installer `fakeUpdate` downloads (a copy, verified by its sha512), so Install and restart runs for real. */
+  fakeUpdateFile: string | undefined
   /** Keeps every window off-screen, for a test run that must not steal focus. */
   headless: boolean
   /** The Vite dev server origin, when running unbuilt. */
@@ -70,8 +82,8 @@ function positiveInt(raw: string | undefined): number | undefined {
 }
 
 /** Pure: `argv`, `env` and `isPackaged` are passed in so a unit test needs no `electron`. */
-export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackaged: boolean): RuntimeEnv {
-  const test = (name: string): string | undefined => readTestEnv(name, env, isPackaged)
+export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackaged: boolean, testBuild = false): RuntimeEnv {
+  const test = (name: string): string | undefined => readTestEnv(name, env, isPackaged, testBuild)
   return {
     configRoot: test('APIARY_CONFIG_ROOT'),
     dbPath: test('APIARY_DB_PATH'),
@@ -82,6 +94,7 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackag
     safeTheme: argv.includes('--safe-theme') || env.APIARY_SAFE_THEME === '1',
     fakeUpdate: test('APIARY_FAKE_UPDATE'),
     fakeUpdateMode: test('APIARY_FAKE_UPDATE_MODE'),
+    fakeUpdateFile: test('APIARY_FAKE_UPDATE_FILE'),
     headless: test('APIARY_HEADLESS') === '1',
     rendererUrl: test('ELECTRON_RENDERER_URL'),
     pickFolder: test('APIARY_PICK_FOLDER'),

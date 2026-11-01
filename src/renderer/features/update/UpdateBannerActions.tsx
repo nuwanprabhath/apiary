@@ -4,12 +4,13 @@ import { CloseIcon } from '../../ui/icons'
 import { formatVersion } from './updateSummary'
 import { useNotifications } from '../../ui/notifications'
 import { copyText } from '../../state/clipboard'
-import { dismissUpdate, downloadUpdate, installUpdate, openDownloadedUpdate, skipUpdate } from '../../state/updateStore'
+import { dismissUpdate, downloadUpdate, installUpdate, openDownloadedUpdate, prepareInstallUpdate, skipUpdate } from '../../state/updateStore'
+import { UpdatePasswordForm } from './UpdatePasswordForm'
 
 /** The buttons the banner offers for the current phase. */
 export function UpdateBannerActions(
-  { status, onOpenSettings }: { status: UpdateStatusPayload; onOpenSettings: () => void },
-): JSX.Element {
+  { status, host, onOpenSettings }: { status: UpdateStatusPayload; host: string | null; onOpenSettings: () => void },
+): JSX.Element | null {
   const { notify } = useNotifications()
   const { phase, capability, availableVersion } = status
   const version = availableVersion === null ? '' : formatVersion(availableVersion)
@@ -42,19 +43,33 @@ export function UpdateBannerActions(
       .catch(failed)
   }
 
+  if (phase === 'installing' || phase === 'restarting' || (phase === 'downloading' && status.installRequested)) return null
+  if (phase === 'needs-password') {
+    return (
+      <div className="update-banner-actions">
+        <UpdatePasswordForm host={host} />
+      </div>
+    )
+  }
+
   return (
     <div className="update-banner-actions">
+      {phase === 'available' && assisted && (
+        <button className="btn primary" data-testid="update-install-restart" onClick={() => { prepareInstallUpdate() }}>
+          Install and restart
+        </button>
+      )}
       {phase === 'available' && (
         <>
           <button
-            className="btn primary"
+            className={assisted ? 'btn update-banner-download' : 'btn primary'}
             data-testid="update-download"
             onClick={() => { downloadUpdate() }}
           >
             {assisted ? 'Download' : 'Download and install'}
           </button>
           <button
-            className="btn"
+            className="btn update-banner-secondary"
             data-testid="update-skip"
             title={`Stop offering ${version} — the next release is offered as normal`}
             onClick={() => { skipUpdate() }}
@@ -72,8 +87,14 @@ export function UpdateBannerActions(
           Restart and install
         </button>
       )}
-      {phase === 'downloaded' && (
-        <button className="btn primary" data-testid="update-open-downloaded" onClick={handOver}>
+      {phase === 'downloaded' && assisted && (
+        <button className="btn primary" data-testid="update-install-restart" onClick={() => { prepareInstallUpdate() }}>
+          {status.installError === null ? 'Install and restart' : 'Try again'}
+        </button>
+      )}
+      {phase === 'downloaded' && host === null && (
+        // A remote window cannot open a file on the work machine's screen; it copies the command.
+        <button className={assisted ? 'btn' : 'btn primary'} data-testid="update-open-downloaded" onClick={handOver}>
           {status.install?.action === 'reveal' ? 'Show in folder' : 'Open installer'}
         </button>
       )}
@@ -91,7 +112,7 @@ export function UpdateBannerActions(
       )}
       {status.releaseUrl !== null && phase !== 'up-to-date' && phase !== 'error' && (
         <button
-          className="btn"
+          className="btn update-banner-secondary"
           data-testid="update-notes"
           onClick={() => { void copyText(status.releaseUrl ?? '') }}
           title="Copy the release page link"
@@ -99,7 +120,7 @@ export function UpdateBannerActions(
           Release notes
         </button>
       )}
-      <button className="btn" data-testid="update-settings" onClick={onOpenSettings}>Update settings</button>
+      <button className="btn update-banner-secondary" data-testid="update-settings" onClick={onOpenSettings}>Update settings</button>
       <button
         className="update-banner-close"
         data-testid="update-dismiss"

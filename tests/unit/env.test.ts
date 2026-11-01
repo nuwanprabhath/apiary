@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readTestEnv, parseRuntimeEnv } from '../../src/main/app/env'
+import { isTestBuild, readTestEnv, parseRuntimeEnv } from '../../src/main/app/env'
 
 describe('readTestEnv', () => {
   it('reads the variable when the app is not packaged', () => {
@@ -71,5 +71,17 @@ describe('parseRuntimeEnv', () => {
     expect(parseRuntimeEnv({}, ['--safe-theme'], true).safeTheme).toBe(true)
     expect(parseRuntimeEnv({ APIARY_SAFE_THEME: '1' }, [], true).safeTheme).toBe(true)
     expect(parseRuntimeEnv({}, [], true).safeTheme).toBe(false)
+  })
+})
+
+describe('a marked test build', () => {
+  it('a packaged build honours test hooks only when its package.json carries apiaryTestBuild: true', () => {
+    expect(isTestBuild({ name: 'apiary', apiaryTestBuild: true })).toBe(true)
+    expect(isTestBuild({ name: 'apiary', apiaryTestBuild: 'true' })).toBe(false)
+    expect(isTestBuild({ name: 'apiary' })).toBe(false)
+    expect(isTestBuild(null)).toBe(false)
+    expect(readTestEnv('APIARY_FAKE_UPDATE', { APIARY_FAKE_UPDATE: '9.9.9' }, true, true)).toBe('9.9.9')
+    expect(readTestEnv('APIARY_FAKE_UPDATE', { APIARY_FAKE_UPDATE: '9.9.9' }, true, false)).toBeUndefined()
+    expect(parseRuntimeEnv({ APIARY_FAKE_UPDATE_FILE: '/x.deb' }, [], true, true).fakeUpdateFile).toBe('/x.deb')
   })
 })

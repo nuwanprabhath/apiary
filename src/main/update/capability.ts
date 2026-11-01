@@ -45,9 +45,9 @@ const MAC_APP_NAME = 'Apiary'
 export function installInstructions(input: CapabilityInput, path: string): InstallInstructions {
   if (input.platform === 'linux' && path.endsWith('.deb')) {
     return {
-      // Not "double-click it": installing a .deb needs root, and Ubuntu 24.04's desktop has no
-      // handler for one at all, so the honest instruction is the command that works everywhere.
-      hint: 'Installing a .deb needs root, so Apiary cannot do it for you. Run this to finish:',
+      // Not "double-click it": Ubuntu 24.04's desktop has no handler for a .deb at all, so the
+      // manual route is the command that works everywhere.
+      hint: 'To install it yourself, run:',
       command: `sudo apt install ${shellQuote(path)}`,
       action: 'reveal',
     }
@@ -85,8 +85,8 @@ export function decideCapability(input: CapabilityInput): Capability {
       : {
         kind: 'assisted',
         // Said in terms of what the user will see happen, not in terms of Squirrel.
-        reason: 'Unsigned build — macOS will not let an app replace itself, so the download opens '
-          + 'for you to drag into Applications.',
+        reason: 'Unsigned build — macOS will not let an app replace itself, so Install and restart '
+          + 'replaces it with a helper once Apiary has quit.',
       }
   }
 
@@ -95,8 +95,8 @@ export function decideCapability(input: CapabilityInput): Capability {
       ? { kind: 'auto', reason: 'AppImage — updates install themselves.' }
       : {
         kind: 'assisted',
-        reason: 'Installed from a .deb package, which needs root to update — the download opens '
-          + 'for you to install.',
+        reason: 'Installed from a .deb package — Install and restart installs it with sudo, asking '
+          + 'for your password if sudo needs it.',
       }
   }
 

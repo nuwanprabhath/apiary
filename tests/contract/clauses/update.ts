@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Ctx } from '../support'
+import { skipOnRemote, type Ctx } from '../support'
 import { FEED_VERSION } from '../world'
 
 export function defineUpdateClauses(ctx: Ctx): void {
@@ -63,13 +63,32 @@ export function defineUpdateClauses(ctx: Ctx): void {
       expect(await ctx.api.updateStatus()).toEqual(done)
     })
 
-    it('opens the downloaded installer again on request, and says so when there is none; installing does nothing for an installer the user runs', async () => {
+    it('opens the downloaded installer again on request, and says so when there is none; installing does nothing for an installer the user runs', async (t) => {
+      skipOnRemote(t, ctx.bridge, 'A remote window cannot open a file on the work machine\'s screen.', 'updateOpenDownloaded')
       expect(await ctx.api.updateOpenDownloaded()).toMatchObject({ ok: 'failed' })
       await ctx.api.updateCheck()
       await ctx.api.updateDownload()
       expect(await ctx.api.updateOpenDownloaded()).toEqual({ ok: 'opened' })
       await ctx.api.updateInstall()
       expect((await ctx.api.updateStatus()).phase).toBe('downloaded')
+    })
+
+    it('Install and restart downloads without opening, installs and restarts; with nothing on offer it does nothing', async () => {
+      expect(await ctx.api.updatePrepareInstall()).toEqual({ needsPassword: false })
+      expect(ctx.heard.count('updateChanged')).toBe(0)
+
+      await ctx.api.updateCheck()
+      ctx.heard.reset()
+      expect(await ctx.api.updatePrepareInstall()).toEqual({ needsPassword: false })
+      // A progress step repeats its phase; the order of the phases is the claim.
+      expect(phases().filter((p, i, all) => p !== all[i - 1])).toEqual(['downloading', 'downloaded', 'installing', 'restarting'])
+      expect(await ctx.api.updateStatus()).toMatchObject({ phase: 'restarting', installRequested: true, installError: null, openResult: null })
+    })
+
+    it('installing with a password is refused unless a password was asked for, and an oversized one never arrives', async () => {
+      expect(await ctx.api.updateInstallAndRestart({ password: 'secret' })).toMatchObject({ ok: false, reason: 'install' })
+      await expect(ctx.api.updateInstallAndRestart({ password: 'x'.repeat(1025) })).rejects.toThrow()
+      expect(ctx.heard.count('updateChanged')).toBe(0)
     })
   })
 }

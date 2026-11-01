@@ -5,6 +5,7 @@ import {
 } from '../../src/main/update/updateService'
 import type { CapabilityInput } from '../../src/main/update/capability'
 import type { OpenInstallerResult } from '../../src/main/update/updateService'
+import type { InstallOutcome } from '@shared/domain/update'
 
 /**
  * The updater's behaviour, driven against a stub backend and a clock the test owns.
@@ -59,6 +60,12 @@ class StubBackend implements UpdateBackend {
   }
 
   readonly openActions: ('open' | 'reveal')[] = []
+
+  async needsPassword(): Promise<boolean> { return false }
+  async stillVerified(): Promise<boolean> { return true }
+  async installDownloaded(): Promise<InstallOutcome> { return { ok: true } }
+  restart(): void { /* Not exercised here: tests/unit/updateInstall.test.ts covers installing. */ }
+  async takePreviousInstall(): Promise<null> { return null }
 }
 
 /** A clock the test advances by hand, so schedules are tested without waiting for them. */

@@ -34,7 +34,9 @@ import type { AppSettingsPayload } from '../domain/settings'
 import { isLibraryPatch, type LibraryPatch, type LibrarySnapshot } from '../libraryState'
 import { isAccountId, isAccountLabel, type AccountId, type AccountsState } from '../domain/accounts'
 import type { LogLevel, LogScope, LogStatusPayload } from '../domain/log'
-import type { UpdateStatusPayload } from '../domain/update'
+import {
+  isInstallRequest, type InstallOutcome, type InstallRequest, type PrepareInstallResult, type UpdateStatusPayload,
+} from '../domain/update'
 import type { PluginInfoPayload, PluginBarItem as PluginBarItemPayload } from '../domain/plugins'
 import type { PtySessionInfo, PtySnapshot } from '../domain/pty'
 import type { StatusBarItem, StatusBarPanel } from '../domain/statusBar'
@@ -379,6 +381,10 @@ export const IPC = {
   ),
   updateSkip: invoke<[], void>('apiary:update-skip', tuple()),
   updateDismiss: invoke<[], void>('apiary:update-dismiss', tuple()),
+  /** Install and restart: downloads and verifies, then installs at once or waits for a password. */
+  updatePrepareInstall: invoke<[], PrepareInstallResult>('apiary:update-prepare-install', tuple()),
+  /** The password goes only to sudo's stdin on the machine whose update this is; never logged. */
+  updateInstallAndRestart: invoke<[request: InstallRequest], InstallOutcome>('apiary:update-install-and-restart', tuple(isInstallRequest)),
   updateChanged: event<[status: UpdateStatusPayload]>('apiary:update-changed'),
 
   // Session-bar plugins.

@@ -25,6 +25,10 @@ export function downloadUpdate(): void { background(window.apiary.updateDownload
 export function installUpdate(): void { background(window.apiary.updateInstall(), 'update') }
 export function skipUpdate(): void { background(window.apiary.updateSkip(), 'update') }
 export function dismissUpdate(): void { background(window.apiary.updateDismiss(), 'update') }
+export function prepareInstallUpdate(): void { background(window.apiary.updatePrepareInstall(), 'update') }
+export function installUpdateWithPassword(password: string): void {
+  background(window.apiary.updateInstallAndRestart({ password }), 'update')
+}
 /** What "Open installer" did; the banner words each outcome (and a rejection) itself. */
 export const openDownloadedUpdate = (): ReturnType<typeof window.apiary.updateOpenDownloaded> =>
   window.apiary.updateOpenDownloaded()

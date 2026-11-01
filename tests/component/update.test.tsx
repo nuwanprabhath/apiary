@@ -63,15 +63,15 @@ describe('the updater', () => {
     await renderApp({ update: { phase: 'available', availableVersion: '9.9.9', releaseUrl: 'https://example.invalid/9.9.9' } })
 
     const reference = await stableBox('sidebar-refresh')
-    for (const id of ['update-settings', 'update-skip', 'update-notes']) {
+    for (const id of ['update-settings', 'update-skip', 'update-notes', 'update-download']) {
       const button = await stableBox(id)
       expect(button.background).toBe(reference.background)
       expect(Math.abs(button.height - reference.height)).toBeLessThanOrEqual(1)
     }
 
     // The primary action is filled rather than outlined — different on purpose, and the same
-    // height as the rest.
-    const primary = await stableBox('update-download')
+    // height as the rest. On a build that cannot replace itself, it is Install and restart.
+    const primary = await stableBox('update-install-restart')
     expect(primary.background).not.toBe(reference.background)
     expect(Math.abs(primary.height - reference.height)).toBeLessThanOrEqual(1)
   })
@@ -261,7 +261,7 @@ describe('the updater', () => {
         phase: 'downloaded',
         downloadedPath: '/tmp/apiary_9.9.9_amd64.deb',
         install: {
-          hint: 'Installing a .deb needs root, so Apiary cannot do it for you. Run this to finish:',
+          hint: 'To install it yourself, run:',
           command: 'sudo apt install \'/tmp/apiary_9.9.9_amd64.deb\'',
           action: 'reveal',
         },
@@ -273,7 +273,7 @@ describe('the updater', () => {
 
     const banner = page.getByTestId('update-banner')
     await expect.element(banner).toHaveAttribute('data-phase', 'downloaded')
-    await expect.element(banner).toMatchTextContent('root')
+    await expect.element(banner).toMatchTextContent('install it yourself')
     await expect.element(banner).not.toMatchTextContent('Applications')
     // And the button says what it will actually do.
     await expect.element(page.getByTestId('update-open-downloaded')).toMatchTextContent('Show in folder')

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 vi.mock('electron', () => ({
-  app: { getVersion: () => '1.0.0', isPackaged: false },
+  app: { getVersion: () => '1.0.0', isPackaged: false, getPath: () => '/tmp/apiary-createUpdater-test', quit: () => {} },
 }))
 // `electronUpdaterBackend.ts` (imported transitively by `createUpdater.ts` for the non-fake path)
 // touches `electron-updater`'s `autoUpdater` getter at module load time, which in turn expects a
@@ -29,7 +29,7 @@ const { SettingsService } = await import('../../src/main/settings/settingsServic
 const { createFakeUpdateBackend } = await import('../../src/main/update/fakeBackend')
 
 function baseEnv(): Parameters<typeof createUpdater>[1] {
-  return { fakeUpdate: undefined, fakeUpdateMode: undefined }
+  return { fakeUpdate: undefined, fakeUpdateMode: undefined, fakeUpdateFile: undefined }
 }
 
 describe('createUpdater (MAIN-15 step 2)', () => {

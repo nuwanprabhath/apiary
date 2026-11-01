@@ -4,8 +4,10 @@ import {
   type CapabilityInput,
 } from './capability'
 import { shouldOffer } from './versions'
-import type {
-  UpdateStatusPayload,Capability, InstallInstructions, OpenInstallerResult,
+import {
+  PASSWORD_NOT_ACCEPTED,
+  type UpdateStatusPayload, type Capability, type InstallInstructions, type OpenInstallerResult,
+  type InstallOutcome, type PrepareInstallResult,
 } from '@shared/domain/update'
 
 export type { Capability, OpenInstallerResult }
@@ -43,6 +45,28 @@ export interface UpdateBackend {
    * Ubuntu desktop, so `installInstructions` decides and this does as it is told.
    */
   openInstaller(path: string, action: InstallInstructions['action']): Promise<OpenInstallerResult>
+  /** `assisted`: whether installing the file at `path` needs the user's sudo password. */
+  needsPassword(path: string): Promise<boolean>
+  /** Whether the file at `path` still hashes to the sha512 it was verified against when downloaded. */
+  stillVerified(path: string): Promise<boolean>
+  /**
+   * `assisted`: installs the verified file (Linux), or hands it to the helper that installs it once
+   * Apiary has quit (macOS).
+   */
+  installDownloaded(path: string, opts: { password: string | null; version: string }): Promise<InstallOutcome>
+  /** Quits; the installed version starts once this process has exited. */
+  restart(): void
+  /** The outcome the macOS helper left from the last install, read once and deleted. */
+  takePreviousInstall(): Promise<PreviousInstall | null>
+}
+
+/** What a helper that installed after quit (macOS) left for the next start to read. */
+export interface PreviousInstall {
+  version: string
+  ok: boolean
+  message: string
+  /** The installer it kept, when it failed and the file is still there. */
+  path: string | null
 }
 
 export interface UpdateSettings {
@@ -71,6 +95,8 @@ export interface UpdateServiceOptions {
 
 /** How long after launch the first automatic check happens; not zero, so it does not compete with startup. */
 export const FIRST_CHECK_DELAY_MS = 30_000
+
+const CHANGED_SINCE_VERIFIED = 'The downloaded file changed since it was verified, so it was not installed.'
 
 const MIN_INTERVAL_HOURS = 1
 const MAX_INTERVAL_HOURS = 24 * 7
@@ -104,6 +130,8 @@ export class UpdateService {
       install: null,
       openResult: null,
       error: null,
+      installRequested: false,
+      installError: null,
       lastCheckedAt: null,
       skippedVersion: opts.settings().skippedVersion,
     }
@@ -210,9 +238,13 @@ export class UpdateService {
    * or saved to disk and opened for the user to run.
    */
   async download(): Promise<UpdateStatus> {
+    return this.fetch({ forInstall: false })
+  }
+
+  private async fetch({ forInstall }: { forInstall: boolean }): Promise<UpdateStatus> {
     if (this.status.availableVersion === null) return this.status
     if (this.status.phase === 'downloading') return this.status
-    this.patch({ phase: 'downloading', progressPercent: 0, error: null })
+    this.patch({ phase: 'downloading', progressPercent: 0, error: null, installRequested: forInstall, installError: null })
 
     const onProgress = (percent: number): void => {
       this.patch({ progressPercent: Math.max(0, Math.min(100, Math.round(percent))) })
@@ -226,6 +258,8 @@ export class UpdateService {
         const path = await this.opts.backend.downloadInstaller(onProgress)
         const install = installInstructions(this.opts.capabilityInput, path)
         this.patch({ phase: 'downloaded', progressPercent: 100, downloadedPath: path, install })
+        // Install and restart installs the file itself; opening it too would start a second install.
+        if (forInstall) return this.status
         const openResult = await this.opts.backend.openInstaller(path, install.action)
         this.patch({ openResult })
       }
@@ -255,6 +289,90 @@ export class UpdateService {
     return openResult
   }
 
+  /**
+   * Install and restart, first half (`assisted` only): downloads and verifies the installer unless
+   * one is already on disk, then asks whether sudo needs a password. If it does, the status waits in
+   * `needs-password` for `installAndRestart`; if not, this installs and restarts at once.
+   */
+  async prepareInstall(): Promise<PrepareInstallResult> {
+    const { phase } = this.status
+    if (this.capability.kind !== 'assisted' || (phase !== 'available' && phase !== 'downloaded')) {
+      return { needsPassword: false }
+    }
+    if (this.status.downloadedPath === null) {
+      await this.fetch({ forInstall: true })
+      if (this.status.phase !== 'downloaded') return { needsPassword: false }
+    }
+    const path = this.status.downloadedPath
+    if (path === null) return { needsPassword: false }
+    this.patch({ installRequested: true, installError: null })
+    let needsPassword: boolean
+    try {
+      needsPassword = await this.opts.backend.needsPassword(path)
+    } catch (e) {
+      this.patch({ phase: 'downloaded', installError: errorMessage(e) })
+      return { needsPassword: false }
+    }
+    if (needsPassword) {
+      this.patch({ phase: 'needs-password' })
+      return { needsPassword: true }
+    }
+    await this.runInstall(path, null)
+    return { needsPassword: false }
+  }
+
+  /** Install and restart, second half: only from `needs-password`, with the password the user typed. */
+  async installAndRestart(password: string | null): Promise<InstallOutcome> {
+    const path = this.status.downloadedPath
+    if (this.status.phase !== 'needs-password' || path === null) {
+      return { ok: false, reason: 'install', message: 'There is no verified installer waiting to be installed.' }
+    }
+    return this.runInstall(path, password)
+  }
+
+  private async runInstall(path: string, password: string | null): Promise<InstallOutcome> {
+    const version = this.status.availableVersion ?? ''
+    this.patch({ phase: 'installing', installError: null })
+    let outcome: InstallOutcome
+    try {
+      outcome = await this.opts.backend.stillVerified(path)
+        ? await this.opts.backend.installDownloaded(path, { password, version })
+        : { ok: false, reason: 'install', message: CHANGED_SINCE_VERIFIED }
+    } catch (e) {
+      outcome = { ok: false, reason: 'install', message: errorMessage(e) }
+    }
+    if (outcome.ok) {
+      this.patch({ phase: 'restarting', downloadedPath: null })
+      this.opts.backend.restart()
+    } else if (outcome.reason === 'password') {
+      this.patch({ phase: 'needs-password', installError: PASSWORD_NOT_ACCEPTED })
+    } else if (outcome.reason === 'password-required') {
+      this.patch({ phase: 'needs-password', installError: null })
+    } else if (outcome.message === CHANGED_SINCE_VERIFIED) {
+      this.patch({ phase: 'available', downloadedPath: null, install: null, installError: outcome.message })
+    } else {
+      this.patch({ phase: 'downloaded', installError: outcome.message })
+    }
+    return outcome
+  }
+
+  /**
+   * Called once at startup: when the macOS helper could not install the last update after quit, the
+   * banner says so and offers the installer it kept. A success says nothing; the version is the proof.
+   */
+  async restorePreviousInstall(): Promise<void> {
+    const previous = await this.opts.backend.takePreviousInstall()
+    if (previous === null || previous.ok) return
+    this.patch({
+      phase: 'downloaded',
+      availableVersion: previous.version,
+      downloadedPath: previous.path,
+      install: previous.path === null ? null : installInstructions(this.opts.capabilityInput, previous.path),
+      installRequested: true,
+      installError: previous.message,
+    })
+  }
+
   /** Dismisses this version for good — until a newer one arrives. */
   skip(): void {
     const version = this.status.availableVersion
@@ -265,6 +383,10 @@ export class UpdateService {
 
   /** Dismisses the notice for now; the next check offers it again. */
   dismiss(): void {
+    if (this.status.phase === 'needs-password') {
+      this.patch({ phase: 'available', installError: null })
+      return
+    }
     if (this.status.phase === 'available' || this.status.phase === 'up-to-date'
       || this.status.phase === 'error') {
       this.patch({ phase: 'idle', error: null })

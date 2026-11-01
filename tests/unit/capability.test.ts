@@ -10,7 +10,7 @@ describe('installInstructions', () => {
     // could not open a .deb.
     const { hint } = installInstructions(linux, '/home/nuwan/Downloads/apiary_1.13.0_amd64.deb')
     expect(hint).not.toContain('Applications')
-    expect(hint).toContain('root')
+    expect(hint).toContain('install it yourself')
   })
 
   it('gives a .deb the command that actually installs it', () => {

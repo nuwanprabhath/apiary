@@ -5,6 +5,14 @@ read through `readTestEnv`, which returns `undefined` for every one of them in a
 (`app.isPackaged`) — they exist so the E2E suite can point the app at fixture data, a fake updater,
 or a stand-in binary, and none of them must be usable to redirect a real install.
 
+**The test-build marker.** One packaged build does read them: one whose own `package.json` carries
+`"apiaryTestBuild": true` (`isTestBuild`, read once at startup through `app.getAppPath()`). Only
+`npm run test:update-deb` builds one (`-c.extraMetadata.apiaryTestBuild=true`), because it installs a
+real .deb with apt and needs `APIARY_FAKE_UPDATE` and `APIARY_FAKE_UPDATE_FILE` there. Releases never
+carry it: `tests/unit/architecture/noTestBuildMarker.test.ts` fails if `package.json`,
+`electron-builder.yml` or a workflow sets it, and `.github/workflows/release.yml` greps each built
+.deb's and macOS zip's `app.asar` for it before upload.
+
 | Variable | Set by | Effect |
 | --- | --- | --- |
 | `APIARY_CONFIG_ROOT` | test harness | overrides the Claude config root (`resolveConfigRoot()`) |
@@ -22,6 +30,7 @@ or a stand-in binary, and none of them must be usable to redirect a real install
 | `APIARY_DEFAULT_THEME=original` | test harness | starts a fresh profile on the pre-Liquid-Glass theme |
 | `APIARY_FAKE_USAGE` | screenshot script | JSON in the shape of the usage endpoint's answer (`{"five_hour":{"utilization":42,"resets_at":"…"},"seven_day":{…}}`): the Claude usage plugin shows it, with a stand-in sign-in and consent, and reads and sends nothing real (`statusBar/claudeUsage/standIn.ts`) |
 | `APIARY_FAKE_UPDATE`, `APIARY_FAKE_UPDATE_MODE` | test harness | drives the update banner with no network (`update/fakeBackend.ts`); the mode picks the platform and packaging shape it pretends to be |
+| `APIARY_FAKE_UPDATE_FILE` | test harness | a real installer the fake update "downloads" (copied into the downloads folder and verified by its sha512), so Install and restart installs it for real (`update/fakeBackend.ts`) |
 | `APIARY_HEADLESS` | test harness | keeps every window off-screen |
 | `APIARY_FAKE_GLAB_STATE_FILE`, `APIARY_FAKE_GLAB_EMPTY`, `APIARY_FAKE_GLAB_FAIL`, `APIARY_FAKE_GLAB_MERGED` | e2e harness, read by `tests/fixtures/bin/fake-glab*.sh` (not by the app) | shape the stand-in `glab`: an empty merge-request list, a failing call, a merged request; `glab api` answers with the state held in the state file |
 | *(chat)* no `APIARY_*` variable | e2e harness | Chat mode is driven through `claudeBin` in the profile's `settings.json` pointing at `tests/fixtures/fake-claude-chat.mjs` (`launchApiary({ claudeBin, settings: { transcriptChat: true } })`). The stand-in speaks the stream-json protocol; it writes a `/clear` session's file under `APIARY_CONFIG_ROOT` (or `CLAUDE_CONFIG_DIR`). A message containing "permission", "slow" or "background" makes it ask for a tool, stream long enough to interrupt, or finish a background task |
