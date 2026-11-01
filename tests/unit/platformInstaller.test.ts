@@ -151,3 +151,87 @@ describe('a macOS app run from a quarantined copy', () => {
     await expect(i.needsPassword(deb)).rejects.toThrow(/quarantined copy macOS made read-only.*xattr -cr/)
   })
 })
+
+describe('macOS: the helper that installs after quit', () => {
+  async function bundleIn(parent: string): Promise<string> {
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(join(parent, 'Apiary.app', 'Contents', 'MacOS'), { recursive: true })
+    return join(parent, 'Apiary.app', 'Contents', 'MacOS', 'Apiary')
+  }
+  function mac(execPath: string, quit: () => void = () => {}) {
+    return createPlatformInstaller({ platform: 'darwin', resultFile: join(dir, 'update-result.json'), quit, execPath })
+  }
+
+  it('needs no password where this user can write the bundle and its folder', async () => {
+    expect(await mac(await bundleIn(dir)).needsPassword(deb)).toBe(false)
+  })
+
+  it('refuses an executable that is not inside an app bundle', async () => {
+    await expect(mac('/usr/local/bin/apiary').needsPassword(deb)).rejects.toThrow(/app bundle/)
+    expect(await mac('/usr/local/bin/apiary').installDownloaded(deb, { password: null, version: '1.51.0' }))
+      .toEqual({ ok: false, reason: 'install', message: 'Apiary is not running from an app bundle.' })
+  })
+
+  it('with no password, starts the helper unprivileged, never through sudo', async () => {
+    expect(await mac(await bundleIn(dir)).installDownloaded(deb, { password: null, version: '1.51.0' })).toEqual({ ok: true })
+    expect(spawned.map((s) => s.file)).toEqual(['/bin/sh'])
+    expect(spawned[0].options.detached).toBe(true)
+  })
+
+  it('with a password, checks it first, then starts the helper under sudo with the password on stdin only', async () => {
+    expect(await mac(await bundleIn(dir)).installDownloaded(deb, { password: PASSWORD, version: '1.51.0' })).toEqual({ ok: true })
+    expect(spawned.map((s) => [s.file, s.args.includes('-v')])).toEqual([['sudo', true], ['sudo', false]])
+    expect(spawned.map((s) => s.stdin)).toEqual([`${PASSWORD}\n`, `${PASSWORD}\n`])
+    expect(JSON.stringify(spawned.map((s) => s.args))).not.toContain(PASSWORD)
+  })
+
+  it('a refused password is reported before quitting, and no helper starts', async () => {
+    reply = { code: 1, stderr: 'Sorry, try again.\n' }
+    expect(await mac(await bundleIn(dir)).installDownloaded(deb, { password: 'wrong', version: '1.51.0' }))
+      .toEqual({ ok: false, reason: 'password', message: PASSWORD_NOT_ACCEPTED })
+    expect(spawned).toHaveLength(1)
+  })
+
+  it('sudo failing for another reason is an install failure in its own words', async () => {
+    reply = { code: 1, stderr: 'sudo: unable to resolve host\n' }
+    expect(await mac(await bundleIn(dir)).installDownloaded(deb, { password: 'x', version: '1.51.0' }))
+      .toEqual({ ok: false, reason: 'install', message: 'sudo: unable to resolve host' })
+  })
+
+  it('restart only quits: the helper relaunches once Apiary has gone', async () => {
+    const quit = vi.fn()
+    mac(await bundleIn(dir), quit).restart()
+    expect(quit).toHaveBeenCalledOnce()
+    expect(spawned).toEqual([])
+  })
+})
+
+describe('the result the macOS helper leaves for the next start', () => {
+  const resultFile = (): string => join(dir, 'update-result.json')
+
+  it('is read once and deleted, with the kept installer when it is still there', async () => {
+    await writeFile(resultFile(), JSON.stringify({ version: '1.51.0', ok: false, message: 'The disk image could not be opened.', path: deb }))
+    const i = installer()
+    expect(await i.takePreviousInstall()).toEqual({ version: '1.51.0', ok: false, message: 'The disk image could not be opened.', path: deb })
+    await expect(stat(resultFile())).rejects.toThrow()
+    expect(await i.takePreviousInstall()).toBeNull()
+  })
+
+  it('drops a kept path that is gone, and treats a torn file as none', async () => {
+    await writeFile(resultFile(), JSON.stringify({ version: '1.51.0', ok: true, message: '', path: join(dir, 'gone.dmg') }))
+    expect(await installer().takePreviousInstall()).toEqual({ version: '1.51.0', ok: true, message: '', path: null })
+    await writeFile(resultFile(), '{"version":')
+    expect(await installer().takePreviousInstall()).toBeNull()
+    await writeFile(resultFile(), JSON.stringify({ version: 1 }))
+    expect(await installer().takePreviousInstall()).toBeNull()
+  })
+})
+
+describe('the platforms Install and restart does not cover', () => {
+  it('Linux asks sudo whether a password is needed; Windows cannot install', async () => {
+    expect(await installer().needsPassword(deb)).toBe(true)
+    const win = createPlatformInstaller({ platform: 'win32', resultFile: join(dir, 'r.json'), quit: () => {} })
+    expect(await win.installDownloaded(deb, { password: null, version: '1.51.0' }))
+      .toEqual({ ok: false, reason: 'install', message: 'Apiary cannot install updates on win32.' })
+  })
+})
