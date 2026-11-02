@@ -138,6 +138,12 @@ const CASES: Record<string, Case> = {
       code: "declare const ref: { current: HTMLElement | null }\ndeclare function useEffect(f: () => void, deps: unknown[]): void\nuseEffect(() => { ref.current?.focus() }, [open])",
     },
   },
+  'focus-ref-is-stable': {
+    bad: {
+      file: 'src/renderer/features/residents/ResidentComposer.tsx',
+      code: "declare function focusAskedFor(el: HTMLElement | null): void\ndeclare const box: { current: HTMLTextAreaElement | null }\nconst x = <textarea ref={(el) => { box.current = el; focusAskedFor(el) }} />",
+    },
+  },
   'branded-ids-from-source': {
     bad: { file: 'src/renderer/features/transcript/Composer.tsx', code: "import { asSessionId } from '@shared/domain/ids'\nasSessionId('x')" },
     allowed: { file: 'src/renderer/state/chatStore.ts', code: "import { asSessionId } from '@shared/domain/ids'\nasSessionId('x')" },

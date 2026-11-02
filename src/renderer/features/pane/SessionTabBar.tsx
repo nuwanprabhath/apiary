@@ -2,7 +2,8 @@ import { type HTMLAttributes, type JSX, useEffect, useState, type ReactNode } fr
 import { LayoutIcon, SplitIcon } from '../../ui/icons'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
 import { useStripOverflow, type StripOverflow } from './useStripOverflow'
-import type { FoldState } from '../../state/layout'
+import type { FoldState, RailState } from '../../state/layout'
+import { RailButton } from './PaneRail'
 import { TabContextMenu } from './TabContextMenu'
 import { useTabStripKeys } from './useTabStripKeys'
 import { LayoutMenuButton, useLayoutActions, useLayoutState } from '../layout'
@@ -49,6 +50,9 @@ interface Props {
   /** Whether the pane can fold to this bar, or is folded; `none` shows no chevron. */
   fold?: FoldState
   onFold?: (folded: boolean) => void
+  /** Whether the pane can collapse sideways to a rail; `none` shows no button. */
+  rail?: RailState
+  onRail?: (rail: boolean) => void
 }
 
 /** The chevron at the start of the bar that folds a pane with a vertical neighbour down to it. */
@@ -137,6 +141,7 @@ export function SessionTabBar(
   {
     columnId, tabs, activeKey, onActivate, onClose, onSplitActive, onDropTab, transferFor, pinnedKeys,
     onTogglePin, onFork, onTabDropped, onDetach, layoutButton, viewToggle, fold = 'none', onFold,
+    rail = 'none', onRail,
   }: Props,
 ): JSX.Element {
   // dropAt is an index into the strip without the dragged tab (0 = first). Tracking the insertion
@@ -246,6 +251,8 @@ export function SessionTabBar(
           <SplitIcon />
         </LayoutMenuButton>
       )}
+
+      <RailButton rail={rail} onRail={onRail} />
 
       <TabContextMenu
         menu={menu}

@@ -127,8 +127,9 @@
 .resident-badge-orb { position: relative; display: inline-flex; flex: none; }
 .resident-count {
   position: absolute;
-  top: -5px;
-  right: -6px;
+  /* Inside the orb's top edge and out into the badge's own side padding: nothing leaves the badge's box. */
+  top: 0;
+  right: calc(var(--space-xs) * -1);
   z-index: var(--z-glass-rim);
   min-width: var(--resident-count-min);
   height: var(--resident-count-min);
@@ -201,8 +202,12 @@
     from var(--resident-halo-angle),
     var(--resident-tint-hi), var(--resident-tint), var(--resident-tint-deep), var(--resident-tint-hi), var(--resident-tint)
   );
-  filter: blur(0.6px);
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), var(--resident-ink) calc(100% - 2px));
+  /* Soft stops on both edges of the band: a hard gradient stop is not anti-aliased at device scale 1. */
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 3px), var(--resident-ink) calc(100% - 2px),
+    var(--resident-ink) calc(100% - 1px), transparent 100%
+  );
 }
 .resident-orb::after { box-shadow: 0 0 6px 1px color-mix(in sRGB, var(--resident-tint) 55%, transparent); opacity: 0.4; }
 
@@ -255,8 +260,8 @@
 }
 .resident-unread {
   position: absolute;
-  top: -1px;
-  right: -1px;
+  top: 0;
+  right: 0;
   z-index: var(--z-glass-rim);
   width: var(--resident-unread-size);
   height: var(--resident-unread-size);
@@ -451,6 +456,11 @@
 .resident-off { align-items: center; justify-content: center; color: var(--muted); }
 .resident-popup-error { padding: 0 var(--space-lg); color: var(--danger); font-size: 12px; }
 
+.resident-popup-attachments { flex: none; padding: var(--space-sm) var(--space-sm) 0; }
+/* Beside the thumbnail, not over its corner: the popup is narrow and the audit counts an overlap. */
+.resident-popup-attachments .composer-attachment { display: flex; gap: var(--space-xs); align-items: flex-start; }
+.resident-popup-attachments .composer-attachment-remove { position: static; }
+.resident-popup-attachments .composer-attachments { padding-bottom: 0; }
 .resident-popup-composer {
   display: flex;
   flex: none;

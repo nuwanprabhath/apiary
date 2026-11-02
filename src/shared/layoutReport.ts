@@ -15,6 +15,7 @@ export interface LayoutLike {
     tabs: { key: string; view: TabView }[]
     activeKey: string | null
     collapsed?: boolean
+    rail?: boolean
   }[]
 }
 
@@ -34,6 +35,7 @@ export function buildPersistedLayout(
       activeTab: pane.activeKey,
       // Only a folded pane says so.
       ...(pane.collapsed === true ? { collapsed: true } : {}),
+      ...(pane.rail === true ? { rail: true } : {}),
       tabs: pane.tabs.map((tab) => {
         // A pending session is keyed by its session id in the layout, but its shells hang off the pty id it started under.
         const shellKey = ptyOverrides.get(tab.key) ?? tab.key

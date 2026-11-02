@@ -4,6 +4,70 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.53.0] - 2026-11-02
+
+### Added
+
+- **Collapse a pane sideways.** A full-height pane with a pane beside it has a "Collapse this pane"
+  button at the right end of its tab strip. Collapsed, it becomes a thin rail with an Expand button
+  and one dot per tab (click one to expand the pane on that tab), and the panes beside it take its
+  width; expanding gives it back exactly the width it had. One pane in a row always stays open.
+  When a session in a collapsed pane is working or waiting on you, the whole rail glows, with
+  waiting on you shown first. Opening a session into a collapsed pane expands it, and the collapse
+  is kept with the window's layout.
+
+## [1.52.2] - 2026-11-02
+
+### Fixed
+
+- **A resident no longer loses messages.** When MR Desk started a review in the background and
+  said "I'll post the update when it finishes", the update it wrote when the review finished never
+  reached the chat (Claude starts that turn on its own, and Apiary dropped output from a turn it had
+  not started). It is now kept and shown, and the badge says "New update" unless the resident set
+  its own attention. Messages reach every window with the popup open.
+- **The badge says what background work is running.** While a resident waits on a background
+  review or command, its pill shows the task ("Waiting on 1 background task" or the task's own
+  words) instead of nothing, and `apiary_status` lists the tasks. A scheduled check still runs
+  alongside them.
+
+## [1.52.1] - 2026-11-02
+
+### Fixed
+
+- **A resident's popup no longer steals your typing.** With the popup open, typing in a session's
+  message box moved the cursor into "Ask MR Desk…" whenever the resident updated. The popup's box
+  now takes focus only when you open it or pick an example.
+- **The resident badge's count, ring and dot are whole.** The count bubble was cut off at the top
+  of the status bar, the ring's edge looked jagged, and the unread dot showed as a half dot outside
+  the ring.
+
+### Added
+
+- **Resident popups copy on select and take images.** Selecting text in a resident's chat copies
+  it, as the session chats do, with the same right-click Copy. Paste or drop an image into the
+  message box of MR Desk or Regent to attach it.
+
+## [1.52.0] - 2026-11-02
+
+### Fixed
+
+- **MR Desk: never approves the wrong MR.** `mra approve` now takes only an MR's `!iid` and refuses
+  a list number, because numbers change between updates: "1. approve" approved !1559 when !1570
+  was meant. When an approval names a number, the desk names the MR it thinks is meant and asks
+  you to reply `approve !<iid>`.
+
+### Added
+
+- **MR Desk: approve when green.** "If the pipeline is green, approve it" is now kept by `mra`
+  itself (`mra approve !<iid> --when-green`), pinned to the head you were shown. Each cycle
+  approves it once the pipeline passes at that head and no new comment sets a condition, or drops
+  it and says why if the head moves or the pipeline fails.
+
+### Changed
+
+- **MR Desk** posts a review's result as soon as it finishes, even after the turn that started it,
+  and no longer talks about its notes or state files.
+
 ## [1.51.1] - 2026-11-01
 
 ### Changed

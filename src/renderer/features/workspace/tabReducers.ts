@@ -1,6 +1,6 @@
 /** The reducer's tab and layout transitions: what opening, moving, splitting and arranging do. */
 import { openTab, closeTab, setTabView, moveTabToColumn, adoptTab, findColumnWithTab } from '../../state/columns'
-import { tidyLayout, openBeside, placeInZone, applyPreset, closePane, swapPanes, setFolded } from '../../state/layout'
+import { tidyLayout, openBeside, placeInZone, applyPreset, closePane, swapPanes, setFolded, setRail } from '../../state/layout'
 import { targetColumnId, updateColumns } from './columnUpdates'
 import type { ActionOf, WorkspaceState } from './workspaceTypes'
 
@@ -144,5 +144,10 @@ export function layoutSwap(state: WorkspaceState, action: ActionOf<'layout/swap'
 
 export function layoutFold(state: WorkspaceState, action: ActionOf<'layout/fold'>): WorkspaceState {
   const layout = tidyLayout(setFolded(state.layout, action.columnId, action.folded), state.activeColumnId)
+  return layout === state.layout ? state : { ...state, layout }
+}
+
+export function layoutRail(state: WorkspaceState, action: ActionOf<'layout/rail'>): WorkspaceState {
+  const layout = tidyLayout(setRail(state.layout, action.columnId, action.rail), state.activeColumnId)
   return layout === state.layout ? state : { ...state, layout }
 }

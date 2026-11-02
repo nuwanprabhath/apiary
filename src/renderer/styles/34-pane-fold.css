@@ -4,6 +4,8 @@
 .content {
   /* The tab bar's fixed height (.session-tab-bar's min-height), which a folded row holds exactly. */
   --pane-folded-height: calc(34px + var(--panel-gap));
+  /* A pane collapsed sideways (below): the sidebar rail's width, so the two collapsed things match. */
+  --pane-rail-width: var(--sidebar-rail-width);
 }
 .session-column[data-folded="true"] { min-height: 0; }
 .session-column[data-folded="true"] > .session-card { flex: none; position: relative; }
@@ -22,6 +24,36 @@
 /* Down when open, right when folded: the sidebar's disclosure convention. */
 .pane-collapse[aria-expanded="true"] .chevron { transform: rotate(90deg); }
 .pane-collapse[aria-expanded="false"] .chevron { transform: none; }
+
+/* A full-height pane collapsed sideways to a rail (the button at the bar's end; layoutRail.ts
+ * `setRail`). Its grid column is `--pane-rail-width` (foldedGrid.ts `railColumns`), the sidebar
+ * rail's width, so the two collapsed things look alike. The tab bar, body and shell are hidden, not
+ * unmounted, so terminals keep their views. */
+.session-column[data-rail="true"] { min-width: 0; }
+.session-column[data-rail="true"] > .session-card { position: relative; }
+.session-column[data-rail="true"] > .session-card > :not(.pane-rail),
+.session-column[data-rail="true"] > .shell-card { display: none; }
+
+.pane-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.pane-rail-expand { margin-bottom: var(--space-xs); }
+.pane-rail-tab { flex: none; }
+.pane-rail-tab[data-active="true"] { border-color: var(--control-border); }
+.pane-rail-more { flex: none; }
+
+.pane-rail-collapse {
+  flex: none;
+  align-self: center;
+  margin-left: var(--space-xs);
+}
+.pane-rail-collapse[aria-disabled="true"] { opacity: 0.5; cursor: default; }
 
 /* Something still working in a folded pane: the folded card wears the shared travelling border
  * glow (`[data-glow]`, styles/05-ui.css; set in SessionColumn), the same as a working tab's, so

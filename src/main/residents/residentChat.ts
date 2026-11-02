@@ -3,13 +3,14 @@ import { UUID_RE } from '@shared/domain/ids'
 import { isRecord } from '@shared/guards'
 import { errorMessage } from '@shared/errors'
 import { ignoreErrorsAsync } from '@shared/ignoreErrors'
-import type { ResidentMessage, ResidentPermissionRequest } from '@shared/domain/residents'
+import { NEW_UPDATE, type ResidentMessage, type ResidentPermissionRequest } from '@shared/domain/residents'
 import type { ChatPermissionMode } from '@shared/domain/chat'
+import type { BackgroundTask } from '@shared/chatTimeline'
 import { spawnLoginShell, type LoginShellSpawn, type PipedLoginShell } from '../exec/spawnLoginShell'
-import { controlLine, parseLine, permissionReply, permissionRequestOf, userLine, type Line, type PendingPermission } from '../chat/protocol'
+import { backgroundTasksOf, controlLine, parseLine, permissionReply, permissionRequestOf, userLine, type Line, type PendingPermission } from '../chat/protocol'
 import { EMIT_EVERY_MS, INTERRUPT_SETTLE_MS, STDERR_TAIL, STOP_GRACE_MS } from '../chat/chatSession'
 import { log } from '../log/logger'
-import { activityForTool, clipActivity, permissionSummary, THINKING, WRITING } from './activity'
+import { activityForTool, backgroundActivity, clipActivity, permissionSummary, THINKING, WRITING } from './activity'
 import type { ResidentSpace } from './residentSpace'
 
 /** What a start needs that the service decides: the MCP config file, the model, the kind's prompt and how it asks. */
@@ -51,6 +52,10 @@ function residentFlags(launch: ResidentLaunch, resume: string | null): string[] 
   ]
 }
 
+function newTurn(ownStartAttentionWrites: number | null): Turn {
+  return { message: { id: randomUUID(), role: 'assistant', text: '', at: Date.now(), streaming: true }, streamed: false, ownStartAttentionWrites }
+}
+
 interface Waiting {
   request: ResidentPermissionRequest
   pending: PendingPermission
@@ -60,6 +65,8 @@ interface Turn {
   message: ResidentMessage
   /** Text came as stream deltas, so the whole `assistant` message repeats it. */
   streamed: boolean
+  /** Set for a turn claude started with nothing sent (a background task ended): the space's attention write count when it opened. */
+  ownStartAttentionWrites: number | null
 }
 
 /**
@@ -79,6 +86,8 @@ export class ResidentChat {
   private interruptId: string | null = null
   /** Tool uses claude is waiting on the user for, by request id, oldest first. */
   private readonly waiting = new Map<string, Waiting>()
+  /** claude's last `background_tasks_changed` list; emptied when the process goes. */
+  private background: BackgroundTask[] = []
   /** When the last turn ended (or the process started): the idle stop counts from here. */
   lastActive = Date.now()
 
@@ -88,11 +97,17 @@ export class ResidentChat {
 
   history(): ResidentMessage[] { return this.messages }
   get running(): boolean { return this.proc !== null || this.starting !== null }
+  /** A turn runs. Background tasks alone do not make it busy: claude takes a message then. */
   get busy(): boolean { return this.turn !== null }
+  /** A turn runs, or claude's background tasks do. */
+  get working(): boolean { return this.turn !== null || this.background.length > 0 }
   /** Its claude is being started and is not up yet. */
   get launching(): boolean { return this.starting !== null }
-  /** What the turn is doing, or null when no turn runs. */
-  activity(): string | null { return this.turn === null ? null : this.activityText }
+  /** What the turn is doing, or what the background tasks are, or null when neither runs. */
+  activity(): string | null {
+    return this.turn === null ? backgroundActivity(this.background.map((t) => t.description)) : this.activityText
+  }
+  backgroundTasks(): string[] { return this.background.map((t) => t.description) }
   permissions(): ResidentPermissionRequest[] { return [...this.waiting.values()].map((w) => w.request) }
 
   /** The resident's own words for what it is doing (`set_activity`), until its next tool call or the turn's end. */
@@ -131,7 +146,7 @@ export class ResidentChat {
   /** `doing` is what the turn says until claude's first tool use or text (a quick action's words). */
   async send(text: string, doing: string | null = null): Promise<void> {
     this.add({ id: randomUUID(), role: 'user', text, at: Date.now(), streaming: false })
-    this.turn ??= { message: { id: randomUUID(), role: 'assistant', text: '', at: Date.now(), streaming: true }, streamed: false }
+    this.turn ??= newTurn(null)
     this.activityText = doing === null ? null : clipActivity(doing)
     this.deps.onActivity()
     try {
@@ -208,7 +223,7 @@ export class ResidentChat {
   private exited(proc: PipedLoginShell, reason: string): void {
     if (this.proc !== proc) return
     this.proc = null
-    if (this.waiting.size > 0) { this.waiting.clear(); this.deps.onActivity() }
+    if (this.waiting.size > 0 || this.background.length > 0) { this.waiting.clear(); this.background = []; this.deps.onActivity() }
     if (this.stopping) {
       if (this.turn !== null) this.endTurn(null)
       return
@@ -237,10 +252,24 @@ export class ResidentChat {
       if (typeof line.request_id === 'string' && this.waiting.delete(line.request_id)) this.deps.onActivity()
       return
     }
-    if (line.type === 'stream_event') { this.streamed(line.event); return }
+    if (line.type === 'system' && line.subtype === 'background_tasks_changed' && Array.isArray(line.tasks)) {
+      this.background = backgroundTasksOf(line.tasks, this.background, Date.now())
+      this.deps.onActivity()
+      return
+    }
     // A subagent's messages carry the tool use they belong to; only the resident's own are its answer.
-    if (line.type === 'assistant' && (line.parent_tool_use_id === null || line.parent_tool_use_id === undefined)) { this.assistant(line.message); return }
+    const own = line.parent_tool_use_id === null || line.parent_tool_use_id === undefined
+    if (line.type === 'stream_event' && own) { this.openOwnTurn(); this.streamed(line.event); return }
+    if (line.type === 'assistant' && own) { this.openOwnTurn(); this.assistant(line.message); return }
     if (line.type === 'result') this.endTurn(this.turn?.message.text === '' && typeof line.result === 'string' ? line.result : null)
+  }
+
+  /** Output with no turn open is a turn claude started on its own (a background task ended): it opens one, as `send` does. */
+  private openOwnTurn(): void {
+    if (this.turn !== null) return
+    this.turn = newTurn(this.deps.space.attentionWrites)
+    this.activityText = null
+    this.deps.onActivity()
   }
 
   private streamed(event: unknown): void {
@@ -321,6 +350,8 @@ export class ResidentChat {
       this.messages = [...this.messages, done]
       this.deps.space.saveHistory(this.messages)
       this.deps.onMessage(done)
+      // The person did not ask for this answer, so the badge says there is one, unless the resident said itself.
+      if (turn.ownStartAttentionWrites === this.deps.space.attentionWrites) this.deps.space.setAttention(NEW_UPDATE)
     }
     this.deps.onActivity()
   }

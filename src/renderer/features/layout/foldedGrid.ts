@@ -1,4 +1,4 @@
-import { boundaryAt, presetDef, zoneCols, type PresetId } from '../../state/layout'
+import { boundaryAt, presetDef, trackTemplate, zoneCols, type PresetId } from '../../state/layout'
 
 /** The folded-bar row: a pane's tab bar plus the half-gap it pads itself by on each side
  *  (`--pane-folded-height`, 30-panes.css). */
@@ -30,6 +30,26 @@ export function foldedTemplate(
   const share = boundaryAt(rows, 0) * 100
   const pct = (n: number): string => `calc(${String(Number(n.toFixed(4)))}% - ${BAR})`
   return { areas, rows: `${BAR} ${pct(share)} ${pct(100 - share)} ${BAR}` }
+}
+
+/** A railed pane's width (`--pane-rail-width`, 34-pane-fold.css). */
+const PANE_RAIL = 'var(--pane-rail-width)'
+
+/** The grid columns holding a pane collapsed to a rail (`setRail`); a railed pane spans one column. */
+export function railedCols(preset: PresetId, rails: boolean[]): Set<number> {
+  const def = presetDef(preset)
+  return new Set(rails.flatMap((r, z) => (r ? zoneCols(def, z) : [])))
+}
+
+/**
+ * The column template while any pane is a rail, or null when none is: a railed column is the rail's
+ * width and the others keep their `fr` weights, so they share the freed width in proportion. The
+ * stored weights are not touched, so expanding restores the sizes exactly.
+ */
+export function railColumns(preset: PresetId, rails: boolean[], cols: number[]): string | null {
+  const railed = railedCols(preset, rails)
+  if (railed.size === 0) return null
+  return cols.map((w, c) => (railed.has(c) ? PANE_RAIL : trackTemplate([w]))).join(' ')
 }
 
 /** The grid columns holding a folded pane: their row divider is hidden, as there is nothing to

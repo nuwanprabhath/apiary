@@ -47,12 +47,15 @@ export function useActiveTabs(): ActiveTabPayload[] {
 
 /**
  * What the tabs `keys` are doing, as one word for a pane: `running` if any runs, else `waiting` if
- * any waits, else null. A primitive, so a pane reading it re-renders only when the word changes,
- * not on every activity broadcast.
+ * any waits, else null; with `waitingFirst` (a pane collapsed to a rail) a session waiting on the
+ * person wins over one running. A primitive, so a pane reading it re-renders only when the word
+ * changes, not on every activity broadcast.
  */
-export function usePaneActivity(keys: readonly string[]): 'running' | 'waiting' | null {
+export function usePaneActivity(keys: readonly string[], waitingFirst = false): 'running' | 'waiting' | null {
   return activeTabsStore.useStore((tabs) => {
-    const strongest = strongestActivity(tabs.filter((t) => keys.includes(t.key)).map((t) => t.status))
+    const statuses = tabs.filter((t) => keys.includes(t.key)).map((t) => t.status)
+    if (waitingFirst && statuses.includes('waiting')) return 'waiting'
+    const strongest = strongestActivity(statuses)
     return strongest === 'running' || strongest === 'waiting' ? strongest : null
   })
 }

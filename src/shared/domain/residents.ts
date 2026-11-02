@@ -81,6 +81,9 @@ export interface ResidentAttention {
 /** The attention a resident shows while a tool use waits for Allow or Deny. */
 export const WAITING_FOR_OK = 'Waiting for your OK'
 
+/** The attention a resident gets when a turn its claude started on its own (a background task ended) wrote an answer. */
+export const NEW_UPDATE: ResidentAttention = { count: 1, summary: 'New update' }
+
 /** A tool use its claude is waiting on the user to allow or deny, shown in the popup. */
 export interface ResidentPermissionRequest {
   requestId: string

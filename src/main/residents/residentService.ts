@@ -271,7 +271,7 @@ export class ResidentService {
         const others = [...this.residents.values()].filter((o) => o !== r).map((o) => this.statusOf(o, now))
         return apiaryStatusText({
           self: this.statusOf(r, now), config: r.config, lookback: r.config.digestLookback,
-          index: r.kind.digests ? this.deps.digest?.indexSize() ?? null : null, others, now,
+          index: r.kind.digests ? this.deps.digest?.indexSize() ?? null : null, others, now, background: r.chat.backgroundTasks(),
         })
       },
       setAttention: (id, attention) => { this.require(id).space.setAttention(attention); this.statusChanged() },
@@ -449,7 +449,7 @@ export class ResidentService {
     const action = r.actions.at(-1)
     let state: ResidentState = 'idle'
     if (!r.config.enabled) state = 'asleep'
-    else if (r.chat.busy || action !== undefined || digestActivity !== null) state = 'working'
+    else if (r.chat.working || action !== undefined || digestActivity !== null) state = 'working'
     else if (!onDuty) state = 'asleep'
     const actionWords = action !== undefined && (!r.chat.busy || action.seq > r.turnSeq) ? action.doing : null
     // The one place the rule holds: a working resident always says what it is doing.

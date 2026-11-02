@@ -46,6 +46,8 @@ export interface PersistedPane {
   activeTab: string | null
   /** Folded down to its tab bar; absent when open. */
   collapsed?: boolean
+  /** Collapsed sideways to a rail; absent when open. */
+  rail?: boolean
 }
 
 /**
@@ -80,6 +82,7 @@ function isPersistedPane(value: unknown): value is PersistedPane {
     && Array.isArray(v.tabs) && v.tabs.every(isPersistedTab)
     && (v.activeTab === null || typeof v.activeTab === 'string')
     && (v.collapsed === undefined || typeof v.collapsed === 'boolean')
+    && (v.rail === undefined || typeof v.rail === 'boolean')
 }
 
 /**

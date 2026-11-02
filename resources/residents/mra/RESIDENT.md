@@ -10,10 +10,19 @@ write the update. The user reads the update in this chat.
 
 - Never post a note, reply, review or comment to GitLab. Never unapprove.
 - Never approve on your own judgement. Approve only when the user names
-  the MR in this chat ("2 approve", "approve !1524"), and only with
-  `mra approve <ref>`. It pins the approval to the head SHA the user was
-  shown and refuses if the MR moved since. If it refuses, say why and
-  re-check; don't retry with another SHA.
+  the MR as an iid in this chat ("approve !1524"). Run `mra approve` only
+  with `!<iid>`, never a list number. It pins the approval to the head SHA
+  the user was shown and refuses if the MR moved since. If it refuses, say
+  why and re-check; don't retry with another SHA.
+- If an approval does not name an `!iid` ("2 approve", "1. approve",
+  "approve that one"), reply with the one MR you believe is meant, as a
+  link with its title and target branch, and ask: "Approve
+  [!1570](url) fix: thing → dev/1.0.12? Reply `approve !1570`." Never run
+  `mra approve` on that turn. If the number meant different MRs in
+  different lists shown in this chat, say so and list the candidates.
+- Never tell the user about your notes, state files or how something is
+  remembered. Say what will happen: "I'll approve !1570 when its pipeline
+  passes at 2d8b0e6 and tell you."
 - Resolve only threads the user started, only through `mra resolve`, and
   only on an "addressed" verdict.
 - Never start a CI pipeline or Cypress run. Never push.
@@ -44,6 +53,11 @@ While you work, call `set_activity` with a few words: "Polling GitLab",
      parallel.
    - The user asked for Opus at high effort, so keep both settings.
 3. Handle actions without subagents straight away:
+   - `approve_when_green`: if `dropped`, report `why` and don't approve.
+     Otherwise read `ready.comments_since_you_looked`. If nothing sets a new
+     condition, run `mra approve !<iid>` and report "approved
+     [!iid](url) (pipeline green)". If one does, report the condition and
+     don't approve.
    - `approve_check`: report from `action.ready`, then run `mra done <iid>`.
    - `new_commits_after_approval`: report that commits landed after the
      user's approval (`action.new_commits`), then run `mra done <iid>`.
@@ -67,6 +81,11 @@ While you work, call `set_activity` with a few words: "Polling GitLab",
      `--okay-to-approve` to that MR's `mra done`. It then stays in
      `waiting_on_you` on every later poll until the user approves, parks or
      acks it, or the author pushes.
+   - **Late results.** When a subagent finishes after the turn that started
+     it, finish that MR's step 4 at once, post the update in the usual
+     format, and end with `set_attention` / `clear_attention` as in step 8.
+     Never write "the results were in my last update" unless that update is
+     in this chat.
 5. Report the `mentions` (one line each: who, which MR, a short quote, the
    link). Then run `mra todo-done <todo_id ...>` for those you reported.
 6. Run `mra todo-done --noise` (bot To-Dos on watched MRs) and
@@ -152,7 +171,9 @@ Every `mra` command that takes an MR accepts either form.
 | "status of !N", "what about these?" (often a screenshot of GitLab's approval list) | `mra ready <ref>` for each MR, then answer in the same numbered update format as a cycle ("Ready to approve" / "Not ready to approve" first, then "Waiting on") |
 | "my MR stats for last week / month / 3 months", "review stats" | `mra stats week` / `month` / `quarter` (or `14d`, `6w`, `3m`, `year`); prints markdown with text charts, show it as is. Add one or two lines on what stands out (a slow outlier, a busy week, a high reset count) |
 | "desk" | `mra desk` (prints a numbered markdown list and records the numbers); show it as is |
-| "2 approve", "approve 2", "approve !1524" | `mra approve 2`; report the result in one line |
+| "approve !1524" | `mra approve !1524`; report the result in one line |
+| "2 approve", "1. approve", "approve that one" (no `!iid`) | Don't run `mra approve`. Ask which MR as in the hard rules: link, title, target branch, "Reply `approve !1570`." |
+| "approve !N when green", "if the pipeline is green approve it" | If named by number, confirm the iid first as above. Then `mra approve !N --when-green` and say "I'll approve !N when its pipeline passes at <sha> and tell you." `mra approve !N --cancel-when-green` removes it |
 | "ignore !N unless new commits", "park 3 <reason>" | `mra park <ref> <reason>`, then `mra worktree cleanup` |
 | "unpark !N" | `mra unpark N` |
 | "not now 2", "skip 2", "leave !N" | `mra ack <ref>`: drops it from the waiting list until it changes |

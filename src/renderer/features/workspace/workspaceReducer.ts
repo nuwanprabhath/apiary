@@ -6,7 +6,7 @@
  * `tabReducers.ts`, the session, pending and pty ones in `sessionReducers.ts`.
  */
 import {
-  columnFocus, layoutApply, layoutClosePane, layoutFold, layoutPlace, layoutSwap, sessionOpen, tabActivate,
+  columnFocus, layoutApply, layoutClosePane, layoutFold, layoutPlace, layoutRail, layoutSwap, sessionOpen, tabActivate,
   tabAdopt, tabClose, tabCloseEverywhere, tabFocus, tabMove, tabOpen, tabSetView, tabShowView, tabSplit,
 } from './tabReducers'
 import {
@@ -14,7 +14,7 @@ import {
   pendingAdd, pendingTitle, ptyExited, ptyRunning, resumedAdd, resumedRemove, sessionFollow,
   sessionRemoved, shellTabsUpdate,
 } from './sessionReducers'
-import { setFolded } from '../../state/layout'
+import { setFolded, setRail } from '../../state/layout'
 import type { WorkspaceAction, WorkspaceState } from './workspaceTypes'
 
 export type { PendingSession, TerminalTab, WorkspaceAction, WorkspaceState } from './workspaceTypes'
@@ -36,13 +36,13 @@ function openedKey(action: WorkspaceAction): string | null {
   return opening ? action.key : null
 }
 
-/** Opening something into a folded pane opens the pane, since folded it hides what was just asked
- *  for. The pane is the active one when it shows `key`, otherwise the first that does. */
+/** Opening something into a folded or railed pane opens the pane, since collapsed it hides what was
+ *  just asked for. The pane is the active one when it shows `key`, otherwise the first that does. */
 function unfoldWhereShown(state: WorkspaceState, key: string): WorkspaceState {
   const panes = state.layout.panes.filter((p) => p.activeKey === key)
   const pane = panes.find((p) => p.id === state.activeColumnId) ?? panes[0]
-  if (pane?.collapsed !== true) return state
-  return { ...state, layout: setFolded(state.layout, pane.id, false) }
+  if (pane === undefined || (pane.collapsed !== true && pane.rail !== true)) return state
+  return { ...state, layout: setRail(setFolded(state.layout, pane.id, false), pane.id, false) }
 }
 
 function route(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
@@ -70,6 +70,7 @@ function route(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
     case 'layout/closePane': return layoutClosePane(state, action)
     case 'layout/swap': return layoutSwap(state, action)
     case 'layout/fold': return layoutFold(state, action)
+    case 'layout/rail': return layoutRail(state, action)
     case 'openSessions/set': return openSessionsSet(state, action)
     case 'openSessions/merge': return openSessionsMerge(state, action)
     case 'openSessions/refresh': return openSessionsRefresh(state, action)

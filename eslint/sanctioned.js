@@ -325,6 +325,20 @@ export const SANCTIONED = [
       'Dialogs and menus get focus from Modal and Menu. A field the person just asked for (a rename, "No…", a wizard step) takes `ref={focusAskedFor}` from the same file, not `autoFocus`.',
   },
   {
+    name: 'focus-ref-is-stable',
+    kind: 'syntax',
+    files: RENDERER,
+    selectors: [
+      "JSXAttribute[name.name='ref'] > JSXExpressionContainer > :matches(ArrowFunctionExpression, FunctionExpression) CallExpression[callee.name=/^focus(AskedFor|UnlessTyping)$/]",
+    ],
+    allow: [],
+    description: 'A field takes focus once, when it appears, never on a re-render.',
+    message:
+      'An inline `ref={(el) => …}` is a new function each render, so React calls it again on every re-render and the field takes focus back: ' +
+      'typing in a session\'s composer jumped into the resident popup\'s box whenever the resident updated. ' +
+      'Pass `ref={focusAskedFor}` (src/renderer/ui/focusUnlessTyping.ts), a `useCallback` ref, or focus in an effect keyed on what the person did.',
+  },
+  {
     name: 'branded-ids-from-source',
     kind: 'import',
     files: RENDERER,

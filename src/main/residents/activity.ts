@@ -102,3 +102,11 @@ export function permissionSummary(tool: string, input: unknown): string {
   }
   return line.length <= SUMMARY_MAX ? line : `${line.slice(0, SUMMARY_MAX - 1)}…`
 }
+
+/** What a resident between turns says while claude's background tasks run: the one task's own words, else how many. */
+export function backgroundActivity(descriptions: readonly string[]): string | null {
+  if (descriptions.length === 0) return null
+  const only = descriptions.length === 1 ? (descriptions[0] ?? '').trim() : ''
+  if (only !== '') return clipActivity(only)
+  return descriptions.length === 1 ? 'Waiting on 1 background task' : `Waiting on ${String(descriptions.length)} background tasks`
+}

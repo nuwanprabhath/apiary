@@ -129,6 +129,9 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
 - `APIARY_LIVE_CLAUDE=1 npm run test:e2e -- tests/e2e/live/` — drives a real `claude --model haiku`
   through the built app. Spends real API tokens. See
   [docs/architecture/session-following.md](../docs/architecture/session-following.md).
+- `npm run test:resident-live` (`vitest.resident-live.config.ts`, sets `APIARY_LIVE_CLAUDE=1`) — a
+  `ResidentChat` on the real `claude --model claude-haiku-5-5` runs a `run_in_background` sleep and a background Agent subagent (the MR desk's review path), and
+  must keep the answer claude writes on its own when it ends. Spends real tokens.
 - `APIARY_BENCH=1 npm run test:e2e -- tests/e2e/bench/` (`APIARY_BENCH_GPU=off` for software
   compositing) — measures theme performance. See
   [src/shared/theme/CLAUDE.md](../src/shared/theme/CLAUDE.md).

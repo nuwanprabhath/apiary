@@ -437,3 +437,20 @@ def cron_for(active, minutes):
     # cron days: Sun=0..Sat=6; ours: Mon=0..Sun=6
     days = ','.join(str((d + 1) % 7) for d in sorted(active['days']))
     return f'{mins} {sh}-{last} * * {days}'
+
+
+def when_green_decision(pending, snap):
+    """What to do with a pending "approve when green" given the latest snapshot.
+
+    Returns (verdict, why): 'ready' (pipeline passed at the pinned head),
+    'drop' (head moved or pipeline failed/canceled) or 'wait'.
+    """
+    pinned = pending['sha']
+    if snap['sha'] != pinned:
+        return 'drop', f'the head moved from {pinned[:10]} to {snap["sha"][:10]}'
+    status = (snap.get('pipeline') or {}).get('status')
+    if status == 'success':
+        return 'ready', f'pipeline passed at {pinned[:10]}'
+    if status in ('failed', 'canceled'):
+        return 'drop', f'the pipeline {status} at {pinned[:10]}'
+    return 'wait', 'pipeline not finished'

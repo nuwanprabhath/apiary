@@ -5,6 +5,7 @@ import { SESSION_LINK_PREFIX, type ResidentMessage, type ResidentStatus, type Se
 import { useAppSettings } from '../../state/settingsStore'
 import { treeStore } from '../../state/treeStore'
 import { BusyGlyph } from '../../ui/BusyGlyph'
+import { useCopyOnSelect } from '../chat'
 import { type LinkChips, MarkdownText } from '../../ui/message/MarkdownText'
 
 const EXAMPLES = [
@@ -103,6 +104,7 @@ export function ResidentConversation({ resident, messages, hits, onOpen, onExamp
     if (askedLast) atBottom.current = true
     if (atBottom.current && body.current !== null) body.current.scrollTop = body.current.scrollHeight
   }, [messages, hits, working, askedLast])
+  const { onContextMenu, menu: copyMenu } = useCopyOnSelect(body)
   const chips = useMemo<LinkChips>(() => ({
     prefix: SESSION_LINK_PREFIX,
     className: 'resident-session-chip',
@@ -114,6 +116,7 @@ export function ResidentConversation({ resident, messages, hits, onOpen, onExamp
     <div
       ref={body}
       className="resident-popup-body"
+      onContextMenu={onContextMenu}
       onScroll={(e) => {
         const el = e.currentTarget
         atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_PX
@@ -130,6 +133,7 @@ export function ResidentConversation({ resident, messages, hits, onOpen, onExamp
         )
         : messages.map((m) => <Message key={m.id} message={m} hits={hits.get(m.id)} chips={chips} onOpen={onOpen} />)}
       {working && <WorkingLine resident={resident} />}
+      {copyMenu}
     </div>
   )
 }

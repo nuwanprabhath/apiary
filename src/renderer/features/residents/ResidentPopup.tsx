@@ -8,6 +8,7 @@ import { describeError } from '../../ui/errors'
 import { FloatingPanel } from '../../ui/FloatingPanel'
 import { CloseIcon, TrashIcon } from '../../ui/icons'
 import { StopIcon } from '../../ui/icons/StopIcon'
+import { ImageLightbox } from '../transcript'
 import { useOpenSession } from '../workspace'
 import { ResidentOrb } from './ResidentBadge'
 import { ResidentComposer } from './ResidentComposer'
@@ -90,6 +91,8 @@ function Panel({ resident, onOpenSettings }: { resident: ResidentStatus; onOpenS
   const openSession = useOpenSession()
   const { hits, expect } = useHits(messages)
   const [draft, setDraft] = useState(() => readResidentDraft(resident.id))
+  const [focusTick, setFocusTick] = useState(0)
+  const [lightbox, setLightbox] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const send = useCallback((text: string) => {
     setError(null)
@@ -122,10 +125,10 @@ function Panel({ resident, onOpenSettings }: { resident: ResidentStatus; onOpenS
       {resident.enabled
         ? (
           <>
-            <ResidentConversation resident={resident} messages={messages} hits={hits} onOpen={openSession} onExample={setDraft} />
+            <ResidentConversation resident={resident} messages={messages} hits={hits} onOpen={openSession} onExample={(text) => { setDraft(text); setFocusTick((n) => n + 1) }} />
             {error !== null && <div className="resident-popup-error" role="alert">{error}</div>}
             <PermissionCards residentId={resident.id} requests={resident.permissions} />
-            <ResidentComposer residentId={resident.id} name={resident.name} draft={draft} onDraft={setDraft} onSend={send} />
+            <ResidentComposer residentId={resident.id} name={resident.name} draft={draft} focusTick={focusTick} onDraft={setDraft} onSend={send} onOpenImage={setLightbox} />
           </>
         )
         : (
@@ -134,6 +137,7 @@ function Panel({ resident, onOpenSettings }: { resident: ResidentStatus; onOpenS
             <button type="button" className="btn small" onClick={() => { onOpenSettings('residents') }}>Enable in Settings</button>
           </div>
         )}
+      {lightbox !== null && <ImageLightbox src={lightbox} onClose={() => { setLightbox(null) }} />}
     </FloatingPanel>
   )
 }

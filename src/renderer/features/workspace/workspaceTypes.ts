@@ -75,6 +75,7 @@ export type WorkspaceAction =
   | { type: 'layout/closePane'; columnId: string }
   | { type: 'layout/swap'; from: string; to: string }
   | { type: 'layout/fold'; columnId: string; folded: boolean }
+  | { type: 'layout/rail'; columnId: string; rail: boolean }
   | { type: 'openSessions/set'; session: SessionNode }
   /** Fills in rows for tabs this window has no row for yet (a tab adopted as a bare key). */
   | { type: 'openSessions/merge'; nodes: SessionNode[] }

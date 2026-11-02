@@ -178,7 +178,7 @@ function working(state: ChatState, now: number): ChatState {
  * It does not say when a task started, so a task is stamped when the list first names it, and keeps
  * that stamp while it stays listed. The command is not in it; the session file fills it in.
  */
-function backgroundTasksOf(tasks: unknown[], previous: BackgroundTask[] | null, now: number): BackgroundTask[] {
+export function backgroundTasksOf(tasks: unknown[], previous: BackgroundTask[] | null, now: number): BackgroundTask[] {
   return tasks.flatMap((t: unknown): BackgroundTask[] => {
     if (t === null || typeof t !== 'object') return []
     const r = t as Record<string, unknown>

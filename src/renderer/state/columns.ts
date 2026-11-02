@@ -30,6 +30,8 @@ export interface Column {
   placeholder?: boolean
   /** Folded down to its tab bar, its stack neighbour taking the space (`setFolded` in layout.ts). */
   collapsed?: boolean
+  /** Collapsed sideways to a thin rail, the panes beside it taking the width (`setRail` in layoutRail.ts). */
+  rail?: boolean
 }
 
 let nextColumnId = 0

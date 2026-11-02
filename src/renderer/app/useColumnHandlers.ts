@@ -14,6 +14,8 @@ export interface ColumnHandlers {
   onReorderTab: (key: string, toIndex: number, transfer: TabTransfer | null) => void
   /** The tab bar's chevron: fold this pane to its tab bar, or open it again. */
   onFold: (folded: boolean) => void
+  /** Collapse this pane sideways to a rail, or expand it again. */
+  onRail: (rail: boolean) => void
 }
 
 /**
@@ -35,6 +37,7 @@ export function useColumnHandlers(columns: Column[], dispatch: Dispatch<Workspac
         onCloseTab: (key) => { dispatch({ type: 'tab/close', columnId, key }) },
         onSetView: (key, view) => { dispatch({ type: 'tab/setView', columnId, key, view }) },
         onFold: (folded) => { dispatch({ type: 'layout/fold', columnId, folded }) },
+        onRail: (rail) => { dispatch({ type: 'layout/rail', columnId, rail }) },
         onReorderTab: (key, toIndex, transfer) => {
           // Not open anywhere in this window: it came from another one, whose drop the platform
           // delivered here rather than as a `dragend` over nothing (X11 does this). Moving it

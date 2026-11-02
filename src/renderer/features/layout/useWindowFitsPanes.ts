@@ -8,14 +8,16 @@ import { MIN_PANE_WIDTH } from './PaneDividers'
  * (`WindowManager.requireWidth`). Before, three columns in a 900 px window ran the last pane off
  * the edge, where nothing could reach it. Reported whenever the pane area or the window resizes.
  */
-export function useWindowFitsPanes(content: RefObject<HTMLElement | null>, columns: number): void {
+export function useWindowFitsPanes(content: RefObject<HTMLElement | null>, columns: number, rails = 0): void {
   useEffect(() => {
     const el = content.current
     if (el === null) return
     let reported = -1
     const report = (): void => {
       const notPanes = window.innerWidth - el.getBoundingClientRect().width
-      const needed = Math.ceil(notPanes + columns * MIN_PANE_WIDTH)
+      // A column collapsed to a rail needs only the rail (`--pane-rail-width`, 34-pane-fold.css).
+      const railWidth = parseFloat(getComputedStyle(el).getPropertyValue('--pane-rail-width')) || 0
+      const needed = Math.ceil(notPanes + columns * MIN_PANE_WIDTH + rails * railWidth)
       if (needed === reported) return
       reported = needed
       requireWindowWidth(needed)
@@ -25,5 +27,5 @@ export function useWindowFitsPanes(content: RefObject<HTMLElement | null>, colum
     observer.observe(el)
     window.addEventListener('resize', report)
     return () => { observer.disconnect(); window.removeEventListener('resize', report) }
-  }, [content, columns])
+  }, [content, columns, rails])
 }

@@ -173,7 +173,8 @@ def build_action(row, cfg, gl, state):
         action['new_commits'] = commits
     if kind == 'verify_threads':
         action['delta_base'] = st.get('verified_sha') or st.get('reviewed_sha')
-    if kind in ('approve_check', 'verify_threads', 'reapprove_check', 'new_commits_after_approval'):
+    if kind in ('approve_check', 'approve_when_green', 'verify_threads', 'reapprove_check',
+                'new_commits_after_approval'):
         ready = logic.ready_info(snap, st, me)
         pipe = ready.get('pipeline') or {}
         if pipe.get('status') == 'failed':
@@ -228,6 +229,24 @@ def cmd_poll(args):
                                  'tier': a['tier'], 'urgency_reasons': a['urgency_reasons']})
                 continue
             agent_used += 1
+        actions.append(a)
+
+    for r in rows:
+        pend = r['st'].get('approve_when_green')
+        if not pend or r['snap']['approved_by_me']:
+            r['st'].pop('approve_when_green', None)
+            continue
+        verdict, why = logic.when_green_decision(pend, r['snap'])
+        if verdict == 'wait':
+            continue
+        a = build_action(dict(r, kind='approve_when_green'), cfg, gl, state)
+        a['pinned_sha'] = pend['sha']
+        if verdict == 'drop':
+            r['st'].pop('approve_when_green')
+            a.update(dropped=True, ready=None, why=f'Not approving: {why}. The pending approval is cancelled.')
+        else:
+            a.update(dropped=False, why=f'Pipeline is green at {pend["sha"][:10]}; read the comments since the '
+                     'user looked, then run `mra approve !<iid>` unless one sets a new condition.')
         actions.append(a)
 
     # Human @mentions anywhere in the project, reported even when the MR is out of scope.
@@ -563,18 +582,35 @@ def cmd_number(args):
 
 def cmd_approve(args):
     """Approve on the user's explicit say-so, pinned to the head they were shown."""
+    if not args.iid.strip().startswith('!'):
+        raise SystemExit(f'Refusing to approve by list number "{args.iid}": numbers change between updates. '
+                         'Ask the user which MR they mean, then run mra approve !<iid>.')
+    if args.when_green and args.cancel_when_green:
+        raise SystemExit('Use --when-green or --cancel-when-green, not both')
     cfg, gl, state = ctx(args)
-    mr = gl.mr(args.iid)
-    expected = args.shown_sha or ((state.get('mrs', {}).get(str(args.iid)) or {}).get('snapshot') or {}).get('sha')
+    st = state.setdefault('mrs', {}).setdefault(str(args.iid), {})
+    if args.cancel_when_green:
+        had = st.pop('approve_when_green', None)
+        save_state(cfg, state)
+        out({'iid': args.iid, 'cancelled': bool(had)})
+        return
+    shown = next((i['sha'] for i in (state.get('numbering') or {}).get('items', []) if i['iid'] == args.iid), None)
+    expected = shown or (st.get('snapshot') or {}).get('sha')
     if not expected:
         raise SystemExit(f'!{args.iid}: no head SHA on record to pin the approval to; run `mra desk` first')
+    if args.when_green:
+        st['approve_when_green'] = {'sha': expected, 'at': logic.iso(now_utc())}
+        save_state(cfg, state)
+        out({'iid': args.iid, 'approve_when_green': True, 'pinned_sha': expected})
+        return
+    mr = gl.mr(args.iid)
     if mr['sha'] != expected:
         raise SystemExit(f'!{args.iid} "{mr["title"]}": head moved from {expected[:10]} to {mr["sha"][:10]} '
                          f'since it was shown to you. Not approving; re-check it first.')
     gl.approve(args.iid, expected)
-    st = state.setdefault('mrs', {}).setdefault(str(args.iid), {})
     st['approved_sha'] = expected
     st.pop('pending', None)
+    st.pop('approve_when_green', None)
     save_state(cfg, state)
     out({'iid': args.iid, 'title': mr['title'], 'approved_at_sha': expected, 'url': mr['web_url']})
 
@@ -658,6 +694,8 @@ def cmd_desk(args):
             bits = [f'[!{s["iid"]}]({s["url"]}) {s["title"][:70]}', f'@{s["author"]}', f'→ {s["target_branch"]}']
             if key == 'you':
                 bits.append(r['kind'] or 'ready to approve?')
+            if r['st'].get('approve_when_green'):
+                bits.append('approve when green')
             if key == 'author':
                 since = logic.waiting_on_author_since(s, st)
                 n = sum(1 for t in s['my_threads'] if not t['resolved'])
@@ -760,8 +798,10 @@ def main(argv=None):
     p.add_argument('iids', nargs='+', metavar='IID')
     p.set_defaults(fn=cmd_number)
 
-    p = sub.add_parser('approve', help='approve an MR the user named (list number or !iid), pinned to the shown head')
-    p.add_argument('iid', metavar='REF')
+    p = sub.add_parser('approve', help='approve an MR the user named by !iid (never a list number), pinned to the shown head')
+    p.add_argument('iid', metavar='!IID')
+    p.add_argument('--when-green', action='store_true', help='record a pending approval for when the pipeline passes')
+    p.add_argument('--cancel-when-green', action='store_true', help='remove a pending approve-when-green')
     p.set_defaults(fn=cmd_approve)
 
     p = sub.add_parser('park', help='ignore an MR until its head commit changes')

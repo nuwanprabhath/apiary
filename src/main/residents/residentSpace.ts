@@ -87,7 +87,10 @@ export class ResidentSpace {
 
   /** What it needs the user for; kept across restarts until the user opens its popup. */
   attention(): ResidentAttention | null { return this.state.load().attention }
+  /** How many times the attention was written since this space was opened, so a turn can tell whether it was set or cleared during it. */
+  attentionWrites = 0
   setAttention(attention: ResidentAttention | null): void {
+    this.attentionWrites += 1
     this.ensure()
     this.state.save({ ...this.state.load(), attention })
   }

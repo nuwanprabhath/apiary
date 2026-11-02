@@ -10,6 +10,14 @@ export interface StatusReport {
   index: { sessions: number; topics: number } | null
   others: ResidentStatus[]
   now: Date
+  background: string[]
+}
+
+/** "Background tasks: 2 running (Review !1571; Sleep)". */
+function backgroundText(tasks: string[]): string {
+  if (tasks.length === 0) return 'Background tasks: none running.'
+  const named = tasks.map((t) => t.trim()).filter((t) => t !== '')
+  return `Background tasks: ${String(tasks.length)} running${named.length > 0 ? ` (${named.join('; ')})` : ''}.`
 }
 
 const attentionText = (s: ResidentStatus): string =>
@@ -29,6 +37,7 @@ export function apiaryStatusText(r: StatusReport): string {
     `You: ${self.name} (${self.kind}), ${self.enabled ? self.state : 'disabled'}${self.activity !== null ? ` — ${self.activity}` : ''}.`,
     `Duty: ${dutyStatusText(config.schedule, r.now)}. Schedule: ${days}, ${config.schedule.start}–${config.schedule.end}.`,
   ]
+  lines.push(backgroundText(r.background))
   if (self.digest !== null) {
     lines.push(`Digest: ${String(self.digest.done)}/${String(self.digest.total)} sessions this pass, looking back ${lookbackText(r.lookback)}.`)
   }

@@ -243,6 +243,32 @@ describe('ResidentService', () => {
     expect(find).toHaveBeenCalledTimes(1)
   })
 
+  it('background tasks between turns keep it working, in the task\'s words, and apiary_status lists them', async () => {
+    vi.useRealTimers()
+    const always = { days: [0, 1, 2, 3, 4, 5, 6], start: '00:00', end: '00:00' }
+    const { service } = build([regent({ schedule: always })])
+    service.start()
+    await vi.waitFor(() => { expect(children).toHaveLength(1) })
+    const tasks = (list: unknown[]): void => { children[0].stdout.write(`${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: list })}\n`) }
+    tasks([{ task_id: 'a1', task_type: 'local_agent', description: 'Review !1571' }])
+    await vi.waitFor(() => { expect(service.list()[0]).toMatchObject({ state: 'working', activity: 'Review !1571' }) })
+    expect(await callMcp(join(dir, 'regent', 'mcp.json'))('apiary_status', {})).toContain('Background tasks: 1 running (Review !1571).')
+    tasks([{ task_id: 'a1', task_type: 'local_agent', description: '' }, { task_id: 'b2', task_type: 'local_bash', description: '' }])
+    await vi.waitFor(() => { expect(service.list()[0].activity).toBe('Waiting on 2 background tasks') })
+    tasks([])
+    await vi.waitFor(() => { expect(service.list()[0]).toMatchObject({ state: 'idle', activity: null }) })
+  })
+
+  it('a cycle still goes while only background tasks run: claude takes a message then', async () => {
+    vi.setSystemTime(FRIDAY(12))
+    const { service } = build([regent()], { kinds: { cycle: { everyMinutes: 1, prompt: 'check the desk', doing: 'Checking' } } })
+    service.start()
+    await vi.waitFor(() => { expect(children).toHaveLength(1) })
+    children[0].stdout.write(`${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'a1', task_type: 'local_agent', description: 'Review' }] })}\n`)
+    await vi.advanceTimersByTimeAsync(60_000)
+    await vi.waitFor(() => { expect(service.history('regent').filter((m) => m.text === 'check the desk')).toHaveLength(1) })
+  })
+
   it('a folder option is stored only for a folder field of the kind', () => {
     vi.setSystemTime(FRIDAY(12))
     const { service, settings } = build([regent()], {

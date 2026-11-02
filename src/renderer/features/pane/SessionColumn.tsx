@@ -18,7 +18,8 @@ import { useGitStatus } from './useGitStatus'
 import { useGitActions } from './useGitActions'
 import { useShellTerminals } from './useShellTerminals'
 import type { ResizeSeparatorProps } from '../../ui/useResizeDrag'
-import type { FoldState } from '../../state/layout'
+import type { FoldState, RailState } from '../../state/layout'
+import { PaneRail } from './PaneRail'
 import { usePaneActivity } from '../../state/activeTabsStore'
 
 
@@ -66,6 +67,9 @@ interface Props {
   /** Whether this pane can fold to its tab bar, or is folded (`foldState` in state/layout.ts). */
   fold?: FoldState
   onFold?: (folded: boolean) => void
+  /** Whether this pane can collapse sideways to a rail, or is one (`railState` in state/layoutRail.ts). */
+  rail?: RailState
+  onRail?: (rail: boolean) => void
 }
 
 /**
@@ -82,11 +86,12 @@ function SessionColumnView(props: Props): JSX.Element {
     onActivateTab, onCloseTab, onSetView, onResume, onResumeAsync, onRenameSession, onRenamePending,
     onSplitActive, onReorderTab, transferFor, pinnedKeys, onTogglePin, onFork, onTabDropped, onDetach,
     onSessionStarted,
-    gridArea, emptyContent, layoutButton, fold = 'none', onFold,
+    gridArea, emptyContent, layoutButton, fold = 'none', onFold, rail = 'none', onRail,
   } = props
+  const railed = rail === 'rail'
   const folded = fold === 'folded'
-  // Folded, the pane's body is hidden, so its bar says when something inside is still working.
-  const paneActivity = usePaneActivity(folded ? column.tabs.map((t) => t.key) : [])
+  // Folded or railed, the pane's body is hidden, so what is left says when something inside is still working.
+  const paneActivity = usePaneActivity(folded || railed ? column.tabs.map((t) => t.key) : [], railed)
 
   const [lightbox, setLightbox] = useState<string | null>(null)
   const {
@@ -114,13 +119,13 @@ function SessionColumnView(props: Props): JSX.Element {
       style={{ gridArea }}
       data-active={isActive}
       data-placeholder={column.placeholder === true}
-      data-folded={folded}
-      data-pane-activity={folded ? paneActivity ?? undefined : undefined}
+      {...collapsedAttrs(folded, railed, paneActivity)}
       onFocusCapture={onFocus}
       onMouseDownCapture={onFocus}
     >
       <PaneDropOverlay columnId={column.id} movingPane={movingPane} onDrop={dropPaneOn} />
-      <div className="session-card" data-testid="session-card" data-glow={foldedGlow(folded, paneActivity)}>
+      <div className="session-card" data-testid="session-card" data-glow={foldedGlow(folded || railed, paneActivity)}>
+      {railed && <PaneRail tabs={tabViews} activeKey={activeKey} onExpand={() => onRail?.(false)} onActivate={onActivateTab} />}
       <SessionTabBar
         columnId={column.id}
         tabs={tabViews}
@@ -138,6 +143,8 @@ function SessionColumnView(props: Props): JSX.Element {
         layoutButton={layoutButton}
         fold={fold}
         onFold={onFold}
+        rail={rail}
+        onRail={onRail}
         viewToggle={activePending === null && activeSession !== null
           && <ViewToggle session={activeSession} view={activeView} hasTerminal={resumed.has(activeSession.sessionId)} onView={onSetView} handoff={terminalHandoff} />}
       />
@@ -204,7 +211,16 @@ function SessionColumnView(props: Props): JSX.Element {
   )
 }
 
-/** A folded pane still working wears the tabs' travelling border glow (`[data-glow]`, styles/05-ui.css). */
+/** Whether the pane is folded or railed, and what is still working inside it while it is (`data-pane-activity`). */
+function collapsedAttrs(folded: boolean, railed: boolean, activity: 'running' | 'waiting' | null): Record<string, string | boolean | undefined> {
+  return {
+    'data-folded': folded,
+    'data-rail': railed,
+    'data-pane-activity': folded || railed ? activity ?? undefined : undefined,
+  }
+}
+
+/** A folded or railed pane still working wears the tabs' travelling border glow (`[data-glow]`, styles/05-ui.css). */
 function foldedGlow(folded: boolean, activity: 'running' | 'waiting' | null): 'running' | 'waiting' | undefined {
   return folded ? activity ?? undefined : undefined
 }

@@ -77,8 +77,20 @@ waiting permission retries a minute later; `setupNeeded` skips a whole cycle. Ea
   1559", "Helper: …", "Reading docs.gitlab.com", "Using <server>", "Working" for one it does
   not know), from a thinking block ("Thinking") and streamed text ("Writing"), or from
   `set_activity` until the next tool call or the turn's end. The status is `asleep` (disabled, or
-  off duty with no turn), `working` (a turn or the digest), or `idle`; `statusOf` is the one place
+  off duty with no turn), `working` (a turn, background tasks or the digest), or `idle`; `statusOf` is the one place
   that makes a `working` status say "Working" rather than null.
+- **A turn can start with nothing sent.** Claude Code runs Agent subagents and `run_in_background`
+  Bash in the background: the turn ends ("I'll post when it finishes") and, when the task ends,
+  claude starts a turn of its own. Output with no turn open (a `stream_event` or an `assistant`
+  message without `parent_tool_use_id`) opens one, as `send` does, so its answer is saved and
+  pushed. When such a turn ends with text and the resident neither set nor cleared attention during
+  it (`ResidentSpace.attentionWrites`), it sets `NEW_UPDATE` (`{ count: 1, summary: 'New update' }`).
+  `residentMessage` is broadcast to every window, so which windows have the popup open changes nothing.
+- **Background tasks keep it working.** `system`/`background_tasks_changed` (parsed by chat mode's
+  `backgroundTasksOf`) is kept until the next list or the process's exit. While it names tasks and no
+  turn runs, `working` is true and the activity is the one task's description, or "Waiting on N
+  background tasks"; `apiary_status` lists them. `busy` stays a running turn only, so a cycle that
+  comes due alongside background tasks still goes: claude takes a message then.
 
 ## Attention and quick actions
 
