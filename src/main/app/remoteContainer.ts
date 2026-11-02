@@ -2,7 +2,7 @@ import { BrowserWindow, webContents } from 'electron'
 import { IPC } from '@shared/api'
 import type { RemoteStatus } from '@shared/domain/remote'
 import { createExec, type ExecFn } from '../exec/run'
-import { HostDirectory } from '../remote/hostDirectory'
+import { HostDirectory, TAILSCALE_PATHS } from '../remote/hostDirectory'
 import { PairingStore } from '../remote/pairingStore'
 import { makePrivateDir, pathExists, readSshConfigFile, removePrivateDir } from '../remote/privateDir'
 import { RemoteClientService, type RemoteClientDeps } from '../remote/remoteClientService'
@@ -77,6 +77,8 @@ export interface ConnectingInputs {
   appVersion: string
   vsCodePath: string | null
   sshConfig: string | undefined
+  /** `APIARY_TAILSCALE_PATH`: undefined looks in `TAILSCALE_PATHS`, empty means there is no Tailscale. */
+  tailscalePath: string | undefined
   hostsFile: string
   pairingCodesFile: string
   windowManager: Pick<WindowManager, 'open'>
@@ -107,7 +109,8 @@ export interface ConnectingOutside {
 /** The real outside world: ssh through the login shell, the `tailscale` CLI, Electron's safeStorage. */
 export function realConnectingOutside(host: string): ConnectingOutside {
   return {
-    tailscaleExec: createExec({ timeoutMs: 3000, scope: 'remote' }),
+    // The macOS app's binary can ignore SIGTERM and stay in the Dock; SIGKILL ends it.
+    tailscaleExec: createExec({ timeoutMs: 3000, scope: 'remote', killSignal: 'SIGKILL' }),
     probeExec: sshExec(6000),
     sshExec: sshExec(20_000),
     startTunnel: startSshTunnel,
@@ -128,6 +131,7 @@ export function createRemoteConnecting(inputs: ConnectingInputs, outside: Connec
   const hostDirectory = new HostDirectory({
     file: inputs.hostsFile, homeDir: inputs.homeDir, readText: readSshConfigFile, sshConfig: inputs.sshConfig,
     exec: outside.tailscaleExec, probeExec: outside.probeExec, now: () => Date.now(),
+    tailscaleClis: inputs.tailscalePath === undefined ? TAILSCALE_PATHS : inputs.tailscalePath === '' ? [] : [inputs.tailscalePath],
   })
   hostDirectory.subscribe((hosts) => { broadcast(IPC.remoteHostsChanged, hosts) })
   const remoteClient = new RemoteClientService({

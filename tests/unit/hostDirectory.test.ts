@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RemoteHost } from '@shared/domain/remote'
-import { HostDirectory, parseSshConfigHosts, parseTailscalePeers, type HostDirectoryDeps } from '../../src/main/remote/hostDirectory'
+import { HostDirectory, parseSshConfigHosts, parseTailscalePeers, TAILSCALE_PATHS, type HostDirectoryDeps } from '../../src/main/remote/hostDirectory'
 
 const files = (map: Record<string, string>) => (path: string): string | null => map[path] ?? null
 
@@ -61,6 +61,7 @@ function rig(over: Partial<HostDirectoryDeps> & { sshConfig?: string; probe?: (h
     homeDir: home,
     readText: over.readText ?? ((path) => (path === join(home, '.ssh', 'config') ? over.sshConfig ?? null : null)),
     exec: over.exec ?? ((file) => { calls.exec.push(file); return Promise.reject(new Error('no such file')) }),
+    tailscaleClis: over.tailscaleClis ?? TAILSCALE_PATHS,
     probeExec: over.probeExec ?? ((_f, args) => {
       const host = args[args.indexOf('--') + 1]
       probes.push(host)
@@ -112,6 +113,12 @@ describe('the merged list', () => {
     const r = rig({ sshConfig: 'Host only\n' })
     expect((await r.dir.hosts(false)).map((h) => h.name)).toEqual(['only'])
     expect(r.calls.exec).toEqual(['tailscale', '/Applications/Tailscale.app/Contents/MacOS/Tailscale'])
+  })
+
+  it('never starts Tailscale when told there is none, as every e2e launch is', async () => {
+    const r = rig({ sshConfig: 'Host only\n', tailscaleClis: [] })
+    expect((await r.dir.hosts(false)).map((h) => h.name)).toEqual(['only'])
+    expect(r.calls.exec).toEqual([])
   })
 })
 

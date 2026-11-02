@@ -453,7 +453,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   useVsCode(vscode)
   const { remoteWindows, hostDirectory, remoteClient } = createRemoteConnecting({
     homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion, vsCodePath: inputs.vsCodePath,
-    sshConfig: env.sshConfig, hostsFile: paths.remoteHostsFile, pairingCodesFile: paths.remotePairingCodesFile, windowManager,
+    sshConfig: env.sshConfig, tailscalePath: env.tailscalePath, hostsFile: paths.remoteHostsFile, pairingCodesFile: paths.remotePairingCodesFile, windowManager,
   }, realConnectingOutside(inputs.host))
   const updater = createUpdater(settingsService, env, inputs.macSigned)
   // One runner per kind of call, over whichever `claude` is configured at the time it runs.

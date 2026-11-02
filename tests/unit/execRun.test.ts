@@ -39,6 +39,17 @@ describe('createExec', () => {
       process.cwd(),
     )).rejects.toThrow()
   })
+
+  it('ends a command that ignores SIGTERM at the timeout when given SIGKILL', async () => {
+    const exec = createExec({ timeoutMs: 100, killSignal: 'SIGKILL' })
+    const startedAt = Date.now()
+    await expect(exec(
+      process.execPath,
+      ['-e', 'process.on("SIGTERM", () => {}); setTimeout(() => {}, 5000)'],
+      process.cwd(),
+    )).rejects.toThrow()
+    expect(Date.now() - startedAt).toBeLessThan(3000)
+  })
 })
 
 describe('createExecWithStderr', () => {

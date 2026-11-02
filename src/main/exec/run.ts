@@ -15,6 +15,8 @@ export interface CreateExecOptions {
   scope?: LogScope
   /** Added to (and overriding) Apiary's own environment. */
   env?: Record<string, string>
+  /** Sent at the timeout; SIGTERM when omitted. */
+  killSignal?: NodeJS.Signals
 }
 
 /** How long a spawn may run before it is logged as slow, even when it eventually succeeds. */
@@ -39,11 +41,11 @@ export function createExec(options: CreateExecOptions = {}): ExecFn {
 /** `createExec` for a command whose report is on stderr even when it succeeds: resolves with both
  *  streams. A failure throws exactly as `createExec` does (the message is stderr, then stdout). */
 export function createExecWithStderr(options: CreateExecOptions = {}): (file: string, args: string[], cwd: string) => Promise<ExecOutput> {
-  const { timeoutMs = 8000, maxBuffer = 1024 * 1024, scope = 'exec', env } = options
+  const { timeoutMs = 8000, maxBuffer = 1024 * 1024, scope = 'exec', env, killSignal } = options
   return async (file, args, cwd) => {
     const startedAt = Date.now()
     try {
-      const { stdout, stderr } = await run(file, args, { cwd, timeout: timeoutMs, maxBuffer, ...(env !== undefined ? { env: { ...process.env, ...env } } : {}) })
+      const { stdout, stderr } = await run(file, args, { cwd, timeout: timeoutMs, maxBuffer, ...(killSignal !== undefined ? { killSignal } : {}), ...(env !== undefined ? { env: { ...process.env, ...env } } : {}) })
       const durationMs = Date.now() - startedAt
       if (durationMs > SLOW_SPAWN_MS) {
         log.debug(scope, 'slow spawn', { file, args: args.join(' '), durationMs })

@@ -14,7 +14,8 @@ const MAX_CONCURRENT_PROBES = 4
 const MAX_INCLUDE_DEPTH = 4
 const BACKGROUND_FIRST_MS = 10_000
 const BACKGROUND_EVERY_MS = 10 * 60_000
-const TAILSCALE_PATHS = ['tailscale', '/Applications/Tailscale.app/Contents/MacOS/Tailscale']
+/** Where the `tailscale` CLI is looked for, in order; on macOS the second is the app's own binary. */
+export const TAILSCALE_PATHS = ['tailscale', '/Applications/Tailscale.app/Contents/MacOS/Tailscale']
 
 interface HostsFile { hosts: string[] }
 
@@ -30,6 +31,8 @@ export interface HostDirectoryDeps {
   readText(path: string): string | null
   /** A short command through `main/exec` (the `tailscale` CLI). */
   exec: ExecFn
+  /** The CLIs `exec` tries for the Tailscale peers, in order: `TAILSCALE_PATHS`, or none (`APIARY_TAILSCALE_PATH=`). */
+  tailscaleClis: readonly string[]
   /** `sshExec(6_000)`: the login-shell ssh with the probe's timeout. */
   probeExec: ExecFn
   /** `APIARY_SSH_CONFIG`, test-only. */
@@ -241,7 +244,7 @@ export class HostDirectory {
   /** No CLI (or one that fails) means no Tailscale hosts, quietly. */
   private async refreshTailscale(): Promise<void> {
     let out: string | undefined
-    for (const cli of TAILSCALE_PATHS) {
+    for (const cli of this.deps.tailscaleClis) {
       out = await ignoreErrorsAsync(() => this.deps.exec(cli, ['status', '--json'], this.deps.homeDir), 'no tailscale CLI here, or it is not running: there are no Tailscale hosts')
       if (out !== undefined) break
     }

@@ -72,6 +72,8 @@ export interface RuntimeEnv {
   fakeUsage: string | undefined
   /** `ssh -F <file>` for remote connections — test-only (the Docker SSH test bed); never set when packaged. */
   sshConfig: string | undefined
+  /** The `tailscale` CLI for the remote host list; empty means none — test-only, so a test never starts the real Tailscale; never set when packaged. */
+  tailscalePath: string | undefined
   /** `--background`: services and remote server with no window (`app/launchMode.ts`). A launch flag, honoured when packaged. */
   background: boolean
 }
@@ -104,6 +106,7 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackag
     rendererSeams: test('APIARY_RENDERER_SEAMS'),
     fakeUsage: test('APIARY_FAKE_USAGE'),
     sshConfig: test('APIARY_SSH_CONFIG'),
+    tailscalePath: test('APIARY_TAILSCALE_PATH'),
     closeGraceMs: positiveInt(test('APIARY_CLOSE_GRACE_MS')),
     background: parseLaunchMode(argv).background,
   }

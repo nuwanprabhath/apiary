@@ -4,6 +4,17 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.53.1] - 2026-11-02
+
+### Fixed
+
+- **No stuck Tailscale icons in the Dock.** Apiary lists Tailscale hosts by running
+  `tailscale status --json`; on macOS that is the Tailscale app's own binary, which can ignore the
+  3-second timeout's SIGTERM and stay in the Dock. A timed-out call is now killed with SIGKILL.
+- **The e2e suite never starts the real Tailscale.** Every e2e launch sets `APIARY_TAILSCALE_PATH`
+  empty (test-only, ignored when packaged). Under the suite's fake `HOME` each launch had left a
+  hung Tailscale process with a Dock icon behind.
+
 ## [1.53.0] - 2026-11-02
 
 ### Added

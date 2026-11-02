@@ -236,7 +236,7 @@ export async function buildLoopbackWorld(
   })
   // The home side, built by the app's own factory over a stubbed outside world (no ssh, no tailscale).
   const { hostDirectory, remoteClient } = createRemoteConnecting({
-    homeDir: home, host: 'loopback', appVersion: '0.0.0', vsCodePath: null, sshConfig: undefined,
+    homeDir: home, host: 'loopback', appVersion: '0.0.0', vsCodePath: null, sshConfig: undefined, tailscalePath: undefined,
     hostsFile: seedRemoteHosts(home), pairingCodesFile: join(home, 'remote-pairing-codes.json'),
     windowManager: { open: () => ({ number: 9001, webContentsId: 9001, onClosed: () => {} }) },
   }, loopbackConnectingOutside(home))

@@ -413,6 +413,8 @@ export async function launchApiary(
     // falling back to real detection, so a spec that never mentions VS Code never sees the
     // button and can never spawn a real editor by accident.
     APIARY_CODE_PATH: opts.codePath ?? '',
+    // No Tailscale: under the fake HOME the macOS app's binary hangs with a Dock icon.
+    APIARY_TAILSCALE_PATH: '',
     ...(opts.pickFolder !== undefined ? { APIARY_PICK_FOLDER: opts.pickFolder } : {}),
     ...(opts.sshConfig !== undefined ? { APIARY_SSH_CONFIG: opts.sshConfig } : {}),
     ...(opts.windowChrome !== undefined ? { APIARY_WINDOW_CHROME: opts.windowChrome } : {}),
