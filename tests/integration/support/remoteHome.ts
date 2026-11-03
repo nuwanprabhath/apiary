@@ -52,7 +52,7 @@ export function loopbackConnectingOutside(home: string): ConnectingOutside {
       ? Promise.reject(new Error(pairingSeenMessage(options.pairing)))
       : Promise.resolve(connection)),
     // No keychain in the loopback: codes are not kept, as on a machine without one.
-    cipher: { available: () => false, encrypt: () => '', decrypt: () => '' },
+    cipher: { available: () => Promise.resolve(false), encrypt: () => Promise.resolve(''), decrypt: () => Promise.resolve({ text: '', stale: false }) },
     makeTempDir: () => Promise.resolve(join(home, 'tunnel')), removeDir: () => Promise.resolve(), socketExists: () => true,
     startWait: { startWaitMs: 1, startPollMs: 1 },
   }

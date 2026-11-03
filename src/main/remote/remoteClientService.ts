@@ -148,14 +148,14 @@ export class RemoteClientService {
     log.info('remote', 'connect start', { host })
     try {
       if (this.disposed) throw new Error('Apiary is quitting.')
-      const code = this.codeFor(host, typedCode)
+      const code = await this.codeFor(host, typedCode)
       const link = await this.establish(host, code)
       if (this.disposed) {
         link.connection.close()
         await this.cleanup(link.dir, link.tunnel)
         throw new Error('Apiary is quitting.')
       }
-      if (typedCode !== undefined) this.deps.pairingCodes?.save(host, typedCode)
+      if (typedCode !== undefined) await this.deps.pairingCodes?.save(host, typedCode)
       const session: Session = { host, link, pairing: code.code, windows: new Map(), stopped: false, reconnecting: false, lostReason: null, cancelSleep: null }
       this.sessions.set(host, session)
       this.watchTunnel(session, link)
@@ -267,9 +267,9 @@ export class RemoteClientService {
     throw new Error(`${host} did not answer.`)
   }
 
-  private codeFor(host: string, typed: string | undefined): CodeToSend {
+  private async codeFor(host: string, typed: string | undefined): Promise<CodeToSend> {
     if (typed !== undefined) return { code: typed, saved: false }
-    const saved = this.deps.pairingCodes?.get(host) ?? null
+    const saved = (await this.deps.pairingCodes?.get(host)) ?? null
     return { code: saved, saved: saved !== null }
   }
 
@@ -282,7 +282,7 @@ export class RemoteClientService {
       if (kind !== null) {
         // A saved code the work machine no longer accepts is deleted, so the next try asks for it.
         if (kind === 'pairing-wrong' && sent.saved) this.deps.pairingCodes?.forget(host)
-        throw new FinalRefusal(pairingErrorMessage(kind, host, this.deps.pairingCodes?.canSave === true), { cause: error })
+        throw new FinalRefusal(pairingErrorMessage(kind, host, (await this.deps.pairingCodes?.canSave()) === true), { cause: error })
       }
       // An unreachable socket is retried while reconnecting: mid-session it is usually the work
       // machine's Apiary restarting or quit for a moment, not remote access being turned off. Only
@@ -323,7 +323,7 @@ export class RemoteClientService {
       if (session.stopped) return
       log.info('remote', 'reconnect attempt', { host: session.host, attempt })
       try {
-        const link = await this.establish(session.host, this.reconnectCode(session))
+        const link = await this.establish(session.host, await this.reconnectCode(session))
         if (session.stopped) {
           link.connection.close()
           await this.cleanup(link.dir, link.tunnel)
@@ -350,8 +350,8 @@ export class RemoteClientService {
   }
 
   /** A reconnect sends the saved code, or the one that got in when it could not be saved. */
-  private reconnectCode(session: Session): CodeToSend {
-    const saved = this.deps.pairingCodes?.get(session.host) ?? null
+  private async reconnectCode(session: Session): Promise<CodeToSend> {
+    const saved = (await this.deps.pairingCodes?.get(session.host)) ?? null
     return saved !== null ? { code: saved, saved: true } : { code: session.pairing, saved: false }
   }
 

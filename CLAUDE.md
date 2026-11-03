@@ -1,6 +1,6 @@
 # Working on Apiary
 
-Apiary is an Electron 44 + React 19 + strict-TS desktop app for browsing, searching and resuming
+Apiary is an Electron 45 + React 19 + strict-TS desktop app for browsing, searching and resuming
 Claude Code sessions across folders and git worktrees. This file is the map, the commands, the rules
 with what enforces each, and the recipes. The reasons live next to the code: a nested `CLAUDE.md`
 in that folder (it loads when you read a file there), or `docs/architecture/*.md` for topics that

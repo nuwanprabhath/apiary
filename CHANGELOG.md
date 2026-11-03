@@ -4,6 +4,26 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.54.0] - 2026-11-03
+
+### Changed
+
+- **Electron 45** (from 44.10). `better-sqlite3` and `node-pty` load their N-API prebuilds
+  unchanged.
+- **chokidar 6** (from 5) for the session watcher.
+- Saved pairing codes (remote access) are encrypted and read through Electron's async `safeStorage`
+  calls, since 45 deprecates the synchronous ones; a code whose keychain key has rotated is
+  encrypted again when it is read.
+- The minor-and-patch group: electron-updater 6.8.11, electron-builder 26.18.0,
+  @eslint-react/eslint-plugin 5.28.8, @vitest/eslint-plugin 1.6.28, dependency-cruiser 18.7.0,
+  knip 6.43.0, markdownlint-cli2 0.24.0, typescript-eslint 8.72.0. Replaces Dependabot PRs #26,
+  #27 and #28.
+
+### Security
+
+- `re2js` is held at 2.8.7 or later (an override under markdownlint-cli2): markdownlint 0.42
+  brought in 2.8.6, which has a quadratic-time lookbehind (GHSA-gg6h-894w-4m9c).
+
 ## [1.53.3] - 2026-11-03
 
 ### Fixed

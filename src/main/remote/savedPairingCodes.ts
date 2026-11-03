@@ -3,9 +3,10 @@ import { JsonStore } from '../fs/jsonStore'
 
 /** Electron's `safeStorage`, as much of it as this needs. */
 export interface CodeCipher {
-  available(): boolean
-  encrypt(text: string): string
-  decrypt(encrypted: string): string
+  available(): Promise<boolean>
+  encrypt(text: string): Promise<string>
+  /** `stale` when the keychain key has rotated: the text is right, and should be encrypted again. */
+  decrypt(encrypted: string): Promise<{ text: string; stale: boolean }>
 }
 
 interface CodesFile { codes: Record<string, string> }
@@ -35,24 +36,27 @@ export class SavedPairingCodes {
   }
 
   /** Whether a code can be kept on this machine at all. */
-  get canSave(): boolean { return this.cipher?.available() === true }
+  async canSave(): Promise<boolean> { return this.cipher !== null && await this.cipher.available() }
 
   /** The saved code for `host`, or null (none, or it can no longer be decrypted: it is then dropped). */
-  get(host: string): string | null {
+  async get(host: string): Promise<string | null> {
     const encrypted = this.codes.get(host)
-    if (encrypted === undefined || this.cipher === null || !this.cipher.available()) return null
+    if (encrypted === undefined || this.cipher === null || !(await this.cipher.available())) return null
+    let decrypted: { text: string; stale: boolean }
     try {
-      return this.cipher.decrypt(encrypted)
+      decrypted = await this.cipher.decrypt(encrypted)
     } catch {
       this.forget(host)
       return null
     }
+    if (decrypted.stale) await this.save(host, decrypted.text)
+    return decrypted.text
   }
 
   /** Keeps `code` for `host`; false when this machine cannot encrypt it (nothing is written). */
-  save(host: string, code: string): boolean {
-    if (this.cipher === null || !this.cipher.available()) return false
-    this.codes.set(host, this.cipher.encrypt(code))
+  async save(host: string, code: string): Promise<boolean> {
+    if (this.cipher === null || !(await this.cipher.available())) return false
+    this.codes.set(host, await this.cipher.encrypt(code))
     this.write()
     return true
   }

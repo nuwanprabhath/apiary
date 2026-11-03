@@ -322,10 +322,10 @@ describe('RemoteClientService: the pairing code', () => {
     const codes = new Map(Object.entries(initial))
     return {
       codes,
-      get: vi.fn((host: string) => codes.get(host) ?? null),
-      save: vi.fn((host: string, code: string) => { if (canSave) codes.set(host, code); return canSave }),
+      get: vi.fn((host: string) => Promise.resolve(codes.get(host) ?? null)),
+      save: vi.fn((host: string, code: string) => { if (canSave) codes.set(host, code); return Promise.resolve(canSave) }),
       forget: vi.fn((host: string) => { codes.delete(host) }),
-      canSave,
+      canSave: () => Promise.resolve(canSave),
     }
   }
   const sentWith = (connectFn: ReturnType<typeof setup>['connectFn']): unknown[] =>
