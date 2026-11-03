@@ -22,15 +22,15 @@ const WARM_WINDOW_MS = 400
 let openCard: { current: () => void; row: () => HTMLElement | null } | null = null
 
 /**
- * Whether a modal dialog is open. A hover card never opens over one: the card is portalled to the
- * page body, a modal lives inside its pane's stacking context, so the card drew on top of the
- * dialog the row's own button had just opened.
+ * Whether a modal dialog or a context menu is open. A hover card never opens over one: the card is
+ * portalled to the page body, so it drew on top of the dialog or menu the row's own button had just
+ * opened (a folder's "+" menu is a React child of the row, so reaching it re-armed the row's card).
  */
-function modalOpen(): boolean {
-  return typeof document !== 'undefined' && document.querySelector('[aria-modal="true"]') !== null
+function popupOpen(): boolean {
+  return typeof document !== 'undefined' && document.querySelector('[aria-modal="true"], .context-menu-floating') !== null
 }
 
-/** Closes whichever hover card is open; `Modal` calls it as it opens. */
+/** Closes whichever hover card is open; `Modal` and `ContextMenu` call it as they open. */
 export function closeOpenHoverCard(): void {
   openCard?.current()
 }
@@ -213,7 +213,7 @@ export function useHoverCard<T extends HTMLElement>(options: HoverCardOptions = 
       // Checked when the card would open, not only at arm time: the wheel may have turned during
       // the delay, and the browser sends the enter before the move, so a real move away from a
       // click has not been seen yet at arm time.
-      if (scrolledJustNow() || modalOpen() || stillSinceClick()) return
+      if (scrolledJustNow() || popupOpen() || stillSinceClick()) return
       const rect = ref.current?.getBoundingClientRect()
       if (rect !== undefined && !isDegenerate(rect)) { lastKnownRect.current = rect; setAnchor(rect) }
     }, isWarm() ? WARM_DELAY_MS : HOVER_DELAY_MS)
@@ -283,7 +283,7 @@ export function useHoverCard<T extends HTMLElement>(options: HoverCardOptions = 
     const el = ref.current
     if (el === null) return
     const onSettle = (): void => {
-      if (scrolledJustNow() || modalOpen()) return
+      if (scrolledJustNow() || popupOpen()) return
       const rect = el.getBoundingClientRect()
       if (!isDegenerate(rect)) { lastKnownRect.current = rect; setAnchor(rect) }
     }
@@ -293,7 +293,7 @@ export function useHoverCard<T extends HTMLElement>(options: HoverCardOptions = 
 
   const openNow = (): void => {
     clearTimers()
-    if (modalOpen()) return
+    if (popupOpen()) return
     const rect = ref.current?.getBoundingClientRect()
     if (rect !== undefined && !isDegenerate(rect)) { lastKnownRect.current = rect; setAnchor(rect) }
   }

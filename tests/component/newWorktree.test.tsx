@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
+import { HOVER_DELAY_MS } from '../../src/renderer/ui/HoverCard'
 import { renderApp } from './renderApp'
 import { fakeRef } from './fakeApiary'
+import { mouse, stays } from './helpers'
 
 /** The "+" of the folder row labelled `label` (a git repository in the fixture: repo-c). */
 function plusOf(label: string): HTMLElement {
@@ -21,6 +23,28 @@ describe('"+" on a git folder', () => {
     await userEvent.click(page.getByTestId('context-menu-new-session'))
     await expect.element(page.getByTestId('terminal-session')).toBeVisible()
     expect(fake.callsTo('newSessionInProject')).toEqual([['/fixture/repo-c']])
+  })
+
+  it('the menu stays clear of the path card, and its row stays highlighted while the pointer is on the menu', async () => {
+    await renderApp()
+    const plus = plusOf('repo-c')
+    const row = plus.closest<HTMLElement>('.project-row-wrap')
+    if (row === null) throw new Error('no row')
+    const p = plus.getBoundingClientRect()
+    await mouse.move(p.x + p.width / 2, p.y + p.height / 2, 4)
+    await userEvent.click(plus)
+    await expect.element(page.getByTestId('new-in-folder-menu')).toBeVisible()
+    const item = page.getByTestId('context-menu-new-session').element().getBoundingClientRect()
+    await mouse.move(item.x + item.width / 2, item.y + item.height / 2, 6)
+
+    await stays(() => document.querySelector('[data-testid="folder-hover-card"]') === null, HOVER_DELAY_MS + 400, 'no path card over the menu')
+    const probe = document.createElement('div')
+    probe.style.background = 'var(--selected)'
+    row.parentElement?.append(probe)
+    const selected = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    expect(getComputedStyle(row).backgroundColor).toBe(selected)
+    expect(plus.getAttribute('aria-expanded')).toBe('true')
   })
 
   it('a non-git folder starts its session straight away, with no menu', async () => {

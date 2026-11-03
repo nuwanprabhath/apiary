@@ -4,6 +4,17 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.53.2] - 2026-11-03
+
+### Fixed
+
+- **A folder's "+" menu is no longer covered by its path card.** Moving the pointer from "+" to the
+  menu ("New Claude session here", "New worktree…") counted as hovering the row again, and the
+  folder's path card opened on top of the menu. No hover card opens while a context menu is open,
+  and opening one closes any card already up.
+- **The folder stays highlighted while its "+" menu is open**, with its "+" showing, so it is clear
+  which folder or worktree the new session or worktree is for.
+
 ## [1.53.1] - 2026-11-02
 
 ### Fixed

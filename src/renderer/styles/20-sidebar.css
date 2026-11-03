@@ -336,6 +336,8 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   outline: none;
   box-shadow: var(--focus-ring);
 }
+/* The folder a "+" menu was opened from stays marked while the pointer is on the menu. */
+.project-row-wrap:has(> .new-session-button[aria-expanded="true"]) { background: var(--selected); }
 .new-session-button {
   flex: none;
   opacity: 0;
@@ -359,7 +361,8 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
   color: var(--text);
 }
 .new-session-button:focus-visible { opacity: 1; }
-.project-row-wrap:hover .new-session-button { opacity: 1; }
+.project-row-wrap:hover .new-session-button,
+.new-session-button[aria-expanded="true"] { opacity: 1; }
 
 /* Same hover-revealed treatment as "+", and the same box: the two sit side by side. */
 .collapse-all-button { margin-right: 0; }

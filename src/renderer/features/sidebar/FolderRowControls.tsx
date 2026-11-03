@@ -93,6 +93,7 @@ export function FolderRowControls({
         title={`New Claude Code session in ${node.label}`}
         aria-label={`New Claude Code session in ${node.label}`}
         aria-haspopup={isGit && onNewWorktree !== undefined ? 'menu' : undefined}
+        aria-expanded={isGit && onNewWorktree !== undefined ? plusMenu !== null : undefined}
         onClick={(e) => {
           e.stopPropagation()
           if (!isGit || onNewWorktree === undefined) {

@@ -2,6 +2,7 @@ import { type CSSProperties, type JSX, type RefObject, useEffect, useLayoutEffec
 import { createPortal } from 'react-dom'
 import { useEscape } from './useEscape'
 import { useOutsideDismiss } from './useOutsideDismiss'
+import { closeOpenHoverCard } from './useHoverCard'
 import { itemsIn, Menu } from './Menu'
 import { CheckIcon, SubmenuArrowIcon } from './icons'
 import type { ContextMenuItem } from './contextMenuItem'
@@ -64,6 +65,9 @@ export function ContextMenu({ items, position, onClose, testId, focusOnOpen = tr
 
   // Escape goes through the shared stack, so a context menu opened from inside another popup
   // doesn't also close that popup. A press anywhere outside is handled here directly.
+  const open = position !== null
+  // A hover card left open by the row whose button opened this menu would draw over it.
+  useLayoutEffect(() => { if (open) closeOpenHoverCard() }, [open])
   useEscape(onClose, { enabled: position !== null })
   useOutsideDismiss(onClose, { enabled: position !== null, inside: [rootRef] })
 
