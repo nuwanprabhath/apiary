@@ -671,6 +671,14 @@ def _age(ts, now):
     return f'{d:.0f}d' if d >= 1 else f'{d * 24:.0f}h'
 
 
+def _readiness(snap, st, me):
+    """The desk's answer for an MR with nothing new to review: the same verdict as `mra ready`, never a question."""
+    info = logic.ready_info(snap, st, me)
+    if info['ok']:
+        return 'ready to approve'
+    return 'not ready to approve: ' + '; '.join(info['not_ready_because'])
+
+
 def cmd_desk(args):
     cfg, gl, state = ctx(args)
     rows, versions, todos, now = collect(cfg, gl, state)
@@ -693,7 +701,7 @@ def cmd_desk(args):
             s, st = r['snap'], r['st']
             bits = [f'[!{s["iid"]}]({s["url"]}) {s["title"][:70]}', f'@{s["author"]}', f'→ {s["target_branch"]}']
             if key == 'you':
-                bits.append(r['kind'] or 'ready to approve?')
+                bits.append(r['kind'] or _readiness(s, st, state['me']))
             if r['st'].get('approve_when_green'):
                 bits.append('approve when green')
             if key == 'author':

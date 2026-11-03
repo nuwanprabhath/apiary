@@ -99,6 +99,22 @@ class WhenGreen(unittest.TestCase):
             text = run(['desk'], state, FakeGL())
         self.assertIn('approve when green', text)
 
+    def desk(self, pipeline_status):
+        row, state = watched(head_pipeline={'id': 9, 'status': pipeline_status, 'web_url': 'u'})
+        with mock.patch.object(cli, 'collect', lambda c, g, s: ([row], [], [], datetime.now(timezone.utc))):
+            return run(['desk'], state, FakeGL())
+
+    def test_desk_says_ready_rather_than_asking(self):
+        text = self.desk('success')
+        self.assertIn('Waiting on you', text)
+        self.assertIn('ready to approve', text)
+        self.assertNotIn('?', text)
+
+    def test_desk_says_why_it_is_not_ready(self):
+        text = self.desk('failed')
+        self.assertIn('not ready to approve: pipeline failed', text)
+        self.assertNotIn('?', text)
+
     def poll(self, pipeline_status, sha=SHA, pinned=SHA):
         row, state = watched({'approve_when_green': {'sha': pinned, 'at': 'x'}}, sha=sha,
                              head_pipeline={'id': 9, 'status': pipeline_status, 'web_url': 'u'})

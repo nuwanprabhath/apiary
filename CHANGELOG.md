@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.53.3] - 2026-11-03
+
+### Fixed
+
+- **MR Desk says whether an MR is ready to approve instead of asking you.** In its list, an MR
+  waiting on you with nothing new to review read "ready to approve?". `mra desk` now gives the same
+  verdict as `mra ready`: "ready to approve", or "not ready to approve:" with the reasons (pipeline
+  failed, your threads unresolved, merge conflicts, still a draft).
+
 ## [1.53.2] - 2026-11-03
 
 ### Fixed
