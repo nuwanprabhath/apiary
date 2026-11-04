@@ -1,5 +1,5 @@
 import { type DragEvent, type JSX, type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { ListIcon } from '../../ui/icons'
+import { CloseIcon, ListIcon } from '../../ui/icons'
 import { Popover } from '../../ui/Popover'
 import { focusAskedFor } from '../../ui/focusUnlessTyping'
 import { nextIndex } from '../../ui/useRovingList'
@@ -19,6 +19,8 @@ interface Props {
   onActivate: (key: string) => void
   /** The strip's reorder: `toIndex` is the tab's place in the list once it is lifted out. */
   onMove: (key: string, toIndex: number) => void
+  /** The strip's own close, so a tab closed here goes exactly as one closed by its X on the strip. */
+  onClose: (key: string) => void
 }
 
 function StatusMark({ tab }: { tab: SessionTabView }): JSX.Element {
@@ -56,7 +58,7 @@ export function TabListButton(p: Props): JSX.Element | null {
         <ListIcon />
       </button>
       {open && (
-        <TabListMenu {...p} anchor={buttonRef} onClose={(refocus) => {
+        <TabListMenu {...p} anchor={buttonRef} onDismiss={(refocus) => {
           setOpen(false)
           if (refocus) buttonRef.current?.focus()
         }} />
@@ -74,6 +76,7 @@ interface RowProps {
   dropAfter: boolean
   draggable: boolean
   onChoose: (key: string) => void
+  onClose: (key: string) => void
   onHighlight: (key: string) => void
   onDragStart: () => void
   onDragOver: (e: DragEvent<HTMLElement>) => void
@@ -84,6 +87,7 @@ interface RowProps {
 function TabListRow(p: RowProps): JSX.Element {
   const { tab } = p
   return (
+    <div className="tab-list-item" data-testid="tab-list-item" data-highlighted={p.highlighted}>
     <button
       type="button"
       tabIndex={-1}
@@ -111,12 +115,24 @@ function TabListRow(p: RowProps): JSX.Element {
       <span className="tab-list-title" data-testid="tab-list-title">{tab.label}</span>
       {tab.hint !== undefined && <span className="tab-list-hint">{tab.hint}</span>}
     </button>
+    <button
+      type="button"
+      tabIndex={-1}
+      className="tab-list-close"
+      data-testid="tab-list-close"
+      title="Close session"
+      aria-label={`Close ${tab.label}`}
+      onClick={() => p.onClose(tab.key)}
+    >
+      <CloseIcon />
+    </button>
+    </div>
   )
 }
 
 function TabListMenu(
-  { columnId, tabs, activeKey, onActivate, onMove, anchor, onClose }:
-  Props & { anchor: React.RefObject<HTMLButtonElement | null>; onClose: (refocus: boolean) => void },
+  { columnId, tabs, activeKey, onActivate, onMove, onClose, anchor, onDismiss }:
+  Props & { anchor: React.RefObject<HTMLButtonElement | null>; onDismiss: (refocus: boolean) => void },
 ): JSX.Element {
   const root = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
@@ -132,15 +148,15 @@ function TabListMenu(
   }, [tabs, query])
   const current = visible.some((t) => t.key === highlighted) ? highlighted : visible[0]?.key ?? null
 
-  useEscape(() => { onClose(true) })
-  useOutsideDismiss(() => { onClose(false) }, { inside: [root, anchor] })
+  useEscape(() => { onDismiss(true) })
+  useOutsideDismiss(() => { onDismiss(false) }, { inside: [root, anchor] })
   useEffect(() => {
     root.current?.querySelector('[data-highlighted="true"]')?.scrollIntoView({ block: 'nearest' })
   }, [current])
 
   const choose = (key: string): void => {
     onActivate(key)
-    onClose(false)
+    onDismiss(false)
     // The strip's own effect scrolls the tab into view; focus follows once it has rendered.
     requestAnimationFrame(() => { document.getElementById(`session-tab-${columnId}-${key}`)?.focus() })
   }
@@ -207,6 +223,7 @@ function TabListMenu(
             dropAfter={index === visible.length - 1 && gap === index + 1 && dropFrom !== index}
             draggable={!filtering}
             onChoose={choose}
+            onClose={onClose}
             onHighlight={setHighlighted}
             onDragStart={() => setDrag({ key: tab.key, gap: null })}
             onDragOver={(e) => {

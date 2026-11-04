@@ -690,10 +690,12 @@ button.activity-indicator:focus-visible { outline: none; box-shadow: var(--focus
 }
 .tab-list-filter { flex: none; margin-bottom: var(--space-xs); }
 .tab-list-rows { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; outline: none; }
+.tab-list-item { display: flex; flex: none; align-items: center; min-width: 0; border-radius: var(--radius-row); }
+.tab-list-item[data-highlighted="true"] { background: var(--hover); }
 .tab-list-row {
   position: relative;
   display: flex;
-  flex: none;
+  flex: 1 1 auto;
   align-items: center;
   gap: var(--control-gap);
   min-width: 0;
@@ -706,7 +708,27 @@ button.activity-indicator:focus-visible { outline: none; box-shadow: var(--focus
   text-align: left;
   cursor: pointer;
 }
-.tab-list-row[data-highlighted="true"] { background: var(--hover); }
+/* Its room is always kept, so the titles never shift as the pointer moves down the list. */
+.tab-list-close {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-button-size-sm);
+  height: var(--icon-button-size-sm);
+  margin-right: var(--space-xs);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  visibility: hidden;
+}
+.tab-list-close:hover { background: var(--hover); color: var(--text); }
+.tab-list-item:hover .tab-list-close,
+.tab-list-item[data-highlighted="true"] .tab-list-close { visibility: visible; }
+.tab-list-close svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
 .tab-list-row[aria-current="true"]::before {
   content: "";
   position: absolute;

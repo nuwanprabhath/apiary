@@ -229,6 +229,7 @@ export function SessionTabBar(
         activeKey={activeKey}
         onActivate={onActivate}
         onMove={(key, toIndex) => onDropTab(key, toIndex, null)}
+        onClose={onClose}
       />
       </div>
 

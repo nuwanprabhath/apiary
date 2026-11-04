@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.54.2] - 2026-11-04
+
+### Added
+
+- **Close a tab from the All tabs menu.** Each row has an X (shown on the row under the pointer or
+  highlighted) that closes that session's tab, as the strip's own X does. The menu stays open on
+  the rest.
+
 ## [1.54.1] - 2026-11-04
 
 ### Fixed

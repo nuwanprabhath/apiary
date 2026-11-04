@@ -40,6 +40,20 @@ describe('tab list menu', () => {
     expect(button()!.getAttribute('aria-label')).toBe('All tabs')
   })
 
+  it('each row has an X that closes that tab and leaves the menu open on the rest', async () => {
+    await openTabs(TITLES)
+    await openMenu()
+    const row = rows().find((r) => r.textContent.includes('Add worktree switcher'))!
+    const close = row.closest('[data-testid="tab-list-item"]')!.querySelector<HTMLElement>('[data-testid="tab-list-close"]')!
+    expect(close.getAttribute('aria-label')).toBe('Close Add worktree switcher')
+    await userEvent.hover(row)
+    await userEvent.click(close)
+    await until(() => strip().length === 2)
+    expect(strip()).toEqual(['Fix CSV export bug', 'Repo root session'])
+    expect(document.querySelector('[data-testid="tab-list-menu"]')).not.toBeNull()
+    expect(rowTitles()).toEqual(['Fix CSV export bug', 'Repo root session'])
+  })
+
   it('choosing a row selects that tab and closes the menu', async () => {
     await openTabs(TITLES)
     await openMenu()
