@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.55.2] - 2026-11-04
+
+### Fixed
+
+- **A session-following e2e test waits for the shell's prompt before typing.** On a busy
+  machine it typed into a shell that had not started reading yet, and failed about one run in
+  four. It held up the v1.55.1 release.
+
 ## [1.55.1] - 2026-11-04
 
 ### Fixed

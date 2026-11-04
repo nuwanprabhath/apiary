@@ -133,6 +133,9 @@ test('a shell opened while the tab was pending is still its shell after the tab 
 
   await h.page.getByTestId('shell-toggle').click()
   await h.page.getByTestId('terminal-shell').click()
+  // Typed before the shell has drawn its prompt, the line editor garbles the input on a busy
+  // machine and the command never runs.
+  await expect(h.page.getByTestId('terminal-shell')).toContainText('$', { timeout: 20000 })
   await h.page.keyboard.type('echo PENDING_$((30+3))\n')
   await expect(h.page.getByTestId('terminal-shell')).toContainText('PENDING_33', { timeout: 10000 })
   // A second terminal: the first alone would be re-listed by the pane's own "no terminal yet"
