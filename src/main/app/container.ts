@@ -36,7 +36,7 @@ import type { ChatLifecycle } from '@shared/domain/chat'
 import type { PluginSettingValues } from '@shared/domain/plugins'
 import { fireAndForget } from '../log/fireAndForget'
 import { ClaudeSessionTracker } from '../claude/claudeSessionTracker'
-import { rememberAccounts, trackedProcesses, type TrackerAccounts } from '../claude/trackerAccounts'
+import { ptysOnSession, rememberAccounts, trackedProcesses, type TrackerAccounts } from '../claude/trackerAccounts'
 import { PtyDataCoalescer } from '../terminals/ptyDataCoalescer'
 import { ActivityBroadcaster } from '../terminals/activityBroadcaster'
 import { TabMover } from '../windows/tabMover'
@@ -347,7 +347,7 @@ export function createServices(options: ServicesOptions): Services {
   const chat: ChatService = new ChatService({
     chats, pty, resolver, store, terminals, catalog, transcripts, accounts, aside: () => new ClaudeOneShot({ claudeBin: () => terminals.getClaudeBin() }),
     sessionAccountsChanged: () => { options.onSessionAccountsChanged?.() },
-    configRoot: options.configRoot,
+    configRoot: options.configRoot, terminalsOn: (sessionId) => ptysOnSession(pty, options.configRoot, accounts, sessionId),
     attachments: options.chat?.attachments ?? new WindowAttachments(() => null),
     announce: options.chat?.announce ?? (() => {}),
     activityChanged: options.chat?.activityChanged ?? (() => {}),

@@ -74,6 +74,7 @@ function setup(overrides: Partial<ChatServiceDeps> = {}) {
     terminals: { resume, respawn },
     catalog: { checkConflict },
     transcripts: { runningBackgroundTasks: async () => 0 },
+    terminalsOn: () => [],
     ...overrides,
   } as unknown as ChatServiceDeps
   const service = new ChatService(deps)
@@ -293,6 +294,25 @@ describe('ChatService.start', () => {
     expect(pty.killAndWait).not.toHaveBeenCalled()
     await service.start(A, { takeOver: true })
     expect(pty.killAndWait).toHaveBeenCalledWith(A)
+  })
+
+  it('takes over a terminal started as a new session, whose pty id is not the session id', async () => {
+    // A new session's terminal keeps its `new:…` pty id; only Claude's pid file says which session it
+    // is on. Left running beside the chat, it was a second claude on the session, and a rename in
+    // Apiary typed `/rename` into its stale history.
+    const { service, pty } = setup({ terminalsOn: (id) => (id === A ? ['new:f2117735'] : []) })
+    await expect(service.start(A, { takeOver: false })).rejects.toThrow('running in its terminal')
+    expect(pty.killAndWait).not.toHaveBeenCalled()
+    await service.start(A, { takeOver: true })
+    expect(pty.killAndWait).toHaveBeenCalledWith('new:f2117735')
+  })
+
+  it('reads a new-session terminal as busy when it is mid-turn', async () => {
+    const { service, pty } = setup({ terminalsOn: (id) => (id === A ? ['new:f2117735'] : []) })
+    pty.screen.mockReturnValue('✻ Thinking… (esc to interrupt)')
+    pty.lastOutputAt.mockReturnValue(Date.now())
+    expect((await service.terminalBusy(A)).busy).toBe(true)
+    expect(pty.screen).toHaveBeenCalledWith('new:f2117735')
   })
 
   it('says so when the session folder is gone', async () => {

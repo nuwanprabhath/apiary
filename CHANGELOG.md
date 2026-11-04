@@ -4,6 +4,19 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.55.1] - 2026-11-04
+
+### Fixed
+
+- **Switching a new session to chat stops its terminal Claude.** A session started in a terminal
+  keeps its `new:…` terminal id, and the take-over looked for a terminal by the session's id, so
+  it found none: the terminal Claude kept running beside the chat, two Claudes on one session.
+  Renaming the session in Apiary then typed `/rename` into that stale terminal, whose history
+  ended at the first message, and Claude Code filed the rename on a branch off that message. The
+  next resume continued from the branch, and the session seemed to have forgotten everything
+  after its first message. The take-over and its busy check now find every terminal on the
+  session from Claude's own pid files.
+
 ## [1.55.0] - 2026-11-04
 
 ### Added

@@ -63,6 +63,8 @@ export interface ChatServiceDeps {
   aside: () => ClaudeOneShot
   /** The account of a live session changed (`sessionAccountsChanged`). */
   sessionAccountsChanged: () => void
+  /** The live terminals whose claude is on a session, by pty id (`ptysOnSession`), including a new session's `new:…` one. */
+  terminalsOn: (sessionId: SessionId) => string[]
 }
 
 /**
@@ -121,9 +123,10 @@ export class ChatService {
     const { chats, pty, resolver, configRoot } = this.deps
     const existing = chats.state(sessionId)
     if (existing !== null && existing.status !== 'exited') return existing
-    if (pty.has(sessionId)) {
+    const terminals = this.terminalsOf(sessionId)
+    if (terminals.length > 0) {
       if (!opts.takeOver) throw new Error('This session is running in its terminal')
-      await pty.killAndWait(sessionId)
+      await Promise.all(terminals.map((id) => pty.killAndWait(id)))
     }
     const session = resolver.requireSession(sessionId)
     const cwd = session.cwd
@@ -212,9 +215,17 @@ export class ChatService {
    */
   async terminalBusy(sessionId: SessionId): Promise<TerminalBusy> {
     const { pty, transcripts } = this.deps
-    if (!pty.has(sessionId)) return { busy: false, backgroundTasks: 0 }
-    const status = classifyActivity(pty.screen(sessionId), pty.lastOutputAt(sessionId), Date.now(), true)
-    return { busy: status !== 'idle', backgroundTasks: await transcripts.runningBackgroundTasks(sessionId) }
+    const terminals = this.terminalsOf(sessionId)
+    if (terminals.length === 0) return { busy: false, backgroundTasks: 0 }
+    const busy = terminals.some((id) => classifyActivity(pty.screen(id), pty.lastOutputAt(id), Date.now(), true) !== 'idle')
+    return { busy, backgroundTasks: await transcripts.runningBackgroundTasks(sessionId) }
+  }
+
+  /** Every terminal on the session: the one keyed by its id, and a new session's terminal, keyed `new:…`. */
+  private terminalsOf(sessionId: SessionId): string[] {
+    const ids = new Set(this.deps.terminalsOn(sessionId))
+    if (this.deps.pty.has(sessionId)) ids.add(sessionId)
+    return [...ids]
   }
 
   /** Makes the sessions chats moved onto part of the library, once their file has been scanned. */
