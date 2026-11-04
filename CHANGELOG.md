@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.55.3] - 2026-11-04
+
+### Fixed
+
+- **The window-restore e2e test waits for the final layout before quitting.** It waited only for
+  two panes in the saved layout, which appear at the split, before the second pane shows its
+  session; on a busy machine the quit landed in between. It failed the v1.53.0 and v1.55.2 tag
+  pushes once each.
+
 ## [1.55.2] - 2026-11-04
 
 ### Fixed

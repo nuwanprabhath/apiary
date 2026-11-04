@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { STANDARD_SESSIONS } from '../fixtures/standard'
 import {
   launchApiary, importAll, sidebarSession, relaunchApiary, relaunchApiaryViaWindowClose,
   relaunchApiaryClosingEachWindow, type Harness,
@@ -47,17 +48,20 @@ test('the layout returns after quitting by closing the last window, not just via
 
   // The layout has to have reached the store before the quit, or this would be testing the
   // renderer's 500ms report debounce rather than what the quit does with what was reported. The
-  // file on disk is the store's own signal that it has heard about the split.
+  // file on disk is the store's own signal, and only its final state counts: two panes appear
+  // at the split, before the second pane shows the switcher, and on a busy machine the quit
+  // could land in between.
   const layoutFile = join(h.home, 'userdata', 'session-layout.json')
   await expect.poll(() => {
     try {
       const data = JSON.parse(readFileSync(layoutFile, 'utf8')) as
-        { windows: { layout: { panes: unknown[] } }[] }
-      return data.windows[0]?.layout.panes.length ?? 0
+        { windows: { layout: { panes: { activeTab: string | null }[] } }[] }
+      const panes = data.windows[0]?.layout.panes ?? []
+      return panes.length === 2 && (panes[1].activeTab ?? '').includes(STANDARD_SESSIONS.switcher.id)
     } catch {
-      return 0
+      return false
     }
-  }, { timeout: 10000 }).toBe(2)
+  }, { timeout: 10000 }).toBe(true)
 
   await relaunchApiaryViaWindowClose(h)
 
