@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.55.4] - 2026-11-04
+
+### Fixed
+
+- **The Regent words e2e test reads the badge's state and words together.** It read them in two
+  calls, and on a busy machine the switch to idle fell between them, pairing "working" with the
+  idle badge's empty pill. It failed the v1.55.3 tag push.
+
 ## [1.55.3] - 2026-11-04
 
 ### Fixed

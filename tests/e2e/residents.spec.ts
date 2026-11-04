@@ -110,8 +110,12 @@ async function send(page: Page, text: string): Promise<void> {
 
 /** The badge's state and pill words together, so a poll never accepts working with an empty pill. */
 async function looks(page: Page, id: string): Promise<{ state: string | null; pill: string }> {
-  const state = await badge(page, id).getAttribute('data-state')
-  const words = (await pill(page, id).textContent()) ?? ''
+  // Read in one call: two reads straddled the switch to idle on a busy machine, pairing the
+  // working state with the idle badge's empty pill.
+  const { state, words } = await badge(page, id).evaluate((el) => ({
+    state: el.getAttribute('data-state'),
+    words: el.querySelector('.resident-activity')?.textContent ?? '',
+  }))
   if (state === 'working' && words === '') throw new Error('working with an empty pill')
   return { state, pill: words }
 }
