@@ -123,6 +123,10 @@
   border-color: color-mix(in sRGB, var(--danger) 55%, transparent);
   background: color-mix(in sRGB, var(--danger) 12%, transparent);
 }
+/* Shaded on hover like every status item, so it reads as something to click; a tinted pill deepens its tint. */
+.resident-badge:hover { background: var(--hover); }
+.resident-badge:is([data-state="working"], [data-needs]):hover { background: color-mix(in sRGB, var(--resident-tint) 26%, transparent); }
+.resident-badge[data-needs]:not([data-state="working"]):hover { background: color-mix(in sRGB, var(--danger) 22%, transparent); }
 
 .resident-badge-orb { position: relative; display: inline-flex; flex: none; }
 .resident-count {

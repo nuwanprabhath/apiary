@@ -24,6 +24,25 @@ describe('the resident badge', () => {
     expect(badge()!.getBoundingClientRect().left).toBeGreaterThanOrEqual(spacer.getBoundingClientRect().right)
   })
 
+  it('shades on hover like the other status bar items, idle and working alike', async () => {
+    const { fake } = await renderApp({ statusBar: [USAGE] }, (f) => { withRegent(f) })
+    await until(() => badge()?.dataset.state === 'idle')
+    const bg = (): string => getComputedStyle(badge()!).backgroundColor
+    const idle = bg()
+    await userEvent.hover(badge()!)
+    await until(() => bg() !== idle)
+    const usage = document.querySelector<HTMLElement>('[data-testid="status-item-claude-usage-usage"]')!
+    await userEvent.hover(usage)
+    await until(() => bg() === idle)
+    expect(getComputedStyle(usage).backgroundColor).not.toBe(idle)
+
+    fake.emit('residentsChanged', [regentStatus('working', 'Searching sessions')])
+    await until(() => badge()?.dataset.state === 'working')
+    const working = bg()
+    await userEvent.hover(badge()!)
+    await until(() => bg() !== working)
+  })
+
   it('the bar shows when a resident is configured with no plugin items', async () => {
     await renderApp({}, (fake) => { withRegent(fake, { enabled: false }) })
     await until(() => badge() !== null)

@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.54.1] - 2026-11-04
+
+### Fixed
+
+- **The MR Desk and Regent badges shade on hover**, as Claude usage and the other status bar items
+  do, so they read as something to click. A badge that is working or needs you deepens its tint.
+
 ## [1.54.0] - 2026-11-03
 
 ### Changed

@@ -58,6 +58,17 @@ describe('the MR desk in the status bar', () => {
     await reviewUi('resident honeypot idle', { widths: [620, 1000], within: bar })
   })
 
+  it('honey pot hovered, shaded like the other status items', async () => {
+    await renderApp({}, (f) => { withMrDesk(f) })
+    await until(() => document.querySelector('[data-testid="resident-badge-mr-desk"]') !== null && deskBadge().dataset.state === 'idle')
+    await reviewUi('resident honeypot hovered', {
+      widths: [620, 1000],
+      within: bar,
+      open: async () => { await userEvent.hover(deskBadge()) },
+      close: async () => { await userEvent.unhover(deskBadge()) },
+    })
+  })
+
   it('honey pot working, with a pill', async () => {
     const { fake } = await renderApp({}, (f) => { withMrDesk(f) })
     await until(() => document.querySelector('[data-testid="resident-badge-mr-desk"]') !== null)
