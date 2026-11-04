@@ -57,8 +57,8 @@ def resolve_ref(state, ref):
     return n, None
 
 
-def store_numbering(state, pairs):
-    state['numbering'] = {'shown_at': logic.iso(now_utc()),
+def store_numbering(state, pairs, source='update'):
+    state['numbering'] = {'shown_at': logic.iso(now_utc()), 'source': source,
                           'items': [{'n': i, 'iid': iid, 'sha': sha} for i, (iid, sha) in enumerate(pairs, 1)]}
 
 
@@ -274,6 +274,11 @@ def cmd_poll(args):
         if r['iid'] not in acted:
             waiting.append({'iid': r['iid'], 'title': r['snap']['title'], 'url': r['snap']['url'],
                             'author': r['snap']['author'], 'okay_since': ok['at']})
+    # Waiting on the user with nothing new to review, and no verdict of the manager's at this head:
+    # the desk can only say "not judged yet" until one is recorded.
+    unjudged = [{'iid': r['iid'], 'title': r['snap']['title'], 'url': r['snap']['url']} for r in rows
+                if not r['kind'] and logic.waiting_on(r['snap'], r['kind'], r['st'], r['scope']) == 'you'
+                and (r['st'].get('verdict') or {}).get('sha') != r['snap']['sha']]
     noise = [t['id'] for t in todos
              if t['target']['iid'] in watched_iids and t['target']['iid'] not in acted
              and not is_human(t['author']['username'], cfg, me)
@@ -290,6 +295,7 @@ def cmd_poll(args):
         'release_versions': [logic.fmt_version(v) for v in versions],
         'watched': len(rows),
         'actions': actions, 'deferred': deferred, 'in_flight': in_flight, 'mentions': mentions,
+        'unjudged': unjudged,
         'waiting_on_you': waiting,
         'noise_todo_count': len(noise), 'digest_due': digest_due,
         'skipped': {s: [r['iid'] for r in rows if logic.waiting_on(r['snap'], r['kind'], r['st'], r['scope']) == s]
@@ -580,6 +586,56 @@ def cmd_number(args):
     out(state['numbering']['items'])
 
 
+def cmd_which(args):
+    """Which MR a bare number means: its place in the numbered list shown last (desk or update)."""
+    cfg, gl, state = ctx(args)
+    numbering = state.get('numbering') or {}
+    item = next((i for i in numbering.get('items', []) if i['n'] == args.n), None)
+    if item is None:
+        raise SystemExit(f'No MR is number {args.n} in the list shown last. Ask the user for the !iid.')
+    snap = ((state.get('mrs', {}).get(str(item['iid'])) or {}).get('snapshot')) or {}
+    shown = logic.parse_time(numbering.get('shown_at'))
+    local = shown.astimezone().strftime('%H:%M') if shown else '?'
+    out({'n': args.n, 'iid': item['iid'], 'title': snap.get('title'), 'url': snap.get('url'),
+         'target_branch': snap.get('target_branch'),
+         'list': f"the {numbering.get('source', 'update')} shown at {local}, the last numbered list the user saw",
+         'list_size': len(numbering.get('items', []))})
+
+
+def cmd_verdict(args):
+    """Record the manager's own judgement for an MR, pinned to its head: what the desk then shows."""
+    cfg, gl, state = ctx(args)
+    st = _mrs(state, args.iid)
+    sha = (st.get('snapshot') or {}).get('sha')
+    if sha is None:
+        raise SystemExit(f'!{args.iid} has no snapshot yet; run `mra ready !{args.iid}` first.')
+    if args.not_ready is None and not args.ready:
+        raise SystemExit('Give --ready or --not-ready "<reason>".')
+    st['verdict'] = {'ready': args.not_ready is None, 'reason': args.not_ready, 'sha': sha,
+                     'at': logic.iso(now_utc())}
+    save_state(cfg, state)
+    out({'iid': args.iid, **st['verdict']})
+
+
+def cmd_rules(args):
+    """The user's own standing rules for the manager (what counts as ready, what to report, ...)."""
+    cfg, gl, state = ctx(args)
+    rules = state.setdefault('rules', [])
+    if args.action == 'add':
+        text = ' '.join(args.text).strip()
+        if not text:
+            raise SystemExit('mra rules add "<rule>"')
+        rules.append({'text': text, 'at': logic.iso(now_utc())})
+    elif args.action == 'remove':
+        n = int(args.text[0]) if args.text else 0
+        if not 1 <= n <= len(rules):
+            raise SystemExit(f'No rule {n}; `mra rules` lists them.')
+        rules.pop(n - 1)
+    if args.action != 'list':
+        save_state(cfg, state)
+    out([{'n': i, 'text': r['text']} for i, r in enumerate(rules, 1)])
+
+
 def cmd_approve(args):
     """Approve on the user's explicit say-so, pinned to the head they were shown."""
     if not args.iid.strip().startswith('!'):
@@ -672,11 +728,22 @@ def _age(ts, now):
 
 
 def _readiness(snap, st, me):
-    """The desk's answer for an MR with nothing new to review: the same verdict as `mra ready`, never a question."""
+    """The desk's answer for an MR with nothing new to review, never a question.
+
+    The mechanical checks (`mra ready`) and the manager's own verdict at this head (`mra verdict`,
+    which weighs the review, reviewers' conditions and the user's rules) must both say ready.
+    """
     info = logic.ready_info(snap, st, me)
-    if info['ok']:
+    verdict = st.get('verdict') or {}
+    at_head = verdict.get('sha') == snap.get('sha')
+    reasons = list(info['not_ready_because'])
+    if at_head and not verdict.get('ready') and verdict.get('reason'):
+        reasons.append(verdict['reason'])
+    if reasons:
+        return 'not ready to approve: ' + '; '.join(reasons)
+    if at_head and verdict.get('ready'):
         return 'ready to approve'
-    return 'not ready to approve: ' + '; '.join(info['not_ready_because'])
+    return 'not judged yet at this head (checks pass)'
 
 
 def cmd_desk(args):
@@ -715,7 +782,7 @@ def cmd_desk(args):
             numbered.append((s['iid'], s['sha']))
             lines.append(f'{len(numbered)}. ' + ' · '.join(bits))
         lines.append('')
-    store_numbering(state, numbered)
+    store_numbering(state, numbered, source='desk')
     save_state(cfg, state)
     print('\n'.join(lines).rstrip())
 
@@ -805,6 +872,21 @@ def main(argv=None):
     p = sub.add_parser('number', help='record the order MRs were just shown in (so "2 approve" works)')
     p.add_argument('iids', nargs='+', metavar='IID')
     p.set_defaults(fn=cmd_number)
+
+    p = sub.add_parser('which', help='the MR a bare number means: its place in the list shown last')
+    p.add_argument('n', type=int)
+    p.set_defaults(fn=cmd_which)
+
+    p = sub.add_parser('verdict', help="record your own ready / not-ready judgement for an MR at its head (the desk shows it)")
+    p.add_argument('iid', help='!iid or a number from the list shown last')
+    p.add_argument('--ready', action='store_true')
+    p.add_argument('--not-ready', metavar='REASON')
+    p.set_defaults(fn=cmd_verdict)
+
+    p = sub.add_parser('rules', help="the user's standing rules: list, add \"<rule>\", remove <n>")
+    p.add_argument('action', nargs='?', choices=['list', 'add', 'remove'], default='list')
+    p.add_argument('text', nargs='*')
+    p.set_defaults(fn=cmd_rules)
 
     p = sub.add_parser('approve', help='approve an MR the user named by !iid (never a list number), pinned to the shown head')
     p.add_argument('iid', metavar='!IID')

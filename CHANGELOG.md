@@ -4,6 +4,31 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.55.0] - 2026-11-04
+
+### Added
+
+- **MR Desk follows your own rules.** Tell it a standing rule ("an MR isn't ready until a full
+  E2E run has passed", "don't report CodeRabbit nitpicks") and it keeps it (`mra rules add`),
+  applies it every cycle and confirms in one line. "What are my rules" and "remove rule 2" work
+  too. It no longer says such a change is outside what it can do.
+
+### Changed
+
+- **The desk's "ready to approve" is MR Desk's full judgement, not only the mechanical checks.**
+  Ready means no blockers of any kind: the checks pass, the latest review found none at this
+  head, every condition a reviewer set (a full E2E run, a dependency) is met, and your rules
+  hold. MR Desk records its verdict for each MR at its head (`mra verdict`), and the desk shows
+  it: "ready to approve", "not ready to approve:" with the reasons, or "not judged yet at this
+  head (checks pass)" after new commits, until the next cycle judges it.
+
+### Fixed
+
+- **A bare number means the list you saw last.** "For 3, any blockers?" was read against MR
+  Desk's own earlier update, though the desk you were looking at (shown by Apiary's Show the
+  desk button, which MR Desk never sees) numbered a different MR 3. MR Desk now asks `mra which`
+  every time, answers about that MR, and opens with its link and title.
+
 ## [1.54.2] - 2026-11-04
 
 ### Added

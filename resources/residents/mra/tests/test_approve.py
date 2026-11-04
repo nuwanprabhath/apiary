@@ -99,19 +99,34 @@ class WhenGreen(unittest.TestCase):
             text = run(['desk'], state, FakeGL())
         self.assertIn('approve when green', text)
 
-    def desk(self, pipeline_status):
-        row, state = watched(head_pipeline={'id': 9, 'status': pipeline_status, 'web_url': 'u'})
+    def desk(self, pipeline_status, verdict=None):
+        row, state = watched({'verdict': verdict} if verdict else None,
+                             head_pipeline={'id': 9, 'status': pipeline_status, 'web_url': 'u'})
         with mock.patch.object(cli, 'collect', lambda c, g, s: ([row], [], [], datetime.now(timezone.utc))):
             return run(['desk'], state, FakeGL())
 
-    def test_desk_says_ready_rather_than_asking(self):
-        text = self.desk('success')
+    def test_desk_says_ready_only_with_a_verdict_at_the_head(self):
+        text = self.desk('success', {'ready': True, 'reason': None, 'sha': SHA, 'at': 'x'})
         self.assertIn('Waiting on you', text)
         self.assertIn('ready to approve', text)
+        self.assertNotIn('not ready', text)
         self.assertNotIn('?', text)
 
+    def test_desk_says_not_judged_when_only_the_checks_pass(self):
+        text = self.desk('success')
+        self.assertIn('not judged yet at this head (checks pass)', text)
+        self.assertNotIn('?', text)
+
+    def test_desk_gives_the_verdict_reason_when_checks_pass(self):
+        text = self.desk('success', {'ready': False, 'reason': 'full E2E run still required', 'sha': SHA, 'at': 'x'})
+        self.assertIn('not ready to approve: full E2E run still required', text)
+
+    def test_a_verdict_on_an_older_head_does_not_count(self):
+        text = self.desk('success', {'ready': True, 'reason': None, 'sha': 'c' * 40, 'at': 'x'})
+        self.assertIn('not judged yet at this head', text)
+
     def test_desk_says_why_it_is_not_ready(self):
-        text = self.desk('failed')
+        text = self.desk('failed', {'ready': True, 'reason': None, 'sha': SHA, 'at': 'x'})
         self.assertIn('not ready to approve: pipeline failed', text)
         self.assertNotIn('?', text)
 
@@ -148,3 +163,47 @@ class WhenGreen(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class WhichVerdictRules(unittest.TestCase):
+    def test_poll_lists_waiting_mrs_with_no_verdict_at_the_head(self):
+        row, state = watched(head_pipeline={'id': 9, 'status': 'success', 'web_url': 'u'})
+        out = json.loads(run(['poll'], state, FakeGL(), rows=[row]))
+        self.assertEqual([u['iid'] for u in out['unjudged']], [1])
+        state['mrs']['1']['verdict'] = {'ready': True, 'reason': None, 'sha': SHA, 'at': 'x'}
+        out = json.loads(run(['poll'], state, FakeGL(), rows=[row]))
+        self.assertEqual(out['unjudged'], [])
+
+    def test_which_answers_from_the_list_shown_last(self):
+        row, state = watched()
+        cli.store_numbering(state, [(1570, 'b' * 40), (1, SHA)])
+        out = json.loads(run(['which', '2'], state, FakeGL()))
+        self.assertEqual(out['iid'], 1)
+        self.assertEqual(out['title'], state['mrs']['1']['snapshot']['title'])
+        self.assertEqual(out['list_size'], 2)
+        self.assertIn('the update shown at', out['list'])
+
+    def test_which_refuses_a_number_not_in_the_list(self):
+        row, state = watched()
+        cli.store_numbering(state, [(1, SHA)])
+        with self.assertRaises(SystemExit) as e:
+            run(['which', '3'], state, FakeGL())
+        self.assertIn('Ask the user for the !iid', str(e.exception.code))
+
+    def test_verdict_is_pinned_to_the_head(self):
+        row, state = watched()
+        run(['verdict', '!1', '--not-ready', 'waiting on the E2E run Luke asked for'], state, FakeGL())
+        v = state['mrs']['1']['verdict']
+        self.assertEqual((v['ready'], v['reason'], v['sha']), (False, 'waiting on the E2E run Luke asked for', SHA))
+        run(['verdict', '!1', '--ready'], state, FakeGL())
+        self.assertTrue(state['mrs']['1']['verdict']['ready'])
+
+    def test_rules_add_list_remove(self):
+        row, state = watched()
+        run(['rules', 'add', 'A', 'full', 'E2E', 'run', 'must', 'pass', 'before', 'ready'], state, FakeGL())
+        run(['rules', 'add', 'Report CodeRabbit nitpicks only when asked'], state, FakeGL())
+        listed = json.loads(run(['rules'], state, FakeGL()))
+        self.assertEqual([r['text'] for r in listed], ['A full E2E run must pass before ready', 'Report CodeRabbit nitpicks only when asked'])
+        listed = json.loads(run(['rules', 'remove', '1'], state, FakeGL()))
+        self.assertEqual([r['n'] for r in listed], [1])
+        self.assertEqual(listed[0]['text'], 'Report CodeRabbit nitpicks only when asked')
