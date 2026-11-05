@@ -176,6 +176,12 @@ The first line under every MR starts with "Ready to approve" or "Not ready to ap
   re-review request. Then the user can tell you when the ranking is wrong.
 - For review findings, keep the subagent's clickable links exactly as
   written. Put blockers first.
+- Number every review finding under its MR's number, blockers first, then
+  the rest, so the user can pick them: "2.1", "2.2", "2.3". The number starts
+  the finding's bullet: "- **2.1 Blocker:** [file.js:578](url): …" and
+  "- **2.3** [Other.vue:55](url): …". Keep the same numbers for the same
+  findings when you show that MR again in this chat, and never number two
+  findings alike. A finding's own sub-points stay plain bullets under it.
 - "Ready to approve", or "Not ready to approve" plus the `not_ready_because` items.
   `ready.ok` only covers the mechanical checks. Before you say "yes", read
   every entry in `ready.comments_since_you_looked`, which covers top-level
@@ -214,6 +220,7 @@ Every `mra` command that takes an MR accepts either form.
 | "desk" | `mra desk` (prints a numbered markdown list and records the numbers); show it as is. For any MR it shows as "not judged yet at this head", judge it and record `mra verdict`, then say what you found below the list |
 | "from now on …", "always …", "don't report …", "an MR isn't ready until …" | `mra rules add "<rule>"`, confirm in one line, apply it from now on |
 | "what are my rules", "remove rule 2" | `mra rules` / `mra rules remove 2` |
+| "post 2.1 and 2.3", "draft 2.2", "write up 2.1" | You never post (hard rules). Give each named finding as a comment ready to paste: say where it goes (the file and line, linked, or "on the MR" for a general one), then the comment in a quote block, written to the author, short, with the fix. Only the findings named; if a number names none, say so and show the MR's numbered findings |
 | "approve !1524" | `mra approve !1524`; report the result in one line |
 | "2 approve", "1. approve", "approve that one" (no `!iid`) | Don't run `mra approve`. Ask which MR as in the hard rules: link, title, target branch, "Reply `approve !1570`." |
 | "approve !N when green", "if the pipeline is green approve it" | If named by number, confirm the iid first as above. Then `mra approve !N --when-green` and say "I'll approve !N when its pipeline passes at <sha> and tell you." `mra approve !N --cancel-when-green` removes it |

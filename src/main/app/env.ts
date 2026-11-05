@@ -76,6 +76,10 @@ export interface RuntimeEnv {
   tailscalePath: string | undefined
   /** `--background`: services and remote server with no window (`app/launchMode.ts`). A launch flag, honoured when packaged. */
   background: boolean
+  /** `--update`: the command-line update (`app/launchMode.ts`). A launch flag, honoured when packaged. */
+  update: boolean
+  /** `--install-service` / `--uninstall-service` (`app/launchMode.ts`). A launch flag, honoured when packaged. */
+  service: 'install' | 'uninstall' | null
 }
 
 function positiveInt(raw: string | undefined): number | undefined {
@@ -109,5 +113,7 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackag
     tailscalePath: test('APIARY_TAILSCALE_PATH'),
     closeGraceMs: positiveInt(test('APIARY_CLOSE_GRACE_MS')),
     background: parseLaunchMode(argv).background,
+    update: parseLaunchMode(argv).update,
+    service: parseLaunchMode(argv).service,
   }
 }

@@ -130,7 +130,10 @@ export function sessionsApi(env: Env): SessionsApi {
 
     // Terminals: nothing is ever running here, so a session or terminal is only "known" to main when
     // the app has it, and what is sent to one that is not running is ignored.
-    resume: async (id) => { requireSession(id) },
+    resume: async (id, ptyId) => {
+      requireSession(id)
+      if (ptyId !== null && !/^new:[0-9a-f-]{36}$/i.test(ptyId)) throw new Error(`Not a new-session pty id: ${ptyId}`)
+    },
     openShell: async (id) => { requireSession(id) },
     openShellForPty: async (id) => { if (!env.pendingPtys.has(id)) throw new Error('This terminal is not known.') },
     renameTerminalInClaude: () => {},

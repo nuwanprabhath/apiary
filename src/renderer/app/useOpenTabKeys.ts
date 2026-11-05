@@ -22,7 +22,7 @@ export function useOpenTabKeys(columns: Column[], pending: Map<string, PendingSe
   const pendingTabInfo = useMemo(() => new Map<string, PendingTabInfo>(
     [...pending.values()].map((info) => [
       info.ptyId,
-      { ptyId: info.ptyId, cwd: info.cwd, label: info.titleOverride ?? info.label },
+      { ptyId: info.ptyId, cwd: info.cwd, label: info.titleOverride ?? info.label, inChat: info.inChat },
     ]),
   ), [pending])
 

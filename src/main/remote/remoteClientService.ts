@@ -53,7 +53,11 @@ export interface RemoteClientDeps {
   startPollMs?: number
 }
 
-interface Link { dir: string; tunnel: SshTunnel; connection: ClientConnection }
+/** `dir` and `tunnel` are null-like for a local link (`connectLocal`): no ssh, the socket is this machine's. */
+interface Link { dir: string | null; tunnel: SshTunnel; connection: ClientConnection }
+
+/** A local link's stand-in for ssh: it never exits on its own, and stopping it stops nothing. */
+const NO_TUNNEL: SshTunnel = { exited: new Promise<void>(() => {}), stderr: () => '', stop: async () => {} }
 
 /** Everything one work machine's windows share; it ends when the last window closes. */
 interface Session {
@@ -106,6 +110,8 @@ export class RemoteClientService {
   private disposed = false
   /** The last status each local window was sent. Invalidated by the window closing (`openWindow`'s `onClosed`). */
   private readonly lastStatus = new Map<number, RemoteStatus>()
+  /** The one host reached on this machine's own socket (`connectLocal`): no ssh, no tunnel. */
+  private local: { host: string; socketPath: string } | null = null
 
   constructor(private readonly deps: RemoteClientDeps) {
     deps.windows.onDisconnected((ids, serverName, reason) => {
@@ -123,6 +129,17 @@ export class RemoteClientService {
       session.lostReason = null
       fireAndForget(this.reconnect(session, message), 'remote')
     })
+  }
+
+  /**
+   * Opens the windows of the Apiary running in the background on this machine, through its socket
+   * at `socketPath` with no ssh: a desktop launch joining the one started over SSH with no display,
+   * which can open no window itself. Everything else is a remote connection's: the same windows,
+   * reconnects and pairing; `host` names it in the windows.
+   */
+  async connectLocal(host: string, socketPath: string): Promise<void> {
+    this.local = { host, socketPath }
+    return this.connect(host)
   }
 
   /** Resolves once every window is open; rejects with a sentence a person can act on. */
@@ -209,6 +226,8 @@ export class RemoteClientService {
 
   /** ssh, the forward and the connection; whatever was started is stopped again if a step fails. */
   private async establish(host: string, code: CodeToSend): Promise<Link> {
+    const ownSocket = this.local?.host === host ? this.local.socketPath : undefined
+    if (ownSocket !== undefined) return { dir: null, tunnel: NO_TUNNEL, connection: await this.reach(ownSocket, host, code) }
     let dir: string | null = null
     let tunnel: SshTunnel | null = null
     try {

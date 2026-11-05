@@ -129,7 +129,7 @@ export const IPC = {
     'apiary:background-task-output', tuple(sessionIdArg, str),
   ),
   checkConflict: invoke<[sessionId: SessionId], ResumeConflict | null>('apiary:check-conflict', tuple(sessionIdArg)),
-  resume: invoke<[sessionId: SessionId], void>('apiary:resume', tuple(sessionIdArg)),
+  resume: invoke<[sessionId: SessionId, ptyId: PtyId | null], void>('apiary:resume', tuple(sessionIdArg, nullable(ptyIdArg))),
   renameSession: invoke<[sessionId: SessionId, title: string], void>('apiary:rename-session', tuple(sessionIdArg, str)),
   renameTerminalInClaude: send<[ptyId: PtyId, title: string]>(
     'apiary:rename-terminal-in-claude', tuple(ptyIdArg, str),
@@ -338,6 +338,10 @@ export const IPC = {
   chatSetModel: invoke<[sessionId: SessionId, model: ChatModel], void>('apiary:chat-set-model', tuple(sessionIdArg, chatModelArg)),
   chatSetEffort: invoke<[sessionId: SessionId, effort: ChatEffort], void>('apiary:chat-set-effort', tuple(sessionIdArg, chatEffortArg)),
   chatStop: invoke<[sessionId: SessionId], void>('apiary:chat-stop', tuple(sessionIdArg)),
+  /** Starts the session's claude again (chat or terminal) so it loads new settings and MCP servers; what was reloaded. */
+  sessionReload: invoke<[sessionId: SessionId, ptyId: PtyId | null], 'chat' | 'terminal' | 'none'>(
+    'apiary:session-reload', tuple(sessionIdArg, nullable(ptyIdArg)),
+  ),
   /** Whether the session's terminal claude is mid-turn or has background tasks still running —
    *  when it is, the chat sends into that terminal rather than stopping it to take over. */
   terminalBusy: invoke<[sessionId: SessionId], TerminalBusy>('apiary:terminal-busy', tuple(sessionIdArg)),

@@ -47,6 +47,8 @@ describe('parseRuntimeEnv', () => {
       headless: true,
       rendererUrl: 'http://localhost:5173',
       background: false,
+      update: false,
+      service: null,
     })
   })
 

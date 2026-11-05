@@ -201,8 +201,8 @@ export class AppService {
 
   // `resume` goes through the chat first, which stops a chat running on the session.
 
-  async resume(sessionId: SessionId): Promise<void> {
-    return this.chat.resumeInTerminal(sessionId)
+  async resume(sessionId: SessionId, ptyId: PtyId | null = null): Promise<void> {
+    return this.chat.resumeInTerminal(sessionId, ptyId)
   }
 
   async openShell(sessionId: SessionId, tabId: string): Promise<void> {

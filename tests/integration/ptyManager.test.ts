@@ -104,6 +104,26 @@ describe('PtyManager', () => {
     expect(m.has('c')).toBe(false)
   })
 
+  it('a killed pty keeps its folder, so a shell can still be opened beside it, and still reports its exit', async () => {
+    // A chat taking over a session started from "+" kills its `new:` pty; that session's shells are
+    // keyed off the pty, and opening one failed with "Unknown session: new:…".
+    manager = new PtyManager()
+    const m = manager
+    const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
+    try {
+      const exited = new Promise<void>((res) => m.onExit((id) => { if (id === 'killed') res() }))
+      const ready = collect(m, 'killed', /KILL_READY/)
+      m.spawn({ id: 'killed', cwd: dir, command: 'echo KILL_READY; while true; do sleep 0.05; done' })
+      await ready
+      await m.killAndWait('killed')
+      await exited
+      expect(m.has('killed')).toBe(false)
+      expect(m.getCwd('killed')).toBe(dir)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('a pty that exits on its own releases its screen, not just its process (MAIN-6)', async () => {
     // Before this, only `kill()` disposed the headless `Terminal` behind `screen()`/`snapshot()`
     // — a pty that exited by itself (the common case: Claude finishing, a shell's command

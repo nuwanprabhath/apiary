@@ -23,13 +23,13 @@ export function useResumeCommands({ dispatch, notifyError, openDialog, unpin }: 
 
   const startResume = useCallback(async (session: SessionNode) => {
     try {
-      await resumeSession(session.sessionId)
+      await resumeSession(session.sessionId, store.getState().ptyOverrides.get(session.sessionId) ?? null)
       dispatch({ type: 'resumed/add', key: session.sessionId })
       dispatch({ type: 'tab/showView', key: session.sessionId, view: 'terminal' })
     } catch (e) {
       notifyError(e, 'Could not resume this session')
     }
-  }, [notifyError, dispatch])
+  }, [notifyError, dispatch, store])
 
   const confirmDelete = useCallback(async (target: SessionNode) => {
     try {
@@ -70,7 +70,7 @@ export function useResumeCommands({ dispatch, notifyError, openDialog, unpin }: 
       openDialog({ kind: 'conflict', session, conflict: existing })
       throw new Error('This session is already running elsewhere — choose how to open it first.')
     }
-    await resumeSession(session.sessionId)
+    await resumeSession(session.sessionId, store.getState().ptyOverrides.get(session.sessionId) ?? null)
     dispatch({ type: 'resumed/add', key: session.sessionId })
     dispatch({ type: 'tab/showView', key: session.sessionId, view: 'terminal' })
   }, [store, dispatch, openDialog])

@@ -56,6 +56,20 @@ export function defineChatClauses(ctx: Ctx): void {
       expect(said).toEqual([`${OTHER}:true`, `${SESSION}:true`, `${OTHER}:false`, `${SESSION}:false`])
     })
 
+    it('reloading a session starts its chat again with the mode it had, and reloads nothing when nothing runs', async () => {
+      expect(await ctx.api.sessionReload(OTHER, null)).toBe('none')
+      expect(await ctx.api.chatState(OTHER)).toBeNull()
+      await start()
+      await ctx.api.chatSetPermissionMode(SESSION, 'plan')
+      await expect.poll(async () => (await ctx.api.chatState(SESSION))?.permissionMode).toBe('plan')
+      expect(await ctx.api.sessionReload(SESSION, null)).toBe('chat')
+      // The new process reports its mode with its first turn, as claude does.
+      await ctx.api.chatSend(SESSION, 'hello again')
+      await expect.poll(async () => (await ctx.api.chatState(SESSION))?.permissionMode).toBe('plan')
+      expect(await ctx.api.chatState(SESSION)).toMatchObject({ sessionId: SESSION, error: null })
+      await ctx.api.chatStop(SESSION)
+    })
+
     it('a side question with nothing in it is refused, and starts nothing', async () => {
       await expect(ctx.api.chatAside(SESSION, '   ', [])).rejects.toThrow(/question/)
       expect(await ctx.api.chatState(SESSION)).toBeNull()

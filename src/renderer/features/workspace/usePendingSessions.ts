@@ -9,7 +9,7 @@ import { onNewSessionStarted } from '../../state/sessions'
 
 /** Resolving a pending entry is `useSessionFollowing`'s job. */
 export function usePendingSessions(): {
-  addPending: (info: NewSessionInfo, nodes: ProjectNode[], opts?: { titleOverride?: string; after?: string }) => void
+  addPending: (info: NewSessionInfo, nodes: ProjectNode[], opts?: { titleOverride?: string; after?: string; inChat?: boolean }) => void
   setPendingTitle: (ptyId: PtyId, title: string) => void
 } {
   const dispatch = useWorkspaceDispatch()
@@ -18,7 +18,7 @@ export function usePendingSessions(): {
     info: NewSessionInfo,
     nodes: ProjectNode[],
     // A fork arrives with a title to keep and the tab it belongs next to; a fresh session has neither.
-    opts: { titleOverride?: string; after?: string } = {},
+    opts: { titleOverride?: string; after?: string; inChat?: boolean } = {},
   ) => {
     dispatch({ type: 'pending/add', info, nodes, ...opts })
   }, [dispatch])

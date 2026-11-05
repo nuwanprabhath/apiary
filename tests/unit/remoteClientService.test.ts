@@ -81,6 +81,21 @@ describe('RemoteClientService', () => {
       'work-box', '/tmp/apiary-x')
   })
 
+  it('joins this machine\'s background Apiary on its own socket, with no ssh, and opens its windows', async () => {
+    const { service, exec, startTunnel, connectFn, openWindow, bind, removeDir } = setup()
+    await service.connectLocal('work-pc', '/home/me/.apiary/remote.sock')
+    expect(exec).not.toHaveBeenCalled()
+    expect(startTunnel).not.toHaveBeenCalled()
+    expect(connectFn).toHaveBeenCalledWith('/home/me/.apiary/remote.sock', expect.objectContaining({ host: 'work-pc' }))
+    expect(openWindow).toHaveBeenCalledTimes(2)
+    expect(bind).toHaveBeenCalledTimes(2)
+    // A second launch asks again: the windows it already has come to the front, nothing reconnects.
+    await service.connectLocal('work-pc', '/home/me/.apiary/remote.sock')
+    expect(connectFn).toHaveBeenCalledTimes(1)
+    await service.dispose()
+    expect(removeDir).not.toHaveBeenCalled()
+  })
+
   it('passes -F only when the test config is set', async () => {
     const { service, exec, startTunnel } = setup({ sshConfig: '/cfg' })
     await service.connect('work-box')

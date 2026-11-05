@@ -127,6 +127,12 @@ export const SETTINGS = {
    * and tools ask for permission there. Off: the message goes to the session's terminal.
    */
   transcriptChat: machine(flag(false)),
+  /**
+   * With `transcriptChat` on, a session started from "+" opens on its Chat tab: a message box over
+   * the new terminal, whose first message goes to that terminal; the tab then shows the chat. Off:
+   * it opens on the terminal, as it always has.
+   */
+  newSessionsInChat: machine(flag(false)),
   /** Whether search also matches conversation contents; off falls back to titles and stops the indexer. */
   searchChatContent: machine(flag(true)),
   /** Whether session notes are searchable. Separate from `searchChatContent`: a note is a line typed on purpose. */

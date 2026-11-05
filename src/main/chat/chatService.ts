@@ -8,7 +8,7 @@ import type { ResumeConflict } from '@shared/types'
 import { chatPush } from '@shared/chatPush'
 import { chatActivity, classifyActivity, type ActivityStatus } from '@shared/activity'
 import { extractText, type ClaudeOneShot } from '../claude/claudeOneShot'
-import { asSessionId, UUID_RE, type AccountId, type SessionId } from '@shared/domain/ids'
+import { asSessionId, UUID_RE, type AccountId, type PtyId, type SessionId } from '@shared/domain/ids'
 import type { LaunchAccounts } from '../accounts/accountService'
 import type { PtyManager } from '../pty/ptyManager'
 import type { SessionResolver } from '../sessions/sessionResolver'
@@ -158,20 +158,46 @@ export class ChatService {
   async switchAccount(sessionId: SessionId, accountId: AccountId): Promise<void> {
     const { chats, pty, accounts, terminals } = this.deps
     accounts.setAccountOf(sessionId, accountId)
-    const launch = chats.launchOf(sessionId)
-    if (launch !== null) {
-      const live = chats.state(sessionId)
-      await chats.stop(sessionId)
-      chats.forget(sessionId)
-      chats.start(sessionId, launch.cwd, {
-        model: live?.model ?? launch.opts.model,
-        permissionMode: isChatPermissionMode(live?.permissionMode) ? live.permissionMode : launch.opts.permissionMode,
-        effort: live?.effort ?? launch.opts.effort,
-      }, accountId)
-    } else if (pty.has(sessionId)) {
-      await terminals.respawn(sessionId)
-    }
+    if (chats.launchOf(sessionId) !== null) await this.restartChat(sessionId, accountId)
+    else if (pty.has(sessionId)) await terminals.respawn(sessionId)
     this.deps.sessionAccountsChanged()
+  }
+
+  /**
+   * Starts the session's `claude` again on the same conversation, so it reads its settings and MCP
+   * servers afresh (a server added with `claude mcp add` reaches only a process started after it).
+   * A chat comes back with the model, mode and effort it had; a terminal is respawned under the pty
+   * id its tab shows (`ptyId`, for a session started from "+"). Refused while Claude is replying,
+   * which would cut the turn short.
+   */
+  async reload(sessionId: SessionId, ptyId: PtyId | null): Promise<'chat' | 'terminal' | 'none'> {
+    const { chats, pty, terminals } = this.deps
+    const live = chats.state(sessionId)
+    if (live !== null && live.status !== 'exited') {
+      if (live.status === 'busy') throw new Error('Claude is still replying. Reload once it has finished, or stop it first.')
+      await this.restartChat(sessionId, this.deps.accounts.accountOf(sessionId))
+      return 'chat'
+    }
+    const id = ptyId ?? sessionId
+    if (!pty.has(id)) return 'none'
+    if ((await this.terminalBusy(sessionId)).busy) throw new Error('Claude is still working in the terminal. Reload once it has finished.')
+    await terminals.respawn(sessionId, ptyId)
+    return 'terminal'
+  }
+
+  /** Stops the session's chat and starts it again under `accountId`, keeping its model, mode and effort. */
+  private async restartChat(sessionId: SessionId, accountId: AccountId): Promise<void> {
+    const { chats } = this.deps
+    const launch = chats.launchOf(sessionId)
+    if (launch === null) return
+    const live = chats.state(sessionId)
+    await chats.stop(sessionId)
+    chats.forget(sessionId)
+    chats.start(sessionId, launch.cwd, {
+      model: live?.model ?? launch.opts.model,
+      permissionMode: isChatPermissionMode(live?.permissionMode) ? live.permissionMode : launch.opts.permissionMode,
+      effort: live?.effort ?? launch.opts.effort,
+    }, accountId)
   }
 
   /** The account of every live session: chats, and terminals whose session has an id. */
@@ -195,9 +221,9 @@ export class ChatService {
    * Opens the session in its terminal. One process per session: two `claude`s on one session
    * would both append to its JSONL, so a running chat is stopped first.
    */
-  async resumeInTerminal(sessionId: SessionId): Promise<void> {
+  async resumeInTerminal(sessionId: SessionId, ptyId: PtyId | null = null): Promise<void> {
     if (this.deps.chats.has(sessionId)) await this.deps.chats.stop(sessionId)
-    return this.deps.terminals.resume(sessionId)
+    return this.deps.terminals.resume(sessionId, ptyId)
   }
 
   async checkConflict(sessionId: SessionId): Promise<ResumeConflict | null> {

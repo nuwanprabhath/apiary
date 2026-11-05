@@ -255,8 +255,36 @@ describe.skipIf(!enabled)('remote access over real SSH', () => {
       // Started with --background: the work app opened no window of its own.
       const out = await bed.exec(['sh', '-c', 'ps -u dev -o args= | grep -c -- "--background" || true'])
       expect(Number(out.stdout.trim())).toBeGreaterThan(0)
+      // And with no display at all (the shim unsets it, as SSH does with nobody at the desktop): it
+      // started itself again with Chromium's headless platform, or it would have exited at once.
+      const noDisplay = await bed.exec(['sh', '-c', 'ps -u dev -o args= | grep -c -- "--ozone-platform=headless" || true'])
+      expect(Number(noDisplay.stdout.trim())).toBeGreaterThan(0)
       await remote.close()
       await vi.waitFor(async () => { expect(await windowCount()).toBe(1) }, { timeout: 30_000 })
+    })
+
+    it('a desktop launch beside the headless background Apiary joins it on a profile of its own', async () => {
+      // The app started above runs with no display, so it could open no window on a desktop. A launch
+      // with a display (the shim runs it under xvfb) connects to its socket instead of handing over.
+      const opened = async (): Promise<number> => {
+        const log = await bed.exec(['bash', '-c', 'grep -c "connection opened" /home/dev/fixture/userdata/logs/apiary.log || true'])
+        return Number(log.stdout.trim())
+      }
+      const before = await opened()
+      const started = await bed.exec(['bash', '-c', 'nohup apiary > /home/dev/desk.out 2>&1 & echo $!'], 'dev')
+      const pid = started.stdout.trim()
+      try {
+        await vi.waitFor(async () => {
+          const out = await bed.exec(['bash', '-c', 'grep -v dbus /home/dev/desk.out | tail -c 1500'])
+          expect(await opened(), `desktop launch output: ${out.stdout}`).toBeGreaterThan(before)
+        }, { timeout: 60_000, interval: 1000 })
+        expect((await bed.exec(['test', '-d', '/home/dev/fixture/userdata-desktop'])).code).toBe(0)
+        // It stays: a launch that handed over would have quit at once.
+        await stays(async () => (await bed.exec(['pgrep', '-P', pid])).code === 0, 5000, 'the desktop launch to stay')
+      } finally {
+        await bed.exec(['pkill', '-P', pid])
+        await bed.exec(['kill', pid])
+      }
     })
 
     it('refuses a host that is not in the ssh config, opening no window', async () => {

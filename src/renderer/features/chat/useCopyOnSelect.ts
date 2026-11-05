@@ -2,7 +2,8 @@ import { createElement, type JSX, type MouseEvent as ReactMouseEvent, type RefOb
 import { ContextMenu } from '../../ui/ContextMenu'
 import type { ContextMenuItem } from '../../ui/contextMenuItem'
 import { useNotifications } from '../../ui/notifications'
-import { copyText } from '../../state/clipboard'
+import { copyRich, copyText } from '../../state/clipboard'
+import { selectionHtmlWithin } from './selectionHtml'
 
 /** The selected text when it is non-empty and lies wholly inside `root`, else ''. */
 function selectionWithin(root: HTMLElement | null): string {
@@ -32,6 +33,7 @@ export function useCopyOnSelect(ref: RefObject<HTMLElement | null>): {
   const { notify } = useNotifications()
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
   const [selected, setSelected] = useState('')
+  const [selectedHtml, setSelectedHtml] = useState('')
 
   const copy = useCallback((text: string): void => {
     void copyText(text).then((ok) => {
@@ -56,11 +58,22 @@ export function useCopyOnSelect(ref: RefObject<HTMLElement | null>): {
     e.preventDefault()
     // Read at open, so "Copy" reflects the selection as it is at that moment.
     setSelected(selectionWithin(ref.current))
+    setSelectedHtml(selectionHtmlWithin(ref.current))
     setPosition({ x: e.clientX, y: e.clientY })
   }, [ref])
 
   const items: ContextMenuItem[] = [
     { id: 'copy', label: 'Copy', disabled: selected === '', run: () => { copy(selected) } },
+    {
+      id: 'copy-formatted',
+      label: 'Copy with formatting',
+      disabled: selected === '' || selectedHtml === '',
+      run: () => {
+        void copyRich(selectedHtml, selected).then((ok) => {
+          if (ok) notify({ kind: 'success', message: 'Copied with formatting', timeoutMs: 2000 })
+        })
+      },
+    },
   ]
   const menu = position === null
     ? null

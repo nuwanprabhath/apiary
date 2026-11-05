@@ -73,6 +73,26 @@ JSONL.
 - `checkConflict` does not report Apiary's own chat as a conflict.
 - `useChatTakeover` reacts to `chatLifecycle`: a session that starts as a chat loses its dead terminal
   tab (the Resume button comes back).
+- A session started from "+" keeps its `new:…` pty id in the windows (`ptyOverrides`), so resuming
+  its terminal passes that id (`resume(sessionId, ptyId)`) and the claude comes back under the pty
+  the tab shows. Its shells are keyed off that pty too, so `PtyManager.kill` keeps a killed pty's
+  `cwd`, as an exit does, for `resolveShellCwd`.
+
+## Reload
+
+`ChatService.reload` (`sessionReload`, from a tab's menu and the "/" menu) starts the session's
+claude again on the same conversation, so it reads its settings and MCP servers afresh: a running
+chat is stopped and started with its model, mode and effort (`restartChat`, shared with
+`switchAccount`); a terminal is respawned under the pty its tab shows. It is refused while Claude is
+replying, and answers `none` when nothing runs.
+
+## A new session that opens in the chat
+
+With `newSessionsInChat` (and `transcriptChat`) on, a session started from "+" is a pending tab
+with `inChat`: its Chat tab is `PendingChat`, a first-message box over the new terminal, and the
+message goes to that terminal (`sendPrompt`). No chat can run yet, as claude has written no session
+to resume. When the tab follows the session (the workspace action session/follow), it lands on its Chat tab, and the
+composer takes the terminal over from the next message, as for any session with an idle terminal.
 
 ## `/clear` adoption
 

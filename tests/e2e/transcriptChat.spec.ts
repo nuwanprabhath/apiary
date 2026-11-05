@@ -180,3 +180,22 @@ test('Send now on a queued message interrupts the reply being written, and that 
   await expect(h.page.getByTestId('chat-user').filter({ hasText: 'answer this first' })).toHaveCount(1)
   await expect(h.page.getByTestId('composer-send')).toBeVisible()
 })
+
+test('Reload session in the tab menu starts the chat\'s claude again, and the conversation carries on', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await h.page.getByTestId('composer-input').fill('before the reload')
+  await h.page.getByTestId('composer-input').press('Enter')
+  await expect(h.page.getByTestId('chat-text').last()).toContainText('You said: before the reload')
+
+  await h.page.getByTestId('session-tab').first().click({ button: 'right' })
+  await h.page.getByTestId('context-menu-reload').click()
+  await expect(h.page.getByTestId('notification-message').last()).toContainText('Session reloaded')
+  await expect.poll(() => h.page.evaluate(
+    async (id) => (await window.apiary.chatState(id))?.status ?? 'none',
+    STANDARD_SESSIONS.csv.id,
+  )).toBe('idle')
+
+  await h.page.getByTestId('composer-input').fill('after the reload')
+  await h.page.getByTestId('composer-input').press('Enter')
+  await expect(h.page.getByTestId('chat-text').last()).toContainText('You said: after the reload')
+})

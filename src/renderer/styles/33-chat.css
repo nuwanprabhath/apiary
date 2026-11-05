@@ -795,3 +795,20 @@ button.folded-message-head:focus-visible { outline: none; box-shadow: var(--focu
   field-sizing: content;
 }
 .chat-aside-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+
+/* A session started from "+" that opens in the chat: its first-message box (PendingChat). */
+.pending-chat-intro {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--control-padding-x);
+  text-align: center;
+  overflow: auto;
+}
+.pending-chat-title { margin: 0; font-size: 15px; color: var(--text); }
+.pending-chat-help { margin: 0; max-width: 46ch; color: var(--muted); }
+.pending-chat-error { margin: 0; color: var(--danger); }
+.pending-chat-actions { display: flex; justify-content: flex-end; padding-top: var(--space-sm); }

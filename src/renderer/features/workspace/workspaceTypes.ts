@@ -11,6 +11,8 @@ export interface TerminalTab { id: string; name: string }
 export interface PendingSession extends NewSessionInfo {
   knownSessionIds: Set<string>
   titleOverride: string | null
+  /** Opens on its Chat tab ("Open new sessions in the chat"): a message box over the terminal, and the chat once it resolves. */
+  inChat: boolean
 }
 
 export interface WorkspaceState {
@@ -42,6 +44,7 @@ export type WorkspaceAction =
     nodes: ProjectNode[]
     titleOverride?: string
     after?: string
+    inChat?: boolean
   }
   /** A rename typed in before a pending session had a real id yet (the IPC call is the caller's job). */
   | { type: 'pending/title'; ptyId: PtyId; title: string }

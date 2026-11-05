@@ -42,7 +42,7 @@ const ALT_SCREEN = '\x1b[?1049h'
  *
  * `child` is the occupant's identity: every callback compares its own IPty with `entry.child`
  * before acting. It is null once the process exited on its own; the entry then stays only for
- * `cwd` (`resolveShellCwd` reads it afterwards), until `kill()` or a respawn removes it.
+ * `cwd` (`resolveShellCwd` reads it afterwards), until a respawn replaces it. `kill()` keeps it too.
  */
 interface PtyEntry {
   child: pty.IPty | null
@@ -136,7 +136,7 @@ export class PtyManager {
       log.info('pty', 'exited', { id: opts.id, exitCode })
       const current = this.entries.get(opts.id)
       // A killed child's exit can arrive after a respawn took the entry.
-      if (current !== undefined && current.child !== child) return
+      if (current !== undefined && current.child !== null && current.child !== child) return
       if (current !== undefined) {
         // Exited on its own: release the headless `Terminal` (up to 1,000 lines of scrollback). `cwd` is kept.
         current.child = null
@@ -280,7 +280,10 @@ export class PtyManager {
     const child = this.entries.get(id)?.child
     if (!child) return
     log.info('pty', 'killing', { id })
-    this.entries.delete(id)
+    // The entry stays for `cwd`, as after a process that exited on its own: a chat that took over a
+    // `new:` session killed its pty, and that session's shells are still keyed off it.
+    const entry = this.entries.get(id)
+    if (entry !== undefined) entry.child = null
     this.screens.dispose(id)
     ignoreErrors(() => child.kill(), 'already gone')
   }

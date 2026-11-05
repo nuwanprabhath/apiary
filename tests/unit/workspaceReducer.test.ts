@@ -204,6 +204,21 @@ describe('workspaceReducer: session/follow (reconcile + rekey)', () => {
     expect(column.tabs.find((t) => t.key === 'real-1')?.view).toBe('terminal')
   })
 
+  it('a session that opened in the chat lands on its Chat tab once it resolves', () => {
+    let state = baseState()
+    state = workspaceReducer(state, {
+      type: 'pending/add', info: { ptyId: asPtyId('new:1'), cwd: '/repo', label: 'x' }, nodes: [], inChat: true,
+    })
+    expect(state.pending.get('new:1')?.inChat).toBe(true)
+    const next = workspaceReducer(state, {
+      type: 'session/follow', from: 'new:1', to: session('real-1'), ptyId: asPtyId('new:1'), titleOverride: null,
+    })
+    const column = next.layout.panes.find((p) => p.tabs.some((t) => t.key === 'real-1'))!
+    expect(column.tabs.find((t) => t.key === 'real-1')?.view).toBe('transcript')
+    expect(next.resumed.has('real-1')).toBe(true)
+    expect(next.ptyOverrides.get('real-1')).toBe('new:1')
+  })
+
   it('applies a title override typed in while still pending', () => {
     let state = baseState()
     state = workspaceReducer(state, {

@@ -120,6 +120,47 @@ describe.skipIf(!enabled)('Install and restart from an installed .deb on Ubuntu 
     await assertUpdated(oldPid)
   }, 600_000)
 
+  it('apiary --update from a shell with no display installs the new version and restarts the background Apiary headless', async () => {
+    // As over SSH with nobody at the desktop: a background Apiary with no display, then the update
+    // typed in a terminal. NOPASSWD, because `docker exec` has no terminal for sudo to ask on.
+    container = await must(['run', '-d', '--init', '--label', LABEL, IMAGE])
+    next = (await sh('cat /debs/next-version')).stdout.trim()
+    const setup = await sh([
+      "printf 'dev ALL=(ALL) NOPASSWD:ALL\\n' > /etc/sudoers.d/dev && chmod 440 /etc/sudoers.d/dev",
+      'mkdir -p /home/dev/ud && printf \'{"diagnosticsEnabled":true,"remoteAccess":true,"plugins":{"claude-usage":false}}\' > /home/dev/ud/settings.json',
+      'chown -R dev:dev /home/dev/ud',
+    ].join(' && '))
+    expect(setup.code, setup.stderr).toBe(0)
+    const flags = '--no-sandbox --disable-gpu --user-data-dir=/home/dev/ud'
+    const started = await sh(`unset DISPLAY WAYLAND_DISPLAY; systemd-run --user --collect /opt/Apiary/apiary ${flags} --background`, 'dev')
+    expect(started.code, started.stderr).toBe(0)
+    const oldPid = await waitFor(async () => {
+      const r = await sh("ps -eo pid=,args= | grep -- '--ozone-platform=headless' | grep -v -- '--type=' | grep -v grep | head -n 1")
+      const pid = Number(r.stdout.trim().split(/\s+/)[0])
+      return Number.isInteger(pid) && pid > 0 ? pid : null
+    }, 'the background Apiary to start with no display')
+    await waitFor(async () => ((await sh('test -S /home/dev/.apiary/remote.sock && echo y', 'dev')).stdout.trim() === 'y' ? true : null), 'its remote socket')
+
+    const updated = await sh(
+      `unset DISPLAY WAYLAND_DISPLAY; APIARY_FAKE_UPDATE=${next} APIARY_FAKE_UPDATE_MODE=deb APIARY_FAKE_UPDATE_FILE=/debs/apiary-next.deb /opt/Apiary/apiary ${flags} --update 2>/dev/null`,
+      'dev',
+    )
+    expect(updated.code, updated.stdout + updated.stderr).toBe(0)
+    expect(updated.stdout).toContain(`Installing Apiary ${next}`)
+    expect(updated.stdout).toContain(`Done: Apiary ${next} is starting.`)
+    expect((await sh("dpkg-query -W -f='${Version}' apiary")).stdout.trim()).toBe(next)
+
+    const newPid = await waitFor(async () => {
+      const r = await sh("ps -eo pid=,args= | grep -- '--ozone-platform=headless' | grep -- '--background' | grep -v -- '--type=' | grep -v grep | head -n 1")
+      const pid = Number(r.stdout.trim().split(/\s+/)[0])
+      return Number.isInteger(pid) && pid > 0 && pid !== oldPid ? pid : null
+    }, 'the new version to start in the background, headless')
+    expect(newPid).not.toBe(oldPid)
+    await waitFor(async () => ((await sh(`grep -rl '${next}' /home/dev/ud/logs`)).stdout.trim() !== '' ? true : null), `a log line from ${next}`)
+    await waitFor(async () => ((await sh('test -S /home/dev/.apiary/remote.sock && echo y', 'dev')).stdout.trim() === 'y' ? true : null), 'the new version\'s remote socket')
+    expect((await sh('ls /home/dev/Downloads/*.deb 2>/dev/null | wc -l')).stdout.trim()).toBe('0')
+  }, 600_000)
+
   it('with NOPASSWD sudo, installs and restarts without asking', async () => {
     const oldPid = await startCase('dev ALL=(ALL) NOPASSWD:ALL')
     const driven = await drive('-', '-')

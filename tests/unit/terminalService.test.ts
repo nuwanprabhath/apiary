@@ -1,4 +1,4 @@
-import { asSessionId } from '@shared/domain/ids'
+import { asPtyId, asSessionId } from '@shared/domain/ids'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -75,6 +75,19 @@ describe('TerminalService', () => {
       expect(spawned).toHaveLength(1)
       expect(spawned[0]).toMatchObject({ id: SID, cwd: realDir, tui: true })
       expect(spawned[0].command).toContain('--resume')
+    })
+
+    it('resumes a session started from "+" under the new-session pty its tabs still show, and refuses any other id', async () => {
+      const { pty, spawned } = fakePty()
+      const store = fakeStore({ sessions: { [SID]: { sessionId: SID, cwd: realDir } as StoredSession } })
+      const terminals = new TerminalService({ pty, resolver: new SessionResolver({ store, pty }), store, worktrees, accounts: stubAccounts(), homeDir: '/home' })
+      const pending = asPtyId('new:22222222-2222-2222-2222-222222222222')
+      await terminals.resume(SID, pending)
+      expect(spawned).toHaveLength(1)
+      expect(spawned[0]).toMatchObject({ id: pending, cwd: realDir, tui: true })
+      expect(spawned[0].command).toContain(`--resume ${SID}`)
+      await expect(terminals.resume(SID, asPtyId(`shell:${SID}:1`))).rejects.toThrow('Not a new-session pty id')
+      await expect(terminals.resume(SID, asPtyId(SID))).rejects.toThrow('Not a new-session pty id')
     })
 
     it('throws when the session cwd no longer exists', async () => {

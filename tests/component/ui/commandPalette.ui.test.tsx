@@ -14,7 +14,7 @@ describe('UI: the "/" menu', () => {
         if (document.querySelector('[data-testid="composer-command-menu"]') === null) {
           await userEvent.click(page.getByTestId('composer-commands'))
         }
-        await expect.element(page.getByTestId('composer-action-option')).toBeVisible()
+        await expect.element(page.getByTestId('composer-action-option').first()).toBeVisible()
       },
       close: () => userEvent.keyboard('{Escape}'),
     })

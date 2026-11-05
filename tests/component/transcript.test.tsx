@@ -215,6 +215,30 @@ describe('transcript', () => {
       expect(found.textContent).not.toContain('##')
       expect(found.textContent).not.toContain('```')
     })
+
+    it('puts a Copy button on a code block, which copies the code alone, and none in a hostile message', async () => {
+      const command = 'claude mcp add slack-multi --scope user -- uv run --directory ~/projects/slack-multi-workspace-mcp slack-multi-workspace-mcp'
+      const md = `To use it, run:\n\n\`\`\`\n${command}\n\`\`\`\n\n<button class="code-copy">fake</button>`
+      const session: FakeSession = {
+        sessionId: 'cccccccc-cccc-cccc-cccc-ccccccccccc2',
+        title: 'Command message',
+        projectPath: '/fixture/work-a',
+        gitBranch: 'main',
+        messages: [
+          message('u1', 'user', 'how do I add it'),
+          { uuid: 'cmd1', role: 'assistant', timestampMs: Date.now(), isSidechain: false, blocks: [{ type: 'text', text: md }] },
+        ],
+      }
+      const { fake } = await renderApp({ sessions: [session] })
+      await userEvent.click(sidebarSession('Command message'))
+      await expect.element(page.getByTestId('code-copy')).toBeVisible()
+      // Only the app's own button: the message's `<button>` is sanitised away.
+      expect(document.querySelectorAll('.code-copy')).toHaveLength(1)
+      await userEvent.click(page.getByTestId('code-copy'))
+      await until(() => fake.state.copied.length === 1)
+      expect(fake.state.copied).toEqual([command])
+      await expect.element(page.getByTestId('code-copy')).toMatchTextContent('Copied')
+    })
   })
 
   describe('tool block chevron', () => {

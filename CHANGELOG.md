@@ -4,6 +4,60 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.56.0] - 2026-11-05
+
+### Added
+
+- **Reload session.** Right-click a tab, or type "/" in the chat, and choose Reload session. It
+  starts Claude again on the same conversation, so it picks up an MCP server you added with
+  `claude mcp add`, or a changed setting. Closing and reopening the tab never did this: the chat's
+  Claude keeps running after its tab closes. A chat comes back with its model, mode and effort.
+  Reload is refused while Claude is still replying.
+- **Open new sessions in the chat** (Settings → General, with "Run sessions as a chat" on). A
+  session started with + opens on its Chat tab, with a message box over the new terminal. Your
+  first message goes to that terminal, and once Claude has written the session, the tab shows the
+  chat. Show the terminal is one click away, for a question Claude asks before it starts.
+- **A middle click closes a tab**, as in a browser.
+- **Code blocks in a transcript have a Copy button.** It copies the block's text, such as a
+  command to run, without selecting the whole line by hand.
+- **Copy with formatting**, in the chat's right-click menu. It copies the selection with its
+  bullets, numbering, bold and links, for an email or a document, and none of the theme's colours.
+  The selection's own list comes with it, even when the selection starts inside a list item.
+  Selecting text still copies plain text, as before.
+- **The MR Desk numbers its review findings under each MR** (2.1, 2.2, …), blockers first, so you
+  can say "post 2.1 and 2.3". It still never posts to GitLab: it gives those findings as comments
+  ready to paste, each with where it goes.
+- **`apiary --update` updates Apiary from a terminal.** Over SSH, on Linux, it checks for the newest
+  release, downloads and verifies it as the update banner does, and installs it with `sudo apt-get`
+  (sudo asks for your password in the terminal). It then restarts the Apiary that is running, the
+  way it was started: in the background, or on the desktop. `apiary --update --background` also
+  starts one in the background when none is running.
+- **Opening Apiary on the desktop joins the one running in the background.** On Linux, when
+  Apiary was started over SSH with nobody at the desktop, opening it later from the desktop shows
+  that Apiary's windows: the same sessions, terminals and chats, still running, as a remote window
+  shows them. Before, the launch handed over to the background Apiary, which has no display, and
+  nothing appeared. Closing the windows or logging out leaves the background Apiary running.
+- **`apiary --install-service` keeps Apiary running on a Linux machine.** It installs a systemd user
+  service that runs Apiary in the background, starts it, and turns on linger, so it starts with the
+  machine and keeps running after you log out. Your laptop connects to it at any time, and opening
+  Apiary on the desktop joins it. `apiary --uninstall-service` removes it.
+
+### Fixed
+
+- **A shell opens for a session started with + after its chat took over.** Stopping the
+  session's terminal for the chat dropped the folder the terminal ran in, and the session's shells
+  are keyed off that terminal, so "Could not open a shell: Unknown session: new:…" followed.
+- **Terminal shows Claude again for a session started with +.** Pressing Terminal after the chat
+  started Claude under the session's id, while the tab watched the old `new:…` terminal, so it
+  showed an empty screen with a live dot. It now starts under the id the tab shows.
+- **`apiary --background` starts on a Linux machine with nobody logged in to the desktop.** It
+  exited at once with "Missing X server or $DISPLAY", so neither starting it over SSH nor the remote
+  window's "start Apiary there" worked until someone logged in. With no display it now runs with no
+  display at all, and serves remote windows as before.
+- **Updating an Apiary that the service runs restarts the service.** Both `apiary --update` and
+  Install and restart now restart `apiary.service` through systemd, instead of starting the new
+  version beside it and leaving the service stopped.
+
 ## [1.55.4] - 2026-11-04
 
 ### Fixed

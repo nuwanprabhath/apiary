@@ -64,6 +64,16 @@ describe('session tabs', () => {
     await expect.element(page.getByTestId('content-empty')).toBeVisible()
   })
 
+  it('a middle click on a tab closes it, as in a browser, and leaves the other tabs', async () => {
+    await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await userEvent.click(sidebarSession('Add worktree switcher'))
+    await until(() => all('session-tab').length === 2)
+    await userEvent.click(all('session-tab')[0], { button: 'middle' })
+    await until(() => all('session-tab').length === 1)
+    expect(all('session-tab')[0].textContent).toContain('Add worktree switcher')
+  })
+
   it('the split button opens the session in a second column, with its own shell', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
@@ -283,6 +293,17 @@ describe('session tabs', () => {
     await until(() => all('session-tab')[0].textContent?.includes('Add worktree switcher') === true)
     expect(all('session-tab')[1].textContent).toContain('Fix CSV export bug')
     expect(all('session-tab')).toHaveLength(2)
+  })
+
+  it('right-clicking a tab offers to reload its session, and says when nothing was running to reload', async () => {
+    const { fake } = await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    rightClick(all('session-tab')[0])
+    await expect.element(page.getByTestId('context-menu-reload')).toMatchTextContent('Reload session')
+    await userEvent.click(page.getByTestId('context-menu-reload'))
+    await until(() => fake.callsTo('sessionReload').length === 1)
+    expect(fake.callsTo('sessionReload')[0][1]).toBeNull()
+    await expect.element(page.getByText(/Claude is not running for this session/)).toBeVisible()
   })
 
   it('right-clicking a tab offers to pin the session, which lifts it into the pinned section', async () => {

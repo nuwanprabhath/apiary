@@ -32,8 +32,11 @@ export function defineTerminalClauses(ctx: Ctx): void {
     })
 
     it('refuses to resume, or open a shell for, a session or terminal the app does not know', async () => {
-      await expect(ctx.api.resume(UNKNOWN_SESSION)).rejects.toThrow()
+      await expect(ctx.api.resume(UNKNOWN_SESSION, null)).rejects.toThrow()
       await expect(ctx.api.openShell(UNKNOWN_SESSION, '1')).rejects.toThrow()
+      // A session comes back under the `new:` pty it started on, never under another session's or a shell's id.
+      await expect(ctx.api.resume(STD.csv.id, asPtyId('shell:x:1'))).rejects.toThrow()
+      await expect(ctx.api.resume(STD.csv.id, asPtyId(STD.switcher.id))).rejects.toThrow()
       await expect(ctx.api.openShellForPty(NOBODY, '1')).rejects.toThrow()
       expect(await ctx.api.ptyRunning([ptyIdOfSession(UNKNOWN_SESSION), NOBODY, asPtyId('shell:x:1')])).toEqual([])
     })

@@ -1,4 +1,4 @@
-import type { SessionId, TerminalRef } from '@shared/domain/ids'
+import type { PtyId, SessionId, TerminalRef } from '@shared/domain/ids'
 import type { DiscoveredSession, NewSessionInfo, ResumeConflict } from '@shared/domain/session'
 import { attempt, bestEffort, surface } from './policy'
 
@@ -12,7 +12,12 @@ export const startSessionInProject = (path: string): Promise<NewSessionInfo> => 
 /** Asks for a folder with the native picker; null when cancelled. */
 export const startSessionInPickedFolder = (): Promise<NewSessionInfo | null> => window.apiary.newSessionInPickedFolder()
 export const forkSession = (sessionId: SessionId): Promise<NewSessionInfo> => window.apiary.forkSession(sessionId)
-export const resumeSession = (sessionId: SessionId): Promise<void> => window.apiary.resume(sessionId)
+/** `ptyId`: the `new:` pty a session started from "+" is still known by in this window (`ptyOverrides`). */
+/** Starts the session's claude again on the same conversation (chat or terminal), so it loads new
+ *  settings and MCP servers; `ptyId` as for `resumeSession`. Says what it reloaded. */
+export const reloadSession = (sessionId: SessionId, ptyId: PtyId | null): Promise<'chat' | 'terminal' | 'none'> =>
+  window.apiary.sessionReload(sessionId, ptyId)
+export const resumeSession = (sessionId: SessionId, ptyId: PtyId | null = null): Promise<void> => window.apiary.resume(sessionId, ptyId)
 /** Where else the session already runs, or null. */
 export const findResumeConflict = (sessionId: SessionId): Promise<ResumeConflict | null> => window.apiary.checkConflict(sessionId)
 export const removeSession = (sessionId: SessionId): Promise<void> => window.apiary.removeSession(sessionId)

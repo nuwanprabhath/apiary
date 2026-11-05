@@ -45,8 +45,12 @@ export function useColumnSession(column: Column) {
     return { key: tab.key, label: s?.title ?? tab.key, isPending: false, activity, hint: s?.gitBranch ?? folderName(s?.cwd ?? null) }
   })
 
-  /** A pending session has no transcript to show, so its tab is always the live terminal. */
-  const viewOf = (tab: OpenTab): OpenTab['view'] => (pending.has(tab.key) ? 'terminal' : tab.view)
+  /** A pending session has no transcript to show, so its tab is the live terminal, unless it opened in
+   *  the chat ("Open new sessions in the chat"): then its Chat tab is the first-message box. */
+  const viewOf = (tab: OpenTab): OpenTab['view'] => {
+    const p = pending.get(tab.key)
+    return p === undefined ? tab.view : p.inChat ? tab.view : 'terminal'
+  }
   const showTerminalFor = (tab: OpenTab): boolean =>
     pending.has(tab.key) || resumed.has(tab.key)
   const activeView = activeTab !== null ? viewOf(activeTab) : 'transcript'

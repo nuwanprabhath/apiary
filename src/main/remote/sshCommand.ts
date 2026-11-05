@@ -30,7 +30,8 @@ const PROBE_SCRIPT = 'if test -S "$HOME/.apiary/remote.sock"; then echo ready; '
 /**
  * Starts Apiary on the work machine in the background (`--background`: no window, remote server
  * only). macOS: `open -g` keeps it from taking the focus. Elsewhere: `systemd-run --user`, so it
- * lives in the user's systemd session, which has the desktop's display when someone is logged in.
+ * lives in the user's systemd session, which has the desktop's display when someone is logged in;
+ * with nobody logged in it has none, and Apiary starts Chromium with no display (`needsNoDisplay`).
  * Fixed, like the probe.
  */
 const START_SCRIPT = 'if [ "$(uname -s)" = Darwin ]; then open -g -a Apiary --args --background; '

@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 /**
  * Plain text files the *user* chose a path for (a pet export, a pet import) — not app state. They
@@ -12,4 +13,15 @@ export function writeTextFile(file: string, text: string): void {
 
 export function readTextFile(file: string): string {
   return readFileSync(file, 'utf8')
+}
+
+/** A file another program reads (a systemd user unit), its folder made when missing. Not app state. */
+export function writeFileForProgram(file: string, text: string): void {
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, text)
+}
+
+/** Deletes a file written by `writeFileForProgram`; one that is not there is fine. */
+export function removeFileForProgram(file: string): void {
+  rmSync(file, { force: true })
 }

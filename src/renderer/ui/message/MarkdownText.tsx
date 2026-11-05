@@ -3,6 +3,7 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { mentionHandlers, useFileMentions } from './FileMentions'
 import { markFileMentions } from './mentionMarkup'
+import { copyText } from '../../state/clipboard'
 
 // A single newline inside a paragraph becomes <br>: Claude's messages are written like chat, where
 // a hard-wrapped line is meant to stay a line break.
@@ -59,6 +60,36 @@ export interface LinkChips {
 
 const CHIP_ID_ATTR = 'data-chip-id'
 
+/**
+ * A Copy button on every code block (a command to run, a snippet), added after sanitising: the
+ * button is the app's, never the message's, which may not contain one.
+ */
+function withCodeCopyButtons(html: string): string {
+  if (!html.includes('<pre')) return html
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  for (const pre of doc.querySelectorAll('pre')) {
+    const button = doc.createElement('button')
+    button.setAttribute('type', 'button')
+    button.setAttribute('class', 'code-copy')
+    button.setAttribute('data-testid', 'code-copy')
+    button.setAttribute('aria-label', 'Copy code')
+    button.setAttribute('title', 'Copy code')
+    button.textContent = 'Copy'
+    // Beside the block, not inside it: a long command scrolls the block sideways, and the button must stay put.
+    const wrapper = doc.createElement('div')
+    wrapper.setAttribute('class', 'code-block')
+    pre.replaceWith(wrapper)
+    wrapper.append(pre, button)
+  }
+  return doc.body.innerHTML
+}
+
+/** The code of a code block's Copy button, as it would be pasted: the block's text without the button. */
+function codeOf(button: Element): string | null {
+  const code = button.closest('.code-block')?.querySelector('pre code') ?? null
+  return code === null ? null : (code.textContent ?? '').replace(/\n$/, '')
+}
+
 /** Turns the chips' links into buttons before sanitising, which drops an href it does not allow. */
 function chipLinks(html: string, chips: LinkChips): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
@@ -94,13 +125,26 @@ export function MarkdownText({ text, chips }: { text: string; chips?: LinkChips 
       : DOMPurify.sanitize(chipLinks(rendered, chips), {
         ALLOWED_TAGS: [...ALLOWED_TAGS, 'button'], ALLOWED_ATTR: [...ALLOWED_ATTR, 'data-testid', CHIP_ID_ATTR], ALLOWED_URI_REGEXP,
       })
-    return linkFiles ? markFileMentions(clean) : clean
+    return withCodeCopyButtons(linkFiles ? markFileMentions(clean) : clean)
   }, [text, linkFiles, chips])
 
   const handlers = mentionHandlers(mentions)
-  const onClick = chips === undefined ? handlers.onClick : (e: MouseEvent<HTMLElement>): void => {
-    const id = e.target instanceof Element ? e.target.closest(`[${CHIP_ID_ATTR}]`)?.getAttribute(CHIP_ID_ATTR) : null
-    if (typeof id === 'string') chips.onOpen(id)
+  const onClick = (e: MouseEvent<HTMLElement>): void => {
+    const target = e.target instanceof Element ? e.target : null
+    const copyButton = target?.closest('.code-copy') ?? null
+    if (copyButton !== null) {
+      const code = codeOf(copyButton)
+      if (code !== null) {
+        void copyText(code).then((ok) => {
+          if (!ok) return
+          copyButton.textContent = 'Copied'
+          setTimeout(() => { copyButton.textContent = 'Copy' }, 1500)
+        })
+      }
+      return
+    }
+    const id = chips === undefined ? null : target?.closest(`[${CHIP_ID_ATTR}]`)?.getAttribute(CHIP_ID_ATTR)
+    if (chips !== undefined && typeof id === 'string') chips.onOpen(id)
     else handlers.onClick?.(e)
   }
   // eslint-disable-next-line @eslint-react/dom-no-dangerously-set-innerhtml -- html is DOMPurify-sanitised above

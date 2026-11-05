@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { parseLaunchMode, shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitIdleBackground, shouldQuitWhenNoWindows } from '../../src/main/app/launchMode'
+import { desktopProfile, needsNoDisplay, parseLaunchMode, shouldJoinBackground, shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitIdleBackground, shouldQuitWhenNoWindows } from '../../src/main/app/launchMode'
 import { parseRuntimeEnv } from '../../src/main/app/env'
 
 describe('launch mode', () => {
   it('reads --background from the arguments, packaged or not', () => {
-    expect(parseLaunchMode(['apiary', '--background'])).toEqual({ background: true })
-    expect(parseLaunchMode(['apiary'])).toEqual({ background: false })
+    expect(parseLaunchMode(['apiary', '--background'])).toEqual({ background: true, update: false, service: null })
+    expect(parseLaunchMode(['apiary'])).toEqual({ background: false, update: false, service: null })
     expect(parseRuntimeEnv({}, ['--background'], true).background).toBe(true)
   })
 
@@ -41,6 +41,49 @@ describe('launch mode', () => {
     expect(shouldQuitIdleBackground(background, true, 0, true)).toBe(true)
     expect(shouldQuitIdleBackground(background, true, 1, true)).toBe(false)
     expect(shouldQuitIdleBackground(parseLaunchMode([]), true, 0, true)).toBe(false)
+  })
+
+  it('starts Chromium with no display only for a background start on Linux with no DISPLAY or WAYLAND_DISPLAY', () => {
+    const bg = { background: true, update: false, service: null }
+    expect(needsNoDisplay(bg, 'linux', {})).toBe(true)
+    expect(needsNoDisplay(bg, 'linux', { DISPLAY: ' ' })).toBe(true)
+    expect(needsNoDisplay(bg, 'linux', { DISPLAY: ':0' })).toBe(false)
+    expect(needsNoDisplay(bg, 'linux', { WAYLAND_DISPLAY: 'wayland-0' })).toBe(false)
+    expect(needsNoDisplay(bg, 'darwin', {})).toBe(false)
+    // A normal launch with no display is left to fail as it always has: it is meant to show a window.
+    expect(needsNoDisplay({ background: false, update: false, service: null }, 'linux', {})).toBe(false)
+  })
+
+  it('the command-line update holds no lock, and starts Chromium with no display when there is none', () => {
+    const update = parseLaunchMode(['apiary', '--update'])
+    expect(update).toEqual({ background: false, update: true, service: null })
+    expect(shouldHoldSingleInstanceLock(update, true)).toBe(false)
+    expect(shouldHoldSingleInstanceLock({ background: true, update: true, service: null }, true)).toBe(false)
+    expect(needsNoDisplay(update, 'linux', {})).toBe(true)
+    expect(needsNoDisplay(update, 'linux', { DISPLAY: ':0' })).toBe(false)
+  })
+
+  it('a desktop launch joins the running Apiary only when that one has no display and this one has', () => {
+    const normal = { background: false, update: false, service: null }
+    const headless = ['--background', '--ozone-platform=headless']
+    expect(shouldJoinBackground(normal, 'linux', { DISPLAY: ':0' }, headless)).toBe(true)
+    expect(shouldJoinBackground(normal, 'linux', { WAYLAND_DISPLAY: 'wayland-0' }, headless)).toBe(true)
+    // One that has a display opens the window itself, as a second launch always made it do.
+    expect(shouldJoinBackground(normal, 'linux', { DISPLAY: ':0' }, ['--background'])).toBe(false)
+    expect(shouldJoinBackground(normal, 'linux', { DISPLAY: ':0' }, null)).toBe(false)
+    expect(shouldJoinBackground(normal, 'linux', {}, headless)).toBe(false)
+    expect(shouldJoinBackground({ background: true, update: false, service: null }, 'linux', { DISPLAY: ':0' }, headless)).toBe(false)
+    expect(shouldJoinBackground({ background: false, update: true, service: null }, 'linux', { DISPLAY: ':0' }, headless)).toBe(false)
+    expect(shouldJoinBackground(normal, 'darwin', { DISPLAY: ':0' }, headless)).toBe(false)
+    expect(desktopProfile('/home/me/.config/apiary')).toBe('/home/me/.config/apiary-desktop')
+  })
+
+  it('reads the service commands, which are terminal commands like the update: no lock, no display needed', () => {
+    const install = parseLaunchMode(['apiary', '--install-service'])
+    expect(install.service).toBe('install')
+    expect(parseLaunchMode(['apiary', '--uninstall-service']).service).toBe('uninstall')
+    expect(shouldHoldSingleInstanceLock(install, true)).toBe(false)
+    expect(needsNoDisplay(install, 'linux', {})).toBe(true)
   })
 
   it('a packaged app and a background start hold the single-instance lock; a dev run does not', () => {

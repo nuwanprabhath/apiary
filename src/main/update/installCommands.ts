@@ -1,5 +1,8 @@
 import { shellQuote } from '../exec/shellQuote'
 
+/** The user unit `apiary --install-service` writes (`backgroundService.ts`); `relaunchCommand` restarts it. */
+export const SERVICE_UNIT = 'apiary.service'
+
 /**
  * The commands and scripts Install and restart runs, as pure functions of what main already holds
  * (the verified installer's path, this process's pid, argv and env), so every quoting and every
@@ -107,10 +110,23 @@ export interface RelaunchInput {
  * own; otherwise a `setsid` helper in its own session is enough.
  */
 export function relaunchCommand(input: RelaunchInput): Command {
+  // The installed service is restarted by systemd, which stops this one and keeps managing the new one.
+  if (input.unit === SERVICE_UNIT) return { file: 'systemctl', args: ['--user', 'restart', '--no-block', SERVICE_UNIT] }
   const tail = ['/bin/sh', '-c', WAIT_THEN_EXEC, 'apiary-relaunch', String(input.pid), input.binary, ...input.args]
   if (input.unit === null) return { file: 'setsid', args: ['-f', ...tail] }
   const setenv = Object.entries(input.env).map(([k, v]) => `--setenv=${k}=${v}`)
   return { file: 'systemd-run', args: ['--user', '--collect', '--quiet', ...setenv, ...tail] }
+}
+
+/**
+ * Starts Apiary with nothing to wait for (the command-line update with `--background`, when none
+ * runs): under the user's systemd (`systemd: true`, a transient unit of its own, as the remote start
+ * does), or in a session of its own (`setsid -f`) where there is no user systemd to ask.
+ */
+export function startCommand(input: { binary: string; args: string[]; env: Record<string, string>; systemd: boolean }): Command {
+  if (!input.systemd) return { file: 'setsid', args: ['-f', input.binary, ...input.args] }
+  const setenv = Object.entries(input.env).map(([k, v]) => `--setenv=${k}=${v}`)
+  return { file: 'systemd-run', args: ['--user', '--collect', '--quiet', ...setenv, input.binary, ...input.args] }
 }
 
 /** The running `.app` bundle, from `process.execPath` (`…/Apiary.app/Contents/MacOS/Apiary`); never assumed to be in /Applications. */

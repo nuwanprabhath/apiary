@@ -2,7 +2,8 @@ import type { AccountInfo, AccountsState } from '@shared/domain/accounts'
 import type { SessionId } from '@shared/domain/ids'
 import { fuzzyScore } from '@shared/fuzzy'
 import { hasSeveralAccounts } from '../../state/accountsStore'
-import { openSessionInVsCode } from '../../state/sessions'
+import { openSessionInVsCode, reloadSession } from '../../state/sessions'
+import { surface } from '../../state/policy'
 
 /** What decides whether an action is offered for this chat. */
 export interface PaletteContext {
@@ -46,7 +47,16 @@ const ACCOUNT: PaletteAction = {
   run: () => {},
 }
 
-export const PALETTE_ACTIONS: readonly PaletteAction[] = [ACCOUNT, OPEN_IN_VS_CODE]
+/** Starts this chat's claude again on the same conversation, so an MCP server added since loads. */
+const RELOAD: PaletteAction = {
+  id: 'reload-session',
+  label: () => 'Reload session',
+  description: () => 'Start Claude again here, with new MCP servers and settings',
+  available: (ctx) => ctx.folderExists,
+  run: (ctx) => { surface(reloadSession(ctx.sessionId, null), 'Could not reload this session') },
+}
+
+export const PALETTE_ACTIONS: readonly PaletteAction[] = [ACCOUNT, RELOAD, OPEN_IN_VS_CODE]
 
 /** The actions on offer for this chat that match what was typed, in registry order. */
 export function paletteActionRows(registry: readonly PaletteAction[], query: string, ctx: PaletteContext): PaletteAction[] {

@@ -77,3 +77,39 @@ it runs is a pure function in `installCommands.ts`.
   its password goes to the work machine's sudo over the paired connection.
 - `APIARY_FAKE_UPDATE_FILE` makes the fake backend "download" a real installer, so the real install
   path can run in a test.
+
+## The command-line update (`apiary --update`)
+
+For a terminal, an SSH shell with nobody at the desktop say: `cliUpdate.ts` checks the same feed,
+downloads and verifies the same `.deb`, and runs `sudo apt-get install` attached to the terminal
+(`exec/runInTerminal.ts`), so sudo asks for the password there and Apiary never sees it. Then it
+starts the running Apiary again as it was started: `runningApiary.ts` reads its pid from the
+profile's `SingletonLock` link and its arguments, environment and cgroup from `/proc`, and the
+relaunch is `relaunchCommand`, Install and restart's own, started before the old one is stopped
+(SIGTERM, SIGKILL after 30 s). With `--background`, an Apiary that was not running is started in
+the background (`startCommand`). Linux `.deb` only: an AppImage and a Mac update from the banner.
+
+- **It is not Apiary.** `--update` holds no single-instance lock and starts no services, so it
+  runs beside the Apiary it updates; `index.ts` runs it before `start()` and exits.
+- **Chromium rewrites its main process's title**, so `/proc/<pid>/cmdline` is one string joined by
+  spaces, not NUL-separated words (`commandLineWords`). Read as one word, the restart ran with no
+  arguments and, in the Docker bed, failed Chromium's sandbox with no `--no-sandbox`.
+- `tests/unit/cliUpdate.test.ts` drives every branch; `tests/update/updateDeb.test.ts` runs it for
+  real: a background Apiary with no display, then `apiary --update` from a shell with none.
+
+## The background service (`apiary --install-service`)
+
+`backgroundService.ts` writes the user unit apiary.service under ~/.config/systemd/user (`ExecStart=… --background`,
+`Restart=on-failure`, `WantedBy=default.target`), enables and starts it, and runs `loginctl
+enable-linger` so it outlives a logout and starts at boot; polkit may refuse linger over SSH, and
+then it says to run it with sudo. With remote access off it refuses: a background Apiary would quit.
+
+- **Chromium moves its main process into a scope of its own** (`app-apiary-<pid>.scope`), so the
+  service is found on the parent: the process that ran Apiary again with no display stays in
+  `apiary.service` (`RunningApiary.parentCgroup`, and `process.ppid` in `platformInstaller.ts`).
+  An update of a service-run Apiary is then `systemctl --user restart apiary.service`
+  (`relaunchCommand`), so systemd keeps managing the new version. Seen under real systemd in Docker:
+  read from the process's own cgroup, the update started the new version in a unit of its own and
+  the service went inactive.
+- The Docker beds have no systemd; the install, and the update restarting the service, were run by
+  hand in a privileged systemd container. `tests/unit/backgroundService.test.ts` pins the steps.

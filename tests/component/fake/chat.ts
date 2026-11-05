@@ -16,7 +16,7 @@ import type { Env } from './state'
 
 type ChatApi = Pick<ApiaryApi,
   | 'chatState' | 'chatStart' | 'chatSend' | 'chatAside' | 'chatSendNow' | 'chatInterrupt' | 'chatRespond' | 'chatSetPermissionMode' | 'chatSetModel'
-  | 'chatSetEffort' | 'chatStop' | 'terminalBusy' | 'chatAttach' | 'chatDetach'>
+  | 'chatSetEffort' | 'chatStop' | 'sessionReload' | 'terminalBusy' | 'chatAttach' | 'chatDetach'>
 
 /** How long the background task runs: as long as the fixture's `sleep 1`. */
 const BACKGROUND_TASK_MS = 1000
@@ -128,6 +128,14 @@ export function chatApi(env: Env): ChatApi {
       const c = state.chats.get(id)
       if (c === undefined || c.status === 'exited') return
       setChat({ ...c, status: 'exited', streaming: null, turnStartedAt: null, permissions: [], error: null })
+    },
+    // As main does: a running chat starts again with what it had; nothing else runs here.
+    sessionReload: async (id) => {
+      const c = state.chats.get(id)
+      if (c === undefined || c.status === 'exited') return 'none'
+      if (c.status === 'busy') throw new Error('Claude is still replying. Reload once it has finished, or stop it first.')
+      setChat({ ...c, error: null })
+      return 'chat'
     },
     terminalBusy: async (id) => state.terminalBusy.get(id) ?? { busy: false, backgroundTasks: 0 },
     chatAttach: (id) => { state.chatAttached.add(id) },

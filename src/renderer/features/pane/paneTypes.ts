@@ -1,7 +1,8 @@
 import type { PtyId } from '@shared/domain/ids'
 import type { ActivityStatus } from '@shared/activity'
 /** Everything a pending (not yet resolved) new session needs to render as a tab. */
-export interface PendingTabInfo { ptyId: PtyId; cwd: string; label: string }
+/** `inChat`: opens on its Chat tab, a first-message box over the terminal (`PendingSession.inChat`). */
+export interface PendingTabInfo { ptyId: PtyId; cwd: string; label: string; inChat: boolean }
 
 export interface SessionTabView {
   key: string

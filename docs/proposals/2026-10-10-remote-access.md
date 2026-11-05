@@ -203,3 +203,30 @@ the work machine's screen); the banner shows Copy install command instead.
 - **Reconnecting.** The work machine's Apiary quits and starts the new version; the remote window
   shows its existing reconnecting state and retries until the new instance answers
   (`RemoteClientService.reconnect` treats an unreachable socket as a restart, not a refusal).
+
+## 1.56: a work machine with nobody at its desktop
+
+- **Headless.** `apiary --background` on Linux with no `DISPLAY` or `WAYLAND_DISPLAY` (over SSH with
+  nobody logged in to the desktop) starts Chromium with `--ozone-platform=headless`. The switch counts
+  only on the real command line (`app.commandLine.appendSwitch` is read too late for it), so the
+  process runs Apiary again with it and waits (`needsNoDisplay` in `app/launchMode.ts`). Before this,
+  the remote start and `systemd-run --user apiary --background` exited at once with "Missing X server
+  or $DISPLAY". The Docker bed's `apiary` now starts a background launch with no display, so
+  `tests/remote/remote.test.ts` covers it.
+- **`apiary --update`** updates the work machine from an SSH shell and restarts its Apiary
+  (`src/main/update/CLAUDE.md`).
+
+## 1.56: the desktop joins the background Apiary
+
+A background Apiary started with no display can never open a window, so a later launch on that
+machine's desktop no longer hands over to it (`second-instance` would open nothing). On Linux, a
+normal launch with a display that finds such an Apiary on its profile (`findRunningApiary`: the
+lock's pid, then its arguments from `/proc`, which carry `--ozone-platform=headless`) joins it
+(`shouldJoinBackground` in `app/launchMode.ts`): it switches to a profile of its own
+(`<userData>-desktop`, before the single-instance lock) and opens the background one's windows
+through `RemoteClientService.connectLocal`, the remote window's whole path with the socket in
+`~/.apiary` instead of an ssh tunnel. Sessions, terminals and chats keep running in the background
+Apiary; closing the desktop's windows, or logging out, closes only the joining one. It runs no
+residents and no updater of its own: the windows show the background one's.
+`tests/remote/remote.test.ts` launches Apiary under xvfb beside a headless background one and checks
+that it connects.

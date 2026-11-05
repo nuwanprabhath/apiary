@@ -1,5 +1,5 @@
 /** Copy-on-select for the transcript: mouseup copies a selection; the right-click menu has Copy. */
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { createRoot } from 'react-dom/client'
 import { useRef } from 'react'
 import { createFakeApiary, type FakeApiary } from './fakeApiary'
@@ -15,6 +15,13 @@ function Probe(): React.JSX.Element {
     <div>
       <div ref={ref} data-testid="region" onContextMenu={onContextMenu}>
         <p id="para">hello transcript world</p>
+        <div className="markdown text-block" style={{ color: 'white' }}>
+          <p>Hi Sam,</p>
+          <ul id="list">
+            <li id="first">First <strong>point</strong></li>
+            <li id="second">Second point<div className="code-block"><button type="button" className="code-copy">Copy</button></div></li>
+          </ul>
+        </div>
         <input id="field" defaultValue="typed text" />
       </div>
       <p id="outside">outside text</p>
@@ -92,6 +99,47 @@ describe('useCopyOnSelect', () => {
     document.getElementById('para')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }))
     await expect.poll(() => document.querySelector('[data-testid="context-menu-copy"]')).not.toBeNull()
     expect(document.querySelector<HTMLButtonElement>('[data-testid="context-menu-copy"]')!.disabled).toBe(true)
+  })
+})
+
+describe('Copy with formatting', () => {
+  /** Selects from the start of `fromId`'s text to the end of `toId`'s. */
+  function selectAcross(fromId: string, toId: string): void {
+    const range = document.createRange()
+    range.setStart(document.getElementById(fromId)!.firstChild!, 0)
+    range.setEndAfter(document.getElementById(toId)!.lastChild!)
+    const sel = window.getSelection()!
+    sel.removeAllRanges()
+    sel.addRange(range)
+  }
+
+  it('copies a selection inside a list as that list, as HTML and as text, without the app\'s classes, styles or buttons', async () => {
+    await mount()
+    const written: ClipboardItem[][] = []
+    const write = vi.spyOn(navigator.clipboard, 'write').mockImplementation(async (items) => { written.push([...items]) })
+    try {
+      selectAcross('first', 'second')
+      document.getElementById('first')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }))
+      await expect.poll(() => document.querySelector('[data-testid="context-menu-copy-formatted"]')).not.toBeNull()
+      document.querySelector<HTMLButtonElement>('[data-testid="context-menu-copy-formatted"]')!.click()
+      await expect.poll(() => written.length).toBe(1)
+      const [item] = written[0]
+      const html = await (await item.getType('text/html')).text()
+      const text = await (await item.getType('text/plain')).text()
+      expect(html).toBe('<ul><li>First <strong>point</strong></li><li>Second point</li></ul>')
+      expect(text).toContain('First point')
+      expect(text).toContain('Second point')
+      await expect.poll(() => document.querySelector('[data-testid="notification-message"]')?.textContent).toBe('Copied with formatting')
+    } finally {
+      write.mockRestore()
+    }
+  })
+
+  it('is disabled with no selection', async () => {
+    await mount()
+    document.getElementById('para')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }))
+    await expect.poll(() => document.querySelector('[data-testid="context-menu-copy-formatted"]')).not.toBeNull()
+    expect(document.querySelector<HTMLButtonElement>('[data-testid="context-menu-copy-formatted"]')!.disabled).toBe(true)
   })
 })
 

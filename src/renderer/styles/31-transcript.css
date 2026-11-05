@@ -60,6 +60,24 @@
   border-radius: var(--radius-control);
   background: var(--bg-panel);
 }
+.markdown .code-block { position: relative; display: flow-root; }  /* a box of its own: it narrows beside a floated message time, as its block does */
+.markdown .code-block > pre { padding-right: calc(var(--space-lg) * 5); }
+.markdown .code-copy {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  padding: 1px var(--space-md);
+  cursor: pointer;
+  user-select: none;
+}
+.markdown .code-copy:hover { color: var(--text); background: var(--hover); }
+.markdown .code-copy:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .markdown pre code { background: none; padding: 0; font-size: 0.85em; line-height: 1.45; }
 
 .tool-block { border: 1px solid var(--border); border-radius: var(--radius-control); margin-bottom: var(--space-md); overflow: hidden; }

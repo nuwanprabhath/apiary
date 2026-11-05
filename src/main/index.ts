@@ -39,7 +39,11 @@ import { fireAndForget } from './log/fireAndForget'
 import type { WindowManager } from './windows/windowManager'
 import { installQuitDeferral } from './app/lifecycle'
 import { sendEvent } from './windows/sendEvent'
-import { shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitIdleBackground, shouldQuitWhenNoWindows } from './app/launchMode'
+import { runInTerminal } from './exec/runInTerminal'
+import { runCommandLineUpdate, runServiceCommand } from './update/createUpdater'
+import { findRunningApiary } from './update/runningApiary'
+import { NO_DISPLAY_SWITCH } from '@shared/launchFlags'
+import { desktopProfile, isTerminalCommand, needsNoDisplay, shouldJoinBackground, shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitIdleBackground, shouldQuitWhenNoWindows } from './app/launchMode'
 
 const dirname = fileURLToPath(new URL('.', import.meta.url))
 
@@ -50,7 +54,19 @@ const testBuild = app.isPackaged && isTestBuild(ignoreErrors(
 ))
 /** Every test-only override and launch flag; see `app/env.ts`. */
 const env: RuntimeEnv = parseRuntimeEnv(process.env, process.argv, app.isPackaged, testBuild)
-const launchMode = { background: env.background }
+const launchMode = { background: env.background, update: env.update, service: env.service }
+
+// With no display, Chromium's platform fails to start, and the switch counts only on the real
+// command line (`appendSwitch` is read too late for it): so this process runs Apiary again with it,
+// waits, and exits with its code. Blocking here keeps Chromium from starting in this one.
+if (needsNoDisplay(launchMode, process.platform, process.env) && !process.argv.includes(NO_DISPLAY_SWITCH)) {
+  process.exit(runInTerminal(process.execPath, [...process.argv.slice(1), NO_DISPLAY_SWITCH]))
+}
+
+// A desktop launch beside a background Apiary that has no display joins it on a profile of its own;
+// read before the lock, which is then this profile's.
+const joining = shouldJoinBackground(launchMode, process.platform, process.env, findRunningApiary(app.getPath('userData'))?.args ?? null)
+if (joining) app.setPath('userData', desktopProfile(app.getPath('userData')))
 
 // One Apiary per profile: a second launch (the user starting it normally after a background start)
 // hands over to the running one, which opens a window.
@@ -132,6 +148,16 @@ function showRemoteDialog(): void {
 }
 
 /** File → Open Remote Session → a host: the same path as the dialog's Connect; a failure shows over the focused window. */
+/** Opens the background Apiary's windows (`shouldJoinBackground`); with none it could reach, says why and quits. */
+function joinBackground(client: RemoteClientService): void {
+  log.info('remote', 'joining the background Apiary on this machine')
+  const joined = client.connectLocal(hostname(), join(homedir(), '.apiary', 'remote.sock')).catch((error: unknown) => {
+    dialog.showErrorBox('Could not open the Apiary running in the background', errorMessage(error))
+    app.quit()
+  })
+  fireAndForget(joined, 'remote')
+}
+
 function openRemoteHost(client: RemoteClientService, host: string): void {
   const connecting = client.connect(host).catch((error: unknown) => {
     const win = BrowserWindow.getFocusedWindow()
@@ -337,7 +363,8 @@ async function start(): Promise<void> {
   log.info('window', 'restoring', {
     saved: stored.windows.map((r) => r.number), restoring: records.map((r) => r.number),
   })
-  if (!shouldOpenFirstWindow(launchMode, false)) { /* background: no window until a normal launch */ } else if (records.length === 0) {
+  if (joining) joinBackground(container.remoteClient)
+  else if (!shouldOpenFirstWindow(launchMode, false)) { /* background: no window until a normal launch */ } else if (records.length === 0) {
     windowManager.create()
   } else {
     windowManager.advanceOpenedTo(Math.max(0, ...records.map((r) => r.number)))
@@ -345,10 +372,12 @@ async function start(): Promise<void> {
   }
   // Every window the restore will open is open: a pet whose window did not come back goes to one that did.
   container.petPlacement.start()
+  container.plugins.startStatusBar()
+  // A joining launch updates and runs residents in the Apiary it joined, whose windows it shows.
+  if (joining) return
   // Started after the window exists, so the first status push has somewhere to land.
   updater?.start()
   if (updater !== null) fireAndForget(updater.restorePreviousInstall(), 'update')
-  container.plugins.startStatusBar()
   disposeResidents = container.residents.start()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) { windowManager!.create(); container.petPlacement.rehome() }
@@ -358,6 +387,12 @@ async function start(): Promise<void> {
 // If `start()` throws (a corrupt database, an unwritable userData, a native ABI mismatch) no window
 // exists to report it, so the failure is shown and logged here.
 void app.whenReady().then(async () => {
+  if (isTerminalCommand(launchMode)) {
+    // `apiary --update` or a service command from a terminal: it starts none of Apiary, and exits.
+    app.dock?.hide()
+    app.exit(launchMode.service === null ? await runCommandLineUpdate(env) : runServiceCommand(launchMode.service))
+    return
+  }
   try {
     await start()
   } catch (error) {

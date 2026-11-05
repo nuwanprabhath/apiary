@@ -79,6 +79,20 @@ export function GeneralSection(
       )}
     />
     <CheckboxSetting
+      testId="setting-new-sessions-in-chat"
+      checked={draft.newSessionsInChat}
+      disabled={!draft.transcriptChat}
+      onChange={(checked) => { patch({ newSessionsInChat: checked }) }}
+      label="Open new sessions in the chat"
+      help={(
+        <>
+          A session started with + opens on its Chat tab instead of its terminal. Your first
+          message starts it, and the replies show in the chat. Needs &quot;Run sessions as a
+          chat&quot;.
+        </>
+      )}
+    />
+    <CheckboxSetting
       testId="setting-hide-tool-call-io"
       checked={draft.hideToolCallIo}
       onChange={(checked) => { patch({ hideToolCallIo: checked }) }}

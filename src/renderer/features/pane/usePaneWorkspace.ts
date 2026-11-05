@@ -36,7 +36,7 @@ function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
 }
 
 function samePending(a: PendingTabInfo, b: PendingTabInfo): boolean {
-  return a.ptyId === b.ptyId && a.cwd === b.cwd && a.label === b.label
+  return a.ptyId === b.ptyId && a.cwd === b.cwd && a.label === b.label && a.inChat === b.inChat
 }
 
 function paneWorkspaceEqual(a: PaneWorkspace, b: PaneWorkspace): boolean {
@@ -59,7 +59,7 @@ function selectPane(state: WorkspaceState, tabKeys: readonly string[]): PaneWork
     const session = state.openSessions.get(key)
     if (session !== undefined) sessions.set(key, session)
     const p = state.pending.get(key)
-    if (p !== undefined) pending.set(key, { ptyId: p.ptyId, cwd: p.cwd, label: p.titleOverride ?? p.label })
+    if (p !== undefined) pending.set(key, { ptyId: p.ptyId, cwd: p.cwd, label: p.titleOverride ?? p.label, inChat: p.inChat })
     if (state.resumed.has(key)) resumed.add(key)
     const override = state.ptyOverrides.get(key)
     if (override !== undefined) ptyOverrides.set(key, override)

@@ -7,10 +7,12 @@ import type { Column, OpenTab } from '../../state/columns'
 import { Transcript, Composer } from '../transcript'
 import { TerminalView } from '../terminal'
 import { AsideCard } from '../chat'
+import { PendingChat } from './PendingChat'
+import type { PendingTabInfo } from './paneTypes'
 
 /** The session's centre pane: its transcript with the composer, and every tab's claude terminal. */
 export function SessionBody({
-  column, activeKey, activeSession, isPending, activeView, viewOf, showTerminalFor, keyFor, running,
+  column, activeKey, activeSession, isPending, activePending, activeView, viewOf, showTerminalFor, keyFor, running,
   onResumeAsync, onSetView, onOpenImage,
 }: {
   column: Column
@@ -18,6 +20,8 @@ export function SessionBody({
   activeSession: SessionNode | null
   /** Whether the active tab is a pending session — it has no transcript to show. */
   isPending: boolean
+  /** The active pending session, whose Chat tab (when it opened in the chat) is the first-message box. */
+  activePending: PendingTabInfo | null
   activeView: OpenTab['view']
   viewOf: (tab: OpenTab) => OpenTab['view']
   showTerminalFor: (tab: OpenTab) => boolean
@@ -74,6 +78,13 @@ export function SessionBody({
             chat={chat}
           />
         </div>
+      )}
+      {activePending !== null && activePending.inChat && activeView === 'transcript' && (
+        <PendingChat
+          key={activePending.ptyId}
+          info={activePending}
+          onShowTerminal={() => { onSetView(activeKey, 'terminal') }}
+        />
       )}
       {/* Every tab's claude terminal stays mounted, hidden, so switching tabs (or columns)
        *  never discards its scrollback — a fresh xterm starts empty and nothing replays a

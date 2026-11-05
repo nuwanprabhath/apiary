@@ -8,8 +8,8 @@ message sent mid-turn, subagent messages) are in [`src/main/CLAUDE.md`](../CLAUD
 ## What lives here
 
 - `chatService.ts`: `ChatService`. Decides whether and how a chat starts (take-over, folder check,
-  permission default), the actions, `terminalBusy`, `/clear` adoption, per-window delivery and
-  pruning of exited chats.
+  permission default), the actions, `terminalBusy`, `reload` (start the session's claude again for
+  new MCP servers), `/clear` adoption, per-window delivery and pruning of exited chats.
 - `chatManager.ts`: `ChatManager`. The chats by session id. Holds processes; decides nothing.
 - `chatSession.ts`: `ChatSession`. One `claude` process; stdout to `ChatState`, actions to stdin.
 - `protocol.ts`: the stream-json protocol, pure. Read its header before changing anything.

@@ -155,6 +155,7 @@ describe('the IPC contract', () => {
       chatSetModel: 'apiary:chat-set-model',
       chatSetEffort: 'apiary:chat-set-effort',
       chatStop: 'apiary:chat-stop',
+      sessionReload: 'apiary:session-reload',
       terminalBusy: 'apiary:terminal-busy',
       chatAttach: 'apiary:chat-attach',
       chatDetach: 'apiary:chat-detach',

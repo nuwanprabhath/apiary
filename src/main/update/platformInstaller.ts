@@ -17,8 +17,9 @@ import { readTextFile } from '../fs/textFile'
 import { writeExecutableText } from '../fs/atomicWrite'
 import {
   SUDO_PROBE, SUDO_VALIDATE, bundleFromExecPath, debInstallCommand, isPasswordRefusal, macInstallScript,
-  relaunchArgs, relaunchCommand, relaunchEnv, sudoWithStdin, systemdUserUnit,
+  relaunchArgs, relaunchCommand, relaunchEnv, SERVICE_UNIT, sudoWithStdin, systemdUserUnit,
 } from './installCommands'
+import { NO_DISPLAY_SWITCH } from '@shared/launchFlags'
 import type { PreviousInstall, UpdateBackend } from './updateService'
 
 /** sha512, base64 (the encoding `file.sha512` in the feed uses), of a file already on disk. */
@@ -126,15 +127,18 @@ export function createPlatformInstaller(opts: PlatformInstallerOptions): Platfor
 
   const relaunchLinux = async (): Promise<void> => {
     const cgroup = ignoreErrors(() => readTextFile('/proc/self/cgroup'), 'no cgroup file means no systemd unit') ?? ''
+    // Chromium moves this process into a scope of its own; started by the installed service, it is
+    // the parent (which ran Apiary again with no display) that is still in `apiary.service`.
+    const parentCgroup = ignoreErrors(() => readTextFile(`/proc/${String(process.ppid)}/cgroup`), 'a parent that is gone has no cgroup') ?? ''
     const command = relaunchCommand({
       pid: process.pid,
       binary: execPath,
-      args: relaunchArgs(process.argv),
+      args: relaunchArgs(process.argv).filter((a) => a !== NO_DISPLAY_SWITCH),
       env: relaunchEnv(process.env),
-      unit: systemdUserUnit(cgroup),
+      unit: systemdUserUnit(parentCgroup) === SERVICE_UNIT ? SERVICE_UNIT : systemdUserUnit(cgroup),
     })
     log.info('update', 'starting the new version once this one exits', { via: command.file })
-    if (command.file === 'systemd-run') await startUnit(command.file, command.args, process.cwd())
+    if (command.file === 'systemd-run' || command.file === 'systemctl') await startUnit(command.file, command.args, process.cwd())
     else launchDetached(command.file, command.args, 'update')
   }
 

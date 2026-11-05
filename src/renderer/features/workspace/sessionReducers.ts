@@ -26,6 +26,7 @@ export function pendingAdd(state: WorkspaceState, action: ActionOf<'pending/add'
     ...action.info,
     knownSessionIds,
     titleOverride: action.titleOverride ?? null,
+    inChat: action.inChat ?? false,
   })
   const { after } = action
   const home = after === undefined ? null : findColumnWithTab(state.layout.panes, after)
@@ -48,6 +49,8 @@ export function pendingTitle(state: WorkspaceState, action: ActionOf<'pending/ti
 
 export function sessionFollow(state: WorkspaceState, action: ActionOf<'session/follow'>): WorkspaceState {
   const { from, to, ptyId, titleOverride } = action
+  // A session that opened in the chat stays there once it has an id; one from the terminal shows the terminal.
+  const view = state.pending.get(from)?.inChat === true ? 'transcript' : 'terminal'
   const node = titleOverride !== null ? { ...to, title: titleOverride } : to
   const ptyOverrides = new Map(state.ptyOverrides)
   ptyOverrides.delete(from)
@@ -59,7 +62,7 @@ export function sessionFollow(state: WorkspaceState, action: ActionOf<'session/f
   openSessions.delete(from)
   openSessions.set(to.sessionId, node)
   const layout = updateColumns(state.layout, state.activeColumnId, (c) => (
-    setTabView(rekeyTab(c, from, to.sessionId), to.sessionId, 'terminal')
+    setTabView(rekeyTab(c, from, to.sessionId), to.sessionId, view)
   ))
   const pending = state.pending.has(from) ? dropKey(state.pending, from) : state.pending
   return { ...state, ptyOverrides, resumed, openSessions, layout, pending }

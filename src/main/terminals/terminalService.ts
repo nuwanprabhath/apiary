@@ -35,6 +35,16 @@ export interface TerminalServiceDeps {
 }
 
 /**
+ * The pty a session's own `claude` runs under: its session id, or the `new:` pty a session started
+ * from "+" is still known by in the windows (`ptyOverrides`). Anything else from a renderer is refused.
+ */
+function claudePtyId(sessionId: string, ptyId: PtyId | null): string {
+  if (ptyId === null) return sessionId
+  if (!/^new:[0-9a-f-]{36}$/i.test(ptyId)) throw new Error(`Not a new-session pty id: ${ptyId.slice(0, 60)}`)
+  return ptyId
+}
+
+/**
  * Resuming, forking, starting and attaching to Claude sessions and plain shells, plus delivering a
  * composed prompt. Every attach-instead-of-spawn guard (CLAUDE.md's "never spawn over a live id")
  * and the bracketed-paste and settle-timing rules in `sendPrompt` live here; see
@@ -101,14 +111,15 @@ export class TerminalService {
    * the same pty id, at the size it had. The id keeps its views — `kill()` drops the old child's
    * callbacks (they check they are still the occupant), so no window is told the pty died.
    */
-  async respawn(sessionId: SessionId): Promise<void> {
+  async respawn(sessionId: SessionId, ptyId: PtyId | null = null): Promise<void> {
+    const id = claudePtyId(sessionId, ptyId)
     const session = this.resolver.requireSession(sessionId)
     const cwd = session.cwd
     if (!cwd || !existsSync(cwd)) throw new Error(`The folder for this session no longer exists: ${cwd ?? 'unknown'}`)
     const account = this.accounts.accountOf(sessionId)
-    await this.pty.killAndWait(sessionId)
+    await this.pty.killAndWait(id)
     this.pty.spawn({
-      id: sessionId, cwd, tui: true, account, ...this.pty.sizeOf(sessionId),
+      id, cwd, tui: true, account, ...this.pty.sizeOf(id),
       command: buildResumeCommand(sessionId, { claudeBin: this.claudeBin }),
       env: this.claudeEnv(account),
     })
@@ -137,8 +148,11 @@ export class TerminalService {
    * this check the second call would hit `spawn()`'s unconditional `kill()` and restart the pty
    * under the first window.
    */
-  async resume(sessionId: string): Promise<void> {
-    if (this.pty.has(sessionId)) {
+  async resume(sessionId: string, ptyId: PtyId | null = null): Promise<void> {
+    // A session started from "+" keeps its `new:` pty id in the windows (`ptyOverrides`), so its
+    // terminal comes back under that id, or the tab shows the old, dead pty's blank screen.
+    const id = claudePtyId(sessionId, ptyId)
+    if (this.pty.has(id)) {
       log.info('resume', 'attaching to a session that is already running', { sessionId })
       return
     }
@@ -149,7 +163,7 @@ export class TerminalService {
     }
     const account = this.accounts.accountOf(asSessionId(sessionId))
     this.pty.spawn({
-      id: sessionId,
+      id,
       cwd,
       command: buildResumeCommand(sessionId, { claudeBin: this.claudeBin }),
       tui: true,

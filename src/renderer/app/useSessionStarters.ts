@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import type { SessionId } from '@shared/domain/ids'
 import type { NewSessionInfo } from '@shared/types'
 import type { usePendingSessions } from '../features/workspace/usePendingSessions'
@@ -6,6 +6,7 @@ import { remoteHost } from '../state/windowParams'
 import { treeStore } from '../state/treeStore'
 import { forkSession as forkSessionCommand, startSessionInPickedFolder, startSessionInProject } from '../state/sessions'
 import type { useNotifications } from '../ui/notifications'
+import { useAppSettings } from '../state/settingsStore'
 
 type Notifications = ReturnType<typeof useNotifications>
 
@@ -23,17 +24,20 @@ interface Deps {
  * the ones that already existed.
  */
 export function useSessionStarters({ addPending, notify, notifyError, requestFolder, rememberCreatedWorktree }: Deps) {
+  const { transcriptChat, newSessionsInChat } = useAppSettings()
+  // A fresh session opens on its Chat tab when both settings say so; a fork, which has a conversation already, does not.
+  const fresh = useMemo(() => ({ inChat: transcriptChat && newSessionsInChat }), [transcriptChat, newSessionsInChat])
   const onNewSession = useCallback(async (path: string) => {
     try {
       const [info, nodes] = await Promise.all([
         startSessionInProject(path),
         treeStore.reloadNow(),
       ])
-      addPending(info, nodes)
+      addPending(info, nodes, fresh)
     } catch (e) {
       notifyError(e, 'Could not start a new session')
     }
-  }, [addPending, notifyError])
+  }, [addPending, notifyError, fresh])
 
   // The fork has no session id until Claude writes the JSONL, so it goes through the pending
   // bookkeeping; `titleOverride` is applied as a rename on resolve, so the fork and its original
@@ -57,31 +61,31 @@ export function useSessionStarters({ addPending, notify, notifyError, requestFol
       // The native picker would open on the work machine's screen, so a remote window browses it in-app.
       const info = await (remoteHost() === null ? startSessionInPickedFolder() : requestFolder())
       if (info === null) return null
-      addPending(info, await treeStore.reloadNow())
+      addPending(info, await treeStore.reloadNow(), fresh)
       return info.cwd
     } catch (e) {
       notifyError(e, 'Could not start a new session')
       return null
     }
-  }, [addPending, notifyError, requestFolder])
+  }, [addPending, notifyError, requestFolder, fresh])
 
   const onWorktreeCreated = useCallback(async (info: NewSessionInfo, folder: string) => {
     rememberCreatedWorktree(folder, info.cwd)
     notify({ message: `Worktree created at ${info.cwd} — starting Claude there` })
     try {
-      addPending(info, await treeStore.reloadNow())
+      addPending(info, await treeStore.reloadNow(), fresh)
     } catch (e) {
       notifyError(e, 'Could not open the new worktree\'s session')
     }
-  }, [addPending, notify, notifyError, rememberCreatedWorktree])
+  }, [addPending, notify, notifyError, rememberCreatedWorktree, fresh])
 
   const onFolderSessionStarted = useCallback(async (info: NewSessionInfo) => {
     try {
-      addPending(info, await treeStore.reloadNow())
+      addPending(info, await treeStore.reloadNow(), fresh)
     } catch (e) {
       notifyError(e, 'Could not open the new session')
     }
-  }, [addPending, notifyError])
+  }, [addPending, notifyError, fresh])
 
   const onSessionStarted = useCallback((info: NewSessionInfo) => {
     void treeStore.current().then((nodes) => { addPending(info, nodes) })

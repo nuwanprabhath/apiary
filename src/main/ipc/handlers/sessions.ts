@@ -57,7 +57,7 @@ export function sessionsHandlers(deps: SessionsDeps): Pick<Handlers, HandledKeys
     transcriptAfter: (_e, id, afterIndex) => service.transcriptAfter(id, afterIndex),
     backgroundTaskOutput: (_e, id, taskId) => service.backgroundTaskOutput(id, taskId),
     checkConflict: (_e, id) => service.checkConflict(id),
-    resume: (_e, id) => service.resume(id),
+    resume: (_e, id, ptyId) => service.resume(id, ptyId),
     renameSession: async (_e, id, title) => {
       await service.renameSession(id, title)
       // And in Claude's own record, where the VS Code extension and /resume read the name — only

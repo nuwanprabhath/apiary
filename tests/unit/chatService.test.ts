@@ -8,7 +8,7 @@ import { ChatManager } from '../../src/main/chat/chatManager'
 import { ChatService, type ChatServiceDeps } from '../../src/main/chat/chatService'
 import { WindowAttachments, type SendTarget } from '../../src/main/windows/windowAttachments'
 import type { ChatLifecycle, ChatPush, ChatState } from '@shared/domain/chat'
-import { asSessionId } from '@shared/domain/ids'
+import { asPtyId, asSessionId } from '@shared/domain/ids'
 import { stubAccounts, WORK } from '../fixtures/launchAccounts'
 import type { ClaudeOneShot, OneShotRequest } from '../../src/main/claude/claudeOneShot'
 
@@ -58,7 +58,7 @@ function setup(overrides: Partial<ChatServiceDeps> = {}) {
     spawn: child.spawn,
   })
   const pty = {
-    has: vi.fn(() => false), killAndWait: vi.fn(async () => {}), screen: vi.fn(() => ''), lastOutputAt: vi.fn(() => 0),
+    has: vi.fn((_id: string) => false), killAndWait: vi.fn(async () => {}), screen: vi.fn(() => ''), lastOutputAt: vi.fn(() => 0),
     tuiProcesses: vi.fn(() => new Map()),
   }
   const sessionAccountsChanged = vi.fn()
@@ -338,7 +338,7 @@ describe('ChatService and the terminal', () => {
     const stop = vi.spyOn(chats, 'stop').mockResolvedValue()
     await service.resumeInTerminal(A)
     expect(stop).toHaveBeenCalledWith(A)
-    expect(resume).toHaveBeenCalledWith(A)
+    expect(resume).toHaveBeenCalledWith(A, null)
   })
 
   it('switching a running chat stops it and starts it with the new env', async () => {
@@ -355,6 +355,37 @@ describe('ChatService and the terminal', () => {
     expect(chats.has(A)).toBe(true)
     expect(chats.launchOf(A)).toMatchObject({ account: WORK, opts: { model: 'opus', permissionMode: 'plan' } })
     expect(sessionAccountsChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('reloading a chat starts a new claude with the model and mode it had, under the same account', async () => {
+    const { service, chats, child } = setup()
+    await service.start(A, { takeOver: false, model: 'opus', permissionMode: 'plan' })
+    vi.spyOn(chats, 'stop').mockImplementation(async () => { child.exit() })
+    expect(await service.reload(A, null)).toBe('chat')
+    expect(child.envs).toHaveLength(2)
+    expect(chats.has(A)).toBe(true)
+    expect(chats.launchOf(A)).toMatchObject({ opts: { model: 'opus', permissionMode: 'plan' } })
+  })
+
+  it('refuses to reload a chat mid-reply, which would cut the turn short', async () => {
+    const { service, child } = setup()
+    await service.start(A, { takeOver: false })
+    service.send(A, 'hello')
+    await expect(service.reload(A, null)).rejects.toThrow('still replying')
+    expect(child.envs).toHaveLength(1)
+  })
+
+  it('reloading a terminal respawns it under the pty its tab shows, unless it is mid-turn', async () => {
+    const pending = 'new:33333333-3333-4333-8333-333333333333'
+    const { service, pty, respawn } = setup({ terminalsOn: (id) => (id === A ? [pending] : []) })
+    expect(await service.reload(A, null)).toBe('none')
+    pty.has.mockImplementation((id: string) => id === pending)
+    expect(await service.reload(A, asPtyId(pending))).toBe('terminal')
+    expect(respawn).toHaveBeenCalledWith(A, pending)
+    pty.screen.mockReturnValue('✻ Thinking… (esc to interrupt)')
+    pty.lastOutputAt.mockReturnValue(Date.now())
+    await expect(service.reload(A, asPtyId(pending))).rejects.toThrow('still working')
+    expect(respawn).toHaveBeenCalledTimes(1)
   })
 
   it('switching an idle session with no process only stores it', async () => {

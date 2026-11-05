@@ -9,6 +9,24 @@ export function copyText(text: string): Promise<boolean> {
   return attempt(window.apiary.copyToClipboard(text), 'Could not copy')
 }
 
+/**
+ * Puts a formatted copy on the clipboard: `html` for an app that keeps formatting (an email, a
+ * document: lists, bold, code), `text` for one that does not. Resolves to whether it worked; a
+ * refused write is shown as "Could not copy", as for `copyText`.
+ */
+export async function copyRich(html: string, text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([html], { type: 'text/html' }),
+      'text/plain': new Blob([text], { type: 'text/plain' }),
+    })])
+    return true
+  } catch (thrown) {
+    reportFailure(thrown, 'Could not copy')
+    return false
+  }
+}
+
 /** The clipboard's text, for a paste the user asked for; null when it could not be read (shown). */
 export async function readClipboardText(): Promise<string | null> {
   try {

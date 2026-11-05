@@ -58,7 +58,15 @@ pick it up where it left off, and work on several side by side, even on another 
     sidebar search to find the session that mentioned it.
 - **Remote access** over SSH: hosts from `~/.ssh/config`, recent connections and Tailscale;
   reconnects on its own; starts Apiary on the work machine if it is not running; optional pairing
-  code.
+  code. On a Linux work machine, from an SSH shell:
+  - `apiary --update` installs the newest release (sudo asks for your password in the terminal)
+    and restarts the Apiary that is running, the way it was started.
+  - `apiary --background` starts it with no window, even with nobody logged in to the desktop.
+  - `apiary --update --background` does both.
+  - Open Apiary on that machine's desktop later and it joins the background one: the same
+    sessions, terminals and chats, with nothing restarted.
+  - `apiary --install-service` keeps it running for good: a systemd user service that starts
+    with the machine and survives logging out (`apiary --uninstall-service` removes it).
 - **Open in VS Code**, locally or over Remote-SSH from a remote window.
 - **Themes**, including Liquid Glass, or describe one and Claude designs it.
 - **Pets** (optional): small 3D characters on the status bar that react to what Claude is doing.

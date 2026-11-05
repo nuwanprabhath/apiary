@@ -168,7 +168,7 @@ function SessionColumnView(props: Props): JSX.Element {
             column={column}
             activeKey={activeKey}
             activeSession={activeSession}
-            isPending={activePending !== null}
+            isPending={activePending !== null} activePending={activePending}
             activeView={activeView}
             viewOf={viewOf}
             showTerminalFor={showTerminalFor}

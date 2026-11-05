@@ -86,6 +86,13 @@ export function SessionTab(p: Props): JSX.Element {
         e.preventDefault()
         p.onOpenMenu(tab.key, { x: e.clientX, y: e.clientY })
       }}
+      // A middle click closes the tab, as in a browser; held down, it would start autoscroll on Linux and Windows.
+      onMouseDown={(e) => { if (e.button === 1) e.preventDefault() }}
+      onAuxClick={(e) => {
+        if (e.button !== 1) return
+        e.preventDefault()
+        p.onClose(tab.key)
+      }}
     >
       <button
         ref={(el) => p.registerButton(tab.key, el)}
