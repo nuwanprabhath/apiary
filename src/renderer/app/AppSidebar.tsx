@@ -10,10 +10,11 @@ import { focusTabInWindow } from '../state/tabs'
 import { killPty } from '../state/terminals'
 import { onToggleSidebar } from '../state/windowChrome'
 import { windowNumber } from '../state/windowParams'
+import { isMac } from '../ui/platform'
 import { SidebarIcon } from '../ui/icons'
 
 /** Matches the View menu in main/menu.ts. */
-const SIDEBAR_SHORTCUT = navigator.userAgent.includes('Mac') ? '⌘B' : 'Ctrl+Shift+B'
+const sidebarShortcut = (): string => (isMac() ? '⌘B' : 'Ctrl+Shift+B')
 
 interface Props {
   uiState: UiStateActions
@@ -90,7 +91,7 @@ export function AppSidebar({
           <button
             className="icon-button"
             data-testid="sidebar-show"
-            title={`Show sidebar (${SIDEBAR_SHORTCUT})`}
+            title={`Show sidebar (${sidebarShortcut()})`}
             aria-label="Show sidebar"
             onClick={toggleSidebar}
           >
@@ -103,7 +104,7 @@ export function AppSidebar({
         // Hidden, not unmounted, to keep its search text and scroll position.
         hidden={ui.sidebarHidden}
         onHide={toggleSidebar}
-        hideTitle={`Hide sidebar (${SIDEBAR_SHORTCUT})`}
+        hideTitle={`Hide sidebar (${sidebarShortcut()})`}
         onForkSession={onFork}
         selectedId={activeKey}
         revealId={revealActiveInSidebar ? activeKey : null}

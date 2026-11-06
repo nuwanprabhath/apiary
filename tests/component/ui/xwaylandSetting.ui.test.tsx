@@ -1,18 +1,11 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from '../renderApp'
 import { until } from '../helpers'
 import { reviewUi } from './review'
+import { asLinux, asMac } from '../platform'
 
 /** Settings → General on Linux: "Bring windows back on their own monitors (XWayland)". */
-const REAL = navigator.userAgent
-/** Stands in for the browser of another system: the tests run on a Mac here and on Linux in CI. */
-const as = (userAgent: string): void => {
-  Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => userAgent })
-}
-const asLinux = (): void => { as('Mozilla/5.0 (X11; Linux x86_64) Apiary') }
-const asMac = (): void => { as('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Apiary') }
-afterEach(() => { as(REAL) })
 
 async function openGeneral(): Promise<ReturnType<typeof renderApp>> {
   const rendered = renderApp({ settings: { linuxXWayland: true } })

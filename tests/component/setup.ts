@@ -3,10 +3,14 @@ import { afterEach, beforeEach } from 'vitest'
 import { createFakeApiary } from './fakeApiary'
 import { unmountApp } from './renderApp'
 import { setTestSeams } from '../../src/renderer/state/testSeams'
+import { asMac } from './platform'
 
 // Installed before any test file imports the renderer, for code that reads the bridge as a module
 // loads; `renderApp` replaces it with the test's own fake.
 window.apiary = createFakeApiary()
+// Every test runs as a Mac, wherever it runs; a test about Linux calls `asLinux()` (platform.ts).
+asMac()
+beforeEach(asMac)
 // Pets are drawn flat here unless a test is about the 3D renderer (see `petsFlat` in state/testSeams.ts).
 setTestSeams({ petsFlat: true })
 // ...and stand still in the window: the tests about pets in the layer are about what they do, not

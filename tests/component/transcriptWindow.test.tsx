@@ -7,8 +7,8 @@ import { renderApp } from './renderApp'
 import { message, type FakeApiary, type FakeSession } from './fakeApiary'
 import { sidebarSession, stays, until } from './helpers'
 
-const MAC = navigator.userAgent.includes('Mac')
-const FIND = MAC ? '{Meta>}f{/Meta}' : '{Control>}f{/Control}'
+// Component tests run as a Mac (setup.ts).
+const FIND = '{Meta>}f{/Meta}'
 
 const TITLE = 'Windowed session'
 const SESSION_ID = '66666666-6666-4666-8666-666666666666'

@@ -3,9 +3,8 @@ import { spellingLanguages } from '../../../state/spelling'
 import type { SettingsDraft } from '../../../state/settingsStore'
 import { CheckboxSetting } from '../fields/CheckboxSetting'
 import { RemoteAccessSetting } from './RemoteAccessSetting'
+import { isLinux } from '../../../ui/platform'
 
-/** Read as it draws, so a component test can stand in for Linux. */
-const isLinux = (): boolean => navigator.userAgent.includes('Linux')
 
 export function GeneralSection(
   { draft, patch, machineHost }: { draft: SettingsDraft; patch: (fields: Partial<SettingsDraft>) => void; machineHost: string | null },

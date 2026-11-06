@@ -4,6 +4,70 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.9] - 2026-11-07
+
+### Added
+
+- The `prune-tests` skill (`.claude/skills/prune-tests/`), to run every few releases. It measures
+  the suite one layer at a time, finds where the time goes before looking at tests, and lists test
+  files that cover nothing no other file covers. It decides case by case (speed up, move down a
+  layer, merge, delete) and requires proof for a deletion. It ends with a before-and-after table.
+  The first run's numbers are in `docs/testing.md`.
+
+### Changed
+
+- The testing docs describe the parallel integration run, the e2e budget, the per-run temp root
+  and when UI scenarios save screenshots.
+
+## [1.59.8] - 2026-11-07 (not released; shipped in 1.59.9)
+
+### Changed
+
+- The e2e stand-in for `claude` switches to the alternate screen as it starts, as claude does.
+  Every prompt sent to a resumed session had waited out `sendPrompt`'s 20 s limit; the composer
+  tests went from 29 s to 10 s.
+- The two transcript paging races (a stale page after A → B → A, a rejected page) are component
+  tests now, about 1 s instead of 17 s of e2e. The component fake's `restore` undoes an override.
+  Breaking either guard fails them.
+- Two component files that repeated their UI scenario are merged into it, keeping every assertion.
+- The e2e suite's test count is a budget (`tests/e2e/budget.json`, 180), checked by an
+  architecture test. A new e2e test moves or removes one, or the maintainer raises the budget.
+
+## [1.59.7] - 2026-11-07 (not released; shipped in 1.59.9)
+
+### Changed
+
+- The integration tests run on half the cores instead of one file at a time: 294 s → 103 s. A
+  status check waits up to 5 s under load. Each contract run is split into two files. The remote
+  contract run leaves out the 7 clause areas it only repeated, worked out from the clause files
+  themselves.
+- A plain component run audits every UI scenario state but takes no screenshots, except of a state
+  that fails. `npm run ui:review` still takes them all. The screenshots were a third of the
+  scenarios' time, and about 1,800 PNGs per run.
+- Unit and integration runs keep their temp folders under one root per run, removed at the end.
+  Tests had left 577 folders (44 MB) behind.
+- verify-apiary keeps the newest 10 runs' evidence and removes older runs.
+
+## [1.59.6] - 2026-11-07 (not released; shipped in 1.59.9)
+
+### Changed
+
+- Pushing to `main` now runs the coverage run CI runs (unit and integration, against
+  `vitest.config.ts`'s thresholds) and refuses the push if coverage is under them. Three times new
+  code went under the floor and only CI saw it, after the push (1.49.0, 1.51.0, 1.59.2).
+- `tests/CLAUDE.md` describes the window test bed as it is: mutter on a Wayland session with two
+  virtual monitors, not Xvfb and openbox.
+
+## [1.59.5] - 2026-11-07 (not released; shipped in 1.59.9)
+
+### Changed
+
+- The renderer asks which system it runs on in one place, `ui/platform.ts`. A lint rule now keeps
+  it there. Component tests run as a Mac wherever they run, so a test that passes on a Mac also
+  passes on Linux CI. Twice a test passed on the Mac and failed on CI because it read the machine's
+  own system (1.49.0, 1.59.3). The resident shortcut's Linux key (Ctrl+Shift+Space) now has its
+  own test.
+
 ## [1.59.4] - 2026-11-06
 
 ### Fixed

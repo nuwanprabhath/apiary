@@ -13,13 +13,22 @@
  */
 import { mountedFake } from '../renderApp'
 import { page } from 'vitest/browser'
-import { expect } from 'vitest'
+import { expect, inject } from 'vitest'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
 import type { ThemeSpec } from '@shared/theme/spec'
 import { applyTheme } from '../../../src/renderer/theme/applyTheme'
 import { auditUi, type UiViolation } from './audit'
 import { mouse, nextFrames } from '../helpers'
 import known from './knownDefects.allow.json'
+
+declare module 'vitest' {
+  export interface ProvidedContext {
+    /** Save every scenario state's screenshot (`npm run ui:review`), not only the failing ones. */
+    uiShots: boolean
+  }
+}
+
+const SHOTS = inject('uiShots')
 
 /**
  * Defects that predate the gate, by scenario: `"<rule> <where>": "<reason>"`. Shrink-only, like
@@ -123,9 +132,12 @@ export async function reviewUi(name: string, opts: ReviewOptions = {}): Promise<
         await settledLayout()
       }
       const shot = `${slug(name)}--${theme}-${String(width)}.png`
-      await page.screenshot({ path: `../../../ui-review/shots/${shot}`, scale: 'device' } as Parameters<typeof page.screenshot>[0])
       const root = opts.within?.() ?? document.body
-      for (const v of auditUi(root)) found.push({ ...v, shot })
+      const violations = auditUi(root)
+      // A screenshot costs about a third of a scenario's time: taken for `npm run ui:review`, and
+      // for a state the audit fails, so the failure names a picture of it.
+      if (SHOTS || violations.length > 0) await page.screenshot({ path: `../../../ui-review/shots/${shot}`, scale: 'device' } as Parameters<typeof page.screenshot>[0])
+      for (const v of violations) found.push({ ...v, shot })
       await opts.close?.()
     }
   }

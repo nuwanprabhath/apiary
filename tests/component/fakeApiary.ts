@@ -298,5 +298,6 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
   }
   fake.callsTo = (name) => calls.filter((c) => c.name === name).map((c) => c.args)
   fake.override = (name, fn) => { overrides.set(name, fn as (...args: never[]) => unknown) }
+  fake.restore = (name) => { overrides.delete(name) }
   return fake
 }

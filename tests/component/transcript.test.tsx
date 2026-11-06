@@ -3,8 +3,8 @@ import { page, userEvent } from 'vitest/browser'
 import type { TranscriptMessage, TranscriptPage } from '@shared/types'
 import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 import { renderApp } from './renderApp'
-import { message, type FakeSession } from './fakeApiary'
-import { sidebarSession, until } from './helpers'
+import { FIXTURE_SESSIONS, message, type FakeSession } from './fakeApiary'
+import { sidebarSession, stays, until } from './helpers'
 
 describe('transcript', () => {
   it('renders the conversation for the selected session', async () => {
@@ -179,6 +179,56 @@ describe('transcript', () => {
       expect(page.getByText(/^pad-0 /).elements()).toHaveLength(1)
       // Only one fetch was actually dispatched — the second click was a no-op.
       expect(fake.callsTo('transcript').filter((args) => args[1] === EARLIER)).toHaveLength(1)
+    })
+
+    it('A -> B -> A: a stale page from the first visit does not corrupt the second visit', async () => {
+      const { fake } = await renderApp({ sessions: [longSession(), ...FIXTURE_SESSIONS] })
+      await userEvent.click(sidebarSession('Long paging session'))
+      await until(() => page.getByTestId('message').elements().length === TRANSCRIPT_PAGE_SIZE)
+      let resolveStale: ((p: TranscriptPage) => void) | null = null
+      fake.override('transcript', () => new Promise((resolve) => { resolveStale = resolve }))
+      ;(page.getByTestId('load-earlier').element() as HTMLButtonElement).click()
+      await expect.element(page.getByTestId('load-earlier')).toBeDisabled()
+      // Only that one page is held: the visits below load as usual.
+      fake.restore('transcript')
+      await userEvent.click(sidebarSession('Add worktree switcher'))
+      await expect.element(page.getByTestId('session-title')).toHaveTextContent('Add worktree switcher')
+      await userEvent.click(sidebarSession('Long paging session'))
+      await expect.element(page.getByTestId('session-title')).toHaveTextContent('Long paging session')
+      await until(() => page.getByTestId('message').elements().length === TRANSCRIPT_PAGE_SIZE)
+
+      resolveStale!(pageOf(longSessionMessages(), EARLIER))
+      await stays(() => page.getByTestId('message').elements().length === TRANSCRIPT_PAGE_SIZE, 300, 'the second visit to keep its own page')
+      expect(page.getByText('start of the long session', { exact: true }).elements()).toHaveLength(0)
+      // The second visit's own cursor still pages, once, with nothing left over from the stale page.
+      const button = page.getByTestId('load-earlier')
+      await expect.element(button).toBeEnabled()
+      ;(button.element() as HTMLButtonElement).click()
+      await until(() => page.getByTestId('message').elements().length === TOTAL)
+      expect(page.getByText('start of the long session', { exact: true }).elements()).toHaveLength(1)
+      expect(page.getByText(/^pad-0 /).elements()).toHaveLength(1)
+      await expect.element(button).not.toBeInTheDocument()
+    })
+
+    it('a rejected page shows the error and does not leave paging stuck', async () => {
+      const { fake } = await renderApp({ sessions: [longSession(), ...FIXTURE_SESSIONS] })
+      await userEvent.click(sidebarSession('Long paging session'))
+      await until(() => page.getByTestId('message').elements().length === TRANSCRIPT_PAGE_SIZE)
+      fake.override('transcript', () => Promise.reject(new Error('simulated paging failure')))
+      ;(page.getByTestId('load-earlier').element() as HTMLButtonElement).click()
+      await until(() => document.querySelector('[data-testid="transcript-error"]')?.textContent?.includes('simulated paging failure') === true)
+
+      // Away and back: the in-flight guard was cleared, so Load earlier works again.
+      fake.restore('transcript')
+      await userEvent.click(sidebarSession('Add worktree switcher'))
+      await expect.element(page.getByTestId('session-title')).toHaveTextContent('Add worktree switcher')
+      await userEvent.click(sidebarSession('Long paging session'))
+      await until(() => page.getByTestId('message').elements().length === TRANSCRIPT_PAGE_SIZE)
+      const button = page.getByTestId('load-earlier')
+      await expect.element(button).toBeEnabled()
+      ;(button.element() as HTMLButtonElement).click()
+      await until(() => page.getByTestId('message').elements().length === TOTAL)
+      await expect.element(button).not.toBeInTheDocument()
     })
   })
 

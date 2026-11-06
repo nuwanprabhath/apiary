@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { renderApp } from './renderApp'
 import { until } from './helpers'
+import { asLinux } from './platform'
 import { closeResidentPopup, useResidentPopup, type ResidentPopupState } from '../../src/renderer/state/residentPopup'
 
 /** ⌘⇧Space and ⌘↵ in the search box: the popup state, and what the popup then sends. */
@@ -29,10 +30,10 @@ function watchPopup(): void {
   probe.render(<Probe />)
 }
 
-// The platform's modifier: ⌘ on a Mac, Ctrl elsewhere (CI runs on Linux).
-const MOD = navigator.userAgent.includes('Mac') ? 'Meta' : 'Control'
-const SUMMON = `{${MOD}>}{Shift>} {/Shift}{/${MOD}}`
-const ASK = `{${MOD}>}{Enter}{/${MOD}}`
+// Component tests run as a Mac (setup.ts), so the modifier is ⌘.
+const summon = (mod: 'Meta' | 'Control'): string => `{${mod}>}{Shift>} {/Shift}{/${mod}}`
+const SUMMON = summon('Meta')
+const ASK = '{Meta>}{Enter}{/Meta}'
 
 const searchBox = (): HTMLInputElement => document.querySelector<HTMLInputElement>('[data-testid="search-input"]') as HTMLInputElement
 
@@ -45,6 +46,16 @@ describe('resident shortcuts', () => {
     await userEvent.keyboard(SUMMON)
     await until(() => popup.openId === null)
     expect(popup.ask).toBeNull()
+  })
+
+  it('off a Mac the shortcut is Ctrl+Shift+Space, and Cmd+Shift+Space does nothing', async () => {
+    asLinux()
+    watchPopup()
+    await renderApp({ settings: { residents: [regent] } })
+    await userEvent.keyboard(SUMMON)
+    expect(popup.openId).toBeNull()
+    await userEvent.keyboard(summon('Control'))
+    await until(() => popup.openId === 'regent')
   })
 
   it('Cmd+Enter in search opens the popup with the query, and the box keeps its text', async () => {

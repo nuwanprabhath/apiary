@@ -15,6 +15,10 @@
  * A third run, `tests/integration/remoteContract.test.ts`, puts a home window in front of a work
  * machine over the remote protocol; a clause that cannot hold there skips itself (`skipOnRemote`).
  *
+ * The real main's runs build a real world per clause (about 0.3 s each), so each is split in two
+ * files (`part`), which the integration project runs on separate workers; the fake's run has no
+ * `part` and runs every area.
+ *
  * The clauses live in `clauses/`, one file per area; `world.ts` is what both implementations are
  * configured with (the window, the plugins, the update feed), and `support.ts` the harness types.
  * `tests/unit/architecture/contractCoverage.test.ts` reads every file under this folder.
@@ -52,8 +56,51 @@ import { defineResidentsClauses } from './clauses/residents'
 export { LONG_SESSION, STANDARD_TITLES }
 export type { Bridge, BridgeOptions, MakeBridge }
 
-/** `remote`: the run is a home window showing a work machine, which adds its own clauses (`clauses/remote.ts`). */
-export function defineBridgeContract(name: string, makeBridge: MakeBridge, options: { remote?: boolean } = {}): void {
+/**
+ * Every clause area, by its file in `clauses/`. `part` is which of a real-main run's two files runs
+ * it (the parts take about the same time); the fake's run has no part and runs them all. `remote`
+ * runs only in the remote run.
+ */
+const AREAS: readonly { clauses: string; define: (ctx: Ctx) => void; part: 1 | 2; remote?: true }[] = [
+  { clauses: 'git', define: defineGitClauses, part: 1 },
+  { clauses: 'sessions', define: defineSessionClauses, part: 1 },
+  { clauses: 'tabs', define: defineTabClauses, part: 1 },
+  { clauses: 'worktrees', define: defineWorktreeClauses, part: 1 },
+  { clauses: 'update', define: defineUpdateClauses, part: 1 },
+  { clauses: 'plugins', define: definePluginClauses, part: 1 },
+  { clauses: 'folders', define: defineFolderClauses, part: 1 },
+  { clauses: 'terminals', define: defineTerminalClauses, part: 1 },
+  { clauses: 'libraryState', define: defineLibraryStateClauses, part: 1 },
+  { clauses: 'search', define: defineSearchClauses, part: 2 },
+  { clauses: 'settings', define: defineSettingsClauses, part: 2 },
+  { clauses: 'themes', define: defineThemeClauses, part: 2 },
+  { clauses: 'pets', define: definePetClauses, part: 2 },
+  { clauses: 'chat', define: defineChatClauses, part: 2 },
+  { clauses: 'misc', define: defineMiscClauses, part: 2 },
+  { clauses: 'spelling', define: defineSpellingClauses, part: 2 },
+  { clauses: 'remote', define: defineRemoteClauses, part: 2, remote: true },
+  { clauses: 'remoteConnect', define: defineRemoteConnectClauses, part: 2 },
+  { clauses: 'remoteHosts', define: defineRemoteHostsClauses, part: 2 },
+  { clauses: 'remoteClients', define: defineRemoteClientsClauses, part: 2 },
+  { clauses: 'remoteStatusNow', define: defineRemoteStatusNowClauses, part: 2 },
+  { clauses: 'backgroundTaskOutput', define: defineBackgroundTaskOutputClauses, part: 2 },
+  { clauses: 'accounts', define: defineAccountsClauses, part: 2 },
+  { clauses: 'residents', define: defineResidentsClauses, part: 2 },
+]
+
+/** The clause areas, by file name in `clauses/`: the remote run checks every file there is one. */
+export const CONTRACT_AREAS: readonly string[] = AREAS.map((a) => a.clauses)
+
+export interface ContractRun {
+  /** A home window showing a work machine: adds the `remote` area (`clauses/remote.ts`). */
+  remote?: boolean
+  /** Which half of the areas this file runs; none runs them all. */
+  part?: 1 | 2
+  /** Areas (file names in `clauses/`) this run leaves out, because another run covers them in full. */
+  skip?: ReadonlySet<string>
+}
+
+export function defineBridgeContract(name: string, makeBridge: MakeBridge, options: ContractRun = {}): void {
   describe(`window.apiary contract: ${name}`, () => {
     let bridge: Bridge
     let heard: Heard
@@ -75,29 +122,11 @@ export function defineBridgeContract(name: string, makeBridge: MakeBridge, optio
     })
     afterEach(async () => { heard.stop(); await bridge.cleanup() })
 
-    defineSessionClauses(ctx)
-    defineSearchClauses(ctx)
-    defineSettingsClauses(ctx)
-    definePluginClauses(ctx)
-    defineThemeClauses(ctx)
-    definePetClauses(ctx)
-    defineChatClauses(ctx)
-    defineUpdateClauses(ctx)
-    defineTabClauses(ctx)
-    defineGitClauses(ctx)
-    defineWorktreeClauses(ctx)
-    defineTerminalClauses(ctx)
-    defineMiscClauses(ctx)
-    defineSpellingClauses(ctx)
-    defineFolderClauses(ctx)
-    if (options.remote === true) defineRemoteClauses(ctx)
-    defineRemoteConnectClauses(ctx)
-    defineRemoteHostsClauses(ctx)
-    defineRemoteClientsClauses(ctx)
-    defineRemoteStatusNowClauses(ctx)
-    defineLibraryStateClauses(ctx)
-    defineBackgroundTaskOutputClauses(ctx)
-    defineAccountsClauses(ctx)
-    defineResidentsClauses(ctx)
+    for (const area of AREAS) {
+      if (area.remote === true && options.remote !== true) continue
+      if (options.part !== undefined && area.part !== options.part) continue
+      if (options.skip?.has(area.clauses) === true) continue
+      area.define(ctx)
+    }
   })
 }

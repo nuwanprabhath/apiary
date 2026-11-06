@@ -1,26 +1,51 @@
-import { describe, it } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from '../renderApp'
 import { until } from '../helpers'
 import { deskConfig, withMrDesk } from '../residentFixtures'
+import type { FakeApiary } from '../fakeApiary'
 import { reviewUi } from './review'
 
 const el = (id: string): HTMLElement | null => document.querySelector(`[data-testid="${id}"]`)
+const badge = (): HTMLElement | null => el('resident-badge-mr-desk')
+const popup = (): HTMLElement | null => el('resident-popup')
 
+function rightClick(target: HTMLElement): void {
+  const r = target.getBoundingClientRect()
+  target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 4, clientY: r.top + 4 }))
+}
+
+async function chooseAction(label: string): Promise<void> {
+  rightClick(badge()!)
+  await until(() => el('resident-menu') !== null)
+  const item = [...el('resident-menu')!.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent.trim() === label)!
+  await userEvent.click(item)
+}
+
+const release = (fake: FakeApiary): void => { for (const end of fake.state.residentHeld.get('mr-desk')?.splice(0) ?? []) end() }
+
+/** A quick action shows that it is happening while it runs, looks right doing so, and goes back after. */
 describe('a quick action while it runs', () => {
-  it('the popup during "Reading the desk": the action chip and the working line', async () => {
-    await renderApp({}, (f) => { withMrDesk(f); f.state.residentHeld.set('mr-desk', []) })
-    await until(() => el('resident-badge-mr-desk') !== null)
-    const r = el('resident-badge-mr-desk')!.getBoundingClientRect()
-    el('resident-badge-mr-desk')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 4, clientY: r.top + 4 }))
-    await until(() => el('resident-menu') !== null)
-    await userEvent.click([...el('resident-menu')!.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent.trim() === 'Show the desk')!)
-    await until(() => el('resident-working') !== null && el('resident-action') !== null)
+  it('Show the desk opens the popup with the request as a chip, the working line and the pill saying "Reading the desk"', async () => {
+    const { fake } = await renderApp({}, (f) => { withMrDesk(f); f.state.residentHeld.set('mr-desk', []) })
+    await until(() => badge()?.dataset.state === 'idle')
+    await chooseAction('Show the desk')
+    await until(() => popup() !== null && badge()?.dataset.state === 'working')
+    expect(badge()!.querySelector('.resident-activity')!.textContent).toBe('Reading the desk')
+    await until(() => el('resident-working') !== null)
+    expect(el('resident-working')!.textContent).toBe('Reading the desk')
+    const chip = popup()!.querySelector<HTMLElement>('[data-testid="resident-action"]')!
+    expect(chip.textContent).toBe('Show the desk')
+    expect(chip.classList.contains('resident-msg-user')).toBe(false)
     await reviewUi('resident popup reading the desk', { widths: [620, 1000], within: () => el('resident-popup') })
     await reviewUi('resident badge reading the desk', { widths: [620, 1000], within: () => el('resident-badge-mr-desk') })
+
+    release(fake)
+    await until(() => badge()?.dataset.state === 'idle' && el('resident-working') === null)
+    expect(popup()!.textContent).toContain('$ python3')
   })
 
-  it('Check now while the cycle runs', async () => {
+  it('Check now in Settings shows a spinner and "Checking…" while the cycle runs, then goes back', async () => {
     const { fake } = await renderApp({ settings: { residents: [deskConfig({ project: 'g/p', repoPath: '/code/app' })] } }, (f) => { f.state.residentHeld.set('mr-desk', []) })
     fake.emit('openSettingsDialog')
     await until(() => el('settings-dialog') !== null)
@@ -28,6 +53,10 @@ describe('a quick action while it runs', () => {
     await until(() => el('resident-check-now-mr-desk') !== null)
     await userEvent.click(page.getByTestId('resident-check-now-mr-desk'))
     await until(() => el('resident-check-now-mr-desk')!.textContent === 'Checking…')
+    expect(el('resident-check-now-mr-desk')!.querySelector('.busy-glyph')).not.toBeNull()
     await reviewUi('resident settings checking now', { widths: [620, 1000], within: () => el('resident-check-now-mr-desk')!.closest('.resident-cycle') })
+    release(fake)
+    await until(() => el('resident-check-now-mr-desk')!.textContent === 'Check now')
+    expect(el('resident-check-now-mr-desk')!.querySelector('.busy-glyph')).toBeNull()
   })
 })

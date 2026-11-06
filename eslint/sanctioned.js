@@ -238,6 +238,17 @@ export const SANCTIONED = [
       'Every other storage key here is invisible to the reset and migration code.',
   },
   {
+    name: 'platform-via-ui',
+    kind: 'syntax',
+    files: [...RENDERER, 'tests/component/**/*.{ts,tsx}'],
+    selectors: ["MemberExpression[object.name='navigator'][property.name=/^(userAgent|platform|userAgentData)$/]"],
+    allow: ['src/renderer/ui/platform.ts', 'tests/component/platform.ts'],
+    description: 'The renderer asks which system it runs on only through ui/platform.ts.',
+    message:
+      'Use `isMac()`, `isLinux()` or `primaryModifier(e)` from src/renderer/ui/platform.ts; in a component test, `asMac()` / `asLinux()` from tests/component/platform.ts (tests run as a Mac unless they say otherwise). ' +
+      'A test that read the host system passed on the Mac and failed on Linux CI twice (1.49.0 shortcuts, 1.59.3 XWayland setting).',
+  },
+  {
     name: 'paste-via-terminal-paste',
     kind: 'syntax',
     files: RENDERER,

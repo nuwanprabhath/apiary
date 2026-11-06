@@ -81,7 +81,21 @@ run_drive() {
   echo
   echo "verify: evidence in $evidence"
   [ -d "$evidence" ] && ls -1 "$evidence"
+  prune_evidence
   return "$status"
+}
+
+# Evidence matters until its claim has been checked: the newest $KEEP_EVIDENCE runs stay, older
+# ones go (the folder grew to 21 MB of screenshots nobody would open again).
+KEEP_EVIDENCE=10
+prune_evidence() {
+  local dir="$repo/.verify/evidence"
+  [ -d "$dir" ] || return 0
+  find "$dir" -mindepth 1 -maxdepth 1 -type d | sort -r | tail -n +"$((KEEP_EVIDENCE + 1))" | while read -r old; do
+    rm -rf "$old" && echo "verify: removed old evidence $(basename "$old")"
+  done
+  # A file outside a run's folder belongs to no run.
+  find "$dir" -mindepth 1 -maxdepth 1 -type f -delete
 }
 
 doctor() {
@@ -118,7 +132,8 @@ cleanup() {
   local tmp="${TMPDIR:-/tmp}"
   find "$tmp" -maxdepth 1 -name 'apiary-e2e-*' -type d -mtime +1 -print -exec rm -rf {} + 2>/dev/null \
     | sed 's/^/cleanup: removed /' || true
-  echo "cleanup: evidence kept in $repo/.verify/evidence"
+  prune_evidence
+  echo "cleanup: the newest $KEEP_EVIDENCE runs' evidence kept in $repo/.verify/evidence"
 }
 
 case "${1:-}" in

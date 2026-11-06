@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { useResidents } from '../../state/residentsStore'
 import { summonResident } from '../../state/residentSummon'
+import { primaryModifier } from '../../ui/platform'
 
-const isMac = navigator.userAgent.includes('Mac')
 
 /**
  * ⌘⇧Space (Ctrl+Shift+Space elsewhere) summons the resident in this window. A renderer key handler
@@ -14,8 +14,7 @@ export function useResidentShortcuts(openSettings: (section: string) => void): v
   const residents = useResidents()
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
-      const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
-      if (!mod || !e.shiftKey || e.altKey || e.code !== 'Space') return
+      if (!primaryModifier(e) || !e.shiftKey || e.altKey || e.code !== 'Space') return
       e.preventDefault()
       e.stopPropagation()
       summonResident(residents, openSettings)

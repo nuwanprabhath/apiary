@@ -7,9 +7,9 @@ import { message, type FakeSession } from './fakeApiary'
 import { openClaudeTerminal, ptyWrites, sidebarSession, stays, until } from './helpers'
 
 // The chord that opens the find bar on this platform, and the other modifier's chord, which must not.
-const MAC = navigator.userAgent.includes('Mac')
-const FIND = MAC ? '{Meta>}f{/Meta}' : '{Control>}f{/Control}'
-const OTHER_MODIFIER_F = MAC ? '{Control>}f{/Control}' : '{Meta>}f{/Meta}'
+// Component tests run as a Mac (setup.ts).
+const FIND = '{Meta>}f{/Meta}'
+const OTHER_MODIFIER_F = '{Control>}f{/Control}'
 
 let sessionCount = 0
 function sessionWith(title: string, messages: TranscriptMessage[]): FakeSession {

@@ -18,7 +18,7 @@ const targets = args.some((a) => a.includes('tests/component/ui')) ? args : ['te
 
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(SHOTS, { recursive: true })
-const run = spawnSync('npx', ['vitest', 'run', '--config', 'vitest.component.config.ts', ...targets], { stdio: 'inherit' })
+const run = spawnSync('npx', ['vitest', 'run', '--config', 'vitest.component.config.ts', ...targets], { stdio: 'inherit', env: { ...process.env, APIARY_UI_SHOTS: '1' } })
 
 const git = (...a) => execFileSync('git', a, { encoding: 'utf8' }).trim()
 const head = git('rev-parse', '--short', 'HEAD')

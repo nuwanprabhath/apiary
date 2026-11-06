@@ -384,7 +384,9 @@ export async function launchApiary(
     claudeBin = opts.claudeBin
   } else {
     claudeBin = join(home, 'fake-claude.sh')
-    writeFileSync(claudeBin, '#!/bin/sh\nexec "${SHELL:-/bin/bash}" -l\n')
+    // Takes the alternate screen first, as claude does as it starts: `sendPrompt` waits for that
+    // (`whenQuiet`), and a shell that never took it made every prompt wait out the 20 s cap.
+    writeFileSync(claudeBin, '#!/bin/sh\nprintf \'\\033[?1049h\'\nexec "${SHELL:-/bin/bash}" -l\n')
     chmodSync(claudeBin, 0o755)
   }
   // The Claude usage plugin asks for consent in a dialog on first launch (ADR-0019); left on, that
@@ -595,81 +597,6 @@ export async function importAll(page: Page): Promise<void> {
   await page.evaluate(async () => {
     const all = await window.apiary.discovered()
     await window.apiary.importSessions(all.map((s) => s.sessionId), [])
-  })
-}
-
-/**
- * How the intercepted `apiary:transcript` main-process IPC handler should treat a *paging*
- * call (one carrying a `beforeIndex`/cursor argument). The initial per-session load (no
- * `beforeIndex`) always passes straight through to the real handler regardless of behavior,
- * so switching sessions and the first render of any session are unaffected by the intercept.
- */
-export type PagingBehavior =
-  | { kind: 'passthrough' }
-  | { kind: 'hold' }
-  | { kind: 'reject'; message: string }
-
-/**
- * Replaces the main-process `apiary:transcript` IPC handler with one whose behavior on paging
- * calls is controlled from the test, with zero changes to any production file. This is possible
- * only from the main process (not the sandboxed renderer, where `contextBridge` freezes
- * `window.apiary`): `electron.ElectronApplication#evaluate` runs inside the real Electron main
- * process, which has full Node/Electron access, including `ipcMain`.
- *
- * `ipcMain.handle` keeps registered handlers on the (undocumented, but stable across Electron's
- * JS-side ipcMain implementation) `ipcMain._invokeHandlers` Map, keyed by channel — that map is
- * how the *true* production handler is captured (once, on the first call) so every later call
- * to this function re-wraps that same original rather than re-wrapping a previous wrapper.
- *
- * A held paging call is released with `releaseHeldTranscriptPaging`; calling this again with a
- * different `behavior` (e.g. `{ kind: 'passthrough' }`) restores normal behavior for further
- * paging calls without needing to relaunch the app.
- */
-export async function interceptTranscriptPaging(
-  app: ElectronApplication,
-  behavior: PagingBehavior,
-): Promise<void> {
-  await app.evaluate(({ ipcMain }, behavior) => {
-    type Handler = (event: unknown, ...args: unknown[]) => unknown
-    const g = globalThis as Record<string, unknown>
-    const anyIpc = ipcMain as unknown as { _invokeHandlers: Map<string, Handler> }
-
-    if (g.__apiaryOriginalTranscriptHandler === undefined) {
-      const current = anyIpc._invokeHandlers.get('apiary:transcript')
-      if (!current) throw new Error('apiary:transcript handler is not registered')
-      g.__apiaryOriginalTranscriptHandler = current
-    }
-    const original = g.__apiaryOriginalTranscriptHandler as Handler
-
-    ipcMain.removeHandler('apiary:transcript')
-    const pending = ((g.__apiaryPendingPagingReleases as Array<() => void> | undefined) ?? [])
-    g.__apiaryPendingPagingReleases = pending
-    g.__apiaryReleaseNextPaging = () => {
-      const next = pending.shift()
-      if (next) next()
-    }
-
-    ipcMain.handle('apiary:transcript', async (event: unknown, id: string, beforeIndex?: number) => {
-      if (beforeIndex === undefined || behavior.kind === 'passthrough') {
-        return original(event, id, beforeIndex)
-      }
-      if (behavior.kind === 'reject') {
-        throw new Error(behavior.message)
-      }
-      // behavior.kind === 'hold': block until the test releases this specific call.
-      await new Promise<void>((resolve) => { pending.push(resolve) })
-      return original(event, id, beforeIndex)
-    })
-  }, behavior)
-}
-
-/** Resolves the oldest still-held paging call installed by `interceptTranscriptPaging({ kind: 'hold' })`. */
-export async function releaseHeldTranscriptPaging(app: ElectronApplication): Promise<void> {
-  await app.evaluate(() => {
-    const fn = (globalThis as Record<string, unknown>).__apiaryReleaseNextPaging as
-      | (() => void)
-      | undefined
-    if (fn) fn()
   })
 }
 

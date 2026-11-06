@@ -51,7 +51,9 @@ each one.
   runs at that width, as the real window would be widened. For each it:
   - runs `open`;
   - audits;
-  - saves `ui-review/shots/<name>--<theme>-<width>.png`.
+  - saves `ui-review/shots/<name>--<theme>-<width>.png` under `npm run ui:review`, and in any run
+    for a state the audit fails. A plain test run takes no other screenshots: they were a third of
+    the scenarios' time.
 - **Cover the states a person reaches, not just the resting one.** Every state of the feature needs
   a scenario:
   - each menu open;

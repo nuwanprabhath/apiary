@@ -99,6 +99,8 @@ export type FakeApiary = ApiaryApi & {
   emit<K extends FakeEvent>(event: K, ...args: PayloadOf<K>): void
   /** Replace what a method does, for one test (a rejection, a slow answer, a different result). */
   override<K extends keyof ApiaryApi>(name: K, impl: ApiaryApi[K]): void
+  /** Undo `override`: the method does what the fake does again (calls already in flight keep theirs). */
+  restore(name: keyof ApiaryApi): void
   /** The mutable state behind the fake — sessions, settings, refs — for arranging a test. */
   state: FakeState
 }

@@ -6,8 +6,8 @@ import { sidebarSession, until } from '../helpers'
 import { reviewUi } from './review'
 
 /** The transcript find widget: with matches (the newest current), with none, and in a narrow pane. */
-const MAC = navigator.userAgent.includes('Mac')
-const FIND = MAC ? '{Meta>}f{/Meta}' : '{Control>}f{/Control}'
+// Component tests run as a Mac (setup.ts).
+const FIND = '{Meta>}f{/Meta}'
 const press = async (keys: string): Promise<void> => { await userEvent.keyboard(keys) }
 
 async function openFind(query: string, steps = 0): Promise<void> {

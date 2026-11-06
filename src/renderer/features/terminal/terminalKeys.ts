@@ -2,6 +2,7 @@ import type { Terminal } from '@xterm/xterm'
 import { isClaudeSuspended, isSuspendChord } from '@shared/claudeSuspend'
 import { copyText, readClipboardText } from '../../state/clipboard'
 import { pasteText } from './terminalPaste'
+import { isMac } from '../../ui/platform'
 
 export interface TerminalKeyContext {
   /** Read on every key: the handler is installed once per pty, so a callback captured at mount
@@ -21,7 +22,6 @@ export interface TerminalKeyContext {
  * is Ctrl+Shift+V (Cmd+V on macOS), since a bare Ctrl+V is a control character.
  */
 export function createTerminalKeyHandler(term: Terminal, ctx: TerminalKeyContext): (e: KeyboardEvent) => boolean {
-  const isMac = navigator.userAgent.includes('Mac')
   return (e) => {
     if (e.type !== 'keydown') return true
     // No shell or common terminal program here uses F2, so it is taken before the pty sees it.
@@ -48,7 +48,7 @@ export function createTerminalKeyHandler(term: Terminal, ctx: TerminalKeyContext
       return false
     }
 
-    if (key === 'v' && (e.shiftKey || (isMac && e.metaKey))) {
+    if (key === 'v' && (e.shiftKey || (isMac() && e.metaKey))) {
       // Returning false does not stop the browser's default action: on Linux, Chromium treats
       // Ctrl+Shift+V as a native paste and fires a 'paste' event that xterm also handles (see
       // terminalPaste.ts), pasting twice. Reproduces only on Ubuntu 24.04; macOS has no native

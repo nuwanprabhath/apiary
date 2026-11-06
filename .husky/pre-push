@@ -1,5 +1,5 @@
 # The whole-repo checks, too slow to run on every commit: both tsconfigs and every linter, plus the
-# native-free unit project (fast: no native modules, parallel). Integration, component and e2e stay
+# native-free unit project (fast: no native modules, parallel), or for main the coverage run. Integration, component and e2e stay
 # out of hooks — they are slower and some drive real git/pty subprocesses.
 #
 # Except for a release: pushing a `v*` tag runs the whole e2e suite first, `@serial` included.
@@ -12,7 +12,16 @@ refs=$(cat)
 for sha in $(echo "$refs" | awk '$1 ~ /^refs\/tags\/v/ { print $2 }'); do
   node scripts/release-ci-gate.mjs "$(git rev-parse "$sha^{commit}")" || exit 1
 done
-npm run typecheck && npm run lint && npm run test:unit || exit 1
+npm run typecheck && npm run lint || exit 1
+# A push to main runs CI's own coverage run (unit + integration against vitest.config.ts's
+# thresholds) instead of the unit project alone: three times new code went under the floor and
+# only CI saw it, after the push (1.49.0, 1.51.0, 1.59.2).
+if echo "$refs" | awk '$3 == "refs/heads/main" { found = 1 } END { exit !found }'; then
+  echo "pre-push: main — running the coverage run CI runs (npm run test:coverage)."
+  npm run test:coverage || { echo "pre-push: tests failed or coverage is under vitest.config.ts's thresholds; add the missing tests, then push again."; exit 1; }
+else
+  npm run test:unit || exit 1
+fi
 case "$refs" in
   *refs/tags/v*)
     echo "pre-push: a release tag — running the whole e2e suite (npm run test:e2e) first."

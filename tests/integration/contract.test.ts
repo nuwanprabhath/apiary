@@ -23,6 +23,8 @@ import { defineBridgeContract } from '../contract/bridgeContract'
  * - not modelled: the background indexer's `treeChanged`, the filesystem watcher, native dialogs
  *   (the folder picker and the pet file dialogs answer from here), the OS clipboard and `shell`.
  *
+ * Part 1 of 2: `contract2.test.ts` runs the other clause areas, on another worker.
+ *
  * Mock state is declared before `vi.mock` and read lazily by its factory, the same pattern as
  * tests/integration/ipcWiring.test.ts.
  */
@@ -33,4 +35,4 @@ vi.mock('electron', async () => (await import('./support/electronLoopback')).ele
 
 const { buildLoopbackWorld } = await import('./support/loopbackWorld')
 
-defineBridgeContract('real preload + main handlers (loopback)', async (options) => (await buildLoopbackWorld(options)).bridge)
+defineBridgeContract('real preload + main handlers (loopback)', async (options) => (await buildLoopbackWorld(options)).bridge, { part: 1 })

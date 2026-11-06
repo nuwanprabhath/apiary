@@ -16,6 +16,9 @@ export default defineConfig({
   test: {
     include: ['tests/component/**/*.test.tsx'],
     setupFiles: ['tests/component/setup.ts'],
+    // Screenshots of every UI scenario state, for `npm run ui:review` (which sets this); a plain run
+    // audits every state and saves only the screenshot of a state that fails (tests/component/ui/review.ts).
+    provide: { uiShots: process.env.APIARY_UI_SHOTS === '1' },
     coverage: {
       provider: 'v8',
       reportsDirectory: 'coverage/component',

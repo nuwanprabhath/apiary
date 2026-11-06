@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // One temp root per run, removed at the end (tests/fixtures/tmpRoot.ts).
+    globalSetup: ['tests/fixtures/tmpRoot.ts'],
     coverage: {
       provider: 'v8',
       reportsDirectory: 'coverage/node',
@@ -34,13 +36,17 @@ export default defineConfig({
           name: 'integration',
           setupFiles: ['tests/integration/setup.ts'],
           include: ['tests/integration/**/*.test.ts'],
-          // Several files (worktreeResolver, ptyManager, branchOps, appService) drive real git and
-          // pty subprocesses rather than mocking them out. Run concurrently, those workers contend
-          // for the same machine and a test awaiting real git work can overrun its timeout —
-          // measured at roughly half of runs once the suite grew past 40-odd files. Serial
-          // execution costs about 13 seconds (21.6s vs 8.7s); that is a fair price for a suite
-          // whose green means something.
-          fileParallelism: false,
+          // These files drive real git and pty subprocesses. Every worker on every core made them
+          // contend until a test awaiting real git overran its timeout (about half of runs, at 40-odd
+          // files), so the suite ran one file at a time. That cost 13 s then and 290 s by 1.59
+          // (294 s serial, 128 s on 4 workers, on an M-series Mac). Half the cores keeps the
+          // contention down, and a poll waits up to 5 s, as in the component project: a chat
+          // clause's first turn overran the 1 s default under load.
+          fileParallelism: true,
+          maxWorkers: '50%',
+          // Its own group, after unit's: Vitest runs one group's projects with one worker count.
+          sequence: { groupOrder: 1 },
+          expect: { poll: { timeout: 5000 } },
         },
       },
     ],

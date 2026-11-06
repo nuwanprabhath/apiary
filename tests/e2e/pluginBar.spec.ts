@@ -27,8 +27,7 @@ async function launch(opts: Parameters<typeof launchApiary>[0] = {}): Promise<vo
 
 /**
  * Records what the app asks the OS to open, instead of actually opening a browser mid-test.
- * Replaces `shell.openExternal` in the real main process, the same way the transcript specs
- * replace an IPC handler.
+ * Replaces `shell.openExternal` in the real main process (`app.evaluate` runs there).
  */
 async function captureOpenExternal(page: Page, h: Harness): Promise<() => Promise<string[]>> {
   await h.app.evaluate(({ shell }) => {

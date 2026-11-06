@@ -97,7 +97,7 @@ What counts as proof:
 - Stand-ins only where a production boundary already isolates the outside world: `claude`,
   `glab`, `code`, the updater feed, native dialogs (the `APIARY_*` hooks in `docs/environment.md`).
 
-Cleanup never deletes `.verify/evidence/`. Clear it by hand when it gets large.
+Only the newest 10 runs' evidence is kept: each run (and `cleanup`) removes older runs' folders.
 
 ## Feature map
 

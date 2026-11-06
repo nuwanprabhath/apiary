@@ -121,6 +121,7 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | A pane reads its own workspace slice | `workspace-via-selector` | `useWorkspaceSelector`, `usePaneWorkspace` |
 | Text pasted into a terminal goes through `pasteText`, which strips ESC (SEC-6) | `paste-via-terminal-paste`; `tests/component/terminalNativePaste.test.tsx` | `pasteText` / `routeNativePaste` in `features/terminal/terminalPaste.ts` |
 | Renderer storage goes through `state/uiState.ts` | `no-raw-storage` | `uiState.ts` |
+| The renderer asks which system it runs on only through `ui/platform.ts`, when it needs to know (never once at import); component tests run as a Mac wherever they run | `platform-via-ui` (renderer and component tests); `tests/component/setup.ts` | `isMac()`, `isLinux()`, `primaryModifier(e)`; `asLinux()` from `tests/component/platform.ts` in a test |
 | A `role="button"` on a non-button is focusable and key-operable | `role-button-is-operable` | a real `<button>`, or `tabIndex={0}` plus `onKeyDown` for Enter and Space |
 | Icons, widget roles, drags, outside-click close come from `ui/` | `icons-from-ui`, `roles-via-primitives`, `drag-via-use-resize-drag`, `outside-dismiss-via-ui` | the primitive in `src/renderer/ui/` |
 | Something that appears on its own never takes focus from a text field; a field the person asked for takes it with one helper, never `autoFocus`, and opens with its text selected | `focus-unless-typing`, `focus-ref-is-stable` (no focus call in an inline `ref` arrow, which re-runs every render); `transcriptChat` and `focusAskedFor` component tests, `tests/component/residentPopupInput.test.tsx` | `focusUnlessTyping` / `ref={focusAskedFor}` in `ui/focusUnlessTyping.ts`, or a `useCallback` ref |
@@ -156,6 +157,8 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | A commit is made on a branch, never on a detached HEAD (rebase and cherry-pick excepted); look at an old file with `git show <rev>:<path>` | `.husky/pre-commit` | `git switch <branch>` or `git switch -c <name>` |
 | Agent worktrees run the git hooks too (husky's hook folder is generated, not committed) | `scripts/agents/run-agent.sh` installs it before an agent starts | run `npx husky` in a worktree made by hand |
 | Commit hygiene | `.husky/pre-commit` (lint-staged), `.husky/commit-msg` (commitlint, no AI attribution), `.husky/pre-push` (typecheck, lint, `test:unit`) | fix, never `--no-verify` |
+| A push to `main` meets CI's coverage thresholds (`vitest.config.ts`) before it leaves: three times new code went under the floor and only CI saw it | `.husky/pre-push` runs `npm run test:coverage` instead of `test:unit` when the push updates `main` | add tests for the new code, then push again |
+| The e2e suite does not grow: its test count is a budget | `tests/unit/architecture/e2eBudget.test.ts` against `tests/e2e/budget.json` | move a renderer-only test to `tests/component`, or merge or remove one (`.claude/skills/prune-tests/SKILL.md`); the maintainer raises the budget |
 | A release passes the whole e2e suite, `@serial` included, not only the specs a change seemed to touch | `.husky/pre-push`: pushing a `v*` tag runs `npm run test:e2e` and refuses the push if it fails | fix the spec or the code, then push the tag again |
 | A release tag goes only on a commit CI has passed (the release repeats CI's checks on Linux; five tags stopped there and published nothing) | `.husky/pre-push` runs `scripts/release-ci-gate.mjs` for a `v*` tag; `tests/unit/releaseCiGate.test.ts` | push `main`, wait for CI on it (`gh run watch`), then push the tag; a failed CI means a fix and a new version |
 
@@ -247,7 +250,7 @@ Generators write stubs that fail until finished, never ones that are green and w
   [`docs/packaging.md`](docs/packaging.md).
 - [`docs/adr/`](docs/adr/README.md): decisions with a rejected alternative, each naming its check.
 - `docs/history/`, `docs/superpowers/`, `docs/reviews/`: history. The code wins where they differ.
-- `.claude/skills/`: `verify-apiary` (and `maintain-verify-apiary`, the audit that keeps its feature map true), `blast-radius`, `correct`, `trim-comments`, `architecture-drift`, `ui-review`
+- `.claude/skills/`: `verify-apiary` (and `maintain-verify-apiary`, the audit that keeps its feature map true), `blast-radius`, `correct`, `trim-comments`, `architecture-drift`, `prune-tests` (measure the suite, cut tests that catch nothing new, report before and after), `ui-review`
   (designing UI, the UI audit and the screenshot review), and
   `agent-orchestration` (running Haiku, Sonnet or Opus agents in worktrees with `scripts/agents/run-agent.sh`).
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): the human onboarding path and the linter breakdown.

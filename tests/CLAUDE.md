@@ -11,11 +11,13 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
   filesystem-only — no real git or pty subprocess, no native module. `tests/unit/purity.test.ts`
   guards the unit/integration split.
 - **Integration** (`npm run test:integration`, part of `npm test`): drives a real git or pty
-  subprocess, or loads a native module (`better-sqlite3`, `node-pty`). Runs with
-  `fileParallelism: false` — several files (worktreeResolver, ptyManager, branchOps, appService)
-  drive real subprocesses that contend for the same machine when run concurrently, and a test
-  awaiting real git work can overrun its timeout under contention. Serial execution costs about
-  13 seconds more than parallel would; that is a fair price for a suite whose green means something.
+  subprocess, or loads a native module (`better-sqlite3`, `node-pty`). Runs on half the cores
+  (`maxWorkers: '50%'`), with `expect.poll` waiting up to 5 s: on every core the subprocesses
+  contended until real git work overran its timeouts, and one at a time it took 294 s by 1.59 (110 s
+  now). The contract runs build a real world per clause, so each is split in two files (`part` in
+  `tests/contract/bridgeContract.ts`) that run on separate workers.
+  Unit and integration runs put every temp folder under one root per run, removed when the run
+  ends (`tests/fixtures/tmpRoot.ts`), so a test that forgets to clean up leaves nothing behind.
 - **Component** (`npm run test:component`, Vitest browser mode): the whole renderer, mounted as
   `main.tsx` mounts it, in real Chromium with the app's stylesheet, against
   `tests/component/fakeApiary.ts` — an in-memory `ApiaryApi` that models the e2e fixture's four
@@ -35,12 +37,17 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
     with the fake's state. A test arranges the world through `renderApp(options)` or `fake.state`;
     a project that is not a repository says `notRepo`, a branch that tracks an upstream is listed in
     `upstream`.
+  - Every test runs as a Mac (`setup.ts`), wherever it runs, so a test reads the same on the Mac and
+    on Linux CI; a test about another system calls `asLinux()` from `tests/component/platform.ts`.
+    The renderer asks which system it is on only through `src/renderer/ui/platform.ts`
+    (`platform-via-ui`).
   - `expect.element` on an element not there yet used to overflow the stack printing the whole
     page; `vitest.component.config.ts` sets `DEBUG_PRINT_LIMIT=0` and a 5 s poll for that.
 - **UI scenarios** (`tests/component/ui/*.ui.test.tsx`, part of the component run): each opens a state
   of the app and calls `reviewUi`, which runs the UI audit (`tests/component/ui/audit.ts`: clipped, cut-off or
   overlapping elements, see-through popups, unstyled controls, low contrast) at several widths and
-  themes and saves screenshots to `ui-review/shots/`. `npm run ui:review` writes them all to
+  themes. `npm run ui:review` saves a screenshot of every state to `ui-review/shots/` (a plain run
+  saves only a failing state's, since screenshots were a third of the time) and writes them all to
   `ui-review/index.html`. Defects that predate the audit are in `tests/component/ui/knownDefects.allow.json`, which
   only shrinks. See `.claude/skills/ui-review/SKILL.md`.
 - **Contract** (`tests/contract/bridgeContract.ts`, no layer of its own): one behavioural spec of
@@ -90,6 +97,10 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
     everything except tests tagged `@serial`; `serial` (the OS clipboard, window focus, or a
     measurement of timing — things that cannot share the machine) runs afterwards, one at a time,
     and *depends on* `parallel`, so a parallel-project failure skips it.
+  - The suite's size is a budget (`tests/e2e/budget.json`, counted by
+    `tests/unit/architecture/e2eBudget.test.ts`): a new e2e test moves or removes one, or the
+    maintainer raises the budget. Prefer a component test; the `prune-tests` skill finds e2e tests
+    that only drive the renderer.
   - `@smoke` marks a one-minute run through the main paths (`npm run test:e2e:smoke`) — the only
     part of this suite that runs in CI (`ci.yml`'s `e2e-smoke` job); everything else is a
     local/manual gate before tagging a release.
@@ -175,9 +186,11 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
   round-trip, and Apiary listing the host as a Tailscale one, connecting and reading the work
   machine's session. The node logs out when the suite ends.
 - `npm run test:windows`: window placement for real (`tests/windows/`, `vitest.windows.config.ts`).
-  - The bed is an `ubuntu:26.04` container: Xvfb with one 3840x1080 screen that xrandr splits into
-    two monitors, openbox (it is what honours maximise), and wmctrl and xdotool to move and measure
-    windows.
+  - The bed is an `ubuntu:26.04` container running GNOME's compositor as Ubuntu does: mutter,
+    headless, as a Wayland session with two 1920x1080 virtual monitors and XWayland
+    (`tests/windows/docker/desktop.sh`). wmctrl and xdotool move windows, xwininfo measures them
+    (wmctrl doubles a Static-gravity window's position under mutter). Run it with `docker run --init`,
+    or killed apps stay as zombies.
   - The case: the built app's two windows are put on different monitors by the window manager, one
     of them maximised. The app is stopped and started again, and each must come back on its monitor,
     at its size, maximised if it was.

@@ -1,4 +1,5 @@
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { primaryModifier } from '../../ui/platform'
 
 const ALL = 'transcript-find'
 const CURRENT = 'transcript-find-current'
@@ -8,7 +9,6 @@ const SKIPPED = '.transcript-toolbar, button, .find-bar'
 // Clamped to the last match, so a fresh query starts at the newest.
 const NEWEST = Number.MAX_SAFE_INTEGER
 
-const isMac =(): boolean => navigator.userAgent.includes('Mac')
 
 /** Every case-insensitive occurrence of `query` in the container's text, as DOM ranges. */
 function findRanges(root: HTMLElement, query: string): Range[] {
@@ -80,8 +80,7 @@ export function useTranscriptFind(opts: {
   useEffect(() => {
     if (!visible) return
     const onKey = (e: KeyboardEvent): void => {
-      const mod = isMac() ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
-      if (!mod || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'f') return
+      if (!primaryModifier(e) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'f') return
       const pane = containerRef.current?.closest('.pane-fill')
       if (!pane?.contains(document.activeElement)) return
       e.preventDefault()

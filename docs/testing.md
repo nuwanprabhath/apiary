@@ -22,3 +22,19 @@ check whether a dependency bump dropped N-API support before reaching for these.
 
 See also [tests/CLAUDE.md](../tests/CLAUDE.md) for the current test layers and how to run a single
 test in each, and root CLAUDE.md's "Commands" table for the day-to-day command list.
+
+## Test time
+
+Measured with `.claude/skills/prune-tests/measure.mjs` on an M-series Mac (4 performance and 6
+efficiency cores), one layer at a time. 1.59.6 against 1.59.9 (no app change in between):
+
+| Layer | 1.59.6 | 1.59.9 | What changed |
+| --- | ---: | ---: | --- |
+| unit | 8 s | 9 s | nothing |
+| integration | 294 s | 103 s | parallel on half the cores; each contract run split in two files; the remote run leaves out the 7 areas it only repeated |
+| component | 138 s | 105 s | UI scenarios take screenshots only for `npm run ui:review` or a failing state; two duplicate files merged |
+| e2e | 291 s | 256–321 s | the stand-in `claude` takes the alternate screen (composer tests 29 s → 10 s); two paging tests moved to component tests |
+
+Coverage did not drop (node 86.21% lines; component 77.81% → 77.88%). The e2e wall time moved
+with the machine's load more than with the suite: its tests' summed time went 992 s, 955 s and
+1115 s on three runs of near-identical code, with an antivirus scanning every file the tests wrote.

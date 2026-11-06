@@ -10,6 +10,7 @@ import { createIpcStore } from './createIpcStore'
 import { createLocalStore } from './createLocalStore'
 import { readLibraryState, saveLibraryState } from './libraryStateStore'
 import { bestEffort } from './policy'
+import { isMac } from '../ui/platform'
 import { remoteHost } from './windowParams'
 
 /**
@@ -68,7 +69,7 @@ export const setSettingsTarget = (next: SettingsTarget): void => { target.set({ 
 const onWorkMachine = (): boolean => remoteHost() !== null && target.get().target === 'machine'
 
 /** What this machine is called in the switch: the platform's own word for it. */
-export const thisComputerName = (): string => (navigator.userAgent.includes('Mac') ? 'This Mac' : 'This computer')
+export const thisComputerName = (): string => (isMac() ? 'This Mac' : 'This computer')
 
 /**
  * What the Settings dialog edits: every setting, plus the library preferences it has a control

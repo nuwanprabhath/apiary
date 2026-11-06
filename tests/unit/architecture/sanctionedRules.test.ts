@@ -100,6 +100,16 @@ const CASES: Record<string, Case> = {
     allowed: { file: 'src/renderer/state/uiState.ts', code: "localStorage.getItem('apiary.ui')" },
     outside: { file: 'src/renderer/x.ts', code: 'const localStorage = { getItem: (_k: string) => null }\nlocalStorage.getItem("k")' },
   },
+  'platform-via-ui': {
+    // residentShortcuts.test.tsx before 1.49.0's fix: the modifier followed the host, so it passed on the Mac only.
+    bad: { file: 'tests/component/residentShortcuts.test.tsx', code: "const MOD = navigator.userAgent.includes('Mac') ? 'Meta' : 'Control'\nvoid MOD" },
+    alsoBad: [
+      { file: 'src/renderer/features/sidebar/SearchField.tsx', code: "const isMac = navigator.userAgent.includes('Mac')\nvoid isMac" },
+      { file: 'src/renderer/x.ts', code: 'void navigator.platform' },
+    ],
+    allowed: { file: 'src/renderer/ui/platform.ts', code: "export const isMac = (): boolean => navigator.userAgent.includes('Mac')" },
+    outside: { file: 'src/main/x.ts', code: "const isMac = process.platform === 'darwin'\nvoid isMac" },
+  },
   'paste-via-terminal-paste': {
     bad: { file: 'src/renderer/features/terminal/TerminalView.tsx', code: 'declare const term: { paste: (t: string) => void }\nterm.paste(\'x\')' },
     allowed: { file: 'src/renderer/features/terminal/terminalPaste.ts', code: "declare const host: HTMLElement\nhost.addEventListener('paste', () => {}, true)" },
