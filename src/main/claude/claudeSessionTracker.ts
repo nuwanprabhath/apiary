@@ -34,19 +34,30 @@ export function readClaudeSession(sessionsDir: string, pid: number): PtySessionI
     // Only a name the user gave (`/rename`, `--name`) is a title. A derived one ("reri-37") is a
     // label Claude made up, and would replace a perfectly good title with a worse one.
     nameIsUser: d.nameSource === 'user',
-    status: d.status === 'busy' || d.status === 'idle' ? d.status : null,
+    status: statusOf(d.status),
   }
+}
+
+/**
+ * Claude 2.1.319 writes four statuses, and its own session list reads `busy` and `shell` (running a
+ * command) both as working, `waiting` (a permission prompt) as blocked. Blocked is neither: as idle it
+ * would let a rename type into the prompt, so it is unknown here.
+ */
+function statusOf(status: unknown): PtySessionInfo['status'] {
+  if (status === 'busy' || status === 'shell') return 'busy'
+  return status === 'idle' ? 'idle' : null
 }
 
 /** A stable string for change detection — key order is fixed by construction above. */
 function signature(map: Record<string, PtySessionInfo>): string {
-  return JSON.stringify(Object.keys(map).sort().map((k) => [k, map[k].sessionId, map[k].name, map[k].nameIsUser]))
+  return JSON.stringify(Object.keys(map).sort().map((k) => [k, map[k].sessionId, map[k].name, map[k].nameIsUser, map[k].status]))
 }
 
 export interface TrackerOptions {
   /** pty id → pid and the `sessions` folder of the account it runs under, for every live TUI pty. */
   processes: () => Map<string, { pid: number; sessionsDir: string }>
-  /** Called when any pty's session or name changes — not on status alone, which flips constantly. */
+  /** Called when any pty's session, name or status changes: the chat view's working line for a
+   *  session that runs in its terminal reads the status (`useTerminalBusy`). */
   onChange: (sessions: Record<string, PtySessionInfo>) => void
   intervalMs?: number
 }

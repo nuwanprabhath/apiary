@@ -36,6 +36,13 @@ describe('readClaudeSession', () => {
     })
   })
 
+  it('reads a command running (shell) as busy, and a permission prompt (waiting) as unknown, as Claude 2.1.319 writes them', () => {
+    writeFileSync(join(dir, '8.json'), sessionFile(8, { status: 'shell', version: '2.1.319' }))
+    expect(readClaudeSession(dir, 8)?.status).toBe('busy')
+    writeFileSync(join(dir, '9.json'), sessionFile(9, { status: 'waiting', version: '2.1.319' }))
+    expect(readClaudeSession(dir, 9)?.status).toBeNull()
+  })
+
   it('marks a name the user gave with /rename as a title, and a derived one as not', () => {
     writeFileSync(join(dir, '7.json'), sessionFile(7, { name: 'Renamed in the TUI', nameSource: 'user' }))
     expect(readClaudeSession(dir, 7)?.nameIsUser).toBe(true)
@@ -54,7 +61,7 @@ describe('readClaudeSession', () => {
 })
 
 describe('ClaudeSessionTracker', () => {
-  it('reports when a terminal switches session — what /clear and /resume do — and not otherwise', () => {
+  it('reports when a terminal switches session (what /clear and /resume do) or starts working, and not otherwise', () => {
     const seen: Array<Record<string, PtySessionInfo>> = []
     const tracker = new ClaudeSessionTracker({
       processes: () => new Map([['new:abc', { pid: 4242, sessionsDir: dir }], ['shell:x:1', { pid: 5555, sessionsDir: dir }]]),
@@ -65,15 +72,24 @@ describe('ClaudeSessionTracker', () => {
     expect(seen).toHaveLength(1)
     expect(Object.keys(seen[0])).toEqual(['new:abc'])
 
-    // Status flips constantly while Claude works; that alone is not a change worth broadcasting.
-    writeFileSync(join(dir, '4242.json'), sessionFile(4242, { status: 'busy' }))
+    // Nothing changed: nothing to report.
     tracker.poll()
     expect(seen).toHaveLength(1)
 
-    writeFileSync(join(dir, '4242.json'), sessionFile(4242, { sessionId: 'd1163941-62f6-4d46-abdf-f787b95ab7e6' }))
+    // Claude starting a turn is reported: a chat view of a session in its terminal shows it working.
+    writeFileSync(join(dir, '4242.json'), sessionFile(4242, { status: 'busy' }))
     tracker.poll()
     expect(seen).toHaveLength(2)
-    expect(seen[1]['new:abc'].sessionId).toBe('d1163941-62f6-4d46-abdf-f787b95ab7e6')
+    expect(seen[1]['new:abc'].status).toBe('busy')
+    // Running a command is still working, so busy to shell is no change.
+    writeFileSync(join(dir, '4242.json'), sessionFile(4242, { status: 'shell' }))
+    tracker.poll()
+    expect(seen).toHaveLength(2)
+
+    writeFileSync(join(dir, '4242.json'), sessionFile(4242, { sessionId: 'd1163941-62f6-4d46-abdf-f787b95ab7e6' }))
+    tracker.poll()
+    expect(seen).toHaveLength(3)
+    expect(seen[2]['new:abc'].sessionId).toBe('d1163941-62f6-4d46-abdf-f787b95ab7e6')
   })
 
   it('reports a rename, and forgets a terminal whose process has gone', () => {

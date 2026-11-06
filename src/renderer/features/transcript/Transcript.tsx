@@ -44,14 +44,13 @@ export function Transcript({
   const sentinelRef = useLoadEarlierOnScroll({ containerRef: tail.containerRef, cursor, loadingEarlier, loadEarlier })
   const scroll = useTranscriptScroll({ tail, messages, visible, chatMode, chat })
   const { onContextMenu, menu: copyMenu } = useCopyOnSelect(tail.containerRef)
+  const terminalBusy = useTerminalBusy(session.sessionId)
   const { visibleMessages, items, queued, status } = useTranscriptView({
-    sessionId: session.sessionId, messages, showSidechain, chatMode, chat, terminalRunning,
+    sessionId: session.sessionId, messages, showSidechain, chatMode, chat, terminalRunning, terminalBusy,
   })
   const find = useTranscriptFind({
     containerRef: tail.containerRef, visible, sessionId: session.sessionId, contentKey: visibleMessages, hasEarlier: cursor !== null, loadEarlier,
   })
-
-  const terminalBusy = useTerminalBusy(session.sessionId)
 
   useEffect(() => { findOpenRef.current = find.open }, [find.open])
 

@@ -70,7 +70,27 @@ export function mergeLive(persisted: TranscriptMessage[], live: TranscriptMessag
   const fresh = anchor >= 0
     ? live.slice(anchor + 1).filter((m) => !seen.has(m.uuid))
     : live.filter((m) => !seen.has(m.uuid) && (newest === null || m.timestampMs === null || m.timestampMs >= newest))
-  return fresh.length === 0 ? persisted : [...persisted, ...fresh]
+  if (fresh.length === 0) return persisted
+  const after = anchor >= 0 ? persisted.findIndex((m) => m.uuid === live[anchor].uuid) + 1 : persisted.length
+  return [...persisted.slice(0, after), ...byTime(persisted.slice(after), fresh)]
+}
+
+/**
+ * The file's messages after the last one the chat streamed, with the chat's own after them, each
+ * before the first file message newer than it. Those file messages came from somewhere else: the
+ * session went on in its terminal after the chat stopped, and a chat line the file never gets (a
+ * local command's output, such as `/mcp`'s) stayed below everything the terminal wrote since.
+ */
+function byTime(file: TranscriptMessage[], chat: TranscriptMessage[]): TranscriptMessage[] {
+  if (file.length === 0) return chat
+  const out: TranscriptMessage[] = []
+  let i = 0
+  const newerThan = (f: TranscriptMessage, t: number | null): boolean => t !== null && f.timestampMs !== null && f.timestampMs > t
+  for (const m of chat) {
+    while (i < file.length && !newerThan(file[i], m.timestampMs)) out.push(file[i++])
+    out.push(m)
+  }
+  return [...out, ...file.slice(i)]
 }
 
 /** Both clocks are this machine's; this only covers a timestamp rounded down. */

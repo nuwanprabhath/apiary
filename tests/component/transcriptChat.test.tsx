@@ -230,6 +230,35 @@ describe('transcript chat', () => {
     await expect.poll(() => document.querySelector('[data-testid="chat-status-turn"]')).toBeNull()
   })
 
+  it('once a stopped chat\'s session goes on in its terminal, the chat\'s last turn and its /mcp line no longer sit at the bottom', async () => {
+    const { fake, sessionId } = await openChat()
+    const session = fake.state.sessions.find((s) => s.sessionId === sessionId)!
+    const last = session.messages!.at(-1)!
+    const t0 = (last.timestampMs ?? Date.now()) + 60_000
+    // `/mcp` in the chat: a line only the chat has, and a turn of 0 s. Then the terminal took over.
+    play(fake, sessionId, {
+      status: 'exited',
+      live: [last, { ...said('mcp-line', 'assistant', [{ type: 'text', text: '10 MCP server(s): 8 connected' }]), timestampMs: t0 }],
+      lastTurn: { durationMs: 0, endedAt: t0 },
+    })
+    await textOf('chat-status-turn', /for 0s/)
+    session.messages = [
+      ...(session.messages ?? []),
+      { ...said('term-u', 'user', [{ type: 'text', text: 'resolve any conflicts' }]), timestampMs: t0 + 9 * 60_000 },
+      { ...said('term-a', 'assistant', [{ type: 'text', text: 'Merging dev now.' }]), timestampMs: t0 + 9 * 60_000 + 1000 },
+    ]
+    fake.emit('treeChanged')
+    await textOf('chat-text', 'Merging dev now.', true)
+    await expect.poll(() => document.querySelector('[data-testid="chat-status-turn"]')).toBeNull()
+    const texts = [...document.querySelectorAll('[data-testid="chat-text"]')].map((e) => e.textContent ?? '')
+    const at = (text: string): number => texts.findIndex((t) => t.includes(text))
+    expect(at('10 MCP server(s)')).toBeGreaterThanOrEqual(0)
+    expect(at('10 MCP server(s)')).toBeLessThan(at('Merging dev now.'))
+    // The terminal working: the working line, not a finished turn.
+    fake.emit('ptySessionsChanged', { 'pty-1': { sessionId, name: null, nameIsUser: false, status: 'busy' } })
+    await expect.element(page.getByTestId('chat-working')).toBeVisible()
+  })
+
   it('reading further up is not interrupted by new content arriving; Jump to latest goes back down', async () => {
     const { fake, sessionId } = await openChat()
     const long = Array.from({ length: 120 }, (_, i) => `para ${String(i)}`).join('\n\n')

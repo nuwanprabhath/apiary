@@ -4,6 +4,20 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.56.2] - 2026-11-06
+
+### Fixed
+
+- **The chat shows Claude working in the session's terminal again.** The working animation stopped
+  while Claude ran a command there, and never came back on its own:
+  - Claude 2.1.319 marks a running command with a status Apiary did not know.
+  - The chat view only heard a terminal's status when its session changed, not when Claude
+    started or finished working.
+- **A chat's leftovers no longer sit at the bottom once the session moves to its terminal.**
+  - Output only the chat had, such as `/mcp`'s server count, now shows at the time it was
+    printed, not below everything the terminal wrote since.
+  - The stopped chat's last turn ("Brewed for 0s · done 16:00") no longer stands in for newer work.
+
 ## [1.56.1] - 2026-11-06
 
 ### Fixed

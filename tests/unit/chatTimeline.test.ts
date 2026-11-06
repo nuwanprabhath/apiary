@@ -73,6 +73,15 @@ describe('chat timeline', () => {
     expect(mergeLive(persisted, [at('p2', 20), at('q', 15), at('n', null)]).map((m) => m.uuid)).toEqual(['p1', 'p2', 'q', 'n'])
   })
 
+  it('puts a chat line the file never gets among what the terminal wrote after the chat stopped, by time', () => {
+    // `/mcp` in the chat at 16:00 prints a line only the chat has; the session then went on in its
+    // terminal (16:05, 16:09). The line stayed below them all.
+    const at = (uuid: string, t: number | null): TranscriptMessage => ({ ...msg(uuid, 'assistant', [{ type: 'text', text: uuid }]), timestampMs: t })
+    const persisted = [at('c1', 100), at('t1', 500), at('t2', 900)]
+    expect(mergeLive(persisted, [at('c1', 100), at('mcp', 160)]).map((m) => m.uuid)).toEqual(['c1', 'mcp', 't1', 't2'])
+    expect(mergeLive(persisted, [at('c1', 100), at('late', 950)]).map((m) => m.uuid)).toEqual(['c1', 't1', 't2', 'late'])
+  })
+
   it('describes a call by what matters for its tool', () => {
     expect(describeTool('Bash', { command: 'ls -la', description: 'List files' })).toEqual({ title: 'List files', input: 'ls -la' })
     expect(describeTool('Read', { file_path: '/repo/src/app.ts' })).toEqual({ title: 'app.ts', input: '/repo/src/app.ts' })
