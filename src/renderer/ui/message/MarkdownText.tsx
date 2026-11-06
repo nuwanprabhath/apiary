@@ -8,6 +8,10 @@ import { copyText } from '../../state/clipboard'
 // A single newline inside a paragraph becomes <br>: Claude's messages are written like chat, where
 // a hard-wrapped line is meant to stay a line break.
 marked.setOptions({ breaks: true, gfm: true })
+// GFM in marked also strikes through text between single tildes, so a pasted prompt such as
+// `me@host:~$ ls … me@host:~$` came out struck through. Only `~~text~~` is strikethrough: `false`
+// hands a `~~` run to marked's own tokenizer, and anything else is not one.
+marked.use({ tokenizer: { del: (src: string) => (src.startsWith('~~') ? false : undefined) } })
 
 // DOMPurify's default allowlist includes `form`, `input`, `button`, `select`, `dialog`, `style`
 // and `template`, which a hostile transcript could use to draw a fake dialog or a form that posts

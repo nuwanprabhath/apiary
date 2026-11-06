@@ -216,6 +216,23 @@ describe('transcript', () => {
       expect(found.textContent).not.toContain('```')
     })
 
+    it('strikes through only ~~double~~ tildes: a pasted shell prompt with ~ in it stays plain text', async () => {
+      const md = 'nuwan@nuwan-HP:~$ rm -rf /run/media/x && ls -A\nnuwan@nuwan-HP:~$\n\nand ~~gone~~ here'
+      const session: FakeSession = {
+        sessionId: 'cccccccc-cccc-cccc-cccc-ccccccccccc3',
+        title: 'Tilde message',
+        projectPath: '/fixture/work-a',
+        gitBranch: 'main',
+        messages: [{ uuid: 't1', role: 'user', timestampMs: Date.now(), isSidechain: false, blocks: [{ type: 'text', text: md }] }],
+      }
+      await renderApp({ sessions: [session] })
+      await userEvent.click(sidebarSession('Tilde message'))
+      await until(() => [...document.querySelectorAll('[data-testid="message"]')].some((m) => m.textContent?.includes('gone') === true))
+      const struck = [...document.querySelectorAll('del, s')].map((d) => d.textContent)
+      expect(struck).toEqual(['gone'])
+      expect(document.body.textContent).toContain('nuwan@nuwan-HP:~$ rm -rf')
+    })
+
     it('puts a Copy button on a code block, which copies the code alone, and none in a hostile message', async () => {
       const command = 'claude mcp add slack-multi --scope user -- uv run --directory ~/projects/slack-multi-workspace-mcp slack-multi-workspace-mcp'
       const md = `To use it, run:\n\n\`\`\`\n${command}\n\`\`\`\n\n<button class="code-copy">fake</button>`

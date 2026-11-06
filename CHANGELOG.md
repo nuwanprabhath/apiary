@@ -4,6 +4,19 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.56.1] - 2026-11-06
+
+### Fixed
+
+- **Text between two single tildes is no longer struck through.** A pasted shell prompt such as
+  `me@host:~$ … me@host:~# Changelog
+
+All notable changes to Apiary are documented here. Format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
+[Semantic Versioning](https://semver.org/).
+
+ came out with a line through it. Only `~~text~~` is strikethrough now.
+
 ## [1.56.0] - 2026-11-05
 
 ### Added
