@@ -154,6 +154,10 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     worktrees: opts.worktrees ?? {},
     statusBar: opts.statusBar ?? [],
     chats: new Map(),
+    mcpServers: [
+      { name: 'files', status: 'connected', scope: 'user', transport: 'stdio', error: null, tools: ['read', 'write'], version: '1.2.0' },
+      { name: 'tracker', status: 'needs-auth', scope: 'project', transport: 'http', error: null, tools: [], version: null },
+    ],
     taskOutputs: new Map(),
     requiredWindowWidth: null,
     chatAttached: new Set(),

@@ -796,6 +796,79 @@ button.folded-message-head:focus-visible { outline: none; box-shadow: var(--focu
 }
 .chat-aside-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 
+/*
+ * The chat's MCP servers (`/mcp`, features/chat/McpCard.tsx): the side question's card, holding
+ * the servers by where they are configured. Its head is the side question's (`.chat-aside-head`).
+ */
+.chat-mcp {
+  display: flex;
+  flex-direction: column;
+  max-height: 55vh;
+  margin: 0 var(--space-md) var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg);
+  box-shadow: var(--shadow-overlay);
+}
+.chat-mcp-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-sm) var(--space-md); }
+.chat-mcp-group + .chat-mcp-group { margin-top: var(--space-md); }
+.chat-mcp-group-label { margin: 0 0 var(--space-xs); color: var(--muted); font-size: 11px; font-weight: 600; }
+.chat-mcp-list { margin: 0; padding: 0; list-style: none; }
+.chat-mcp-server { padding: var(--space-xs) 0; }
+.chat-mcp-server + .chat-mcp-server { border-top: 1px solid var(--border); }
+.chat-mcp-server-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-sm); min-width: 0; }
+.chat-mcp-dot { flex: none; width: var(--dot-size); height: var(--dot-size); border-radius: 50%; background: var(--muted); }
+.chat-mcp-server[data-status="connected"] .chat-mcp-dot { background: var(--success); }
+.chat-mcp-server[data-status="needs-auth"] .chat-mcp-dot,
+.chat-mcp-server[data-status="pending"] .chat-mcp-dot { background: var(--warning); }
+.chat-mcp-server[data-status="failed"] .chat-mcp-dot { background: var(--danger); }
+.chat-mcp-name { min-width: 0; overflow: hidden; color: var(--text); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.chat-mcp-status { display: inline-flex; align-items: center; color: var(--muted); font-size: 12px; }
+.chat-mcp-server[data-status="failed"] .chat-mcp-status { color: var(--danger); }
+.chat-mcp-meta { color: var(--muted); font-size: 11px; }
+.chat-mcp-tools-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.chat-mcp-tools-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.chat-mcp-tools-toggle:hover { text-decoration: underline; }
+.chat-mcp-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-left: auto; }
+.chat-mcp-error { margin-top: var(--space-xs); color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
+.chat-mcp-tools { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin: var(--space-xs) 0 0; padding: 0; list-style: none; }
+.chat-mcp-tool { padding: 0 var(--space-xs); border-radius: var(--radius-sm); background: var(--field-bg); color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+.chat-mcp-sign-in { margin-bottom: var(--space-sm); padding: var(--space-sm); border-radius: var(--radius-sm); background: var(--field-bg); }
+.chat-mcp-sign-in-text { margin: 0 0 var(--space-sm); }
+.chat-mcp-sign-in-link { text-decoration: none; }
+.chat-mcp-paste-hint { margin: var(--space-sm) 0 0; color: var(--muted); font-size: 12px; }
+.chat-mcp-paste { display: flex; gap: var(--space-sm); margin-top: var(--space-xs); }
+.chat-mcp-paste-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-control);
+  background: var(--bg-panel);
+  color: var(--text);
+  font: inherit;
+}
+.chat-mcp-paste-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.chat-mcp-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
 /* A session started from "+" that opens in the chat: its first-message box (PendingChat). */
 .pending-chat-intro {
   flex: 1;

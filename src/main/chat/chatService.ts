@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { IPC } from '@shared/api'
+import type { McpAnswer, McpRequest } from '@shared/domain/mcp'
 import {
   isChatPermissionMode,
   type AsideTurn, type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatModel, type ChatPermissionMode, type ChatState, type TerminalBusy,
@@ -146,6 +147,8 @@ export class ChatService {
   setPermissionMode(sessionId: SessionId, mode: ChatPermissionMode): void { this.deps.chats.setPermissionMode(sessionId, mode) }
   setModel(sessionId: SessionId, model: ChatModel): void { this.deps.chats.setModel(sessionId, model) }
   setEffort(sessionId: SessionId, effort: ChatEffort): void { this.deps.chats.setEffort(sessionId, effort) }
+  /** The MCP card (`/mcp`): the chat's servers, after doing what it asked. The chat must be running. */
+  mcp(sessionId: SessionId, request: McpRequest): Promise<McpAnswer> { return this.deps.chats.mcp(sessionId, request) }
   async stop(sessionId: SessionId): Promise<void> { await this.deps.chats.stop(sessionId) }
   async stopAll(): Promise<void> { await this.deps.chats.stopAll() }
 

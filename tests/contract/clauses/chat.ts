@@ -106,6 +106,33 @@ export function defineChatClauses(ctx: Ctx): void {
       expect((await ctx.api.chatState(SESSION))?.permissions).toEqual([])
     })
 
+    it('reads a running chat\'s MCP servers, and answers each action with the servers after it', async () => {
+      await start()
+      const first = await ctx.api.chatMcp(SESSION, { kind: 'status' })
+      expect(first.servers.map((s) => [s.name, s.status, s.scope, s.transport])).toEqual([
+        ['files', 'connected', 'user', 'stdio'], ['tracker', 'needs-auth', 'project', 'http'],
+      ])
+      expect(first.servers[0]).toMatchObject({ tools: ['read', 'write'], version: '1.2.0', error: null })
+      const off = await ctx.api.chatMcp(SESSION, { kind: 'toggle', server: 'files', enabled: false })
+      expect(off.servers[0].status).toBe('disabled')
+      // claude's own reason for a refusal reaches the caller.
+      await expect(ctx.api.chatMcp(SESSION, { kind: 'reconnect', server: 'files' })).rejects.toThrow(/disabled/)
+      expect((await ctx.api.chatMcp(SESSION, { kind: 'toggle', server: 'files', enabled: true })).servers[0].status).toBe('connected')
+      const signIn = await ctx.api.chatMcp(SESSION, { kind: 'authenticate', server: 'tracker' })
+      expect(signIn.signIn).toEqual({ server: 'tracker', url: 'https://auth.example.com/tracker?state=s1', callbackExpected: true })
+      await expect(ctx.api.chatMcp(SESSION, { kind: 'callback', server: 'tracker', url: 'http://localhost:4567/callback' })).rejects.toThrow(/authorization code/)
+      const signedIn = await ctx.api.chatMcp(SESSION, { kind: 'callback', server: 'tracker', url: 'http://localhost:4567/callback?code=abc&state=s1' })
+      expect(signedIn.servers[1].status).toBe('connected')
+      expect((await ctx.api.chatMcp(SESSION, { kind: 'clear-auth', server: 'tracker' })).servers[1].status).toBe('needs-auth')
+      await expect(ctx.api.chatMcp(SESSION, { kind: 'reconnect', server: 'nope' })).rejects.toThrow(/not found/)
+    })
+
+    it('refuses an MCP request it cannot read', async () => {
+      await start()
+      await expect(ctx.api.chatMcp(SESSION, { kind: 'toggle', server: 'files' } as never)).rejects.toThrow()
+      await expect(ctx.api.chatMcp(SESSION, { kind: 'callback', server: 'files', url: 'javascript:alert(1)' })).rejects.toThrow()
+    })
+
     it('Send now for a message that is not queued changes nothing', async () => {
       await start()
       await ctx.api.chatSendNow(SESSION, 'no-such-message')
@@ -120,6 +147,7 @@ export function defineChatClauses(ctx: Ctx): void {
       await expect(ctx.api.chatSetPermissionMode(SESSION, 'plan')).rejects.toThrow()
       await expect(ctx.api.chatSetModel(SESSION, 'haiku')).rejects.toThrow()
       await expect(ctx.api.chatSetEffort(SESSION, 'low')).rejects.toThrow()
+      await expect(ctx.api.chatMcp(SESSION, { kind: 'status' })).rejects.toThrow()
     })
 
     it('refuses a mode, model, effort or decision it does not know, and a session the app does not know', async () => {

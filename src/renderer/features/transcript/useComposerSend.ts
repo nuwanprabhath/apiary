@@ -1,4 +1,5 @@
 import { askAside, asideQuestion, openAside } from '../../state/chatAside'
+import { isMcpCommand, openMcp } from '../../state/chatMcp'
 import { ptyIdOfSession, type PtyId } from '@shared/domain/ids'
 import { useCallback, useState } from 'react'
 import type { ChatState } from '@shared/domain/chat'
@@ -25,12 +26,23 @@ interface SendDeps {
   onSent: () => void
 }
 
+const TERMINAL_KEEPS_IT = 'Claude is working in this session’s terminal, so the servers are the terminal’s until it finishes. Type /mcp in the terminal, or open this again once Claude is idle.'
+
+/** How a chat starts from the message box: taking over an idle terminal, with what the box has picked. */
+function startOptions({ startModel, startMode, startEffort }: ChatChoices): Parameters<typeof startChat>[1] {
+  return {
+    takeOver: true,
+    ...(startModel !== 'default' ? { model: startModel } : {}),
+    ...(startMode !== '' ? { permissionMode: startMode } : {}),
+    ...(startEffort !== null ? { effort: startEffort } : {}),
+  }
+}
+
 /** Sends what is in the message box, or — `command`, from the "/" menu — just that command. */
 export function useComposerSend(d: SendDeps): { sending: boolean, send: (command?: string) => Promise<void> } {
   const { notifyError } = useNotifications()
   const [sending, setSending] = useState(false)
   const { session, ptyId, running, onResume, onShowSession, chatMode, chat, chatRunning, choices, text, attachments, onSent } = d
-  const { startModel, startMode, startEffort } = choices
 
   const send = useCallback(async (command?: string): Promise<void> => {
     const body = command ?? text.trim()
@@ -53,6 +65,22 @@ export function useComposerSend(d: SendDeps): { sending: boolean, send: (command
           if (command === undefined) onSent()
           return
         }
+        // `/mcp`: the card that reads and drives the chat's MCP servers, as the terminal's `/mcp`
+        // dialog does. It needs a chat to ask, which it starts as a message would.
+        if (isMcpCommand(body)) {
+          const mcpSession = chat?.sessionId ?? session.sessionId
+          void openMcp(mcpSession, async () => {
+            if (chatRunning) return null
+            if (running && ptyId !== null) {
+              const terminal = await terminalBusy(session.sessionId)
+              if (terminal.busy || terminal.backgroundTasks > 0) return TERMINAL_KEEPS_IT
+            }
+            await startChat(mcpSession, startOptions(choices))
+            return null
+          })
+          if (command === undefined) onSent()
+          return
+        }
         // The chat takes the session over from its terminal if one is running: a session runs in
         // one place at a time (main stops the terminal's claude first), on the same file.
         //
@@ -69,12 +97,7 @@ export function useComposerSend(d: SendDeps): { sending: boolean, send: (command
           }
         }
         if (!chatRunning) {
-          await startChat(sessionId, {
-            takeOver: true,
-            ...(startModel !== 'default' ? { model: startModel } : {}),
-            ...(startMode !== '' ? { permissionMode: startMode } : {}),
-            ...(startEffort !== null ? { effort: startEffort } : {}),
-          })
+          await startChat(sessionId, startOptions(choices))
         }
         await sendChat(sessionId, lines.join('\n'))
         if (command === undefined) onSent()
@@ -94,7 +117,7 @@ export function useComposerSend(d: SendDeps): { sending: boolean, send: (command
     } finally {
       setSending(false)
     }
-  }, [text, attachments, ptyId, running, onResume, onShowSession, session.sessionId, notifyError, chatMode, chatRunning, chat?.sessionId, startModel, startMode, startEffort, onSent])
+  }, [text, attachments, ptyId, running, onResume, onShowSession, session.sessionId, notifyError, chatMode, chatRunning, chat?.sessionId, choices, onSent])
 
   return { sending, send }
 }

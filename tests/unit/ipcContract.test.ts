@@ -161,6 +161,7 @@ describe('the IPC contract', () => {
       chatDetach: 'apiary:chat-detach',
       chatChanged: 'apiary:chat-changed',
       chatLifecycle: 'apiary:chat-lifecycle',
+      chatMcp: 'apiary:chat-mcp',
       appMenu: 'apiary:app-menu',
       appMenuInvoke: 'apiary:app-menu-invoke',
       setTitleBarColors: 'apiary:set-title-bar-colors',

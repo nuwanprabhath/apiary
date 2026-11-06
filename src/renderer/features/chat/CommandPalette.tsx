@@ -46,11 +46,14 @@ interface RegistryItem {
 
 type Action = ActionItem | SettingItem | RegistryItem
 
-/** Commands Apiary answers itself, offered beside Claude's own: Claude Code's `/btw` is not
- *  available in a chat's stream-json mode, so the message box answers it (`state/chatAside.ts`). */
+/** Commands Apiary answers itself, in place of Claude's own: Claude Code's `/btw` and `/mcp` are
+ *  not available in a chat's stream-json mode, so the message box answers them
+ *  (`state/chatAside.ts`, `state/chatMcp.ts`). */
 const APIARY_COMMANDS: readonly ChatCommand[] = [
   { name: 'btw', description: 'Ask a side question without interrupting Claude', argumentHint: '<question>' },
+  { name: 'mcp', description: 'See the MCP servers: sign in, reconnect, turn one off', argumentHint: '' },
 ]
+const answeredHere = new Set(APIARY_COMMANDS.map((c) => c.name))
 /** Chosen from the menu, these run as they are rather than waiting for their argument: `/btw` opens
  *  the side thread, whose own box takes the question. */
 const RUNS_BARE: ReadonlySet<string> = new Set(['btw'])
@@ -201,7 +204,11 @@ function useShownRows({ sessionId, commands, query, folderExists, accountList }:
     const ctx = sessionId === null ? null : { sessionId, vsCodeAvailable, folderExists, accounts, account }
     const actions: Action[] = ctx === null ? [] : paletteActionRows(PALETTE_ACTIONS, q, ctx)
       .map((action) => ({ kind: 'action', action, label: action.label(ctx), description: action.description(ctx) }))
-    return { shown: [...settings, ...actions, ...matchActions([...(commands ?? []), ...APIARY_COMMANDS], query)].slice(0, MAX_SHOWN), ctx }
+    const matched = matchActions([...(commands ?? []).filter((c) => !answeredHere.has(c.name)), ...APIARY_COMMANDS], query)
+    // A command typed in full comes first: Enter on `/mcp` is `/mcp`, not an action that mentions MCP.
+    const exact = matched.filter((a) => a.kind === 'command' && a.command.name === q)
+    const rest = matched.filter((a) => !exact.includes(a))
+    return { shown: [...exact, ...settings, ...actions, ...rest].slice(0, MAX_SHOWN), ctx }
   }, [commands, query, perChatSettings, globalHideToolCalls, sessionId, vsCodeAvailable, folderExists, accounts, account])
 }
 

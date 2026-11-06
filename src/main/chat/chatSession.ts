@@ -5,6 +5,8 @@ import {
 } from '@shared/domain/chat'
 import type { PipedLoginShell } from '../exec/spawnLoginShell'
 import { fireAndForget } from '../log/fireAndForget'
+import type { McpAnswer, McpRequest } from '@shared/domain/mcp'
+import { mcpControl, mcpServersOf, mcpSignInOf } from './mcpProtocol'
 import {
   appliedOf, commandsOf, contextUsageOf, modelsOf, controlLine, parseLine, permissionReply, permissionRequestOf, reduce, userLine, type Line, type PendingPermission,
 } from './protocol'
@@ -35,6 +37,11 @@ export interface ChatLaunch {
  * One session's `claude` process in chat mode. Turns its stdout into `ChatState` (protocol.ts does
  * the reading) and the window's actions into lines on its stdin.
  */
+/** The reason in a control request's error answer. */
+function errorOf(answer: Line): string {
+  return typeof answer.error === 'string' && answer.error !== '' ? answer.error : 'claude did not answer'
+}
+
 export class ChatSession {
   /** Set by `ChatManager.start`, which owns what a process was launched with. */
   launch: ChatLaunch | null = null
@@ -187,6 +194,23 @@ export class ChatSession {
       if (this.state.status !== 'busy' || this.state.turnStartedAt !== turn) return
       this.update(this.consume(SETTLED_BY_STOP, this.state).next, true)
     }), 'chat')
+  }
+
+  /**
+   * Does what the MCP card asked (nothing for `status`), then reads the servers as they are after it.
+   * Rejects with claude's own reason, e.g. reconnecting a disabled server.
+   */
+  async mcp(request: McpRequest): Promise<McpAnswer> {
+    let signIn = null
+    if (request.kind !== 'status') {
+      const done = await this.request(mcpControl(request))
+      if (done.subtype !== 'success') throw new Error(errorOf(done))
+      if (request.kind === 'authenticate') signIn = mcpSignInOf(request.server, done.response)
+    }
+    const status = await this.request(mcpControl({ kind: 'status' }))
+    const servers = status.subtype === 'success' ? mcpServersOf(status.response) : null
+    if (servers === null) throw new Error(errorOf(status))
+    return { servers, signIn }
   }
 
   setPermissionMode(mode: ChatPermissionMode): void {

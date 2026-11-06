@@ -1,3 +1,4 @@
+import type { McpServer } from '@shared/domain/mcp'
 /**
  * The fake bridge's types: what it is built from (`FakeOptions`), the mutable state behind it
  * (`FakeState`), and the small `Env` every area of the fake is handed. See `../fakeApiary.ts`.
@@ -184,6 +185,8 @@ export interface FakeState {
   statusBar: StatusBarItem[]
   /** Chat mode, by session id: what `chatState` answers and the `chat*` calls change. */
   chats: Map<string, ChatState>
+  /** Every chat's MCP servers (`chatMcp`), as `tests/fixtures/fake-claude-chat.mjs` starts them. */
+  mcpServers: McpServer[]
   /** What `backgroundTaskOutput` answers, by `<sessionId>:<taskId>`; not available when absent. */
   taskOutputs: Map<string, BackgroundTaskOutput>
   /** The width this window last said its panes need (`requireWindowWidth`); null before it said. A

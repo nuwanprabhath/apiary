@@ -13,6 +13,7 @@ message sent mid-turn, subagent messages) are in [`src/main/CLAUDE.md`](../CLAUD
 - `chatManager.ts`: `ChatManager`. The chats by session id. Holds processes; decides nothing.
 - `chatSession.ts`: `ChatSession`. One `claude` process; stdout to `ChatState`, actions to stdin.
 - `protocol.ts`: the stream-json protocol, pure. Read its header before changing anything.
+- `mcpProtocol.ts`: the MCP control requests behind the `/mcp` card (`ChatSession.mcp`), pure.
 - `startMode.ts`: `chatStartMode`, the permission mode a chat starts in.
 
 ## The sanctioned way

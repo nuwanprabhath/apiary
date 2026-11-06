@@ -33,6 +33,35 @@ const out = (o) => { process.stdout.write(`${JSON.stringify(o)}\n`); persist(o) 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let initialised = false
+/**
+ * Two MCP servers, answered as claude 2.1.316 answers the control requests (shapes in
+ * src/main/chat/mcpProtocol.ts): a stdio one that is connected, and an http one that needs a
+ * sign-in. A string is an error answer.
+ */
+const mcpServers = [
+  { name: 'files', status: 'connected', scope: 'user', transport: 'stdio', serverInfo: { name: 'files', version: '1.2.0' }, tools: [{ name: 'read' }, { name: 'write' }] },
+  { name: 'tracker', status: 'needs-auth', scope: 'project', transport: 'http', tools: [] },
+]
+function mcpAnswer(req) {
+  if (req.subtype === 'mcp_status') return { mcpServers }
+  const server = mcpServers.find((s) => s.name === req.serverName)
+  if (server === undefined) return `Server not found: ${String(req.serverName)}`
+  if (req.subtype === 'mcp_toggle') { server.status = req.enabled ? 'connected' : 'disabled'; return {} }
+  if (req.subtype === 'mcp_reconnect') {
+    if (server.status === 'disabled') return `MCP server ${server.name} is disabled — enable it (mcp_toggle) before reconnecting`
+    if (server.status !== 'needs-auth') server.status = 'connected'
+    return {}
+  }
+  if (req.subtype === 'mcp_authenticate') return { authUrl: `https://auth.example.com/${server.name}?state=s1`, requiresUserAction: true, callbackExpected: true }
+  if (req.subtype === 'mcp_oauth_callback_url') {
+    if (!req.callbackUrl.includes('code=')) return 'Invalid callback URL: missing authorization code.'
+    server.status = 'connected'
+    return {}
+  }
+  if (req.subtype === 'mcp_clear_auth') { server.status = 'needs-auth'; return {} }
+  return `${String(req.subtype)} is not supported`
+}
+
 let interrupted = false
 // Messages sent while a turn is running, waiting for it to take them in.
 let busy = false
@@ -208,6 +237,14 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     }
     if (req.subtype === 'get_settings') response = { effective: { effortLevel: effort }, applied: { model, effort: null } }
     if (req.subtype === 'get_context_usage') response = { totalTokens: 4010, maxTokens: 200000, rawMaxTokens: 200000, percentage: 2, categories: [] }
+    if (req.subtype.startsWith('mcp_')) {
+      const answer = mcpAnswer(req)
+      if (typeof answer === 'string') {
+        out({ type: 'control_response', response: { subtype: 'error', request_id: msg.request_id, error: answer } })
+        return
+      }
+      response = answer
+    }
     out({ type: 'control_response', response: { subtype: 'success', request_id: msg.request_id, response } })
   } else if (msg.type === 'control_response') {
     waiting.get(msg.response.request_id)?.(msg.response.response)

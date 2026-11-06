@@ -17,6 +17,9 @@ conversation as the VS Code extension does; it holds no chat state of its own.
   asks main (`chatAside`), which answers from a forked, unsaved `claude -p` of the session
   (`ChatService.askAside`). Nothing is sent to the chat, so it works mid-turn. In a terminal
   session the message goes to the terminal, whose Claude Code has `/btw` itself.
+- `McpCard.tsx`: the chat's MCP servers (`/mcp`), a card over the message box like the side
+  question's; its state is `state/chatMcp.ts`. The "/" menu lists `/mcp` as Apiary's own command,
+  and a command typed in full is the first row, so Enter on `/mcp` is never an action that mentions MCP.
 - `ToolCall.tsx`: one tool call (status dot, IN box, OUT box). `PermissionCard.tsx`: Claude asking
   to use a tool, in the conversation.
 - `ModeMenu.tsx` (permission mode), `ModelPicker.tsx` (model, effort scale, context ring),

@@ -86,6 +86,22 @@ chat is stopped and started with its model, mode and effort (`restartChat`, shar
 `switchAccount`); a terminal is respawned under the pty its tab shows. It is refused while Claude is
 replying, and answers `none` when nothing runs.
 
+## The MCP card (`/mcp`)
+
+Claude Code's `/mcp` is a terminal dialog that stream-json mode cannot draw (sent as a message it
+only prints a server count). `/mcp` in a chat, typed or picked from the "/" menu, opens
+`McpCard` over the message box instead (`state/chatMcp.ts`, `features/chat/McpCard.tsx`). It reads and drives
+the chat's servers with claude's own control requests (`chatMcp`, `main/chat/mcpProtocol.ts`):
+status, enable or disable, reconnect, sign in or out. Every request answers with the servers as
+they are after it.
+
+- It needs a running chat, so it starts one as a message would, taking over an idle terminal. A
+  terminal that is mid-turn keeps the session, and the card says so.
+- A sign-in opens the page from a link (a `target=_blank` link opens in the browser of the machine
+  the window is on). A remote window's browser cannot reach the work machine's `localhost`
+  redirect, so the card takes the address the browser ended on (`mcp_oauth_callback_url`).
+- A claude.ai connector is authorised on claude.ai, then reconnected.
+
 ## A new session that opens in the chat
 
 With `newSessionsInChat` (and `transcriptChat`) on, a session started from "+" is a pending tab

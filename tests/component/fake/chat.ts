@@ -12,11 +12,12 @@ import type { ApiaryApi } from '@shared/api'
 import { chatActivity, type ActivityStatus } from '@shared/activity'
 import { chatPush } from '@shared/chatPush'
 import { emptyChatState, type ChatState } from '@shared/domain/chat'
+import type { McpAnswer, McpServer } from '@shared/domain/mcp'
 import type { Env } from './state'
 
 type ChatApi = Pick<ApiaryApi,
   | 'chatState' | 'chatStart' | 'chatSend' | 'chatAside' | 'chatSendNow' | 'chatInterrupt' | 'chatRespond' | 'chatSetPermissionMode' | 'chatSetModel'
-  | 'chatSetEffort' | 'chatStop' | 'sessionReload' | 'terminalBusy' | 'chatAttach' | 'chatDetach'>
+  | 'chatSetEffort' | 'chatStop' | 'sessionReload' | 'terminalBusy' | 'chatAttach' | 'chatDetach' | 'chatMcp'>
 
 /** How long the background task runs: as long as the fixture's `sleep 1`. */
 const BACKGROUND_TASK_MS = 1000
@@ -124,6 +125,30 @@ export function chatApi(env: Env): ChatApi {
     chatSetPermissionMode: async (id, permissionMode) => { setChat({ ...running(id), permissionMode }) },
     chatSetModel: async (id, model) => { setChat({ ...running(id), model }) },
     chatSetEffort: async (id, effort) => { setChat({ ...running(id), effort }) },
+    // As main does with fake-claude-chat.mjs's two servers: a chat must run; an action changes the
+    // server and the answer is every server after it; claude's own reasons are the refusals.
+    chatMcp: async (id, request) => {
+      running(id)
+      if (request.kind === 'status') return { servers: state.mcpServers, signIn: null }
+      const server = state.mcpServers.find((s) => s.name === request.server)
+      if (server === undefined) throw new Error(`Server not found: ${request.server}`)
+      const set = (status: McpServer['status']): void => {
+        state.mcpServers = state.mcpServers.map((s) => (s.name === server.name ? { ...s, status } : s))
+      }
+      let signIn: McpAnswer['signIn'] = null
+      if (request.kind === 'toggle') set(request.enabled ? 'connected' : 'disabled')
+      if (request.kind === 'reconnect') {
+        if (server.status === 'disabled') throw new Error(`MCP server ${server.name} is disabled — enable it (mcp_toggle) before reconnecting`)
+        if (server.status !== 'needs-auth') set('connected')
+      }
+      if (request.kind === 'authenticate') signIn = { server: server.name, url: `https://auth.example.com/${server.name}?state=s1`, callbackExpected: true }
+      if (request.kind === 'callback') {
+        if (!request.url.includes('code=')) throw new Error('Invalid callback URL: missing authorization code.')
+        set('connected')
+      }
+      if (request.kind === 'clear-auth') set('needs-auth')
+      return { servers: state.mcpServers, signIn }
+    },
     chatStop: async (id) => {
       const c = state.chats.get(id)
       if (c === undefined || c.status === 'exited') return

@@ -16,6 +16,7 @@ import {
 } from './define'
 
 export type { EventSpec }
+import { isMcpRequest, type McpAnswer, type McpRequest } from '../domain/mcp'
 import { type Guard, str, num, bool, any, obj, opaque, record, anyStr, opt, nullable, arr, tuple } from './guards'
 import { isTerminalRef, type PtyId, type SessionId, type TerminalRef } from '../domain/ids'
 import { isTabTransfer, isWindowLayoutReport, type TabTransfer, type ReportedTab, type WindowLayoutReport, type ActiveTabPayload } from '../domain/tabs'
@@ -338,6 +339,8 @@ export const IPC = {
   chatSetModel: invoke<[sessionId: SessionId, model: ChatModel], void>('apiary:chat-set-model', tuple(sessionIdArg, chatModelArg)),
   chatSetEffort: invoke<[sessionId: SessionId, effort: ChatEffort], void>('apiary:chat-set-effort', tuple(sessionIdArg, chatEffortArg)),
   chatStop: invoke<[sessionId: SessionId], void>('apiary:chat-stop', tuple(sessionIdArg)),
+  /** The MCP card (`/mcp`): does what it asks of the running chat, and answers with the servers after it. */
+  chatMcp: invoke<[sessionId: SessionId, request: McpRequest], McpAnswer>('apiary:chat-mcp', tuple(sessionIdArg, isMcpRequest)),
   /** Starts the session's claude again (chat or terminal) so it loads new settings and MCP servers; what was reloaded. */
   sessionReload: invoke<[sessionId: SessionId, ptyId: PtyId | null], 'chat' | 'terminal' | 'none'>(
     'apiary:session-reload', tuple(sessionIdArg, nullable(ptyIdArg)),

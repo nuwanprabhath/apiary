@@ -4,6 +4,27 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.57.0] - 2026-11-06
+
+### Added
+
+- **`/mcp` in a chat shows your MCP servers.** Before, `/mcp` only sent Claude a message that
+  printed a server count. Now it opens a card over the message box, like Claude Code's `/mcp`
+  dialog in a terminal.
+  - **What it shows:** each server grouped by where it is configured (local, project, user,
+    claude.ai), with its status, its tools and why it failed.
+  - **What you can do:** sign in or out, reconnect, or turn a server off and on. You can also
+    reload the session to load a server you just added.
+  - **Signing in:** "Sign in" gives you the page to open in your browser. When you're signing in from
+    another computer (a remote window), paste the address the browser ended on.
+  - **Starting the chat:** opening it starts the chat if needed, taking over an idle terminal. A
+    terminal where Claude is working keeps the session, and the card says so.
+
+### Fixed
+
+- Typing `/mcp` and pressing Enter no longer runs "Reload session", which mentions MCP servers. A
+  command typed in full is now the first row of the "/" menu.
+
 ## [1.56.2] - 2026-11-06
 
 ### Fixed

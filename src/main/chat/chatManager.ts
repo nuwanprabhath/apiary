@@ -1,5 +1,6 @@
 import type { ChatDecision, ChatEffort, ChatModel, ChatPermissionMode, ChatState } from '@shared/domain/chat'
 import type { AccountId, SessionId } from '@shared/domain/ids'
+import type { McpAnswer, McpRequest } from '@shared/domain/mcp'
 import type { LaunchAccounts } from '../accounts/accountService'
 import { buildChatCommand } from '../pty/resumeCommand'
 import { spawnLoginShell, type LoginShellSpawn } from '../exec/spawnLoginShell'
@@ -97,6 +98,7 @@ export class ChatManager {
   setPermissionMode(sessionId: SessionId, mode: ChatPermissionMode): void { this.require(sessionId).setPermissionMode(mode) }
   setModel(sessionId: SessionId, model: ChatModel): void { this.require(sessionId).setModel(model) }
   setEffort(sessionId: SessionId, effort: ChatEffort): void { this.require(sessionId).setEffort(effort) }
+  mcp(sessionId: SessionId, request: McpRequest): Promise<McpAnswer> { return this.require(sessionId).mcp(request) }
 
   async stop(sessionId: SessionId): Promise<void> {
     await this.sessions.get(sessionId)?.stop()
