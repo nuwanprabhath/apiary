@@ -5,8 +5,16 @@ import { log } from '../log/logger'
 import type { WindowBounds } from './windowBounds'
 import type { WindowLayoutReport } from '@shared/types'
 
+/** How a window was showing besides its rectangle; absent in a record from before it was kept. */
+export interface WindowShape {
+  maximized: boolean
+  fullScreen: boolean
+}
+
 export interface WindowLayoutRecord extends WindowLayoutReport {
+  /** Its normal (unmaximised) bounds, which also say which display it was on. */
   bounds: WindowBounds
+  shape?: WindowShape
   /**
    * False for a record whose bounds arrived before its first real `reportLayout` call — e.g. a
    * window opened and moved, then the app quit inside the renderer's 500ms debounce. Without this,
@@ -24,8 +32,13 @@ function isWindowBounds(v: unknown): v is WindowBounds {
     && isFiniteNumber(v.width) && isFiniteNumber(v.height)
 }
 
+function isWindowShape(v: unknown): v is WindowShape {
+  return isRecord(v) && typeof v.maximized === 'boolean' && typeof v.fullScreen === 'boolean'
+}
+
 function isWindowRecord(v: unknown): v is WindowLayoutRecord {
   return isRecord(v) && isFiniteNumber(v.number) && isWindowBounds(v.bounds)
+    && (v.shape === undefined || isWindowShape(v.shape))
     && isRecord(v.layout)
     && Array.isArray(v.live) && v.live.every((s) => typeof s === 'string')
     && typeof v.hasLayout === 'boolean'
@@ -47,7 +60,7 @@ function createLayoutFileStore(file: string): JsonStore<SessionLayoutFile> {
 
 export interface SessionLayoutStore {
   reportLayout(report: WindowLayoutReport): void
-  reportBounds(windowNumber: number, bounds: WindowBounds): void
+  reportBounds(windowNumber: number, bounds: WindowBounds, shape?: WindowShape): void
   removeWindow(windowNumber: number): void
   flush(): void
   snapshot(): SessionLayoutFile
@@ -86,17 +99,17 @@ export function createSessionLayoutStore(file: string, writeDelayMs = 500): Sess
   return {
     reportLayout(report) {
       const existing = windows.get(report.number)
-      windows.set(report.number, { ...report, bounds: existing?.bounds ?? EMPTY_BOUNDS, hasLayout: true })
+      windows.set(report.number, { ...report, bounds: existing?.bounds ?? EMPTY_BOUNDS, ...(existing?.shape === undefined ? {} : { shape: existing.shape }), hasLayout: true })
       scheduleWrite()
     },
-    reportBounds(windowNumber, bounds) {
+    reportBounds(windowNumber, bounds, shape) {
       // Can arrive before the window's first layout report (inside the renderer's 500ms
       // debounce): start a record rather than drop the bounds. `hasLayout: false` tells a restore
       // apart from a window genuinely closed empty.
       const existing = windows.get(windowNumber)
       windows.set(windowNumber, existing === undefined
-        ? { number: windowNumber, bounds, layout: { preset: 'single', panes: [] }, live: [], hasLayout: false }
-        : { ...existing, bounds })
+        ? { number: windowNumber, bounds, ...(shape === undefined ? {} : { shape }), layout: { preset: 'single', panes: [] }, live: [], hasLayout: false }
+        : { ...existing, bounds, ...(shape === undefined ? {} : { shape }) })
       scheduleWrite()
     },
     removeWindow(windowNumber) {

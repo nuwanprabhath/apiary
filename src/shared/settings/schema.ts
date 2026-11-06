@@ -123,6 +123,11 @@ export const SETTINGS = {
    */
   systemTitleBar: screen(flag(false)),
   /**
+   * Linux on a Wayland desktop: run through XWayland, so each window comes back on its own monitor
+   * (a Wayland app cannot place its windows). Read once, as Apiary starts (`needsXWayland`).
+   */
+  linuxXWayland: screen(flag(true)),
+  /**
    * The transcript's message box drives the session as a chat: replies stream into the transcript
    * and tools ask for permission there. Off: the message goes to the session's terminal.
    */

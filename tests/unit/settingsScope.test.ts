@@ -12,7 +12,7 @@ describe('setting scopes', () => {
   })
 
   it('the look of this screen is screen-scoped, and nothing else is', () => {
-    expect([...SCREEN_SETTING_KEYS].sort()).toEqual(['busyAnimation', 'busyAnimationColor', 'motion', 'proofingLanguage', 'systemTitleBar'])
+    expect([...SCREEN_SETTING_KEYS].sort()).toEqual(['busyAnimation', 'busyAnimationColor', 'linuxXWayland', 'motion', 'proofingLanguage', 'systemTitleBar'])
   })
 
   it('machinePayload keeps only the machine keys', () => {

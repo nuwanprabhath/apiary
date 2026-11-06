@@ -4,6 +4,21 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.58.0] - 2026-11-06
+
+### Fixed
+
+- **Windows come back on the monitor they were on, at their size, maximised if they were.** Before,
+  every Apiary window came back on one screen and had to be moved again:
+  - **Wayland.** On an Ubuntu Wayland desktop an app cannot choose where its windows go, so GNOME
+    placed them all. Apiary now runs through XWayland there, so it can put each window back. To
+    run it as a native Wayland app instead, turn off Settings → General → "Bring windows back on
+    their own monitors (XWayland)". Text can look slightly soft on a screen with fractional scaling.
+  - **Positions on Linux.** A window's position was never saved on Linux at all.
+  - **Maximised windows.** On every platform, a maximised or full-screen window came back as a
+    normal one. It now comes back maximised, and unmaximises to the size it had.
+- Checked on Ubuntu 26.04's own desktop, GNOME on Wayland with two monitors: `npm run test:windows`.
+
 ## [1.57.0] - 2026-11-06
 
 ### Added

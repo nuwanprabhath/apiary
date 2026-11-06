@@ -65,6 +65,22 @@ At launch, `src/main/index.ts` reads the stored record, recreates each window at
 and seeds its layout, tabs and shells from it. `src/main/windows/sessionLayoutRestore.ts`'s
 `pruneStaleLive` drops any `live` session id that no longer resolves — a deleted transcript, a
 missing cwd — but keeps the tab itself so it shows closed rather than vanishing outright.
+
+A window comes back on its monitor, at its size, maximised or full screen if it was:
+
+- **What is kept.** The record keeps the window's normal (unmaximised) bounds, which also say which
+  display it was on, and its `shape` (`maximized`, `fullScreen`). Both are saved on every move,
+  resize, maximise and full-screen change (`onShapeChange` in `windowManager.ts`).
+- **How it comes back.** The window is created at those bounds, then maximised there as it first
+  shows (`showAs`). `maximize()` maximises on the display the window is on.
+- **A gone display.** Bounds no display overlaps (`boundsAreOnScreen`) fall back to a default position.
+- **Linux on a Wayland desktop.** A Wayland app cannot place its own windows, so GNOME put every one
+  where it liked. There Apiary runs itself again as an X11 client through XWayland, before anything
+  starts (`needsXWayland` in `app/launchMode.ts`), unless Settings → General turns it off
+  (`linuxXWayland`).
+- **The test.** `npm run test:windows` (`tests/windows/`) checks all this on an Ubuntu 26.04 X11
+  desktop with two monitors.
+
 Resuming a session that was genuinely running at quit does not respawn it: `AppService.resume()`
 checks `PtyManager.has()` first, the same guard `openShell()` already used, and attaches instead —
 otherwise two windows racing to restore the same `live` session at once would each try to spawn

@@ -9,7 +9,7 @@ import { watchContextMenu } from './contextMenu'
 import { log } from '../log/logger'
 import { closeGraceMs } from './closeGrace'
 import { fireAndForget } from '../log/fireAndForget'
-import type { SessionLayoutStore, WindowLayoutRecord } from './sessionLayoutStore'
+import type { SessionLayoutStore, WindowLayoutRecord, WindowShape } from './sessionLayoutStore'
 import type { TabRegistry } from './tabRegistry'
 import type { TabTransfer } from '@shared/types'
 
@@ -233,21 +233,24 @@ export class WindowManager {
     win.on('focus', () => { this.mainWindow = win })
 
     // Only the first window's geometry goes to settings.json (with several open, the last one moved
-    // would silently decide); the session-layout store gets every window's. Debounced because
-    // Electron documents `moved` on macOS as an alias of `move`, which fires through a drag.
+    // would silently decide); the session-layout store gets every window's. Debounced: `move` and
+    // `resize` fire all through a drag.
     let boundsTimer: NodeJS.Timeout | null = null
     if (!detached && remote === undefined) {
+      const normal = new NormalBounds(win)
       const persistBounds = (): void => {
+        // Seen now, not when the save runs: moved and then maximised within the debounce, the
+        // window would otherwise keep the bounds it had before the move.
+        normal.see()
         if (boundsTimer) clearTimeout(boundsTimer)
         boundsTimer = setTimeout(() => {
           boundsTimer = null
-          const normal = win.getNormalBounds()
-          if (isFirst) settingsService.patch({ windowBounds: normal })
-          sessionLayoutStore?.reportBounds(windowNumber, normal)
+          const bounds = normal.read()
+          if (isFirst) settingsService.patch({ windowBounds: bounds })
+          sessionLayoutStore?.reportBounds(windowNumber, bounds, { maximized: win.isMaximized(), fullScreen: win.isFullScreen() })
         }, 300)
       }
-      win.on('resized', persistBounds)
-      win.on('moved', persistBounds)
+      onShapeChange(win, persistBounds)
     }
     win.on('closed', () => {
       if (boundsTimer) { clearTimeout(boundsTimer); boundsTimer = null }
@@ -266,7 +269,7 @@ export class WindowManager {
       if (this.mainWindow === win) this.mainWindow = BrowserWindow.getAllWindows()[0] ?? null
     })
 
-    if (!headless) win.on('ready-to-show', () => win.show())
+    if (!headless) win.once('ready-to-show', () => { showAs(win, opts.restore?.shape) })
 
     // The number travels in the URL: it picks the stored layout and is needed synchronously at first render.
     const query: Record<string, string> = { w: String(windowNumber), chrome }
@@ -293,6 +296,55 @@ export class WindowManager {
     }
     return { number: windowNumber, webContentsId, onClosed: (listener) => { win.once('closed', listener) } }
   }
+}
+
+/**
+ * Moving, resizing, maximising or filling the screen: each is saved, as the window's bounds and
+ * shape. `move` and `resize`, not `moved` and `resized`, which Electron fires only on macOS and
+ * Windows: on Linux a window's position was never saved.
+ */
+function onShapeChange(win: BrowserWindow, listener: () => void): void {
+  win.on('resize', listener)
+  win.on('move', listener)
+  win.on('maximize', listener)
+  win.on('unmaximize', listener)
+  win.on('enter-full-screen', listener)
+  win.on('leave-full-screen', listener)
+}
+
+/**
+ * A window's normal bounds: where it is when neither maximised, full screen nor minimised, as last
+ * seen. Kept here because `getNormalBounds()` on Linux answers the maximised bounds for a window the
+ * window manager maximised (measured under GNOME's mutter, XWayland), so a maximised window saved
+ * its maximised size and came back that size when unmaximised.
+ */
+class NormalBounds {
+  private last: WindowBounds
+
+  constructor(private readonly win: BrowserWindow) {
+    this.last = win.getBounds()
+  }
+
+  /** Takes the window's bounds as its normal ones, unless it is maximised, full screen or minimised. */
+  see(): void {
+    const { win } = this
+    if (!win.isMaximized() && !win.isFullScreen() && !win.isMinimized()) this.last = win.getBounds()
+  }
+
+  read(): WindowBounds {
+    this.see()
+    return this.last
+  }
+}
+
+/**
+ * Shows a window as it was: maximised or full screen on the display its normal bounds are on (it was
+ * created at those bounds), else as it is. `maximize()` also shows the window.
+ */
+function showAs(win: BrowserWindow, shape: WindowShape | undefined): void {
+  if (shape?.maximized === true) win.maximize()
+  else win.show()
+  if (shape?.fullScreen === true) win.setFullScreen(true)
 }
 
 function windowChromeFor(platform: NodeJS.Platform, systemTitleBar: boolean): WindowChrome {

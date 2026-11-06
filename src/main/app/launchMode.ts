@@ -72,6 +72,22 @@ export function needsNoDisplay(mode: LaunchMode, platform: NodeJS.Platform, env:
 }
 
 /**
+ * Whether a window-opening launch on a Wayland desktop runs Apiary again as an X11 client
+ * (`XWAYLAND_SWITCH`), so it runs through XWayland. A Wayland client cannot place its own windows:
+ * GNOME puts every one where it likes, so windows moved to other monitors all came back on one.
+ * Through XWayland each comes back on its monitor. Only with XWayland there (`DISPLAY`), the setting
+ * on (`linuxXWayland`, Settings → General), and no `--ozone-platform` already chosen.
+ */
+export function needsXWayland(
+  mode: LaunchMode, platform: NodeJS.Platform, env: Record<string, string | undefined>, argv: readonly string[], wanted: boolean,
+): boolean {
+  const set = (v: string | undefined): boolean => v !== undefined && v.trim() !== ''
+  if (!wanted || platform !== 'linux' || mode.background || isTerminalCommand(mode)) return false
+  if (argv.some((a) => a.startsWith('--ozone-platform'))) return false
+  return (set(env.WAYLAND_DISPLAY) || env.XDG_SESSION_TYPE === 'wayland') && set(env.DISPLAY)
+}
+
+/**
  * Whether a normal launch joins the Apiary already running on its profile instead of handing over to
  * it: on Linux, with a display, when that one was started with no display (`needsNoDisplay`) and so
  * can open no window here. The launch then runs on a profile of its own (`desktopProfile`) and opens

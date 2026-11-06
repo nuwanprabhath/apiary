@@ -50,6 +50,18 @@ describe('SessionLayoutStore', () => {
     ])
   })
 
+  it('keeps whether a window was maximised or full screen beside its normal bounds, through a layout report and a reload', () => {
+    const store = createSessionLayoutStore(file(), 500)
+    store.reportBounds(1, bounds, { maximized: true, fullScreen: false })
+    store.reportLayout({ number: 1, layout, live: ['sess-1'] })
+    store.flush()
+    expect(onDisk().windows[0]).toMatchObject({ bounds, shape: { maximized: true, fullScreen: false }, hasLayout: true })
+    // A record written before the shape was kept still loads.
+    store.reportBounds(2, bounds)
+    store.flush()
+    expect(onDisk().windows.map((w) => w.number)).toEqual([1, 2])
+  })
+
   it('a later reportLayout call turns hasLayout true, replacing the bounds-only placeholder', () => {
     const store = createSessionLayoutStore(file(), 500)
     store.reportBounds(1, bounds)

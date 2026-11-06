@@ -4,6 +4,9 @@ import type { SettingsDraft } from '../../../state/settingsStore'
 import { CheckboxSetting } from '../fields/CheckboxSetting'
 import { RemoteAccessSetting } from './RemoteAccessSetting'
 
+/** Read as it draws, so a component test can stand in for Linux. */
+const isLinux = (): boolean => navigator.userAgent.includes('Linux')
+
 export function GeneralSection(
   { draft, patch, machineHost }: { draft: SettingsDraft; patch: (fields: Partial<SettingsDraft>) => void; machineHost: string | null },
 ): JSX.Element {
@@ -64,6 +67,7 @@ export function GeneralSection(
       )}
     />
     )}
+    {machineHost === null && isLinux() && <XWaylandSetting checked={draft.linuxXWayland} onChange={(checked) => { patch({ linuxXWayland: checked }) }} />}
     <CheckboxSetting
       testId="setting-transcript-chat"
       checked={draft.transcriptChat}
@@ -126,5 +130,26 @@ function RemoteAccessReadOnly({ host, on }: { host: string; on: boolean }): JSX.
         {' '}This window runs over it, so it cannot be turned off from here.
       </span>
     </div>
+  )
+}
+
+/** Linux on a Wayland desktop: run through XWayland, so windows come back on their own monitors. */
+function XWaylandSetting({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }): JSX.Element {
+  return (
+    <CheckboxSetting
+      testId="setting-linux-xwayland"
+      checked={checked}
+      onChange={onChange}
+      label="Bring windows back on their own monitors (XWayland)"
+      help={(
+        <>
+          On a Wayland desktop, apps cannot choose where their windows go, so Apiary&apos;s windows all
+          came back on one screen. With this on, Apiary runs through XWayland, and each window
+          comes back where it was, at its size, maximised if it was. Text can look slightly soft
+          on a screen with fractional scaling; turn it off to run as a Wayland app. Applies the next
+          time Apiary starts.
+        </>
+      )}
+    />
   )
 }

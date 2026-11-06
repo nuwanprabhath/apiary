@@ -40,10 +40,12 @@ import type { WindowManager } from './windows/windowManager'
 import { installQuitDeferral } from './app/lifecycle'
 import { sendEvent } from './windows/sendEvent'
 import { runInTerminal } from './exec/runInTerminal'
+import { launchDetached } from './exec/launchDetached'
+import { createSettingsStore } from './settings'
 import { runCommandLineUpdate, runServiceCommand } from './update/createUpdater'
 import { findRunningApiary } from './update/runningApiary'
-import { NO_DISPLAY_SWITCH } from '@shared/launchFlags'
-import { desktopProfile, isTerminalCommand, needsNoDisplay, shouldJoinBackground, shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitIdleBackground, shouldQuitWhenNoWindows } from './app/launchMode'
+import { NO_DISPLAY_SWITCH, XWAYLAND_SWITCH } from '@shared/launchFlags'
+import { desktopProfile, isTerminalCommand, needsNoDisplay, needsXWayland, shouldJoinBackground, shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitIdleBackground, shouldQuitWhenNoWindows } from './app/launchMode'
 
 const dirname = fileURLToPath(new URL('.', import.meta.url))
 
@@ -61,6 +63,19 @@ const launchMode = { background: env.background, update: env.update, service: en
 // waits, and exits with its code. Blocking here keeps Chromium from starting in this one.
 if (needsNoDisplay(launchMode, process.platform, process.env) && !process.argv.includes(NO_DISPLAY_SWITCH)) {
   process.exit(runInTerminal(process.execPath, [...process.argv.slice(1), NO_DISPLAY_SWITCH]))
+}
+
+/** The XWayland setting, read before anything starts: only Linux has it. */
+function linuxXWaylandWanted(userData: string): boolean {
+  return process.platform === 'linux' && createSettingsStore(join(userData, 'settings.json')).load().linuxXWayland
+}
+
+// On a Wayland desktop, the windows go through XWayland so they come back on their own monitors.
+// The same: only the real command line counts, so this process starts Apiary again with it, as
+// its own process, and leaves.
+if (needsXWayland(launchMode, process.platform, process.env, process.argv, linuxXWaylandWanted(app.getPath('userData')))) {
+  launchDetached(process.execPath, [...process.argv.slice(1), XWAYLAND_SWITCH], 'app')
+  process.exit(0)
 }
 
 // A desktop launch beside a background Apiary that has no display joins it on a profile of its own;

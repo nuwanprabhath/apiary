@@ -174,6 +174,14 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
   and again over Tailscale SSH (`tailscale set --ssh`): a connect by MagicDNS name, a Unix-socket
   round-trip, and Apiary listing the host as a Tailscale one, connecting and reading the work
   machine's session. The node logs out when the suite ends.
+- `npm run test:windows`: window placement for real (`tests/windows/`, `vitest.windows.config.ts`).
+  - The bed is an `ubuntu:26.04` container: Xvfb with one 3840x1080 screen that xrandr splits into
+    two monitors, openbox (it is what honours maximise), and wmctrl and xdotool to move and measure
+    windows.
+  - The case: the built app's two windows are put on different monitors by the window manager, one
+    of them maximised. The app is stopped and started again, and each must come back on its monitor,
+    at its size, maximised if it was.
+  - Without `APIARY_WINDOWS_E2E=1` (the script sets it) the suite skips.
 - `scripts/capture-activity-fixtures.mjs` — records new activity-classifier fixtures against a real
   `claude --model haiku`. Never run in CI. See
   [docs/architecture/activity.md](../docs/architecture/activity.md).

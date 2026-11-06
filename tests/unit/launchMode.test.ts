@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { desktopProfile, needsNoDisplay, parseLaunchMode, shouldJoinBackground, shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitIdleBackground, shouldQuitWhenNoWindows } from '../../src/main/app/launchMode'
+import { desktopProfile, needsNoDisplay, needsXWayland, parseLaunchMode, shouldJoinBackground, shouldHoldSingleInstanceLock, shouldOpenFirstWindow, shouldQuitIdleBackground, shouldQuitWhenNoWindows } from '../../src/main/app/launchMode'
 import { parseRuntimeEnv } from '../../src/main/app/env'
 
 describe('launch mode', () => {
@@ -52,6 +52,23 @@ describe('launch mode', () => {
     expect(needsNoDisplay(bg, 'darwin', {})).toBe(false)
     // A normal launch with no display is left to fail as it always has: it is meant to show a window.
     expect(needsNoDisplay({ background: false, update: false, service: null }, 'linux', {})).toBe(false)
+  })
+
+  it('runs a window-opening launch through XWayland on a Wayland desktop that has it, unless the setting is off or a platform is chosen', () => {
+    const normal = parseLaunchMode([])
+    const gnome = { XDG_SESSION_TYPE: 'wayland', WAYLAND_DISPLAY: 'wayland-0', DISPLAY: ':0' }
+    expect(needsXWayland(normal, 'linux', gnome, ['/opt/Apiary/apiary'], true)).toBe(true)
+    expect(needsXWayland(normal, 'linux', gnome, ['/opt/Apiary/apiary'], false)).toBe(false)
+    // Already an X11 client (this is the run it started), or a platform someone chose.
+    expect(needsXWayland(normal, 'linux', gnome, ['/opt/Apiary/apiary', '--ozone-platform=x11'], true)).toBe(false)
+    expect(needsXWayland(normal, 'linux', gnome, ['/opt/Apiary/apiary', '--ozone-platform=wayland'], true)).toBe(false)
+    // An X11 desktop needs nothing; a Wayland one with no XWayland cannot.
+    expect(needsXWayland(normal, 'linux', { XDG_SESSION_TYPE: 'x11', DISPLAY: ':0' }, [], true)).toBe(false)
+    expect(needsXWayland(normal, 'linux', { WAYLAND_DISPLAY: 'wayland-0' }, [], true)).toBe(false)
+    expect(needsXWayland(normal, 'darwin', gnome, [], true)).toBe(false)
+    // Nothing that opens no window: a background start or a terminal command.
+    expect(needsXWayland(parseLaunchMode(['--background']), 'linux', gnome, [], true)).toBe(false)
+    expect(needsXWayland(parseLaunchMode(['--update']), 'linux', gnome, [], true)).toBe(false)
   })
 
   it('the command-line update holds no lock, and starts Chromium with no display when there is none', () => {
