@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.3] - 2026-11-06
+
+### Fixed
+
+- The XWayland setting's UI test now passes on Linux CI. Its "not offered on a Mac" case relied on
+  the machine being a Mac; it now sets a Mac browser itself. Nothing changes in the app.
+
 ## [1.59.2] - 2026-11-06
 
 ### Changed

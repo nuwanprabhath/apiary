@@ -5,11 +5,14 @@ import { until } from '../helpers'
 import { reviewUi } from './review'
 
 /** Settings → General on Linux: "Bring windows back on their own monitors (XWayland)". */
-const MAC = navigator.userAgent
-const asLinux = (): void => {
-  Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => 'Mozilla/5.0 (X11; Linux x86_64) Apiary' })
+const REAL = navigator.userAgent
+/** Stands in for the browser of another system: the tests run on a Mac here and on Linux in CI. */
+const as = (userAgent: string): void => {
+  Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => userAgent })
 }
-afterEach(() => { Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => MAC }) })
+const asLinux = (): void => { as('Mozilla/5.0 (X11; Linux x86_64) Apiary') }
+const asMac = (): void => { as('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Apiary') }
+afterEach(() => { as(REAL) })
 
 async function openGeneral(): Promise<ReturnType<typeof renderApp>> {
   const rendered = renderApp({ settings: { linuxXWayland: true } })
@@ -37,6 +40,7 @@ describe('UI: the XWayland setting', () => {
   })
 
   it('is not offered on a Mac', async () => {
+    asMac()
     await openGeneral()
     await until(() => document.querySelector('[data-testid="setting-system-title-bar"]') !== null)
     expect(document.querySelector('[data-testid="setting-linux-xwayland"]')).toBeNull()
