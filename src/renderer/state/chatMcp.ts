@@ -38,8 +38,8 @@ export function useMcpCard(sessionId: SessionId): McpCard {
   return cards.useStore((all) => all[sessionId] ?? CLOSED)
 }
 
-/** Runs one request on the session's chat and keeps the servers it answers with. */
-async function askChat(sessionId: SessionId, request: McpRequest): Promise<void> {
+/** Runs one request on the session's chat and keeps the servers it answers with; the card after it. */
+async function askChat(sessionId: SessionId, request: McpRequest): Promise<McpCard> {
   const idle = { reading: false, working: null }
   putCard(sessionId, { reading: request.kind === 'status', working: request.kind === 'status' ? null : request.server, error: null })
   try {
@@ -51,31 +51,32 @@ async function askChat(sessionId: SessionId, request: McpRequest): Promise<void>
   } catch (e) {
     putCard(sessionId, { ...idle, error: errorMessage(e) })
   }
+  return card(sessionId)
 }
 
 /**
  * Opens the card and reads the servers. `prepare` makes sure the session runs as a chat (starting
  * one, taking over an idle terminal) and says why not when it cannot.
  */
-export async function openMcp(sessionId: SessionId, prepare: () => Promise<string | null>): Promise<void> {
+export async function openMcp(sessionId: SessionId, prepare: () => Promise<string | null>): Promise<McpCard> {
   putCard(sessionId, { open: true, reading: true, error: null, unavailable: null })
   let why: string | null
   try {
     why = await prepare()
   } catch (e) {
     putCard(sessionId, { reading: false, error: errorMessage(e) })
-    return
+    return card(sessionId)
   }
-  if (why !== null) { putCard(sessionId, { reading: false, unavailable: why }); return }
-  await askChat(sessionId, { kind: 'status' })
+  if (why !== null) { putCard(sessionId, { reading: false, unavailable: why }); return card(sessionId) }
+  return askChat(sessionId, { kind: 'status' })
 }
 
-export function refreshMcp(sessionId: SessionId): Promise<void> {
+export function refreshMcp(sessionId: SessionId): Promise<McpCard> {
   return askChat(sessionId, { kind: 'status' })
 }
 
 /** Toggles, reconnects, signs in or out: the servers come back as they are after it. */
-export function runMcp(sessionId: SessionId, request: Exclude<McpRequest, { kind: 'status' }>): Promise<void> {
+export function runMcp(sessionId: SessionId, request: Exclude<McpRequest, { kind: 'status' }>): Promise<McpCard> {
   return askChat(sessionId, request)
 }
 

@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.2] - 2026-11-06
+
+### Changed
+
+- Unit tests for the MCP card's state and the window buttons' preview timer. These bring function
+  coverage back over CI's 77% floor, which 1.59.1 missed (76.87%). Nothing changes in the app.
+
 ## [1.59.1] - 2026-11-06
 
 ### Changed
