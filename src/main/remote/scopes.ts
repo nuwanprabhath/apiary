@@ -138,6 +138,11 @@ export const CHANNEL_SCOPES = {
   reportTabs: 'remote',
   activeTabs: 'remote',
   activeTabsChanged: 'remote',
+  // The windows on this machine's screen, which a remote window is one of.
+  appWindows: 'local',
+  appWindowsChanged: 'local',
+  appWindowRaise: 'local',
+  appWindowPreview: 'local',
   // Raises the work machine's own window holding the tab, on a screen nobody at home sees.
   focusTab: 'unavailable',
   selectTab: 'remote',

@@ -1,3 +1,4 @@
+import type { AppWindowInfo } from '@shared/domain/appWindows'
 import type { McpServer } from '@shared/domain/mcp'
 /**
  * The fake bridge's types: what it is built from (`FakeOptions`), the mutable state behind it
@@ -185,6 +186,10 @@ export interface FakeState {
   statusBar: StatusBarItem[]
   /** Chat mode, by session id: what `chatState` answers and the `chat*` calls change. */
   chats: Map<string, ChatState>
+  /** This machine's Apiary windows (`appWindows`); this one alone unless a test adds more. */
+  appWindows: AppWindowInfo[]
+  /** What `appWindowPreview` shows of a window, by number; the loopback's picture when absent. */
+  appWindowPictures: Map<number, string>
   /** Every chat's MCP servers (`chatMcp`), as `tests/fixtures/fake-claude-chat.mjs` starts them. */
   mcpServers: McpServer[]
   /** What `backgroundTaskOutput` answers, by `<sessionId>:<taskId>`; not available when absent. */

@@ -60,6 +60,21 @@ export function usePaneActivity(keys: readonly string[], waitingFirst = false): 
   })
 }
 
+/**
+ * What a window's tabs are doing, for its button in the status bar: `waiting` if any waits for the
+ * person (that is what a glance at the bar is for), else `running` if any runs, else null. Only this
+ * machine's windows: in a remote window the tabs are the work machine's, whose window numbers are
+ * not this machine's.
+ */
+export function useWindowActivity(windowNumber: number, inRemoteWindow: boolean): 'running' | 'waiting' | null {
+  return activeTabsStore.useStore((tabs) => {
+    if (inRemoteWindow) return null
+    const statuses = tabs.filter((t) => t.windowNumber === windowNumber).map((t) => t.status)
+    if (statuses.includes('waiting')) return 'waiting'
+    return statuses.includes('running') ? 'running' : null
+  })
+}
+
 /** Every open tab right now: joins a fetch already under way for the same signal, so a store woken
  *  by `activeTabsChanged` alongside this one reads the tabs that signal is about. */
 export const currentActiveTabs = (): Promise<ActiveTabPayload[]> => activeTabsStore.current()

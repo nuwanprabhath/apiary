@@ -14,9 +14,6 @@ export function RemoteView(): JSX.Element {
   const status = useRemoteStatus()
 
   useEffect(() => onOpenRemoteDialog(() => { setDialogOpen(true) }), [])
-  useEffect(() => {
-    if (host !== null) document.title = `${host} — Apiary`
-  }, [host])
 
   return (
     <>

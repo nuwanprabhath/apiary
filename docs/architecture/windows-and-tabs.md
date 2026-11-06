@@ -86,6 +86,24 @@ checks `PtyManager.has()` first, the same guard `openShell()` already used, and 
 otherwise two windows racing to restore the same `live` session at once would each try to spawn
 over the other's pty (`spawn()` kills whatever is already under an id).
 
+## Window buttons in the status bar
+
+With more than one window open, the left end of every window's status bar has a button per window,
+as a taskbar has (`features/statusBar/WindowButtons.tsx`).
+
+- **Names.** Each page names its window after its active tab (`useWindowTitle`), and main reads
+  the names back with the windows' focus and minimised state (`main/windows/appWindows.ts`, the
+  `appWindows` channel, `appWindowsChanged` on any change). The OS's own window list shows the same
+  names.
+- **Clicking a button.** It raises that window (`appWindowRaise`). A window that was never shown, as
+  in a headless run, stays hidden.
+- **Glow.** A button glows as a tab does (`data-glow`), from the activity of that window's tabs
+  (`useWindowActivity`): waiting for you first, then working.
+- **Preview.** Hovering takes a picture of the window (`appWindowPreview`, `capturePage`) every
+  1.5 s while the preview is open (`watchAppWindowPreview`).
+- **Remote windows.** The channels are `local`: a remote window lists this machine's windows, which
+  it is one of. Its tabs' activity is the work machine's, so it draws no glow.
+
 ## The tab registry
 
 `src/main/windows/tabRegistry.ts`'s `TabRegistry` holds only what each window last reported about

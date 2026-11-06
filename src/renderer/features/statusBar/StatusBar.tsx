@@ -9,6 +9,8 @@ import { StatusSections } from './StatusSections'
 import { StatusPanelDialog } from './StatusPanelDialog'
 import { ConsentDialog } from './ConsentDialog'
 import { ActivityIndicator } from './ActivityIndicator'
+import { WindowButtons } from './WindowButtons'
+import { useAppWindows } from '../../state/appWindowsStore'
 import { useAccountUsageItems } from './useAccountUsageItems'
 import { useActivities } from '../../state/activityStore'
 import { HOVER_DELAY_MS } from '../../ui/HoverCard'
@@ -59,6 +61,7 @@ export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element 
   const items = useAccountUsageItems(useStatusBar())
   const busy = useActivities().length > 0
   const residents = useHasResidents()
+  const severalWindows = useAppWindows().length > 1
   const [panel, setPanel] = useState<{ item: StatusBarItem; data: StatusBarPanel | null } | null>(null)
   // Plugins whose consent prompt was closed without an answer. The prompt opens by itself the first
   // time an item asks, once; clicking the item brings it back.
@@ -91,7 +94,7 @@ export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element 
     return off
   }, [panel])
 
-  if (items.length === 0 && !keep && !busy && !residents) return null
+  if (items.length === 0 && !keep && !busy && !residents && !severalWindows) return null
   return (
     <footer
       ref={footer}
@@ -106,6 +109,7 @@ export function StatusBar({ onOpenSettings, keep = false }: Props): JSX.Element 
       onContextMenu={(e) => { if (e.defaultPrevented) return; e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }) }}
     >
       {resizing && <StatusBarResizeHandle height={height} bar={footer} onExit={() => { setResizing(false) }} />}
+      <WindowButtons />
       <ActivityIndicator />
       {/* The free stretch left of the items: the floor pets walk on (features/pets). */}
       <span className="status-bar-spacer" data-testid="status-bar-floor" />

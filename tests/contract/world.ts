@@ -26,6 +26,8 @@ export const BROWSE_HOME = {
  */
 export const THIS_WINDOW = { number: 1, bounds: { x: 0, y: 0, width: 1000, height: 800 } } as const
 export const DETACHED_WINDOW_NUMBER = 2
+/** What a picture of the one window comes back as (`appWindowPreview`): the loopback's page, shrunk. */
+export const WINDOW_PICTURE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGPQ0jEAAAEKAIcZ+6drAAAAAElFTkSuQmCC'
 export const INSIDE_THIS_WINDOW = { x: 40, y: 40 } as const
 export const OUTSIDE_EVERY_WINDOW = { x: 5000, y: 5000 } as const
 

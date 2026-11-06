@@ -101,7 +101,7 @@ function AppWindow({ detached, arrival, restored }: {
   const {
     onResumeClick, onRenameSession: onRenameSessionCb, onTogglePinKey, onForkKey, onTabDropped: onTabDroppedCb, onDetach: onDetachCb,
   } = useTabKeyHandlers({ dispatch, store, togglePin, forkSession, transferFor, onResume })
-  const { onOpenSettings, titleOf } = useTabTitleAndSettings(openSessions, pendingTabInfo, openDialog)
+  const { onOpenSettings, titleOf } = useTabTitleAndSettings(openSessions, pendingTabInfo, openDialog, activeKey)
 
   const [chrome] = useState(windowChrome)
 

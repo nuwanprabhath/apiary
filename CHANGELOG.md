@@ -4,6 +4,22 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.0] - 2026-11-06
+
+### Added
+
+- **Window buttons in the status bar, like a taskbar.** With more than one Apiary window open, the
+  left end of every window's status bar has a button for each one, on macOS and Linux.
+  - **Labels.** Each button is labelled with that window's active tab. The window you are in looks
+    pressed, and a minimised one is in italics.
+  - **Clicking.** Clicking a button brings that window to the front, from under whatever covers it,
+    on any monitor.
+  - **Glow.** A button glows as a tab does: blue while Claude works in that window, amber while
+    it waits for you.
+  - **Preview.** Hover over a button to see a live picture of the window and what it is doing.
+- **Window titles.** Each window is now titled after its active tab ("Fix CSV export bug — Apiary"),
+  so the system's own window switcher tells them apart too.
+
 ## [1.58.0] - 2026-11-06
 
 ### Fixed

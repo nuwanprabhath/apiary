@@ -17,6 +17,7 @@ import {
 
 export type { EventSpec }
 import { isMcpRequest, type McpAnswer, type McpRequest } from '../domain/mcp'
+import type { AppWindowInfo } from '../domain/appWindows'
 import { type Guard, str, num, bool, any, obj, opaque, record, anyStr, opt, nullable, arr, tuple } from './guards'
 import { isTerminalRef, type PtyId, type SessionId, type TerminalRef } from '../domain/ids'
 import { isTabTransfer, isWindowLayoutReport, type TabTransfer, type ReportedTab, type WindowLayoutReport, type ActiveTabPayload } from '../domain/tabs'
@@ -437,6 +438,14 @@ export const IPC = {
   reportTabs: send<[tabs: ReportedTab[]]>('apiary:report-tabs', tuple(arr(isReportedTab))),
   activeTabs: invoke<[], ActiveTabPayload[]>('apiary:active-tabs', tuple()),
   activeTabsChanged: event('apiary:active-tabs-changed'),
+  /** This machine's Apiary windows, for the status bar's window buttons. */
+  appWindows: invoke<[], AppWindowInfo[]>('apiary:app-windows', tuple()),
+  /** A window opened, closed, was retitled, gained or lost focus, or was minimised or restored. */
+  appWindowsChanged: event('apiary:app-windows-changed'),
+  /** Brings a window to the front, from under whatever covers it. */
+  appWindowRaise: invoke<[windowNumber: number], void>('apiary:app-window-raise', tuple(num)),
+  /** A small picture of what a window shows (a data URL), or null when there is none to take. */
+  appWindowPreview: invoke<[windowNumber: number], string | null>('apiary:app-window-preview', tuple(num)),
   focusTab: invoke<[windowNumber: number, key: string], void>('apiary:focus-tab', tuple(num, str)),
   selectTab: event<[key: string]>('apiary:select-tab'),
 

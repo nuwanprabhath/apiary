@@ -154,6 +154,8 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     worktrees: opts.worktrees ?? {},
     statusBar: opts.statusBar ?? [],
     chats: new Map(),
+    appWindows: [{ number: 1, title: 'Apiary', focused: true, minimized: false, remoteHost: null }],
+    appWindowPictures: new Map(),
     mcpServers: [
       { name: 'files', status: 'connected', scope: 'user', transport: 'stdio', error: null, tools: ['read', 'write'], version: '1.2.0' },
       { name: 'tracker', status: 'needs-auth', scope: 'project', transport: 'http', error: null, tools: [], version: null },
@@ -221,6 +223,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     ...foldersApi(env),
     get initialTheme() { return state.theme },
     onActiveTabsChanged: on('activeTabsChanged'),
+    onAppWindowsChanged: on('appWindowsChanged'),
     onSelectTab: on('selectTab'),
     onThemeChanged: on('themeChanged'),
     onPetsChanged: on('petsChanged'),

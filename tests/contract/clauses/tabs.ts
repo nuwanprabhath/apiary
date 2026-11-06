@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ReportedTab, TabTransfer, WindowLayoutReport } from '@shared/domain/tabs'
 import { STANDARD_SESSIONS as STD } from '../../fixtures/standard'
 import { skipOnRemote, type Ctx } from '../support'
-import { DETACHED_WINDOW_NUMBER, INSIDE_THIS_WINDOW, OUTSIDE_EVERY_WINDOW, THIS_WINDOW } from '../world'
+import { DETACHED_WINDOW_NUMBER, INSIDE_THIS_WINDOW, OUTSIDE_EVERY_WINDOW, THIS_WINDOW, WINDOW_PICTURE } from '../world'
 
 const tab = (key: string, over: Partial<ReportedTab> = {}): ReportedTab => ({ key, view: 'transcript', ptyId: null, label: null, ...over })
 const transfer = (key: string): TabTransfer => ({ key, view: 'terminal', ptyId: null, shells: [], activeShell: null })
@@ -69,6 +69,17 @@ export function defineTabClauses(ctx: Ctx): void {
       expect(ctx.heard.payloads('selectTab')).toEqual([[STD.csv.id]])
       await ctx.api.focusTab(41, STD.csv.id)
       expect(ctx.heard.count('selectTab')).toBe(1)
+    })
+
+    it('lists this machine\'s windows, raises one, and takes a picture of it; a number no window has does nothing', async () => {
+      expect(await ctx.api.appWindows()).toEqual([{ number: THIS_WINDOW.number, title: 'Apiary', focused: true, minimized: false, remoteHost: null }])
+      await ctx.api.appWindowRaise(41)
+      await ctx.api.appWindowRaise(THIS_WINDOW.number)
+      // Every window hears that the windows changed, once raising one did something.
+      await expect.poll(() => ctx.heard.count('appWindowsChanged')).toBe(1)
+      expect(await ctx.api.appWindowPreview(THIS_WINDOW.number)).toBe(WINDOW_PICTURE)
+      expect(await ctx.api.appWindowPreview(41)).toBeNull()
+      await expect(ctx.api.appWindowRaise('one' as never)).rejects.toThrow()
     })
 
     it('adopting a tab here hands it to this window and tells it to open it, without telling this window it lost it', async (t) => {

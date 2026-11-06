@@ -34,6 +34,7 @@ import { remoteClientsHandlers } from './handlers/remoteClients'
 import { libraryStateHandlers } from './handlers/libraryState'
 import { accountsHandlers } from './handlers/accounts'
 import { residentsHandlers } from './handlers/residents'
+import { appWindowsHandlers } from './handlers/appWindows'
 import type { ResidentService } from '../residents/residentService'
 import type { AccountService } from '../accounts/accountService'
 import type { LibraryStateService } from '../library/libraryStateService'
@@ -135,6 +136,7 @@ export function registerIpc(
   const libraryStateIpc = libraryStateHandlers(deps.library)
   const accountsIpc = accountsHandlers(deps.accounts, deps.chat, service)
   const residentsIpc = residentsHandlers(deps.residents, deps.pickFolder, deps.folderBrowser)
+  const appWindowsIpc = appWindowsHandlers()
 
   const handlers: Handlers = {
     ...sessions,
@@ -157,6 +159,7 @@ export function registerIpc(
     ...libraryStateIpc,
     ...accountsIpc,
     ...residentsIpc,
+    ...appWindowsIpc.handlers,
   }
   const listeners: Listeners = {
     ...terminals.listeners,
@@ -179,6 +182,7 @@ export function registerIpc(
       disposeRegistry()
       terminals.dispose()
       tabs.dispose()
+      appWindowsIpc.dispose()
       theme.dispose()
     },
     resetTheme: theme.reset,

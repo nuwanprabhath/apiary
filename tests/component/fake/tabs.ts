@@ -10,11 +10,12 @@
 import type { ApiaryApi } from '@shared/api'
 import { chatActivity } from '@shared/activity'
 import type { ActiveTabPayload, TabTransfer } from '@shared/domain/tabs'
-import { DETACHED_WINDOW_NUMBER, THIS_WINDOW } from '../../contract/world'
+import { DETACHED_WINDOW_NUMBER, THIS_WINDOW, WINDOW_PICTURE } from '../../contract/world'
 import type { Env } from './state'
 
 type TabsApi = Pick<ApiaryApi,
-  | 'reportLayout' | 'reportTabs' | 'activeTabs' | 'focusTab' | 'tabDropped' | 'tabDetach' | 'tabAdoptHere'>
+  | 'reportLayout' | 'reportTabs' | 'activeTabs' | 'focusTab' | 'tabDropped' | 'tabDetach' | 'tabAdoptHere'
+  | 'appWindows' | 'appWindowRaise' | 'appWindowPreview'>
 
 export function tabsApi(env: Env): TabsApi {
   const { state, emit } = env
@@ -46,6 +47,18 @@ export function tabsApi(env: Env): TabsApi {
     focusTab: async (windowNumber, key) => { if (windowNumber === THIS_WINDOW.number) emit('selectTab', key) },
     tabDropped: async (tab, at) => { if (!inThisWindow(at)) tearOff(tab) },
     tabDetach: async (tab) => { tearOff(tab) },
+    // This machine's windows, as a test arranges them in `fake.state.appWindows` (this one alone by
+    // default). Raising one focuses it, and every window hears so; a picture is the loopback's.
+    appWindows: async () => state.appWindows,
+    appWindowRaise: async (windowNumber) => {
+      if (!state.appWindows.some((w) => w.number === windowNumber)) return
+      state.appWindows = state.appWindows.map((w) => ({ ...w, focused: w.number === windowNumber, minimized: w.number === windowNumber ? false : w.minimized }))
+      emit('appWindowsChanged')
+    },
+    appWindowPreview: async (windowNumber) => {
+      const win = state.appWindows.find((w) => w.number === windowNumber)
+      return win === undefined || win.minimized ? null : state.appWindowPictures.get(windowNumber) ?? WINDOW_PICTURE
+    },
     // Dropped on a strip in this window: the tab is handed here, and nobody is told it was claimed.
     tabAdoptHere: async (tab) => {
       emit('tabAdopt', tab)

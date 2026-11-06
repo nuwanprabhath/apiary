@@ -151,3 +151,19 @@ test('rescan sessions from the menu updates every window\'s sidebar, not just th
   await expect(h.page.getByTestId('session-item')).toHaveCount(before + 1, { timeout: 5000 })
   await expect(second.getByTestId('session-item')).toHaveCount(before + 1, { timeout: 5000 })
 })
+
+test('each window lists every window in its status bar by its active tab, its own pressed', async () => {
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await expect(h.page.getByTestId('window-buttons')).toHaveCount(0)
+  const second = await h.newWindow()
+  await sidebarSession(second, 'Add worktree switcher').click()
+  // Each page names its window after its active tab; main reads the names back for the buttons.
+  for (const page of [h.page, second]) {
+    await expect(page.getByTestId('window-button')).toHaveText(['1Fix CSV export bug', '2Add worktree switcher'])
+  }
+  await expect(h.page.getByTestId('window-button').first()).toHaveAttribute('aria-pressed', 'true')
+  await expect(second.getByTestId('window-button').last()).toHaveAttribute('aria-pressed', 'true')
+  // A picture of the other window, taken by main.
+  await second.getByTestId('window-button').first().hover()
+  await expect(second.getByTestId('window-preview-picture').locator('img')).toHaveAttribute('src', /^data:image\/png;base64,/)
+})

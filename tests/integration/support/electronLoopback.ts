@@ -2,7 +2,7 @@ import { vi } from 'vitest'
 import { tmpdir } from 'node:os'
 import type { ApiaryApi } from '@shared/api'
 import type { ContextMenuParamsLike, EditCommand } from '@shared/domain/contextMenu'
-import { THIS_WINDOW } from '../../contract/world'
+import { THIS_WINDOW, WINDOW_PICTURE } from '../../contract/world'
 
 /**
  * The `electron` stand-in both contract loopbacks (`contract.test.ts`, `remoteContract.test.ts`) run
@@ -58,6 +58,7 @@ export const fakeContents = {
   selectAll: () => { loopback.editLog.push({ action: 'selectAll' }) },
   copyImageAt: (x: number, y: number) => { loopback.editLog.push({ action: 'copyImageAt', x, y }) },
   replaceMisspelling: (word: string) => { loopback.editLog.push({ action: 'replaceMisspelling', word }) },
+  capturePage: async () => ({ isEmpty: () => false, resize: () => ({ toDataURL: () => WINDOW_PICTURE }) }),
 }
 
 const fakeWindow = {
@@ -65,7 +66,10 @@ const fakeWindow = {
   isMinimized: () => false,
   isVisible: () => true,
   restore: () => {},
+  show: () => {},
   focus: () => {},
+  isFocused: () => true,
+  getTitle: () => 'Apiary',
   getBounds: () => ({ ...THIS_WINDOW.bounds }),
   webContents: fakeContents,
 }

@@ -1,4 +1,5 @@
 import type { BrowserWindow } from 'electron'
+import { windowNumberInUrl } from './windowUrl'
 import { IPC } from '@shared/api'
 import type { OpenTab } from '@shared/domain/tabs'
 import { sendEvent } from './sendEvent'
@@ -50,26 +51,13 @@ export class TabRegistry {
 }
 
 /**
- * The window number a `BrowserWindow` was created with, read back from its own `?w=` query (the
- * convention `stateKey()` reads in the renderer and `createWindow` writes in `main/index.ts`).
- */
-function windowNumberOf(win: BrowserWindow): number | null {
-  try {
-    const w = Number(new URL(win.webContents.getURL()).searchParams.get('w'))
-    return Number.isFinite(w) && w > 0 ? w : null
-  } catch {
-    return null
-  }
-}
-
-/**
  * Raises the window showing `windowNumber` and tells it to select `key` — the far side of a click
  * on an Active row in another window's sidebar.
  *
  * Not a method on `TabRegistry`: that class stays unit-testable without Electron.
  */
 export function focusTab(windows: BrowserWindow[], windowNumber: number, key: string): void {
-  const target = windows.find((w) => !w.isDestroyed() && windowNumberOf(w) === windowNumber)
+  const target = windows.find((w) => !w.isDestroyed() && windowNumberInUrl(w) === windowNumber)
   if (target === undefined) return
   if (target.isMinimized()) target.restore()
   target.focus()
