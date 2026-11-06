@@ -80,7 +80,6 @@ function WindowButton({ win, own }: { win: AppWindowInfo; own: boolean }): JSX.E
         onFocus={show}
         onBlur={hide}
       >
-        <span className="window-button-number" aria-hidden="true">{win.number}</span>
         <span className="window-button-label">{win.title}</span>
       </button>
       {anchor !== null && <WindowPreview win={win} activity={activity} anchor={anchor} />}

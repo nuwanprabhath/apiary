@@ -35,7 +35,7 @@ describe('the window buttons', () => {
   it('show every window by its active tab, this one pressed, and what each one\'s Claude is doing', async () => {
     await renderApp({}, threeWindows)
     await until(() => buttons().length === 3)
-    expect(buttons().map((b) => b.textContent)).toEqual(['1Fix CSV export bug', '2Add worktree switcher', '3Repo root session'])
+    expect(buttons().map((b) => b.textContent)).toEqual(['Fix CSV export bug', 'Add worktree switcher', 'Repo root session'])
     expect(buttons().map((b) => b.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false'])
     await expect.poll(() => button(2).dataset.glow).toBe('running')
     expect(button(3).dataset.glow).toBe('waiting')

@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.1] - 2026-11-06
+
+### Changed
+
+- The window buttons no longer show a number. It was the window's own number, which keeps gaps after
+  a window closes (1 and 3). The preview still says "Window 3", to match the sidebar's W3.
+
 ## [1.59.0] - 2026-11-06
 
 ### Added

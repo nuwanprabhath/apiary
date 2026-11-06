@@ -650,19 +650,6 @@ button.activity-indicator:focus-visible { outline: none; box-shadow: var(--focus
 .window-button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .window-button[aria-pressed="true"] { background: var(--selected); color: var(--text); }
 .window-button[aria-pressed="true"]::before { width: 40%; background: var(--accent); opacity: 1; }
-.window-button-number {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  min-width: var(--icon-size-sm);
-  height: var(--icon-size-sm);
-  padding: 0 var(--space-xs);
-  border-radius: var(--radius-sm);
-  background: var(--field-bg);
-  color: var(--muted);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
 .window-button-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .window-button[data-minimized="true"] .window-button-label { font-style: italic; opacity: 0.7; }
 

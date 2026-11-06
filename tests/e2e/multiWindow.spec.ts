@@ -159,7 +159,7 @@ test('each window lists every window in its status bar by its active tab, its ow
   await sidebarSession(second, 'Add worktree switcher').click()
   // Each page names its window after its active tab; main reads the names back for the buttons.
   for (const page of [h.page, second]) {
-    await expect(page.getByTestId('window-button')).toHaveText(['1Fix CSV export bug', '2Add worktree switcher'])
+    await expect(page.getByTestId('window-button')).toHaveText(['Fix CSV export bug', 'Add worktree switcher'])
   }
   await expect(h.page.getByTestId('window-button').first()).toHaveAttribute('aria-pressed', 'true')
   await expect(second.getByTestId('window-button').last()).toHaveAttribute('aria-pressed', 'true')
