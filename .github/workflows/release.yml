@@ -91,7 +91,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-14 # Apple Silicon — native arm64 build
+          # Apple Silicon, native arm64. GitHub retired macos-14 in November 2026: its jobs were cancelled
+          # before starting ("The configuration 'macos-14-arm64-us-default' is not supported").
+          - os: macos-26
             script: dist:mac:arm64
             artifacts: |
               release/*.dmg

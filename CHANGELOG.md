@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.59.3] - 2026-11-06
+## [1.59.4] - 2026-11-06
+
+### Fixed
+
+- The release builds the macOS app on GitHub's macOS 26 runner. GitHub retired the macOS 14
+  runner, so v1.59.3's macOS build was cancelled before it started, and nothing was published.
+  1.59.4 is 1.59.3 released.
+
+## [1.59.3] - 2026-11-06 (not released; shipped in 1.59.4)
 
 ### Fixed
 
