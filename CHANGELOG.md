@@ -4,7 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.59.9] - 2026-11-07
+## [1.59.10] - 2026-11-07
+
+### Fixed
+
+- A resident test failed in the 10 minutes before midnight. The next cycle then falls on the next
+  day, and the status names it with its day ("Sat 00:06"); the test expected a bare time. v1.59.9's
+  macOS build ran at 23:56 UTC, failed there, and nothing was published. 1.59.10 is 1.59.9
+  released.
+
+## [1.59.9] - 2026-11-07 (not released; shipped in 1.59.10)
 
 ### Added
 
@@ -19,7 +28,7 @@ All notable changes to Apiary are documented here. Format follows
 - The testing docs describe the parallel integration run, the e2e budget, the per-run temp root
   and when UI scenarios save screenshots.
 
-## [1.59.8] - 2026-11-07 (not released; shipped in 1.59.9)
+## [1.59.8] - 2026-11-07 (not released; shipped in 1.59.10)
 
 ### Changed
 
@@ -33,7 +42,7 @@ All notable changes to Apiary are documented here. Format follows
 - The e2e suite's test count is a budget (`tests/e2e/budget.json`, 180), checked by an
   architecture test. A new e2e test moves or removes one, or the maintainer raises the budget.
 
-## [1.59.7] - 2026-11-07 (not released; shipped in 1.59.9)
+## [1.59.7] - 2026-11-07 (not released; shipped in 1.59.10)
 
 ### Changed
 
@@ -48,7 +57,7 @@ All notable changes to Apiary are documented here. Format follows
   Tests had left 577 folders (44 MB) behind.
 - verify-apiary keeps the newest 10 runs' evidence and removes older runs.
 
-## [1.59.6] - 2026-11-07 (not released; shipped in 1.59.9)
+## [1.59.6] - 2026-11-07 (not released; shipped in 1.59.10)
 
 ### Changed
 
@@ -58,7 +67,7 @@ All notable changes to Apiary are documented here. Format follows
 - `tests/CLAUDE.md` describes the window test bed as it is: mutter on a Wayland session with two
   virtual monitors, not Xvfb and openbox.
 
-## [1.59.5] - 2026-11-07 (not released; shipped in 1.59.9)
+## [1.59.5] - 2026-11-07 (not released; shipped in 1.59.10)
 
 ### Changed
 

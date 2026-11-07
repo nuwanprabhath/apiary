@@ -164,7 +164,8 @@ describe('ResidentService', () => {
     desk.service.start()
     await vi.waitFor(() => { expect(spawned).toHaveLength(2) })
     const deskStatus = await callMcp(join(dir, 'desk', 'mcp.json'))('apiary_status', {})
-    expect(deskStatus).toMatch(/Cycle: Apiary runs it every 10 minutes during your hours; next at \d\d:\d\d; none is running now\./)
+    // The clock is real: from 23:50 the next cycle is tomorrow, which the status names with its day ("Sat 00:06").
+    expect(deskStatus).toMatch(/Cycle: Apiary runs it every 10 minutes during your hours; next at (\w{3} )?\d\d:\d\d; none is running now\./)
     await desk.service.dispose()
 
     const second = build([onDuty()])
