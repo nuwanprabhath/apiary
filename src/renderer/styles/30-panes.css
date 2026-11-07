@@ -626,7 +626,8 @@ button.activity-indicator:focus-visible { outline: none; box-shadow: var(--focus
   max-width: 200px;
   height: calc(100% - var(--space-xs));
   padding: 0 var(--space-sm);
-  border: 0;
+  /* A box round each button, so a row of titles reads as buttons rather than a sentence. */
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
@@ -648,7 +649,7 @@ button.activity-indicator:focus-visible { outline: none; box-shadow: var(--focus
 }
 .window-button:hover { background: var(--hover); color: var(--text); }
 .window-button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.window-button[aria-pressed="true"] { background: var(--selected); color: var(--text); }
+.window-button[aria-pressed="true"] { border-color: var(--muted); background: var(--selected); color: var(--text); }
 .window-button[aria-pressed="true"]::before { width: 40%; background: var(--accent); opacity: 1; }
 .window-button-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .window-button[data-minimized="true"] .window-button-label { font-style: italic; opacity: 0.7; }

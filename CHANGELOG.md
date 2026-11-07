@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.11] - 2026-11-07
+
+### Changed
+
+- Each window button in the status bar has a border, so a row of them reads as buttons rather
+  than one sentence of titles. The window you are in stays shaded, with a stronger border.
+
 ## [1.59.10] - 2026-11-07
 
 ### Fixed
