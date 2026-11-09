@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.12] - 2026-11-09
+
+### Changed
+
+- **Dependencies.** eslint 10.14.0, globals 17.14.0, marked 18.1.2, three 0.187.0 and @types/three
+  0.187.0.
+
 ## [1.59.11] - 2026-11-07
 
 ### Changed
