@@ -57,15 +57,16 @@ describe('a native paste into a terminal (SEC-6)', () => {
   it('is bracketed exactly once when the program asked for bracketed paste', async () => {
     const { fake } = await renderApp()
     const ptyId = await openClaudeTerminal(fake)
-    fake.emit('ptyData', asPtyId(ptyId), `${ESC}[?2004h`)
-    // Parsing is asynchronous; a probe write that has come back means the mode is on.
-    await until(() => fake.callsTo('ptySnapshot').length > 0)
-    await new Promise((r) => requestAnimationFrame(r))
+    // xterm parses written data later, in order: its reply to the status query (`ESC[5n` → `ESC[0n`)
+    // reaching the pty means the mode switch before it has been parsed.
+    fake.emit('ptyData', asPtyId(ptyId), `${ESC}[?2004h${ESC}[5n`)
+    await until(() => writes(fake).includes(`${ESC}[0n`))
+    const before = writes(fake).length
 
     nativePaste(PAYLOAD)
 
-    await until(() => writes(fake).length > 0)
-    const sent = writes(fake).join('')
+    await until(() => writes(fake).length > before)
+    const sent = writes(fake).slice(before).join('')
     expect(sent).toBe(`${ESC}[200~␛[201~rm -rf /tmp/x${ESC}[201~`)
     expect(sent.split(`${ESC}[201~`)).toHaveLength(2)
   })

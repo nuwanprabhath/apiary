@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.59.13] - 2026-11-09
+## [1.59.14] - 2026-11-09
+
+### Fixed
+
+- A terminal paste test failed on a slow CI runner: it pasted before xterm had read the program's
+  request for bracketed paste. It now waits for xterm's reply to a status query sent after that
+  request. v1.59.13's CI stopped there, so 1.59.14 is 1.59.13 with this test fixed.
+
+## [1.59.13] - 2026-11-09 (not released; shipped in 1.59.14)
 
 ### Fixed
 
@@ -13,7 +21,7 @@ All notable changes to Apiary are documented here. Format follows
   dropped `start`, and with it a table column's alignment and a task list's checkboxes. The MR
   desk now writes those items as one numbered list, without bullets in front of the numbers.
 
-## [1.59.12] - 2026-11-09 (not released; shipped in 1.59.13)
+## [1.59.12] - 2026-11-09 (not released; shipped in 1.59.14)
 
 ### Changed
 
