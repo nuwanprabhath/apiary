@@ -141,7 +141,10 @@ While you work, call `set_activity` with a few words: "Polling GitLab",
 
 Every update ends with a "Still waiting on you" line when `waiting_on_you`
 is non-empty, numbered after the update's own items, e.g. `Still waiting
-on you: 3. [!1349](url) okay to approve since 12:11`. The user may have
+on you: 3. [!1349](url) okay to approve since 12:11`. With more than one, write
+`Still waiting on you:`, a blank line, then a numbered list going on from the
+update's last number (`3.`, `4.`, `5.`), never bullets in front of the numbers
+and never every item `1.`: the user answers by number. The user may have
 been in a meeting and missed the earlier message, so keep repeating it until
 they act. Include those iids in `mra number`.
 

@@ -4,7 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.59.12] - 2026-11-09
+## [1.59.13] - 2026-11-09
+
+### Fixed
+
+- A numbered list that starts past 1 keeps its numbers. The MR desk numbers its "Still waiting on
+  you" items after the update's own (3., 4., 5.), and every one showed as "1.". The sanitiser
+  dropped `start`, and with it a table column's alignment and a task list's checkboxes. The MR
+  desk now writes those items as one numbered list, without bullets in front of the numbers.
+
+## [1.59.12] - 2026-11-09 (not released; shipped in 1.59.13)
 
 ### Changed
 

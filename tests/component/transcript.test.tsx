@@ -283,6 +283,31 @@ describe('transcript', () => {
       expect(document.body.textContent).toContain('nuwan@nuwan-HP:~$ rm -rf')
     })
 
+    it('keeps a list\'s own numbers, a table column\'s alignment and a task list\'s checkboxes', async () => {
+      // The MR desk numbers its "Still waiting on you" items after the update's own (3., 4., 5.).
+      const md = [
+        'Still waiting on you:', '', '3. [!76](https://example.com/76) can be approved', '4. !64 is safe',
+        '', '- 6. !12 bulleted', '- 7. !13 bulleted', '', '| MR | Age |', '| :-- | --: |', '| !76 | 2 d |',
+        '', '- [x] reviewed', '- [ ] approved',
+      ].join('\n')
+      const session: FakeSession = {
+        sessionId: 'cccccccc-cccc-cccc-cccc-ccccccccccc4',
+        title: 'List message',
+        projectPath: '/fixture/work-a',
+        gitBranch: 'main',
+        messages: [{ uuid: 'l1', role: 'assistant', timestampMs: Date.now(), isSidechain: false, blocks: [{ type: 'text', text: md }] }],
+      }
+      await renderApp({ sessions: [session] })
+      await userEvent.click(sidebarSession('List message'))
+      await until(() => document.querySelector('[data-testid="message"] ol') !== null)
+      const firsts = [...document.querySelectorAll('[data-testid="message"] ol')].map((ol) => (ol as HTMLOListElement).start)
+      expect(firsts).toEqual([3, 6, 7])
+      expect([...document.querySelectorAll('[data-testid="message"] td')].map((td) => td.getAttribute('align')))
+        .toEqual(['left', 'right'])
+      const boxes = [...document.querySelectorAll<HTMLInputElement>('[data-testid="message"] input')]
+      expect(boxes.map((b) => [b.type, b.checked, b.disabled])).toEqual([['checkbox', true, true], ['checkbox', false, true]])
+    })
+
     it('puts a Copy button on a code block, which copies the code alone, and none in a hostile message', async () => {
       const command = 'claude mcp add slack-multi --scope user -- uv run --directory ~/projects/slack-multi-workspace-mcp slack-multi-workspace-mcp'
       const md = `To use it, run:\n\n\`\`\`\n${command}\n\`\`\`\n\n<button class="code-copy">fake</button>`

@@ -24,6 +24,9 @@ const ALLOWED_ATTR = ['href', 'title', 'align', 'type', 'checked', 'disabled', '
 // Absolute http(s)/mailto links only: a relative href (`?restore=...`) would resolve to the app's
 // own index.html with an attacker-chosen query, which `navigationGuard` treats as a same-app reload.
 const ALLOWED_URI_REGEXP = /^(?:https?:|mailto:)/i
+// DOMPurify tests ALLOWED_URI_REGEXP against every attribute not marked URI-safe, so `start="3"`,
+// `align="right"` and `type="checkbox"` were dropped: a list numbered from 3 showed 1.
+const ADD_URI_SAFE_ATTR = ['start', 'align', 'type']
 
 let hooksInstalled = false
 function installSanitizeHooks(): void {
@@ -125,9 +128,9 @@ export function MarkdownText({ text, chips }: { text: string; chips?: LinkChips 
     installSanitizeHooks()
     const rendered = marked.parse(text, { async: false })
     const clean = chips === undefined
-      ? DOMPurify.sanitize(rendered, { ALLOWED_TAGS, ALLOWED_ATTR, ALLOWED_URI_REGEXP })
+      ? DOMPurify.sanitize(rendered, { ALLOWED_TAGS, ALLOWED_ATTR, ALLOWED_URI_REGEXP, ADD_URI_SAFE_ATTR })
       : DOMPurify.sanitize(chipLinks(rendered, chips), {
-        ALLOWED_TAGS: [...ALLOWED_TAGS, 'button'], ALLOWED_ATTR: [...ALLOWED_ATTR, 'data-testid', CHIP_ID_ATTR], ALLOWED_URI_REGEXP,
+        ALLOWED_TAGS: [...ALLOWED_TAGS, 'button'], ALLOWED_ATTR: [...ALLOWED_ATTR, 'data-testid', CHIP_ID_ATTR], ALLOWED_URI_REGEXP, ADD_URI_SAFE_ATTR,
       })
     return withCodeCopyButtons(linkFiles ? markFileMentions(clean) : clean)
   }, [text, linkFiles, chips])
