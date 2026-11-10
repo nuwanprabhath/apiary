@@ -1,0 +1,92 @@
+# The component and integration suites on a CPU-starved Linux runner, one hour after the nightly
+# e2e. A test that passes on a fast machine and fails here has a race or a timing assumption.
+# CPU limit: `systemd-run --user --scope -p CPUQuota=60%`; if the runner has no user manager the
+# step falls back to `cpulimit` from apt and logs which it used. No retries.
+# Failures go to one open issue labelled `nightly-slow`. scripts/nightly-report.mjs is fixed to the
+# `nightly-e2e` label and Playwright's JSON, so this workflow files its own issue with `gh`.
+name: Nightly slow
+
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-slow-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  slow:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      issues: write
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - run: |
+          sudo apt-get update && sudo apt-get install -y cpulimit
+          npx playwright install --with-deps chromium
+
+      - name: Pick a CPU limiter
+        run: |
+          if systemd-run --user --scope -p CPUQuota=60% true 2>/dev/null; then
+            echo "LIMIT=systemd-run --user --scope -p CPUQuota=60%" >> "$GITHUB_ENV"
+            echo "CPU limit: systemd-run CPUQuota=60%"
+          else
+            echo "LIMIT=cpulimit -l 120 -i --" >> "$GITHUB_ENV"
+            echo "CPU limit: cpulimit (systemd-run --user unavailable); 120 = 60% of two cores"
+          fi
+
+      - id: component
+        name: Component suite at 60% CPU
+        continue-on-error: true
+        run: $LIMIT npm run test:component -- --reporter=default --reporter=json --outputFile.json=slow-component.json
+
+      - id: integration
+        name: Integration suite at 60% CPU
+        continue-on-error: true
+        run: $LIMIT npm run test:integration -- --reporter=default --reporter=json --outputFile.json=slow-integration.json
+
+      - if: always()
+        name: Open, update or close the nightly-slow issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node --input-type=module -e '
+            import { existsSync, readFileSync, writeFileSync } from "node:fs"
+            const failed = []
+            for (const f of ["slow-component.json", "slow-integration.json"]) {
+              if (!existsSync(f)) { failed.push(`${f}: no report written (the suite did not finish)`); continue }
+              for (const file of JSON.parse(readFileSync(f, "utf8")).testResults)
+                for (const t of file.assertionResults) if (t.status === "failed") failed.push(`${file.name.split("/").slice(-2).join("/")} › ${t.fullName}`)
+            }
+            writeFileSync("slow-failures.md", failed.map((t) => `- ${t}`).join("\n"))
+          '
+          gh label create nightly-slow --color B60205 --description "Opened by the nightly slow-machine run" --force
+          number=$(gh issue list --state open --label nightly-slow --json number --jq '.[0].number // empty')
+          if [ -s slow-failures.md ]; then
+            { echo "The component or integration suite failed at 60% CPU on \`main\`. Run: $RUN_URL"; echo; cat slow-failures.md; } > slow-body.md
+            if [ -z "$number" ]; then
+              gh issue create --title "Nightly slow: tests failing under a CPU limit" --label nightly-slow --body-file slow-body.md
+            else
+              gh issue edit "$number" --body-file slow-body.md
+            fi
+          elif [ -n "$number" ]; then
+            gh issue close "$number" --comment "The slow-machine run is clean again: $RUN_URL"
+          fi
+
+      - if: steps.component.outcome == 'failure' || steps.integration.outcome == 'failure'
+        run: exit 1
