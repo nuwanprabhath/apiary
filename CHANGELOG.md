@@ -4,7 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.13] - 2026-11-10
+## [1.60.14] - 2026-11-10
+
+### Changed
+
+- A Dependabot pull request also gets the full end-to-end suite on Linux and macOS, and the result
+  shows on the pull request as a status.
+
+## [1.60.13] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Fixed
 
