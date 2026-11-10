@@ -44,6 +44,8 @@ class Client {
     return new Client(socket)
   }
 
+  pause(): void { this.socket.pause() }
+  resume(): void { this.socket.resume() }
   send(message: ClientMessage): void { this.socket.write(encodeFrame(message)) }
   sendRaw(bytes: Buffer): void { this.socket.write(bytes) }
   /** The hello and the other handshake messages travel as JSON frames (frames.ts). */
@@ -115,6 +117,35 @@ describe('RemoteServer', () => {
     disposeTargets()
     await server.stop()
     rmSync(home, { recursive: true, force: true })
+  })
+
+  it('drops ptyData for a congested connection, still answers, and resyncs each pty once on drain', async () => {
+    const resync = vi.fn<(id: string) => void>()
+    await boot(5000, { resyncPty: resync })
+    const c = await greeted()
+    c.send({ t: 'open', w: 1 })
+    await vi.waitFor(() => { expect(registry.list()).toHaveLength(1) })
+    const window = registry.list()[0]
+    c.pause()
+    const chunk = 'x'.repeat(1 << 20)
+    const sent = 60
+    for (let i = 0; i < sent; i++) window.send(IPC.ptyData.channel, i % 2 === 0 ? 'pty-a' : 'pty-b', chunk)
+    // Congested now: more output is dropped, but a call is still answered.
+    c.send({ t: 'layouts', id: 7 })
+    c.resume()
+    await c.next((m) => m.t === 'layouts' && m.id === 7)
+    await vi.waitFor(() => { expect(resync).toHaveBeenCalledTimes(2) })
+    expect(c.messages.filter((m) => m.t === 'event').length).toBeLessThan(sent)
+    expect(resync.mock.calls.map((call) => call[0]).sort()).toEqual(['pty-a', 'pty-b'])
+  })
+
+  it('ignores an open past 32 windows on one connection', async () => {
+    await boot()
+    const c = await greeted()
+    for (let w = 1; w <= 33; w++) c.send({ t: 'open', w })
+    c.send({ t: 'layouts', id: 1 })
+    await c.next((m) => m.t === 'layouts')
+    await vi.waitFor(() => { expect(server.clients()[0]?.windows).toBe(32) })
   })
 
   it('welcomes a matching hello with the host name and version', async () => {

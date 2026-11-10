@@ -1,6 +1,8 @@
 import { BrowserWindow, webContents } from 'electron'
 import { IPC } from '@shared/api'
 import type { RemoteStatus } from '@shared/domain/remote'
+import { fireAndForget } from '../log/fireAndForget'
+import type { PtyManager } from '../pty/ptyManager'
 import { createExec, type ExecFn } from '../exec/run'
 import { HostDirectory, TAILSCALE_PATHS } from '../remote/hostDirectory'
 import { PairingStore } from '../remote/pairingStore'
@@ -35,6 +37,17 @@ interface RemoteSettings {
   patch(change: { remoteAccess: boolean }): unknown
 }
 
+/** What a window whose `ptyData` was dropped gets: a full reset, then the rendered screen, in one event. */
+export function resyncPtyTo(
+  pty: { snapshot(id: string): Promise<{ data: string } | null> },
+  ptyId: string,
+  window: { send(channel: string, ...args: unknown[]): void },
+): void {
+  fireAndForget(pty.snapshot(ptyId).then((snapshot) => {
+    if (snapshot !== null) window.send(IPC.ptyData.channel, ptyId, '\u001bc' + snapshot.data)
+  }), 'remote')
+}
+
 export interface ServingInputs {
   homeDir: string
   host: string
@@ -50,17 +63,20 @@ export function createRemoteServing(inputs: ServingInputs): {
   remotePairing: PairingStore
   remoteServer: RemoteServer
   /** The session services' VS Code resolver, once they exist (the server answers `resolve` with it). */
-  useVsCode: (vscode: Pick<VsCodeService, 'resolveFolder' | 'resolveMentionedFile'>) => void
+  /** And the ptys, whose screens resync a connection that dropped terminal output. */
+  useVsCode: (vscode: Pick<VsCodeService, 'resolveFolder' | 'resolveMentionedFile'>, pty?: Pick<PtyManager, 'snapshot'>) => void
 } {
   const virtualContents = new VirtualContentsRegistry()
   const remotePairing = new PairingStore(inputs.pairingFile, () => inputs.settings.get().remoteAccessPairing)
   let vscode: Pick<VsCodeService, 'resolveFolder' | 'resolveMentionedFile'> | null = null
+  let pty: Pick<PtyManager, 'snapshot'> | null = null
   const notReady = (): never => { throw new Error('Not ready yet.') }
   const remoteServer = new RemoteServer({
     homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion,
     registry: virtualContents, layouts: inputs.layouts, pairing: remotePairing,
     // Home machines reconnect by themselves, so "Disconnect all" also stops new connections.
     turnOff: () => { inputs.settings.patch({ remoteAccess: false }) },
+    resyncPty: (ptyId, window) => { if (pty !== null) resyncPtyTo(pty, ptyId, window) },
     vscode: {
       resolveFolder: (terminal) => (vscode ?? notReady()).resolveFolder(terminal),
       resolveMentionedFile: (terminal, mention) => (vscode ?? notReady()).resolveMentionedFile(terminal, mention),
@@ -68,7 +84,7 @@ export function createRemoteServing(inputs: ServingInputs): {
   })
   remoteServer.subscribe((clients) => { broadcast(IPC.remoteClientsChanged, clients) })
   remoteServer.subscribeState((state) => { broadcast(IPC.remoteServerStateChanged, state) })
-  return { virtualContents, remotePairing, remoteServer, useVsCode: (v) => { vscode = v } }
+  return { virtualContents, remotePairing, remoteServer, useVsCode: (v, p) => { vscode = v; pty = p ?? null } }
 }
 
 export interface ConnectingInputs {

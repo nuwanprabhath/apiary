@@ -34,12 +34,17 @@ export interface RemoteServerDeps {
   /** Resolves the paths `resolve` asks for (`VsCodeService`); without it every `resolve` is refused. */
   vscode?: Pick<VsCodeService, 'resolveFolder' | 'resolveMentionedFile'>
   helloTimeoutMs?: number
+  /** Sends a pty's snapshot to a window whose `ptyData` was dropped while its socket was full; not wired in the container yet. */
+  resyncPty?: (ptyId: string, window: VirtualContents) => void
   /** The optional pairing code: asked for only while `required()`; `code()` is its stored (no dash) form. */
   pairing: { required(): boolean; code(): string }
   /** "Disconnect all" turns the `remoteAccess` setting off through this, so nothing reconnects by itself. */
   turnOff: () => void
   now?: () => number
 }
+
+/** Open windows one connection may hold; an `open` past it is ignored. */
+const MAX_WINDOWS_PER_CONNECTION = 32
 
 /** Wrong codes allowed within `PAIRING_WINDOW_MS`, from any client, before every attempt is refused for as long. */
 const PAIRING_MAX_WRONG = 5
@@ -217,11 +222,25 @@ export class RemoteServer {
     // Nothing but the JSON handshake is read until the hello is accepted.
     decoder.handshakeOnly = true
     let greeted = false
+    // Set when `socket.write` says its buffer is full, until `drain`. `ptyData` is dropped meanwhile
+    // (its pty ids kept, per window); a `result` never is.
+    let congested = false
+    const dropped = new Map<number, Set<string>>()
     const write = (message: ServerMessage): void => {
       if (socket.destroyed) return
+      if (congested && message.t === 'event' && message.channel === IPC.ptyData.channel) {
+        const id = message.args[0]
+        if (typeof id === 'string') {
+          const ids = dropped.get(message.w) ?? new Set<string>()
+          ids.add(id)
+          dropped.set(message.w, ids)
+        }
+        return
+      }
       try {
         // The handshake's answers are JSON, readable by any version; the rest is V8 (frames.ts).
-        socket.write(message.t === 'welcome' || message.t === 'refused' ? encodeHandshakeFrame(message) : encodeFrame(message))
+        const flushed = socket.write(message.t === 'welcome' || message.t === 'refused' ? encodeHandshakeFrame(message) : encodeFrame(message))
+        if (!flushed) congested = true
       } catch (error) {
         log.warn('remote', 'could not send a message', { type: message.t, error })
         if (message.t === 'result' && message.ok) write({ t: 'result', id: message.id, ok: false, message: errorMessage(error) })
@@ -264,6 +283,10 @@ export class RemoteServer {
         case 'hello': return
         case 'open':
           if (!windows.has(message.w)) {
+            if (windows.size >= MAX_WINDOWS_PER_CONNECTION) {
+              log.warn('remote', 'ignored an open past the window limit', { limit: MAX_WINDOWS_PER_CONNECTION })
+              return
+            }
             windows.set(message.w, this.deps.registry.create(message.w, write))
             this.changed()
           }
@@ -289,6 +312,14 @@ export class RemoteServer {
         log.warn('remote', 'bad data; closing the connection', { error })
         socket.destroy()
       }
+    })
+    socket.on('drain', () => {
+      congested = false
+      for (const [w, ids] of dropped) {
+        const win = windows.get(w)
+        if (win) for (const id of ids) this.deps.resyncPty?.(id, win)
+      }
+      dropped.clear()
     })
     socket.on('error', (error) => { log.warn('remote', 'connection error', { error }) })
     socket.on('close', () => {

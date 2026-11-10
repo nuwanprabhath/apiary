@@ -54,6 +54,32 @@ describe('remote frames', () => {
   })
 })
 
+describe('FrameDecoder at scale', () => {
+  it('decodes a 32 MB frame pushed in 64 KB chunks without copying per chunk', () => {
+    const bytes = encodeFrame({ t: 'x', data: new Uint8Array(32 * 1024 * 1024) })
+    const chunks: Buffer[] = []
+    for (let i = 0; i < bytes.length; i += 65536) chunks.push(bytes.subarray(i, i + 65536))
+    const time = (decoder: FrameDecoder, pieces: Buffer[]): number => {
+      const start = performance.now()
+      let n = 0
+      for (const piece of pieces) n += decoder.push(piece).length
+      expect(n).toBe(1)
+      return performance.now() - start
+    }
+    const sizes: number[] = []
+    const counting = new FrameDecoder((size) => {
+      sizes.push(size)
+      return Buffer.allocUnsafe(size)
+    })
+    const chunked = time(counting, chunks)
+    // Two pushes force the same one copy a chunked frame costs, so the ratio isolates per-chunk work.
+    const half = Math.floor(bytes.length / 2)
+    const single = time(new FrameDecoder(), [bytes.subarray(0, half), bytes.subarray(half)])
+    expect(sizes.filter((s) => s > 1024 * 1024).length).toBeLessThan(5)
+    expect(chunked).toBeLessThan(Math.max(single, 1) * 5)
+  })
+})
+
 describe('remote channel scopes', () => {
   it('classifies every contract key, and nothing else', () => {
     expect(Object.keys(CHANNEL_SCOPES).sort()).toEqual(Object.keys(IPC).sort())

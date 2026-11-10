@@ -85,7 +85,12 @@ export class RemoteConnection {
           return
         }
         for (const message of messages) {
-          if (!isServerMessage(message)) continue
+          if (!isServerMessage(message)) {
+            log.warn('remote', 'unrecognised message from the work machine; closing the connection')
+            if (connection === null) fail(unreachable)
+            else connection.shutdown(`Disconnected from ${connection.host}`)
+            return
+          }
           if (connection !== null) { connection.handle(message); continue }
           if (message.t === 'welcome') {
             connection = new RemoteConnection(socket, message.host)
@@ -212,5 +217,15 @@ export class RemoteConnection {
 }
 
 function isServerMessage(value: unknown): value is ServerMessage {
-  return isRecord(value) && typeof value.t === 'string'
+  if (!isRecord(value) || typeof value.t !== 'string') return false
+  switch (value.t) {
+    case 'welcome': return typeof value.host === 'string' && typeof value.appVersion === 'string'
+    case 'refused': return typeof value.message === 'string' && (value.reason === undefined || typeof value.reason === 'string')
+    case 'result': return typeof value.id === 'number' && (value.ok === true || (value.ok === false && typeof value.message === 'string'))
+    case 'resolved':
+      return typeof value.id === 'number' && (value.ok === true ? typeof value.path === 'string' : value.ok === false && typeof value.message === 'string')
+    case 'event': return typeof value.w === 'number' && typeof value.channel === 'string' && Array.isArray(value.args)
+    case 'layouts': return typeof value.id === 'number' && Array.isArray(value.windows)
+    default: return false
+  }
 }
