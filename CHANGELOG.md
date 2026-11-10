@@ -4,7 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.32] - 2026-11-11
+## [1.60.33] - 2026-11-10
+
+### Changed
+
+- Claude Code session files are read through one decoder, so a change in Claude Code's file format
+  shows up in one place instead of silently in six.
+
+## [1.60.32] - 2026-11-11 (not released; shipped in 1.60.x)
 
 ### Fixed
 
