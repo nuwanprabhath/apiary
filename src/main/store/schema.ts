@@ -1,5 +1,7 @@
 export const SCHEMA = `
 PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
+PRAGMA busy_timeout = 2000;
 
 CREATE TABLE IF NOT EXISTS project (
   path         TEXT PRIMARY KEY,

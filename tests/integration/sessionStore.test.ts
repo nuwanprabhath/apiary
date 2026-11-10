@@ -259,4 +259,45 @@ describe('SessionStore', () => {
       expect(store.distinctCwds()).toEqual(['/home/nuwan/app'])
     })
   })
+
+  describe('removeMissing and the schema version', () => {
+    it('removes rows whose transcript is gone, keeps those with a note or title', () => {
+      store.syncProject(project('/home/nuwan/app'))
+      store.syncProject(project('/home/nuwan/empty'))
+      store.syncSessions('/home/nuwan/app', [
+        meta('s1', '/home/nuwan/app'), meta('s2', '/home/nuwan/app'),
+        meta('s3', '/home/nuwan/app'), meta('s4', '/home/nuwan/app'),
+      ])
+      store.setNote(asSessionId('s3'), 'keep me')
+      store.setCustomTitle(asSessionId('s4'), 'mine')
+      store.setSessionAccount(asSessionId('s2'), 'acc')
+      const res = store.removeMissing(new Set([meta('s1', '/home/nuwan/app').filePath]))
+      expect(res.removed).toEqual(['s2'])
+      expect(res.kept.sort()).toEqual(['s3', 's4'])
+      expect(store.getSession(asSessionId('s2'))).toBeNull()
+      expect(store.getSessionAccount(asSessionId('s2'))).toBeNull()
+      expect(store.getSession(asSessionId('s3'))).not.toBeNull()
+      expect(store.getProject('/home/nuwan/empty')).toBeNull()
+      expect(store.getProject('/home/nuwan/app')).not.toBeNull()
+    })
+
+    it('migrates a database from before versions and keeps its rows', () => {
+      store.close()
+      const path = join(dir, 'old.db')
+      const old = new Database(path)
+      old.exec(`CREATE TABLE project (path TEXT PRIMARY KEY, repo_root TEXT, is_worktree INTEGER NOT NULL DEFAULT 0, branch TEXT, exists_flag INTEGER NOT NULL DEFAULT 1, auto_import INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE session (session_id TEXT PRIMARY KEY, project_path TEXT NOT NULL, title TEXT, first_prompt TEXT, cwd TEXT, git_branch TEXT, started_at_ms INTEGER, last_active_ms INTEGER, message_count INTEGER, file_path TEXT NOT NULL, file_mtime_ms INTEGER NOT NULL, file_size INTEGER NOT NULL, imported INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0);
+        INSERT INTO project (path) VALUES ('/p');
+        INSERT INTO session (session_id, project_path, file_path, file_mtime_ms, file_size) VALUES ('old', '/p', '/p/old.jsonl', 1, 1);`)
+      old.close()
+      store = new SessionStore(path)
+      expect(store.getSession(asSessionId('old'))?.sessionId).toBe('old')
+      store.setNote(asSessionId('old'), 'n')
+      store.close()
+      const check = new Database(path)
+      expect(check.pragma('user_version', { simple: true })).toBe(1)
+      check.close()
+      store = new SessionStore(path)
+    })
+  })
 })
