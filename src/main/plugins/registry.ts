@@ -240,6 +240,7 @@ function sameItems(a: PluginBarItem[], b: PluginBarItem[]): boolean {
   if (a.length !== b.length) return false
   return a.every((item, i) => {
     const other = b[i]
+    if (other === undefined) return false
     return item.pluginId === other.pluginId
       && item.id === other.id
       && item.label === other.label

@@ -18,13 +18,14 @@ export function expandArgv(argv: readonly string[], ctx: ArgvContext): string[] 
   for (const arg of argv) {
     const bin = BIN_RE.exec(arg)
     if (bin !== null) {
-      const prefix = Object.hasOwn(ctx.bins, bin[1]) ? ctx.bins[bin[1]]() : []
-      if (prefix.length === 0) throw new Error(`Unknown program: ${bin[1]}`)
+      const binName = bin[1] ?? ''
+      const prefix = Object.hasOwn(ctx.bins, binName) ? (ctx.bins[binName]?.() ?? []) : []
+      if (prefix.length === 0) throw new Error(`Unknown program: ${binName}`)
       out.push(...prefix)
       continue
     }
     out.push(arg.replace(OPTION_RE, (_m, key: string) => {
-      const value = Object.hasOwn(ctx.options, key) ? ctx.options[key].trim() : ''
+      const value = Object.hasOwn(ctx.options, key) ? (ctx.options[key]?.trim() ?? '') : ''
       if (value === '') throw new Error(`Set "${key}" in Settings first`)
       return value
     }))

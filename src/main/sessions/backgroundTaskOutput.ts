@@ -107,7 +107,7 @@ function stripControls(text: string): string {
 function shellLines(text: string): string[] {
   const lines = text.split('\n').map((line) => {
     const drawn = line.split('\r').filter((p) => p !== '')
-    return stripControls(drawn.length === 0 ? '' : drawn[drawn.length - 1]).trimEnd()
+    return stripControls(drawn.length === 0 ? '' : drawn[drawn.length - 1] ?? '').trimEnd()
   })
   while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
   return lines.slice(-TASK_OUTPUT_LINES)

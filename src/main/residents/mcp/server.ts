@@ -83,7 +83,7 @@ export class McpServer {
   private residentFor(header: string | undefined): string | null {
     const match = /^Bearer (\S+)$/.exec(header ?? '')
     if (match === null) return null
-    const presented = digest(match[1])
+    const presented = digest(match[1] ?? '')
     let found: string | null = null
     // Every entry is compared, so the time taken does not say which one matched.
     for (const [id, expected] of this.tokens) if (timingSafeEqual(presented, expected)) found = id

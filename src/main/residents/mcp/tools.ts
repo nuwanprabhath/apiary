@@ -237,7 +237,8 @@ const NOTE_TOOLS: Tool[] = [
     },
     run: ({ key }, { space }) => {
       const notes = space.notes()
-      return Object.hasOwn(notes, key) ? ok(notes[key]) : ok(`No note called "${key}".`)
+      const note = Object.hasOwn(notes, key) ? notes[key] : undefined
+      return note !== undefined ? ok(note) : ok(`No note called "${key}".`)
     },
   }),
   tool<{ key: string; text: string }>({

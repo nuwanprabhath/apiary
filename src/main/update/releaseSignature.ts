@@ -39,7 +39,7 @@ export function parseFeedFacts(text: string): FeedFacts | null {
     const top = /^([A-Za-z0-9_]+):(.*)$/.exec(line)
     if (top !== null) {
       inFiles = top[1] === 'files'
-      if (top[1] === 'version') version = unquote(top[2])
+      if (top[1] === 'version') version = unquote(top[2] ?? '')
       continue
     }
     const item = inFiles ? /^\s+(-\s+)?([A-Za-z0-9_]+):(.*)$/.exec(line) : null
@@ -47,8 +47,8 @@ export function parseFeedFacts(text: string): FeedFacts | null {
     if (item[1] !== undefined) files.push({})
     const current = files.at(-1)
     if (current === undefined) return null
-    if (item[2] === 'url') current.url = unquote(item[3])
-    if (item[2] === 'sha512') current.sha512 = unquote(item[3])
+    if (item[2] === 'url') current.url = unquote(item[3] ?? '')
+    if (item[2] === 'sha512') current.sha512 = unquote(item[3] ?? '')
   }
   if (version === null || version === '') return null
   const complete: FeedFile[] = []

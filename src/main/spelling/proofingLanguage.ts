@@ -14,9 +14,9 @@ export function resolveProofingLanguage(
     const sameLanguage = available.find((code) => primaryLanguage(code) === language)
     if (sameLanguage !== undefined) return sameLanguage
   }
-  return available.find((code) => code === 'en-US') ?? available[0]
+  return available.find((code) => code === 'en-US') ?? available[0] ?? null
 }
 
 function primaryLanguage(code: string): string {
-  return code.split('-')[0].toLowerCase()
+  return (code.split('-')[0] ?? '').toLowerCase()
 }

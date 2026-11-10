@@ -50,7 +50,7 @@ interface GlabMr {
 export function pickMergeRequest(list: GlabMr[]): GlabMr | null {
   if (list.length === 0) return null
   const byNewest = [...list].sort((a, b) => b.iid - a.iid)
-  return byNewest.find((mr) => mr.state === 'opened') ?? byNewest[0]
+  return byNewest.find((mr) => mr.state === 'opened') ?? byNewest[0] ?? null
 }
 
 /**

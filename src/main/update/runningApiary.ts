@@ -46,7 +46,7 @@ const nulList = (text: string): string[] => text.split('\0').filter((part) => pa
  */
 function commandLineWords(cmdline: string): string[] {
   const words = nulList(cmdline)
-  return words.length === 1 ? words[0].split(' ').filter((w) => w !== '') : words
+  return words.length === 1 ? (words[0] ?? '').split(' ').filter((w) => w !== '') : words
 }
 
 /**

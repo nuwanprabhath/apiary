@@ -90,6 +90,7 @@ export function detailSections(input: {
   const usage = stats === undefined ? [] : (() => {
     const today = stats.days[stats.days.length - 1]
     const month = stats.months[stats.months.length - 1]
+    if (today === undefined || month === undefined) return []
     const plus = stats.hasUnpricedModel ? '+' : ''
     return [
       ['Tokens', fmtTokens(sumTokens(today)), fmtTokens(sumTokens(stats.totals)), fmtTokens(sumTokens(month))],
@@ -206,7 +207,7 @@ export function dashboard(input: {
   sections.push({
     kind: 'line',
     points: stats.months.map((m) => {
-      const [y, mo] = m.month.split('-').map(Number)
+      const [y = Number.NaN, mo = Number.NaN] = m.month.split('-').map(Number)
       return {
         label: new Date(y, mo - 1, 1).toLocaleDateString([], { month: 'short', year: '2-digit' }),
         value: sumTokens(m),

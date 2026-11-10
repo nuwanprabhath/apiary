@@ -300,34 +300,34 @@ async function collectBackward(
   floor: number,
   limit: number,
 ): Promise<Collected> {
-  const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsets[i + 1] : size)
+  const offsetAt = (i: number): number => offsets[i] ?? size
+  const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsetAt(i + 1) : size)
   let held: IndexedMessage[] = []
-  let skippedLines = 0
-  let readBytes = 0
+  let skippedLines = 0, readBytes = 0
   let next = end - 1
   let handle: FileHandle | null = null
   try {
     while (next >= floor && held.length <= limit && readBytes < MAX_PAGE_BYTES) {
-      if (lineEnd(next) - offsets[next] > SKIP_LINE_BYTES) {
+      if (lineEnd(next) - offsetAt(next) > SKIP_LINE_BYTES) {
         skippedLines++
         next--
         continue
       }
       const room = Math.min(MAX_READ_BYTES, MAX_PAGE_BYTES - readBytes)
-      let bytes = lineEnd(next) - offsets[next]
+      let bytes = lineEnd(next) - offsetAt(next)
       if (bytes > room) break
       const runEnd = next
       let runStart = next
       while (runStart - 1 >= floor) {
-        const len = lineEnd(runStart - 1) - offsets[runStart - 1]
+        const len = lineEnd(runStart - 1) - offsetAt(runStart - 1)
         if (len > SKIP_LINE_BYTES || bytes + len > room) break
         bytes += len
         runStart--
       }
       handle ??= await open(filePath, 'r')
-      const length = lineEnd(runEnd) - offsets[runStart]
+      const length = lineEnd(runEnd) - offsetAt(runStart)
       const buffer = Buffer.alloc(length)
-      const got = await readExact(handle, buffer, offsets[runStart])
+      const got = await readExact(handle, buffer, offsetAt(runStart))
       const parsed = parseMessageLines(buffer.toString('utf8', 0, got), runStart)
       held = parsed.messages.concat(held)
       skippedLines += parsed.skippedLines
@@ -340,7 +340,7 @@ async function collectBackward(
   const overflow = Math.max(0, held.length - limit)
   const page = held.slice(overflow)
   const unread = next >= floor
-  const earlierCursor = overflow > 0 || (unread && page.length > 0) ? page[0].index : unread ? next + 1 : null
+  const earlierCursor = overflow > 0 || (unread && page.length > 0) ? (page[0]?.index ?? null) : unread ? next + 1 : null
   return { messages: page, earlierCursor, skippedLines }
 }
 
@@ -363,22 +363,22 @@ function lineMessage(line: string): TranscriptMessage | null {
 async function collectForward(
   filePath: string, offsets: number[], size: number, first: number, limit: number,
 ): Promise<Collected> {
-  const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsets[i + 1] : size)
+  const offsetAt = (i: number): number => offsets[i] ?? size
+  const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsetAt(i + 1) : size)
   const held: IndexedMessage[] = []
-  let skippedLines = 0
-  let readBytes = 0
+  let skippedLines = 0, readBytes = 0
   let next = first
   let handle: FileHandle | null = null
   try {
     while (next < offsets.length && held.length < limit && readBytes < MAX_PAGE_BYTES) {
-      if (lineEnd(next) - offsets[next] > SKIP_LINE_BYTES) { skippedLines++; next++; continue }
+      if (lineEnd(next) - offsetAt(next) > SKIP_LINE_BYTES) { skippedLines++; next++; continue }
       let runEnd = next + 1
-      while (runEnd < offsets.length && lineEnd(runEnd) - offsets[runEnd] <= SKIP_LINE_BYTES
-        && lineEnd(runEnd) - offsets[next] <= MAX_READ_BYTES) runEnd++
+      while (runEnd < offsets.length && lineEnd(runEnd) - offsetAt(runEnd) <= SKIP_LINE_BYTES
+        && lineEnd(runEnd) - offsetAt(next) <= MAX_READ_BYTES) runEnd++
       handle ??= await open(filePath, 'r')
-      const length = lineEnd(runEnd - 1) - offsets[next]
+      const length = lineEnd(runEnd - 1) - offsetAt(next)
       const buffer = Buffer.alloc(length)
-      const parsed = parseMessageLines(buffer.toString('utf8', 0, await readExact(handle, buffer, offsets[next])), next)
+      const parsed = parseMessageLines(buffer.toString('utf8', 0, await readExact(handle, buffer, offsetAt(next))), next)
       held.push(...parsed.messages)
       skippedLines += parsed.skippedLines
       readBytes += length
@@ -504,8 +504,9 @@ export class TranscriptReader {
     const indexes: number[] = []
     if (needle === '') return { indexes, cursor: null }
     const { offsets, size } = await this.indexTranscript(filePath)
-    const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsets[i + 1] : size)
-    const lineBytes = (i: number): number => lineEnd(i) - offsets[i]
+    const offsetAt = (i: number): number => offsets[i] ?? size
+    const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsetAt(i + 1) : size)
+    const lineBytes = (i: number): number => lineEnd(i) - offsetAt(i)
     const valid = before !== null && Number.isSafeInteger(before) && before >= 0
     const started = Date.now()
     let next = (valid ? Math.min(before, offsets.length) : offsets.length) - 1
@@ -515,9 +516,9 @@ export class TranscriptReader {
       let bytes = lineBytes(next)
       while (runStart > 0 && lineBytes(runStart - 1) <= SKIP_LINE_BYTES && bytes + lineBytes(runStart - 1) <= MAX_READ_BYTES) bytes += lineBytes(--runStart)
       const lines: string[] = []
-      await forEachLine(filePath, { start: offsets[runStart], end: lineEnd(next), maxLineBytes: SKIP_LINE_BYTES }, (l) => { lines.push(l) })
+      await forEachLine(filePath, { start: offsetAt(runStart), end: lineEnd(next), maxLineBytes: SKIP_LINE_BYTES }, (l) => { lines.push(l) })
       for (let k = lines.length - 1; k >= 0; k--) {
-        const m = lineMessage(lines[k])
+        const m = lineMessage(lines[k] ?? '')
         if (m === null || !shownText(m).toLowerCase().includes(needle)) continue
         indexes.push(runStart + k)
         if (indexes.length === FIND_HITS) return { indexes, cursor: runStart + k }

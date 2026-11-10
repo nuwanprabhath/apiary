@@ -247,6 +247,7 @@ export class SessionCatalog {
         cursor += 1
         if (i >= rawCwds.length) return
         const rawCwd = rawCwds[i]
+        if (rawCwd === undefined) return
         const info = await this.opts.worktrees.resolveProject(rawCwd)
         infoByCanonicalCwd.set(info.path, info)
         const list = byRawCwd.get(rawCwd)

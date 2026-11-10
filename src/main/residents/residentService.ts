@@ -47,7 +47,7 @@ export interface ResidentSettings {
 export type RunCommand = (argv: string[], cwd: string, env: Record<string, string>) => Promise<string>
 
 const runCommand: RunCommand = (argv, cwd, env) =>
-  createExec({ timeoutMs: COMMAND_TIMEOUT_MS, scope: 'residents', env })(argv[0], argv.slice(1), cwd)
+  createExec({ timeoutMs: COMMAND_TIMEOUT_MS, scope: 'residents', env })(argv[0] ?? '', argv.slice(1), cwd)
 
 export interface ResidentServiceDeps {
   settings: ResidentSettings
@@ -217,7 +217,7 @@ export class ResidentService {
         const out = (await this.runIn(r, argv)).trim()
         return out === '' ? `**${action.label}**: done, no output.` : out.slice(0, COMMAND_OUTPUT_MAX)
       } catch (e) {
-        return `**${action.label}** failed: ${errorMessage(e).split('\n')[0].slice(0, 300)}`
+        return `**${action.label}** failed: ${(errorMessage(e).split('\n')[0] ?? '').slice(0, 300)}`
       }
     })
     r.chat.appendAssistant(text)

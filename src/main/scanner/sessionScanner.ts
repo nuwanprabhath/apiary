@@ -43,6 +43,7 @@ function firstUserPrompt(entries: ClaudeEntry[]): string | null {
 function latestCustomTitle(entries: ClaudeEntry[]): string | null {
   for (let i = entries.length - 1; i >= 0; i -= 1) {
     const e = entries[i]
+    if (e === undefined) continue
     if (e.type === 'custom-title' && e.customTitle !== undefined && e.customTitle.trim() !== '') {
       return e.customTitle.trim()
     }
@@ -53,6 +54,7 @@ function latestCustomTitle(entries: ClaudeEntry[]): string | null {
 function aiTitle(entries: ClaudeEntry[]): string | undefined {
   for (let i = entries.length - 1; i >= 0; i -= 1) {
     const e = entries[i]
+    if (e === undefined) continue
     if (e.type === 'ai-title' && e.aiTitle !== undefined) return e.aiTitle
   }
   return undefined
@@ -139,7 +141,7 @@ export async function scanProjects(projectsRoot: string, opts?: ScanOptions): Pr
       while (next < files.length) {
         const i = next
         next += 1
-        const filePath = join(dirPath, files[i])
+        const filePath = join(dirPath, files[i] ?? '')
         metas[i] = (await ignoreErrorsAsync(async () => {
           if (opts?.isUnchanged) {
             const info = await stat(filePath)

@@ -3,7 +3,7 @@ import { parseGitlabProject } from './mrDeskProject'
 
 /** A trimmed option of the resident, '' when unset. */
 export const optionOf = (options: Readonly<Record<string, string>>, key: string): string =>
-  Object.hasOwn(options, key) ? options[key].trim() : ''
+  (Object.hasOwn(options, key) ? options[key]?.trim() : undefined) ?? ''
 
 /**
  * The `config.json` mra reads, from the resident's options. `active_hours` is null because

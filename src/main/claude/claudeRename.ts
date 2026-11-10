@@ -28,12 +28,12 @@ import { log } from '../log/logger'
 export function composerIsEmpty(screen: string): boolean {
   const lines = screen.split('\n')
   for (let i = lines.length - 1; i >= 1; i -= 1) {
-    const m = /^❯(.*)$/.exec(lines[i])
+    const m = /^❯(.*)$/.exec(lines[i] ?? '')
     if (m === null) continue
-    const above = lines[i - 1].trim()
+    const above = (lines[i - 1] ?? '').trim()
     // Only the composer sits directly under a full-width rule; a `❯` in the conversation does not.
     if (!/^─{10,}/.test(above)) return false
-    return m[1].trim() === ''
+    return (m[1] ?? '').trim() === ''
   }
   return false
 }

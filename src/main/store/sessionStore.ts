@@ -145,7 +145,9 @@ export class SessionStore {
     const current = this.db.pragma('user_version', { simple: true }) as number
     this.db.transaction(() => {
       for (let v = current; v < MIGRATIONS.length; v++) {
-        MIGRATIONS[v](this.db)
+        const step = MIGRATIONS[v]
+        if (step === undefined) break
+        step(this.db)
         this.db.pragma(`user_version = ${v + 1}`)
       }
     })()
