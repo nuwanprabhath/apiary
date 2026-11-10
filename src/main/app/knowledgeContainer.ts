@@ -40,6 +40,7 @@ export function createKnowledge(inputs: KnowledgeInputs): KnowledgeParts {
       store,
       sessions: () => inputs.store.visibleSessions().map((s) => ({
         sessionId: s.sessionId, file: s.filePath, cwd: s.cwd, lastActive: s.lastActiveAtMs ?? s.fileMtimeMs,
+        accountId: inputs.accounts.accountOf(s.sessionId),
       })),
       runner: new ClaudeOneShot({ claudeBin: inputs.claudeBin }),
       accounts: inputs.accounts,
