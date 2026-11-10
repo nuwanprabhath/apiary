@@ -4,7 +4,17 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.9] - 2026-11-10
+## [1.60.10] - 2026-11-10
+
+### Fixed
+
+- Switching a session's account, or taking a terminal session over in chat, now makes sure the
+  old process is really gone (it is force-stopped if it ignores the first signal) and says so if it
+  cannot stop it, instead of starting a second Claude Code on the same session.
+- A message sent to a terminal that has just exited reports an error and keeps your text, instead
+  of being dropped.
+
+## [1.60.9] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Added
 
