@@ -62,14 +62,20 @@ export class TranscriptService {
     const session = this.deps.resolver.requireSession(sessionId)
     // Removing a git worktree takes its `~/.claude/projects/<slug>` directory with it, so the file
     // can vanish under Apiary.
-    if (!existsSync(session.filePath)) {
-      throw new Error(
-        `This session's transcript file is no longer on disk: ${session.filePath}. ` +
-        'It was most likely deleted along with the folder it ran in. ' +
-        'Remove the session from the sidebar to stop it being listed.',
-      )
+    const gone = (): Error => new Error(
+      `This session's transcript file is no longer on disk: ${session.filePath}. ` +
+      'It was most likely deleted along with the folder it ran in. ' +
+      'Remove the session from the sidebar to stop it being listed.',
+    )
+    if (!existsSync(session.filePath)) throw gone()
+    let page: T
+    try {
+      page = await readFile(session.filePath)
+    } catch (e) {
+      // Deleted between the check and the read: a refresh racing the worktree's removal.
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') throw gone()
+      throw e
     }
-    const page = await readFile(session.filePath)
     if (session.messageCount === null) {
       const { messageCount } = await this.deps.reader.indexTranscript(session.filePath)
       this.deps.store.setMessageCount(sessionId, messageCount)

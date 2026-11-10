@@ -14,14 +14,15 @@ test.beforeEach(async () => {
 test.afterEach(async () => { await h.close() })
 
 test('a session whose transcript file is gone explains itself instead of blanking the pane', async () => {
-  // Exactly the reported case: the folder a session ran in (a git worktree) is removed, taking
-  // `~/.claude/projects/<slug>` with it, while the session is still listed in Apiary's own store.
+  // The reported case: the folder a session ran in (a git worktree) is removed, taking
+  // `~/.claude/projects/<slug>` with it, while the session is open. Opened first, because the next
+  // full rescan removes the row of a transcript that is gone, so it may not be listed to click.
   const dir = join(h.projectsRoot, '-work-a')
   const file = readdirSync(dir).find((f) => f.endsWith('.jsonl'))
   expect(file).toBeDefined()
-  rmSync(join(dir, String(file)))
-
   await sidebarSession(h.page, 'Fix CSV export bug').click()
+  await expect(h.page.getByTestId('transcript')).toBeVisible()
+  rmSync(join(dir, String(file)))
 
   const pane = h.page.getByTestId('transcript-error')
   await expect(pane).toBeVisible()
