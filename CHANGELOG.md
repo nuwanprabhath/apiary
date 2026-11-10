@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.17] - 2026-11-10 (not released; shipped in 1.60.0)
+
+### Added
+
+- An architectural review of Apiary (`docs/reviews/2026-11-10-architectural_review.md`): latent
+  bugs, performance at library scale, the test harness, security and extensibility, with a task
+  plan for agents to carry out.
+
 ## [1.59.16] - 2026-11-10
 
 ### Fixed
