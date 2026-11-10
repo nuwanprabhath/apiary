@@ -8,7 +8,7 @@ import { open } from 'node:fs/promises'
 export const MAX_LINE_CHARS = 1_000_000
 
 const NEWLINE = 0x0a
-const DEFAULT_CHUNK_BYTES = 65536
+export const DEFAULT_CHUNK_BYTES = 65536
 
 /** The one `FileHandle.read` form `readExact` calls, so a test can hand it a reader that returns short. */
 interface Readable {

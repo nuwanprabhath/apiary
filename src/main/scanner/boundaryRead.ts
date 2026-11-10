@@ -1,7 +1,5 @@
 import { open } from 'node:fs/promises'
-import { readExact } from '../transcript/jsonlLines'
-
-const DEFAULT_CHUNK_BYTES = 65536
+import { DEFAULT_CHUNK_BYTES, readExact } from '../transcript/jsonlLines'
 
 async function readChunk(
   filePath: string,
