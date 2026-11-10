@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import type { StatusBarItem } from '@shared/domain/statusBar'
 import { renderApp } from './renderApp'
-import { stays, until } from './helpers'
+import { settled, stays, until } from './helpers'
 import { message, mrDeskStatus, regentStatus, withMrDesk, withRegent } from './residentFixtures'
 
 const USAGE: StatusBarItem = {
@@ -28,19 +28,24 @@ describe('the resident badge', () => {
     const { fake } = await renderApp({ statusBar: [USAGE] }, (f) => { withRegent(f) })
     await until(() => badge()?.dataset.state === 'idle')
     const bg = (): string => getComputedStyle(badge()!).backgroundColor
+    // The badge fades between states, and hover waits for the element to stop moving: read the
+    // resting colour and position only once both have settled, however slow the frames are.
+    const box = (): string => JSON.stringify(badge()!.getBoundingClientRect())
+    await settled(() => bg() + box(), 5, 8000)
     const idle = bg()
     await userEvent.hover(badge()!)
-    await until(() => bg() !== idle)
+    await until(() => bg() !== idle, 8000)
     const usage = document.querySelector<HTMLElement>('[data-testid="status-item-claude-usage-usage"]')!
     await userEvent.hover(usage)
-    await until(() => bg() === idle)
+    await until(() => bg() === idle, 8000)
     expect(getComputedStyle(usage).backgroundColor).not.toBe(idle)
 
     fake.emit('residentsChanged', [regentStatus('working', 'Searching sessions')])
     await until(() => badge()?.dataset.state === 'working')
+    await settled(() => bg() + box(), 5, 8000)
     const working = bg()
     await userEvent.hover(badge()!)
-    await until(() => bg() !== working)
+    await until(() => bg() !== working, 8000)
   })
 
   it('the bar shows when a resident is configured with no plugin items', async () => {
