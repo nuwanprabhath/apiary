@@ -4,7 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.10] - 2026-11-10
+## [1.60.11] - 2026-11-10
+
+### Changed
+
+- Resident kinds come from one registry. A saved resident of a kind this build does not know is
+  skipped with a log line and kept in your settings, so a newer Apiary can still run it.
+
+## [1.60.10] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Fixed
 
