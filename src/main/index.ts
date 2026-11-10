@@ -35,6 +35,7 @@ import type { KnowledgeParts } from './app/knowledgeContainer'
 import type { RemoteClientService } from './remote/remoteClientService'
 import type { RemoteHost } from '@shared/domain/remote'
 import type { Dispatcher } from './ipc/registrar'
+import { rendererEntryFile } from './ipc/ipcSenderGuard'
 import { fireAndForget } from './log/fireAndForget'
 import type { WindowManager } from './windows/windowManager'
 import { installQuitDeferral } from './app/lifecycle'
@@ -316,7 +317,7 @@ async function start(): Promise<void> {
     requireWindowWidth: (win, width) => { windowManager!.requireWidth(win, width) },
     activeTabs: container.activeTabs,
     // `parseRuntimeEnv` keeps the dev-server URL out of a packaged build, so the origin is null there.
-    senderPolicy: { devServerOrigin: env.rendererUrl ? new URL(env.rendererUrl).origin : null },
+    senderPolicy: { devServerOrigin: env.rendererUrl ? new URL(env.rendererUrl).origin : null, rendererFile: rendererEntryFile(dirname) },
     theme: {
       // APIARY_DEFAULT_THEME=original is test-only: the E2E suite is written against that look.
       store: container.themeStore,
