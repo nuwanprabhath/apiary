@@ -31,7 +31,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI
-    ? [['list'], ['html', { open: 'never' }], ['junit', { outputFile: 'test-results/junit.xml' }]]
+    ? [['list'], ['html', { open: 'never' }], ['junit', { outputFile: 'test-results/junit.xml' }], ['json', { outputFile: 'test-results/results.json' }]]
     : 'list',
   // A failed test keeps its trace and video under test-results/, which the nightly uploads.
   use: { trace: 'retain-on-failure', video: 'retain-on-failure' },

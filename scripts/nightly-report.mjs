@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Turns the nightly run's JUnit file into one open GitHub issue (label `nightly-e2e`): opened or
+// Turns the nightly run's JSON report into one open GitHub issue (label `nightly-e2e`): opened or
 // updated while tests fail or needed their retry, closed when a run is clean. Per OS, because the
 // workflow runs this once per matrix leg and each leg owns its own section of the issue body.
 // Run by .github/workflows/nightly-e2e.yml with `gh` and GH_TOKEN.
@@ -9,43 +9,25 @@ import { pathToFileURL } from 'node:url'
 
 const LABEL = 'nightly-e2e'
 
-function unescapeXml(s) {
-  return s
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
-}
-
-function attr(tag, name) {
-  const m = new RegExp(`\\b${name}="([^"]*)"`).exec(tag)
-  return m ? unescapeXml(m[1]) : ''
-}
-
 /**
- * `failed`: a title whose every attempt failed. `flaky`: a title that failed and then passed
- * (Playwright writes each attempt as its own testcase, or marks a retry with `flakyFailure`).
+ * Reads Playwright's JSON report. `failed`: tests whose every attempt failed (`unexpected`).
+ * `flaky`: tests that failed and then passed on retry (`flaky`); the JUnit file hides those.
  */
-export function parseJunit(xml) {
-  const outcomes = new Map()
-  const re = /<testcase\b([^>]*?)(\/>|>([\s\S]*?)<\/testcase>)/g
-  for (const m of xml.matchAll(re)) {
-    const title = [attr(m[1], 'classname'), attr(m[1], 'name')].filter(Boolean).join(' › ')
-    const body = m[3] ?? ''
-    if (/<skipped\b/.test(body)) continue
-    const entry = outcomes.get(title) ?? { pass: false, fail: false, flaky: false }
-    if (/<(failure|error)\b/.test(body)) entry.fail = true
-    else entry.pass = true
-    if (/<flakyFailure\b/.test(body)) entry.flaky = true
-    outcomes.set(title, entry)
-  }
+export function parseResults(json) {
   const failed = []
   const flaky = []
-  for (const [title, o] of outcomes) {
-    if (o.fail && !o.pass) failed.push(title)
-    else if (o.fail || o.flaky) flaky.push(title)
+  const walk = (suite) => {
+    for (const spec of suite.specs ?? []) {
+      for (const t of spec.tests ?? []) {
+        const title = [spec.file, spec.title].filter(Boolean).join(' › ')
+        const name = t.projectName ? `${title} [${t.projectName}]` : title
+        if (t.status === 'unexpected') failed.push(name)
+        else if (t.status === 'flaky') flaky.push(name)
+      }
+    }
+    for (const child of suite.suites ?? []) walk(child)
   }
+  for (const suite of json.suites ?? []) walk(suite)
   return { failed, flaky }
 }
 
@@ -79,8 +61,8 @@ function gh(args) {
 function main() {
   const os = process.env.RUNNER_OS ?? 'unknown'
   const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
-  const file = process.argv[2] ?? 'test-results/junit.xml'
-  const result = existsSync(file) ? parseJunit(readFileSync(file, 'utf8')) : { failed: [], flaky: [] }
+  const file = process.argv[2] ?? 'test-results/results.json'
+  const result = existsSync(file) ? parseResults(JSON.parse(readFileSync(file, 'utf8'))) : { failed: [], flaky: [] }
   gh(['label', 'create', LABEL, '--color', 'B60205', '--description', 'Opened by the nightly e2e run', '--force'])
   const number = gh(['issue', 'list', '--state', 'open', '--label', LABEL, '--json', 'number', '--jq', '.[0].number // empty'])
   const existing = number ? gh(['issue', 'view', number, '--json', 'body', '--jq', '.body']) : ''
