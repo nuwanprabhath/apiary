@@ -21,7 +21,7 @@ const SID = '11111111-1111-1111-1111-111111111111'
 function fakePty(running: Set<string> = new Set()): { pty: PtyManager; spawned: SpawnOptions[]; killed: string[]; write: ReturnType<typeof vi.fn> } {
   const spawned: SpawnOptions[] = []
   const killed: string[] = []
-  const write = vi.fn()
+  const write = vi.fn(() => true)
   const pty = {
     has: (id: string) => running.has(id),
     getCwd: () => undefined,

@@ -131,12 +131,24 @@ describe('composer: images and prompt delivery', () => {
     // reaches the pty, rather than by observing the shell's behaviour, which is what `sendPrompt`
     // itself controls and the one place SEC-6's fix has to take effect.
     const written: string[] = []
-    vi.spyOn(service.pty, 'write').mockImplementation((id, data) => { if (id === ptyId) written.push(data) })
+    vi.spyOn(service.pty, 'write').mockImplementation((id, data) => { if (id === ptyId) written.push(data); return true })
     await service.sendPrompt(ptyId, 'hi\x1b[201~\r!echo pwned')
 
     const all = written.join('')
     expect(all).not.toContain('\x1b[201~\r!echo pwned')
     // Exactly the one closing marker `sendPrompt` itself wraps the prompt in — none from the payload.
     expect(all.split('\x1b[201~').length - 1).toBe(1)
+  })
+
+  it('refuses a prompt when the pty stopped before it could be written, so the composer keeps its text', async () => {
+    makeSession(projects(), '-w', {
+      sessionId: '22222222-2222-2222-2222-222222222222', cwd: workdir, title: 'Stopped',
+    })
+    await service.refresh()
+    await service.importSessions(['22222222-2222-2222-2222-222222222222'], [])
+    await service.openShell(asSessionId('22222222-2222-2222-2222-222222222222'), '1')
+    const ptyId = 'shell:22222222-2222-2222-2222-222222222222:1'
+    vi.spyOn(service.pty, 'write').mockReturnValue(false)
+    await expect(service.sendPrompt(ptyId, 'hello')).rejects.toThrow(/stopped before the message was sent/i)
   })
 })

@@ -50,6 +50,8 @@ function claudePtyId(sessionId: string, ptyId: PtyId | null): string {
  * and the bracketed-paste and settle-timing rules in `sendPrompt` live here; see
  * `tests/integration/appService/composer.test.ts`.
  */
+const STOPPED_BEFORE_SEND = 'This session stopped before the message was sent'
+
 export class TerminalService {
   private readonly pty: PtyManager
   private readonly resolver: SessionResolver
@@ -117,7 +119,7 @@ export class TerminalService {
     const cwd = session.cwd
     if (!cwd || !existsSync(cwd)) throw new Error(`The folder for this session no longer exists: ${cwd ?? 'unknown'}`)
     const account = this.accounts.accountOf(sessionId)
-    await this.pty.killAndWait(id)
+    if ((await this.pty.killAndWait(id)) === 'alive') throw new Error("The session's terminal did not stop")
     this.pty.spawn({
       id, cwd, tui: true, account, ...this.pty.sizeOf(id),
       command: buildResumeCommand(sessionId, { claudeBin: this.claudeBin }),
@@ -311,8 +313,8 @@ export class TerminalService {
     if (normalised === '') return
     await this.pty.whenQuiet(ptyId, { quietMs: 250, capMs: 20_000 })
     const before = this.pty.outputCount(ptyId)
-    this.pty.write(ptyId, PASTE_START + normalised + PASTE_END)
+    if (!this.pty.write(ptyId, PASTE_START + normalised + PASTE_END)) throw new Error(STOPPED_BEFORE_SEND)
     await this.pty.whenQuiet(ptyId, { quietMs: 150, capMs: 1500, after: before })
-    this.pty.write(ptyId, '\r')
+    if (!this.pty.write(ptyId, '\r')) throw new Error(STOPPED_BEFORE_SEND)
   }
 }

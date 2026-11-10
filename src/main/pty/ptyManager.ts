@@ -23,7 +23,16 @@ export interface SpawnOptions {
 }
 
 type DataHandler = (id: string, data: string) => void
-type ExitHandler = (id: string, exitCode: number) => void
+type ExitHandler = (id: string, exitCode: number, signal: number | undefined) => void
+
+/** How a `killAndWait` ended: stopped on the default signal, only after SIGKILL, or still running. */
+export type KillResult = 'exited' | 'killed' | 'alive'
+
+/** Entries without a live child are kept for `cwd`; the oldest beyond this many are forgotten. */
+const MAX_DEAD_ENTRIES = 500
+
+/** How long `killAndWait` waits for the exit after SIGKILL. */
+const PTY_SIGKILL_WAIT_MS = 1000
 
 /**
  * Per-process cap, in `killAll()`, on how long we wait for a killed PTY's real exit. Measured on
@@ -59,6 +68,9 @@ interface PtyEntry {
 export class PtyManager {
   /** The one place per-pty state lives: never add a second map keyed by pty id. */
   private entries = new Map<string, PtyEntry>()
+
+  constructor(private readonly maxDeadEntries = MAX_DEAD_ENTRIES) {}
+
   /** A headless terminal per pty: what is on screen differs from what was sent (see `screen.ts`). */
   private screens = new ScreenBuffers()
   private dataHandlers: DataHandler[] = []
@@ -132,8 +144,8 @@ export class PtyManager {
       if (data.includes(ALT_SCREEN)) entry.tuiStarted = true
       for (const h of this.dataHandlers) h(opts.id, data)
     })
-    child.onExit(({ exitCode }) => {
-      log.info('pty', 'exited', { id: opts.id, exitCode })
+    child.onExit(({ exitCode, signal }) => {
+      log.info('pty', 'exited', { id: opts.id, exitCode, signal })
       const current = this.entries.get(opts.id)
       // A killed child's exit can arrive after a respawn took the entry.
       if (current !== undefined && current.child !== null && current.child !== child) return
@@ -141,8 +153,9 @@ export class PtyManager {
         // Exited on its own: release the headless `Terminal` (up to 1,000 lines of scrollback). `cwd` is kept.
         current.child = null
         this.screens.dispose(opts.id)
+        this.trimDead()
       }
-      for (const h of this.exitHandlers) h(opts.id, exitCode)
+      for (const h of this.exitHandlers) h(opts.id, exitCode, signal)
     })
 
     // The command is not logged: it can carry a session id and whatever the user configured.
@@ -211,8 +224,28 @@ export class PtyManager {
     })
   }
 
-  write(id: string, data: string): void {
-    ignoreErrors(() => this.entries.get(id)?.child?.write(data), 'the pty can exit before the keystroke lands')
+  /** False when there is no live child or the write threw: the pty can exit before the keystroke lands. */
+  write(id: string, data: string): boolean {
+    const child = this.entries.get(id)?.child
+    if (!child) return false
+    try {
+      child.write(data)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /** Forgets the oldest entries with no child once more than `MAX_DEAD_ENTRIES` remain. */
+  private trimDead(): void {
+    let dead = 0
+    for (const e of this.entries.values()) if (e.child === null) dead += 1
+    for (const [id, e] of this.entries) {
+      if (dead <= this.maxDeadEntries) break
+      if (e.child !== null) continue
+      this.entries.delete(id)
+      dead -= 1
+    }
   }
 
   /**
@@ -300,22 +333,34 @@ export class PtyManager {
     await Promise.all([...this.entries.keys()].map((id) => this.killAndWait(id, timeoutMs)))
   }
 
-  /** `kill(id)`, resolving once the process has really exited, or after `timeoutMs`. */
-  killAndWait(id: string, timeoutMs = PTY_KILL_TIMEOUT_MS): Promise<void> {
+  /**
+   * `kill(id)`, then SIGKILL to the process group (the pid if the group is gone) after `timeoutMs`,
+   * then up to 1,000 ms more. `'alive'` only when the process still has not exited.
+   */
+  killAndWait(id: string, timeoutMs = PTY_KILL_TIMEOUT_MS): Promise<KillResult> {
     const child = this.entries.get(id)?.child
-    if (!child) return Promise.resolve()
-    return new Promise<void>((resolve) => {
+    if (!child) return Promise.resolve('exited')
+    return new Promise<KillResult>((resolve) => {
       let settled = false
-      const done = (): void => {
+      let escalated = false
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const done = (result: KillResult): void => {
         if (settled) return
         settled = true
-        resolve()
-      }
-      const timer = setTimeout(done, timeoutMs)
-      child.onExit(() => {
         clearTimeout(timer)
-        done()
-      })
+        resolve(result)
+      }
+      child.onExit(() => done(escalated ? 'killed' : 'exited'))
+      timer = setTimeout(() => {
+        escalated = true
+        log.warn('pty', 'did not stop, sending SIGKILL', { id })
+        try {
+          process.kill(-child.pid, 'SIGKILL')
+        } catch {
+          ignoreErrors(() => process.kill(child.pid, 'SIGKILL'), 'already gone')
+        }
+        timer = setTimeout(() => done('alive'), PTY_SIGKILL_WAIT_MS)
+      }, timeoutMs)
       this.kill(id)
     })
   }

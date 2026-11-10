@@ -127,7 +127,8 @@ export class ChatService {
     const terminals = this.terminalsOf(sessionId)
     if (terminals.length > 0) {
       if (!opts.takeOver) throw new Error('This session is running in its terminal')
-      await Promise.all(terminals.map((id) => pty.killAndWait(id)))
+      const results = await Promise.all(terminals.map((id) => pty.killAndWait(id)))
+      if (results.includes('alive')) throw new Error("The session's terminal did not stop")
     }
     const session = resolver.requireSession(sessionId)
     const cwd = session.cwd

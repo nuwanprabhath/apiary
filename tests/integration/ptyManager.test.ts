@@ -170,7 +170,7 @@ describe('PtyManager', () => {
       // The old child's exit has been delivered (logged first thing in its handler, which then
       // runs to the end in the same turn).
       await vi.waitFor(() => {
-        expect(logged).toHaveBeenCalledWith('pty', 'exited', { id: 'respawn', exitCode: 7 })
+        expect(logged).toHaveBeenCalledWith('pty', 'exited', expect.objectContaining({ id: 'respawn', exitCode: 7 }))
       }, { timeout: 5000 })
 
       expect(m.has('respawn')).toBe(true)
@@ -243,6 +243,55 @@ describe('PtyManager', () => {
     // this isn't flaky under CI load while still catching a regression that removes the timeout.
     expect(elapsed).toBeLessThan(3000)
   }, 10000)
+
+  it('killAndWait escalates to SIGKILL and resolves "killed" only once the process is gone', async () => {
+    manager = new PtyManager()
+    const ready = collect(manager, 'esc', /APIARY_PID=\d+/)
+    manager.spawn({ id: 'esc', cwd: process.cwd(), command: "trap '' HUP TERM; echo APIARY_PID=$$; sleep 30" })
+    const pid = Number(/APIARY_PID=(\d+)/.exec(await ready)?.[1])
+    expect(pid).toBeGreaterThan(0)
+    expect(await manager.killAndWait('esc', 300)).toBe('killed')
+    expect(() => process.kill(pid, 0)).toThrow()
+  }, 10000)
+
+  it('killAndWait says "exited" for a process that stops on the default signal, and with no child', async () => {
+    manager = new PtyManager()
+    const ready = collect(manager, 'easy', /APIARY_UP/)
+    manager.spawn({ id: 'easy', cwd: process.cwd(), command: 'echo APIARY_UP; sleep 30' })
+    await ready
+    expect(await manager.killAndWait('easy', 3000)).toBe('exited')
+    expect(await manager.killAndWait('nothing')).toBe('exited')
+  }, 10000)
+
+  it('write reports whether a live child took it', async () => {
+    manager = new PtyManager()
+    expect(manager.write('none', 'x')).toBe(false)
+    const ready = collect(manager, 'w', /APIARY_W/)
+    manager.spawn({ id: 'w', cwd: process.cwd(), command: 'echo APIARY_W; sleep 30' })
+    await ready
+    expect(manager.write('w', 'x')).toBe(true)
+    manager.kill('w')
+    expect(manager.write('w', 'x')).toBe(false)
+  })
+
+  it('passes the exit signal to exit handlers', async () => {
+    manager = new PtyManager()
+    const signals: Array<number | undefined> = []
+    manager.onExit((id, _code, signal) => { if (id === 'sig') signals.push(signal) })
+    manager.spawn({ id: 'sig', cwd: process.cwd(), command: 'kill -KILL $$' })
+    await expect.poll(() => signals.length).toBe(1)
+    expect(signals[0]).toBeGreaterThan(0)
+  }, 10000)
+
+  it('forgets the oldest dead entries beyond the cap but keeps recent ones', async () => {
+    manager = new PtyManager(3)
+    for (let i = 0; i < 6; i++) {
+      manager.spawn({ id: `d${i}`, cwd: process.cwd(), command: 'true' })
+      await expect.poll(() => manager?.has(`d${i}`) === false).toBe(true)
+    }
+    expect(manager.getCwd('d0')).toBeUndefined()
+    expect(manager.getCwd('d5')).toBe(process.cwd())
+  }, 30000)
 
   // TerminalView can mount onto an already-running pty (a tab switch back) whose real size is
   // unchanged from what the pty already has. The kernel only raises SIGWINCH when TIOCSWINSZ
