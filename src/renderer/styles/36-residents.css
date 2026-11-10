@@ -401,10 +401,12 @@
 .resident-hover-blurb { color: var(--muted); }
 .resident-hover-text { min-width: 0; overflow-wrap: anywhere; }
 .resident-session-chip {
-  display: inline-flex;
-  gap: var(--space-xs);
-  align-items: center;
-  max-width: 100%;
+  display: inline-block;
+  max-width: min(32ch, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
   padding: 0 var(--space-sm);
   border: 1px solid color-mix(in sRGB, var(--resident-gold) 45%, transparent);
   border-radius: var(--radius-pill);
@@ -412,10 +414,9 @@
   color: var(--text);
   font: inherit;
   line-height: 1.5;
-  vertical-align: baseline;
   cursor: pointer;
 }
-.resident-session-chip::before { content: "◆"; color: var(--resident-gold); font-size: 0.7em; }
+.resident-session-chip::before { content: "◆"; margin-right: var(--space-xs); color: var(--resident-gold); font-size: 0.7em; }
 .resident-session-chip:hover { border-color: var(--resident-gold); }
 .resident-session-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 

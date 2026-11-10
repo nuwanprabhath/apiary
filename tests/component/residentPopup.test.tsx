@@ -74,6 +74,22 @@ describe('the resident popup', () => {
     await until(() => tabs().some((t) => t.textContent.includes('Fix CSV export bug')))
   })
 
+  it('a session whose title is a long multi-line prompt is a one-line chip', async () => {
+    const long = `You are the daily refresh job.\n\n1. Pull the data\n2. Rebuild   the dashboard\n${'If any step fails, stop and print the error. '.repeat(20)}`
+    await openPopup((f) => {
+      withRegent(f, { history: [message('assistant', `There is also [x](apiary://session/${STANDARD_SESSIONS.csv.id}) here.`)] })
+      f.state.sessions.find((s) => s.sessionId === STANDARD_SESSIONS.csv.id)!.title = long
+    })
+    await until(() => document.querySelector('[data-testid="resident-session-chip"]') !== null)
+    const chip = document.querySelector<HTMLElement>('[data-testid="resident-session-chip"]')!
+    const style = getComputedStyle(chip)
+    expect(chip.getBoundingClientRect().height).toBeLessThan(parseFloat(style.fontSize) * 2.4)
+    expect(chip.getBoundingClientRect().width).toBeLessThan(parseFloat(style.fontSize) * 40)
+    expect(chip.title.startsWith('You are the daily refresh job. 1. Pull the data 2. Rebuild the dashboard')).toBe(true)
+    expect(chip.title).not.toMatch(/\s{2}|\n/)
+    expect(chip.title.length).toBeLessThanOrEqual(301)
+  })
+
   it('Escape and an outside click do not close it; X does', async () => {
     await openPopup()
     await userEvent.keyboard('{Escape}')

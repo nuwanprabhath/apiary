@@ -159,6 +159,19 @@ describe('the resident chat popup', () => {
     await reviewUi('resident popup conversation', { widths: [620, 1000, 1400], within: popup })
   })
 
+  it('a chip whose session title is a whole prompt', async () => {
+    const long = `You are the daily refresh job for the pulse dashboard.\n\n1. Pull the data\n2. Rebuild the dashboard\n${'If any step fails, stop, and print the error. '.repeat(8)}`
+    await renderApp({}, (f) => {
+      withRegent(f, {
+        history: [message('assistant', `There's also [a](apiary://session/${STANDARD_SESSIONS.csv.id}) in the refresh, and [b](apiary://session/${STANDARD_SESSIONS.switcher.id}) too.`)],
+      })
+      f.state.sessions.find((x) => x.sessionId === STANDARD_SESSIONS.csv.id)!.title = long
+    })
+    await openPopup()
+    await until(() => popup()?.querySelectorAll('[data-testid="resident-session-chip"]').length === 2)
+    await reviewUi('resident popup long chip title', { widths: [620, 1000], within: popup })
+  })
+
   it('empty', async () => {
     await renderApp({}, (f) => { withRegent(f) })
     await openPopup()

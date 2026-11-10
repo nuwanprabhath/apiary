@@ -66,6 +66,7 @@ export interface LinkChips {
 }
 
 const CHIP_ID_ATTR = 'data-chip-id'
+const CHIP_TITLE_MAX = 300
 
 /**
  * A Copy button on every code block (a command to run, a snippet), added after sanitising: the
@@ -109,7 +110,10 @@ function chipLinks(html: string, chips: LinkChips): string {
     chip.setAttribute('class', chips.className)
     chip.setAttribute('data-testid', chips.testId)
     chip.setAttribute(CHIP_ID_ATTR, id)
-    chip.textContent = chips.labelOf(id) ?? a.textContent
+    // A title can be a whole prompt: one line in the chip, the (capped) text on hover.
+    const label = (chips.labelOf(id) ?? a.textContent).replace(/\s+/g, ' ').trim()
+    chip.textContent = label
+    chip.setAttribute('title', label.slice(0, CHIP_TITLE_MAX))
     a.replaceWith(chip)
   }
   return doc.body.innerHTML
