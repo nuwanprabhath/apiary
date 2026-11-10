@@ -4,7 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.20] - 2026-11-10
+## [1.60.21] - 2026-11-10
+
+### Added
+
+- A "UI diff" check on pull requests and pushes to `main` compares the UI screenshots with the
+  parent commit and lists the states that look different. It reports and never fails a build.
+
+## [1.60.20] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Fixed
 

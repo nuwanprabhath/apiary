@@ -75,6 +75,14 @@ each one.
 - `npm run ui:review` runs every scenario and writes `ui-review/index.html`: every screenshot on one
   page, stamped with the commit. Pass a scenario file to run only that one.
 
+### Comparing with the parent commit
+
+`node scripts/ui-diff.mjs --base <rev>` (default `HEAD~1`) runs the UI scenarios on both commits and
+writes `ui-review/diff/index.html`: each state that was added, removed or changed by more than 0.1%
+of its pixels, with before, after and the difference. The `UI diff` workflow does the same on every
+pull request and push to `main` that touches the renderer, and lists the states in the run summary.
+Look at every changed state it names. A change with no visual intent should list none.
+
 ## 3. The lead's review (judgment, on the screenshots)
 
 Never accept a UI change from its report or its tests. Open `ui-review/index.html`, or read the
