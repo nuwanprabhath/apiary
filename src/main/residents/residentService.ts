@@ -31,7 +31,7 @@ const STATUS_COALESCE_MS = 50
 const SEND_MAX = 8000
 const COMMAND_TIMEOUT_MS = 60 * 1000
 const COMMAND_OUTPUT_MAX = 20_000
-const fail = (message: string): never => { throw new Error(message) }
+const noResident = (id: string): never => { throw new Error(`No resident ${id}`) }
 /** The index is asked for more than the three shown, so dropping weak title hits still leaves some. */
 const INSTANT_CANDIDATES = 6
 
@@ -260,7 +260,7 @@ export class ResidentService {
   }
 
   private require(id: string): Resident {
-    return this.residents.get(id) ?? fail(`No resident ${id}`)
+    return this.residents.get(id) ?? noResident(id)
   }
 
   /** What the `apiary_status` and attention tools reach, for the resident their token names. */
