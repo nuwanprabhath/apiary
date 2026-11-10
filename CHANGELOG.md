@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.60.0] - 2026-11-10
+
+### Changed
+
+- CI and release builds cache Electron's downloads and retry a failed `npm ci`, and a release build
+  retries once when a binary download fails with a server error, instead of failing the run on a
+  passing GitHub outage.
+
 ## [1.59.17] - 2026-11-10 (not released; shipped in 1.60.0)
 
 ### Added
