@@ -450,7 +450,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     openDetachedWindow: (tab, at) => windowManager.create({ detach: tab, at }),
     windowNumberFor: (id) => windowManager.windowNumberFor(id),
   })
-  useVsCode(vscode)
+  useVsCode(vscode, service.pty)
   const { remoteWindows, hostDirectory, remoteClient } = createRemoteConnecting({
     homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion, vsCodePath: inputs.vsCodePath,
     sshConfig: env.sshConfig, tailscalePath: env.tailscalePath, hostsFile: paths.remoteHostsFile, pairingCodesFile: paths.remotePairingCodesFile, windowManager,

@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createServer } from 'node:net'
+import { log } from '../../src/main/log/logger'
+import { encodeFrame, encodeHandshakeFrame } from '../../src/main/remote/frames'
 import { RemoteConnection } from '../../src/main/remote/remoteConnection'
 import { RemoteServer } from '../../src/main/remote/remoteServer'
 import { VirtualContentsRegistry } from '../../src/main/remote/virtualContents'
@@ -103,5 +106,41 @@ describe('RemoteConnection against a real RemoteServer', () => {
   it("lists the work machine's window layouts", async () => {
     const c = await open()
     await expect(c.layouts()).resolves.toEqual([])
+  })
+})
+
+describe('RemoteConnection against a server that sends garbage', () => {
+  it('closes on a malformed message and logs no payload', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'apiary-remote-bad-'))
+    const path = join(dir, 's.sock')
+    const secret = 'SECRET-PAYLOAD-TEXT'
+    const raw = createServer((socket) => {
+      let greeted = false
+      // The hello gets a welcome; the next thing the client sends (its `open`) gets garbage.
+      socket.on('data', () => {
+        if (!greeted) {
+          greeted = true
+          socket.write(encodeHandshakeFrame({ t: 'welcome', host: 'bad-box', appVersion: VERSION }))
+        } else {
+          socket.write(encodeFrame({ t: 'event', w: 'not-a-number', channel: 7, args: secret }))
+        }
+      })
+      socket.on('error', () => {})
+    })
+    await new Promise<void>((resolve) => { raw.listen(path, resolve) })
+    const warn = vi.spyOn(log, 'warn')
+    try {
+      const c = await RemoteConnection.connect(path, { appVersion: VERSION })
+      const closed = new Promise<string>((resolve) => { c.onClosed(resolve) })
+      c.openWindow(1)
+      const reason = await closed
+      expect(reason).toContain('bad-box')
+      expect(warn).toHaveBeenCalled()
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(secret)
+    } finally {
+      warn.mockRestore()
+      raw.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
