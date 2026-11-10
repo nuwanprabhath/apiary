@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { PtySessionInfo } from '@shared/api'
 import { log } from '../log/logger'
@@ -20,14 +21,38 @@ import { log } from '../log/logger'
  */
 export function readClaudeSession(sessionsDir: string, pid: number): PtySessionInfo | null {
   let raw: string
-  try { raw = readFileSync(join(sessionsDir, `${String(pid)}.json`), 'utf8') } catch { return null }
+  try { raw = readFileSync(sessionFile(sessionsDir, pid), 'utf8') } catch { return null }
+  const info = parseSession(raw, pid)
+  return typeof info === 'string' ? null : info
+}
+
+/**
+ * The same read without blocking the main thread. `'missing'` is `ENOENT` only (or a file that
+ * names another process); `'unreadable'` is a half-written file or any other read error, which the
+ * tracker rides out rather than reporting "no session".
+ */
+export async function readClaudeSessionState(sessionsDir: string, pid: number): Promise<PtySessionInfo | 'missing' | 'unreadable'> {
+  let raw: string
+  try {
+    raw = await readFile(sessionFile(sessionsDir, pid), 'utf8')
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === 'ENOENT' ? 'missing' : 'unreadable'
+  }
+  return parseSession(raw, pid)
+}
+
+function sessionFile(sessionsDir: string, pid: number): string {
+  return join(sessionsDir, `${String(pid)}.json`)
+}
+
+function parseSession(raw: string, pid: number): PtySessionInfo | 'missing' | 'unreadable' {
   let data: unknown
-  try { data = JSON.parse(raw) } catch { return null }
-  if (typeof data !== 'object' || data === null) return null
+  try { data = JSON.parse(raw) } catch { return 'unreadable' }
+  if (typeof data !== 'object' || data === null) return 'missing'
   const d = data as Record<string, unknown>
   // A file left behind by an earlier process that had the same pid would name the wrong session.
-  if (typeof d.pid === 'number' && d.pid !== pid) return null
-  if (typeof d.sessionId !== 'string' || d.sessionId === '') return null
+  if (typeof d.pid === 'number' && d.pid !== pid) return 'missing'
+  if (typeof d.sessionId !== 'string' || d.sessionId === '') return 'missing'
   return {
     sessionId: d.sessionId,
     name: typeof d.name === 'string' && d.name !== '' ? d.name : null,
@@ -53,6 +78,8 @@ function signature(map: Record<string, PtySessionInfo>): string {
   return JSON.stringify(Object.keys(map).sort().map((k) => [k, map[k].sessionId, map[k].name, map[k].nameIsUser, map[k].status]))
 }
 
+const UNREADABLE_LIMIT = 5
+
 export interface TrackerOptions {
   /** pty id → pid and the `sessions` folder of the account it runs under, for every live TUI pty. */
   processes: () => Map<string, { pid: number; sessionsDir: string }>
@@ -66,13 +93,16 @@ export class ClaudeSessionTracker {
   private latest: Record<string, PtySessionInfo> = {}
   private lastSignature = ''
   private timer: NodeJS.Timeout | null = null
+  private running = false
+  /** Consecutive unreadable polls per pty. Invalidated by a readable or missing poll, or the pty going. */
+  private unreadable = new Map<string, number>()
 
   constructor(private readonly opts: TrackerOptions) {}
 
   start(): void {
     if (this.timer !== null) return
-    this.poll()
-    this.timer = setInterval(() => { this.poll() }, this.opts.intervalMs ?? 1000)
+    void this.poll()
+    this.timer = setInterval(() => { void this.poll() }, this.opts.intervalMs ?? 1000)
     this.timer.unref?.()
   }
 
@@ -85,12 +115,28 @@ export class ClaudeSessionTracker {
     return this.latest
   }
 
-  poll(): void {
+  async poll(): Promise<void> {
+    if (this.running) return
+    this.running = true
+    try { await this.pollOnce() } finally { this.running = false }
+  }
+
+  private async pollOnce(): Promise<void> {
     const next: Record<string, PtySessionInfo> = {}
-    for (const [ptyId, { pid, sessionsDir }] of this.opts.processes()) {
-      const info = readClaudeSession(sessionsDir, pid)
-      if (info !== null) next[ptyId] = info
-    }
+    const procs = [...this.opts.processes()]
+    const reads = await Promise.all(procs.map(([, { pid, sessionsDir }]) => readClaudeSessionState(sessionsDir, pid)))
+    const stillUnreadable = new Map<string, number>()
+    procs.forEach(([ptyId], i) => {
+      const info = reads[i]
+      if (info === 'unreadable') {
+        const n = (this.unreadable.get(ptyId) ?? 0) + 1
+        if (n >= UNREADABLE_LIMIT) {
+          if (n === UNREADABLE_LIMIT) log.warn('session-tracker', 'session file unreadable, treating as missing', { ptyId, polls: n })
+        } else if (this.latest[ptyId] !== undefined) next[ptyId] = this.latest[ptyId]
+        stillUnreadable.set(ptyId, n)
+      } else if (info !== 'missing') next[ptyId] = info
+    })
+    this.unreadable = stillUnreadable
     // Logged per transition: which pty moved to which session, and when.
     for (const [ptyId, info] of Object.entries(next)) {
       const before = this.latest[ptyId]
