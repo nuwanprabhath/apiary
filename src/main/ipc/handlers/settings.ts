@@ -69,7 +69,7 @@ export function settingsHandlers(deps: SettingsDeps): Pick<Handlers, HandledKeys
     onAutoImportIntervalChange?.(merged.autoImportIntervalMinutes)
     if (merged.autoImportAll && !current.autoImportAll) {
       await service.importAllDiscovered()
-      broadcast(IPC.treeChanged)
+      broadcast(IPC.treeChanged, { sessions: null })
     }
   }
 

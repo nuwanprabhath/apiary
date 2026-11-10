@@ -33,6 +33,7 @@ import { PluginService } from '../plugins/pluginService'
 import { StatusBarRegistry } from '../statusBar/registry'
 import type { ConsentStorage } from '../statusBar/claudeUsage/consent'
 import type { ChatLifecycle } from '@shared/domain/chat'
+import { treeChangeOfPaths } from '@shared/domain/session'
 import type { PluginSettingValues } from '@shared/domain/plugins'
 import { fireAndForget } from '../log/fireAndForget'
 import { ClaudeSessionTracker } from '../claude/claudeSessionTracker'
@@ -431,8 +432,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
       save: (state) => { settingsService.patch({ claudeUsageConsent: state }) },
     },
     persistPluginEnabled: (pluginId, enabled) => { settingsService.patch({ plugins: { ...settingsService.get().plugins, [pluginId]: enabled } }) },
-    onIndexUpdated: () => { broadcast(IPC.treeChanged) },
-    onLiveChanged: () => { broadcast(IPC.treeChanged) },
+    onIndexUpdated: () => { broadcast(IPC.treeChanged, { sessions: null }) }, onLiveChanged: () => { broadcast(IPC.treeChanged, { sessions: null }) },
     detectLive: fakeLive !== undefined && fakeLive !== ''
       ? async () => new Map([[fakeLive, 4242]])
       : undefined,
@@ -442,7 +442,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     onChange: (changed) => {
       // A background task starting or finishing writes the session file while its terminal may be quiet.
       broadcast(IPC.activeTabsChanged)
-      fireAndForget(service.refresh({ paths: changed }).then(() => { broadcast(IPC.treeChanged) }), 'watcher')
+      fireAndForget(service.refresh({ paths: changed }).then(() => { broadcast(IPC.treeChanged, treeChangeOfPaths(changed)) }), 'watcher')
     },
   })
   const ipcState = createIpcState({

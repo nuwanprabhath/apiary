@@ -1,4 +1,5 @@
 import type { SessionId } from '@shared/domain/ids'
+import { treeChangeConcerns } from '@shared/domain/session'
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { TranscriptMessage } from '@shared/types'
 import { mergeLatestPage } from '../../state/transcriptMerge'
@@ -90,10 +91,11 @@ export function useTranscriptPages(
     return () => { cancelled = true }
   }, [sessionId, reloadNonce, stickToBottomRef, forceScrollRef, commit])
 
-  // `onTreeChanged` (debounced ~1s in main) carries no per-session payload, so each firing
-  // re-fetches this session's latest page and merges it.
+  // A tree change that may concern this session (debounced ~1s in main) re-fetches its latest
+  // page and merges it; one naming only other sessions is ignored.
   useEffect(() => {
-    const unsubscribe = treeStore.onChanged(() => {
+    const unsubscribe = treeStore.onChanged((change) => {
+      if (!treeChangeConcerns(change, sessionId)) return
       // The initial load's own response already has the freshest tail.
       if (loadingRef.current || refreshingRef.current) return
       // Captured per firing, not at setup, so it reflects the current visit.

@@ -27,7 +27,7 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
     target: GitTarget, branchMayChange: boolean,
   ): Promise<void> => {
     if (branchMayChange) await service.refreshProjectByKey(target)
-    broadcast(IPC.treeChanged)
+    broadcast(IPC.treeChanged, { sessions: null })
   }
 
   return {
@@ -71,7 +71,7 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
     gitPullFolder: async (_e, path) => {
       const outcome = await service.gitPullFolder(path)
       // A no-op pull happens on every hover-card poll, so broadcast only when commits arrived.
-      if (outcome.commits > 0) broadcast(IPC.treeChanged)
+      if (outcome.commits > 0) broadcast(IPC.treeChanged, { sessions: null })
       return outcome
     },
     listWorktrees: (_e, path) => service.listWorktrees(path),
