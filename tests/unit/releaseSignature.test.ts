@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { generateKeyPairSync, sign } from 'node:crypto'
-import { verifyFeedSignature, RELEASE_PUBLIC_KEY, UNVERIFIED_MESSAGE } from '../../src/main/update/releaseSignature'
+import { verifyFeedSignature, RELEASE_PUBLIC_KEY, UNVERIFIED_MESSAGE, servedMatchesSigned, parseFeedFacts } from '../../src/main/update/releaseSignature'
 
 const pair = generateKeyPairSync('ed25519')
 const publicPem = pair.publicKey.export({ type: 'spki', format: 'pem' }).toString()
@@ -31,5 +31,34 @@ describe('verifyFeedSignature', () => {
   it('ships a real public key and the refusal text', () => {
     expect(RELEASE_PUBLIC_KEY).toContain('BEGIN PUBLIC KEY')
     expect(UNVERIFIED_MESSAGE).toBe('This update could not be verified')
+  })
+})
+
+describe('servedMatchesSigned', () => {
+  const signed = Buffer.from([
+    'version: 1.2.3',
+    'files:',
+    '  - url: Apiary-1.2.3-arm64.dmg',
+    '    sha512: AAA==',
+    '    size: 10',
+    "  - url: 'Apiary-1.2.3-arm64.zip'",
+    '    sha512: BBB==',
+    'path: Apiary-1.2.3-arm64.dmg',
+    'sha512: AAA==',
+    "releaseDate: '2026-11-10T00:00:00.000Z'",
+  ].join('\n'))
+  const files = [{ url: 'Apiary-1.2.3-arm64.dmg', sha512: 'AAA==' }, { url: 'Apiary-1.2.3-arm64.zip', sha512: 'BBB==' }]
+
+  it('accepts a served feed that says what the signed one says', () => {
+    expect(servedMatchesSigned(signed, { version: '1.2.3', files })).toBe(true)
+  })
+  it('refuses another version, another hash, or another set of files', () => {
+    expect(servedMatchesSigned(signed, { version: '1.2.4', files })).toBe(false)
+    expect(servedMatchesSigned(signed, { version: '1.2.3', files: [files[0], { ...files[1], sha512: 'EVIL==' }] })).toBe(false)
+    expect(servedMatchesSigned(signed, { version: '1.2.3', files: [files[0]] })).toBe(false)
+  })
+  it('refuses a signed feed it cannot read', () => {
+    expect(servedMatchesSigned(Buffer.from('files: []\n'), { version: '1.2.3', files: [] })).toBe(false)
+    expect(parseFeedFacts('version: 1\nfiles:\n  - url: x\n')).toBeNull()
   })
 })

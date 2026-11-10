@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { ciVerdict } from './release-ci-gate.mjs'
 
-const EXPECTED_ASSETS = [/\.dmg$/, /\.zip$/, /^latest-mac\.yml$/, /\.AppImage$/, /\.deb$/, /^latest-linux\.yml$/]
+const EXPECTED_ASSETS = [/\.dmg$/, /\.zip$/, /^latest-mac\.yml$/, /\.AppImage$/, /\.deb$/, /^latest-linux\.yml$/, /^latest-mac\.yml\.sig$/, /^latest-linux\.yml\.sig$/]
 const MAX_RERUNS = 2
 
 const compare = (a, b) => {
@@ -65,7 +65,7 @@ export function isTransientDownloadFailure(log) {
 }
 
 /**
- * Which of the six expected assets are missing from the release's asset names.
+ * Which of the eight expected assets are missing from the release's asset names.
  * @param {string[]} names
  * @returns {string[]}
  */
@@ -84,7 +84,7 @@ const PLAN = [
   'wait for CI on that commit',
   'create and push the tag',
   'watch the release run; re-run failed jobs on a transient download error (at most twice)',
-  'check the release is published with its six assets',
+  'check the release is published with its eight assets',
 ]
 
 async function confirm(question) {

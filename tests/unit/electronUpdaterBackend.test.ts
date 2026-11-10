@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type * as ReleaseSignature from '../../src/main/update/releaseSignature'
 
 const openPath = vi.fn<(path: string) => Promise<string>>()
 const showItemInFolder = vi.fn<(path: string) => void>()
@@ -32,11 +33,30 @@ vi.mock('electron-updater', () => ({
   },
 }))
 const feedVerifies = vi.fn<() => boolean>(() => true)
-vi.mock('../../src/main/update/releaseSignature', () => ({
-  verifyFeedSignature: () => feedVerifies(),
-  UNVERIFIED_MESSAGE: 'This update could not be verified',
+vi.mock('../../src/main/update/releaseSignature', async (importActual) => {
+  const actual: typeof ReleaseSignature = await importActual()
+  return { ...actual, verifyFeedSignature: (_feed: Buffer, sig: Buffer | null) => sig !== null && feedVerifies() }
+})
+
+interface ServedInfo { version: string; files: { url: string; sha512: string }[] }
+/** The signed `latest-*.yml` the release holds; by default it says what electron-updater was served. */
+let signedFeed: ServedInfo | null = null
+async function servedInfo(): Promise<ServedInfo> {
+  const result = await (checkForUpdates.getMockImplementation()?.() as Promise<{ updateInfo: ServedInfo }> | undefined)
+  if (result === undefined) throw new Error('no checkForUpdates mock')
+  return result.updateInfo
+}
+function feedYaml(info: ServedInfo): string {
+  const files = info.files.map((f) => `  - url: ${f.url}\n    sha512: ${f.sha512}\n    size: 1\n`).join('')
+  return `version: ${info.version}\nfiles:\n${files}path: x\nsha512: y\nreleaseDate: '2026-11-10T00:00:00.000Z'\n`
+}
+vi.mock('node:https', () => ({
+  get: (url: string, opts: unknown, cb: (r: unknown) => void) => {
+    if (!url.endsWith('.yml')) return httpGet(url, opts, cb)
+    void servedInfo().then((info) => { cb(fakeResponse(Buffer.from(feedYaml(signedFeed ?? info)))) })
+    return { on: () => {} }
+  },
 }))
-vi.mock('node:https', () => ({ get: (url: string, opts: unknown, cb: (r: unknown) => void) => httpGet(url, opts, cb) }))
 vi.mock('node:child_process', () => ({ execFile: (...args: Parameters<typeof execFileMock>) => execFileMock(...args) }))
 
 // Imported after the mocks above so the module picks them up.
@@ -75,6 +95,37 @@ describe('feed signature', () => {
     })
     const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64' }, stubInstaller)
     await expect(backend.check({ allowPrerelease: false })).rejects.toThrow('This update could not be verified')
+  })
+
+  describe('the served feed must say what the signed feed says', () => {
+    const served = { version: '1.18.2', releaseNotes: 'n', files: [{ url: 'apiary_1.18.2_amd64.deb', sha512: 'GOOD' }] }
+    beforeEach(() => {
+      checkForUpdates.mockResolvedValue({ updateInfo: served })
+      httpGet.mockImplementation((_url: string, _opts: unknown, cb: (r: unknown) => void) => {
+        cb(fakeResponse(Buffer.from('sig')))
+        return { on: () => {} }
+      })
+    })
+    afterEach(() => { signedFeed = null })
+
+    it('refuses a served feed whose sha512 differs from the signed one', async () => {
+      signedFeed = { version: '1.18.2', files: [{ url: 'apiary_1.18.2_amd64.deb', sha512: 'OTHER' }] }
+      const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64' }, stubInstaller)
+      await expect(backend.check({ allowPrerelease: false })).rejects.toThrow('This update could not be verified')
+      await expect(backend.downloadInstaller(() => {})).rejects.toThrow('No update has been found')
+    })
+
+    it('refuses a signed feed that names another version than the served one', async () => {
+      signedFeed = { version: '1.10.0', files: [{ url: 'apiary_1.18.2_amd64.deb', sha512: 'GOOD' }] }
+      const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64' }, stubInstaller)
+      await expect(backend.check({ allowPrerelease: false })).rejects.toThrow('This update could not be verified')
+    })
+
+    it('offers the update when the served feed matches the signed one', async () => {
+      signedFeed = { version: '1.18.2', files: [{ url: 'apiary_1.18.2_amd64.deb', sha512: 'GOOD' }] }
+      const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64' }, stubInstaller)
+      await expect(backend.check({ allowPrerelease: false })).resolves.toMatchObject({ version: '1.18.2' })
+    })
   })
 })
 

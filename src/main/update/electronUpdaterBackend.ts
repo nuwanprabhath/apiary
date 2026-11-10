@@ -13,7 +13,7 @@ import electronUpdater, { type UpdateInfo } from 'electron-updater'
 import type { FeedResult, OpenInstallerResult, UpdateBackend } from './updateService'
 import { pickInstaller, type BackendOptions } from './installerAsset'
 import { hashFile, type PlatformInstaller } from './platformInstaller'
-import { verifyFeedSignature, UNVERIFIED_MESSAGE } from './releaseSignature'
+import { verifyFeedSignature, servedMatchesSigned, UNVERIFIED_MESSAGE } from './releaseSignature'
 
 /**
  * The real updater, wired to electron-updater and GitHub Releases.
@@ -59,9 +59,14 @@ async function readAll(response: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks)
 }
 
-/** Fetches `latest-<platform>.yml` and its `.sig` from the release and throws unless the signature verifies; a missing `.sig` is a failure too. */
-async function assertFeedSigned(repo: string, version: string, platform: NodeJS.Platform): Promise<void> {
+/**
+ * Fetches `latest-<platform>.yml` and its `.sig` from the release and throws unless the signature
+ * verifies (a missing `.sig` is a failure too) and the verified feed names the same version and
+ * the same files and hashes as `served`, electron-updater's own unverified copy.
+ */
+async function assertFeedSigned(repo: string, served: UpdateInfo, platform: NodeJS.Platform): Promise<void> {
   if (platform !== 'darwin' && platform !== 'linux') return
+  const { version } = served
   const feedName = platform === 'darwin' ? 'latest-mac.yml' : 'latest-linux.yml'
   const base = `https://github.com/${repo}/releases/download/v${version}/${feedName}`
   const fetchOrNull = async (url: string): Promise<Buffer | null> => {
@@ -76,6 +81,10 @@ async function assertFeedSigned(repo: string, version: string, platform: NodeJS.
   const signature = await fetchOrNull(`${base}.sig`)
   if (feed === null || !verifyFeedSignature(feed, signature)) {
     log.warn('update', 'update feed signature missing or invalid', { version })
+    throw new Error(UNVERIFIED_MESSAGE)
+  }
+  if (!servedMatchesSigned(feed, served)) {
+    log.warn('update', 'served update feed differs from the signed one', { version })
     throw new Error(UNVERIFIED_MESSAGE)
   }
 }
@@ -141,7 +150,7 @@ export function createUpdateBackend(opts: BackendOptions, installer: PlatformIns
       if (result === null) return null
       latest = null // set only after the signature passes: `latest.files` hashes are used later
       const { version, releaseNotes: notes } = result.updateInfo
-      await assertFeedSigned(opts.repo, version, opts.platform)
+      await assertFeedSigned(opts.repo, result.updateInfo, opts.platform)
       latest = result.updateInfo
       return {
         version,
