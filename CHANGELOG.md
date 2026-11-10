@@ -4,7 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.4] - 2026-11-10
+## [1.60.5] - 2026-11-10
+
+### Fixed
+
+- A terminal no longer loses its session for a moment, and its tab its title, when Claude Code is
+  midway through rewriting its session file; reading that file no longer blocks the app either.
+
+## [1.60.4] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Added
 
