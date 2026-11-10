@@ -95,14 +95,29 @@ export function unknownKindFilter(
   }
 }
 
-/** `kindOf` over kinds built with `deps`; the container passes the real ones. */
-export function kindLookup(deps: KindDeps): (id: ResidentKindId) => ResidentKind {
+/** `kindOf` over kinds built with `deps`, then the data kinds (`kinds/manifestKind.ts`); the container passes the real ones. */
+export function kindLookup(deps: KindDeps, dataKinds: readonly ResidentKind[] = []): (id: ResidentKindId) => ResidentKind {
   const registry = builtinRegistry(deps)
+  for (const kind of dataKinds) registry.register(kind)
   return (id) => registry.get(id)
+}
+
+/** The built-in kinds' ids: a data kind may not take one. */
+export function builtinKindIds(): ReadonlySet<string> {
+  return new Set(builtinKinds(UNWIRED_KIND_DEPS).map((k) => k.id))
 }
 
 /** The kinds as the renderer fake and tests see them: their fields are real, nothing reaches the machine. */
 const unwired = builtinRegistry(UNWIRED_KIND_DEPS)
+
+/**
+ * Adds the data kinds read at start to what `kindOf` and `kindInfos` see. A data kind reaches
+ * nothing outside, so the same objects serve here and in `kindLookup`. The container calls it once.
+ */
+export function showDataKinds(kinds: readonly ResidentKind[]): void {
+  const shown = new Set(unwired.all().map((k) => k.id))
+  for (const kind of kinds) if (!shown.has(kind.id)) unwired.register(kind)
+}
 
 export function kindOf(id: ResidentKindId): ResidentKind { return unwired.get(id) }
 

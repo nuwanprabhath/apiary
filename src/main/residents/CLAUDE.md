@@ -32,7 +32,16 @@ kind's own `options`). Regent is the first kind; the MR desk is the second.
   `REGENT_KIND` and `MR_DESK_KIND`. Which ids exist is a `KindRegistry` (`kinds.ts`), filled from
   `builtinKinds`. The settings guard accepts any well-formed id; `ResidentService` does not run a
   resident whose kind the registry lacks (`unknownKindFilter`) and logs the id once.
-- `kindInfos()` is what the renderer sees of a kind (`residentKinds`), derived from `builtinKinds`.
+- `kindInfos()` is what the renderer sees of a kind (`residentKinds`), derived from `builtinKinds`
+  plus the data kinds the container passed to `showDataKinds`.
+- **A user's kind is data, never code** (ADR-0022). `userData/resident-kinds/<id>/kind.json` plus an
+  optional PROMPT.md, read once at start by `readManifestKinds` (`kinds/manifestKind.ts`); no file
+  watching. `validateResidentKindManifest` (`src/shared/residentKindManifest.ts`) is the only way
+  in: name, blurb, appearance, capabilities (not `gitlab.approve`), `text` option fields, `prompt`
+  quick actions, a cycle and a `toolPolicy`; never commands, `bins`, `env`, `prepare` or `digests`,
+  and never a built-in's id. `manifestKind` gives it `setup: () => null`, no bins, a `manual`
+  permission mode and Apiary's preamble before the author's prompt. A refused folder is logged by
+  name and reason.
 - Each tool in `APIARY_TOOLS` carries its capability, a JSON schema for tools/list and a guard
   that checks the arguments before the handler runs. `toolsFor(capabilities)` is what a resident sees.
 - No tool takes a path. A session id from the agent is checked against the session store; an
