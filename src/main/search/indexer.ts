@@ -1,13 +1,15 @@
-import { createReadStream } from 'node:fs'
-import { stat } from 'node:fs/promises'
-import { createInterface } from 'node:readline'
+import { open, stat } from 'node:fs/promises'
 import { ignoreErrorsAsync } from '@shared/ignoreErrors'
+import { forEachLine, MAX_LINE_CHARS, readExact } from '../transcript/jsonlLines'
 import { extractLineText } from './extractText'
 import { extractRefs, type Ref } from '../knowledge/refs'
-import { MAX_TEXT_PER_SESSION, type SearchIndex } from './searchIndex'
+import { CHUNK_CHARS, MAX_TEXT_PER_SESSION, type SearchIndex } from './searchIndex'
 
 /** A longer line (a base64 blob, a pasted log) is skipped unparsed: `JSON.parse` would freeze the main thread. */
-export const MAX_LINE_LENGTH = 1_000_000
+export const MAX_LINE_LENGTH = MAX_LINE_CHARS
+
+/** The byte form of `MAX_LINE_LENGTH` for the line reader (up to three bytes a character). */
+const INDEX_LINE_BYTE_CAP =MAX_LINE_LENGTH * 3
 
 /**
  * Keeps the search index up to date on the main thread.
@@ -18,7 +20,8 @@ export const MAX_LINE_LENGTH = 1_000_000
  * protocol. If one file's read ever pauses too long, yield inside the read (the line reader
  * already streams) rather than moving it off-thread.
  *
- * Incremental: a session whose file has not changed is skipped without being opened.
+ * Incremental: a session whose file has not changed is skipped without being opened, and one that
+ * only grew is read from where the last pass stopped.
  */
 
 export interface IndexableSession {
@@ -35,39 +38,60 @@ export interface IndexRunResult {
 }
 
 /**
- * Reads one session's JSONL and returns the text worth indexing from it.
+ * Reads the text worth indexing from byte `from` on, as chunks of at most `CHUNK_CHARS`.
  *
- * Stops collecting once the length passes `MAX_TEXT_PER_SESSION`, so a huge session never holds an
- * unbounded array that `searchIndex.ts` would cut down anyway.
+ * Keeps the newest text within `MAX_TEXT_PER_SESSION` while reading (and the first chunk when
+ * `keepFirst`), so a huge session never holds an unbounded array.
  */
-export async function readSearchText(file: string): Promise<string> {
-  return (await readSearchData(file)).text
+async function readSearchChunks(file: string, from: number, keepFirst: boolean): Promise<{
+  chunks: string[]
+  refs: Ref[]
+  upto: number
+}> {
+  const chunks: string[] = []
+  const refs = new Map<string, Ref>()
+  let current = ''
+  let held = 0
+  const push = (chunk: string): void => {
+    chunks.push(chunk)
+    held += chunk.length
+    while (held > MAX_TEXT_PER_SESSION && chunks.length > (keepFirst ? 2 : 1)) {
+      const at = keepFirst ? 1 : 0
+      held -= chunks[at].length
+      chunks.splice(at, 1)
+    }
+  }
+  const { nextOffset } = await forEachLine(file, { start: from, maxLineBytes: INDEX_LINE_BYTE_CAP }, (line) => {
+    if (line.length > MAX_LINE_LENGTH) return
+    const text = extractLineText(line)
+    if (text === null) return
+    for (const ref of extractRefs(text)) refs.set(`${ref.kind}|${ref.value}`, ref)
+    current = current === '' ? text : `${current}\n${text}`
+    while (current.length >= CHUNK_CHARS) {
+      push(current.slice(0, CHUNK_CHARS))
+      current = current.slice(CHUNK_CHARS)
+    }
+  })
+  if (current !== '') push(current)
+  return { chunks, refs: [...refs.values()], upto: nextOffset }
 }
 
-/** The searchable text of a session and the refs (MRs, issues, tickets, links) mentioned in it. */
-async function readSearchData(file: string): Promise<{ text: string; refs: Ref[] }> {
-  const parts: string[] = []
-  const refs = new Map<string, Ref>()
-  let length = 0
-  const reader = createInterface({
-    input: createReadStream(file, { encoding: 'utf8' }),
-    crlfDelay: Infinity,
-  })
+/** The searchable text a whole read of the session keeps: its first chunk and its newest. */
+export async function readSearchText(file: string): Promise<string> {
+  return (await readSearchChunks(file, 0, true)).chunks.join('\n')
+}
+
+/** A file rewritten rather than appended to rarely has a newline just before the old offset. */
+async function endsAtLineBoundary(file: string, upto: number): Promise<boolean> {
+  if (upto <= 0) return false
+  const handle = await open(file, 'r')
   try {
-    for await (const line of reader) {
-      if (length >= MAX_TEXT_PER_SESSION) break
-      if (line.length > MAX_LINE_LENGTH) continue
-      const text = extractLineText(line)
-      if (text !== null) {
-        parts.push(text)
-        for (const ref of extractRefs(text)) refs.set(`${ref.kind}|${ref.value}`, ref)
-        length += text.length + 1 // +1 for the '\n' the eventual join() adds
-      }
-    }
+    const byte = Buffer.alloc(1)
+    const read = await readExact(handle, byte, upto - 1)
+    return read === 1 && byte[0] === 0x0a
   } finally {
-    reader.close()
+    await handle.close()
   }
-  return { text: parts.join('\n'), refs: [...refs.values()] }
 }
 
 export const yieldToLoop = (): Promise<void> => new Promise((resolve) => { setImmediate(resolve) })
@@ -106,8 +130,12 @@ export async function runIndexPass(
     }
 
     await ignoreErrorsAsync(async () => {
-      const { text, refs } = await readSearchData(session.file)
-      index.put(session.sessionId, text, size, mtimeMs, refs)
+      // A file that only grew is read from where the last pass stopped; anything else starts again.
+      const state = index.indexState(session.sessionId)
+      const reset = state === undefined || size <= state.size || !(await endsAtLineBoundary(session.file, state.upto))
+      const from = reset ? 0 : state.upto
+      const { chunks, refs, upto } = await readSearchChunks(session.file, from, reset)
+      index.write(session.sessionId, { chunks, refs, size, mtimeMs, upto, reset })
       indexed += 1
     }, 'one unreadable session must not stop the rest of the pass')
     await yieldToLoop()
