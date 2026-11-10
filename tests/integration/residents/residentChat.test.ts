@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -8,6 +8,12 @@ import { ResidentSpace } from '../../../src/main/residents/residentSpace'
 
 /** A real login shell running tests/fixtures/fake-claude-chat.mjs, which speaks claude's stream-json. */
 const FAKE = resolve(__dirname, '../../fixtures/fake-claude-chat.mjs')
+
+// The fake claude needs no profile: a bare sh login shell starts in milliseconds, where the
+// maintainer's zsh/bash rc files cost 0.5 s per spawn alone and seconds on a busy machine.
+let realShell: string | undefined
+beforeAll(() => { realShell = process.env.SHELL; process.env.SHELL = '/bin/sh' })
+afterAll(() => { if (realShell === undefined) delete process.env.SHELL; else process.env.SHELL = realShell })
 
 const dirs: string[] = []
 const chats: ResidentChat[] = []
