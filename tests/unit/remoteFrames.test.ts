@@ -72,9 +72,11 @@ describe('FrameDecoder at scale', () => {
       return Buffer.allocUnsafe(size)
     })
     const chunked = time(counting, chunks)
-    const single = time(new FrameDecoder(), [bytes])
+    // Two pushes force the same one copy a chunked frame costs, so the ratio isolates per-chunk work.
+    const half = Math.floor(bytes.length / 2)
+    const single = time(new FrameDecoder(), [bytes.subarray(0, half), bytes.subarray(half)])
     expect(sizes.filter((s) => s > 1024 * 1024).length).toBeLessThan(5)
-    expect(chunked).toBeLessThan(Math.max(single, 1) * 5 + 50)
+    expect(chunked).toBeLessThan(Math.max(single, 1) * 5)
   })
 })
 
