@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.25] - 2026-11-10
+## [1.60.26] - 2026-11-10
+
+### Changed
+
+- A terminal that floods output (`yes`, a large `cat`) is slowed to what its windows can draw, so the
+  rest of the app stays responsive. The app's internal message contract changed, so remote access
+  refuses to pair two machines on different versions.
+
+## [1.60.25] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Security
 
