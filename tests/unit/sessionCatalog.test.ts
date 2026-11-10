@@ -1,5 +1,8 @@
 import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect, vi } from 'vitest'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { WorktreeResolver } from '../../src/main/git/worktreeResolver'
 import { SessionCatalog } from '../../src/main/sessions/sessionCatalog'
 import type { SessionStore } from '../../src/main/store/sessionStore'
@@ -13,6 +16,7 @@ function fakeStore(): SessionStore {
     syncAll: () => {},
     allSessions: () => [],
     getSession: () => null,
+    removeMissing: () => ({ removed: [], kept: [] }),
   } as unknown as SessionStore
 }
 
@@ -183,5 +187,63 @@ describe('SessionCatalog live-session detection is throttled (MAIN-1)', () => {
     for (let i = 0; i < 5; i += 1) await h.catalog.refresh({ paths: scoped })
     await vi.waitFor(() => { expect(h.detects()).toBe(2) })
     expect(h.liveChanged()).toBe(0)
+  })
+})
+
+describe('SessionCatalog scoped and full passes', () => {
+  type ScanArg = { isUnchanged?: (p: string, s: number, m: number) => boolean; stats?: { filesSeen: number; filesParsed: number } }
+  function pruneHarness(stored: string[], seenByScan: string[], scanSeen = seenByScan.length) {
+    const removeMissing = vi.fn((_seen: ReadonlySet<string>) => ({ removed: ['gone'], kept: [] as string[] }))
+    const store = {
+      fileStamps: () => new Map(stored.map((p) => [p, { size: 1, mtimeMs: 1 }])),
+      distinctCwds: () => [], syncAll: () => {}, allSessions: () => [], getSession: () => null,
+      removeMissing,
+    } as unknown as SessionStore
+    const updates: Array<{ sessionIds: string[] | null }> = []
+    const source = {
+      scan: async (o?: ScanArg) => {
+        for (const p of seenByScan) o?.isUnchanged?.(p, 1, 1)
+        if (o?.stats) o.stats.filesSeen = scanSeen
+        return []
+      },
+    } as unknown as SessionSource
+    const catalog = new SessionCatalog({
+      store, source,
+      worktrees: new WorktreeResolver({ exec: async () => { throw new Error('no git') } }),
+      detectLive: async () => new Map(), isDisposed: () => false,
+      updateSearchIndex: async (scope) => { updates.push(scope) },
+    })
+    return { catalog, removeMissing, updates }
+  }
+
+  it('a full pass removes the row of a stored file the walk no longer finds', async () => {
+    const h = pruneHarness(['/a.jsonl', '/gone.jsonl'], ['/a.jsonl'])
+    await h.catalog.refresh()
+    expect(h.removeMissing).toHaveBeenCalledTimes(1)
+    const seen = h.removeMissing.mock.calls[0][0]
+    expect(seen.has('/a.jsonl')).toBe(true)
+    expect(seen.has('/gone.jsonl')).toBe(false)
+    expect(h.updates).toEqual([{ sessionIds: null }])
+  })
+
+  it('a full pass whose walk saw nothing while rows exist prunes nothing', async () => {
+    const h = pruneHarness(['/a.jsonl'], [], 0)
+    await h.catalog.refresh()
+    expect(h.removeMissing).not.toHaveBeenCalled()
+  })
+
+  it('a scoped pass never prunes and hands the index only the ids it re-read', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'apiary-catalog-'))
+    try {
+      const file = join(dir, 'abc.jsonl')
+      writeFileSync(file, JSON.stringify({ type: 'user', sessionId: 'abc', cwd: dir, message: { role: 'user', content: 'hi' } }) + '\n')
+      const h = pruneHarness([file], [])
+      await h.catalog.refresh({ paths: [file] })
+      expect(h.removeMissing).not.toHaveBeenCalled()
+      expect(h.updates).toHaveLength(1)
+      expect(h.updates[0].sessionIds).toHaveLength(1)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

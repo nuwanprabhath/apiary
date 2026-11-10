@@ -253,7 +253,7 @@ export interface ServicesOptions {
   /** Remembers a plugin the user's own answer switched off (a declined consent). */
   persistPluginEnabled?: (pluginId: string, enabled: boolean) => void
   /** After an index pass that changed something, so a search typed mid-pass can re-query. */
-  onIndexUpdated?: () => void
+  onIndexUpdated?: (sessionIds: string[]) => void
   /** Defaults to `ClaudeProjectsSource` built from `configRoot`. */
   source?: SessionSource
   /** Injectable collaborators, defaulting to the real ones. Supplied `plugins` and `statusBar` are used as-is: the built-in plugins are not registered into them. */
@@ -323,7 +323,7 @@ export function createServices(options: ServicesOptions): Services {
     onLiveChanged: options.onLiveChanged,
     autoImportAll: options.autoImportAll,
     isDisposed: () => disposed.disposed,
-    updateSearchIndex: () => search.update(),
+    updateSearchIndex: (scope) => search.update(scope),
     afterRefresh: () => { chat.adoptSessions() },
   })
   const git = new GitService({
