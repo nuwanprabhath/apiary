@@ -4,6 +4,7 @@ import { renderApp } from '../renderApp'
 import { until } from '../helpers'
 import { markRunning, openLayout, panes } from '../paneFoldSetup'
 import { reviewUi } from './review'
+import { must } from '../must'
 
 /** Two panes side by side: the left one's edge must look like the right one's, in every theme. */
 async function twoColumns(): Promise<ReturnType<typeof renderApp>> {
@@ -23,10 +24,10 @@ describe('UI pane edges', () => {
 
   it('two columns, the left one working', async () => {
     const { fake } = await twoColumns()
-    const key = panes()[0].getAttribute('data-session-key')!
+    const key = must(panes()[0]).getAttribute('data-session-key')!
     await until(() => {
       markRunning(fake, key)
-      return panes()[0].querySelector('.session-tab[data-activity="running"]') !== null
+      return must(panes()[0]).querySelector('.session-tab[data-activity="running"]') !== null
     })
     await reviewUi('pane edges left working', { widths: [1400] })
   })

@@ -4,6 +4,7 @@ import type { ActivityStatus } from '@shared/activity'
 import { renderApp } from '../renderApp'
 import { sidebarSession, until } from '../helpers'
 import { reviewUi } from './review'
+import { must } from '../must'
 
 /** The tab list: many tabs with long titles and the filter, a few tabs, and a pane too narrow for the button. */
 const ids = (n: number): string[] => Array.from({ length: n }, (_, i) => `bbbbbbbb-0000-0000-0000-${String(i).padStart(12, '0')}`)
@@ -18,7 +19,7 @@ async function openTabs(count: number): Promise<void> {
     title: i % 3 === 0 ? `${LONG} (${String(i + 1)})` : `Session number ${String(i + 1)}`,
     projectPath: '/fixture/work-a',
   }))
-  const status: Record<string, ActivityStatus> = { [sessionIds[1]]: 'running', [sessionIds[2]]: 'waiting' }
+  const status: Record<string, ActivityStatus> = { [must(sessionIds[1])]: 'running', [must(sessionIds[2])]: 'waiting' }
   await renderApp({ sessions }, (f) => {
     f.override('activeTabs', async () => f.state.tabs.map((t) => ({ ...t, status: status[t.key] ?? 'idle' })))
   })

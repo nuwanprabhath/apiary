@@ -2,13 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, clickRowAction, until } from './helpers'
+import { must } from './must'
 
 describe('search', () => {
   it('search renders a flat list, and clearing it restores the tree with its collapse state', async () => {
     await renderApp()
     // A folder collapsed before searching must still be collapsed after — proof the tree was never
     // torn down and rebuilt underneath the search, only hidden behind the flat list.
-    const toggle = page.getByTestId('project-toggle').elements()[0]
+    const toggle = must(page.getByTestId('project-toggle').elements()[0])
     await userEvent.click(toggle)
     await expect.element(toggle).toHaveAttribute('aria-expanded', 'false')
 
@@ -20,7 +21,7 @@ describe('search', () => {
 
     await userEvent.click(page.getByTestId('search-clear'))
     await until(() => page.getByTestId('flat-results').elements().length === 0)
-    await expect.element(page.getByTestId('project-toggle').elements()[0]).toHaveAttribute('aria-expanded', 'false')
+    await expect.element(must(page.getByTestId('project-toggle').elements()[0])).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('a pinned session that matches the search is listed once, not in both sections', async () => {

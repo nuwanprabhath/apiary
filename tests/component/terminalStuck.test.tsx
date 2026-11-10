@@ -5,6 +5,7 @@ import { Terminal } from '@xterm/xterm'
 import { renderApp } from './renderApp'
 import { until } from './helpers'
 import type { FakeApiary } from './fakeApiary'
+import { must } from './must'
 
 /**
  * A terminal that takes what you type but never draws again — reported from Ubuntu: keystrokes
@@ -22,7 +23,7 @@ async function openClaudeTerminal(fake: FakeApiary): Promise<string> {
   await userEvent.click(button)
   await expect.element(page.getByTestId('terminal-session')).toBeVisible()
   await until(() => fake.callsTo('ptySnapshot').length > 0)
-  const ptyId = fake.callsTo('ptySnapshot')[0][0] as string
+  const ptyId = must(fake.callsTo('ptySnapshot')[0])[0] as string
   await userEvent.click(page.getByTestId('terminal-session'))
   return ptyId
 }

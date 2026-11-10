@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { until } from './helpers'
+import { must, take } from './must'
 
 /** A top-level folder row, addressed by the label on its own toggle — an element, not a locator,
  *  so it survives whatever the test does to the row afterwards. */
@@ -35,7 +36,7 @@ async function rightClick(el: Element): Promise<void> {
 describe('sidebarGroups', () => {
   it('a group collapses, so the folders filed under it are out of the way', async () => {
     await renderApp()
-    const first = (await folderOrder())[0]
+    const first = must((await folderOrder())[0])
     await rightClick(folder(first))
     await userEvent.click(page.getByTestId('context-menu-new-group'))
     await userEvent.keyboard('{Enter}')
@@ -52,7 +53,7 @@ describe('sidebarGroups', () => {
   it('deleting a group frees its folders instead of taking them with it', async () => {
     await renderApp()
     const names = await folderOrder()
-    const first = names[0]
+    const first = must(names[0])
 
     await rightClick(folder(first))
     await userEvent.click(page.getByTestId('context-menu-new-group'))
@@ -69,7 +70,7 @@ describe('sidebarGroups', () => {
 
   it('a group can be renamed from its own menu', async () => {
     await renderApp()
-    const first = (await folderOrder())[0]
+    const first = must((await folderOrder())[0])
     await rightClick(folder(first))
     await userEvent.click(page.getByTestId('context-menu-new-group'))
     await userEvent.fill(page.getByTestId('folder-group-rename'), 'Old name')
@@ -91,7 +92,7 @@ describe('sidebarGroups', () => {
 
   it('choosing Rename puts the cursor in the rename box', async () => {
     await renderApp()
-    const first = (await folderOrder())[0]
+    const first = must((await folderOrder())[0])
     await rightClick(folder(first))
     await userEvent.click(page.getByTestId('context-menu-new-group'))
     await expect.element(page.getByTestId('folder-group-rename')).toHaveFocus()
@@ -99,7 +100,7 @@ describe('sidebarGroups', () => {
 
   it('choosing Rename takes focus even while another text field still has it', async () => {
     await renderApp()
-    const first = (await folderOrder())[0]
+    const first = must((await folderOrder())[0])
     const stray = document.createElement('input')
     document.body.appendChild(stray)
     stray.focus()
@@ -116,7 +117,7 @@ describe('sidebarGroups', () => {
     // dragging most, had almost nothing to aim at.
     await renderApp()
     const names = await folderOrder()
-    const [first, second] = names
+    const [first, second] = take(names, 2)
 
     await rightClick(folder(first))
     await userEvent.click(page.getByTestId('context-menu-new-group'))
@@ -191,12 +192,12 @@ describe('sidebarGroups', () => {
   it('the counts on group headings line up with the Active, Pinned and Recent counts', async () => {
     await renderApp()
     const names = await folderOrder()
-    await rightClick(folder(names[0]))
+    await rightClick(folder(must(names[0])))
     await userEvent.click(page.getByTestId('context-menu-new-group'))
     await userEvent.fill(page.getByTestId('folder-group-rename'), 'Tools')
     await userEvent.keyboard('{Enter}')
     // Something in Recent, so a section count and a group count are both on screen.
-    await userEvent.click(page.getByTestId('session-item').all()[0])
+    await userEvent.click(must(page.getByTestId('session-item').all()[0]))
     await until(() => page.getByTestId('recent-section').elements().length > 0
       || page.getByTestId('active-header').elements().length > 0)
 

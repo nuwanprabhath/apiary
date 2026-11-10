@@ -3,6 +3,7 @@ import { userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { message } from './fakeApiary'
 import { sidebarSession, until } from './helpers'
+import { take } from './must'
 
 const TS = new Date(2026, 9, 10, 10, 29).getTime()
 const MINUTE = 60_000
@@ -35,7 +36,7 @@ describe.each([[false], [true]] as const)('message times (chat: %s)', (chat) => 
     await open(chat, [TS, TS + 2 * MINUTE, TS + 2 * MINUTE + 10_000])
     await until(() => times().length >= 3)
     expect(times()).toHaveLength(3)
-    const [user, reply, second] = times()
+    const [user, reply, second] = take(times(), 3)
     expect(user.textContent).toMatch(/10:29/)
     expect(reply.textContent).toMatch(/10:31/)
     expect(second.textContent).toMatch(/10:31/)

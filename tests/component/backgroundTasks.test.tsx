@@ -6,6 +6,7 @@ import type { FakeApiary } from './fakeApiary'
 import { emptyChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
 import type { BackgroundTask } from '@shared/chatTimeline'
+import { must } from './must'
 
 /** The line above the message box while background tasks run, and the popup it opens. */
 const TITLE = 'Fix CSV export bug'
@@ -45,7 +46,7 @@ describe('background tasks', () => {
   })
 
   it('says how many run and the first one, on one line that never wraps however long it is', async () => {
-    await openWithTasks([{ ...TASKS[0], description: LONG }, ...TASKS.slice(1)])
+    await openWithTasks([{ ...must(TASKS[0]), description: LONG }, ...TASKS.slice(1)])
     const line = document.querySelector<HTMLElement>('[data-testid="chat-status-tasks"]')!
     expect(line.tagName).toBe('BUTTON')
     expect(line.getAttribute('aria-haspopup')).toBe('dialog')
@@ -62,10 +63,10 @@ describe('background tasks', () => {
     expect(page.getByTestId('chat-status-tasks').element().getAttribute('aria-expanded')).toBe('true')
     const rows = document.querySelectorAll('[data-testid="chat-task"]')
     expect(rows).toHaveLength(2)
-    expect(rows[0].textContent).toContain('Run the e2e suite')
-    expect(rows[0].textContent).toContain('npm run test:e2e -- --project=parallel')
-    expect(rows[0].querySelector('[data-testid="chat-task-elapsed"]')?.textContent).toMatch(/^3m 1\ds$/)
-    expect(rows[0].textContent).toContain('bq1')
+    expect(must(rows[0]).textContent).toContain('Run the e2e suite')
+    expect(must(rows[0]).textContent).toContain('npm run test:e2e -- --project=parallel')
+    expect(must(rows[0]).querySelector('[data-testid="chat-task-elapsed"]')?.textContent).toMatch(/^3m 1\ds$/)
+    expect(must(rows[0]).textContent).toContain('bq1')
     await userEvent.keyboard('{Escape}')
     await expect.element(page.getByTestId('chat-tasks-popup')).not.toBeInTheDocument()
     await until(() => document.activeElement === page.getByTestId('chat-status-tasks').element())

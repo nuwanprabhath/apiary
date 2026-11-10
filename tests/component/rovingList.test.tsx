@@ -3,6 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { useRef } from 'react'
 import { nextIndex, useRovingList } from '../../src/renderer/ui/useRovingList'
 import { mountUi } from './mountUi'
+import { must } from './must'
 
 function Demo({ wrap, typeahead }: { wrap?: boolean; typeahead?: boolean }): React.JSX.Element {
   const list = useRef<HTMLUListElement | null>(null)
@@ -72,7 +73,7 @@ describe('useRovingList', () => {
     expect(focused()).toBe('cherry')
 
     await mountUi(<Demo />)
-    const [, second] = document.querySelectorAll<HTMLElement>('[data-testid="apple"]')
+    const second = must(document.querySelectorAll<HTMLElement>('[data-testid="apple"]')[1])
     second.focus()
     await userEvent.keyboard('c')
     expect(document.activeElement).toBe(second)

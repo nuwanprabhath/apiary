@@ -6,6 +6,7 @@ import type { FakeApiary } from '../fakeApiary'
 import { MAIN_ACCOUNT_ID, type AccountInfo } from '@shared/domain/accounts'
 import { asAccountId } from '@shared/domain/ids'
 import { reviewUi, type UiWidth } from './review'
+import { must } from '../must'
 
 const MAIN: AccountInfo = { id: MAIN_ACCOUNT_ID, label: 'Main', email: 'me@example.com', isMain: true }
 const added = (id: string, label: string, email: string | null): AccountInfo => ({ id: asAccountId(id), label, email, isMain: false })
@@ -19,7 +20,7 @@ async function openAccounts(accounts: AccountInfo[], arrange: (fake: FakeApiary)
   fake.emit('openSettingsDialog')
   await until(() => document.querySelector('[data-testid="settings-dialog"]') !== null)
   await userEvent.click(page.getByTestId('settings-nav-accounts'))
-  await until(() => document.querySelector(`[data-testid="account-${accounts[accounts.length - 1].id}"]`) !== null)
+  await until(() => document.querySelector(`[data-testid="account-${must(accounts[accounts.length - 1]).id}"]`) !== null)
   return fake
 }
 

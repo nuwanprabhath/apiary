@@ -4,6 +4,7 @@ import { renderApp } from './renderApp'
 import { settled, until } from './helpers'
 import { openLayout, panes } from './paneFoldSetup'
 import { card, collapse, expandButton, markStatus, openThirds, railButton } from './paneRailSetup'
+import { must, take } from './must'
 
 /** Collapsing a full-height pane sideways to a thin rail. */
 
@@ -13,7 +14,7 @@ const widths = (): string => panes().map((p) => width(p).toFixed(1)).join(' ')
 describe('collapsing a pane to a rail', () => {
   it('in three columns, the first and third become rails, the middle takes the width, expanding restores it', async () => {
     await renderApp()
-    const [first, middle, third] = await openThirds()
+    const [first, middle, third] = take(await openThirds(), 3)
     await settled(widths)
     const before = panes().map(width)
 
@@ -22,7 +23,7 @@ describe('collapsing a pane to a rail', () => {
     await settled(widths)
     expect(width(first)).toBeLessThan(60)
     expect(width(third)).toBeLessThan(60)
-    expect(width(middle)).toBeGreaterThan(before[1] * 2)
+    expect(width(middle)).toBeGreaterThan(must(before[1]) * 2)
     // The last open pane of the row is refused, and says why.
     expect(railButton(middle)!.getAttribute('aria-disabled')).toBe('true')
     expect(railButton(middle)!.title).toMatch(/stays open/)
@@ -34,12 +35,12 @@ describe('collapsing a pane to a rail', () => {
     await userEvent.click(expandButton(third)!)
     await until(() => first.getAttribute('data-rail') === 'false' && third.getAttribute('data-rail') === 'false')
     await settled(widths)
-    panes().forEach((p, i) => { expect(Math.abs(width(p) - before[i])).toBeLessThanOrEqual(1) })
+    panes().forEach((p, i) => { expect(Math.abs(width(p) - must(before[i]))).toBeLessThanOrEqual(1) })
   })
 
   it('a rail entry expands the pane onto that tab', async () => {
     await renderApp()
-    const [first] = await openThirds()
+    const [first] = take(await openThirds(), 1)
     await collapse(first)
     const entries = [...first.querySelectorAll<HTMLElement>('[data-testid="pane-rail-tab"]')]
     expect(entries).toHaveLength(2)
@@ -51,13 +52,13 @@ describe('collapsing a pane to a rail', () => {
 
   it('the whole rail glows while a session inside works, and needing the person wins', async () => {
     const { fake } = await renderApp()
-    const [first] = await openThirds()
+    const [first] = take(await openThirds(), 1)
     await collapse(first)
     const keys = [...first.querySelectorAll('[data-testid="pane-rail-tab"]')].map((e) => e.getAttribute('data-key')!)
-    await until(() => { markStatus(fake, keys[0], 'running'); return card(first).getAttribute('data-glow') === 'running' })
+    await until(() => { markStatus(fake, must(keys[0]), 'running'); return card(first).getAttribute('data-glow') === 'running' })
     await until(() => {
-      markStatus(fake, keys[0], 'running')
-      markStatus(fake, keys[1], 'waiting')
+      markStatus(fake, must(keys[0]), 'running')
+      markStatus(fake, must(keys[1]), 'waiting')
       return card(first).getAttribute('data-glow') === 'waiting'
     })
     expect(first.getAttribute('data-pane-activity')).toBe('waiting')

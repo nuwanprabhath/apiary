@@ -3,6 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { message, type FakeSession } from './fakeApiary'
 import { sidebarSession, stays, until } from './helpers'
+import { must } from './must'
 
 const SESSION: FakeSession = {
   sessionId: '00000000-0000-4000-8000-0000000000f1',
@@ -41,7 +42,7 @@ describe('file names in the transcript', () => {
   it('a click sends the session and the text as written, nothing resolved', async () => {
     const fake = await openChat(true)
     await expect.poll(mentions).toHaveLength(2)
-    await userEvent.click(document.querySelectorAll<HTMLElement>('[data-file-mention]')[1])
+    await userEvent.click(must(document.querySelectorAll<HTMLElement>('[data-file-mention]')[1]))
     await until(() => fake.callsTo('openMentionedFile').length === 1)
     expect(fake.callsTo('openMentionedFile')[0]).toEqual([{ kind: 'session', id: SESSION.sessionId }, 'draft-2642-2160-comments.md'])
   })
@@ -49,9 +50,9 @@ describe('file names in the transcript', () => {
   it('Enter on a focused link opens it too', async () => {
     const fake = await openChat(true)
     await expect.poll(mentions).toHaveLength(2)
-    document.querySelectorAll<HTMLElement>('[data-file-mention]')[0].focus()
+    must(document.querySelectorAll<HTMLElement>('[data-file-mention]')[0]).focus()
     await userEvent.keyboard('{Enter}')
     await until(() => fake.callsTo('openMentionedFile').length === 1)
-    expect(fake.callsTo('openMentionedFile')[0][1]).toBe('src/app.ts:12')
+    expect(must(fake.callsTo('openMentionedFile')[0])[1]).toBe('src/app.ts:12')
   })
 })

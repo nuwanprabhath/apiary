@@ -10,6 +10,7 @@ import { renderApp } from './renderApp'
 import { stays, until } from './helpers'
 import { asSessionId } from '@shared/domain/ids'
 import { subscribeMrStatuses, currentMrStatuses } from '../../src/renderer/state/mrStatusStore'
+import { must } from './must'
 
 const S1 = asSessionId('s1')
 
@@ -31,7 +32,7 @@ describe('mrStatusStore', () => {
     // Give any second, wrongly-separate request a chance to have landed too.
     await stays(() => calls.length === 1, 50, 'one request for two subscribers')
 
-    expect([...calls[0]].sort()).toEqual([101, 102])
+    expect([...must(calls[0])].sort()).toEqual([101, 102])
 
     offTitle()
     offNote()

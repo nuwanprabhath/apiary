@@ -6,6 +6,7 @@ import { HELD_MAX } from '../../src/renderer/state/transcriptWindow'
 import { renderApp } from './renderApp'
 import { message, type FakeApiary, type FakeSession } from './fakeApiary'
 import { sidebarSession, stays, until } from './helpers'
+import { must } from './must'
 
 // Component tests run as a Mac (setup.ts).
 const FIND = '{Meta>}f{/Meta}'
@@ -64,7 +65,7 @@ describe('a transcript holds a bounded window of messages', () => {
     await open()
     expect(hasText(TOTAL - TRANSCRIPT_PAGE_SIZE - 1)).toBe(false)
     const el = scroller()
-    const first = rows()[0]
+    const first = must(rows()[0])
     el.dispatchEvent(new WheelEvent('wheel', { deltaY: -10, bubbles: true }))
     el.scrollTop = 0
     await until(() => held() === 2 * TRANSCRIPT_PAGE_SIZE)
@@ -123,7 +124,7 @@ describe('a transcript holds a bounded window of messages', () => {
       await expect.poll(() => hasText(TOTAL - 1 + (b + 1) * 150)).toBe(true)
     }
     // The messages just before the first one still held are the ones that were dropped.
-    const oldest = Number(/msg-(\d+)/.exec(rows()[0].textContent)![1]) - 1
+    const oldest = Number(/msg-(\d+)/.exec(must(rows()[0]).textContent)![1]) - 1
     expect(oldest).toBeGreaterThan(TOTAL - TRANSCRIPT_PAGE_SIZE)
     expect(hasText(oldest)).toBe(false)
     const el = scroller()

@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { openClaudeTerminal, ptyWrites, until } from './helpers'
+import { must } from './must'
 
 describe('Ctrl+Z in a Claude Code terminal', () => {
   it('asks before suspending, and "don\'t suspend" is the default an Enter picks', async () => {
@@ -41,7 +42,7 @@ describe('Ctrl+Z in a Claude Code terminal', () => {
 
     await userEvent.keyboard('{Enter}')
     await until(() => fake.callsTo('ptyResume').length === 1)
-    expect(fake.callsTo('ptyResume')[0][0]).toBe(ptyId)
+    expect(must(fake.callsTo('ptyResume')[0])[0]).toBe(ptyId)
     await expect.element(page.getByTestId('terminal-suspended')).not.toBeInTheDocument()
   })
 

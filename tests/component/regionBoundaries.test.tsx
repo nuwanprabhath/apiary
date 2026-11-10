@@ -6,6 +6,7 @@ import { sidebarSession, until } from './helpers'
 import { expectConsoleError } from './setup'
 import { THEME_CHANGE_EVENT } from '../../src/renderer/theme/applyTheme'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
+import { must } from './must'
 
 /**
  * UI-24 / B11: the window's other regions each fail inside their own boundary. Before, ThemeEffects,
@@ -91,7 +92,7 @@ describe('a fault in one region of the window stays in that region (UI-24)', () 
     expectConsoleError(/Cannot read properties of undefined/)
     await renderApp()
     await openSession()
-    const spec = { ...BUILTIN_THEMES[0].spec, effects: [{ kind: 'no-such-effect' }] }
+    const spec = { ...must(BUILTIN_THEMES[0]).spec, effects: [{ kind: 'no-such-effect' }] }
     window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT, { detail: spec }))
     await expectToldAbout('The theme effects')
     expect(document.querySelector('[data-testid="crash-pane"]')).toBeNull()

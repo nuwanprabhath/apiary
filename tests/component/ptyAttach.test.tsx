@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { until } from './helpers'
+import { must } from './must'
 
 /**
  * MAIN-26 step 2: main sends a pty's output only to windows that have it attached — a mounted
@@ -23,13 +24,13 @@ async function openNewSession(): Promise<Awaited<ReturnType<typeof renderApp>>['
 describe('TerminalView pty attachment', () => {
   it('attaches the pty it shows', async () => {
     const fake = await openNewSession()
-    const ptyId = fake.callsTo('ptySnapshot')[0][0] as string
+    const ptyId = must(fake.callsTo('ptySnapshot')[0])[0] as string
     expect(fake.callsTo('ptyAttach')).toContainEqual([ptyId])
   })
 
   it('detaches it when the terminal goes away, so main stops sending this window its output', async () => {
     const fake = await openNewSession()
-    const ptyId = fake.callsTo('ptySnapshot')[0][0] as string
+    const ptyId = must(fake.callsTo('ptySnapshot')[0])[0] as string
     expect(fake.callsTo('ptyDetach')).not.toContainEqual([ptyId])
     await userEvent.click(page.getByTestId('session-tab-close').first())
     await until(() => fake.callsTo('ptyDetach').some((args) => args[0] === ptyId))

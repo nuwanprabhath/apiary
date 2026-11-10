@@ -4,10 +4,11 @@ import { renderApp } from '../renderApp'
 import { until } from '../helpers'
 import { foldButton, markRunning, openLayout, panes } from '../paneFoldSetup'
 import { reviewUi } from './review'
+import { must } from '../must'
 
 /** A pane folded down to its tab bar, idle and with something running, in the stacked layouts. */
 async function foldPane(index: number): Promise<HTMLElement> {
-  const pane = panes()[index]
+  const pane = must(panes()[index])
   await userEvent.click(foldButton(pane)!)
   await until(() => pane.getAttribute('data-folded') === 'true')
   return pane

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, mouse, until } from './helpers'
+import { must } from './must'
 
 const TITLES = ['Fix CSV export bug', 'Add worktree switcher', 'Repo root session']
 
@@ -36,7 +37,7 @@ describe('tab list menu', () => {
     expect(rowTitles()).toEqual(TITLES)
     const current = rows().filter((r) => r.getAttribute('aria-current') === 'true')
     expect(current).toHaveLength(1)
-    expect(current[0].textContent).toContain('Repo root session')
+    expect(must(current[0]).textContent).toContain('Repo root session')
     expect(button()!.getAttribute('aria-label')).toBe('All tabs')
   })
 
@@ -57,7 +58,7 @@ describe('tab list menu', () => {
   it('choosing a row selects that tab and closes the menu', async () => {
     await openTabs(TITLES)
     await openMenu()
-    await userEvent.click(rows()[0])
+    await userEvent.click(must(rows()[0]))
     await until(() => document.querySelector('[data-testid="tab-list-menu"]') === null)
     expect(all('session-tab').find((t) => t.dataset.active === 'true')!.textContent).toContain('Fix CSV export bug')
   })
@@ -77,8 +78,8 @@ describe('tab list menu', () => {
   it('dragging a row to another position reorders the strip', async () => {
     await openTabs(TITLES)
     await openMenu()
-    const from = rows()[0].getBoundingClientRect()
-    const to = rows()[2].getBoundingClientRect()
+    const from = must(rows()[0]).getBoundingClientRect()
+    const to = must(rows()[2]).getBoundingClientRect()
     await mouse.move(from.x + from.width / 2, from.y + from.height / 2)
     await mouse.down()
     await mouse.move(to.x + to.width / 2, to.y + to.height - 3, 8)
@@ -97,7 +98,7 @@ describe('tab list menu', () => {
     expect(rows().every((r) => r.draggable)).toBe(true)
     await userEvent.keyboard('extra session 3')
     await until(() => rows().length === 1)
-    expect(rows()[0].draggable).toBe(false)
+    expect(must(rows()[0]).draggable).toBe(false)
     await userEvent.keyboard('{Alt>}{ArrowDown}{/Alt}')
     expect(strip().indexOf('Extra session 3')).toBe(2)
     await userEvent.clear(filter)

@@ -6,6 +6,7 @@ import { renderApp } from './renderApp'
 import { drag, stays, until } from './helpers'
 import { message, regentStatus, withRegent } from './residentFixtures'
 import type { FakeApiary } from './fakeApiary'
+import { must } from './must'
 
 const popup = (): HTMLElement | null => document.querySelector('[data-testid="resident-popup"]')
 const input = (): HTMLTextAreaElement => document.querySelector<HTMLTextAreaElement>('.resident-popup-input')!
@@ -142,13 +143,13 @@ describe('the resident popup', () => {
     })
     const cards = (): HTMLElement[] => [...popup()!.querySelectorAll<HTMLElement>('[data-testid="resident-permission"]')]
     await until(() => cards().length === 2)
-    expect(cards()[0].textContent).toContain('Bash')
-    expect(cards()[0].textContent).toContain('Run: glab mr list')
-    expect(cards()[0].querySelector('strong')!.textContent).toBe('Bash')
-    await userEvent.click(cards()[0].querySelector('[data-testid="resident-permission-allow"]')!)
+    expect(must(cards()[0]).textContent).toContain('Bash')
+    expect(must(cards()[0]).textContent).toContain('Run: glab mr list')
+    expect(must(cards()[0]).querySelector('strong')!.textContent).toBe('Bash')
+    await userEvent.click(must(cards()[0]).querySelector('[data-testid="resident-permission-allow"]')!)
     await until(() => cards().length === 1)
     expect(fake.callsTo('residentPermissionAnswer')[0]).toEqual(['regent', 'r1', true])
-    await userEvent.click(cards()[0].querySelector('[data-testid="resident-permission-deny"]')!)
+    await userEvent.click(must(cards()[0]).querySelector('[data-testid="resident-permission-deny"]')!)
     await until(() => cards().length === 0)
     expect(fake.callsTo('residentPermissionAnswer')[1]).toEqual(['regent', 'r2', false])
   })

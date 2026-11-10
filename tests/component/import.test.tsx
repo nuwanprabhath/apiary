@@ -3,6 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { FIXTURE_SESSIONS, type FakeApiary, type FakeSession } from './fakeApiary'
 import { until, sidebarSession } from './helpers'
+import { must } from './must'
 
 /** Opens the import dialog the way the menu does — a main-process event, in the fake. */
 async function openImportDialog(fake: FakeApiary): Promise<void> {
@@ -35,7 +36,7 @@ describe('the import dialog', () => {
     it('imports only the ticked sessions', async () => {
       const { fake } = await renderApp({ imported: 'none' })
       await openImportDialog(fake)
-      await userEvent.click(page.getByTestId('import-session-checkbox').all()[0])
+      await userEvent.click(must(page.getByTestId('import-session-checkbox').all()[0]))
       await userEvent.click(page.getByTestId('import-confirm'))
 
       await expect.element(page.getByTestId('import-dialog')).not.toBeInTheDocument()
@@ -52,7 +53,7 @@ describe('the import dialog', () => {
     it('cancelling imports nothing', async () => {
       const { fake } = await renderApp({ imported: 'none' })
       await openImportDialog(fake)
-      await userEvent.click(page.getByTestId('import-session-checkbox').all()[0])
+      await userEvent.click(must(page.getByTestId('import-session-checkbox').all()[0]))
       await userEvent.click(page.getByTestId('import-cancel'))
       await expect.element(page.getByTestId('import-dialog')).not.toBeInTheDocument()
       await expect.element(page.getByTestId('sidebar-empty')).toBeVisible()
@@ -61,12 +62,12 @@ describe('the import dialog', () => {
     it('already-imported sessions come back ticked and disabled', async () => {
       const { fake } = await renderApp({ imported: 'none' })
       await openImportDialog(fake)
-      await userEvent.click(page.getByTestId('import-session-checkbox').all()[0])
+      await userEvent.click(must(page.getByTestId('import-session-checkbox').all()[0]))
       await userEvent.click(page.getByTestId('import-confirm'))
       await until(() => page.getByTestId('session-item').elements().length === 1)
 
       await openImportDialog(fake)
-      const first = page.getByTestId('import-session-checkbox').all()[0]
+      const first = must(page.getByTestId('import-session-checkbox').all()[0])
       await expect.element(first).toBeChecked()
       await expect.element(first).toBeDisabled()
     })
@@ -89,8 +90,8 @@ describe('the import dialog', () => {
       const { fake } = await renderApp({ imported: 'none', sessions: [...FIXTURE_SESSIONS, secondInWorkA] })
       await openImportDialog(fake)
 
-      const workAGroup = groupsContaining('/fixture/work-a')[0]
-      const workBGroup = groupsContaining('/fixture/work-b')[0]
+      const workAGroup = must(groupsContaining('/fixture/work-a')[0])
+      const workBGroup = must(groupsContaining('/fixture/work-b')[0])
 
       // Sanity on the fixture shape itself: work-a now holds two sessions, work-b still one.
       expect(workAGroup.querySelectorAll('[data-testid="import-session-checkbox"]').length).toBe(2)
@@ -101,8 +102,8 @@ describe('the import dialog', () => {
 
       // Both of work-a's sessions must now be checked...
       const workASessionCheckboxes = [...workAGroup.querySelectorAll<HTMLInputElement>('[data-testid="import-session-checkbox"]')]
-      expect(workASessionCheckboxes[0].checked).toBe(true)
-      expect(workASessionCheckboxes[1].checked).toBe(true)
+      expect(must(workASessionCheckboxes[0]).checked).toBe(true)
+      expect(must(workASessionCheckboxes[1]).checked).toBe(true)
       await expect.element(page.getByTestId('import-count')).toMatchTextContent('2')
 
       // ...while work-b, a different group, is untouched.
@@ -126,13 +127,13 @@ describe('the import dialog', () => {
       // this folder is in", when in fact all of it is.
       const { fake } = await renderApp({ imported: 'none' })
       await openImportDialog(fake)
-      const group = groupsContaining('/fixture/work-a')[0]
+      const group = must(groupsContaining('/fixture/work-a')[0])
       await userEvent.click(group.querySelector('[data-testid="import-group-checkbox"]') as HTMLElement)
       await userEvent.click(page.getByTestId('import-confirm'))
       await until(() => page.getByTestId('session-item').elements().length === 1)
 
       await openImportDialog(fake)
-      const again = groupsContaining('/fixture/work-a')[0]
+      const again = must(groupsContaining('/fixture/work-a')[0])
       const againCheckbox = again.querySelector('[data-testid="import-group-checkbox"]') as HTMLElement
       await expect.element(againCheckbox).toBeChecked()
       // Still disabled — there is nothing left in it to change — but it now says so honestly.
@@ -147,19 +148,19 @@ describe('the import dialog', () => {
       }
       const { fake } = await renderApp({ imported: 'none', sessions: [...FIXTURE_SESSIONS, secondInWorkA] })
       await openImportDialog(fake)
-      const group = groupsContaining('/fixture/work-a')[0]
+      const group = must(groupsContaining('/fixture/work-a')[0])
       const boxes = [...group.querySelectorAll<HTMLInputElement>('[data-testid="import-session-checkbox"]')]
       expect(boxes.length).toBe(2)
 
       const groupBox = group.querySelector<HTMLInputElement>('[data-testid="import-group-checkbox"]')!
       expect(groupBox.checked).toBe(false)
 
-      await userEvent.click(boxes[0])
+      await userEvent.click(must(boxes[0]))
       // One of two: neither in nor out, and the box says so rather than claiming either.
       expect(groupBox.checked).toBe(false)
       expect(groupBox.indeterminate).toBe(true)
 
-      await userEvent.click(boxes[1])
+      await userEvent.click(must(boxes[1]))
       expect(groupBox.checked).toBe(true)
       expect(groupBox.indeterminate).toBe(false)
     })
@@ -188,8 +189,8 @@ describe('the import dialog', () => {
       await userEvent.click(page.getByTestId('import-select-all'))
       await expect.element(page.getByTestId('import-count')).toMatchTextContent('4 selected')
       const boxes = page.getByTestId('import-session-checkbox').all()
-      await expect.element(boxes[0]).toBeChecked()
-      await expect.element(boxes[3]).toBeChecked()
+      await expect.element(must(boxes[0])).toBeChecked()
+      await expect.element(must(boxes[3])).toBeChecked()
 
       // Unticking it puts everything back, rather than leaving a half-selected mess behind.
       await userEvent.click(page.getByTestId('import-select-all'))
