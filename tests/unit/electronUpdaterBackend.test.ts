@@ -31,6 +31,11 @@ vi.mock('electron-updater', () => ({
     },
   },
 }))
+const feedVerifies = vi.fn<() => boolean>(() => true)
+vi.mock('../../src/main/update/releaseSignature', () => ({
+  verifyFeedSignature: () => feedVerifies(),
+  UNVERIFIED_MESSAGE: 'This update could not be verified',
+}))
 vi.mock('node:https', () => ({ get: (url: string, opts: unknown, cb: (r: unknown) => void) => httpGet(url, opts, cb) }))
 vi.mock('node:child_process', () => ({ execFile: (...args: Parameters<typeof execFileMock>) => execFileMock(...args) }))
 
@@ -46,6 +51,32 @@ function fakeResponse(body: Buffer, statusCode = 200): PassThrough & { statusCod
   process.nextTick(() => stream.end(body))
   return stream
 }
+
+describe('feed signature', () => {
+  afterEach(() => { feedVerifies.mockReturnValue(true); vi.clearAllMocks() })
+
+  it('refuses an update whose feed signature does not verify, before offering it', async () => {
+    checkForUpdates.mockResolvedValue({ updateInfo: { version: '1.18.2', releaseNotes: 'n', files: [] } })
+    httpGet.mockImplementation((_url: string, _opts: unknown, cb: (r: unknown) => void) => {
+      cb(fakeResponse(Buffer.from('x')))
+      return { on: () => {} }
+    })
+    feedVerifies.mockReturnValue(false)
+    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64' }, stubInstaller)
+    await expect(backend.check({ allowPrerelease: false })).rejects.toThrow('This update could not be verified')
+    await expect(backend.downloadInstaller(() => {})).rejects.toThrow('No update has been found')
+  })
+
+  it('refuses when the .sig cannot be fetched', async () => {
+    checkForUpdates.mockResolvedValue({ updateInfo: { version: '1.18.2', releaseNotes: 'n', files: [] } })
+    httpGet.mockImplementation((_url: string, _opts: unknown, cb: (r: unknown) => void) => {
+      cb(fakeResponse(Buffer.from('x'), 404))
+      return { on: () => {} }
+    })
+    const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'linux', arch: 'x64' }, stubInstaller)
+    await expect(backend.check({ allowPrerelease: false })).rejects.toThrow('This update could not be verified')
+  })
+})
 
 describe('downloadInstaller', () => {
   let dir: string
@@ -78,7 +109,7 @@ describe('downloadInstaller', () => {
     const path = await backend.downloadInstaller(() => {})
 
     expect(path).toBe(join(dir, 'apiary_1.18.2_amd64.deb'))
-    expect(requested).toEqual(['https://github.com/nuwan/apiary/releases/download/v1.18.2/apiary_1.18.2_amd64.deb'])
+    expect(requested.filter((u) => u.endsWith('.deb'))).toEqual(['https://github.com/nuwan/apiary/releases/download/v1.18.2/apiary_1.18.2_amd64.deb'])
     expect((await stat(path)).size).toBe(bytes.length)
     // Linux never sets quarantine — it is a macOS/Gatekeeper concept only.
     expect(execFileMock).not.toHaveBeenCalled()
@@ -134,6 +165,7 @@ describe('downloadInstaller', () => {
     // pickInstaller matches on the raw `.dmg` suffix and the arch, both of which this satisfies.
     const backend = createUpdateBackend({ repo: 'nuwan/apiary', platform: 'darwin', arch: 'x64', downloadDir: dir }, stubInstaller)
     await backend.check({ allowPrerelease: false })
+    httpGet.mockClear() // the feed and its signature were fetched by check()
     await expect(backend.downloadInstaller(() => {})).rejects.toThrow(/not a plain filename/)
     expect(httpGet).not.toHaveBeenCalled()
   })
