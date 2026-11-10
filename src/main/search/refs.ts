@@ -5,7 +5,6 @@
  */
 
 import { ignoreErrors } from '@shared/ignoreErrors'
-
 export type RefKind = 'mr' | 'issue' | 'ticket' | 'url'
 
 export interface Ref {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractRefs, refsInQuery } from '../../../src/main/knowledge/refs'
+import { extractRefs, refsInQuery } from '../../../src/main/search/refs'
 
 const values = (text: string, kind: string): string[] =>
   extractRefs(text).filter((r) => r.kind === kind).map((r) => r.value)

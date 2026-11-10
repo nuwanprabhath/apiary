@@ -34,7 +34,7 @@ Active, Fork disabled.
 
 **Inherited markers turn transcripts off.** An Apiary started from a shell Claude Code opened
 inherits `CLAUDE_CODE_CHILD_SESSION` and friends, and a child `claude` that sees it writes no JSONL
-and no session file. `pty/childEnv.ts` strips an explicit list; do not widen it to every
+and no session file. `exec/childEnv.ts` strips an explicit list; do not widen it to every
 `CLAUDE_CODE_*` (that would drop real config like `CLAUDE_CODE_USE_BEDROCK`).
 
 **Verify against a real session.** `tests/e2e/live/` drives a real `claude --model haiku` through

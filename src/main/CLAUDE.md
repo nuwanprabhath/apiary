@@ -11,6 +11,14 @@ because that topic spans main and renderer.
 `src/main/ipc/registrar.ts` wires every handler in `ipc/handlers/*.ts` against
 `shared/ipc/contract.ts`; see root CLAUDE.md's "How to add… an IPC call" recipe before adding one.
 
+## Which folder may import which
+
+`MAIN_EDGES` at the top of `.dependency-cruiser.cjs` lists, per folder of `src/main`, the folders it
+may import; `main-domain-edges` is generated from it. `exec/` imports only `log` (`childEnv.ts` lives
+there, the environment recipe for every spawn); `search/` does not import `knowledge/` (it owns
+`refs.ts`, which the indexer writes and `knowledge` reads); shared tiny helpers go in `util/`.
+`MAIN_PEER_GROUPS` names the folders that import each other today; any other cycle throws.
+
 ## Starting processes (`exec/`)
 
 Only `src/main/exec/` imports `node:child_process` (the `no-raw-subprocess` lint rule, no exceptions).

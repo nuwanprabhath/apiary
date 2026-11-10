@@ -4,7 +4,7 @@ import { errorMessage } from '@shared/errors'
 import { log } from '../log/logger'
 import { runIndexPass, type IndexableSession } from './indexer'
 import type { SessionStore } from '../store/sessionStore'
-import { refsInQuery } from '../knowledge/refs'
+import { refsInQuery } from './refs'
 
 /** A scoped update re-indexes one session at most this often; a session being written to is otherwise re-read every pass. */
 const SCOPED_INDEX_INTERVAL_MS = 5000

@@ -10,9 +10,87 @@ const MAIN_SERVICES = '^src/main/(claude|git|plugins|chat|pets|theme|terminals|s
 const MAIN_IPC = '^src/main/ipc/'
 const MAIN_APP = '^src/main/app/|^src/main/index\\.ts$'
 
+/**
+ * Which folder of src/main may import which. A folder not listed under another's entry may not be
+ * imported by it. Files directly in src/main (index.ts, settings.ts, appService.ts) are not folders
+ * and are outside the table. To allow a new edge, add it here and say why in review.
+ */
+const MAIN_EDGES = {
+  accounts: ['exec', 'fs', 'log'],
+  app: ['accounts', 'chat', 'claude', 'exec', 'folders', 'git', 'ipc', 'knowledge', 'library', 'log', 'media', 'pets', 'plugins', 'pty', 'remote', 'residents', 'search', 'sessions', 'settings', 'sources', 'spelling', 'statusBar', 'store', 'terminals', 'theme', 'transcript', 'update', 'vscode', 'windows'],
+  chat: ['accounts', 'claude', 'exec', 'log', 'pty', 'sessions', 'store', 'terminals', 'transcript', 'windows'],
+  claude: ['accounts', 'exec', 'log', 'pty'],
+  exec: ['log'],
+  folders: ['fs'],
+  fs: [],
+  git: ['exec', 'log', 'plugins', 'sessions'],
+  ipc: ['accounts', 'chat', 'claude', 'folders', 'library', 'log', 'pets', 'plugins', 'remote', 'residents', 'settings', 'spelling', 'terminals', 'theme', 'update', 'windows'],
+  knowledge: ['accounts', 'claude', 'fs', 'log', 'search', 'store', 'util'],
+  library: ['fs', 'log'],
+  log: [],
+  media: ['fs'],
+  pets: ['claude', 'fs', 'log', 'windows'],
+  plugins: ['exec', 'git', 'sessions', 'statusBar'],
+  pty: ['exec', 'log'],
+  remote: ['exec', 'fs', 'ipc', 'log', 'vscode', 'windows'],
+  residents: ['chat', 'exec', 'fs', 'knowledge', 'log', 'search'],
+  scanner: ['transcript'],
+  search: ['log', 'store', 'transcript', 'util'],
+  sessions: ['claude', 'fs', 'git', 'log', 'pty', 'scanner', 'search', 'sources', 'store', 'transcript', 'tree', 'util'],
+  settings: ['fs'],
+  sources: ['scanner'],
+  spelling: [],
+  statusBar: ['accounts', 'exec', 'log', 'plugins'],
+  store: [],
+  terminals: ['accounts', 'chat', 'git', 'log', 'pty', 'sessions', 'store', 'windows'],
+  theme: ['claude', 'fs', 'log'],
+  transcript: [],
+  tree: ['store'],
+  update: ['exec', 'fs', 'log', 'settings', 'windows'],
+  util: [],
+  vscode: ['exec', 'fs', 'sessions'],
+  windows: ['fs', 'log', 'remote'],
+}
+
+/** Folders that import each other today, so the table has a cycle inside each group and nowhere else. */
+const MAIN_PEER_GROUPS = [
+  ['git', 'plugins', 'sessions', 'statusBar'],
+  ['chat', 'ipc', 'pets', 'remote', 'residents', 'terminals', 'update', 'windows'],
+]
+
+/** Throws, naming the folders, when the table has a cycle that is not inside one peer group. */
+function assertNoEdgeCycle(edges, groups) {
+  const rep = (f) => (groups.find((g) => g.includes(f)) || [f])[0]
+  const deps = {}
+  for (const [from, tos] of Object.entries(edges)) {
+    for (const to of tos) {
+      if (rep(from) !== rep(to)) (deps[rep(from)] ??= new Set()).add(rep(to))
+    }
+  }
+  const state = {}
+  const visit = (n, trail) => {
+    if (state[n] === 2) return
+    if (state[n] === 1) throw new Error('main folder import cycle: ' + [...trail.slice(trail.indexOf(n)), n].join(' -> '))
+    state[n] = 1
+    for (const m of deps[n] || []) visit(m, [...trail, n])
+    state[n] = 2
+  }
+  for (const n of Object.keys(deps)) visit(n, [])
+}
+assertNoEdgeCycle(MAIN_EDGES, MAIN_PEER_GROUPS)
+
+const mainDomainEdges = Object.entries(MAIN_EDGES).map(([folder, allowed]) => ({
+  name: 'main-domain-edges',
+  severity: 'error',
+  comment: `src/main/${folder}/ may import only: ${allowed.join(', ') || 'no other folder'}. Move the shared piece down (exec, util, fs), inject it, or change MAIN_EDGES at the top of this file with the reason.`,
+  from: { path: `^src/main/${folder}/` },
+  to: { path: '^src/main/[^/]+/', pathNot: [`^src/main/(${[folder, ...allowed].join('|')})/`] },
+}))
+
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
   forbidden: [
+    ...mainDomainEdges,
     {
       name: 'no-circular',
       severity: 'error',
