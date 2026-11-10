@@ -1,6 +1,24 @@
 import { describe, it, expect } from 'vitest'
 import { RESIDENT_KINDS, SESSION_LINK_PREFIX } from '@shared/domain/residents'
-import { kindOf, newResident } from '../../../src/main/residents/kinds'
+import { builtinKinds, kindInfos, kindOf, newResident, KindRegistry } from '../../../src/main/residents/kinds'
+import { UNWIRED_KIND_DEPS } from '../../../src/main/residents/kinds/kindDeps'
+
+describe('the kind registry', () => {
+  it('kindInfos has one entry per built-in kind, in order', () => {
+    expect(kindInfos().map((i) => i.id)).toEqual(builtinKinds(UNWIRED_KIND_DEPS).map((k) => k.id))
+  })
+
+  it('registers, gets and lists kinds; refuses a repeat and an unknown id', () => {
+    const reg = new KindRegistry()
+    const [a, b] = builtinKinds(UNWIRED_KIND_DEPS)
+    reg.register(a)
+    reg.register(b)
+    expect(reg.all().map((k) => k.id)).toEqual([a.id, b.id])
+    expect(reg.get(a.id)).toBe(a)
+    expect(() => { reg.register(a) }).toThrow(/already/)
+    expect(() => reg.get('nope' as typeof a.id)).toThrow(/Unknown resident kind/)
+  })
+})
 
 describe('the Regent kind', () => {
   it('names itself and teaches the links the renderer opens', () => {

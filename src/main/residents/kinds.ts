@@ -48,25 +48,45 @@ export function builtinKinds(deps: KindDeps): readonly ResidentKind[] {
   return [regent, createMrDesk(deps)]
 }
 
-/** `kindOf` over kinds built with `deps`; the container passes the real ones. */
-export function kindLookup(deps: KindDeps): (id: ResidentKindId) => ResidentKind {
-  const kinds = builtinKinds(deps)
-  return (id) => {
-    const kind = kinds.find((k) => k.id === id)
+/** The kinds this build can run, in registration order. */
+export class KindRegistry {
+  private readonly kinds = new Map<ResidentKindId, ResidentKind>()
+
+  register(kind: ResidentKind): void {
+    if (this.kinds.has(kind.id)) throw new Error(`Resident kind already registered: ${kind.id}`)
+    this.kinds.set(kind.id, kind)
+  }
+
+  get(id: ResidentKindId): ResidentKind {
+    const kind = this.kinds.get(id)
     if (kind === undefined) throw new Error(`Unknown resident kind: ${id}`)
     return kind
   }
+
+  all(): readonly ResidentKind[] { return [...this.kinds.values()] }
+}
+
+/** A registry holding every built-in kind built with `deps`. */
+function builtinRegistry(deps: KindDeps): KindRegistry {
+  const registry = new KindRegistry()
+  for (const kind of builtinKinds(deps)) registry.register(kind)
+  return registry
+}
+
+/** `kindOf` over kinds built with `deps`; the container passes the real ones. */
+export function kindLookup(deps: KindDeps): (id: ResidentKindId) => ResidentKind {
+  const registry = builtinRegistry(deps)
+  return (id) => registry.get(id)
 }
 
 /** The kinds as the renderer fake and tests see them: their fields are real, nothing reaches the machine. */
-const unwired = kindLookup(UNWIRED_KIND_DEPS)
-const UNWIRED_IDS: readonly ResidentKindId[] = ['regent', 'mr-desk']
+const unwired = builtinRegistry(UNWIRED_KIND_DEPS)
 
-export function kindOf(id: ResidentKindId): ResidentKind { return unwired(id) }
+export function kindOf(id: ResidentKindId): ResidentKind { return unwired.get(id) }
 
 /** Every kind, as the renderer sees it. */
 export function kindInfos(): ResidentKindInfo[] {
-  return UNWIRED_IDS.map(unwired).map((k) => ({
+  return unwired.all().map((k) => ({
     id: k.id, defaultName: k.defaults.name, blurb: k.blurb, optionFields: k.optionFields.map((f) => ({ ...f })),
     digests: k.digests, appearance: k.appearance, cycleMinutes: k.cycle?.everyMinutes ?? null,
   }))
