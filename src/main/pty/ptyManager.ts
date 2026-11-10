@@ -60,6 +60,7 @@ function isReadHandle(v: unknown): v is ReadHandle {
  * does not. Null where the shape is not there (Windows' conpty), which falls back to node-pty's.
  */
 function readHandleOf(child: pty.IPty): ReadHandle | null {
+  if (process.platform === 'linux') return null
   const socket: unknown = Reflect.get(child, '_socket')
   if (typeof socket !== 'object' || socket === null) return null
   const handle: unknown = Reflect.get(socket, '_handle')
