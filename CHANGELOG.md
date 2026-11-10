@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.3] - 2026-11-10
+## [1.60.4] - 2026-11-10
+
+### Added
+
+- A library-scale benchmark (`npm run bench:library`) that builds thousands of synthetic sessions
+  and times refresh passes, the sidebar tree, search indexing and transcript pages, so performance
+  changes quote before and after numbers.
+
+## [1.60.3] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Added
 
