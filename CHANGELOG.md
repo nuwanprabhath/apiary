@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.15] - 2026-11-10
+## [1.60.16] - 2026-11-10
+
+### Changed
+
+- The nightly end-to-end run keeps one GitHub issue up to date with the tests that failed and those
+  that passed only on retry, per system, closes it when a run is clean, and keeps a trace and video
+  of each failed test.
+
+## [1.60.15] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Fixed
 
