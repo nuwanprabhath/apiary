@@ -200,13 +200,15 @@ export const SETTINGS = {
   busyAnimationColor: screen(setting<BusyColorId>({ guard: isBusyColorId, default: 'theme' })),
   /** The resident agents (`main/residents/`): each one's name, schedule and models, added one kind's defaults at a time. */
   residents: machine(setting<ResidentConfig[]>({ guard: isResidentList, default: [], constrain: constrainResidents })),
+  /** Residents may search and read sessions recorded under any account, not only the account they run under. */
+  readOtherAccounts: machine(flag(false)),
 } satisfies Record<string, { scope: SettingScope }>
 
 /** Settings whose control saves them at once, outside the dialog's Save (Themes: Animations, the
  *  working animation, and every Residents card). The dialog's draft still holds what they were when
  *  it opened, so its Save sends these as saved. A control that saves at once writes through
  *  `saveInstantSetting`, which takes only these keys. */
-export const INSTANT_SETTINGS = ['motion', 'busyAnimation', 'busyAnimationColor', 'residents'] as const satisfies readonly SettingKey[]
+export const INSTANT_SETTINGS = ['motion', 'busyAnimation', 'busyAnimationColor', 'residents', 'readOtherAccounts'] as const satisfies readonly SettingKey[]
 export type InstantSettingKey = (typeof INSTANT_SETTINGS)[number]
 
 export type SettingKey = keyof typeof SETTINGS

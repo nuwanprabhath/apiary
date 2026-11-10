@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { REGENT_KIND } from '@shared/domain/residents'
 import type { ResidentConfig } from '@shared/domain/residents'
+import { MAIN_ACCOUNT_ID } from '@shared/domain/accounts'
+import { asAccountId } from '@shared/domain/ids'
 import { renderApp } from './renderApp'
 import { until } from './helpers'
 import type { FakeApiary } from './fakeApiary'
@@ -26,6 +28,24 @@ async function openResidents(residents: ResidentConfig[] = [], arrange?: (fake: 
 }
 
 describe('Settings → Residents', () => {
+  it('shows the other-accounts switch only with several accounts, and saves it at once', async () => {
+    const one = await openResidents()
+    expect(el('resident-read-other-accounts')).toBeNull()
+    expect(one.state.settings.readOtherAccounts).toBe(false)
+    const fake = await openResidents([], (f) => {
+      f.state.accounts = {
+        accounts: [
+          { id: MAIN_ACCOUNT_ID, label: 'Main', email: null, isMain: true },
+          { id: asAccountId('work'), label: 'Work', email: null, isMain: false },
+        ],
+        defaultId: MAIN_ACCOUNT_ID,
+      }
+    })
+    await until(() => el('resident-read-other-accounts') !== null)
+    await userEvent.click(page.getByRole('switch', { name: 'Let residents read sessions from your other Claude accounts' }))
+    await until(() => fake.state.settings.readOtherAccounts)
+  })
+
   it('Add Regent creates a resident with the defaults', async () => {
     const fake = await openResidents()
     await userEvent.click(page.getByTestId('resident-add-regent'))

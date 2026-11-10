@@ -8,7 +8,7 @@ import { ResidentSpace } from '../../../src/main/residents/residentSpace'
 import type { ResidentApproval } from '../../../src/main/residents/kindTypes'
 import type { SessionKnowledge, SessionTopic } from '../../../src/main/knowledge/types'
 import type { SessionHit } from '@shared/domain/residents'
-import { scopeToAccount } from '../../../src/main/app/residentsContainer'
+import { residentSees, scopeToAccount } from '../../../src/main/app/residentsContainer'
 
 vi.mock('electron', () => ({ BrowserWindow: { getAllWindows: () => [] }, webContents: { fromId: () => undefined } }))
 
@@ -215,6 +215,16 @@ describe('a resident on one account', () => {
 
   it('reads a session of its own account', async () => {
     expect((await call('read_session', { sessionId: SESSION }, scoped())).isError).toBe(false)
+  })
+})
+
+describe('residentSees', () => {
+  it('lets a resident see other accounts only while the setting is on, read on every call', () => {
+    let on = false
+    const sees = residentSees({ readOtherAccounts: () => on, accountOf: (id) => (id === 'a' ? 'main' : 'work'), defaultId: () => 'main' })
+    expect([sees(asSessionId('a')), sees(asSessionId('b'))]).toEqual([true, false])
+    on = true
+    expect(sees(asSessionId('b'))).toBe(true)
   })
 })
 

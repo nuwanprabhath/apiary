@@ -63,7 +63,11 @@ export function createResidents(o: {
       return found === null || found.archived ? null : { title: found.title ?? found.firstPrompt ?? 'Untitled session' }
     },
     knowledge: o.knowledge.service,
-  }, (id) => o.accounts.accountOf(id) === o.accounts.defaultId())
+  }, residentSees({
+    readOtherAccounts: () => o.settingsService.get().readOtherAccounts,
+    accountOf: (id) => o.accounts.accountOf(id),
+    defaultId: () => o.accounts.defaultId(),
+  }))
   return new ResidentService({
     settings: {
       get: () => o.settingsService.get().residents,
@@ -90,6 +94,15 @@ export function createResidents(o: {
     onMessage: (push) => { broadcast(IPC.residentMessage, push) },
     version: o.version,
   })
+}
+
+/** Whether a resident (always run under the default account) may see a session: any, when the person allowed it, else the default account's. Read on every call. */
+export function residentSees(o: {
+  readOtherAccounts: () => boolean
+  accountOf: (id: SessionId) => unknown
+  defaultId: () => unknown
+}): (id: SessionId) => boolean {
+  return (id) => o.readOtherAccounts() || o.accountOf(id) === o.defaultId()
 }
 
 /**

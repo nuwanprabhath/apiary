@@ -2,6 +2,8 @@ import { describe, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { REGENT_KIND } from '@shared/domain/residents'
 import type { ResidentConfig } from '@shared/domain/residents'
+import { MAIN_ACCOUNT_ID } from '@shared/domain/accounts'
+import { asAccountId } from '@shared/domain/ids'
 import { renderApp } from '../renderApp'
 import { until } from '../helpers'
 import type { FakeApiary } from '../fakeApiary'
@@ -64,5 +66,23 @@ describe('UI: Settings → Residents', () => {
       schedule: { days: [0, 6], start: '22:00', end: '06:30' },
     }])
     await reviewUi('residents overnight long name', { widths: WIDTHS })
+  })
+
+  it('residents: the other-accounts switch, off and on, with two accounts', async () => {
+    const two = (f: FakeApiary): void => {
+      f.state.accounts = {
+        accounts: [
+          { id: MAIN_ACCOUNT_ID, label: 'Main', email: 'someone@example.test', isMain: true },
+          { id: asAccountId('work'), label: 'Work account with a rather long label', email: null, isMain: false },
+        ],
+        defaultId: MAIN_ACCOUNT_ID,
+      }
+    }
+    await openResidents([regent], two)
+    await until(() => document.querySelector('[data-testid="resident-read-other-accounts"]') !== null)
+    await reviewUi('residents other accounts off', { widths: WIDTHS })
+    await userEvent.click(page.getByRole('switch', { name: 'Let residents read sessions from your other Claude accounts' }))
+    await until(() => document.querySelector('[data-testid="resident-read-other-accounts"] [aria-checked="true"]') !== null)
+    await reviewUi('residents other accounts on', { widths: WIDTHS })
   })
 })

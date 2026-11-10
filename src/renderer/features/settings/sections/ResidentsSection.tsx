@@ -1,7 +1,8 @@
 import { type JSX, useEffect, useRef, useState } from 'react'
 import { dutyStatusText } from '@shared/residentSchedule'
 import type { ResidentConfig, ResidentKindInfo, ResidentStatus } from '@shared/domain/residents'
-import { useAppSettings } from '../../../state/settingsStore'
+import { saveInstantSetting, useAppSettings } from '../../../state/settingsStore'
+import { hasSeveralAccounts, useAccounts } from '../../../state/accountsStore'
 import { useResidents } from '../../../state/residentsStore'
 import {
   addResident, clearRevealedResidentCard, updateResident, useResidentKinds, useRevealedResidentCard,
@@ -251,6 +252,8 @@ export function ResidentsSection(): JSX.Element {
   const [confirming, setConfirming] = useState<Confirming | null>(null)
   const [error, setError] = useState<string | null>(null)
   const kinds = useResidentKinds()
+  const readOthers = useAppSettings().readOtherAccounts
+  const severalAccounts = hasSeveralAccounts(useAccounts())
   const addable = kinds.filter((k) => !configs.some((c) => c.kind === k.id))
 
   const confirmed = (): void => {
@@ -277,6 +280,19 @@ export function ResidentsSection(): JSX.Element {
               <span className="settings-help">{k.blurb}</span>
             </div>
           ))}
+        </div>
+      )}
+      {severalAccounts && (
+        <div className="resident-field resident-enabled" data-testid="resident-read-other-accounts">
+          <strong>Let residents read sessions from your other Claude accounts</strong>
+          <Switch
+            checked={readOthers}
+            label="Let residents read sessions from your other Claude accounts"
+            onChange={(readOtherAccounts) => { saveInstantSetting({ readOtherAccounts }).catch((e: unknown) => { setError(describeError(e).message) }) }}
+          />
+          <span className="settings-help">
+            Off: a resident sees only sessions of the account it runs under. On: residents can search and read sessions you ran under any account, and send their text to Claude under the resident&apos;s account.
+          </span>
         </div>
       )}
       {configs.map((c) => (
