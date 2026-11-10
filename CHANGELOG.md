@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.27] - 2026-11-10
+## [1.60.28] - 2026-11-10
+
+### Security
+
+- Updates are checked against a signature made with Apiary's own release key. An update whose feed
+  is unsigned or altered, or whose version or installer checksums differ from the signed feed, is
+  refused with "This update could not be verified".
+
+## [1.60.27] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Added
 
