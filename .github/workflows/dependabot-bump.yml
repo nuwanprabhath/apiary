@@ -84,6 +84,7 @@ jobs:
                 git push --force-with-lease="refs/heads/$branch:$old" origin "HEAD:refs/heads/$branch"
                 gh pr edit "$pr" --title "$(jq -r .subject <<<"$result")"
                 gh workflow run ci.yml --ref "$branch"
+                gh workflow run dependabot-e2e.yml --ref main -f ref="$branch"
                 ;;
               strip)
                 git push --force-with-lease="refs/heads/$branch:$old" origin "$(jq -r .sha <<<"$result"):refs/heads/$branch"

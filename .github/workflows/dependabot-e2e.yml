@@ -1,0 +1,85 @@
+# The full e2e suite on Linux and macOS for one branch, started by dependabot-bump.yml on the branch
+# it pushed (a push made with GITHUB_TOKEN starts no workflows, and ci.yml runs only the `@smoke`
+# subset). The result is written to the branch's head commit as a commit status, so the pull request
+# shows it. Also runnable by hand: pass any branch or `main` as `ref`.
+name: Dependabot e2e
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to test
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependabot-e2e-${{ inputs.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    outputs:
+      sha: ${{ steps.head.outputs.sha }}
+    env:
+      SHELL: /bin/bash
+      CI: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - id: head
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/setup
+
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64 libgtk-3-0t64
+          # Ubuntu 24.04 restricts unprivileged user namespaces; Electron's sandbox needs one.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:e2e
+
+      - if: runner.os == 'macOS'
+        run: npm run test:e2e
+
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-results-${{ matrix.os }}
+          path: |
+            test-results/
+            playwright-report/
+
+  status:
+    needs: e2e
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      statuses: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.e2e.outputs.sha }}
+          RESULT: ${{ needs.e2e.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SHA" ]; then echo "no commit was checked out; no status"; exit 1; fi
+          if [ "$RESULT" = success ]; then state=success; else state=failure; fi
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" \
+            -f state="$state" -f context="e2e (full)" \
+            -f description="Full e2e on Linux and macOS: $RESULT" -f target_url="$RUN_URL"
