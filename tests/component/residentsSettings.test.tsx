@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
+import { REGENT_KIND } from '@shared/domain/residents'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { renderApp } from './renderApp'
 import { until } from './helpers'
@@ -8,7 +9,7 @@ import { deskConfig, withDeskFields } from './residentFixtures'
 
 /** Settings → Residents: adding Regent, the card's fields saved through the settings write, and the confirms. */
 const regent: ResidentConfig = {
-  id: 'regent', kind: 'regent', name: 'Regent', enabled: true, model: 'sonnet', digestModel: 'haiku',
+  id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: true, model: 'sonnet', digestModel: 'haiku',
   schedule: { days: [1, 2, 3, 4, 5], start: '09:00', end: '18:00' }, pauseAboveUsagePercent: 70, permissionMode: 'auto', digestLookback: null, options: {}, cycleEveryMinutes: null,
 }
 
@@ -81,7 +82,7 @@ describe('Settings → Residents', () => {
     const fake = await openResidents([regent])
     expect(el('resident-digest-regent')?.textContent).toContain('Not started yet')
     fake.emit('residentsChanged', [{
-      id: 'regent', kind: 'regent', name: 'Regent', enabled: true, state: 'working', activity: null, onDuty: true,
+      id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: true, state: 'working', activity: null, onDuty: true,
       appearance: { glyph: 'bee', palette: 'gold', animation: 'halo' }, digest: { done: 612, total: 840 }, attention: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
     }])
     await until(() => (el('resident-digest-regent')?.textContent ?? '').includes('Digested 612 of 840 sessions'))

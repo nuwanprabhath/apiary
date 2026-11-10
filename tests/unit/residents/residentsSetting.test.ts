@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SETTINGS, mergePayload, settingsDefaults } from '@shared/settings/schema'
+import { REGENT_KIND } from '@shared/domain/residents'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -9,7 +10,7 @@ import { createSettingsStore } from '../../../src/main/settings'
 const CTX = { knownPluginIds: new Set<string>(), isAbsolutePath: (p: string) => p.startsWith('/') }
 
 const regent = (over: Partial<ResidentConfig> = {}): ResidentConfig => ({
-  id: 'regent', kind: 'regent', name: 'Regent', enabled: false, model: 'sonnet', digestModel: 'haiku',
+  id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: false, model: 'sonnet', digestModel: 'haiku',
   schedule: { days: [1, 2, 3, 4, 5], start: '09:00', end: '18:00' }, pauseAboveUsagePercent: 70,
   permissionMode: 'auto', digestLookback: null, options: {}, cycleEveryMinutes: null, ...over,
 })
@@ -96,9 +97,10 @@ describe('the residents setting', () => {
     expect(apply([regent({ pauseAboveUsagePercent: -3 })])[0].pauseAboveUsagePercent).toBe(0)
   })
 
-  it('drops an unknown kind and a repeated id, keeping the rest', () => {
+  it('keeps a well-formed kind this side does not know (main drops it), and drops a malformed kind id and a repeated id', () => {
     const gitlab = { ...regent({ id: 'mr' }), kind: 'gitlab' }
-    expect(apply([regent(), gitlab, regent({ name: 'Second' })]).map((c) => [c.id, c.name])).toEqual([['regent', 'Regent']])
+    const malformed = { ...regent({ id: 'bad' }), kind: 'Not A Kind' }
+    expect(apply([regent(), gitlab, malformed, regent({ name: 'Second' })]).map((c) => [c.id, c.name])).toEqual([['regent', 'Regent'], ['mr', 'Regent']])
   })
 
   it('drops an id that is not a folder-safe slug', () => {

@@ -25,7 +25,11 @@ kind's own `options`). Regent is the first kind; the MR desk is the second.
   - `setup(config)`: what is missing before it can work, or null (`status.setupNeeded`);
   - `env?(config, space)`: extra environment for its claude and its commands;
   - `prepare?(config, space)`: async, writes what its program reads and probes its tools.
-- `kindInfos()` is what the renderer sees of a kind (`residentKinds`).
+- A kind id is a branded slug (`ResidentKindId`, `isResidentKindId`); the built-ins are
+  `REGENT_KIND` and `MR_DESK_KIND`. Which ids exist is a `KindRegistry` (`kinds.ts`), filled from
+  `builtinKinds`. The settings guard accepts any well-formed id; `ResidentService` does not run a
+  resident whose kind the registry lacks (`unknownKindFilter`) and logs the id once.
+- `kindInfos()` is what the renderer sees of a kind (`residentKinds`), derived from `builtinKinds`.
 - Each tool in `APIARY_TOOLS` carries its capability, a JSON schema for tools/list and a guard
   that checks the arguments before the handler runs. `toolsFor(capabilities)` is what a resident sees.
 - No tool takes a path. A session id from the agent is checked against the session store; an
@@ -109,7 +113,7 @@ waiting permission retries a minute later; `setupNeeded` skips a whole cycle. Ea
 The second kind runs **mra**, the maintainer's gitlab-mr-agent, vendored in
 `resources/residents/mra/` (Python 3, standard library, MIT; its `README.md` lists where it came from
 and what changed). Apiary is its home; `npm run test:mra` runs its tests. `kinds.ts` builds the kinds
-with `KindDeps` (`src/main/residents/kinds/kindDeps.ts`: `mraDir`, `exec`, `searchPath`, and `files`, whose real implementation is `kinds/kindHost.ts`, so `kinds.ts` imports no Node module the renderer fake cannot load) so a test or the container
+with `KindDeps` (`src/main/residents/kinds/kindDeps.ts`: `resourceDir(kindId)`, `exec`, `searchPath`, and `files`, whose real implementation is `kinds/kindHost.ts`, so `kinds.ts` imports no Node module the renderer fake cannot load) so a test or the container
 passes the outside world in; `src/main/app/resourcesDir.ts` is the one resolver (`process.resourcesPath` when
 packaged, `<repo>/resources` in dev; `electron-builder.yml` `extraResources`).
 

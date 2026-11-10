@@ -66,7 +66,7 @@ describe.runIf(hasPython)('the bundled mra, run (needs python3)', () => {
   })
 
   it('the wrapper the kind writes runs `mra --help` as a bare command', async () => {
-    const kind = builtinKinds({ mraDir: () => mraDir, exec, searchPath: () => process.env.PATH ?? '', files: nodeKindFiles }).find((k) => k.id === 'mr-desk')
+    const kind = builtinKinds({ resourceDir: () => mraDir, exec, searchPath: () => process.env.PATH ?? '', files: nodeKindFiles }).find((k) => k.id === 'mr-desk')
     const config = newResident(kind ?? (() => { throw new Error('no kind') })(), new Set())
     await kind?.prepare?.({ ...config, options: { project: 'g/p', repoPath: dir } }, dir)
     const out = await exec(join(dir, 'bin', 'mra'), ['--help'], '/')
@@ -82,7 +82,7 @@ describe.runIf(hasPython)('"Show the desk" against a fake glab (needs python3)',
     chmodSync(join(bin, 'glab'), 0o755)
     const path = `${bin}:${searchPathFrom(process.env.PATH)}`
     const config: ResidentConfig = {
-      ...newResident(builtinKinds({ mraDir: () => mraDir, exec, searchPath: () => path, files: nodeKindFiles }).find((k) => k.id === 'mr-desk')!, new Set()),
+      ...newResident(builtinKinds({ resourceDir: () => mraDir, exec, searchPath: () => path, files: nodeKindFiles }).find((k) => k.id === 'mr-desk')!, new Set()),
       options: { project: 'g/p', repoPath: dir },
     }
     let list = [config]
@@ -92,7 +92,7 @@ describe.runIf(hasPython)('"Show the desk" against a fake glab (needs python3)',
       claudeBin: () => 'claude', launchEnv: () => ({}),
       tools: { session: () => null, openSession: () => {}, openTabs: () => [], focusedWindow: () => null },
       onChanged: () => {}, onMessage: () => {}, version: '0.0.0',
-      kindOf: kindLookup({ mraDir: () => mraDir, exec: createExec({ env: { PATH: path } }), searchPath: () => path, files: nodeKindFiles }),
+      kindOf: kindLookup({ resourceDir: () => mraDir, exec: createExec({ env: { PATH: path } }), searchPath: () => path, files: nodeKindFiles }),
     })
     services.push(service)
     service.start()

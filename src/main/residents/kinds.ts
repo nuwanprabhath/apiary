@@ -1,5 +1,5 @@
 import {
-  SESSION_LINK_PREFIX, type ResidentConfig, type ResidentKindId, type ResidentKindInfo,
+  REGENT_KIND, SESSION_LINK_PREFIX, type ResidentConfig, type ResidentKindId, type ResidentKindInfo,
 } from '@shared/domain/residents'
 import { RESIDENT_FIELD_DEFAULTS } from '@shared/settings/residents'
 import { type KindDeps, UNWIRED_KIND_DEPS } from './kinds/kindDeps'
@@ -10,7 +10,7 @@ export type { ResidentCapability, ResidentKind } from './kindTypes'
 export type { KindDeps } from './kinds/kindDeps'
 
 const regent: ResidentKind = {
-  id: 'regent',
+  id: REGENT_KIND,
   defaults: {
     name: 'Regent',
     enabled: false,
@@ -71,6 +71,28 @@ function builtinRegistry(deps: KindDeps): KindRegistry {
   const registry = new KindRegistry()
   for (const kind of builtinKinds(deps)) registry.register(kind)
   return registry
+}
+
+/**
+ * Keeps the residents whose kind `kindOf` knows. A resident of another kind stays in the setting
+ * (a newer build may run it) but is not run here; `onUnknown` hears each unknown kind id once.
+ */
+export function unknownKindFilter(
+  kindOf: (id: ResidentKindId) => ResidentKind, onUnknown: (c: ResidentConfig) => void,
+): (c: ResidentConfig) => boolean {
+  const reported = new Set<string>()
+  return (c) => {
+    try {
+      kindOf(c.kind)
+      return true
+    } catch {
+      if (!reported.has(c.kind)) {
+        reported.add(c.kind)
+        onUnknown(c)
+      }
+      return false
+    }
+  }
 }
 
 /** `kindOf` over kinds built with `deps`; the container passes the real ones. */

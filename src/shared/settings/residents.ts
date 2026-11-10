@@ -1,12 +1,12 @@
-import { clamp, isFiniteNumber, isOneOf, isRecord } from '../guards'
+import { clamp, isFiniteNumber, isRecord } from '../guards'
 import type { Guard } from '../ipc/guards'
-import { CYCLE_MINUTES, RESIDENT_KINDS, type ResidentConfig, type ResidentSchedule } from '../domain/residents'
+import { CYCLE_MINUTES, isResidentKindId, type ResidentConfig, type ResidentSchedule } from '../domain/residents'
 import { isChatPermissionMode } from '../domain/chat'
 import { isDigestLookback } from '../digestLookback'
 
 /**
  * The `residents` setting's guard and constraint (`SETTINGS.residents`). Kinds are declared in
- * `main/residents/kinds.ts`; this side only knows their ids (`RESIDENT_KINDS`).
+ * `main/residents/kinds.ts`; this side only knows an id is well formed (`isResidentKindId`).
  */
 
 /** A resident id names its folder (`userData/residents/<id>/`), so it is a slug and nothing else. */
@@ -42,7 +42,7 @@ function hasConfigShape(v: unknown): v is SavedResidentConfig {
 
 /** A config this build can run: the shape, a known kind and a slug id. */
 function isRunnable(v: unknown): v is SavedResidentConfig & Pick<ResidentConfig, 'kind'> {
-  return hasConfigShape(v) && isOneOf(RESIDENT_KINDS, v.kind) && RESIDENT_ID_RE.test(v.id)
+  return hasConfigShape(v) && isResidentKindId(v.kind) && RESIDENT_ID_RE.test(v.id)
 }
 
 /** The setting's guard. The kind is narrowed, and missing fields filled, by `constrainResidents`. */

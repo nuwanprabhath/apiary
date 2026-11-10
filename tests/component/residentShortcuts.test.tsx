@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { createRoot, type Root } from 'react-dom/client'
+import { REGENT_KIND } from '@shared/domain/residents'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { renderApp } from './renderApp'
 import { until } from './helpers'
@@ -9,7 +10,7 @@ import { closeResidentPopup, useResidentPopup, type ResidentPopupState } from '.
 
 /** ⌘⇧Space and ⌘↵ in the search box: the popup state, and what the popup then sends. */
 const regent: ResidentConfig = {
-  id: 'regent', kind: 'regent', name: 'Regent', enabled: true, model: 'sonnet', digestModel: 'haiku',
+  id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: true, model: 'sonnet', digestModel: 'haiku',
   schedule: { days: [1, 2, 3, 4, 5], start: '09:00', end: '18:00' }, pauseAboveUsagePercent: 70, permissionMode: 'auto', digestLookback: null, options: {}, cycleEveryMinutes: null,
 }
 

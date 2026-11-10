@@ -15,7 +15,7 @@ const MRA = '/res/residents/mra'
 function desk(tools: { python3?: boolean; glab?: boolean } = {}): ResidentKind {
   const found = { python3: true, glab: true, ...tools }
   const kinds = builtinKinds({
-    mraDir: () => MRA,
+    resourceDir: (id) => `/res/residents/${id}`,
     searchPath: () => '/usr/bin:/bin',
     files: nodeKindFiles,
     exec: async (file) => {
@@ -137,7 +137,7 @@ describe('the MR desk kind', () => {
   })
 
   it('the system prompt is the vendored RESIDENT.md behind a short Apiary preamble, with every hard rule', () => {
-    const kind = builtinKinds({ mraDir: () => mraDirIn(resolveResourcesDir({ packaged: false, resourcesPath: '', appPath: process.cwd() })), exec: async () => '', searchPath: () => '', files: nodeKindFiles })
+    const kind = builtinKinds({ resourceDir: (id) => join(resolveResourcesDir({ packaged: false, resourcesPath: '', appPath: process.cwd() }), 'residents', id), exec: async () => '', searchPath: () => '', files: nodeKindFiles })
       .find((k) => k.id === 'mr-desk')
     const prompt = kind?.systemPrompt('Desk', 30) ?? ''
     expect(prompt).toContain('You are Desk, the user\'s MR desk')

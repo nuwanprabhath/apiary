@@ -9,8 +9,19 @@ import type { ChatPermissionMode } from './chat'
  * knows how to draw, as status-bar plugins' icons are.
  */
 
-export const RESIDENT_KINDS = ['regent', 'mr-desk'] as const
-export type ResidentKindId = (typeof RESIDENT_KINDS)[number]
+declare const kindBrand: unique symbol
+
+/** A kind's id: a slug (see `isResidentKindId`). Which ids exist is main's `KindRegistry`, not a type. */
+export type ResidentKindId = string & { readonly [kindBrand]: 'ResidentKindId' }
+
+const KIND_ID_RE = /^[a-z0-9-]{1,40}$/
+
+/** Lower-case letters, digits and `-`, at most 40 characters. */
+export const isResidentKindId = (v: unknown): v is ResidentKindId => typeof v === 'string' && KIND_ID_RE.test(v)
+
+/** The built-in kinds' ids. */
+export const REGENT_KIND = 'regent' as ResidentKindId
+export const MR_DESK_KIND = 'mr-desk' as ResidentKindId
 
 /** Regent is a bee in a gold halo; the MR desk a honey pot whose dipper stirs, in an amber glow. */
 export type ResidentGlyph = 'bee' | 'honeypot'

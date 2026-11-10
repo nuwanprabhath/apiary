@@ -1,3 +1,4 @@
+import { MR_DESK_KIND } from '@shared/domain/residents'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { RESIDENT_FIELD_DEFAULTS } from '@shared/settings/residents'
 import type { ResidentKind } from '../kindTypes'
@@ -23,9 +24,10 @@ const preamble = (name: string, everyMinutes: number): string => [
 /** The MR desk: the vendored `mra` CLI (`resources/residents/mra`) run on a 15-minute cycle by a chat with full tools. */
 export function createMrDesk(deps: KindDeps): ResidentKind {
   const probe = new ToolProbe(deps.exec)
-  const script = (): string => `${deps.mraDir()}/bin/mra`
+  const mraDir = (): string => deps.resourceDir('mra')
+  const script = (): string => `${mraDir()}/bin/mra`
   return {
-    id: 'mr-desk',
+    id: MR_DESK_KIND,
     defaults: {
       name: 'MR Desk',
       enabled: false,
@@ -81,6 +83,6 @@ export function createMrDesk(deps: KindDeps): ResidentKind {
       }
       await probe.refresh(space)
     },
-    systemPrompt: (name, cycleMinutes = CYCLE_DEFAULT_MINUTES) => preamble(name, cycleMinutes) + deps.files.readText(`${deps.mraDir()}/RESIDENT.md`),
+    systemPrompt: (name, cycleMinutes = CYCLE_DEFAULT_MINUTES) => preamble(name, cycleMinutes) + deps.files.readText(`${mraDir()}/RESIDENT.md`),
   }
 }

@@ -16,8 +16,8 @@ export interface KindFiles {
 
 /** What a kind needs from outside itself: where its bundled program is, whether the machine has its tools, its files. */
 export interface KindDeps {
-  /** The vendored `mra` folder (`resources/residents/mra`, dev or packaged). */
-  mraDir: () => string
+  /** A kind's bundled folder (`resources/residents/<kindId>`, dev or packaged). */
+  resourceDir: (kindId: string) => string
   /** Runs a short command to see whether a tool exists and works (`file args`, in `cwd`). */
   exec: ExecFn
   /** The `PATH` its programs run under: Apiary's own plus where Homebrew puts `glab`. */
@@ -29,7 +29,7 @@ const unwired = (): never => { throw new Error('Kind deps are not wired') }
 
 /** For the renderer fake: the kinds' fields are real, nothing runs on the machine. */
 export const UNWIRED_KIND_DEPS: KindDeps = {
-  mraDir: () => 'resources/residents/mra',
+  resourceDir: (kindId) => `resources/residents/${kindId}`,
   exec: () => Promise.reject(new Error('Kind deps are not wired')),
   searchPath: () => '',
   files: { ensureDir: unwired, writeExecutable: unwired, writeJson: unwired, readText: unwired },
