@@ -8,12 +8,18 @@ import { createServiceFixture, teardownServiceFixture } from './setup'
 let home: string
 let workdir: string
 let service: AppService
+// An interactive zsh/bash loads the maintainer's rc files (0.5 s, seconds under load); sh needs none.
+let realShell: string | undefined
 
 beforeEach(() => {
+  realShell = process.env.SHELL
+  process.env.SHELL = '/bin/sh'
   ;({ home, workdir, service } = createServiceFixture())
 })
 afterEach(async () => {
   await teardownServiceFixture({ home, workdir, service })
+  if (realShell === undefined) delete process.env.SHELL
+  else process.env.SHELL = realShell
 })
 
 const projects = (): string => join(home, '.claude', 'projects')
