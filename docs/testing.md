@@ -38,3 +38,16 @@ efficiency cores), one layer at a time. 1.59.6 against 1.59.9 (no app change in 
 Coverage did not drop (node 86.21% lines; component 77.81% → 77.88%). The e2e wall time moved
 with the machine's load more than with the suite: its tests' summed time went 992 s, 955 s and
 1115 s on three runs of near-identical code, with an antivirus scanning every file the tests wrote.
+
+## Library-scale benchmark
+
+`node scripts/bench/libraryScale.mjs [label]` (`--sessions N`, or `APIARY_BENCH_SESSIONS`; default
+5,000) writes a synthetic library under a temp folder (N sessions in N/20 folders: 95% of 50 to 500
+lines, 4% of 5,000, 1% of 50,000, from `tests/fixtures/makeSession.ts`), builds the real session
+services around it with `tests/fixtures/buildService.ts`, and times five runs each of a first full
+pass, an unchanged full pass, a scoped pass after one appended line, `tree()` (and its JSON size),
+an unchanged search-index pass, a search-index pass after a line appended to a 50,000-line session,
+and the newest and a middle transcript page of that session. It bundles
+`tests/fixtures/bench/library.ts` with esbuild and runs it under plain Node, with `electron` as an
+inert stand-in. Results go to `bench-results/library-<label>/summary.json` (median and worst in ms);
+a performance change quotes the before and after.
