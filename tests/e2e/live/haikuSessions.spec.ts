@@ -36,7 +36,7 @@ async function useHaiku(): Promise<void> {
   writeFileSync(script, '#!/bin/sh\nexec claude --model haiku "$@"\n')
   chmodSync(script, 0o755)
   await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+    BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog')
   })
   await h.page.getByTestId('settings-nav-general').click()
   await h.page.getByTestId('claude-bin-input').fill(script)

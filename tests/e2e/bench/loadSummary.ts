@@ -5,7 +5,7 @@ import type { ChildSample, MainSample, RendererData } from './loadProbes'
 const pct = (xs: number[], p: number): number => {
   if (xs.length === 0) return 0
   const s = [...xs].sort((a, b) => a - b)
-  return Math.round(s[Math.min(s.length - 1, Math.floor(p * s.length))] * 10) / 10
+  return Math.round((s[Math.min(s.length - 1, Math.floor(p * s.length))] ?? 0) * 10) / 10
 }
 const mean = (xs: number[]): number => (xs.length === 0 ? 0 : Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10)
 const stats = (xs: number[]): { mean: number; p50: number; p95: number; max: number } =>
@@ -108,9 +108,10 @@ export function summarise(input: {
     const n = Math.min(sent.length, r.keys.length)
     for (let i = 0; i < n; i += 1) {
       const k = r.keys[i]
-      if (k.paintMs <= 0) continue
+      const sentAt = sent[i]
+      if (k === undefined || sentAt === undefined || k.paintMs <= 0) continue
       inRenderer.push(k.paintMs)
-      e2e.push(k.t0Epoch + k.paintMs - sent[i])
+      e2e.push(k.t0Epoch + k.paintMs - sentAt)
     }
   }
   const events = input.renderers.flatMap((r) => r.events)

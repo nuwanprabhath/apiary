@@ -12,7 +12,7 @@ import { launchApiary, relaunchApiary, type Harness } from './helpers'
 /** The menu lives in the main process, so trigger the same channel it sends. */
 async function openImportDialog(harness: Harness): Promise<void> {
   await harness.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-import-dialog')
+    BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-import-dialog')
   })
   await expect(harness.page.getByTestId('import-dialog')).toBeVisible()
 }

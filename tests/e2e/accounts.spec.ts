@@ -41,7 +41,7 @@ test('a chat moved to an added account restarts under its folder and keeps its c
   await expect(async () => {
     if (!(await h.page.getByTestId('settings-dialog').isVisible())) {
       await h.app.evaluate(({ BrowserWindow }) => {
-        BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+        BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog')
       })
     }
     await expect(h.page.getByTestId('settings-nav-accounts')).toBeVisible({ timeout: 2000 })

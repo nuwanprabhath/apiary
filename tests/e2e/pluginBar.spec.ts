@@ -101,7 +101,7 @@ test('the plugin can be switched off, and its button goes with it', async () => 
   await expect(h.page.getByTestId('plugin-gitlab-mr-mr')).toBeVisible()
 
   await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+    BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog')
   })
   await h.page.getByTestId('settings-nav-plugins').click()
   await h.page.getByTestId('setting-plugin-gitlab-mr').uncheck()
@@ -114,7 +114,7 @@ test('a plugin\'s own settings are drawn from what it declares, under the plugin
   await launch({ glabEmpty: true })
 
   await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+    BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog')
   })
   await h.page.getByTestId('settings-nav-plugins').click()
 
@@ -129,7 +129,7 @@ test('the target branch setting is used when creating a merge request, and persi
   const opened = await captureOpenExternal(h.page, h)
 
   await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+    BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog')
   })
   await h.page.getByTestId('settings-nav-plugins').click()
   await h.page.getByTestId('plugin-setting-gitlab-mr-targetBranch').fill('dev/1.0.12')
@@ -148,7 +148,7 @@ test('the target branch setting is used when creating a merge request, and persi
 
   // Reopening Settings shows what was saved, rather than the default again.
   await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+    BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog')
   })
   await h.page.getByTestId('settings-nav-plugins').click()
   await expect(h.page.getByTestId('plugin-setting-gitlab-mr-targetBranch')).toHaveValue('dev/1.0.12')
@@ -158,7 +158,7 @@ test('a plugin\'s settings are hidden while the plugin is off', async () => {
   await launch()
 
   await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+    BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog')
   })
   await h.page.getByTestId('settings-nav-plugins').click()
   await expect(h.page.getByTestId('plugin-setting-gitlab-mr-targetBranch')).toBeVisible()

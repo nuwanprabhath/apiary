@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from '@playwright/test'
-import { launchApiary, importAll, relaunchApiary, type Harness } from './helpers'
+import { launchApiary, importAll, relaunchApiary, must, type Harness } from './helpers'
 
 let h: Harness
 
@@ -38,10 +38,11 @@ async function folderOrder(page: Page): Promise<string[]> {
 test('a folder can be dragged above another, and stays there across a restart', async () => {
   const before = await folderOrder(h.page)
   expect(before.length).toBeGreaterThan(1)
-  const last = before[before.length - 1]
-  expect(before[0]).not.toBe(last)
+  const last = must(before[before.length - 1], 'last folder')
+  const top = must(before[0], 'first folder')
+  expect(top).not.toBe(last)
 
-  await folder(h.page, last).dragTo(folder(h.page, before[0]))
+  await folder(h.page, last).dragTo(folder(h.page, top))
   expect((await folderOrder(h.page))[0]).toBe(last)
 
   // The whole point of arranging the sidebar is that it is still arranged tomorrow.
@@ -51,7 +52,7 @@ test('a folder can be dragged above another, and stays there across a restart', 
 
 test('a folder can be filed into a group of its own making, which persists', async () => {
   const names = await folderOrder(h.page)
-  const first = names[0]
+  const first = must(names[0], 'first folder')
 
   await folder(h.page, first).click({ button: 'right' })
   await h.page.getByTestId('context-menu-new-group').click()
@@ -74,7 +75,7 @@ test('a folder can be filed into a group of its own making, which persists', asy
 test('groups reorder by dragging one heading onto another', async () => {
   const names = await folderOrder(h.page)
 
-  for (const [folderName, groupName] of [[names[0], 'First'], [names[1], 'Second']]) {
+  for (const [folderName, groupName] of [[must(names[0], 'first folder'), 'First'], [must(names[1], 'second folder'), 'Second']] as const) {
     await folder(h.page, folderName).click({ button: 'right' })
     await h.page.getByTestId('context-menu-new-group').click()
     await h.page.getByTestId('folder-group-rename').fill(groupName)

@@ -33,7 +33,7 @@ interface Metrics { inputP95: number; inputMax: number; slowInputs: number; long
 const pct = (xs: number[], p: number): number => {
   if (xs.length === 0) return 0
   const s = [...xs].sort((a, b) => a - b)
-  return s[Math.min(s.length - 1, Math.floor(p * s.length))]
+  return s[Math.min(s.length - 1, Math.floor(p * s.length))] ?? 0
 }
 const metrics = (s: Sample): Metrics => ({
   inputP95: Math.round(pct(s.events, 0.95)),
@@ -114,7 +114,7 @@ const SCENARIOS: Record<string, (h: Harness) => Promise<void>> = {
   },
 }
 
-const median = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]
+const median = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0
 
 test('every built-in theme is as snappy as the original look', async () => {
   test.setTimeout(RUNS * THEMES.length * 90_000)
@@ -159,7 +159,7 @@ test('every built-in theme is as snappy as the original look', async () => {
   }
 
   writeFileSync(OUT, JSON.stringify({ software: SOFTWARE, results }, null, 2))
-  const rows = Object.keys(SCENARIOS).flatMap((scenario) => Object.keys(results).map((t) => ({ scenario, theme: t, ...results[t][scenario] })))
+  const rows = Object.keys(SCENARIOS).flatMap((scenario) => Object.keys(results).map((t) => ({ scenario, theme: t, ...results[t]?.[scenario] })))
   // eslint-disable-next-line no-console -- this benchmark's whole purpose is reporting its measured numbers to whoever ran it; also written to OUT above for machine reading
   console.table(rows)
 
@@ -170,6 +170,7 @@ test('every built-in theme is as snappy as the original look', async () => {
     if (t === 'original') continue
     for (const [scenario, m] of Object.entries(byScenario)) {
       const b = base[scenario]
+      if (b === undefined) continue
       // "As snappy as the original": input no more than a frame or two slower at p95, no input a
       // person would call laggy that the original does not also have, and no extra stutter.
       if (m.inputP95 > b.inputP95 + 33) failures.push(`${t} / ${scenario}: input p95 ${String(m.inputP95)} ms vs ${String(b.inputP95)} ms`)

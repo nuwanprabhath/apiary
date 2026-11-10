@@ -42,7 +42,9 @@ for (const target of ['_self', '_blank']) {
     // Playwright sees a navigation start and is never told the guard cancelled it, so its own
     // locators wait forever on "navigation to finish" even though the page never left.
     const still = await h.app.evaluate(async ({ BrowserWindow }) => {
-      const wc = BrowserWindow.getAllWindows()[0].webContents
+      const win = BrowserWindow.getAllWindows()[0]
+      if (win === undefined) throw new Error('no window')
+      const wc = win.webContents
       return {
         url: wc.getURL(),
         sidebar: await wc.executeJavaScript('document.querySelector(\'[data-testid="sidebar"]\') !== null') as boolean,
