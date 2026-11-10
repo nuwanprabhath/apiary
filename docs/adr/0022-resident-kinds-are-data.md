@@ -4,8 +4,8 @@
 - **Context:** Adding a resident kind meant a release: kinds were TypeScript in
   `src/main/residents/kinds.ts`. Users want their own residents (a scribe, a standup writer) that
   differ from the built-ins only in prompt, appearance, tool groups and schedule.
-- **Decision:** A user's kind is a folder, `userData/resident-kinds/<id>/`, holding `kind.json` and
-  an optional `PROMPT.md`. `validateResidentKindManifest` (`src/shared/residentKindManifest.ts`) is
+- **Decision:** A user's kind is a folder, `userData/resident-kinds/<id>/`, holding a kind.json and
+  an optional PROMPT.md. `validateResidentKindManifest` (`src/shared/residentKindManifest.ts`) is
   the only way in, as `validatePet` is for pets: it is total, reads only allowlisted own
   properties, caps every string (name 40, blurb 200, prompt 20,000), strips control characters,
   chooses the appearance from the closed glyph, palette and animation sets, keeps only known

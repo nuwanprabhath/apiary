@@ -35,7 +35,7 @@ kind's own `options`). Regent is the first kind; the MR desk is the second.
 - `kindInfos()` is what the renderer sees of a kind (`residentKinds`), derived from `builtinKinds`
   plus the data kinds the container passed to `showDataKinds`.
 - **A user's kind is data, never code** (ADR-0022). `userData/resident-kinds/<id>/kind.json` plus an
-  optional `PROMPT.md`, read once at start by `readManifestKinds` (`kinds/manifestKind.ts`); no file
+  optional PROMPT.md, read once at start by `readManifestKinds` (`kinds/manifestKind.ts`); no file
   watching. `validateResidentKindManifest` (`src/shared/residentKindManifest.ts`) is the only way
   in: name, blurb, appearance, capabilities (not `gitlab.approve`), `text` option fields, `prompt`
   quick actions, a cycle and a `toolPolicy`; never commands, `bins`, `env`, `prepare` or `digests`,
