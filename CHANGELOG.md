@@ -4,7 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.7] - 2026-11-10
+## [1.60.8] - 2026-11-10
+
+### Security
+
+- Only Apiary's own window may talk to the app: the check now requires the exact renderer file Apiary
+  ships, not any file named `renderer/index.html`.
+
+## [1.60.7] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Changed
 
