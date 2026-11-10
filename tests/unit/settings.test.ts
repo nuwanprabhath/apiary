@@ -296,3 +296,16 @@ describe('the Claude usage consent answer (ADR-0019)', () => {
     expect(merged.claudeUsageConsent).toBe('unknown')
   })
 })
+
+describe('linuxXWayland (schema version 3)', () => {
+  it('is off by default', () => {
+    expect(DEFAULT_SETTINGS.linuxXWayland).toBe(false)
+  })
+  it('is turned off once for a file written at an older version', () => {
+    expect(migrateSettings({ schemaVersion: 2, linuxXWayland: true }).linuxXWayland).toBe(false)
+    expect(migrateSettings({ linuxXWayland: true }).linuxXWayland).toBe(false)
+  })
+  it('stays on in a file already at the new version', () => {
+    expect(migrateSettings({ schemaVersion: SETTINGS_VERSION, linuxXWayland: true }).linuxXWayland).toBe(true)
+  })
+})

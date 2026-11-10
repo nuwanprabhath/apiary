@@ -17,7 +17,7 @@ import type { LibraryPatch } from '@shared/libraryState'
  * A changed default reaches nobody otherwise: `saveSettings` writes the whole object, so every
  * settings.json pins every field to its default on the day it was first written.
  */
-export const SETTINGS_VERSION = 2
+export const SETTINGS_VERSION = 3
 
 /**
  * The full stored shape: `AppSettingsPayload` (shared/domain/settings.ts) plus what only main
@@ -60,13 +60,17 @@ export function clampRecentHours(value: unknown): number {
 /**
  * Brings a stored settings file up to date as it is read.
  *
+ * Version 3 turns `linuxXWayland` off for everyone once: through XWayland a late key release made
+ * keys repeat on their own. A person who turns it on afterwards keeps it.
+ *
  * Version 1 turns the prompt trim on at one folder; a migration, because `terminalShortenPath:
  * false` is already written down everywhere. It only touches values still exactly the old defaults.
  */
 export function migrateSettings(raw: Partial<AppSettings>): Partial<AppSettings> {
   const from = raw.schemaVersion ?? 0
   if (from >= SETTINGS_VERSION) return raw
-  return { ...withoutMoved(from < 1 ? migrateToV1(raw) : raw), schemaVersion: SETTINGS_VERSION }
+  const moved = withoutMoved(from < 1 ? migrateToV1(raw) : raw)
+  return { ...(from < 3 ? { ...moved, linuxXWayland: false } : moved), schemaVersion: SETTINGS_VERSION }
 }
 
 function migrateToV1(raw: Partial<AppSettings>): Partial<AppSettings> {
