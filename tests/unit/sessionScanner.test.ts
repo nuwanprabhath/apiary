@@ -128,3 +128,38 @@ describe('scanProjects', () => {
     expect(await scanProjects(join(root, 'does-not-exist'))).toHaveLength(0)
   })
 })
+
+describe('extractMeta with a large first line', () => {
+  it('takes cwd and a start time from the tail when the head holds no complete line', async () => {
+    const dir = join(root, '-big')
+    mkdirSync(dir, { recursive: true })
+    const file = join(dir, 'big.jsonl')
+    const base = { cwd: '/home/nuwan/big', sessionId: 'big' }
+    const lines = [
+      JSON.stringify({ ...base, type: 'user', timestamp: '2026-01-01T00:00:00.000Z', message: { role: 'user', content: 'x'.repeat(100_000) } }),
+      JSON.stringify({ ...base, type: 'assistant', timestamp: '2026-01-01T00:00:05.000Z', message: { role: 'assistant', content: 'ok' } }),
+    ]
+    writeFileSync(file, `${lines.join('\n')}\n`)
+    const meta = await extractMeta(file)
+    expect(meta.cwd).toBe('/home/nuwan/big')
+    expect(meta.startedAtMs).not.toBeNull()
+    expect(meta.firstPrompt).toBeNull()
+  })
+})
+
+describe('scanProjects over many files', () => {
+  it('returns all 200 files of one directory in path order', async () => {
+    const dir = join(root, '-many')
+    mkdirSync(dir, { recursive: true })
+    const line = JSON.stringify({ type: 'user', cwd: '/x', timestamp: '2026-01-01T00:00:00.000Z', message: { role: 'user', content: 'hi' } })
+    for (let i = 0; i < 200; i += 1) {
+      writeFileSync(join(dir, `${String(i).padStart(3, '0')}.jsonl`), `${line}\n`)
+    }
+    const stats = { filesSeen: 0, filesParsed: 0 }
+    const metas = await scanProjects(root, { stats })
+    expect(metas).toHaveLength(200)
+    expect(stats.filesSeen).toBe(200)
+    const paths = metas.map((m) => m.filePath)
+    expect(paths).toEqual([...paths].sort())
+  })
+})

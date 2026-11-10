@@ -8,10 +8,8 @@ import { extractMeta } from '../../src/main/scanner/sessionScanner'
 /**
  * Cases this reader gets wrong today, run as `it.fails`: the task named beside each turns one red
  * when it fixes it, and must then delete the line.
- * - largeFirstLine: T1.1: the head read stops before the line that holds the cwd
- * - splitMultibyte: T1.1: the head read stops before the cwd on a line over 64 KB
  */
-const KNOWN: CaseName[] = ['largeFirstLine', 'splitMultibyte']
+const KNOWN: CaseName[] = []
 const OK = CASE_NAMES.filter((n) => !KNOWN.includes(n))
 
 let cases: Record<CaseName, CorpusCase>

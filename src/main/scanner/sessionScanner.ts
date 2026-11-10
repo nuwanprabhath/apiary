@@ -63,8 +63,11 @@ export async function extractMeta(filePath: string): Promise<SessionMeta> {
   const head = parseLines(await readHeadLines(filePath))
   const tail = parseLines(await readTailLines(filePath))
 
-  const withCwd = head.find((e) => typeof e.cwd === 'string')
+  // A first line over the head's 64 KB (a pasted image) is dropped from the head; every later line
+  // carries the same cwd, so the tail names it. The first prompt is not recoverable from the tail.
+  const withCwd = head.find((e) => typeof e.cwd === 'string') ?? tail.find((e) => typeof e.cwd === 'string')
   const firstTimestamped = head.find((e) => typeof e.timestamp === 'string')
+    ?? tail.find((e) => typeof e.timestamp === 'string')
   const lastTimestamped = [...tail].reverse().find((e) => typeof e.timestamp === 'string')
   const lastTitle = [...tail].reverse().find(
     (e) => e.type === 'ai-title' && typeof e.aiTitle === 'string',
@@ -110,6 +113,8 @@ export interface ScanOptions {
   stats?: ScanStats
 }
 
+const SCAN_CONCURRENCY = 16
+
 export async function scanProjects(projectsRoot: string, opts?: ScanOptions): Promise<SessionMeta[]> {
   let dirs: string[]
   try {
@@ -122,27 +127,34 @@ export async function scanProjects(projectsRoot: string, opts?: ScanOptions): Pr
   const results: SessionMeta[] = []
   let filesSeen = 0
   let filesParsed = 0
-  for (const dir of dirs) {
+  for (const dir of dirs.sort()) {
     const dirPath = join(projectsRoot, dir)
     let files: string[]
     try {
-      files = (await readdir(dirPath)).filter((f) => f.endsWith('.jsonl'))
+      files = (await readdir(dirPath)).filter((f) => f.endsWith('.jsonl')).sort()
     } catch {
       continue
     }
-    for (const f of files) {
-      filesSeen += 1
-      const filePath = join(dirPath, f)
-      const meta = await ignoreErrorsAsync(async () => {
-        if (opts?.isUnchanged) {
-          const info = await stat(filePath)
-          if (opts.isUnchanged(filePath, info.size, info.mtimeMs)) return null
-        }
-        filesParsed += 1
-        return await extractMeta(filePath)
-      }, 'an unreadable file is skipped rather than failing the whole scan')
-      if (meta) results.push(meta)
+    filesSeen += files.length
+    const metas: (SessionMeta | null)[] = new Array<SessionMeta | null>(files.length).fill(null)
+    let next = 0
+    const worker = async (): Promise<void> => {
+      while (next < files.length) {
+        const i = next
+        next += 1
+        const filePath = join(dirPath, files[i])
+        metas[i] = (await ignoreErrorsAsync(async () => {
+          if (opts?.isUnchanged) {
+            const info = await stat(filePath)
+            if (opts.isUnchanged(filePath, info.size, info.mtimeMs)) return null
+          }
+          filesParsed += 1
+          return await extractMeta(filePath)
+        }, 'an unreadable file is skipped rather than failing the whole scan')) ?? null
+      }
     }
+    await Promise.all(Array.from({ length: Math.min(SCAN_CONCURRENCY, files.length) }, worker))
+    for (const m of metas) if (m) results.push(m)
   }
   if (opts?.stats) {
     opts.stats.filesSeen = filesSeen
