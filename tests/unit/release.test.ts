@@ -32,6 +32,7 @@ describe('release script', () => {
 
   it('lists tags with no release and missing assets', () => {
     expect(tagsWithoutRelease(['v2', 'v1'], ['v1'])).toEqual(['v2'])
-    expect(missingAssets(['a.dmg', 'a.zip', 'latest-mac.yml', 'a.AppImage', 'a.deb'])).toHaveLength(1)
+    expect(missingAssets(['a.dmg', 'a.zip', 'latest-mac.yml', 'a.AppImage', 'a.deb'])).toHaveLength(3)
+    expect(missingAssets(['a.dmg', 'a.zip', 'latest-mac.yml', 'latest-mac.yml.sig', 'a.AppImage', 'a.deb', 'latest-linux.yml', 'latest-linux.yml.sig'])).toEqual([])
   })
 })
