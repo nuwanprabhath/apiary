@@ -32,6 +32,16 @@ under the same id: each callback first checks `entries.get(id).child === child` 
 when it is no longer the occupant. A new per-pty field goes on `PtyEntry`, never in a second map
 (`tests/unit/architecture/perIdState.test.ts`).
 
+## Kill and write results
+
+`killAndWait(id, timeoutMs)` returns `'exited'` (stopped on the default signal, or no child),
+`'killed'` (only after SIGKILL to the process group, then the pid) or `'alive'` (still running 1 s
+after SIGKILL); a caller that needs the process gone (`ChatService.start` with `takeOver`,
+`TerminalService.respawn`) throws on `'alive'`. `write` returns false when there is no live child or
+the write threw, and `sendPrompt` then throws so the composer keeps its text. Exit handlers get the
+signal as a third argument. Entries without a child beyond 500 are forgotten, oldest first; `kill()`
+and an exit never delete one, since `resolveShellCwd` reads `cwd` from a recent dead entry.
+
 ## Minimal prompt
 
 **Minimal prompt** (`terminalMinimalPrompt`, default on) is also in `promptPath.ts`: bash gets
