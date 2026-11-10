@@ -4,7 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.18] - 2026-11-10
+## [1.60.19] - 2026-11-10
+
+### Fixed
+
+- Search finds words from the newest part of a long session, not only its first 2 MB, and indexes
+  only what a session added since the last pass. The search index rebuilds once after this update.
+
+## [1.60.18] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Added
 
