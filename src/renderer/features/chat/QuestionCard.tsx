@@ -17,7 +17,8 @@ function answerOf(q: AskQuestion, pick: Pick): string | null {
     if (i === otherIndex) {
       if (pick.other.trim() !== '') parts.push(pick.other.trim())
     } else {
-      parts.push(q.options[i].label)
+      const option = q.options[i]
+      if (option !== undefined) parts.push(option.label)
     }
   }
   return parts.length === 0 || (pick.chosen.includes(otherIndex) && pick.other.trim() === '') ? null : joinLabels(parts)
@@ -125,7 +126,8 @@ export function QuestionCard(
   useEffect(() => { focusUnlessTyping(firstList.current) }, [])
   if (questions.length === 0) return null
 
-  const answers = questions.map((q, i) => answerOf(q, picks[i]))
+  const pickAt = (i: number): Pick => picks[i] ?? { chosen: [], other: '' }
+  const answers = questions.map((q, i) => answerOf(q, pickAt(i)))
   const complete = answers.every((a) => a !== null)
   const submit = (): void => {
     if (!complete) return
@@ -138,7 +140,7 @@ export function QuestionCard(
           key={q.question}
           base={`${request.requestId}-q${String(i)}`}
           q={q}
-          pick={picks[i]}
+          pick={pickAt(i)}
           listRef={i === 0 ? (el) => { firstList.current = el } : undefined}
           onChange={(next) => { setPicks(picks.map((p, j) => (j === i ? next : p))) }}
         />

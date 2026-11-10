@@ -15,12 +15,12 @@ export function splitStreaming(text: string): { done: string; tail: string } {
   let split = 0
   let offset = 0
   const lines = text.split('\n')
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
+  for (const [i, line] of lines.entries()) {
     const marker = FENCE.exec(line)?.[1]
     if (marker !== undefined) {
-      if (fence === null) fence = marker[0]
-      else if (marker[0] === fence) fence = null
+      const ch = marker.charAt(0)
+      if (fence === null) fence = ch
+      else if (ch === fence) fence = null
     }
     offset += line.length + 1
     const next = lines[i + 1]
@@ -38,5 +38,5 @@ function isListBreak(lines: string[], blank: number, next: string): boolean {
   // Only a list or quote when the paragraph before the blank belongs to one too.
   let before = blank - 1
   while (before > 0 && lines[before - 1] !== '') before--
-  return CONTINUES.test(lines[before])
+  return CONTINUES.test(lines[before] ?? '')
 }
