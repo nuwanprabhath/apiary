@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { PtyManager } from '../../src/main/pty/ptyManager'
 import { log } from '../../src/main/log/logger'
+import { stays } from '../fixtures/stays'
 
 let manager: PtyManager | null = null
 afterEach(async () => { await manager?.killAll(); manager = null })
@@ -195,6 +196,26 @@ describe('PtyManager', () => {
     manager = new PtyManager()
     expect(() => manager!.spawn({ id: 'd', cwd: '/definitely/not/here', command: 'true' }))
       .toThrow(/does not exist/i)
+  })
+
+  it('pauseOutput stops reading a pty until resumeOutput, and nothing it wrote is lost', async () => {
+    manager = new PtyManager()
+    const m = manager
+    let seen = ''
+    m.onData((id, data) => { if (id === 'flow') seen += data })
+    const ready = collect(m, 'flow', /APIARY_READY/)
+    m.spawn({ id: 'flow', cwd: process.cwd(), command: 'echo APIARY_READY; read x; echo APIARY_AFTER$x' })
+    await ready
+    m.pauseOutput('flow')
+    m.write('flow', 'go\n')
+    await stays(() => !seen.includes('APIARY_AFTERgo'), 600, 'no output while paused')
+    m.resumeOutput('flow')
+    await vi.waitFor(() => { expect(seen).toContain('APIARY_AFTERgo') }, { timeout: 3000 })
+  }, 10000)
+
+  it('pauseOutput and resumeOutput on a pty that does not exist do nothing', () => {
+    manager = new PtyManager()
+    expect(() => { manager?.pauseOutput('nobody'); manager?.resumeOutput('nobody') }).not.toThrow()
   })
 
   it('accepts writes and resizes without throwing', async () => {

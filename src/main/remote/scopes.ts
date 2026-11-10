@@ -69,6 +69,7 @@ export const CHANNEL_SCOPES = {
   openShellForPty: 'remote',
   ptyAttach: 'remote',
   ptyDetach: 'remote',
+  ptyAck: 'remote',
   ptyWrite: 'remote',
   ptyResize: 'remote',
   ptyKill: 'remote',

@@ -65,6 +65,7 @@ import { isPairingCode, isRemoteHost, type RemoteClientInfo, type RemoteHost, ty
 // On the wire the ids are plain strings; only `TerminalRef` is an object.
 const sessionIdArg: Guard<SessionId> = (v): v is SessionId => typeof v === 'string'
 const ptyIdArg: Guard<PtyId> = (v): v is PtyId => typeof v === 'string'
+const byteCountArg: Guard<number> = (v): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
 const terminalRefArg: Guard<TerminalRef> = isTerminalRef
 const gitTargetArg: Guard<GitTarget> = isGitTarget
 const residentIdArg: Guard<string> = (v): v is string => typeof v === 'string' && RESIDENT_ID_RE.test(v)
@@ -226,6 +227,9 @@ export const IPC = {
    *  windows. Sent before `ptySnapshot` so no output falls between the two. */
   ptyAttach: send<[id: PtyId]>('apiary:pty-attach', tuple(ptyIdArg)),
   ptyDetach: send<[id: PtyId]>('apiary:pty-detach', tuple(ptyIdArg)),
+  /** The sending window has drawn `bytes` more of this pty's `ptyData` (string length). Main pauses
+   *  a pty whose attached windows fall too far behind, and resumes it as they catch up. */
+  ptyAck: send<[id: PtyId, bytes: number]>('apiary:pty-ack', tuple(ptyIdArg, byteCountArg)),
   ptyData: event<[id: PtyId, data: string]>('apiary:pty-data'),
   ptySnapshot: invoke<[id: PtyId], PtySnapshot | null>('apiary:pty-snapshot', tuple(ptyIdArg)),
   ptySessions: invoke<[], Record<string, PtySessionInfo>>('apiary:pty-sessions', tuple()),

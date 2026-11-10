@@ -23,18 +23,33 @@ export interface SendTarget {
   send(channel: string, ...args: unknown[]): void
 }
 
+/** Unacknowledged output (UTF-16 units of `ptyData`) one window may hold before its pty is paused. */
+export const PTY_HIGH_WATER = 1024 * 1024
+/** A paused pty resumes once every attached window has at most this much unacknowledged. */
+export const PTY_LOW_WATER = 256 * 1024
+
+/** What flow control does to a key whose slowest window has fallen behind, or caught up. */
+export interface FlowControl {
+  pause(key: string): void
+  resume(key: string): void
+}
+
 export class WindowAttachments {
-  private readonly byWindow = new Map<number, Set<string>>()
+  /** Per window, each attached key and how much sent to it that window has not acknowledged. */
+  private readonly byWindow = new Map<number, Map<string, number>>()
+  /** Keys flow control has paused. */
+  private readonly paused = new Set<string>()
+  private flow: FlowControl | null = null
 
   constructor(private readonly resolve: (webContentsId: number) => SendTarget | null) {}
 
   attach(webContentsId: number, key: string): void {
     let keys = this.byWindow.get(webContentsId)
     if (!keys) {
-      keys = new Set()
+      keys = new Map()
       this.byWindow.set(webContentsId, keys)
     }
-    keys.add(key)
+    if (!keys.has(key)) keys.set(key, 0)
   }
 
   detach(webContentsId: number, key: string): void {
@@ -42,13 +57,54 @@ export class WindowAttachments {
     if (!keys) return
     keys.delete(key)
     if (keys.size === 0) this.byWindow.delete(webContentsId)
+    this.settle(key)
   }
 
   /** A window closed or reloaded: it holds no attachments any more. Returns what it held. */
   detachWindow(webContentsId: number): string[] {
     const keys = this.byWindow.get(webContentsId)
     this.byWindow.delete(webContentsId)
-    return keys === undefined ? [] : [...keys]
+    const held = keys === undefined ? [] : [...keys.keys()]
+    for (const key of held) this.settle(key)
+    return held
+  }
+
+  /**
+   * Turns on flow control: a key whose attached windows have not acknowledged `PTY_HIGH_WATER` of
+   * what was sent is paused, and resumed when the slowest is back to `PTY_LOW_WATER` or detaches.
+   * A key no window is attached to is never paused.
+   */
+  controlFlow(flow: FlowControl): void { this.flow = flow }
+
+  /** `amount` more was sent for `key` to every window attached to it. */
+  recordSent(key: string, amount: number): void {
+    for (const keys of this.byWindow.values()) {
+      const held = keys.get(key)
+      if (held !== undefined) keys.set(key, held + amount)
+    }
+    this.settle(key)
+  }
+
+  /** A window has drawn `amount` more of `key`. More than it was sent counts as all of it. */
+  acknowledge(webContentsId: number, key: string, amount: number): void {
+    const keys = this.byWindow.get(webContentsId)
+    const held = keys?.get(key)
+    if (keys === undefined || held === undefined) return
+    keys.set(key, Math.max(0, held - amount))
+    this.settle(key)
+  }
+
+  private settle(key: string): void {
+    if (this.flow === null) return
+    let worst = 0
+    for (const keys of this.byWindow.values()) worst = Math.max(worst, keys.get(key) ?? 0)
+    if (!this.paused.has(key) && worst >= PTY_HIGH_WATER) {
+      this.paused.add(key)
+      this.flow.pause(key)
+    } else if (this.paused.has(key) && worst <= PTY_LOW_WATER) {
+      this.paused.delete(key)
+      this.flow.resume(key)
+    }
   }
 
   /** Window ids currently attached to `key`. */

@@ -17,7 +17,7 @@ type SessionsApi = Pick<ApiaryApi,
   | 'refresh' | 'tree' | 'discovered' | 'importSessions' | 'transcript' | 'transcriptAfter' | 'backgroundTaskOutput' | 'checkConflict' | 'resume' | 'renameSession'
   | 'renameTerminalInClaude' | 'removeSession' | 'moveSession' | 'newSessionInProject' | 'newSessionInPickedFolder'
   | 'forkSession' | 'setSessionNote' | 'sessionNote' | 'openShell' | 'openShellForPty' | 'ptyWrite' | 'ptyResize'
-  | 'ptyKill' | 'ptyResume' | 'ptyAttach' | 'ptyDetach' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
+  | 'ptyKill' | 'ptyResume' | 'ptyAttach' | 'ptyDetach' | 'ptyAck' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
   | 'saveImage' | 'readImage' | 'vsCodeAvailable' | 'openInVsCode' | 'openMentionedFile' | 'copyToClipboard'
   | 'logStatus' | 'logReveal' | 'logClear' | 'logWrite' | 'appMenu' | 'appMenuInvoke' | 'setTitleBarColors' | 'requireWindowWidth'>
 
@@ -143,6 +143,7 @@ export function sessionsApi(env: Env): SessionsApi {
     ptyResume: () => {},
     ptyAttach: () => {},
     ptyDetach: () => {},
+    ptyAck: () => {},
     ptySnapshot: async () => null,
     ptySessions: async () => ({}),
     ptyRunning: async () => [],
