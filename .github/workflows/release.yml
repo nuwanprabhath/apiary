@@ -50,11 +50,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-
       - name: Tag matches package.json version
         run: |
           tag="${GITHUB_REF_NAME#v}"
@@ -64,7 +59,7 @@ jobs:
             exit 1
           fi
 
-      - run: npm ci
+      - uses: ./.github/actions/setup
 
       # `npm audit` at every severity (scripts/audit.mjs) as a pre-release gate, dev dependencies included (see
       # SEC-1: `--omit=dev` hid Electron's own CVEs). Runs before any build spends time.
@@ -114,12 +109,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
+      - uses: ./.github/actions/setup
 
       # macOS is the only leg ci.yml's ubuntu-only `test` job never covers — real pty, codesign,
       # `/private/var` realpath and zsh behaviour only run here, before the tag's artifacts ship.
@@ -127,7 +117,22 @@ jobs:
         if: runner.os == 'macOS'
         run: npm test
 
-      - run: npm run ${{ matrix.script }}
+      # Retry once, and only when the log shows a 5xx from a binary download.
+      - name: Package
+        shell: bash
+        env:
+          SCRIPT: ${{ matrix.script }}
+        run: |
+          set -o pipefail
+          log="$(mktemp)"
+          if npm run "$SCRIPT" 2>&1 | tee "$log"; then exit 0; fi
+          if grep -q 'Response code 5' "$log"; then
+            echo "A download failed with a 5xx; retrying once in 20 s"
+            sleep 20
+            npm run "$SCRIPT"
+          else
+            exit 1
+          fi
 
       # A packaged test build reads APIARY_* hooks (src/main/app/env.ts, isTestBuild); a release must
       # never be one. An asar stores package.json uncompressed, so the marker's key is greppable.
