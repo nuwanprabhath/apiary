@@ -143,6 +143,29 @@ export function defineSessionClauses(ctx: Ctx): void {
       expect(burst.messages.at(-1)?.index).toBe(last)
       await expect(ctx.api.transcriptAfter(LONG_SESSION.id, 'x' as never)).rejects.toThrow()
     })
+
+    it('with a limit, answers the next page after an index rather than the newest', async () => {
+      await ctx.restart({ longSessionMessages: TRANSCRIPT_PAGE_SIZE + 50 })
+      const newest = await ctx.api.transcript(LONG_SESSION.id)
+      const oldest = await ctx.api.transcript(LONG_SESSION.id, newest.earlierCursor ?? undefined)
+      const firstIndex = oldest.messages[0].index as number
+      const next = await ctx.api.transcriptAfter(LONG_SESSION.id, firstIndex - 1, true)
+      expect(next.messages).toHaveLength(TRANSCRIPT_PAGE_SIZE)
+      expect(next.messages[0].index).toBe(firstIndex)
+      expect(next.earlierCursor).toBeNull()
+    })
+
+    it('finds the messages whose text matches, newest first, and the page ending at a hit holds it', async () => {
+      const found = await ctx.api.transcriptFind(STD.csv.id, 'THE EXPORT IS EMPTY', null)
+      expect(found.indexes.length).toBeGreaterThan(0)
+      expect(found.indexes).toEqual([...found.indexes].sort((a, b) => b - a))
+      expect(found.cursor).toBeNull()
+      const page = await ctx.api.transcript(STD.csv.id, found.indexes[0] + 1)
+      const hit = page.messages.find((m) => m.index === found.indexes[0])
+      expect(JSON.stringify(hit?.blocks).toLowerCase()).toContain('the export is empty')
+      expect(await ctx.api.transcriptFind(STD.csv.id, 'no such words anywhere', null)).toEqual({ indexes: [], cursor: null })
+      await expect(ctx.api.transcriptFind(STD.csv.id, 'x', 'y' as never)).rejects.toThrow()
+    })
   })
 
   describe('starting sessions', () => {

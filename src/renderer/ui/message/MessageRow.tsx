@@ -69,6 +69,7 @@ export const MessageRow = memo(function MessageRow(
       data-testid="message"
       data-role={message.role}
       data-sidechain={message.isSidechain}
+      data-index={message.index}
     >
       {message.role === 'user' && <MessageTime ms={message.timestampMs} />}
       <div className="message-role">{message.role === 'user' ? 'You' : 'Claude'}</div>

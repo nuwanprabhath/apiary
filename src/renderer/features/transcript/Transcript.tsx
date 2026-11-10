@@ -49,7 +49,7 @@ export function Transcript({
     sessionId: session.sessionId, messages, showSidechain, chatMode, chat, terminalRunning, terminalBusy,
   })
   const find = useTranscriptFind({
-    containerRef: tail.containerRef, visible, sessionId: session.sessionId, contentKey: visibleMessages, hasEarlier: cursor !== null, loadEarlier,
+    containerRef: tail.containerRef, visible, sessionId: session.sessionId, contentKey: visibleMessages, jumpTo: pages.jumpTo,
   })
 
   useEffect(() => { findOpenRef.current = find.open }, [find.open])

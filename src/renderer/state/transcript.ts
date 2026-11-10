@@ -1,14 +1,20 @@
 import type { SessionId } from '@shared/domain/ids'
 import type { TranscriptPage } from '@shared/domain/transcript'
 import type { BackgroundTaskOutput } from '@shared/chatTimeline'
+import type { TranscriptFindResult } from '@shared/ipc/contract'
 import { bestEffort } from './policy'
 
 /** A page of a session's transcript; the transcript view shows a failure inline. */
 export const loadTranscript = (sessionId: SessionId, beforeIndex?: number): Promise<TranscriptPage> =>
   window.apiary.transcript(sessionId, beforeIndex)
 
-export const loadTranscriptAfter = (sessionId: SessionId, afterIndex: number): Promise<TranscriptPage> =>
-  window.apiary.transcriptAfter(sessionId, afterIndex)
+/** What follows `afterIndex`: the newest page after a burst, or with `limit` the next page, for a view reading forward through history. */
+export const loadTranscriptAfter = (sessionId: SessionId, afterIndex: number, limit?: boolean): Promise<TranscriptPage> =>
+  window.apiary.transcriptAfter(sessionId, afterIndex, limit)
+/** Line indexes of the messages that match `query`, newest first, searched by main over the file
+ *  from `before` back; the find bar shows a failure as no results. */
+export const findInTranscript = (sessionId: SessionId, query: string, before: number | null): Promise<TranscriptFindResult> =>
+  window.apiary.transcriptFind(sessionId, query, before)
 
 /** The end of a background task's output, for the task popup; a failed read is "not available"
  *  there, never a toast. */

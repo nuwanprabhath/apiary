@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import type { TranscriptMessage } from '@shared/types'
 import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
+import { HELD_MAX } from '../../src/renderer/state/transcriptWindow'
 import { renderApp } from './renderApp'
 import { message, type FakeSession } from './fakeApiary'
 import { openClaudeTerminal, ptyWrites, sidebarSession, stays, until } from './helpers'
@@ -198,7 +199,7 @@ describe('find jumping', () => {
     await expect.poll(() => inView(messageEls()[0])).toBe(true)
   })
 
-  it('pages in earlier messages so that they can match', async () => {
+  it('finds a match in history that is not loaded, and jumps to it', async () => {
     const history = Array.from({ length: TRANSCRIPT_PAGE_SIZE + 50 }, (_, i) =>
       message(`m${i}`, i % 2 === 0 ? 'user' : 'assistant', i === 10 ? 'the buried needle' : `message ${i}`))
     await renderApp({ sessions: [sessionWith('Long history', history)] })
@@ -207,7 +208,32 @@ describe('find jumping', () => {
     await userEvent.keyboard(FIND)
     await userEvent.type(page.getByTestId('find-input'), 'buried needle')
     await expect.poll(countText).toBe('1 of 1')
-    await expect.poll(() => messageEls().length).toBe(history.length)
+    await expect.poll(() => inView(document.querySelector('[data-index="10"]') ?? undefined)).toBe(true)
+  })
+
+  it('asks main to search a long session: no page is read for the search, one for the jump', async () => {
+    const history = Array.from({ length: 5000 }, (_, i) =>
+      message(`l${i}`, i % 2 === 0 ? 'user' : 'assistant', i === 0 ? 'the oldest zebra' : `message ${i}`))
+    const { fake } = await renderApp({ sessions: [sessionWith('Huge history', history)] })
+    await openTranscript('Huge history')
+    await expect.poll(() => messageEls().length).toBe(TRANSCRIPT_PAGE_SIZE)
+    const pagesBefore = fake.callsTo('transcript').length
+    await userEvent.keyboard(FIND)
+    await userEvent.type(page.getByTestId('find-input'), 'zebra')
+    await expect.poll(countText).toBe('1 of 1')
+    await expect.poll(() => inView(document.querySelector('[data-index="0"]') ?? undefined)).toBe(true)
+    await stays(() => fake.callsTo('transcript').length === pagesBefore + 1, 300, 'only the jump read a page')
+    expect(fake.callsTo('transcriptFind').length).toBeGreaterThan(0)
+    expect(messageEls().length).toBeLessThanOrEqual(HELD_MAX)
+  })
+
+  it('says "n of m+" when main has more matches to give', async () => {
+    const history = Array.from({ length: 300 }, (_, i) => message(`p${i}`, 'user', `pear ${i}`))
+    await renderApp({ sessions: [sessionWith('Many pears', history)] })
+    await openTranscript('Many pears')
+    await userEvent.keyboard(FIND)
+    await userEvent.type(page.getByTestId('find-input'), 'pear')
+    await expect.poll(countText).toMatch(/^\d+ of \d+\+$/)
   })
 
   it('searches a message that arrives while the bar is open', async () => {
@@ -219,6 +245,34 @@ describe('find jumping', () => {
     fake.state.sessions.find((s) => s.title === 'Live chat')?.messages?.push(message('a1', 'assistant', 'a second needle'))
     fake.emit('treeChanged')
     await expect.poll(countText).toBe('2 of 2')
+  })
+})
+
+describe('reading history', () => {
+  it('never holds more than HELD_MAX messages, and loads the newer ones back on scrolling down', async () => {
+    const history = Array.from({ length: 1000 }, (_, i) => message(`h${i}`, i % 2 === 0 ? 'user' : 'assistant', `history ${i}`))
+    await renderApp({ sessions: [sessionWith('Very long history', history)] })
+    await openTranscript('Very long history')
+    await expect.poll(() => messageEls().length).toBe(TRANSCRIPT_PAGE_SIZE)
+    let most = 0
+    const view = document.querySelector<HTMLElement>('[data-testid="transcript"]')
+    // Every page the reader asks for, at the top, by the button or the sentinel, until line 0.
+    await expect.poll(() => {
+      most = Math.max(most, messageEls().length)
+      if (view !== null) view.scrollTop = 0
+      document.querySelector<HTMLButtonElement>('[data-testid="load-earlier"]:not(:disabled)')?.click()
+      return /history 0\s*$/.test(messageEls()[0]?.textContent ?? '')
+    }, { timeout: 10_000 }).toBe(true)
+    expect(most).toBeLessThanOrEqual(HELD_MAX)
+    expect(messageEls().at(-1)?.textContent).not.toContain('history 999')
+    const last = (): string | null | undefined => messageEls().at(-1)?.textContent
+    const lastBefore = last()
+    // A scroll down to the bottom edge, repeated until the next page lands.
+    await expect.poll(() => {
+      if (view !== null) { view.scrollTop = view.scrollHeight - view.clientHeight - 400; view.scrollTop = view.scrollHeight }
+      return last()
+    }).not.toBe(lastBefore)
+    expect(messageEls().length).toBeLessThanOrEqual(HELD_MAX)
   })
 })
 

@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises'
 import { BackgroundTaskTally, type BackgroundTaskOutput } from '@shared/chatTimeline'
 import { latestAction } from '@shared/pets/actions'
 import type { TranscriptPage } from '@shared/types'
+import type { TranscriptFindResult } from '@shared/ipc/contract'
 import type { SessionStore, StoredSession } from '../store/sessionStore'
 import type { forEachMessageFrom } from '../transcript/transcriptLines'
 import type { TranscriptReader } from '../transcript/transcriptReader'
@@ -49,11 +50,15 @@ export class TranscriptService {
     return this.read(sessionId, (path) => this.deps.reader.readTranscriptPage(path, { beforeIndex }))
   }
 
-  async after(sessionId: string, afterIndex: number): Promise<TranscriptPage> {
-    return this.read(sessionId, (path) => this.deps.reader.readTranscriptAfter(path, afterIndex))
+  async after(sessionId: string, afterIndex: number, limit?: boolean): Promise<TranscriptPage> {
+    return this.read(sessionId, (path) => this.deps.reader.readTranscriptAfter(path, afterIndex, limit === true))
   }
 
-  private async read(sessionId: string, readFile: (path: string) => Promise<TranscriptPage>): Promise<TranscriptPage> {
+  async find(sessionId: string, query: string, before: number | null): Promise<TranscriptFindResult> {
+    return this.read(sessionId, (path) => this.deps.reader.findInTranscript(path, query, before))
+  }
+
+  private async read<T>(sessionId: string, readFile: (path: string) => Promise<T>): Promise<T> {
     const session = this.deps.resolver.requireSession(sessionId)
     // Removing a git worktree takes its `~/.claude/projects/<slug>` directory with it, so the file
     // can vanish under Apiary.

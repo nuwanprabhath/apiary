@@ -22,7 +22,7 @@ export function FindBar({ find }: { find: TranscriptFind }): JSX.Element {
         }}
       />
       <span className={`find-count${noResults ? ' no-results' : ''}`} data-testid="find-count" aria-live="polite">
-        {find.query === '' ? '' : noResults ? 'No results' : `${find.position} of ${find.total}`}
+        {find.query === '' ? '' : noResults ? 'No results' : `${find.position} of ${find.total}${find.more ? '+' : ''}`}
       </span>
       <button
         className="icon-button find-button" data-testid="find-prev" aria-label="Previous match"

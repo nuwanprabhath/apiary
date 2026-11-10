@@ -1,7 +1,7 @@
 import type { SessionId } from '@shared/domain/ids'
 import { treeChangeConcerns } from '@shared/domain/session'
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { TranscriptMessage } from '@shared/types'
+import { TRANSCRIPT_PAGE_SIZE, type TranscriptMessage } from '@shared/types'
 import { mergeLatestPage } from '../../state/transcriptMerge'
 import { windowHeld } from '../../state/transcriptWindow'
 import { treeStore } from '../../state/treeStore'
@@ -21,6 +21,8 @@ export interface TranscriptPages {
   loadEarlier: () => void
   /** Run the initial load again — the error pane's "Try again". */
   retry: () => void
+  /** Holds the page around line `line` when that message is not held (a find hit in history). */
+  jumpTo: (line: number) => void
 }
 
 /** The session's messages: the newest page on open, earlier pages on request, and the newest
@@ -59,9 +61,13 @@ export function useTranscriptPages(
   const cursorRef = useRef<number | null>(null)
   // The scroll height before an earlier page landed on a container scrolled to its top, or null.
   const topAnchorRef = useRef<number | null>(null)
-  const commit = useCallback((next: TranscriptMessage[], nextCursor: number | null) => {
+  // The line index of the last held message when newer ones were dropped while reading history, or
+  // null when the newest message is held. While set, the tail is not held, so a tree change appends nothing.
+  const laterRef = useRef<number | null>(null)
+  const commit = useCallback((next: TranscriptMessage[], nextCursor: number | null, later: number | null = laterRef.current) => {
     messagesRef.current = next
     cursorRef.current = nextCursor
+    laterRef.current = later
     setMessages(next)
     setCursor(nextCursor)
   }, [])
@@ -77,7 +83,7 @@ export function useTranscriptPages(
     setLoading(true)
     loadingRef.current = true
     setError(null)
-    commit([], null)
+    commit([], null, null)
     loadTranscript(sessionId)
       .then((page) => {
         if (cancelled) return
@@ -97,7 +103,7 @@ export function useTranscriptPages(
     const unsubscribe = treeStore.onChanged((change) => {
       if (!treeChangeConcerns(change, sessionId)) return
       // The initial load's own response already has the freshest tail.
-      if (loadingRef.current || refreshingRef.current) return
+      if (loadingRef.current || refreshingRef.current || laterRef.current !== null) return
       // Captured per firing, not at setup, so it reflects the current visit.
       const requestedGeneration = generationRef.current
       refreshingRef.current = true
@@ -143,7 +149,11 @@ export function useTranscriptPages(
         // leave the reader at the new first row; remember the height to restore the offset.
         const el = tail.containerRef.current
         if (el !== null && el.scrollTop === 0) topAnchorRef.current = el.scrollHeight
-        commit([...page.messages, ...messagesRef.current], page.earlierCursor)
+        const joined = [...page.messages, ...messagesRef.current]
+        // Reading history: past the limit the newest go, and load back on scrolling down. While the
+        // find bar is open nothing is trimmed.
+        const held = findOpenRef.current ? null : windowHeld(joined, laterRef.current, 'newest')
+        commit(held?.messages ?? joined, page.earlierCursor, held?.cursor ?? laterRef.current)
         setSkipped((prev) => prev + page.skippedLines)
       })
       .catch((e: unknown) => {
@@ -155,7 +165,11 @@ export function useTranscriptPages(
         loadingEarlierRef.current = false
         setLoadingEarlier(false)
       })
-  }, [cursor, sessionId, commit, tail.containerRef])
+  }, [cursor, sessionId, commit, tail.containerRef, findOpenRef])
+
+  useLoadLaterAtBottom(tail.containerRef, { sessionId, generationRef, messagesRef, cursorRef, laterRef, commit })
+
+  const jumpTo = useJumpTo({ sessionId, generationRef, messagesRef, commit, stickToBottomRef })
 
   useLayoutEffect(() => {
     const before = topAnchorRef.current
@@ -165,5 +179,78 @@ export function useTranscriptPages(
   }, [messages, tail.containerRef])
 
   const retry = useCallback(() => { setReloadNonce((n) => n + 1) }, [])
-  return { messages, cursor, skipped, error, loading, loadingEarlier, loadEarlier, retry }
+  return { messages, cursor, skipped, error, loading, loadingEarlier, loadEarlier, retry, jumpTo }
+}
+
+/** A find hit outside the held messages: hold the page around its line instead, reading history
+ *  (newer messages load back on scrolling down). */
+function useJumpTo(held: {
+  sessionId: SessionId
+  generationRef: RefObject<number>
+  messagesRef: RefObject<TranscriptMessage[]>
+  commit: (next: TranscriptMessage[], nextCursor: number | null, later?: number | null) => void
+  stickToBottomRef: RefObject<boolean>
+}): (line: number) => void {
+  const { sessionId, generationRef, messagesRef, commit, stickToBottomRef } = held
+  return useCallback((line: number) => {
+    if (messagesRef.current.some((m) => m.index === line)) return
+    const requestedGeneration = generationRef.current
+    stickToBottomRef.current = false
+    loadTranscript(sessionId, line + Math.floor(TRANSCRIPT_PAGE_SIZE / 2) + 1)
+      .then((page) => {
+        if (generationRef.current !== requestedGeneration) return
+        commit(page.messages, page.earlierCursor, page.messages.at(-1)?.index ?? null)
+      })
+      .catch((e: unknown) => { logBackgroundFailure(e, 'refresh') })
+  }, [sessionId, generationRef, messagesRef, commit, stickToBottomRef])
+}
+
+/** How close to the bottom edge, in pixels, a scroll asks for the messages after the held ones. */
+const LATER_EDGE_PX = 200
+
+interface Held {
+  sessionId: SessionId
+  generationRef: RefObject<number>
+  messagesRef: RefObject<TranscriptMessage[]>
+  cursorRef: RefObject<number | null>
+  laterRef: RefObject<number | null>
+  commit: (next: TranscriptMessage[], nextCursor: number | null, later?: number | null) => void
+}
+
+/** Loads the page after the held messages when newer ones were dropped and the container is
+ *  scrolled to within `LATER_EDGE_PX` of its bottom; the oldest go past the limit. */
+function useLoadLaterAtBottom(containerRef: RefObject<HTMLElement | null>, held: Held): void {
+  const heldRef = useRef(held)
+  useLayoutEffect(() => { heldRef.current = held })
+  const loadingRef = useRef(false)
+  useEffect(() => {
+    const el = containerRef.current
+    if (el === null) return
+    const loadLater = (): void => {
+      const { sessionId, generationRef, messagesRef, cursorRef, laterRef, commit } = heldRef.current
+      const after = laterRef.current
+      if (after === null || loadingRef.current) return
+      const requestedGeneration = generationRef.current
+      loadingRef.current = true
+      loadTranscriptAfter(sessionId, after, true)
+        .then((page) => {
+          if (generationRef.current !== requestedGeneration) return
+          // A short page is the end of the file: the newest message is held again.
+          const later = page.messages.length < TRANSCRIPT_PAGE_SIZE ? null : page.messages.at(-1)?.index ?? null
+          const kept = windowHeld([...messagesRef.current, ...page.messages], cursorRef.current)
+          commit(kept.messages, kept.cursor, later)
+        })
+        .catch((e: unknown) => { logBackgroundFailure(e, 'refresh') })
+        .finally(() => { loadingRef.current = false })
+    }
+    // Only a scroll down asks: dropping or adding messages above also fires `scroll`.
+    let lastTop = el.scrollTop
+    const onScroll = (): void => {
+      const down = el.scrollTop > lastTop
+      lastTop = el.scrollTop
+      if (down && el.scrollHeight - el.scrollTop - el.clientHeight <= LATER_EDGE_PX) loadLater()
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => { el.removeEventListener('scroll', onScroll) }
+  }, [containerRef])
 }

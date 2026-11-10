@@ -54,6 +54,28 @@ describe('UI: the transcript find widget', () => {
     })
   })
 
+  it('find bar with more matches in history (n of m+)', async () => {
+    await renderApp({
+      sessions: [{
+        sessionId: '00000000-0000-4000-8000-0000000000f2',
+        title: 'Many pears',
+        projectPath: '/fixture/work-a',
+        gitBranch: 'main',
+        messages: Array.from({ length: 300 }, (_, i) => message(`p${i}`, 'user', `pear number ${i}`)),
+      }],
+    })
+    await userEvent.click(sidebarSession('Many pears'))
+    await until(() => document.querySelector('[data-testid="message"]') !== null)
+    await reviewUi('find bar more matches', {
+      widths: [620, 1400],
+      open: async () => {
+        await openFind('pear')
+        await until(() => document.querySelector('[data-testid="find-count"]')?.textContent?.endsWith('+') === true)
+      },
+      close: () => press('{Escape}'),
+    })
+  })
+
   it('find bar narrow pane', async () => {
     await openSession()
     await reviewUi('find bar narrow pane', {
