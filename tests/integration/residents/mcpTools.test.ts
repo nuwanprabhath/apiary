@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -7,6 +7,10 @@ import { toolsFor, type ToolDeps, type ToolResult } from '../../../src/main/resi
 import { ResidentSpace } from '../../../src/main/residents/residentSpace'
 import type { ResidentApproval } from '../../../src/main/residents/kindTypes'
 import type { SessionKnowledge, SessionTopic } from '../../../src/main/knowledge/types'
+import type { SessionHit } from '@shared/domain/residents'
+import { residentSees, scopeToAccount } from '../../../src/main/app/residentsContainer'
+
+vi.mock('electron', () => ({ BrowserWindow: { getAllWindows: () => [] }, webContents: { fromId: () => undefined } }))
 
 const SESSION = asSessionId('11111111-2222-3333-4444-555555555555')
 const TOPIC: SessionTopic = {
@@ -183,6 +187,44 @@ describe('approve_mr', () => {
   it('is listed only for a kind with gitlab.approve, and says so where nothing approves', async () => {
     expect(toolsFor(['sessions.read', 'space.notes']).map((t) => t.name)).not.toContain('approve_mr')
     expect(await approve({ iid: 5 }, deps())).toEqual({ text: 'Approving is not available here.', isError: true })
+  })
+})
+
+describe('a resident on one account', () => {
+  const OTHER = asSessionId('99999999-2222-3333-4444-555555555555')
+  const hit = (sessionId: typeof SESSION): SessionHit => ({
+    sessionId, title: 't', folder: '/f', branch: null, lastActive: 1, reason: 'title', topic: null, snippet: null,
+  })
+  const scoped = (): ToolDeps => {
+    const base = deps({ session: () => ({ title: 'Some session' }) })
+    if (base.knowledge === null) throw new Error('no knowledge')
+    const knowledge: SessionKnowledge = { ...base.knowledge, find: async () => [hit(SESSION), hit(OTHER)] }
+    return { ...base, ...scopeToAccount({ session: (id) => base.session(id), knowledge }, (id) => id === SESSION) }
+  }
+
+  it('cannot read, list topics of or find a session of another account', async () => {
+    const read = await call('read_session', { sessionId: OTHER }, scoped())
+    expect(read.isError).toBe(true)
+    expect(read.text).not.toContain('Some session')
+    expect(reads).toEqual([])
+    expect((await call('session_topics', { sessionId: OTHER }, scoped())).isError).toBe(true)
+    const found = await call('find_sessions', { query: 'x' }, scoped())
+    expect(found.text).toContain(SESSION)
+    expect(found.text).not.toContain(OTHER)
+  })
+
+  it('reads a session of its own account', async () => {
+    expect((await call('read_session', { sessionId: SESSION }, scoped())).isError).toBe(false)
+  })
+})
+
+describe('residentSees', () => {
+  it('lets a resident see other accounts only while the setting is on, read on every call', () => {
+    let on = false
+    const sees = residentSees({ readOtherAccounts: () => on, accountOf: (id) => (id === 'a' ? 'main' : 'work'), defaultId: () => 'main' })
+    expect([sees(asSessionId('a')), sees(asSessionId('b'))]).toEqual([true, false])
+    on = true
+    expect(sees(asSessionId('b'))).toBe(true)
   })
 })
 

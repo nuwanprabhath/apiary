@@ -29,8 +29,10 @@ describe('Digester', () => {
     writeFileSync(path, `${lines.join('\n')}\n`)
     return path
   }
-  const session = (id: string, lastActive: number, lines: string[], cwd: string | null = '/work/proj'): DigestableSession => {
-    const s = { sessionId: id, file: file(id, lines), cwd, lastActive }
+  const session = (
+    id: string, lastActive: number, lines: string[], cwd: string | null = '/work/proj', accountId = 'main' as AccountId,
+  ): DigestableSession => {
+    const s = { sessionId: id, file: file(id, lines), cwd, lastActive, accountId }
     sessions.push(s)
     return s
   }
@@ -62,7 +64,7 @@ describe('Digester', () => {
           return reply(req, prompts.length)
         },
       },
-      accounts: { launchEnv: (id) => ({ CLAUDE_CONFIG_DIR: `/acct/${id}` }), defaultId: () => 'main' as AccountId },
+      accounts: { launchEnv: (id) => ({ CLAUDE_CONFIG_DIR: `/acct/${id}` }) },
       residentsDir: join(dir, 'residents'),
       now: () => clock,
       wait: async () => { waits += 1 },
@@ -71,6 +73,13 @@ describe('Digester', () => {
   afterEach(() => {
     store.close()
     rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('digests each session under the account it ran under', async () => {
+    session('mine', 900, [line('user', 'MINE talk')])
+    session('theirs', 100, [line('user', 'THEIRS talk')], '/work/proj', 'work' as AccountId)
+    await run()
+    expect(envs).toEqual([{ CLAUDE_CONFIG_DIR: '/acct/main' }, { CLAUDE_CONFIG_DIR: '/acct/work' }])
   })
 
   it('digests newest first, under the default account', async () => {

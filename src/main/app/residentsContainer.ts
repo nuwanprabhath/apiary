@@ -1,7 +1,9 @@
 import { join } from 'node:path'
 import { BrowserWindow, webContents, type WebContents } from 'electron'
 import { IPC } from '@shared/api'
-import type { SessionId } from '@shared/domain/ids'
+import { asSessionId, type SessionId } from '@shared/domain/ids'
+import type { SessionKnowledge } from '../knowledge/types'
+import type { ToolDeps } from '../residents/mcp/tools'
 import type { AccountService } from '../accounts/accountService'
 import { createExec } from '../exec/run'
 import type { VirtualContentsRegistry } from '../remote/virtualContents'
@@ -54,6 +56,18 @@ export function createResidents(o: {
     if (id !== undefined) return webContents.fromId(id) ?? null
     return BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())?.webContents ?? null
   }
+  // Residents run under the default account, so they see only its sessions.
+  const scoped = scopeToAccount({
+    session: (id) => {
+      const found = o.store.getSession(id)
+      return found === null || found.archived ? null : { title: found.title ?? found.firstPrompt ?? 'Untitled session' }
+    },
+    knowledge: o.knowledge.service,
+  }, residentSees({
+    readOtherAccounts: () => o.settingsService.get().readOtherAccounts,
+    accountOf: (id) => o.accounts.accountOf(id),
+    defaultId: () => o.accounts.defaultId(),
+  }))
   return new ResidentService({
     settings: {
       get: () => o.settingsService.get().residents,
@@ -61,16 +75,13 @@ export function createResidents(o: {
       onChange: (fn) => o.settingsService.onChange((next, prev) => { if (next.residents !== prev.residents) fn() }),
     },
     root: o.paths.residentsDir,
-    knowledge: o.knowledge.service,
+    knowledge: scoped.knowledge,
     digest: o.knowledge.digester,
     usagePercent: () => o.service.plugins.usage.fiveHourPercent(o.accounts.defaultId()),
     claudeBin: () => o.service.claudeBin ?? undefined,
     launchEnv: () => o.accounts.launchEnv(o.accounts.defaultId()),
     tools: {
-      session: (id) => {
-        const found = o.store.getSession(id)
-        return found === null || found.archived ? null : { title: found.title ?? found.firstPrompt ?? 'Untitled session' }
-      },
+      session: scoped.session,
       openSession: (id) => { sendOpenSession(o.virtualContents.list(), front(), id) },
       openTabs: () => o.tabRegistry.list(),
       focusedWindow: () => {
@@ -83,6 +94,34 @@ export function createResidents(o: {
     onMessage: (push) => { broadcast(IPC.residentMessage, push) },
     version: o.version,
   })
+}
+
+/** Whether a resident (always run under the default account) may see a session: any, when the person allowed it, else the default account's. Read on every call. */
+export function residentSees(o: {
+  readOtherAccounts: () => boolean
+  accountOf: (id: SessionId) => unknown
+  defaultId: () => unknown
+}): (id: SessionId) => boolean {
+  return (id) => o.readOtherAccounts() || o.accountOf(id) === o.defaultId()
+}
+
+/**
+ * The session lookups a resident's tools reach, narrowed to the sessions `sees` lets through: one
+ * it may not see is an unknown id to `session`, has no topics, cannot be read and is never found.
+ */
+export function scopeToAccount(
+  o: { session: ToolDeps['session']; knowledge: SessionKnowledge },
+  sees: (id: SessionId) => boolean,
+): { session: ToolDeps['session']; knowledge: SessionKnowledge } {
+  const { knowledge } = o
+  return {
+    session: (id) => (sees(asSessionId(id)) ? o.session(id) : null),
+    knowledge: {
+      find: async (query, limit) => (await knowledge.find(query, limit)).filter((hit) => sees(hit.sessionId)),
+      topics: async (id) => (sees(id) ? knowledge.topics(id) : []),
+      read: async (id, options) => (sees(id) ? knowledge.read(id, options) : null),
+    },
+  }
 }
 
 /**

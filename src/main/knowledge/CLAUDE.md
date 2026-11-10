@@ -25,9 +25,12 @@ a pass runs, and the pass ends when the queue does: the schedule calls `resume` 
 **Exclusions.** A session whose `cwd` is inside the residents folder (`ContainerPaths.residentsDir`) is a resident's own chat and
 is never digested or listed as a result of digesting; otherwise a resident would index itself.
 
-**The account rule.** The digest call is a `claude` Apiary starts, so it runs under the default
-account (`accounts.launchEnv(accounts.defaultId())` as the one-shot's `env`), like a theme or a
-pet; the usage it spends is that account's. See `tests/unit/architecture/claudeStartsWithAccount.test.ts`.
+**The account rule.** The digest call is a `claude` Apiary starts, so it runs under the account
+the session ran under (`DigestableSession.accountId`, filled by `createKnowledge` from
+`accounts.accountOf`, passed to `accounts.launchEnv` as the one-shot's `env`): a session's text is
+sent to the model only as its own account, and the usage it spends is that account's. Residents
+see only sessions of the account they run under (`createResidents` filters `ToolDeps.session` and
+the knowledge lookups). See `tests/unit/architecture/claudeStartsWithAccount.test.ts`.
 
 **Ranking** (`KnowledgeService.find`): exact refs, then digest topics, then transcript text, then
 titles, branches and folders; a session appears once, at its best tier. Every query goes through

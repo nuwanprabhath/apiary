@@ -4,6 +4,7 @@ import { createInterface } from 'node:readline'
 import { errorMessage } from '@shared/errors'
 import { isRecord } from '@shared/guards'
 import { lookbackStart } from '@shared/digestLookback'
+import type { AccountId } from '@shared/domain/ids'
 import type { DigestLookback } from '@shared/domain/residents'
 import { extractThemeJson } from '@shared/theme/prompt'
 import type { AccountService } from '../accounts/accountService'
@@ -33,6 +34,8 @@ export interface DigestableSession {
   cwd: string | null
   /** Epoch ms; the queue is newest first. */
   lastActive: number
+  /** The account the session ran under: its text goes to the model only as that account. */
+  accountId: AccountId
 }
 
 export interface DigesterDeps {
@@ -40,7 +43,7 @@ export interface DigesterDeps {
   sessions: () => DigestableSession[]
   /** A `ClaudeOneShot` of the digester's own: one call at a time. */
   runner: { run(req: OneShotRequest): Promise<string> }
-  accounts: Pick<AccountService, 'launchEnv' | 'defaultId'>
+  accounts: Pick<AccountService, 'launchEnv'>
   /** `userData/residents`: the residents' own sessions live under it and are never digested. */
   residentsDir: string
   now?: () => number
@@ -302,7 +305,7 @@ export class Digester implements DigestJob {
       const { windows, totalLines } = await readWindows(session.file, state?.lastLine ?? 0)
       for (const window of windows) {
         if (!(await this.mayProceed())) return
-        const topics = await this.digestWindow(window)
+        const topics = await this.digestWindow(window, session.accountId)
         // The size is recorded only when the file is done, so an interrupted session is read again from its last window.
         store.record(session.sessionId, topics, { lastLine: window.lastLine, size: 0, model: this.model, at: this.now() })
         await yieldToLoop()
@@ -314,13 +317,12 @@ export class Digester implements DigestJob {
     }
   }
 
-  private async digestWindow(window: Window): Promise<Omit<SessionTopic, 'id'>[]> {
+  private async digestWindow(window: Window, accountId: AccountId): Promise<Omit<SessionTopic, 'id'>[]> {
     const stdout = await this.deps.runner.run({
       prompt: digestPrompt(window),
       model: this.model,
       jsonSchema: TOPIC_SCHEMA,
-      // The default account's, like a theme or a pet: the digest is the user's own quota.
-      env: this.deps.accounts.launchEnv(this.deps.accounts.defaultId()),
+      env: this.deps.accounts.launchEnv(accountId),
       timeoutMs: 180_000,
       maxStdout: 256 * 1024,
       what: 'a digest',
