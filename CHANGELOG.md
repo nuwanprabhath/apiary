@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.5] - 2026-11-10
+## [1.60.6] - 2026-11-10
+
+### Fixed
+
+- A damaged settings, layout or other state file is copied aside (`<name>.corrupt-<time>`, the
+  newest three kept) before Apiary replaces it with defaults, and the remote pairing file is
+  readable only by you.
+
+## [1.60.5] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Fixed
 
