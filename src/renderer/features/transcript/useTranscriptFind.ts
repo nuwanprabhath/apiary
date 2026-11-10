@@ -16,7 +16,7 @@ type Current = { line: number; occ: number } | 'newest'
 
 /** What main found: matching line indexes, and where the next step of its search starts. */
 interface MainHits { lines: number[]; cursor: number | null }
-const NONE: MainHits = { lines: [], cursor: null }
+const NO_HITS: MainHits = { lines: [], cursor: null }
 
 /** Every case-insensitive occurrence of `query` in the container's text, grouped by the line index
  *  of its message; a range in an unindexed message takes a fractional key after the one before it. */
@@ -90,11 +90,11 @@ export interface TranscriptFind {
 
 /** Main's search for `query`, newest first, with `more()` for the next step back. */
 function useMainHits(sessionId: SessionId, open: boolean, query: string): { hits: MainHits; more: () => Promise<number | null> } {
-  const [hits, setHits] = useState<MainHits>(NONE)
+  const [hits, setHits] = useState<MainHits>(NO_HITS)
   const requestRef = useRef(0)
   useEffect(() => {
     const request = ++requestRef.current
-    setHits(NONE)
+    setHits(NO_HITS)
     if (!open || query === '') return
     findInTranscript(sessionId, query, null)
       .then((r) => { if (requestRef.current === request) setHits({ lines: r.indexes, cursor: r.cursor }) })
