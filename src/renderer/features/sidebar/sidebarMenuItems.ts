@@ -66,13 +66,13 @@ export function sessionMenuItems(
         id: 'pinned-move-up',
         label: 'Move up in Pinned',
         disabled: pinnedIndex <= 0,
-        run: () => { onReorderPinned(menu.id, pinned[pinnedIndex - 1]) },
+        run: () => { const above = pinned[pinnedIndex - 1]; if (above !== undefined) onReorderPinned(menu.id, above) },
       },
       {
         id: 'pinned-move-down',
         label: 'Move down in Pinned',
         disabled: pinnedIndex >= pinned.length - 1,
-        run: () => { onReorderPinned(pinned[pinnedIndex + 1], menu.id) },
+        run: () => { const below = pinned[pinnedIndex + 1]; if (below !== undefined) onReorderPinned(below, menu.id) },
       },
     ]),
   ]

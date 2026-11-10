@@ -207,6 +207,7 @@ export function useTranscriptFind(opts: {
       return
     }
     const next = hits[(at + direction + n) % n]
+    if (next === undefined) return
     setCurrent({ line: next.line, occ: next.occ })
   }, [current, main])
 

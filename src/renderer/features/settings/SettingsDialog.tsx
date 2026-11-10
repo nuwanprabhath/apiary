@@ -43,7 +43,7 @@ export function SettingsDialog(
   const known = SECTIONS.some((s) => s.id === initialSection)
   const [section, setSection] = useState<string>(known && initialSection !== undefined
     ? initialSection
-    : SECTIONS[0].id)
+    : SECTIONS[0]?.id ?? '')
   // Null until the first load resolves; a new setting is a new key on this one object.
   const [draft, setDraft] = useState<SettingsDraft | null>(null)
   const [saving, setSaving] = useState(false)
@@ -102,7 +102,7 @@ export function SettingsDialog(
                 key={s.id}
                 className="settings-nav-item"
                 data-testid={`settings-nav-${s.id}`}
-                data-active={active.id === s.id}
+                data-active={active?.id === s.id}
                 onClick={() => { setSection(s.id) }}
               >
                 {s.label}
@@ -111,7 +111,7 @@ export function SettingsDialog(
           </nav>
 
           <div className="settings-pane" data-testid="settings-pane">
-            {draft === null ? (
+            {draft === null || active === undefined ? (
               <p className="empty">Loading settings…</p>
             ) : (
               <>

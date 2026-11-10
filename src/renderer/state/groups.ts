@@ -92,6 +92,7 @@ export function moveGroup(groups: SessionGroup[], id: string, delta: -1 | 1): Se
   if (to < 0 || to >= groups.length) return groups
   const next = [...groups]
   const [moved] = next.splice(from, 1)
+  if (moved === undefined) return groups
   next.splice(to, 0, moved)
   return next
 }

@@ -79,6 +79,7 @@ export function LayoutPicker({
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
       const here = buttons[at]
+      if (here === undefined) return
       const presetIndex = PRESETS.findIndex((p) => p.id === here.dataset.preset)
       const targetIndex = presetIndex + (e.key === 'ArrowDown' ? PER_ROW : -PER_ROW)
       const target = PRESETS[targetIndex]

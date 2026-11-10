@@ -60,14 +60,20 @@ export function useSidebarMenu({
         id: 'folder-move-up',
         label: 'Move up',
         disabled: siblings === null || folderIndex <= 0,
-        run: () => { if (siblings !== null && folderIndex > 0) reorderFolder(folder, siblings[folderIndex - 1]) },
+        run: () => {
+          const above = siblings?.[folderIndex - 1]
+          if (siblings !== null && folderIndex > 0 && above !== undefined) reorderFolder(folder, above)
+        },
       },
       {
         id: 'folder-move-down',
         label: 'Move down',
         separator: true,
         disabled: siblings === null || folderIndex === -1 || folderIndex >= siblings.length - 1,
-        run: () => { if (siblings !== null && folderIndex !== -1) reorderFolder(siblings[folderIndex + 1], folder) },
+        run: () => {
+          const below = siblings?.[folderIndex + 1]
+          if (siblings !== null && folderIndex !== -1 && below !== undefined) reorderFolder(below, folder)
+        },
       },
     ]
     const worktreesItem = showAllWorktreesItem(folder, showAllWorktrees.includes(folder), { rawTree, onToggleAllWorktrees, notify, notifyError })

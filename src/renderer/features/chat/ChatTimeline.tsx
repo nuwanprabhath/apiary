@@ -172,6 +172,7 @@ function StickyPrompt({ prompt }: { prompt: { key: string; text: string } }): JS
     const target = root?.querySelector(`[data-key="${CSS.escape(prompt.key)}"]`) ?? null
     if (root === null || target === null) { setAbove(false); return }
     const observer = new IntersectionObserver(([entry]) => {
+      if (entry === undefined) return
       const rootTop = entry.rootBounds?.top ?? 0
       setAbove(!entry.isIntersecting && entry.boundingClientRect.top < rootTop)
     }, { root })

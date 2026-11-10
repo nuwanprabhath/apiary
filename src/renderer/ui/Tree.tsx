@@ -36,7 +36,7 @@ export function onTreeKeyDown(e: React.KeyboardEvent, root: HTMLElement, handler
   const items = treeItemsIn(root)
   if (items.length === 0) return
   const idx = items.indexOf(document.activeElement as HTMLElement)
-  const current = idx === -1 ? null : items[idx]
+  const current = idx === -1 ? null : items[idx] ?? null
 
   switch (e.key) {
     case 'ArrowDown':
@@ -71,7 +71,8 @@ export function onTreeKeyDown(e: React.KeyboardEvent, root: HTMLElement, handler
       const curLevel = levelOf(current)
       let parent: HTMLElement | undefined
       for (let i = idx - 1; i >= 0; i--) {
-        if (levelOf(items[i]) < curLevel) { parent = items[i]; break }
+        const candidate = items[i]
+        if (candidate !== undefined && levelOf(candidate) < curLevel) { parent = candidate; break }
       }
       if (parent !== undefined) parent.focus()
       handlers.onArrowLeft?.(current, parent !== undefined)

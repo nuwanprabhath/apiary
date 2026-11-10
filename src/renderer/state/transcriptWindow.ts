@@ -22,7 +22,7 @@ export function windowHeld(
   if (drop === 'newest') return dropNewest(messages, cursor)
   for (let cut = messages.length - HELD_KEEP; cut < messages.length; cut++) {
     const first = messages[cut]
-    if (first.index === undefined || isToolResultOnly(first)) continue
+    if (first === undefined || first.index === undefined || isToolResultOnly(first)) continue
     return { messages: messages.slice(cut), cursor: first.index }
   }
   return { messages, cursor }
@@ -37,7 +37,7 @@ export function windowHeld(
 function dropNewest(messages: TranscriptMessage[], cursor: number | null): { messages: TranscriptMessage[]; cursor: number | null } {
   for (let end = HELD_KEEP; end > 0; end--) {
     const last = messages[end - 1]
-    if (last.index !== undefined) return { messages: messages.slice(0, end), cursor: last.index }
+    if (last?.index !== undefined) return { messages: messages.slice(0, end), cursor: last.index }
   }
   return { messages, cursor }
 }

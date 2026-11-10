@@ -50,7 +50,7 @@ function fill(slots: (Column | null)[], panes: Column[], spare: Column[] = []): 
   }
   const last = out.length - 1
   for (const surplus of queue) {
-    const into = out[last]
+    const into = out[last] ?? null
     out[last] = into === null ? surplus : mergeInto(into, surplus)
   }
   const spareQueue = [...spare]
@@ -153,7 +153,8 @@ export function closePane(layout: Layout, paneId: string, activePaneId: string |
   const spare = ordered.filter((p) => p.tabs.length === 0 && p.placeholder === true)
   const slots: (Column | null)[] = Array.from({ length: capacity(preset) }, () => null)
   const panes = fill(slots, occupied, spare)
-  if (preset === 'single' && panes[0].tabs.length === 0) return { preset, panes: [{ ...panes[0], placeholder: false }] }
+  const first = panes[0]
+  if (preset === 'single' && first !== undefined && first.tabs.length === 0) return { preset, panes: [{ ...first, placeholder: false }] }
   return { preset, panes }
 }
 
@@ -168,7 +169,11 @@ export function swapPanes(layout: Layout, fromId: string, toId: string): Layout 
   const to = layout.panes.findIndex((p) => p.id === toId)
   if (from === -1 || to === -1 || from === to) return layout
   const panes = [...layout.panes]
-  ;[panes[from], panes[to]] = [panes[to], panes[from]]
+  const a = layout.panes[from]
+  const b = layout.panes[to]
+  if (a === undefined || b === undefined) return layout
+  panes[from] = b
+  panes[to] = a
   return { ...layout, panes }
 }
 
@@ -191,8 +196,9 @@ export function tidyLayout(layout: Layout, activePaneId: string | null): Layout 
     if (emptied === undefined || next.panes.length === 1) break
     next = closePane(next, emptied.id, activePaneId)
   }
-  if (next.preset === 'single' && next.panes.length === 1 && next.panes[0].placeholder === true) {
-    next = { ...next, panes: [{ ...next.panes[0], placeholder: false }] }
+  const only = next.panes[0]
+  if (next.preset === 'single' && next.panes.length === 1 && only?.placeholder === true) {
+    next = { ...next, panes: [{ ...only, placeholder: false }] }
   }
   if (next.panes.length > capacity(next.preset)) {
     let preset = next.preset
@@ -224,6 +230,7 @@ export function openBeside(
   if (layout.panes.length >= 4) {
     const at = Math.max(0, layout.panes.findIndex((p) => p.id === activePaneId))
     const target = layout.panes[(at + 1) % layout.panes.length]
+    if (target === undefined) throw new Error('a layout of four or more panes has no pane to take the tab')
     const panes = layout.panes.map((p) => {
       if (p !== target) return p
       const tabs = findTab(p, tab.key) === null ? [...p.tabs, tab] : p.tabs
@@ -265,7 +272,10 @@ export function dragTracks(tracks: number[], index: number, pointer: number, min
   if (index < 0 || index + 1 >= tracks.length) return tracks
   const total = tracks.reduce((a, b) => a + b, 0)
   const start = tracks.slice(0, index).reduce((a, b) => a + b, 0) / total
-  const pairWeight = tracks[index] + tracks[index + 1]
+  const left = tracks[index]
+  const right = tracks[index + 1]
+  if (left === undefined || right === undefined) return tracks
+  const pairWeight = left + right
   const pair = pairWeight / total
   const floor = Math.min(minShare, pair / 2)
   const at = Math.max(start + floor, Math.min(start + pair - floor, pointer))

@@ -177,7 +177,9 @@ function TabListMenu(
     const target = nextIndex(e.key, at, visible.length, false)
     if (target === null) return
     e.preventDefault()
-    setHighlighted(visible[target].key)
+    const row = visible[target]
+    if (row === undefined) return
+    setHighlighted(row.key)
   }
 
   const gapFor = (e: DragEvent<HTMLElement>, index: number): number => {
