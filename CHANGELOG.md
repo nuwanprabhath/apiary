@@ -4,7 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.12] - 2026-11-10
+## [1.60.13] - 2026-11-10
+
+### Fixed
+
+- A session whose first message is very large, such as a pasted image, appears in the session list;
+  it was hidden because its folder was looked for only in the first 64 KB.
+
+### Changed
+
+- Scanning a folder of many sessions reads them several at a time, in a stable order.
+
+## [1.60.12] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Changed
 
