@@ -3,6 +3,7 @@ import { isClaudeSuspended, isSuspendChord } from '@shared/claudeSuspend'
 import { copyText, readClipboardText } from '../../state/clipboard'
 import { pasteText } from './terminalPaste'
 import { isMac } from '../../ui/platform'
+import { isPasteShortcut } from '@shared/pasteShortcut'
 
 export interface TerminalKeyContext {
   /** Read on every key: the handler is installed once per pty, so a callback captured at mount
@@ -34,6 +35,12 @@ export function createTerminalKeyHandler(term: Terminal, ctx: TerminalKeyContext
     if (ctx.claude() && !ctx.suspended() && isSuspendChord(e)) {
       e.preventDefault()
       ctx.askSuspend()
+      return false
+    }
+    // A held paste shortcut pastes once: Xwayland can repeat a key whose release came late. False
+    // keeps xterm from pasting, and preventDefault keeps the native paste event away.
+    if (e.repeat && isPasteShortcut(e, isMac())) {
+      e.preventDefault()
       return false
     }
     if (!e.ctrlKey && !e.metaKey) return true

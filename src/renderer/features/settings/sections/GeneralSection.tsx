@@ -143,10 +143,10 @@ function XWaylandSetting({ checked, onChange }: { checked: boolean; onChange: (c
       help={(
         <>
           On a Wayland desktop, apps cannot choose where their windows go, so Apiary&apos;s windows all
-          came back on one screen. With this on, Apiary runs through XWayland, and each window
-          comes back where it was, at its size, maximised if it was. Text can look slightly soft
-          on a screen with fractional scaling; turn it off to run as a Wayland app. Applies the next
-          time Apiary starts.
+          came back on one screen. Through XWayland, each window comes back where it was, at its
+          size, maximised if it was. Text can look slightly soft on a screen with fractional
+          scaling, and keys can repeat on their own when the desktop is busy. Off, Apiary runs as
+          a Wayland app. Applies the next time Apiary starts.
         </>
       )}
     />

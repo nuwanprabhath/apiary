@@ -6,6 +6,7 @@ import { ErrorBoundary } from './ui/ErrorBoundary'
 import './fonts'
 import './styles.css'
 import './scrollMarks'
+import './pasteRepeatGuard'
 import { applyTheme } from './theme/applyTheme'
 import { initialTheme } from './state/theme'
 

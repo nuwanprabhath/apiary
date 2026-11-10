@@ -21,6 +21,8 @@ describe('UI: the XWayland setting', () => {
     asLinux()
     const { fake } = await openGeneral()
     await until(() => document.querySelector('[data-testid="setting-linux-xwayland"]') !== null)
+    expect(document.querySelector('[data-testid="setting-linux-xwayland"]')?.closest('label, div')?.parentElement?.textContent)
+      .toContain('keys can repeat on their own')
     await reviewUi('xwayland setting on linux', {
       widths: [620, 900],
       open: async () => { document.querySelector('[data-testid="setting-linux-xwayland"]')?.scrollIntoView({ block: 'center' }); await Promise.resolve() },

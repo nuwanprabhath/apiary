@@ -15,6 +15,7 @@ import { applyTheme } from '../../src/renderer/theme/applyTheme'
 import '../../src/renderer/fonts'
 import '../../src/renderer/styles.css'
 import '../../src/renderer/scrollMarks'
+import '../../src/renderer/pasteRepeatGuard'
 import { createFakeApiary, type FakeApiary, type FakeOptions } from './fakeApiary'
 import { mouse } from './helpers'
 
