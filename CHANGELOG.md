@@ -4,7 +4,19 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.19] - 2026-11-10
+## [1.60.20] - 2026-11-10
+
+### Fixed
+
+- A session whose transcript was deleted disappears from the sidebar, unless it has a note or a
+  title you gave it.
+
+### Changed
+
+- While a session is being written, Apiary re-indexes only that session for search, at most every
+  five seconds, instead of checking every stored session about once a second.
+
+## [1.60.19] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Fixed
 
