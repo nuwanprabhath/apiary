@@ -6,6 +6,7 @@ import { SearchIndex, toMatchQuery } from '../../src/main/search/searchIndex'
 import { extractLineText } from '../../src/main/search/extractText'
 import { runIndexPass } from '../../src/main/search/indexer'
 import { log } from '../../src/main/log/logger'
+import { at } from '../contract/must'
 
 let dir: string
 let index: SearchIndex
@@ -97,7 +98,7 @@ describe('SearchIndex', () => {
   })
 
   it('returns a snippet showing why it matched', () => {
-    expect(index.search('csv')[0].snippet).toContain('«CSV»')
+    expect(at(index.search('csv'), 0).snippet).toContain('«CSV»')
   })
 
   it('replaces a session rather than accumulating copies of it', () => {

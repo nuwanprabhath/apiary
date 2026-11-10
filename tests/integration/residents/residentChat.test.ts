@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { ResidentMessage } from '@shared/domain/residents'
 import { ResidentChat } from '../../../src/main/residents/residentChat'
+import { at } from '../../contract/must'
 import { ResidentSpace } from '../../../src/main/residents/residentSpace'
 
 /** A real login shell running tests/fixtures/fake-claude-chat.mjs, which speaks claude's stream-json. */
@@ -55,12 +56,12 @@ describe('ResidentChat', () => {
     const { chat: c } = chat(root())
     const denied = c.askUser('approve_mr', 'Approve !1: fix')
     expect(c.permissions().map((p) => [p.tool, p.summary])).toEqual([['approve_mr', 'Approve !1: fix']])
-    c.answerPermission(c.permissions()[0].requestId, false)
+    c.answerPermission(at(c.permissions(), 0).requestId, false)
     await expect(denied).resolves.toBe(false)
     expect(c.permissions()).toEqual([])
 
     const allowed = c.askUser('approve_mr', 'Approve !2: feat')
-    c.answerPermission(c.permissions()[0].requestId, true)
+    c.answerPermission(at(c.permissions(), 0).requestId, true)
     await expect(allowed).resolves.toBe(true)
   })
 
@@ -145,7 +146,7 @@ describe('ResidentChat', () => {
     const { chat: c, pushed } = chat(root())
     await c.send('needs permission')
     await vi.waitFor(() => { expect(c.permissions()).toHaveLength(1) }, 5000)
-    const [request] = c.permissions()
+    const request = at(c.permissions(), 0)
     expect(request).toMatchObject({ tool: 'Bash', summary: 'Run: echo fake-ran' })
     expect(c.busy).toBe(true)
     c.answerPermission(request.requestId, true)
@@ -157,7 +158,7 @@ describe('ResidentChat', () => {
     const { chat: c, pushed } = chat(root())
     await c.send('needs permission')
     await vi.waitFor(() => { expect(c.permissions()).toHaveLength(1) }, 5000)
-    c.answerPermission(c.permissions()[0].requestId, false)
+    c.answerPermission(at(c.permissions(), 0).requestId, false)
     await vi.waitFor(() => { expect(answered(pushed)?.text).toBe('Understood, I did not run it.') }, 5000)
     // An id already answered is ignored.
     c.answerPermission('gone', true)
@@ -171,7 +172,7 @@ describe('ResidentChat', () => {
     await vi.waitFor(() => { expect(c.permissions()).toHaveLength(1) }, 5000)
     c.setOwnActivity('Checking the merge requests on the desk now')
     expect(c.activity()).toBe('Checking the merge requests on the desk…')
-    c.answerPermission(c.permissions()[0].requestId, true)
+    c.answerPermission(at(c.permissions(), 0).requestId, true)
     await vi.waitFor(() => { expect(c.busy).toBe(false) }, 5000)
     c.appendAssistant('| MR | state |')
     expect(pushed.at(-1)).toMatchObject({ role: 'assistant', text: '| MR | state |', streaming: false })

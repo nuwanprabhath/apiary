@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { mraDirIn, resolveResourcesDir } from '../../../src/main/app/resourcesDir'
 import { createExec } from '../../../src/main/exec/run'
+import { at } from '../../contract/must'
 import { builtinKinds, kindLookup, newResident } from '../../../src/main/residents/kinds'
 import { nodeKindFiles, searchPathFrom } from '../../../src/main/residents/kinds/kindHost'
 import { ResidentService, type ResidentSettings } from '../../../src/main/residents/residentService'
@@ -101,6 +102,6 @@ describe.runIf(hasPython)('"Show the desk" against a fake glab (needs python3)',
     expect(last?.role).toBe('assistant')
     expect(last?.text).toContain('**Waiting on you** (1)')
     expect(last?.text).toContain('1. [!5](https://gl.test/g/p/-/merge_requests/5) fix: the thing · @alice · → dev/1.0.12 · review')
-    expect(service.list()[0].setupNeeded).toBeNull()
+    expect(at(service.list(), 0).setupNeeded).toBeNull()
   })
 })

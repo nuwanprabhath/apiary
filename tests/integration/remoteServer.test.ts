@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { IPC, type IpcKey } from '@shared/ipc/contract'
 import type { RemoteClientInfo } from '@shared/domain/remote'
 import { log } from '../../src/main/log/logger'
+import { at } from '../contract/must'
 import { terminalRef } from '@shared/domain/ids'
 import { SessionResolver } from '../../src/main/sessions/sessionResolver'
 import { VsCodeService } from '../../src/main/vscode/vscodeService'
@@ -125,7 +126,7 @@ describe('RemoteServer', () => {
     const c = await greeted()
     c.send({ t: 'open', w: 1 })
     await vi.waitFor(() => { expect(registry.list()).toHaveLength(1) })
-    const window = registry.list()[0]
+    const window = at(registry.list(), 0)
     c.pause()
     const chunk = 'x'.repeat(1 << 20)
     const sent = 60

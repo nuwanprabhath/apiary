@@ -7,6 +7,7 @@ import type { DigestLookback } from '@shared/domain/residents'
 import type { OneShotRequest } from '../../../src/main/claude/claudeOneShot'
 import { Digester, type DigestableSession } from '../../../src/main/knowledge/digester'
 import { KnowledgeStore } from '../../../src/main/knowledge/knowledgeStore'
+import { at } from '../../contract/must'
 
 const line = (role: 'user' | 'assistant', text: string): string =>
   JSON.stringify({ type: role, message: { role, content: [{ type: 'text', text }] } })
@@ -187,6 +188,6 @@ describe('Digester', () => {
     const topics = store.topicsOf('a')
     expect(topics).toHaveLength(1)
     expect(topics[0]).toMatchObject({ title: 'Kept', startLine: 1, endLine: 3, keywords: ['a'], refs: ['!5'] })
-    expect(topics[0].summary).toHaveLength(600)
+    expect(at(topics, 0).summary).toHaveLength(600)
   })
 })

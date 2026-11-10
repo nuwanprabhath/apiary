@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { asSessionId } from '@shared/domain/ids'
 import { toolsFor, type ToolDeps, type ToolResult } from '../../../src/main/residents/mcp/tools'
 import { ResidentSpace } from '../../../src/main/residents/residentSpace'
+import { at } from '../../contract/must'
 import type { ResidentApproval } from '../../../src/main/residents/kindTypes'
 import type { SessionKnowledge, SessionTopic } from '../../../src/main/knowledge/types'
 import type { SessionHit } from '@shared/domain/residents'
@@ -162,7 +163,7 @@ describe('approve_mr', () => {
     const { d, ran } = approving(true)
     const r = await approve({ iid: 1570 }, d)
     expect(approvals(ran)).toHaveLength(1)
-    const [run] = approvals(ran)
+    const run = at(approvals(ran), 0)
     expect(run.argv).toEqual(['approve', '1570'])
     expect(run.env.NONCE).toMatch(/^[0-9a-f]{64}$/)
     expect(run.nonceOnDisk).toBe(run.env.NONCE)
