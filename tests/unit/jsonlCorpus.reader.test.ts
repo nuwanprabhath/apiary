@@ -10,7 +10,7 @@ import { TranscriptReader } from '../../src/main/transcript/transcriptReader'
  * when it fixes it, and must then delete the line.
  * - bom: no task owns it yet: the first line fails to parse with the BOM in front
  */
-const KNOWN: CaseName[] = ['bom']
+const KNOWN: CaseName[] = []
 const OK = CASE_NAMES.filter((n) => !KNOWN.includes(n))
 
 let cases: Record<CaseName, CorpusCase>

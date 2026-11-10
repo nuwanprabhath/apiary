@@ -1,8 +1,5 @@
 import { decodeEntry, type MessageContent } from '../transcript/claudeEntry'
 
-/** Re-exported for `knowledge/`, whose allowed imports (`MAIN_EDGES`) include `search` but not `transcript`. */
-export { decodeEntry }
-
 /**
  * Pulls the searchable text out of a session's JSONL.
  *

@@ -127,7 +127,8 @@ export function entryOf(value: unknown): ClaudeEntry | null {
 export function decodeEntry(line: string): ClaudeEntry | null {
   let value: unknown
   try {
-    value = JSON.parse(line)
+    // A byte order mark in front of the first line is not part of the JSON.
+    value = JSON.parse(line.charCodeAt(0) === 0xfeff ? line.slice(1) : line)
   } catch {
     return null
   }
