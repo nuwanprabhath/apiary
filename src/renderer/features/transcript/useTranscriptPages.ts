@@ -21,6 +21,8 @@ export interface TranscriptPages {
   loadEarlier: () => void
   /** Run the initial load again — the error pane's "Try again". */
   retry: () => void
+  /** Holds the page around line `line` when that message is not held (a find hit in history). */
+  jumpTo: (line: number) => void
 }
 
 /** The session's messages: the newest page on open, earlier pages on request, and the newest
@@ -167,6 +169,8 @@ export function useTranscriptPages(
 
   useLoadLaterAtBottom(tail.containerRef, { sessionId, generationRef, messagesRef, cursorRef, laterRef, commit })
 
+  const jumpTo = useJumpTo({ sessionId, generationRef, messagesRef, commit, stickToBottomRef })
+
   useLayoutEffect(() => {
     const before = topAnchorRef.current
     const el = tail.containerRef.current
@@ -175,7 +179,30 @@ export function useTranscriptPages(
   }, [messages, tail.containerRef])
 
   const retry = useCallback(() => { setReloadNonce((n) => n + 1) }, [])
-  return { messages, cursor, skipped, error, loading, loadingEarlier, loadEarlier, retry }
+  return { messages, cursor, skipped, error, loading, loadingEarlier, loadEarlier, retry, jumpTo }
+}
+
+/** A find hit outside the held messages: hold the page around its line instead, reading history
+ *  (newer messages load back on scrolling down). */
+function useJumpTo(held: {
+  sessionId: SessionId
+  generationRef: RefObject<number>
+  messagesRef: RefObject<TranscriptMessage[]>
+  commit: (next: TranscriptMessage[], nextCursor: number | null, later?: number | null) => void
+  stickToBottomRef: RefObject<boolean>
+}): (line: number) => void {
+  const { sessionId, generationRef, messagesRef, commit, stickToBottomRef } = held
+  return useCallback((line: number) => {
+    if (messagesRef.current.some((m) => m.index === line)) return
+    const requestedGeneration = generationRef.current
+    stickToBottomRef.current = false
+    loadTranscript(sessionId, line + Math.floor(TRANSCRIPT_PAGE_SIZE / 2) + 1)
+      .then((page) => {
+        if (generationRef.current !== requestedGeneration) return
+        commit(page.messages, page.earlierCursor, page.messages.at(-1)?.index ?? null)
+      })
+      .catch((e: unknown) => { logBackgroundFailure(e, 'refresh') })
+  }, [sessionId, generationRef, messagesRef, commit, stickToBottomRef])
 }
 
 /** How close to the bottom edge, in pixels, a scroll asks for the messages after the held ones. */
