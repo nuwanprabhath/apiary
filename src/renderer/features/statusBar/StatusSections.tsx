@@ -67,9 +67,9 @@ function Section({ section }: { section: StatusSection }): JSX.Element | null {
               <div key={i} className="status-bars-col" title={c.title}>
                 <div className="status-bars-value muted">{c.totalLabel}</div>
                 <div className="status-bars-area">
-                  <div className="status-bars-bar" style={{ height: `${String((totals[i] / max) * 100)}%` }}>
-                    {c.values.map((v, s) => (v > 0 && totals[i] > 0
-                      ? <div key={s} className="status-bars-seg" data-series={section.series[s]?.color} style={{ height: `${String((v / totals[i]) * 100)}%` }} />
+                  <div className="status-bars-bar" style={{ height: `${String(((totals[i] ?? 0) / max) * 100)}%` }}>
+                    {c.values.map((v, s) => (v > 0 && (totals[i] ?? 0) > 0
+                      ? <div key={s} className="status-bars-seg" data-series={section.series[s]?.color} style={{ height: `${String((v / (totals[i] ?? 1)) * 100)}%` }} />
                       : null))}
                   </div>
                 </div>
@@ -93,9 +93,11 @@ function Section({ section }: { section: StatusSection }): JSX.Element | null {
       const max = Math.max(1, ...section.points.map((p) => p.value))
       const step = section.points.length > 1 ? (w - padX * 2) / (section.points.length - 1) : 0
       const pts = section.points.map((p, i) => ({ ...p, x: padX + step * i, y: padY + (h - padY * 2) * (1 - p.value / max) }))
-      if (pts.length === 0) return null
+      const firstPt = pts[0]
+      const lastPt = pts.at(-1)
+      if (firstPt === undefined || lastPt === undefined) return null
       const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-      const area = `${line} L${pts[pts.length - 1].x.toFixed(1)},${String(h - padY)} L${pts[0].x.toFixed(1)},${String(h - padY)} Z`
+      const area = `${line} L${lastPt.x.toFixed(1)},${String(h - padY)} L${firstPt.x.toFixed(1)},${String(h - padY)} Z`
       return <TrendLine width={w} height={h} line={line} area={area} points={pts} />
     }
   }

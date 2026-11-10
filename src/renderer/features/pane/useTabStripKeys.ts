@@ -39,24 +39,26 @@ export function useTabStripKeys(
 
   // Scoped to this strip's own keydown so it never reaches a focused xterm.
   const onTabListKeyDown = (e: React.KeyboardEvent): void => {
-    if (tabs.length === 0) return
+    const [firstTab] = tabs
+    const lastTab = tabs.at(-1)
+    if (firstTab === undefined || lastTab === undefined) return
     const current = activeKey === null ? -1 : tabs.findIndex((t) => t.key === activeKey)
     switch (e.key) {
       case 'ArrowRight':
         e.preventDefault()
-        focusTab(tabs[(current + 1 + tabs.length) % tabs.length].key)
+        focusTab((tabs[(current + 1 + tabs.length) % tabs.length] ?? firstTab).key)
         return
       case 'ArrowLeft':
         e.preventDefault()
-        focusTab(tabs[(current - 1 + tabs.length) % tabs.length].key)
+        focusTab((tabs[(current - 1 + tabs.length) % tabs.length] ?? firstTab).key)
         return
       case 'Home':
         e.preventDefault()
-        focusTab(tabs[0].key)
+        focusTab(firstTab.key)
         return
       case 'End':
         e.preventDefault()
-        focusTab(tabs[tabs.length - 1].key)
+        focusTab(lastTab.key)
         return
       case 'Delete':
         if (activeKey !== null) { e.preventDefault(); onClose(activeKey) }

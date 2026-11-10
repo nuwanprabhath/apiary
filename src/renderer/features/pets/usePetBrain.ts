@@ -92,10 +92,22 @@ export function usePetBrain(
       return next
     })
     for (const c of cmds) {
-      if (c.to !== undefined) later(() => { setPoses((p) => (p[c.id]?.place === c.to ? { ...p, [c.id]: { ...p[c.id], ms: 0 } } : p)) }, c.ms)
+      if (c.to !== undefined) {
+        later(() => {
+          setPoses((p) => {
+            const pose = p[c.id]
+            return pose !== undefined && pose.place === c.to ? { ...p, [c.id]: { ...pose, ms: 0 } } : p
+          })
+        }, c.ms)
+      }
       const said = c.say
       if (said !== undefined) {
-        later(() => { setPoses((p) => (p[c.id]?.say === said ? { ...p, [c.id]: { ...p[c.id], say: null } } : p)) }, SAY_MS[said.kind])
+        later(() => {
+          setPoses((p) => {
+            const pose = p[c.id]
+            return pose?.say === said ? { ...p, [c.id]: { ...pose, say: null } } : p
+          })
+        }, SAY_MS[said.kind])
       }
       if (c.ask === 'comment') remark(c.id)
     }
@@ -104,7 +116,10 @@ export function usePetBrain(
         const next = { ...prev }
         for (const item of items) {
           if (item.show) next[item.key] = { item, leaving: false }
-          else if (next[item.key] !== undefined) next[item.key] = { ...next[item.key], leaving: true }
+          else {
+            const shown = next[item.key]
+            if (shown !== undefined) next[item.key] = { ...shown, leaving: true }
+          }
         }
         return next
       })

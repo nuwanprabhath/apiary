@@ -11,10 +11,10 @@ function StateIcon({ activity }: { activity: Activity }): JSX.Element {
 }
 
 /** The headline: the newest running activity, else the newest of all. */
-function headlineActivity(all: readonly Activity[]): Activity {
+function headlineActivity(all: readonly Activity[]): Activity | undefined {
   const running = all.filter((a) => a.state === 'running')
   const pool = running.length > 0 ? running : all
-  return pool[pool.length - 1]
+  return pool.at(-1)
 }
 
 /**
@@ -26,6 +26,7 @@ export function ActivityIndicator(): JSX.Element | null {
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
   if (all.length === 0) return null
   const main = headlineActivity(all)
+  if (main === undefined) return null
   const more = all.length - 1
   const content = (
     <>
