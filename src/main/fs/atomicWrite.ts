@@ -31,8 +31,8 @@ function writeTextAtomic(file: string, text: string, mode?: number): void {
 }
 
 /** The low-level primitive under `JsonStore`: pretty-printed JSON, written with `writeTextAtomic`. */
-export function writeJsonAtomic(file: string, data: unknown): void {
-  writeTextAtomic(file, JSON.stringify(data, null, 2))
+export function writeJsonAtomic(file: string, data: unknown, mode?: number): void {
+  writeTextAtomic(file, JSON.stringify(data, null, 2), mode)
 }
 
 /**

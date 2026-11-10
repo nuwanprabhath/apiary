@@ -1,5 +1,5 @@
-import { copyFileSync, constants, mkdirSync, readFileSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { copyFileSync, constants, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { isFiniteNumber, isRecord } from '@shared/guards'
 import { writeJsonAtomic } from './atomicWrite'
 
@@ -29,6 +29,10 @@ import { writeJsonAtomic } from './atomicWrite'
  * so the user keeps working and a later upgrade can recover what the older build dropped. If the
  * copy fails, `save` throws and the file is left untouched. `load` still reads such a file on a
  * best-effort basis through `parse`, which is why `parse` must ignore keys it does not know.
+ *
+ * **A damaged file.** When `load` found the file unreadable (not missing), the first `save` copies
+ * it to `<file>.corrupt-<time>` before replacing it, keeping the newest 3 such copies.
+ * `private: true` writes the file with mode 0600.
  */
 export interface JsonStoreOptions<T> {
   file: string
@@ -36,6 +40,8 @@ export interface JsonStoreOptions<T> {
   version: number
   /** The key the version is stored under. Default `'version'`. */
   versionKey?: string
+  /** Write with mode 0600, for a file holding a secret. */
+  private?: boolean
   parse: (raw: unknown, fromVersion: number | undefined) => T
   fallback: (reason: 'missing' | 'unreadable') => T
 }
@@ -60,6 +66,8 @@ export class JsonStore<T extends object> {
   private readonly versionKey: string
   /** Whether the newer-version check has run; it only needs to, once, before the first write. */
   private checkedForNewer = false
+  /** Set by `load` when the file existed but could not be used; cleared once it is copied aside. */
+  private sawUnreadable = false
 
   constructor(private readonly opts: JsonStoreOptions<T>) {
     this.versionKey = opts.versionKey ?? 'version'
@@ -67,10 +75,14 @@ export class JsonStore<T extends object> {
 
   load(): T {
     const read = readRaw(this.opts.file)
-    if (!read.ok) return this.opts.fallback(read.reason)
+    if (!read.ok) {
+      this.sawUnreadable = read.reason === 'unreadable'
+      return this.opts.fallback(read.reason)
+    }
     try {
       return this.opts.parse(read.raw, this.versionOf(read.raw))
     } catch {
+      this.sawUnreadable = true
       return this.opts.fallback('unreadable')
     }
   }
@@ -78,9 +90,28 @@ export class JsonStore<T extends object> {
   save(data: T): void {
     mkdirSync(dirname(this.opts.file), { recursive: true })
     this.keepNewerFile()
+    this.keepCorruptFile()
     // The version goes first in a new file and keeps its place in one that already has the key.
     const stamp = { [this.versionKey]: this.opts.version }
-    writeJsonAtomic(this.opts.file, Object.assign({}, stamp, data, stamp))
+    writeJsonAtomic(this.opts.file, Object.assign({}, stamp, data, stamp), this.opts.private === true ? 0o600 : undefined)
+  }
+
+  private keepCorruptFile(): void {
+    if (!this.sawUnreadable) return
+    const { file } = this.opts
+    try {
+      copyFileSync(file, `${file}.corrupt-${String(Date.now())}`, constants.COPYFILE_EXCL)
+    } catch (e) {
+      if (isRecord(e) && e.code === 'ENOENT') { this.sawUnreadable = false; return }
+      if (!(isRecord(e) && e.code === 'EEXIST')) throw e
+    }
+    this.sawUnreadable = false
+    const prefix = `${basename(file)}.corrupt-`
+    const copies = readdirSync(dirname(file))
+      .filter(n => n.startsWith(prefix))
+      .map(n => ({ n, t: Number(n.slice(prefix.length)) || 0 }))
+      .sort((a, b) => b.t - a.t)
+    for (const old of copies.slice(3)) rmSync(join(dirname(file), old.n), { force: true })
   }
 
   private versionOf(raw: unknown): number | undefined {

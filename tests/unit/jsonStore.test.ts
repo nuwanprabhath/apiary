@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, chmodSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, chmodSync, mkdirSync, statSync } from 'node:fs'
 import type * as Fs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -170,5 +170,42 @@ describe('JsonStore', () => {
       open(2).save({ items: [], note: 'y' })
       expect(readdirSync(join(dir, 'nested'))).toEqual(['doc.json'])
     })
+  })
+})
+
+describe('a corrupt file', () => {
+  const corrupt = (): string[] => readdirSync(join(dir, 'nested')).filter(n => n.startsWith('doc.json.corrupt-'))
+  const plain = (): JsonStore<Doc> => new JsonStore<Doc>({ file, version: 1, parse: raw => raw as Doc, fallback: () => ({ items: [], note: '' }) })
+
+  it('is loaded as the fallback and copied aside on the first save, once', () => {
+    mkdirSync(join(dir, 'nested'))
+    writeFileSync(file, '{"a":')
+    const store = plain()
+    expect(store.load()).toEqual({ items: [], note: '' })
+    store.save({ items: [], note: 'x' })
+    const [copy] = corrupt()
+    expect(corrupt()).toHaveLength(1)
+    expect(readFileSync(join(dir, 'nested', copy), 'utf8')).toBe('{"a":')
+    writeFileSync(file, '{"b":')
+    store.load()
+    store.save({ items: [], note: 'y' })
+    expect(readFileSync(join(dir, 'nested', copy), 'utf8')).toBe('{"a":')
+  })
+
+  it('keeps at most 3 copies', () => {
+    mkdirSync(join(dir, 'nested'))
+    for (let i = 1; i <= 4; i++) writeFileSync(`${file}.corrupt-${String(i)}`, 'old')
+    writeFileSync(file, '{"a":')
+    const store = plain()
+    store.load()
+    store.save({ items: [], note: 'x' })
+    expect(corrupt()).toHaveLength(3)
+    expect(corrupt()).not.toContain('doc.json.corrupt-1')
+  })
+
+  it.skipIf(process.platform === 'win32')('a private store writes mode 0600', () => {
+    new JsonStore<Doc>({ file, version: 1, private: true, parse: raw => raw as Doc, fallback: () => ({ items: [], note: '' }) })
+      .save({ items: [], note: 'x' })
+    expect(statSync(file).mode & 0o777).toBe(0o600)
   })
 })
