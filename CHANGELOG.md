@@ -4,7 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.0] - 2026-11-10
+## [1.60.1] - 2026-11-10
+
+### Changed
+
+- The session database carries a schema version, so its upgrades run once and in order, and it
+  waits up to two seconds for a locked database instead of failing at once.
+
+## [1.60.0] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Changed
 
