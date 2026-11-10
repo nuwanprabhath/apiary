@@ -3,15 +3,11 @@ import { open, stat } from 'node:fs/promises'
 import type { TranscriptBlock, TranscriptMessage, TranscriptPage } from '@shared/types'
 import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 import { taskNotificationIds } from '@shared/chatTimeline'
+import { MAX_LINE_CHARS } from './jsonlLines'
 
 const DEFAULT_LIMIT = TRANSCRIPT_PAGE_SIZE
 
-/**
- * A line longer than this is skipped rather than `JSON.parse`d: a multi-hundred-MB line (a base64
- * blob, a pasted log) would freeze the main thread on every page that includes it. The search
- * indexer has the same cap (`search/indexer.ts`).
- */
-export const MAX_LINE_CHARS = 1_000_000
+export { MAX_LINE_CHARS }
 
 /** Coerces a JSONL field of unknown shape to a string; a malformed line gives `fallback`, not '[object Object]'. */
 function asString(value: unknown, fallback: string): string {
