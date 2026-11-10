@@ -13,7 +13,7 @@ import { cycleMinutesOf, cycleStatus } from './cycle'
 import { instantHits, instantMatchPolicy } from './instantMatches'
 import { kindInfos, kindOf, newResident, unknownKindFilter, type ResidentKind } from './kinds'
 import { McpServer } from './mcp/server'
-import type { ResidentControl, ToolDeps } from './mcp/tools'
+import type { ApprovalControl, ResidentControl, ToolDeps } from './mcp/tools'
 import { cycleSkip, expandArgv } from './quickActions'
 import { ResidentChat } from './residentChat'
 import { ResidentSpace } from './residentSpace'
@@ -31,6 +31,7 @@ const STATUS_COALESCE_MS = 50
 const SEND_MAX = 8000
 const COMMAND_TIMEOUT_MS = 60 * 1000
 const COMMAND_OUTPUT_MAX = 20_000
+const noResident = (id: string): never => { throw new Error(`No resident ${id}`) }
 /** The index is asked for more than the three shown, so dropping weak title hits still leaves some. */
 const INSTANT_CANDIDATES = 6
 
@@ -128,7 +129,7 @@ export class ResidentService {
     this.runnable = unknownKindFilter(this.kindOf, (c) => { log.warn('residents', 'unknown resident kind, not running it', { resident: c.id, kind: c.kind }) })
     this.server = new McpServer({
       version: deps.version,
-      tools: { ...deps.tools, knowledge: deps.knowledge, residents: this.control() },
+      tools: { ...deps.tools, knowledge: deps.knowledge, residents: this.control(), approval: this.approvalControl() },
       capabilitiesOf: (id) => this.residents.get(id)?.kind.capabilities ?? null,
       spaceOf: (id) => this.require(id).space,
       onToolCall: (id, tool, args) => { this.residents.get(id)?.chat.toolCalled(tool, args) },
@@ -213,7 +214,7 @@ export class ResidentService {
     const text = await this.busyWith(r, action.doing, async () => {
       await r.ready
       try {
-        const out = (await this.run(expandArgv(argv, { options: r.config.options, bins: r.kind.bins }), r.space.dir, this.envOf(r))).trim()
+        const out = (await this.runIn(r, argv)).trim()
         return out === '' ? `**${action.label}**: done, no output.` : out.slice(0, COMMAND_OUTPUT_MAX)
       } catch (e) {
         return `**${action.label}** failed: ${errorMessage(e).split('\n')[0].slice(0, 300)}`
@@ -259,9 +260,7 @@ export class ResidentService {
   }
 
   private require(id: string): Resident {
-    const resident = this.residents.get(id)
-    if (resident === undefined) throw new Error(`No resident ${id}`)
-    return resident
+    return this.residents.get(id) ?? noResident(id)
   }
 
   /** What the `apiary_status` and attention tools reach, for the resident their token names. */
@@ -281,8 +280,14 @@ export class ResidentService {
     }
   }
 
-  private envOf(r: Resident): Record<string, string> {
-    return { ...this.deps.launchEnv(), ...(r.kind.env?.(r.config, r.space.dir) ?? {}) }
+  /** `approve_mr`'s reach: the kind's approval, the user's answer, and a command run as a quick action's is. */
+  private approvalControl(): ApprovalControl {
+    return { approvalOf: (id) => this.require(id).kind.approval ?? null, askUser: (id, tool, summary) => this.require(id).chat.askUser(tool, summary), run: (id, argv, extraEnv) => this.runIn(this.require(id), argv, extraEnv), spaceDir: (id) => this.require(id).space.dir }
+  }
+
+  /** Runs a kind's argv in the resident's space, with its env and `extraEnv`. */
+  private runIn(r: Resident, argv: string[], extraEnv: Record<string, string> = {}): Promise<string> {
+    return this.run(expandArgv(argv, { options: r.config.options, bins: r.kind.bins }), r.space.dir, { ...this.deps.launchEnv(), ...(r.kind.env?.(r.config, r.space.dir) ?? {}), ...extraEnv })
   }
 
   /** Brings every resident's process, the digest, the cycles, the timer and the status in line with the settings and the clock. */
@@ -372,8 +377,7 @@ export class ResidentService {
     const space = new ResidentSpace(this.deps.root, config.id)
     // The chat's callbacks read the live config through this object, which becomes the resident.
     const resident: Omit<Resident, 'chat'> = {
-      config, kind, space, launchedAs: null, nextCycleAt: null, cycleEvery: null, ready: Promise.resolve(), preparedFor: null, preparing: false,
-      actions: [], turnSeq: 0,
+      config, kind, space, launchedAs: null, nextCycleAt: null, cycleEvery: null, ready: Promise.resolve(), preparedFor: null, preparing: false, actions: [], turnSeq: 0,
     }
     const chat = new ResidentChat({
       space,
@@ -387,9 +391,8 @@ export class ResidentService {
         resident.launchedAs = launchKey(resident.config)
         return {
           mcpConfig: space.writeMcpConfig(url, this.server.issueToken(config.id)),
-          model: resident.config.model,
           systemPrompt: kind.systemPrompt(resident.config.name, cycleMinutesOf(kind, resident.config) ?? undefined),
-          permissionMode: resident.config.permissionMode,
+          model: resident.config.model, permissionMode: resident.config.permissionMode, disallowedTools: kind.toolPolicy?.disallowedTools ?? [],
         }
       },
       onMessage: (message) => { this.deps.onMessage({ residentId: config.id, message }) },

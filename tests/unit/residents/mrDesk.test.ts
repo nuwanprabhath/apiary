@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { builtinKinds, newResident, type ResidentKind } from '../../../src/main/residents/kinds'
 import { expandArgv } from '../../../src/main/residents/quickActions'
+import { residentFlags } from '../../../src/main/residents/residentChat'
 import { mraConfigFor } from '../../../src/main/residents/kinds/mrDeskConfig'
 import { nodeKindFiles, searchPathFrom } from '../../../src/main/residents/kinds/kindHost'
 import { mraDirIn, resolveResourcesDir } from '../../../src/main/app/resourcesDir'
@@ -43,11 +44,23 @@ describe('the MR desk kind', () => {
     })
     expect(kind.digests).toBe(false)
     expect(kind.appearance).toEqual({ glyph: 'honeypot', palette: 'amber', animation: 'stir' })
-    expect(kind.capabilities).toEqual(['space.notes', 'apiary.status', 'resident.attention', 'sessions.read', 'workspace.open'])
+    expect(kind.capabilities).toEqual(['space.notes', 'apiary.status', 'resident.attention', 'sessions.read', 'workspace.open', 'gitlab.approve'])
     expect(kind.optionFields.map((f) => [f.key, f.input, f.required])).toEqual([
       ['project', 'text', true], ['repoPath', 'folder', true], ['username', 'text', false],
     ])
     expect(kind.cycle).toEqual({ everyMinutes: 15, prompt: 'Run one MR desk cycle.', doing: 'Checking your MRs' })
+  })
+
+  it('starts claude with the GitLab writes and git push disallowed', () => {
+    const disallowed = desk().toolPolicy?.disallowedTools ?? []
+    const flags = residentFlags({ mcpConfig: '/s/mcp.json', model: 'opus', systemPrompt: 'p', permissionMode: 'auto', disallowedTools: disallowed }, null)
+    const at = flags.indexOf('--disallowedTools')
+    expect(at).toBeGreaterThan(-1)
+    expect(flags.slice(at + 1, at + 7)).toEqual([
+      'Bash(glab mr approve:*)', 'Bash(glab mr note:*)', 'Bash(glab mr merge:*)', 'Bash(glab mr close:*)', 'Bash(glab api:*)', 'Bash(git push:*)',
+    ])
+    expect(residentFlags({ mcpConfig: '/s/mcp.json', model: 'opus', systemPrompt: 'p', permissionMode: 'auto', disallowedTools: [] }, null))
+      .not.toContain('--disallowedTools')
   })
 
   it('setup reports the first thing missing, in order', async () => {
@@ -151,9 +164,11 @@ describe('the MR desk kind', () => {
     expect(prompt).toContain('Never post a note, reply, review or comment to GitLab')
     expect(prompt).toContain('Approve only when the user names')
     const flat = prompt.replace(/\s+/g, ' ')
-    expect(flat).toContain('Run `mra approve` only with `!<iid>`, never a list number.')
+    expect(flat).toContain('Approve only through the `approve_mr` tool, with the iid the user named, never a list number.')
     expect(flat).toContain('Reply `approve !1570`.')
-    expect(flat).toContain('Never run `mra approve` on that turn.')
+    expect(flat).toContain('Never call `approve_mr` on that turn.')
+    expect(flat).not.toMatch(/run `mra approve !<iid>`|`mra approve !1524`/)
+    expect(flat).toContain('<<<UNTRUSTED')
     expect(flat).toContain('`mra approve !N --when-green`')
     expect(flat).toContain('Never tell the user about your notes, state files or how something is remembered.')
     expect(flat).toContain('When a subagent finishes after the turn that started it')

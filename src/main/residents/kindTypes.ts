@@ -3,6 +3,7 @@ import type { ResidentAppearance, ResidentConfig, ResidentKindId, ResidentOption
 /** A group of Apiary tools (`mcp/tools.ts`). A kind's token sees only the groups it declares. */
 export type ResidentCapability =
   | 'sessions.read' | 'workspace.read' | 'workspace.open' | 'space.notes' | 'apiary.status' | 'resident.attention'
+  | 'gitlab.approve'
 
 /**
  * What a quick action does. A prompt is sent to the resident's chat as if typed; a command runs
@@ -10,6 +11,27 @@ export type ResidentCapability =
  * output is added to the chat, with no model involved.
  */
 export type ResidentQuickActionRun = { kind: 'prompt'; text: string } | { kind: 'command'; argv: string[] }
+
+/** What the approval card names, read by main from GitLab, never supplied by the agent. */
+export interface MrHead {
+  title: string
+  targetBranch: string
+  sha: string
+}
+
+/**
+ * How main approves an MR for a kind with `gitlab.approve` (`approve_mr`): it reads the MR with
+ * `readArgv`, asks the user, then writes a one-call nonce to `nonceFile`, runs `approveArgv` with
+ * the nonce in `nonceEnv`, and deletes the file. Argvs may use `{bin:<name>}`.
+ */
+export interface ResidentApproval {
+  readArgv: (iid: number) => string[]
+  /** The MR from `readArgv`'s stdout, or null when it is not there. */
+  parseHead: (stdout: string) => MrHead | null
+  approveArgv: (iid: number) => string[]
+  nonceFile: (space: string) => string
+  nonceEnv: string
+}
 
 export interface ResidentKindQuickAction {
   id: string
@@ -48,6 +70,13 @@ export interface ResidentKind {
   instantMatches: boolean
   /** What is missing before it can work ("Set the GitLab project in Settings"), or null. Synchronous: it reads what `prepare` last found. */
   setup: (config: ResidentConfig) => string | null
+  /**
+   * Tools its claude may not use, passed as `--disallowedTools` in every permission mode: what it
+   * must never do on its own (a write to GitLab, a push) even when text it read asks for it.
+   */
+  toolPolicy?: { disallowedTools: readonly string[] }
+  /** How `approve_mr` runs; a kind with the `gitlab.approve` capability has one. */
+  approval?: ResidentApproval
   /** Extra environment for its claude and its commands. */
   env?: (config: ResidentConfig, space: string) => Record<string, string>
   /**

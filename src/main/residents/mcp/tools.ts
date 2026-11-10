@@ -1,9 +1,12 @@
+import { randomBytes } from 'node:crypto'
 import { isRecord } from '@shared/guards'
 import { errorMessage } from '@shared/errors'
 import { asSessionId, type SessionId } from '@shared/domain/ids'
 import type { ResidentAttention, SessionHit } from '@shared/domain/residents'
 import type { SessionKnowledge } from '../../knowledge/types'
 import type { ResidentCapability } from '../kinds'
+import type { MrHead, ResidentApproval } from '../kindTypes'
+import { removeFileForProgram, writeFileForProgram } from '../../fs/textFile'
 import { ATTENTION_COUNT_MAX, ATTENTION_SUMMARY_MAX, NOTE_KEY_MAX, NOTE_TEXT_MAX, type ResidentSpace } from '../residentSpace'
 
 /** What a tool answers: text for the model, and whether it is an error the model should see as one. */
@@ -25,6 +28,8 @@ export interface ToolDeps {
   focusedWindow(): number | null
   /** The residents themselves, for the one the token names. */
   residents: ResidentControl
+  /** Absent where nothing approves (a test of other tools): `approve_mr` then says so. */
+  approval?: ApprovalControl
 }
 
 /** What the status and attention tools do to the calling resident. */
@@ -35,6 +40,18 @@ export interface ResidentControl {
   setAttention(residentId: string, attention: ResidentAttention | null): void
   /** Its own words for the pill, until the next tool call or the turn's end. */
   setActivity(residentId: string, text: string): void
+}
+
+/** What `approve_mr` reaches for the resident the token names. */
+export interface ApprovalControl {
+  /** Its kind's approval, or null for a kind without one. */
+  approvalOf(residentId: string): ResidentApproval | null
+  /** Shows the user a permission card with main's summary; resolves with their answer. */
+  askUser(residentId: string, tool: string, summary: string): Promise<boolean>
+  /** Runs a kind argv (`{bin:<name>}` expanded) in its space with its env plus `extraEnv`; resolves with stdout. */
+  run(residentId: string, argv: string[], extraEnv: Record<string, string>): Promise<string>
+  /** Its space folder, where the kind's nonce file goes. */
+  spaceDir(residentId: string): string
 }
 
 /** Who is calling: the resident the bearer token belongs to. */
@@ -318,8 +335,58 @@ const SELF_TOOLS: Tool[] = [
   }),
 ]
 
+const IID_MAX = 1_000_000_000
+
+const GITLAB_TOOLS: Tool[] = [
+  tool<{ iid: number }>({
+    name: 'approve_mr',
+    capability: 'gitlab.approve',
+    description: 'Approve a merge request the user named by its iid. Apiary shows the user the MR and approves only if they allow it; the answer says which.',
+    inputSchema: { type: 'object', properties: { iid: { type: 'integer', minimum: 1 } }, required: ['iid'] },
+    parse: (a) => {
+      const iid = intIn(a.iid, 1, IID_MAX)
+      return iid === null ? 'iid is the MR\'s number, a whole number from 1 (no list numbers, no "!").' : { iid }
+    },
+    run: async ({ iid }, { residentId }, deps) => {
+      const control = deps.approval
+      const approval = control?.approvalOf(residentId) ?? null
+      if (control === undefined || approval === null) return fail('Approving is not available here.')
+      const head = await readHead(control, approval, residentId, iid)
+      if (typeof head === 'string') return fail(`Could not read !${String(iid)}: ${head}`)
+      const summary = `Approve !${String(iid)}: ${head.title} → ${head.targetBranch} at ${head.sha.slice(0, 10)}`
+      if (!await control.askUser(residentId, 'approve_mr', summary)) return fail(`The user did not allow approving !${String(iid)}. Nothing was approved.`)
+      try {
+        return ok(await approveOnce(control, approval, residentId, iid))
+      } catch (e) {
+        return fail(`Approving !${String(iid)} failed: ${errorMessage(e).slice(0, 300)}`)
+      }
+    },
+  }),
+]
+
+/** The MR as main reads it from GitLab, or why it could not: the card never shows the agent's words. */
+async function readHead(control: ApprovalControl, approval: ResidentApproval, residentId: string, iid: number): Promise<MrHead | string> {
+  try {
+    return approval.parseHead(await control.run(residentId, approval.readArgv(iid), {})) ?? 'it did not give the title, target branch and head'
+  } catch (e) {
+    return errorMessage(e).slice(0, 300)
+  }
+}
+
+/** Runs the approval with a nonce written for this one call, so the same command from the agent's shell is refused. */
+async function approveOnce(control: ApprovalControl, approval: ResidentApproval, residentId: string, iid: number): Promise<string> {
+  const file = approval.nonceFile(control.spaceDir(residentId))
+  const nonce = randomBytes(32).toString('hex')
+  writeFileForProgram(file, nonce)
+  try {
+    return (await control.run(residentId, approval.approveArgv(iid), { [approval.nonceEnv]: nonce })).trim()
+  } finally {
+    removeFileForProgram(file)
+  }
+}
+
 /** Every Apiary tool. A new capability's tools are added here; a kind opts in by listing the capability. */
-const APIARY_TOOLS: readonly Tool[] = [...SESSION_TOOLS, ...WORKSPACE_TOOLS, ...NOTE_TOOLS, ...SELF_TOOLS]
+const APIARY_TOOLS: readonly Tool[] = [...SESSION_TOOLS, ...WORKSPACE_TOOLS, ...NOTE_TOOLS, ...SELF_TOOLS, ...GITLAB_TOOLS]
 
 /** The tools a kind with `capabilities` may see and call. */
 export function toolsFor(capabilities: readonly ResidentCapability[]): Tool[] {

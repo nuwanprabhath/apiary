@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { asSessionId } from '@shared/domain/ids'
 import { toolsFor, type ToolDeps, type ToolResult } from '../../../src/main/residents/mcp/tools'
 import { ResidentSpace } from '../../../src/main/residents/residentSpace'
+import type { ResidentApproval } from '../../../src/main/residents/kindTypes'
 import type { SessionKnowledge, SessionTopic } from '../../../src/main/knowledge/types'
 
 const SESSION = asSessionId('11111111-2222-3333-4444-555555555555')
@@ -108,3 +109,80 @@ describe('note_list', () => {
     expect(lines.find((l) => l.startsWith('- long: '))).toBe(`- long: ${'y'.repeat(159)}…`)
   })
 })
+
+describe('approve_mr', () => {
+  const HEAD = { title: 'fix: thing', targetBranch: 'dev/1.0.12', sha: 'abcdef0123456789' }
+  const APPROVAL: ResidentApproval = {
+    readArgv: (iid) => ['read', String(iid)],
+    parseHead: (out) => (out === 'head' ? HEAD : null),
+    approveArgv: (iid) => ['approve', String(iid)],
+    nonceFile: (s) => join(s, 'state', 'approve.nonce'),
+    nonceEnv: 'NONCE',
+  }
+  interface Ran { argv: string[]; env: Record<string, string>; nonceOnDisk: string | null }
+
+  function approving(allow: boolean, readOut = 'head'): { d: ToolDeps; asked: string[]; ran: Ran[] } {
+    const asked: string[] = []
+    const ran: Ran[] = []
+    const nonceFile = APPROVAL.nonceFile(dir)
+    const d = deps({
+      approval: {
+        approvalOf: () => APPROVAL,
+        askUser: async (_id, _tool, summary) => { asked.push(summary); return allow },
+        spaceDir: () => dir,
+        run: async (_id, argv, env) => {
+          ran.push({ argv, env, nonceOnDisk: existsSync(nonceFile) ? readFileSync(nonceFile, 'utf8') : null })
+          if (argv[0] === 'read') return readOut
+          return 'approved'
+        },
+      },
+    })
+    return { d, asked, ran }
+  }
+  const approve = async (args: unknown, d: ToolDeps): Promise<ToolResult> => {
+    const tool = toolsFor(['gitlab.approve']).find((t) => t.name === 'approve_mr')
+    if (tool === undefined) throw new Error('no approve_mr')
+    return tool.call(args, { residentId: 'desk', space }, d)
+  }
+  const approvals = (ran: Ran[]): Ran[] => ran.filter((r) => r.argv[0] === 'approve')
+
+  it('asks the user with a summary main read, and approves nothing when denied', async () => {
+    const { d, asked, ran } = approving(false)
+    const r = await approve({ iid: 1570 }, d)
+    expect(asked).toEqual(['Approve !1570: fix: thing → dev/1.0.12 at abcdef0123'])
+    expect(ran.map((x) => x.argv)).toEqual([['read', '1570']])
+    expect(r.isError).toBe(true)
+  })
+
+  it('approves once when the user allows it, with a one-call nonce on disk and in the env, deleted after', async () => {
+    const { d, ran } = approving(true)
+    const r = await approve({ iid: 1570 }, d)
+    expect(approvals(ran)).toHaveLength(1)
+    const [run] = approvals(ran)
+    expect(run.argv).toEqual(['approve', '1570'])
+    expect(run.env.NONCE).toMatch(/^[0-9a-f]{64}$/)
+    expect(run.nonceOnDisk).toBe(run.env.NONCE)
+    expect(existsSync(APPROVAL.nonceFile(dir))).toBe(false)
+    expect(r).toEqual({ text: 'approved', isError: false })
+  })
+
+  it('refuses an iid that is not a positive whole number, without asking', async () => {
+    const { d, asked } = approving(true)
+    expect((await approve({ iid: '2' }, d)).isError).toBe(true)
+    expect((await approve({ iid: 0 }, d)).isError).toBe(true)
+    expect(asked).toEqual([])
+  })
+
+  it('answers with an error when main cannot read the MR, without asking', async () => {
+    const { d, asked, ran } = approving(true, 'garbage')
+    expect((await approve({ iid: 5 }, d)).isError).toBe(true)
+    expect(asked).toEqual([])
+    expect(approvals(ran)).toEqual([])
+  })
+
+  it('is listed only for a kind with gitlab.approve, and says so where nothing approves', async () => {
+    expect(toolsFor(['sessions.read', 'space.notes']).map((t) => t.name)).not.toContain('approve_mr')
+    expect(await approve({ iid: 5 }, deps())).toEqual({ text: 'Approving is not available here.', isError: true })
+  })
+})
+
