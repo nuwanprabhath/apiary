@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.2] - 2026-11-10
+## [1.60.3] - 2026-11-10
+
+### Added
+
+- A shared set of damaged session files (a huge first line, a cut multibyte character, a byte
+  order mark, a missing last newline and more) that every Apiary reader of session files is tested
+  against.
+
+## [1.60.2] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Fixed
 
