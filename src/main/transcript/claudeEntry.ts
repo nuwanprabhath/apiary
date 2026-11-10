@@ -31,6 +31,8 @@ interface Common {
   title: string | undefined
   /** A top-level `content`: a string on `system` and `queue-operation`, blocks on some others. */
   content: MessageContent
+  /** `message`, read on every kind: an entry without a recognised `type` can still carry one. */
+  message: Message | undefined
 }
 
 export interface Message { content: MessageContent }
@@ -38,12 +40,11 @@ export interface Message { content: MessageContent }
 export type ClaudeEntry = Common & (
   | {
     type: 'user'
-    message: Message | undefined
     origin: Origin | undefined
     isMeta: boolean
     sourceToolUseID: string | undefined
   }
-  | { type: 'assistant'; message: Message | undefined }
+  | { type: 'assistant' }
   | {
     type: 'attachment'
     attachment: { type: string | undefined; prompt: MessageContent; sourceUuid: string | undefined; origin: Origin | undefined } | undefined
@@ -55,19 +56,19 @@ export type ClaudeEntry = Common & (
   | { type: 'other'; rawType: string | undefined }
 )
 
-const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
+const stringField = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
 
 function block(b: Record<string, unknown>): ContentBlock {
   switch (b.type) {
-    case 'text': return { type: 'text', text: str(b.text) }
-    case 'thinking': return { type: 'thinking', thinking: str(b.thinking) }
-    case 'tool_use': return { type: 'tool_use', id: str(b.id), name: str(b.name), input: b.input }
+    case 'text': return { type: 'text', text: stringField(b.text) }
+    case 'thinking': return { type: 'thinking', thinking: stringField(b.thinking) }
+    case 'tool_use': return { type: 'tool_use', id: stringField(b.id), name: stringField(b.name), input: b.input }
     case 'image': {
       const s = b.source
-      return { type: 'image', source: isRecord(s) ? { type: str(s.type), mediaType: str(s.media_type), data: str(s.data) } : undefined }
+      return { type: 'image', source: isRecord(s) ? { type: stringField(s.type), mediaType: stringField(s.media_type), data: stringField(s.data) } : undefined }
     }
     case 'tool_result':
-      return { type: 'tool_result', toolUseId: str(b.tool_use_id), content: b.content, isError: b.is_error === true }
+      return { type: 'tool_result', toolUseId: stringField(b.tool_use_id), content: b.content, isError: b.is_error === true }
     default: return { type: 'other' }
   }
 }
@@ -79,7 +80,7 @@ function content(v: unknown): MessageContent {
 }
 
 function origin(v: unknown): Origin | undefined {
-  return isRecord(v) ? { kind: str(v.kind), name: str(v.name), body: str(v.body) } : undefined
+  return isRecord(v) ? { kind: stringField(v.kind), name: stringField(v.name), body: stringField(v.body) } : undefined
 }
 
 function message(v: unknown): Message | undefined {
@@ -91,33 +92,34 @@ export function entryOf(value: unknown): ClaudeEntry | null {
   if (!isRecord(value)) return null
   const e = value
   const common: Common = {
-    uuid: str(e.uuid),
-    timestamp: str(e.timestamp),
+    uuid: stringField(e.uuid),
+    timestamp: stringField(e.timestamp),
     isSidechain: e.isSidechain === true,
-    cwd: str(e.cwd),
-    gitBranch: str(e.gitBranch),
-    title: str(e.title),
+    cwd: stringField(e.cwd),
+    gitBranch: stringField(e.gitBranch),
+    title: stringField(e.title),
     content: content(e.content),
+    message: message(e.message),
   }
   switch (e.type) {
     case 'user':
       return {
-        ...common, type: 'user', message: message(e.message), origin: origin(e.origin),
-        isMeta: e.isMeta === true, sourceToolUseID: str(e.sourceToolUseID),
+        ...common, type: 'user', origin: origin(e.origin),
+        isMeta: e.isMeta === true, sourceToolUseID: stringField(e.sourceToolUseID),
       }
-    case 'assistant': return { ...common, type: 'assistant', message: message(e.message) }
+    case 'assistant': return { ...common, type: 'assistant' }
     case 'attachment': {
       const a = e.attachment
       return {
         ...common, type: 'attachment',
-        attachment: isRecord(a) ? { type: str(a.type), prompt: content(a.prompt), sourceUuid: str(a.source_uuid), origin: origin(a.origin) } : undefined,
+        attachment: isRecord(a) ? { type: stringField(a.type), prompt: content(a.prompt), sourceUuid: stringField(a.source_uuid), origin: origin(a.origin) } : undefined,
       }
     }
-    case 'system': return { ...common, type: 'system', subtype: str(e.subtype), durationMs: isFiniteNumber(e.durationMs) ? e.durationMs : undefined }
-    case 'queue-operation': return { ...common, type: 'queue-operation', operation: str(e.operation) }
-    case 'custom-title': return { ...common, type: 'custom-title', customTitle: str(e.customTitle) }
-    case 'ai-title': return { ...common, type: 'ai-title', aiTitle: str(e.aiTitle) }
-    default: return { ...common, type: 'other', rawType: str(e.type) }
+    case 'system': return { ...common, type: 'system', subtype: stringField(e.subtype), durationMs: isFiniteNumber(e.durationMs) ? e.durationMs : undefined }
+    case 'queue-operation': return { ...common, type: 'queue-operation', operation: stringField(e.operation) }
+    case 'custom-title': return { ...common, type: 'custom-title', customTitle: stringField(e.customTitle) }
+    case 'ai-title': return { ...common, type: 'ai-title', aiTitle: stringField(e.aiTitle) }
+    default: return { ...common, type: 'other', rawType: stringField(e.type) }
   }
 }
 

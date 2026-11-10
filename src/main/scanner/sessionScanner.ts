@@ -2,60 +2,60 @@ import { readdir, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { SessionMeta } from '@shared/types'
 import { asSessionId } from '@shared/domain/ids'
-import { ignoreErrors, ignoreErrorsAsync } from '@shared/ignoreErrors'
+import { ignoreErrorsAsync } from '@shared/ignoreErrors'
+import { decodeEntry, type ClaudeEntry, type MessageContent } from '../transcript/claudeEntry'
 import { readHeadLines, readTailLines } from './boundaryRead'
 
-interface Entry { type?: string; [key: string]: unknown }
-
-function parseLines(lines: string[]): Entry[] {
-  const out: Entry[] = []
+/** Lines that are not JSON objects (a corrupt or truncated line) are skipped. */
+function parseLines(lines: string[]): ClaudeEntry[] {
+  const out: ClaudeEntry[] = []
   for (const line of lines) {
-    const value = ignoreErrors(() => JSON.parse(line) as unknown, 'a corrupt or truncated line is skipped')
-    if (value && typeof value === 'object') out.push(value as Entry)
+    const entry = decodeEntry(line)
+    if (entry !== null) out.push(entry)
   }
   return out
 }
 
-function toMs(value: unknown): number | null {
-  if (typeof value !== 'string') return null
+function toMs(value: string | undefined): number | null {
+  if (value === undefined) return null
   const ms = Date.parse(value)
   return Number.isNaN(ms) ? null : ms
 }
 
 /** Extracts a plain-text prompt, ignoring system-injected content. */
-function promptText(message: unknown): string | null {
-  if (!message || typeof message !== 'object') return null
-  const content = (message as { content?: unknown }).content
+function promptText(content: MessageContent): string | null {
   if (typeof content === 'string') return content
-  if (Array.isArray(content)) {
-    const text = content
-      .filter((b): b is { type: string; text: string } =>
-        !!b && typeof b === 'object' && (b as { type?: string }).type === 'text')
-      .map((b) => b.text)
-      .join('\n')
-    return text.length > 0 ? text : null
-  }
-  return null
+  if (content === undefined) return null
+  const text = content.flatMap((b) => (b.type === 'text' && b.text !== undefined ? [b.text] : [])).join('\n')
+  return text.length > 0 ? text : null
 }
 
-function firstUserPrompt(entries: Entry[]): string | null {
+function firstUserPrompt(entries: ClaudeEntry[]): string | null {
   for (const e of entries) {
-    if (e.type !== 'user' || e.isSidechain === true) continue
-    const text = promptText(e.message)
+    if (e.type !== 'user' || e.isSidechain || !e.message) continue
+    const text = promptText(e.message.content)
     // Session-start hooks and command wrappers arrive as XML-ish blobs; skip them.
     if (text && !text.trimStart().startsWith('<')) return text.trim()
   }
   return null
 }
 
-function latestCustomTitle(entries: Entry[]): string | null {
+function latestCustomTitle(entries: ClaudeEntry[]): string | null {
   for (let i = entries.length - 1; i >= 0; i -= 1) {
     const e = entries[i]
-    if (e.type === 'custom-title' && typeof e.customTitle === 'string' && e.customTitle.trim() !== '') {
+    if (e.type === 'custom-title' && e.customTitle !== undefined && e.customTitle.trim() !== '') {
       return e.customTitle.trim()
     }
   }
   return null
+}
+
+function aiTitle(entries: ClaudeEntry[]): string | undefined {
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    const e = entries[i]
+    if (e.type === 'ai-title' && e.aiTitle !== undefined) return e.aiTitle
+  }
+  return undefined
 }
 
 export async function extractMeta(filePath: string): Promise<SessionMeta> {
@@ -65,13 +65,10 @@ export async function extractMeta(filePath: string): Promise<SessionMeta> {
 
   // A first line over the head's 64 KB (a pasted image) is dropped from the head; every later line
   // carries the same cwd, so the tail names it. The first prompt is not recoverable from the tail.
-  const withCwd = head.find((e) => typeof e.cwd === 'string') ?? tail.find((e) => typeof e.cwd === 'string')
-  const firstTimestamped = head.find((e) => typeof e.timestamp === 'string')
-    ?? tail.find((e) => typeof e.timestamp === 'string')
-  const lastTimestamped = [...tail].reverse().find((e) => typeof e.timestamp === 'string')
-  const lastTitle = [...tail].reverse().find(
-    (e) => e.type === 'ai-title' && typeof e.aiTitle === 'string',
-  )
+  const withCwd = head.find((e) => e.cwd !== undefined) ?? tail.find((e) => e.cwd !== undefined)
+  const firstTimestamped = head.find((e) => e.timestamp !== undefined)
+    ?? tail.find((e) => e.timestamp !== undefined)
+  const lastTimestamped = [...tail].reverse().find((e) => e.timestamp !== undefined)
   // The name the user gave the session in Claude — `/rename`, `--name`, or the VS Code
   // extension's rename — which Claude records as `custom-title` and re-appends each turn, so the
   // tail normally has the latest. It outranks Claude's own generated `ai-title`: a name somebody
@@ -84,9 +81,9 @@ export async function extractMeta(filePath: string): Promise<SessionMeta> {
     filePath,
     fileMtimeMs: info.mtimeMs,
     fileSize: info.size,
-    cwd: (withCwd?.cwd as string) ?? null,
-    gitBranch: (withCwd?.gitBranch as string) ?? null,
-    title: customTitle ?? (lastTitle?.aiTitle as string) ?? null,
+    cwd: withCwd?.cwd ?? null,
+    gitBranch: withCwd?.gitBranch ?? null,
+    title: customTitle ?? aiTitle(tail) ?? null,
     firstPrompt: firstUserPrompt(head),
     startedAtMs: toMs(firstTimestamped?.timestamp),
     lastActiveAtMs: toMs(lastTimestamped?.timestamp) ?? info.mtimeMs,

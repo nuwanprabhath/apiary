@@ -12,6 +12,7 @@ import type { OneShotRequest } from '../claude/claudeOneShot'
 import { realPathInside } from '../fs/confine'
 import { log } from '../log/logger'
 import { MAX_LINE_LENGTH } from '../search/indexer'
+import { decodeEntry } from '../search/extractText'
 import { yieldToLoop } from '../util/yieldToLoop'
 import type { KnowledgeStore } from './knowledgeStore'
 import type { DigestJob, DigestProgress, SessionTopic } from './types'
@@ -85,22 +86,16 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => { setTimeo
 /** One transcript line as `<n>: User: …` / `<n>: Claude: …` with tool names only, or null when it says nothing. */
 export function renderLine(lineNumber: number, line: string, maxMessage = MAX_MESSAGE_CHARS): string | null {
   if (line.length > MAX_LINE_LENGTH || line.trim() === '') return null
-  let entry: unknown
-  try {
-    entry = JSON.parse(line)
-  } catch {
-    // A session file is appended to while read; a truncated last line is normal, not corruption.
-    return null
-  }
-  if (!isRecord(entry) || (entry.type !== 'user' && entry.type !== 'assistant') || !isRecord(entry.message)) return null
+  // A session file is appended to while read; a truncated last line decodes to null, not corruption.
+  const entry = decodeEntry(line)
+  if (entry === null || (entry.type !== 'user' && entry.type !== 'assistant') || !entry.message) return null
   const content = entry.message.content
   const parts: string[] = []
   if (typeof content === 'string') parts.push(content)
-  else if (Array.isArray(content)) {
+  else if (content !== undefined) {
     for (const block of content) {
-      if (!isRecord(block)) continue
-      if (block.type === 'text' && typeof block.text === 'string') parts.push(block.text)
-      else if (block.type === 'tool_use' && typeof block.name === 'string') parts.push(`[tool: ${block.name}]`)
+      if (block.type === 'text' && block.text !== undefined) parts.push(block.text)
+      else if (block.type === 'tool_use' && block.name !== undefined) parts.push(`[tool: ${block.name}]`)
     }
   }
   const text = parts.join(' ').replace(/\s+/g, ' ').trim()
