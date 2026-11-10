@@ -74,7 +74,7 @@ export interface SessionCatalogOptions {
   /** True once shutdown has started; passes stop scheduling and writing. */
   isDisposed: () => boolean
   /** Fire-and-forget search index update at the end of a pass (see AppService.updateSearchIndex). */
-  updateSearchIndex: () => Promise<void>
+  updateSearchIndex: (scope: { sessionIds: string[] | null }) => Promise<void>
   /** Runs after every `refresh()` call settles (not once per pass): chats that moved onto a new
    *  session are adopted into the library once their file has been scanned. */
   afterRefresh?: () => void
@@ -178,12 +178,15 @@ export class SessionCatalog {
     let metas: SessionMeta[]
     let filesSeen: number
     let filesParsed = 0
+    let storedMissing: Set<string> | null = null
     if (req.full) {
       // Skip re-parsing (up to 128KB of) a file whose size and mtime match the store's record.
       const stamps = this.store.fileStamps()
       const stats = { filesSeen: 0, filesParsed: 0 }
+      const seen = new Set<string>()
       metas = await this.source.scan({
         isUnchanged: (path, size, mtimeMs) => {
+          seen.add(path)
           const stamp = stamps.get(path)
           return stamp !== undefined && stamp.size === size && stamp.mtimeMs === mtimeMs
         },
@@ -191,6 +194,13 @@ export class SessionCatalog {
       })
       filesSeen = stats.filesSeen
       filesParsed = stats.filesParsed
+      for (const m of metas) seen.add(m.filePath)
+      // A walk that found nothing while rows exist is a failed read of the projects root, not an empty library.
+      if (stats.filesSeen > 0 || stamps.size === 0) {
+        // A file in a folder the walk could not list is still there: only what is gone from disk is pruned.
+        for (const path of stamps.keys()) if (!seen.has(path) && existsSync(path)) seen.add(path)
+        storedMissing = seen
+      }
     } else {
       // The watcher named the changed files, so each is re-read unconditionally, with no directory walk.
       metas = []
@@ -257,6 +267,7 @@ export class SessionCatalog {
       entries.push({ info, metas: list })
     }
     this.store.syncAll(entries)
+    if (storedMissing !== null) this.store.removeMissing(storedMissing)
 
     log.info('refresh', 'pass', {
       full: req.full,
@@ -276,7 +287,7 @@ export class SessionCatalog {
       await this.importAllDiscovered()
     }
     // Deliberately not awaited: see updateSearchIndex.
-    void this.opts.updateSearchIndex()
+    void this.opts.updateSearchIndex({ sessionIds: req.full ? null : metas.map((m) => m.sessionId) })
   }
 
   private liveWindowMs(): number { return this.opts.liveMinIntervalMs ?? LIVE_MIN_INTERVAL_MS }

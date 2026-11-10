@@ -195,8 +195,8 @@ export class AppService {
     return this.search.noteCount()
   }
 
-  async updateSearchIndex(): Promise<void> {
-    return this.search.update()
+  async updateSearchIndex(scope: { sessionIds: string[] | null } = { sessionIds: null }): Promise<void> {
+    return this.search.update(scope)
   }
 
   // `resume` goes through the chat first, which stops a chat running on the session.

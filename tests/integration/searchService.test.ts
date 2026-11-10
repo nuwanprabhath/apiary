@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { SearchIndex } from '../../src/main/search/searchIndex'
 import { SearchClient } from '../../src/main/search/searchClient'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SearchService } from '../../src/main/search/searchService'
@@ -14,6 +14,7 @@ function fakeStore(opts: {
 }): SessionStore {
   return {
     visibleSessions: () => opts.visible ?? [],
+    getSession: (id: string) => (opts.visible ?? []).find((s) => s.sessionId === id) ?? null,
     sessionsWithNotes: () => opts.withNotes ?? [],
   } as unknown as SessionStore
 }
@@ -113,5 +114,38 @@ describe('SearchService (MAIN-14 step 4)', () => {
   it('close() can be called even when nothing was ever opened', async () => {
     const search = new SearchService({ store: fakeStore({}), createIndex: () => new SearchIndex(dbPath), createClient: () => new SearchClient(dbPath), isDisposed: () => false })
     await expect(search.close()).resolves.toBeUndefined()
+  })
+
+  describe('update(scope)', () => {
+    const line = JSON.stringify({ type: 'user', message: { role: 'user', content: 'hello' } }) + '\n'
+    function make() {
+      const sessions = ['s1', 's2', 's3'].map((id) => ({ sessionId: id, filePath: join(dir, `${id}.jsonl`) }) as StoredSession)
+      for (const s of sessions) writeFileSync(s.filePath, line)
+      const index = new SearchIndex(dbPath)
+      const needs = vi.spyOn(index, 'needsIndexing')
+      const replaceNotes = vi.spyOn(index, 'replaceNotes')
+      const search = new SearchService({
+        store: fakeStore({ visible: sessions }), createIndex: () => index, createClient: () => new SearchClient(dbPath),
+        searchChatContent: true, searchSessionNotes: true, isDisposed: () => false,
+      })
+      return { search, needs, replaceNotes }
+    }
+
+    it('a scoped update asks the index about those sessions only and leaves the note index alone', async () => {
+      const h = make()
+      await h.search.update({ sessionIds: ['s2'] })
+      expect(h.needs).toHaveBeenCalledTimes(1)
+      expect(h.replaceNotes).not.toHaveBeenCalled()
+      await h.search.update({ sessionIds: null })
+      expect(h.replaceNotes).toHaveBeenCalledTimes(1)
+      expect(h.needs).toHaveBeenCalledTimes(4)
+    })
+
+    it('two scoped updates for one session close together cause one index update', async () => {
+      const h = make()
+      await h.search.update({ sessionIds: ['s1'] })
+      await h.search.update({ sessionIds: ['s1'] })
+      expect(h.needs).toHaveBeenCalledTimes(1)
+    })
   })
 })

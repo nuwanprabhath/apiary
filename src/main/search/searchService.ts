@@ -6,6 +6,9 @@ import { runIndexPass, type IndexableSession } from './indexer'
 import type { SessionStore } from '../store/sessionStore'
 import { refsInQuery } from '../knowledge/refs'
 
+/** A scoped update re-indexes one session at most this often; a session being written to is otherwise re-read every pass. */
+const SCOPED_INDEX_INTERVAL_MS = 5000
+
 export interface SearchServiceDeps {
   store: SessionStore
   /** Opens the full-text index; called on first use, never at construction. Built in the container. */
@@ -15,7 +18,7 @@ export interface SearchServiceDeps {
   searchChatContent?: boolean
   searchSessionNotes?: boolean
   /** Called after an index pass that changed something, so a search typed mid-pass can be re-queried. */
-  onIndexUpdated?: () => void
+  onIndexUpdated?: (sessionIds: string[]) => void
   /** Whether `AppService` has started disposing; checked before starting or continuing a pass. */
   isDisposed: () => boolean
 }
@@ -26,7 +29,7 @@ export interface SearchServiceDeps {
  */
 export class SearchService {
   private readonly store: SessionStore
-  private readonly onIndexUpdated: (() => void) | undefined
+  private readonly onIndexUpdated: ((sessionIds: string[]) => void) | undefined
   private readonly isDisposed: () => boolean
   /** The full-text index, created on first use: content search can be switched off in Settings. */
   private searchIndex: SearchIndex | null = null
@@ -36,6 +39,11 @@ export class SearchService {
   private searchSessionNotes: boolean
   /** The in-flight indexing pass, if any — awaited by a rebuild so it never races the clear below. */
   private indexPass: Promise<void> | null = null
+  /** When each session was last indexed by a scoped update. Invalidated by: `SCOPED_INDEX_INTERVAL_MS` passing, or `close()`. */
+  private readonly lastScopedAt = new Map<string, number>()
+  /** Sessions whose scoped update came inside the interval; indexed together by one trailing timer. */
+  private readonly pendingScoped = new Set<string>()
+  private scopedTimer: NodeJS.Timeout | null = null
 
   private readonly createIndex: () => SearchIndex
   private readonly createClient: () => SearchClient
@@ -157,7 +165,7 @@ export class SearchService {
     if (this.indexPass) await this.indexPass
     this.index().clear()
     if (this.searchSessionNotes) this.syncNoteIndex()
-    await this.runSearchIndexPass()
+    await this.runSearchIndexPass(null)
   }
 
   /** How many sessions are indexed. */
@@ -171,12 +179,18 @@ export class SearchService {
   }
 
   /**
-   * Brings the index up to date for every imported session.
+   * Brings the index up to date: `{ sessionIds: null }` for every visible session (and the note
+   * index), `{ sessionIds }` for just those, at most once per session every
+   * `SCOPED_INDEX_INTERVAL_MS` with one trailing update. A note is kept current by `putNoteIfEnabled`.
    *
    * Never awaited by `AppService.refresh()`, so Refresh is not as slow as the index. The
    * `indexPass` guard stops overlapping refreshes racing over the same files.
    */
-  async update(): Promise<void> {
+  async update(scope: { sessionIds: string[] | null } = { sessionIds: null }): Promise<void> {
+    if (scope.sessionIds !== null) {
+      await this.updateScoped(scope.sessionIds)
+      return
+    }
     // Also picks up a note written before indexing was switched on.
     if (this.searchSessionNotes && !this.isDisposed()) {
       try {
@@ -187,20 +201,56 @@ export class SearchService {
       }
     }
     if (!this.searchChatContent || this.indexPass || this.isDisposed()) return
-    await this.runSearchIndexPass()
+    await this.runSearchIndexPass(null)
   }
 
-  /** Runs one indexing pass, tracked as a promise so `rebuild` can await it. */
-  private async runSearchIndexPass(): Promise<void> {
+  private async updateScoped(ids: string[]): Promise<void> {
+    if (!this.searchChatContent || this.isDisposed()) return
+    const now = Date.now()
+    const due: string[] = []
+    for (const id of ids) {
+      const last = this.lastScopedAt.get(id)
+      if (last === undefined || now - last >= SCOPED_INDEX_INTERVAL_MS) due.push(id)
+      else this.pendingScoped.add(id)
+    }
+    if (this.pendingScoped.size > 0) this.armScopedTimer()
+    if (due.length === 0) return
+    if (this.indexPass) {
+      for (const id of due) this.pendingScoped.add(id)
+      this.armScopedTimer()
+      return
+    }
+    for (const id of due) this.lastScopedAt.set(id, now)
+    await this.runSearchIndexPass(due)
+  }
+
+  private armScopedTimer(): void {
+    if (this.scopedTimer !== null) return
+    this.scopedTimer = setTimeout(() => {
+      this.scopedTimer = null
+      const ids = [...this.pendingScoped]
+      this.pendingScoped.clear()
+      this.lastScopedAt.clear()
+      if (this.isDisposed()) return
+      void this.update({ sessionIds: ids })
+    }, SCOPED_INDEX_INTERVAL_MS)
+    this.scopedTimer.unref()
+  }
+
+  /** Runs one indexing pass over `ids` (null: every visible session), tracked as a promise so `rebuild` can await it. */
+  private async runSearchIndexPass(ids: string[] | null): Promise<void> {
     const pass = (async () => {
       try {
-        const sessions: IndexableSession[] = this.store
-          .visibleSessions()
-          .map((s) => ({ sessionId: s.sessionId, file: s.filePath }))
+        const sessions: IndexableSession[] = ids === null
+          ? this.store.visibleSessions().map((s) => ({ sessionId: s.sessionId, file: s.filePath }))
+          : ids.flatMap((id) => {
+            const s = this.store.getSession(id)
+            return s ? [{ sessionId: s.sessionId, file: s.filePath }] : []
+          })
         const result = await runIndexPass(
           this.index(), sessions, () => this.isDisposed() || !this.searchChatContent,
         )
-        if (result.indexed > 0 && !this.isDisposed()) this.onIndexUpdated?.()
+        if (result.indexed > 0 && !this.isDisposed()) this.onIndexUpdated?.(sessions.map((s) => s.sessionId))
       } catch (e) {
         // A failed pass leaves the index as it was; the next refresh tries again.
         log.warn('search', 'index pass failed', { error: errorMessage(e) })
@@ -219,6 +269,10 @@ export class SearchService {
    * `isDisposed()` stops a running pass between files, so this waits on nothing.
    */
   async close(): Promise<void> {
+    if (this.scopedTimer !== null) clearTimeout(this.scopedTimer)
+    this.scopedTimer = null
+    this.pendingScoped.clear()
+    this.lastScopedAt.clear()
     this.searchIndex?.close()
     this.searchIndex = null
     await this.searchClient?.close()
