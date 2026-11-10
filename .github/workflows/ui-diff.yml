@@ -1,0 +1,50 @@
+# Compares the UI review screenshots with the parent commit (scripts/ui-diff.mjs). Report only: it
+# never fails a build. A changed state in the run summary is to be looked at; an empty list is the
+# expected result for a change with no visual intent. No image is committed; ui-review/diff is
+# uploaded as an artifact.
+name: UI diff
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/renderer/**'
+      - 'tests/component/ui/**'
+  pull_request:
+    paths:
+      - 'src/renderer/**'
+      - 'tests/component/ui/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-diff-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Compare with the base
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ui-diff.mjs --base "${BASE:-HEAD~1}"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-diff
+          path: ui-review/diff
+          if-no-files-found: ignore
