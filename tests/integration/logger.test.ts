@@ -5,6 +5,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Logger } from '../../src/main/log/logger'
+import { at } from '../contract/must'
 
 let dir: string
 let logger: Logger
@@ -42,7 +43,7 @@ describe('a logger that is switched on', () => {
     on()
     logger.info('update', 'download finished', { ms: 120 })
 
-    const [entry] = lines()
+    const entry = at(lines(), 0)
     expect(entry.level).toBe('info')
     expect(entry.scope).toBe('update')
     expect(entry.msg).toBe('download finished')
@@ -57,7 +58,7 @@ describe('a logger that is switched on', () => {
       token: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789',
     })
 
-    const [entry] = lines()
+    const entry = at(lines(), 0)
     expect(entry.worktree).toBe('~/projects/p.worktrees/dev-1.0.12')
     expect(entry.token).toBe('[redacted-github-token]')
   })
@@ -68,7 +69,7 @@ describe('a logger that is switched on', () => {
     on({ home: '/Users/nuwan' })
     logger.info('git', 'failed for /Users/nuwan/projects/p with ghp_abcdefghijklmnopqrstuvwxyz0123456789')
 
-    const [entry] = lines()
+    const entry = at(lines(), 0)
     expect(entry.msg).toBe('failed for ~/projects/p with [redacted-github-token]')
   })
 
@@ -76,7 +77,7 @@ describe('a logger that is switched on', () => {
     on()
     logger.info('git', 'the real message', { msg: 'fake message', scope: 'fake-scope', level: 'fake-level' })
 
-    const [entry] = lines()
+    const entry = at(lines(), 0)
     expect(entry.msg).toBe('the real message')
     expect(entry.scope).toBe('git')
     expect(entry.level).toBe('info')

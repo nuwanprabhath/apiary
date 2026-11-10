@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { asSessionId } from '@shared/domain/ids'
 import type { SessionHit } from '@shared/domain/residents'
 import { McpServer } from '../../../src/main/residents/mcp/server'
+import { at } from '../../contract/must'
 import { ResidentSpace } from '../../../src/main/residents/residentSpace'
 import type { ResidentCapability } from '../../../src/main/residents/kinds'
 import type { SessionKnowledge } from '../../../src/main/knowledge/types'
@@ -121,7 +122,7 @@ describe('the MCP server', () => {
     const reply = await post(url, rpc('tools/call', { name: 'find_sessions', arguments: { query: '!1175' } }), as(server.issueToken('regent')))
     const result = resultOf(reply) as { content: { text: string }[]; isError?: boolean }
     expect(result.isError).toBeUndefined()
-    expect(result.content[0].text).toContain(`API auth (id: ${SESSION})`)
+    expect(at(result.content, 0).text).toContain(`API auth (id: ${SESSION})`)
   })
 
   it('open_session with an unknown id is an error result', async () => {

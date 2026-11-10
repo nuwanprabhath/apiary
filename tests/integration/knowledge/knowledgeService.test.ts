@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { asSessionId } from '@shared/domain/ids'
+import { at } from '../../contract/must'
 import { KnowledgeService } from '../../../src/main/knowledge/knowledgeService'
 import { KnowledgeStore } from '../../../src/main/knowledge/knowledgeStore'
 import { SearchClient } from '../../../src/main/search/searchClient'
@@ -81,13 +82,13 @@ describe('KnowledgeService', () => {
   })
 
   it('find returns topic and snippet for a topic hit', async () => {
-    const [hit] = await service.find('REST design', 5)
+    const hit = at(await service.find('REST design', 5), 0)
     expect(hit).toMatchObject({ sessionId: 'bytopic', reason: 'topic', topic: 'Designing the API interface' })
     expect(hit.snippet).toContain('«')
   })
 
   it('read returns a topic\'s lines, capped', async () => {
-    const [t] = await service.topics(asSessionId('bytopic'))
+    const t = at(await service.topics(asSessionId('bytopic')), 0)
     const full = await service.read(asSessionId('bytopic'), { topicId: t.id, maxChars: 10_000 })
     expect(full).toBe('1: User: lets talk\n2: Claude: sure\n3: User: about the interface')
     const capped = await service.read(asSessionId('bytopic'), { topicId: t.id, maxChars: 30 })

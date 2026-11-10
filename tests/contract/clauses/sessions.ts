@@ -5,6 +5,7 @@ import { asSessionId } from '@shared/domain/ids'
 import { isPendingPtyId } from '@shared/domain/ptyId'
 import { forkLabel } from '@shared/forkLabel'
 import { STANDARD_SESSIONS as STD } from '../../fixtures/standard'
+import { at } from '../must'
 import { LONG_SESSION, sessionOf, skipOnRemote, STANDARD_TITLES, titles, type Ctx } from '../support'
 
 /** A session id no implementation has heard of. */
@@ -101,8 +102,8 @@ export function defineSessionClauses(ctx: Ctx): void {
     it('answers a short session in one page, in order, with nothing earlier', async () => {
       const page = await ctx.api.transcript(STD.csv.id)
       expect(page.earlierCursor).toBeNull()
-      expect(page.messages[0].role).toBe('user')
-      expect(JSON.stringify(page.messages[0].blocks)).toContain('the export is empty')
+      expect(at(page.messages, 0).role).toBe('user')
+      expect(JSON.stringify(at(page.messages, 0).blocks)).toContain('the export is empty')
       expect(page.messages.at(-1)?.role).toBe('assistant')
     })
 
@@ -134,11 +135,11 @@ export function defineSessionClauses(ctx: Ctx): void {
       expect(indexes).toEqual([...indexes].sort((a, b) => a - b))
 
       expect((await ctx.api.transcriptAfter(LONG_SESSION.id, last as number)).messages).toEqual([])
-      const tail = await ctx.api.transcriptAfter(LONG_SESSION.id, indexes[indexes.length - 4])
+      const tail = await ctx.api.transcriptAfter(LONG_SESSION.id, at(indexes, indexes.length - 4))
       expect(tail.messages.map((m) => m.index)).toEqual(indexes.slice(-3))
       expect(tail.earlierCursor).toBeNull()
 
-      const burst = await ctx.api.transcriptAfter(LONG_SESSION.id, indexes[0] - 1)
+      const burst = await ctx.api.transcriptAfter(LONG_SESSION.id, at(indexes, 0) - 1)
       expect(burst.messages).toHaveLength(TRANSCRIPT_PAGE_SIZE)
       expect(burst.messages.at(-1)?.index).toBe(last)
       await expect(ctx.api.transcriptAfter(LONG_SESSION.id, 'x' as never)).rejects.toThrow()
@@ -148,10 +149,10 @@ export function defineSessionClauses(ctx: Ctx): void {
       await ctx.restart({ longSessionMessages: TRANSCRIPT_PAGE_SIZE + 50 })
       const newest = await ctx.api.transcript(LONG_SESSION.id)
       const oldest = await ctx.api.transcript(LONG_SESSION.id, newest.earlierCursor ?? undefined)
-      const firstIndex = oldest.messages[0].index as number
+      const firstIndex = at(oldest.messages, 0).index as number
       const next = await ctx.api.transcriptAfter(LONG_SESSION.id, firstIndex - 1, true)
       expect(next.messages).toHaveLength(TRANSCRIPT_PAGE_SIZE)
-      expect(next.messages[0].index).toBe(firstIndex)
+      expect(at(next.messages, 0).index).toBe(firstIndex)
       expect(next.earlierCursor).toBeNull()
     })
 
@@ -160,7 +161,7 @@ export function defineSessionClauses(ctx: Ctx): void {
       expect(found.indexes.length).toBeGreaterThan(0)
       expect(found.indexes).toEqual([...found.indexes].sort((a, b) => b - a))
       expect(found.cursor).toBeNull()
-      const page = await ctx.api.transcript(STD.csv.id, found.indexes[0] + 1)
+      const page = await ctx.api.transcript(STD.csv.id, at(found.indexes, 0) + 1)
       const hit = page.messages.find((m) => m.index === found.indexes[0])
       expect(JSON.stringify(hit?.blocks).toLowerCase()).toContain('the export is empty')
       expect(await ctx.api.transcriptFind(STD.csv.id, 'no such words anywhere', null)).toEqual({ indexes: [], cursor: null })

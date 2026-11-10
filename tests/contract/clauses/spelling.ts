@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { at } from '../must'
 import type { Ctx } from '../support'
 
 const EDIT_FLAGS = { canCut: true, canCopy: true, canPaste: true, canSelectAll: true }
@@ -12,7 +13,7 @@ export function defineSpellingClauses(ctx: Ctx): void {
     })
 
     it('spellingSetLanguage takes a listed language or "system", and refuses one with no dictionary', async () => {
-      const [first] = await ctx.api.spellingGetLanguages()
+      const first = at(await ctx.api.spellingGetLanguages(), 0)
       await expect(ctx.api.spellingSetLanguage(first)).resolves.toBeUndefined()
       await expect(ctx.api.spellingSetLanguage('system')).resolves.toBeUndefined()
       await expect(ctx.api.spellingSetLanguage('xx-XX')).rejects.toThrow()

@@ -3,6 +3,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { MR_DESK_KIND, REGENT_KIND, isResidentKindId } from '@shared/domain/residents'
 import { log } from '../../../src/main/log/logger'
+import { at } from '../../contract/must'
 import type { ResidentConfig, SessionHit } from '@shared/domain/residents'
 import { FRIDAY, build, children, dir, regent, spawned } from './support'
 
@@ -25,7 +26,7 @@ describe('ResidentService', () => {
     expect(digest.calls).toEqual(['resume:haiku'])
     await vi.advanceTimersByTimeAsync(60_000)
     expect(digest.calls).toEqual(['resume:haiku', 'pause'])
-    expect(service.list()[0]).toMatchObject({ onDuty: false, state: 'asleep' })
+    expect(at(service.list(), 0)).toMatchObject({ onDuty: false, state: 'asleep' })
   })
 
   it('pauses the digest at the usage limit, and never without usage data', () => {
@@ -43,7 +44,7 @@ describe('ResidentService', () => {
     const { service, digest } = build([regent({ enabled: false })])
     service.start()
     await vi.advanceTimersByTimeAsync(100)
-    expect(service.list()[0]).toMatchObject({ enabled: false, state: 'asleep', activity: null, onDuty: true })
+    expect(at(service.list(), 0)).toMatchObject({ enabled: false, state: 'asleep', activity: null, onDuty: true })
     expect(digest.calls).toEqual([])
     expect(spawned).toEqual([])
     await expect(service.send('regent', 'hello')).rejects.toThrow(/not enabled/)
@@ -55,11 +56,11 @@ describe('ResidentService', () => {
     service.start()
     await vi.advanceTimersByTimeAsync(100)
     expect(changes).toHaveLength(1)
-    expect(changes[0][0]).toMatchObject({ id: 'regent', state: 'idle', onDuty: true, appearance: { glyph: 'bee' }, digest: { done: 1, total: 3 } })
+    expect(at(changes, 0)[0]).toMatchObject({ id: 'regent', state: 'idle', onDuty: true, appearance: { glyph: 'bee' }, digest: { done: 1, total: 3 } })
     digest.emit('Digesting 1/3')
     await vi.advanceTimersByTimeAsync(100)
     expect(changes).toHaveLength(2)
-    expect(changes[1][0]).toMatchObject({ state: 'working', activity: 'Digesting 1/3' })
+    expect(at(changes, 1)[0]).toMatchObject({ state: 'working', activity: 'Digesting 1/3' })
     digest.emit('Digesting 1/3')
     await vi.advanceTimersByTimeAsync(100)
     expect(changes).toHaveLength(2)
@@ -70,7 +71,7 @@ describe('ResidentService', () => {
     const { service } = build([regent()])
     service.start()
     await vi.waitFor(() => { expect(spawned).toHaveLength(1) })
-    const command = spawned[0].join(' ')
+    const command = at(spawned, 0).join(' ')
     expect(command).toContain('--model sonnet')
     expect(command).toContain('--allowedTools mcp__apiary__*')
     expect(command).toContain('--permission-mode auto --permission-prompt-tool stdio')
@@ -122,7 +123,7 @@ describe('ResidentService', () => {
       run: async (argv, cwd, env) => { runs.push({ argv, cwd, env }); return '| MR | state |\n' },
     })
     service.start()
-    expect(service.list()[0].quickActions).toEqual([{ id: 'desk', label: 'Get the desk' }, { id: 'broken', label: 'Broken' }])
+    expect(at(service.list(), 0).quickActions).toEqual([{ id: 'desk', label: 'Get the desk' }, { id: 'broken', label: 'Broken' }])
     await service.quickAction('regent', 'desk')
     expect(runs).toEqual([{ argv: ['python3', '/res/mra', 'desk', 'grp/app'], cwd: join(dir, 'regent'), env: { MRA_CONFIG: join(dir, 'regent', 'mra.toml') } }])
     await service.quickAction('regent', 'broken')
@@ -138,21 +139,21 @@ describe('ResidentService', () => {
     service.start()
     await service.send('regent', 'check the MR')
     await vi.waitFor(() => { expect(children).toHaveLength(1) })
-    children[0].stdout.write(`${JSON.stringify({
+    at(children, 0).stdout.write(`${JSON.stringify({
       type: 'control_request', request_id: 'req-1',
       request: { subtype: 'can_use_tool', tool_name: 'Bash', input: { command: 'glab mr view 12' }, permission_suggestions: [] },
     })}\n`)
-    await vi.waitFor(() => { expect(service.list()[0].permissions).toHaveLength(1) })
-    expect(service.list()[0]).toMatchObject({
+    await vi.waitFor(() => { expect(at(service.list(), 0).permissions).toHaveLength(1) })
+    expect(at(service.list(), 0)).toMatchObject({
       permissions: [{ requestId: 'req-1', tool: 'Bash', summary: 'Run: glab mr view 12' }],
       attention: { count: 1, summary: 'Waiting for your OK' },
     })
     service.answerPermission('regent', 'req-1', true)
-    expect(JSON.parse(children[0].written.at(-1) ?? '{}')).toEqual({
+    expect(JSON.parse(at(children, 0).written.at(-1) ?? '{}')).toEqual({
       type: 'control_response',
       response: { subtype: 'success', request_id: 'req-1', response: { behavior: 'allow', updatedInput: { command: 'glab mr view 12' } } },
     })
-    expect(service.list()[0]).toMatchObject({ permissions: [], attention: null })
+    expect(at(service.list(), 0)).toMatchObject({ permissions: [], attention: null })
   })
 
   it('attention set over MCP persists across a restart and clears when seen; apiary_status reports progress', async () => {
@@ -165,7 +166,7 @@ describe('ResidentService', () => {
     await vi.waitFor(() => { expect(spawned).toHaveLength(1) })
     const call = callMcp(join(dir, 'regent', 'mcp.json'))
     await call('set_attention', { count: 2, summary: 'MRs waiting' })
-    expect(first.service.list()[0].attention).toEqual({ count: 2, summary: 'MRs waiting' })
+    expect(at(first.service.list(), 0).attention).toEqual({ count: 2, summary: 'MRs waiting' })
     const status = await call('apiary_status', {})
     expect(status).toContain('Digest: 1/3 sessions this pass, looking back 1 month.')
     expect(status).toContain('Index: 40 sessions digested, 160 topics.')
@@ -183,9 +184,9 @@ describe('ResidentService', () => {
 
     const second = build([onDuty()])
     second.service.start()
-    expect(second.service.list()[0].attention).toEqual({ count: 2, summary: 'MRs waiting' })
+    expect(at(second.service.list(), 0).attention).toEqual({ count: 2, summary: 'MRs waiting' })
     second.service.seen('regent')
-    expect(second.service.list()[0].attention).toBeNull()
+    expect(at(second.service.list(), 0).attention).toBeNull()
   })
 
   it('a cycle prompt goes when due, not while a turn runs, and never while setup is needed', async () => {
@@ -203,7 +204,7 @@ describe('ResidentService', () => {
     unset.service.start()
     await vi.advanceTimersByTimeAsync(3 * 60_000)
     expect(unset.service.history('other')).toEqual([])
-    expect(unset.service.list()[0].setupNeeded).toBe('Set the project')
+    expect(at(unset.service.list(), 0).setupNeeded).toBe('Set the project')
   })
 
   it('a cycle\'s nextAt follows the setting, and Check now sends the cycle prompt', async () => {
@@ -211,19 +212,19 @@ describe('ResidentService', () => {
     const desk = (over: Partial<ResidentConfig> = {}): ResidentConfig => regent({ id: 'desk', kind: MR_DESK_KIND, ...over })
     const { service, settings } = build([desk()], { kinds: { setup: () => null, prepare: undefined } })
     service.start()
-    expect(service.list()[0].cycle).toEqual({ everyMinutes: 15, nextAt: FRIDAY(12, 15).getTime(), running: false })
+    expect(at(service.list(), 0).cycle).toEqual({ everyMinutes: 15, nextAt: FRIDAY(12, 15).getTime(), running: false })
     settings.change([desk({ cycleEveryMinutes: 30 })])
-    expect(service.list()[0].cycle).toEqual({ everyMinutes: 30, nextAt: FRIDAY(12, 30).getTime(), running: false })
+    expect(at(service.list(), 0).cycle).toEqual({ everyMinutes: 30, nextAt: FRIDAY(12, 30).getTime(), running: false })
     vi.setSystemTime(FRIDAY(19))
     settings.change([desk({ cycleEveryMinutes: 30 })])
     // Off duty on Friday evening: the first cycle is 30 minutes after Monday 09:00.
-    expect(service.list()[0].cycle?.nextAt).toBe(new Date(2026, 10, 2, 9, 30).getTime())
+    expect(at(service.list(), 0).cycle?.nextAt).toBe(new Date(2026, 10, 2, 9, 30).getTime())
 
     vi.setSystemTime(FRIDAY(12))
     settings.change([desk()])
     await service.quickAction('desk', 'cycle')
     expect(service.history('desk').map((m) => m.text)).toContain('Run one MR desk cycle.')
-    expect(service.list()[0].cycle?.running).toBe(true)
+    expect(at(service.list(), 0).cycle?.running).toBe(true)
   })
 
   it('options changed while prepare runs are prepared as soon as it finishes, not at the next re-check', async () => {
@@ -263,14 +264,14 @@ describe('ResidentService', () => {
     const { service } = build([regent({ schedule: always })])
     service.start()
     await vi.waitFor(() => { expect(children).toHaveLength(1) })
-    const tasks = (list: unknown[]): void => { children[0].stdout.write(`${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: list })}\n`) }
+    const tasks = (list: unknown[]): void => { at(children, 0).stdout.write(`${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: list })}\n`) }
     tasks([{ task_id: 'a1', task_type: 'local_agent', description: 'Review !1571' }])
-    await vi.waitFor(() => { expect(service.list()[0]).toMatchObject({ state: 'working', activity: 'Review !1571' }) })
+    await vi.waitFor(() => { expect(at(service.list(), 0)).toMatchObject({ state: 'working', activity: 'Review !1571' }) })
     expect(await callMcp(join(dir, 'regent', 'mcp.json'))('apiary_status', {})).toContain('Background tasks: 1 running (Review !1571).')
     tasks([{ task_id: 'a1', task_type: 'local_agent', description: '' }, { task_id: 'b2', task_type: 'local_bash', description: '' }])
-    await vi.waitFor(() => { expect(service.list()[0].activity).toBe('Waiting on 2 background tasks') })
+    await vi.waitFor(() => { expect(at(service.list(), 0).activity).toBe('Waiting on 2 background tasks') })
     tasks([])
-    await vi.waitFor(() => { expect(service.list()[0]).toMatchObject({ state: 'idle', activity: null }) })
+    await vi.waitFor(() => { expect(at(service.list(), 0)).toMatchObject({ state: 'idle', activity: null }) })
   })
 
   it('a cycle still goes while only background tasks run: claude takes a message then', async () => {
@@ -278,7 +279,7 @@ describe('ResidentService', () => {
     const { service } = build([regent()], { kinds: { cycle: { everyMinutes: 1, prompt: 'check the desk', doing: 'Checking' } } })
     service.start()
     await vi.waitFor(() => { expect(children).toHaveLength(1) })
-    children[0].stdout.write(`${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'a1', task_type: 'local_agent', description: 'Review' }] })}\n`)
+    at(children, 0).stdout.write(`${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'a1', task_type: 'local_agent', description: 'Review' }] })}\n`)
     await vi.advanceTimersByTimeAsync(60_000)
     await vi.waitFor(() => { expect(service.history('regent').filter((m) => m.text === 'check the desk')).toHaveLength(1) })
   })
@@ -290,7 +291,7 @@ describe('ResidentService', () => {
     })
     service.start()
     expect(service.setFolderOption('regent', 'clone', '/work/app')).toBe('/work/app')
-    expect(settings.list[0].options).toEqual({ clone: '/work/app' })
+    expect(at(settings.list, 0).options).toEqual({ clone: '/work/app' })
     expect(() => { service.setFolderOption('regent', 'project', '/x') }).toThrow(/no folder option/)
   })
 })
@@ -305,6 +306,6 @@ function callMcp(file: string): (name: string, args: unknown) => Promise<string>
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
     })
     const body = await res.json() as { result: { content: { text: string }[] } }
-    return body.result.content[0].text
+    return at(body.result.content, 0).text
   }
 }

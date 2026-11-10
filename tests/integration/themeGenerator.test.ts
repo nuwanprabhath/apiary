@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { ClaudeOneShot } from '../../src/main/claude/claudeOneShot'
+import { at } from '../contract/must'
 import { join } from 'node:path'
 import { ThemeGenerator } from '../../src/main/theme/themeGenerator'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
@@ -32,14 +33,14 @@ const gen = (bin: string, timeoutMs?: number): ThemeGenerator => new ThemeGenera
 
 describe('ThemeGenerator', () => {
   it('returns the validated theme Claude designed', async () => {
-    const g = gen(standIn(reply(BUILTIN_THEMES[0].spec)))
+    const g = gen(standIn(reply(at(BUILTIN_THEMES, 0).spec)))
     const { spec, report } = await g.generate({ request: 'like the Matrix movie', current: null, model: 'sonnet' })
     expect(spec.name).toBe('Matrix')
     expect(report.droppedColors + report.unknown).toBe(0)
   })
 
   it('gives Claude no tools, none of the user customisations, and an empty folder that is then removed', async () => {
-    const g = gen(standIn(reply(BUILTIN_THEMES[0].spec)))
+    const g = gen(standIn(reply(at(BUILTIN_THEMES, 0).spec)))
     await g.generate({ request: 'anything', current: null, model: 'haiku' })
     const argv = readFileSync(join(dir, 'argv.txt'), 'utf8').split('\n')
     expect(argv[argv.indexOf('--tools') + 1]).toBe('')
@@ -50,7 +51,7 @@ describe('ThemeGenerator', () => {
   })
 
   it('never passes the request through a shell: quotes and $() arrive as text', async () => {
-    const g = gen(standIn(reply(BUILTIN_THEMES[0].spec)))
+    const g = gen(standIn(reply(at(BUILTIN_THEMES, 0).spec)))
     await g.generate({ request: `"; touch ${dir}/pwned; echo "$(touch ${dir}/pwned2)`, current: null, model: 'sonnet' })
     expect(existsSync(join(dir, 'pwned'))).toBe(false)
     expect(existsSync(join(dir, 'pwned2'))).toBe(false)
@@ -104,8 +105,8 @@ describe('ThemeGenerator', () => {
   })
 
   it('sends the current theme along for a refinement', async () => {
-    const g = gen(standIn(reply(BUILTIN_THEMES[1].spec)))
-    await g.generate({ request: 'more green', current: BUILTIN_THEMES[0].spec, model: 'sonnet' })
+    const g = gen(standIn(reply(at(BUILTIN_THEMES, 1).spec)))
+    await g.generate({ request: 'more green', current: at(BUILTIN_THEMES, 0).spec, model: 'sonnet' })
     expect(readFileSync(join(dir, 'argv.txt'), 'utf8')).toContain('Adjustment requested:\nmore green')
   })
 })

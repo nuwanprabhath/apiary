@@ -6,6 +6,7 @@ import { ChatManager } from '../../src/main/chat/chatManager'
 import { stubAccounts } from '../fixtures/launchAccounts'
 import type { ChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
+import { at } from '../contract/must'
 
 /**
  * The real ChatManager — a login shell running "claude" with the chat flags — against
@@ -59,8 +60,10 @@ describe('ChatManager', () => {
     // Between two states that only grew the streamed text, a fresh emit never comes sooner than the interval (less scheduling slack).
     const gaps: number[] = []
     for (let i = 1; i < states.length; i++) {
-      const prev = states[i - 1].streaming?.text ?? ''
-      if (prev.length > 0 && states[i].status === states[i - 1].status && (states[i].streaming?.text ?? '').startsWith(prev) && states[i].streaming!.text !== prev) gaps.push(stamps[i] - stamps[i - 1])
+      const before = at(states, i - 1)
+      const now = at(states, i)
+      const prev = before.streaming?.text ?? ''
+      if (prev.length > 0 && now.status === before.status && (now.streaming?.text ?? '').startsWith(prev) && now.streaming!.text !== prev) gaps.push(at(stamps, i) - at(stamps, i - 1))
     }
     expect(gaps.length).toBeGreaterThan(3)
     expect(Math.min(...gaps)).toBeGreaterThanOrEqual(100)
@@ -83,8 +86,8 @@ describe('ChatManager', () => {
     const { until } = start()
     manager!.send(SESSION, 'this needs permission')
     const asking = await until((s) => s.permissions.length === 1)
-    expect(asking.permissions[0]).toMatchObject({ toolName: 'Bash', description: 'Print a marker', canAlwaysAllow: true })
-    manager!.respond(SESSION, asking.permissions[0].requestId, { behavior: 'allow' })
+    expect(at(asking.permissions, 0)).toMatchObject({ toolName: 'Bash', description: 'Print a marker', canAlwaysAllow: true })
+    manager!.respond(SESSION, at(asking.permissions, 0).requestId, { behavior: 'allow' })
     const done = await until((s) => s.status === 'idle' && textOf(s).includes('The command ran.'))
     expect(done.permissions).toEqual([])
     expect(textOf(done)).toContain('fake-ran')
@@ -94,7 +97,7 @@ describe('ChatManager', () => {
     const { until } = start()
     manager!.send(SESSION, 'permission please')
     const asking = await until((s) => s.permissions.length === 1)
-    manager!.respond(SESSION, asking.permissions[0].requestId, { behavior: 'deny', message: 'not now' })
+    manager!.respond(SESSION, at(asking.permissions, 0).requestId, { behavior: 'deny', message: 'not now' })
     const done = await until((s) => s.status === 'idle' && textOf(s).includes('Understood, I did not run it.'))
     expect(textOf(done)).toContain('not now')
   }, 20000)
@@ -163,7 +166,7 @@ describe('ChatManager', () => {
     manager!.send(SESSION, 'hello queued')
     const queued = manager!.state(SESSION)?.queued ?? []
     expect(queued.map((q) => q.text)).toEqual(['hello queued'])
-    manager!.sendNow(SESSION, queued[0].id)
+    manager!.sendNow(SESSION, at(queued, 0).id)
     const done = await until((s) => s.status === 'idle' && textOf(s).includes('You said: hello queued'))
     expect(done.queued).toEqual([])
     expect(textOf(done)).toEqual(['slow', '[Request interrupted by user]', 'hello queued', 'You said: hello queued'])
@@ -177,7 +180,7 @@ describe('ChatManager', () => {
     manager!.interrupt(SESSION)
     const stopped = await until((s) => s.status === 'idle' && textOf(s).includes('[Request interrupted by user]'))
     expect(stopped.queued.map((q) => q.text)).toEqual(['hello queued'])
-    manager!.sendNow(SESSION, stopped.queued[0].id)
+    manager!.sendNow(SESSION, at(stopped.queued, 0).id)
     const done = await until((s) => s.status === 'idle' && textOf(s).includes('You said: hello queued'))
     expect(done.queued).toEqual([])
   }, 20000)
@@ -192,7 +195,7 @@ describe('ChatManager', () => {
     const { states, until } = start()
     manager!.send(SESSION, 'run it in the background')
     const started = await until((s) => s.status === 'idle' && (s.backgroundTasks?.length ?? 0) === 1)
-    expect(started.backgroundTasks?.[0].description).toBe('Sleep, then say done')
+    expect(at(started.backgroundTasks ?? [], 0).description).toBe('Sleep, then say done')
     expect(started.lastTurn?.durationMs).toBe(1234)
     const idleAt = states.length
     // Nothing is sent: the task finishing is what starts the next turn.
@@ -217,7 +220,7 @@ describe('ChatManager: model and effort', () => {
     const { until } = start()
     const listed = await until((s) => s.models !== null)
     expect(listed.models!.map((m) => m.displayName)).toEqual(['Default (recommended)', 'Fake 1', 'Fast 2'])
-    expect(listed.models![2].efforts).toEqual([])
+    expect(at(listed.models!, 2).efforts).toEqual([])
     manager!.send(SESSION, 'hi')
     await until((s) => s.model === 'claude-fake-1' && s.effort === 'medium')
     manager!.setEffort(SESSION, 'high')

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { EventEmitter } from 'node:events'
 import type { RemoteStatus } from '@shared/domain/remote'
+import { at, must } from '../contract/must'
 import { RemoteClientService } from '../../src/main/remote/remoteClientService'
 import { RemoteConnection } from '../../src/main/remote/remoteConnection'
 import { RemoteServer } from '../../src/main/remote/remoteServer'
@@ -37,7 +38,7 @@ describe('RemoteClientService against a real RemoteServer', () => {
       exec: () => Promise.resolve(`${home}\n`),
       // "ssh": the forwarded socket is a symlink to the server's own.
       startTunnel: (flags, _host, cwd) => {
-        const local = flags[flags.indexOf('-L') + 1].split(':')[0]
+        const local = must(at(flags, flags.indexOf('-L') + 1).split(':')[0], 'a local socket path')
         symlinkSync(server.socketPath, join(cwd, local.split('/').pop() ?? 's'))
         return { exited: new Promise<void>(() => {}), stderr: () => '', stop: () => Promise.resolve() }
       },
@@ -97,7 +98,7 @@ describe('RemoteClientService against a real RemoteServer', () => {
     await server.start()
     await vi.waitFor(() => { expect(statuses.map((s) => s.state)).toEqual(['reconnecting', 'connected']) }, { timeout: 8000 })
     await vi.waitFor(() => { expect(attached).toHaveLength(2) })
-    attached[1].sender.send('apiary:pty-data', 'pty-1', 'hello again')
+    at(attached, 1).sender.send('apiary:pty-data', 'pty-1', 'hello again')
     await vi.waitFor(() => { expect(heard).toEqual([['apiary:pty-data', 'pty-1', 'hello again']]) })
   })
 

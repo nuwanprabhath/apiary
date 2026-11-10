@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { buildAppService } from '../../fixtures/buildService'
 import type { AppService } from '../../../src/main/appService'
 import { makeSession } from '../../fixtures/makeSession'
+import { at } from '../../contract/must'
 import { stays } from '../../fixtures/stays'
 import { encodeProjectDirName as encodeProjectDirNameForTest } from '../../../src/main/scanner/projectDirName'
 import { createServiceFixture, teardownServiceFixture, git, makeGitWorkdir } from './setup'
@@ -44,8 +45,8 @@ describe('AppService', () => {
     await service.importSessions(['11111111-1111-1111-1111-111111111111'], [workdir])
     const tree = await service.tree()
     expect(tree).toHaveLength(1)
-    expect(tree[0].sessions[0].title).toBe('Fix CSV export')
-    expect(tree[0].sessions[0].cwdExists).toBe(true)
+    expect(at(at(tree, 0).sessions, 0).title).toBe('Fix CSV export')
+    expect(at(at(tree, 0).sessions, 0).cwdExists).toBe(true)
   })
 
   it('tree() returns everything unfiltered; title matching is now the renderer’s job', async () => {
@@ -60,7 +61,7 @@ describe('AppService', () => {
       ['11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222'], [],
     )
     const tree = await service.tree()
-    expect(tree[0].sessions.map((s) => s.title).sort()).toEqual(['Bump deps', 'Fix CSV export'])
+    expect(at(tree, 0).sessions.map((s) => s.title).sort()).toEqual(['Bump deps', 'Fix CSV export'])
   })
 
   it('refuses to auto-import a path that is not a known project (SEC-8)', async () => {
@@ -86,7 +87,7 @@ describe('AppService', () => {
     })
     await service.refresh()
     const tree = await service.tree()
-    expect(tree[0].sessions.map((s) => s.title).sort()).toEqual(['First', 'Second'])
+    expect(at(tree, 0).sessions.map((s) => s.title).sort()).toEqual(['First', 'Second'])
   })
 
   it('returns a transcript page and caches the message count', async () => {
@@ -99,7 +100,7 @@ describe('AppService', () => {
     const page = await service.transcript('11111111-1111-1111-1111-111111111111')
     expect(page.messages.length).toBeGreaterThan(0)
     const tree = await service.tree()
-    expect(tree[0].sessions[0].messageCount).toBeGreaterThan(0)
+    expect(at(at(tree, 0).sessions, 0).messageCount).toBeGreaterThan(0)
   })
 
   it('refuses to resume when the working directory is gone', async () => {
@@ -146,7 +147,7 @@ describe('AppService', () => {
     })
     await service.refresh()
     const tree = await service.tree()
-    expect(tree[0].sessions.map((s) => s.title).sort()).toEqual(['Existing', 'Freshly started'])
+    expect(at(tree, 0).sessions.map((s) => s.title).sort()).toEqual(['Existing', 'Freshly started'])
   })
 
   describe('every worktree of a folder, sessions or not', () => {
@@ -260,17 +261,17 @@ describe('AppService', () => {
 
     await service.renameSession('11111111-1111-1111-1111-111111111111', '  My renamed title  ')
     let tree = await service.tree()
-    expect(tree[0].sessions[0].title).toBe('My renamed title')
+    expect(at(at(tree, 0).sessions, 0).title).toBe('My renamed title')
 
     // A rescan (the watcher's normal debounced path) must not revert it.
     await service.refresh()
     tree = await service.tree()
-    expect(tree[0].sessions[0].title).toBe('My renamed title')
+    expect(at(at(tree, 0).sessions, 0).title).toBe('My renamed title')
 
     // An empty title clears the override, reverting to the scanned one.
     await service.renameSession('11111111-1111-1111-1111-111111111111', '   ')
     tree = await service.tree()
-    expect(tree[0].sessions[0].title).toBe('Fix CSV export')
+    expect(at(at(tree, 0).sessions, 0).title).toBe('Fix CSV export')
   })
 
   it('rejects renaming an unknown session', async () => {
@@ -333,7 +334,7 @@ describe('AppService', () => {
     await service.refresh()
     const tree = await service.tree()
     expect(tree).toHaveLength(1)
-    expect(tree[0].sessions[0].title).toBe('First session here')
+    expect(at(at(tree, 0).sessions, 0).title).toBe('First session here')
   })
 
   it('refuses to start a new session in a folder that does not exist', async () => {
@@ -355,7 +356,7 @@ describe('AppService', () => {
       const conflict = await liveService.checkConflict(asSessionId('11111111-1111-1111-1111-111111111111'))
       expect(conflict).toEqual({ sessionId: '11111111-1111-1111-1111-111111111111', pid: 4242 })
       const tree = await liveService.tree()
-      expect(tree[0].sessions[0].isLive).toBe(true)
+      expect(at(at(tree, 0).sessions, 0).isLive).toBe(true)
     } finally {
       await liveService.dispose()
     }
@@ -385,7 +386,7 @@ describe('AppService', () => {
       )
       const tree = await service.tree()
       expect(tree).toHaveLength(1)
-      expect(tree[0].sessions.map((s) => s.title).sort()).toEqual([
+      expect(at(tree, 0).sessions.map((s) => s.title).sort()).toEqual([
         'Via canonical path',
         'Via symlinked alias',
       ])

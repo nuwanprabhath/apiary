@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
+import { at } from '../must'
 import type { Ctx } from '../support'
 
-const SPEC = BUILTIN_THEMES[0].spec
+const SPEC = at(BUILTIN_THEMES, 0).spec
 
 export function defineThemeClauses(ctx: Ctx): void {
   describe('themes', () => {
@@ -23,7 +24,7 @@ export function defineThemeClauses(ctx: Ctx): void {
       expect(saved.id).not.toBe('')
       expect((await ctx.api.themeState()).saved.map((t) => t.id)).toEqual([saved.id])
       expect(ctx.heard.count('themeChanged')).toBe(1)
-      expect(ctx.heard.payloads('themeChanged')[0][0].saved.map((t) => t.name)).toEqual(['My theme'])
+      expect(at(ctx.heard.payloads('themeChanged'), 0)[0].saved.map((t) => t.name)).toEqual(['My theme'])
     })
 
     it('applies a saved theme or a built-in one, goes back to the original look, and refuses a theme that does not exist', async () => {
@@ -31,7 +32,7 @@ export function defineThemeClauses(ctx: Ctx): void {
       await ctx.api.themeApply(saved.id)
       expect(await ctx.api.themeState()).toMatchObject({ activeId: saved.id, active: saved.spec })
 
-      const builtin = BUILTIN_THEMES[1]
+      const builtin = at(BUILTIN_THEMES, 1)
       await ctx.api.themeApply(builtin.id)
       expect(await ctx.api.themeState()).toMatchObject({ activeId: builtin.id, active: builtin.spec })
 
@@ -46,9 +47,9 @@ export function defineThemeClauses(ctx: Ctx): void {
     it('renames only a saved theme', async () => {
       const saved = await ctx.api.themeSave('Before', SPEC)
       await ctx.api.themeRename(saved.id, 'After')
-      expect((await ctx.api.themeState()).saved[0]).toMatchObject({ id: saved.id, name: 'After' })
-      expect((await ctx.api.themeState()).saved[0].spec.name).toBe('After')
-      await expect(ctx.api.themeRename(BUILTIN_THEMES[0].id, 'Mine now')).rejects.toThrow()
+      expect(at((await ctx.api.themeState()).saved, 0)).toMatchObject({ id: saved.id, name: 'After' })
+      expect(at((await ctx.api.themeState()).saved, 0).spec.name).toBe('After')
+      await expect(ctx.api.themeRename(at(BUILTIN_THEMES, 0).id, 'Mine now')).rejects.toThrow()
     })
 
     it('deletes only a saved theme, and falls back to the original look when it was the one applied', async () => {
@@ -57,7 +58,7 @@ export function defineThemeClauses(ctx: Ctx): void {
       await ctx.api.themeDelete(saved.id)
       expect(await ctx.api.themeState()).toMatchObject({ activeId: null, active: null, saved: [] })
       await expect(ctx.api.themeDelete(saved.id)).rejects.toThrow()
-      await expect(ctx.api.themeDelete(BUILTIN_THEMES[0].id)).rejects.toThrow()
+      await expect(ctx.api.themeDelete(at(BUILTIN_THEMES, 0).id)).rejects.toThrow()
     })
 
     it('keeps the effects options it can use: intensity is clamped, a field of the wrong kind is ignored', async () => {

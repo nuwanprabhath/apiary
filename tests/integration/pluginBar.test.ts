@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { PluginRegistry } from '../../src/main/plugins/registry'
+import { at, must } from '../contract/must'
 import { createGitLabMrPlugin, pickMergeRequest } from '../../src/main/plugins/gitlabMr'
 import { originUrl, type RemoteExec } from '../../src/main/plugins/remote'
 import type {
@@ -294,7 +295,7 @@ describe('the plugin registry', () => {
       name: 'a',
       evaluate: async () => ({ ...barItem('some-other-id'), pluginId: undefined } as never),
     })
-    const [item] = await registry.refresh(ctx)
+    const item = at(await registry.refresh(ctx), 0)
     expect(item.pluginId).toBe('a')
   })
 
@@ -410,7 +411,7 @@ describe('plugin settings', () => {
     await vi.waitFor(() => { expect(held).toHaveLength(1) })
 
     registry.setSettings('a', { v: 'new' })
-    held[0]()
+    must(held[0], 'the held callback')()
     await first
     await vi.waitFor(() => { expect(registry.items(ctx).map((i) => i.label)).toEqual(['new']) })
   })
@@ -432,7 +433,7 @@ describe('plugin settings', () => {
   it('lists what each plugin declares, so Settings can draw it without knowing the plugin', () => {
     const registry = new PluginRegistry()
     registry.register(createGitLabMrPlugin())
-    const [entry] = registry.list()
+    const entry = at(registry.list(), 0)
 
     expect(entry.id).toBe('gitlab-mr')
     expect(entry.description).toBeTruthy()
@@ -460,7 +461,7 @@ describe('changing a setting while the bar is on screen', () => {
 
     // Whatever is on screen is still a real button, at every instant.
     expect(registry.items(ctx)).toHaveLength(1)
-    await vi.waitFor(() => { expect(registry.items(ctx)[0].label).toBe('new') })
+    await vi.waitFor(() => { expect(at(registry.items(ctx), 0).label).toBe('new') })
   })
 
   it('a refresh asked for during a lookup joins it instead of getting the stale answer', async () => {

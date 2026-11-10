@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { at } from '../must'
 import type { Ctx } from '../support'
 import { noMachineMessage, pairingSeenMessage, REMOTE_WORLD } from '../world'
 
@@ -39,7 +40,7 @@ export function defineRemoteConnectClauses(ctx: Ctx): void {
       const announced = ctx.heard.payloads('remoteHostsChanged')
       expect(announced).toHaveLength(1)
       const expected = [[REMOTE_WORLD.up, 'ready'], ...REMOTE_WORLD.recent.map((name) => [name, 'unknown'])]
-      expect(announced[0][0].map((h) => [h.name, h.status])).toEqual(expected)
+      expect(at(announced, 0)[0].map((h) => [h.name, h.status])).toEqual(expected)
       expect((await ctx.api.remoteHosts(false)).map((h) => [h.name, h.status])).toEqual(expected)
     })
   })
