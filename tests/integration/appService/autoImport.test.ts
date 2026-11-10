@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { buildAppService } from '../../fixtures/buildService'
 import type { AppService } from '../../../src/main/appService'
 import { makeSession } from '../../fixtures/makeSession'
+import { at } from '../../contract/must'
 import { createServiceFixture, teardownServiceFixture } from './setup'
 
 let home: string
@@ -61,7 +62,7 @@ describe('auto-import all', () => {
       // After refresh, the session should be automatically imported since autoImportAll is on.
       let tree = await autoService.tree()
       expect(tree).toHaveLength(1)
-      expect(tree[0].sessions[0].title).toBe('Auto-imported 1')
+      expect(at(at(tree, 0).sessions, 0).title).toBe('Auto-imported 1')
 
       // New session discovered after the first refresh should also be auto-imported.
       makeSession(projects(), '-w2', {
@@ -70,7 +71,7 @@ describe('auto-import all', () => {
       await autoService.refresh()
 
       tree = await autoService.tree()
-      expect(tree[0].sessions.map((s) => s.title).sort()).toEqual([
+      expect(at(tree, 0).sessions.map((s) => s.title).sort()).toEqual([
         'Auto-imported 1',
         'Auto-imported 2',
       ])

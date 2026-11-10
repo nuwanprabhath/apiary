@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
 import type { AppService } from '../../../src/main/appService'
 import { makeSession } from '../../fixtures/makeSession'
+import { at } from '../../contract/must'
 import { createServiceFixture, teardownServiceFixture } from './setup'
 
 let home: string
@@ -31,7 +32,7 @@ describe('session notes', () => {
     await service.setSessionNote(ID, '  Debugging the nightly pipeline, MR !1257  ')
 
     const tree = await service.tree()
-    expect(tree[0].sessions[0].note).toBe('Debugging the nightly pipeline, MR !1257')
+    expect(at(at(tree, 0).sessions, 0).note).toBe('Debugging the nightly pipeline, MR !1257')
     expect(service.sessionNote(ID)).toBe('Debugging the nightly pipeline, MR !1257')
   })
 
@@ -39,14 +40,14 @@ describe('session notes', () => {
     await seed()
     await service.setSessionNote(ID, 'chasing a flaky spec')
     await service.refresh()
-    expect((await service.tree())[0].sessions[0].note).toBe('chasing a flaky spec')
+    expect(at(at(await service.tree(), 0).sessions, 0).note).toBe('chasing a flaky spec')
   })
 
   it('an empty note removes it rather than storing a blank', async () => {
     await seed()
     await service.setSessionNote(ID, 'temporary')
     await service.setSessionNote(ID, '   ')
-    expect((await service.tree())[0].sessions[0].note).toBeNull()
+    expect(at(at(await service.tree(), 0).sessions, 0).note).toBeNull()
   })
 
   it('finds the session by searching what the note says', async () => {

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { git, commitFile as commit, initRepo, setIdentity } from '../fixtures/gitRepo'
 import { BranchOps, createBranchExec, parseWorktreeList, isWorktreeConflict } from '../../src/main/git/branchOps'
 import type { GitStatus } from '@shared/types'
+import { at } from '../contract/must'
 
 // Every case builds a real repository (a dozen git spawns) and then runs real git on it: seconds on
 // a busy machine, so the 5 s default tests the machine, not the code.
@@ -474,11 +475,11 @@ describe('parseWorktreeList', () => {
     // The blocking branch in the report that prompted this is `dev/1.0.12`; splitting the ref on
     // "/" rather than stripping the refs/heads/ prefix would turn it into "1.0.12" and match
     // nothing.
-    expect(parseWorktreeList(output)[1].branch).toBe('dev/1.0.12')
+    expect(at(parseWorktreeList(output), 1).branch).toBe('dev/1.0.12')
   })
 
   it('keeps a worktree path that contains a space intact', () => {
-    expect(parseWorktreeList(output)[2].path).toContain('poking about')
+    expect(at(parseWorktreeList(output), 2).path).toContain('poking about')
   })
 
   it('is empty for empty output rather than inventing a worktree', () => {

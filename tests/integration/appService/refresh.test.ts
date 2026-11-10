@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AppService } from '../../../src/main/appService'
 import { makeSession } from '../../fixtures/makeSession'
+import { at } from '../../contract/must'
 import { createServiceFixture, teardownServiceFixture, captureRefreshPass, makeGitWorkdir, git } from './setup'
 
 let home: string
@@ -40,7 +41,7 @@ describe('MAIN-1: incremental, path-scoped refresh', () => {
     })
     await service.refresh()
     await service.importSessions(['22222222-2222-2222-2222-222222222222'], [])
-    expect((await service.tree())[0].sessions[0].title).toBe('Before')
+    expect(at(at(await service.tree(), 0).sessions, 0).title).toBe('Before')
 
     // Simulate Claude appending an `ai-title` record, the way a real rescan would find it — with
     // a distinct mtime and size so `isUnchanged` (and, for the scoped path, "this file is what
@@ -54,7 +55,7 @@ describe('MAIN-1: incremental, path-scoped refresh', () => {
     expect(pass.calls()[0]).toMatchObject({ full: false, files: 1, parsed: 1 })
     pass.restore()
 
-    expect((await service.tree())[0].sessions[0].title).toBe('After')
+    expect(at(at(await service.tree(), 0).sessions, 0).title).toBe('After')
   })
 
   it('a scoped pass does not re-resolve or re-read a folder that was not named', async () => {
@@ -94,11 +95,11 @@ describe('MAIN-1: incremental, path-scoped refresh', () => {
       })
       await service.refresh()
       await service.importSessions(['66666666-4444-4444-4444-444444444444'], [])
-      expect((await service.tree())[0].branch).toBe('main')
+      expect(at(await service.tree(), 0).branch).toBe('main')
 
       git(repo, 'checkout', '-q', '-b', 'feature/outside')
       await service.refresh({ paths: [file] }) // what the watcher asks for when the session writes
-      expect((await service.tree())[0].branch).toBe('feature/outside')
+      expect(at(await service.tree(), 0).branch).toBe('feature/outside')
     } finally {
       rmSync(repo, { recursive: true, force: true })
     }
