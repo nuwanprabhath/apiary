@@ -82,6 +82,7 @@ describe('the IPC contract', () => {
       ptyResume: 'apiary:pty-resume',
       ptyAttach: 'apiary:pty-attach',
       ptyDetach: 'apiary:pty-detach',
+      ptyAck: 'apiary:pty-ack',
       ptyData: 'apiary:pty-data',
       ptySnapshot: 'apiary:pty-snapshot',
       ptySessions: 'apiary:pty-sessions',

@@ -22,6 +22,7 @@ export function defineTerminalClauses(ctx: Ctx): void {
       ctx.api.ptyWrite(NOBODY, 'ls\r')
       ctx.api.ptyResize(NOBODY, 100, 30)
       ctx.api.ptyResume(NOBODY)
+      ctx.api.ptyAck(NOBODY, 4096)
       ctx.api.ptyKill(NOBODY)
       ctx.api.ptyDetach(NOBODY)
       ctx.api.renameTerminalInClaude(NOBODY, 'a new name')

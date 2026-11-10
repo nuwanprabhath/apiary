@@ -46,6 +46,26 @@ const PTY_KILL_TIMEOUT_MS = 1500
 /** Switch to the alternate screen: a full-screen program emits it once the tty is in raw mode, so input written now arrives as keystrokes. */
 const ALT_SCREEN = '\x1b[?1049h'
 
+interface ReadHandle { readStop(): unknown; readStart(): unknown }
+
+function isReadHandle(v: unknown): v is ReadHandle {
+  return typeof v === 'object' && v !== null && 'readStop' in v && typeof v.readStop === 'function'
+    && 'readStart' in v && typeof v.readStart === 'function'
+}
+
+/**
+ * The libuv handle under a Unix pty's read stream. node-pty's own `pause()`/`resume()` pause the
+ * stream, and on macOS a stream resumed while the kernel already holds output never reads again
+ * (measured with node-pty 1.x: a flood stalls for good). Stopping and starting the handle itself
+ * does not. Null where the shape is not there (Windows' conpty), which falls back to node-pty's.
+ */
+function readHandleOf(child: pty.IPty): ReadHandle | null {
+  const socket: unknown = Reflect.get(child, '_socket')
+  if (typeof socket !== 'object' || socket === null) return null
+  const handle: unknown = Reflect.get(socket, '_handle')
+  return isReadHandle(handle) ? handle : null
+}
+
 /**
  * Everything the manager knows about one pty id, replaced or dropped as a unit.
  *
@@ -307,6 +327,28 @@ export class PtyManager {
     } catch {
       ignoreErrors(() => process.kill(child.pid, 'SIGCONT'), 'already gone')
     }
+  }
+
+  /**
+   * Stops reading the child's output (flow control: its windows have fallen behind). The child
+   * blocks once the kernel's pty buffer fills; nothing is lost. Not the same as `resume` above,
+   * which continues a stopped process.
+   */
+  pauseOutput(id: string): void {
+    const child = this.liveChild(id)
+    if (child === undefined) return
+    const handle = readHandleOf(child)
+    if (handle === null) child.pause()
+    else handle.readStop()
+  }
+
+  /** Reads the child's output again after `pauseOutput`. */
+  resumeOutput(id: string): void {
+    const child = this.liveChild(id)
+    if (child === undefined) return
+    const handle = readHandleOf(child)
+    if (handle === null) child.resume()
+    else handle.readStart()
   }
 
   kill(id: string): void {

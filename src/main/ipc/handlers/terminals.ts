@@ -8,11 +8,11 @@ import type { Handlers, Listeners } from '../registrar'
 
 export interface TerminalsDeps {
   service: AppService
-  state: Pick<IpcState, 'sessionTracker'>
+  state: Pick<IpcState, 'sessionTracker' | 'ptyAttachments' | 'ptyCoalescer'>
 }
 
 type HandledKeys = 'openShell' | 'openShellForPty' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
-type ListenedKeys = 'ptyWrite' | 'ptyResize' | 'ptyKill' | 'ptyResume' | 'renameTerminalInClaude'
+type ListenedKeys = 'ptyWrite' | 'ptyResize' | 'ptyKill' | 'ptyResume' | 'ptyAck' | 'renameTerminalInClaude'
 
 /**
  * Terminals and ptys, plus the Claude session tracker (which session tab a Claude terminal is on
@@ -40,6 +40,16 @@ export function terminalsHandlers(deps: TerminalsDeps): {
   const { sessionTracker } = deps.state
   sessionTracker.start()
 
+  // Flow control: what each window was sent is counted as it is flushed, and its `ptyAck`s count
+  // it back; a pty whose slowest window falls 1 MB behind stops being read. The headless screen
+  // keeps every byte read, so activity is unaffected; only the child waits.
+  const { ptyAttachments, ptyCoalescer } = deps.state
+  ptyAttachments.controlFlow({
+    pause: (id) => { service.pty.pauseOutput(id) },
+    resume: (id) => { service.pty.resumeOutput(id) },
+  })
+  ptyCoalescer.onFlushed((id, data) => { ptyAttachments.recordSent(id, data.length) })
+
   return {
     handlers: {
       openShell: (_e, id, tabId) => service.openShell(id, tabId),
@@ -61,6 +71,7 @@ export function terminalsHandlers(deps: TerminalsDeps): {
       ptyResize: (_e, id, cols, rows) => service.pty.resize(id, cols, rows),
       ptyKill: (_e, id) => service.pty.kill(id),
       ptyResume: (_e, id) => { service.pty.resume(id) },
+      ptyAck: (e, id, bytes) => { ptyAttachments.acknowledge(e.sender.id, id, bytes) },
       renameTerminalInClaude: (_e, ptyId, title) => {
         log.info('rename', 'terminal renamed before it had a session', { ptyId })
         fireAndForget(renameTerminalInClaude(renameDeps(), ptyId, title), 'rename')

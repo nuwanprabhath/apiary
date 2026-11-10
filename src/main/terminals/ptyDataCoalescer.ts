@@ -1,3 +1,8 @@
+/** The most one flush sends for one pty, in UTF-16 units; the rest waits for the next tick. */
+export const FLUSH_CAP = 256 * 1024
+
+function isHighSurrogate(code: number): boolean { return code >= 0xd800 && code <= 0xdbff }
+
 export interface PtyDataCoalescerOptions {
   /** Called with the concatenated chunks for one pty, at most once per scheduled flush. */
   onFlush: (id: string, data: string) => void
@@ -21,6 +26,7 @@ export class PtyDataCoalescer {
   private readonly buffers = new Map<string, string[]>()
   private readonly scheduled = new Map<string, { cancel: () => void }>()
   private readonly onFlush: (id: string, data: string) => void
+  private readonly observers: Array<(id: string, data: string) => void> = []
   private readonly schedule: (cb: () => void) => { cancel: () => void }
 
   constructor(options: PtyDataCoalescerOptions) {
@@ -42,12 +48,24 @@ export class PtyDataCoalescer {
     this.scheduled.set(id, this.schedule(() => this.flush(id)))
   }
 
+  /** Also told what each flush sent, after it was sent (flow control counts it). */
+  onFlushed(listener: (id: string, data: string) => void): void { this.observers.push(listener) }
+
   private flush(id: string): void {
     this.scheduled.delete(id)
     const chunks = this.buffers.get(id)
     this.buffers.delete(id)
     if (chunks === undefined || chunks.length === 0) return
-    this.onFlush(id, chunks.length === 1 ? chunks[0] : chunks.join(''))
+    let data = chunks.length === 1 ? chunks[0] : chunks.join('')
+    if (data.length > FLUSH_CAP) {
+      // A flood is sent a slice per tick, so one pty cannot hold main for a whole multi-megabyte send.
+      const cut = isHighSurrogate(data.charCodeAt(FLUSH_CAP - 1)) ? FLUSH_CAP - 1 : FLUSH_CAP
+      this.buffers.set(id, [data.slice(cut)])
+      this.scheduled.set(id, this.schedule(() => this.flush(id)))
+      data = data.slice(0, cut)
+    }
+    this.onFlush(id, data)
+    for (const o of this.observers) o(id, data)
   }
 
   /** Cancels every pending flush without sending it — for a clean quit. Buffered-but-unsent bytes

@@ -42,6 +42,15 @@ the write threw, and `sendPrompt` then throws so the composer keeps its text. Ex
 signal as a third argument. Entries without a child beyond 500 are forgotten, oldest first; `kill()`
 and an exit never delete one, since `resolveShellCwd` reads `cwd` from a recent dead entry.
 
+## Flow control
+
+A window acknowledges `ptyData` it has drawn (`ptyAck`, by string length, batched per 100 ms from
+xterm's write callback); `WindowAttachments` counts what each attached window has not acknowledged,
+pauses the pty at 1 MB behind for the slowest window and resumes it at 256 KB or when that window
+detaches. Only the child's reads stop (`pauseOutput`, on the read handle: node-pty's own `pause()`
+never reads again on macOS if output is waiting at `resume()`); the headless screen sees every byte
+that is read. One coalescer flush sends at most 256 KB.
+
 ## Minimal prompt
 
 **Minimal prompt** (`terminalMinimalPrompt`, default on) is also in `promptPath.ts`: bash gets
