@@ -9,7 +9,8 @@
   unparseable file takes `fallback`), migrates by the stored version, and saves atomically with an
   fsync. A file whose version is newer than the code's is copied to `<file>.v<N>.bak` before the
   store's first write, never over an existing backup; if the copy fails the save throws and the file
-  is untouched.
+  is untouched. A file `load` found unreadable is copied to `<file>.corrupt-<time>` before the first
+  save replaces it (newest 3 kept). `private: true` writes mode 0600 (the pairing code).
 - **Alternatives tried:** A private tmp+rename per store (themes, pets): it drifted, with and without
   fsync, with and without a version that was read back. Refusing to start on a newer file was not
   tried: the user would lose the app over a downgrade.

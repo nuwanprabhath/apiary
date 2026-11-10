@@ -26,6 +26,7 @@ export class PairingStore {
     this.store = new JsonStore<PairingFile>({
       file,
       version: 1,
+      private: true,
       parse: (raw) => {
         const code = isRecord(raw) && typeof raw.code === 'string' ? raw.code : ''
         if (!isPairingCode(code)) throw new Error('no valid code')
