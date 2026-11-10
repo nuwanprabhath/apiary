@@ -110,3 +110,14 @@ asar so `python3` can read it. Main finds it through one function, `resolveResou
 (`src/main/app/resourcesDir.ts`): `process.resourcesPath` when packaged, `<repo>/resources` in
 development. `index.ts` passes the result in as `resourcesDir` and the container hands it to the
 resident kinds; nothing else computes it. `npm run test:mra` runs the Python tests.
+
+## Releasing
+
+`node scripts/release.mjs` does the whole release and prints each step: it refuses unless you are
+on `main` with a clean tree and `package.json`'s version equals the newest `CHANGELOG.md` heading,
+lists tags that have no GitHub release (and stops, unless `--allow-gap`), asks before pushing
+(unless `--yes`), pushes `main`, waits for CI on that commit, tags and pushes, watches the release
+run (re-running failed jobs at most twice when the log shows a transient download error: `Response
+code 5xx`, `ETIMEDOUT`, `ECONNRESET`), and checks the release is not a draft and has its six assets
+(dmg, zip, `latest-mac.yml`, AppImage, deb, `latest-linux.yml`). `--dry-run` prints the plan and
+performs nothing. An agent passes `--yes` only when the maintainer asked for the release.
