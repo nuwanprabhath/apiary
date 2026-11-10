@@ -188,7 +188,7 @@ export function extractThemeJson(stdout: string): unknown {
   if (typeof direct === 'object' && direct !== null) return direct
   const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(text)
   if (fenced !== null) {
-    const f = parse(fenced[1].trim())
+    const f = parse((fenced[1] ?? '').trim())
     if (typeof f === 'object' && f !== null) return f
   }
   const obj = firstObject(text)

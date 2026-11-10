@@ -29,5 +29,6 @@ export function shellPtyId(owner: string, terminalId: string | number): PtyId {
  */
 export function parseShellPtyId(id: string): { owner: string; terminalId: string } | null {
   const match = /^shell:(.+):([^:]+)$/.exec(id)
-  return match === null ? null : { owner: match[1], terminalId: match[2] }
+  const [, owner, terminalId] = match ?? []
+  return owner === undefined || terminalId === undefined ? null : { owner, terminalId }
 }
