@@ -1,3 +1,6 @@
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 /**
  * Whether an IPC message's sender frame is Apiary's own renderer page, not some other page a
  * compromised or buggy renderer had navigated to.
@@ -13,6 +16,13 @@ export interface TrustedRendererConfig {
   /** Set when running against the Vite dev server (`ELECTRON_RENDERER_URL`); null for a packaged
    *  or built run, where the renderer is loaded from a `file://` path instead. */
   devServerOrigin: string | null
+  /** The exact renderer entry file a packaged window loads; null only where no file is known. */
+  rendererFile: string | null
+}
+
+/** The renderer entry file, beside the main bundle in `dirname`. */
+export function rendererEntryFile(dirname: string): string {
+  return join(dirname, '../renderer/index.html')
 }
 
 export function isTrustedRendererUrl(url: string, expected: TrustedRendererConfig): boolean {
@@ -23,7 +33,13 @@ export function isTrustedRendererUrl(url: string, expected: TrustedRendererConfi
     return false
   }
   if (expected.devServerOrigin !== null) return parsed.origin === expected.devServerOrigin
-  return parsed.protocol === 'file:' && parsed.pathname.endsWith('/renderer/index.html')
+  if (parsed.protocol !== 'file:') return false
+  if (expected.rendererFile === null) return parsed.pathname.endsWith('/renderer/index.html')
+  try {
+    return fileURLToPath(parsed) === expected.rendererFile
+  } catch {
+    return false
+  }
 }
 
 /**

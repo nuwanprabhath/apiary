@@ -36,7 +36,7 @@ const callRefresh = (event: object): unknown => {
 describe('registerAll sender check', () => {
   it('rejects a call whose sender frame is gone (null) when the app configured a renderer', async () => {
     refresh.mockClear()
-    const dispose = registerAll(onlyRefresh(), {} as Listeners, { devServerOrigin: null })
+    const dispose = registerAll(onlyRefresh(), {} as Listeners, { devServerOrigin: null, rendererFile: null })
     await expect(async () => callRefresh({ senderFrame: null })).rejects.toThrow('Rejected: unexpected sender.')
     await expect(async () => callRefresh({})).rejects.toThrow('Rejected: unexpected sender.')
     expect(refresh).not.toHaveBeenCalled()
@@ -45,7 +45,7 @@ describe('registerAll sender check', () => {
 
   it('accepts the renderer page itself', async () => {
     refresh.mockClear()
-    const dispose = registerAll(onlyRefresh(), {} as Listeners, { devServerOrigin: null })
+    const dispose = registerAll(onlyRefresh(), {} as Listeners, { devServerOrigin: null, rendererFile: null })
     await callRefresh({ senderFrame: { url: 'file:///app/out/renderer/index.html?w=1' } })
     expect(refresh).toHaveBeenCalledTimes(1)
     dispose()
