@@ -67,7 +67,7 @@ describe('UI: the transcript find widget', () => {
     await userEvent.click(sidebarSession('Many pears'))
     await until(() => document.querySelector('[data-testid="message"]') !== null)
     await reviewUi('find bar more matches', {
-      widths: [620, 1280],
+      widths: [620, 1400],
       open: async () => {
         await openFind('pear')
         await until(() => document.querySelector('[data-testid="find-count"]')?.textContent?.endsWith('+') === true)
