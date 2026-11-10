@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.23] - 2026-11-10
+## [1.60.24] - 2026-11-10
+
+### Changed
+
+- An open transcript refreshes only when its own session changes, not whenever any session writes,
+  so many open tabs no longer each re-read their file about once a second. The app's internal
+  message contract changed, so remote access refuses to pair two machines on different versions.
+
+## [1.60.23] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Fixed
 
