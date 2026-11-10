@@ -13,6 +13,7 @@ import electronUpdater, { type UpdateInfo } from 'electron-updater'
 import type { FeedResult, OpenInstallerResult, UpdateBackend } from './updateService'
 import { pickInstaller, type BackendOptions } from './installerAsset'
 import { hashFile, type PlatformInstaller } from './platformInstaller'
+import { verifyFeedSignature, servedMatchesSigned, UNVERIFIED_MESSAGE } from './releaseSignature'
 
 /**
  * The real updater, wired to electron-updater and GitHub Releases.
@@ -52,6 +53,42 @@ async function fetchStream(url: string, redirectsLeft = 5): Promise<IncomingMess
   })
 }
 
+async function readAll(response: IncomingMessage): Promise<Buffer> {
+  const chunks: Buffer[] = []
+  for await (const chunk of response) chunks.push(Buffer.from(chunk as Buffer))
+  return Buffer.concat(chunks)
+}
+
+/**
+ * Fetches `latest-<platform>.yml` and its `.sig` from the release and throws unless the signature
+ * verifies (a missing `.sig` is a failure too) and the verified feed names the same version and
+ * the same files and hashes as `served`, electron-updater's own unverified copy.
+ */
+async function assertFeedSigned(repo: string, served: UpdateInfo, platform: NodeJS.Platform): Promise<void> {
+  if (platform !== 'darwin' && platform !== 'linux') return
+  const { version } = served
+  const feedName = platform === 'darwin' ? 'latest-mac.yml' : 'latest-linux.yml'
+  const base = `https://github.com/${repo}/releases/download/v${version}/${feedName}`
+  const fetchOrNull = async (url: string): Promise<Buffer | null> => {
+    try {
+      return await readAll(await fetchStream(url))
+    } catch (e) {
+      log.warn('update', 'could not fetch a feed file', { url, error: errorMessage(e) })
+      return null
+    }
+  }
+  const feed = await fetchOrNull(base)
+  const signature = await fetchOrNull(`${base}.sig`)
+  if (feed === null || !verifyFeedSignature(feed, signature)) {
+    log.warn('update', 'update feed signature missing or invalid', { version })
+    throw new Error(UNVERIFIED_MESSAGE)
+  }
+  if (!servedMatchesSigned(feed, served)) {
+    log.warn('update', 'served update feed differs from the signed one', { version })
+    throw new Error(UNVERIFIED_MESSAGE)
+  }
+}
+
 /**
  * How long to wait for the desktop to take a downloaded installer before giving up on hearing
  * back. Exported for tests.
@@ -62,8 +99,8 @@ const execQuarantine = createExec({ timeoutMs: 10_000, scope: 'update' })
 
 /**
  * Sets `com.apple.quarantine` on a verified download so Gatekeeper still evaluates it;
- * `createWriteStream` does not set it. The update metadata is not signed with an offline key: the
- * file is verified only against a hash served by the same release. Best-effort and macOS-only.
+ * `createWriteStream` does not set it. The feed's hash is trusted because `latest-*.yml` carries a
+ * verified Ed25519 signature (`releaseSignature.ts`). Best-effort and macOS-only.
  */
 type ExecFileFn = (file: string, args: readonly string[]) => Promise<unknown>
 
@@ -94,16 +131,10 @@ function writeHashed(
 
 /** `installer` does the installing for Install and restart; this backend finds and verifies what it installs. */
 export function createUpdateBackend(opts: BackendOptions, installer: PlatformInstaller): UpdateBackend {
-  autoUpdater.autoDownload = false
   // Never install on quit: it would behave differently per platform.
-  autoUpdater.autoInstallOnAppQuit = false
-  autoUpdater.logger = null
-
+  Object.assign(autoUpdater, { autoDownload: false, autoInstallOnAppQuit: false, logger: null })
   let latest: UpdateInfo | null = null
-  /**
-   * The sha512 a downloaded file was verified against, keyed by its final path; `openInstaller`
-   * re-checks it right before `shell.openPath`, since the file sits unwatched until the user clicks Open.
-   */
+  /** The sha512 each download was verified against, by final path; `openInstaller` re-checks it, since the file sits unwatched until Open. */
   const verifiedSha512ByPath = new Map<string, string>()
 
   return {
@@ -117,12 +148,13 @@ export function createUpdateBackend(opts: BackendOptions, installer: PlatformIns
       autoUpdater.allowPrerelease = allowPrerelease
       const result = await autoUpdater.checkForUpdates()
       if (result === null) return null
+      latest = null // set only after the signature passes: `latest.files` hashes are used later
+      const { version, releaseNotes: notes } = result.updateInfo
+      await assertFeedSigned(opts.repo, result.updateInfo, opts.platform)
       latest = result.updateInfo
-      const notes = result.updateInfo.releaseNotes
       return {
-        version: result.updateInfo.version,
-        // GitHub gives the release body as a string; the array form is a Windows-only shape.
-        releaseNotes: typeof notes === 'string' ? notes : null,
+        version,
+        releaseNotes: typeof notes === 'string' ? notes : null, // the array form is Windows-only
         releaseUrl: `https://github.com/${opts.repo}/releases/tag/v${result.updateInfo.version}`,
       }
     },

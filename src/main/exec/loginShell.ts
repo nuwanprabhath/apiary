@@ -1,4 +1,4 @@
-import { childEnv } from '../pty/childEnv'
+import { childEnv } from './childEnv'
 
 /** The user's shell, from `$SHELL`; `/bin/bash` when it is unset or blank. */
 export function loginShell(env: NodeJS.ProcessEnv = process.env): string {

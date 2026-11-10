@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from 'vitest'
+import { describe, it, expect, afterEach, afterAll, beforeAll, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -6,6 +6,12 @@ import { join, resolve } from 'node:path'
 import { PtyManager } from '../../src/main/pty/ptyManager'
 import { log } from '../../src/main/log/logger'
 import { stays } from '../fixtures/stays'
+
+// Every case runs a one-line command: a bare sh login shell starts in milliseconds, where the
+// maintainer's zsh/bash rc files cost 0.5 s per spawn and seconds on a busy machine.
+let realShell: string | undefined
+beforeAll(() => { realShell = process.env.SHELL; process.env.SHELL = '/bin/sh' })
+afterAll(() => { if (realShell === undefined) delete process.env.SHELL; else process.env.SHELL = realShell })
 
 let manager: PtyManager | null = null
 afterEach(async () => { await manager?.killAll(); manager = null })

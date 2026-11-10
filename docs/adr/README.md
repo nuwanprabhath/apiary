@@ -29,3 +29,4 @@ topic doc doesn't have to repeat it.
 | [0019](0019-claude-usage-asks-before-reading-the-token.md) | The Claude usage plugin asks once before it reads Claude Code's token |
 | [0020](0020-per-session-accounts-are-linked-config-folders.md) | A session's Claude account is a config folder linked back to the main one |
 | [0021](0021-resident-agents-get-tools-over-a-token-scoped-local-mcp-server.md) | Resident agents get Apiary's tools over a token-scoped local MCP server |
+| [0023](0023-update-feeds-are-signed.md) | Update feeds are signed with our own key |

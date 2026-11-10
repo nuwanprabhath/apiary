@@ -113,3 +113,13 @@ then it says to run it with sudo. With remote access off it refuses: a backgroun
   the service went inactive.
 - The Docker beds have no systemd; the install, and the update restarting the service, were run by
   hand in a privileged systemd container. `tests/unit/backgroundService.test.ts` pins the steps.
+
+## The feed is signed
+
+`releaseSignature.ts` holds the Ed25519 public key and `verifyFeedSignature`. `check()` in
+`electronUpdaterBackend.ts` fetches `latest-mac.yml` / `latest-linux.yml` and the release asset
+`<feed>.sig` and refuses ("This update could not be verified") unless the signature verifies;
+`latest` (whose file hashes `downloadInstaller` trusts) is set only after that. The release's
+publish job runs `scripts/sign-release.mjs` with the `release` environment's `RELEASE_SIGNING_KEY`,
+and fails when it is missing or is not the pair of the public key. A new key means a new public
+key in the app and a new release. [ADR-0023](../../../docs/adr/0023-update-feeds-are-signed.md).

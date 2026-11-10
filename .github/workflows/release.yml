@@ -161,6 +161,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: release
     permissions:
       contents: write
     steps:
@@ -170,6 +171,21 @@ jobs:
         with:
           path: release
           merge-multiple: true
+
+      # Fails the release when RELEASE_SIGNING_KEY is missing or is not the pair of the public key
+      # in releaseSignature.ts: an unsigned feed is never published.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/sign-release.mjs
+            src/main/update/releaseSignature.ts
+          path: signer
+
+      - name: Sign the update feeds
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: node signer/scripts/sign-release.mjs release
 
       - name: Attach release assets
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3

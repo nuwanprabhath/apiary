@@ -4,7 +4,40 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.26] - 2026-11-10
+## [1.60.30] - 2026-11-10
+
+### Changed
+
+- Internal: an enforced table of which main-process folders may import which, and two misplaced
+  modules moved to the folders that own them. No visible change.
+
+## [1.60.29] - 2026-11-10 (not released; shipped in 1.60.x)
+
+### Fixed
+
+- More tests that failed only on a busy machine: the terminal and shell tests start a plain `sh`
+  instead of your login shell, the resident badge test waits for the badge to settle before hovering
+  it, and two tests that do seconds of real work have timeouts that fit it.
+
+## [1.60.28] - 2026-11-10 (not released; shipped in 1.60.x)
+
+### Security
+
+- Updates are checked against a signature made with Apiary's own release key. An update whose feed
+  is unsigned or altered, or whose version or installer checksums differ from the signed feed, is
+  refused with "This update could not be verified".
+
+## [1.60.27] - 2026-11-10 (not released; shipped in 1.60.x)
+
+### Added
+
+- Your own kind of resident agent: a folder in `resident-kinds` in Apiary's data folder, holding a
+  `kind.json` (name, description, look, which Apiary tools it may use, text settings, prompt actions,
+  an optional schedule) and an optional `PROMPT.md`. Such a kind cannot run programs of its own and
+  asks before using a tool by default. Apiary reads them at start-up and logs any folder it refuses,
+  with the reason.
+
+## [1.60.26] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Changed
 

@@ -1,5 +1,5 @@
 import type { SessionHit } from '@shared/domain/residents'
-import { refsInQuery } from '../knowledge/refs'
+import { refsInQuery } from '../search/refs'
 
 /**
  * Which of the index's matches a message gets at once: only `ref` hits when it names a ref
