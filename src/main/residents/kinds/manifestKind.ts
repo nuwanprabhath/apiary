@@ -5,7 +5,7 @@ import { MANIFEST_LIMITS, validateResidentKindManifest, type ResidentKindManifes
 import type { ResidentCapability, ResidentKind } from '../kindTypes'
 
 /** What every data kind's system prompt starts with, before the author's text. */
-function preamble(name: string): string {
+function dataKindPreamble(name: string): string {
   return [
     `You are ${name}, a resident agent living inside Apiary, defined by the user's own kind folder.`,
     'Use the Apiary tools you were given for their Claude Code sessions. Ask before anything that changes the machine or the outside world.',
@@ -40,7 +40,7 @@ export function manifestKind(m: ResidentKindManifest, promptText: string): Resid
     bins: {},
     instantMatches: false,
     setup: () => null,
-    systemPrompt: (name) => (ownPrompt === '' ? preamble(name) : `${preamble(name)}\n\n${ownPrompt}`),
+    systemPrompt: (name) => (ownPrompt === '' ? dataKindPreamble(name) : `${dataKindPreamble(name)}\n\n${ownPrompt}`),
   }
   if (m.cycle !== undefined) kind.cycle = { ...m.cycle }
   if (m.toolPolicy !== undefined) kind.toolPolicy = { disallowedTools: [...m.toolPolicy.disallowedTools] }

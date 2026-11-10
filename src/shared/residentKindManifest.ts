@@ -17,9 +17,9 @@ export const MANIFEST_CAPABILITIES = [
 ] as const
 export type ManifestCapability = (typeof MANIFEST_CAPABILITIES)[number]
 
-const GLYPHS = ['bee', 'honeypot'] as const satisfies readonly ResidentGlyph[]
-const PALETTES = ['gold', 'amber'] as const satisfies readonly ResidentPalette[]
-const ANIMATIONS = ['halo', 'stir'] as const satisfies readonly ResidentAnimation[]
+const KIND_GLYPHS = ['bee', 'honeypot'] as const satisfies readonly ResidentGlyph[]
+const KIND_PALETTES = ['gold', 'amber'] as const satisfies readonly ResidentPalette[]
+const KIND_ANIMATIONS = ['halo', 'stir'] as const satisfies readonly ResidentAnimation[]
 
 export const MANIFEST_LIMITS = { name: 40, blurb: 200, prompt: 20_000, doing: 40, label: 60, help: 200, key: 40, list: 20 } as const
 
@@ -42,47 +42,58 @@ export interface ResidentKindManifest {
 
 export type ManifestResult = { ok: true; manifest: ResidentKindManifest } | { ok: false; reasons: string[] }
 
-// eslint-disable-next-line no-control-regex -- strips control characters, which is the point
-const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f]/g
+/** Whether a character is kept: printable, or a newline or tab. */
+function keepsChar(ch: string): boolean {
+  const c = ch.charCodeAt(0)
+  return c === 9 || c === 10 || (c >= 32 && c !== 127)
+}
 
 /** Text with control characters removed (newline and tab kept), cut to `max`; anything not a string is `fallback`. */
-function text(v: unknown, max: number, fallback = ''): string {
-  return typeof v === 'string' ? v.replace(CONTROL, '').slice(0, max) : fallback
+function manifestText(v: unknown, max: number, fallback = ''): string {
+  return typeof v === 'string' ? [...v].filter(keepsChar).join('').slice(0, max) : fallback
 }
 
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v.slice(0, MANIFEST_LIMITS.list) : [])
 
 function optionFields(v: unknown): ManifestOptionField[] {
   return list(v).filter((f) => own(f, 'input') === 'text' && isResidentKindId(own(f, 'key'))).map((f) => ({
-    key: text(own(f, 'key'), MANIFEST_LIMITS.key),
-    label: text(own(f, 'label'), MANIFEST_LIMITS.label),
-    help: text(own(f, 'help'), MANIFEST_LIMITS.help),
+    key: manifestText(own(f, 'key'), MANIFEST_LIMITS.key),
+    label: manifestText(own(f, 'label'), MANIFEST_LIMITS.label),
+    help: manifestText(own(f, 'help'), MANIFEST_LIMITS.help),
     required: own(f, 'required') === true,
   }))
 }
 
 function quickActions(v: unknown): ManifestQuickAction[] {
   return list(v).filter((a) => own(own(a, 'run'), 'kind') === 'prompt' && isResidentKindId(own(a, 'id'))).map((a) => ({
-    id: text(own(a, 'id'), MANIFEST_LIMITS.key),
-    label: text(own(a, 'label'), MANIFEST_LIMITS.label),
-    doing: text(own(a, 'doing'), MANIFEST_LIMITS.doing),
-    text: text(own(own(a, 'run'), 'text'), MANIFEST_LIMITS.prompt),
+    id: manifestText(own(a, 'id'), MANIFEST_LIMITS.key),
+    label: manifestText(own(a, 'label'), MANIFEST_LIMITS.label),
+    doing: manifestText(own(a, 'doing'), MANIFEST_LIMITS.doing),
+    text: manifestText(own(own(a, 'run'), 'text'), MANIFEST_LIMITS.prompt),
   }))
 }
 
 function appearance(v: unknown): ResidentAppearance {
+  const glyph = own(v, 'glyph')
+  const palette = own(v, 'palette')
+  const animation = own(v, 'animation')
   return {
-    glyph: isOneOf(GLYPHS, own(v, 'glyph')) ? own(v, 'glyph') as ResidentGlyph : 'bee',
-    palette: isOneOf(PALETTES, own(v, 'palette')) ? own(v, 'palette') as ResidentPalette : 'gold',
-    animation: isOneOf(ANIMATIONS, own(v, 'animation')) ? own(v, 'animation') as ResidentAnimation : 'halo',
+    glyph: isOneOf(KIND_GLYPHS, glyph) ? glyph : 'bee',
+    palette: isOneOf(KIND_PALETTES, palette) ? palette : 'gold',
+    animation: isOneOf(KIND_ANIMATIONS, animation) ? animation : 'halo',
   }
 }
 
 function cycle(v: unknown, reasons: string[]): ResidentKindManifest['cycle'] {
   if (v === undefined) return undefined
   const every = own(v, 'everyMinutes')
-  if (!CYCLE_MINUTES.some((m) => m === every)) { reasons.push(`cycle.everyMinutes must be one of ${CYCLE_MINUTES.join(', ')}`); return undefined }
-  return { everyMinutes: every as number, prompt: text(own(v, 'prompt'), MANIFEST_LIMITS.prompt), doing: text(own(v, 'doing'), MANIFEST_LIMITS.doing, 'Checking') }
+  const minutes = CYCLE_MINUTES.find((m) => m === every)
+  if (minutes === undefined) { reasons.push(`cycle.everyMinutes must be one of ${CYCLE_MINUTES.join(', ')}`); return undefined }
+  return {
+    everyMinutes: minutes,
+    prompt: manifestText(own(v, 'prompt'), MANIFEST_LIMITS.prompt),
+    doing: manifestText(own(v, 'doing'), MANIFEST_LIMITS.doing, 'Checking'),
+  }
 }
 
 /**
@@ -92,26 +103,28 @@ function cycle(v: unknown, reasons: string[]): ResidentKindManifest['cycle'] {
  */
 export function validateResidentKindManifest(raw: unknown, reserved: ReadonlySet<string>): ManifestResult {
   if (!isRecord(raw)) return { ok: false, reasons: ['kind.json is not a JSON object'] }
-  const reasons: string[] = []
   const id = own(raw, 'id')
-  if (!isResidentKindId(id)) reasons.push('id must be lower-case letters, digits and -, at most 40 characters')
-  else if (reserved.has(id)) reasons.push(`id ${id} is a built-in kind`)
+  if (!isResidentKindId(id)) return { ok: false, reasons: ['id must be lower-case letters, digits and -, at most 40 characters'] }
+  if (reserved.has(id)) return { ok: false, reasons: [`id ${id} is a built-in kind`] }
+  const reasons: string[] = []
   const caps = list(own(raw, 'capabilities')).filter((c): c is ManifestCapability => isOneOf(MANIFEST_CAPABILITIES, c))
   const disallowed = own(own(raw, 'toolPolicy'), 'disallowedTools')
   const manifest: ResidentKindManifest = {
-    id: id as ResidentKindId,
-    name: text(own(raw, 'name'), MANIFEST_LIMITS.name) || (typeof id === 'string' ? id.slice(0, MANIFEST_LIMITS.name) : ''),
-    blurb: text(own(raw, 'blurb'), MANIFEST_LIMITS.blurb),
+    id,
+    name: manifestText(own(raw, 'name'), MANIFEST_LIMITS.name) || id,
+    blurb: manifestText(own(raw, 'blurb'), MANIFEST_LIMITS.blurb),
     appearance: appearance(own(raw, 'appearance')),
     capabilities: [...new Set(caps)],
     optionFields: optionFields(own(raw, 'optionFields')),
     quickActions: quickActions(own(raw, 'quickActions')),
-    prompt: text(own(raw, 'prompt'), MANIFEST_LIMITS.prompt),
+    prompt: manifestText(own(raw, 'prompt'), MANIFEST_LIMITS.prompt),
   }
   const c = cycle(own(raw, 'cycle'), reasons)
   if (c !== undefined) manifest.cycle = c
   if (Array.isArray(disallowed)) {
-    manifest.toolPolicy = { disallowedTools: list(disallowed).filter((t): t is string => typeof t === 'string').map((t) => text(t, MANIFEST_LIMITS.label)) }
+    manifest.toolPolicy = {
+      disallowedTools: list(disallowed).filter((t): t is string => typeof t === 'string').map((t) => manifestText(t, MANIFEST_LIMITS.label)),
+    }
   }
   return reasons.length > 0 ? { ok: false, reasons } : { ok: true, manifest }
 }
