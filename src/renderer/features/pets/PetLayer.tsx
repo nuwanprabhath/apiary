@@ -10,7 +10,7 @@ import { SceneryLayer } from './SceneryLayer'
 import { PetChat } from './PetChat'
 import { PetFigure } from './PetFigure'
 import { useHabitat } from './useHabitat'
-import { usePetBrain, type Pose } from './usePetBrain'
+import { usePetBrain } from './usePetBrain'
 import { usePetInteraction } from './usePetInteraction'
 
 interface Props {
@@ -68,13 +68,13 @@ function PetWorld({ state, pets: own, habitat, tabs, titleOf, onOpenSettings }: 
   const { held, menu, setMenu, chat, setChat, menuItems, handlers } = usePetInteraction({ pets, habitat, brain, poses, setPoses, onOpenSettings })
 
   const chatPet = chat !== null ? pets.find((p) => p.id === chat) : undefined
-  const chatPose = chatPet !== undefined ? poses[chatPet.id] as Pose | undefined : undefined
+  const chatPose = chatPet !== undefined ? poses[chatPet.id] : undefined
 
   return (
     <div className="pet-layer" data-testid="pet-layer">
       <SceneryLayer habitat={habitat} items={scenery} size={pets.reduce((a, p) => a + p.size, 0) / pets.length} />
       {pets.map((pet) => {
-        const pose = poses[pet.id] as Pose | undefined
+        const pose = poses[pet.id]
         if (pose === undefined) return null
         return <PetFigure key={pet.id} pet={pet} pose={pose} habitat={habitat} held={held === pet.id} handlers={handlers} />
       })}

@@ -80,7 +80,7 @@ export function usePetBrain(
     setPoses((prev) => {
       const next = { ...prev }
       for (const c of cmds) {
-        const cur = prev[c.id] as Pose | undefined
+        const cur = prev[c.id]
         const place = c.to ?? cur?.place
         if (place === undefined) continue
         next[c.id] = {
@@ -167,7 +167,7 @@ export function usePetBrain(
     setPoses((prev) => {
       const next: Record<string, Pose> = {}
       for (const bp of list) {
-        const cur = prev[bp.id] as Pose | undefined
+        const cur = prev[bp.id]
         next[bp.id] = cur !== undefined ? { ...cur, place: normalisePlace(habitat, cur.place, 0) } : { activity: 'idle', face: 'happy', facing: 'right', place: bp.place, ms: 0, say: null }
       }
       return next

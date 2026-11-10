@@ -4,21 +4,29 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.34] - 2026-11-11
+## [1.60.35] - 2026-11-11
+
+### Changed
+
+- Internal: TypeScript now checks every indexed read (`noUncheckedIndexedAccess`), so code that
+  assumes a list item or map entry exists must prove it. About 1,500 sites across the app and its
+  tests were made to check, without changing behaviour. Tests share one `must` helper.
+
+## [1.60.34] - 2026-11-11 (not released; shipped in 1.60.35)
 
 ### Fixed
 
 - A session file that starts with a byte order mark keeps its first message in the transcript and
   in topic digests; the mark made that line unreadable.
 
-## [1.60.33] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.33] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Changed
 
 - Claude Code session files are read through one decoder, so a change in Claude Code's file format
   shows up in one place instead of silently in six.
 
-## [1.60.32] - 2026-11-11 (not released; shipped in 1.60.x)
+## [1.60.32] - 2026-11-11 (not released; shipped in 1.60.35)
 
 ### Fixed
 
@@ -26,7 +34,7 @@ All notable changes to Apiary are documented here. Format follows
   indexing is done. Since 1.60.7 the sidebar kept the empty answer, because the refreshed session
   tree came back unchanged and the search was never asked again (never released).
 
-## [1.60.31] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.31] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Changed
 
@@ -37,14 +45,14 @@ All notable changes to Apiary are documented here. Format follows
   back as you scroll down. The app's internal message contract changed, so remote access refuses
   to pair two machines on different versions.
 
-## [1.60.30] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.30] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Changed
 
 - Internal: an enforced table of which main-process folders may import which, and two misplaced
   modules moved to the folders that own them. No visible change.
 
-## [1.60.29] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.29] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Fixed
 
@@ -52,7 +60,7 @@ All notable changes to Apiary are documented here. Format follows
   instead of your login shell, the resident badge test waits for the badge to settle before hovering
   it, and two tests that do seconds of real work have timeouts that fit it.
 
-## [1.60.28] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.28] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Security
 
@@ -60,7 +68,7 @@ All notable changes to Apiary are documented here. Format follows
   is unsigned or altered, or whose version or installer checksums differ from the signed feed, is
   refused with "This update could not be verified".
 
-## [1.60.27] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.27] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Added
 
@@ -70,7 +78,7 @@ All notable changes to Apiary are documented here. Format follows
   asks before using a tool by default. Apiary reads them at start-up and logs any folder it refuses,
   with the reason.
 
-## [1.60.26] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.26] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Changed
 
@@ -78,7 +86,7 @@ All notable changes to Apiary are documented here. Format follows
   rest of the app stays responsive. The app's internal message contract changed, so remote access
   refuses to pair two machines on different versions.
 
-## [1.60.25] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.25] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Security
 
@@ -90,7 +98,7 @@ All notable changes to Apiary are documented here. Format follows
 - Settings → Residents: "Let residents read sessions from your other Claude accounts", off by
   default and shown only when you have more than one account.
 
-## [1.60.24] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.24] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Changed
 
@@ -98,7 +106,7 @@ All notable changes to Apiary are documented here. Format follows
   so many open tabs no longer each re-read their file about once a second. The app's internal
   message contract changed, so remote access refuses to pair two machines on different versions.
 
-## [1.60.23] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.23] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Fixed
 
@@ -106,7 +114,7 @@ All notable changes to Apiary are documented here. Format follows
   shell that loads your shell start-up files, and the tests that walk the repository or run real git
   have timeouts that fit the work they do.
 
-## [1.60.22] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.22] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Security
 
@@ -114,14 +122,14 @@ All notable changes to Apiary are documented here. Format follows
   card you must allow, built from what Apiary itself read from GitLab, and text other people wrote
   in merge requests is given to it as data, never as instructions.
 
-## [1.60.21] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.21] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Added
 
 - A "UI diff" check on pull requests and pushes to `main` compares the UI screenshots with the
   parent commit and lists the states that look different. It reports and never fails a build.
 
-## [1.60.20] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.20] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Fixed
 
@@ -133,28 +141,28 @@ All notable changes to Apiary are documented here. Format follows
 - While a session is being written, Apiary re-indexes only that session for search, at most every
   five seconds, instead of checking every stored session about once a second.
 
-## [1.60.19] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.19] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Fixed
 
 - Search finds words from the newest part of a long session, not only its first 2 MB, and indexes
   only what a session added since the last pass. The search index rebuilds once after this update.
 
-## [1.60.18] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.18] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Added
 
 - A nightly CI run of the unit and integration tests at UTC+14, at UTC-3:30 and just before a new
   year, so date and time-zone mistakes show up; failures go to one issue.
 
-## [1.60.17] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.17] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Added
 
 - A nightly CI run of the component and integration tests on a CPU throttled to 60%, with no
   retries, so a test that only passes on a fast machine shows up; failures go to one issue.
 
-## [1.60.16] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.16] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Changed
 
@@ -162,7 +170,7 @@ All notable changes to Apiary are documented here. Format follows
   that passed only on retry, per system, closes it when a run is clean, and keeps a trace and video
   of each failed test.
 
-## [1.60.15] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.15] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Fixed
 
@@ -171,14 +179,14 @@ All notable changes to Apiary are documented here. Format follows
   once the connection catches up), rejects malformed messages from the work machine, and limits one
   connection to 32 windows.
 
-## [1.60.14] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.14] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Changed
 
 - A Dependabot pull request also gets the full end-to-end suite on Linux and macOS, and the result
   shows on the pull request as a status.
 
-## [1.60.13] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.13] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Fixed
 
@@ -189,21 +197,21 @@ All notable changes to Apiary are documented here. Format follows
 
 - Scanning a folder of many sessions reads them several at a time, in a stable order.
 
-## [1.60.12] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.12] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Changed
 
 - Opening a long conversation reads it in bounded pieces (at most 16 MB a page) and skips an
   oversized pasted blob by its length instead of loading it into memory.
 
-## [1.60.11] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.11] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Changed
 
 - Resident kinds come from one registry. A saved resident of a kind this build does not know is
   skipped with a log line and kept in your settings, so a newer Apiary can still run it.
 
-## [1.60.10] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.10] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Fixed
 
@@ -213,7 +221,7 @@ All notable changes to Apiary are documented here. Format follows
 - A message sent to a terminal that has just exited reports an error and keeps your text, instead
   of being dropped.
 
-## [1.60.9] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.9] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Added
 
@@ -221,20 +229,20 @@ All notable changes to Apiary are documented here. Format follows
   tagging, watching the release run (retrying a failed download) and checking its six files. It
   asks before it pushes.
 
-## [1.60.8] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.8] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Security
 
 - Only Apiary's own window may talk to the app: the check now requires the exact renderer file Apiary
   ships, not any file named `renderer/index.html`.
 
-## [1.60.7] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.7] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Changed
 
 - The sidebar no longer redraws session rows that did not change when the session list refreshes.
 
-## [1.60.6] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.6] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Fixed
 
@@ -242,14 +250,14 @@ All notable changes to Apiary are documented here. Format follows
   newest three kept) before Apiary replaces it with defaults, and the remote pairing file is
   readable only by you.
 
-## [1.60.5] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.5] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Fixed
 
 - A terminal no longer loses its session for a moment, and its tab its title, when Claude Code is
   midway through rewriting its session file; reading that file no longer blocks the app either.
 
-## [1.60.4] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.4] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Added
 
@@ -257,7 +265,7 @@ All notable changes to Apiary are documented here. Format follows
   and times refresh passes, the sidebar tree, search indexing and transcript pages, so performance
   changes quote before and after numbers.
 
-## [1.60.3] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.3] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Added
 
@@ -265,7 +273,7 @@ All notable changes to Apiary are documented here. Format follows
   order mark, a missing last newline and more) that every Apiary reader of session files is tested
   against.
 
-## [1.60.2] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.2] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Fixed
 
@@ -273,14 +281,14 @@ All notable changes to Apiary are documented here. Format follows
   returns fewer bytes than asked, and every reader of session files keeps to the same line-size
   limit.
 
-## [1.60.1] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.1] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Changed
 
 - The session database carries a schema version, so its upgrades run once and in order, and it
   waits up to two seconds for a locked database instead of failing at once.
 
-## [1.60.0] - 2026-11-10 (not released; shipped in 1.60.x)
+## [1.60.0] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Changed
 
@@ -288,7 +296,7 @@ All notable changes to Apiary are documented here. Format follows
   retries once when a binary download fails with a server error, instead of failing the run on a
   passing GitHub outage.
 
-## [1.59.17] - 2026-11-10 (not released; shipped in 1.60.0)
+## [1.59.17] - 2026-11-10 (not released; shipped in 1.60.35)
 
 ### Added
 

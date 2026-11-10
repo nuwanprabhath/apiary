@@ -26,7 +26,7 @@ function rowsOf(preset: PresetId): number[][] {
 const allRailed = (row: number[], railed: (z: number) => boolean): boolean => row.every(railed)
 
 export function railState(layout: Panes, index: number): RailState {
-  const pane = layout.panes[index] as Column | undefined
+  const pane = layout.panes[index]
   if (pane === undefined || !canRail(layout.preset, index)) return 'none'
   if (pane.rail === true) return 'rail'
   const after = (z: number): boolean => z === index || layout.panes[z]?.rail === true

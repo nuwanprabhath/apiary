@@ -317,7 +317,7 @@ export function latestTurn(messages: TranscriptMessage[]): { durationMs: number 
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
     if (m === undefined) continue
-    const block = m.blocks[0] as TranscriptMessage['blocks'][number] | undefined
+    const block = m.blocks[0]
     if (block?.type === 'recap') { recap ??= block.text; continue }
     if (block?.type === 'turn_end') { durationMs = block.durationMs; endedAtMs = m.timestampMs; break }
     if (m.role === 'user' && m.blocks.some((b) => b.type === 'text' && !b.text.startsWith('<'))) break
