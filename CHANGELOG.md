@@ -4,7 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.11] - 2026-11-10
+## [1.60.12] - 2026-11-10
+
+### Changed
+
+- Opening a long conversation reads it in bounded pieces (at most 16 MB a page) and skips an
+  oversized pasted blob by its length instead of loading it into memory.
+
+## [1.60.11] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Changed
 
