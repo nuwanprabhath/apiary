@@ -68,21 +68,21 @@ export function sessionsHandlers(deps: SessionsDeps): Pick<Handlers, HandledKeys
         fireAndForget(renameInClaude(renameDeps(), id, title), 'rename') // the Apiary rename already succeeded; a failure here is only logged
       }
       // Nothing on disk changed, so the filesystem watcher never fires: push its "tree changed" signal.
-      broadcast(IPC.treeChanged)
+      broadcast(IPC.treeChanged, { sessions: [id] })
     },
     removeSession: async (_e, id) => {
       await service.removeSession(id)
-      broadcast(IPC.treeChanged)
+      broadcast(IPC.treeChanged, { sessions: [id] })
     },
     moveSession: async (_e, id, targetPath) => {
       await service.moveSession(id, targetPath)
       await service.refresh()
-      broadcast(IPC.treeChanged)
+      broadcast(IPC.treeChanged, { sessions: null })
     },
     setSessionNote: async (_e, id, note) => {
       await service.setSessionNote(id, note)
       // The note shows in the hover card and changes what searches match.
-      broadcast(IPC.treeChanged)
+      broadcast(IPC.treeChanged, { sessions: [id] })
     },
     sessionNote: (_e, id) => service.sessionNote(id),
     searchRebuild: async () => { await service.rebuildSearchIndex() },

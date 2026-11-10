@@ -211,7 +211,7 @@ function setAutoImportInterval(intervalMinutes: number | null): void {
   const scheduleNextRefresh = (): void => {
     autoImportTimer = setTimeout(() => {
       // Every window, so a background window's sidebar is not stale.
-      const refresh = service?.refresh().then(() => broadcast(IPC.treeChanged))
+      const refresh = service?.refresh().then(() => broadcast(IPC.treeChanged, { sessions: null }))
       if (refresh) fireAndForget(refresh, 'auto-import')
       scheduleNextRefresh()
     }, intervalMinutes * 60 * 1000)
@@ -353,7 +353,7 @@ async function start(): Promise<void> {
     buildMenu(
       () => sendEvent(windowManager?.front()?.webContents, IPC.openImportDialog),
       () => {
-        const refresh = service?.refresh().then(() => broadcast(IPC.treeChanged))
+        const refresh = service?.refresh().then(() => broadcast(IPC.treeChanged, { sessions: null }))
         if (refresh) fireAndForget(refresh, 'rescan')
       },
       () => sendEvent(windowManager?.front()?.webContents, IPC.openSettingsDialog),

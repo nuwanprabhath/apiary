@@ -2,11 +2,31 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import type { TranscriptMessage, TranscriptPage } from '@shared/types'
 import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
+import type { SessionId } from '@shared/domain/ids'
 import { renderApp } from './renderApp'
 import { FIXTURE_SESSIONS, message, type FakeSession } from './fakeApiary'
-import { sidebarSession, stays, until } from './helpers'
+import { clickRowAction, sidebarSession, stays, until } from './helpers'
 
 describe('transcript', () => {
+  it('a tree change naming one session refreshes only that session\'s open transcript', async () => {
+    const { fake } = await renderApp()
+    const idOf = (title: string): SessionId => FIXTURE_SESSIONS.find((s) => s.title === title)!.sessionId as SessionId
+    const a = idOf('Fix CSV export bug')
+    const b = idOf('Add worktree switcher')
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await clickRowAction('Add worktree switcher', 'split-session-button')
+    await until(() => document.querySelectorAll('[data-testid="transcript"]').length === 2)
+    await until(() => fake.callsTo('transcript').some((c) => c[0] === b))
+    const refreshesOf = (id: string): number =>
+      [...fake.callsTo('transcript'), ...fake.callsTo('transcriptAfter')].filter((c) => c[0] === id).length
+    const before = { a: refreshesOf(a), b: refreshesOf(b) }
+    fake.emit('treeChanged', { sessions: [a] })
+    await until(() => refreshesOf(a) > before.a)
+    await stays(() => refreshesOf(b) === before.b, 300, 'session B is not refreshed')
+    fake.emit('treeChanged', { sessions: null })
+    await until(() => refreshesOf(b) > before.b)
+  })
+
   it('renders the conversation for the selected session', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))

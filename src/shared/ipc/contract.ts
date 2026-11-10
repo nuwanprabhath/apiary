@@ -27,7 +27,7 @@ import type {
 } from '../domain/git'
 import { isGitTarget, isWorktreeCreateRequest, type GitTarget } from '../domain/git'
 import type {
-  ProjectNode, DiscoveredSession, ResumeConflict, NewSessionInfo,
+  ProjectNode, DiscoveredSession, ResumeConflict, NewSessionInfo, TreeChange,
 } from '../domain/session'
 import type { TranscriptPage } from '../domain/transcript'
 import type { BackgroundTaskOutput } from '../chatTimeline'
@@ -154,7 +154,7 @@ export const IPC = {
   newSessionInBrowsedFolder: invoke<[id: string], NewSessionInfo>('apiary:new-session-in-browsed-folder', tuple(str)),
   forkSession: invoke<[sessionId: SessionId], NewSessionInfo>('apiary:fork-session', tuple(sessionIdArg)),
   newSessionStarted: event<[info: NewSessionInfo]>('apiary:new-session-started'),
-  treeChanged: event('apiary:tree-changed'),
+  treeChanged: event<[change?: TreeChange]>('apiary:tree-changed'),
   openImportDialog: event('apiary:open-import-dialog'),
   setSessionNote: invoke<[sessionId: SessionId, note: string], void>('apiary:set-session-note', tuple(sessionIdArg, str)),
   sessionNote: invoke<[sessionId: SessionId], string>('apiary:session-note', tuple(sessionIdArg)),

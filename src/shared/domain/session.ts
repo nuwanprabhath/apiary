@@ -1,5 +1,5 @@
 /** Session and project-tree types shared by main (the source of truth) and the renderer (the sidebar). */
-import type { PtyId, SessionId } from './ids'
+import { asSessionId, UUID_RE, type PtyId, type SessionId } from './ids'
 
 /** Metadata extracted from a session JSONL without parsing the whole file. */
 export interface SessionMeta {
@@ -80,3 +80,33 @@ export interface NewSessionInfo {
  * one `/clear` started), instead of a raw session id.
  */
 export const UNTITLED_SESSION = 'New session'
+
+/**
+ * What a `treeChanged` says changed. `sessions: null` means unknown: every listener treats it as
+ * "everything". A missing payload means the same as `null`.
+ */
+export interface TreeChange {
+  sessions: SessionId[] | null
+}
+
+/** Whether `change` may concern `sessionId` (an unknown or missing change concerns every session). */
+export function treeChangeConcerns(change: TreeChange | undefined, sessionId: SessionId): boolean {
+  const sessions = change?.sessions ?? null
+  return sessions === null || sessions.includes(sessionId)
+}
+
+/**
+ * The sessions whose transcript files are `paths`: a session file is `<uuid>.jsonl`. Any other
+ * file (a subagent's, a stray one) cannot be pinned to a session here, so the change is unknown.
+ */
+export function treeChangeOfPaths(paths: readonly string[]): TreeChange {
+  const sessions: SessionId[] = []
+  for (const p of paths) {
+    const name = p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1)
+    if (!name.endsWith('.jsonl')) return { sessions: null }
+    const id = name.slice(0, -'.jsonl'.length)
+    if (!UUID_RE.test(id)) return { sessions: null }
+    sessions.push(asSessionId(id))
+  }
+  return { sessions }
+}

@@ -1,4 +1,5 @@
 import type { ProjectNode, SessionNode } from '@shared/types'
+import type { TreeChange } from '@shared/domain/session'
 import { flattenTree } from '@shared/treeWalk'
 import { createIpcStore } from './createIpcStore'
 import { onRemoteReconnected } from './remote'
@@ -24,6 +25,13 @@ import { shareTree } from './treeShare'
 /** Invalidated by: nothing; it only ever holds the newest fetched tree, which the next fetch shares nodes with. */
 let lastFetched: ProjectNode[] = []
 
+const UNKNOWN: TreeChange = { sessions: null }
+/**
+ * The change the store is invalidating for. Its listeners run synchronously inside `invalidate`,
+ * so each reads the change it was called for. Invalidated by: the next change signal.
+ */
+let lastChange: TreeChange = UNKNOWN
+
 const store = createIpcStore<ProjectNode[]>({
   scope: 'refresh',
   initial: [],
@@ -35,7 +43,11 @@ const store = createIpcStore<ProjectNode[]>({
   },
   // A reconnected remote window missed changes while it was away: ask again.
   subscribe: (_push, invalidate) => {
-    const off = [window.apiary.onTreeChanged(invalidate), onRemoteReconnected(invalidate)]
+    const heard = (change: TreeChange): void => { lastChange = change; invalidate() }
+    const off = [
+      window.apiary.onTreeChanged((change) => { heard(change ?? UNKNOWN) }),
+      onRemoteReconnected(() => { heard(UNKNOWN) }),
+    ]
     return () => { for (const f of off) f() }
   },
 })
@@ -60,8 +72,11 @@ export const treeStore = {
   reload: store.reload,
   /** A fresh fetch, resolved with its answer. */
   reloadNow: store.refresh,
-  /** Runs `cb` on every `treeChanged`, after the store has started its own re-fetch. */
-  onChanged: store.onInvalidate,
+  /**
+   * Runs `cb` on every `treeChanged`, after the store has started its own re-fetch, with what
+   * changed (`sessions: null` when unknown, or after a remote reconnect).
+   */
+  onChanged: (cb: (change: TreeChange) => void): (() => void) => store.onInvalidate(() => { cb(lastChange) }),
   /** A session by id, at any depth, from the most recently fetched tree. */
   findSessionById: (id: string): SessionNode | null => byIdMap().get(id) ?? null,
   /** The full, unfiltered tree in a component; `[]` until the first answer. */
