@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -64,8 +65,8 @@ function rig(over: Partial<HostDirectoryDeps> & { sshConfig?: string; probe?: (h
     tailscaleClis: over.tailscaleClis ?? TAILSCALE_PATHS,
     probeExec: over.probeExec ?? ((_f, args) => {
       const host = args[args.indexOf('--') + 1]
-      probes.push(host)
-      return over.probe !== undefined ? over.probe(host) : Promise.resolve('ready\n')
+      probes.push(must(host))
+      return over.probe !== undefined ? over.probe(must(host)) : Promise.resolve('ready\n')
     }),
     sshConfig: undefined,
     now: () => Date.now(),
@@ -135,7 +136,7 @@ describe('what a probe finds', () => {
       f: () => Promise.reject(new Error('dev@f: Permission denied (publickey).')),
       g: () => Promise.reject(new Error('tailscale: tailnet policy does not permit you to SSH as user "nuwan"')),
     }
-    const r = rig({ sshConfig: 'Host a b c d e f g\n', probe: (h) => answers[h]() })
+    const r = rig({ sshConfig: 'Host a b c d e f g\n', probe: (h) => must(answers[h])() })
     const changed = vi.fn()
     r.dir.subscribe(changed)
     expect((await r.dir.hosts(true)).every((h) => h.status === 'unknown')).toBe(true)
@@ -157,12 +158,12 @@ describe('what a probe finds', () => {
     const r = rig({ sshConfig: 'Host a\n', probeExec: (_f, args) => { seen.push(args); return Promise.resolve('ready') } })
     await r.dir.hosts(true)
     await vi.waitFor(() => { expect(seen.length).toBe(1) })
-    const args = seen[0].join(' ')
+    const args = must(seen[0]).join(' ')
     expect(args).toContain('BatchMode=yes')
     expect(args).toContain('StrictHostKeyChecking=yes')
     expect(args).toContain('ConnectTimeout=3')
     // One fixed `sh -c` word: nothing a person typed is in it, and the host stays after `--`.
-    const tail = seen[0].slice(seen[0].indexOf('--'))
+    const tail = must(seen[0]).slice(must(seen[0]).indexOf('--'))
     expect(tail.slice(0, 2)).toEqual(['--', 'a'])
     expect(tail).toHaveLength(3)
     expect(tail[2]).toMatch(/^sh -c '[^']*'$/)

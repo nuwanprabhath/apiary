@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import { buildPersistedLayout, type LayoutLike } from '@shared/layoutReport'
 
@@ -41,8 +42,8 @@ describe('buildPersistedLayout', () => {
     const ptyOverrides = new Map([['new:uuid-1', 'new:uuid-1']])
 
     const result = buildPersistedLayout(layout, shellTabs, activeTerminal, ptyOverrides)
-    expect(result.panes[0].tabs[0].shells).toEqual([{ id: 'shell:new:uuid-1:1', name: 'bash' }])
-    expect(result.panes[0].tabs[0].activeShell).toBe('shell:new:uuid-1:1')
+    expect(must(must(result.panes[0]).tabs[0]).shells).toEqual([{ id: 'shell:new:uuid-1:1', name: 'bash' }])
+    expect(must(must(result.panes[0]).tabs[0]).activeShell).toBe('shell:new:uuid-1:1')
   })
 
   it('defaults shells to an empty array and activeShell to null when nothing is known for the key', () => {
@@ -51,7 +52,7 @@ describe('buildPersistedLayout', () => {
       panes: [{ id: 'col-1', activeKey: 'sess-1', tabs: [{ key: 'sess-1', view: 'transcript' }] }],
     }
     const result = buildPersistedLayout(layout, new Map(), new Map(), new Map())
-    expect(result.panes[0].tabs[0]).toEqual({
+    expect(must(result.panes[0]).tabs[0]).toEqual({
       key: 'sess-1', view: 'transcript', shells: [], activeShell: null,
     })
   })

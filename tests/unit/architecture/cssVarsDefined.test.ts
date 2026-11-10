@@ -1,3 +1,4 @@
+import { must } from '../support/must'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -17,9 +18,9 @@ const css = files(join(SRC, 'renderer'), /\.css$/).map((f) => ({ f, text: readFi
 
 /** Every custom property something defines: a stylesheet declaration, a theme, or code that sets one by name. */
 const defined = new Set<string>([
-  ...css.flatMap(({ text }) => [...text.matchAll(/(?:^|[;{\s])(--[A-Za-z0-9-]+)\s*:/g)].map((m) => m[1])),
+  ...css.flatMap(({ text }) => [...text.matchAll(/(?:^|[;{\s])(--[A-Za-z0-9-]+)\s*:/g)].flatMap((m) => m[1] ?? [])),
   ...BUILTIN_THEMES.flatMap((b) => Object.keys(themeToCssVars(b.spec))),
-  ...files(SRC, /\.tsx?$/).flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/['"`](--[A-Za-z0-9-]+)/g)].map((m) => m[1])),
+  ...files(SRC, /\.tsx?$/).flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/['"`](--[A-Za-z0-9-]+)/g)].flatMap((m) => m[1] ?? [])),
 ])
 
 // A `var()` naming nothing resolves to its fallback or to nothing: 1.37.0's folder browser used
@@ -34,7 +35,7 @@ describe('every CSS variable a stylesheet uses is defined', () => {
   })
 
   it('names only defined variables', () => {
-    const missing = uses.filter((u) => !defined.has(u.name)).map((u) => `src/${u.file}:${String(u.line)} ${u.name}`)
+    const missing = uses.filter((u) => !defined.has(must(u.name))).map((u) => `src/${u.file}:${String(u.line)} ${u.name}`)
     expect(missing, 'Undefined CSS variables. Use a token from src/renderer/styles/00-tokens.css (for dimmed text, --muted; for body text, --text), or define it there.').toEqual([])
   })
 })

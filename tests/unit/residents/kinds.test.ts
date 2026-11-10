@@ -1,3 +1,4 @@
+import { must } from '../support/must'
 import { describe, it, expect } from 'vitest'
 import { MR_DESK_KIND, REGENT_KIND, SESSION_LINK_PREFIX } from '@shared/domain/residents'
 import { builtinKinds, kindInfos, kindOf, newResident, KindRegistry } from '../../../src/main/residents/kinds'
@@ -10,7 +11,9 @@ describe('the kind registry', () => {
 
   it('registers, gets and lists kinds; refuses a repeat and an unknown id', () => {
     const reg = new KindRegistry()
-    const [a, b] = builtinKinds(UNWIRED_KIND_DEPS)
+    const [first, second] = builtinKinds(UNWIRED_KIND_DEPS)
+    const a = must(first)
+    const b = must(second)
     reg.register(a)
     reg.register(b)
     expect(reg.all().map((k) => k.id)).toEqual([a.id, b.id])

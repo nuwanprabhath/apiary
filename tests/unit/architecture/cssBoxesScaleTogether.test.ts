@@ -1,3 +1,4 @@
+import { must } from '../support/must'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -14,11 +15,11 @@ function mismatches(): string[] {
   for (const file of readdirSync(STYLES).filter((f) => f.endsWith('.css'))) {
     const text = readFileSync(join(STYLES, file), 'utf8')
     for (const m of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-      const decl = (prop: string): string | undefined => new RegExp(`(?:^|[;\\s])${prop}\\s*:\\s*([^;]+)`).exec(m[2])?.[1]
+      const decl = (prop: string): string | undefined => new RegExp(`(?:^|[;\\s])${prop}\\s*:\\s*([^;]+)`).exec(must(m[2]))?.[1]
       const width = decl('width'), height = decl('height')
       if (width === undefined || height === undefined) continue
       const bad = (SCALES.test(width) && FIXED_PX.test(height)) || (SCALES.test(height) && FIXED_PX.test(width))
-      if (bad) out.push(`src/renderer/styles/${file}: ${m[1].trim().split('\n').at(-1)?.trim() ?? ''} { width: ${width.trim()}; height: ${height.trim()} }`)
+      if (bad) out.push(`src/renderer/styles/${file}: ${must(m[1]).trim().split('\n').at(-1)?.trim() ?? ''} { width: ${width.trim()}; height: ${height.trim()} }`)
     }
   }
   return out

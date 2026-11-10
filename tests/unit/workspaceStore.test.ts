@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect, vi } from 'vitest'
 import type { SessionNode } from '@shared/types'
@@ -27,15 +28,15 @@ describe('createWorkspaceStore', () => {
     expect(store.getState()).toBe(before)
     store.dispatch({ type: 'session/open', session: session('a'), split: false })
     expect(store.getState()).not.toBe(before)
-    expect(store.getState().layout.panes[0].tabs.map((t) => t.key)).toEqual(['a'])
+    expect(must(store.getState().layout.panes[0]).tabs.map((t) => t.key)).toEqual(['a'])
   })
 
   it('applies dispatches in call order, each to the state the last one left', () => {
     const store = createWorkspaceStore(empty())
     store.dispatch({ type: 'session/open', session: session('a'), split: false })
     store.dispatch({ type: 'session/open', session: session('b'), split: false })
-    store.dispatch({ type: 'tab/close', columnId: store.getState().layout.panes[0].id, key: 'a' })
-    expect(store.getState().layout.panes[0].tabs.map((t) => t.key)).toEqual(['b'])
+    store.dispatch({ type: 'tab/close', columnId: must(store.getState().layout.panes[0]).id, key: 'a' })
+    expect(must(store.getState().layout.panes[0]).tabs.map((t) => t.key)).toEqual(['b'])
   })
 
   it('tells listeners once per change and not at all for a no-op', () => {
@@ -45,7 +46,7 @@ describe('createWorkspaceStore', () => {
     store.dispatch({ type: 'session/open', session: session('a'), split: false })
     expect(listener).toHaveBeenCalledTimes(1)
     // Focusing the pane that already has focus returns the same state.
-    store.dispatch({ type: 'column/focus', columnId: store.getState().layout.panes[0].id })
+    store.dispatch({ type: 'column/focus', columnId: must(store.getState().layout.panes[0]).id })
     expect(listener).toHaveBeenCalledTimes(1)
   })
 

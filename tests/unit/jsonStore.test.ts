@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, chmodSync, mkdirSync, statSync } from 'node:fs'
 import type * as Fs from 'node:fs'
@@ -51,7 +52,7 @@ describe('JsonStore', () => {
     store.save({ items: ['a', 'b'], note: 'hi' })
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ version: 2, items: ['a', 'b'], note: 'hi' })
     expect(open().load()).toEqual({ items: ['a', 'b'], note: 'hi' })
-    expect(seen[0].from).toBe(2)
+    expect(must(seen[0]).from).toBe(2)
   })
 
   it('leaves no temp file behind, and fsyncs the temp file before renaming it into place', () => {
@@ -99,14 +100,14 @@ describe('JsonStore', () => {
     mkdirSync(join(dir, 'nested'))
     writeFileSync(file, JSON.stringify({ version: 1, title: 'from v1' }))
     expect(open(2).load()).toEqual({ items: [], note: 'from v1' })
-    expect(seen[0].from).toBe(1)
+    expect(must(seen[0]).from).toBe(1)
   })
 
   it('hands a file with no version to parse as undefined (written before versions existed)', () => {
     mkdirSync(join(dir, 'nested'))
     writeFileSync(file, JSON.stringify({ items: ['x'], note: 'n' }))
     expect(open().load().items).toEqual(['x'])
-    expect(seen[0].from).toBeUndefined()
+    expect(must(seen[0]).from).toBeUndefined()
   })
 
   it('reads and writes the version under a custom key', () => {
@@ -132,7 +133,7 @@ describe('JsonStore', () => {
 
     it('is still read, best effort, with its version passed to parse', () => {
       expect(open(2).load().items).toEqual(['from the future'])
-      expect(seen[0].from).toBe(5)
+      expect(must(seen[0]).from).toBe(5)
     })
 
     it('is copied to <file>.v<N>.bak before the first write replaces it, so nothing is lost', () => {
@@ -185,11 +186,11 @@ describe('a corrupt file', () => {
     store.save({ items: [], note: 'x' })
     const [copy] = corrupt()
     expect(corrupt()).toHaveLength(1)
-    expect(readFileSync(join(dir, 'nested', copy), 'utf8')).toBe('{"a":')
+    expect(readFileSync(join(dir, 'nested', must(copy)), 'utf8')).toBe('{"a":')
     writeFileSync(file, '{"b":')
     store.load()
     store.save({ items: [], note: 'y' })
-    expect(readFileSync(join(dir, 'nested', copy), 'utf8')).toBe('{"a":')
+    expect(readFileSync(join(dir, 'nested', must(copy)), 'utf8')).toBe('{"a":')
   })
 
   it('keeps at most 3 copies', () => {

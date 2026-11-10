@@ -1,3 +1,4 @@
+import { must } from '../support/must'
 import { describe, expect, it } from 'vitest'
 import { SETTINGS, mergePayload, settingsDefaults } from '@shared/settings/schema'
 import { REGENT_KIND } from '@shared/domain/residents'
@@ -23,14 +24,14 @@ const savedBeforeFields = (): Record<string, unknown> => {
 
 describe('cycleEveryMinutes', () => {
   it('keeps 5, 10, 15, 30 or 60 and null; anything else is the kind\'s default (null)', () => {
-    for (const minutes of [5, 10, 15, 30, 60]) expect(apply([regent({ cycleEveryMinutes: minutes })])[0].cycleEveryMinutes).toBe(minutes)
+    for (const minutes of [5, 10, 15, 30, 60]) expect(must(apply([regent({ cycleEveryMinutes: minutes })])[0]).cycleEveryMinutes).toBe(minutes)
     for (const bad of [0, 7, 45, -15, '15', 15.5]) {
-      expect(apply([{ ...regent(), cycleEveryMinutes: bad }])[0].cycleEveryMinutes).toBeNull()
+      expect(must(apply([{ ...regent(), cycleEveryMinutes: bad }])[0]).cycleEveryMinutes).toBeNull()
     }
   })
 
   it('is filled with null for a config saved before it existed', () => {
-    expect(apply([savedBeforeFields()])[0].cycleEveryMinutes).toBeNull()
+    expect(must(apply([savedBeforeFields()])[0]).cycleEveryMinutes).toBeNull()
   })
 })
 
@@ -50,7 +51,7 @@ describe('a resident saved before the new fields', () => {
 
   it('keeps a valid lookback, mode and options; drops an invalid one to its default', () => {
     const kept = apply([regent({ digestLookback: { amount: 2, unit: 'weeks' }, permissionMode: 'manual', options: { project: 'g/a' } })])[0]
-    expect([kept.digestLookback, kept.permissionMode, kept.options]).toEqual([{ amount: 2, unit: 'weeks' }, 'manual', { project: 'g/a' }])
+    expect([must(kept).digestLookback, must(kept).permissionMode, must(kept).options]).toEqual([{ amount: 2, unit: 'weeks' }, 'manual', { project: 'g/a' }])
     const bad = { ...regent(), digestLookback: { amount: 0, unit: 'years' }, permissionMode: 'yolo', options: { project: 3, 'bad key': 'x' } }
     expect(apply([bad])[0]).toEqual(regent())
   })
@@ -78,13 +79,13 @@ describe('the residents setting', () => {
   })
 
   it('trims the name and cuts it to 40 characters; an empty name leaves the setting as it was', () => {
-    expect(apply([regent({ name: '  Chief  ' })])[0].name).toBe('Chief')
-    expect(apply([regent({ name: 'x'.repeat(60) })])[0].name).toHaveLength(40)
+    expect(must(apply([regent({ name: '  Chief  ' })])[0]).name).toBe('Chief')
+    expect(must(apply([regent({ name: 'x'.repeat(60) })])[0]).name).toHaveLength(40)
     expect(apply([regent({ name: '   ' })])).toEqual([])
   })
 
   it('days become unique integers 0 to 6, in order', () => {
-    expect(apply([regent({ schedule: { days: [5, 1, 1, 7, -1, 2.5, 0], start: '09:00', end: '18:00' } })])[0].schedule.days).toEqual([0, 1, 5])
+    expect(must(apply([regent({ schedule: { days: [5, 1, 1, 7, -1, 2.5, 0], start: '09:00', end: '18:00' } })])[0]).schedule.days).toEqual([0, 1, 5])
   })
 
   it('a time that is not HH:MM rejects the value', () => {
@@ -93,8 +94,8 @@ describe('the residents setting', () => {
   })
 
   it('the usage pause is clamped to 0..100', () => {
-    expect(apply([regent({ pauseAboveUsagePercent: 140 })])[0].pauseAboveUsagePercent).toBe(100)
-    expect(apply([regent({ pauseAboveUsagePercent: -3 })])[0].pauseAboveUsagePercent).toBe(0)
+    expect(must(apply([regent({ pauseAboveUsagePercent: 140 })])[0]).pauseAboveUsagePercent).toBe(100)
+    expect(must(apply([regent({ pauseAboveUsagePercent: -3 })])[0]).pauseAboveUsagePercent).toBe(0)
   })
 
   it('keeps a well-formed kind this side does not know (main drops it), and drops a malformed kind id and a repeated id', () => {
@@ -109,6 +110,6 @@ describe('the residents setting', () => {
 
   it('refuses a model a shell could read as more than one word', () => {
     expect(apply([regent({ model: 'sonnet; rm -rf' })])).toEqual([])
-    expect(apply([regent({ model: 'claude-opus-5-5[1m]' })])[0].model).toBe('claude-opus-5-5[1m]')
+    expect(must(apply([regent({ model: 'claude-opus-5-5[1m]' })])[0]).model).toBe('claude-opus-5-5[1m]')
   })
 })

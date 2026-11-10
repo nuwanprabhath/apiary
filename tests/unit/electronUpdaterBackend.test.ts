@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { PassThrough } from 'node:stream'
 import { createHash } from 'node:crypto'
@@ -182,7 +183,7 @@ describe('downloadInstaller', () => {
     const path = await backend.downloadInstaller(() => {})
 
     expect(execFileMock).toHaveBeenCalledTimes(1)
-    const [file, args] = execFileMock.mock.calls[0]
+    const [file, args] = must(execFileMock.mock.calls[0])
     expect(file).toBe('xattr')
     expect(args).toEqual(['-w', 'com.apple.quarantine', expect.stringMatching(/^0081;[0-9a-f]+;Apiary;$/), path])
   })

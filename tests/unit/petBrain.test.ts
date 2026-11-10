@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import { Brain, SPEECH_GAP_MS, type BrainPet, type Command, type SceneKind, type Scenery } from '@shared/pets/brain'
 import { STARTER_PET } from '@shared/pets/builtins'
@@ -83,15 +84,15 @@ describe('the pet brain', () => {
       for (const c of b.tick(250)) if (c.say !== undefined) spokeAt.push(t)
     }
     expect(spokeAt.length).toBeGreaterThan(0)
-    for (let i = 1; i < spokeAt.length; i++) expect(spokeAt[i] - spokeAt[i - 1]).toBeGreaterThanOrEqual(SPEECH_GAP_MS - 250)
+    for (let i = 1; i < spokeAt.length; i++) expect(must(spokeAt[i]) - must(spokeAt[i - 1])).toBeGreaterThanOrEqual(SPEECH_GAP_MS - 250)
   })
 
   it('a held pet does nothing of its own until dropped, then stands where it was put', () => {
     const b = brain([pet('a', { energy: 1 })])
-    expect(b.handle({ kind: 'held', id: 'a' })[0].activity).toBe('held')
+    expect(must(b.handle({ kind: 'held', id: 'a' })[0]).activity).toBe('held')
     expect(run(b, 10 * 60_000).filter((c) => c.say === undefined)).toEqual([])
     const [dropped] = b.handle({ kind: 'dropped', id: 'a', place: { region: 'rail', at: 0.3 } })
-    expect(dropped.activity).toBe('idle')
+    expect(must(dropped).activity).toBe('idle')
     const walk = run(b, 10 * 60_000).find((c) => c.to !== undefined)
     // Its next walk starts from the rail.
     expect(walk).toBeDefined()
@@ -101,7 +102,7 @@ describe('the pet brain', () => {
     const b = brain([pet('a')])
     b.handle({ kind: 'sleep', id: 'a', on: true })
     expect(run(b, 30 * 60_000).filter((c) => c.activity !== 'sleep')).toEqual([])
-    expect(b.handle({ kind: 'sleep', id: 'a', on: false })[0].activity).toBe('stretch')
+    expect(must(b.handle({ kind: 'sleep', id: 'a', on: false })[0]).activity).toBe('stretch')
   })
 
   it('under reduced motion it never walks — at most it is moved, at once, to make room', () => {
@@ -182,7 +183,7 @@ describe('the pet brain', () => {
     const asks: number[] = []
     for (let t = 0; t < 30 * 60_000; t += 250) for (const c of b.tick(250)) if (c.ask === 'comment') asks.push(t)
     expect(asks.length).toBeGreaterThanOrEqual(4)
-    for (let i = 1; i < asks.length; i++) expect(asks[i] - asks[i - 1]).toBeGreaterThanOrEqual(180_000 - 250)
+    for (let i = 1; i < asks.length; i++) expect(must(asks[i]) - must(asks[i - 1])).toBeGreaterThanOrEqual(180_000 - 250)
     // And not at all while Claude is idle.
     b.handle({ kind: 'claude', working: 0, waiting: 0, finishedNow: true })
     expect(run(b, 20 * 60_000).filter((c) => c.ask !== undefined)).toEqual([])

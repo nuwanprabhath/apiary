@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -47,14 +48,14 @@ describe('Claude usage consent', () => {
     expect(h.calls).toEqual({ keychain: 0, fetch: 0 })
     const [item, ...rest] = h.plugin.items()
     expect(item).toMatchObject({ text: 'Claude usage: allow access?', tone: 'normal', action: { kind: 'consent' } })
-    expect(item.icon).not.toBe('alert')
+    expect(must(item).icon).not.toBe('alert')
     expect(rest).toEqual([])
     h.plugin.stop()
   })
 
   it('the prompt says what is read, where it goes, and that nothing is logged or stored', () => {
     const h = setup('unknown')
-    const action = h.plugin.items()[0].action
+    const action = must(h.plugin.items()[0]).action
     if (action.kind !== 'consent') throw new Error('expected a consent action')
     const text = action.prompt.lines.join(' ')
     expect(text).toMatch(/Keychain/)
@@ -95,14 +96,14 @@ describe('Claude usage consent', () => {
     const h = setup('granted')
     await h.plugin.refresh()
     expect(h.calls.fetch).toBe(1)
-    expect(h.plugin.items()[0].action.kind).toBe('panel')
+    expect(must(h.plugin.items()[0]).action.kind).toBe('panel')
     h.plugin.stop()
   })
 
   it('switched back on after a decline, it asks again', () => {
     const h = setup('declined')
     expect(h.consent.state()).toBe('unknown')
-    expect(h.plugin.items()[0].action.kind).toBe('consent')
+    expect(must(h.plugin.items()[0]).action.kind).toBe('consent')
     h.plugin.stop()
   })
 

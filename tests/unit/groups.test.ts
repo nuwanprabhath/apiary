@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import {
   orderFolders, groupFolders, moveFolder, moveBefore, moveGroup, deleteGroup, newGroupId,
@@ -28,9 +29,9 @@ describe('groupFolders', () => {
   it('files folders under their group, leaving the rest ungrouped', () => {
     const result = groupFolders(['bil', 'comb3', 'paratoo'], id, groups,
       { bil: 'g1', comb3: 'g1' }, [])
-    expect(result.groups[0].group.name).toBe('Unwanted')
-    expect(result.groups[0].folders).toEqual(['bil', 'comb3'])
-    expect(result.groups[1].folders).toEqual([])
+    expect(must(result.groups[0]).group.name).toBe('Unwanted')
+    expect(must(result.groups[0]).folders).toEqual(['bil', 'comb3'])
+    expect(must(result.groups[1]).folders).toEqual([])
     expect(result.ungrouped).toEqual(['paratoo'])
   })
 
@@ -42,7 +43,7 @@ describe('groupFolders', () => {
 
   it('applies the user ordering inside a group as well as outside it', () => {
     const result = groupFolders(['a', 'b'], id, groups, { a: 'g1', b: 'g1' }, ['b', 'a'])
-    expect(result.groups[0].folders).toEqual(['b', 'a'])
+    expect(must(result.groups[0]).folders).toEqual(['b', 'a'])
   })
 })
 

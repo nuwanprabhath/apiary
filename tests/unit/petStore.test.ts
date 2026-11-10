@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -42,9 +43,9 @@ describe('PetStore', () => {
     const store = new PetStore(file)
     const pets = [1, 2, 3, 4].map(() => store.add(STARTER_PET))
     expect(pets.map((p) => p.active)).toEqual([true, true, true, false])
-    expect(() => store.update(pets[3].id, { active: true })).toThrow('Up to 3 pets')
-    store.update(pets[0].id, { active: false })
-    expect(store.update(pets[3].id, { active: true }).active).toBe(true)
+    expect(() => store.update(must(pets[3]).id, { active: true })).toThrow('Up to 3 pets')
+    store.update(must(pets[0]).id, { active: false })
+    expect(store.update(must(pets[3]).id, { active: true }).active).toBe(true)
   })
 
   it('keeps which window a pet is out in across a reload, and forgets it when the pet is put away', () => {
@@ -87,9 +88,9 @@ describe('PetStore', () => {
     const pet = store.add(STARTER_PET)
     store.setLines(pet.id, { idle: ['fresh', 7, 'x'.repeat(300)], bogus: ['no'] }, 1234)
     const saved = JSON.parse(readFileSync(file, 'utf8')) as { pets: { spec: typeof STARTER_PET; voicedAt: number }[] }
-    expect(saved.pets[0].spec.lines.idle).toEqual(['fresh', 'x'.repeat(80)])
-    expect(saved.pets[0].spec.lines.working).toEqual(STARTER_PET.lines.working)
-    expect(saved.pets[0].voicedAt).toBe(1234)
+    expect(must(saved.pets[0]).spec.lines.idle).toEqual(['fresh', 'x'.repeat(80)])
+    expect(must(saved.pets[0]).spec.lines.working).toEqual(STARTER_PET.lines.working)
+    expect(must(saved.pets[0]).voicedAt).toBe(1234)
   })
 })
 

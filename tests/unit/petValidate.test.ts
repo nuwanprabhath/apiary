@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import { validatePet, cleanLine } from '@shared/pets/validate'
 import { STARTER_PET } from '@shared/pets/builtins'
@@ -34,7 +35,7 @@ describe('validatePet', () => {
     expect(pet.body.color).toBe('#aabbcc')
     expect(pet.body.accent).toBe('#aabbcc')
     expect(pet.eyes.color).toBe('#14141f')
-    expect(pet.accessories[0].color).toBe('#1f1f2e')
+    expect(must(pet.accessories[0]).color).toBe('#1f1f2e')
   })
 
   it('falls back from unknown parts, and wears at most one accessory per slot and three in all', () => {

@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import type { SessionNode } from '@shared/types'
@@ -36,17 +37,17 @@ describe('workspaceReducer: session/open into the focused column', () => {
   it('opens in the active column, not the first, when they differ', () => {
     const state = twoPanes()
     const [first, second] = state.layout.panes
-    expect(state.activeColumnId).toBe(second.id)
+    expect(state.activeColumnId).toBe(must(second).id)
     const next = workspaceReducer(state, { type: 'session/open', session: session('c'), split: false })
-    expect(next.layout.panes.find((p) => p.id === second.id)?.tabs.map((t) => t.key)).toEqual(['b', 'c'])
-    expect(next.layout.panes.find((p) => p.id === first.id)?.tabs.map((t) => t.key)).toEqual(['a'])
+    expect(next.layout.panes.find((p) => p.id === must(second).id)?.tabs.map((t) => t.key)).toEqual(['b', 'c'])
+    expect(next.layout.panes.find((p) => p.id === must(first).id)?.tabs.map((t) => t.key)).toEqual(['a'])
   })
 })
 
 describe('workspaceReducer: window-level actions', () => {
   it('column/focus changes only the active column', () => {
     const state = twoPanes()
-    const first = state.layout.panes[0].id
+    const first = must(state.layout.panes[0]).id
     const next = workspaceReducer(state, { type: 'column/focus', columnId: first })
     expect(next.activeColumnId).toBe(first)
     expect(next.layout).toBe(state.layout)
@@ -54,7 +55,7 @@ describe('workspaceReducer: window-level actions', () => {
 
   it('tab/focus focuses an open key where it is and ignores an unknown one', () => {
     const state = twoPanes()
-    const first = state.layout.panes[0].id
+    const first = must(state.layout.panes[0]).id
     expect(workspaceReducer(state, { type: 'tab/focus', key: 'a' }).activeColumnId).toBe(first)
     expect(workspaceReducer(state, { type: 'tab/focus', key: 'zzz' })).toBe(state)
   })
@@ -63,14 +64,14 @@ describe('workspaceReducer: window-level actions', () => {
     const state = twoPanes()
     const next = workspaceReducer(state, { type: 'tab/open', key: 'new:x' })
     expect(next.activeColumnId).toBe(state.activeColumnId)
-    expect(next.layout.panes[1].tabs.map((t) => t.key)).toEqual(['b', 'new:x'])
+    expect(must(next.layout.panes[1]).tabs.map((t) => t.key)).toEqual(['b', 'new:x'])
   })
 
   it('tab/showView and tab/closeEverywhere act on every column', () => {
     let state = baseState()
     state = workspaceReducer(state, { type: 'session/open', session: session('a'), split: false })
     const shown = workspaceReducer(state, { type: 'tab/showView', key: 'a', view: 'terminal' })
-    expect(shown.layout.panes[0].tabs[0].view).toBe('terminal')
+    expect(must(must(shown.layout.panes[0]).tabs[0]).view).toBe('terminal')
     const closed = workspaceReducer(shown, { type: 'tab/closeEverywhere', key: 'a' })
     expect(closed.layout.panes.flatMap((p) => p.tabs)).toEqual([])
   })
@@ -80,7 +81,7 @@ describe('workspaceReducer: window-level actions', () => {
     state = workspaceReducer(state, { type: 'session/open', session: session('a'), split: false })
     const next = workspaceReducer(state, { type: 'tab/split', key: 'a' })
     expect(next.layout.panes).toHaveLength(2)
-    expect(next.activeColumnId).toBe(next.layout.panes[1].id)
+    expect(next.activeColumnId).toBe(must(next.layout.panes[1]).id)
     expect(workspaceReducer(state, { type: 'tab/split', key: 'nope' })).toBe(state)
   })
 

@@ -1,3 +1,4 @@
+import { must } from '../support/must'
 import { describe, it, expect } from 'vitest'
 import ts from 'typescript'
 import { judge, loadAllow, read, staleReport } from './allowlist'
@@ -66,7 +67,7 @@ function violations(source: string): { methods: number, bad: Finding[] } {
     const statements = m.body.statements
     if (statements.length !== 1) bad.push({ key, why: `${String(statements.length)} statements` })
     else {
-      const why = whyNotDelegate(statements[0])
+      const why = whyNotDelegate(must(statements[0]))
       if (why !== null) bad.push({ key, why })
     }
   }
