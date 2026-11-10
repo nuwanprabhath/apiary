@@ -1,10 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, realpathSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { git, commitFile as commit, initRepo, setIdentity } from '../fixtures/gitRepo'
 import { BranchOps, createBranchExec, parseWorktreeList, isWorktreeConflict } from '../../src/main/git/branchOps'
 import type { GitStatus } from '@shared/types'
+
+// Every case builds a real repository (a dozen git spawns) and then runs real git on it: seconds on
+// a busy machine, so the 5 s default tests the machine, not the code.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 })
 
 const ops = new BranchOps({ exec: createBranchExec() })
 
