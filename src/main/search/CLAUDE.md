@@ -36,6 +36,14 @@ first letter is the most expensive query the index can be asked. Below three cha
 is searched exactly; titles, paths and branches are filtered in the renderer against a cached tree,
 so a short query still narrows the sidebar instantly.
 
+A session is several rows in `chunks` (at most 256 KB each, ordered by `seq`), read with
+`forEachLine` (whole lines only, so a line still being written waits for its newline). `indexed`
+records `upto`, the byte offset indexed to, and `next_seq`. A file that grew is read only from
+`upto`; one that shrank or kept its size with a new mtime is deleted and read again. The 2 MB cap
+is a rolling budget: past it the oldest chunks go, except the first, so the newest text and the
+opening prompt are both searchable. A `chunks` table without `seq` is dropped, with `indexed`, so
+the next pass rebuilds. `search` returns each session once.
+
 Indexing is incremental (unchanged files are skipped by size and mtime without being opened) and
 yields between files. It is deliberately *not* a worker thread: the renderer is already a separate
 process, so indexing cannot freeze the UI, and yielding costs far less than a second bundled entry

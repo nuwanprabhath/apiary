@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readSearchText } from '../../src/main/search/indexer'
-import { MAX_TEXT_PER_SESSION } from '../../src/main/search/searchIndex'
+import { CHUNK_CHARS, MAX_TEXT_PER_SESSION } from '../../src/main/search/searchIndex'
 
 let dir: string
 const file = () => join(dir, 's.jsonl')
@@ -29,9 +29,9 @@ describe('readSearchText', () => {
     const lines = Array.from({ length: 100 }, (_, i) => userMsg(`u${String(i)}`, 'x'.repeat(100_000)))
     writeFileSync(file(), lines.join('\n') + '\n')
     const text = await readSearchText(file())
-    // Some slack: the loop only checks the cap between lines, so the result can run one line over.
-    expect(text.length).toBeLessThan(MAX_TEXT_PER_SESSION + 100_001)
-    expect(text.length).toBeGreaterThan(MAX_TEXT_PER_SESSION - 100_001)
+    // Whole 256 KB chunks are dropped, so the kept text lands within two chunks under the cap.
+    expect(text.length).toBeLessThanOrEqual(MAX_TEXT_PER_SESSION)
+    expect(text.length).toBeGreaterThan(MAX_TEXT_PER_SESSION - 2 * CHUNK_CHARS)
   })
 
   it('skips a line above the per-line cap before it is ever JSON.parsed, rather than including it', async () => {

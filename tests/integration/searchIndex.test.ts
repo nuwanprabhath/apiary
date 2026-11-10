@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SearchIndex, toMatchQuery } from '../../src/main/search/searchIndex'
@@ -24,7 +24,7 @@ function makeJsonl(name: string, texts: string[]): string {
   const file = join(dir, name)
   writeFileSync(file, texts
     .map((t) => JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: t }] } }))
-    .join('\n'))
+    .join('\n') + '\n')
   return file
 }
 
@@ -308,5 +308,37 @@ describe('notes in the index', () => {
       expect(index.search('transcript').map((h) => h.sessionId)).toEqual(['s1'])
       expect(index.needsIndexing('s1', 10, 1)).toBe(false)
     })
+  })
+})
+
+describe('a session longer than the text cap', () => {
+  const filler = (n: number) => Array.from({ length: n }, (_, i) => `filler${String(i)} ${'x'.repeat(100_000)}`)
+  const userLine = (text: string) => JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text }] } })
+
+  it('finds a word that appears only in the newest line, and still finds the opening prompt', async () => {
+    const file = makeJsonl('long.jsonl', ['openingprompt marker', ...filler(60), 'zebrafinal marker'])
+    await runIndexPass(index, [{ sessionId: 'long', file }])
+    expect(ids(index.search('zebrafinal'))).toEqual(['long'])
+    expect(ids(index.search('openingprompt'))).toEqual(['long'])
+    expect(index.search('filler9')).toEqual([])
+  })
+
+  it('reads only the added lines when the file grew, and returns each session once', async () => {
+    const file = makeJsonl('grow.jsonl', ['alpha marker'])
+    await runIndexPass(index, [{ sessionId: 'grow', file }])
+    appendFileSync(file, userLine('beta marker') + '\n')
+    expect(await runIndexPass(index, [{ sessionId: 'grow', file }])).toEqual({ indexed: 1, skipped: 0 })
+    expect(ids(index.search('marker'))).toEqual(['grow'])
+    expect(ids(index.search('alpha'))).toEqual(['grow'])
+    expect(ids(index.search('beta'))).toEqual(['grow'])
+  })
+
+  it('starts again when the file shrank', async () => {
+    const file = makeJsonl('shrink.jsonl', ['gone words here', 'kept words'])
+    await runIndexPass(index, [{ sessionId: 'shrink', file }])
+    writeFileSync(file, userLine('new') + '\n')
+    await runIndexPass(index, [{ sessionId: 'shrink', file }])
+    expect(index.search('gone')).toEqual([])
+    expect(ids(index.search('new'))).toEqual(['shrink'])
   })
 })

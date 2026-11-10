@@ -27,6 +27,29 @@ export interface SearchHit {
 /** Per-session cap on indexed text, so a few very long sessions do not dominate index size and first-pass time. */
 export const MAX_TEXT_PER_SESSION = 2 * 1024 * 1024
 
+/** One row of `chunks` holds at most this much text. */
+export const CHUNK_CHARS = 256 * 1024
+
+/** What `SearchIndex.write` stores for one session. */
+export interface IndexWrite {
+  /** New text, in order, each at most `CHUNK_CHARS`. */
+  chunks: string[]
+  refs: Ref[]
+  size: number
+  mtimeMs: number
+  /** Byte offset just past the last whole line indexed. */
+  upto: number
+  /** True: forget what the session had and start from these chunks. */
+  reset: boolean
+}
+
+/** Splits text into rows of at most `CHUNK_CHARS`. */
+function splitChunks(text: string): string[] {
+  const out: string[] = []
+  for (let i = 0; i < text.length; i += CHUNK_CHARS) out.push(text.slice(i, i + CHUNK_CHARS))
+  return out
+}
+
 /** Above this, `put`'s synchronous FTS5 tokenisation (on the main thread) is worth a log line
  *  (measure before cutting anything here). */
 const PUT_SLOW_MS = 50
@@ -78,16 +101,25 @@ export class SearchIndex {
     this.db.pragma('synchronous = NORMAL')
     const hadRefs = this.db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'refs'").get() !== undefined
     const hadIndexed = this.db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'indexed'").get() !== undefined
+    // A chunks table without `seq` predates chunked sessions: drop it and what says it was indexed,
+    // so the next pass rebuilds every session.
+    const chunkColumns = this.db.prepare("PRAGMA table_info('chunks')").all() as { name: string }[]
+    if (chunkColumns.length > 0 && !chunkColumns.some((c) => c.name === 'seq')) {
+      this.db.exec('DROP TABLE chunks; DROP TABLE IF EXISTS indexed;')
+    }
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS chunks USING fts5(
         session_id UNINDEXED,
+        seq UNINDEXED,
         body,
         tokenize = 'unicode61 remove_diacritics 2'
       );
       CREATE TABLE IF NOT EXISTS indexed (
         session_id TEXT PRIMARY KEY,
         size INTEGER NOT NULL,
-        mtime INTEGER NOT NULL
+        mtime INTEGER NOT NULL,
+        upto INTEGER NOT NULL DEFAULT 0,
+        next_seq INTEGER NOT NULL DEFAULT 0
       );
       /*
        * Notes are a table of their own rather than more text appended to the chunks table.
@@ -121,23 +153,65 @@ export class SearchIndex {
     return row === undefined || row.size !== size || row.mtime !== Math.floor(mtimeMs)
   }
 
+  /** Where a session's indexing stands, for reading only what a file added. */
+  indexState(sessionId: string): { size: number; upto: number } | undefined {
+    return this.db.prepare('SELECT size, upto FROM indexed WHERE session_id = ?').get(sessionId) as
+      { size: number; upto: number } | undefined
+  }
+
+  /** Replaces a session with `text`, whole. */
   put(sessionId: string, text: string, size: number, mtimeMs: number, refs: Ref[] = []): void {
-    const write = this.db.transaction(() => {
-      this.db.prepare('DELETE FROM chunks WHERE session_id = ?').run(sessionId)
-      this.db.prepare('INSERT INTO chunks (session_id, body) VALUES (?, ?)')
-        .run(sessionId, text.slice(0, MAX_TEXT_PER_SESSION))
-      this.db.prepare('INSERT OR REPLACE INTO indexed (session_id, size, mtime) VALUES (?, ?, ?)')
-        .run(sessionId, size, Math.floor(mtimeMs))
-      this.db.prepare('DELETE FROM refs WHERE session_id = ?').run(sessionId)
+    this.write(sessionId, { chunks: splitChunks(text), refs, size, mtimeMs, upto: size, reset: true })
+  }
+
+  /**
+   * Adds chunks to a session (or restarts it), then drops its oldest chunks while its stored text
+   * is over `MAX_TEXT_PER_SESSION`. The first chunk stays, so the opening prompt is searchable.
+   */
+  write(sessionId: string, entry: IndexWrite): void {
+    let textLength = 0
+    const run = this.db.transaction(() => {
+      if (entry.reset) {
+        this.db.prepare('DELETE FROM chunks WHERE session_id = ?').run(sessionId)
+        this.db.prepare('DELETE FROM refs WHERE session_id = ?').run(sessionId)
+      }
+      const state = this.db.prepare('SELECT next_seq AS nextSeq FROM indexed WHERE session_id = ?')
+        .get(sessionId) as { nextSeq: number } | undefined
+      let seq = entry.reset || state === undefined ? 0 : state.nextSeq
+      const add = this.db.prepare('INSERT INTO chunks (session_id, seq, body) VALUES (?, ?, ?)')
+      for (const chunk of entry.chunks) {
+        add.run(sessionId, seq, chunk)
+        seq += 1
+        textLength += chunk.length
+      }
+      this.db.prepare('INSERT OR REPLACE INTO indexed (session_id, size, mtime, upto, next_seq) VALUES (?, ?, ?, ?, ?)')
+        .run(sessionId, entry.size, Math.floor(entry.mtimeMs), entry.upto, seq)
+      const have = new Set((this.db.prepare('SELECT kind, value FROM refs WHERE session_id = ?').all(sessionId) as Ref[])
+        .map((r) => `${r.kind}|${r.value}`))
       const addRef = this.db.prepare('INSERT INTO refs (session_id, kind, value) VALUES (?, ?, ?)')
-      for (const ref of refs) addRef.run(sessionId, ref.kind, ref.value)
+      for (const ref of entry.refs) {
+        if (!have.has(`${ref.kind}|${ref.value}`)) addRef.run(sessionId, ref.kind, ref.value)
+      }
+      this.trim(sessionId)
     })
     const started = Date.now()
-    write()
-    // put() tokenises up to 2MB of text synchronously on the main thread.
+    run()
+    // Tokenising happens synchronously on the main thread.
     const durationMs = Date.now() - started
     if (durationMs > PUT_SLOW_MS) {
-      log.debug('search', 'slow index write', { sessionId, durationMs, textLength: text.length })
+      log.debug('search', 'slow index write', { sessionId, durationMs, textLength })
+    }
+  }
+
+  private trim(sessionId: string): void {
+    const rows = this.db.prepare('SELECT seq, length(body) AS len FROM chunks WHERE session_id = ? ORDER BY seq')
+      .all(sessionId) as { seq: number; len: number }[]
+    let total = rows.reduce((sum, r) => sum + r.len, 0)
+    const drop = this.db.prepare('DELETE FROM chunks WHERE session_id = ? AND seq = ?')
+    for (const row of rows.slice(1)) {
+      if (total <= MAX_TEXT_PER_SESSION) break
+      drop.run(sessionId, row.seq)
+      total -= row.len
     }
   }
 
@@ -212,14 +286,17 @@ export class SearchIndex {
     const match = toMatchQuery(raw)
     if (match === null) return []
     try {
+      // A session has several rows; ask for more than `limit` and keep each session's best.
       const rows = this.db.prepare(`
-        SELECT session_id AS sessionId, snippet(chunks, 1, '«', '»', '…', 12) AS snippet
+        SELECT session_id AS sessionId, snippet(chunks, 2, '«', '»', '…', 12) AS snippet
         FROM chunks
         WHERE chunks MATCH ?
         ORDER BY rank
         LIMIT ?
-      `).all(match, limit) as SearchHit[]
-      return rows
+      `).all(match, limit * 8) as SearchHit[]
+      const best = new Map<string, SearchHit>()
+      for (const row of rows) if (!best.has(row.sessionId)) best.set(row.sessionId, row)
+      return [...best.values()].slice(0, limit)
     } catch {
       // A query FTS5 still refuses reads as "nothing matched".
       return []
