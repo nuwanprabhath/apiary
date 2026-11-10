@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.22] - 2026-11-10
+## [1.60.23] - 2026-11-10
+
+### Fixed
+
+- Tests that timed out only on a busy machine: the resident chat tests no longer start a login
+  shell that loads your shell start-up files, and the tests that walk the repository or run real git
+  have timeouts that fit the work they do.
+
+## [1.60.22] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Security
 
