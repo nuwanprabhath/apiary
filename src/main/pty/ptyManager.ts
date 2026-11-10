@@ -5,7 +5,7 @@ import { loginShellInvocation } from '../exec/loginShell'
 import { log } from '../log/logger'
 import type { AccountId } from '@shared/domain/ids'
 import { ScreenBuffers, type ScreenSnapshot } from './screen'
-import { strippedMarkers } from './childEnv'
+import { strippedMarkers } from '../exec/childEnv'
 
 export interface SpawnOptions {
   id: string

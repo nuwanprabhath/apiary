@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { log } from '../log/logger'
-import type { Ref } from '../knowledge/refs'
+import type { Ref } from './refs'
 
 /**
  * Full-text search over what was actually said in a session.

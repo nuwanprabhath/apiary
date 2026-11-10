@@ -2,7 +2,8 @@ import { open, stat } from 'node:fs/promises'
 import { ignoreErrorsAsync } from '@shared/ignoreErrors'
 import { forEachLine, MAX_LINE_CHARS, readExact } from '../transcript/jsonlLines'
 import { extractLineText } from './extractText'
-import { extractRefs, type Ref } from '../knowledge/refs'
+import { extractRefs, type Ref } from './refs'
+import { yieldToLoop } from '../util/yieldToLoop'
 import { CHUNK_CHARS, MAX_TEXT_PER_SESSION, type SearchIndex } from './searchIndex'
 
 /** A longer line (a base64 blob, a pasted log) is skipped unparsed: `JSON.parse` would freeze the main thread. */
@@ -93,8 +94,6 @@ async function endsAtLineBoundary(file: string, upto: number): Promise<boolean> 
     await handle.close()
   }
 }
-
-export const yieldToLoop = (): Promise<void> => new Promise((resolve) => { setImmediate(resolve) })
 
 /**
  * Brings the index up to date for the given sessions.
