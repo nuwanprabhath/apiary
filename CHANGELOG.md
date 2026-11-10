@@ -4,7 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.16] - 2026-11-10
+## [1.60.17] - 2026-11-10
+
+### Added
+
+- A nightly CI run of the component and integration tests on a CPU throttled to 60%, with no
+  retries, so a test that only passes on a fast machine shows up; failures go to one issue.
+
+## [1.60.16] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Changed
 
