@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.1] - 2026-11-10
+## [1.60.2] - 2026-11-10
+
+### Fixed
+
+- Reading a session file from a slow or network disk no longer misses part of it when the disk
+  returns fewer bytes than asked, and every reader of session files keeps to the same line-size
+  limit.
+
+## [1.60.1] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Changed
 
