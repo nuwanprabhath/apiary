@@ -4,6 +4,28 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.16] - 2026-11-10
+
+### Fixed
+
+- A session chip in a Regent reply whose session title is a whole prompt no longer draws that
+  prompt inside a huge circle over the reply. A chip is one line, cut with an ellipsis, and shows
+  the full title on hover.
+
+## [1.59.15] - 2026-11-10 (not released; shipped in 1.59.16)
+
+### Fixed
+
+- On Ubuntu, keys typed in Apiary could repeat on their own ("Yyyyyyyyou"), and one Ctrl+V could
+  paste the same text several times. Since 1.58.0 Apiary ran through XWayland on a Wayland desktop,
+  and XWayland keeps repeating a key whose release reaches it late when the desktop is busy (its
+  log showed none of these warnings before that update and hundreds a day after it). Apiary now
+  runs as a Wayland app again by default: every existing install is switched back once, and
+  Settings → General → XWayland turns it back on for anyone who wants windows to return to their
+  own monitors, with the key-repeat trade-off now in its description.
+- A held paste shortcut (Ctrl+V, Ctrl+Shift+V, Shift+Insert, Cmd+V) pastes once, in text fields and
+  in terminals, wherever the repeat comes from.
+
 ## [1.59.14] - 2026-11-09
 
 ### Fixed
