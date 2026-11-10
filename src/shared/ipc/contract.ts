@@ -54,10 +54,10 @@ import type { PetPatch, PetRecord, PetsState } from '../pets/state'
 import type { VoiceContext } from '../pets/prompt'
 import { isPetPatch, isVoiceContext } from '../pets/ipcGuards'
 import {
-  RESIDENT_KINDS, type ResidentConfig, type ResidentKindId, type ResidentKindInfo, type ResidentMessage, type ResidentMessagePush, type ResidentStatus, type SessionHit,
+  isResidentKindId, type ResidentConfig, type ResidentKindId, type ResidentKindInfo, type ResidentMessage, type ResidentMessagePush, type ResidentStatus, type SessionHit,
 } from '../domain/residents'
 import { RESIDENT_ID_RE } from '../settings/residents'
-import { isOneOf, isRecord } from '../guards'
+import { isRecord } from '../guards'
 import { SCREEN_SETTING_KEYS, type SettingKey } from '../settings/schema'
 import { isPairingCode, isRemoteHost, type RemoteClientInfo, type RemoteHost, type RemoteServerState, type RemoteStatus } from '../domain/remote'
 
@@ -68,7 +68,7 @@ const ptyIdArg: Guard<PtyId> = (v): v is PtyId => typeof v === 'string'
 const terminalRefArg: Guard<TerminalRef> = isTerminalRef
 const gitTargetArg: Guard<GitTarget> = isGitTarget
 const residentIdArg: Guard<string> = (v): v is string => typeof v === 'string' && RESIDENT_ID_RE.test(v)
-const residentKindArg: Guard<ResidentKindId> = (v): v is ResidentKindId => isOneOf(RESIDENT_KINDS, v)
+const residentKindArg: Guard<ResidentKindId> = isResidentKindId
 const residentTextArg: Guard<string> = (v): v is string => typeof v === 'string' && v.length <= 8000
 /** A permission request id (claude's), a quick action's id or an option key: short, printable, no path. */
 const residentTokenArg: Guard<string> = (v): v is string => typeof v === 'string' && /^[\w.:-]{1,200}$/.test(v)

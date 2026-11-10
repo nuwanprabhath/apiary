@@ -18,6 +18,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
+import { REGENT_KIND } from '@shared/domain/residents'
 import { renderApp } from './renderApp'
 import { clickRowAction, nextFrames, sidebarSession, until } from './helpers'
 import { trackRenders } from './renderTracker'
@@ -223,7 +224,7 @@ describe('a change in one pane does not render another (§7.2)', () => {
 describe('a resident status push does not render the window', () => {
   it('AppWindow does not render while a resident works', async () => {
     const regent = {
-      id: 'regent', kind: 'regent' as const, name: 'Regent', enabled: true, model: 'sonnet', digestModel: 'haiku',
+      id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: true, model: 'sonnet', digestModel: 'haiku',
       schedule: { days: [0, 1, 2, 3, 4, 5, 6], start: '00:00', end: '00:00' }, pauseAboveUsagePercent: 70, permissionMode: 'auto' as const, digestLookback: null, options: {}, cycleEveryMinutes: null,
     }
     const { fake } = await renderApp({ settings: { residents: [regent] } })
@@ -231,7 +232,7 @@ describe('a resident status push does not render the window', () => {
     await nextFrames(5)
     const renders = trackRenders('AppWindow', 'one')
     const status = (activity: string) => ({
-      id: 'regent', kind: 'regent' as const, name: 'Regent', enabled: true, state: 'working' as const, activity, onDuty: true,
+      id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: true, state: 'working' as const, activity, onDuty: true,
       appearance: { glyph: 'bee' as const, palette: 'gold' as const, animation: 'halo' as const }, digest: null, attention: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
     })
     for (const activity of ['Searching sessions', 'Reading CSV export', 'Opening CSV export', 'Writing']) {

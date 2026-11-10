@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
+import { REGENT_KIND } from '@shared/domain/residents'
 import { createRoot, type Root } from 'react-dom/client'
 import { createFakeApiary, type FakeApiary } from './fakeApiary'
 import { until } from './helpers'
@@ -38,7 +39,7 @@ const text = (): string => document.querySelector('[data-testid="probe"]')?.text
 describe('resident status in the store', () => {
   it('reflects permissions, attention and quick actions from a push, and the commands clear them', async () => {
     const fake = mount()
-    await addResident('regent')
+    await addResident(REGENT_KIND)
     await until(() => text() === '|none||Regent,MR Desk')
     fake.state.residentPermissions.set('regent', [{ requestId: 'r1', tool: 'Bash', summary: 'Run: glab mr list' }])
     const pushed = residentStatuses(fake.state).map((s) => ({ ...s, quickActions: [{ id: 'desk', label: 'Get the desk' }] }))
@@ -58,7 +59,7 @@ describe('resident status in the store', () => {
 
   it('an unknown quick action and a non-folder option are refused', async () => {
     const fake = mount()
-    await addResident('regent')
+    await addResident(REGENT_KIND)
     runQuickAction('regent', 'nope')
     await until(() => fake.callsTo('residentQuickAction').length === 1)
     await expect(pickResidentFolder('regent', 'clone')).rejects.toThrow(/no folder option/)

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MR_DESK_KIND, REGENT_KIND } from '@shared/domain/residents'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { flatten, skipOnRemote, type Ctx } from '../support'
 import { BROWSE_HOME } from '../world'
@@ -16,7 +17,7 @@ export function defineResidentsClauses(ctx: Ctx): void {
   }
   /** Adds Regent and switches it on, through the setting as the Settings section does. */
   const enabledRegent = async (): Promise<ResidentConfig> => {
-    const added = await ctx.api.residentsAdd('regent')
+    const added = await ctx.api.residentsAdd(REGENT_KIND)
     await saveResidents((await ctx.api.settingsGet()).residents.map((c) => (c.id === added.id ? { ...c, enabled: true } : c)))
     return added
   }
@@ -27,10 +28,10 @@ export function defineResidentsClauses(ctx: Ctx): void {
     })
 
     it('an add appends the kind\'s defaults under a fresh id, switched off, and tells every window', async () => {
-      const first = await ctx.api.residentsAdd('regent')
-      const second = await ctx.api.residentsAdd('regent')
+      const first = await ctx.api.residentsAdd(REGENT_KIND)
+      const second = await ctx.api.residentsAdd(REGENT_KIND)
       expect(first).toMatchObject({
-        id: 'regent', kind: 'regent', name: 'Regent', enabled: false, model: 'sonnet', digestModel: 'haiku',
+        id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: false, model: 'sonnet', digestModel: 'haiku',
         schedule: { days: [1, 2, 3, 4, 5], start: '09:00', end: '18:00' }, pauseAboveUsagePercent: 70,
       })
       expect(second.id).toBe('regent-2')
@@ -41,7 +42,7 @@ export function defineResidentsClauses(ctx: Ctx): void {
     })
 
     it('a rename in the setting reaches the status and every window', async () => {
-      await ctx.api.residentsAdd('regent')
+      await ctx.api.residentsAdd(REGENT_KIND)
       await saveResidents((await ctx.api.settingsGet()).residents.map((c) => ({ ...c, name: '  Chief  ' })))
       expect((await ctx.api.residentsList())[0].name).toBe('Chief')
       await expect.poll(() => ctx.heard.payloads('residentsChanged').at(-1)?.[0][0]?.name).toBe('Chief')
@@ -52,14 +53,14 @@ export function defineResidentsClauses(ctx: Ctx): void {
       await expect(ctx.api.residentStop('ghost')).rejects.toThrow()
       await expect(ctx.api.residentClear('ghost')).rejects.toThrow()
       await expect(ctx.api.residentRedigest('ghost')).rejects.toThrow()
-      await ctx.api.residentsAdd('regent')
+      await ctx.api.residentsAdd(REGENT_KIND)
       expect(await ctx.api.residentHistory('regent')).toEqual([])
       await ctx.api.residentStop('regent')
       await ctx.api.residentRedigest('regent')
     })
 
     it('a resident that is switched off, or an empty message, is refused', async () => {
-      await ctx.api.residentsAdd('regent')
+      await ctx.api.residentsAdd(REGENT_KIND)
       await expect(ctx.api.residentSend('regent', 'hello')).rejects.toThrow()
       expect(await ctx.api.residentHistory('regent')).toEqual([])
     })
@@ -102,8 +103,8 @@ export function defineResidentsClauses(ctx: Ctx): void {
     })
 
     it('a new resident has nothing waiting, no attention and no kind actions; a kind not ready says why', async () => {
-      await ctx.api.residentsAdd('regent')
-      await ctx.api.residentsAdd('mr-desk')
+      await ctx.api.residentsAdd(REGENT_KIND)
+      await ctx.api.residentsAdd(MR_DESK_KIND)
       const [regent, desk] = await ctx.api.residentsList()
       expect(regent).toMatchObject({ permissions: [], attention: null, quickActions: [], setupNeeded: null })
       expect(desk).toMatchObject({ id: 'mr-desk', setupNeeded: 'Set the GitLab project in Settings', appearance: { glyph: 'honeypot' } })
@@ -112,7 +113,7 @@ export function defineResidentsClauses(ctx: Ctx): void {
     })
 
     it('seen, a permission answer for an id not waiting, and a lookback change are accepted; an unknown resident is refused', async () => {
-      await ctx.api.residentsAdd('regent')
+      await ctx.api.residentsAdd(REGENT_KIND)
       await ctx.api.residentSeen('regent')
       await ctx.api.residentPermissionAnswer('regent', 'not-waiting', true)
       expect((await ctx.api.residentsList())[0]).toMatchObject({ attention: null, permissions: [] })
@@ -123,7 +124,7 @@ export function defineResidentsClauses(ctx: Ctx): void {
     })
 
     it('an action the kind does not have, or a folder option it does not have, is refused', async () => {
-      await ctx.api.residentsAdd('regent')
+      await ctx.api.residentsAdd(REGENT_KIND)
       await expect(ctx.api.residentQuickAction('regent', 'nope')).rejects.toThrow()
       await expect(ctx.api.residentQuickAction('ghost', 'nope')).rejects.toThrow()
       await expect(ctx.api.residentPickFolder('regent', 'clone')).rejects.toThrow()
@@ -134,7 +135,7 @@ export function defineResidentsClauses(ctx: Ctx): void {
     // A remote window has no folder dialog: its resident card chooses with the in-app browser,
     // which holds the position on the machine that stores it, so no path crosses.
     it('a folder option can be set to the folder an in-app browse shows, and only a folder option', async () => {
-      await ctx.api.residentsAdd('mr-desk')
+      await ctx.api.residentsAdd(MR_DESK_KIND)
       const { id } = await ctx.api.folderBrowseOpen()
       await ctx.api.folderBrowseEnter(id, BROWSE_HOME.nested.parent)
       const stored = await ctx.api.residentUseBrowsedFolder('mr-desk', 'repoPath', id)

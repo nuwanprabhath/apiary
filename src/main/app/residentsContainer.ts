@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { BrowserWindow, webContents, type WebContents } from 'electron'
 import { IPC } from '@shared/api'
 import type { SessionId } from '@shared/domain/ids'
@@ -15,7 +16,6 @@ import { sendEvent, type EventTarget } from '../windows/sendEvent'
 import type { TabRegistry } from '../windows/tabRegistry'
 import type { ContainerPaths } from './containerPaths'
 import type { KnowledgeParts } from './knowledgeContainer'
-import { mraDirIn } from './resourcesDir'
 
 /** A tool check (`python3 --version`, `glab auth status`) that takes longer than this counts as missing. */
 const PROBE_TIMEOUT_MS = 15_000
@@ -43,7 +43,7 @@ export function createResidents(o: {
 }): ResidentService {
   const searchPath = (): string => searchPathFrom(process.env.PATH)
   const kinds = kindLookup({
-    mraDir: () => mraDirIn(o.resourcesDir),
+    resourceDir: (kindId) => join(o.resourcesDir, 'residents', kindId),
     exec: createExec({ scope: 'residents', timeoutMs: PROBE_TIMEOUT_MS, env: { PATH: searchPath() } }),
     searchPath,
     files: nodeKindFiles,

@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
+import { REGENT_KIND } from '@shared/domain/residents'
 import { createRoot, type Root } from 'react-dom/client'
 import { createFakeApiary, type FakeApiary } from './fakeApiary'
 import { until } from './helpers'
@@ -48,7 +49,7 @@ describe('residents store and commands', () => {
     const fake = mount('regent')
     await until(() => text() === '|')
     expect(byId('one')).toBe('none')
-    const added = await addResident('regent')
+    const added = await addResident(REGENT_KIND)
     expect(added.id).toBe('regent')
     await updateResident('regent', { name: 'Ada', enabled: true })
     await until(() => text().startsWith('Ada:'))

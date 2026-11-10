@@ -4,6 +4,7 @@ import { PassThrough } from 'node:stream'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { REGENT_KIND } from '@shared/domain/residents'
 import type { DigestLookback, ResidentConfig, ResidentStatus } from '@shared/domain/residents'
 import { ResidentService, type ResidentSettings, type RunCommand } from '../../../src/main/residents/residentService'
 import type { DigestJob, SessionKnowledge } from '../../../src/main/knowledge/types'
@@ -13,7 +14,7 @@ import { kindOf, type ResidentKind } from '../../../src/main/residents/kinds'
 export const FRIDAY = (hh: number, mm = 0): Date => new Date(2026, 9, 30, hh, mm)
 
 export const regent = (over: Partial<ResidentConfig> = {}): ResidentConfig => ({
-  id: 'regent', kind: 'regent', name: 'Regent', enabled: true, model: 'sonnet', digestModel: 'haiku',
+  id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: true, model: 'sonnet', digestModel: 'haiku',
   schedule: { days: [1, 2, 3, 4, 5], start: '09:00', end: '18:00' }, pauseAboveUsagePercent: 70,
   permissionMode: 'auto', digestLookback: null, options: {}, cycleEveryMinutes: null, ...over,
 })

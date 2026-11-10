@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ResidentConfig } from '@shared/domain/residents'
-import { CYCLE_ACTION_ID } from '@shared/domain/residents'
+import { CYCLE_ACTION_ID, MR_DESK_KIND } from '@shared/domain/residents'
 import type { RunCommand } from '../../../src/main/residents/residentService'
 import { FRIDAY, build, regent } from './support'
 
-const desk = (over: Partial<ResidentConfig> = {}): ResidentConfig => regent({ id: 'desk', kind: 'mr-desk', name: 'MR Desk', ...over })
+const desk = (over: Partial<ResidentConfig> = {}): ResidentConfig => regent({ id: 'desk', kind: MR_DESK_KIND, name: 'MR Desk', ...over })
 
 /** A command runner whose runs wait until the test settles them, in the order they started. */
 function heldRunner(): { run: RunCommand; held: { argv: string[]; release: (out: string) => void; fail: (e: Error) => void }[] } {

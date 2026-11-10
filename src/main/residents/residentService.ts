@@ -11,7 +11,7 @@ import { log } from '../log/logger'
 import { clipActivity, STARTING, WORKING } from './activity'
 import { cycleMinutesOf, cycleStatus } from './cycle'
 import { instantHits, instantMatchPolicy } from './instantMatches'
-import { kindInfos, kindOf, newResident, type ResidentKind } from './kinds'
+import { kindInfos, kindOf, newResident, unknownKindFilter, type ResidentKind } from './kinds'
 import { McpServer } from './mcp/server'
 import type { ResidentControl, ToolDeps } from './mcp/tools'
 import { cycleSkip, expandArgv } from './quickActions'
@@ -110,6 +110,7 @@ export class ResidentService {
   private readonly now: () => Date
   private readonly run: RunCommand
   private readonly kindOf: (id: ResidentKindId) => ResidentKind
+  private readonly runnable: (c: ResidentConfig) => boolean
   private timer: NodeJS.Timeout | null = null
   private recheck: NodeJS.Timeout | null = null
   private statusTimer: NodeJS.Timeout | null = null
@@ -124,6 +125,7 @@ export class ResidentService {
     this.now = deps.now ?? (() => new Date())
     this.run = deps.run ?? runCommand
     this.kindOf = deps.kindOf ?? kindOf
+    this.runnable = unknownKindFilter(this.kindOf, (c) => { log.warn('residents', 'unknown resident kind, not running it', { resident: c.id, kind: c.kind }) })
     this.server = new McpServer({
       version: deps.version,
       tools: { ...deps.tools, knowledge: deps.knowledge, residents: this.control() },
@@ -286,7 +288,7 @@ export class ResidentService {
   /** Brings every resident's process, the digest, the cycles, the timer and the status in line with the settings and the clock. */
   private reconcile(): void {
     const now = this.now()
-    const configs = this.deps.settings.get()
+    const configs = this.deps.settings.get().filter(this.runnable)
     for (const [id, r] of this.residents) {
       if (!configs.some((c) => c.id === id)) {
         this.residents.delete(id)

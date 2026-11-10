@@ -1,10 +1,23 @@
 import { describe, expect, it, vi } from 'vitest'
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { MR_DESK_KIND, REGENT_KIND, isResidentKindId } from '@shared/domain/residents'
+import { log } from '../../../src/main/log/logger'
 import type { ResidentConfig, SessionHit } from '@shared/domain/residents'
 import { FRIDAY, build, children, dir, regent, spawned } from './support'
 
 describe('ResidentService', () => {
+  it('drops a resident whose kind this build does not have, and logs the kind id', () => {
+    const ghost = 'ghost-kind'
+    if (!isResidentKindId(ghost)) throw new Error('fixture id is not a kind id')
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {})
+    const { service } = build([regent(), regent({ id: 'lost', kind: ghost })])
+    service.start()
+    expect(service.list().map((s) => s.id)).toEqual(['regent'])
+    expect(warn).toHaveBeenCalledWith('residents', expect.any(String), { resident: 'lost', kind: 'ghost-kind' })
+    warn.mockRestore()
+  })
+
   it('on duty resumes the digest and off duty pauses it', async () => {
     vi.setSystemTime(FRIDAY(17, 59))
     const { service, digest } = build([regent()])
@@ -71,8 +84,8 @@ describe('ResidentService', () => {
     vi.setSystemTime(FRIDAY(12))
     const { service, settings } = build([])
     service.start()
-    expect(service.add('regent')).toMatchObject({ id: 'regent', name: 'Regent', enabled: false, model: 'sonnet' })
-    expect(service.add('regent').id).toBe('regent-2')
+    expect(service.add(REGENT_KIND)).toMatchObject({ id: 'regent', name: 'Regent', enabled: false, model: 'sonnet' })
+    expect(service.add(REGENT_KIND).id).toBe('regent-2')
     expect(settings.list.map((c) => c.id)).toEqual(['regent', 'regent-2'])
     expect(service.list().map((s) => s.id)).toEqual(['regent', 'regent-2'])
   })
@@ -195,7 +208,7 @@ describe('ResidentService', () => {
 
   it('a cycle\'s nextAt follows the setting, and Check now sends the cycle prompt', async () => {
     vi.setSystemTime(FRIDAY(12))
-    const desk = (over: Partial<ResidentConfig> = {}): ResidentConfig => regent({ id: 'desk', kind: 'mr-desk', ...over })
+    const desk = (over: Partial<ResidentConfig> = {}): ResidentConfig => regent({ id: 'desk', kind: MR_DESK_KIND, ...over })
     const { service, settings } = build([desk()], { kinds: { setup: () => null, prepare: undefined } })
     service.start()
     expect(service.list()[0].cycle).toEqual({ everyMinutes: 15, nextAt: FRIDAY(12, 15).getTime(), running: false })
@@ -215,7 +228,7 @@ describe('ResidentService', () => {
 
   it('options changed while prepare runs are prepared as soon as it finishes, not at the next re-check', async () => {
     vi.setSystemTime(FRIDAY(12))
-    const desk = (options: Record<string, string>): ResidentConfig => regent({ id: 'desk', kind: 'mr-desk', options })
+    const desk = (options: Record<string, string>): ResidentConfig => regent({ id: 'desk', kind: MR_DESK_KIND, options })
     let finish = (): void => {}
     const prepare = vi.fn((_config: ResidentConfig, _space: string) => new Promise<void>((resolve) => { finish = resolve }))
     const { service, settings } = build([desk({})], { kinds: { setup: () => null, prepare } })
@@ -231,7 +244,7 @@ describe('ResidentService', () => {
     vi.setSystemTime(FRIDAY(12))
     const find = vi.fn(async (): Promise<SessionHit[]> => [])
     const knowledge = { find, topics: async () => [], read: async () => null }
-    const { service } = build([regent(), regent({ id: 'desk', kind: 'mr-desk' })], { knowledge, kinds: { setup: () => null, prepare: undefined } })
+    const { service } = build([regent(), regent({ id: 'desk', kind: MR_DESK_KIND })], { knowledge, kinds: { setup: () => null, prepare: undefined } })
     service.start()
     expect(await service.send('desk', 'find the session for !1175')).toEqual([])
     await service.send('regent', 'Can you check it now?')
