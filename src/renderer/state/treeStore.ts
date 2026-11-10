@@ -2,6 +2,7 @@ import type { ProjectNode, SessionNode } from '@shared/types'
 import { flattenTree } from '@shared/treeWalk'
 import { createIpcStore } from './createIpcStore'
 import { onRemoteReconnected } from './remote'
+import { shareTree } from './treeShare'
 
 /**
  * The session tree, and the one place the renderer reads it or hears that it changed.
@@ -20,10 +21,18 @@ import { onRemoteReconnected } from './remote'
  *
  * The last tree is kept for the life of the window, so `findSessionById` needs no round trip.
  */
+/** Invalidated by: nothing; it only ever holds the newest fetched tree, which the next fetch shares nodes with. */
+let lastFetched: ProjectNode[] = []
+
 const store = createIpcStore<ProjectNode[]>({
   scope: 'refresh',
   initial: [],
-  fetch: () => window.apiary.tree(),
+  fetch: async () => {
+    // The last answer, not the store's snapshot: a test swapping `window.apiary` resets the store.
+    const next = shareTree(lastFetched, await window.apiary.tree())
+    lastFetched = next
+    return next
+  },
   // A reconnected remote window missed changes while it was away: ask again.
   subscribe: (_push, invalidate) => {
     const off = [window.apiary.onTreeChanged(invalidate), onRemoteReconnected(invalidate)]

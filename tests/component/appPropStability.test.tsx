@@ -243,3 +243,37 @@ describe('a resident status push does not render the window', () => {
     renders.stop()
   })
 })
+
+describe('a tree refetch keeps unchanged rows identical (T3.5)', () => {
+  async function sessionRowRenders(change: (fake: FakeApiary) => void): Promise<Map<string, number>> {
+    const { fake } = await renderApp()
+    await until(() => page.getByTestId('session-item').elements().length > 1)
+    // The fake dates a session without a time from `Date.now()`, so pin them: a tree must be able
+    // to come back identical.
+    for (const s of fake.state.sessions) s.lastActiveAtMs ??= 1_700_000_000_000
+    fake.emit('treeChanged')
+    await nextFrames(8)
+    const renders = trackRenders('SessionRowView', 'key')
+    change(fake)
+    fake.emit('treeChanged')
+    await nextFrames(8)
+    const counts = renders.read()
+    renders.stop()
+    return counts
+  }
+
+  it('commits no session row when the tree comes back identical', async () => {
+    const counts = await sessionRowRenders(() => undefined)
+    expect([...counts.values()].reduce((a, b) => a + b, 0)).toBe(0)
+  })
+
+  it('commits exactly the row whose title changed', async () => {
+    let changed = ''
+    const counts = await sessionRowRenders((fake) => {
+      const s = fake.state.sessions[0]
+      changed = s.sessionId
+      s.title = 'A new title'
+    })
+    expect([...counts.keys()]).toEqual([changed])
+  })
+})
