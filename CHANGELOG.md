@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.28] - 2026-11-10
+## [1.60.29] - 2026-11-10
+
+### Fixed
+
+- More tests that failed only on a busy machine: the terminal and shell tests start a plain `sh`
+  instead of your login shell, the resident badge test waits for the badge to settle before hovering
+  it, and two tests that do seconds of real work have timeouts that fit it.
+
+## [1.60.28] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Security
 
