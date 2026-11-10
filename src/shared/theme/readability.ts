@@ -72,7 +72,7 @@ function backdrops(spec: ThemeSpec, resolved: (t: PaletteToken) => RGBA): RGBA[]
  */
 function looks(token: PaletteToken, resolved: (t: PaletteToken) => RGBA, behind: RGBA[]): RGBA[] {
   const c = resolved(token)
-  if (token === 'bg-window') return [behind[0]]
+  if (token === 'bg-window') return behind.slice(0, 1)
   if (c.a >= 1) return [c]
   const under = token === 'bg' ? behind
     : token === 'bg-panel' ? [...behind, ...looks('bg', resolved, behind)]
@@ -98,7 +98,7 @@ function looks(token: PaletteToken, resolved: (t: PaletteToken) => RGBA, behind:
 export function ensureReadable(spec: ThemeSpec, report: ThemeReport): void {
   const resolved = (t: PaletteToken): RGBA => parseColor(spec.palette[t] ?? DEFAULT_PALETTE[t])!
   const behind = backdrops(spec, resolved)
-  const typical = [behind[0]]
+  const typical = behind.slice(0, 1)
   const fails = (color: RGBA, surface: PaletteToken, min: number, under: RGBA[]): boolean =>
     looks(surface, resolved, under).some((bg) => contrastRatio(color, bg) < min)
   for (const { fg, on, min } of PALETTE_CONTRAST) {
@@ -161,7 +161,7 @@ export function ensureReadable(spec: ThemeSpec, report: ThemeReport): void {
     // A see-through terminal sits in the shell card, over the window, and is treated like any other pane.
     const shows = (): RGBA[] => (bg.a >= 1 ? [bg] : looks('bg-panel', resolved, behind).map((u) => composite(bg, u)))
     const failing = (): boolean => shows().some((b) => contrastRatio(fg, b) < 4.5)
-    const usual = shows()[0]
+    const usual = shows()[0] ?? bg
     if (contrastRatio(fg, usual) < 4.5) { fg = nudgeForContrast(fg, usual, 4.5); spec.terminal.foreground = toHex8(fg); report.nudged += 1 }
     if (failing()) {
       report.nudged += 1

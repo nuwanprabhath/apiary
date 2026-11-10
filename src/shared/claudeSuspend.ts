@@ -16,7 +16,8 @@ const TAIL_LINES = 4
 export function isClaudeSuspended(lines: readonly string[]): boolean {
   const tail: string[] = []
   for (let i = lines.length - 1; i >= 0 && tail.length < TAIL_LINES; i--) {
-    if (lines[i].trim() !== '') tail.push(lines[i])
+    const line = lines[i]
+    if (line !== undefined && line.trim() !== '') tail.push(line)
   }
   return tail.some((line) => SUSPENDED.test(line))
 }
