@@ -4,6 +4,20 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.60.39] - 2026-11-11
+
+### Fixed
+
+- A test run can no longer write to the repository it is run from. Git hands `GIT_DIR` to the
+  commands it runs (`git bisect run`, a hook in a linked worktree), so a bisect of the e2e suite ran
+  the tests' throwaway `git init` and `git config user.name Test` against Apiary's own
+  `.git/config`, and commits from then on were authored as `Test <test@example.com>`. Every test
+  config now drops those variables before anything loads (`tests/fixtures/outerGitEnv.ts`).
+- A push is refused when a commit in it was made under a test fixture's identity or carries AI
+  attribution, even one whose commit hooks never ran: `scripts/pushed-commits-gate.mjs` runs in
+  `.husky/pre-push` and again in CI. The 1.60.32 to 1.60.38 history that broke both is squashed into
+  one commit with the same files.
+
 ## [1.60.38] - 2026-11-11
 
 ### Fixed

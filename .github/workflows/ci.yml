@@ -29,11 +29,23 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
+
+      # The pushed commits again, in case a push skipped .husky/pre-push: none made under a test
+      # fixture's identity or carrying AI attribution (scripts/pushed-commits-gate.mjs).
+      - name: Pushed commits
+        env:
+          BEFORE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          AFTER: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -z "$BEFORE" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then BEFORE=$(git rev-list --max-count=1 "$AFTER~20" 2>/dev/null || git rev-list --max-parents=0 "$AFTER"); fi
+          node scripts/pushed-commits-gate.mjs --range "$BEFORE..$AFTER"
 
       # --ignore-scripts: nothing here needs node-pty or better-sqlite3 compiled.
       - run: npm ci --ignore-scripts

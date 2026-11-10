@@ -7,6 +7,8 @@
 # broke and was first seen by the nightly run after the release (1.39's Chat/Terminal toggle broke
 # activeSection's @serial test; 1.40's shell bar broke the glass test in themes.spec.ts).
 refs=$(cat)
+# Commits under a test fixture's identity or with AI attribution never leave (scripts/pushed-commits-gate.mjs).
+echo "$refs" | node scripts/pushed-commits-gate.mjs || exit 1
 # First, being the quickest to refuse: the release workflow repeats CI's checks on Linux, and a tag
 # on a commit CI has not passed stops there and publishes nothing (scripts/release-ci-gate.mjs).
 for sha in $(echo "$refs" | awk '$1 ~ /^refs\/tags\/v/ { print $2 }'); do

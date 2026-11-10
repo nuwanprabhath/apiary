@@ -1,3 +1,4 @@
+import './tests/fixtures/outerGitEnv'
 import { defineConfig } from 'vitest/config'
 import { resolve } from 'node:path'
 

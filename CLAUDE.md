@@ -63,7 +63,7 @@ No command rebuilds a native module ([`docs/testing.md`](docs/testing.md)), so a
 ## Never
 
 - Push, tag or release without asking the maintainer.
-- Add AI attribution to a commit or PR; `.husky/commit-msg` rejects it.
+- Add AI attribution to a commit or PR; `.husky/commit-msg`, `.husky/pre-push` and CI reject it.
 - Let the renderer supply a filesystem path that main acts on.
 - Grow a baseline or an allowlist to make a check pass (see "Guard layer").
 
@@ -158,6 +158,8 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | A commit is made on a branch, never on a detached HEAD (rebase and cherry-pick excepted); look at an old file with `git show <rev>:<path>` | `.husky/pre-commit` | `git switch <branch>` or `git switch -c <name>` |
 | Agent worktrees run the git hooks too (husky's hook folder is generated, not committed) | `scripts/agents/run-agent.sh` installs it before an agent starts | run `npx husky` in a worktree made by hand |
 | Commit hygiene | `.husky/pre-commit` (lint-staged), `.husky/commit-msg` (commitlint, no AI attribution), `.husky/pre-push` (typecheck, lint, `test:unit`) | fix, never `--no-verify` |
+| No commit leaves under a test fixture's identity (`@example.com`) or with AI attribution, even one whose hooks did not run (an agent's worktree, a rebase) | `scripts/pushed-commits-gate.mjs` in `.husky/pre-push` and CI's lint job; `tests/unit/pushedCommitsGate.test.ts`; for Claude sessions, the maintainer's user-level `attribution` setting and a PreToolUse hook that blocks the trailer | unset `git config --local user.*`, then reword or `--reset-author` the commits |
+| A test never touches the repository it is run from: every test config drops `GIT_DIR` and its kin first, which `git bisect run` and worktree hooks export | `tests/unit/architecture/testConfigsDropGitEnv.test.ts` | make the config's first line import `tests/fixtures/outerGitEnv.ts` |
 | A push to `main` meets CI's coverage thresholds (`vitest.config.ts`) before it leaves: three times new code went under the floor and only CI saw it | `.husky/pre-push` runs `npm run test:coverage` instead of `test:unit` when the push updates `main` | add tests for the new code, then push again |
 | The e2e suite does not grow: its test count is a budget | `tests/unit/architecture/e2eBudget.test.ts` against `tests/e2e/budget.json` | move a renderer-only test to `tests/component`, or merge or remove one (`.claude/skills/prune-tests/SKILL.md`); the maintainer raises the budget |
 | A release passes the whole e2e suite, `@serial` included, not only the specs a change seemed to touch | `.husky/pre-push`: pushing a `v*` tag runs `npm run test:e2e` and refuses the push if it fails | fix the spec or the code, then push the tag again |
