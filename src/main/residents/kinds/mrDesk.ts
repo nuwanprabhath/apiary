@@ -1,7 +1,8 @@
 import { MR_DESK_KIND } from '@shared/domain/residents'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { RESIDENT_FIELD_DEFAULTS } from '@shared/settings/residents'
-import type { ResidentKind } from '../kindTypes'
+import { isRecord } from '@shared/guards'
+import type { MrHead, ResidentKind } from '../kindTypes'
 import type { KindDeps } from './kindDeps'
 import { mraConfigFor, mraConfigured, mraWrapper, optionOf } from './mrDeskConfig'
 import { ToolProbe } from './mrDeskTools'
@@ -11,12 +12,27 @@ const CYCLE_PROMPT = 'Run one MR desk cycle.'
 const CYCLE_DOING = 'Checking your MRs'
 const CYCLE_DEFAULT_MINUTES = 15
 
+/** GitLab writes and pushes: an approval goes through `approve_mr`, which asks the user; nothing else is written. */
+const MR_DESK_DISALLOWED = [
+  'Bash(glab mr approve:*)', 'Bash(glab mr note:*)', 'Bash(glab mr merge:*)', 'Bash(glab mr close:*)', 'Bash(glab api:*)', 'Bash(git push:*)',
+] as const
+
+/** The MR `mra ready` printed (its JSON carries `title`, `target_branch` and `sha`), or null. */
+function mrHeadOf(stdout: string): MrHead | null {
+  let parsed: unknown
+  try { parsed = JSON.parse(stdout) } catch { return null }
+  if (!isRecord(parsed)) return null
+  const { title, target_branch: targetBranch, sha } = parsed
+  return typeof title === 'string' && typeof targetBranch === 'string' && typeof sha === 'string' ? { title, targetBranch, sha } : null
+}
+
 /** Apiary's part of the prompt: who it is here and the tools Apiary gives it. The rest is `RESIDENT.md`. */
 const preamble = (name: string, everyMinutes: number): string => [
   `You are ${name}, the user's MR desk, living inside Apiary.`,
   `Apiary runs your cycle in the background: every ${String(everyMinutes)} minutes during your hours it sends "${CYCLE_PROMPT}" in this chat itself, so you never need to start one.`,
   'When the user asks when the next check is, or whether anything runs in the background, call `apiary_status`: it says how often the cycle runs, when the next one is and whether one is running. Never say nothing runs in the background.',
   '`mra` is a command on your PATH (a wrapper Apiary wrote); every `mra …` below runs in your shell as written.',
+  'Approve only with the Apiary tool `approve_mr` (it asks the user, then approves); `glab` writes and `git push` are blocked for you.',
   'Apiary tools: `set_activity` (a few words while you work), `set_attention` / `clear_attention` (the badge on your icon), `note_put` / `note_list` (your notes).',
   '',
 ].join('\n')
@@ -40,7 +56,15 @@ export function createMrDesk(deps: KindDeps): ResidentKind {
     },
     blurb: 'Watches the GitLab MRs you review, reviews new ones and tells you which are ready to approve.',
     appearance: { glyph: 'honeypot', palette: 'amber', animation: 'stir' },
-    capabilities: ['space.notes', 'apiary.status', 'resident.attention', 'sessions.read', 'workspace.open'],
+    capabilities: ['space.notes', 'apiary.status', 'resident.attention', 'sessions.read', 'workspace.open', 'gitlab.approve'],
+    toolPolicy: { disallowedTools: MR_DESK_DISALLOWED },
+    approval: {
+      readArgv: (iid) => ['{bin:mra}', 'ready', `!${String(iid)}`],
+      parseHead: mrHeadOf,
+      approveArgv: (iid) => ['{bin:mra}', 'approve', `!${String(iid)}`],
+      nonceFile: (space) => `${space}/mra/state/approve.nonce`,
+      nonceEnv: 'MRA_APPROVE_NONCE',
+    },
     digests: false,
     optionFields: [
       { key: 'project', label: 'GitLab project', help: 'GitLab project path (group/project) or its URL', input: 'text', required: true },

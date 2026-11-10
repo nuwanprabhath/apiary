@@ -23,6 +23,9 @@ kind's own `options`). Regent is the first kind; the MR desk is the second.
     `instantMatchPolicy` (`instantMatches.ts`) shows them only for a lookup: `ref` hits for a
     message naming a ref, the top three for one asking to find or open a session, none otherwise;
   - `setup(config)`: what is missing before it can work, or null (`status.setupNeeded`);
+  - `toolPolicy?`: `disallowedTools`, passed as `--disallowedTools` in every permission mode (the MR
+    desk: `glab mr approve|note|merge|close`, `glab api`, `git push`);
+  - `approval?`: how `approve_mr` (capability `gitlab.approve`) reads and approves an MR;
   - `env?(config, space)`: extra environment for its claude and its commands;
   - `prepare?(config, space)`: async, writes what its program reads and probes its tools.
 - A kind id is a branded slug (`ResidentKindId`, `isResidentKindId`); the built-ins are
@@ -134,6 +137,15 @@ packaged, `<repo>/resources` in dev; `electron-builder.yml` `extraResources`).
 - **`setup` gates cycles.** In order: project (set, then readable), clone, `python3` (`python3 --version`), `glab`
   (`glab auth status`). The two binaries are probed by `ToolProbe` through `createExec`, not on every
   status; "Invalidated by" `prepare`. Until the first probe nothing is reported missing.
+- **Approval needs a click.** The agent cannot approve from its shell: `glab` writes are disallowed
+  and `mra approve` refuses without `MRA_APPROVE_NONCE` equal to `<space>/mra/state/approve.nonce`.
+  `approve_mr({ iid })` (`mcp/tools.ts`) has main run `mra ready !<iid>`, show a permission card
+  ("Approve !1570: title → target at <sha>", from GitLab, never from the agent's words) through
+  `ResidentChat.askUser`, and only on Allow write the nonce, run `mra approve !<iid>` with it and
+  delete it. A denial, or the chat stopping, approves nothing.
+- **Untrusted text.** `mra prompt` wraps the MR title and comment bodies in `<<<UNTRUSTED` … `>>>`
+  and opens the prompt saying that text is data. The residual risk: an agent with a shell can still
+  reach `glab` through another program; a read-only GitLab token for the resident would close it.
 - **The prompt** is a short preamble from code plus the vendored `resources/residents/mra/RESIDENT.md` (the upstream skill, adapted), read when
   claude starts. The cycle ends with `set_attention` / `clear_attention`, and `set_activity` while it
   works. The hard rules (never post, approve only when named, resolve only the user's threads, no CI,

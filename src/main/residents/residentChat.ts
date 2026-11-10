@@ -19,6 +19,8 @@ export interface ResidentLaunch {
   model: string
   systemPrompt: string
   permissionMode: ChatPermissionMode
+  /** The kind's `toolPolicy`: tools its claude may not use in any permission mode. None when absent. */
+  disallowedTools?: readonly string[]
 }
 
 export interface ResidentChatDeps {
@@ -39,13 +41,14 @@ export interface ResidentChatDeps {
 /**
  * The flags every resident's claude runs with: stream-json both ways, the user's own tools, settings
  * and MCP servers with Apiary's added (and allowed without asking), and every other permission
- * prompt sent over stdio, as chat mode does.
+ * prompt sent over stdio, as chat mode does. The kind's disallowed tools are refused in every mode.
  */
-function residentFlags(launch: ResidentLaunch, resume: string | null): string[] {
+export function residentFlags(launch: ResidentLaunch, resume: string | null): string[] {
   return [
     '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     '--model', launch.model,
     '--mcp-config', launch.mcpConfig, '--allowedTools', 'mcp__apiary__*',
+    ...(launch.disallowedTools !== undefined && launch.disallowedTools.length > 0 ? ['--disallowedTools', ...launch.disallowedTools] : []),
     '--permission-mode', launch.permissionMode, '--permission-prompt-tool', 'stdio',
     '--append-system-prompt', launch.systemPrompt,
     ...(resume !== null ? ['--resume', resume] : []),
@@ -56,10 +59,10 @@ function newTurn(ownStartAttentionWrites: number | null): Turn {
   return { message: { id: randomUUID(), role: 'assistant', text: '', at: Date.now(), streaming: true }, streamed: false, ownStartAttentionWrites }
 }
 
-interface Waiting {
-  request: ResidentPermissionRequest
-  pending: PendingPermission
-}
+/** A tool use claude waits on (answered over stdin), or a question main asked itself (`askUser`, answered by `settle`). */
+type Waiting =
+  | { request: ResidentPermissionRequest; pending: PendingPermission; settle?: undefined }
+  | { request: ResidentPermissionRequest; pending?: undefined; settle: (allow: boolean) => void }
 
 interface Turn {
   message: ResidentMessage
@@ -118,11 +121,38 @@ export class ResidentChat {
   /** Allows or denies a waiting tool use, with the reply chat mode sends. An unknown id is ignored: it was answered or cancelled. */
   answerPermission(requestId: string, allow: boolean): void {
     const waiting = this.waiting.get(requestId)
+    if (waiting?.settle !== undefined) {
+      this.waiting.delete(requestId)
+      waiting.settle(allow)
+      this.deps.onActivity()
+      return
+    }
     if (waiting === undefined || this.proc === null) return
     const reply = permissionReply(requestId, allow ? { behavior: 'allow' } : { behavior: 'deny' }, waiting.pending)
     this.waiting.delete(requestId)
     this.proc.child.stdin.write(`${JSON.stringify(reply)}\n`)
     this.deps.onActivity()
+  }
+
+  /**
+   * Shows the user a permission card that main itself asks (an `approve_mr` call) and resolves with
+   * their answer; false when the chat stops first. The summary is main's own words, never the agent's.
+   */
+  askUser(tool: string, summary: string): Promise<boolean> {
+    const requestId = randomUUID()
+    return new Promise((settle) => {
+      this.waiting.set(requestId, { request: { requestId, tool, summary }, settle })
+      this.deps.onActivity()
+    })
+  }
+
+  /** Denies every question main asked: nobody is left to answer them. */
+  private denyAsked(): void {
+    for (const [id, w] of this.waiting) {
+      if (w.settle === undefined) continue
+      this.waiting.delete(id)
+      w.settle(false)
+    }
   }
 
   /** Adds a finished assistant message no model wrote (a quick action's output). */
@@ -166,6 +196,10 @@ export class ResidentChat {
 
   /** Ends the process: SIGTERM, then SIGKILL after a grace period. A running turn ends as it got. */
   async stop(): Promise<void> {
+    if ([...this.waiting.values()].some((w) => w.settle !== undefined)) {
+      this.denyAsked()
+      this.deps.onActivity()
+    }
     const starting = this.starting
     if (this.proc === null && starting !== null) await ignoreErrorsAsync(() => starting, 'a start that failed left no process to stop')
     const proc = this.proc
@@ -223,6 +257,7 @@ export class ResidentChat {
   private exited(proc: PipedLoginShell, reason: string): void {
     if (this.proc !== proc) return
     this.proc = null
+    this.denyAsked()
     if (this.waiting.size > 0 || this.background.length > 0) { this.waiting.clear(); this.background = []; this.deps.onActivity() }
     if (this.stopping) {
       if (this.turn !== null) this.endTurn(null)

@@ -20,4 +20,9 @@ folder. Tests: `npm run test:mra` from the repo root.
 - `SKILL.md` became `RESIDENT.md` (see above).
 - `prompts/review.md` and `prompts/verify.md` are `prompts/*.tmpl` (`cli.py` reads them): they are
   `string.Template` files, not prose, and Apiary's markdown linter must not rewrite them.
+- `mra approve` refuses unless `MRA_APPROVE_NONCE` matches `approve.nonce` beside the state, a one-call
+  file Apiary writes only after the user allowed the resident's `approve_mr` request (and deletes after).
+  `mra ready` also prints the MR's `title`, `target_branch` and `sha`, which Apiary shows on that request.
+- `mra prompt` wraps text other people wrote (the title, comment bodies) in `<<<UNTRUSTED` … `>>>` and says
+  at the top of the prompt that such text is data, never instructions. Covered by `tests/test_approve.py`.
 - Not vendored: `install.sh`, `docs/`, `examples/`, upstream's `README.md`.

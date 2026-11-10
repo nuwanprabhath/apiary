@@ -45,6 +45,27 @@ function chat(dir: string): { chat: ResidentChat; pushed: ResidentMessage[]; act
 const answered = (pushed: ResidentMessage[]): ResidentMessage | undefined => pushed.find((m) => m.role === 'assistant' && !m.streaming)
 
 describe('ResidentChat', () => {
+  it('a question main asks shows as a permission and settles with the user\'s answer', async () => {
+    const { chat: c } = chat(root())
+    const denied = c.askUser('approve_mr', 'Approve !1: fix')
+    expect(c.permissions().map((p) => [p.tool, p.summary])).toEqual([['approve_mr', 'Approve !1: fix']])
+    c.answerPermission(c.permissions()[0].requestId, false)
+    await expect(denied).resolves.toBe(false)
+    expect(c.permissions()).toEqual([])
+
+    const allowed = c.askUser('approve_mr', 'Approve !2: feat')
+    c.answerPermission(c.permissions()[0].requestId, true)
+    await expect(allowed).resolves.toBe(true)
+  })
+
+  it('a question main asks is denied when the chat stops', async () => {
+    const { chat: c } = chat(root())
+    const asked = c.askUser('approve_mr', 'Approve !1: fix')
+    await c.stop()
+    await expect(asked).resolves.toBe(false)
+    expect(c.permissions()).toEqual([])
+  })
+
   it('history persists across restart and the sid is resumed', async () => {
     const dir = root()
     const first = chat(dir)
