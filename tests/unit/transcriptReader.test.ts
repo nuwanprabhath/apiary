@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, appendFileSync, utimesSync, createReadStream } from 'node:fs'
 import type * as NodeFs from 'node:fs'
+import type * as NodeFsPromises from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -10,6 +11,23 @@ import { join } from 'node:path'
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFs>()
   return { ...actual, createReadStream: vi.fn(actual.createReadStream) }
+})
+// `open` is wrapped so a test can see the largest read the reader asks for.
+const reads: number[] = []
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeFsPromises>()
+  return {
+    ...actual,
+    open: (async (...args: Parameters<typeof actual.open>) => {
+      const handle = await actual.open(...args)
+      const read = handle.read.bind(handle) as (...a: unknown[]) => Promise<unknown>
+      ;(handle as unknown as { read: unknown }).read = (...a: unknown[]) => {
+        reads.push(a[2] as number)
+        return read(...a)
+      }
+      return handle
+    }) as typeof actual.open,
+  }
 })
 import { TranscriptReader, toMessage } from '../../src/main/transcript/transcriptReader'
 import { BackgroundTaskTally, chatItems } from '@shared/chatTimeline'
@@ -188,6 +206,27 @@ describe('readTranscriptPage', () => {
     const page = await readTranscriptPage(file())
     expect(page.messages.map((m) => m.uuid)).toEqual(['u1', 'a1'])
     expect(page.skippedLines).toBe(1)
+  })
+
+  it('never reads more than 4 MB at once, and skips a 5 MB line by its length without reading it', async () => {
+    write([userMsg('u1', 'ok'), userMsg('huge', 'x'.repeat(5_000_000)), assistantMsg('a1', [{ type: 'text', text: 'fine' }])])
+    reads.length = 0
+    const page = await readTranscriptPage(file())
+    expect(page.messages.map((m) => m.uuid)).toEqual(['u1', 'a1'])
+    expect(page.skippedLines).toBe(1)
+    expect(Math.max(...reads)).toBeLessThanOrEqual(4 * 1024 * 1024)
+  })
+
+  it('stops a page at 16 MB of lines and hands back a cursor to the rest', async () => {
+    write(Array.from({ length: 24 }, (_, i) => userMsg('u' + String(i), 'x'.repeat(900_000))))
+    reads.length = 0
+    const page = await readTranscriptPage(file())
+    expect(reads.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(17 * 1024 * 1024)
+    expect(page.messages.at(-1)?.uuid).toBe('u23')
+    expect(page.messages.length).toBeLessThan(24)
+    expect(page.earlierCursor).toBe(page.messages[0].index)
+    const earlier = await readTranscriptPage(file(), { beforeIndex: page.earlierCursor! })
+    expect(earlier.messages.at(-1)?.index).toBe(page.earlierCursor! - 1)
   })
 
   it('flags sidechain messages rather than dropping them', async () => {

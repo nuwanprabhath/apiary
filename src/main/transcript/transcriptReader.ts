@@ -1,9 +1,17 @@
 import { createReadStream } from 'node:fs'
 import { open, stat } from 'node:fs/promises'
+import type { FileHandle } from 'node:fs/promises'
 import type { TranscriptBlock, TranscriptMessage, TranscriptPage } from '@shared/types'
 import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 import { taskNotificationIds } from '@shared/chatTimeline'
-import { MAX_LINE_CHARS } from './jsonlLines'
+import { MAX_LINE_CHARS, readExact } from './jsonlLines'
+
+/** A line longer than this is skipped by its length alone (4 bytes covers any character in `MAX_LINE_CHARS`). */
+const SKIP_LINE_BYTES = MAX_LINE_CHARS * 4
+/** The most one read asks for. */
+const MAX_READ_BYTES = 4 * 1024 * 1024
+/** The most lines one page reads; past it the page is what is held, with a cursor to the rest. */
+const MAX_PAGE_BYTES = 16 * 1024 * 1024
 
 const DEFAULT_LIMIT = TRANSCRIPT_PAGE_SIZE
 
@@ -237,19 +245,6 @@ function systemEvent(entry: Record<string, unknown>, base: MessageBase): Transcr
   return null
 }
 
-async function readRange(filePath: string, start: number, end: number): Promise<string> {
-  const handle = await open(filePath, 'r')
-  try {
-    const length = Math.max(0, end - start)
-    if (length === 0) return ''
-    const buffer = Buffer.alloc(length)
-    await handle.read(buffer, 0, length, start)
-    return buffer.toString('utf8')
-  } finally {
-    await handle.close()
-  }
-}
-
 interface IndexedMessage {
   /** Line index into the offsets array (not a byte offset). */
   index: number
@@ -283,6 +278,72 @@ function parseMessageLines(text: string, firstIndex: number): { messages: Indexe
   return { messages, skippedLines }
 }
 
+interface Collected {
+  /** At most `limit`, oldest first. */
+  messages: IndexedMessage[]
+  earlierCursor: number | null
+  skippedLines: number
+}
+
+/**
+ * Walks lines `end - 1` down to `floor`, newest first: a line over `SKIP_LINE_BYTES` is skipped by
+ * its length without being read, runs of other lines are read in pieces of at most `MAX_READ_BYTES`.
+ * Stops with more than `limit` messages, at `floor`, or after `MAX_PAGE_BYTES` of lines.
+ * `earlierCursor` is the earliest kept message's line index when anything earlier is left unread
+ * or was cut off by `limit`.
+ */
+async function collectBackward(
+  filePath: string,
+  offsets: number[],
+  size: number,
+  end: number,
+  floor: number,
+  limit: number,
+): Promise<Collected> {
+  const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsets[i + 1] : size)
+  let held: IndexedMessage[] = []
+  let skippedLines = 0
+  let readBytes = 0
+  let next = end - 1
+  let handle: FileHandle | null = null
+  try {
+    while (next >= floor && held.length <= limit && readBytes < MAX_PAGE_BYTES) {
+      if (lineEnd(next) - offsets[next] > SKIP_LINE_BYTES) {
+        skippedLines++
+        next--
+        continue
+      }
+      const room = Math.min(MAX_READ_BYTES, MAX_PAGE_BYTES - readBytes)
+      let bytes = lineEnd(next) - offsets[next]
+      if (bytes > room) break
+      const runEnd = next
+      let runStart = next
+      while (runStart - 1 >= floor) {
+        const len = lineEnd(runStart - 1) - offsets[runStart - 1]
+        if (len > SKIP_LINE_BYTES || bytes + len > room) break
+        bytes += len
+        runStart--
+      }
+      handle ??= await open(filePath, 'r')
+      const length = lineEnd(runEnd) - offsets[runStart]
+      const buffer = Buffer.alloc(length)
+      const got = await readExact(handle, buffer, offsets[runStart])
+      const parsed = parseMessageLines(buffer.toString('utf8', 0, got), runStart)
+      held = parsed.messages.concat(held)
+      skippedLines += parsed.skippedLines
+      readBytes += length
+      next = runStart - 1
+    }
+  } finally {
+    await handle?.close()
+  }
+  const overflow = Math.max(0, held.length - limit)
+  const page = held.slice(overflow)
+  const unread = next >= floor
+  const earlierCursor = overflow > 0 || (unread && page.length > 0) ? page[0].index : unread ? next + 1 : null
+  return { messages: page, earlierCursor, skippedLines }
+}
+
 /** Reads a session's JSONL a page at a time, keeping a line-offset index per file (bounded at `MAX_CACHE_ENTRIES`). */
 export class TranscriptReader {
   /** Invalidated by the file's size and mtime (checked on every read) and by the LRU cap. */
@@ -307,12 +368,12 @@ export class TranscriptReader {
    */
   async indexTranscript(
     filePath: string,
-  ): Promise<{ offsets: number[]; messageCount: number }> {
+  ): Promise<{ offsets: number[]; messageCount: number; size: number }> {
     const info = await stat(filePath)
     const hit = this.cache.get(filePath)
     if (hit && hit.mtimeMs === info.mtimeMs && hit.size === info.size) {
       this.remember(filePath, hit)
-      return { offsets: hit.offsets, messageCount: hit.messageCount }
+      return { offsets: hit.offsets, messageCount: hit.messageCount, size: hit.size }
     }
 
     let offsets: number[]
@@ -321,7 +382,8 @@ export class TranscriptReader {
 
     if (hit && hit.endsWithNewline && info.size > hit.size) {
       const delta = await scanFrom(filePath, hit.size, hit.size)
-      offsets = hit.offsets.concat(delta.offsets)
+      offsets = hit.offsets
+      for (const o of delta.offsets) offsets.push(o)
       messageCount = hit.messageCount + delta.messageCount
       endsWithNewline = delta.endsWithNewline
     } else {
@@ -332,62 +394,35 @@ export class TranscriptReader {
     }
 
     this.remember(filePath, { offsets, messageCount, mtimeMs: info.mtimeMs, size: info.size, endsWithNewline })
-    return { offsets, messageCount }
+    return { offsets, messageCount, size: info.size }
   }
 
   /**
    * Backward paging over the offset index.
    *
-   * Widens the scan window [nextStart, end) geometrically until it holds more messages than
-   * `limit` (so a real earlier boundary exists) or reaches line index 0. Each window is re-parsed
-   * from scratch.
+   * Reads lines from `end - 1` backwards (`collectBackward`) until it holds more messages than
+   * `limit` (so a real earlier boundary exists), reaches line 0, or has read 16 MB.
    *
-   * `earlierCursor` comes from the line index of the earliest message kept on the page, never from
-   * the window boundary: the window can reach further back than the page needs and contains
-   * non-message lines.
+   * `earlierCursor` comes from the line index of the earliest message kept on the page.
    */
   async readTranscriptPage(
     filePath: string,
     opts: { beforeIndex?: number; limit?: number } = {},
   ): Promise<TranscriptPage> {
     const limit = opts.limit ?? DEFAULT_LIMIT
-    const { offsets } = await this.indexTranscript(filePath)
-    const info = await stat(filePath)
-    // A renderer-supplied NaN cursor would make `windowStart === 0` never hold and spin the loop
-    // forever; anything not a safe non-negative integer counts as "no cursor".
+    const { offsets, size } = await this.indexTranscript(filePath)
+    const count = offsets.length
+    // A renderer-supplied NaN cursor must not reach the walk; anything not a safe non-negative
+    // integer counts as "no cursor".
     const beforeIndex = Number.isSafeInteger(opts.beforeIndex) && (opts.beforeIndex as number) >= 0
       ? opts.beforeIndex
       : undefined
-    const end = Math.max(0, Math.min(beforeIndex ?? offsets.length, offsets.length))
-    if (!Number.isFinite(end)) throw new Error('Could not resolve a valid transcript window')
-
-    let windowMessages: IndexedMessage[]
-    let skippedLines: number
-    let windowStart: number
-    let span = Math.max(limit * 2, 1)
-
-    for (;;) {
-      const nextStart = Math.max(0, end - span)
-      const byteStart = nextStart < offsets.length ? offsets[nextStart] : info.size
-      const byteEnd = end < offsets.length ? offsets[end] : info.size
-      const parsed = parseMessageLines(await readRange(filePath, byteStart, byteEnd), nextStart)
-      windowMessages = parsed.messages
-      skippedLines = parsed.skippedLines
-
-      windowStart = nextStart
-      // Strictly more than `limit`: exactly `limit` with windowStart > 0 cannot tell whether earlier messages exist.
-      if (windowMessages.length > limit || windowStart === 0) break
-      span *= 2
-    }
-
-    const overflow = Math.max(0, windowMessages.length - limit)
-    const page = windowMessages.slice(overflow)
-    const earlierCursor = overflow > 0 ? page[0].index : null
-
+    const end = Math.max(0, Math.min(beforeIndex ?? count, count))
+    const page = await collectBackward(filePath, offsets, size, end, 0, limit)
     return {
-      messages: page.map((p) => ({ ...p.message, index: p.index })),
-      earlierCursor,
-      skippedLines,
+      messages: page.messages.map((p) => ({ ...p.message, index: p.index })),
+      earlierCursor: page.earlierCursor,
+      skippedLines: page.skippedLines,
     }
   }
 
@@ -397,17 +432,15 @@ export class TranscriptReader {
    * the caller appends without an overlap, as the full-page refresh does.
    */
   async readTranscriptAfter(filePath: string, afterIndex: number): Promise<TranscriptPage> {
-    const { offsets } = await this.indexTranscript(filePath)
-    const info = await stat(filePath)
+    const { offsets, size } = await this.indexTranscript(filePath)
+    const count = offsets.length
     const first = Number.isSafeInteger(afterIndex) && afterIndex >= 0 ? afterIndex + 1 : 0
-    if (first >= offsets.length) return { messages: [], earlierCursor: null, skippedLines: 0 }
-    const parsed = parseMessageLines(await readRange(filePath, offsets[first], info.size), first)
-    const overflow = Math.max(0, parsed.messages.length - DEFAULT_LIMIT)
-    const page = parsed.messages.slice(overflow)
+    if (first >= count) return { messages: [], earlierCursor: null, skippedLines: 0 }
+    const page = await collectBackward(filePath, offsets, size, count, first, DEFAULT_LIMIT)
     return {
-      messages: page.map((p) => ({ ...p.message, index: p.index })),
-      earlierCursor: overflow > 0 ? page[0].index : null,
-      skippedLines: parsed.skippedLines,
+      messages: page.messages.map((p) => ({ ...p.message, index: p.index })),
+      earlierCursor: page.earlierCursor,
+      skippedLines: page.skippedLines,
     }
   }
 }
