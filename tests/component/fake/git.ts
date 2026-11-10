@@ -121,7 +121,7 @@ export function gitApi(env: Env): GitApi {
         }
       }
       setBranch(p, name)
-      emit('treeChanged')
+      emit('treeChanged', { sessions: null })
       return { ok: true }
     },
     gitCheckoutBranchMovingOther: async (target, branch, otherTo) => {
@@ -136,7 +136,7 @@ export function gitApi(env: Env): GitApi {
         state.worktrees[root] = (state.worktrees[root] ?? []).map((w) => (w.path === other.path ? { ...w, branch: otherTo } : w))
       }
       setBranch(p, branch)
-      emit('treeChanged')
+      emit('treeChanged', { sessions: null })
     },
     gitCreateBranch: async (target, name, from) => {
       const p = repo(target)
@@ -144,7 +144,7 @@ export function gitApi(env: Env): GitApi {
       if (from !== undefined && !refExists(from)) throw new Error(`fatal: '${from}' is not a commit`)
       addLocal(name)
       setBranch(p, name)
-      emit('treeChanged')
+      emit('treeChanged', { sessions: null })
     },
     gitCheckoutRemote: async (target, remoteRef, localName) => {
       const p = repo(target)
@@ -153,24 +153,24 @@ export function gitApi(env: Env): GitApi {
       addLocal(localName)
       state.tracking.set(localName, { upstream: true, ahead: 0, behind: 0, pending: 0 })
       setBranch(p, localName)
-      emit('treeChanged')
+      emit('treeChanged', { sessions: null })
     },
     gitCheckoutDetached: async (target, ref) => {
       const p = repo(target)
       if (ref !== 'HEAD' && !refExists(ref)) throw new Error(`fatal: invalid reference: ${ref}`)
       setBranch(p, null)
-      emit('treeChanged')
+      emit('treeChanged', { sessions: null })
     },
     gitMerge: async (target, ref) => {
       repo(target)
       if (!refExists(ref)) throw new Error(`merge: ${ref} - not something we can merge`)
-      emit('treeChanged')
+      emit('treeChanged', { sessions: null })
     },
 
     gitFetch: async (target) => {
       repo(target)
       for (const t of state.tracking.values()) { t.behind += t.pending; t.pending = 0 }
-      emit('treeChanged')
+      emit('treeChanged', { sessions: null })
     },
     gitPull: async (target) => {
       const p = repo(target)
@@ -203,7 +203,7 @@ export function gitApi(env: Env): GitApi {
       const p = known(path)
       if (p.notRepo === true) throw new Error('fatal: not a git repository')
       const commits = catchUp(upstreamOf(currentOf(p)))
-      if (commits > 0) emit('treeChanged')
+      if (commits > 0) emit('treeChanged', { sessions: null })
       return { commits }
     },
     gitPullWorktree: async (target, branch) => {
@@ -211,7 +211,7 @@ export function gitApi(env: Env): GitApi {
       const holder = checkouts(p).find((c) => c.branch === branch)
       if (holder === undefined) throw new Error(`${branch} is no longer checked out in a worktree of this repository`)
       const commits = catchUp(upstreamOf(branch))
-      emit('treeChanged')
+      emit('treeChanged', { sessions: null })
       return { path: holder.path, commits }
     },
 

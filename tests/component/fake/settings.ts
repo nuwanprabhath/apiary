@@ -74,7 +74,7 @@ export function settingsApi(env: Env): SettingsApi {
     if (statusBarChanged) emit('statusBarChanged')
     if (merged.autoImportAll && !wasAutoImporting) {
       for (const s of state.sessions) state.imported.add(s.sessionId)
-      emit('treeChanged')
+      emit('treeChanged', { sessions: null })
     }
   }
 

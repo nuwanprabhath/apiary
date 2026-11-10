@@ -104,17 +104,17 @@ export function sessionsApi(env: Env): SessionsApi {
     // Someone else's process is running the session: the conflict names it.
     checkConflict: async (id) => (find(id)?.isLive === true ? { sessionId: id, pid: 4242 } : null),
     // As in main, a change to what the tree shows is followed by a tree-changed event.
-    renameSession: async (id, title) => { const s = find(id); if (s !== undefined) s.title = title; emit('treeChanged') },
+    renameSession: async (id, title) => { const s = find(id); if (s !== undefined) s.title = title; emit('treeChanged', { sessions: [id] }) },
     // As in main (AppService.removeSession): archived, not un-imported, so the import dialog does
     // not offer it again as new.
-    removeSession: async (id) => { state.archived.add(id); emit('treeChanged') },
-    moveSession: async (id, target) => { const s = find(id); if (s !== undefined) s.projectPath = target; emit('treeChanged') },
+    removeSession: async (id) => { state.archived.add(id); emit('treeChanged', { sessions: [id] }) },
+    moveSession: async (id, target) => { const s = find(id); if (s !== undefined) s.projectPath = target; emit('treeChanged', { sessions: null }) },
     // AppService.setSessionNote trims (appService.ts:567) before deciding empty-vs-not.
     setSessionNote: async (id, note) => {
       const trimmed = note.trim()
       const s = find(id)
       if (s !== undefined) s.note = trimmed === '' ? null : trimmed
-      emit('treeChanged')
+      emit('treeChanged', { sessions: [id] })
     },
     sessionNote: async (id) => find(id)?.note ?? '',
 

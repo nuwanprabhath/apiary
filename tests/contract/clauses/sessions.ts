@@ -37,7 +37,7 @@ export function defineSessionClauses(ctx: Ctx): void {
     it('rename changes the title in the tree and tells every view the tree changed', async () => {
       await ctx.api.renameSession(STD.csv.id, 'Renamed session')
       expect(sessionOf(await ctx.api.tree(), STD.csv.id)?.session.title).toBe('Renamed session')
-      expect(ctx.heard.count('treeChanged')).toBe(1)
+      expect(ctx.heard.payloads('treeChanged')).toEqual([[{ sessions: [STD.csv.id] }]])
     })
 
     it('remove takes the session out of the tree but leaves it imported, so it is not offered again as new, and signals the change', async () => {
@@ -45,7 +45,7 @@ export function defineSessionClauses(ctx: Ctx): void {
       expect(titles(await ctx.api.tree())).not.toContain(STD.switcher.title)
       const discovered = await ctx.api.discovered()
       expect(discovered.find((d) => d.sessionId === STD.switcher.id)?.imported).toBe(true)
-      expect(ctx.heard.count('treeChanged')).toBe(1)
+      expect(ctx.heard.payloads('treeChanged')).toEqual([[{ sessions: [STD.switcher.id] }]])
     })
 
     it('moving a session files it under the other folder and signals the change', async () => {
@@ -82,7 +82,7 @@ export function defineSessionClauses(ctx: Ctx): void {
       await ctx.api.setSessionNote(STD.csv.id, '  remember the header row  ')
       expect(await ctx.api.sessionNote(STD.csv.id)).toBe('remember the header row')
       expect(sessionOf(await ctx.api.tree(), STD.csv.id)?.session.note).toBe('remember the header row')
-      expect(ctx.heard.count('treeChanged')).toBe(1)
+      expect(ctx.heard.payloads('treeChanged')).toEqual([[{ sessions: [STD.csv.id] }]])
     })
 
     it('a blank note clears it', async () => {
