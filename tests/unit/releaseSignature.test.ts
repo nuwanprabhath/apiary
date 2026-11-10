@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import { generateKeyPairSync, sign } from 'node:crypto'
 import { verifyFeedSignature, RELEASE_PUBLIC_KEY, UNVERIFIED_MESSAGE, servedMatchesSigned, parseFeedFacts } from '../../src/main/update/releaseSignature'
@@ -54,8 +55,8 @@ describe('servedMatchesSigned', () => {
   })
   it('refuses another version, another hash, or another set of files', () => {
     expect(servedMatchesSigned(signed, { version: '1.2.4', files })).toBe(false)
-    expect(servedMatchesSigned(signed, { version: '1.2.3', files: [files[0], { ...files[1], sha512: 'EVIL==' }] })).toBe(false)
-    expect(servedMatchesSigned(signed, { version: '1.2.3', files: [files[0]] })).toBe(false)
+    expect(servedMatchesSigned(signed, { version: '1.2.3', files: [must(files[0]), { ...must(files[1]), sha512: 'EVIL==' }] })).toBe(false)
+    expect(servedMatchesSigned(signed, { version: '1.2.3', files: [must(files[0])] })).toBe(false)
   })
   it('refuses a signed feed it cannot read', () => {
     expect(servedMatchesSigned(Buffer.from('files: []\n'), { version: '1.2.3', files: [] })).toBe(false)

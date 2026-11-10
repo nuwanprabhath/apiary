@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -103,7 +104,7 @@ describe('PetPlacement', () => {
       expect(placement.dropOutside(pet.id, 10)).toBe(true)
       expect(store.get(pet.id)?.window).toBe(2)
       expect(arrivals).toEqual([{ id: pet.id, window: 2, x: 100, y: 230 }])
-      expect(windows[1].focus).toHaveBeenCalled()
+      expect(must(windows[1]).focus).toHaveBeenCalled()
     })
 
     it('stays when released over no window, over its own, over a hidden one or over a remote one', () => {

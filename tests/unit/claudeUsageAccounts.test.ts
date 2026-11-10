@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -51,9 +52,9 @@ function harness(opts: HarnessOptions) {
   const failing = new Set<string>()
   const fetchImpl = (async (_url: string, init: RequestInit) => {
     const auth = (init.headers as Record<string, string>).Authorization
-    fetched.push(auth)
-    if (failing.has(auth)) return new Response('', { status: 500 })
-    return new Response(JSON.stringify({ five_hour: { utilization: auth.endsWith('work-tok') ? 70 : 10 } }), { status: 200 })
+    fetched.push(must(auth))
+    if (failing.has(must(auth))) return new Response('', { status: 500 })
+    return new Response(JSON.stringify({ five_hour: { utilization: must(auth).endsWith('work-tok') ? 70 : 10 } }), { status: 200 })
   }) as unknown as typeof fetch
   const timers: Timer[] = []
   const plugin = createClaudeUsagePlugin({
@@ -134,7 +135,7 @@ describe('the usage plugin with several accounts', () => {
     await h.plugin.refresh()
     const [main, work] = h.plugin.items()
     expect(main).toMatchObject({ text: 'Main · 5h 10%' })
-    expect(main.stale).toBeFalsy()
+    expect(must(main).stale).toBeFalsy()
     expect(work).toMatchObject({ text: 'Work · 5h 70%', stale: true })
     // Main's timer is at the normal interval; work's is backed off beyond it.
     const delays = h.timers.map((t) => t.ms).sort((a, b) => a - b)
@@ -147,7 +148,7 @@ describe('the usage plugin with several accounts', () => {
     const h = harness({ accounts: TWO, files: { main: 'main-tok', work: 'work-tok' } })
     await h.plugin.refresh()
     expect(h.timers).toHaveLength(2)
-    h.change([TWO[0]])
+    h.change([must(TWO[0])])
     expect(h.plugin.items().map((i) => i.id)).toEqual(['usage', 'refresh'])
     expect(h.timers).toHaveLength(1)
     h.change([...TWO, info('home', 'Home', 'h@x.com')])

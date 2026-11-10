@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import { pruneStaleLive } from '../../src/main/windows/sessionLayoutRestore'
 import type { WindowLayoutRecord } from '../../src/main/windows/sessionLayoutStore'
@@ -28,7 +29,7 @@ describe('pruneStaleLive', () => {
     const pruned = pruneStaleLive(record, (id) => id === 'sess-live')
     expect(pruned.live).toEqual(['sess-live'])
     // The tab itself survives — it just won't be auto-resumed; the user can still open it.
-    expect(pruned.layout.panes[0].tabs.map((t) => t.key)).toEqual(['sess-live', 'sess-gone'])
+    expect(must(pruned.layout.panes[0]).tabs.map((t) => t.key)).toEqual(['sess-live', 'sess-gone'])
   })
 
   it('drops every live entry when none resolve, without throwing', () => {

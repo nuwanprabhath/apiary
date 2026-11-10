@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, appendFileSync, utimesSync, createReadStream } from 'node:fs'
 import type * as NodeFs from 'node:fs'
@@ -128,8 +129,8 @@ describe('readTranscriptPage', () => {
     write([userMsg('u1', 'the export is empty'), assistantMsg('a1', [{ type: 'text', text: 'checking' }])])
     const page = await readTranscriptPage(file())
     expect(page.messages.map((m) => m.uuid)).toEqual(['u1', 'a1'])
-    expect(page.messages[0].role).toBe('user')
-    expect(page.messages[0].blocks).toEqual([{ type: 'text', text: 'the export is empty' }])
+    expect(must(page.messages[0]).role).toBe('user')
+    expect(must(page.messages[0]).blocks).toEqual([{ type: 'text', text: 'the export is empty' }])
   })
 
   it('maps text, thinking and tool_use blocks', async () => {
@@ -139,7 +140,7 @@ describe('readTranscriptPage', () => {
       { type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/x.ts' } },
     ])])
     const page = await readTranscriptPage(file())
-    expect(page.messages[0].blocks).toEqual([
+    expect(must(page.messages[0]).blocks).toEqual([
       { type: 'thinking', text: 'hmm' },
       { type: 'text', text: 'I will read the file' },
       { type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/x.ts' } },
@@ -155,7 +156,7 @@ describe('readTranscriptPage', () => {
       ] },
     }])
     const page = await readTranscriptPage(file())
-    expect(page.messages[0].blocks).toEqual([
+    expect(must(page.messages[0]).blocks).toEqual([
       { type: 'tool_result', toolUseId: 't1', content: 'file contents', isError: false },
       { type: 'tool_result', toolUseId: 't2', content: 'boom', isError: true },
     ])
@@ -165,8 +166,8 @@ describe('readTranscriptPage', () => {
     write(Array.from({ length: 50 }, (_, i) => userMsg(`u${i}`, `msg ${i}`)))
     const page = await readTranscriptPage(file(), { limit: 10 })
     expect(page.messages).toHaveLength(10)
-    expect(page.messages[0].uuid).toBe('u40')
-    expect(page.messages[9].uuid).toBe('u49')
+    expect(must(page.messages[0]).uuid).toBe('u40')
+    expect(must(page.messages[9]).uuid).toBe('u49')
     expect(page.earlierCursor).not.toBeNull()
   })
 
@@ -178,7 +179,7 @@ describe('readTranscriptPage', () => {
     write(Array.from({ length: 50 }, (_, i) => userMsg(`u${i}`, `msg ${i}`)))
     const page = await readTranscriptPage(file(), { limit: 10, beforeIndex: NaN })
     expect(page.messages).toHaveLength(10)
-    expect(page.messages[9].uuid).toBe('u49')
+    expect(must(page.messages[9]).uuid).toBe('u49')
   })
 
   it('pages backwards to the start and then reports no cursor', async () => {
@@ -224,7 +225,7 @@ describe('readTranscriptPage', () => {
     expect(reads.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(17 * 1024 * 1024)
     expect(page.messages.at(-1)?.uuid).toBe('u23')
     expect(page.messages.length).toBeLessThan(24)
-    expect(page.earlierCursor).toBe(page.messages[0].index)
+    expect(page.earlierCursor).toBe(must(page.messages[0]).index)
     const earlier = await readTranscriptPage(file(), { beforeIndex: page.earlierCursor! })
     expect(earlier.messages.at(-1)?.index).toBe(page.earlierCursor! - 1)
   })
@@ -367,7 +368,7 @@ describe('indexTranscript incremental fast path (MAIN-24)', () => {
     // The first files indexed should have been evicted; re-reading one must not throw and must
     // still produce the right answer (a correctness check that eviction, not corruption, is what
     // happened).
-    const { messageCount } = await indexTranscript(files[0])
+    const { messageCount } = await indexTranscript(must(files[0]))
     expect(messageCount).toBe(1)
   })
 })
@@ -427,7 +428,7 @@ describe('a background task whose end was only queued', () => {
   })
 
   it('draws nothing in the conversation: the notification shows once, if Claude ever delivers it', () => {
-    const m = toMessage(lines[2])
+    const m = toMessage(must(lines[2]))
     expect(m?.blocks).toEqual([{ type: 'task_ended', taskIds: ['b1rgwotai'] }])
     expect(chatItems(m === null ? [] : [m])).toEqual([])
   })
@@ -492,7 +493,7 @@ describe('readTranscriptAfter with a limit', () => {
   it('answers the next page after the index, not the newest', async () => {
     write(Array.from({ length: 450 }, (_, i) => userMsg(`u${i}`, `m${i}`)))
     const page = await reader.readTranscriptAfter(file(), 9, true)
-    expect(page.messages[0].index).toBe(10)
+    expect(must(page.messages[0]).index).toBe(10)
     expect(page.messages).toHaveLength(200)
     expect(page.earlierCursor).toBeNull()
     const last = await reader.readTranscriptAfter(file(), 399, true)

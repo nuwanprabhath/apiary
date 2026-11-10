@@ -1,3 +1,4 @@
+import { must } from '../support/must'
 import { describe, it, expect } from 'vitest'
 import { createHash } from 'node:crypto'
 import ts from 'typescript'
@@ -146,8 +147,8 @@ describe('no helper is declared twice', () => {
   it('declares each helper name at top level in one file only', () => {
     const lines = verdict.unlisted.filter((k) => sameName.has(k)).map((name) => {
       const [first, ...rest] = sameName.get(name) ?? []
-      const home = HOMES[name] ?? rel(first)
-      return `\`${name}\` is already defined in ${home} — import it (shared helpers: @shared/guards, @shared/errors, @shared/text), or add "${name}" to duplicateSymbols.allow.json with a reason. Also declared in: ${(name in HOMES ? [first, ...rest] : rest).map(rel).join(', ')}`
+      const home = HOMES[name] ?? rel(must(first))
+      return `\`${name}\` is already defined in ${home} — import it (shared helpers: @shared/guards, @shared/errors, @shared/text), or add "${name}" to duplicateSymbols.allow.json with a reason. Also declared in: ${(name in HOMES ? [first, ...rest] : rest).map((f) => rel(must(f))).join(', ')}`
     })
     expect(lines).toEqual([])
   })
@@ -163,7 +164,7 @@ describe('no helper is declared twice', () => {
   it('writes each regex literal in one file only', () => {
     const lines = verdict.unlisted.filter((k) => sameRegex.has(k)).map((key) => {
       const [first, ...rest] = sameRegex.get(key) ?? []
-      return `${key.slice('regex:'.length)} is written in ${[first, ...rest].map(rel).join(' and ')} — export it from one home (@shared/domain/ids for ids, @shared/text for stripping control characters, the module that owns the format otherwise) and import it, or add "${key}" to duplicateSymbols.allow.json with a reason`
+      return `${key.slice('regex:'.length)} is written in ${[first, ...rest].map((f) => rel(must(f))).join(' and ')} — export it from one home (@shared/domain/ids for ids, @shared/text for stripping control characters, the module that owns the format otherwise) and import it, or add "${key}" to duplicateSymbols.allow.json with a reason`
     })
     expect(lines).toEqual([])
   })

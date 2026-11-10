@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import { rankSessions } from '@shared/sessionRank'
@@ -49,7 +50,7 @@ describe('rankSessions', () => {
 
   it('carries the session’s worktree label for the subtitle', () => {
     const tree = [project([session({ title: 'csv' })], { label: 'my-worktree' })]
-    expect(rankSessions(tree, 'csv', new Set())[0].worktreeLabel).toBe('my-worktree')
+    expect(must(rankSessions(tree, 'csv', new Set())[0]).worktreeLabel).toBe('my-worktree')
   })
 })
 
@@ -79,6 +80,6 @@ describe('the search pipeline (filterTreeLocal -> rankSessions -> cap)', () => {
 
     const ranked = rankSessions(filtered, 'csv', new Set()).slice(0, SEARCH_RESULT_CAP)
     expect(ranked).toHaveLength(SEARCH_RESULT_CAP)
-    expect(ranked[0].session.sessionId).toBe('best')
+    expect(must(ranked[0]).session.sessionId).toBe('best')
   })
 })

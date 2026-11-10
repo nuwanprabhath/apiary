@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, expect, it, vi } from 'vitest'
 import type { ContextMenuRequest } from '@shared/domain/contextMenu'
 import { suggestionItems, textMenuItems } from '../../src/renderer/features/spelling/textMenu'
@@ -24,15 +25,15 @@ describe('textMenuItems', () => {
       request({ isEditable: true, misspelledWord: 'teh', dictionarySuggestions: ['the', 'ten'] }),
       { edit: vi.fn() },
     )
-    expect(spelling.label).toBe('Spelling')
-    expect(labels(spelling.submenu ?? [])).toEqual(['the', 'ten'])
+    expect(must(spelling).label).toBe('Spelling')
+    expect(labels(must(spelling).submenu ?? [])).toEqual(['the', 'ten'])
     expect(labels(rest)).toEqual(['Cut', 'Copy', 'Paste', 'Select all'])
   })
 
   it('says there are no suggestions, disabled, for a misspelled word with none', () => {
     const [spelling] = textMenuItems(request({ isEditable: true, misspelledWord: 'xqzv' }), { edit: vi.fn() })
-    expect(labels(spelling.submenu ?? [])).toEqual(['No suggestions'])
-    expect(spelling.submenu?.[0].disabled).toBe(true)
+    expect(labels(must(spelling).submenu ?? [])).toEqual(['No suggestions'])
+    expect(must(must(spelling).submenu?.[0]).disabled).toBe(true)
   })
 
   it('disables each edit the field does not allow', () => {
@@ -60,7 +61,7 @@ describe('textMenuItems', () => {
       { edit },
     )
     items.find((item) => item.label === 'Paste')?.run?.()
-    items[0].submenu?.[0].run?.()
+    must(must(items[0]).submenu?.[0]).run?.()
     expect(edit.mock.calls).toEqual([
       [{ action: 'paste' }],
       [{ action: 'replaceMisspelling', word: 'the' }],
@@ -73,7 +74,7 @@ describe('suggestionItems', () => {
     const choose = vi.fn()
     const items = suggestionItems(['the', 'ten'], choose)
     expect(labels(items)).toEqual(['the', 'ten'])
-    items[1].run?.()
+    must(items[1]).run?.()
     expect(choose).toHaveBeenCalledWith('ten')
   })
 })
@@ -85,12 +86,12 @@ describe('textMenuItems over an image', () => {
       { edit: vi.fn() },
     )
     expect(labels(items)).toEqual(['Copy image'])
-    expect(items[0].disabled).toBeFalsy()
+    expect(must(items[0]).disabled).toBeFalsy()
   })
 
   it("asks main to copy the image at the request's own coordinates", () => {
     const edit = vi.fn()
-    textMenuItems(request({ mediaType: 'image', x: 41, y: 17 }), { edit })[0].run?.()
+    must(textMenuItems(request({ mediaType: 'image', x: 41, y: 17 }), { edit })[0]).run?.()
     expect(edit).toHaveBeenCalledWith({ action: 'copyImageAt', x: 41, y: 17 })
   })
 

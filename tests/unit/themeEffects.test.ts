@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import { EFFECTS } from '@shared/theme/effects'
 import type { Ctx2D } from '@shared/theme/effects/types'
@@ -27,7 +28,7 @@ describe('effects catalogue', () => {
       for (const [w, h] of [[0, 0], [1, 1], [1920, 1080]]) {
         for (const t of [0, 0.5, 13.37]) {
           const ctx = recorder()
-          effect.draw(ctx, { t, w, h, still: false }, params)
+          effect.draw(ctx, { t, w: must(w), h: must(h), still: false }, params)
           expect(ctx.maxAlpha).toBeLessThanOrEqual(effect.maxOpacity + 1e-9)
         }
       }

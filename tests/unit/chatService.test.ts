@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
@@ -217,7 +218,7 @@ describe('ChatService pushes', () => {
     const shown = open(1)
     service.attach(1, A)
     await service.start(A, { takeOver: false })
-    expect(shown.got[0].push.kind).toBe('full')
+    expect(must(shown.got[0]).push.kind).toBe('full')
     shown.got.length = 0
     service.onChanged({ ...chats.state(A)!, sessionId: B, previousSessionId: A })
     expect(shown.got.map((g) => g.push.kind)).toEqual(['full'])
@@ -239,7 +240,7 @@ describe('ChatService pushes', () => {
     shown.got.length = 0
     service.attach(1, A)
     await service.start(A, { takeOver: false })
-    expect(shown.got[0].push.kind).toBe('full')
+    expect(must(shown.got[0]).push.kind).toBe('full')
   })
 })
 
@@ -344,14 +345,14 @@ describe('ChatService and the terminal', () => {
   it('switching a running chat stops it and starts it with the new env', async () => {
     const { service, chats, child, accounts, sessionAccountsChanged } = setup()
     await service.start(A, { takeOver: false, model: 'opus', permissionMode: 'plan' })
-    expect(child.envs[0].CLAUDE_CONFIG_DIR).toBeUndefined()
+    expect(must(child.envs[0]).CLAUDE_CONFIG_DIR).toBeUndefined()
     vi.spyOn(chats, 'stop').mockImplementation(async () => { child.exit() })
 
     await service.switchAccount(A, WORK)
 
     expect(accounts.stored.get(A)).toBe(WORK)
     expect(child.envs).toHaveLength(2)
-    expect(child.envs[1].CLAUDE_CONFIG_DIR).toBe('/accounts/work')
+    expect(must(child.envs[1]).CLAUDE_CONFIG_DIR).toBe('/accounts/work')
     expect(chats.has(A)).toBe(true)
     expect(chats.launchOf(A)).toMatchObject({ account: WORK, opts: { model: 'opus', permissionMode: 'plan' } })
     expect(sessionAccountsChanged).toHaveBeenCalledTimes(1)
@@ -409,7 +410,7 @@ describe('ChatService and the terminal', () => {
     const { service, accounts, child } = setup()
     accounts.stored.set(A, WORK)
     await service.start(A, { takeOver: false })
-    expect(child.envs[0].CLAUDE_CONFIG_DIR).toBe('/accounts/work')
+    expect(must(child.envs[0]).CLAUDE_CONFIG_DIR).toBe('/accounts/work')
     expect(service.accountInUse(WORK)).toBe(true)
     expect(service.liveSessionAccounts()).toEqual({ [A]: WORK })
   })
@@ -442,7 +443,7 @@ describe('ChatService side questions (/btw)', () => {
     const { service, run, accounts } = withAside(answered('  BLUE-HERON  '))
     accounts.setAccountOf(A, WORK)
     expect(await service.askAside(A, ' what is the codename? ')).toBe('BLUE-HERON')
-    const req = run.mock.calls[0][0]
+    const req = must(run.mock.calls[0])[0]
     expect(req.resume).toBe(A)
     expect(req.env).toEqual(accounts.launchEnv(WORK))
     expect(req.prompt).toMatch(/side question \(\/btw\)[\s\S]*Side question: what is the codename\?$/)
@@ -452,7 +453,7 @@ describe('ChatService side questions (/btw)', () => {
     const { service, run } = withAside(answered('ok'))
     const earlier = Array.from({ length: 8 }, (_, i) => ({ question: `q${String(i)}`, answer: `a${String(i)}` }))
     await service.askAside(A, 'and the other one?', earlier)
-    const prompt = run.mock.calls[0][0].prompt
+    const prompt = must(run.mock.calls[0])[0].prompt
     expect(prompt).toContain('Earlier in this side thread')
     expect(prompt).not.toContain('Side question: q1\n')
     expect(prompt).toMatch(/Side question: q2\nYour answer: a2[\s\S]*Side question: q7\nYour answer: a7[\s\S]*Side question: and the other one\?$/)
@@ -461,12 +462,12 @@ describe('ChatService side questions (/btw)', () => {
   it('uses the model the session\'s chat is running, and claude\'s default with no chat', async () => {
     const { service, run, chats } = withAside(answered('ok'))
     await service.askAside(A, 'q')
-    expect(run.mock.calls[0][0].model).toBeUndefined()
+    expect(must(run.mock.calls[0])[0].model).toBeUndefined()
     await service.start(A, { takeOver: false })
     chats.setModel(A, 'opus')
     vi.spyOn(chats, 'state').mockReturnValue({ ...chats.state(A)!, model: 'claude-opus-5-5' })
     await service.askAside(A, 'q')
-    expect(run.mock.calls[1][0].model).toBe('claude-opus-5-5')
+    expect(must(run.mock.calls[1])[0].model).toBe('claude-opus-5-5')
   })
 
   it('leaves a running chat as it was: nothing is sent to it', async () => {

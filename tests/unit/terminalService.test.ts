@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { asPtyId, asSessionId } from '@shared/domain/ids'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -74,7 +75,7 @@ describe('TerminalService', () => {
       await terminals.resume(SID)
       expect(spawned).toHaveLength(1)
       expect(spawned[0]).toMatchObject({ id: SID, cwd: realDir, tui: true })
-      expect(spawned[0].command).toContain('--resume')
+      expect(must(spawned[0]).command).toContain('--resume')
     })
 
     it('resumes a session started from "+" under the new-session pty its tabs still show, and refuses any other id', async () => {
@@ -85,7 +86,7 @@ describe('TerminalService', () => {
       await terminals.resume(SID, pending)
       expect(spawned).toHaveLength(1)
       expect(spawned[0]).toMatchObject({ id: pending, cwd: realDir, tui: true })
-      expect(spawned[0].command).toContain(`--resume ${SID}`)
+      expect(must(spawned[0]).command).toContain(`--resume ${SID}`)
       await expect(terminals.resume(SID, asPtyId(`shell:${SID}:1`))).rejects.toThrow('Not a new-session pty id')
       await expect(terminals.resume(SID, asPtyId(SID))).rejects.toThrow('Not a new-session pty id')
     })
@@ -124,7 +125,7 @@ describe('TerminalService', () => {
       const info = terminals.forkSession(SID)
       expect(info.cwd).toBe(realDir)
       expect(info.ptyId.startsWith('new:')).toBe(true)
-      expect(spawned[0].command).toContain('--fork-session')
+      expect(must(spawned[0]).command).toContain('--fork-session')
     })
 
     it('throws when the original session cwd no longer exists', () => {
@@ -153,8 +154,8 @@ describe('TerminalService', () => {
       expect(killed).toEqual([SID])
       expect(spawned).toHaveLength(1)
       expect(spawned[0]).toMatchObject({ id: SID, cwd: realDir, tui: true, account: WORK, cols: 132, rows: 40 })
-      expect(spawned[0].command).toContain(`--resume ${SID}`)
-      expect(spawned[0].env).toMatchObject({ CLAUDE_CONFIG_DIR: '/accounts/work' })
+      expect(must(spawned[0]).command).toContain(`--resume ${SID}`)
+      expect(must(spawned[0]).env).toMatchObject({ CLAUDE_CONFIG_DIR: '/accounts/work' })
     })
 
     it('resumes under the session\'s account, and a main session gets no config folder', async () => {
@@ -165,7 +166,7 @@ describe('TerminalService', () => {
       expect(work.spawned[0]).toMatchObject({ account: WORK, env: { CLAUDE_CONFIG_DIR: '/accounts/work' } })
       const main = build(new Set())
       await main.terminals.resume(SID)
-      expect(main.spawned[0].env).not.toHaveProperty('CLAUDE_CONFIG_DIR')
+      expect(must(main.spawned[0]).env).not.toHaveProperty('CLAUDE_CONFIG_DIR')
     })
 
     it('a fork starts in its parent\'s account, a new session in the default one', async () => {
@@ -205,7 +206,7 @@ describe('TerminalService', () => {
       terminals.setClaudeBin('/opt/claude')
       expect(terminals.getClaudeBin()).toBe('/opt/claude')
       await terminals.resume(SID)
-      expect(spawned[0].command).toContain('/opt/claude')
+      expect(must(spawned[0]).command).toContain('/opt/claude')
     })
   })
 

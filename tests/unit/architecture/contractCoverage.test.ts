@@ -1,3 +1,4 @@
+import { must } from '../support/must'
 import { describe, it, expect } from 'vitest'
 import { judge, loadAllow, read, staleReport, walk } from './allowlist'
 
@@ -31,8 +32,9 @@ function channels(): Channel[] {
   const body = src.slice(src.indexOf('export const IPC = {'), src.indexOf('} as const'))
   return [...body.matchAll(/^ {2}(\w+): (invoke|invokeLoose|send|sendLoose|event|sync|local)\b/gm)].map((m) => {
     const [, key, rawKind] = m
-    const kind = rawKind.replace('Loose', '')
-    return { key, kind, method: kind === 'sync' ? SYNC_PROPERTY[key] : key }
+    const kind = must(rawKind).replace('Loose', '')
+    const name = must(key)
+    return { key: name, kind, method: kind === 'sync' ? must(SYNC_PROPERTY[name]) : name }
   })
 }
 

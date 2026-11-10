@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import { answersProblem, isAskInput, summarizeQuestions } from '@shared/askQuestion'
 import { isChatDecision } from '@shared/domain/chat'
@@ -16,7 +17,7 @@ describe('AskUserQuestion input guard', () => {
     expect(isAskInput(input)).toBe(true)
     expect(isAskInput({ questions: [] })).toBe(false)
     expect(isAskInput({ questions: Array.from({ length: 5 }, () => input.questions[0]) })).toBe(false)
-    expect(isAskInput({ questions: [{ ...input.questions[0], options: [input.questions[0].options[0]] }] })).toBe(false)
+    expect(isAskInput({ questions: [{ ...input.questions[0], options: [must(input.questions[0]).options[0]] }] })).toBe(false)
     expect(isAskInput({ questions: [{ ...input.questions[0], header: 3 }] })).toBe(false)
     expect(isAskInput(null)).toBe(false)
   })

@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   UpdateService, FIRST_CHECK_DELAY_MS,
@@ -93,8 +94,8 @@ class FakeClock {
       const due = this.queue.filter((t) => t.at <= this.time).sort((a, b) => a.at - b.at)
       if (due.length === 0) break
       const next = due[0]
-      this.queue = this.queue.filter((t) => t.id !== next.id)
-      next.fn()
+      this.queue = this.queue.filter((t) => t.id !== must(next).id)
+      must(next).fn()
       await Promise.resolve()
       await Promise.resolve()
       await Promise.resolve()

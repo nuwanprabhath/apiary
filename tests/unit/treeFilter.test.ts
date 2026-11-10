@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import { fuzzyScore } from '@shared/fuzzy'
@@ -24,7 +25,7 @@ describe('filterTreeLocal', () => {
       kind: 'session', sessionId: asSessionId('s1'), title: 'Fix CSV export', cwd: '/p/app',
       gitBranch: null, lastActiveAtMs: 1, messageCount: null, isLive: false, cwdExists: true, note: null,
     }])]
-    expect(filterTreeLocal(tree, 'csv', new Set()).tree[0].sessions).toHaveLength(1)
+    expect(must(filterTreeLocal(tree, 'csv', new Set()).tree[0]).sessions).toHaveLength(1)
   })
 
   it('keeps a whole project when the project label matches', () => {
@@ -32,7 +33,7 @@ describe('filterTreeLocal', () => {
       { kind: 'session', sessionId: asSessionId('s1'), title: 'Fix CSV export', cwd: '/p/app', gitBranch: null, lastActiveAtMs: 1, messageCount: null, isLive: false, cwdExists: true, note: null },
       { kind: 'session', sessionId: asSessionId('s2'), title: 'Add worktree switcher', cwd: '/p/app', gitBranch: null, lastActiveAtMs: 1, messageCount: null, isLive: false, cwdExists: true, note: null },
     ])]
-    expect(filterTreeLocal(tree, 'app', new Set()).tree[0].sessions).toHaveLength(2)
+    expect(must(filterTreeLocal(tree, 'app', new Set()).tree[0]).sessions).toHaveLength(2)
   })
 
   it('keeps a worktree when its branch matches, retaining the parent', () => {
@@ -45,9 +46,9 @@ describe('filterTreeLocal', () => {
     }
     const repo: ProjectNode = { ...proj('/p/repo'), children: [wt] }
     const { tree: out } = filterTreeLocal([repo], 'species', new Set())
-    expect(out[0].path).toBe('/p/repo')
-    const child = out[0].children[0]
-    expect(child.sessions.map((s) => s.sessionId)).toEqual(['s3'])
+    expect(must(out[0]).path).toBe('/p/repo')
+    const child = must(out[0]).children[0]
+    expect(must(child).sessions.map((s) => s.sessionId)).toEqual(['s3'])
   })
 
   it('returns the whole tree for an empty query', () => {
@@ -68,7 +69,7 @@ describe('filterTreeLocal', () => {
       kind: 'session', sessionId: asSessionId('s1'), title: 'Bump deps', cwd: '/p/app',
       gitBranch: null, lastActiveAtMs: 1, messageCount: null, isLive: false, cwdExists: true, note: null,
     }])]
-    expect(filterTreeLocal(tree, 'csv', new Set(['s1'])).tree[0].sessions).toHaveLength(1)
+    expect(must(filterTreeLocal(tree, 'csv', new Set(['s1'])).tree[0]).sessions).toHaveLength(1)
   })
 
   it('does not cap — every match is returned, uncapped, for the caller to rank before capping', () => {
@@ -81,6 +82,6 @@ describe('filterTreeLocal', () => {
     }))
     const { tree, totalMatches } = filterTreeLocal([proj('/p/app', sessions)], 'csv', new Set())
     expect(totalMatches).toBe(250)
-    expect(tree[0].sessions).toHaveLength(250)
+    expect(must(tree[0]).sessions).toHaveLength(250)
   })
 })

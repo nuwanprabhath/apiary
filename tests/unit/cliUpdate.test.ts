@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, vi } from 'vitest'
 import { cliUpdate, type CliUpdateDeps } from '../../src/main/update/cliUpdate'
 import { findRunningApiary, type RunningApiary, type RunningApiaryDeps } from '../../src/main/update/runningApiary'
@@ -54,22 +55,22 @@ describe('apiary --update', () => {
     }
     const w = world({ runningNow: fromService })
     expect(await cliUpdate(w.deps)).toBe(0)
-    expect(w.ran[1].command).toEqual({ file: 'systemctl', args: ['--user', 'restart', '--no-block', 'apiary.service'] })
+    expect(must(w.ran[1]).command).toEqual({ file: 'systemctl', args: ['--user', 'restart', '--no-block', 'apiary.service'] })
   })
 
   it('installs a newer release with apt under sudo in the terminal, deletes the download, and restarts the running Apiary as it was started', async () => {
     const w = world({ runningNow: background })
     expect(await cliUpdate(w.deps)).toBe(0)
     const [apt, relaunch] = w.ran
-    expect(apt.command).toEqual({ file: 'sudo', args: ['apt-get', 'install', '-y', '--allow-downgrades', '/tmp/apiary_1.60.0_amd64.deb'] })
-    expect(apt.env).toEqual({ DEBIAN_FRONTEND: 'noninteractive' })
+    expect(must(apt).command).toEqual({ file: 'sudo', args: ['apt-get', 'install', '-y', '--allow-downgrades', '/tmp/apiary_1.60.0_amd64.deb'] })
+    expect(must(apt).env).toEqual({ DEBIAN_FRONTEND: 'noninteractive' })
     expect(w.removed).toEqual(['/tmp/apiary_1.60.0_amd64.deb'])
     // Under a unit of its own (the old one ran in one), waiting for pid 4242, with its arguments less
     // the no-display switch, which the new one decides for itself, and only the display/bus variables.
-    expect(relaunch.command.file).toBe('systemd-run')
-    expect(relaunch.command.args).toContain('--setenv=XDG_RUNTIME_DIR=/run/user/1000')
-    expect(relaunch.command.args.join(' ')).not.toContain('SECRET')
-    expect(relaunch.command.args.slice(-3)).toEqual(['4242', '/opt/Apiary/apiary', '--background'])
+    expect(must(relaunch).command.file).toBe('systemd-run')
+    expect(must(relaunch).command.args).toContain('--setenv=XDG_RUNTIME_DIR=/run/user/1000')
+    expect(must(relaunch).command.args.join(' ')).not.toContain('SECRET')
+    expect(must(relaunch).command.args.slice(-3)).toEqual(['4242', '/opt/Apiary/apiary', '--background'])
     expect(w.stop).toHaveBeenCalledWith(4242)
     expect(w.said()).toContain('Installing Apiary 1.60.0 (sudo may ask for your password)')
     expect(w.said()).toContain('Done: Apiary 1.60.0 is starting.')
@@ -111,7 +112,7 @@ describe('apiary --update', () => {
     const w = world({ latest: null, ownArgs: ['--background', '--update'], codes: (c) => (c.file === 'systemd-run' ? 1 : 0) })
     expect(await cliUpdate(w.deps)).toBe(0)
     expect(w.ran.map((r) => r.command.file)).toEqual(['systemd-run', 'setsid'])
-    expect(w.ran[1].command.args).toEqual(['-f', '/opt/Apiary/apiary', '--background'])
+    expect(must(w.ran[1]).command.args).toEqual(['-f', '/opt/Apiary/apiary', '--background'])
   })
 
   it('leaves a running Apiary alone when --background finds one already there', async () => {

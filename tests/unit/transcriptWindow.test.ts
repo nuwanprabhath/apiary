@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import { HELD_KEEP, HELD_MAX, windowHeld } from '../../src/renderer/state/transcriptWindow'
 import type { TranscriptMessage } from '@shared/types'
@@ -19,8 +20,8 @@ describe('windowHeld', () => {
   it('keeps the newest HELD_KEEP and points the cursor at the first one kept', () => {
     const out = windowHeld(run(HELD_MAX + 1), null)
     expect(out.messages).toHaveLength(HELD_KEEP)
-    expect(out.messages[0].index).toBe(HELD_MAX + 1 - HELD_KEEP)
-    expect(out.cursor).toBe(out.messages[0].index)
+    expect(must(out.messages[0]).index).toBe(HELD_MAX + 1 - HELD_KEEP)
+    expect(out.cursor).toBe(must(out.messages[0]).index)
   })
 
   it('moves the cut later past a tool result whose call was dropped', () => {
@@ -29,7 +30,7 @@ describe('windowHeld', () => {
     held[cut] = toolResult(cut)
     held[cut + 1] = toolResult(cut + 1)
     const out = windowHeld(held, null)
-    expect(out.messages[0].index).toBe(cut + 2)
+    expect(must(out.messages[0]).index).toBe(cut + 2)
     expect(out.cursor).toBe(cut + 2)
   })
 
@@ -37,7 +38,7 @@ describe('windowHeld', () => {
     const held = run(HELD_MAX + 1)
     const cut = HELD_MAX + 1 - HELD_KEEP
     held[cut] = { ...msg(cut), index: undefined }
-    expect(windowHeld(held, null).messages[0].index).toBe(cut + 1)
+    expect(must(windowHeld(held, null).messages[0]).index).toBe(cut + 1)
   })
 })
 
@@ -45,7 +46,7 @@ describe('windowHeld, reading history', () => {
   it('drops the newest once earlier pages pass the limit, and points the later cursor at the last one kept', () => {
     const out = windowHeld(run(HELD_MAX + 200), null, 'newest')
     expect(out.messages).toHaveLength(HELD_KEEP)
-    expect(out.messages[0].index).toBe(0)
+    expect(must(out.messages[0]).index).toBe(0)
     expect(out.cursor).toBe(HELD_KEEP - 1)
   })
 

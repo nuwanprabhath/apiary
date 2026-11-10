@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, readdirSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -65,7 +66,7 @@ describe('SessionLayoutStore', () => {
   it('a later reportLayout call turns hasLayout true, replacing the bounds-only placeholder', () => {
     const store = createSessionLayoutStore(file(), 500)
     store.reportBounds(1, bounds)
-    expect(store.snapshot().windows[0].hasLayout).toBe(false)
+    expect(must(store.snapshot().windows[0]).hasLayout).toBe(false)
     store.reportLayout({ number: 1, layout, live: ['sess-1'] })
     expect(store.snapshot().windows[0]).toEqual({ number: 1, bounds, layout, live: ['sess-1'], hasLayout: true })
   })
@@ -78,14 +79,14 @@ describe('SessionLayoutStore', () => {
     vi.advanceTimersByTime(499)
     expect(() => readFileSync(file(), 'utf8')).toThrow()
     vi.advanceTimersByTime(1)
-    expect(onDisk().windows[0].live).toEqual(['sess-2'])
+    expect(must(onDisk().windows[0]).live).toEqual(['sess-2'])
   })
 
   it('flush() writes immediately, for before-quit', () => {
     const store = createSessionLayoutStore(file(), 500)
     store.reportLayout({ number: 1, layout, live: ['sess-1'] })
     store.flush()
-    expect(onDisk().windows[0].number).toBe(1)
+    expect(must(onDisk().windows[0]).number).toBe(1)
   })
 
   it('removeWindow drops a closed window from the next write', () => {

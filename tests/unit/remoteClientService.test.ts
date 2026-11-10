@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
 import { pairingError, pairingErrorMessage, pairingNotSaved, type RemoteStatus } from '@shared/domain/remote'
@@ -99,8 +100,8 @@ describe('RemoteClientService', () => {
   it('passes -F only when the test config is set', async () => {
     const { service, exec, startTunnel } = setup({ sshConfig: '/cfg' })
     await service.connect('work-box')
-    expect(exec.mock.calls[0][1].slice(6, 8)).toEqual(['-F', '/cfg'])
-    expect(startTunnel.mock.calls[0][0]).toContain('-F')
+    expect(must(exec.mock.calls[0])[1].slice(6, 8)).toEqual(['-F', '/cfg'])
+    expect(must(startTunnel.mock.calls[0])[0]).toContain('-F')
   })
 
   it.each([
@@ -179,12 +180,12 @@ describe('RemoteClientService', () => {
     it('runs exactly the expected argv over ssh, with no prompt and a known host key', async () => {
       const { service, exec } = setup()
       await service.startRemoteApp('work-box')
-      expect(exec.mock.calls[0][1]).toEqual(['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10', '--', 'work-box', START])
+      expect(must(exec.mock.calls[0])[1]).toEqual(['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10', '--', 'work-box', START])
     })
 
     it('then polls until the socket is there and connects', async () => {
       const answers = ['stopped', 'stopped', 'ready'] as const
-      const probe = vi.fn(() => Promise.resolve(answers[Math.min(probe.mock.calls.length - 1, 2)]))
+      const probe = vi.fn(() => Promise.resolve(must(answers[Math.min(probe.mock.calls.length - 1, 2)])))
       const { service, openWindow } = setup({ probe })
       await service.startRemoteApp('work-box')
       expect(probe).toHaveBeenCalledTimes(3)

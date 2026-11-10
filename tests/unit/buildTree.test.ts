@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import { buildTree } from '../../src/main/tree/buildTree'
@@ -21,9 +22,9 @@ describe('buildTree', () => {
   it('puts a plain project at the top level with its sessions', () => {
     const tree = buildTree([proj('/p/app')], [sess('s1', '/p/app')], new Set(), always)
     expect(tree).toHaveLength(1)
-    expect(tree[0].label).toBe('app')
-    expect(tree[0].sessions.map((s) => s.sessionId)).toEqual(['s1'])
-    expect(tree[0].children).toHaveLength(0)
+    expect(must(tree[0]).label).toBe('app')
+    expect(must(tree[0]).sessions.map((s) => s.sessionId)).toEqual(['s1'])
+    expect(must(tree[0]).children).toHaveLength(0)
   })
 
   it('nests a worktree under its parent repo', () => {
@@ -34,22 +35,22 @@ describe('buildTree', () => {
     const sessions = [sess('s1', '/p/repo'), sess('s2', '/p/wt')]
     const tree = buildTree(projects, sessions, new Set(), always)
     expect(tree).toHaveLength(1)
-    expect(tree[0].path).toBe('/p/repo')
-    expect(tree[0].sessions.map((s) => s.sessionId)).toEqual(['s1'])
-    expect(tree[0].children).toHaveLength(1)
-    const wt = tree[0].children[0]
-    expect(wt.branch).toBe('rel/1.0.11')
-    expect(wt.sessions.map((s) => s.sessionId)).toEqual(['s2'])
+    expect(must(tree[0]).path).toBe('/p/repo')
+    expect(must(tree[0]).sessions.map((s) => s.sessionId)).toEqual(['s1'])
+    expect(must(tree[0]).children).toHaveLength(1)
+    const wt = must(tree[0]).children[0]
+    expect(must(wt).branch).toBe('rel/1.0.11')
+    expect(must(wt).sessions.map((s) => s.sessionId)).toEqual(['s2'])
   })
 
   it('synthesises a parent node when only worktrees have sessions', () => {
     const projects = [proj('/p/wt', { repoRoot: '/p/repo', isWorktree: true, branch: 'dev' })]
     const tree = buildTree(projects, [sess('s1', '/p/wt')], new Set(), always)
     expect(tree).toHaveLength(1)
-    expect(tree[0].path).toBe('/p/repo')
-    expect(tree[0].label).toBe('repo')
-    expect(tree[0].sessions).toHaveLength(0)
-    expect(tree[0].children).toHaveLength(1)
+    expect(must(tree[0]).path).toBe('/p/repo')
+    expect(must(tree[0]).label).toBe('repo')
+    expect(must(tree[0]).sessions).toHaveLength(0)
+    expect(must(tree[0]).children).toHaveLength(1)
   })
 
   it('marks live sessions and missing working directories', () => {
@@ -59,10 +60,10 @@ describe('buildTree', () => {
       new Set(['s1']),
       (path) => path !== '/p/gone',
     )
-    const [s1, s2] = tree[0].sessions
-    expect(s1.isLive).toBe(true)
-    expect(s2.isLive).toBe(false)
-    expect(s2.cwdExists).toBe(false)
+    const [s1, s2] = must(tree[0]).sessions
+    expect(must(s1).isLive).toBe(true)
+    expect(must(s2).isLive).toBe(false)
+    expect(must(s2).cwdExists).toBe(false)
   })
 
   it('falls back to the first prompt, then "New session" — never a raw session id', () => {
@@ -77,8 +78,8 @@ describe('buildTree', () => {
       new Set(),
       always,
     )
-    expect(tree[0].sessions[0].title).toBe('rename the widget')
-    expect(tree[0].sessions[1].title).toBe('New session')
+    expect(must(must(tree[0]).sessions[0]).title).toBe('rename the widget')
+    expect(must(must(tree[0]).sessions[1]).title).toBe('New session')
   })
 
   it('sorts sessions newest first', () => {
@@ -88,6 +89,6 @@ describe('buildTree', () => {
       new Set(),
       always,
     )
-    expect(tree[0].sessions.map((s) => s.sessionId)).toEqual(['new', 'old'])
+    expect(must(tree[0]).sessions.map((s) => s.sessionId)).toEqual(['new', 'old'])
   })
 })

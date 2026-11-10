@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -36,7 +37,7 @@ describe('the usage endpoint answer', () => {
   it('sends the token only as a bearer header to the usage endpoint, and a non-2xx is an HttpError', async () => {
     const seen: { url: string; auth: string }[] = []
     const ok = (async (url: string, init: RequestInit) => {
-      seen.push({ url, auth: (init.headers as Record<string, string>).Authorization })
+      seen.push({ url, auth: must((init.headers as Record<string, string>).Authorization) })
       return new Response(JSON.stringify({ five_hour: { utilization: 10 } }), { status: 200 })
     }) as unknown as typeof fetch
     await fetchLimits(granted(), 'tok', ok)
@@ -117,10 +118,10 @@ describe('token aggregation over the transcripts', () => {
 
     const stats = await new TokenAggregator(projects, () => new Date('2026-10-01T12:00:00')).compute()
     expect(stats.days).toHaveLength(7)
-    expect(stats.days[6].input).toBe(100)
-    expect(stats.days[4].input).toBe(1000)
+    expect(must(stats.days[6]).input).toBe(100)
+    expect(must(stats.days[4]).input).toBe(1000)
     expect(stats.totals.input).toBe(1100)
-    expect(stats.byModel['claude-haiku-4-5'].requests).toBe(2)
+    expect(must(stats.byModel['claude-haiku-4-5']).requests).toBe(2)
     expect(stats.hasUnpricedModel).toBe(false)
 
     const hover = detailSections({ limits: undefined, stats, stale: false, error: undefined, now: stats.computedAt })
@@ -180,7 +181,7 @@ describe('the Claude usage plugin', () => {
     const h = harness({ credentials: '{"claudeAiOauth":{"accessToken":"t"}}', fetch: fetchImpl })
     await h.plugin.refresh()
     expect(h.timers.at(-1)?.ms).toBe(30_000)
-    expect(h.plugin.items()[0].tone).toBe('warning')
+    expect(must(h.plugin.items()[0]).tone).toBe('warning')
     h.plugin.stop()
   })
 })

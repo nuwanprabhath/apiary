@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import { emptyChatState, type ChatState } from '@shared/domain/chat'
 import {
@@ -60,14 +61,14 @@ describe('chat protocol', () => {
   })
 
   it('remembers how long a thinking block took, by its message', () => {
-    let s = reduce(run(TURN.slice(0, 3)), TURN[3], 1000)
+    let s = reduce(run(TURN.slice(0, 3)), must(TURN[3]), 1000)
     s = reduce(s, { type: 'system', subtype: 'thinking_tokens', estimated_tokens: 512 }, 1500)
     s = reduce(s, { type: 'assistant', uuid: 'th1', message: { role: 'assistant', content: [{ type: 'thinking', thinking: '' }] } }, 5200)
     expect(s.thoughts).toEqual({ th1: { seconds: 4, tokens: 512 } })
   })
 
   it('collects a permission prompt, once, and forgets it when Claude cancels it', () => {
-    const s = run([...TURN, TURN[TURN.length - 1]])
+    const s = run([...TURN,must(TURN[TURN.length - 1])])
     expect(s.permissions).toEqual([{
       requestId: 'r1', toolName: 'Write', description: 'hello.txt',
       input: { file_path: 'hello.txt', content: 'hi' }, canAlwaysAllow: true,
@@ -83,7 +84,7 @@ describe('chat protocol', () => {
   })
 
   it('keeps a message once even if it is seen twice, and ignores subagent streaming', () => {
-    const s = run([TURN[7], TURN[7]])
+    const s = run([must(TURN[7]), must(TURN[7])])
     expect(s.live).toHaveLength(1)
     const sub = reduce(s, { type: 'stream_event', parent_tool_use_id: 't9', event: { type: 'message_start' } })
     expect(sub).toBe(s)
@@ -103,7 +104,7 @@ describe('chat protocol', () => {
   })
 
   it('answers a permission prompt the way the SDK does', () => {
-    const prompt = permissionRequestOf(TURN[9])
+    const prompt = permissionRequestOf(must(TURN[9]))
     expect(prompt).not.toBeNull()
     const pending = prompt!.pending
     expect(permissionReply('r1', { behavior: 'allow' }, pending)).toEqual({

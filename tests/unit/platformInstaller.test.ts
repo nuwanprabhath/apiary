@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { EventEmitter } from 'node:events'
 import { mkdtemp, rm, writeFile, stat } from 'node:fs/promises'
@@ -77,10 +78,10 @@ describe('installing a .deb', () => {
     expect(await i.stillVerified(deb)).toBe(true)
     expect(await i.installDownloaded(deb, { password: PASSWORD, version: '1.51.0' })).toEqual({ ok: true })
     expect(spawned).toHaveLength(1)
-    expect(spawned[0].file).toBe('sudo')
-    expect(spawned[0].stdin).toBe(`${PASSWORD}\n`)
-    expect(JSON.stringify(spawned[0].args)).not.toContain(PASSWORD)
-    expect((spawned[0].options.env as Record<string, string>).DEBIAN_FRONTEND).toBe('noninteractive')
+    expect(must(spawned[0]).file).toBe('sudo')
+    expect(must(spawned[0]).stdin).toBe(`${PASSWORD}\n`)
+    expect(JSON.stringify(must(spawned[0]).args)).not.toContain(PASSWORD)
+    expect((must(spawned[0]).options.env as Record<string, string>).DEBIAN_FRONTEND).toBe('noninteractive')
     await expect(stat(deb)).rejects.toThrow()
     expect(await i.stillVerified(deb)).toBe(false)
   })
@@ -94,9 +95,9 @@ describe('installing a .deb', () => {
 
   it('with no password, sudo -n runs it and reads nothing, so a cached sudo is not asked again', async () => {
     expect(await installer().installDownloaded(deb, { password: null, version: '1.51.0' })).toEqual({ ok: true })
-    expect(spawned[0].args.slice(0, 2)).toEqual(['-n', 'apt-get'])
-    expect(spawned[0].args).not.toContain('-S')
-    expect(spawned[0].stdin).toBe('')
+    expect(must(spawned[0]).args.slice(0, 2)).toEqual(['-n', 'apt-get'])
+    expect(must(spawned[0]).args).not.toContain('-S')
+    expect(must(spawned[0]).stdin).toBe('')
   })
 
   it('sudo -n wanting a password after all is "password required", not a refused password', async () => {
@@ -175,7 +176,7 @@ describe('macOS: the helper that installs after quit', () => {
   it('with no password, starts the helper unprivileged, never through sudo', async () => {
     expect(await mac(await bundleIn(dir)).installDownloaded(deb, { password: null, version: '1.51.0' })).toEqual({ ok: true })
     expect(spawned.map((s) => s.file)).toEqual(['/bin/sh'])
-    expect(spawned[0].options.detached).toBe(true)
+    expect(must(spawned[0]).options.detached).toBe(true)
   })
 
   it('with a password, checks it first, then starts the helper under sudo with the password on stdin only', async () => {
