@@ -117,6 +117,15 @@ describe('RemoteServer', () => {
     rmSync(home, { recursive: true, force: true })
   })
 
+  it('ignores an open past 32 windows on one connection', async () => {
+    await boot()
+    const c = await greeted()
+    for (let w = 1; w <= 33; w++) c.send({ t: 'open', w })
+    c.send({ t: 'layouts', id: 1 })
+    await c.next((m) => m.t === 'layouts')
+    await vi.waitFor(() => { expect(server.clients()[0]?.windows).toBe(32) })
+  })
+
   it('welcomes a matching hello with the host name and version', async () => {
     await boot()
     const c = await client()

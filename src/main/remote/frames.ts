@@ -45,29 +45,71 @@ export function encodeHandshakeFrame(message: unknown): Buffer {
  * frames of one chunk.
  */
 export class FrameDecoder {
-  private buffer: Buffer = Buffer.alloc(0)
+  /** Chunks not yet consumed, oldest first; `buffered` is their total length. */
+  private chunks: Buffer[] = []
+  private buffered = 0
   handshakeOnly = false
+
+  /** `allocate` makes the one buffer a frame is assembled in; tests inject a counting one. */
+  constructor(private readonly allocate: (size: number) => Buffer = (n) => Buffer.allocUnsafe(n)) {}
 
   push(chunk: Buffer): unknown[] {
     return [...this.decode(chunk)]
   }
 
+  /** The first `size` buffered bytes, copied out and left in place. Only used for the header. */
+  private peek(size: number): Buffer {
+    const out = Buffer.alloc(size)
+    let at = 0
+    for (const chunk of this.chunks) {
+      if (at >= size) break
+      at += chunk.copy(out, at, 0, Math.min(chunk.length, size - at))
+    }
+    return out
+  }
+
+  /** Removes and returns the first `size` buffered bytes, copying each byte at most once. */
+  private take(size: number): Buffer {
+    this.buffered -= size
+    const head = this.chunks[0]
+    if (head && head.length >= size) {
+      if (head.length === size) this.chunks.shift()
+      else this.chunks[0] = head.subarray(size)
+      return head.subarray(0, size)
+    }
+    const out = this.allocate(size)
+    let at = 0
+    while (at < size) {
+      const chunk = this.chunks[0]
+      if (!chunk) break
+      const n = Math.min(chunk.length, size - at)
+      chunk.copy(out, at, 0, n)
+      at += n
+      if (n === chunk.length) this.chunks.shift()
+      else this.chunks[0] = chunk.subarray(n)
+    }
+    return out
+  }
+
   *decode(chunk: Buffer): Generator<unknown> {
-    this.buffer = this.buffer.length === 0 ? chunk : Buffer.concat([this.buffer, chunk])
-    while (this.buffer.length >= 4) {
-      const length = this.buffer.readUInt32BE(0)
+    if (chunk.length > 0) {
+      this.chunks.push(chunk)
+      this.buffered += chunk.length
+    }
+    while (this.buffered >= 4) {
+      const length = this.peek(4).readUInt32BE(0)
       if (length > MAX_FRAME_BYTES) throw new Error(`Frame too large (${String(length)} bytes); closing the connection.`)
-      if (this.buffer.length < 4 + length) break
+      if (this.buffered < 4 + length) break
       if (length < 1) throw new Error('Empty frame; closing the connection.')
-      const kind = this.buffer.readUInt8(4)
-      const body = this.buffer.subarray(5, 4 + length)
+      const whole = this.take(4 + length)
+      const kind = whole.readUInt8(4)
+      const body = whole.subarray(5)
       let message: unknown
       if (kind === V8) {
         if (this.handshakeOnly) throw new Error('A V8 frame before the hello; closing the connection.')
         message = deserialize(body)
       } else if (kind === JSON_KIND) message = JSON.parse(body.toString('utf8'))
       else throw new Error(`Unknown frame kind ${String(kind)}; closing the connection.`)
-      this.buffer = this.buffer.subarray(4 + length)
       yield message
     }
   }
