@@ -26,7 +26,7 @@ const bind = rebindOnNewBridge((api) => {
 })
 
 /** How often drawn output is acknowledged to main, at most once per pty. */
-export const PTY_ACK_INTERVAL_MS = 100
+const PTY_ACK_INTERVAL_MS = 100
 
 /** Per pty, drawn output not yet acknowledged; flushed together by one timer. */
 const unacked = new Map<PtyId, number>()
