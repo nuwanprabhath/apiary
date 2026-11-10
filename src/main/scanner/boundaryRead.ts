@@ -1,6 +1,5 @@
 import { open } from 'node:fs/promises'
-
-const DEFAULT_CHUNK_BYTES = 65536
+import { DEFAULT_CHUNK_BYTES, readExact } from '../transcript/jsonlLines'
 
 async function readChunk(
   filePath: string,
@@ -13,8 +12,8 @@ async function readChunk(
     const length = Math.min(maxBytes, size)
     const position = fromEnd ? size - length : 0
     const buffer = Buffer.alloc(length)
-    await handle.read(buffer, 0, length, position)
-    return { text: buffer.toString('utf8'), truncated: length < size }
+    const read = await readExact(handle, buffer, position)
+    return { text: buffer.subarray(0, read).toString('utf8'), truncated: length < size }
   } finally {
     await handle.close()
   }
