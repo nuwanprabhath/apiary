@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { writeFileSync, chmodSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { launchApiary, importAll, relaunchApiary, type Harness } from './helpers'
+import { launchApiary, importAll, relaunchApiary, must, type Harness } from './helpers'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
 
 /**
@@ -9,8 +9,8 @@ import { BUILTIN_THEMES } from '@shared/theme/builtins'
  * it was asked, and records the prompt it got. tests/e2e/live/ does the same with the real one.
  */
 let h: Harness
-const first = { ...BUILTIN_THEMES[0].spec, name: 'Green Rain' }
-const second = { ...BUILTIN_THEMES[1].spec, name: 'Greener Rain' }
+const first = { ...must(BUILTIN_THEMES[0], 'first built-in theme').spec, name: 'Green Rain' }
+const second = { ...must(BUILTIN_THEMES[1], 'second built-in theme').spec, name: 'Greener Rain' }
 
 async function useStandIn(): Promise<void> {
   const dir = h.home
@@ -37,7 +37,7 @@ async function useStandIn(): Promise<void> {
     '',
   ].join('\n'))
   chmodSync(script, 0o755)
-  await h.app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog') })
+  await h.app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog') })
   await h.page.getByTestId('settings-nav-general').click()
   await h.page.getByTestId('claude-bin-input').fill(script)
   await h.page.getByTestId('settings-save').click()
@@ -48,7 +48,7 @@ test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await useStandIn()
-  await h.app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog') })
+  await h.app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog') })
   await h.page.getByTestId('settings-nav-themes').click()
 })
 

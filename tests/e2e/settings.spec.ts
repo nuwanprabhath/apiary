@@ -13,7 +13,7 @@ async function openSettings(h: Harness): Promise<void> {
   // match the situation it is meant to describe.
   await expect(async () => {
     await h.app.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+      BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog')
     })
     await expect(h.page.getByTestId('settings-dialog')).toBeVisible({ timeout: 2000 })
   }).toPass({ timeout: 20000 })

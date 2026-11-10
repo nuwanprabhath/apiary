@@ -5,7 +5,7 @@ import { homedir, tmpdir, cpus, totalmem, platform, release } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
-import { launchApiary, type Harness } from '../helpers'
+import { launchApiary, must, type Harness } from '../helpers'
 import {
   startMainSampler, collectMain, installRendererProbe, setTyping, collectRenderer, startChildSampler,
   profileRenderer, profileMain, traceApp, topSelfTime, startRendererMemSampler, type RendererData,
@@ -158,6 +158,7 @@ async function typeUntil(pages: Page[], until: () => boolean): Promise<Map<Page,
   const sent = new Map<Page, number[]>(pages.map((p) => [p, []]))
   for (let round = 0; !until(); round += 1) {
     const page = pages[round % pages.length]
+    if (page === undefined) break
     const box = page.getByTestId('composer-input').first()
     await box.click()
     await setTyping(page, true)
@@ -265,7 +266,7 @@ test('Apiary under N agent sessions in M windows', async () => {
         const hold = (): Promise<void> => pause(h.page, PROFILE_MS)
         if (PROFILE) {
           work.push(profileMain(h.app, hold, join(OUT, 'main.cpuprofile')))
-          work.push(profileRenderer(h.app, pages[0].page, hold, join(OUT, 'renderer-w1.cpuprofile')))
+          work.push(profileRenderer(h.app, must(pages[0], 'first window').page, hold, join(OUT, 'renderer-w1.cpuprofile')))
         }
         if (TRACE) work.push(traceApp(h.app, hold, join(OUT, 'trace.json')))
         await Promise.all(work)

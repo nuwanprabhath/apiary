@@ -25,7 +25,7 @@ test.afterEach(async () => { await h.close() })
 
 async function openDiagnostics(): Promise<void> {
   await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+    BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog')
   })
   await expect(h.page.getByTestId('settings-dialog')).toBeVisible()
   await h.page.getByTestId('settings-nav-diagnostics').click()

@@ -686,3 +686,9 @@ export async function clickRowAction(row: Locator, testId: string): Promise<void
 /** Asserts `check` holds for the whole of `ms`, for tests whose point is that something does *not*
  *  happen; the one implementation is `fixtures/stays.ts`. */
 export { stays as expectStays } from '../fixtures/stays'
+
+/** Narrows an indexed read to its value, or fails the test naming what was missing. */
+export function must<T>(value: T | undefined, what: string): T {
+  if (value === undefined) throw new Error(`expected ${what} to exist`)
+  return value
+}

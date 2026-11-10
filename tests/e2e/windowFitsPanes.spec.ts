@@ -13,7 +13,8 @@ test.afterEach(async () => { await h.close() })
 
 const windowBounds = async (): Promise<{ width: number; minWidth: number }> => h.app.evaluate(({ BrowserWindow }) => {
   const win = BrowserWindow.getAllWindows()[0]
-  return { width: win.getBounds().width, minWidth: win.getMinimumSize()[0] }
+  if (win === undefined) throw new Error('no window')
+  return { width: win.getBounds().width, minWidth: win.getMinimumSize()[0] ?? 0 }
 })
 
 test('picking three columns in a narrow window widens it so every pane fits, and it cannot be narrowed past them', async () => {
@@ -22,6 +23,7 @@ test('picking three columns in a narrow window widens it so every pane fits, and
   await h.page.getByTestId('sidebar-refresh').click()
   await h.app.evaluate(({ BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows()[0]
+    if (win === undefined) throw new Error('no window')
     win.setBounds({ ...win.getBounds(), width: 900 })
   })
   await expect.poll(async () => (await windowBounds()).width).toBe(900)

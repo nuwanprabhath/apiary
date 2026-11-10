@@ -20,7 +20,7 @@ test.afterEach(async () => { await h.close() })
 /** The menu lives in the main process, so trigger the same channel it sends. */
 async function openSettings(): Promise<void> {
   await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+    BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog')
   })
   await expect(h.page.getByTestId('settings-dialog')).toBeVisible()
 }
