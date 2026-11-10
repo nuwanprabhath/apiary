@@ -62,6 +62,16 @@ const toSession = (r: SessionRow): StoredSession => ({
   note: r.note,
 })
 
+const MIGRATIONS: ((db: Database.Database) => void)[] = [
+  // Version 0 is a database from before versions: add each column it may lack.
+  (db) => {
+    const columns = db.prepare<[], { name: string }>('PRAGMA table_info(session)').all()
+    for (const col of ['custom_title', 'note', 'cwd_override']) {
+      if (!columns.some((c) => c.name === col)) db.exec(`ALTER TABLE session ADD COLUMN ${col} TEXT`)
+    }
+  },
+]
+
 export class SessionStore {
   private db: Database.Database
   // Prepared once, after `migrate()` has settled the schema; `getSession` sits behind `requireSession`, which most IPC handlers call.
@@ -69,6 +79,10 @@ export class SessionStore {
   private readonly stmtUpsertSession: Database.Statement
   private readonly stmtGetSession: Database.Statement
   private readonly stmtGetProject: Database.Statement
+  private readonly stmtFileStamps: Database.Statement<[], { file_path: string; file_size: number; file_mtime_ms: number }>
+  private readonly stmtDistinctCwds: Database.Statement<[], { cwd: string }>
+  private readonly stmtVisibleSessions: Database.Statement<[], SessionRow>
+  private readonly stmtVisibleProjects: Database.Statement<[], ProjectRow>
 
   constructor(dbPath: string) {
     mkdirSync(dirname(dbPath), { recursive: true })
@@ -108,23 +122,64 @@ export class SessionStore {
     `)
     this.stmtGetSession = this.db.prepare('SELECT * FROM session WHERE session_id = ?')
     this.stmtGetProject = this.db.prepare('SELECT * FROM project WHERE path = ?')
+    this.stmtFileStamps = this.db.prepare('SELECT file_path, file_size, file_mtime_ms FROM session')
+    this.stmtDistinctCwds = this.db.prepare('SELECT DISTINCT cwd FROM session WHERE cwd IS NOT NULL')
+    this.stmtVisibleSessions = this.db.prepare(
+      'SELECT * FROM session WHERE imported = 1 AND archived = 0 ORDER BY last_active_ms DESC',
+    )
+    this.stmtVisibleProjects = this.db.prepare(`
+      SELECT p.* FROM project p
+      WHERE EXISTS (
+        SELECT 1 FROM session s
+        WHERE s.project_path = p.path AND s.imported = 1 AND s.archived = 0
+      )
+      ORDER BY p.path
+    `)
   }
 
   /**
-   * `CREATE TABLE IF NOT EXISTS` in schema.ts only shapes a brand-new database, so a later column
-   * needs an idempotent `ALTER TABLE` here, checked via `PRAGMA table_info` (no version counter).
+   * `CREATE TABLE IF NOT EXISTS` in schema.ts only shapes a brand-new database. A later change is
+   * a numbered step in `MIGRATIONS`; `PRAGMA user_version` is the number of steps already run.
    */
   private migrate(): void {
-    const columns = this.db.prepare<[], { name: string }>('PRAGMA table_info(session)').all()
-    if (!columns.some((c) => c.name === 'custom_title')) {
-      this.db.exec('ALTER TABLE session ADD COLUMN custom_title TEXT')
-    }
-    if (!columns.some((c) => c.name === 'note')) {
-      this.db.exec('ALTER TABLE session ADD COLUMN note TEXT')
-    }
-    if (!columns.some((c) => c.name === 'cwd_override')) {
-      this.db.exec('ALTER TABLE session ADD COLUMN cwd_override TEXT')
-    }
+    const current = this.db.pragma('user_version', { simple: true }) as number
+    this.db.transaction(() => {
+      for (let v = current; v < MIGRATIONS.length; v++) {
+        MIGRATIONS[v](this.db)
+        this.db.pragma(`user_version = ${v + 1}`)
+      }
+    })()
+  }
+
+  /**
+   * Drops the rows of transcripts no longer on disk. A row with a note or a custom title is kept
+   * and reported in `kept`. Then drops project rows left with no session unless auto-imported.
+   */
+  removeMissing(existingPaths: ReadonlySet<string>): { removed: string[]; kept: string[] } {
+    return this.db.transaction(() => {
+      const removed: string[] = []
+      const kept: string[] = []
+      const rows = this.db
+        .prepare<[], { session_id: string; file_path: string; custom_title: string | null; note: string | null }>(
+          'SELECT session_id, file_path, custom_title, note FROM session',
+        )
+        .all()
+      const delSession = this.db.prepare('DELETE FROM session WHERE session_id = ?')
+      const delAccount = this.db.prepare('DELETE FROM session_account WHERE session_id = ?')
+      for (const r of rows) {
+        if (existingPaths.has(r.file_path)) continue
+        if ((r.note ?? '') !== '' || (r.custom_title ?? '') !== '') {
+          kept.push(r.session_id)
+          continue
+        }
+        delSession.run(r.session_id)
+        delAccount.run(r.session_id)
+        removed.push(r.session_id)
+      }
+      this.db.exec(`DELETE FROM project WHERE auto_import = 0
+        AND NOT EXISTS (SELECT 1 FROM session s WHERE s.project_path = project.path)`)
+      return { removed, kept }
+    })()
   }
 
   syncProject(info: ProjectInfo): void {
@@ -185,11 +240,7 @@ export class SessionStore {
    * a freshly-`stat`ed file against it.
    */
   fileStamps(): Map<string, { size: number; mtimeMs: number }> {
-    const rows = this.db
-      .prepare<[], { file_path: string; file_size: number; file_mtime_ms: number }>(
-        'SELECT file_path, file_size, file_mtime_ms FROM session',
-      )
-      .all()
+    const rows = this.stmtFileStamps.all()
     const out = new Map<string, { size: number; mtimeMs: number }>()
     for (const r of rows) out.set(r.file_path, { size: r.file_size, mtimeMs: r.file_mtime_ms })
     return out
@@ -197,10 +248,7 @@ export class SessionStore {
 
   /** Every distinct raw cwd recorded for a session — what a `full` refresh re-resolves. */
   distinctCwds(): string[] {
-    return this.db
-      .prepare<[], { cwd: string }>('SELECT DISTINCT cwd FROM session WHERE cwd IS NOT NULL')
-      .all()
-      .map((r) => r.cwd)
+    return this.stmtDistinctCwds.all().map((r) => r.cwd)
   }
 
   allProjects(): StoredProject[] {
@@ -215,26 +263,11 @@ export class SessionStore {
   }
 
   visibleSessions(): StoredSession[] {
-    return this.db
-      .prepare<[], SessionRow>(
-        'SELECT * FROM session WHERE imported = 1 AND archived = 0 ORDER BY last_active_ms DESC',
-      )
-      .all()
-      .map(toSession)
+    return this.stmtVisibleSessions.all().map(toSession)
   }
 
   visibleProjects(): StoredProject[] {
-    return this.db
-      .prepare<[], ProjectRow>(`
-        SELECT p.* FROM project p
-        WHERE EXISTS (
-          SELECT 1 FROM session s
-          WHERE s.project_path = p.path AND s.imported = 1 AND s.archived = 0
-        )
-        ORDER BY p.path
-      `)
-      .all()
-      .map(toProject)
+    return this.stmtVisibleProjects.all().map(toProject)
   }
 
   /**
