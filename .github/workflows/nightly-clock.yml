@@ -1,0 +1,84 @@
+# Unit and integration tests at awkward times: a zone at UTC+14, one at UTC-3:30 (a half hour
+# offset), and UTC with the clock set to 23:57 on the last day of a year. No retries.
+# A failure opens or updates one issue labelled `nightly-clock`; a clean run closes it.
+# The faked clock comes from `faketime`, never from the tests.
+name: Nightly clock
+
+on:
+  schedule:
+    - cron: '53 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-clock-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clock:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Pacific/Kiritimati
+            tz: Pacific/Kiritimati
+            fake: ''
+          - name: America/St_Johns
+            tz: America/St_Johns
+            fake: ''
+          - name: UTC at 23:57 on 31 December
+            tz: UTC
+            fake: '2026-12-31 23:57:00'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      issues: write
+    env:
+      TZ: ${{ matrix.tz }}
+      CI: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - if: matrix.fake != ''
+        run: sudo apt-get update && sudo apt-get install -y faketime
+
+      - id: tests
+        name: npm test (unit and integration)
+        run: |
+          set -o pipefail
+          if [ -n "${{ matrix.fake }}" ]; then
+            faketime '${{ matrix.fake }}' npm test 2>&1 | tee test.log
+          else
+            npm test 2>&1 | tee test.log
+          fi
+
+      - if: always()
+        name: Open, update or close the nightly-clock issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.tests.outcome }}
+          ENTRY: ${{ matrix.name }}
+        run: |
+          label=nightly-clock
+          run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          gh label create "$label" --color B60205 --description 'Opened by the nightly clock run' --force
+          number=$(gh issue list --state open --label "$label" --json number --jq '.[0].number // empty')
+          if [ "$OUTCOME" = success ]; then
+            [ -n "$number" ] && gh issue close "$number" --comment "Clean run for $ENTRY: $run" || true
+            exit 0
+          fi
+          failed=$(grep -E '^ *(FAIL|×)' test.log | sort -u | head -30 || true)
+          body=$(printf '**%s** failed: %s\n\n```\n%s\n```\n' "$ENTRY" "$run" "$failed")
+          if [ -z "$number" ]; then
+            gh issue create --title 'Nightly clock: tests fail at awkward times' --label "$label" --body "$body"
+          else
+            gh issue comment "$number" --body "$body"
+          fi
