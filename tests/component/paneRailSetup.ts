@@ -3,6 +3,7 @@ import { THIS_WINDOW } from '../contract/world'
 import type { FakeApiary } from './fakeApiary'
 import { until } from './helpers'
 import { openLayout, panes } from './paneFoldSetup'
+import { must } from './must'
 
 export const TITLES = ['Fix CSV export bug', 'Add worktree switcher', 'Repo root session', 'Worktree session']
 
@@ -21,9 +22,9 @@ export const card = (pane: Element): HTMLElement => pane.querySelector<HTMLEleme
 export async function openThirds(titles: string[] = TITLES): Promise<HTMLElement[]> {
   await openLayout('thirds-h', titles)
   for (const index of [1, 2]) {
-    const tab = panes()[index].querySelector<HTMLElement>('[data-testid="pane-filler-tab"]')!
+    const tab = must(panes()[index]).querySelector<HTMLElement>('[data-testid="pane-filler-tab"]')!
     await userEvent.click(tab)
-    await until(() => panes()[index].getAttribute('data-placeholder') === 'false')
+    await until(() => must(panes()[index]).getAttribute('data-placeholder') === 'false')
   }
   return panes()
 }

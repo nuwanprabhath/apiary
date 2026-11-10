@@ -3,6 +3,7 @@ import { userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { settled, until } from './helpers'
 import { foldButton, markRunning, openLayout, panes } from './paneFoldSetup'
+import { must, take } from './must'
 
 /** Folding a pane that shares its column with another down to its tab bar. */
 
@@ -15,7 +16,7 @@ describe('folding a pane', () => {
   it('in two rows, the folded top is its tab bar and the bottom takes the rest; unfolding restores them', async () => {
     await renderApp()
     await openLayout('halves-v')
-    const [top, bottom] = panes()
+    const [top, bottom] = take(panes(), 2)
     const before = [height(top), height(bottom)]
 
     await userEvent.click(foldButton(top)!)
@@ -25,7 +26,7 @@ describe('folding a pane', () => {
     expect(foldButton(top)!.getAttribute('aria-expanded')).toBe('false')
     const content = document.querySelector('[data-testid="content"]')!
     expect(Math.abs(height(top) + height(bottom) - height(content))).toBeLessThanOrEqual(1)
-    expect(height(bottom)).toBeGreaterThan(before[1] + 100)
+    expect(height(bottom)).toBeGreaterThan(must(before[1]) + 100)
     // The last open pane of the stack can fold too: the other one opens in its place.
     expect(foldButton(bottom)!.hasAttribute('disabled')).toBe(false)
     await userEvent.click(foldButton(bottom)!)
@@ -38,28 +39,28 @@ describe('folding a pane', () => {
     await userEvent.click(foldButton(top)!)
     await until(() => top.getAttribute('data-folded') === 'false')
     await settled(heights)
-    expect(Math.abs(height(top) - before[0])).toBeLessThanOrEqual(1)
-    expect(Math.abs(height(bottom) - before[1])).toBeLessThanOrEqual(1)
+    expect(Math.abs(height(top) - must(before[0]))).toBeLessThanOrEqual(1)
+    expect(Math.abs(height(bottom) - must(before[1]))).toBeLessThanOrEqual(1)
   })
 
   it('in a grid, folding top-left gives bottom-left the space and leaves top-right alone', async () => {
     await renderApp()
     await openLayout('grid')
-    const [topLeft, topRight, bottomLeft] = panes()
+    const [topLeft, topRight, bottomLeft] = take(panes(), 3)
     const before = [height(topRight), height(bottomLeft)]
 
     await userEvent.click(foldButton(topLeft)!)
     await until(() => topLeft.getAttribute('data-folded') === 'true')
     await settled(heights)
-    expect(Math.abs(height(topRight) - before[0])).toBeLessThanOrEqual(1)
-    expect(height(bottomLeft)).toBeGreaterThan(before[1] + 100)
+    expect(Math.abs(height(topRight) - must(before[0]))).toBeLessThanOrEqual(1)
+    expect(height(bottomLeft)).toBeGreaterThan(must(before[1]) + 100)
     expect(topRight.getAttribute('data-folded')).toBe('false')
   })
 
   it('a folded pane whose tab is running says so; an idle one does not', async () => {
     const { fake } = await renderApp()
     await openLayout('halves-v')
-    const [top] = panes()
+    const [top] = take(panes(), 1)
     await userEvent.click(foldButton(top)!)
     await until(() => top.getAttribute('data-folded') === 'true')
     expect(top.hasAttribute('data-pane-activity')).toBe(false)
@@ -77,7 +78,7 @@ describe('folding a pane', () => {
   it('a pane with no vertical neighbour has no fold control', async () => {
     await renderApp()
     await openLayout('main-right2')
-    const [main, right] = panes()
+    const [main, right] = take(panes(), 2)
     expect(foldButton(main)).toBeNull()
     expect(foldButton(right)).not.toBeNull()
   })
@@ -85,7 +86,7 @@ describe('folding a pane', () => {
   it('clicking a tab in a folded pane unfolds it and shows that tab', async () => {
     await renderApp()
     await openLayout('halves-v', ['Fix CSV export bug', 'Add worktree switcher'])
-    const [top] = panes()
+    const [top] = take(panes(), 1)
     await userEvent.click(foldButton(top)!)
     await until(() => top.getAttribute('data-folded') === 'true')
 

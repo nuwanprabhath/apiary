@@ -5,6 +5,7 @@ import { sidebarSession, until } from '../helpers'
 import type { FakeApiary } from '../fakeApiary'
 import { pairingErrorMessage } from '@shared/domain/remote'
 import { reviewUi } from './review'
+import { must } from '../must'
 
 const dialogOpen = (): boolean => document.querySelector('[data-testid="remote-dialog"]') !== null
 
@@ -102,8 +103,8 @@ describe('UI: the connect dialog', () => {
     const statuses = ['ready', 'off', 'refused', 'unreachable', 'stopped', 'unknown'] as const
     fake.state.remoteHosts = Array.from({ length: 20 }, (_, i) => ({
       name: `host-${String(i)}.department.example.com`,
-      source: (['recent', 'ssh-config', 'tailscale'] as const)[i % 3],
-      status: statuses[i % statuses.length],
+      source: must((['recent', 'ssh-config', 'tailscale'] as const)[i % 3]),
+      status: must(statuses[i % statuses.length]),
     }))
     await reviewUi('connect dialog long host list', {
       widths: [620, 900],

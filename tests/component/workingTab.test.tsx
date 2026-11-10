@@ -3,6 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { mountUi } from './mountUi'
 import { sidebarSession, until } from './helpers'
+import { take } from './must'
 
 const tab = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-testid="session-tab"]')
 
@@ -35,7 +36,7 @@ describe('a working session is obvious', () => {
 
   it('the running dot spins, the waiting dot keeps its pulse', async () => {
     await mountUi(<><span className="status-dot" data-status="running" /><span className="status-dot" data-status="waiting" /></>)
-    const [running, waiting] = [...document.querySelectorAll<HTMLElement>('.status-dot')]
+    const [running, waiting] = take([...document.querySelectorAll<HTMLElement>('.status-dot')], 2)
     expect(getComputedStyle(running).animationName).toBe('status-spin')
     expect(getComputedStyle(waiting).animationName).toBe('status-attention')
   })
@@ -45,7 +46,7 @@ describe('a working session is obvious', () => {
       <div className="session-tab" data-glow="running"><span className="session-tab-ring" /></div>
       <div className="session-tab" data-glow="waiting" />
     </>)
-    const [run, wait] = [...document.querySelectorAll<HTMLElement>('.session-tab')]
+    const [run, wait] = take([...document.querySelectorAll<HTMLElement>('.session-tab')], 2)
     expect(getComputedStyle(run.querySelector('.session-tab-ring') as HTMLElement).animationName).toBe('status-spin')
     expect(getComputedStyle(run, '::after').animationName).toBe('border-glow')
     expect(getComputedStyle(wait, '::after').animationName).toBe('none')

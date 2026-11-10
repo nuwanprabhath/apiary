@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, box, mouse, until, hoverWhenStill, clickRowAction } from './helpers'
+import { must } from './must'
 
 /**
  * Arranging sessions into a layout of up to four panes, from a hover picker — the macOS
@@ -55,14 +56,14 @@ describe('pane layouts', () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     const target = row('Add worktree switcher')
-    const picker = await openPickerOn(within(target, 'split-session-button')[0], target, 'Add worktree switcher')
+    const picker = await openPickerOn(must(within(target, 'split-session-button')[0]), target, 'Add worktree switcher')
 
-    await userEvent.click(within(picker, 'layout-zone-halves-h-1')[0])
+    await userEvent.click(must(within(picker, 'layout-zone-halves-h-1')[0]))
 
-    await until(() => all('content')[0].getAttribute('data-preset') === 'halves-h')
+    await until(() => must(all('content')[0]).getAttribute('data-preset') === 'halves-h')
     expect(all('session-column')).toHaveLength(2)
-    expect(all('session-column')[0].textContent).toContain('Add worktree switcher')
-    expect(all('session-column')[1].textContent).toContain('Fix CSV export bug')
+    expect(must(all('session-column')[0]).textContent).toContain('Add worktree switcher')
+    expect(must(all('session-column')[1]).textContent).toContain('Fix CSV export bug')
     expect(all('layout-picker')).toHaveLength(0)
   })
 
@@ -79,7 +80,7 @@ describe('pane layouts', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await clickRowAction('Add worktree switcher', 'split-session-button')
     await until(() => all('session-column').length === 2)
-    const last = all('session-column')[1]
+    const last = must(all('session-column')[1])
     expect(last.textContent).toContain('Add worktree switcher')
     expect(last.getAttribute('data-active')).toBe('true')
   })
@@ -89,22 +90,22 @@ describe('pane layouts', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await userEvent.click(page.getByTestId('session-tab-split'))
     await until(() => all('session-column').length === 2)
-    expect(all('session-column')[1].getAttribute('data-active')).toBe('true')
+    expect(must(all('session-column')[1]).getAttribute('data-active')).toBe('true')
   })
 
   it('placing a sidebar session via the picker focuses the new pane even in a non-first zone', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     const target = row('Add worktree switcher')
-    const picker = await openPickerOn(within(target, 'split-session-button')[0], target, 'Add worktree switcher')
+    const picker = await openPickerOn(must(within(target, 'split-session-button')[0]), target, 'Add worktree switcher')
     // thirds-h zone 3 (0-indexed 2, testid suffix z+1) is the last zone: "Fix CSV export bug" fills
     // zone 1, zone 2 is left waiting, and the placed session lands last — not first, so a stale
     // fallback to "pane one" cannot pass this test by accident.
-    await userEvent.click(within(picker, 'layout-zone-thirds-h-3')[0])
-    await until(() => all('content')[0].getAttribute('data-preset') === 'thirds-h')
-    expect(all('session-column')[0].textContent).toContain('Fix CSV export bug')
-    expect(all('session-column')[0].getAttribute('data-active')).not.toBe('true')
-    const placed = all('session-column')[all('session-column').length - 1]
+    await userEvent.click(must(within(picker, 'layout-zone-thirds-h-3')[0]))
+    await until(() => must(all('content')[0]).getAttribute('data-preset') === 'thirds-h')
+    expect(must(all('session-column')[0]).textContent).toContain('Fix CSV export bug')
+    expect(must(all('session-column')[0]).getAttribute('data-active')).not.toBe('true')
+    const placed = must(all('session-column')[all('session-column').length - 1])
     expect(placed.textContent).toContain('Add worktree switcher')
     expect(placed.getAttribute('data-active')).toBe('true')
   })
@@ -116,29 +117,29 @@ describe('pane layouts', () => {
     await until(() => all('session-tab').length === 2)
 
     const tab = all('session-tab').find((el) => el.textContent?.includes('Add worktree switcher'))!
-    const picker = await openPickerOn(within(tab, 'session-tab-layout')[0], tab, 'Add worktree switcher')
-    await userEvent.click(within(picker, 'layout-zone-halves-v-2')[0])
+    const picker = await openPickerOn(must(within(tab, 'session-tab-layout')[0]), tab, 'Add worktree switcher')
+    await userEvent.click(must(within(picker, 'layout-zone-halves-v-2')[0]))
 
-    await until(() => all('content')[0].getAttribute('data-preset') === 'halves-v')
-    expect(within(all('session-column')[0], 'session-tab')).toHaveLength(1)
-    expect(all('session-column')[0].textContent).toContain('Fix CSV export bug')
-    const secondTabs = within(all('session-column')[1], 'session-tab')
+    await until(() => must(all('content')[0]).getAttribute('data-preset') === 'halves-v')
+    expect(within(must(all('session-column')[0]), 'session-tab')).toHaveLength(1)
+    expect(must(all('session-column')[0]).textContent).toContain('Fix CSV export bug')
+    const secondTabs = within(must(all('session-column')[1]), 'session-tab')
     expect(secondTabs).toHaveLength(1)
-    expect(secondTabs[0].textContent).toContain('Add worktree switcher')
+    expect(must(secondTabs[0]).textContent).toContain('Add worktree switcher')
   })
 
   it('Arrange… from a tab\'s menu opens the picker where the menu was', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
-    rightClick(all('session-tab')[0])
+    rightClick(must(all('session-tab')[0]))
     await until(() => all('tab-menu').length > 0)
     await userEvent.click(page.getByTestId('context-menu-arrange'))
     await until(() => all('layout-picker').length > 0)
-    const picker = all('layout-picker')[0]
-    await userEvent.click(within(picker, 'layout-zone-grid-4')[0])
-    await until(() => all('content')[0].getAttribute('data-preset') === 'grid')
+    const picker = must(all('layout-picker')[0])
+    await userEvent.click(must(within(picker, 'layout-zone-grid-4')[0]))
+    await until(() => must(all('content')[0]).getAttribute('data-preset') === 'grid')
     expect(all('session-column')).toHaveLength(4)
-    expect(all('session-column')[3].textContent).toContain('Fix CSV export bug')
+    expect(must(all('session-column')[3]).textContent).toContain('Fix CSV export bug')
   })
 
   it('closing the picker does not give focus back over a text field being typed in', async () => {
@@ -162,19 +163,19 @@ describe('pane layouts', () => {
     await until(() => all('context-menu-arrange').length > 0)
     await userEvent.click(page.getByTestId('context-menu-arrange'))
     await until(() => all('layout-picker').length > 0)
-    await userEvent.click(all('layout-zone-main-right2-1')[0])
-    await until(() => all('content')[0].getAttribute('data-preset') === 'main-right2')
-    expect(all('session-column')[0].textContent).toContain('Repo root session')
+    await userEvent.click(must(all('layout-zone-main-right2-1')[0]))
+    await until(() => must(all('content')[0]).getAttribute('data-preset') === 'main-right2')
+    expect(must(all('session-column')[0]).textContent).toContain('Repo root session')
   })
 
   it('the window layout button changes the layout without moving any session', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await userEvent.click(page.getByTestId('window-layout-button'))
-    await userEvent.click(within(all('layout-picker')[0], 'layout-option-halves-v')[0])
-    await until(() => all('content')[0].getAttribute('data-preset') === 'halves-v')
-    expect(all('session-column')[0].textContent).toContain('Fix CSV export bug')
-    expect(all('session-column')[1].getAttribute('data-placeholder')).toBe('true')
+    await userEvent.click(must(within(must(all('layout-picker')[0]), 'layout-option-halves-v')[0]))
+    await until(() => must(all('content')[0]).getAttribute('data-preset') === 'halves-v')
+    expect(must(all('session-column')[0]).textContent).toContain('Fix CSV export bug')
+    expect(must(all('session-column')[1]).getAttribute('data-placeholder')).toBe('true')
   })
 
   it('there is one window layout button, on the pane at the top-right corner', async () => {
@@ -184,7 +185,7 @@ describe('pane layouts', () => {
     await userEvent.click(page.getByTestId('layout-option-grid'))
     await until(() => all('session-column').length === 4)
     expect(all('window-layout-button')).toHaveLength(1)
-    expect(within(all('session-column')[1], 'window-layout-button')).toHaveLength(1)
+    expect(within(must(all('session-column')[1]), 'window-layout-button')).toHaveLength(1)
   })
 
   it('arrow keys move focus in the picker and Enter chooses the focused thumbnail', async () => {
@@ -194,8 +195,8 @@ describe('pane layouts', () => {
     await until(() => all('layout-picker').length > 0)
     await userEvent.keyboard('{ArrowRight}')
     await userEvent.keyboard('{Enter}')
-    await until(() => all('content')[0].getAttribute('data-preset') === 'halves-h')
-    expect(all('content')[0].getAttribute('data-preset')).toBe('halves-h')
+    await until(() => must(all('content')[0]).getAttribute('data-preset') === 'halves-h')
+    expect(must(all('content')[0]).getAttribute('data-preset')).toBe('halves-h')
   })
 
   it('the picker marks the current layout and closes on Escape', async () => {
@@ -203,7 +204,7 @@ describe('pane layouts', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await userEvent.click(page.getByTestId('window-layout-button'))
     await until(() => all('layout-picker').length > 0)
-    expect(all('layout-option-single')[0].getAttribute('data-current')).toBe('true')
+    expect(must(all('layout-option-single')[0]).getAttribute('data-current')).toBe('true')
     await userEvent.keyboard('{Escape}')
     await until(() => all('layout-picker').length === 0)
   })
@@ -215,12 +216,12 @@ describe('pane layouts', () => {
     await userEvent.click(page.getByTestId('layout-option-grid'))
     await until(() => all('session-column').length === 4)
     const handle = box(page.getByTestId('row-resizer'))
-    const before = all('session-column')[0].getBoundingClientRect()
+    const before = must(all('session-column')[0]).getBoundingClientRect()
     await mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
     await mouse.down()
     await mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2 + 80, 5)
     await mouse.up()
-    const after = all('session-column')[0].getBoundingClientRect()
+    const after = must(all('session-column')[0]).getBoundingClientRect()
     expect(after.height).toBeGreaterThan(before.height + 40)
   })
 
@@ -236,28 +237,28 @@ describe('pane layouts', () => {
     expect(divider.getAttribute('aria-orientation')).toBe('horizontal')
     expect(divider.getAttribute('tabIndex')).not.toBe('-1')
 
-    const before = all('session-column')[0].getBoundingClientRect()
+    const before = must(all('session-column')[0]).getBoundingClientRect()
     divider.focus()
     await userEvent.keyboard('{ArrowDown}')
     await userEvent.keyboard('{ArrowDown}')
-    await until(() => all('session-column')[0].getBoundingClientRect().height > before.height)
+    await until(() => must(all('session-column')[0]).getBoundingClientRect().height > before.height)
     // ArrowUp steps it back the other way.
-    const grown = all('session-column')[0].getBoundingClientRect().height
+    const grown = must(all('session-column')[0]).getBoundingClientRect().height
     await userEvent.keyboard('{ArrowUp}')
-    await until(() => all('session-column')[0].getBoundingClientRect().height < grown)
+    await until(() => must(all('session-column')[0]).getBoundingClientRect().height < grown)
   })
 
   it('closing the last tab in a pane steps the layout down', async () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     const target = row('Add worktree switcher')
-    const picker = await openPickerOn(within(target, 'split-session-button')[0], target, 'Add worktree switcher')
-    await userEvent.click(within(picker, 'layout-zone-halves-h-2')[0])
-    await until(() => all('content')[0].getAttribute('data-preset') === 'halves-h')
+    const picker = await openPickerOn(must(within(target, 'split-session-button')[0]), target, 'Add worktree switcher')
+    await userEvent.click(must(within(picker, 'layout-zone-halves-h-2')[0]))
+    await until(() => must(all('content')[0]).getAttribute('data-preset') === 'halves-h')
 
-    const last = all('session-column')[all('session-column').length - 1]
-    await userEvent.click(within(last, 'session-tab-close')[0])
-    await until(() => all('content')[0].getAttribute('data-preset') === 'single')
+    const last = must(all('session-column')[all('session-column').length - 1])
+    await userEvent.click(must(within(last, 'session-tab-close')[0]))
+    await until(() => must(all('content')[0]).getAttribute('data-preset') === 'single')
     expect(all('session-column')).toHaveLength(1)
   })
 
@@ -269,13 +270,13 @@ describe('pane layouts', () => {
     await userEvent.click(page.getByTestId('layout-option-halves-h'))
     await until(() => all('session-column').length === 2)
 
-    const filler = within(all('session-column')[1], 'pane-filler')[0]
+    const filler = must(within(must(all('session-column')[1]), 'pane-filler')[0])
     await until(() => within(filler, 'pane-filler-tab').length > 0)
     // The tab in front of the other pane is offered to move over.
     const fillerTab = within(filler, 'pane-filler-tab').find((el) => el.textContent?.includes('Add worktree switcher'))!
     await userEvent.click(fillerTab)
-    await until(() => all('session-column')[1].textContent?.includes('Add worktree switcher') === true)
-    expect(within(all('session-column')[0], 'session-tab')).toHaveLength(1)
+    await until(() => must(all('session-column')[1]).textContent?.includes('Add worktree switcher') === true)
+    expect(within(must(all('session-column')[0]), 'session-tab')).toHaveLength(1)
   })
 
   it('a waiting pane opens a recent session, and its search narrows the list', async () => {
@@ -285,14 +286,14 @@ describe('pane layouts', () => {
     await userEvent.click(page.getByTestId('layout-option-halves-h'))
     await until(() => all('session-column').length === 2)
 
-    const filler = within(all('session-column')[1], 'pane-filler')[0]
+    const filler = must(within(must(all('session-column')[1]), 'pane-filler')[0])
     // Already open, so not offered as a session to open.
     expect(within(filler, 'pane-filler-session').filter((el) => el.textContent?.includes('Fix CSV export bug'))).toHaveLength(0)
-    await userEvent.fill(within(filler, 'pane-filler-search')[0], 'repo root')
+    await userEvent.fill(must(within(filler, 'pane-filler-search')[0]), 'repo root')
     await until(() => within(filler, 'pane-filler-session').length === 1)
-    await userEvent.click(within(filler, 'pane-filler-session')[0])
-    await until(() => all('session-column')[1].textContent?.includes('Repo root session') === true)
-    expect(all('session-column')[1].getAttribute('data-placeholder')).toBe('false')
+    await userEvent.click(must(within(filler, 'pane-filler-session')[0]))
+    await until(() => must(all('session-column')[1]).textContent?.includes('Repo root session') === true)
+    expect(must(all('session-column')[1]).getAttribute('data-placeholder')).toBe('false')
   })
 
   it('a filler does not offer a tab that is the only one in its pane, since moving it would empty the pane', async () => {
@@ -302,7 +303,7 @@ describe('pane layouts', () => {
     await userEvent.click(page.getByTestId('layout-option-halves-h'))
     await until(() => all('session-column').length === 2)
 
-    const filler = within(all('session-column')[1], 'pane-filler')[0]
+    const filler = must(within(must(all('session-column')[1]), 'pane-filler')[0])
     // Pane 1 has exactly one tab; moving it would empty pane 1, stepping the layout back down —
     // clicking it would appear to do nothing.
     expect(within(filler, 'pane-filler-tab').filter((el) => el.textContent?.includes('Fix CSV export bug'))).toHaveLength(0)
@@ -319,8 +320,8 @@ describe('pane layouts', () => {
     await userEvent.click(page.getByTestId('window-layout-button'))
     await userEvent.click(page.getByTestId('layout-option-grid'))
     await until(() => all('session-column').length === 4)
-    await userEvent.click(within(all('session-column')[3], 'pane-filler-close')[0])
-    await until(() => all('content')[0].getAttribute('data-preset') === 'main-right2')
+    await userEvent.click(must(within(must(all('session-column')[3]), 'pane-filler-close')[0]))
+    await until(() => must(all('content')[0]).getAttribute('data-preset') === 'main-right2')
     expect(all('session-column')).toHaveLength(3)
   })
 
@@ -353,7 +354,7 @@ describe('pane layouts', () => {
     // what focus returns to.
     await userEvent.click(page.getByTestId('session-tab-layout'))
     await until(() => all('layout-picker').length > 0)
-    expect(all('layout-picker')[0].contains(document.activeElement)).toBe(true)
+    expect(must(all('layout-picker')[0]).contains(document.activeElement)).toBe(true)
 
     await userEvent.keyboard('{Escape}')
     await until(() => all('layout-picker').length === 0)

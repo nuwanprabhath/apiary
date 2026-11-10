@@ -8,6 +8,7 @@ import { renderApp } from './renderApp'
 import { until } from './helpers'
 import type { FakeApiary } from './fakeApiary'
 import { deskConfig, withDeskFields } from './residentFixtures'
+import { must } from './must'
 
 /** Settings → Residents: adding Regent, the card's fields saved through the settings write, and the confirms. */
 const regent: ResidentConfig = {
@@ -74,20 +75,20 @@ describe('Settings → Residents', () => {
     const name = input('resident-name-regent')
     await userEvent.fill(name, 'Queen Bee')
     name.blur()
-    await until(() => fake.state.settings.residents[0].name === 'Queen Bee')
+    await until(() => must(fake.state.settings.residents[0]).name === 'Queen Bee')
     await userEvent.fill(name, '')
     name.blur()
     await until(() => input('resident-name-regent').value === 'Queen Bee')
-    expect(fake.state.settings.residents[0].name).toBe('Queen Bee')
+    expect(must(fake.state.settings.residents[0]).name).toBe('Queen Bee')
   })
 
   it('the day chips toggle and save', async () => {
     const fake = await openResidents([regent])
     expect(el('resident-day-regent-6')?.getAttribute('aria-pressed')).toBe('false')
     await userEvent.click(page.getByTestId('resident-day-regent-6'))
-    await until(() => fake.state.settings.residents[0].schedule.days.includes(6))
+    await until(() => must(fake.state.settings.residents[0]).schedule.days.includes(6))
     await userEvent.click(page.getByTestId('resident-day-regent-1'))
-    await until(() => !fake.state.settings.residents[0].schedule.days.includes(1))
+    await until(() => !must(fake.state.settings.residents[0]).schedule.days.includes(1))
     await until(() => el('resident-day-regent-1')?.getAttribute('aria-pressed') === 'false')
   })
 
@@ -146,7 +147,7 @@ describe('Settings → Residents', () => {
   it('the permission mode saves', async () => {
     const fake = await openResidents([regent])
     await userEvent.selectOptions(page.getByTestId('resident-permission-mode-regent'), 'manual')
-    await until(() => fake.state.settings.residents[0].permissionMode === 'manual')
+    await until(() => must(fake.state.settings.residents[0]).permissionMode === 'manual')
     expect(el('resident-card-regent')?.textContent).toContain('What it may do without asking. Anything else asks in its chat.')
   })
 
@@ -154,19 +155,19 @@ describe('Settings → Residents', () => {
     const fake = await openResidents([regent])
     expect(input('resident-lookback-regent').value).toBe('all')
     await userEvent.selectOptions(page.getByTestId('resident-lookback-regent'), '3m')
-    await until(() => fake.state.settings.residents[0].digestLookback?.amount === 3)
-    expect(fake.state.settings.residents[0].digestLookback).toEqual({ amount: 3, unit: 'months' })
+    await until(() => must(fake.state.settings.residents[0]).digestLookback?.amount === 3)
+    expect(must(fake.state.settings.residents[0]).digestLookback).toEqual({ amount: 3, unit: 'months' })
     expect(el('resident-lookback-amount-regent')).toBeNull()
     await userEvent.selectOptions(page.getByTestId('resident-lookback-regent'), 'custom')
     await until(() => el('resident-lookback-amount-regent') !== null)
     await userEvent.fill(input('resident-lookback-amount-regent'), '45')
     input('resident-lookback-amount-regent').blur()
-    await until(() => fake.state.settings.residents[0].digestLookback?.amount === 45)
+    await until(() => must(fake.state.settings.residents[0]).digestLookback?.amount === 45)
     await userEvent.selectOptions(page.getByTestId('resident-lookback-unit-regent'), 'days')
-    await until(() => fake.state.settings.residents[0].digestLookback?.unit === 'days')
-    expect(fake.state.settings.residents[0].digestLookback).toEqual({ amount: 45, unit: 'days' })
+    await until(() => must(fake.state.settings.residents[0]).digestLookback?.unit === 'days')
+    expect(must(fake.state.settings.residents[0]).digestLookback).toEqual({ amount: 45, unit: 'days' })
     await userEvent.selectOptions(page.getByTestId('resident-lookback-regent'), 'all')
-    await until(() => fake.state.settings.residents[0].digestLookback === null)
+    await until(() => must(fake.state.settings.residents[0]).digestLookback === null)
     expect(el('resident-card-regent')?.textContent).toContain('Older sessions are not digested. Changing this applies on the next pass.')
   })
 
@@ -176,7 +177,7 @@ describe('Settings → Residents', () => {
     expect(input('resident-lookback-amount-regent').value).toBe('10')
     await userEvent.fill(input('resident-lookback-amount-regent'), '5000')
     input('resident-lookback-amount-regent').blur()
-    await until(() => fake.state.settings.residents[0].digestLookback?.amount === 999)
+    await until(() => must(fake.state.settings.residents[0]).digestLookback?.amount === 999)
     expect(input('resident-lookback-amount-regent').value).toBe('999')
   })
 
@@ -191,7 +192,7 @@ describe('Settings → Residents', () => {
       .toEqual(['5 minutes', '10 minutes', '15 minutes', '30 minutes', '60 minutes'])
     await until(() => el('resident-next-check-mr-desk')?.textContent === 'Next check at 14:45')
     await userEvent.selectOptions(page.getByTestId('resident-cycle-mr-desk'), '30')
-    await until(() => fake.state.settings.residents[0].cycleEveryMinutes === 30)
+    await until(() => must(fake.state.settings.residents[0]).cycleEveryMinutes === 30)
     await userEvent.click(page.getByTestId('resident-check-now-mr-desk'))
     await until(() => fake.callsTo('residentQuickAction').length === 1)
     expect(fake.callsTo('residentQuickAction')[0]).toEqual(['mr-desk', 'cycle'])
@@ -214,7 +215,7 @@ describe('Settings → Residents', () => {
     expect(el('resident-required-mr-desk-project')).not.toBeNull()
     await userEvent.fill(input('resident-option-mr-desk-project'), 'group/app')
     input('resident-option-mr-desk-project').blur()
-    await until(() => fake.state.settings.residents[0].options.project === 'group/app')
+    await until(() => must(fake.state.settings.residents[0]).options.project === 'group/app')
     await until(() => el('resident-required-mr-desk-project') === null)
   })
 
@@ -254,7 +255,7 @@ describe('Settings → Residents', () => {
       await expect.element(page.getByTestId('folder-start')).toBeEnabled()
       await userEvent.click(page.getByTestId('folder-start'))
       await until(() => fake.callsTo('residentUseBrowsedFolder').length === 1)
-      expect(fake.callsTo('residentUseBrowsedFolder')[0].slice(0, 2)).toEqual(['mr-desk', 'clone'])
+      expect(must(fake.callsTo('residentUseBrowsedFolder')[0]).slice(0, 2)).toEqual(['mr-desk', 'clone'])
       expect(fake.callsTo('residentPickFolder')).toEqual([])
       await expect.element(page.getByTestId('folder-browser')).not.toBeInTheDocument()
       await until(() => (el('resident-option-mr-desk-clone')?.textContent ?? '').includes('/home/work/'))

@@ -6,6 +6,7 @@ import type { SessionId } from '@shared/domain/ids'
 import { renderApp } from './renderApp'
 import { FIXTURE_SESSIONS, message, type FakeSession } from './fakeApiary'
 import { clickRowAction, sidebarSession, stays, until } from './helpers'
+import { must } from './must'
 
 describe('transcript', () => {
   it('a tree change naming one session refreshes only that session\'s open transcript', async () => {
@@ -32,7 +33,7 @@ describe('transcript', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await expect.element(page.getByTestId('transcript')).toBeVisible()
     await until(() => page.getByTestId('message').elements().length > 0)
-    await expect.element(page.getByTestId('message').elements()[0]).toMatchTextContent('the export is empty')
+    await expect.element(must(page.getByTestId('message').elements()[0])).toMatchTextContent('the export is empty')
   })
 
   it('marks user and assistant messages distinctly', async () => {
@@ -48,7 +49,7 @@ describe('transcript', () => {
     await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await until(() => page.getByTestId('message').elements().length > 0)
-    await expect.element(page.getByTestId('message').elements()[0]).toMatchTextContent('the export is empty')
+    await expect.element(must(page.getByTestId('message').elements()[0])).toMatchTextContent('the export is empty')
 
     await userEvent.click(sidebarSession('Add worktree switcher'))
     await expect.element(page.getByTestId('session-title')).toMatchTextContent('Add worktree switcher')
@@ -94,7 +95,7 @@ describe('transcript', () => {
     await renderApp({ sessions: [hostileSession] })
     await userEvent.click(sidebarSession('Hostile transcript'))
     await until(() => page.getByTestId('message').elements().length > 0)
-    const html = page.getByTestId('message').elements()[0].innerHTML
+    const html = must(page.getByTestId('message').elements()[0]).innerHTML
     expect(html).not.toContain('<style')
     expect(html).not.toContain('<form')
     expect(html).not.toContain('<button')

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, stays, until } from './helpers'
+import { must } from './must'
 
 describe('sidebar', () => {
   it('shows an empty state before anything is imported', async () => {
@@ -30,7 +31,7 @@ describe('sidebar', () => {
     // sessions. A defect that collapsed every folder unconditionally would drop the count to 0;
     // the correct, folder-scoped behaviour drops it to exactly 2 (work-a's and work-b's own
     // sessions untouched).
-    await userEvent.click(page.getByTestId('project-toggle').all()[0])
+    await userEvent.click(must(page.getByTestId('project-toggle').all()[0]))
     await until(() => page.getByTestId('session-item').elements().length === 2)
     await expect.element(sidebarSession('Fix CSV export bug')).toBeVisible()
     await expect.element(sidebarSession('Add worktree switcher')).toBeVisible()
@@ -75,7 +76,7 @@ describe('sidebar', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
 
-    await userEvent.click(page.getByTestId('project-toggle').all()[0])
+    await userEvent.click(must(page.getByTestId('project-toggle').all()[0]))
 
     // It must still be collapsed a moment later, not merely at the instant of the click: the
     // re-expand arrives on the next render, so an immediate assertion would pass against the bug.

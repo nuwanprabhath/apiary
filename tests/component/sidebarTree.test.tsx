@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, until } from './helpers'
+import { must } from './must'
 
 /** Every element with a given data-testid, document-wide. */
 function all(id: string): HTMLElement[] {
@@ -171,9 +172,9 @@ describe('sidebar tree: Pinned/Recent/Active are their own flat trees', () => {
     const pinnedTree = document.querySelector('[role="tree"][aria-label="Pinned sessions"]')!
     const items = [...pinnedTree.querySelectorAll('[role="treeitem"]')] as HTMLElement[]
     expect(items).toHaveLength(2)
-    const secondTitle = items[1].textContent?.includes('Fix CSV export bug') === true
+    const secondTitle = must(items[1]).textContent?.includes('Fix CSV export bug') === true
       ? 'Fix CSV export bug' : 'Add worktree switcher'
-    items[0].focus()
+    must(items[0]).focus()
     await userEvent.keyboard('{ArrowDown}')
     expect(document.activeElement).toBe(items[1])
     await userEvent.keyboard('{Enter}')

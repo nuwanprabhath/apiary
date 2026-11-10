@@ -6,6 +6,7 @@ import { expectConsoleError } from './setup'
 import { sidebarSession, stays, until } from './helpers'
 import type { FakeApiary } from './fakeApiary'
 import { fakePet } from './fake/pets'
+import { must } from './must'
 
 const dialog = (): Element | null => document.querySelector('[data-testid="remote-dialog"]')
 const field = (): HTMLInputElement => {
@@ -95,8 +96,8 @@ describe('the connect dialog', () => {
         ['ready', 'work-boxrecentready'], ['off', 'labssh configremote access off'], ['unreachable', 'gonessh configunreachable'],
         ['unknown', 'peer.tail1.ts.netTailscalechecking…'], ['refused', 'locked.tail1.ts.netTailscalelogin refused'],
       ])
-      expect(rows()[2].getAttribute('title')).toBe('gone did not answer.')
-      expect(rows()[3].querySelector('.btn-spinner')).not.toBeNull()
+      expect(must(rows()[2]).getAttribute('title')).toBe('gone did not answer.')
+      expect(must(rows()[3]).querySelector('.btn-spinner')).not.toBeNull()
     })
 
     it('says each status in words beside the source tag, since a dot alone told nobody what grey meant', async () => {
@@ -115,8 +116,8 @@ describe('the connect dialog', () => {
       await openDialog(fake)
       await until(() => rows().length === 5)
       fake.emit('remoteHostsChanged', HOSTS.map((h) => (h.status === 'unknown' ? { ...h, status: 'ready' as const } : h)))
-      await until(() => rows()[3].getAttribute('data-status') === 'ready')
-      expect(rows()[3].querySelector('.btn-spinner')).toBeNull()
+      await until(() => must(rows()[3]).getAttribute('data-status') === 'ready')
+      expect(must(rows()[3]).querySelector('.btn-spinner')).toBeNull()
     })
 
     it('fills the field on a click and connects on a double-click', async () => {
@@ -124,10 +125,10 @@ describe('the connect dialog', () => {
       fake.state.remoteHosts = HOSTS
       await openDialog(fake)
       await until(() => rows().length === 5)
-      await userEvent.click(rows()[1])
+      await userEvent.click(must(rows()[1]))
       expect(field().value).toBe('lab')
       expect(fake.state.remoteConnects).toEqual([])
-      await userEvent.dblClick(rows()[0])
+      await userEvent.dblClick(must(rows()[0]))
       await until(() => dialog() === null)
       expect(fake.state.remoteConnects).toEqual(['work-box'])
     })

@@ -1,6 +1,7 @@
 import { asAccountId } from '@shared/domain/ids'
 import type { AccountsState } from '@shared/domain/accounts'
 import type { StatusBarItem } from '@shared/domain/statusBar'
+import { must } from './must'
 
 /** The two accounts the status-bar scenarios use: main, and "Work" (signed in as another person). */
 export const TWO_ACCOUNTS: AccountsState = {
@@ -28,5 +29,5 @@ export const TWO_ACCOUNT_ITEMS: StatusBarItem[] = [
 /** The same bar with one account: main's meter as it always read. */
 export const ONE_ACCOUNT_ITEMS: StatusBarItem[] = [
   meter('usage', '5h 10% · 7d 2%', 'Claude usage'),
-  TWO_ACCOUNT_ITEMS[2],
+  must(TWO_ACCOUNT_ITEMS[2]),
 ]

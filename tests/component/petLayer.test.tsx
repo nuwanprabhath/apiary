@@ -7,6 +7,7 @@ import type { BrainOptions } from '@shared/pets/brain'
 import type { PetsState } from '@shared/pets/state'
 import { setTestSeams } from '../../src/renderer/state/testSeams'
 import type { ActiveTabPayload } from '@shared/domain/tabs'
+import { must } from './must'
 
 /**
  * The pets in the window: where they may be, what dragging and the menu do, chatting, and that
@@ -188,7 +189,7 @@ describe('pets', () => {
     fake.state.tabs = [running]
     fake.emit('activeTabsChanged')
     await expect.element(page.getByTestId('pet-bubble')).toBeVisible()
-    expect(fake.state.pets.pets[0].spec.lines.working).toContain(document.querySelector('[data-testid="pet-bubble"]')!.textContent)
+    expect(must(fake.state.pets.pets[0]).spec.lines.working).toContain(document.querySelector('[data-testid="pet-bubble"]')!.textContent)
     await page.screenshot({ path: '../../test-results/pets/in-app.png' })
     await expect.poll(() => document.querySelector('[data-testid="pet"] .pet-sprite')?.getAttribute('data-activity')).toBe('watch')
   })

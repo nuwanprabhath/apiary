@@ -10,6 +10,7 @@ import { STARTER_PET } from '@shared/pets/builtins'
 import { ACCESSORY_SLOTS, BODY_SHAPES, EYE_STYLES, type PetSpec } from '@shared/pets/spec'
 import { validatePet } from '@shared/pets/validate'
 import type { Activity, Face } from '@shared/pets/brain'
+import { must } from './must'
 
 /**
  * Pets drawn on their own, every part and pose, in real Chromium with the app's stylesheet. The
@@ -120,7 +121,7 @@ describe('a pet sprite', () => {
       ['carry', 'happy'], ['fish', 'focused'], ['drive', 'happy'], ['skate', 'love'], ['paint', 'focused'], ['read', 'focused'],
       ['exercise', 'focused'], ['tennis', 'happy'], ['sleep', 'sleepy'], ['fishcaught', 'love'],
     ]
-    const specs = [STARTER_PET, variety[1], variety[7]]
+    const specs = [STARTER_PET, must(variety[1]), must(variety[7])]
     const el = draw(specs.flatMap((spec, i) => poses.map(([activity, face]) => (
       <div key={`${String(i)}-${activity}`} data-testid={`pose3d-${String(i)}-${activity}`} style={{ outline: '1px dashed #333' }}>
         <PetSprite spec={spec} size={128} activity={activity} face={face} facing={i === 2 ? 'left' : 'right'} />

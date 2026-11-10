@@ -3,6 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { renderApp } from '../renderApp'
 import { sidebarSession, until } from '../helpers'
 import { reviewUi } from './review'
+import { must } from '../must'
 
 /** The shell pane's list of terminals: three open with the second in front (highlighted as the
  *  sidebar's selected session is), and one being renamed with its name selected. */
@@ -14,7 +15,7 @@ async function openList(): Promise<void> {
   await userEvent.click(page.getByTestId('terminal-add'))
   await userEvent.click(page.getByTestId('terminal-add'))
   await until(() => page.getByTestId('terminal-tab-row').elements().length === 3)
-  await userEvent.click(page.getByTestId('terminal-tab-row').all()[1].getByTestId('terminal-tab-label'), { position: { x: 8, y: 8 } })
+  await userEvent.click(must(page.getByTestId('terminal-tab-row').all()[1]).getByTestId('terminal-tab-label'), { position: { x: 8, y: 8 } })
 }
 
 const card = (): Element | null => document.querySelector('[data-testid="shell-card"]')
@@ -32,7 +33,7 @@ describe('UI terminal list', () => {
       within: card,
       open: async () => {
         if (document.querySelector('[data-testid="terminal-tab-rename-input"]') !== null) return
-        await userEvent.dblClick(page.getByTestId('terminal-tab-row').all()[1].getByTestId('terminal-tab-label'), { position: { x: 8, y: 8 } })
+        await userEvent.dblClick(must(page.getByTestId('terminal-tab-row').all()[1]).getByTestId('terminal-tab-label'), { position: { x: 8, y: 8 } })
         await until(() => document.querySelector('[data-testid="terminal-tab-rename-input"]') !== null)
       },
     })

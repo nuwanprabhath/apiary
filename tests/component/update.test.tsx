@@ -3,6 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import type { FakeApiary } from './fakeApiary'
 import { until } from './helpers'
+import { must } from './must'
 
 /**
  * The updater as the user meets it. The release feed is a fixture (see `fake.state.update`) —
@@ -309,7 +310,7 @@ describe('the updater', () => {
     await userEvent.click(page.getByTestId('update-skip'))
     await until(() => fake.callsTo('logWrite').length > 0)
 
-    const [level, scope, message] = fake.callsTo('logWrite')[0]
+    const [level, scope, message] = must(fake.callsTo('logWrite')[0])
     expect(level).toBe('warn')
     expect(scope).toBe('update')
     expect(message).toBe('background task failed')

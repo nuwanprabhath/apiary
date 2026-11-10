@@ -6,6 +6,7 @@ import type { FakeApiary } from './fakeApiary'
 import { emptyChatState, type ChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
 import type { TranscriptMessage } from '@shared/domain/transcript'
+import { must } from './must'
 
 /**
  * The "Run sessions as a chat" setting: the transcript drawn the way the VS Code extension draws a
@@ -290,7 +291,7 @@ describe('transcript chat', () => {
     await userEvent.fill(page.getByTestId('composer-input'), 'how is it going?')
     await userEvent.keyboard('{Enter}')
     await until(() => fake.callsTo('sendPrompt').length === 1)
-    expect(fake.callsTo('sendPrompt')[0][1]).toBe('how is it going?')
+    expect(must(fake.callsTo('sendPrompt')[0])[1]).toBe('how is it going?')
     expect(fake.callsTo('chatStart')).toEqual([])
     await expect.element(page.getByTestId('chat-timeline')).toBeVisible()
     // Nothing running there any more: now the chat takes it over.
@@ -562,10 +563,10 @@ describe('transcript chat', () => {
     const search = page.getByTestId('composer-command-search').element()
     // Chat settings come first, then the commands: arrows move across both.
     const options = [...document.querySelectorAll('[role="option"]')]
-    expect(search.getAttribute('aria-activedescendant')).toBe(options[0].id)
+    expect(search.getAttribute('aria-activedescendant')).toBe(must(options[0]).id)
     await userEvent.keyboard('{ArrowDown}')
-    expect(search.getAttribute('aria-activedescendant')).toBe(options[1].id)
-    expect(options[1].getAttribute('aria-selected')).toBe('true')
+    expect(search.getAttribute('aria-activedescendant')).toBe(must(options[1]).id)
+    expect(must(options[1]).getAttribute('aria-selected')).toBe('true')
     // Esc closes the popup and the "/" button gets the focus back.
     await userEvent.keyboard('{Escape}')
     await expect.element(page.getByTestId('composer-command-menu')).not.toBeInTheDocument()

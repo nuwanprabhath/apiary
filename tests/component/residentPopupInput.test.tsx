@@ -4,6 +4,7 @@ import { renderApp } from './renderApp'
 import { until } from './helpers'
 import { message, regentStatus, withRegent } from './residentFixtures'
 import type { FakeApiary } from './fakeApiary'
+import { must } from './must'
 
 const popup = (): HTMLElement | null => document.querySelector('[data-testid="resident-popup"]')
 const input = (): HTMLTextAreaElement => document.querySelector<HTMLTextAreaElement>('.resident-popup-input')!
@@ -55,7 +56,7 @@ describe('the resident popup: focus, images and copy', () => {
     await userEvent.fill(input(), 'what is this')
     await userEvent.keyboard('{Enter}')
     await until(() => fake.callsTo('residentSend').length === 1)
-    expect(fake.callsTo('residentSend')[0][1]).toMatch(/^what is this\n\/fixture\/images\/pasted-\d+\.png$/)
+    expect(must(fake.callsTo('residentSend')[0])[1]).toMatch(/^what is this\n\/fixture\/images\/pasted-\d+\.png$/)
     await until(() => popup()!.querySelector('[data-testid="composer-attachment"]') === null)
   })
 

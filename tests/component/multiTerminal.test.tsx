@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, until } from './helpers'
+import { must } from './must'
 
 /** Where a click lands on a terminal's name: its start, clear of the buttons that float over the
  *  end of the row on hover. */
@@ -41,7 +42,7 @@ describe('multi-terminal', () => {
     await userEvent.fill(input, 'Logs')
     await userEvent.keyboard('{Enter}')
     const labels = page.getByTestId('terminal-tab-label').elements()
-    expect(labels[labels.length - 1].textContent).toBe('Logs')
+    expect(must(labels[labels.length - 1]).textContent).toBe('Logs')
   })
 
   it('F2 on the terminal list renames the terminal in front', async () => {
@@ -67,7 +68,7 @@ describe('multi-terminal', () => {
 
     // An element, not a locator: renaming the row changes its accessible name, which is what a
     // locator re-resolves by — the same trap `helpers.ts`'s `sessionRow` avoids.
-    const row = page.getByTestId('terminal-tab-row').elements()[0]
+    const row = must(page.getByTestId('terminal-tab-row').elements()[0])
     const within = (testId: string): HTMLElement => row.querySelector(`[data-testid="${testId}"]`) as HTMLElement
     await expect.element(within('terminal-tab-rename')).not.toBeVisible()
     await expect.element(within('terminal-tab-delete')).not.toBeVisible()
@@ -92,7 +93,7 @@ describe('multi-terminal', () => {
     await until(() => page.getByTestId('terminal-tab-row').elements().length === 2)
 
     const rows = page.getByTestId('terminal-tab-row').all()
-    const last = rows[rows.length - 1]
+    const last = must(rows[rows.length - 1])
     await userEvent.hover(last)
     await userEvent.click(last.getByTestId('terminal-tab-delete'))
     await until(() => page.getByTestId('terminal-tab-row').elements().length === 1)
@@ -163,7 +164,7 @@ describe('multi-terminal', () => {
     // Three columns makes each one narrow — the case where the branch label used to wrap over three
     // lines, and every line it grew was a line taken from the terminal below it.
     await userEvent.click(page.getByTestId('session-tab-split'))
-    await userEvent.click(page.getByTestId('session-tab-split').all()[0])
+    await userEvent.click(must(page.getByTestId('session-tab-split').all()[0]))
     await until(() => page.getByTestId('session-column').elements().length === 3)
     await until(() => toolbarHeight() === before)
 
@@ -177,13 +178,13 @@ describe('multi-terminal', () => {
     await until(() => page.getByTestId('terminal-tab-row').elements().length === 3)
     const rows = page.getByTestId('terminal-tab-row')
 
-    await userEvent.click(rows.all()[1].getByTestId('terminal-tab-label'), NAME_START)
-    await expect.element(rows.all()[1]).toHaveAttribute('data-active', 'true')
+    await userEvent.click(must(rows.all()[1]).getByTestId('terminal-tab-label'), NAME_START)
+    await expect.element(must(rows.all()[1])).toHaveAttribute('data-active', 'true')
 
     await userEvent.keyboard('{ArrowUp}')
-    await expect.element(rows.all()[0]).toHaveAttribute('data-active', 'true')
-    await expect.element(rows.all()[0]).toHaveAttribute('data-keyboard-focused', 'true')
-    await expect.element(rows.all()[1]).toHaveAttribute('data-keyboard-focused', 'false')
+    await expect.element(must(rows.all()[0])).toHaveAttribute('data-active', 'true')
+    await expect.element(must(rows.all()[0])).toHaveAttribute('data-keyboard-focused', 'true')
+    await expect.element(must(rows.all()[1])).toHaveAttribute('data-keyboard-focused', 'false')
 
     // The reported bug: DOM focus stayed on the button of the row that was clicked, so pressing a
     // key made Chromium draw its own focus ring around it — a box around a row that the selection
@@ -191,20 +192,20 @@ describe('multi-terminal', () => {
     expect(document.activeElement?.className ?? '').toContain('terminal-list-panel')
 
     await userEvent.keyboard('{ArrowDown}')
-    await expect.element(rows.all()[1]).toHaveAttribute('data-active', 'true')
+    await expect.element(must(rows.all()[1])).toHaveAttribute('data-active', 'true')
   })
 
   it('the terminal in front is highlighted as the selected session in the sidebar is', async () => {
     await open()
     await userEvent.click(page.getByTestId('terminal-add'))
     const rows = page.getByTestId('terminal-tab-row')
-    await userEvent.click(rows.all()[1].getByTestId('terminal-tab-label'), NAME_START)
+    await userEvent.click(must(rows.all()[1]).getByTestId('terminal-tab-label'), NAME_START)
     await userEvent.keyboard('{ArrowUp}')
-    await expect.element(rows.all()[0]).toHaveAttribute('data-active', 'true')
+    await expect.element(must(rows.all()[0])).toHaveAttribute('data-active', 'true')
     const selected = document.querySelector('.session-row-wrap:has(.session-row[data-selected="true"])')!
     // Polled: the background eases in.
-    await until(() => getComputedStyle(rows.all()[0].element()).backgroundColor === getComputedStyle(selected).backgroundColor)
-    const row = getComputedStyle(rows.all()[0].element())
+    await until(() => getComputedStyle(must(rows.all()[0]).element()).backgroundColor === getComputedStyle(selected).backgroundColor)
+    const row = getComputedStyle(must(rows.all()[0]).element())
     expect(row.boxShadow).toBe('none')
     expect(row.borderRadius).toBe(getComputedStyle(selected).borderRadius)
   })

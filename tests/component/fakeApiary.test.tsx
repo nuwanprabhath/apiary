@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { STANDARD_SESSIONS as STD } from '../fixtures/standard'
 import { createFakeApiary, fakePet } from './fakeApiary'
+import { must } from './must'
 
 /**
  * Two things the fake guarantees for every call, whatever it models (the rest is pinned by the
@@ -28,12 +29,12 @@ describe('the fake bridge, as a bridge', () => {
   it('pushes a copy to every listener, so one window cannot change what another is told', () => {
     const fake = createFakeApiary()
     const heard: { id: string; size: number }[][] = []
-    fake.onPetsChanged((state) => { state.pets[0].size = 1; heard.push(state.pets) })
+    fake.onPetsChanged((state) => { must(state.pets[0]).size = 1; heard.push(state.pets) })
     fake.onPetsChanged((state) => { heard.push(state.pets) })
     const pushed = { enabled: true, generating: false, arrival: null, pets: [fakePet('pip', { size: 64 })] }
     fake.emit('petsChanged', pushed)
-    expect(heard.map((pets) => pets[0].size)).toEqual([1, 64])
-    expect(pushed.pets[0].size).toBe(64)
+    expect(heard.map((pets) => must(pets[0]).size)).toEqual([1, 64])
+    expect(must(pushed.pets[0]).size).toBe(64)
   })
 
   it('refuses what an IPC could not carry: a function in an argument', () => {

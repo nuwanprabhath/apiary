@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mountUi } from './mountUi'
+import { must } from './must'
 
 /**
  * B6: `@keyframes chat-pulse` was defined twice in 33-chat.css and the later one (scale + fade)
@@ -23,7 +24,7 @@ describe('chat pulse animations', () => {
     expect(getComputedStyle(dot).animationName).toBe('chat-pulse')
     const rules = keyframes('chat-pulse')
     expect(rules).toHaveLength(1)
-    const css = Array.from(rules[0].cssRules).map((r) => r.cssText).join(' ')
+    const css = Array.from(must(rules[0]).cssRules).map((r) => r.cssText).join(' ')
     expect(css).toContain('opacity')
     expect(css).not.toContain('transform')
   })
