@@ -4,7 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.17] - 2026-11-10
+## [1.60.18] - 2026-11-10
+
+### Added
+
+- A nightly CI run of the unit and integration tests at UTC+14, at UTC-3:30 and just before a new
+  year, so date and time-zone mistakes show up; failures go to one issue.
+
+## [1.60.17] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Added
 
