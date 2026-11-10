@@ -43,5 +43,5 @@ export function pickWindowAt(
     const i = focusOrder.indexOf(id)
     return i === -1 ? Number.POSITIVE_INFINITY : i
   }
-  return [...under].sort((a, b) => rank(a.id) - rank(b.id))[0].id
+  return [...under].sort((a, b) => rank(a.id) - rank(b.id))[0]?.id ?? null
 }

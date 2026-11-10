@@ -123,6 +123,7 @@ export class WindowManager {
     if (record === undefined || win.isDestroyed()) return
     const min = minimumWidth(record.baseMinWidth, width)
     const [, minHeight] = win.getMinimumSize()
+    if (minHeight === undefined) return
     win.setMinimumSize(min, minHeight)
     if (win.isMaximized() || win.isFullScreen()) return
     const bounds = win.getBounds()

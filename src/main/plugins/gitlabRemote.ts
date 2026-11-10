@@ -33,7 +33,7 @@ export function parseGitLabRemote(remote: string): GitLabRemote | null {
 
   // scp-like: git@host:group/project.git — not a URL, so it is matched before anything else tries.
   const scp = /^(?:[\w.-]+@)?([\w.-]+):(?!\/)(.+?)(?:\.git)?$/.exec(trimmed)
-  if (scp !== null) return build(scp[1], scp[2])
+  if (scp !== null && scp[1] !== undefined && scp[2] !== undefined) return build(scp[1], scp[2])
 
   let url: URL
   try {

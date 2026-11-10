@@ -38,20 +38,20 @@ function refsOfUrl(raw: string, add: (kind: RefKind, value: string) => void): vo
   const lab = GITLAB_PATH.exec(path)
   if (lab !== null) {
     const kind = lab[2] === 'merge_requests' ? 'mr' : 'issue'
-    add(kind, `${lab[1]}${kind === 'mr' ? '!' : '#'}${lab[3]}`)
-    add(kind, lab[3])
+    add(kind, `${lab[1] ?? ''}${kind === 'mr' ? '!' : '#'}${lab[3] ?? ''}`)
+    add(kind, lab[3] ?? '')
     return
   }
   const hub = GITHUB_PATH.exec(path)
   if (hub !== null) {
     const kind = hub[2] === 'pull' ? 'mr' : 'issue'
-    add(kind, `${hub[1]}#${hub[3]}`)
-    add(kind, hub[3])
+    add(kind, `${hub[1] ?? ''}#${hub[3] ?? ''}`)
+    add(kind, hub[3] ?? '')
     return
   }
   const jira = JIRA_PATH.exec(path)
   if (jira !== null) {
-    add('ticket', jira[1])
+    add('ticket', jira[1] ?? '')
     return
   }
   add('url', normaliseUrl(url))
@@ -74,11 +74,12 @@ export function extractRefs(text: string): Ref[] {
     return ' '
   })
 
-  for (const m of rest.matchAll(MR_MENTION)) add('mr', m[1])
+  for (const m of rest.matchAll(MR_MENTION)) add('mr', m[1] ?? '')
   for (const m of rest.matchAll(ISSUE_MENTION)) {
+    const num = m[1] ?? ''
     // 6 and 8 digits read as a hex colour (#123456) far more often than as an issue number.
-    if (m[1].length === 6 || m[1].length === 8) continue
-    add('issue', m[1])
+    if (num.length === 6 || num.length === 8) continue
+    add('issue', num)
   }
   for (const m of rest.matchAll(TICKET_MENTION)) {
     const prefix = m[0].slice(0, m[0].indexOf('-'))

@@ -24,7 +24,7 @@ for (const [key, spec] of Object.entries(IPC)) {
   } else if (spec.kind === 'send') {
     api[key] = (...a: unknown[]) => { ipcRenderer.send(spec.channel, ...a) }
   } else if (spec.kind === 'event') {
-    api[`on${key[0].toUpperCase()}${key.slice(1)}`] = (cb: (...a: unknown[]) => void) =>
+    api[`on${key.charAt(0).toUpperCase()}${key.slice(1)}`] = (cb: (...a: unknown[]) => void) =>
       subscribe(spec.channel, cb)
   } else if (spec.kind === 'local') {
     const impl = localApis[key as keyof typeof localApis] as (...args: unknown[]) => unknown

@@ -21,6 +21,6 @@ export function parseGitlabProject(value: string): GitlabProject | null {
     return null // neither a path nor a URL: setup says what it should look like
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
-  const path = url.pathname.split('/-/')[0].replace(/\/+$/, '').replace(/\.git$/, '').replace(/^\/+/, '')
+  const path = (url.pathname.split('/-/')[0] ?? '').replace(/\/+$/, '').replace(/\.git$/, '').replace(/^\/+/, '')
   return PROJECT_PATH_RE.test(path) ? { project: path, host: url.host } : null
 }

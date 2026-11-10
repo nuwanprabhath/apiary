@@ -23,11 +23,12 @@ export function parseLiveSessions(psOutput: string): Map<string, number> {
     const match = /^(\d+)\s+(.*)$/.exec(trimmed)
     if (!match) continue
     const [, pidText, args] = match
-    const executable = args.split(/\s+/)[0]
+    if (pidText === undefined || args === undefined) continue
+    const executable = args.split(/\s+/)[0] ?? ''
     if (!IS_CLAUDE.test(executable)) continue
-    const resume = RESUME.exec(args)
-    if (!resume) continue
-    live.set(resume[1], Number(pidText))
+    const sessionId = RESUME.exec(args)?.[1]
+    if (sessionId === undefined) continue
+    live.set(sessionId, Number(pidText))
   }
   return live
 }
