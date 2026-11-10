@@ -1,6 +1,6 @@
 {
   "name": "apiary",
-  "version": "1.60.8",
+  "version": "1.60.9",
   "private": true,
   "type": "module",
   "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",
@@ -65,7 +65,8 @@
     "prepare": "husky",
     "ui:review": "node scripts/ui-review.mjs",
     "bench:load": "npm run build && APIARY_BENCH_LOAD=1 playwright test tests/e2e/bench/loadPerf.spec.ts --project=parallel --no-deps",
-    "bench:report": "node scripts/bench/report.mjs"
+    "bench:report": "node scripts/bench/report.mjs",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

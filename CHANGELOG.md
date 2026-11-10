@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.8] - 2026-11-10
+## [1.60.9] - 2026-11-10
+
+### Added
+
+- `npm run release` performs a release in one step: the checks, pushing main, waiting for CI,
+  tagging, watching the release run (retrying a failed download) and checking its six files. It
+  asks before it pushes.
+
+## [1.60.8] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Security
 
