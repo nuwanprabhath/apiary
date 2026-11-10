@@ -55,5 +55,6 @@ describe('source comments carry facts, not history', () => {
     expect(
       hits.map((h) => `${h} — history belongs in CHANGELOG.md and git; keep only the fact that still holds (trim-comments skill)`),
     ).toEqual([])
-  })
+    // Reads every source file in the repo: about 4.5 s alone, so a busy machine passes the 5 s default.
+  }, 60_000)
 })

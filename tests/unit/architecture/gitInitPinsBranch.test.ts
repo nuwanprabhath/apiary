@@ -36,5 +36,6 @@ describe('a test repository names its branch', () => {
       })
     }
     expect(bare, 'name the branch: git init -b main (git\'s default branch differs between machines)').toEqual([])
-  })
+    // Reads every source and test file in the repo: about 4.5 s alone, so a busy machine passes the 5 s default.
+  }, 60_000)
 })
