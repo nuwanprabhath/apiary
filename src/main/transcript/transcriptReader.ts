@@ -7,8 +7,6 @@ import { MAX_LINE_CHARS } from './jsonlLines'
 
 const DEFAULT_LIMIT = TRANSCRIPT_PAGE_SIZE
 
-export { MAX_LINE_CHARS }
-
 /** Coerces a JSONL field of unknown shape to a string; a malformed line gives `fallback`, not '[object Object]'. */
 function asString(value: unknown, fallback: string): string {
   if (typeof value === 'string') return value
