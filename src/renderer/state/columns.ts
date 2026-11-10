@@ -56,6 +56,7 @@ export function moveTab(column: Column, key: string, toIndex: number): Column {
   const rest = column.tabs.filter((t) => t.key !== key)
   const clamped = Math.max(0, Math.min(toIndex, rest.length))
   const tab = column.tabs[from]
+  if (tab === undefined) return column
   return { ...column, tabs: [...rest.slice(0, clamped), tab, ...rest.slice(clamped)] }
 }
 

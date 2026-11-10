@@ -19,6 +19,6 @@ export function useFirstEnabledResident(): ResidentStatus | null {
 export function summonResident(residents: readonly ResidentStatus[], openSettings: (section: string) => void): void {
   const enabled = firstEnabledResident(residents)
   if (enabled !== null) toggleResidentPopup(enabled.id)
-  else if (residents.length > 0) openResidentPopup(residents[0].id)
+  else if (residents[0] !== undefined) openResidentPopup(residents[0].id)
   else openSettings('residents')
 }

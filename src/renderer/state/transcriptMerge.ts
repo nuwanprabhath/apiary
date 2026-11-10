@@ -24,7 +24,7 @@ export function mergeLatestPage(
   for (let overlap = maxOverlap; overlap > 0; overlap--) {
     const existingTail = existing.slice(existing.length - overlap)
     const incomingHead = incoming.slice(0, overlap)
-    if (existingTail.every((m, i) => sameMessage(m, incomingHead[i]))) {
+    if (existingTail.every((m, i) => { const h = incomingHead[i]; return h !== undefined && sameMessage(m, h) })) {
       return overlap < incoming.length ? [...existing, ...incoming.slice(overlap)] : existing
     }
   }
