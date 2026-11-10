@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { BrowserWindow, webContents, type WebContents } from 'electron'
 import { IPC } from '@shared/api'
 import { asSessionId, type SessionId } from '@shared/domain/ids'
@@ -7,8 +7,10 @@ import type { ToolDeps } from '../residents/mcp/tools'
 import type { AccountService } from '../accounts/accountService'
 import { createExec } from '../exec/run'
 import type { VirtualContentsRegistry } from '../remote/virtualContents'
-import { kindLookup } from '../residents/kinds'
+import { log } from '../log/logger'
+import { builtinKindIds, kindLookup, showDataKinds } from '../residents/kinds'
 import { nodeKindFiles, searchPathFrom } from '../residents/kinds/kindHost'
+import { readManifestKinds } from '../residents/kinds/manifestKind'
 import { ResidentService } from '../residents/residentService'
 import type { SettingsService } from '../settings/settingsService'
 import type { UsageFeed } from '../statusBar/claudeUsage/usageFeed'
@@ -44,12 +46,17 @@ export function createResidents(o: {
   resourcesDir: string
 }): ResidentService {
   const searchPath = (): string => searchPathFrom(process.env.PATH)
+  // Kinds the user dropped in as folders: read once at start, never watched (ADR-0022).
+  const dataKinds = readManifestKinds(join(dirname(o.paths.residentsDir), 'resident-kinds'), builtinKindIds(), (folder, reason) => {
+    log.warn('residents', 'resident kind folder refused', { folder, reason })
+  })
+  showDataKinds(dataKinds)
   const kinds = kindLookup({
     resourceDir: (kindId) => join(o.resourcesDir, 'residents', kindId),
     exec: createExec({ scope: 'residents', timeoutMs: PROBE_TIMEOUT_MS, env: { PATH: searchPath() } }),
     searchPath,
     files: nodeKindFiles,
-  })
+  }, dataKinds)
   // The window last in front (or the first, before any was focused): where a resident's "open this session" goes.
   const front = (): WebContents | null => {
     const id = o.ipcState.tabMover.recentFirst().find((n) => (webContents.fromId(n) ?? null) !== null)
