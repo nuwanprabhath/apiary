@@ -4,7 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.14] - 2026-11-10
+## [1.60.15] - 2026-11-10
+
+### Fixed
+
+- Remote access decodes large messages quickly instead of re-copying them on every chunk, no longer
+  floods a slow connection with terminal output (the terminal is redrawn from its current screen
+  once the connection catches up), rejects malformed messages from the work machine, and limits one
+  connection to 32 windows.
+
+## [1.60.14] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Changed
 
