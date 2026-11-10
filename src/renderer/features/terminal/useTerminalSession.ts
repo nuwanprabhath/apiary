@@ -62,6 +62,9 @@ export function useTerminalSession(s: Session): void {
     const offData = ptyBus.onData(ptyId, (data) => {
       watchdog.noteData()
       if (catchUp.receive(data)) watchdog.check()
+      // xterm parses writes in order, so an empty write's callback runs once this chunk is drawn
+      // (or held by the catch-up, which counts as taken: main need not wait for it).
+      term.write('', () => { ptyBus.ack(ptyId, data.length) })
     })
     catchUp.begin()
     const offExit = ptyBus.onExit(ptyId, (code) => {
