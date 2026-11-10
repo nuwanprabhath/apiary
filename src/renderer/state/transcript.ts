@@ -7,9 +7,9 @@ import { bestEffort } from './policy'
 export const loadTranscript = (sessionId: SessionId, beforeIndex?: number): Promise<TranscriptPage> =>
   window.apiary.transcript(sessionId, beforeIndex)
 
-export const loadTranscriptAfter = (sessionId: SessionId, afterIndex: number): Promise<TranscriptPage> =>
-  window.apiary.transcriptAfter(sessionId, afterIndex)
-
+/** What follows `afterIndex`: the newest page after a burst, or with `limit` the next page, for a view reading forward through history. */
+export const loadTranscriptAfter = (sessionId: SessionId, afterIndex: number, limit?: boolean): Promise<TranscriptPage> =>
+  window.apiary.transcriptAfter(sessionId, afterIndex, limit)
 /** The end of a background task's output, for the task popup; a failed read is "not available"
  *  there, never a toast. */
 export const loadTaskOutput = async (sessionId: SessionId, taskId: string): Promise<BackgroundTaskOutput> =>

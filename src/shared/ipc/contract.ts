@@ -30,6 +30,12 @@ import type {
   ProjectNode, DiscoveredSession, ResumeConflict, NewSessionInfo, TreeChange,
 } from '../domain/session'
 import type { TranscriptPage } from '../domain/transcript'
+
+/** One step of a find in a transcript: line indexes of matching messages, newest first, and where the next step starts (null at line 0). */
+export interface TranscriptFindResult {
+  indexes: number[]
+  cursor: number | null
+}
 import type { BackgroundTaskOutput } from '../chatTimeline'
 import type { BrowseView } from '../domain/folders'
 import type { AppSettingsPayload } from '../domain/settings'
@@ -120,9 +126,14 @@ export const IPC = {
   importSessions: invoke<[sessionIds: SessionId[], autoImportProjects: string[]], void>(
     'apiary:import', tuple(arr(sessionIdArg), arr(str)),
   ),
-  /** The messages on lines after `afterIndex`, for a transcript that holds everything up to it; the newest page with `earlierCursor` set after a burst. */
-  transcriptAfter: invoke<[sessionId: SessionId, afterIndex: number], TranscriptPage>(
-    'apiary:transcript-after', tuple(sessionIdArg, num)),
+  /** The messages on lines after `afterIndex`, for a transcript that holds everything up to it; the newest page with `earlierCursor` set after a burst.
+   *  With `limit`, the next page after `afterIndex`, for a view reading forward through history. */
+  transcriptAfter: invoke<[sessionId: SessionId, afterIndex: number, limit?: boolean], TranscriptPage>(
+    'apiary:transcript-after', tuple(sessionIdArg, num, opt(bool))),
+  /** Up to 50 line indexes of messages whose shown text contains `query` (any case), newest first,
+   *  searching back from `before` (the end when null); `cursor` continues the search. Main reads the file. */
+  transcriptFind: invoke<[sessionId: SessionId, query: string, before: number | null], TranscriptFindResult>(
+    'apiary:transcript-find', tuple(sessionIdArg, str, nullable(num))),
   transcript: invoke<[sessionId: SessionId, beforeIndex?: number], TranscriptPage>(
     'apiary:transcript', tuple(sessionIdArg, opt(num)),
   ),

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import type { TranscriptMessage } from '@shared/types'
 import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
+import { HELD_MAX } from '../../src/renderer/state/transcriptWindow'
 import { renderApp } from './renderApp'
 import { message, type FakeSession } from './fakeApiary'
 import { openClaudeTerminal, ptyWrites, sidebarSession, stays, until } from './helpers'
@@ -219,6 +220,34 @@ describe('find jumping', () => {
     fake.state.sessions.find((s) => s.title === 'Live chat')?.messages?.push(message('a1', 'assistant', 'a second needle'))
     fake.emit('treeChanged')
     await expect.poll(countText).toBe('2 of 2')
+  })
+})
+
+describe('reading history', () => {
+  it('never holds more than HELD_MAX messages, and loads the newer ones back on scrolling down', async () => {
+    const history = Array.from({ length: 1000 }, (_, i) => message(`h${i}`, i % 2 === 0 ? 'user' : 'assistant', `history ${i}`))
+    await renderApp({ sessions: [sessionWith('Very long history', history)] })
+    await openTranscript('Very long history')
+    await expect.poll(() => messageEls().length).toBe(TRANSCRIPT_PAGE_SIZE)
+    let most = 0
+    const view = document.querySelector<HTMLElement>('[data-testid="transcript"]')
+    // Every page the reader asks for, at the top, by the button or the sentinel, until line 0.
+    await expect.poll(() => {
+      most = Math.max(most, messageEls().length)
+      if (view !== null) view.scrollTop = 0
+      document.querySelector<HTMLButtonElement>('[data-testid="load-earlier"]:not(:disabled)')?.click()
+      return /history 0\s*$/.test(messageEls()[0]?.textContent ?? '')
+    }, { timeout: 10_000 }).toBe(true)
+    expect(most).toBeLessThanOrEqual(HELD_MAX)
+    expect(messageEls().at(-1)?.textContent).not.toContain('history 999')
+    const last = (): string | null | undefined => messageEls().at(-1)?.textContent
+    const lastBefore = last()
+    // A scroll down to the bottom edge, repeated until the next page lands.
+    await expect.poll(() => {
+      if (view !== null) { view.scrollTop = view.scrollHeight - view.clientHeight - 400; view.scrollTop = view.scrollHeight }
+      return last()
+    }).not.toBe(lastBefore)
+    expect(messageEls().length).toBeLessThanOrEqual(HELD_MAX)
   })
 })
 

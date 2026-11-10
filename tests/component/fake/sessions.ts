@@ -14,7 +14,7 @@ import { asSessionId } from '@shared/domain/ids'
 import type { Env, FakeSession } from './state'
 
 type SessionsApi = Pick<ApiaryApi,
-  | 'refresh' | 'tree' | 'discovered' | 'importSessions' | 'transcript' | 'transcriptAfter' | 'backgroundTaskOutput' | 'checkConflict' | 'resume' | 'renameSession'
+  | 'refresh' | 'tree' | 'discovered' | 'importSessions' | 'transcript' | 'transcriptAfter' | 'transcriptFind' | 'backgroundTaskOutput' | 'checkConflict' | 'resume' | 'renameSession'
   | 'renameTerminalInClaude' | 'removeSession' | 'moveSession' | 'newSessionInProject' | 'newSessionInPickedFolder'
   | 'forkSession' | 'setSessionNote' | 'sessionNote' | 'openShell' | 'openShellForPty' | 'ptyWrite' | 'ptyResize'
   | 'ptyKill' | 'ptyResume' | 'ptyAttach' | 'ptyDetach' | 'ptyAck' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
@@ -66,9 +66,13 @@ export function sessionsApi(env: Env): SessionsApi {
     return { messages: all.slice(start, end).map((m, i) => ({ ...m, index: start + i })), earlierCursor: start > 0 ? start : null, skippedLines: 0 }
   }
   // A message's line index is its position, so "after" is a slice; a burst answers the newest page.
-  const transcriptAfter = (id: string, afterIndex: number): TranscriptPage => {
+  const transcriptAfter = (id: string, afterIndex: number, limit?: boolean): TranscriptPage => {
     const all = find(id)?.messages ?? [message(`${id}-u`, 'user', 'fix the export'), message(`${id}-a`, 'assistant', 'done')]
     const first = afterIndex + 1
+    if (limit === true) {
+      const end = Math.min(all.length, first + TRANSCRIPT_PAGE_SIZE)
+      return { messages: all.slice(first, end).map((m, i) => ({ ...m, index: first + i })), earlierCursor: null, skippedLines: 0 }
+    }
     const start = Math.max(first, all.length - TRANSCRIPT_PAGE_SIZE)
     return {
       messages: all.slice(start).map((m, i) => ({ ...m, index: start + i })),
@@ -98,7 +102,21 @@ export function sessionsApi(env: Env): SessionsApi {
     })),
     importSessions: async (ids) => { for (const id of ids) state.imported.add(id) },
     transcript: async (id, before) => transcript(id, before),
-    transcriptAfter: async (id, after) => transcriptAfter(id, after),
+    transcriptAfter: async (id, after, limit) => transcriptAfter(id, after, limit),
+    // As main: 50 matching messages at most, newest first, on the text shown (text, thinking, tool names).
+    transcriptFind: async (id, query, before) => {
+      const all = find(id)?.messages ?? []
+      const needle = query.toLowerCase()
+      const indexes: number[] = []
+      if (needle === '') return { indexes, cursor: null }
+      for (let i = Math.min(before ?? all.length, all.length) - 1; i >= 0; i--) {
+        const shown = all[i].blocks.map((b) => ('text' in b ? b.text : b.type === 'tool_use' ? b.name : '')).join('\n')
+        if (!shown.toLowerCase().includes(needle)) continue
+        indexes.push(i)
+        if (indexes.length === 50) return { indexes, cursor: i }
+      }
+      return { indexes, cursor: null }
+    },
     // As in main, a task nobody wrote output for (or an unknown session) is "not available", not an error.
     backgroundTaskOutput: async (id, taskId) => state.taskOutputs.get(`${id}:${taskId}`) ?? { available: false, lines: [] },
     // Someone else's process is running the session: the conflict names it.

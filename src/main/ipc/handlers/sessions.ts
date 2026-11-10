@@ -17,7 +17,7 @@ export interface SessionsDeps {
 }
 
 type HandledKeys =
-  | 'refresh' | 'tree' | 'searchContent' | 'discovered' | 'importSessions' | 'transcript' | 'transcriptAfter' | 'backgroundTaskOutput' | 'checkConflict'
+  | 'refresh' | 'tree' | 'searchContent' | 'discovered' | 'importSessions' | 'transcript' | 'transcriptAfter' | 'transcriptFind' | 'backgroundTaskOutput' | 'checkConflict'
   | 'resume' | 'renameSession' | 'removeSession' | 'moveSession' | 'setSessionNote' | 'sessionNote'
   | 'searchRebuild' | 'searchStatus' | 'saveImage' | 'readImage' | 'newSessionInProject' | 'forkSession'
   | 'copyToClipboard' | 'newSessionInPickedFolder'
@@ -54,7 +54,8 @@ export function sessionsHandlers(deps: SessionsDeps): Pick<Handlers, HandledKeys
       })),
     importSessions: (_e, ids, projects) => service.importSessions(ids, projects),
     transcript: (_e, id, beforeIndex) => service.transcript(id, beforeIndex),
-    transcriptAfter: (_e, id, afterIndex) => service.transcriptAfter(id, afterIndex),
+    transcriptAfter: (_e, id, afterIndex, limit) => service.transcriptAfter(id, afterIndex, limit),
+    transcriptFind: (_e, id, query, before) => service.transcriptFind(id, query, before),
     backgroundTaskOutput: (_e, id, taskId) => service.backgroundTaskOutput(id, taskId),
     checkConflict: (_e, id) => service.checkConflict(id),
     resume: (_e, id, ptyId) => service.resume(id, ptyId),

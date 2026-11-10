@@ -40,3 +40,17 @@ describe('windowHeld', () => {
     expect(windowHeld(held, null).messages[0].index).toBe(cut + 1)
   })
 })
+
+describe('windowHeld, reading history', () => {
+  it('drops the newest once earlier pages pass the limit, and points the later cursor at the last one kept', () => {
+    const out = windowHeld(run(HELD_MAX + 200), null, 'newest')
+    expect(out.messages).toHaveLength(HELD_KEEP)
+    expect(out.messages[0].index).toBe(0)
+    expect(out.cursor).toBe(HELD_KEEP - 1)
+  })
+
+  it('changes nothing at or under the limit', () => {
+    const held = run(HELD_MAX)
+    expect(windowHeld(held, null, 'newest')).toEqual({ messages: held, cursor: null })
+  })
+})

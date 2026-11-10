@@ -3,6 +3,7 @@ import type { SessionStore, StoredSession } from './store/sessionStore'
 import type { SessionCatalog } from './sessions/sessionCatalog'
 import type { SessionActions } from './sessions/sessionActions'
 import type { TranscriptService } from './sessions/transcriptService'
+import type { TranscriptFindResult } from '@shared/ipc/contract'
 import type { BackgroundTaskOutput } from '@shared/chatTimeline'
 import type { GitService } from './git/gitService'
 import type { SearchService } from './search/searchService'
@@ -131,8 +132,12 @@ export class AppService {
     return this.transcripts.page(sessionId, beforeIndex)
   }
 
-  async transcriptAfter(sessionId: string, afterIndex: number): Promise<TranscriptPage> {
-    return this.transcripts.after(sessionId, afterIndex)
+  async transcriptAfter(sessionId: string, afterIndex: number, limit?: boolean): Promise<TranscriptPage> {
+    return this.transcripts.after(sessionId, afterIndex, limit)
+  }
+
+  async transcriptFind(sessionId: string, query: string, before: number | null): Promise<TranscriptFindResult> {
+    return this.transcripts.find(sessionId, query, before)
   }
 
   /** The end of a background task's output; see `TranscriptService.backgroundTaskOutput`. */

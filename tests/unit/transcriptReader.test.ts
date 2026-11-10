@@ -457,3 +457,45 @@ describe('a subagent\'s report that arrived mid-turn', () => {
     expect(m?.blocks).toEqual([{ type: 'peer_message', from: 'general-purpose', text: 'Monitor does nothing special for threatened species.' }])
   })
 })
+
+describe('findInTranscript', () => {
+  it('answers the line indexes of matching messages, newest first, on the text the transcript shows', async () => {
+    write([
+      userMsg('u1', 'Find the NEEDLE here'),
+      assistantMsg('a1', [{ type: 'thinking', thinking: 'a needle in thought' }]),
+      assistantMsg('a2', [{ type: 'tool_use', id: 't1', name: 'NeedleTool', input: { x: 1 } }]),
+      assistantMsg('a3', [{ type: 'tool_use', id: 't2', name: 'Bash', input: { command: 'needle' } }]),
+      userMsg('u2', 'nothing'),
+    ])
+    expect(await reader.findInTranscript(file(), 'needle', null)).toEqual({ indexes: [2, 1, 0], cursor: null })
+  })
+
+  it('stops at 50 hits with a cursor that continues before the last one', async () => {
+    write(Array.from({ length: 120 }, (_, i) => userMsg(`u${i}`, `needle ${i}`)))
+    const first = await reader.findInTranscript(file(), 'needle', null)
+    expect(first.indexes).toHaveLength(50)
+    expect(first.indexes[0]).toBe(119)
+    expect(first.cursor).toBe(70)
+    const second = await reader.findInTranscript(file(), 'needle', first.cursor)
+    expect(second.indexes[0]).toBe(69)
+    const third = await reader.findInTranscript(file(), 'needle', second.cursor)
+    expect(third).toEqual({ indexes: Array.from({ length: 20 }, (_, i) => 19 - i), cursor: null })
+  })
+
+  it('keeps line indexes right across an oversized line, which it skips unread', async () => {
+    write([userMsg('u0', 'needle'), userMsg('big', 'x'.repeat(5_000_000) + ' needle'), userMsg('u2', 'needle')])
+    expect(await reader.findInTranscript(file(), 'needle', null)).toEqual({ indexes: [2, 0], cursor: null })
+  })
+})
+
+describe('readTranscriptAfter with a limit', () => {
+  it('answers the next page after the index, not the newest', async () => {
+    write(Array.from({ length: 450 }, (_, i) => userMsg(`u${i}`, `m${i}`)))
+    const page = await reader.readTranscriptAfter(file(), 9, true)
+    expect(page.messages[0].index).toBe(10)
+    expect(page.messages).toHaveLength(200)
+    expect(page.earlierCursor).toBeNull()
+    const last = await reader.readTranscriptAfter(file(), 399, true)
+    expect(last.messages.map((m) => m.index)).toEqual(Array.from({ length: 50 }, (_, i) => 400 + i))
+  })
+})

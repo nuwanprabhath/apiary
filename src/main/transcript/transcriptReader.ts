@@ -4,7 +4,8 @@ import type { FileHandle } from 'node:fs/promises'
 import type { TranscriptBlock, TranscriptMessage, TranscriptPage } from '@shared/types'
 import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 import { taskNotificationIds } from '@shared/chatTimeline'
-import { MAX_LINE_CHARS, readExact } from './jsonlLines'
+import type { TranscriptFindResult } from '@shared/ipc/contract'
+import { forEachLine, MAX_LINE_CHARS, readExact } from './jsonlLines'
 
 /** A line longer than this is skipped by its length alone (4 bytes covers any character in `MAX_LINE_CHARS`). */
 const SKIP_LINE_BYTES = MAX_LINE_CHARS * 4
@@ -344,6 +345,51 @@ async function collectBackward(
   return { messages: page, earlierCursor, skippedLines }
 }
 
+/** The most hits one find call answers, and roughly the most time it works before answering with a cursor. */
+const FIND_HITS = 50
+const FIND_BUDGET_MS = 200
+
+/** What find looks in: the text the transcript shows (text, thinking, tool names), never the raw JSON. */
+function shownText(m: TranscriptMessage): string {
+  return m.blocks.map((b) => ('text' in b ? b.text : b.type === 'tool_use' ? b.name : '')).join('\n')
+}
+
+function lineMessage(line: string): TranscriptMessage | null {
+  // A line that is not JSON is no message, here as in a page (where `skippedLines` counts it).
+  try { return toMessage(JSON.parse(line) as Record<string, unknown>) } catch { return null }
+}
+
+/** Lines `first` onwards, oldest first, until `limit` messages, the end, or `MAX_PAGE_BYTES` of lines. */
+async function collectForward(
+  filePath: string, offsets: number[], size: number, first: number, limit: number,
+): Promise<Collected> {
+  const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsets[i + 1] : size)
+  const held: IndexedMessage[] = []
+  let skippedLines = 0
+  let readBytes = 0
+  let next = first
+  let handle: FileHandle | null = null
+  try {
+    while (next < offsets.length && held.length < limit && readBytes < MAX_PAGE_BYTES) {
+      if (lineEnd(next) - offsets[next] > SKIP_LINE_BYTES) { skippedLines++; next++; continue }
+      let runEnd = next + 1
+      while (runEnd < offsets.length && lineEnd(runEnd) - offsets[runEnd] <= SKIP_LINE_BYTES
+        && lineEnd(runEnd) - offsets[next] <= MAX_READ_BYTES) runEnd++
+      handle ??= await open(filePath, 'r')
+      const length = lineEnd(runEnd - 1) - offsets[next]
+      const buffer = Buffer.alloc(length)
+      const parsed = parseMessageLines(buffer.toString('utf8', 0, await readExact(handle, buffer, offsets[next])), next)
+      held.push(...parsed.messages)
+      skippedLines += parsed.skippedLines
+      readBytes += length
+      next = runEnd
+    }
+  } finally {
+    await handle?.close()
+  }
+  return { messages: held.slice(0, limit), earlierCursor: null, skippedLines }
+}
+
 /** Reads a session's JSONL a page at a time, keeping a line-offset index per file (bounded at `MAX_CACHE_ENTRIES`). */
 export class TranscriptReader {
   /** Invalidated by the file's size and mtime (checked on every read) and by the LRU cap. */
@@ -429,18 +475,57 @@ export class TranscriptReader {
   /**
    * The messages on lines after `afterIndex`, for a transcript that already holds everything up to
    * it. More than a page of them (a burst) answers the newest page with `earlierCursor` set, which
-   * the caller appends without an overlap, as the full-page refresh does.
+   * the caller appends without an overlap, as the full-page refresh does. With `limit`, the next
+   * page after `afterIndex` instead, for a view reading forward through history.
    */
-  async readTranscriptAfter(filePath: string, afterIndex: number): Promise<TranscriptPage> {
+  async readTranscriptAfter(filePath: string, afterIndex: number, limit = false): Promise<TranscriptPage> {
     const { offsets, size } = await this.indexTranscript(filePath)
     const count = offsets.length
     const first = Number.isSafeInteger(afterIndex) && afterIndex >= 0 ? afterIndex + 1 : 0
     if (first >= count) return { messages: [], earlierCursor: null, skippedLines: 0 }
-    const page = await collectBackward(filePath, offsets, size, count, first, DEFAULT_LIMIT)
+    const page = limit
+      ? await collectForward(filePath, offsets, size, first, DEFAULT_LIMIT)
+      : await collectBackward(filePath, offsets, size, count, first, DEFAULT_LIMIT)
     return {
       messages: page.messages.map((p) => ({ ...p.message, index: p.index })),
       earlierCursor: page.earlierCursor,
       skippedLines: page.skippedLines,
     }
+  }
+
+  /**
+   * Up to `FIND_HITS` line indexes of messages whose shown text contains `query` (any case), newest
+   * first, from the line before `before` backwards. Reads at most `MAX_READ_BYTES` per step and
+   * yields between steps; past `FIND_BUDGET_MS` it answers what it has. `cursor` is the `before` of
+   * the next call, null once line 0 is reached.
+   */
+  async findInTranscript(filePath: string, query: string, before: number | null): Promise<TranscriptFindResult> {
+    const needle = query.toLowerCase()
+    const indexes: number[] = []
+    if (needle === '') return { indexes, cursor: null }
+    const { offsets, size } = await this.indexTranscript(filePath)
+    const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsets[i + 1] : size)
+    const lineBytes = (i: number): number => lineEnd(i) - offsets[i]
+    const valid = before !== null && Number.isSafeInteger(before) && before >= 0
+    const started = Date.now()
+    let next = (valid ? Math.min(before, offsets.length) : offsets.length) - 1
+    while (next >= 0) {
+      if (lineBytes(next) > SKIP_LINE_BYTES) { next--; continue }
+      let runStart = next
+      let bytes = lineBytes(next)
+      while (runStart > 0 && lineBytes(runStart - 1) <= SKIP_LINE_BYTES && bytes + lineBytes(runStart - 1) <= MAX_READ_BYTES) bytes += lineBytes(--runStart)
+      const lines: string[] = []
+      await forEachLine(filePath, { start: offsets[runStart], end: lineEnd(next), maxLineBytes: SKIP_LINE_BYTES }, (l) => { lines.push(l) })
+      for (let k = lines.length - 1; k >= 0; k--) {
+        const m = lineMessage(lines[k])
+        if (m === null || !shownText(m).toLowerCase().includes(needle)) continue
+        indexes.push(runStart + k)
+        if (indexes.length === FIND_HITS) return { indexes, cursor: runStart + k }
+      }
+      next = runStart - 1
+      if (next >= 0 && Date.now() - started > FIND_BUDGET_MS) return { indexes, cursor: next + 1 }
+      await new Promise<void>((resolve) => { setImmediate(resolve) })
+    }
+    return { indexes, cursor: null }
   }
 }
