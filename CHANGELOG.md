@@ -4,7 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.30] - 2026-11-10
+## [1.60.31] - 2026-11-10
+
+### Changed
+
+- Find in a transcript searches the whole session file without loading it on screen. The count
+  shows "n of m+" when there are more matches further back, and jumping to an old match loads just
+  the messages around it.
+- Reading far back in a long transcript keeps at most 600 messages on screen and loads newer ones
+  back as you scroll down. The app's internal message contract changed, so remote access refuses
+  to pair two machines on different versions.
+
+## [1.60.30] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Changed
 
