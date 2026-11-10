@@ -4,6 +4,7 @@ import { filterTreeLocal, SEARCH_RESULT_CAP } from '@shared/treeFilter'
 import { useSessionTreeCache } from './useSessionTreeCache'
 import { useNotifications } from '../ui/notifications'
 import { searchContent } from './sessions'
+import { treeStore } from './treeStore'
 
 export function useTree(
   /** A *settled* query — see `SearchField`. Anything live enough to change per keystroke does not
@@ -33,6 +34,11 @@ export function useTree(
   const { rawTree, loading, reload, reloadNow } = useSessionTreeCache()
   const { notifyError } = useNotifications()
   const [matchedByContent, setMatchedByContent] = useState<Set<string>>(() => new Set())
+  // Counts main's "the tree changed" signals. Main sends one when the search index has caught up
+  // (`onIndexUpdated`); the tree itself can come back as the same object (`shareTree`), so its
+  // identity cannot be the trigger.
+  const [treeSignal, setTreeSignal] = useState(0)
+  useEffect(() => treeStore.onChanged(() => { setTreeSignal((n) => n + 1) }), [])
 
   // Superseded rather than awaited: a slow search for an old query must never land after a fast
   // one for a newer query.
@@ -61,10 +67,9 @@ export function useTree(
         reportedSearchFailure.current = true
         notifyError(error, 'Searching conversation contents failed')
       })
-    // `rawTree` is a dependency on purpose: main says the tree changed when the search index has
-    // caught up (`onIndexUpdated`). Without it, a query typed before indexing finished keeps its
-    // empty answer until the user types something else.
-  }, [query, options.searchChatContent, options.searchSessionNotes, rawTree, notifyError])
+    // `treeSignal` is a dependency on purpose: without it, a query typed before indexing finished
+    // keeps its empty answer until the user types something else.
+  }, [query, options.searchChatContent, options.searchSessionNotes, treeSignal, notifyError])
 
   // Memoized on the debounced query: `Sidebar` re-renders on every keystroke, and the filter should
   // not run on each of those.

@@ -77,4 +77,26 @@ describe('search', () => {
     await userEvent.fill(page.getByTestId('search-input'), 'worktree')
     await expect.element(sidebarSession('Add worktree switcher')).toBeVisible()
   })
+
+  it('a query typed before the index caught up gets its matches once main says the tree changed', async () => {
+    // Main says "the tree changed" when indexing finishes, while the tree itself is unchanged and
+    // comes back as the same object; the search must still be asked again.
+    let indexed = false
+    const { fake } = await renderApp({}, (f) => {
+      // An equal tree on every fetch, as main sends when only the index changed (the fake otherwise
+      // stamps sessions with the current time, so no two fetches are equal).
+      for (const s of f.state.sessions) s.lastActiveAtMs ??= 1_700_000_000_000
+      f.override('searchContent', async () => {
+        if (!indexed) return []
+        const sessions = (await window.apiary.tree()).flatMap((p) => p.sessions)
+        return sessions.filter((s) => s.title === 'Fix CSV export bug').map((s) => s.sessionId)
+      })
+    })
+    await userEvent.fill(page.getByTestId('search-input'), 'zebraquux')
+    await expect.element(page.getByTestId('sidebar-no-matches')).toBeVisible()
+
+    indexed = true
+    fake.emit('treeChanged', { sessions: null })
+    await expect.element(sidebarSession('Fix CSV export bug')).toBeVisible()
+  })
 })

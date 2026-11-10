@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.31] - 2026-11-10
+## [1.60.32] - 2026-11-11
+
+### Fixed
+
+- A search typed before the search index finished building finds the sessions it matches once
+  indexing is done. Since 1.60.7 the sidebar kept the empty answer, because the refreshed session
+  tree came back unchanged and the search was never asked again (never released).
+
+## [1.60.31] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Changed
 
