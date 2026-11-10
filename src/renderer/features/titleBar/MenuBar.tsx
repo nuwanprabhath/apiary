@@ -214,7 +214,7 @@ function MenuDropdown({ nodes, path, at, onInvoke, onClose, onSibling, onBack, t
       })}
       {sub !== null && nodes[sub.index]?.submenu !== undefined && (
         <MenuDropdown
-          nodes={nodes[sub.index].submenu ?? []}
+          nodes={nodes[sub.index]?.submenu ?? []}
           path={[...path, sub.index]}
           at={sub.at}
           onInvoke={onInvoke}

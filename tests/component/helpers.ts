@@ -5,6 +5,7 @@
 import { commands, page, userEvent, type Locator } from 'vitest/browser'
 import { expect } from 'vitest'
 import type { FakeApiary } from './fakeApiary'
+import { must } from './must'
 
 /**
  * A session's row in the sidebar's folder tree, by its exact title. The same title can also be
@@ -40,7 +41,7 @@ export function sessionRows(title: string): HTMLElement[] {
  */
 export async function sessionRow(title: string): Promise<HTMLElement> {
   await until(() => sessionRows(title).length > 0)
-  return sessionRows(title)[0]
+  return must(sessionRows(title)[0])
 }
 
 /**
@@ -144,7 +145,7 @@ export async function openClaudeTerminal(fake: FakeApiary): Promise<string> {
   await userEvent.click(button)
   await expect.element(page.getByTestId('terminal-session')).toBeVisible()
   await until(() => fake.callsTo('ptySnapshot').length > 0)
-  const ptyId = fake.callsTo('ptySnapshot')[0][0] as string
+  const ptyId = must(fake.callsTo('ptySnapshot')[0])[0] as string
   await userEvent.click(page.getByTestId('terminal-session'))
   return ptyId
 }

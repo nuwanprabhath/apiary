@@ -90,8 +90,9 @@ export function petsHandlers(deps: PetDeps): {
           const win = windowOf(e.sender)
           const options = { title: 'Import a pet', properties: ['openFile' as const], filters: [{ name: 'Apiary pet', extensions: ['json'] }] }
           const result = win !== null ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
-          if (result.canceled || result.filePaths.length === 0) return null
-          path = result.filePaths[0]
+          const picked = result.filePaths[0]
+          if (result.canceled || picked === undefined) return null
+          path = picked
         }
         const pet = service.importFromFile(path)
         placement.adopt(e.sender.id)

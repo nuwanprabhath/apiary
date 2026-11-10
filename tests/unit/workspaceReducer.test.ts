@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { asSessionId, asPtyId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import type { ProjectNode, SessionNode } from '@shared/types'
@@ -32,8 +33,8 @@ describe('workspaceReducer: session/open', () => {
     const s = session('a')
     const next = workspaceReducer(state, { type: 'session/open', session: s, split: false })
     expect(next.openSessions.get('a')).toBe(s)
-    expect(next.layout.panes[0].tabs.map((t) => t.key)).toEqual(['a'])
-    expect(next.layout.panes[0].activeKey).toBe('a')
+    expect(must(next.layout.panes[0]).tabs.map((t) => t.key)).toEqual(['a'])
+    expect(must(next.layout.panes[0]).activeKey).toBe('a')
   })
 
   it('focuses an already-open session instead of opening it twice', () => {
@@ -64,11 +65,11 @@ describe('workspaceReducer: tab ops', () => {
   it('activates, sets view, and closes a tab', () => {
     let state = baseState()
     state = workspaceReducer(state, { type: 'session/open', session: session('a'), split: false })
-    const columnId = state.layout.panes[0].id
+    const columnId = must(state.layout.panes[0]).id
     state = workspaceReducer(state, { type: 'tab/setView', columnId, key: 'a', view: 'terminal' })
-    expect(state.layout.panes[0].tabs[0].view).toBe('terminal')
+    expect(must(must(state.layout.panes[0]).tabs[0]).view).toBe('terminal')
     state = workspaceReducer(state, { type: 'tab/close', columnId, key: 'a' })
-    expect(state.layout.panes[0].tabs).toHaveLength(0)
+    expect(must(state.layout.panes[0]).tabs).toHaveLength(0)
   })
 
   it('moves a tab between columns (vacating and tidying the source pane)', () => {
@@ -76,24 +77,24 @@ describe('workspaceReducer: tab ops', () => {
     state = workspaceReducer(state, { type: 'session/open', session: session('a'), split: false })
     state = workspaceReducer(state, { type: 'session/open', session: session('b'), split: true })
     const [, second] = state.layout.panes
-    const next = workspaceReducer(state, { type: 'tab/move', key: 'a', toColumnId: second.id, toIndex: 0 })
+    const next = workspaceReducer(state, { type: 'tab/move', key: 'a', toColumnId: must(second).id, toIndex: 0 })
     // Moving 'a' out of the only tab in its pane empties that pane, which tidyLayout then closes —
     // exactly the "nothing a layout change does closes a tab" rule for the *tab*, but the *pane*
     // does step down, folding both tabs onto the one remaining pane.
     expect(next.layout.panes).toHaveLength(1)
-    expect(next.layout.panes[0].tabs.map((t) => t.key).sort()).toEqual(['a', 'b'])
+    expect(must(next.layout.panes[0]).tabs.map((t) => t.key).sort()).toEqual(['a', 'b'])
   })
 
   it('leaves other panes alone when the source pane keeps more than one tab', () => {
     let state = baseState()
     state = workspaceReducer(state, { type: 'session/open', session: session('a'), split: false })
-    state = workspaceReducer(state, { type: 'tab/activate', columnId: state.layout.panes[0].id, key: 'a' })
+    state = workspaceReducer(state, { type: 'tab/activate', columnId: must(state.layout.panes[0]).id, key: 'a' })
     state = workspaceReducer(state, { type: 'session/open', session: session('extra'), split: false })
     state = workspaceReducer(state, { type: 'session/open', session: session('b'), split: true })
     const [first, second] = state.layout.panes
-    const next = workspaceReducer(state, { type: 'tab/move', key: 'a', toColumnId: second.id, toIndex: 0 })
-    expect(next.layout.panes.find((p) => p.id === first.id)?.tabs.map((t) => t.key)).toEqual(['extra'])
-    expect(next.layout.panes.find((p) => p.id === second.id)?.tabs.some((t) => t.key === 'a')).toBe(true)
+    const next = workspaceReducer(state, { type: 'tab/move', key: 'a', toColumnId: must(second).id, toIndex: 0 })
+    expect(next.layout.panes.find((p) => p.id === must(first).id)?.tabs.map((t) => t.key)).toEqual(['extra'])
+    expect(next.layout.panes.find((p) => p.id === must(second).id)?.tabs.some((t) => t.key === 'a')).toBe(true)
   })
 })
 
@@ -111,7 +112,7 @@ describe('workspaceReducer: tab/adopt', () => {
     expect(next.shellTabs.get('new:xyz')).toEqual([{ id: 't1', name: 'shell' }])
     expect(next.activeTerminal.get('new:xyz')).toBe('t1')
     expect(openKeysOf(next).has('sess-1')).toBe(true)
-    expect(next.layout.panes[0].tabs[0].view).toBe('terminal')
+    expect(must(must(next.layout.panes[0]).tabs[0]).view).toBe('terminal')
   })
 
   it('does nothing to a tab already open in this window', () => {
@@ -121,7 +122,7 @@ describe('workspaceReducer: tab/adopt', () => {
       type: 'tab/adopt',
       transfer: { key: 'a', view: 'transcript', ptyId: null, shells: [], activeShell: null },
     })
-    expect(next.layout.panes[0].tabs).toHaveLength(1)
+    expect(must(next.layout.panes[0]).tabs).toHaveLength(1)
   })
 })
 
@@ -142,7 +143,7 @@ describe('workspaceReducer: pending/add', () => {
     state = workspaceReducer(state, { type: 'session/open', session: session('orig'), split: false })
     state = workspaceReducer(state, { type: 'session/open', session: session('elsewhere'), split: true })
     // Switch focus to the second pane so "after" must still find the first.
-    const second = state.layout.panes[1].id
+    const second = must(state.layout.panes[1]).id
     state = { ...state, activeColumnId: second }
     const next = workspaceReducer(state, {
       type: 'pending/add',
@@ -245,7 +246,7 @@ describe('workspaceReducer: session/follow (reconcile + rekey)', () => {
     // since target.sessionId ('existing-session') differs from ptyId ('new:1'), so one is recorded.
     expect(next.ptyOverrides.get('existing-session')).toBe('new:1')
     const column = next.layout.panes[0]
-    expect(column.tabs.map((t) => t.key)).toEqual(['existing-session'])
+    expect(must(column).tabs.map((t) => t.key)).toEqual(['existing-session'])
   })
 
   it('does not record a ptyOverride when the resolved id already equals the pty id', () => {
@@ -272,13 +273,13 @@ describe('workspaceReducer: pty/exited', () => {
     let state = baseState()
     state = workspaceReducer(state, { type: 'session/open', session: session('new:1'), split: false })
     let next = workspaceReducer(state, { type: 'pty/exited', id: 'new:1' })
-    expect(next.layout.panes[0].tabs).toHaveLength(0)
+    expect(must(next.layout.panes[0]).tabs).toHaveLength(0)
 
     state = baseState()
     state = workspaceReducer(state, { type: 'session/open', session: session('real-1'), split: false })
     next = workspaceReducer(state, { type: 'pty/exited', id: 'real-1' })
     // A real session id is not a "new:" pending id, so its tab survives and reads as stopped.
-    expect(next.layout.panes[0].tabs.map((t) => t.key)).toEqual(['real-1'])
+    expect(must(next.layout.panes[0]).tabs.map((t) => t.key)).toEqual(['real-1'])
   })
 
   it('drops a shell terminal whose pty exited, and its active-terminal pointer', () => {

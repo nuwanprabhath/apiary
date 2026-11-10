@@ -94,7 +94,7 @@ export class KnowledgeService implements SessionKnowledge {
         for (const { i } of scored) {
           for (let k = Math.max(0, i - CONTEXT_LINES); k <= Math.min(lines.length - 1, i + CONTEXT_LINES); k++) keep.add(k)
         }
-        return [...keep].sort((a, b) => a - b).map((i) => lines[i])
+        return [...keep].sort((a, b) => a - b).flatMap((i) => lines[i] ?? [])
       }
     }
     return lines

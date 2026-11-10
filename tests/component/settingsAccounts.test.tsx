@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { until } from './helpers'
+import { must } from './must'
 import type { FakeApiary } from './fakeApiary'
 import { addAccount } from '../../src/renderer/state/accountsStore'
 
@@ -27,7 +28,7 @@ describe('Settings → Accounts', () => {
     await openAccounts((fake) => {
       fake.state.accounts = {
         ...fake.state.accounts,
-        accounts: [{ ...fake.state.accounts.accounts[0], email: 'me@example.com' }],
+        accounts: [{ ...must(fake.state.accounts.accounts[0]), email: 'me@example.com' }],
       }
     })
     await until(() => (el('account-main')?.textContent ?? '').includes("This Mac's Claude login · me@example.com"))

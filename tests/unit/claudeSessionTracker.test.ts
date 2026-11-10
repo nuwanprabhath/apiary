@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -78,7 +79,7 @@ describe('ClaudeSessionTracker', () => {
     writeFileSync(join(dir, '4242.json'), sessionFile(4242))
     await tracker.poll()
     expect(seen).toHaveLength(1)
-    expect(Object.keys(seen[0])).toEqual(['new:abc'])
+    expect(Object.keys(must(seen[0]))).toEqual(['new:abc'])
 
     // Nothing changed: nothing to report.
     await tracker.poll()
@@ -88,7 +89,7 @@ describe('ClaudeSessionTracker', () => {
     writeFileSync(join(dir, '4242.json'), sessionFile(4242, { status: 'busy' }))
     await tracker.poll()
     expect(seen).toHaveLength(2)
-    expect(seen[1]['new:abc'].status).toBe('busy')
+    expect(must(must(seen[1])['new:abc']).status).toBe('busy')
     // Running a command is still working, so busy to shell is no change.
     writeFileSync(join(dir, '4242.json'), sessionFile(4242, { status: 'shell' }))
     await tracker.poll()
@@ -97,7 +98,7 @@ describe('ClaudeSessionTracker', () => {
     writeFileSync(join(dir, '4242.json'), sessionFile(4242, { sessionId: 'd1163941-62f6-4d46-abdf-f787b95ab7e6' }))
     await tracker.poll()
     expect(seen).toHaveLength(3)
-    expect(seen[2]['new:abc'].sessionId).toBe('d1163941-62f6-4d46-abdf-f787b95ab7e6')
+    expect(must(must(seen[2])['new:abc']).sessionId).toBe('d1163941-62f6-4d46-abdf-f787b95ab7e6')
   })
 
   it('reports a rename, and forgets a terminal whose process has gone', async () => {
@@ -108,7 +109,7 @@ describe('ClaudeSessionTracker', () => {
     await tracker.poll()
     writeFileSync(join(dir, '10.json'), sessionFile(10, { name: 'Better name', nameSource: 'user' }))
     await tracker.poll()
-    expect(seen.at(-1)?.p.name).toBe('Better name')
+    expect(must(seen.at(-1)?.p).name).toBe('Better name')
 
     pids = new Map()
     await tracker.poll()
@@ -131,7 +132,7 @@ describe('ClaudeSessionTracker', () => {
     writeFileSync(join(dir, '20.json'), '{"pid":20,"sessionId":"abc')
     await tracker.poll()
     expect(seen).toHaveLength(1)
-    expect(tracker.current().p.sessionId).toBe('bdf6e1a5-0a4c-485e-ae6c-f3d8719c2ed0')
+    expect(must(tracker.current().p).sessionId).toBe('bdf6e1a5-0a4c-485e-ae6c-f3d8719c2ed0')
   })
 
   it('drops the session when the file is missing', async () => {
@@ -177,8 +178,8 @@ describe('ClaudeSessionTracker', () => {
         onChange: () => {},
       })
       await tracker.poll()
-      expect(tracker.current()['main-pty'].sessionId).toBe('aaaaaaaa-0a4c-485e-ae6c-f3d8719c2ed0')
-      expect(tracker.current()['work-pty'].sessionId).toBe('bbbbbbbb-0a4c-485e-ae6c-f3d8719c2ed0')
+      expect(must(tracker.current()['main-pty']).sessionId).toBe('aaaaaaaa-0a4c-485e-ae6c-f3d8719c2ed0')
+      expect(must(tracker.current()['work-pty']).sessionId).toBe('bbbbbbbb-0a4c-485e-ae6c-f3d8719c2ed0')
     } finally {
       rmSync(other, { recursive: true, force: true })
     }

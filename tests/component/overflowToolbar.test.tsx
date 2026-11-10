@@ -3,6 +3,7 @@ import { userEvent } from 'vitest/browser'
 import { mountUi } from './mountUi'
 import { OverflowToolbar, type OverflowToolbarItem } from '../../src/renderer/ui/OverflowToolbar'
 import { until } from './helpers'
+import { must } from './must'
 
 describe('OverflowToolbar', () => {
   const createItems = (count: number): OverflowToolbarItem[] => {
@@ -93,7 +94,7 @@ describe('OverflowToolbar', () => {
 
     const menuItems = document.querySelectorAll('[data-testid="overflow-menu"] [role="menuitem"]')
     expect(menuItems.length).toBeGreaterThan(0)
-    await userEvent.click(menuItems[0])
+    await userEvent.click(must(menuItems[0]))
     await until(() => document.querySelector('[data-testid="overflow-menu"]') === null)
     expect(clickedId).not.toBeNull()
   })

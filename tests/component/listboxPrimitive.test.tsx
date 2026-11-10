@@ -3,11 +3,12 @@ import { page, userEvent } from 'vitest/browser'
 import { useState } from 'react'
 import { Listbox, optionId, useListboxNav } from '../../src/renderer/ui/Listbox'
 import { mountUi } from './mountUi'
+import { must } from './must'
 
 function Demo({ chosen }: { chosen: string[] }): React.JSX.Element {
   const [active, setActive] = useState(0)
   const items = ['alpha', 'beta', 'gamma']
-  const { onKeyDown } = useListboxNav({ count: items.length, active, setActive, onChoose: () => { chosen.push(items[active]) } })
+  const { onKeyDown } = useListboxNav({ count: items.length, active, setActive, onChoose: () => { chosen.push(must(items[active])) } })
   return (
     <div>
       <input

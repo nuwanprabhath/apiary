@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import { THEME_JSON_SCHEMA, buildThemePrompt, extractThemeJson, MAX_REQUEST_CHARS } from '@shared/theme/prompt'
 import { PALETTE_TOKENS, EFFECT_KINDS, UI_FONTS, MONO_FONTS } from '@shared/theme/spec'
@@ -22,7 +23,7 @@ describe('buildThemePrompt', () => {
   })
 
   it('includes the current theme for a refinement', () => {
-    const p = buildThemePrompt({ request: 'more green', current: BUILTIN_THEMES[1].spec })
+    const p = buildThemePrompt({ request: 'more green', current: must(BUILTIN_THEMES[1]).spec })
     expect(p).toContain('Adjustment requested:\nmore green')
     expect(p).toContain('The current theme')
   })

@@ -223,7 +223,7 @@ export async function collectRenderer(app: ElectronApplication, page: Page, wind
 
 function cpuSecondsMac(time: string): number {
   // `ps -o time`: [[dd-]hh:]mm:ss.cc
-  const [days, rest] = time.includes('-') ? time.split('-') : ['0', time]
+  const [days = '0', rest = time] = time.includes('-') ? time.split('-') : ['0', time]
   const parts = rest.split(':').map(Number)
   let s = 0
   for (const p of parts) s = s * 60 + p
@@ -250,7 +250,7 @@ function listProcs(): RawProc[] {
   }
   return execFileSync('ps', ['-A', '-o', 'pid=,ppid=,rss=,time=,comm='], { encoding: 'utf8' }).split('\n').flatMap((line) => {
     const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/.exec(line)
-    return m === null ? [] : [{ pid: Number(m[1]), ppid: Number(m[2]), rssKb: Number(m[3]), cpuSec: cpuSecondsMac(m[4]), comm: m[5] }]
+    return m === null ? [] : [{ pid: Number(m[1]), ppid: Number(m[2]), rssKb: Number(m[3]), cpuSec: cpuSecondsMac(m[4] ?? ''), comm: m[5] ?? '' }]
   })
 }
 

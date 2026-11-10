@@ -65,7 +65,7 @@ test('turning note search off stops notes matching, but keeps the notes themselv
   await writeNote('Fix CSV export bug', 'nightly pipeline failure')
 
   await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+    BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog')
   })
   await h.page.getByTestId('settings-nav-search').click()
   await h.page.getByTestId('setting-search-session-notes').uncheck()

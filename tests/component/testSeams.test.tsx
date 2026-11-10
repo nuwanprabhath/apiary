@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BrainClient } from '../../src/renderer/features/pets/brainClient'
 import { setTestSeams } from '../../src/renderer/state/testSeams'
+import { must } from './must'
 
 /**
  * The pets' test seams are inert unless they come through `state/testSeams.ts` (a window URL main
@@ -24,13 +25,13 @@ describe('renderer test seams', () => {
     (globalThis as Record<string, unknown>).__apiaryPetBrainOptions = { sceneEveryMs: [1, 2] }
     const client: BrainClient[] = []
     expect(initMessagesFor(() => { client.push(new BrainClient(() => {})) })).toEqual([])
-    client[0].dispose()
+    must(client[0]).dispose()
   })
 
   it('options set through the sanctioned seam reach the brain', () => {
     setTestSeams({ petBrainOptions: { sceneEveryMs: [1, 2] } })
     const client: BrainClient[] = []
     expect(initMessagesFor(() => { client.push(new BrainClient(() => {})) })).toEqual([{ type: 'init', options: { sceneEveryMs: [1, 2] } }])
-    client[0].dispose()
+    must(client[0]).dispose()
   })
 })

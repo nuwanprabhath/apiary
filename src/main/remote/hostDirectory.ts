@@ -50,8 +50,8 @@ export function parseSshConfigHosts(
     if (line === '' || line.startsWith('#')) continue
     const m = /^(\w+)(?:\s*=\s*|\s+)(.*)$/.exec(line)
     if (m === null) continue
-    const keyword = m[1].toLowerCase()
-    const args = m[2].replace(/\s+#.*$/, '').trim().split(/\s+/).map((a) => a.replace(/^"|"$/g, '')).filter((a) => a !== '')
+    const keyword = (m[1] ?? '').toLowerCase()
+    const args = (m[2] ?? '').replace(/\s+#.*$/, '').trim().split(/\s+/).map((a) => a.replace(/^"|"$/g, '')).filter((a) => a !== '')
     if (keyword === 'host') {
       for (const a of args) if (!/[*?!]/.test(a) && isRemoteHost(a)) hosts.push(a)
     } else if (keyword === 'include' && depth < MAX_INCLUDE_DEPTH) {

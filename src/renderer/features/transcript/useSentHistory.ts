@@ -39,9 +39,10 @@ export function useSentHistory(sessionId: SessionId, setText: (text: string) => 
       const recent = new Set(fromFile.slice(0, SENT_LOOKBACK))
       local.current = local.current.filter((t) => !recent.has(t))
       entries.current = [...local.current, ...fromFile]
-      if (entries.current.length === 0) return
+      const newest = entries.current[0]
+      if (newest === undefined) return
       at.current = 0
-      setText(entries.current[0])
+      setText(newest)
     }, (error: unknown) => { logBackgroundFailure(error, 'prompt') })
   }, [sessionId, setText])
 
@@ -53,12 +54,15 @@ export function useSentHistory(sessionId: SessionId, setText: (text: string) => 
       // Only from the first visual line: further down, Up moves the caret through the message itself.
       if (!caretOnFirstLine(box)) return false
       if (at.current === -1) start(box.value)
-      else if (at.current < entries.current.length - 1) setText(entries.current[++at.current])
+      else {
+        const older = entries.current[at.current + 1]
+        if (older !== undefined) { at.current += 1; setText(older) }
+      }
       return true
     }
     if (at.current === -1 || !caretOnLastLine(box)) return false
     at.current -= 1
-    setText(at.current === -1 ? draft.current : entries.current[at.current])
+    setText(at.current === -1 ? draft.current : entries.current[at.current] ?? draft.current)
     return true
   }, [setText, start])
 

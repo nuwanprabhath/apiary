@@ -242,9 +242,10 @@ async function onNewSessionInFolder(): Promise<void> {
   const mainWindow = windowManager?.front()
   if (!mainWindow || !service) return
   const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] })
-  if (result.canceled || result.filePaths.length === 0) return
+  const folder = result.filePaths[0]
+  if (result.canceled || folder === undefined) return
   try {
-    const info = await service.newSessionInFolder(result.filePaths[0])
+    const info = await service.newSessionInFolder(folder)
     sendEvent(mainWindow.webContents, IPC.newSessionStarted, info)
   } catch (e) {
     // No renderer-facing channel for a spawn failure here.
@@ -259,7 +260,7 @@ async function pickFolderOver(sender: WebContents, preset: string | undefined): 
   const win = BrowserWindow.fromWebContents(sender)
   const options = { properties: ['openDirectory' as const], title: 'Start a Claude session in…' }
   const result = win !== null ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
-  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+  return result.canceled ? null : (result.filePaths[0] ?? null)
 }
 
 async function start(): Promise<void> {

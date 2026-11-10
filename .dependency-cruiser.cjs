@@ -25,7 +25,7 @@ const MAIN_EDGES = {
   fs: [],
   git: ['exec', 'log', 'plugins', 'sessions'],
   ipc: ['accounts', 'chat', 'claude', 'folders', 'library', 'log', 'pets', 'plugins', 'remote', 'residents', 'settings', 'spelling', 'terminals', 'theme', 'update', 'windows'],
-  knowledge: ['accounts', 'claude', 'fs', 'log', 'search', 'store', 'util'],
+  knowledge: ['accounts', 'claude', 'fs', 'log', 'search', 'store', 'transcript', 'util'],
   library: ['fs', 'log'],
   log: [],
   media: ['fs'],

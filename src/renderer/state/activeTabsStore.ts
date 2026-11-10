@@ -14,6 +14,7 @@ export function tabsEqual(a: ActiveTabPayload[], b: ActiveTabPayload[]): boolean
   for (let i = 0; i < a.length; i++) {
     const x = a[i]
     const y = b[i]
+    if (x === undefined || y === undefined) return false
     if (
       x.windowNumber !== y.windowNumber || x.key !== y.key || x.view !== y.view
       || x.status !== y.status || x.label !== y.label

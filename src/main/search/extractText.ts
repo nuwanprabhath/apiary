@@ -1,3 +1,5 @@
+import { decodeEntry, type MessageContent } from '../transcript/claudeEntry'
+
 /**
  * Pulls the searchable text out of a session's JSONL.
  *
@@ -8,18 +10,16 @@
  */
 
 /** Text blocks, plus short string fields from tool inputs (paths, branches, commands, urls). */
-function fromContent(content: unknown, out: string[]): void {
+function fromContent(content: MessageContent, out: string[]): void {
   if (typeof content === 'string') {
     out.push(content)
     return
   }
-  if (!Array.isArray(content)) return
-  for (const block of content) {
-    if (typeof block !== 'object' || block === null) continue
-    const b = block as Record<string, unknown>
-    if (b.type === 'text' && typeof b.text === 'string') out.push(b.text)
+  if (content === undefined) return
+  for (const b of content) {
+    if (b.type === 'text' && b.text !== undefined) out.push(b.text)
     if (b.type === 'tool_use' && typeof b.input === 'object' && b.input !== null) {
-      for (const value of Object.values(b.input as Record<string, unknown>)) {
+      for (const value of Object.values(b.input)) {
         // Short strings only: long fields are file contents and diffs, the bulk left out above.
         if (typeof value === 'string' && value.length <= 400) out.push(value)
       }
@@ -35,21 +35,14 @@ function fromContent(content: unknown, out: string[]): void {
  */
 export function extractLineText(line: string): string | null {
   if (line.trim() === '') return null
-  let entry: Record<string, unknown>
-  try {
-    entry = JSON.parse(line) as Record<string, unknown>
-  } catch {
-    return null
-  }
+  const entry = decodeEntry(line)
+  if (entry === null) return null
 
   const out: string[] = []
   // Indexed with the body so a title match and a content match are one search.
-  if (typeof entry.title === 'string') out.push(entry.title)
+  if (entry.title !== undefined) out.push(entry.title)
 
-  const message = entry.message
-  if (typeof message === 'object' && message !== null) {
-    fromContent((message as Record<string, unknown>).content, out)
-  }
+  if (entry.message) fromContent(entry.message.content, out)
   fromContent(entry.content, out)
 
   const text = out.join(' ').replace(/\s+/g, ' ').trim()

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { SessionStore } from '../../src/main/store/sessionStore'
+import { at } from '../contract/must'
 import type { SessionMeta, ProjectInfo } from '@shared/types'
 
 let dir: string
@@ -142,7 +143,7 @@ describe('SessionStore', () => {
 
   it('marks a project stale when its directory is gone', () => {
     store.syncProject({ ...project('/home/nuwan/gone'), exists: false })
-    expect(store.allProjects()[0].exists).toBe(false)
+    expect(at(store.allProjects(), 0).exists).toBe(false)
   })
 
   it('a custom title overrides the scanned one, and survives a rescan', () => {

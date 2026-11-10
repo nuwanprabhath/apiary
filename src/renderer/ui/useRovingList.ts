@@ -27,7 +27,7 @@ function typeaheadMatch(items: readonly HTMLElement[], current: number, typed: s
   const lower = typed.toLowerCase()
   for (let step = 1; step <= items.length; step++) {
     const candidate = items[(current + step) % items.length]
-    if (candidate.textContent.trim().toLowerCase().startsWith(lower)) return candidate
+    if (candidate !== undefined && candidate.textContent.trim().toLowerCase().startsWith(lower)) return candidate
   }
   return undefined
 }

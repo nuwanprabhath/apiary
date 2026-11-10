@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
 import type { AppService } from '../../../src/main/appService'
 import { makeSession } from '../../fixtures/makeSession'
+import { at } from '../../contract/must'
 import { createServiceFixture, teardownServiceFixture } from './setup'
 
 let home: string
@@ -34,8 +35,8 @@ describe('MAIN-10: fewer synchronous stats and lookups on hot IPC paths', () => 
       ['11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222'], [],
     )
     const tree = await service.tree()
-    expect(tree[0].sessions).toHaveLength(2)
-    expect(tree[0].sessions.every((s) => s.cwdExists)).toBe(true)
+    expect(at(tree, 0).sessions).toHaveLength(2)
+    expect(at(tree, 0).sessions.every((s) => s.cwdExists)).toBe(true)
   })
 
   it('sessionNote looks a session up directly instead of scanning every row', async () => {

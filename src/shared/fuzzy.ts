@@ -17,7 +17,7 @@ export function fuzzyScore(query: string, target: string): number | null {
     if (t[ti] !== q[qi]) continue
     score += 1
     if (ti === previousIndex + 1) score += 4          // contiguous run
-    if (ti === 0 || WORD_BOUNDARY.test(t[ti - 1])) score += 3  // word start
+    if (ti === 0 || WORD_BOUNDARY.test(t.charAt(ti - 1))) score += 3  // word start
     previousIndex = ti
     qi++
   }

@@ -23,6 +23,7 @@ import { renderApp } from './renderApp'
 import { clickRowAction, nextFrames, sidebarSession, until } from './helpers'
 import { trackRenders } from './renderTracker'
 import type { FakeApiary } from './fakeApiary'
+import { must } from './must'
 
 interface Fiber {
   type: unknown
@@ -33,7 +34,7 @@ interface Fiber {
 function fiberOf(el: Element): Fiber {
   const key = Object.keys(el).find((k) => k.startsWith('__reactFiber$'))
   if (key === undefined) throw new Error('No React fiber on this element — is it actually mounted?')
-  return (el as unknown as Record<string, Fiber>)[key]
+  return must((el as unknown as Record<string, Fiber>)[key])
 }
 
 /** Walks up from a DOM node's fiber to the nearest ancestor whose component function is named
@@ -271,7 +272,7 @@ describe('a tree refetch keeps unchanged rows identical (T3.5)', () => {
   it('commits exactly the row whose title changed', async () => {
     let changed = ''
     const counts = await sessionRowRenders((fake) => {
-      const s = fake.state.sessions[0]
+      const s = must(fake.state.sessions[0])
       changed = s.sessionId
       s.title = 'A new title'
     })

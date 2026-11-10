@@ -31,9 +31,11 @@ export function useMainTreeNav({
 } {
   const ref = useRef<HTMLDivElement>(null)
   const [focusKey, setFocusKey] = useState<string | null>(null)
-  const firstKey = arranged.groups.length > 0
-    ? `group:${arranged.groups[0].group.id}`
-    : arranged.ungrouped.length > 0 ? `folder:${arranged.ungrouped[0].path}` : null
+  const firstGroup = arranged.groups[0]
+  const firstFolder = arranged.ungrouped[0]
+  const firstKey = firstGroup !== undefined
+    ? `group:${firstGroup.group.id}`
+    : firstFolder !== undefined ? `folder:${firstFolder.path}` : null
   const tabIndexFor = (kind: 'group' | 'folder' | 'session', key: string): number =>
     rovingTabIndex(focusKey, firstKey, `${kind}:${key}`)
 

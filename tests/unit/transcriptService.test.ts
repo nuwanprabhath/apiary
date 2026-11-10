@@ -146,3 +146,22 @@ describe('TranscriptService.runningBackgroundTasks', () => {
     expect(await service.runningBackgroundTasks('s1')).toBe(1)
   })
 })
+
+describe('TranscriptService pages of a transcript that goes away', () => {
+  it('says the file is no longer on disk when it vanishes between the check and the read', async () => {
+    const path = fileWith('gone.jsonl', userText('u1', 'hello'))
+    const real = new TranscriptReader()
+    // Deleted after the service checked that it exists, as a worktree removal racing a refresh does.
+    const reader = Object.assign(Object.create(real) as TranscriptReader, {
+      readTranscriptPage: (p: string, o: { beforeIndex?: number }) => { rmSync(p); return real.readTranscriptPage(p, o) },
+    })
+    const service = new TranscriptService({
+      resolver: { findSession: () => ({ filePath: path, messageCount: null }), requireSession: () => ({ filePath: path, messageCount: null }) },
+      store: { setMessageCount: () => undefined },
+      reader,
+      readFrom: forEachMessageFrom,
+      taskOutputRoots: { tempRoots: [], agentRoots: [] },
+    })
+    await expect(service.page('s1')).rejects.toThrow(/no longer on disk/)
+  })
+})

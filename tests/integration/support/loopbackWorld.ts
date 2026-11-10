@@ -39,6 +39,7 @@ import { SpellingService } from '../../../src/main/spelling/spellingService'
 import { FolderBrowser } from '../../../src/main/folders/folderBrowser'
 import { LibraryStateService } from '../../../src/main/library/libraryStateService'
 import type { VirtualContentsRegistry } from '../../../src/main/remote/virtualContents'
+import { at } from '../../contract/must'
 import { fakeContents, loopback, resetLoopback } from './electronLoopback'
 import { loopbackConnectingOutside, seedRemoteHosts } from './remoteHome'
 
@@ -74,7 +75,7 @@ function writeOneShot(dir: string): string {
     voice: envelope({ structured_output: { lines: { idle: ['Fresh one!'] } } }),
     comment: envelope({ result: 'Ooh, careful with that buffer!' }),
     chat: envelope({ result: 'Hello there!' }),
-    theme: envelope({ structured_output: BUILTIN_THEMES[0].spec }),
+    theme: envelope({ structured_output: at(BUILTIN_THEMES, 0).spec }),
   }
   for (const [name, body] of Object.entries(canned)) writeFileSync(join(dir, `${name}.json`), body)
   const script = join(dir, 'claude-one-shot')
@@ -117,7 +118,9 @@ function buildTemplate(): string {
 
 function copyRepositories(home: string): { repoRoot: string; worktreeDir: string; remote: string } {
   template ??= buildTemplate()
-  const [repoRoot, worktreeDir, remote] = ['repo-c', 'repo-c-wt', 'origin.git'].map((name) => join(home, name))
+  const repoRoot = join(home, 'repo-c')
+  const worktreeDir = join(home, 'repo-c-wt')
+  const remote = join(home, 'origin.git')
   for (const name of ['repo-c', 'repo-c-wt', 'origin.git']) cpSync(join(template, name), join(home, name), { recursive: true })
   git(repoRoot, 'remote', 'set-url', 'origin', remote)
   git(repoRoot, 'worktree', 'repair', worktreeDir)

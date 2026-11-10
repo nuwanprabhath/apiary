@@ -25,7 +25,7 @@ const INTERRUPTED = /^\[Request interrupted by user[^\]]*\]$/
 /** The text inside `<name>…</name>`, for the fixed tag names below (never user input). */
 function tag(name: string, text: string): string | null {
   const m = new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(text)
-  return m === null ? null : m[1].trim()
+  return m?.[1]?.trim() ?? null
 }
 
 /**
@@ -65,13 +65,13 @@ export function mergeLive(persisted: TranscriptMessage[], live: TranscriptMessag
   if (live.length === 0) return persisted
   const seen = new Set(persisted.map((m) => m.uuid))
   let anchor = -1
-  for (let i = live.length - 1; i >= 0; i--) if (seen.has(live[i].uuid)) { anchor = i; break }
+  for (let i = live.length - 1; i >= 0; i--) if (seen.has(live[i]?.uuid ?? '')) { anchor = i; break }
   const newest = persisted.reduce<number | null>((t, m) => (m.timestampMs !== null && (t === null || m.timestampMs > t) ? m.timestampMs : t), null)
   const fresh = anchor >= 0
     ? live.slice(anchor + 1).filter((m) => !seen.has(m.uuid))
     : live.filter((m) => !seen.has(m.uuid) && (newest === null || m.timestampMs === null || m.timestampMs >= newest))
   if (fresh.length === 0) return persisted
-  const after = anchor >= 0 ? persisted.findIndex((m) => m.uuid === live[anchor].uuid) + 1 : persisted.length
+  const after = anchor >= 0 ? persisted.findIndex((m) => m.uuid === live[anchor]?.uuid) + 1 : persisted.length
   return [...persisted.slice(0, after), ...byTime(persisted.slice(after), fresh)]
 }
 
@@ -87,7 +87,7 @@ function byTime(file: TranscriptMessage[], chat: TranscriptMessage[]): Transcrip
   let i = 0
   const newerThan = (f: TranscriptMessage, t: number | null): boolean => t !== null && f.timestampMs !== null && f.timestampMs > t
   for (const m of chat) {
-    while (i < file.length && !newerThan(file[i], m.timestampMs)) out.push(file[i++])
+    for (let f = file[i]; f !== undefined && !newerThan(f, m.timestampMs); f = file[i]) { out.push(f); i++ }
     out.push(m)
   }
   return [...out, ...file.slice(i)]
@@ -177,7 +177,7 @@ export function sentPrompts(messages: TranscriptMessage[]): string[] {
 export function lastPrompt(items: ChatItem[]): Extract<ChatItem, { kind: 'user' }> | null {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i]
-    if (item.kind === 'user') return item
+    if (item?.kind === 'user') return item
   }
   return null
 }
@@ -219,7 +219,7 @@ type PendingCall = { kind: 'start'; task: Omit<BackgroundTask, 'taskId'> } | { k
  */
 /** The task ids a `<task-notification>` names. */
 export function taskNotificationIds(text: string): string[] {
-  return [...text.matchAll(/<task-id>([^<]+)<\/task-id>/g)].map((m) => m[1].trim())
+  return [...text.matchAll(/<task-id>([^<]+)<\/task-id>/g)].map((m) => (m[1] ?? '').trim())
 }
 
 export class BackgroundTaskTally {
@@ -316,7 +316,8 @@ export function latestTurn(messages: TranscriptMessage[]): { durationMs: number 
   let recap: string | null = null
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
-    const block = m.blocks[0] as TranscriptMessage['blocks'][number] | undefined
+    if (m === undefined) continue
+    const block = m.blocks[0]
     if (block?.type === 'recap') { recap ??= block.text; continue }
     if (block?.type === 'turn_end') { durationMs = block.durationMs; endedAtMs = m.timestampMs; break }
     if (m.role === 'user' && m.blocks.some((b) => b.type === 'text' && !b.text.startsWith('<'))) break

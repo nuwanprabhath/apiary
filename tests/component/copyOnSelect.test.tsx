@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { useRef } from 'react'
 import { createFakeApiary, type FakeApiary } from './fakeApiary'
 import { stays } from './helpers'
+import { must } from './must'
 import { NotificationProvider } from '../../src/renderer/ui/notifications'
 import { NotificationCenter } from '../../src/renderer/ui/NotificationCenter'
 import { useCopyOnSelect } from '../../src/renderer/features/chat/useCopyOnSelect'
@@ -123,7 +124,7 @@ describe('Copy with formatting', () => {
       await expect.poll(() => document.querySelector('[data-testid="context-menu-copy-formatted"]')).not.toBeNull()
       document.querySelector<HTMLButtonElement>('[data-testid="context-menu-copy-formatted"]')!.click()
       await expect.poll(() => written.length).toBe(1)
-      const [item] = written[0]
+      const item = must(must(written[0])[0])
       const html = await (await item.getType('text/html')).text()
       const text = await (await item.getType('text/plain')).text()
       expect(html).toBe('<ul><li>First <strong>point</strong></li><li>Second point</li></ul>')

@@ -46,6 +46,14 @@ const PTY_KILL_TIMEOUT_MS = 1500
 /** Switch to the alternate screen: a full-screen program emits it once the tty is in raw mode, so input written now arrives as keystrokes. */
 const ALT_SCREEN = '\x1b[?1049h'
 
+/**
+ * Whether a pty's reads can be paused for flow control. Not on Linux: neither the read handle's
+ * `readStop`/`readStart` nor node-pty's own `pause`/`resume` read again after a resume there
+ * (measured on the GitHub Ubuntu runner, node-pty 1.x), which would freeze a flooding terminal for
+ * good. Linux keeps the coalescer's 256 KB flush cap instead.
+ */
+const PAUSES_READS = process.platform !== 'linux'
+
 interface ReadHandle { readStop(): unknown; readStart(): unknown }
 
 function isReadHandle(v: unknown): v is ReadHandle {
@@ -335,6 +343,7 @@ export class PtyManager {
    * which continues a stopped process.
    */
   pauseOutput(id: string): void {
+    if (!PAUSES_READS) return
     const child = this.liveChild(id)
     if (child === undefined) return
     const handle = readHandleOf(child)
@@ -344,6 +353,7 @@ export class PtyManager {
 
   /** Reads the child's output again after `pauseOutput`. */
   resumeOutput(id: string): void {
+    if (!PAUSES_READS) return
     const child = this.liveChild(id)
     if (child === undefined) return
     const handle = readHandleOf(child)

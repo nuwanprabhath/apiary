@@ -26,7 +26,7 @@ function rowsOf(preset: PresetId): number[][] {
 const allRailed = (row: number[], railed: (z: number) => boolean): boolean => row.every(railed)
 
 export function railState(layout: Panes, index: number): RailState {
-  const pane = layout.panes[index] as Column | undefined
+  const pane = layout.panes[index]
   if (pane === undefined || !canRail(layout.preset, index)) return 'none'
   if (pane.rail === true) return 'rail'
   const after = (z: number): boolean => z === index || layout.panes[z]?.rail === true
@@ -44,7 +44,7 @@ export function setRail<L extends Panes>(layout: L, paneId: string | null, rail:
 export function validRails<L extends Panes>(layout: L): L {
   const keep = layout.panes.map((p, i) => p.rail === true && canRail(layout.preset, i))
   for (const row of rowsOf(layout.preset)) {
-    if (row.length > 0 && allRailed(row, (z) => keep[z])) keep[Math.max(...row)] = false
+    if (row.length > 0 && allRailed(row, (z) => keep[z] ?? false)) keep[Math.max(...row)] = false
   }
   if (layout.panes.every((p, i) => (p.rail === true) === keep[i])) return layout
   return { ...layout, panes: layout.panes.map((p, i) => (p.rail === true && !keep[i] ? { ...p, rail: false } : p)) }

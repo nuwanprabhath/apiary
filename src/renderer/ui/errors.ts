@@ -63,7 +63,7 @@ function cleanMessage(raw: string): string {
   // Node's fs errors read as `ENOENT: no such file or directory, stat '/path'`.
   const fsError = /^([A-Z]+):\s*(.+?),\s*\w+\s+'(.+)'$/.exec(text)
   if (fsError !== null) {
-    const [, , description, path] = fsError
+    const [, , description = '', path] = fsError
     text = `${description.charAt(0).toUpperCase()}${description.slice(1)}: ${path}`
   }
   return text

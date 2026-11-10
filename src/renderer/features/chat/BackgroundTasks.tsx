@@ -62,10 +62,10 @@ function BackgroundTasksPopup({ sessionId, tasks }: { sessionId: SessionId; task
   const toggle = (taskId: string): void => { setExpanded((e) => (e === taskId ? null : taskId)) }
   const nav = useListboxNav({
     count: tasks.length, active: current, setActive, edges: true,
-    onChoose: () => { toggle(tasks[current].taskId) },
+    onChoose: () => { const t = tasks[current]; if (t !== undefined) toggle(t.taskId) },
   })
   const onKeyDown = (e: KeyboardEvent): void => {
-    if (e.key === ' ') { e.preventDefault(); toggle(tasks[current].taskId); return }
+    if (e.key === ' ') { e.preventDefault(); const t = tasks[current]; if (t !== undefined) toggle(t.taskId); return }
     nav.onKeyDown(e)
   }
   return (

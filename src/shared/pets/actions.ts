@@ -22,10 +22,10 @@ const VERBS: Record<string, string> = {
 export function latestAction(messages: TranscriptMessage[]): string | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
-    if (m.role !== 'assistant' || m.isSidechain) continue
+    if (m === undefined || m.role !== 'assistant' || m.isSidechain) continue
     for (let j = m.blocks.length - 1; j >= 0; j--) {
       const b = m.blocks[j]
-      if (b.type !== 'tool_use') continue
+      if (b === undefined || b.type !== 'tool_use') continue
       // Only titles that are a label for the action: Bash's description, a file's name, a helper's
       // task. A search pattern, a URL or a query is closer to content than to an action.
       const title = TITLED.has(b.name) ? describeTool(b.name, b.input).title.replace(/\s+/g, ' ').trim() : ''

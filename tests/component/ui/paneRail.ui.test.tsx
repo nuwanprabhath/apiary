@@ -5,6 +5,7 @@ import { until } from '../helpers'
 import { openLayout, panes } from '../paneFoldSetup'
 import { TITLES, card, collapse, markStatus, openThirds } from '../paneRailSetup'
 import { reviewUi } from './review'
+import { must, take } from '../must'
 
 /**
  * Panes collapsed sideways to rails: the maintainer's three-column case, a side pane, the glow, a
@@ -24,15 +25,15 @@ async function hideSidebar(): Promise<void> {
 /** Two columns, the first holding every other session, the second one taken from its list. */
 async function openHalves(): Promise<HTMLElement[]> {
   await openLayout('halves-h', TITLES)
-  await userEvent.click(panes()[1].querySelector<HTMLElement>('[data-testid="pane-filler-tab"]')!)
-  await until(() => panes()[1].getAttribute('data-placeholder') === 'false')
+  await userEvent.click(must(panes()[1]).querySelector<HTMLElement>('[data-testid="pane-filler-tab"]')!)
+  await until(() => must(panes()[1]).getAttribute('data-placeholder') === 'false')
   return panes()
 }
 
 describe('UI pane rail', () => {
   it('three columns, first and third collapsed', async () => {
     await renderApp()
-    const [first, , third] = await openThirds()
+    const [first, , third] = take(await openThirds(), 3)
     await hideSidebar()
     await collapse(first)
     await collapse(third)
@@ -43,29 +44,29 @@ describe('UI pane rail', () => {
     await renderApp()
     await openLayout('main-right2', ['Fix CSV export bug', 'Add worktree switcher'])
     await hideSidebar()
-    await collapse(panes()[0])
+    await collapse(must(panes()[0]))
     await reviewUi('pane rail main right2 main collapsed')
   })
 
   it('a rail glowing while a session works', async () => {
     const { fake } = await renderApp()
-    const [first] = await openHalves()
+    const [first] = take(await openHalves(), 1)
     await hideSidebar()
     await collapse(first)
     // Again on every pass: a resize makes the window report its tabs, which the fake files as stopped.
-    const open = (): Promise<void> => until(() => { markStatus(fake, keysOf(first)[0], 'running'); return card(first).getAttribute('data-glow') === 'running' })
+    const open = (): Promise<void> => until(() => { markStatus(fake, must(keysOf(first)[0]), 'running'); return card(first).getAttribute('data-glow') === 'running' })
     await open()
     await reviewUi('pane rail glowing working', { open })
   })
 
   it('a rail glowing while a session needs the person', async () => {
     const { fake } = await renderApp()
-    const [first] = await openHalves()
+    const [first] = take(await openHalves(), 1)
     await hideSidebar()
     await collapse(first)
     const open = (): Promise<void> => until(() => {
-      markStatus(fake, keysOf(first)[0], 'running')
-      markStatus(fake, keysOf(first)[1], 'waiting')
+      markStatus(fake, must(keysOf(first)[0]), 'running')
+      markStatus(fake, must(keysOf(first)[1]), 'waiting')
       return card(first).getAttribute('data-glow') === 'waiting'
     })
     await open()
@@ -76,7 +77,7 @@ describe('UI pane rail', () => {
     await renderApp()
     await openLayout('halves-h', TITLES)
     await hideSidebar()
-    await collapse(panes()[0])
+    await collapse(must(panes()[0]))
     await reviewUi('pane rail many tabs')
   })
 })

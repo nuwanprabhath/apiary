@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import type { SessionNode } from '@shared/types'
@@ -14,13 +15,13 @@ const layoutOf = (preset: PresetId, n: number): Layout =>
 
 function state(layout: Layout): WorkspaceState {
   return {
-    layout, activeColumnId: layout.panes[0].id, openSessions: new Map(), resumed: new Set(),
+    layout, activeColumnId: must(layout.panes[0]).id, openSessions: new Map(), resumed: new Set(),
     ptyOverrides: new Map(), pending: new Map(), shellTabs: new Map(), activeTerminal: new Map(),
   }
 }
 
 const rail = (s: WorkspaceState, index: number, on = true): WorkspaceState =>
-  workspaceReducer(s, { type: 'layout/rail', columnId: s.layout.panes[index].id, rail: on })
+  workspaceReducer(s, { type: 'layout/rail', columnId: must(s.layout.panes[index]).id, rail: on })
 
 describe('which panes can collapse to a rail', () => {
   it('a full-height pane with a pane beside it can; a pane in a two-row stack cannot', () => {
@@ -48,7 +49,7 @@ describe('which panes can collapse to a rail', () => {
     let s = state(layoutOf('thirds-h', 3))
     s = rail(s, 0)
     expect(railState(s.layout, 0)).toBe('rail')
-    expect(rail(s, 0, false).layout.panes[0].rail).toBe(false)
+    expect(must(rail(s, 0, false).layout.panes[0]).rail).toBe(false)
     const next = tidyLayout(applyPreset(s.layout, 'grid'), null)
     expect(next.panes.some((p) => p.rail === true)).toBe(false)
   })
@@ -56,8 +57,8 @@ describe('which panes can collapse to a rail', () => {
   it('opening a session shown in a railed pane expands it', () => {
     let s = state(layoutOf('halves-h', 2))
     s = rail(s, 1)
-    s = workspaceReducer(s, { type: 'tab/activate', columnId: s.layout.panes[1].id, key: 's1' })
-    expect(s.layout.panes[1].rail).toBe(false)
+    s = workspaceReducer(s, { type: 'tab/activate', columnId: must(s.layout.panes[1]).id, key: 's1' })
+    expect(must(s.layout.panes[1]).rail).toBe(false)
   })
 })
 
@@ -93,6 +94,6 @@ describe('a rail persists', () => {
       gitBranch: null, lastActiveAtMs: null, messageCount: null, note: null,
     }
     const s = rail(state(layoutOf('halves-h', 2)), 1)
-    expect(workspaceReducer(s, { type: 'session/open', session: one, split: false }).layout.panes[1].rail).toBe(true)
+    expect(must(workspaceReducer(s, { type: 'session/open', session: one, split: false }).layout.panes[1]).rail).toBe(true)
   })
 })

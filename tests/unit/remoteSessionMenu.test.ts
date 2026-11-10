@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, vi } from 'vitest'
 import type { RemoteHost } from '@shared/domain/remote'
 import { remoteSessionItems } from '../../src/main/app/remoteSessionMenu'
@@ -22,8 +23,8 @@ describe('File → Open Remote Session', () => {
     const open = vi.fn()
     const other = vi.fn()
     const items = remoteSessionItems([host('work-box', 'ready')], open, other)
-    items[0].click?.(null as never, undefined, null as never)
-    items[2].click?.(null as never, undefined, null as never)
+    must(items[0]).click?.(null as never, undefined, null as never)
+    must(items[2]).click?.(null as never, undefined, null as never)
     expect(open).toHaveBeenCalledWith('work-box')
     expect(other).toHaveBeenCalledTimes(1)
   })

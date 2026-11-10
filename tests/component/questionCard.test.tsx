@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { until } from './helpers'
 import { ask, NAMES_INPUT, openChat, play } from './questionFixture'
+import { must } from './must'
 
-const Q = NAMES_INPUT.questions[0]
+const Q = must(NAMES_INPUT.questions[0])
 
 const multi = {
   questions: [{
@@ -44,7 +45,7 @@ describe('AskUserQuestion as a question', () => {
     await userEvent.click(page.getByTestId('chat-question-option-0'))
     await userEvent.click(page.getByTestId('chat-question-submit'))
     await until(() => fake.callsTo('chatRespond').length === 1)
-    expect(fake.callsTo('chatRespond')[0][2]).toEqual({ behavior: 'allow', answers: { 'Which checks should run?': 'Lint, Tests' } })
+    expect(must(fake.callsTo('chatRespond')[0])[2]).toEqual({ behavior: 'allow', answers: { 'Which checks should run?': 'Lint, Tests' } })
   })
 
   it('Other sends the typed text, and Submit waits for it', async () => {
@@ -55,7 +56,7 @@ describe('AskUserQuestion as a question', () => {
     await userEvent.fill(page.getByTestId('chat-question-other'), 'Both, behind a flag')
     await userEvent.click(page.getByTestId('chat-question-submit'))
     await until(() => fake.callsTo('chatRespond').length === 1)
-    expect(fake.callsTo('chatRespond')[0][2]).toEqual({ behavior: 'allow', answers: { [Q.question]: 'Both, behind a flag' } })
+    expect(must(fake.callsTo('chatRespond')[0])[2]).toEqual({ behavior: 'allow', answers: { [Q.question]: 'Both, behind a flag' } })
   })
 
   it('Skip declines', async () => {
@@ -79,7 +80,7 @@ describe('AskUserQuestion as a question', () => {
     ;(page.getByTestId('chat-question-submit').element() as HTMLElement).focus()
     await userEvent.keyboard('{Enter}')
     await until(() => fake.callsTo('chatRespond').length === 1)
-    expect(fake.callsTo('chatRespond')[0][2]).toEqual({ behavior: 'allow', answers: { [Q.question]: Q.options[0].label } })
+    expect(must(fake.callsTo('chatRespond')[0])[2]).toEqual({ behavior: 'allow', answers: { [Q.question]: must(Q.options[0]).label } })
   })
 
   it('does not take the keyboard from the message box', async () => {

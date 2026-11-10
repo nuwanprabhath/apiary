@@ -50,8 +50,9 @@ export function useShellTabEdits(
     setActiveTerminal((prev) => {
       if (prev.get(shellKey) !== tabId) return prev
       const next = new Map(prev)
-      if (list.length === 0) next.delete(shellKey)
-      else next.set(shellKey, list[0].id)
+      const first = list[0]
+      if (first === undefined) next.delete(shellKey)
+      else next.set(shellKey, first.id)
       return next
     })
     if (list.length === 0) setShellOpen(false)

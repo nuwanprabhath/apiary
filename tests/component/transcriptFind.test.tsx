@@ -250,7 +250,9 @@ describe('find jumping', () => {
 
 describe('reading history', () => {
   it('never holds more than HELD_MAX messages, and loads the newer ones back on scrolling down', async () => {
-    const history = Array.from({ length: 1000 }, (_, i) => message(`h${i}`, i % 2 === 0 ? 'user' : 'assistant', `history ${i}`))
+    // Two pages past the window: enough to make it drop messages, without paging through more than it must.
+    const total = HELD_MAX + 2 * TRANSCRIPT_PAGE_SIZE
+    const history = Array.from({ length: total }, (_, i) => message(`h${i}`, i % 2 === 0 ? 'user' : 'assistant', `history ${i}`))
     await renderApp({ sessions: [sessionWith('Very long history', history)] })
     await openTranscript('Very long history')
     await expect.poll(() => messageEls().length).toBe(TRANSCRIPT_PAGE_SIZE)
@@ -264,14 +266,15 @@ describe('reading history', () => {
       return /history 0\s*$/.test(messageEls()[0]?.textContent ?? '')
     }, { timeout: 10_000 }).toBe(true)
     expect(most).toBeLessThanOrEqual(HELD_MAX)
-    expect(messageEls().at(-1)?.textContent).not.toContain('history 999')
+    expect(messageEls().at(-1)?.textContent).not.toContain(`history ${String(total - 1)}`)
     const last = (): string | null | undefined => messageEls().at(-1)?.textContent
     const lastBefore = last()
     // A scroll down to the bottom edge, repeated until the next page lands.
     await expect.poll(() => {
       if (view !== null) { view.scrollTop = view.scrollHeight - view.clientHeight - 400; view.scrollTop = view.scrollHeight }
       return last()
-    }).not.toBe(lastBefore)
+      // Each step renders a page of rows into a window of hundreds: real layout work, slow on a busy machine.
+    }, { timeout: 10_000 }).not.toBe(lastBefore)
     expect(messageEls().length).toBeLessThanOrEqual(HELD_MAX)
   })
 })

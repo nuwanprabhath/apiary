@@ -30,7 +30,7 @@ export function ThemesSection(): JSX.Element {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<Preview | null>(null)
-  const shown = preview === null ? null : preview.history[preview.index]
+  const shown = preview === null ? null : preview.history[preview.index] ?? null
 
   /**
    * A preview is this window's alone, and only while this screen is open: leaving it — closing
@@ -64,12 +64,13 @@ export function ThemesSection(): JSX.Element {
     applyTheme(theme.active)
   }
 
+  const original: ThemeEntry = { id: null, spec: ORIGINAL_THEME, saved: false }
   const all: ThemeEntry[] = [
-    { id: null, spec: ORIGINAL_THEME, saved: false },
+    original,
     ...theme.builtins.map((b) => ({ id: b.id, spec: b.spec, saved: false })),
     ...theme.saved.map((s) => ({ id: s.id, spec: { ...s.spec, name: s.name }, saved: true })),
   ]
-  const current = all.find((t) => t.id === theme.activeId) ?? all[0]
+  const current = all.find((t) => t.id === theme.activeId) ?? original
 
   const submitName = (): void => {
     const trimmed = name.trim()

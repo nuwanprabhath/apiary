@@ -75,7 +75,7 @@ function statusOf(status: unknown): PtySessionInfo['status'] {
 
 /** A stable string for change detection — key order is fixed by construction above. */
 function signature(map: Record<string, PtySessionInfo>): string {
-  return JSON.stringify(Object.keys(map).sort().map((k) => [k, map[k].sessionId, map[k].name, map[k].nameIsUser, map[k].status]))
+  return JSON.stringify(Object.entries(map).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, v]) => [k, v.sessionId, v.name, v.nameIsUser, v.status]))
 }
 
 const UNREADABLE_LIMIT = 5
@@ -132,9 +132,12 @@ export class ClaudeSessionTracker {
         const n = (this.unreadable.get(ptyId) ?? 0) + 1
         if (n >= UNREADABLE_LIMIT) {
           if (n === UNREADABLE_LIMIT) log.warn('session-tracker', 'session file unreadable, treating as missing', { ptyId, polls: n })
-        } else if (this.latest[ptyId] !== undefined) next[ptyId] = this.latest[ptyId]
+        } else {
+          const prior = this.latest[ptyId]
+          if (prior !== undefined) next[ptyId] = prior
+        }
         stillUnreadable.set(ptyId, n)
-      } else if (info !== 'missing') next[ptyId] = info
+      } else if (info !== 'missing' && info !== undefined) next[ptyId] = info
     })
     this.unreadable = stillUnreadable
     // Logged per transition: which pty moved to which session, and when.

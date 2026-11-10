@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MAX_ACTIVE_PETS, PET_SIZES } from '@shared/pets/state'
+import { at } from '../must'
 import type { Ctx } from '../support'
 import { THIS_WINDOW } from '../world'
 
@@ -9,7 +10,7 @@ export function definePetClauses(ctx: Ctx): void {
   /** Turns pets on (which hatches the first one) and returns it. */
   async function firstPet(): Promise<string> {
     await ctx.api.petsSetEnabled(true)
-    return (await ctx.api.petsState()).pets[0].id
+    return at((await ctx.api.petsState()).pets, 0).id
   }
 
   describe('pets', () => {
@@ -19,18 +20,18 @@ export function definePetClauses(ctx: Ctx): void {
 
     it('a pet hatched or put out from this window is out in it; one in the drawer is in no window', async () => {
       const id = await firstPet()
-      expect((await ctx.api.petsState()).pets[0].window).toBe(THIS_WINDOW.number)
+      expect(at((await ctx.api.petsState()).pets, 0).window).toBe(THIS_WINDOW.number)
       await ctx.api.petUpdate(id, { active: false })
-      expect((await ctx.api.petsState()).pets[0].window).toBeNull()
+      expect(at((await ctx.api.petsState()).pets, 0).window).toBeNull()
       await ctx.api.petUpdate(id, { active: true })
-      expect((await ctx.api.petsState()).pets[0].window).toBe(THIS_WINDOW.number)
+      expect(at((await ctx.api.petsState()).pets, 0).window).toBe(THIS_WINDOW.number)
     })
 
     it('a pet released outside its window over no other Apiary window stays where it was; one that is not there is an error', async () => {
       const id = await firstPet()
       ctx.heard.reset()
       expect(await ctx.api.petDropOutside(id)).toBe(false)
-      expect((await ctx.api.petsState()).pets[0]).toMatchObject({ window: THIS_WINDOW.number, active: true })
+      expect(at((await ctx.api.petsState()).pets, 0)).toMatchObject({ window: THIS_WINDOW.number, active: true })
       expect((await ctx.api.petsState()).arrival).toBeNull()
       expect(ctx.heard.count('petsChanged')).toBe(0)
       await expect(ctx.api.petDropOutside('no-such-pet')).rejects.toThrow()
@@ -41,13 +42,13 @@ export function definePetClauses(ctx: Ctx): void {
       const on = await ctx.api.petsState()
       expect(on).toMatchObject({ enabled: true, generating: false })
       expect(on.pets).toHaveLength(1)
-      expect(on.pets[0]).toMatchObject({ active: true, place: null })
-      expect(on.pets[0].spec.name).not.toBe('')
+      expect(at(on.pets, 0)).toMatchObject({ active: true, place: null })
+      expect(at(on.pets, 0).spec.name).not.toBe('')
       expect(ctx.heard.count('petsChanged')).toBeGreaterThan(0)
       expect(ctx.heard.payloads('petsChanged').at(-1)?.[0].enabled).toBe(true)
 
       await ctx.api.petsSetEnabled(false)
-      expect(await ctx.api.petsState()).toMatchObject({ enabled: false, pets: [{ id: on.pets[0].id }] })
+      expect(await ctx.api.petsState()).toMatchObject({ enabled: false, pets: [{ id: at(on.pets, 0).id }] })
       await ctx.api.petsSetEnabled(true)
       expect((await ctx.api.petsState()).pets).toHaveLength(1)
     })
@@ -76,7 +77,7 @@ export function definePetClauses(ctx: Ctx): void {
       expect((await ctx.api.petUpdate(id, { place: null })).place).toBeNull()
       expect((await ctx.api.petUpdate(id, { model: 'opus' })).model).toBe('opus')
       expect((await ctx.api.petUpdate(id, { name: 'Rex' })).spec.name).toBe('Rex')
-      expect((await ctx.api.petsState()).pets[0]).toMatchObject({ id, size: 71, model: 'opus' })
+      expect(at((await ctx.api.petsState()).pets, 0)).toMatchObject({ id, size: 71, model: 'opus' })
       expect(ctx.heard.count('petsChanged')).toBe(7)
     })
 
@@ -112,7 +113,7 @@ export function definePetClauses(ctx: Ctx): void {
       const imported = await ctx.api.petImport()
       expect(imported).not.toBeNull()
       expect(imported?.id).not.toBe(id)
-      expect(imported?.spec.name).toBe((await ctx.api.petsState()).pets[0].spec.name)
+      expect(imported?.spec.name).toBe(at((await ctx.api.petsState()).pets, 0).spec.name)
       expect((await ctx.api.petsState()).pets).toHaveLength(2)
       expect(ctx.heard.count('petsChanged')).toBeGreaterThan(0)
     })

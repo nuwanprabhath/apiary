@@ -39,7 +39,7 @@ interface Win { id: string; x: number; y: number; width: number; height: number;
  * a window with static gravity under mutter it reports twice the real position.
  */
 async function appWindows(): Promise<Win[]> {
-  const ids = (await sh('wmctrl -l')).stdout.split('\n').filter((l) => /Apiary/.test(l)).map((l) => l.trim().split(/\s+/)[0])
+  const ids = (await sh('wmctrl -l')).stdout.split('\n').filter((l) => /Apiary/.test(l)).flatMap((l) => { const id = l.trim().split(/\s+/)[0]; return id === undefined ? [] : [id] })
   return Promise.all(ids.map(async (id): Promise<Win> => {
     const info = (await sh(`xwininfo -id ${id}`)).stdout
     const field = (name: string): number => Number(new RegExp(`${name}:\\s+(-?\\d+)`).exec(info)?.[1] ?? NaN)
@@ -106,6 +106,7 @@ describe.skipIf(!enabled)('windows come back on their own monitors (Ubuntu 26.04
   it('a window at its own size on the left monitor and a maximised one on the right come back so', async () => {
     await launch()
     const [first] = await until(appWindows, (w) => w.length === 1, 'the first window')
+    if (first === undefined) throw new Error('no first window')
     // Run again through XWayland, which is what lets it place its windows.
     expect((await sh("ps -eo args= | grep -v -- '--type=' | grep 'electron'")).stdout).toContain('--ozone-platform=x11')
     await must(`xdotool windowactivate --sync ${first.id} key --clearmodifiers ctrl+n`)

@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import type { ProjectNode } from '@shared/types'
 import { createdWorktreeRoots, onlyWanted, withAllWorktrees } from '../../src/renderer/features/sidebar/model/allWorktrees'
@@ -20,7 +21,7 @@ describe('withAllWorktrees', () => {
       { path: '/r/app-c', branch: 'c' },
       { path: '/r/app-a', branch: null },
     ]]]))
-    expect(out.children.map((c) => [c.label, c.branch, c.isWorktree, c.sessions.length])).toEqual([
+    expect(must(out).children.map((c) => [c.label, c.branch, c.isWorktree, c.sessions.length])).toEqual([
       ['app-a', null, true, 0],
       ['app-b', 'b', true, 0],
       ['app-c', 'c', true, 0],

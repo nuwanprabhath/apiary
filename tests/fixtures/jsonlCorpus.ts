@@ -93,3 +93,48 @@ export function shrink(file: string): void {
 export function appendPartial(file: string): void {
   appendFileSync(file, '{"type":"user","uuid":"p1","message":{"role":"us')
 }
+
+export interface EntryShape {
+  name: string
+  line: string
+  /** A subset of what `decodeEntry` returns for `line`. */
+  decoded: Record<string, unknown>
+}
+
+const notification = '<task-notification><task-id>b1</task-id></task-notification>'
+
+/** Entry shapes the source comments record by the Claude Code version they were measured on. */
+export const ENTRY_SHAPES: EntryShape[] = [
+  {
+    name: 'skill loaded as meta user text (2.1.302)',
+    line: JSON.stringify({ ...base, type: 'user', uuid: 'm1', isMeta: true, sourceToolUseID: 'toolu_1', message: { role: 'user', content: [{ type: 'text', text: 'Base directory for this skill: /s/x' }] } }),
+    decoded: { type: 'user', isMeta: true, sourceToolUseID: 'toolu_1', message: { content: [{ type: 'text', text: 'Base directory for this skill: /s/x' }] } },
+  },
+  {
+    name: 'peer origin on a user entry (2.1.302)',
+    line: JSON.stringify({ ...base, type: 'user', uuid: 'p1', origin: { kind: 'peer', name: 'helper', body: 'done' }, message: { role: 'user', content: 'framed' } }),
+    decoded: { type: 'user', origin: { kind: 'peer', name: 'helper', body: 'done' }, message: { content: 'framed' } },
+  },
+  {
+    name: 'task notification queued (2.1.302)',
+    line: JSON.stringify({ type: 'queue-operation', operation: 'enqueue', content: notification }),
+    decoded: { type: 'queue-operation', operation: 'enqueue', content: notification },
+  },
+  {
+    name: 'message sent mid-turn as a queued_command attachment (2.1.286)',
+    line: JSON.stringify({ ...base, type: 'attachment', uuid: 'q1', attachment: { type: 'queued_command', prompt: 'also this', source_uuid: 's9' } }),
+    decoded: { type: 'attachment', attachment: { type: 'queued_command', prompt: 'also this', sourceUuid: 's9' } },
+  },
+  {
+    name: 'turn duration',
+    line: JSON.stringify({ ...base, type: 'system', subtype: 'turn_duration', durationMs: 1500 }),
+    decoded: { type: 'system', subtype: 'turn_duration', durationMs: 1500 },
+  },
+  {
+    name: 'away summary',
+    line: JSON.stringify({ ...base, type: 'system', subtype: 'away_summary', content: 'recap' }),
+    decoded: { type: 'system', subtype: 'away_summary', content: 'recap' },
+  },
+  { name: 'custom title', line: JSON.stringify({ type: 'custom-title', customTitle: 'Mine' }), decoded: { type: 'custom-title', customTitle: 'Mine' } },
+  { name: 'ai title', line: JSON.stringify({ type: 'ai-title', aiTitle: 'Theirs' }), decoded: { type: 'ai-title', aiTitle: 'Theirs' } },
+]

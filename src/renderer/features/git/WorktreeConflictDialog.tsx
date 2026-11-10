@@ -94,7 +94,7 @@ function OtherBranchPicker(
   const { onKeyDown } = useListboxNav({
     count: shown.length,
     active: chosen === null ? -1 : shown.indexOf(chosen),
-    setActive: (index) => { setPicked(shown[index]) },
+    setActive: (index) => { const s = shown[index]; if (s !== undefined) setPicked(s) },
     onChoose: act,
   })
 

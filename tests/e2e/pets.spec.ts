@@ -34,7 +34,7 @@ function standIn(): string {
 }
 
 async function openPetSettings(): Promise<void> {
-  await h.app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog') })
+  await h.app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog') })
   await h.page.getByTestId('settings-nav-pets').click()
   await expect(h.page.getByTestId('pets-section')).toBeVisible()
 }
@@ -145,13 +145,18 @@ test('three pets in the whole app, each drawn by one window; one dropped on anot
   await h.app.evaluate(({ BrowserWindow, screen }) => {
     const all = [...BrowserWindow.getAllWindows()].sort((a, b) => a.webContents.id - b.webContents.id)
     for (const w of all) w.isVisible = () => true
-    const f = all[0].getBounds()
+    const f = all[0]?.getBounds()
     const last = all[all.length - 1]
+    if (f === undefined || last === undefined) throw new Error('no window')
     last.setBounds({ x: f.x + f.width + 40, y: f.y, width: 900, height: 700 })
     const c = last.getContentBounds()
     screen.getCursorScreenPoint = () => ({ x: c.x + c.width / 2, y: c.y + c.height - 12 })
   })
-  const id = await h.page.evaluate(async () => (await window.apiary.petsState()).pets[0].id)
+  const id = await h.page.evaluate(async () => {
+    const pet = (await window.apiary.petsState()).pets[0]
+    if (pet === undefined) throw new Error('no pet')
+    return pet.id
+  })
   expect(await h.page.evaluate(async (pet) => window.apiary.petDropOutside(pet), id)).toBe(true)
   const moved = `[data-testid="pet"][data-pet-id="${id}"]`
   await expect(second.getByTestId('pet')).toHaveCount(1)

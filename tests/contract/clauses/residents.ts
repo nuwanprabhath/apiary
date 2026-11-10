@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { MR_DESK_KIND, REGENT_KIND } from '@shared/domain/residents'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { flatten, skipOnRemote, type Ctx } from '../support'
+import { at } from '../must'
 import { BROWSE_HOME } from '../world'
 
 const RUNS_CLAUDE = 'a resident runs a claude on the machine the window runs on, over that machine\'s sessions'
@@ -44,7 +45,7 @@ export function defineResidentsClauses(ctx: Ctx): void {
     it('a rename in the setting reaches the status and every window', async () => {
       await ctx.api.residentsAdd(REGENT_KIND)
       await saveResidents((await ctx.api.settingsGet()).residents.map((c) => ({ ...c, name: '  Chief  ' })))
-      expect((await ctx.api.residentsList())[0].name).toBe('Chief')
+      expect(at(await ctx.api.residentsList(), 0).name).toBe('Chief')
       await expect.poll(() => ctx.heard.payloads('residentsChanged').at(-1)?.[0][0]?.name).toBe('Chief')
     })
 
@@ -85,7 +86,7 @@ export function defineResidentsClauses(ctx: Ctx): void {
       await enabledRegent()
       await ctx.api.residentSend('regent', 'hello')
       await expect.poll(async () => (await ctx.api.residentHistory('regent')).length, ANSWER).toBe(2)
-      const session = flatten(await ctx.api.tree())[0].session
+      const session = at(flatten(await ctx.api.tree()), 0).session
       await ctx.bridge.outside.residentOpensSession('regent', session.sessionId)
       await expect.poll(() => ctx.heard.payloads('openSessionRequested').map(([id]) => id)).toEqual([session.sessionId])
     })
@@ -95,11 +96,11 @@ export function defineResidentsClauses(ctx: Ctx): void {
       expect(kinds.map((k) => [k.id, k.defaultName, k.digests, k.appearance.glyph])).toEqual([
         ['regent', 'Regent', true, 'bee'], ['mr-desk', 'MR Desk', false, 'honeypot'],
       ])
-      expect(kinds[0].optionFields).toEqual([])
-      expect(kinds[1].optionFields.map((f) => [f.key, f.input, f.required])).toEqual([
+      expect(at(kinds, 0).optionFields).toEqual([])
+      expect(at(kinds, 1).optionFields.map((f) => [f.key, f.input, f.required])).toEqual([
         ['project', 'text', true], ['repoPath', 'folder', true], ['username', 'text', false],
       ])
-      expect(kinds[0].blurb).not.toBe('')
+      expect(at(kinds, 0).blurb).not.toBe('')
     })
 
     it('a new resident has nothing waiting, no attention and no kind actions; a kind not ready says why', async () => {
@@ -118,7 +119,7 @@ export function defineResidentsClauses(ctx: Ctx): void {
       await ctx.api.residentPermissionAnswer('regent', 'not-waiting', true)
       expect((await ctx.api.residentsList())[0]).toMatchObject({ attention: null, permissions: [] })
       await saveResidents((await ctx.api.settingsGet()).residents.map((c) => ({ ...c, digestLookback: { amount: 3, unit: 'weeks' as const } })))
-      expect((await ctx.api.settingsGet()).residents[0].digestLookback).toEqual({ amount: 3, unit: 'weeks' })
+      expect(at((await ctx.api.settingsGet()).residents, 0).digestLookback).toEqual({ amount: 3, unit: 'weeks' })
       await expect(ctx.api.residentSeen('ghost')).rejects.toThrow()
       await expect(ctx.api.residentPermissionAnswer('ghost', 'r', false)).rejects.toThrow()
     })
@@ -129,7 +130,7 @@ export function defineResidentsClauses(ctx: Ctx): void {
       await expect(ctx.api.residentQuickAction('ghost', 'nope')).rejects.toThrow()
       await expect(ctx.api.residentPickFolder('regent', 'clone')).rejects.toThrow()
       await expect(ctx.api.residentPickFolder('regent', '../etc')).rejects.toThrow()
-      expect((await ctx.api.settingsGet()).residents[0].options).toEqual({})
+      expect(at((await ctx.api.settingsGet()).residents, 0).options).toEqual({})
     })
 
     // A remote window has no folder dialog: its resident card chooses with the in-app browser,

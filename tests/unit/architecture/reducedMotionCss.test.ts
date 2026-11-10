@@ -46,7 +46,7 @@ function rulesOf(css: string): Rule[] {
 }
 
 const selectorsOf = (rule: Rule): string[] => rule.selector.split(/,(?![^(]*\))/).map((s) => s.replace(/\s+/g, ' ').trim())
-const animationDeclarations = (body: string): string[] => [...body.matchAll(/(?:^|[;\s])animation(?:-name)?\s*:\s*([^;}]+)/g)].map((m) => m[1])
+const animationDeclarations = (body: string): string[] => [...body.matchAll(/(?:^|[;\s])animation(?:-name)?\s*:\s*([^;}]+)/g)].flatMap((m) => m[1] ?? [])
 
 describe('every infinite animation has a still counterpart under data-motion="reduced"', () => {
   const files = walk(['src/renderer/styles'], ['.css']).filter((f) => !EXEMPT_FILES.has(f))

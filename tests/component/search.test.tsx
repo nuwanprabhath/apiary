@@ -2,13 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, clickRowAction, until } from './helpers'
+import { must } from './must'
 
 describe('search', () => {
   it('search renders a flat list, and clearing it restores the tree with its collapse state', async () => {
     await renderApp()
     // A folder collapsed before searching must still be collapsed after — proof the tree was never
     // torn down and rebuilt underneath the search, only hidden behind the flat list.
-    const toggle = page.getByTestId('project-toggle').elements()[0]
+    const toggle = must(page.getByTestId('project-toggle').elements()[0])
     await userEvent.click(toggle)
     await expect.element(toggle).toHaveAttribute('aria-expanded', 'false')
 
@@ -20,7 +21,7 @@ describe('search', () => {
 
     await userEvent.click(page.getByTestId('search-clear'))
     await until(() => page.getByTestId('flat-results').elements().length === 0)
-    await expect.element(page.getByTestId('project-toggle').elements()[0]).toHaveAttribute('aria-expanded', 'false')
+    await expect.element(must(page.getByTestId('project-toggle').elements()[0])).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('a pinned session that matches the search is listed once, not in both sections', async () => {
@@ -76,5 +77,27 @@ describe('search', () => {
     // And the sidebar still filters by everything it can do locally, rather than going blank.
     await userEvent.fill(page.getByTestId('search-input'), 'worktree')
     await expect.element(sidebarSession('Add worktree switcher')).toBeVisible()
+  })
+
+  it('a query typed before the index caught up gets its matches once main says the tree changed', async () => {
+    // Main says "the tree changed" when indexing finishes, while the tree itself is unchanged and
+    // comes back as the same object; the search must still be asked again.
+    let indexed = false
+    const { fake } = await renderApp({}, (f) => {
+      // An equal tree on every fetch, as main sends when only the index changed (the fake otherwise
+      // stamps sessions with the current time, so no two fetches are equal).
+      for (const s of f.state.sessions) s.lastActiveAtMs ??= 1_700_000_000_000
+      f.override('searchContent', async () => {
+        if (!indexed) return []
+        const sessions = (await window.apiary.tree()).flatMap((p) => p.sessions)
+        return sessions.filter((s) => s.title === 'Fix CSV export bug').map((s) => s.sessionId)
+      })
+    })
+    await userEvent.fill(page.getByTestId('search-input'), 'zebraquux')
+    await expect.element(page.getByTestId('sidebar-no-matches')).toBeVisible()
+
+    indexed = true
+    fake.emit('treeChanged', { sessions: null })
+    await expect.element(sidebarSession('Fix CSV export bug')).toBeVisible()
   })
 })

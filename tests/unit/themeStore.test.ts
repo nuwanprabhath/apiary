@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -32,7 +33,7 @@ describe('ThemeStore', () => {
 
   it('saves, activates, and reads back what it saved', () => {
     const a = new ThemeStore(file)
-    const saved = a.add('My matrix', matrix.spec)
+    const saved = a.add('My matrix', must(matrix).spec)
     a.setActive(saved.id)
     const b = new ThemeStore(file)
     expect(b.activeId).toBe(saved.id)
@@ -79,7 +80,7 @@ describe('ThemeStore', () => {
 
   it('an active theme that is deleted leaves the original look active', () => {
     const store = new ThemeStore(file)
-    const saved = store.add('Temp', matrix.spec)
+    const saved = store.add('Temp', must(matrix).spec)
     store.setActive(saved.id)
     store.remove(saved.id)
     expect(store.activeId).toBeNull()
@@ -88,15 +89,15 @@ describe('ThemeStore', () => {
 
   it('renames with the same cleaning a generated name gets', () => {
     const store = new ThemeStore(file)
-    const saved = store.add('A', matrix.spec)
+    const saved = store.add('A', must(matrix).spec)
     store.rename(saved.id, 'B\u0000\u001b[31m'.padEnd(200, 'x'))
-    expect(new ThemeStore(file).saved[0].name.length).toBeLessThanOrEqual(60)
-    expect(new ThemeStore(file).saved[0].name.startsWith('B')).toBe(true)
+    expect(must(new ThemeStore(file).saved[0]).name.length).toBeLessThanOrEqual(60)
+    expect(must(new ThemeStore(file).saved[0]).name.startsWith('B')).toBe(true)
   })
 
   it('writes atomically, leaving no temp file behind', () => {
     const store = new ThemeStore(file)
-    store.add('A', matrix.spec)
+    store.add('A', must(matrix).spec)
     store.setOptions({ animated: false, intensity: 0.4, model: 'haiku' })
     // An untrusted/hand-edited value, exactly what `isModel` exists to reject.
     store.setOptions({ model: 'not-a-model' as unknown as 'haiku' })

@@ -56,7 +56,7 @@ export class PtyDataCoalescer {
     const chunks = this.buffers.get(id)
     this.buffers.delete(id)
     if (chunks === undefined || chunks.length === 0) return
-    let data = chunks.length === 1 ? chunks[0] : chunks.join('')
+    let data = chunks.length === 1 ? (chunks[0] ?? '') : chunks.join('')
     if (data.length > FLUSH_CAP) {
       // A flood is sent a slice per tick, so one pty cannot hold main for a whole multi-megabyte send.
       const cut = isHighSurrogate(data.charCodeAt(FLUSH_CAP - 1)) ? FLUSH_CAP - 1 : FLUSH_CAP

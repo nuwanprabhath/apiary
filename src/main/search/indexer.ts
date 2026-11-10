@@ -58,7 +58,7 @@ async function readSearchChunks(file: string, from: number, keepFirst: boolean):
     held += chunk.length
     while (held > MAX_TEXT_PER_SESSION && chunks.length > (keepFirst ? 2 : 1)) {
       const at = keepFirst ? 1 : 0
-      held -= chunks[at].length
+      held -= chunks[at]?.length ?? 0
       chunks.splice(at, 1)
     }
   }

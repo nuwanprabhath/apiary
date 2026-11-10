@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, clickRowAction, box, mouse, nextFrames, until } from './helpers'
+import { must, take } from './must'
 
 /** Every element with a given data-testid, document-wide. */
 function all(id: string): HTMLElement[] {
@@ -35,7 +36,7 @@ describe('session tabs', () => {
     await expect.element(page.getByTestId('session-title')).toMatchTextContent('Add worktree switcher')
 
     // Both remain open, and the first is one click away rather than needing to be reopened.
-    await userEvent.click(all('session-tab-label')[0])
+    await userEvent.click(must(all('session-tab-label')[0]))
     await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
     expect(all('session-tab')).toHaveLength(2)
   })
@@ -55,11 +56,11 @@ describe('session tabs', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await userEvent.click(sidebarSession('Add worktree switcher'))
 
-    await userEvent.click(all('session-tab-close')[1])
+    await userEvent.click(must(all('session-tab-close')[1]))
     await until(() => all('session-tab').length === 1)
     await expect.element(page.getByTestId('session-title')).toMatchTextContent('Fix CSV export bug')
 
-    await userEvent.click(all('session-tab-close')[0])
+    await userEvent.click(must(all('session-tab-close')[0]))
     await until(() => all('session-tab').length === 0)
     await expect.element(page.getByTestId('content-empty')).toBeVisible()
   })
@@ -69,9 +70,9 @@ describe('session tabs', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await userEvent.click(sidebarSession('Add worktree switcher'))
     await until(() => all('session-tab').length === 2)
-    await userEvent.click(all('session-tab')[0], { button: 'middle' })
+    await userEvent.click(must(all('session-tab')[0]), { button: 'middle' })
     await until(() => all('session-tab').length === 1)
-    expect(all('session-tab')[0].textContent).toContain('Add worktree switcher')
+    expect(must(all('session-tab')[0]).textContent).toContain('Add worktree switcher')
   })
 
   it('the split button opens the session in a second column, with its own shell', async () => {
@@ -89,8 +90,8 @@ describe('session tabs', () => {
     expect(all('shell-toggle')).toHaveLength(2)
 
     const columns = all('session-column')
-    expect(columns[0].textContent).toContain('Fix CSV export bug')
-    expect(columns[1].textContent).toContain('Add worktree switcher')
+    expect(must(columns[0]).textContent).toContain('Fix CSV export bug')
+    expect(must(columns[1]).textContent).toContain('Add worktree switcher')
   })
 
   it('splitting keeps adding panes up to four, then opens in an existing one', async () => {
@@ -100,10 +101,10 @@ describe('session tabs', () => {
       await clickRowAction(title, 'split-session-button')
     }
     await until(() => all('session-column').length === 4)
-    expect(all('content')[0].getAttribute('data-preset')).toBe('grid')
+    expect(must(all('content')[0]).getAttribute('data-preset')).toBe('grid')
 
     // A fifth has nowhere of its own to go.
-    await userEvent.click(all('session-tab-split')[0])
+    await userEvent.click(must(all('session-tab-split')[0]))
     expect(all('session-column')).toHaveLength(4)
   })
 
@@ -115,7 +116,7 @@ describe('session tabs', () => {
 
     // The editor area must not become a scroll container: if it does, opening the shell pushes the
     // layout down and the pane scrolls out of view instead of docking, which is what used to happen.
-    const overflow = getComputedStyle(all('content')[0]).overflowY
+    const overflow = getComputedStyle(must(all('content')[0])).overflowY
     expect(overflow).toBe('hidden')
 
     const windowHeight = window.innerHeight
@@ -159,8 +160,8 @@ describe('session tabs', () => {
     expect(all('column-resizer')).toHaveLength(1)
     // Open in both, the way VS Code's split leaves the editor in the group it came from.
     const columns = all('session-column')
-    expect(columns[0].textContent).toContain('Fix CSV export bug')
-    expect(columns[1].textContent).toContain('Fix CSV export bug')
+    expect(must(columns[0]).textContent).toContain('Fix CSV export bug')
+    expect(must(columns[1]).textContent).toContain('Fix CSV export bug')
   })
 
   it('dragging the divider between two columns changes their widths', async () => {
@@ -171,7 +172,7 @@ describe('session tabs', () => {
 
     const widths = (): number[] => all('session-column').map((el) => Math.round(el.getBoundingClientRect().width))
 
-    const [leftBefore, rightBefore] = widths()
+    const [leftBefore, rightBefore] = take(widths(), 2)
     // A split starts even, which is what makes the drag below measurable.
     expect(Math.abs(leftBefore - rightBefore)).toBeLessThan(8)
 
@@ -181,7 +182,7 @@ describe('session tabs', () => {
     await mouse.move(handle.x + handle.width / 2 + 200, handle.y + handle.height / 2, 10)
     await mouse.up()
 
-    const [leftAfter, rightAfter] = widths()
+    const [leftAfter, rightAfter] = take(widths(), 2)
     expect(leftAfter).toBeGreaterThan(leftBefore + 150)
     expect(rightAfter).toBeLessThan(rightBefore - 150)
     // The pair keeps the row's full width between them; dragging one boundary must not leave a gap.
@@ -202,7 +203,7 @@ describe('session tabs', () => {
     await mouse.move(5, handle.y + handle.height / 2, 10)
     await mouse.up()
 
-    const left = Math.round(all('session-column')[0].getBoundingClientRect().width)
+    const left = Math.round(must(all('session-column')[0]).getBoundingClientRect().width)
     expect(left).toBeGreaterThanOrEqual(200)
   })
 
@@ -216,9 +217,9 @@ describe('session tabs', () => {
     await userEvent.click(page.getByTestId('session-tab-split'))
     await until(() => all('session-column').length === 2)
 
-    await userEvent.click(within(all('session-column')[0], 'shell-toggle')[0])
+    await userEvent.click(must(within(must(all('session-column')[0]), 'shell-toggle')[0]))
     await expect.element(page.getByTestId('terminal-shell')).toBeVisible()
-    await userEvent.click(all('toolbar-branch-button')[0])
+    await userEvent.click(must(all('toolbar-branch-button')[0]))
     await expect.element(page.getByTestId('branch-switcher')).toBeVisible()
 
     // Whatever is actually painted over the dialog's own area must belong to the dialog. Sampled
@@ -240,10 +241,10 @@ describe('session tabs', () => {
     await userEvent.click(sidebarSession('Add worktree switcher'))
     // Each split adds a split button, so always act on the column that split last — the focused one.
     await until(() => all('session-tab-split').length === 1)
-    await userEvent.click(all('session-tab-split')[all('session-tab-split').length - 1])
+    await userEvent.click(must(all('session-tab-split')[all('session-tab-split').length - 1]))
     await until(() => all('session-column').length === 2)
     await userEvent.click(sidebarSession('Repo root session'))
-    await userEvent.click(all('session-tab-split')[all('session-tab-split').length - 1])
+    await userEvent.click(must(all('session-tab-split')[all('session-tab-split').length - 1]))
     await until(() => all('session-column').length === 3)
 
     const emptyColumns = (): number => all('session-column').filter((el) => within(el, 'session-tab').length === 0).length
@@ -252,14 +253,14 @@ describe('session tabs', () => {
     // left behind without any.
     while (all('session-tab-close').length > 1) {
       const columns = all('session-column').length
-      await userEvent.click(all('session-tab-close')[0])
+      await userEvent.click(must(all('session-tab-close')[0]))
       expect(emptyColumns()).toBe(0)
       expect(all('session-column').length).toBeLessThanOrEqual(columns)
     }
 
     // The very last one may leave a single empty column — that is the placeholder the next click
     // needs somewhere to land in, and it says so rather than being blank.
-    await userEvent.click(all('session-tab-close')[0])
+    await userEvent.click(must(all('session-tab-close')[0]))
     await until(() => all('session-column').length === 1)
     await expect.element(page.getByTestId('content-empty')).toBeVisible()
   })
@@ -285,24 +286,24 @@ describe('session tabs', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await userEvent.click(sidebarSession('Add worktree switcher'))
     await until(() => all('session-tab').length === 2)
-    expect(all('session-tab')[0].textContent).toContain('Fix CSV export bug')
+    expect(must(all('session-tab')[0]).textContent).toContain('Fix CSV export bug')
 
-    const target = all('session-tab')[0].getBoundingClientRect()
-    await dragTo(all('session-tab')[1], target.x + target.width / 2, target.y + target.height / 2)
+    const target = must(all('session-tab')[0]).getBoundingClientRect()
+    await dragTo(must(all('session-tab')[1]), target.x + target.width / 2, target.y + target.height / 2)
 
-    await until(() => all('session-tab')[0].textContent?.includes('Add worktree switcher') === true)
-    expect(all('session-tab')[1].textContent).toContain('Fix CSV export bug')
+    await until(() => must(all('session-tab')[0]).textContent?.includes('Add worktree switcher') === true)
+    expect(must(all('session-tab')[1]).textContent).toContain('Fix CSV export bug')
     expect(all('session-tab')).toHaveLength(2)
   })
 
   it('right-clicking a tab offers to reload its session, and says when nothing was running to reload', async () => {
     const { fake } = await renderApp()
     await userEvent.click(sidebarSession('Fix CSV export bug'))
-    rightClick(all('session-tab')[0])
+    rightClick(must(all('session-tab')[0]))
     await expect.element(page.getByTestId('context-menu-reload')).toMatchTextContent('Reload session')
     await userEvent.click(page.getByTestId('context-menu-reload'))
     await until(() => fake.callsTo('sessionReload').length === 1)
-    expect(fake.callsTo('sessionReload')[0][1]).toBeNull()
+    expect(must(fake.callsTo('sessionReload')[0])[1]).toBeNull()
     await expect.element(page.getByText(/Claude is not running for this session/)).toBeVisible()
   })
 
@@ -311,15 +312,15 @@ describe('session tabs', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     expect(all('pinned-section')).toHaveLength(0)
 
-    rightClick(all('session-tab')[0])
+    rightClick(must(all('session-tab')[0]))
     await expect.element(page.getByTestId('tab-menu')).toBeVisible()
     await userEvent.click(page.getByTestId('context-menu-pin'))
 
     await expect.element(page.getByTestId('pinned-section')).toBeVisible()
-    expect(within(all('pinned-section')[0], 'session-item')[0].textContent).toContain('Fix CSV export bug')
+    expect(must(within(must(all('pinned-section')[0]), 'session-item')[0]).textContent).toContain('Fix CSV export bug')
 
     // And the menu says so the second time round, rather than offering to pin it again.
-    rightClick(all('session-tab')[0])
+    rightClick(must(all('session-tab')[0]))
     await expect.element(page.getByTestId('context-menu-pin')).toMatchTextContent('Unpin from sidebar')
   })
 
@@ -330,12 +331,12 @@ describe('session tabs', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await userEvent.click(sidebarSession('Add worktree switcher'))
     await until(() => all('session-tab').length === 2)
-    expect(all('session-tab')[0].textContent).toContain('Fix CSV export bug')
+    expect(must(all('session-tab')[0]).textContent).toContain('Fix CSV export bug')
 
-    const target = all('session-tab')[0].getBoundingClientRect()
-    await dragTo(all('session-tab')[1], target.x + 4, target.y + 10)
+    const target = must(all('session-tab')[0]).getBoundingClientRect()
+    await dragTo(must(all('session-tab')[1]), target.x + 4, target.y + 10)
 
-    await until(() => all('session-tab')[0].textContent?.includes('Add worktree switcher') === true)
+    await until(() => must(all('session-tab')[0]).textContent?.includes('Add worktree switcher') === true)
     expect(all('session-tab')).toHaveLength(2)
   })
 
@@ -350,19 +351,19 @@ describe('session tabs', () => {
 
     // The second column gets a session of its own, which is the one to drag across.
     await userEvent.click(sidebarSession('Add worktree switcher'))
-    await until(() => within(all('session-column')[1], 'session-tab').length === 2)
+    await until(() => within(must(all('session-column')[1]), 'session-tab').length === 2)
 
-    const dragged = within(all('session-column')[1], 'session-tab')
+    const dragged = within(must(all('session-column')[1]), 'session-tab')
       .find((el) => el.textContent?.includes('Add worktree switcher'))!
-    const targetTab = within(all('session-column')[0], 'session-tab')[0]
+    const targetTab = must(within(must(all('session-column')[0]), 'session-tab')[0])
     const targetBox = targetTab.getBoundingClientRect()
     await dragTo(dragged, targetBox.x + 4, targetBox.y + 10)
 
-    await until(() => within(all('session-column')[0], 'session-tab').length === 2)
-    const left = within(all('session-column')[0], 'session-tab')
-    expect(left[0].textContent).toContain('Add worktree switcher')
+    await until(() => within(must(all('session-column')[0]), 'session-tab').length === 2)
+    const left = within(must(all('session-column')[0]), 'session-tab')
+    expect(must(left[0]).textContent).toContain('Add worktree switcher')
     // And it has left the column it came from, rather than being open twice.
-    expect(within(all('session-column')[1], 'session-tab')).toHaveLength(1)
+    expect(within(must(all('session-column')[1]), 'session-tab')).toHaveLength(1)
   })
 
   it('a tab dragged over its own strip and dropped in another column leaves no drop marker behind', async () => {
@@ -371,12 +372,12 @@ describe('session tabs', () => {
     await userEvent.click(page.getByTestId('session-tab-split'))
     await until(() => all('session-column').length === 2)
     await userEvent.click(sidebarSession('Add worktree switcher'))
-    await until(() => within(all('session-column')[1], 'session-tab').length === 2)
+    await until(() => within(must(all('session-column')[1]), 'session-tab').length === 2)
 
-    const [stays, dragged] = within(all('session-column')[1], 'session-tab')
+    const [stays, dragged] = take(within(must(all('session-column')[1]), 'session-tab'), 2)
     const from = dragged.getBoundingClientRect()
     const over = stays.getBoundingClientRect()
-    const target = within(all('session-column')[0], 'session-tab')[0].getBoundingClientRect()
+    const target = must(within(must(all('session-column')[0]), 'session-tab')[0]).getBoundingClientRect()
     // Over the tab that stays first, as a reorder in its own strip would, then into the other column.
     await mouse.move(from.x + from.width / 2, from.y + from.height / 2)
     await mouse.down()
@@ -384,7 +385,7 @@ describe('session tabs', () => {
     await mouse.move(target.x + 4, target.y + 10, 8)
     await mouse.up()
 
-    await until(() => within(all('session-column')[0], 'session-tab').length === 2)
+    await until(() => within(must(all('session-column')[0]), 'session-tab').length === 2)
     // The dragged tab left its strip before its dragend could fire, so the strip must not keep
     // the insertion line it drew while the tab was over it (the blue "(" left on a tab in 1.41).
     expect(document.querySelectorAll('[data-drop-before="true"], [data-drop-after="true"], [data-dragging="true"]')).toHaveLength(0)
@@ -396,15 +397,15 @@ describe('session tabs', () => {
     await userEvent.click(page.getByTestId('session-tab-split'))
     await until(() => all('session-column').length === 2)
     await userEvent.click(sidebarSession('Add worktree switcher'))
-    await until(() => within(all('session-column')[1], 'session-tab').length === 2)
+    await until(() => within(must(all('session-column')[1]), 'session-tab').length === 2)
 
-    const fixTab = within(all('session-column')[1], 'session-tab')
+    const fixTab = within(must(all('session-column')[1]), 'session-tab')
       .find((el) => el.textContent?.includes('Fix CSV export bug'))!
     await userEvent.click(fixTab.querySelector('[data-testid="session-tab-close"]')!)
-    await until(() => within(all('session-column')[1], 'session-tab').length === 1)
+    await until(() => within(must(all('session-column')[1]), 'session-tab').length === 1)
 
-    const remaining = within(all('session-column')[1], 'session-tab')[0]
-    const targetBox = within(all('session-column')[0], 'session-tab')[0].getBoundingClientRect()
+    const remaining = must(within(must(all('session-column')[1]), 'session-tab')[0])
+    const targetBox = must(within(must(all('session-column')[0]), 'session-tab')[0]).getBoundingClientRect()
     await dragTo(remaining, targetBox.x + 4, targetBox.y + 10)
 
     await until(() => all('session-column').length === 1)
@@ -418,10 +419,10 @@ describe('session tabs', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await userEvent.click(sidebarSession('Add worktree switcher'))
     await until(() => all('session-tab').length === 2)
-    const inactive = all('session-tab')[0]
-    const close = within(inactive, 'session-tab-close')[0]
+    const inactive = must(all('session-tab')[0])
+    const close = must(within(inactive, 'session-tab-close')[0])
     const before = close.getBoundingClientRect()
-    await userEvent.hover(within(inactive, 'session-tab-label')[0])
+    await userEvent.hover(must(within(inactive, 'session-tab-label')[0]))
     await nextFrames(2)
     const after = close.getBoundingClientRect()
     expect({ x: after.x, y: after.y }).toEqual({ x: before.x, y: before.y })
@@ -435,9 +436,9 @@ describe('session tabs', () => {
 
     // Including the inactive one, which is the case that used to leave the right-click menu as the
     // only way to close a tab at all.
-    const inactive = all('session-tab')[0]
+    const inactive = must(all('session-tab')[0])
     expect(inactive.getAttribute('data-active')).toBe('false')
-    const closeButton = within(inactive, 'session-tab-close')[0]
+    const closeButton = must(within(inactive, 'session-tab-close')[0])
     await expect.element(page.elementLocator(closeButton)).toBeVisible()
     expect(getComputedStyle(closeButton).opacity).toBe('1')
 
@@ -461,11 +462,11 @@ describe('session tabs', () => {
     await mouse.move(handle.x - 200, handle.y + handle.height / 2, 10)
     await mouse.up()
 
-    await userEvent.click(within(all('session-column')[1], 'session-tab-close')[0])
+    await userEvent.click(must(within(must(all('session-column')[1]), 'session-tab-close')[0]))
     await until(() => all('session-column').length === 1)
 
-    const content = all('content')[0].getBoundingClientRect()
-    const column = all('session-column')[0].getBoundingClientRect()
+    const content = must(all('content')[0]).getBoundingClientRect()
+    const column = must(all('session-column')[0]).getBoundingClientRect()
     // The one remaining column fills the row it is in, rather than stopping partway across it.
     expect(column.width).toBeGreaterThan(content.width - 2)
   })
@@ -480,12 +481,12 @@ describe('session tabs', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await userEvent.click(page.getByTestId('session-tab-split'))
     await until(() => all('session-column').length === 2)
-    await userEvent.click(all('session-tab-split')[0])
+    await userEvent.click(must(all('session-tab-split')[0]))
     await until(() => all('session-column').length === 3)
 
-    const column = all('session-column')[0]
+    const column = must(all('session-column')[0])
     for (const title of ['Add worktree switcher', 'Repo root session', 'Worktree session']) {
-      await userEvent.click(within(column, 'session-tab')[0])
+      await userEvent.click(must(within(column, 'session-tab')[0]))
       await userEvent.click(sidebarSession(title))
     }
     await until(() => within(column, 'session-tab').length === 4)
@@ -503,7 +504,7 @@ describe('session tabs', () => {
       tab.scrollIntoView({ inline: 'nearest', block: 'nearest' })
       await nextFrames(1)
       const strip = stripEl.getBoundingClientRect()
-      const close = within(tab, 'session-tab-close')[0].getBoundingClientRect()
+      const close = must(within(tab, 'session-tab-close')[0]).getBoundingClientRect()
       expect(close.width).toBeGreaterThan(0)
       expect(close.x).toBeGreaterThanOrEqual(strip.x - 1)
       expect(close.x + close.width).toBeLessThanOrEqual(strip.x + strip.width + 1)
@@ -517,12 +518,12 @@ describe('session tabs', () => {
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await userEvent.click(page.getByTestId('session-tab-split'))
     await until(() => all('session-column').length === 2)
-    await userEvent.click(all('session-tab-split')[0])
+    await userEvent.click(must(all('session-tab-split')[0]))
     await until(() => all('session-column').length === 3)
 
-    const column = all('session-column')[0]
+    const column = must(all('session-column')[0])
     for (const title of ['Add worktree switcher', 'Repo root session', 'Worktree session']) {
-      await userEvent.click(within(column, 'session-tab')[0])
+      await userEvent.click(must(within(column, 'session-tab')[0]))
       await userEvent.click(sidebarSession(title))
     }
     await until(() => within(column, 'session-tab').length === 4)
@@ -551,13 +552,13 @@ describe('session tabs', () => {
       expect(labels.map((l) => l.getAttribute('role'))).toEqual(['tab', 'tab'])
       // The second tab (opened last) is active — only it is reachable by Tab.
       expect(labels.map((l) => l.getAttribute('tabindex'))).toEqual(['-1', '0'])
-      expect(labels[1].getAttribute('aria-selected')).toBe('true')
+      expect(must(labels[1]).getAttribute('aria-selected')).toBe('true')
       // The active tab names the tabpanel it controls; the panel points back at it.
-      const controls = labels[1].getAttribute('aria-controls')
+      const controls = must(labels[1]).getAttribute('aria-controls')
       expect(controls).not.toBeNull()
       const panel = document.getElementById(controls!)
       expect(panel?.getAttribute('role')).toBe('tabpanel')
-      expect(panel?.getAttribute('aria-labelledby')).toBe(labels[1].id)
+      expect(panel?.getAttribute('aria-labelledby')).toBe(must(labels[1]).id)
     })
 
     it('ArrowRight/ArrowLeft move focus and activation between tabs, wrapping at the ends', async () => {
@@ -565,7 +566,7 @@ describe('session tabs', () => {
       await userEvent.click(sidebarSession('Fix CSV export bug'))
       await userEvent.click(sidebarSession('Add worktree switcher'))
       await until(() => all('session-tab').length === 2)
-      const [first, second] = all('session-tab-label')
+      const [first, second] = take(all('session-tab-label'), 2)
       expect(second.getAttribute('aria-selected')).toBe('true')
 
       second.focus()
@@ -591,14 +592,14 @@ describe('session tabs', () => {
       await userEvent.click(sidebarSession('Repo root session'))
       await until(() => all('session-tab').length === 3)
       const labels = all('session-tab-label')
-      labels[2].focus()
+      must(labels[2]).focus()
 
       await userEvent.keyboard('{Home}')
-      await until(() => labels[0].getAttribute('aria-selected') === 'true')
+      await until(() => must(labels[0]).getAttribute('aria-selected') === 'true')
       expect(document.activeElement).toBe(labels[0])
 
       await userEvent.keyboard('{End}')
-      await until(() => labels[2].getAttribute('aria-selected') === 'true')
+      await until(() => must(labels[2]).getAttribute('aria-selected') === 'true')
       expect(document.activeElement).toBe(labels[2])
     })
 

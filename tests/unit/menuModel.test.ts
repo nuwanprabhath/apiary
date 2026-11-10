@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import { serializeMenu, itemAtPath, type MenuItemLike } from '../../src/main/ipc/menuModel'
 import { displayAccelerator } from '@shared/domain/windowChrome'
@@ -21,11 +22,11 @@ const MENU: MenuItemLike[] = [
 describe('the application menu as the themed menu bar draws it', () => {
   it('drops hidden items and mnemonics, formats shortcuts, and fills in a role\'s implicit one', () => {
     const [file, view] = serializeMenu(MENU, false)
-    expect(file.label).toBe('File')
-    expect(file.submenu?.map((n) => n.label)).toEqual(['New Window', '', 'Quit'])
-    expect(file.submenu?.[0].accelerator).toBe('Ctrl+N')
-    expect(file.submenu?.[2].accelerator).toBe('Ctrl+Q')
-    expect(view.submenu?.[0]).toMatchObject({ kind: 'checkbox', checked: true, accelerator: 'F11' })
+    expect(must(file).label).toBe('File')
+    expect(must(file).submenu?.map((n) => n.label)).toEqual(['New Window', '', 'Quit'])
+    expect(must(must(file).submenu?.[0]).accelerator).toBe('Ctrl+N')
+    expect(must(must(file).submenu?.[2]).accelerator).toBe('Ctrl+Q')
+    expect(must(view).submenu?.[0]).toMatchObject({ kind: 'checkbox', checked: true, accelerator: 'F11' })
   })
 
   it('finds an item by the same visible-item path the renderer was given', () => {

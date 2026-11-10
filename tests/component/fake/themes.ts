@@ -11,6 +11,7 @@ import { BUILTIN_THEMES } from '@shared/theme/builtins'
 import { THEME_MODELS } from '@shared/theme/models'
 import { validateTheme } from '@shared/theme/validate'
 import type { Env } from './state'
+import { must } from '../must'
 
 type ThemesApi = Pick<ApiaryApi,
   | 'themeState' | 'themeGpuCompositing' | 'themeApply' | 'themeSave' | 'themeRename' | 'themeDelete' | 'themeSetOptions'
@@ -76,7 +77,7 @@ export function themesApi(env: Env): ThemesApi {
     },
     themeGenerate: async (request) => {
       if (request.trim() === '') throw new Error('Describe the theme you would like.')
-      return { spec: validateTheme(BUILTIN_THEMES[0].spec).spec, note: null }
+      return { spec: validateTheme(must(BUILTIN_THEMES[0]).spec).spec, note: null }
     },
     themeGenerateCancel: () => {},
   }

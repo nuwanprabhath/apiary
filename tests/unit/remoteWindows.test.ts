@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, expect, it, vi } from 'vitest'
 import { IPC, type IpcKey } from '@shared/ipc/contract'
 import { RemoteWindows, type RemoteLink } from '../../src/main/remote/remoteWindows'
@@ -146,8 +147,8 @@ describe('broadcast to a window that shows a work machine', () => {
     broadcast(IPC.treeChanged)
     broadcast(IPC.toggleSidebar)
     dispose()
-    expect(fakeWindows[0].sent).toEqual([IPC.treeChanged.channel, IPC.toggleSidebar.channel])
-    expect(fakeWindows[1].sent).toEqual([IPC.toggleSidebar.channel])
+    expect(must(fakeWindows[0]).sent).toEqual([IPC.treeChanged.channel, IPC.toggleSidebar.channel])
+    expect(must(fakeWindows[1]).sent).toEqual([IPC.toggleSidebar.channel])
   })
 })
 

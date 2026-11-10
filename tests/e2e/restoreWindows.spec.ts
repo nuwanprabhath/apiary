@@ -57,7 +57,7 @@ test('the layout returns after quitting by closing the last window, not just via
       const data = JSON.parse(readFileSync(layoutFile, 'utf8')) as
         { windows: { layout: { panes: { activeTab: string | null }[] } }[] }
       const panes = data.windows[0]?.layout.panes ?? []
-      return panes.length === 2 && (panes[1].activeTab ?? '').includes(STANDARD_SESSIONS.switcher.id)
+      return panes.length === 2 && (panes[1]?.activeTab ?? '').includes(STANDARD_SESSIONS.switcher.id)
     } catch {
       return false
     }

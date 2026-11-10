@@ -6,6 +6,7 @@ import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 import { taskNotificationIds } from '@shared/chatTimeline'
 import type { TranscriptFindResult } from '@shared/ipc/contract'
 import { forEachLine, MAX_LINE_CHARS, readExact } from './jsonlLines'
+import { decodeEntry, entryOf, type ClaudeEntry, type MessageContent, type Origin } from './claudeEntry'
 
 /** A line longer than this is skipped by its length alone (4 bytes covers any character in `MAX_LINE_CHARS`). */
 const SKIP_LINE_BYTES = MAX_LINE_CHARS * 4
@@ -15,13 +16,6 @@ const MAX_READ_BYTES = 4 * 1024 * 1024
 const MAX_PAGE_BYTES = 16 * 1024 * 1024
 
 const DEFAULT_LIMIT = TRANSCRIPT_PAGE_SIZE
-
-/** Coerces a JSONL field of unknown shape to a string; a malformed line gives `fallback`, not '[object Object]'. */
-function asString(value: unknown, fallback: string): string {
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  return fallback
-}
 
 interface Index {
   offsets: number[]
@@ -100,48 +94,40 @@ async function scanFrom(
   return { offsets, messageCount, endsWithNewline }
 }
 
-function mapBlocks(_role: 'user' | 'assistant', content: unknown): TranscriptBlock[] {
+function mapBlocks(content: MessageContent): TranscriptBlock[] {
   if (typeof content === 'string') return [{ type: 'text', text: content }]
-  if (!Array.isArray(content)) return []
+  if (content === undefined) return []
 
   const blocks: TranscriptBlock[] = []
-  for (const raw of content) {
-    if (!raw || typeof raw !== 'object') continue
-    const b = raw as Record<string, unknown>
+  for (const b of content) {
     switch (b.type) {
       case 'text':
-        if (typeof b.text === 'string') blocks.push({ type: 'text', text: b.text })
+        if (b.text !== undefined) blocks.push({ type: 'text', text: b.text })
         break
       case 'thinking':
-        if (typeof b.thinking === 'string') blocks.push({ type: 'thinking', text: b.thinking })
+        if (b.thinking !== undefined) blocks.push({ type: 'thinking', text: b.thinking })
         break
       case 'tool_use':
-        blocks.push({
-          type: 'tool_use',
-          id: asString(b.id, ''),
-          name: asString(b.name, 'unknown'),
-          input: b.input,
-        })
+        blocks.push({ type: 'tool_use', id: b.id ?? '', name: b.name ?? 'unknown', input: b.input })
         break
       case 'image': {
         // Claude records a pasted image as base64 plus media type; a data URL keeps that shape out of
         // the renderer. Any other source shape is skipped.
-        const source = (b as { source?: { type?: string; media_type?: string; data?: string } }).source
-        if (source?.type === 'base64' && typeof source.data === 'string' && source.data !== '') {
-          const mediaType = typeof source.media_type === 'string' ? source.media_type : 'image/png'
-          blocks.push({ type: 'image', dataUrl: `data:${mediaType};base64,${source.data}` })
+        const source = b.source
+        if (source?.type === 'base64' && source.data !== undefined && source.data !== '') {
+          blocks.push({ type: 'image', dataUrl: `data:${source.mediaType ?? 'image/png'};base64,${source.data}` })
         }
         break
       }
       case 'tool_result':
         blocks.push({
           type: 'tool_result',
-          toolUseId: asString(b.tool_use_id, ''),
+          toolUseId: b.toolUseId ?? '',
           content: typeof b.content === 'string' ? b.content : JSON.stringify(b.content),
-          isError: b.is_error === true,
+          isError: b.isError,
         })
         break
-      default:
+      case 'other':
         break
     }
   }
@@ -154,18 +140,32 @@ function mapBlocks(_role: 'user' | 'assistant', content: unknown): TranscriptBlo
  * the very same entries, uuid and all, before they reach the file.
  */
 export function toMessage(entry: Record<string, unknown>): TranscriptMessage | null {
-  const role = entry.type
-  const ts = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : NaN
-  const base = { uuid: asString(entry.uuid, ''), timestampMs: Number.isNaN(ts) ? null : ts, isSidechain: entry.isSidechain === true }
-  if (role === 'attachment') return queuedMessage(entry, base)
-  if (role === 'system') return systemEvent(entry, base)
-  if (role === 'queue-operation') return queuedTaskEnd(entry, base)
-  if (role !== 'user' && role !== 'assistant') return null
-  const message = entry.message as { content?: unknown } | undefined
-  if (!message) return null
-  const blocks = mapBlocks(role, message.content)
-  const folded = role === 'user' ? peerMessage(entry.origin, blocks) ?? loadedContext(entry, blocks) : null
-  return { ...base, role, blocks: folded === null ? blocks : [folded] }
+  const decoded = entryOf(entry)
+  return decoded === null ? null : entryMessage(decoded)
+}
+
+/** A decoded entry as a transcript message, or null for anything the transcript does not show. */
+export function entryMessage(entry: ClaudeEntry): TranscriptMessage | null {
+  const ts = entry.timestamp === undefined ? NaN : Date.parse(entry.timestamp)
+  const base = { uuid: entry.uuid ?? '', timestampMs: Number.isNaN(ts) ? null : ts, isSidechain: entry.isSidechain }
+  switch (entry.type) {
+    case 'attachment': return queuedMessage(entry.attachment, base)
+    case 'system': return systemEvent(entry.subtype, entry.durationMs, entry.content, base)
+    case 'queue-operation': return queuedTaskEnd(entry.operation, entry.content, base)
+    case 'assistant':
+      if (!entry.message) return null
+      return { ...base, role: 'assistant', blocks: mapBlocks(entry.message.content) }
+    case 'user': {
+      if (!entry.message) return null
+      const blocks = mapBlocks(entry.message.content)
+      const folded = peerMessage(entry.origin, blocks) ?? loadedContext(entry.isMeta, entry.sourceToolUseID, blocks)
+      return { ...base, role: 'user', blocks: folded === null ? blocks : [folded] }
+    }
+    case 'custom-title':
+    case 'ai-title':
+    case 'other':
+      return null
+  }
 }
 
 /** How a skill's instructions begin when Claude Code loads them (measured on 2.1.302). */
@@ -176,8 +176,8 @@ const SKILL_BASE = /^Base directory for this skill: (\S+)/
  * and the `sourceToolUseID` of the call that loaded it, a skill's instructions above all (pages of
  * them, which the chat drew as if you had written them).
  */
-function loadedContext(entry: Record<string, unknown>, blocks: TranscriptBlock[]): TranscriptBlock | null {
-  if (entry.isMeta !== true || typeof entry.sourceToolUseID !== 'string') return null
+function loadedContext(isMeta: boolean, sourceToolUseID: string | undefined, blocks: TranscriptBlock[]): TranscriptBlock | null {
+  if (!isMeta || sourceToolUseID === undefined) return null
   const text = blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n')
   if (text.trim() === '') return null
   const dir = SKILL_BASE.exec(text)?.[1] ?? null
@@ -198,29 +198,28 @@ function withoutHandbackFrame(body: string): string {
  * `user` entry with `origin: { kind: 'peer', name, body }` (measured on 2.1.302). `body` is the
  * sender's own words, without the framing around them in the entry's text.
  */
-function peerMessage(origin: unknown, blocks: TranscriptBlock[]): TranscriptBlock | null {
-  const o = origin as { kind?: unknown; name?: unknown; body?: unknown } | undefined
-  if (o?.kind !== 'peer') return null
-  const body = typeof o.body === 'string' && o.body.trim() !== '' ? withoutHandbackFrame(o.body) : null
+function peerMessage(origin: Origin | undefined, blocks: TranscriptBlock[]): TranscriptBlock | null {
+  if (origin?.kind !== 'peer') return null
+  const body = origin.body !== undefined && origin.body.trim() !== '' ? withoutHandbackFrame(origin.body) : null
   const text = body ?? blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n')
-  return { type: 'peer_message', from: typeof o.name === 'string' && o.name !== '' ? o.name : null, text }
+  return { type: 'peer_message', from: origin.name !== undefined && origin.name !== '' ? origin.name : null, text }
 }
 
 type MessageBase = Pick<TranscriptMessage, 'uuid' | 'timestampMs' | 'isSidechain'>
+type Attachment = Extract<ClaudeEntry, { type: 'attachment' }>['attachment']
 
 /**
  * A message sent while Claude was mid-turn. Claude Code records it not as a `user` entry but as an
  * `attachment` of type `queued_command`, after the tool result it followed. It is filed under its
  * `source_uuid` (the uuid chat mode's stream replays it under) so the live copy and this one merge.
  */
-function queuedMessage(entry: Record<string, unknown>, base: MessageBase): TranscriptMessage | null {
-  const a = entry.attachment as { type?: unknown; prompt?: unknown; source_uuid?: unknown; origin?: unknown } | undefined
+function queuedMessage(a: Attachment, base: MessageBase): TranscriptMessage | null {
   if (a?.type !== 'queued_command') return null
-  const blocks = mapBlocks('user', a.prompt)
+  const blocks = mapBlocks(a.prompt)
   if (blocks.length === 0) return null
   // A subagent's report that arrived mid-turn is queued like this, its peer origin inside.
   const peer = peerMessage(a.origin, blocks)
-  return { ...base, uuid: asString(a.source_uuid, base.uuid), role: 'user', blocks: peer === null ? blocks : [peer] }
+  return { ...base, uuid: a.sourceUuid ?? base.uuid, role: 'user', blocks: peer === null ? blocks : [peer] }
 }
 
 /**
@@ -228,20 +227,22 @@ function queuedMessage(entry: Record<string, unknown>, base: MessageBase): Trans
  * often never delivered as a message (the session moved on or ended first), and without it the
  * task looked as if it ran forever, keeping its tab "working" (measured on 2.1.302).
  */
-function queuedTaskEnd(entry: Record<string, unknown>, base: MessageBase): TranscriptMessage | null {
-  if (entry.operation !== 'enqueue' || typeof entry.content !== 'string' || !entry.content.includes('<task-notification>')) return null
-  const taskIds = taskNotificationIds(entry.content)
+function queuedTaskEnd(operation: string | undefined, content: MessageContent, base: MessageBase): TranscriptMessage | null {
+  if (operation !== 'enqueue' || typeof content !== 'string' || !content.includes('<task-notification>')) return null
+  const taskIds = taskNotificationIds(content)
   if (taskIds.length === 0) return null
   return { ...base, role: 'assistant', blocks: [{ type: 'task_ended', taskIds }] }
 }
 
 /** The two `system` entries the chat view shows: a turn's duration and a recap. */
-function systemEvent(entry: Record<string, unknown>, base: MessageBase): TranscriptMessage | null {
-  if (entry.subtype === 'turn_duration' && typeof entry.durationMs === 'number') {
-    return { ...base, role: 'assistant', blocks: [{ type: 'turn_end', durationMs: entry.durationMs }] }
+function systemEvent(
+  subtype: string | undefined, durationMs: number | undefined, content: MessageContent, base: MessageBase,
+): TranscriptMessage | null {
+  if (subtype === 'turn_duration' && durationMs !== undefined) {
+    return { ...base, role: 'assistant', blocks: [{ type: 'turn_end', durationMs }] }
   }
-  if (entry.subtype === 'away_summary' && typeof entry.content === 'string' && entry.content.trim() !== '') {
-    return { ...base, role: 'assistant', blocks: [{ type: 'recap', text: entry.content }] }
+  if (subtype === 'away_summary' && typeof content === 'string' && content.trim() !== '') {
+    return { ...base, role: 'assistant', blocks: [{ type: 'recap', text: content }] }
   }
   return null
 }
@@ -264,15 +265,13 @@ function parseMessageLines(text: string, firstIndex: number): { messages: Indexe
       lineIndex++
       continue
     }
-    let entry: Record<string, unknown>
-    try {
-      entry = JSON.parse(line) as Record<string, unknown>
-    } catch {
+    const entry = decodeEntry(line)
+    if (entry === null) {
       skippedLines++
       lineIndex++
       continue
     }
-    const m = toMessage(entry)
+    const m = entryMessage(entry)
     if (m) messages.push({ index: lineIndex, message: m })
     lineIndex++
   }
@@ -301,34 +300,34 @@ async function collectBackward(
   floor: number,
   limit: number,
 ): Promise<Collected> {
-  const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsets[i + 1] : size)
+  const offsetAt = (i: number): number => offsets[i] ?? size
+  const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsetAt(i + 1) : size)
   let held: IndexedMessage[] = []
-  let skippedLines = 0
-  let readBytes = 0
+  let skippedLines = 0, readBytes = 0
   let next = end - 1
   let handle: FileHandle | null = null
   try {
     while (next >= floor && held.length <= limit && readBytes < MAX_PAGE_BYTES) {
-      if (lineEnd(next) - offsets[next] > SKIP_LINE_BYTES) {
+      if (lineEnd(next) - offsetAt(next) > SKIP_LINE_BYTES) {
         skippedLines++
         next--
         continue
       }
       const room = Math.min(MAX_READ_BYTES, MAX_PAGE_BYTES - readBytes)
-      let bytes = lineEnd(next) - offsets[next]
+      let bytes = lineEnd(next) - offsetAt(next)
       if (bytes > room) break
       const runEnd = next
       let runStart = next
       while (runStart - 1 >= floor) {
-        const len = lineEnd(runStart - 1) - offsets[runStart - 1]
+        const len = lineEnd(runStart - 1) - offsetAt(runStart - 1)
         if (len > SKIP_LINE_BYTES || bytes + len > room) break
         bytes += len
         runStart--
       }
       handle ??= await open(filePath, 'r')
-      const length = lineEnd(runEnd) - offsets[runStart]
+      const length = lineEnd(runEnd) - offsetAt(runStart)
       const buffer = Buffer.alloc(length)
-      const got = await readExact(handle, buffer, offsets[runStart])
+      const got = await readExact(handle, buffer, offsetAt(runStart))
       const parsed = parseMessageLines(buffer.toString('utf8', 0, got), runStart)
       held = parsed.messages.concat(held)
       skippedLines += parsed.skippedLines
@@ -341,7 +340,7 @@ async function collectBackward(
   const overflow = Math.max(0, held.length - limit)
   const page = held.slice(overflow)
   const unread = next >= floor
-  const earlierCursor = overflow > 0 || (unread && page.length > 0) ? page[0].index : unread ? next + 1 : null
+  const earlierCursor = overflow > 0 || (unread && page.length > 0) ? (page[0]?.index ?? null) : unread ? next + 1 : null
   return { messages: page, earlierCursor, skippedLines }
 }
 
@@ -356,29 +355,30 @@ function shownText(m: TranscriptMessage): string {
 
 function lineMessage(line: string): TranscriptMessage | null {
   // A line that is not JSON is no message, here as in a page (where `skippedLines` counts it).
-  try { return toMessage(JSON.parse(line) as Record<string, unknown>) } catch { return null }
+  const entry = decodeEntry(line)
+  return entry === null ? null : entryMessage(entry)
 }
 
 /** Lines `first` onwards, oldest first, until `limit` messages, the end, or `MAX_PAGE_BYTES` of lines. */
 async function collectForward(
   filePath: string, offsets: number[], size: number, first: number, limit: number,
 ): Promise<Collected> {
-  const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsets[i + 1] : size)
+  const offsetAt = (i: number): number => offsets[i] ?? size
+  const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsetAt(i + 1) : size)
   const held: IndexedMessage[] = []
-  let skippedLines = 0
-  let readBytes = 0
+  let skippedLines = 0, readBytes = 0
   let next = first
   let handle: FileHandle | null = null
   try {
     while (next < offsets.length && held.length < limit && readBytes < MAX_PAGE_BYTES) {
-      if (lineEnd(next) - offsets[next] > SKIP_LINE_BYTES) { skippedLines++; next++; continue }
+      if (lineEnd(next) - offsetAt(next) > SKIP_LINE_BYTES) { skippedLines++; next++; continue }
       let runEnd = next + 1
-      while (runEnd < offsets.length && lineEnd(runEnd) - offsets[runEnd] <= SKIP_LINE_BYTES
-        && lineEnd(runEnd) - offsets[next] <= MAX_READ_BYTES) runEnd++
+      while (runEnd < offsets.length && lineEnd(runEnd) - offsetAt(runEnd) <= SKIP_LINE_BYTES
+        && lineEnd(runEnd) - offsetAt(next) <= MAX_READ_BYTES) runEnd++
       handle ??= await open(filePath, 'r')
-      const length = lineEnd(runEnd - 1) - offsets[next]
+      const length = lineEnd(runEnd - 1) - offsetAt(next)
       const buffer = Buffer.alloc(length)
-      const parsed = parseMessageLines(buffer.toString('utf8', 0, await readExact(handle, buffer, offsets[next])), next)
+      const parsed = parseMessageLines(buffer.toString('utf8', 0, await readExact(handle, buffer, offsetAt(next))), next)
       held.push(...parsed.messages)
       skippedLines += parsed.skippedLines
       readBytes += length
@@ -504,8 +504,9 @@ export class TranscriptReader {
     const indexes: number[] = []
     if (needle === '') return { indexes, cursor: null }
     const { offsets, size } = await this.indexTranscript(filePath)
-    const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsets[i + 1] : size)
-    const lineBytes = (i: number): number => lineEnd(i) - offsets[i]
+    const offsetAt = (i: number): number => offsets[i] ?? size
+    const lineEnd = (i: number): number => (i + 1 < offsets.length ? offsetAt(i + 1) : size)
+    const lineBytes = (i: number): number => lineEnd(i) - offsetAt(i)
     const valid = before !== null && Number.isSafeInteger(before) && before >= 0
     const started = Date.now()
     let next = (valid ? Math.min(before, offsets.length) : offsets.length) - 1
@@ -515,9 +516,9 @@ export class TranscriptReader {
       let bytes = lineBytes(next)
       while (runStart > 0 && lineBytes(runStart - 1) <= SKIP_LINE_BYTES && bytes + lineBytes(runStart - 1) <= MAX_READ_BYTES) bytes += lineBytes(--runStart)
       const lines: string[] = []
-      await forEachLine(filePath, { start: offsets[runStart], end: lineEnd(next), maxLineBytes: SKIP_LINE_BYTES }, (l) => { lines.push(l) })
+      await forEachLine(filePath, { start: offsetAt(runStart), end: lineEnd(next), maxLineBytes: SKIP_LINE_BYTES }, (l) => { lines.push(l) })
       for (let k = lines.length - 1; k >= 0; k--) {
-        const m = lineMessage(lines[k])
+        const m = lineMessage(lines[k] ?? '')
         if (m === null || !shownText(m).toLowerCase().includes(needle)) continue
         indexes.push(runStart + k)
         if (indexes.length === FIND_HITS) return { indexes, cursor: runStart + k }

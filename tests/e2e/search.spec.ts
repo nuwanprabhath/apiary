@@ -9,7 +9,7 @@ import { launchApiary, importAll, type Harness } from './helpers'
  */
 async function openSettings(h: Harness): Promise<void> {
   await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog')
+    BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog')
   })
   await expect(h.page.getByTestId('settings-dialog')).toBeVisible()
 }

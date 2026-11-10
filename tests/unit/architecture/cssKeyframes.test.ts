@@ -1,3 +1,4 @@
+import { must } from '../support/must'
 import { describe, it, expect } from 'vitest'
 import { judge, loadAllow, read, staleReport, walk } from './allowlist'
 
@@ -41,11 +42,11 @@ describe('@keyframes names are unique across the renderer stylesheets', () => {
     const css = read(file).replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '))
     for (const m of css.matchAll(KEYFRAMES)) {
       const line = css.slice(0, m.index).split('\n').length
-      where.set(m[1], [...(where.get(m[1]) ?? []), `${file}:${line}`])
+      where.set(must(m[1]), [...(where.get(must(m[1])) ?? []), `${file}:${line}`])
     }
     for (const m of css.matchAll(ANIMATION)) {
       const line = css.slice(0, m.index).split('\n').length
-      for (const name of namesIn(m[1])) used.push({ name, site: `${file}:${line}` })
+      for (const name of namesIn(must(m[1]))) used.push({ name, site: `${file}:${line}` })
     }
   }
   const dupes = new Map([...where].filter(([, sites]) => sites.length > 1))

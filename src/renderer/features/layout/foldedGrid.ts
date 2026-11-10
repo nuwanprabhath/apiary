@@ -19,8 +19,9 @@ export function foldedTemplate(
   const def = presetDef(preset)
   if (def.rows !== 2 || !folded.some(Boolean)) return null
   const [top, bottom] = def.areas.map((r) => r.split(/\s+/))
-  const isFolded = (name: string): boolean => folded[Number(name.slice(1)) - 1] === true
-  const line = (pick: (t: string, b: string) => string): string => `"${top.map((t, c) => pick(t, bottom[c])).join(' ')}"`
+  if (top === undefined || bottom === undefined) return null
+  const isFolded =(name: string): boolean => folded[Number(name.slice(1)) - 1] === true
+  const line = (pick: (t: string, b: string) => string): string => `"${top.map((t, c) => pick(t, bottom[c] ?? '')).join(' ')}"`
   const areas = [
     line((t) => t),
     line((t, b) => (isFolded(t) ? b : t)),

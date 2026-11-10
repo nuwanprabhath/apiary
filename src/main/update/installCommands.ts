@@ -132,7 +132,7 @@ export function startCommand(input: { binary: string; args: string[]; env: Recor
 /** The running `.app` bundle, from `process.execPath` (`…/Apiary.app/Contents/MacOS/Apiary`); never assumed to be in /Applications. */
 export function bundleFromExecPath(execPath: string): string | null {
   const match = /^(.*?\.app)\/Contents\/MacOS\/[^/]+$/.exec(execPath)
-  return match === null ? null : match[1]
+  return match?.[1] ?? null
 }
 
 export interface MacScriptInput {

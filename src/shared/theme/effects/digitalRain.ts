@@ -20,7 +20,7 @@ export const digitalRain: Effect = {
         const y = head - k * size
         if (y < -size || y > h + size) continue
         const tick = Math.floor(t * (4 + speed * 10)) + k
-        const glyph = GLYPHS[Math.floor(hash(col * 131 + k, tick) * GLYPHS.length)]
+        const glyph = GLYPHS.charAt(Math.floor(hash(col * 131 + k, tick) * GLYPHS.length))
         ctx.globalAlpha = intensity * this.maxOpacity * (1 - k / trail)
         ctx.fillText(glyph, x, y)
       }

@@ -344,7 +344,7 @@ export class Brain {
   private line(m: PetMind, situation: Situation): string | null {
     const lines = m.pet.lines[situation] ?? m.pet.lines.idle ?? []
     if (lines.length === 0) return null
-    return lines[Math.floor(this.rand() * lines.length)]
+    return lines[Math.floor(this.rand() * lines.length)] ?? null
   }
 
   /** Says a line for the situation if the pet has not spoken within `gap`. */
@@ -427,6 +427,7 @@ export class Brain {
     if (candidates.length === 0) return out
     candidates.sort((a, b) => Math.abs(this.toS(a.pet.place) - target) - Math.abs(this.toS(b.pet.place) - target))
     const m = candidates[0]
+    if (m === undefined) return out
     this.afterWalk.set(m.pet.id, 'point')
     out.push(this.walkTo(m, this.freeSpot(m, target), 'run', RUN_PX_PER_S))
     return out
@@ -443,6 +444,7 @@ export class Brain {
     // The most curious goes, more often than not.
     free.sort((a, b) => b.pet.traits.curiosity - a.pet.traits.curiosity)
     const m = this.rand() < 0.7 ? free[0] : free[Math.floor(this.rand() * free.length)]
+    if (m === undefined) return []
     if (this.workingAt === null || this.reducedMotion) {
       this.become(m, 'watch', 'focused', 6000)
       return [{ ...this.command(m), ask: 'comment' }]
@@ -472,6 +474,7 @@ export class Brain {
         if (others.length === 0) return [this.command(m)]
         others.sort((a, b) => Math.abs(this.toS(a.pet.place) - this.toS(m.pet.place)) - Math.abs(this.toS(b.pet.place) - this.toS(m.pet.place)))
         const visited = others[0]
+        if (visited === undefined) return [this.command(m)]
         this.conversation = { petIds: [m.pet.id, visited.pet.id], turns: 0 }
       }
 
@@ -544,6 +547,7 @@ export class Brain {
       }
       case 'visit': {
         const friend = others[Math.floor(this.rand() * others.length)]
+        if (friend === undefined) return [this.command(m)]
         const there = this.toS(friend.pet.place)
         const here = this.toS(m.pet.place)
         const gap = this.gap(m, friend) + 6
@@ -588,6 +592,7 @@ export class Brain {
     const out: Command[] = []
     if (sc.kind === 'drive') {
       const m = members[0]
+      if (m === undefined) return this.endScene()
       if (m.left <= 0) {
         const leg = sc.legs.shift()
         if (leg === undefined) return this.endScene()
@@ -596,11 +601,13 @@ export class Brain {
     }
     if (sc.kind === 'parachute') {
       const m = members[0]
+      if (m === undefined) return this.endScene()
       if (m.left <= 0 && m.activity === 'parachute') return this.endScene()
     }
     if (sc.kind === 'fish' && !sc.landed && sc.left < 15_000) {
       sc.landed = true
       const m = members[0]
+      if (m === undefined) return this.endScene()
       this.become(m, 'fishcaught', 'love', 1e12)
       this.lastSaid = { text: 'Got one!', kind: 'speech' }
       m.sinceSpoke = 0
@@ -653,7 +660,10 @@ export class Brain {
       const s = this.toS(o.pet.place)
       // Asleep, it would not move out of the way: keep clear of it altogether. Awake, it will.
       if (o.activity === 'sleep' || o.forcedSleep || o.activity === 'held') return s + o.pet.size / 2 <= c - span || s - o.pet.size / 2 >= c + span
-      return spots[kind].every((d, i) => Math.abs(s - (c + d)) >= this.gap(cast[i], o))
+      return spots[kind].every((d, i) => {
+        const caster = cast[i]
+        return caster === undefined || Math.abs(s - (c + d)) >= this.gap(caster, o)
+      })
     })
     let centre = kind === 'parachute' ? -(HOP_PX + this.rail) : Number.NaN
     // Near where the cast already is, so the scene starts soon; further afield if that is taken.
@@ -672,7 +682,7 @@ export class Brain {
     let longest = 0
     cast.forEach((m, i) => {
       this.afterWalk.delete(m.pet.id)
-      const target = kind === 'parachute' ? centre : centre + spots[kind][i]
+      const target = kind === 'parachute' ? centre : centre + (spots[kind][i] ?? 0)
       // The giver fetches a snack on the way over.
       const walk = this.walkTo(m, target, kind === 'share' && i === 0 ? 'carry' : kind === 'parachute' ? 'climb' : 'walk', kind === 'parachute' ? CLIMB_PX_PER_S : WALK_PX_PER_S * 1.6)
       longest = Math.max(longest, walk.ms)
@@ -701,6 +711,7 @@ export class Brain {
       case 'catch':
       case 'tennis': {
         const [a, b] = members
+        if (a === undefined || b === undefined) return out
         face(a, b)
         face(b, a)
         const period = sc.kind === 'tennis' ? 1400 : 1800
@@ -710,6 +721,7 @@ export class Brain {
       }
       case 'share': {
         const [giver, taker] = members
+        if (giver === undefined || taker === undefined) return out
         face(giver, taker)
         face(taker, giver)
         for (const m of members) this.become(m, 'eat', 'love', 1e12)
@@ -721,15 +733,19 @@ export class Brain {
       case 'picnic':
         members.forEach((m, i) => { this.become(m, i % 2 === 0 ? 'eat' : 'drink', 'love', 1e12) })
         break
-      case 'fish':
-        members[0].facing = 'right'
-        this.become(members[0], 'fish', 'focused', 1e12)
+      case 'fish': {
+        const angler = members[0]
+        if (angler === undefined) return out
+        angler.facing = 'right'
+        this.become(angler, 'fish', 'focused', 1e12)
         break
+      }
       case 'tree':
         for (const m of members) this.become(m, 'read', 'focused', 1e12)
         break
       case 'drive': {
         const m = members[0]
+        if (m === undefined) return out
         const here = this.toS(m.pet.place)
         sc.legs = [this.bar * this.between(0.75, 0.95), this.bar * this.between(0.05, 0.2), here]
         sc.left = 1e12
@@ -739,6 +755,7 @@ export class Brain {
       }
       case 'parachute': {
         const m = members[0]
+        if (m === undefined) return out
         out.push(this.walkTo(m, -HOP_PX, 'parachute', PARACHUTE_PX_PER_S))
         sc.left = 1e12
         return out

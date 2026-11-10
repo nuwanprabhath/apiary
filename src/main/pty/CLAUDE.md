@@ -49,7 +49,9 @@ xterm's write callback); `WindowAttachments` counts what each attached window ha
 pauses the pty at 1 MB behind for the slowest window and resumes it at 256 KB or when that window
 detaches. Only the child's reads stop (`pauseOutput`, on the read handle: node-pty's own `pause()`
 never reads again on macOS if output is waiting at `resume()`); the headless screen sees every byte
-that is read. One coalescer flush sends at most 256 KB.
+that is read. One coalescer flush sends at most 256 KB. **Not on Linux** (`PAUSES_READS`): there
+neither way of pausing reads again after a resume, so the pty is never paused and only the flush
+cap applies.
 
 ## Minimal prompt
 

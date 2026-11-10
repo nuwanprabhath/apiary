@@ -204,7 +204,7 @@ describe('PtyManager', () => {
       .toThrow(/does not exist/i)
   })
 
-  it('pauseOutput stops reading a pty until resumeOutput, and nothing it wrote is lost', async () => {
+  it.runIf(process.platform !== 'linux')('pauseOutput stops reading a pty until resumeOutput, and nothing it wrote is lost', async () => {
     manager = new PtyManager()
     const m = manager
     let seen = ''
@@ -217,6 +217,20 @@ describe('PtyManager', () => {
     await stays(() => !seen.includes('APIARY_AFTERgo'), 600, 'no output while paused')
     m.resumeOutput('flow')
     await vi.waitFor(() => { expect(seen).toContain('APIARY_AFTERgo') }, { timeout: 3000 })
+  }, 10000)
+
+  it.runIf(process.platform === 'linux')('on Linux pauseOutput leaves the pty reading, so a terminal never freezes', async () => {
+    manager = new PtyManager()
+    const m = manager
+    let seen = ''
+    m.onData((id, data) => { if (id === 'flow') seen += data })
+    const ready = collect(m, 'flow', /APIARY_READY/)
+    m.spawn({ id: 'flow', cwd: process.cwd(), command: 'echo APIARY_READY; read x; echo APIARY_AFTER$x' })
+    await ready
+    m.pauseOutput('flow')
+    m.write('flow', 'go\n')
+    await vi.waitFor(() => { expect(seen).toContain('APIARY_AFTERgo') }, { timeout: 3000 })
+    m.resumeOutput('flow')
   }, 10000)
 
   it('pauseOutput and resumeOutput on a pty that does not exist do nothing', () => {

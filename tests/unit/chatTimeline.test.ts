@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { describe, it, expect } from 'vitest'
 import type { TranscriptMessage } from '@shared/domain/transcript'
 import { BackgroundTaskTally, chatItems, describeTool, lastPrompt, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withFileDetails, withoutToolCalls } from '@shared/chatTimeline'
@@ -128,7 +129,7 @@ describe('chat timeline', () => {
     expect(runningBackgroundTasks([...file, ...stop('s1', 'TaskStop', { task_id: 'b1' }, true)]).map((t) => t.taskId)).toEqual(['b1', 'b2'])
     expect(runningBackgroundTasks([...file, ...stop('s1', 'KillShell', { shell_id: 'b2' }, false)]).map((t) => t.taskId)).toEqual(['b1'])
     // The stop call alone, before its result, does not end the task yet.
-    expect(runningBackgroundTasks([...file, stop('s1', 'TaskStop', { task_id: 'b1' }, false)[0]])).toHaveLength(2)
+    expect(runningBackgroundTasks([...file, must(stop('s1', 'TaskStop', { task_id: 'b1' }, false)[0])])).toHaveLength(2)
   })
 
   it('counts a background agent as a task, with when it started', () => {
@@ -199,9 +200,9 @@ describe('BackgroundTaskTally', () => {
   it('pairs a background call with its result when they arrive in different batches', () => {
     const [call, result] = startedInBackground('t1', 'b1')
     const tally = new BackgroundTaskTally()
-    tally.add([call])
+    tally.add([must(call)])
     expect(tally.tasks()).toEqual([])
-    tally.add([result])
+    tally.add([must(result)])
     expect(tally.tasks()).toMatchObject([{ taskId: 'b1', description: 'Task b1' }])
   })
 })

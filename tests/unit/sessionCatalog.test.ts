@@ -1,3 +1,4 @@
+import { must } from './support/must'
 import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect, vi } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -73,10 +74,10 @@ describe('SessionCatalog refresh state machine', () => {
     const b = h.catalog.refresh()
     const c = h.catalog.refresh()
     expect(h.passes()).toBe(1) // running: nobody started a second pass
-    h.scans[0]()
+    must(h.scans[0])()
     await tick()
     expect(h.passes()).toBe(2) // rerun-queued -> one chained pass, not two
-    h.scans[1]()
+    must(h.scans[1])()
     await Promise.all([a, b, c])
     expect(h.passes()).toBe(2)
   })
@@ -85,12 +86,12 @@ describe('SessionCatalog refresh state machine', () => {
     const h = harness()
     const a = h.catalog.refresh()
     await tick()
-    h.scans[0]()
+    must(h.scans[0])()
     await a
     const b = h.catalog.refresh()
     await tick()
     expect(h.passes()).toBe(2)
-    h.scans[1]()
+    must(h.scans[1])()
     await b
   })
 
@@ -99,13 +100,13 @@ describe('SessionCatalog refresh state machine', () => {
     const a = h.catalog.refresh()
     await tick()
     const b = h.catalog.refresh() // queues a rerun that must be dropped
-    h.scans[0]()
+    must(h.scans[0])()
     await expect(a).rejects.toThrow('boom')
     await expect(b).rejects.toThrow('boom')
     expect(h.passes()).toBe(1)
     const c = h.catalog.refresh()
     await tick()
-    h.scans[1]()
+    must(h.scans[1])()
     await c
     expect(h.passes()).toBe(2)
   })
@@ -117,7 +118,7 @@ describe('SessionCatalog refresh state machine', () => {
     void h.catalog.refresh()
     h.setDisposed()
     const idle = h.catalog.whenIdle()
-    h.scans[0]()
+    must(h.scans[0])()
     await Promise.all([a, idle])
     expect(h.passes()).toBe(1)
   })
@@ -127,7 +128,7 @@ describe('SessionCatalog refresh state machine', () => {
     const a = h.catalog.refresh().catch(() => {})
     await tick()
     const idle = h.catalog.whenIdle()
-    h.scans[0]()
+    must(h.scans[0])()
     await expect(idle).resolves.toBeUndefined()
     await a
   })
@@ -141,7 +142,7 @@ describe('SessionCatalog live map', () => {
     h.live.set('s1', 4242)
     const p = h.catalog.refresh()
     await tick()
-    h.scans[0]()
+    must(h.scans[0])()
     await p
     expect(h.catalog.isLive('s1')).toBe(true)
     expect(await h.catalog.checkConflict(asSessionId('s1'))).toEqual({ sessionId: asSessionId('s1'), pid: 4242 })
@@ -163,7 +164,7 @@ describe('SessionCatalog live-session detection is throttled (MAIN-1)', () => {
     await h.catalog.refresh({ paths: scoped })
     const full = h.catalog.refresh()
     await vi.waitFor(() => { expect(h.scans).toHaveLength(1) })
-    h.scans[0]()
+    must(h.scans[0])()
     await full
     expect(h.detects()).toBe(2)
   })
@@ -220,7 +221,7 @@ describe('SessionCatalog scoped and full passes', () => {
     const h = pruneHarness(['/a.jsonl', '/gone.jsonl'], ['/a.jsonl'])
     await h.catalog.refresh()
     expect(h.removeMissing).toHaveBeenCalledTimes(1)
-    const seen = h.removeMissing.mock.calls[0][0]
+    const seen = must(h.removeMissing.mock.calls[0])[0]
     expect(seen.has('/a.jsonl')).toBe(true)
     expect(seen.has('/gone.jsonl')).toBe(false)
     expect(h.updates).toEqual([{ sessionIds: null }])
@@ -241,7 +242,7 @@ describe('SessionCatalog scoped and full passes', () => {
       await h.catalog.refresh({ paths: [file] })
       expect(h.removeMissing).not.toHaveBeenCalled()
       expect(h.updates).toHaveLength(1)
-      expect(h.updates[0].sessionIds).toHaveLength(1)
+      expect(must(h.updates[0]).sessionIds).toHaveLength(1)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

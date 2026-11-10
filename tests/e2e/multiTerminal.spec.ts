@@ -137,7 +137,7 @@ test('the shell prompt is just "$" by default, and the full prompt is back with 
     [...el.children].map((r) => (r.textContent ?? '').replace(/\u00A0/g, ' ')).find((t) => t.includes(`echo ${m}`)) ?? '', marker)
   expect(await typedOn('MINIMAL_OK')).toMatch(/^\$ echo MINIMAL_OK/)
 
-  await h.app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].webContents.send('apiary:open-settings-dialog') })
+  await h.app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]?.webContents.send('apiary:open-settings-dialog') })
   await h.page.getByTestId('settings-nav-terminal').click()
   await expect(h.page.getByTestId('setting-terminal-minimal-prompt')).toBeChecked()
   await h.page.getByTestId('setting-terminal-minimal-prompt').click()

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
 import { log } from '../../src/main/log/logger'
+import { at } from '../contract/must'
 import { encodeFrame, encodeHandshakeFrame } from '../../src/main/remote/frames'
 import { RemoteConnection } from '../../src/main/remote/remoteConnection'
 import { RemoteServer } from '../../src/main/remote/remoteServer'
@@ -95,12 +96,12 @@ describe('RemoteConnection against a real RemoteServer', () => {
     c.openWindow(2)
     await c.invoke(2, 'activeTabs', [])
     await vi.waitFor(() => { expect(heard).toHaveLength(1) })
-    expect(heard[0].w).toBe(2)
-    expect(heard[0].channel).toBe('apiary:ping')
+    expect(at(heard, 0).w).toBe(2)
+    expect(at(heard, 0).channel).toBe('apiary:ping')
     c.closeWindow(2)
     await c.invoke(1, 'activeTabs', [])
     await vi.waitFor(() => { expect(heard).toHaveLength(2) })
-    expect(heard[1].w).toBe(1)
+    expect(at(heard, 1).w).toBe(1)
   })
 
   it("lists the work machine's window layouts", async () => {

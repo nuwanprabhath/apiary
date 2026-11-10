@@ -12,6 +12,7 @@ import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 import { forkLabel } from '@shared/forkLabel'
 import { asSessionId } from '@shared/domain/ids'
 import type { Env, FakeSession } from './state'
+import { must } from '../must'
 
 type SessionsApi = Pick<ApiaryApi,
   | 'refresh' | 'tree' | 'discovered' | 'importSessions' | 'transcript' | 'transcriptAfter' | 'transcriptFind' | 'backgroundTaskOutput' | 'checkConflict' | 'resume' | 'renameSession'
@@ -110,7 +111,7 @@ export function sessionsApi(env: Env): SessionsApi {
       const indexes: number[] = []
       if (needle === '') return { indexes, cursor: null }
       for (let i = Math.min(before ?? all.length, all.length) - 1; i >= 0; i--) {
-        const shown = all[i].blocks.map((b) => ('text' in b ? b.text : b.type === 'tool_use' ? b.name : '')).join('\n')
+        const shown = must(all[i]).blocks.map((b) => ('text' in b ? b.text : b.type === 'tool_use' ? b.name : '')).join('\n')
         if (!shown.toLowerCase().includes(needle)) continue
         indexes.push(i)
         if (indexes.length === 50) return { indexes, cursor: i }

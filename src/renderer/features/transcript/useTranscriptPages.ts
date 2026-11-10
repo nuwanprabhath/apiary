@@ -138,6 +138,9 @@ export function useTranscriptPages(
   }, [sessionId, stickToBottomRef, forceScrollRef, findOpenRef, commit])
 
   const loadEarlier = useCallback(() => {
+    // The ref, not the render's `cursor`: a second call before the re-render would ask for the same
+    // page again and hold its messages twice.
+    const cursor = cursorRef.current
     if (cursor === null || loadingEarlierRef.current) return
     const requestedGeneration = generationRef.current
     loadingEarlierRef.current = true
@@ -149,7 +152,7 @@ export function useTranscriptPages(
         // leave the reader at the new first row; remember the height to restore the offset.
         const el = tail.containerRef.current
         if (el !== null && el.scrollTop === 0) topAnchorRef.current = el.scrollHeight
-        const joined = [...page.messages, ...messagesRef.current]
+        const joined = [...olderThanHeld(page.messages, messagesRef.current), ...messagesRef.current]
         // Reading history: past the limit the newest go, and load back on scrolling down. While the
         // find bar is open nothing is trimmed.
         const held = findOpenRef.current ? null : windowHeld(joined, laterRef.current, 'newest')
@@ -165,7 +168,7 @@ export function useTranscriptPages(
         loadingEarlierRef.current = false
         setLoadingEarlier(false)
       })
-  }, [cursor, sessionId, commit, tail.containerRef, findOpenRef])
+  }, [sessionId, commit, tail.containerRef, findOpenRef])
 
   useLoadLaterAtBottom(tail.containerRef, { sessionId, generationRef, messagesRef, cursorRef, laterRef, commit })
 
@@ -237,7 +240,7 @@ function useLoadLaterAtBottom(containerRef: RefObject<HTMLElement | null>, held:
           if (generationRef.current !== requestedGeneration) return
           // A short page is the end of the file: the newest message is held again.
           const later = page.messages.length < TRANSCRIPT_PAGE_SIZE ? null : page.messages.at(-1)?.index ?? null
-          const kept = windowHeld([...messagesRef.current, ...page.messages], cursorRef.current)
+          const kept = windowHeld([...messagesRef.current, ...newerThanHeld(page.messages, messagesRef.current)], cursorRef.current)
           commit(kept.messages, kept.cursor, later)
         })
         .catch((e: unknown) => { logBackgroundFailure(e, 'refresh') })
@@ -253,4 +256,17 @@ function useLoadLaterAtBottom(containerRef: RefObject<HTMLElement | null>, held:
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => { el.removeEventListener('scroll', onScroll) }
   }, [containerRef])
+}
+
+/** The page's messages that come before everything held, so a page that overlaps is never held twice. */
+function olderThanHeld(page: TranscriptMessage[], held: TranscriptMessage[]): TranscriptMessage[] {
+  const first = held.find((m) => m.index !== undefined)?.index
+  return first === undefined ? page : page.filter((m) => m.index === undefined || m.index < first)
+}
+
+/** The page's messages that come after everything held. */
+function newerThanHeld(page: TranscriptMessage[], held: TranscriptMessage[]): TranscriptMessage[] {
+  let last: number | undefined
+  for (let i = held.length - 1; i >= 0 && last === undefined; i--) last = held[i]?.index
+  return last === undefined ? page : page.filter((m) => m.index === undefined || m.index > last)
 }

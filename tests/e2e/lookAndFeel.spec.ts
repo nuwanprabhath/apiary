@@ -62,7 +62,7 @@ test('each grab handle shows the resize cursor across a generous strip, and is d
   await h.app.evaluate(({ BrowserWindow }) => {
     const g = globalThis as unknown as { cursors: string[] }
     g.cursors = []
-    BrowserWindow.getAllWindows()[0].webContents.on('cursor-changed', (_e, type) => { g.cursors.push(type) })
+    BrowserWindow.getAllWindows()[0]?.webContents.on('cursor-changed', (_e, type) => { g.cursors.push(type) })
   })
   for (const [id, axis] of probes) {
     const r = await box(h.page.getByTestId(id).first())

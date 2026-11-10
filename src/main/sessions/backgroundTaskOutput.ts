@@ -3,7 +3,8 @@ import { open } from 'node:fs/promises'
 import { basename, dirname } from 'node:path'
 import { describeTool, type BackgroundTaskOutput } from '@shared/chatTimeline'
 import { realPathInside } from '../fs/confine'
-import { toMessage } from '../transcript/transcriptReader'
+import { decodeEntry } from '../transcript/claudeEntry'
+import { entryMessage } from '../transcript/transcriptReader'
 
 /** How much of the end of an output file is read: enough for the lines shown, never a whole log. */
 export const TASK_OUTPUT_TAIL_BYTES = 32 * 1024
@@ -106,7 +107,7 @@ function stripControls(text: string): string {
 function shellLines(text: string): string[] {
   const lines = text.split('\n').map((line) => {
     const drawn = line.split('\r').filter((p) => p !== '')
-    return stripControls(drawn.length === 0 ? '' : drawn[drawn.length - 1]).trimEnd()
+    return stripControls(drawn.length === 0 ? '' : drawn[drawn.length - 1] ?? '').trimEnd()
   })
   while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
   return lines.slice(-TASK_OUTPUT_LINES)
@@ -116,10 +117,9 @@ function shellLines(text: string): string[] {
 function agentSteps(text: string): string[] {
   const steps: string[] = []
   for (const line of text.split('\n')) {
-    let entry: unknown
-    try { entry = JSON.parse(line) } catch { continue }
-    if (entry === null || typeof entry !== 'object') continue
-    const message = toMessage(entry as Record<string, unknown>)
+    const entry = decodeEntry(line)
+    if (entry === null) continue
+    const message = entryMessage(entry)
     if (message === null || message.role !== 'assistant') continue
     for (const b of message.blocks) {
       if (b.type === 'text') steps.push(...b.text.split('\n').map((l) => l.trimEnd()).filter((l) => l !== ''))

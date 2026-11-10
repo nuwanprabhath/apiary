@@ -18,7 +18,7 @@ export function TextBlock(
     for (const line of text.split('\n')) {
       const match = IMAGE_PATH_LINE.exec(line)
       if (match !== null) {
-        result.push({ kind: 'image', value: match[1] })
+        result.push({ kind: 'image', value: match[1] ?? '' })
         continue
       }
       const last = result[result.length - 1]

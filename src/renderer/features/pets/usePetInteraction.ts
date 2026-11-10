@@ -101,7 +101,10 @@ export function usePetInteraction({ pets, habitat, brain, poses, setPoses, onOpe
     const pt = placeToPoint(habitat, place, pet.size)
     d.el.style.transform = `translate(${String(pt.x - pet.size / 2)}px, ${String(pt.y - pet.size)}px)`
     setHeld(null)
-    setPoses((p) => ({ ...p, [pet.id]: { ...(p[pet.id]), place, ms: 0 } }))
+    setPoses((p) => {
+      const pose = p[pet.id]
+      return pose === undefined ? p : { ...p, [pet.id]: { ...pose, place, ms: 0 } }
+    })
     brain.current?.send({ kind: 'dropped', id: pet.id, place })
     rememberPetPlace(pet.id, place)
   }

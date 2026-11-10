@@ -23,7 +23,7 @@ test('the bottom pane shrinks to fit a short window instead of overflowing off t
   await expect(h.page.getByTestId('terminal-shell')).toBeVisible()
 
   await h.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].setSize(1000, 420)
+    BrowserWindow.getAllWindows()[0]?.setSize(1000, 420)
   })
   // Polled rather than measured once after a pause: the window has taken its new size, and the
   // pane's bottom edge lands at (or above) the window's own bottom edge — never past it.

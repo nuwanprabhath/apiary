@@ -104,7 +104,7 @@ export interface Heard {
 type Subscribe = (cb: (...args: never[]) => void) => () => void
 
 function subscriptionOf(api: ApiaryApi, key: string): Subscribe {
-  const name = `on${key[0].toUpperCase()}${key.slice(1)}`
+  const name = `on${key.charAt(0).toUpperCase()}${key.slice(1)}`
   const found = Object.entries(api).find(([k]) => k === name)?.[1]
   if (typeof found !== 'function') throw new Error(`window.apiary has no ${name}`)
   return found as Subscribe

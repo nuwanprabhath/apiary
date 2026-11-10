@@ -26,7 +26,9 @@ interface Props {
 function visiblePart(d: DividerDef, hidden: Set<number>): DividerDef | null {
   if (d.axis === 'col') return d
   const cols = Array.from({ length: d.span[1] - d.span[0] }, (_, i) => d.span[0] + i).filter((c) => !hidden.has(c))
-  return cols.length === 0 ? null : { ...d, span: [cols[0], cols[cols.length - 1] + 1] }
+  const first = cols[0]
+  const last = cols.at(-1)
+  return first === undefined || last === undefined ? null : { ...d, span: [first, last + 1] }
 }
 
 /**
@@ -43,10 +45,10 @@ interface ColFrame {
 
 function colFrame(cols: number[], rails: Set<number>): ColFrame {
   const open = cols.map((_, c) => c).filter((c) => !rails.has(c))
-  const total = open.reduce((a, c) => a + cols[c], 0)
+  const total = open.reduce((a, c) => a + (cols[c] ?? 0), 0)
   const railsBefore = (c: number): number => [...rails].filter((r) => r < c).length
   const edge = (c: number): string => {
-    const f = open.filter((o) => o < c).reduce((a, o) => a + cols[o], 0) / total
+    const f = open.filter((o) => o < c).reduce((a, o) => a + (cols[o] ?? 0), 0) / total
     const k = railsBefore(c) - f * rails.size
     return `calc(${String(f * 100)}% + ${String(k)} * var(--pane-rail-width))`
   }
@@ -118,7 +120,7 @@ function Divider({ def: d, tracks, frame, onChange, hostRef, style }: {
   latest.current = { tracks, onChange, frame }
   const col = d.axis === 'col'
   const index = col ? frame.open.indexOf(d.index) : d.index
-  const alongOf = (t: Tracks, f: ColFrame): number[] => (col ? f.open.map((c) => t.cols[c]) : t.rows)
+  const alongOf = (t: Tracks, f: ColFrame): number[] => (col ? f.open.map((c) => t.cols[c] ?? 0) : t.rows)
   /** The open area along the axis: its start and size in client px. */
   const area = (): { start: number; size: number } => {
     const rect = hostRef.current?.parentElement?.getBoundingClientRect()
@@ -135,7 +137,7 @@ function Divider({ def: d, tracks, frame, onChange, hostRef, style }: {
     if (next.length === along.length && next.every((n, i) => n === along[i])) return
     if (!col) { emit({ ...now, rows: next }); return }
     const cols = [...now.cols]
-    f.open.forEach((c, i) => { cols[c] = next[i] })
+    f.open.forEach((c, i) => { const v = next[i]; if (v !== undefined) cols[c] = v })
     emit({ ...now, cols })
   }
   const { separatorProps } = useResizeDrag({

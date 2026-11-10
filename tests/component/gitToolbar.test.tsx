@@ -4,6 +4,7 @@ import { renderApp } from './renderApp'
 import { sidebarSession, stays, until } from './helpers'
 import type { FakeApiary, FakeOptions } from './fakeApiary'
 import type { GitRefEntry, GitRefs, GitStatus } from '@shared/types'
+import { must } from './must'
 
 /** A ref entry with the same shape `fakeApiary.ts`'s own fixture refs use. */
 function ref(name: string): GitRefEntry {
@@ -247,7 +248,7 @@ describe('the git toolbar', () => {
     await userEvent.click(page.getByTestId('worktree-conflict-move'))
 
     await until(() => fake.callsTo('gitCheckoutBranchMovingOther').length === 1)
-    expect(fake.callsTo('gitCheckoutBranchMovingOther')[0].slice(1)).toEqual(['feature/wt', 'main'])
+    expect(must(fake.callsTo('gitCheckoutBranchMovingOther')[0]).slice(1)).toEqual(['feature/wt', 'main'])
     await expect.element(page.getByTestId('worktree-conflict-dialog')).not.toBeInTheDocument()
     // The toolbar reads the branch again: it is the one taken.
     await expect.element(page.getByTestId('toolbar-branch-button')).toMatchTextContent('feature/wt')
@@ -318,7 +319,7 @@ describe('the git toolbar', () => {
     // `onSelectTab` (below) only re-focuses a tab that exists here, it does not open one.
     await userEvent.click(sidebarSession('Repo root session'))
     await userEvent.click(sidebarSession('Worktree session'))
-    await userEvent.click(page.getByTestId('session-tab-label').elements()[0])
+    await userEvent.click(must(page.getByTestId('session-tab-label').elements()[0]))
     await expect.element(page.getByTestId('session-title')).toHaveTextContent('Repo root session')
 
     await userEvent.click(page.getByTestId('toolbar-branch-button'))

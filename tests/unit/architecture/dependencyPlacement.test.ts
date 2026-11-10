@@ -1,3 +1,4 @@
+import { must } from '../support/must'
 import { describe, it, expect } from 'vitest'
 import ts from 'typescript'
 import { judge, loadAllow, read, staleReport, walk } from './allowlist'
@@ -24,7 +25,7 @@ function packageOf(specifier: string): string | null {
   if (specifier.startsWith('.') || specifier.startsWith('/') || specifier.startsWith('@shared/')) return null
   if (specifier.startsWith('node:')) return null
   const parts = specifier.split('/')
-  return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]
+  return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : must(parts[0])
 }
 
 /** Packages `file` loads at runtime. Parses only when the text mentions a candidate. */
