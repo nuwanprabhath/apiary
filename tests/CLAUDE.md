@@ -79,6 +79,11 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
     `npm run new -- ipc <name>`. Shared fixture data lives in `tests/fixtures/standard.ts` (the
     four standard sessions) and git repo builders in `tests/fixtures/gitRepo.ts`; do not hand-roll
     `git init` in a test.
+- **Damaged transcripts** (`tests/fixtures/jsonlCorpus.ts`, `tests/unit/jsonlCorpus.<reader>.test.ts`):
+  `corpus(dir)` writes 14 damaged `.jsonl` cases (BOM, CRLF, a 5 MB line, a character split across
+  64 KB, …) and says what a correct reader finds. One test file per reader runs every case; a case a
+  reader gets wrong today is in its `KNOWN` list under `it.fails`, naming the task that fixes it,
+  which must then delete the entry. A new reader adds a file; a new damage class adds a case.
 - **Architecture** (`tests/unit/architecture/`, part of `npm run test:unit` and of `npm run lint` as `lint:guards`): fitness functions
   over the source, each with a shrink-only allowlist (`<name>.allow.json`) next to it (a reason on every entry, and
   an entry that matches nothing fails). They cover the `apiary/*` rules themselves
