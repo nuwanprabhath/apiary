@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { asSessionId } from '@shared/domain/ids'
 import { STANDARD_SESSIONS as STD } from '../../fixtures/standard'
+import { at } from '../must'
 import type { Ctx } from '../support'
 
 const SESSION = STD.csv.id
@@ -40,7 +41,7 @@ export function defineChatClauses(ctx: Ctx): void {
 
       ctx.api.chatAttach(SESSION)
       await start()
-      expect(ctx.heard.payloads('chatChanged')[0][0]).toMatchObject({ kind: 'full', state: { sessionId: SESSION, status: 'idle' } })
+      expect(at(ctx.heard.payloads('chatChanged'), 0)[0]).toMatchObject({ kind: 'full', state: { sessionId: SESSION, status: 'idle' } })
       expect(ctx.heard.payloads('chatChanged').every(([p]) => (p.kind === 'full' ? p.state.sessionId : p.sessionId) === SESSION)).toBe(true)
 
       // Detached again, a window hears no more of it, whatever the chat does.
@@ -112,18 +113,18 @@ export function defineChatClauses(ctx: Ctx): void {
       expect(first.servers.map((s) => [s.name, s.status, s.scope, s.transport])).toEqual([
         ['files', 'connected', 'user', 'stdio'], ['tracker', 'needs-auth', 'project', 'http'],
       ])
-      expect(first.servers[0]).toMatchObject({ tools: ['read', 'write'], version: '1.2.0', error: null })
+      expect(at(first.servers, 0)).toMatchObject({ tools: ['read', 'write'], version: '1.2.0', error: null })
       const off = await ctx.api.chatMcp(SESSION, { kind: 'toggle', server: 'files', enabled: false })
-      expect(off.servers[0].status).toBe('disabled')
+      expect(at(off.servers, 0).status).toBe('disabled')
       // claude's own reason for a refusal reaches the caller.
       await expect(ctx.api.chatMcp(SESSION, { kind: 'reconnect', server: 'files' })).rejects.toThrow(/disabled/)
-      expect((await ctx.api.chatMcp(SESSION, { kind: 'toggle', server: 'files', enabled: true })).servers[0].status).toBe('connected')
+      expect(at((await ctx.api.chatMcp(SESSION, { kind: 'toggle', server: 'files', enabled: true })).servers, 0).status).toBe('connected')
       const signIn = await ctx.api.chatMcp(SESSION, { kind: 'authenticate', server: 'tracker' })
       expect(signIn.signIn).toEqual({ server: 'tracker', url: 'https://auth.example.com/tracker?state=s1', callbackExpected: true })
       await expect(ctx.api.chatMcp(SESSION, { kind: 'callback', server: 'tracker', url: 'http://localhost:4567/callback' })).rejects.toThrow(/authorization code/)
       const signedIn = await ctx.api.chatMcp(SESSION, { kind: 'callback', server: 'tracker', url: 'http://localhost:4567/callback?code=abc&state=s1' })
-      expect(signedIn.servers[1].status).toBe('connected')
-      expect((await ctx.api.chatMcp(SESSION, { kind: 'clear-auth', server: 'tracker' })).servers[1].status).toBe('needs-auth')
+      expect(at(signedIn.servers, 1).status).toBe('connected')
+      expect(at((await ctx.api.chatMcp(SESSION, { kind: 'clear-auth', server: 'tracker' })).servers, 1).status).toBe('needs-auth')
       await expect(ctx.api.chatMcp(SESSION, { kind: 'reconnect', server: 'nope' })).rejects.toThrow(/not found/)
     })
 
