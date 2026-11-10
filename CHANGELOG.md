@@ -4,7 +4,19 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.24] - 2026-11-10
+## [1.60.25] - 2026-11-10
+
+### Security
+
+- Resident agents see only the sessions of the Claude account they run under, and topic digests are
+  made under the account each session ran under.
+
+### Added
+
+- Settings → Residents: "Let residents read sessions from your other Claude accounts", off by
+  default and shown only when you have more than one account.
+
+## [1.60.24] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Changed
 
