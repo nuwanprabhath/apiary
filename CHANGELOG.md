@@ -4,7 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.60.21] - 2026-11-10
+## [1.60.22] - 2026-11-10
+
+### Security
+
+- The MR desk can no longer approve, comment, merge, close or push on its own. An approval shows a
+  card you must allow, built from what Apiary itself read from GitLab, and text other people wrote
+  in merge requests is given to it as data, never as instructions.
+
+## [1.60.21] - 2026-11-10 (not released; shipped in 1.60.x)
 
 ### Added
 
