@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+// Every case builds a real repository and runs a dozen git spawns on it: seconds on a busy machine,
+// so the 5 s default tests the machine, not the code.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 })
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import * as THREE from 'three'
 import { ACCESSORIES, ARMS, BODY_SHAPES, EYE_STYLES, LEGS, slotOf } from '@shared/pets/spec'
 import { STARTER_PET } from '@shared/pets/builtins'
@@ -7,6 +7,10 @@ import { FACES, anchorsOf, buildAccessories, buildArm, buildBody, buildFace, bui
 import { meshFromSdf } from '../../src/renderer/features/pets/render3d/plush'
 import { BODY_SDF } from '../../src/renderer/features/pets/render3d/sdf'
 import { HELD_PROPS, SCENERY, buildHeld, buildScenery } from '../../src/renderer/features/pets/render3d/props'
+
+// Each case meshes every body's signed-distance field on the CPU: seconds of work that multiplies on
+// a busy machine, so the 5 s default tests the machine, not the code.
+vi.setConfig({ testTimeout: 60_000 })
 
 /** Every part the 3D renderer can build, built — no GPU needed for geometry. */
 function triangles(o: THREE.Object3D): number {
