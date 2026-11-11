@@ -141,7 +141,7 @@ export function createUpdateBackend(opts: BackendOptions, installer: PlatformIns
     needsPassword: (path) => installer.needsPassword(path),
     stillVerified: (path) => installer.stillVerified(path),
     installDownloaded: (path, o) => installer.installDownloaded(path, o),
-    restart: () => { installer.restart() },
+    restart: () => { installer.restart() }, relaunch: () => { installer.relaunch() },
     takePreviousInstall: () => installer.takePreviousInstall(),
 
     async check({ allowPrerelease }): Promise<FeedResult | null> {

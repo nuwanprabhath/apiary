@@ -64,7 +64,7 @@ vi.mock('node:child_process', () => ({ execFile: (...args: Parameters<typeof exe
 const { createUpdateBackend, setQuarantine, OPEN_TIMEOUT_MS } = await import('../../src/main/update/electronUpdaterBackend')
 const { createPlatformInstaller } = await import('../../src/main/update/platformInstaller')
 /** Never asked to install here: these tests are about finding, verifying and opening the download. */
-const stubInstaller = createPlatformInstaller({ platform: 'linux', resultFile: join(tmpdir(), 'apiary-no-result.json'), quit: () => {} })
+const stubInstaller = createPlatformInstaller({ platform: 'linux', resultFile: join(tmpdir(), 'apiary-no-result.json'), relaunch: () => {}, quit: () => {} })
 
 /** A response `node:https`'s `get` would hand back: a readable stream plus HTTP's own fields. */
 function fakeResponse(body: Buffer, statusCode = 200): PassThrough & { statusCode: number; headers: Record<string, string> } {

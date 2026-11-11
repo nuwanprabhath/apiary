@@ -41,6 +41,7 @@ export function createFakeUpdateBackend(config: FakeUpdateBackendConfig): Update
     stillVerified: async () => true,
     installDownloaded: async () => ({ ok: true }),
     restart: () => { /* A test must not quit the app. */ },
+    relaunch: () => { /* A test must not quit the app. */ },
     takePreviousInstall: async () => null,
   }
   if (fakeFile === undefined) return base
@@ -61,6 +62,7 @@ export function createFakeUpdateBackend(config: FakeUpdateBackendConfig): Update
     stillVerified: (path) => installer.stillVerified(path),
     installDownloaded: (path, opts) => installer.installDownloaded(path, opts),
     restart: () => { installer.restart() },
+    relaunch: () => { installer.relaunch() },
     takePreviousInstall: () => installer.takePreviousInstall(),
   }
 }

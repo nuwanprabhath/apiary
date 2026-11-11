@@ -7,6 +7,26 @@ import { copyText } from '../../state/clipboard'
 import { dismissUpdate, downloadUpdate, installUpdate, openDownloadedUpdate, prepareInstallUpdate, skipUpdate } from '../../state/updateStore'
 import { UpdatePasswordForm } from './UpdatePasswordForm'
 
+/** A newer Apiary is already installed: Restart quits through the updater's path, dismiss hides it. */
+function InstalledActions(): JSX.Element {
+  return (
+    <div className="update-banner-actions">
+      <button className="btn primary" data-testid="update-restart-installed" onClick={() => { installUpdate() }}>
+        Restart
+      </button>
+      <button
+        className="update-banner-close"
+        data-testid="update-dismiss"
+        aria-label="Dismiss"
+        title="Dismiss"
+        onClick={() => { dismissUpdate() }}
+      >
+        <CloseIcon />
+      </button>
+    </div>
+  )
+}
+
 /** The buttons the banner offers for the current phase. */
 export function UpdateBannerActions(
   { status, host, onOpenSettings }: { status: UpdateStatusPayload; host: string | null; onOpenSettings: () => void },
@@ -43,6 +63,7 @@ export function UpdateBannerActions(
       .catch(failed)
   }
 
+  if (status.installedVersion !== null) return <InstalledActions />
   if (phase === 'installing' || phase === 'restarting' || (phase === 'downloading' && status.installRequested)) return null
   if (phase === 'needs-password') {
     return (

@@ -71,4 +71,9 @@ describe('UI: update banner, Install and restart', () => {
       },
     })
   })
+
+  it('a newer version is installed: restart to use it', async () => {
+    await render({ phase: 'idle', availableVersion: null, installedVersion: '1.51.0' })
+    await reviewUi('update installed restart', SHOWN)
+  })
 })

@@ -68,7 +68,7 @@ afterEach(async () => {
 })
 
 function installer() {
-  return createPlatformInstaller({ platform: 'linux', resultFile: join(dir, 'update-result.json'), quit: () => {} })
+  return createPlatformInstaller({ platform: 'linux', resultFile: join(dir, 'update-result.json'), relaunch: () => {}, quit: () => {} })
 }
 
 describe('installing a .deb', () => {
@@ -146,7 +146,7 @@ describe('installing a .deb', () => {
 describe('a macOS app run from a quarantined copy', () => {
   it('refuses before asking for a password: App Translocation made the bundle read-only', async () => {
     const i = createPlatformInstaller({
-      platform: 'darwin', resultFile: join(dir, 'update-result.json'), quit: () => {},
+      platform: 'darwin', resultFile: join(dir, 'update-result.json'), relaunch: () => {}, quit: () => {},
       execPath: '/private/var/folders/xy/T/AppTranslocation/1A2B/d/Apiary.app/Contents/MacOS/Apiary',
     })
     await expect(i.needsPassword(deb)).rejects.toThrow(/quarantined copy macOS made read-only.*xattr -cr/)
@@ -159,9 +159,19 @@ describe('macOS: the helper that installs after quit', () => {
     await mkdir(join(parent, 'Apiary.app', 'Contents', 'MacOS'), { recursive: true })
     return join(parent, 'Apiary.app', 'Contents', 'MacOS', 'Apiary')
   }
-  function mac(execPath: string, quit: () => void = () => {}) {
-    return createPlatformInstaller({ platform: 'darwin', resultFile: join(dir, 'update-result.json'), quit, execPath })
+  function mac(execPath: string, quit: () => void = () => {}, relaunch: () => void = () => {}) {
+    return createPlatformInstaller({ platform: 'darwin', resultFile: join(dir, 'update-result.json'), quit, relaunch, execPath })
   }
+
+  it('relaunch starts the bundle on disk again, then quits; restart only quits (the .dmg path starts it itself)', () => {
+    const calls: string[] = []
+    const installer = mac('/Applications/Apiary.app/Contents/MacOS/Apiary', () => calls.push('quit'), () => calls.push('relaunch'))
+    installer.relaunch()
+    expect(calls).toEqual(['relaunch', 'quit'])
+    calls.length = 0
+    installer.restart()
+    expect(calls).toEqual(['quit'])
+  })
 
   it('needs no password where this user can write the bundle and its folder', async () => {
     expect(await mac(await bundleIn(dir)).needsPassword(deb)).toBe(false)
@@ -231,7 +241,7 @@ describe('the result the macOS helper leaves for the next start', () => {
 describe('the platforms Install and restart does not cover', () => {
   it('Linux asks sudo whether a password is needed; Windows cannot install', async () => {
     expect(await installer().needsPassword(deb)).toBe(true)
-    const win = createPlatformInstaller({ platform: 'win32', resultFile: join(dir, 'r.json'), quit: () => {} })
+    const win = createPlatformInstaller({ platform: 'win32', resultFile: join(dir, 'r.json'), relaunch: () => {}, quit: () => {} })
     expect(await win.installDownloaded(deb, { password: null, version: '1.51.0' }))
       .toEqual({ ok: false, reason: 'install', message: 'Apiary cannot install updates on win32.' })
   })

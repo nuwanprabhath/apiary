@@ -37,6 +37,7 @@ export function updateHandlers(deps: UpdateDeps): Pick<Handlers, HandledKeys> {
     installError: null,
     lastCheckedAt: null,
     skippedVersion: null,
+    installedVersion: null,
   })
 
   return {

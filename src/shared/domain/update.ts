@@ -113,4 +113,10 @@ export interface UpdateStatusPayload {
   installError: string | null
   lastCheckedAt: number | null
   skippedVersion: string | null
+  /**
+   * A newer Apiary than the running one is installed on disk (a package replaced the files under a
+   * running app); the banner offers a restart. Null when none, once dismissed, and while an offer
+   * for a newer version is on screen.
+   */
+  installedVersion: string | null
 }

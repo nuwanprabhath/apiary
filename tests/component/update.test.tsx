@@ -317,4 +317,13 @@ describe('the updater', () => {
     // No toast for this one — the banner itself is still the feedback.
     expect(page.getByTestId('notification').elements()).toHaveLength(0)
   })
+
+  it('a newer installed version is announced; Restart asks main; dismiss hides it', async () => {
+    const { fake } = await renderApp({ update: { installedVersion: '9.9.9', phase: 'available', availableVersion: '9.9.9' } })
+    await expect.element(page.getByTestId('update-banner')).toHaveTextContent('Apiary 9.9.9 is installed. Restart to use it.Restart')
+    await userEvent.click(page.getByTestId('update-restart-installed'))
+    await until(() => fake.callsTo('updateInstall').length === 1)
+    await userEvent.click(page.getByTestId('update-dismiss'))
+    await expect.element(page.getByTestId('update-download')).toBeVisible()
+  })
 })
