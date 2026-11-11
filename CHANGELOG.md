@@ -4,6 +4,20 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.61.2] - 2026-11-11
+
+### Added
+
+- A pet's right-click menu has "Move to", listing your other windows by their active tab, so a pet
+  can move without dragging it across (which some Linux desktops do not allow).
+
+### Fixed
+
+- Pets stay in the window they were in when the desktop quits Apiary. GNOME's Quit closes the
+  windows one by one before the app quits, and each close handed its pets to a window still open, so
+  after a restart every pet was in the window that closed last. A pet moved by a close is now put
+  back if every window closes within the grace period.
+
 ## [1.61.1] - 2026-11-11
 
 ### Added
