@@ -40,6 +40,7 @@ class StubBackend implements UpdateBackend {
     return { ok: true }
   }
   restart() { this.calls.push('restart') }
+  relaunch() { this.calls.push('relaunch') }
   async takePreviousInstall() { return this.previous }
 }
 

@@ -57,6 +57,8 @@ export interface UpdateBackend {
   installDownloaded(path: string, opts: { password: string | null; version: string }): Promise<InstallOutcome>
   /** Quits; the installed version starts once this process has exited. */
   restart(): void
+  /** Quits and starts the copy of Apiary installed on disk, which is newer than this process. */
+  relaunch(): void
   /** The outcome the macOS helper left from the last install, read once and deleted. */
   takePreviousInstall(): Promise<PreviousInstall | null>
 }
@@ -345,7 +347,7 @@ export class UpdateService {
   /** `auto` only: restarts into the staged update. */
   install(): void {
     // The newer files are already on disk, so restarting is all it takes.
-    if (this.status.installedVersion !== null) { this.opts.backend.restart(); return }
+    if (this.status.installedVersion !== null) { this.opts.backend.relaunch(); return }
     if (this.status.phase !== 'ready') return
     this.opts.backend.install()
   }

@@ -30,7 +30,7 @@ export async function hashFile(path: string): Promise<string> {
 }
 
 /** The install half of a backend, shared by the real one and the test-only fake that "downloads" a real file. */
-export type PlatformInstaller = Pick<UpdateBackend, 'needsPassword' | 'stillVerified' | 'installDownloaded' | 'restart' | 'takePreviousInstall'> & {
+export type PlatformInstaller = Pick<UpdateBackend, 'needsPassword' | 'stillVerified' | 'installDownloaded' | 'restart' | 'relaunch' | 'takePreviousInstall'> & {
   /** Records the sha512 a download was verified against, for `stillVerified`. */
   recordVerified(path: string, sha512: string): void
 }
@@ -41,6 +41,8 @@ export interface PlatformInstallerOptions {
   resultFile: string
   /** `app.quit()`: the quit runs Apiary's normal shutdown, so ptys and layouts are saved first. */
   quit: () => void
+  /** `app.relaunch()`: start this app again once it has quit (macOS, where the bundle path is stable). */
+  relaunch: () => void
   /** The running binary; `process.execPath` unless a test places it elsewhere. */
   execPath?: string
 }
@@ -180,6 +182,12 @@ export function createPlatformInstaller(opts: PlatformInstallerOptions): Platfor
       if (opts.platform !== 'linux') { opts.quit(); return }
       // Quits even when the relaunch could not be started: the old binary's files are already replaced.
       fireAndForget(relaunchLinux().finally(opts.quit), 'update')
+    },
+
+    relaunch() {
+      if (opts.platform === 'linux') { fireAndForget(relaunchLinux().finally(opts.quit), 'update'); return }
+      opts.relaunch()
+      opts.quit()
     },
 
     async takePreviousInstall() {

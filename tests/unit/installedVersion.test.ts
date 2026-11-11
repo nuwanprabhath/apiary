@@ -15,7 +15,8 @@ function setup(read: () => Promise<string | null>) {
   const statuses: UpdateStatus[] = []
   const backend = {
     check: async () => null,
-    restart: () => { restarts.push(1) },
+    restart: () => { throw new Error('the installed copy is started with relaunch, not restart') },
+    relaunch: () => { restarts.push(1) },
   } as unknown as UpdateBackend
   const service = new UpdateService({
     currentVersion: '1.59.14',

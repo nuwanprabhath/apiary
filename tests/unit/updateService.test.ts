@@ -66,6 +66,7 @@ class StubBackend implements UpdateBackend {
   async stillVerified(): Promise<boolean> { return true }
   async installDownloaded(): Promise<InstallOutcome> { return { ok: true } }
   restart(): void { /* Not exercised here: tests/unit/updateInstall.test.ts covers installing. */ }
+  relaunch(): void { /* Not exercised here: tests/unit/installedVersion.test.ts covers it. */ }
   async takePreviousInstall(): Promise<null> { return null }
 }
 

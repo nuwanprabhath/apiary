@@ -47,6 +47,7 @@ function machine(current: string, offered: string, password: string) {
       return o.password === password ? { ok: true } : { ok: false, reason: 'password', message: 'That password was not accepted.' }
     },
     restart: () => { restarts.push(Date.now()) },
+    relaunch: () => { throw new Error('not exercised here') },
     takePreviousInstall: async () => null,
   }
   const service: UpdateServiceType = new UpdateService({

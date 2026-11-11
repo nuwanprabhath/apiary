@@ -75,6 +75,7 @@ export function createUpdater(settings: SettingsService, env: UpdaterEnv, macSig
     platform: process.platform,
     resultFile: join(app.getPath('userData'), 'update-result.json'),
     quit: () => { app.quit() },
+    relaunch: () => { app.relaunch() },
   })
   const fakeFile = env.fakeUpdateFile === undefined || env.fakeUpdateFile === ''
     ? undefined
@@ -140,6 +141,7 @@ export async function runCommandLineUpdate(env: UpdaterEnv): Promise<number> {
     platform: process.platform,
     resultFile: join(app.getPath('userData'), 'update-result.json'),
     quit: () => { app.quit() },
+    relaunch: () => { app.relaunch() },
   })
   const fakeFile = env.fakeUpdateFile === undefined || env.fakeUpdateFile === ''
     ? undefined

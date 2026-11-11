@@ -142,6 +142,7 @@ export function createUpdateBackend(opts: BackendOptions, installer: PlatformIns
     stillVerified: (path) => installer.stillVerified(path),
     installDownloaded: (path, o) => installer.installDownloaded(path, o),
     restart: () => { installer.restart() },
+    relaunch: () => { installer.relaunch() },
     takePreviousInstall: () => installer.takePreviousInstall(),
 
     async check({ allowPrerelease }): Promise<FeedResult | null> {
