@@ -1,12 +1,12 @@
 import { type JSX, useCallback, useEffect, useRef, useState } from 'react'
 import type { ResidentStatus, SessionHit } from '@shared/domain/residents'
 import { useResident } from '../../state/residentsStore'
-import { clearResident, markResidentSeen, sendToResident, stopResident, useResidentHistory } from '../../state/residentChat'
+import { clearResident, markResidentSeen, restartResident, sendToResident, stopResident, useResidentHistory } from '../../state/residentChat'
 import { closeResidentPopup, takeResidentAsk, useResidentPopup } from '../../state/residentPopup'
 import { readResidentDraft } from '../../state/uiState'
 import { describeError } from '../../ui/errors'
 import { FloatingPanel } from '../../ui/FloatingPanel'
-import { CloseIcon, TrashIcon } from '../../ui/icons'
+import { CloseIcon, RestartIcon, TrashIcon } from '../../ui/icons'
 import { StopIcon } from '../../ui/icons/StopIcon'
 import { ImageLightbox } from '../transcript'
 import { useOpenSession } from '../workspace'
@@ -42,6 +42,41 @@ function ClearButton({ residentId }: { residentId: string }): JSX.Element {
   )
 }
 
+/** Restart: at once when idle; while a turn runs, an inline "Restart?" that stops the reply only on Yes. */
+function RestartButton({ resident }: { resident: ResidentStatus }): JSX.Element {
+  const [asking, setAsking] = useState(false)
+  useEffect(() => {
+    if (!asking) return
+    const timer = window.setTimeout(() => { setAsking(false) }, CONFIRM_MS)
+    return () => { window.clearTimeout(timer) }
+  }, [asking])
+  if (asking) {
+    return (
+      <span className="resident-confirm shrinks">
+        <span className="resident-confirm-note" title="Restart? It stops the current reply.">Restart? It stops the current reply.</span>
+        <button type="button" className="btn small danger" onClick={() => { setAsking(false); restartResident(resident.id) }}>Yes</button>
+        <button type="button" className="btn small" onClick={() => { setAsking(false) }}>No</button>
+      </span>
+    )
+  }
+  const asleep = resident.state === 'asleep'
+  const label = `Restart ${resident.name}`
+  const title = asleep ? `${resident.name} is asleep` : `${label}\nStarts its claude again, picking up changed settings and permissions`
+  return (
+    <button
+      type="button"
+      className="resident-icon-btn"
+      data-testid="resident-popup-restart"
+      title={title}
+      aria-label={label}
+      disabled={asleep}
+      onClick={() => { if (resident.state === 'working') setAsking(true); else restartResident(resident.id) }}
+    >
+      <RestartIcon />
+    </button>
+  )
+}
+
 function Header({ resident, onPointerDown }: { resident: ResidentStatus; onPointerDown: (e: React.PointerEvent<HTMLElement>) => void }): JSX.Element {
   const doing = resident.state === 'working' ? (resident.activity ?? 'Working…') : resident.state
   return (
@@ -59,6 +94,7 @@ function Header({ resident, onPointerDown }: { resident: ResidentStatus; onPoint
           <StopIcon />
         </button>
       )}
+      <RestartButton resident={resident} />
       <ClearButton residentId={resident.id} />
       <button type="button" className="resident-icon-btn" data-testid="resident-popup-close" title="Close" aria-label="Close" onClick={closeResidentPopup}>
         <CloseIcon />

@@ -360,6 +360,9 @@
 .resident-icon-btn:hover { background: var(--hover); color: var(--text); }
 .resident-icon-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .resident-confirm { display: inline-flex; flex: none; gap: var(--space-xs); align-items: center; color: var(--muted); }
+/* The longer question gives way to the buttons in a narrow popup. */
+.resident-confirm.shrinks { flex: 0 1 auto; min-width: 0; }
+.resident-confirm-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .resident-popup-body {
   display: flex;

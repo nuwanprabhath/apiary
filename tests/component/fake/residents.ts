@@ -18,7 +18,7 @@ import { isOnDuty } from '@shared/residentSchedule'
 import type { Env, FakeState } from './state'
 
 type ResidentsApi = Pick<ApiaryApi,
-  'residentsList' | 'residentsAdd' | 'residentHistory' | 'residentSend' | 'residentStop' | 'residentClear' | 'residentRedigest'
+  'residentsList' | 'residentsAdd' | 'residentHistory' | 'residentSend' | 'residentStop' | 'residentClear' | 'residentRestart' | 'residentRedigest'
   | 'residentPermissionAnswer' | 'residentQuickAction' | 'residentSeen' | 'residentPickFolder' | 'residentKinds'>
 
 /** Every configured resident's status, as main derives it. */
@@ -111,6 +111,10 @@ export function residentsApi(env: Env): ResidentsApi {
     residentClear: async (id) => {
       require(id)
       state.residentHistory.set(id, [])
+    },
+    residentRestart: async (id) => {
+      require(id)
+      push(id, { id: `restart-${String(Date.now())}`, role: 'assistant', text: 'Restarted.', at: Date.now(), streaming: false })
     },
     residentRedigest: async (id) => { require(id) },
     residentPermissionAnswer: async (id, requestId) => {

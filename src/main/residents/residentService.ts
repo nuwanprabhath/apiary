@@ -158,8 +158,7 @@ export class ResidentService {
   }
 
   list(): ResidentStatus[] {
-    const now = this.now()
-    return [...this.residents.values()].map((r) => this.statusOf(r, now))
+    return [...this.residents.values()].map((r) => this.statusOf(r, this.now()))
   }
 
   kinds(): ResidentKindInfo[] { return kindInfos() }
@@ -188,6 +187,9 @@ export class ResidentService {
   }
 
   stop(id: string): void { this.require(id).chat.interrupt() }
+
+  /** A real stop then start, so the new claude re-reads settings, permissions and the kind's prompt. */
+  async restart(id: string): Promise<void> { const r = this.require(id); if (r.config.enabled) await r.chat.restart(); else throw new Error(`${r.config.name} is not enabled`) }
 
   async clear(id: string): Promise<void> { await this.require(id).chat.clear() }
 

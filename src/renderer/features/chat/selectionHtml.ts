@@ -8,10 +8,22 @@
  * no classes, styles, ids or the app's own buttons.
  */
 export function selectionHtmlWithin(root: HTMLElement | null): string {
+  return selectionFragmentWithin(root)?.innerHTML.trim() ?? ''
+}
+
+/** The list item of `list` the range starts in, as its position among the list's items. */
+function startIndex(list: Element, range: Range): number {
+  let at: Node | null = range.startContainer === list ? (list.childNodes[range.startOffset] ?? null) : range.startContainer
+  while (at !== null && at.parentNode !== list) at = at.parentNode
+  return at === null ? 0 : [...list.children].filter((c) => c.tagName === 'LI').indexOf(at as Element)
+}
+
+/** The cleaned copy of the selection inside `root` (see `selectionHtmlWithin`), or null. */
+export function selectionFragmentWithin(root: HTMLElement | null): HTMLElement | null {
   const sel = window.getSelection()
-  if (root === null || sel === null || sel.isCollapsed || sel.rangeCount === 0) return ''
+  if (root === null || sel === null || sel.isCollapsed || sel.rangeCount === 0) return null
   const range = sel.getRangeAt(0)
-  if (!root.contains(range.commonAncestorContainer)) return ''
+  if (!root.contains(range.commonAncestorContainer)) return null
   const holder = document.createElement('div')
   holder.append(range.cloneContents())
   let node: Node | null = range.commonAncestorContainer
@@ -20,13 +32,18 @@ export function selectionHtmlWithin(root: HTMLElement | null): string {
   while (node instanceof Element && node !== root && !node.classList.contains('markdown')) {
     if (PASTED_TAGS.has(node.tagName)) {
       const wrapper = node.cloneNode(false) as Element
+      // A list the selection starts inside keeps counting from the item it starts at.
+      if (node.tagName === 'OL') {
+        const first = Number.parseInt(node.getAttribute('start') ?? '', 10)
+        wrapper.setAttribute('start', String((Number.isNaN(first) ? 1 : first) + Math.max(0, startIndex(node, range))))
+      }
       wrapper.append(...holder.childNodes)
       holder.replaceChildren(wrapper)
     }
     node = node.parentNode
   }
   clean(holder)
-  return holder.innerHTML.trim()
+  return holder
 }
 
 /** The elements markdown produces, which a pasted document keeps. */
