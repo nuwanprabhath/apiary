@@ -12,11 +12,15 @@ import { rm } from 'node:fs/promises'
 import { createSettingsStore } from '../settings'
 import { homedir } from 'node:os'
 import { installService, uninstallService } from './backgroundService'
-import { removeFileForProgram, writeFileForProgram } from '../fs/textFile'
+import { readTextFile, removeFileForProgram, writeFileForProgram } from '../fs/textFile'
 import { cliUpdate } from './cliUpdate'
 import { findRunningApiary } from './runningApiary'
 import { runInTerminal } from '../exec/runInTerminal'
 import { ignoreErrors } from '@shared/ignoreErrors'
+import { createExec } from '../exec/run'
+import { readInstalledVersion } from './installedVersion'
+
+const installedExec = createExec({ timeoutMs: 5000, scope: 'update' })
 
 /** The two test hooks (`APIARY_FAKE_UPDATE*`, parsed in `app/env.ts`) the updater reads. */
 interface UpdaterEnv {
@@ -43,7 +47,7 @@ export function createUpdater(settings: SettingsService, env: UpdaterEnv, macSig
   const fakeMode = env.fakeUpdateMode
   const capabilityInput = faking
     ? {
-      platform: fakeMode === 'auto' || fakeMode === 'deb' ? ('linux' as const) : ('darwin' as const),
+      platform: fakeMode === 'auto' || fakeMode === 'deb' || fakeMode === 'installed' ? ('linux' as const) : ('darwin' as const),
       packaged: true,
       appImagePath: fakeMode === 'auto' ? '/tmp/Apiary.AppImage' : undefined,
       macSigned: false,
@@ -89,7 +93,19 @@ export function createUpdater(settings: SettingsService, env: UpdaterEnv, macSig
       }
     },
     onStatus: (status) => { broadcast(IPC.updateChanged, status) },
+    installedVersion: faking
+      // `installed` pretends the package on disk is the fake version, newer than the running app.
+      ? (fakeMode === 'installed' ? async () => fake : undefined)
+      : () => readInstalledVersion({
+        platform: process.platform,
+        packaged: app.isPackaged,
+        appImagePath: process.env.APPIMAGE,
+        execPath: process.execPath,
+        exec: installedExec,
+        readFile: readTextFile,
+      }),
   })
+  app.on('browser-window-focus', () => { service.windowFocused() })
   return service
 }
 

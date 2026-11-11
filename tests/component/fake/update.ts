@@ -57,6 +57,7 @@ export function updateApi(env: Env): UpdateApi {
       patch({ phase: 'idle', availableVersion: null, skippedVersion: version })
     },
     updateDismiss: async () => {
+      if (state.update.installedVersion !== null) { patch({ installedVersion: null }); return }
       if (state.update.phase === 'needs-password') patch({ phase: 'available', installError: null })
       else if (['available', 'up-to-date', 'error'].includes(state.update.phase)) patch({ phase: 'idle', error: null })
     },

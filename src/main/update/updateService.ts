@@ -3,7 +3,8 @@ import {
   decideCapability, installInstructions,
   type CapabilityInput,
 } from './capability'
-import { shouldOffer } from './versions'
+import { isNewer, shouldOffer } from './versions'
+import { log } from '../log/logger'
 import {
   PASSWORD_NOT_ACCEPTED,
   type UpdateStatusPayload, type Capability, type InstallInstructions, type OpenInstallerResult,
@@ -85,6 +86,8 @@ export interface UpdateServiceOptions {
   /** Persists a settings change the service makes on the user's behalf (skipping a version). */
   saveSettings: (patch: Partial<UpdateSettings>) => void
   onStatus: (status: UpdateStatus) => void
+  /** The version of Apiary installed on disk, or null when it cannot be told (`installedVersion.ts`). */
+  installedVersion?: () => Promise<string | null>
   /** Injected so tests can drive time; defaults to the real timers. */
   timers?: {
     setTimeout: (fn: () => void, ms: number) => NodeJS.Timeout | number
@@ -95,6 +98,12 @@ export interface UpdateServiceOptions {
 
 /** How long after launch the first automatic check happens; not zero, so it does not compete with startup. */
 export const FIRST_CHECK_DELAY_MS = 30_000
+
+/** First look at the installed version after launch, then every `INSTALLED_CHECK_INTERVAL_MS`. */
+export const INSTALLED_FIRST_CHECK_DELAY_MS = 60_000
+export const INSTALLED_CHECK_INTERVAL_MS = 10 * 60_000
+/** A window gaining focus checks at most this often. */
+export const INSTALLED_FOCUS_THROTTLE_MS = 60_000
 
 const CHANGED_SINCE_VERIFIED = 'The downloaded file changed since it was verified, so it was not installed.'
 
@@ -107,6 +116,12 @@ export class UpdateService {
   private readonly capability: Capability
   private timer: NodeJS.Timeout | number | null = null
   private inFlight = false
+  private installedTimer: NodeJS.Timeout | number | null = null
+  /** A newer installed version, as read; `status.installedVersion` is this unless hidden. */
+  private installed: string | null = null
+  private dismissedInstalled: string | null = null
+  private loggedInstalled: string | null = null
+  private installedCheckedAt: number | null = null
 
   private status: UpdateStatus
 
@@ -134,6 +149,7 @@ export class UpdateService {
       installError: null,
       lastCheckedAt: null,
       skippedVersion: opts.settings().skippedVersion,
+      installedVersion: null,
     }
   }
 
@@ -144,6 +160,7 @@ export class UpdateService {
   /** Starts (or restarts) the automatic schedule to match the current settings. */
   start(): void {
     this.stop()
+    this.startInstalledChecks()
     if (this.capability.kind === 'unsupported') return
     if (!this.opts.settings().automaticChecks) return
     this.timer = this.timers.setTimeout(() => { void this.runScheduled() }, FIRST_CHECK_DELAY_MS)
@@ -154,6 +171,57 @@ export class UpdateService {
       this.timers.clearTimeout(this.timer)
       this.timer = null
     }
+    if (this.installedTimer !== null) {
+      this.timers.clearTimeout(this.installedTimer)
+      this.installedTimer = null
+    }
+  }
+
+  private startInstalledChecks(): void {
+    if (this.opts.installedVersion === undefined) return
+    this.installedTimer = this.timers.setTimeout(() => { void this.runInstalledCheck() }, INSTALLED_FIRST_CHECK_DELAY_MS)
+  }
+
+  private async runInstalledCheck(): Promise<void> {
+    await this.checkInstalled()
+    this.installedTimer = this.timers.setTimeout(() => { void this.runInstalledCheck() }, INSTALLED_CHECK_INTERVAL_MS)
+  }
+
+  /** Reads the installed version and says so when it is newer than the running one. Never throws. */
+  async checkInstalled(): Promise<void> {
+    const read = this.opts.installedVersion
+    if (read === undefined) return
+    this.installedCheckedAt = this.timers.now()
+    let version: string | null
+    try {
+      version = await read()
+    } catch (e) {
+      log.warn('update', 'could not read the installed version', { error: errorMessage(e) })
+      version = null
+    }
+    this.installed = version !== null && isNewer(this.opts.currentVersion, version) ? version : null
+    if (this.installed !== null && this.installed !== this.loggedInstalled) {
+      this.loggedInstalled = this.installed
+      log.info('update', 'installed version newer than running', { running: this.opts.currentVersion, installed: this.installed })
+    }
+    this.patch({})
+  }
+
+  /** A window gained focus: looks again, at most once a minute. */
+  windowFocused(): void {
+    if (this.opts.installedVersion === undefined) return
+    const last = this.installedCheckedAt
+    if (last !== null && this.timers.now() - last < INSTALLED_FOCUS_THROTTLE_MS) return
+    void this.checkInstalled()
+  }
+
+  private shownInstalled(): string | null {
+    const { installed } = this
+    if (installed === null || installed === this.dismissedInstalled) return null
+    const { phase, availableVersion } = this.status
+    if (phase === 'downloading' || phase === 'installing' || phase === 'restarting' || phase === 'needs-password') return null
+    if (availableVersion !== null && isNewer(installed, availableVersion)) return null
+    return installed
   }
 
   /** Re-reads the settings: called when the user changes them, so a change takes effect at once. */
@@ -276,6 +344,8 @@ export class UpdateService {
 
   /** `auto` only: restarts into the staged update. */
   install(): void {
+    // The newer files are already on disk, so restarting is all it takes.
+    if (this.status.installedVersion !== null) { this.opts.backend.restart(); return }
     if (this.status.phase !== 'ready') return
     this.opts.backend.install()
   }
@@ -383,6 +453,11 @@ export class UpdateService {
 
   /** Dismisses the notice for now; the next check offers it again. */
   dismiss(): void {
+    if (this.status.installedVersion !== null) {
+      this.dismissedInstalled = this.status.installedVersion
+      this.patch({})
+      return
+    }
     if (this.status.phase === 'needs-password') {
       this.patch({ phase: 'available', installError: null })
       return
@@ -395,6 +470,7 @@ export class UpdateService {
 
   private patch(next: Partial<UpdateStatus>): void {
     this.status = { ...this.status, ...next }
+    this.status.installedVersion = this.shownInstalled()
     this.opts.onStatus(this.status)
   }
 }

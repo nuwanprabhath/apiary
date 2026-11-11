@@ -89,6 +89,7 @@ const DEFAULT_UPDATE: FakeState['update'] = {
   installError: null,
   lastCheckedAt: null,
   skippedVersion: null,
+  installedVersion: null,
 }
 
 export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {

@@ -23,13 +23,13 @@ export function UpdateBanner(
   const shown = phase === 'available' || phase === 'downloading' || phase === 'ready'
     || phase === 'downloaded' || phase === 'up-to-date' || (phase === 'error' && status.error !== null)
     || phase === 'needs-password' || phase === 'installing' || phase === 'restarting'
-  if (!shown) return null
+  if (!shown && status.installedVersion === null) return null
 
   return (
     <div className="update-banner" data-testid="update-banner" data-phase={phase} role="status">
       <div className="update-banner-text">
         <UpdateBannerBody status={status} host={host} />
-        {phase === 'available' && capability.kind === 'assisted' && status.installError === null && (
+        {phase === 'available' && status.installedVersion === null && capability.kind === 'assisted' && status.installError === null && (
           // Said before the click: an unsigned build cannot install itself.
           <span className="update-banner-note">{capability.reason}</span>
         )}

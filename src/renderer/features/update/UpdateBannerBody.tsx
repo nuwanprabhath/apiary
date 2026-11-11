@@ -9,7 +9,10 @@ import { formatVersion } from './updateSummary'
 export function UpdateBannerBody({ status, host }: { status: UpdateStatusPayload; host: string | null }): JSX.Element | null {
   const { phase, availableVersion, installError } = status
   const version = availableVersion === null ? '' : formatVersion(availableVersion)
-  const installing = <span>Installing Apiary {version}{host === null ? '' : ` on ${host}`}…</span>
+  if (status.installedVersion !== null) {
+    return <span>Apiary {formatVersion(status.installedVersion)} is installed. Restart to use it.</span>
+  }
+  const installing =<span>Installing Apiary {version}{host === null ? '' : ` on ${host}`}…</span>
   switch (phase) {
     case 'up-to-date':
       return <span>Apiary {formatVersion(status.currentVersion)} is the latest version.</span>
