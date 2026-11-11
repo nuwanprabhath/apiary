@@ -41,6 +41,7 @@ import { ptysOnSession, rememberAccounts, trackedProcesses, type TrackerAccounts
 import { PtyDataCoalescer } from '../terminals/ptyDataCoalescer'
 import { ActivityBroadcaster } from '../terminals/activityBroadcaster'
 import { TabMover } from '../windows/tabMover'
+import { closeGraceMs } from '../windows/closeGrace'
 import type { IpcState } from '../ipc/ipcState'
 import type { TabTransfer } from '@shared/types'
 import { SettingsService } from '../settings/settingsService'
@@ -466,6 +467,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   const petService: PetService = new PetService({ store: petStore, makeRunner, onChanged: petsChanged })
   const petPlacement = new PetPlacement({
     store: petStore, ...petWindowing(windowManager, ipcState.tabMover), arrive: (arrival) => { petService.arrive(arrival) }, changed: petsChanged,
+    graceMs: env.closeGraceMs ?? closeGraceMs(process.platform),
   })
   windowManager.onWindowClosed((number, quitting) => { petPlacement.windowClosed(number, { quitting }) })
   const spelling = new SpellingService()

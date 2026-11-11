@@ -230,6 +230,7 @@ export async function buildLoopbackWorld(
     cursor: () => OUTSIDE_EVERY_WINDOW,
     arrive: (arrival) => { petService.arrive(arrival) },
     changed: () => { broadcast(IPC.petsChanged, petService.state()) },
+    graceMs: 1000,
   })
   const petFile = join(home, 'pet.apiarypet.json')
   // The work machine's side, built by the app's own factory: nothing connects to it unless a clause asks,
