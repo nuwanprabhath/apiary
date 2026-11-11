@@ -3,7 +3,8 @@ import { ContextMenu } from '../../ui/ContextMenu'
 import type { ContextMenuItem } from '../../ui/contextMenuItem'
 import { useNotifications } from '../../ui/notifications'
 import { copyRich, copyText } from '../../state/clipboard'
-import { selectionHtmlWithin } from './selectionHtml'
+import { selectionFragmentWithin, selectionHtmlWithin } from './selectionHtml'
+import { hasStructure, selectionText } from './selectionText'
 
 /** The selected text when it is non-empty and lies wholly inside `root`, else ''. */
 function selectionWithin(root: HTMLElement | null): string {
@@ -11,7 +12,10 @@ function selectionWithin(root: HTMLElement | null): string {
   if (root === null || sel === null || sel.isCollapsed || sel.rangeCount === 0) return ''
   const range = sel.getRangeAt(0)
   if (!root.contains(range.commonAncestorContainer)) return ''
-  return sel.toString()
+  // List numbers and bullets are CSS markers, so they are not in `toString()`: a selection with
+  // structure is written out as text that has them. Running text inside one block copies as it is.
+  const fragment = selectionFragmentWithin(root)
+  return fragment !== null && hasStructure(fragment) ? selectionText(fragment) : sel.toString()
 }
 
 function inTextField(target: EventTarget | null): boolean {
@@ -49,8 +53,22 @@ export function useCopyOnSelect(ref: RefObject<HTMLElement | null>): {
       const text = selectionWithin(el)
       if (text !== '') copy(text)
     }
+    // The browser's own Ctrl/Cmd+C: the same text, and the selection's HTML so a paste keeps real lists.
+    const onCopy = (e: ClipboardEvent): void => {
+      if (inTextField(e.target) || e.clipboardData === null) return
+      const text = selectionWithin(el)
+      if (text === '') return
+      e.preventDefault()
+      e.clipboardData.setData('text/plain', text)
+      const html = selectionHtmlWithin(el)
+      if (html !== '') e.clipboardData.setData('text/html', html)
+    }
     el.addEventListener('mouseup', onMouseUp)
-    return () => { el.removeEventListener('mouseup', onMouseUp) }
+    el.addEventListener('copy', onCopy)
+    return () => {
+      el.removeEventListener('mouseup', onMouseUp)
+      el.removeEventListener('copy', onCopy)
+    }
   }, [ref, copy])
 
   const onContextMenu = useCallback((e: ReactMouseEvent<HTMLElement>): void => {

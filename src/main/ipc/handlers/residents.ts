@@ -3,7 +3,7 @@ import type { FolderBrowser } from '../../folders/folderBrowser'
 import type { ResidentService } from '../../residents/residentService'
 import type { Handlers } from '../registrar'
 
-type HandledKeys = 'residentsList' | 'residentsAdd' | 'residentHistory' | 'residentSend' | 'residentStop' | 'residentClear' | 'residentRedigest'
+type HandledKeys = 'residentsList' | 'residentsAdd' | 'residentHistory' | 'residentSend' | 'residentStop' | 'residentClear' | 'residentRestart' | 'residentRedigest'
   | 'residentPermissionAnswer' | 'residentQuickAction' | 'residentSeen' | 'residentPickFolder' | 'residentUseBrowsedFolder' | 'residentKinds'
 
 /**
@@ -23,6 +23,7 @@ export function residentsHandlers(
     residentSend: (_e, id, text) => residents.send(id, text),
     residentStop: (_e, id) => { residents.stop(id) },
     residentClear: (_e, id) => residents.clear(id),
+    residentRestart: (_e, id) => residents.restart(id),
     residentRedigest: (_e, id) => residents.redigest(id),
     residentPermissionAnswer: (_e, id, requestId, allow) => { residents.answerPermission(id, requestId, allow) },
     residentQuickAction: (_e, id, actionId) => residents.quickAction(id, actionId),

@@ -498,6 +498,8 @@ export const IPC = {
   residentStop: invoke<[id: string], void>('apiary:resident-stop', tuple(residentIdArg)),
   /** Empties the resident's chat and forgets its claude session. */
   residentClear: invoke<[id: string], void>('apiary:resident-clear', tuple(residentIdArg)),
+  /** Stops the resident's claude and starts it again on the same session, re-reading settings and permissions. */
+  residentRestart: invoke<[id: string], void>('apiary:resident-restart', tuple(residentIdArg)),
   /** Forgets every topic digest and starts the digest again. */
   residentRedigest: invoke<[id: string], void>('apiary:resident-redigest', tuple(residentIdArg)),
   /** Allows or denies a tool use the resident waits on (`ResidentStatus.permissions`); an id already answered is ignored. */

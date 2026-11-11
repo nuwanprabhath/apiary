@@ -55,6 +55,11 @@ export function stopResident(residentId: string): void {
   surface(window.apiary.residentStop(residentId), 'Could not stop the resident')
 }
 
+/** Restarts the resident's claude on the same session; main adds a "Restarted." line to the chat. */
+export function restartResident(residentId: string): void {
+  surface(window.apiary.residentRestart(residentId), 'Could not restart the resident')
+}
+
 /** Empties the resident's chat and makes it forget the conversation; every reader sees it empty. */
 export function clearResident(residentId: string): void {
   surface(window.apiary.residentClear(residentId).then(() => historyStore.refresh(residentId)), 'Could not clear the history')

@@ -81,6 +81,14 @@ export function defineResidentsClauses(ctx: Ctx): void {
       expect(await ctx.api.residentHistory('regent')).toEqual([])
     })
 
+    it('restart refuses an unknown or disabled resident, and adds "Restarted." for an enabled one', async (t) => {
+      skipOnRemote(t, ctx.bridge, RUNS_CLAUDE)
+      await expect(ctx.api.residentRestart('ghost')).rejects.toThrow()
+      await enabledRegent()
+      await ctx.api.residentRestart('regent')
+      expect((await ctx.api.residentHistory('regent')).map((m) => m.text)).toContain('Restarted.')
+    })
+
     it('a resident\'s open_session asks the window to show that session', async (t) => {
       skipOnRemote(t, ctx.bridge, RUNS_CLAUDE)
       await enabledRegent()

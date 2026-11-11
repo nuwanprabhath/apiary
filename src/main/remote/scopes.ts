@@ -283,6 +283,7 @@ export const CHANNEL_SCOPES = {
   residentSend: 'remote',
   residentStop: 'remote',
   residentClear: 'remote',
+  residentRestart: 'remote',
   residentRedigest: 'remote',
   residentPermissionAnswer: 'remote',
   residentQuickAction: 'remote',

@@ -57,7 +57,7 @@ describe('what follows the window to the work machine', () => {
   const remote = [
     'statusBarItems', 'statusBarRefresh', 'statusBarPanel', 'statusBarConsent', 'statusBarChanged',
     'residentsList', 'residentsChanged', 'residentsAdd', 'residentHistory', 'residentMessage', 'residentSend',
-    'residentStop', 'residentClear', 'residentRedigest', 'residentPermissionAnswer', 'residentQuickAction',
+    'residentStop', 'residentClear', 'residentRestart','residentRedigest', 'residentPermissionAnswer', 'residentQuickAction',
     'residentSeen', 'residentKinds', 'residentUseBrowsedFolder', 'openSessionRequested',
     'machineSettingsGet', 'machineSettingsSet', 'machineSettingsChanged', 'machinePluginList',
   ] as const

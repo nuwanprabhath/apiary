@@ -221,6 +221,7 @@ describe('the IPC contract', () => {
       residentSend: 'apiary:resident-send',
       residentStop: 'apiary:resident-stop',
       residentClear: 'apiary:resident-clear',
+      residentRestart: 'apiary:resident-restart',
       residentRedigest: 'apiary:resident-redigest',
       residentPermissionAnswer: 'apiary:resident-permission-answer',
       residentQuickAction: 'apiary:resident-quick-action',

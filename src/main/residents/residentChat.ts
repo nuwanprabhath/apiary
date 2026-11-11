@@ -209,6 +209,14 @@ export class ResidentChat {
     await proc.stop(STOP_GRACE_MS)
   }
 
+  /** Stops claude and starts it again on the same session, so launch flags and permissions are read afresh. */
+  async restart(): Promise<void> {
+    await this.stop()
+    this.appendAssistant('Restarted.')
+    await this.ensureRunning()
+    this.deps.onActivity()
+  }
+
   /** Forgets the conversation: the process, the visible history and claude's session id. */
   async clear(): Promise<void> {
     await this.stop()
