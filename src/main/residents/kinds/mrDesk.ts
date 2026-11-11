@@ -3,7 +3,6 @@ import type { ResidentConfig } from '@shared/domain/residents'
 import { RESIDENT_FIELD_DEFAULTS } from '@shared/settings/residents'
 import type { ResidentKind } from '../kindTypes'
 import { errorMessage } from '@shared/errors'
-import { log } from '../../log/logger'
 import { CLAUDE_SETTINGS_FILE, pathFirstSettings } from '../claudeSettings'
 import type { KindDeps } from './kindDeps'
 import { mraConfigFor, mraConfigured, mraWrapper, optionOf } from './mrDeskConfig'
@@ -44,14 +43,14 @@ export function createMrDesk(deps: KindDeps): ResidentKind {
     try {
       help = await deps.exec('python3', [script(), '--help'], space)
     } catch (e) {
-      log.warn('residents', 'mra --help failed', { error: errorMessage(e) })
+      deps.warn?.('mra --help failed', { error: errorMessage(e) })
       missingSubs = null
       return
     }
     const have = new Set(subcommandsFromHelp(help))
     if (have.size === 0) { missingSubs = null; return }
     missingSubs =mraSubcommandsIn(systemPrompt('')).filter((s) => !have.has(s))
-    if (missingSubs.length > 0) log.warn('residents', 'mra lacks subcommands the prompt names', { missing: missingSubs.join(',') })
+    if (missingSubs.length > 0) deps.warn?.('mra lacks subcommands the prompt names', { missing: missingSubs.join(',') })
   }
   return {
     id: MR_DESK_KIND,

@@ -56,6 +56,7 @@ export function createResidents(o: {
     exec: createExec({ scope: 'residents', timeoutMs: PROBE_TIMEOUT_MS, env: { PATH: searchPath() } }),
     searchPath,
     files: nodeKindFiles,
+    warn: (message, fields) => { log.warn('residents', message, fields) },
   }, dataKinds)
   // The window last in front (or the first, before any was focused): where a resident's "open this session" goes.
   const front = (): WebContents | null => {

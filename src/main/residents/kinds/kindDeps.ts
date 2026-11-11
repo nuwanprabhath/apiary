@@ -25,6 +25,8 @@ export interface KindDeps {
   /** The `PATH` its programs run under: Apiary's own plus where Homebrew puts `glab`. */
   searchPath: () => string
   files: KindFiles
+  /** Logs a warning under the `residents` scope; injected because the logger needs Node. Absent: dropped. */
+  warn?: (message: string, fields: Record<string, string>) => void
 }
 
 const unwired = (): never => { throw new Error('Kind deps are not wired') }
