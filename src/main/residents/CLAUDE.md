@@ -155,7 +155,7 @@ packaged, `<repo>/resources` in dev; `electron-builder.yml` `extraResources`).
   `ResidentChat.askUser`, and only on Allow write the nonce, run `mra approve !<iid>` with it and
   delete it. A denial, or the chat stopping, approves nothing.
 - **Its `mra` comes first on the Bash tool's PATH.** Claude Code's Bash tool runs in a snapshot of
-  the login shell, whose profile may prepend `~/.local/bin` holding an older personal `mra`, so
+  the login shell, whose profile may prepend the user's own bin folder holding an older personal `mra`, so
   `env().PATH` alone lost. `pathFirst` makes `prepare` write `<space>/claude-settings.json` (0600,
   `pathFirstSettings` in `claudeSettings.ts`: a SessionStart hook appending a PATH export to
   `$CLAUDE_ENV_FILE`, which is sourced before every Bash command) and `residentLaunch.ts` passes
