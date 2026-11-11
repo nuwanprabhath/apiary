@@ -4,6 +4,20 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.61.1] - 2026-11-11
+
+### Added
+
+- A restart button beside a resident's trash icon starts its claude again on the same
+  conversation, so changed settings and permissions take effect without quitting Apiary. While it
+  is replying, it asks first.
+
+### Fixed
+
+- Text copied from a resident's chat or a transcript keeps its list numbers and bullets
+  (`1.`, `-`, nested lists indented), with the HTML alongside so a paste into a rich editor keeps
+  real lists. Before, a numbered list pasted as bare lines.
+
 ## [1.61.0] - 2026-11-11
 
 ### Added
