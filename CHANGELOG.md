@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.61.3] - 2026-11-11
+
+### Added
+
+- When a newer Apiary has been installed while this one is running (a `.deb` installed with apt, or
+  a new bundle copied over the old one on macOS), the update bar says "Apiary X is installed.
+  Restart to use it." with a Restart button. Installing a package never restarts the running app,
+  so until now it kept running the old version with no sign of it. Apiary checks a minute after
+  starting, every 10 minutes, and when a window gains focus.
+
 ## [1.61.2] - 2026-11-11
 
 ### Added
