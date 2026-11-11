@@ -11,6 +11,8 @@ export interface KindFiles {
   writeExecutable: (file: string, text: string) => void
   /** Pretty JSON for another program to read, replaced atomically. */
   writeJson: (file: string, data: unknown) => void
+  /** JSON only its owner may read (mode 0600), replaced atomically. */
+  writePrivateJson: (file: string, data: unknown) => void
   readText: (file: string) => string
 }
 
@@ -32,5 +34,5 @@ export const UNWIRED_KIND_DEPS: KindDeps = {
   resourceDir: (kindId) => `resources/residents/${kindId}`,
   exec: () => Promise.reject(new Error('Kind deps are not wired')),
   searchPath: () => '',
-  files: { ensureDir: unwired, writeExecutable: unwired, writeJson: unwired, readText: unwired },
+  files: { ensureDir: unwired, writeExecutable: unwired, writeJson: unwired, writePrivateJson: unwired, readText: unwired },
 }

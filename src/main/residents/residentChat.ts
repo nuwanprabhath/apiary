@@ -21,7 +21,12 @@ export interface ResidentLaunch {
   permissionMode: ChatPermissionMode
   /** The kind's `toolPolicy`: tools its claude may not use in any permission mode. None when absent. */
   disallowedTools?: readonly string[]
+  /** A Claude Code settings file the kind wrote (its `pathFirst` hook), passed with `--settings`. */
+  settingsFile?: string
 }
+
+/** What every resident's claude may use without asking: Apiary's own tools. */
+export const RESIDENT_ALLOWED_TOOLS: readonly string[] = ['mcp__apiary__*']
 
 export interface ResidentChatDeps {
   space: ResidentSpace
@@ -47,7 +52,8 @@ export function residentFlags(launch: ResidentLaunch, resume: string | null): st
   return [
     '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     '--model', launch.model,
-    '--mcp-config', launch.mcpConfig, '--allowedTools', 'mcp__apiary__*',
+    '--mcp-config', launch.mcpConfig, '--allowedTools', ...RESIDENT_ALLOWED_TOOLS,
+    ...(launch.settingsFile !== undefined ? ['--settings', launch.settingsFile] : []),
     ...(launch.disallowedTools !== undefined && launch.disallowedTools.length > 0 ? ['--disallowedTools', ...launch.disallowedTools] : []),
     '--permission-mode', launch.permissionMode, '--permission-prompt-tool', 'stdio',
     '--append-system-prompt', launch.systemPrompt,

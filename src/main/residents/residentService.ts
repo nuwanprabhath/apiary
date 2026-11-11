@@ -13,11 +13,12 @@ import { cycleMinutesOf, cycleStatus } from './cycle'
 import { instantHits, instantMatchPolicy } from './instantMatches'
 import { kindInfos, kindOf, newResident, unknownKindFilter, type ResidentKind } from './kinds'
 import { McpServer } from './mcp/server'
-import type { ApprovalControl, ResidentControl, ToolDeps } from './mcp/tools'
+import type { ApprovalControl, ResidentControl, ToolDeps } from './mcp/toolKit'
 import { cycleSkip, expandArgv } from './quickActions'
 import { ResidentChat } from './residentChat'
 import { ResidentSpace } from './residentSpace'
-import { apiaryStatusText } from './statusText'
+import { apiaryStatusText, type ResidentPermissions } from './statusText'
+import { residentLaunch } from './residentLaunch'
 import { isOnDuty, nextChange } from '@shared/residentSchedule'
 
 /** Off duty, a resident's idle claude is stopped after this long. */
@@ -81,6 +82,8 @@ interface Resident {
   chat: ResidentChat
   /** What its running claude was started with; a change restarts it once it is idle. */
   launchedAs: string | null
+  /** The permission flags its claude was last started with, for `apiary_status`. */
+  permissions: ResidentPermissions | null
   /** When its kind's cycle prompt is next due (epoch ms), or null while it is off duty. Invalidated by a change of `cycleEvery`. */
   nextCycleAt: number | null
   /** The interval `nextCycleAt` was counted with. */
@@ -272,7 +275,7 @@ export class ResidentService {
         const others = [...this.residents.values()].filter((o) => o !== r).map((o) => this.statusOf(o, now))
         return apiaryStatusText({
           self: this.statusOf(r, now), config: r.config, lookback: r.config.digestLookback,
-          index: r.kind.digests ? this.deps.digest?.indexSize() ?? null : null, others, now, background: r.chat.backgroundTasks(),
+          index: r.kind.digests ? this.deps.digest?.indexSize() ?? null : null, others, now, background: r.chat.backgroundTasks(), permissions: r.permissions,
         })
       },
       setAttention: (id, attention) => { this.require(id).space.setAttention(attention); this.statusChanged() },
@@ -282,7 +285,7 @@ export class ResidentService {
 
   /** `approve_mr`'s reach: the kind's approval, the user's answer, and a command run as a quick action's is. */
   private approvalControl(): ApprovalControl {
-    return { approvalOf: (id) => this.require(id).kind.approval ?? null, askUser: (id, tool, summary) => this.require(id).chat.askUser(tool, summary), run: (id, argv, extraEnv) => this.runIn(this.require(id), argv, extraEnv), spaceDir: (id) => this.require(id).space.dir }
+    return { approvalOf: (id) => this.require(id).kind.approval ?? null, userActionsOf: (id) => this.require(id).kind.userActions ?? null, askUser: (id, tool, summary) => this.require(id).chat.askUser(tool, summary), run: (id, argv, extraEnv) => this.runIn(this.require(id), argv, extraEnv), spaceDir: (id) => this.require(id).space.dir }
   }
 
   /** Runs a kind's argv in the resident's space, with its env and `extraEnv`. */
@@ -377,7 +380,7 @@ export class ResidentService {
     const space = new ResidentSpace(this.deps.root, config.id)
     // The chat's callbacks read the live config through this object, which becomes the resident.
     const resident: Omit<Resident, 'chat'> = {
-      config, kind, space, launchedAs: null, nextCycleAt: null, cycleEvery: null, ready: Promise.resolve(), preparedFor: null, preparing: false, actions: [], turnSeq: 0,
+      config, kind, space, launchedAs: null, permissions: null, nextCycleAt: null, cycleEvery: null, ready: Promise.resolve(), preparedFor: null, preparing: false, actions: [], turnSeq: 0,
     }
     const chat = new ResidentChat({
       space,
@@ -389,11 +392,9 @@ export class ResidentService {
         await resident.ready
         const url = await this.server.start()
         resident.launchedAs = launchKey(resident.config)
-        return {
-          mcpConfig: space.writeMcpConfig(url, this.server.issueToken(config.id)),
-          systemPrompt: kind.systemPrompt(resident.config.name, cycleMinutesOf(kind, resident.config) ?? undefined),
-          model: resident.config.model, permissionMode: resident.config.permissionMode, disallowedTools: kind.toolPolicy?.disallowedTools ?? [],
-        }
+        const started = residentLaunch(kind, resident.config, space.dir, space.writeMcpConfig(url, this.server.issueToken(config.id)), this.now())
+        resident.permissions = started.permissions
+        return started.launch
       },
       onMessage: (message) => { this.deps.onMessage({ residentId: config.id, message }) },
       onActivity: () => { this.statusChanged() },

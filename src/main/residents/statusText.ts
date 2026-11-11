@@ -11,6 +11,23 @@ export interface StatusReport {
   others: ResidentStatus[]
   now: Date
   background: string[]
+  /** What its claude was last started with, or null before the first start. */
+  permissions: ResidentPermissions | null
+}
+
+/** The permission flags a resident's claude was started with, as passed. */
+export interface ResidentPermissions {
+  mode: string
+  allowedTools: readonly string[]
+  disallowedTools: readonly string[]
+  /** When claude was started with these (ISO time). */
+  settingsLoadedAt: string
+}
+
+function permissionsText(p: ResidentPermissions | null): string {
+  if (p === null) return 'Permissions: your claude has not been started yet.'
+  const list = (tools: readonly string[]): string => (tools.length === 0 ? 'none' : tools.join(', '))
+  return `Permissions (as your claude was started at ${p.settingsLoadedAt}): mode ${p.mode}; allowed: ${list(p.allowedTools)}; disallowed: ${list(p.disallowedTools)}.`
 }
 
 /** "Background tasks: 2 running (Review !1571; Sleep)". */
@@ -37,7 +54,7 @@ export function apiaryStatusText(r: StatusReport): string {
     `You: ${self.name} (${self.kind}), ${self.enabled ? self.state : 'disabled'}${self.activity !== null ? ` — ${self.activity}` : ''}.`,
     `Duty: ${dutyStatusText(config.schedule, r.now)}. Schedule: ${days}, ${config.schedule.start}–${config.schedule.end}.`,
   ]
-  lines.push(backgroundText(r.background))
+  lines.push(backgroundText(r.background), permissionsText(r.permissions))
   if (self.digest !== null) {
     lines.push(`Digest: ${String(self.digest.done)}/${String(self.digest.total)} sessions this pass, looking back ${lookbackText(r.lookback)}.`)
   }

@@ -5,7 +5,8 @@ import { isRecord } from '@shared/guards'
 import { errorMessage } from '@shared/errors'
 import type { ResidentCapability } from '../kinds'
 import type { ResidentSpace } from '../residentSpace'
-import { toolsFor, type Tool, type ToolDeps } from './tools'
+import { toolsFor } from './tools'
+import type { Tool, ToolDeps } from './toolKit'
 
 /** A request body larger than this is refused unread: no tool takes anything near it. */
 const MAX_BODY = 1024 * 1024

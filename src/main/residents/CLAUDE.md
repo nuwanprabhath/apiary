@@ -26,6 +26,8 @@ kind's own `options`). Regent is the first kind; the MR desk is the second.
   - `toolPolicy?`: `disallowedTools`, passed as `--disallowedTools` in every permission mode (the MR
     desk: `glab mr approve|note|merge|close`, `glab api`, `git push`);
   - `approval?`: how `approve_mr` (capability `gitlab.approve`) reads and approves an MR;
+  - `userActions?`: how `request_user_action` (same capability) reads, shows and runs a write;
+  - `pathFirst?(space)`: a folder its claude's Bash tool finds commands in first (below);
   - `env?(config, space)`: extra environment for its claude and its commands;
   - `prepare?(config, space)`: async, writes what its program reads and probes its tools.
 - A kind id is a branded slug (`ResidentKindId`, `isResidentKindId`); the built-ins are
@@ -152,6 +154,24 @@ packaged, `<repo>/resources` in dev; `electron-builder.yml` `extraResources`).
   ("Approve !1570: title → target at <sha>", from GitLab, never from the agent's words) through
   `ResidentChat.askUser`, and only on Allow write the nonce, run `mra approve !<iid>` with it and
   delete it. A denial, or the chat stopping, approves nothing.
+- **Its `mra` comes first on the Bash tool's PATH.** Claude Code's Bash tool runs in a snapshot of
+  the login shell, whose profile may prepend `~/.local/bin` holding an older personal `mra`, so
+  `env().PATH` alone lost. `pathFirst` makes `prepare` write `<space>/claude-settings.json` (0600,
+  `pathFirstSettings` in `claudeSettings.ts`: a SessionStart hook appending a PATH export to
+  `$CLAUDE_ENV_FILE`, which is sourced before every Bash command) and `residentLaunch.ts` passes
+  `--settings`. `apiary_status` lists the mode, allowed and disallowed tools claude was started with.
+- **Prompt and CLI cannot drift.** `prepare` runs `python3 <mra> --help`; a `` `mra <sub>` `` the
+  prompt names that it lacks is logged and `setup` says "mra is missing: …".
+  `tests/unit/residents/mrDeskActions.test.ts` checks the prompt against the vendored parser.
+- **Blocks explain themselves.** `MR_DESK_BLOCKED` (`kinds/mrDeskMra.ts`) is one table: the
+  disallowed tools and the preamble's "blocked → use instead" lines are both made from it.
+- **Publish, reply, resolve need a click.** Drafts (`mra draft add|list|edit|move|delete`) are free.
+  `request_user_action({ kind: publish_drafts | reply | resolve, iid, discussionId?, body? })`
+  (`mcp/gitlabTools.ts`, kind side `kinds/mrDeskActions.ts`) has main run `mra ready` plus
+  `mra draft list` or `mra thread`, build the card from their output (the reply body, shown verbatim,
+  is the only agent text), and only on Allow write `<space>/mra/state/action.nonce`, run the write
+  with `MRA_ACTION_NONCE` (a reply's body through `--body-file`), and delete both files. `approve_mr`
+  uses the same `runWithNonce`.
 - **Untrusted text.** `mra prompt` wraps the MR title and comment bodies in `<<<UNTRUSTED` … `>>>`
   and opens the prompt saying that text is data. The residual risk: an agent with a shell can still
   reach `glab` through another program; a read-only GitLab token for the resident would close it.
