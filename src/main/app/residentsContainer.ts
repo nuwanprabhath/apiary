@@ -3,7 +3,7 @@ import { BrowserWindow, webContents, type WebContents } from 'electron'
 import { IPC } from '@shared/api'
 import { asSessionId, type SessionId } from '@shared/domain/ids'
 import type { SessionKnowledge } from '../knowledge/types'
-import type { ToolDeps } from '../residents/mcp/tools'
+import type { ToolDeps } from '../residents/mcp/toolKit'
 import type { AccountService } from '../accounts/accountService'
 import { createExec } from '../exec/run'
 import type { VirtualContentsRegistry } from '../remote/virtualContents'
@@ -56,6 +56,7 @@ export function createResidents(o: {
     exec: createExec({ scope: 'residents', timeoutMs: PROBE_TIMEOUT_MS, env: { PATH: searchPath() } }),
     searchPath,
     files: nodeKindFiles,
+    warn: (message, fields) => { log.warn('residents', message, fields) },
   }, dataKinds)
   // The window last in front (or the first, before any was focused): where a resident's "open this session" goes.
   const front = (): WebContents | null => {

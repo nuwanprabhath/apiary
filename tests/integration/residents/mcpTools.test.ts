@@ -3,10 +3,12 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { asSessionId } from '@shared/domain/ids'
-import { toolsFor, type ToolDeps, type ToolResult } from '../../../src/main/residents/mcp/tools'
+import { toolsFor } from '../../../src/main/residents/mcp/tools'
+import type { ToolDeps, ToolResult } from '../../../src/main/residents/mcp/toolKit'
 import { ResidentSpace } from '../../../src/main/residents/residentSpace'
 import { at } from '../../contract/must'
 import type { ResidentApproval } from '../../../src/main/residents/kindTypes'
+import { MR_DESK_USER_ACTIONS } from '../../../src/main/residents/kinds/mrDeskActions'
 import type { SessionKnowledge, SessionTopic } from '../../../src/main/knowledge/types'
 import type { SessionHit } from '@shared/domain/residents'
 import { residentSees, scopeToAccount } from '../../../src/main/app/residentsContainer'
@@ -133,6 +135,7 @@ describe('approve_mr', () => {
     const d = deps({
       approval: {
         approvalOf: () => APPROVAL,
+        userActionsOf: () => null,
         askUser: async (_id, _tool, summary) => { asked.push(summary); return allow },
         spaceDir: () => dir,
         run: async (_id, argv, env) => {
@@ -188,6 +191,114 @@ describe('approve_mr', () => {
   it('is listed only for a kind with gitlab.approve, and says so where nothing approves', async () => {
     expect(toolsFor(['sessions.read', 'space.notes']).map((t) => t.name)).not.toContain('approve_mr')
     expect(await approve({ iid: 5 }, deps())).toEqual({ text: 'Approving is not available here.', isError: true })
+  })
+})
+
+describe('request_user_action (the MR desk)', () => {
+  const READY = JSON.stringify({ title: 'fix: thing', target_branch: 'dev', sha: 'abcdef0123456789' })
+  const DRAFTS = JSON.stringify({ head_sha: 'abc', drafts: [
+    { id: 1, file: 'src/a.ts', line: 12, body: 'Rename this.\nMore.', head_sha: 'abc', outdated: false },
+    { id: 2, file: null, line: null, body: 'General point', head_sha: 'abc', outdated: true },
+  ] })
+  const THREAD = JSON.stringify({ notes: [
+    { author: 'me', created_at: 't1', body: '<<<UNTRUSTED note\nWhy is this here?\n>>>' },
+    { author: 'dev', created_at: 't2', body: '<<<UNTRUSTED note\nIt is needed for X.\n>>>' },
+  ] })
+  interface Ran { argv: string[]; env: Record<string, string>; nonceOnDisk: string | null; bodyOnDisk: string | null }
+
+  function acting(allow: boolean, facts: Record<string, string> = {}): { d: ToolDeps; asked: string[]; ran: Ran[] } {
+    const asked: string[] = []
+    const ran: Ran[] = []
+    const nonceFile = MR_DESK_USER_ACTIONS.nonceFile(dir)
+    const bodyFile = MR_DESK_USER_ACTIONS.bodyFile(dir)
+    const read = (f: string): string | null => (existsSync(f) ? readFileSync(f, 'utf8') : null)
+    const out: Record<string, string> = { ready: READY, draft: DRAFTS, thread: THREAD, ...facts }
+    const d = deps({
+      approval: {
+        approvalOf: () => null,
+        userActionsOf: () => MR_DESK_USER_ACTIONS,
+        askUser: async (_id, _tool, summary) => { asked.push(summary); return allow },
+        spaceDir: () => dir,
+        run: async (_id, argv, env) => {
+          ran.push({ argv, env, nonceOnDisk: read(nonceFile), bodyOnDisk: read(bodyFile) })
+          const sub = argv[1] ?? ''
+          return sub === 'draft' && argv[2] === 'publish' ? '{"published":2}' : out[sub] ?? '{"ok":true}'
+        },
+      },
+    })
+    return { d, asked, ran }
+  }
+  const act = async (args: unknown, d: ToolDeps): Promise<ToolResult> => {
+    const tool = toolsFor(['gitlab.approve']).find((t) => t.name === 'request_user_action')
+    if (tool === undefined) throw new Error('no request_user_action')
+    return tool.call(args, { residentId: 'desk', space }, d)
+  }
+  const writes = (ran: Ran[]): Ran[] => ran.filter((r) => r.env.MRA_ACTION_NONCE !== undefined)
+
+  it('shows the drafts main read from mra and publishes them with a one-call nonce, deleted after', async () => {
+    const { d, asked, ran } = acting(true)
+    const r = await act({ kind: 'publish_drafts', iid: 1669 }, d)
+    expect(asked).toEqual([[
+      'Publish 2 draft comments on !1669: fix: thing',
+      '- src/a.ts:12: Rename this.',
+      '- on the MR (outdated): General point',
+    ].join('\n')])
+    expect(ran.slice(0, 2).map((x) => x.argv)).toEqual([['{bin:mra}', 'ready', '!1669'], ['{bin:mra}', 'draft', 'list', '!1669']])
+    const w = at(writes(ran), 0)
+    expect(w.argv).toEqual(['{bin:mra}', 'draft', 'publish', '!1669'])
+    expect(w.env.MRA_ACTION_NONCE).toMatch(/^[0-9a-f]{64}$/)
+    expect(w.nonceOnDisk).toBe(w.env.MRA_ACTION_NONCE)
+    expect(existsSync(MR_DESK_USER_ACTIONS.nonceFile(dir))).toBe(false)
+    expect(r).toEqual({ text: '{"published":2}', isError: false })
+  })
+
+  it('a reply shows the thread\'s last note and the body verbatim, posts it through a body file, and deletes both files', async () => {
+    const { d, asked, ran } = acting(true)
+    const body = 'Thanks — makes sense.\nResolving.'
+    await act({ kind: 'reply', iid: 7, discussionId: 'abc123', body }, d)
+    expect(asked).toEqual([['Reply on !7: fix: thing', 'Last in the thread: @dev: It is needed for X.', 'Your reply:', body].join('\n')])
+    const w = at(writes(ran), 0)
+    expect(w.argv).toEqual(['{bin:mra}', 'reply', '!7', '--discussion', 'abc123', '--body-file', MR_DESK_USER_ACTIONS.bodyFile(dir)])
+    expect(w.bodyOnDisk).toBe(body)
+    expect(existsSync(MR_DESK_USER_ACTIONS.bodyFile(dir))).toBe(false)
+    expect(existsSync(MR_DESK_USER_ACTIONS.nonceFile(dir))).toBe(false)
+  })
+
+  it('resolve shows who started the thread and runs mra resolve', async () => {
+    const { d, asked, ran } = acting(true)
+    await act({ kind: 'resolve', iid: 7, discussionId: 'abc123' }, d)
+    expect(at(asked, 0)).toBe(['Resolve a thread on !7: fix: thing', 'Started by @me: Why is this here?', 'Last: @dev: It is needed for X.'].join('\n'))
+    expect(at(writes(ran), 0).argv).toEqual(['{bin:mra}', 'resolve', '!7', 'abc123'])
+  })
+
+  it('runs nothing when the user declines', async () => {
+    const { d, ran } = acting(false)
+    const r = await act({ kind: 'reply', iid: 7, discussionId: 'abc123', body: 'hi' }, d)
+    expect(r.isError).toBe(true)
+    expect(r.text).toContain('declined')
+    expect(writes(ran)).toEqual([])
+    expect(existsSync(MR_DESK_USER_ACTIONS.bodyFile(dir))).toBe(false)
+  })
+
+  it('refuses bad arguments without asking or reading', async () => {
+    const { d, asked, ran } = acting(true)
+    for (const args of [
+      { kind: 'merge', iid: 1 }, { kind: 'publish_drafts', iid: 0 }, { kind: 'reply', iid: 1, body: 'x' },
+      { kind: 'reply', iid: 1, discussionId: 'a' }, { kind: 'resolve', iid: 1 }, { kind: 'reply', iid: 1, discussionId: 'a', body: 'x'.repeat(10_001) },
+      { kind: 'resolve', iid: 1, discussionId: '../x' },
+    ]) expect((await act(args, d)).isError).toBe(true)
+    expect(asked).toEqual([])
+    expect(ran).toEqual([])
+  })
+
+  it('does not ask when there are no drafts or mra cannot be read', async () => {
+    const cases: Record<string, string>[] = [{ draft: '{"drafts":[],"head_sha":"a"}' }, { ready: 'garbage' }, { thread: '{"error":"x"}' }]
+    for (const facts of cases) {
+      const { d, asked } = acting(true, facts)
+      expect((await act({ kind: 'publish_drafts', iid: 3 }, d)).isError || (await act({ kind: 'resolve', iid: 3, discussionId: 'a' }, d)).isError).toBe(true)
+      expect(asked.length).toBeLessThan(2)
+    }
+    expect(await act({ kind: 'publish_drafts', iid: 3 }, deps())).toEqual({ text: 'Asking the user to act is not available here.', isError: true })
   })
 })
 

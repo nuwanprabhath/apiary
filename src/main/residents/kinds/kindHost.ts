@@ -1,5 +1,5 @@
 import { delimiter } from 'node:path'
-import { ensurePrivateDir, writeExecutableText, writeJsonAtomic } from '../../fs/atomicWrite'
+import { ensurePrivateDir, writeExecutableText, writeJsonAtomic, writePrivateJson } from '../../fs/atomicWrite'
 import { readTextFile } from '../../fs/textFile'
 import type { KindFiles } from './kindDeps'
 
@@ -8,6 +8,7 @@ export const nodeKindFiles: KindFiles = {
   ensureDir: ensurePrivateDir,
   writeExecutable: writeExecutableText,
   writeJson: writeJsonAtomic,
+  writePrivateJson,
   readText: readTextFile,
 }
 

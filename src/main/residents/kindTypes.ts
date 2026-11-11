@@ -24,13 +24,37 @@ export interface MrHead {
  * `readArgv`, asks the user, then writes a one-call nonce to `nonceFile`, runs `approveArgv` with
  * the nonce in `nonceEnv`, and deletes the file. Argvs may use `{bin:<name>}`.
  */
-export interface ResidentApproval {
+export interface ResidentApproval extends ResidentNonce {
   readArgv: (iid: number) => string[]
   /** The MR from `readArgv`'s stdout, or null when it is not there. */
   parseHead: (stdout: string) => MrHead | null
   approveArgv: (iid: number) => string[]
+}
+
+/** A one-call nonce: written to `nonceFile` just before an allowed write, passed in `nonceEnv`, deleted after. */
+export interface ResidentNonce {
   nonceFile: (space: string) => string
   nonceEnv: string
+}
+
+/** A write `request_user_action` may ask the user for. Only `body` comes from the agent, shown verbatim. */
+export type UserAction =
+  | { kind: 'publish_drafts'; iid: number }
+  | { kind: 'reply'; iid: number; discussionId: string; body: string }
+  | { kind: 'resolve'; iid: number; discussionId: string }
+
+/**
+ * How main runs `request_user_action` for a kind (capability `gitlab.approve`): it runs each of
+ * `readArgvs`, builds the card from their stdouts (facts from GitLab, never the agent's words),
+ * asks the user, and only on Allow runs `actArgv` with a one-call nonce. A reply's body goes
+ * through `bodyFile`, deleted after. Argvs may use `{bin:<name>}`.
+ */
+export interface ResidentUserActions extends ResidentNonce {
+  readArgvs: (action: UserAction) => string[][]
+  /** The card's text from the reads, or why there is nothing to ask (no drafts, an unreadable answer). */
+  card: (action: UserAction, outputs: string[]) => { summary: string } | { problem: string }
+  actArgv: (action: UserAction, bodyFile: string) => string[]
+  bodyFile: (space: string) => string
 }
 
 export interface ResidentKindQuickAction {
@@ -77,6 +101,13 @@ export interface ResidentKind {
   toolPolicy?: { disallowedTools: readonly string[] }
   /** How `approve_mr` runs; a kind with the `gitlab.approve` capability has one. */
   approval?: ResidentApproval
+  /** How `request_user_action` reads, shows and runs a write the user must allow. */
+  userActions?: ResidentUserActions
+  /**
+   * A folder its claude's Bash tool must find commands in before the user's own PATH. `prepare`
+   * writes `<space>/claude-settings.json` (`pathFirstSettings`) and claude is started with `--settings`.
+   */
+  pathFirst?: (space: string) => string
   /** Extra environment for its claude and its commands. */
   env?: (config: ResidentConfig, space: string) => Record<string, string>
   /**

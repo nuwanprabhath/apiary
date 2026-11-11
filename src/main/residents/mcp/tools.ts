@@ -1,94 +1,11 @@
-import { randomBytes } from 'node:crypto'
-import { isRecord } from '@shared/guards'
 import { errorMessage } from '@shared/errors'
 import { asSessionId, type SessionId } from '@shared/domain/ids'
 import type { ResidentAttention, SessionHit } from '@shared/domain/residents'
-import type { SessionKnowledge } from '../../knowledge/types'
 import type { ResidentCapability } from '../kinds'
-import type { MrHead, ResidentApproval } from '../kindTypes'
-import { removeFileForProgram, writeFileForProgram } from '../../fs/textFile'
-import { ATTENTION_COUNT_MAX, ATTENTION_SUMMARY_MAX, NOTE_KEY_MAX, NOTE_TEXT_MAX, type ResidentSpace } from '../residentSpace'
+import { ATTENTION_COUNT_MAX, ATTENTION_SUMMARY_MAX, NOTE_KEY_MAX, NOTE_TEXT_MAX } from '../residentSpace'
+import { GITLAB_TOOLS } from './gitlabTools'
+import { fail, intIn, ok, text, tool, type Tool, type ToolDeps } from './toolKit'
 
-/** What a tool answers: text for the model, and whether it is an error the model should see as one. */
-export interface ToolResult {
-  text: string
-  isError: boolean
-}
-
-/** What the tools reach in Apiary. Ids only: no tool takes or returns a filesystem path. */
-export interface ToolDeps {
-  /** Null until the knowledge index is wired in; the session tools then say so. */
-  knowledge: SessionKnowledge | null
-  /** A session Apiary knows (in the session store, not deleted), by id; null for any other id. */
-  session(id: string): { title: string } | null
-  /** Asks the windows to show the session (`openSessionRequested`). */
-  openSession(id: SessionId): void
-  /** Every open tab, as the windows last reported them, and the window in front. */
-  openTabs(): { windowNumber: number; key: string; view: string; label: string | null }[]
-  focusedWindow(): number | null
-  /** The residents themselves, for the one the token names. */
-  residents: ResidentControl
-  /** Absent where nothing approves (a test of other tools): `approve_mr` then says so. */
-  approval?: ApprovalControl
-}
-
-/** What the status and attention tools do to the calling resident. */
-export interface ResidentControl {
-  /** The `apiary_status` answer for this resident. */
-  statusText(residentId: string): string
-  /** Sets (or, with null, clears) what it needs the user for; it persists until the user opens its popup. */
-  setAttention(residentId: string, attention: ResidentAttention | null): void
-  /** Its own words for the pill, until the next tool call or the turn's end. */
-  setActivity(residentId: string, text: string): void
-}
-
-/** What `approve_mr` reaches for the resident the token names. */
-export interface ApprovalControl {
-  /** Its kind's approval, or null for a kind without one. */
-  approvalOf(residentId: string): ResidentApproval | null
-  /** Shows the user a permission card with main's summary; resolves with their answer. */
-  askUser(residentId: string, tool: string, summary: string): Promise<boolean>
-  /** Runs a kind argv (`{bin:<name>}` expanded) in its space with its env plus `extraEnv`; resolves with stdout. */
-  run(residentId: string, argv: string[], extraEnv: Record<string, string>): Promise<string>
-  /** Its space folder, where the kind's nonce file goes. */
-  spaceDir(residentId: string): string
-}
-
-/** Who is calling: the resident the bearer token belongs to. */
-export interface ToolCall {
-  residentId: string
-  space: ResidentSpace
-}
-
-/** A tool as the server sees it: its listing, and a call that validates its arguments first. */
-export interface Tool {
-  name: string
-  capability: ResidentCapability
-  description: string
-  inputSchema: Record<string, unknown>
-  call: (args: unknown, call: ToolCall, deps: ToolDeps) => Promise<ToolResult>
-}
-
-interface ToolSpec<A> extends Omit<Tool, 'call'> {
-  /** Returns the arguments if they are valid, else a sentence saying what is wrong. */
-  parse: (args: Record<string, unknown>) => A | string
-  run: (args: A, call: ToolCall, deps: ToolDeps) => Promise<ToolResult> | ToolResult
-}
-
-function tool<A>(spec: ToolSpec<A>): Tool {
-  const { parse, run, ...listing } = spec
-  return {
-    ...listing,
-    call: async (args, call, deps) => {
-      const parsed = parse(isRecord(args) ? args : {})
-      if (typeof parsed === 'string') return fail(parsed)
-      return run(parsed, call, deps)
-    },
-  }
-}
-
-const ok = (text: string): ToolResult => ({ text, isError: false })
-const fail = (text: string): ToolResult => ({ text, isError: true })
 const NO_INDEX = 'The session index is not available.'
 
 const FIND_LIMIT = 20
@@ -96,9 +13,6 @@ const READ_MAX = 20000
 const READ_DEFAULT = 8000
 const QUERY_MAX = 500
 
-const text = (v: unknown, max: number): string | null => (typeof v === 'string' && v.trim() !== '' && v.length <= max ? v : null)
-const intIn = (v: unknown, min: number, max: number): number | null =>
-  (typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max ? v : null)
 
 /** A session id from the agent, checked against the store: an id it made up is an error result. */
 function knownSession(args: Record<string, unknown>, deps: ToolDeps): { id: SessionId; title: string } | string {
@@ -335,56 +249,6 @@ const SELF_TOOLS: Tool[] = [
     },
   }),
 ]
-
-const IID_MAX = 1_000_000_000
-
-const GITLAB_TOOLS: Tool[] = [
-  tool<{ iid: number }>({
-    name: 'approve_mr',
-    capability: 'gitlab.approve',
-    description: 'Approve a merge request the user named by its iid. Apiary shows the user the MR and approves only if they allow it; the answer says which.',
-    inputSchema: { type: 'object', properties: { iid: { type: 'integer', minimum: 1 } }, required: ['iid'] },
-    parse: (a) => {
-      const iid = intIn(a.iid, 1, IID_MAX)
-      return iid === null ? 'iid is the MR\'s number, a whole number from 1 (no list numbers, no "!").' : { iid }
-    },
-    run: async ({ iid }, { residentId }, deps) => {
-      const control = deps.approval
-      const approval = control?.approvalOf(residentId) ?? null
-      if (control === undefined || approval === null) return fail('Approving is not available here.')
-      const head = await readHead(control, approval, residentId, iid)
-      if (typeof head === 'string') return fail(`Could not read !${String(iid)}: ${head}`)
-      const summary = `Approve !${String(iid)}: ${head.title} → ${head.targetBranch} at ${head.sha.slice(0, 10)}`
-      if (!await control.askUser(residentId, 'approve_mr', summary)) return fail(`The user did not allow approving !${String(iid)}. Nothing was approved.`)
-      try {
-        return ok(await approveOnce(control, approval, residentId, iid))
-      } catch (e) {
-        return fail(`Approving !${String(iid)} failed: ${errorMessage(e).slice(0, 300)}`)
-      }
-    },
-  }),
-]
-
-/** The MR as main reads it from GitLab, or why it could not: the card never shows the agent's words. */
-async function readHead(control: ApprovalControl, approval: ResidentApproval, residentId: string, iid: number): Promise<MrHead | string> {
-  try {
-    return approval.parseHead(await control.run(residentId, approval.readArgv(iid), {})) ?? 'it did not give the title, target branch and head'
-  } catch (e) {
-    return errorMessage(e).slice(0, 300)
-  }
-}
-
-/** Runs the approval with a nonce written for this one call, so the same command from the agent's shell is refused. */
-async function approveOnce(control: ApprovalControl, approval: ResidentApproval, residentId: string, iid: number): Promise<string> {
-  const file = approval.nonceFile(control.spaceDir(residentId))
-  const nonce = randomBytes(32).toString('hex')
-  writeFileForProgram(file, nonce)
-  try {
-    return (await control.run(residentId, approval.approveArgv(iid), { [approval.nonceEnv]: nonce })).trim()
-  } finally {
-    removeFileForProgram(file)
-  }
-}
 
 /** Every Apiary tool. A new capability's tools are added here; a kind opts in by listing the capability. */
 const APIARY_TOOLS: readonly Tool[] = [...SESSION_TOOLS, ...WORKSPACE_TOOLS, ...NOTE_TOOLS, ...SELF_TOOLS, ...GITLAB_TOOLS]
