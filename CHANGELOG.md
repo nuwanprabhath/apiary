@@ -4,6 +4,24 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.61.0] - 2026-11-11
+
+### Added
+
+- The MR desk's `mra` can write draft notes: `mra draft add|list|edit|move|delete` anchor a comment
+  to a line of the MR's current diff (refusing a line that is not in it). Drafts are seen only by
+  you until you publish them. `mra poll` lists MRs whose drafts went out of date with new commits.
+- `mra api <path>`: read-only GitLab API calls (always GET; every write flag is refused).
+- `mra draft publish`, `mra reply` and `mra thread`. Publishing drafts, replying in a thread and
+  resolving a thread refuse to run unless Apiary started them after you allowed it.
+
+### Fixed
+
+- `mra poll` stops itself at 100 seconds and prints a JSON error naming the call that was running,
+  instead of being killed with no output. Its state file is replaced whole, so a stop never leaves
+  it half-written.
+- A GitLab write that timed out is never retried, so it cannot be sent twice.
+
 ## [1.60.39] - 2026-11-11
 
 ### Fixed
