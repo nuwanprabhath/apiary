@@ -62,6 +62,36 @@ describe('pets', () => {
     await expect.element(page.getByTestId('pet')).toHaveAttribute('data-region', 'bar')
   })
 
+  it('"Move to" lists the other local windows by number and tab title, and choosing one moves the pet', async () => {
+    const { fake } = await renderApp()
+    fake.state.appWindows = [
+      { number: 1, title: 'This one', focused: true, minimized: false, remoteHost: null },
+      { number: 2, title: 'Fix CSV export', focused: false, minimized: false, remoteHost: null },
+      { number: 3, title: 'Apiary', focused: false, minimized: false, remoteHost: null },
+      { number: 4, title: 'Remote one', focused: false, minimized: false, remoteHost: 'work' },
+    ]
+    fake.emit('appWindowsChanged')
+    out(fake, { pets: [fakePet('pip', { size: 64, window: 1 })] })
+    await expect.element(page.getByTestId('pet')).toBeVisible()
+    await clickPet('right')
+    await userEvent.click(page.getByRole('menuitem', { name: 'Move to' }))
+    await expect.element(page.getByRole('menuitem', { name: 'Window 3', exact: true })).toBeVisible()
+    const labels = [...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)
+    expect(labels).toContain('Window 2 — Fix CSV export')
+    expect(labels.filter((l) => l?.startsWith('Window'))).toHaveLength(2)
+    await userEvent.click(page.getByRole('menuitem', { name: 'Window 2 — Fix CSV export' }))
+    expect(fake.callsTo('petMoveTo')).toEqual([['pip', 2]])
+    await expect.poll(() => document.querySelector('[data-testid="pet"]')).toBeNull()
+  })
+
+  it('"Move to" is disabled when there is no other window', async () => {
+    const { fake } = await renderApp()
+    out(fake)
+    await expect.element(page.getByTestId('pet')).toBeVisible()
+    await clickPet('right')
+    await expect.element(page.getByRole('menuitem', { name: 'Move to (no other window)' })).toBeDisabled()
+  })
+
   it('right-click offers sizes, sleep, putting it away and its settings', async () => {
     const { fake } = await renderApp()
     out(fake)

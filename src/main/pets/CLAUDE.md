@@ -20,6 +20,9 @@ here and how they are reached.
     from before 1.41, with no `window`) goes to the most recently focused window.
   - A window closing while the app carries on hands its pets to the most recently focused other
     window (`WindowManager.onWindowClosed`); on quit they keep its number for the restore.
+  - A move a close made is remembered for `graceMs` (`closeGraceMs`); if every window closes or the
+    app quits within it (a desktop Quit closes windows one at a time) the pets go back to their windows.
+  - `moveTo` is `petMoveTo`, the pet menu's "Move to": a live local window's number (from `appWindows`), else refused.
   - `dropOutside` is `petDropOutside`: main reads the cursor itself (`screen`), hit-tests with
     `pickWindowAt` and `TabMover`'s focus order, and moves the pet to another local window with
     the drop point in that window's coordinates (`PetsState.arrival`). Over no window, its own, a

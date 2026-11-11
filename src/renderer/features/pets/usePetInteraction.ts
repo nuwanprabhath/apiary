@@ -3,7 +3,9 @@ import { clamp } from '@shared/guards'
 import { nearestPlace, normalisePlace, placeToPoint, type Habitat } from '@shared/pets/habitat'
 import { PET_SIZE_STEPS, type PetRecord } from '@shared/pets/state'
 import type { ContextMenuItem } from '../../ui/contextMenuItem'
-import { dropPetOutside, putPetAway, rememberPetPlace, resizePet } from '../../state/petsStore'
+import { useAppWindows } from '../../state/appWindowsStore'
+import { windowNumber } from '../../state/windowParams'
+import { dropPetOutside, movePetToWindow, putPetAway, rememberPetPlace, resizePet } from '../../state/petsStore'
 import type { BrainClient } from './brainClient'
 import type { Pose } from './usePetBrain'
 
@@ -117,9 +119,20 @@ export function usePetInteraction({ pets, habitat, brain, poses, setPoses, onOpe
     setMenu({ id: pet.id, x: e.clientX, y: e.clientY })
   }
 
+  const here = windowNumber()
+  const otherWindows = useAppWindows().filter((w) => w.remoteHost === null && w.number !== here)
   const menuPet = menu !== null ? pets.find((p) => p.id === menu.id) : undefined
   const menuItems: ContextMenuItem[] = menuPet === undefined ? [] : [
     { id: 'chat', label: `Chat with ${menuPet.spec.name}…`, run: () => { setChat(menuPet.id) } },
+    otherWindows.length === 0
+      ? { id: 'move', label: 'Move to (no other window)', disabled: true, disabledReason: 'Open another window to move a pet there.' }
+      : {
+        id: 'move', label: 'Move to',
+        submenu: otherWindows.map((w) => ({
+          id: `move-${String(w.number)}`, run: () => { movePetToWindow(menuPet.id, w.number) },
+          label: w.title === '' || w.title === 'Apiary' ? `Window ${String(w.number)}` : `Window ${String(w.number)} — ${w.title}`,
+        })),
+      },
     ...PET_SIZE_STEPS.map((step, i) => ({
       id: `size-${String(step.size)}`, label: step.label, separator: i === 0, checked: menuPet.size === step.size,
       run: () => { resizePet(menuPet.id, step.size) },

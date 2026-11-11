@@ -539,6 +539,9 @@ export const IPC = {
   remotePairing: invoke<[], string>('apiary:remote-pairing', tuple()),
   /** Work machine: replaces the pairing code; every home machine must enter the new one. */
   remotePairingNew: invoke<[], string>('apiary:remote-pairing-new', tuple()),
+  /** Move a pet to another of this machine's windows by number (the pet menu's "Move to", the numbers from `appWindows`).
+   *  Main refuses a number that is not a live local window: false, nothing changes. True when it moved. */
+  petMoveTo: invoke<[id: string, window: number], boolean>('apiary:pet-move-to', tuple(str, num)),
 } as const
 
 type Spec = typeof IPC

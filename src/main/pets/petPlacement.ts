@@ -142,6 +142,19 @@ export class PetPlacement {
   /** Pets a close moved within `graceMs`, by id, with the window they came from. Invalidated by the grace timer or a quit. */
   private readonly moved = new Map<string, { from: number; timer: ReturnType<typeof setTimeout> }>()
 
+  /** The pet menu's "Move to": the pet goes to local window `number` and that window is focused. False for a number that is not a live local window, or the pet's own. */
+  moveTo(id: string, number: number): boolean {
+    const pet = this.deps.store.get(id)
+    if (pet === undefined) throw new Error('No such pet.')
+    const target = this.locals().find((w) => w.number === number)
+    if (target === undefined || target.number === pet.window) return false
+    this.deps.store.assign(id, target.number)
+    this.moved.delete(id)
+    this.deps.changed()
+    target.focus()
+    return true
+  }
+
   /**
    * A pet was released outside its window. Over another local window it moves there, landing at
    * the pointer; over none, its own, or one that cannot host it, it stays. True when it moved.

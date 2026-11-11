@@ -133,3 +133,8 @@ export function onPetVoiceCheck(due: () => void): () => void {
 export function askPetVoice(id: string, context: VoiceContext): Promise<boolean | null> {
   return bestEffort(window.apiary.petVoice(id, context), 'app')
 }
+
+/** The pet menu's "Move to": main assigns the pet to that window and focuses it. Nothing changes on screen unless it worked. */
+export function movePetToWindow(id: string, target: number): void {
+  surface(window.apiary.petMoveTo(id, target), 'Could not move the pet')
+}

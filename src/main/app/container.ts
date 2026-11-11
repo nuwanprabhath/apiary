@@ -465,10 +465,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   const petStore = new PetStore(paths.petsFile)
   const petsChanged = (): void => { broadcast(IPC.petsChanged, petService.state()) }
   const petService: PetService = new PetService({ store: petStore, makeRunner, onChanged: petsChanged })
-  const petPlacement = new PetPlacement({
-    store: petStore, ...petWindowing(windowManager, ipcState.tabMover), arrive: (arrival) => { petService.arrive(arrival) }, changed: petsChanged,
-    graceMs: env.closeGraceMs ?? closeGraceMs(process.platform),
-  })
+  const petPlacement = new PetPlacement({ store: petStore, ...petWindowing(windowManager, ipcState.tabMover), arrive: (arrival) => { petService.arrive(arrival) }, changed: petsChanged, graceMs: env.closeGraceMs ?? closeGraceMs(process.platform) })
   windowManager.onWindowClosed((number, quitting) => { petPlacement.windowClosed(number, { quitting }) })
   const spelling = new SpellingService()
   const folderBrowser = new FolderBrowser({ home: inputs.homeDir })

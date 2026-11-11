@@ -265,6 +265,7 @@ export const CHANNEL_SCOPES = {
   petClaudeActions: 'local',
   // A remote window never hosts a pet, so it never drops one; and the hit test reads this screen.
   petDropOutside: 'local',
+  petMoveTo: 'local',
   // The status bar and the residents belong to the machine the window shows: its usage meter reads
   // that machine's Claude login (the consent is decided there), and its residents work over that
   // machine's sessions. A remote window drives the work machine's, through the same guarded handlers
