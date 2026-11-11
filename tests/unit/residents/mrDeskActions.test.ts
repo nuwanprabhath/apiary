@@ -20,9 +20,6 @@ function vendoredSubcommands(): Set<string> {
   return new Set([...src.matchAll(/\bsub\.add_parser\('([a-z][a-z-]*)'/g)].map((m) => m[1] ?? ''))
 }
 
-/** Subcommands the prompt names that package R161-A adds to the vendored mra; delete this list once it has merged. */
-const ARRIVING = ['api', 'draft', 'thread', 'reply']
-
 const HELP = (subs: string[]): string => `usage: mra [-h] {${subs.join(',')}} ...\n\npositional arguments:\n  {${subs.join(',')}}\n`
 
 function desk(help: string): ResidentKind {
@@ -49,7 +46,7 @@ describe('the prompt and the vendored mra agree', () => {
     expect(named).toContain('verdict')
     expect(named).toContain('which')
     const have = vendoredSubcommands()
-    expect(named.filter((s) => !have.has(s) && !ARRIVING.includes(s))).toEqual([])
+    expect(named.filter((s) => !have.has(s))).toEqual([])
   })
 
   it('reads the subcommands from argparse help', () => {

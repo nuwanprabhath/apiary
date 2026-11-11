@@ -4,6 +4,26 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.61.4] - 2026-11-11
+
+### Added
+
+- The MR desk can ask you, with a card, to publish its draft comments on an MR (the card lists each
+  draft's file, line and first line), to post a reply in a thread (the card shows the thread's last
+  note and the exact reply), or to resolve a thread. It runs only when you click Allow. It adds,
+  edits and moves draft comments without asking: only you see them until you publish.
+- The MR desk's prompt names each command Apiary blocks for it and what to use instead (`glab api`:
+  `mra api`; a note: `mra draft add`, or a reply through the card; an approval: `approve_mr`), and
+  `apiary_status` reports the permission mode and the allowed and blocked tools it was started with.
+
+### Fixed
+
+- The MR desk ran whichever `mra` came first on your login shell's PATH. Where `~/.profile` puts
+  `~/.local/bin` first and an older `mra` lives there, it ran that copy, which lacks `rules`,
+  `verdict` and `which`, so your standing rules were never read. Apiary's own `mra` now always comes
+  first in the resident's shell, and at start Apiary checks every `mra` command its prompt names
+  exists, showing "mra is missing: …" if one does not.
+
 ## [1.61.3] - 2026-11-11
 
 ### Added
