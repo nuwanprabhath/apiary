@@ -69,6 +69,9 @@ def load_state(cfg):
 def save_state(cfg, state):
     p = state_path(cfg)
     p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix('.tmp')
-    tmp.write_text(json.dumps(state, indent=1, sort_keys=True))
-    tmp.replace(p)
+    tmp = p.with_name(f'{p.name}.{os.getpid()}.tmp')
+    try:
+        tmp.write_text(json.dumps(state, indent=1, sort_keys=True))
+        os.replace(tmp, p)
+    finally:
+        tmp.unlink(missing_ok=True)

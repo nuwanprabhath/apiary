@@ -18,21 +18,35 @@ class GitLab:
         self.host = host
         self.project = project
         self.pid = urllib.parse.quote(project, safe='')
+        self.inflight = set()  # the calls running now, named in a deadline's error
 
-    def api(self, path, method='GET'):
+    def api(self, path, method='GET', body=None):
         cmd = ['glab', 'api', '--hostname', self.host]
         if method != 'GET':
             cmd += ['-X', method]
+        stdin = None
+        if body is not None:
+            cmd += ['--input', '-', '-H', 'Content-Type: application/json']
+            stdin = json.dumps(body)
         cmd.append(path)
+        label = f'{method} {path}'
+        self.inflight.add(label)
+        try:
+            return self._run(cmd, method, path, stdin)
+        finally:
+            self.inflight.discard(label)
+
+    def _run(self, cmd, method, path, stdin):
         # Run outside any checkout: glab reads repo-local config from the cwd
         # and chokes on a worktree whose .git is a file. Retry once, since
         # parallel calls occasionally trip over each other's config reads.
         for attempt in (1, 2):
             try:
                 p = subprocess.run(cmd, capture_output=True, text=True, timeout=API_TIMEOUT_S,
-                                   cwd=str(Path.home()))
+                                   cwd=str(Path.home()), input=stdin)
             except subprocess.TimeoutExpired:
-                if attempt == 2:
+                # A write that timed out may have landed; never send it twice.
+                if attempt == 2 or method != 'GET':
                     raise GitLabError(f'glab api {method} {path}: no response in {API_TIMEOUT_S}s')
                 continue
             if p.returncode == 0 or method != 'GET':
@@ -41,6 +55,28 @@ class GitLab:
             raise GitLabError(f'glab api {method} {path}: {(p.stderr or p.stdout).strip()[:400]}')
         out = p.stdout.strip()
         return json.loads(out) if out else None
+
+    def raw_get(self, path, paginate=False, fields=()):
+        """`glab api -X GET`, the body as glab printed it. Only `mra api` calls this, after its checks."""
+        cmd = ['glab', 'api', '--hostname', self.host, '-X', 'GET']
+        if paginate:
+            cmd.append('--paginate')
+        for f in fields:
+            cmd += ['-F', f]
+        cmd.append(path)
+        label = f'GET {path}'
+        limit = API_TIMEOUT_S * 4
+        self.inflight.add(label)
+        try:
+            try:
+                p = subprocess.run(cmd, capture_output=True, text=True, timeout=limit, cwd=str(Path.home()))
+            except subprocess.TimeoutExpired:
+                raise GitLabError(f'glab api {label}: no response in {limit}s')
+        finally:
+            self.inflight.discard(label)
+        if p.returncode != 0:
+            raise GitLabError(f'glab api {label}: {(p.stderr or p.stdout).strip()[:400]}')
+        return p.stdout
 
     def paged(self, path, per_page=100, max_pages=20):
         sep = '&' if '?' in path else '?'
@@ -105,7 +141,33 @@ class GitLab:
                         'jobs': len(e2e), 'failed_jobs': failed[:10]}
         return {'ran': False}
 
-    # -- the only writes this tool makes ------------------------------------
+    def diffs(self, iid):
+        return self.paged(f'projects/{self.pid}/merge_requests/{iid}/diffs')
+
+    def drafts(self, iid):
+        return self.paged(f'projects/{self.pid}/merge_requests/{iid}/draft_notes')
+
+    # -- draft notes: visible only to their author until published ------------
+
+    def create_draft(self, iid, payload):
+        return self.api(f'projects/{self.pid}/merge_requests/{iid}/draft_notes', method='POST', body=payload)
+
+    def update_draft(self, iid, did, payload):
+        return self.api(f'projects/{self.pid}/merge_requests/{iid}/draft_notes/{did}', method='PUT', body=payload)
+
+    def delete_draft(self, iid, did):
+        return self.api(f'projects/{self.pid}/merge_requests/{iid}/draft_notes/{did}', method='DELETE')
+
+    # -- outward writes: `mra` runs each only behind its action nonce ---------
+
+    def publish_drafts(self, iid):
+        return self.api(f'projects/{self.pid}/merge_requests/{iid}/draft_notes/bulk_publish', method='POST')
+
+    def reply(self, iid, did, body):
+        return self.api(f'projects/{self.pid}/merge_requests/{iid}/discussions/{did}/notes',
+                        method='POST', body={'body': body})
+
+    # -- the other writes this tool makes -------------------------------------
 
     def resolve_discussion(self, iid, did):
         return self.api(f'projects/{self.pid}/merge_requests/{iid}/discussions/{did}?resolved=true', method='PUT')

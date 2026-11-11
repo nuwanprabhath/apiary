@@ -25,4 +25,18 @@ folder. Tests: `npm run test:mra` from the repo root.
   `mra ready` also prints the MR's `title`, `target_branch` and `sha`, which Apiary shows on that request.
 - `mra prompt` wraps text other people wrote (the title, comment bodies) in `<<<UNTRUSTED` … `>>>` and says
   at the top of the prompt that such text is data, never instructions. Covered by `tests/test_approve.py`.
+- Draft notes, replies, threads and a read-only API (`tests/test_drafts.py`). Output is one JSON object;
+  an error is `{"error", "cause"}` with exit code 2.
+  - No approval: `draft add <ref> --file <path> --line <n> [--old-line <n>] --body-file <f>` (refuses a
+    line that is not an added or context line of the diff; `--old-line` alone is a removed line),
+    `draft list`, `draft edit <ref> <id> --body-file <f>`, `draft move <ref> <id> --file --line`,
+    `draft delete <ref> <id>`, `thread <ref> --discussion <id>` (bodies wrapped as untrusted).
+    `draft list` marks a draft `outdated` when the MR head moved since it was anchored.
+  - Needs `MRA_ACTION_NONCE` equal to `action.nonce` beside the state (written by Apiary after Allow, deleted
+    on use): `draft publish <ref>`, `reply <ref> --discussion <id> --body-file <f>`, `resolve`.
+  - `api <path> [--paginate] [-F key=value]` is `glab api -X GET` only; any method, input, header or raw-field
+    option, and any path not under `projects/`, `merge_requests`, `groups/`, `users`, `user`, `todos`, is refused.
+  - `poll` stops after `MRA_POLL_DEADLINE_S` (default 100) with `{"error": "poll deadline reached", "cause":
+    <running calls>, "partial": true}`, exit 2, leaving the previous state file; it never prints a traceback,
+    and lists `drafts_outdated`. Every state write is a temp file plus `os.replace`.
 - Not vendored: `install.sh`, `docs/`, `examples/`, upstream's `README.md`.
