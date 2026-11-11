@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 vi.mock('electron', () => ({
-  app: { getVersion: () => '1.0.0', isPackaged: false, getPath: () => '/tmp/apiary-createUpdater-test', quit: () => {} },
+  app: { getVersion: () => '1.0.0', isPackaged: false, getPath: () => '/tmp/apiary-createUpdater-test', quit: () => {}, relaunch: () => {}, on: () => {} },
 }))
 // `electronUpdaterBackend.ts` (imported transitively by `createUpdater.ts` for the non-fake path)
 // touches `electron-updater`'s `autoUpdater` getter at module load time, which in turn expects a
