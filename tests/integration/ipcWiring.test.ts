@@ -124,7 +124,7 @@ beforeEach(async () => {
     pets: (() => {
       const store = new PetStore(join(home, 'pets.json'))
       const service = new PetService({ store, makeRunner: () => new ClaudeOneShot({ claudeBin: () => null }), onChanged: () => {} })
-      const placement = new PetPlacement({ store, windows: () => [], focusOrder: () => [], cursor: () => ({ x: 0, y: 0 }), arrive: () => {}, changed: () => {} })
+      const placement = new PetPlacement({ store, windows: () => [], focusOrder: () => [], cursor: () => ({ x: 0, y: 0 }), arrive: () => {}, changed: () => {}, graceMs: 1000 })
       return { store, service, placement, actions: async () => [], exportPath: null, importPath: null }
     })(),
   })

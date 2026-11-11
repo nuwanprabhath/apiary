@@ -23,7 +23,7 @@ export interface PetDeps {
 
 type HandledKeys =
   | 'petsState' | 'petsSetEnabled' | 'petGenerate' | 'petUpdate' | 'petDelete' | 'petExport' | 'petImport'
-  | 'petChat' | 'petVoice' | 'petClaudeActions' | 'petComment' | 'petDropOutside'
+  | 'petChat' | 'petVoice' | 'petClaudeActions' | 'petComment' | 'petDropOutside' | 'petMoveTo'
 type ListenedKeys = 'petGenerateCancel'
 
 function fileName(name: string): string {
@@ -103,6 +103,7 @@ export function petsHandlers(deps: PetDeps): {
       petClaudeActions: async (_e, keys) => (store.enabled ? deps.actions(keys) : []),
       petComment: async (_e, id, action) => service.comment(id, action),
       petDropOutside: (e, id) => placement.dropOutside(id, e.sender.id),
+      petMoveTo: (_e, id, window) => placement.moveTo(id, window),
     },
     listeners: {
       petGenerateCancel: () => { service.cancelGenerate() },

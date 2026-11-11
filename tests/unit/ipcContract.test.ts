@@ -75,6 +75,7 @@ describe('the IPC contract', () => {
       petClaudeActions: 'apiary:pet-claude-actions',
       petComment: 'apiary:pet-comment',
       petDropOutside: 'apiary:pet-drop-outside',
+      petMoveTo: 'apiary:pet-move-to',
       openShell: 'apiary:open-shell',
       openShellForPty: 'apiary:open-shell-for-pty',
       ptyWrite: 'apiary:pty-write',

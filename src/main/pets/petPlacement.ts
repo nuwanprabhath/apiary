@@ -31,6 +31,8 @@ export interface PetPlacementDeps {
   arrive: (arrival: Omit<PetArrival, 'seq'>) => void
   /** A pet's window changed: broadcast `petsChanged`. */
   changed: () => void
+  /** How long a close's move can still be undone by a quit (`closeGraceMs`). */
+  graceMs: number
 }
 
 /**
@@ -105,8 +107,52 @@ export class PetPlacement {
    * window; on quit every window closes, and the pets keep its number for the restore.
    */
   windowClosed(number: number, opts: { quitting: boolean }): void {
-    if (opts.quitting) return
-    this.move(this.deps.store.list().filter((p) => p.active && p.window === number), this.mostRecent(number))
+    if (opts.quitting) {
+      this.putBack()
+      return
+    }
+    const pets = this.deps.store.list().filter((p) => p.active && p.window === number)
+    const to = this.mostRecent(number)
+    if (to === null) return
+    for (const pet of pets) this.remember(pet.id, number)
+    this.move(pets, to)
+  }
+
+  /** Remembers where a pet was before a close moved it, for `graceMs`; the first origin wins across a chain of closes. */
+  private remember(id: string, from: number): void {
+    if (this.moved.has(id)) return
+    const timer = setTimeout(() => { this.moved.delete(id) }, this.deps.graceMs)
+    timer.unref()
+    this.moved.set(id, { from, timer })
+  }
+
+  /** Every window closed within the grace: this was a quit, so the pets return to the windows the restore will reopen. */
+  private putBack(): void {
+    const pets = this.deps.store.list().filter((p) => this.moved.has(p.id))
+    for (const pet of pets) {
+      const entry = this.moved.get(pet.id)
+      if (entry === undefined) continue
+      clearTimeout(entry.timer)
+      this.deps.store.assign(pet.id, entry.from)
+    }
+    this.moved.clear()
+    if (pets.length > 0) this.deps.changed()
+  }
+
+  /** Pets a close moved within `graceMs`, by id, with the window they came from. Invalidated by the grace timer or a quit. */
+  private readonly moved = new Map<string, { from: number; timer: ReturnType<typeof setTimeout> }>()
+
+  /** The pet menu's "Move to": the pet goes to local window `number` and that window is focused. False for a number that is not a live local window, or the pet's own. */
+  moveTo(id: string, number: number): boolean {
+    const pet = this.deps.store.get(id)
+    if (pet === undefined) throw new Error('No such pet.')
+    const target = this.locals().find((w) => w.number === number)
+    if (target === undefined || target.number === pet.window) return false
+    this.deps.store.assign(id, target.number)
+    this.moved.delete(id)
+    this.deps.changed()
+    target.focus()
+    return true
   }
 
   /**

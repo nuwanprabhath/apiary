@@ -19,7 +19,7 @@ export function fakePet(id: string, over: Partial<PetRecord> = {}): PetRecord {
 
 type PetsApi = Pick<ApiaryApi,
   | 'petsState' | 'petsSetEnabled' | 'petGenerate' | 'petGenerateCancel' | 'petUpdate' | 'petDelete' | 'petExport' | 'petImport'
-  | 'petChat' | 'petVoice' | 'petClaudeActions' | 'petComment' | 'petDropOutside'>
+  | 'petChat' | 'petVoice' | 'petClaudeActions' | 'petComment' | 'petDropOutside' | 'petMoveTo'>
 
 const VOICE_INTERVAL_MS = 60 * 60 * 1000
 const clampSize = (n: number): number => Math.round(clamp(n, PET_SIZES.min, PET_SIZES.max))
@@ -85,6 +85,12 @@ export function petsApi(env: Env): PetsApi {
       if (target === null || target.window === pet.window) return false
       arrivals += 1
       set({ ...state.pets, pets: state.pets.pets.map((p) => (p.id === id ? { ...p, window: target.window } : p)), arrival: { id, ...target, seq: arrivals } })
+      return true
+    },
+    petMoveTo: async (id, window) => {
+      const pet = must(id)
+      if (pet.window === window || !state.appWindows.some((w) => w.number === window && w.remoteHost === null)) return false
+      set({ ...state.pets, pets: state.pets.pets.map((p) => (p.id === id ? { ...p, window } : p)) })
       return true
     },
     petDelete: async (id) => {

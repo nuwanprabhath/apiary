@@ -28,7 +28,7 @@ function world(windows: PetWindow[], focusOrder: number[] = windows.map((w) => w
   const cursor = { x: 0, y: 0 }
   const placement = new PetPlacement({
     store, windows: () => windows, focusOrder: () => focusOrder, cursor: () => cursor,
-    arrive: (a) => { arrivals.push(a) }, changed,
+    arrive: (a) => { arrivals.push(a) }, changed, graceMs: 1000,
   })
   return { store, placement, arrivals, changed, cursor, windows }
 }
@@ -94,6 +94,36 @@ describe('PetPlacement', () => {
     windows.splice(0, 1)
     placement.windowClosed(1, { quitting: true })
     expect(store.get(pet.id)?.window).toBe(1)
+  })
+
+  describe('a desktop Quit that closes the windows one at a time', () => {
+    it('puts a pet back in its window when every window closes within the grace', () => {
+      const windows = [win(15, 0), win(10, 500), win(12, 900)]
+      const { store, placement } = world(windows, [150, 100, 120])
+      placement.start()
+      const pet = store.assign(store.add(STARTER_PET).id, 15)
+      for (const [n, quitting] of [[15, false], [10, false], [12, true]] as const) {
+        windows.splice(windows.findIndex((w) => w.number === n), 1)
+        placement.windowClosed(n, { quitting })
+      }
+      expect(store.get(pet.id)?.window).toBe(15)
+    })
+
+    it('keeps the move for good when the other windows stay open past the grace', () => {
+      vi.useFakeTimers()
+      try {
+        const windows = [win(15, 0), win(10, 500)]
+        const { store, placement } = world(windows)
+        placement.start()
+        const pet = store.assign(store.add(STARTER_PET).id, 15)
+        windows.splice(0, 1)
+        placement.windowClosed(15, { quitting: false })
+        vi.advanceTimersByTime(1500)
+        windows.splice(0, 1)
+        placement.windowClosed(10, { quitting: true })
+        expect(store.get(pet.id)?.window).toBe(10)
+      } finally { vi.useRealTimers() }
+    })
   })
 
   describe('a pet dropped outside its window', () => {

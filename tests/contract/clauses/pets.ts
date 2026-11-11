@@ -37,6 +37,14 @@ export function definePetClauses(ctx: Ctx): void {
       await expect(ctx.api.petDropOutside('no-such-pet')).rejects.toThrow()
     })
 
+    it('moves a pet to another window by number and refuses one that is not a live local window', async () => {
+      const id = await firstPet()
+      expect(await ctx.api.petMoveTo(id, THIS_WINDOW.number)).toBe(false)
+      expect(await ctx.api.petMoveTo(id, 987654)).toBe(false)
+      expect(at((await ctx.api.petsState()).pets, 0).window).toBe(THIS_WINDOW.number)
+      await expect(ctx.api.petMoveTo('no-such-pet', 1)).rejects.toThrow()
+    })
+
     it('turning them on for the first time hatches one that is out, and tells every view; off and on again hatches no more', async () => {
       await ctx.api.petsSetEnabled(true)
       const on = await ctx.api.petsState()
