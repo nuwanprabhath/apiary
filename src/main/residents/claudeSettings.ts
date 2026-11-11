@@ -1,7 +1,7 @@
+import { shellQuote } from '../exec/shellQuote'
+
 /** The settings file a kind with `pathFirst` writes in its space and its claude gets with `--settings`. */
 export const CLAUDE_SETTINGS_FILE = 'claude-settings.json'
-
-const shellQuote = (s: string): string => `'${s.replaceAll("'", String.raw`'\''`)}'`
 
 /**
  * Claude Code settings whose SessionStart hook puts `dir` first on the Bash tool's PATH. The Bash
