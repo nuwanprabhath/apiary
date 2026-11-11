@@ -1,25 +1,57 @@
 """`mra`: the deterministic half of the MR manager.
 
 It reads GitLab, keeps state, ranks and classifies MRs, and makes the few
-writes the agent is allowed: resolving the user's own threads and marking
-To-Dos done. `approve` runs only when Apiary starts it, after the user clicked
-Allow on the agent's `approve_mr` request (a one-call nonce proves it). Nothing
-posts notes.
+writes the agent is allowed: draft notes (visible only to the user until
+published) and marking To-Dos done. `approve`, `draft publish`, `reply` and
+`resolve` run only when Apiary starts them, after the user clicked Allow on a
+card (a one-call nonce proves it).
 """
 
 import argparse
 import hmac
 import json
 import os
+import signal
 import string
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import logic, stats as review_stats, worktree
+from . import diffs, logic, stats as review_stats, worktree
 from .config import load_config, load_state, save_state, state_path
-from .gitlab import GitLab
+from .gitlab import GitLab, GitLabError
+
+POLL_DEADLINE_S = 100  # under the 120 s a Bash tool call gets
+BODY_MAX_BYTES = 100_000
+
+
+class MraError(Exception):
+    """A refusal or failure reported as `{"error", "cause"}` JSON with exit code 2."""
+
+    def __init__(self, error, cause=''):
+        super().__init__(error)
+        self.error = error
+        self.cause = cause
+
+
+def fail_json(error, cause='', **extra):
+    out({'error': error, 'cause': cause, **extra})
+    sys.stdout.flush()
+    raise SystemExit(2)
+
+
+def json_errors(fn):
+    """A command's refusals and GitLab failures print as error JSON, never a traceback."""
+    def wrapped(args):
+        try:
+            return fn(args)
+        except MraError as e:
+            fail_json(e.error, e.cause)
+        except GitLabError as e:
+            fail_json('GitLab call failed', str(e))
+    wrapped.__name__ = fn.__name__
+    return wrapped
 
 ROOT = Path(__file__).resolve().parent.parent
 DETAIL_MAX_AGE_MIN = 30
@@ -104,8 +136,12 @@ def collect(cfg, gl, state):
         return _refresh_needed(st, m, now, new_todo)
 
     to_fetch = [m['iid'] for m in mine if needs_detail(m)]
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    # No `with`: a poll that hits its deadline must not wait for these threads on the way out.
+    pool = ThreadPoolExecutor(max_workers=6)
+    try:
         details = dict(zip(to_fetch, pool.map(gl.mr_detail, to_fetch)))
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
     rows = []
     for m in mine:
@@ -201,8 +237,82 @@ def _add_e2e(ready, gl, cfg, sha):
         ready['e2e_at_head'] = {'error': str(e)[:200]}
 
 
+class PollDeadline(Exception):
+    pass
+
+
+def _hard_exit(code):
+    """Leave without joining GitLab threads still waiting on `glab`."""
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
+
+
+def _deadline_seconds():
+    try:
+        return float(os.environ.get('MRA_POLL_DEADLINE_S') or POLL_DEADLINE_S)
+    except ValueError:
+        return float(POLL_DEADLINE_S)
+
+
 def cmd_poll(args):
+    """`poll` under a deadline; every failure is one JSON object with exit code 2. State is written
+    once, atomically, at the end, so an interrupted poll leaves the previous state file intact."""
+    holder = {}
+
+    def on_alarm(signum, frame):
+        raise PollDeadline()
+
+    armed = False
+    try:
+        signal.signal(signal.SIGALRM, on_alarm)
+        signal.setitimer(signal.ITIMER_REAL, _deadline_seconds())
+        armed = True
+    except (ValueError, AttributeError):
+        pass  # not the main thread, or no SIGALRM: the per-call timeouts still apply
+    try:
+        _poll(args, holder)
+    except PollDeadline:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        running = sorted(getattr(holder.get('gl'), 'inflight', None) or [])
+        out({'error': 'poll deadline reached', 'cause': ', '.join(running) or 'between GitLab calls',
+             'partial': True})
+        _hard_exit(2)
+        raise SystemExit(2)
+    except GitLabError as e:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        fail_json('GitLab call failed', str(e), partial=True)
+    except SystemExit:
+        raise
+    except Exception as e:  # noqa: BLE001 -- the agent reads one JSON object, never a traceback
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        fail_json('poll failed', f'{type(e).__name__}: {e}', partial=True)
+    finally:
+        if armed:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+
+
+def _drafts_outdated(gl, state):
+    """MRs whose drafts were anchored at a head that has since moved."""
+    found = []
+    for key, recorded in sorted((state.get('drafts') or {}).items()):
+        try:
+            current = gl.mr(int(key))['sha']
+            drafts = gl.drafts(int(key))
+        except GitLabError as e:
+            if '404' in str(e):
+                state['drafts'].pop(key, None)  # merged or closed: nothing left to anchor
+                continue
+            raise
+        stale = [d for d in drafts if _draft_head(d, recorded) not in (None, current)]
+        if stale:
+            found.append({'iid': int(key), 'drafts': len(stale), 'head_sha': current})
+    return found
+
+
+def _poll(args, holder):
     cfg, gl, state = ctx(args)
+    holder['gl'] = gl
     local_now = datetime.now().astimezone()
     if not args.force and not logic.in_active_hours(cfg['active_hours'], local_now):
         out({'quiet_hours': True, 'polled_at': None, 'active_hours': cfg['active_hours'],
@@ -292,8 +402,10 @@ def cmd_poll(args):
     digest_due = local_now.hour >= cfg['digest_hour'] and state.get('last_digest_date') != local_now.date().isoformat()
     first_run = state.pop('first_run', False)
     state['last_poll_at'] = logic.iso(now)
+    drafts_outdated = _drafts_outdated(gl, state)
     save_state(cfg, state)
     out({
+        'drafts_outdated': drafts_outdated,
         'me': me, 'project': cfg['project'], 'polled_at': logic.iso(now), 'first_run': first_run,
         'release_versions': [logic.fmt_version(v) for v in versions],
         'watched': len(rows),
@@ -367,8 +479,10 @@ def cmd_done(args):
     out({'iid': args.iid, 'recorded': kind, 'sha': sha, 'todos_marked_done': done_todos})
 
 
+@json_errors
 def cmd_resolve(args):
     cfg, gl, state = ctx(args)
+    _take_nonce(cfg, 'action.nonce', 'MRA_ACTION_NONCE', 'resolve threads')
     me = state['me']
     results = []
     for did in args.discussion_ids:
@@ -653,18 +767,26 @@ def cmd_rules(args):
     out([{'n': i, 'text': r['text']} for i, r in enumerate(rules, 1)])
 
 
-def _take_approve_nonce(cfg):
-    """An approval runs only when Apiary started it after the user clicked Allow: Apiary writes a
-    one-call nonce to `approve.nonce` beside the state and passes it as MRA_APPROVE_NONCE."""
-    path = state_path(cfg).parent / 'approve.nonce'
-    given = os.environ.get('MRA_APPROVE_NONCE', '')
+def _take_nonce(cfg, filename, env_var, what):
+    """An outward action runs only when Apiary started it after the user clicked Allow: Apiary writes
+    a one-call nonce to `filename` beside the state and passes it as `env_var`. Burned on use."""
+    path = state_path(cfg).parent / filename
+    given = os.environ.get(env_var, '')
     try:
         expected = path.read_text().strip()
     except OSError:
         expected = ''
     if not given or not expected or not hmac.compare_digest(given, expected):
-        raise SystemExit('Refusing to approve: approvals go through Apiary\'s approve_mr tool, which asks the user first.')
+        raise MraError(f'Refusing to {what}: this goes through Apiary, which asks the user first.',
+                       f'{env_var} does not match {filename}')
     path.unlink(missing_ok=True)
+
+
+def _take_approve_nonce(cfg):
+    try:
+        _take_nonce(cfg, 'approve.nonce', 'MRA_APPROVE_NONCE', 'approve')
+    except MraError:
+        raise SystemExit('Refusing to approve: approvals go through Apiary\'s approve_mr tool, which asks the user first.')
 
 
 def cmd_approve(args):
@@ -701,6 +823,161 @@ def cmd_approve(args):
     st.pop('approve_when_green', None)
     save_state(cfg, state)
     out({'iid': args.iid, 'title': mr['title'], 'approved_at_sha': expected, 'url': mr['web_url']})
+
+
+# --------------------------------------------------------------------------
+# draft notes, replies, threads, read-only api
+
+def _read_body(path):
+    try:
+        p = Path(path)
+        if p.stat().st_size > BODY_MAX_BYTES:
+            raise MraError(f'{path} is larger than {BODY_MAX_BYTES} bytes')
+        text = p.read_text()
+    except OSError as e:
+        raise MraError(f'cannot read {path}', str(e))
+    if not text.strip():
+        raise MraError(f'{path} is empty')
+    return text
+
+
+def _draft_head(draft, recorded):
+    """The head a draft was anchored at: what `mra` recorded, else what GitLab holds on its position."""
+    return recorded.get(str(draft['id'])) or (draft.get('position') or {}).get('head_sha')
+
+
+def _record_draft(state, iid, did, head):
+    state.setdefault('drafts', {}).setdefault(str(iid), {})[str(did)] = head
+
+
+def _anchor(gl, iid, path, line, old_line):
+    mr = gl.mr(iid)
+    refs = mr.get('diff_refs') or {}
+    if not all(refs.get(k) for k in ('base_sha', 'start_sha', 'head_sha')):
+        raise MraError(f'!{iid} has no diff_refs yet', 'GitLab is still computing the diff; retry shortly')
+    try:
+        return mr, diffs.position(refs, gl.diffs(iid), path, line, old_line)
+    except diffs.NotInDiff as e:
+        raise MraError('not a line of the diff', str(e))
+
+
+def _need_line(args):
+    if args.line is None and args.old_line is None:
+        raise MraError('give --line (added or context line) or --old-line (removed line)')
+
+
+@json_errors
+def cmd_draft_add(args):
+    cfg, gl, state = ctx(args)
+    _need_line(args)
+    body = _read_body(args.body_file)
+    mr, pos = _anchor(gl, args.iid, args.file, args.line, args.old_line)
+    made = gl.create_draft(args.iid, {'note': body, 'position': pos})
+    _record_draft(state, args.iid, made['id'], pos['head_sha'])
+    save_state(cfg, state)
+    out({'id': made['id'], 'url': mr['web_url'], 'head_sha': pos['head_sha'], 'file': args.file,
+         'line': args.line if args.line is not None else args.old_line})
+
+
+@json_errors
+def cmd_draft_list(args):
+    cfg, gl, state = ctx(args)
+    current = gl.mr(args.iid)['sha']
+    recorded = (state.get('drafts') or {}).get(str(args.iid), {})
+    items = []
+    for d in gl.drafts(args.iid):
+        pos = d.get('position') or {}
+        head = _draft_head(d, recorded)
+        items.append({'id': d['id'], 'file': pos.get('new_path') or pos.get('old_path'),
+                      'line': pos.get('new_line') or pos.get('old_line'), 'body': d.get('note'),
+                      'head_sha': head, 'outdated': bool(head) and head != current})
+    out({'drafts': items, 'head_sha': current})
+
+
+@json_errors
+def cmd_draft_edit(args):
+    cfg, gl, state = ctx(args)
+    gl.update_draft(args.iid, args.draft_id, {'note': _read_body(args.body_file)})
+    out({'id': args.draft_id, 'edited': True})
+
+
+@json_errors
+def cmd_draft_move(args):
+    cfg, gl, state = ctx(args)
+    _need_line(args)
+    mr, pos = _anchor(gl, args.iid, args.file, args.line, args.old_line)
+    gl.update_draft(args.iid, args.draft_id, {'position': pos})
+    _record_draft(state, args.iid, args.draft_id, pos['head_sha'])
+    save_state(cfg, state)
+    out({'id': args.draft_id, 'url': mr['web_url'], 'head_sha': pos['head_sha'], 'file': args.file,
+         'line': args.line if args.line is not None else args.old_line})
+
+
+@json_errors
+def cmd_draft_delete(args):
+    cfg, gl, state = ctx(args)
+    gl.delete_draft(args.iid, args.draft_id)
+    (state.get('drafts') or {}).get(str(args.iid), {}).pop(str(args.draft_id), None)
+    save_state(cfg, state)
+    out({'id': args.draft_id, 'deleted': True})
+
+
+@json_errors
+def cmd_draft_publish(args):
+    cfg, gl, state = ctx(args)
+    _take_nonce(cfg, 'action.nonce', 'MRA_ACTION_NONCE', 'publish drafts')
+    count = len(gl.drafts(args.iid))
+    gl.publish_drafts(args.iid)
+    (state.get('drafts') or {}).pop(str(args.iid), None)
+    save_state(cfg, state)
+    out({'published': count})
+
+
+@json_errors
+def cmd_reply(args):
+    cfg, gl, state = ctx(args)
+    _take_nonce(cfg, 'action.nonce', 'MRA_ACTION_NONCE', 'reply in a thread')
+    note = gl.reply(args.iid, args.discussion, _read_body(args.body_file))
+    out({'note_id': note['id'], 'url': f'{gl.mr(args.iid)["web_url"]}#note_{note["id"]}'})
+
+
+@json_errors
+def cmd_thread(args):
+    cfg, gl, state = ctx(args)
+    d = gl.discussion(args.iid, args.discussion)
+    out({'discussion': d.get('id', args.discussion),
+         'notes': [{'author': n['author']['username'], 'created_at': n['created_at'], 'body': untrusted(n['body'])}
+                   for n in d['notes'] if not n.get('system')]})
+
+
+API_ROOTS = {'projects', 'merge_requests', 'groups', 'users', 'user', 'todos'}
+API_REFUSED = ('-X, --method, --input, -f/--raw-field, -H/--header and any other option are refused: '
+               '`mra api` is GET only; the only options are --paginate and -F key=value')
+
+
+@json_errors
+def cmd_api(args):
+    """GET only: the allowed options are --paginate and `-F key=value` (a query parameter on GET)."""
+    paginate, fields = False, []
+    rest = list(args.rest)
+    while rest:
+        tok = rest.pop(0)
+        if tok == '--paginate':
+            paginate = True
+        elif tok in ('-F', '--field') and rest and not rest[0].startswith('-'):
+            value = rest.pop(0)
+            if '=' not in value or value.split('=', 1)[1].startswith('@'):
+                raise MraError('refused -F value', 'use -F key=value; a value may not start with @ (it would read a file)')
+            fields.append(value)
+        else:
+            raise MraError(f'refused option {tok}', API_REFUSED)
+    path = args.path
+    root = path.lstrip('/').split('?')[0].split('/')[0]
+    if root not in API_ROOTS or '://' in path or any(seg == '..' for seg in path.split('?')[0].split('/')):
+        raise MraError(f'refused path {path}', 'allowed first segments: ' + ', '.join(sorted(API_ROOTS)))
+    cfg, gl, state = ctx(args)
+    body = gl.raw_get(path.lstrip('/'), paginate=paginate, fields=fields)
+    sys.stdout.write(body if body.endswith('\n') else body + '\n')
 
 
 # --------------------------------------------------------------------------
@@ -876,6 +1153,55 @@ def main(argv=None):
     p.add_argument('iid', metavar='REF', help='list number from the last desk/update, or !iid')
     p.add_argument('discussion_ids', nargs='+')
     p.set_defaults(fn=cmd_resolve)
+
+    p = sub.add_parser('draft', help='draft notes on an MR: add, list, edit, move, delete (no approval), publish (user approval)')
+    dsub = p.add_subparsers(dest='draft_cmd', required=True)
+    d = dsub.add_parser('add', help='a draft note anchored to a line of the current diff')
+    d.add_argument('iid', metavar='REF', help='!iid')
+    d.add_argument('--file', required=True)
+    d.add_argument('--line', type=int, help='new-side line number (an added or context line)')
+    d.add_argument('--old-line', type=int, help='old-side line number, alone: a removed line')
+    d.add_argument('--body-file', required=True)
+    d.set_defaults(fn=cmd_draft_add)
+    d = dsub.add_parser('list', help='the drafts on an MR, and whether the head moved since each was anchored')
+    d.add_argument('iid', metavar='REF')
+    d.set_defaults(fn=cmd_draft_list)
+    d = dsub.add_parser('edit', help="change a draft's text")
+    d.add_argument('iid', metavar='REF')
+    d.add_argument('draft_id', type=int)
+    d.add_argument('--body-file', required=True)
+    d.set_defaults(fn=cmd_draft_edit)
+    d = dsub.add_parser('move', help='re-anchor a draft to a line of the current diff')
+    d.add_argument('iid', metavar='REF')
+    d.add_argument('draft_id', type=int)
+    d.add_argument('--file', required=True)
+    d.add_argument('--line', type=int)
+    d.add_argument('--old-line', type=int)
+    d.set_defaults(fn=cmd_draft_move)
+    d = dsub.add_parser('delete', help='delete a draft')
+    d.add_argument('iid', metavar='REF')
+    d.add_argument('draft_id', type=int)
+    d.set_defaults(fn=cmd_draft_delete)
+    d = dsub.add_parser('publish', help="publish all the user's drafts on an MR (needs the user's approval)")
+    d.add_argument('iid', metavar='REF')
+    d.set_defaults(fn=cmd_draft_publish)
+
+    p = sub.add_parser('reply', help='reply in a discussion (needs the user\'s approval)')
+    p.add_argument('iid', metavar='REF')
+    p.add_argument('--discussion', required=True)
+    p.add_argument('--body-file', required=True)
+    p.set_defaults(fn=cmd_reply)
+
+    p = sub.add_parser('thread', help="a discussion's notes, other people's text marked untrusted")
+    p.add_argument('iid', metavar='REF')
+    p.add_argument('--discussion', required=True)
+    p.set_defaults(fn=cmd_thread)
+
+    p = sub.add_parser('api', help='read-only GitLab GET: mra api <path> [--paginate] [-F key=value ...]',
+                       description=API_REFUSED)
+    p.add_argument('path', help='starts with projects/, merge_requests, groups/, users, user or todos')
+    p.add_argument('rest', nargs=argparse.REMAINDER, help='--paginate, -F key=value')
+    p.set_defaults(fn=cmd_api)
 
     p = sub.add_parser('todo-done', help='mark To-Dos done by id, or --noise for bot To-Dos on watched MRs')
     p.add_argument('todo_ids', nargs='*', type=int)
