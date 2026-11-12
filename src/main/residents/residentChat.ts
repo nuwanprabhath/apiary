@@ -67,7 +67,7 @@ function newTurn(ownStartAttentionWrites: number | null): Turn {
 
 /** How long claude waits on an Apiary tool call. A card (`askUser`) stays until the person answers it,
  *  and claude's own limit for an MCP call (60 s) ended `approve_mr` while its card was still showing. */
-export const CARD_WAIT_MS = 12 * 60 * 60 * 1000
+const CARD_WAIT_MS = 12 * 60 * 60 * 1000
 
 /** A tool use claude waits on (answered over stdin), or a question main asked itself (`askUser`, answered by `settle`). */
 type Waiting =

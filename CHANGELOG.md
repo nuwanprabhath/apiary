@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.3] - 2026-11-12
+
+### Fixed
+
+- The bridge contract lists the MR desk's "Ask before acting on GitLab" toggle among its fields, on
+  the fake and on real main, and the card wait is no longer an unused export.
+
 ## [1.62.2] - 2026-11-12
 
 ### Fixed

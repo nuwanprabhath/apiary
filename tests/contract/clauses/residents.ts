@@ -106,7 +106,7 @@ export function defineResidentsClauses(ctx: Ctx): void {
       ])
       expect(at(kinds, 0).optionFields).toEqual([])
       expect(at(kinds, 1).optionFields.map((f) => [f.key, f.input, f.required])).toEqual([
-        ['project', 'text', true], ['repoPath', 'folder', true], ['username', 'text', false],
+        ['project', 'text', true], ['repoPath', 'folder', true], ['username', 'text', false], ['askBeforeActing', 'toggle', false],
       ])
       expect(at(kinds, 0).blurb).not.toBe('')
     })
