@@ -13,7 +13,7 @@
  */
 import { mountedFake } from '../renderApp'
 import { page } from 'vitest/browser'
-import { expect, inject } from 'vitest'
+import { expect, inject, vi } from 'vitest'
 import { BUILTIN_THEMES } from '@shared/theme/builtins'
 import type { ThemeSpec } from '@shared/theme/spec'
 import { applyTheme } from '../../../src/renderer/theme/applyTheme'
@@ -29,6 +29,16 @@ declare module 'vitest' {
 }
 
 const SHOTS = inject('uiShots')
+
+/**
+ * A scenario's time limit, for every test in a file that imports this one. A scenario is a dozen
+ * or more full passes (each theme at each width, and some call `reviewUi` twice), each waiting on
+ * real frames: the heaviest take 5-8 s on a fast machine, so Vitest's 15 s default for browser
+ * tests left them no room on a slow one. On the nightly run at 60% CPU a pass is about seven times
+ * slower while every wait inside it still ends within its own bound. Every wait in a pass ends on
+ * its condition (`settledLayout`, `until`), so this limit only catches a scenario that hangs.
+ */
+vi.setConfig({ testTimeout: 120_000 })
 
 /**
  * Defects that predate the gate, by scenario: `"<rule> <where>": "<reason>"`. Shrink-only, like
@@ -122,8 +132,10 @@ export async function reviewUi(name: string, opts: ReviewOptions = {}): Promise<
       // hover moves the pointer again in its own `open`.
       await mouse.move(1, height - 1)
       await settledLayout()
-      await opts.open?.()
-      await settledLayout()
+      if (opts.open !== undefined) {
+        await opts.open()
+        await settledLayout()
+      }
       // A real window is widened to fit its panes (`requireWindowWidth`), so a layout too wide for
       // this width is checked at the width the app asked for, never in a window it cannot have.
       const needed = mountedFake()?.state.requiredWindowWidth ?? null
