@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.4] - 2026-11-12
+
+### Fixed
+
+- Resizing the status bar: grabbing the handle again within a second and a half of letting go no
+  longer drops resize mode under the pointer mid-drag.
+- The UI scenarios no longer fail on a slow machine (the nightly run at 60% CPU): each runs a dozen
+  or more full passes, which Vitest's 15 s default for a browser test did not leave room for (#33).
+
 ## [1.62.3] - 2026-11-12
 
 ### Fixed

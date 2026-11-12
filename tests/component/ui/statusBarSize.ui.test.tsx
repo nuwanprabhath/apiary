@@ -76,7 +76,13 @@ describe('UI: the status bar at each size', () => {
         await mouse.move(r.x + r.width / 2, r.y - 12, 3)
         await until(() => document.querySelector('[data-testid="status-bar-resize-tag"]') !== null)
       },
-      close: async () => { await mouse.up() },
+      // Release, then leave resize mode, so the next pass enters it afresh: left on, it ends by
+      // itself a while after the release, and on a slow machine that landed in the next pass's drag.
+      close: async () => {
+        await mouse.up()
+        await userEvent.keyboard('{Escape}')
+        await until(() => handle() === null)
+      },
     })
   })
 

@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import type { StatusBarItem } from '@shared/domain/statusBar'
 import { renderApp, unmountApp } from './renderApp'
-import { drag, nextFrames, until } from './helpers'
+import { drag, mouse, nextFrames, until } from './helpers'
 import { mrDeskStatus, regentStatus, withMrDesk, withRegent } from './residentFixtures'
 
 const USAGE: StatusBarItem = {
@@ -95,6 +95,33 @@ describe('the status bar height', () => {
     await expect.poll(height).toBeGreaterThan(22)
     await userEvent.keyboard('{Escape}')
     await until(() => handle() === null)
+  })
+
+  it('resize mode holds through a press that outlasts the idle time after the last release, and ends after its own', async () => {
+    const tag = (): Element | null => document.querySelector('[data-testid="status-bar-resize-tag"]')
+    await mount()
+    await openMenu()
+    await userEvent.click(menu()!.querySelector<HTMLElement>('[data-testid="context-menu-resize"]')!)
+    await until(() => handle() !== null)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      await drag(handle()!, 0, -10)
+      const r = handle()!.getBoundingClientRect()
+      await mouse.move(r.x + r.width / 2, r.y + 1)
+      await mouse.down()
+      await mouse.move(r.x + r.width / 2, r.y - 9, 2)
+      await until(() => tag() !== null)
+      vi.advanceTimersByTime(5000)
+      await nextFrames(2)
+      expect(handle(), 'the mode ended under the pointer, mid-drag').not.toBeNull()
+      expect(tag()).not.toBeNull()
+      await mouse.up()
+      await until(() => tag() === null)
+      vi.advanceTimersByTime(5000)
+      await until(() => handle() === null)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('tall: a status item and the resident pill each read on two lines; compact, on one', async () => {

@@ -52,6 +52,13 @@ export function StatusBarResizeHandle({ height, bar, onExit }: { height: number;
     onLive: (v) => { setStatusBarHeight(v, false) },
     onEnd: (v) => { setStatusBarHeight(v); armIdle() },
   })
+  // The idle time counts from a release: a press within it holds the mode for as long as it lasts.
+  useEffect(() => {
+    if (dragging && idle.current !== null) {
+      window.clearTimeout(idle.current)
+      idle.current = null
+    }
+  }, [dragging])
   return (
     <div
       className="status-bar-resize"
