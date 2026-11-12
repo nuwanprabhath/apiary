@@ -9,20 +9,25 @@ test.beforeEach(async () => {
   h = await launchApiary()
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
+  // The rescan is a full pass, and a full pass removes the row of a transcript that is gone: it
+  // must be over before a test deletes one, or it may take the row the test is about to click.
+  await expect(h.page.getByTestId('sidebar-refresh')).toHaveAttribute('data-refreshing', 'false')
 })
 
 test.afterEach(async () => { await h.close() })
 
 test('a session whose transcript file is gone explains itself instead of blanking the pane', async () => {
   // The reported case: the folder a session ran in (a git worktree) is removed, taking
-  // `~/.claude/projects/<slug>` with it, while the session is open. Opened first, because the next
-  // full rescan removes the row of a transcript that is gone, so it may not be listed to click.
+  // `~/.claude/projects/<slug>` with it, while the session is still listed. Deleted before the
+  // click, so the open is what meets the missing file. Deleting after the click raced the pane's
+  // first read (an error only if the file went during it), and a refresh that finds the file gone
+  // under a pane already showing it only logs. The watcher's pass over the deleted file keeps the
+  // row; only a full rescan drops it, and none runs between here and the click.
   const dir = join(h.projectsRoot, '-work-a')
   const file = readdirSync(dir).find((f) => f.endsWith('.jsonl'))
   expect(file).toBeDefined()
-  await sidebarSession(h.page, 'Fix CSV export bug').click()
-  await expect(h.page.getByTestId('transcript')).toBeVisible()
   rmSync(join(dir, String(file)))
+  await sidebarSession(h.page, 'Fix CSV export bug').click()
 
   const pane = h.page.getByTestId('transcript-error')
   await expect(pane).toBeVisible()

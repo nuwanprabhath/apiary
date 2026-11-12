@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.1] - 2026-11-12
+
+### Fixed
+
+- The nightly e2e test of a session whose transcript file is gone no longer races the pane's first
+  read: it deletes the file before opening the session, and waits for the sidebar's full rescan to
+  end first (#31).
+
 ## [1.62.0] - 2026-11-12
 
 ### Added
