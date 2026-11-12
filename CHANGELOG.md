@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.61.5] - 2026-11-12
+
+### Fixed
+
+- In a right-click menu that has ticks (the pet menu's sizes), a submenu item such as "Move to" now
+  starts its label in line with the other items instead of at the menu's edge.
+
 ## [1.61.4] - 2026-11-11
 
 ### Added

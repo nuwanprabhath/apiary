@@ -76,3 +76,27 @@ describe('a context menu that grows while open', () => {
     expect(menu().getBoundingClientRect().bottom).toBeLessThanOrEqual(window.innerHeight)
   })
 })
+
+describe('a context menu mixing toggles, actions and a submenu', () => {
+  it('starts every label at the same place, the submenu parent included', async () => {
+    // The pet menu's "Move to" (a submenu parent, wrapped for its flyout) started at the menu's edge
+    // while the actions around it started past the toggles' tick column.
+    const items: ContextMenuItem[] = [
+      { id: 'act', label: 'Chat with Gobbo…', run: () => {} },
+      { id: 'parent', label: 'Move to', submenu: [{ id: 'w2', label: 'Window 2', run: () => {} }] },
+      { id: 'on', label: 'Medium', checked: true, run: () => {} },
+      { id: 'off', label: 'Large', checked: false, run: () => {} },
+    ]
+    await mountUi(<ContextMenu items={items} position={{ x: 40, y: 40 }} onClose={() => {}} testId="mixed-menu" />)
+    await until(() => document.querySelector('[data-testid="mixed-menu"]') !== null)
+    const labelLeft = (id: string): number => {
+      const button = document.querySelector(`[data-testid="context-menu-${id}"]`)!
+      const text = [...button.childNodes].find((n) => n.nodeType === Node.TEXT_NODE)!
+      const range = document.createRange()
+      range.selectNodeContents(text)
+      return Math.round(range.getBoundingClientRect().left)
+    }
+    const lefts = ['act', 'parent', 'on', 'off'].map(labelLeft)
+    expect(new Set(lefts).size, `label lefts: ${lefts.join(', ')}`).toBe(1)
+  })
+})

@@ -351,8 +351,10 @@
    lined up whether the toggle is on or off. */
 .context-menu-check { width: var(--icon-size-sm); height: var(--icon-size-sm); margin-right: var(--control-gap); vertical-align: -1px; }
 .context-menu-check[data-on="false"] { visibility: hidden; }
-/* A plain action in a menu that has toggles starts its label at the toggles' labels, past the tick. */
-.context-menu:has(.context-menu-check) > .context-menu-item:not(:has(.context-menu-check)) {
+/* A plain action in a menu that has toggles starts its label at the toggles' labels, past the tick.
+   A submenu's parent is wrapped (`.context-menu-sub`), and a flyout's toggles are its own. */
+.context-menu:has(> .context-menu-item > .context-menu-check) > .context-menu-item:not(:has(> .context-menu-check)),
+.context-menu:has(> .context-menu-item > .context-menu-check) > .context-menu-sub > .context-menu-item:not(:has(> .context-menu-check)) {
   padding-left: calc(var(--space-md) + var(--icon-size-sm) + var(--control-gap));
 }
 /* A worktree listed by "Show all worktrees" that no session has been started in yet. */
