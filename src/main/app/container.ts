@@ -293,7 +293,7 @@ export function createServices(options: ServicesOptions): Services {
   const dataDir = dirname(options.dbPath)
   const resolver = new SessionResolver({ store, pty })
   const worktrees = new WorktreeResolver({ exec: createResolverExec() })
-  const vscode = new VsCodeService({ resolver, vsCodePath: options.vsCodePath ?? null })
+  const vscode = new VsCodeService({ resolver, vsCodePath: options.vsCodePath ?? null, homeDir: options.homeDir })
   const images = new ImageStore({ dir: options.imagesDir ?? join(dataDir, 'pasted-images') })
   const searchDbPath = options.searchDbPath ?? join(dataDir, 'search.db')
   const search = new SearchService({

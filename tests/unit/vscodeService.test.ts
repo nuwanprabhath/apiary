@@ -18,7 +18,7 @@ import type { PtyManager } from '../../src/main/pty/ptyManager'
 describe('VsCodeService.openMentionedFile', () => {
   const serviceIn = (dir: string, vsCodePath: string | null): VsCodeService => {
     const pty = { getCwd: () => dir } as unknown as PtyManager
-    return new VsCodeService({ resolver: new SessionResolver({ store: {} as SessionStore, pty }), vsCodePath })
+    return new VsCodeService({ resolver: new SessionResolver({ store: {} as SessionStore, pty }), vsCodePath, homeDir: dir })
   }
 
   it('opens a file inside the session folder, at its line', async () => {
@@ -51,7 +51,7 @@ describe('VsCodeService.openMentionedFile', () => {
 describe('VsCodeService: resolving without launching', () => {
   const serviceIn = (dir: string): VsCodeService => {
     const pty = { getCwd: () => dir } as unknown as PtyManager
-    return new VsCodeService({ resolver: new SessionResolver({ store: {} as SessionStore, pty }), vsCodePath: null })
+    return new VsCodeService({ resolver: new SessionResolver({ store: {} as SessionStore, pty }), vsCodePath: null, homeDir: dir })
   }
 
   it('resolveFolder returns the session folder and resolveMentionedFile a file in it, launching nothing', async () => {
@@ -61,7 +61,7 @@ describe('VsCodeService: resolving without launching', () => {
       const service = serviceIn(dir)
       expect(service.resolveFolder(terminalRef('new:1', true))).toBe(dir)
       await expect(service.resolveMentionedFile(terminalRef('new:1', true), 'notes.md:3')).resolves.toEqual({ file: expect.stringMatching(/notes\.md$/) as string, line: 3 })
-      await expect(service.resolveMentionedFile(terminalRef('new:1', true), '../../etc/hosts')).rejects.toThrow('not a file')
+      await expect(service.resolveMentionedFile(terminalRef('new:1', true), '/etc/hosts')).rejects.toThrow('only files in')
       expect(openInVsCode).not.toHaveBeenCalledWith(expect.anything(), dir)
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -72,19 +72,19 @@ describe('VsCodeService: resolving without launching', () => {
 describe('VsCodeService', () => {
   it('available() is false when no VS Code path was found', () => {
     const resolver = new SessionResolver({ store: {} as SessionStore, pty: {} as PtyManager })
-    const service = new VsCodeService({ resolver, vsCodePath: null })
+    const service = new VsCodeService({ resolver, vsCodePath: null, homeDir: '/home/x' })
     expect(service.available()).toBe(false)
   })
 
   it('available() is true when a VS Code path was found', () => {
     const resolver = new SessionResolver({ store: {} as SessionStore, pty: {} as PtyManager })
-    const service = new VsCodeService({ resolver, vsCodePath: 'code' })
+    const service = new VsCodeService({ resolver, vsCodePath: 'code', homeDir: '/home/x' })
     expect(service.available()).toBe(true)
   })
 
   it('open() rejects when VS Code was not found', async () => {
     const resolver = new SessionResolver({ store: {} as SessionStore, pty: {} as PtyManager })
-    const service = new VsCodeService({ resolver, vsCodePath: null })
+    const service = new VsCodeService({ resolver, vsCodePath: null, homeDir: '/home/x' })
     await expect(service.open(terminalRef('s1', true))).rejects.toThrow('VS Code was not found on this machine')
   })
 
@@ -93,7 +93,7 @@ describe('VsCodeService', () => {
     try {
       const pty = { getCwd: () => dir } as unknown as PtyManager
       const resolver = new SessionResolver({ store: {} as SessionStore, pty })
-      const service = new VsCodeService({ resolver, vsCodePath: '/usr/bin/code' })
+      const service = new VsCodeService({ resolver, vsCodePath: '/usr/bin/code', homeDir: '/home/x' })
       await service.open(terminalRef('new:1', true))
       expect(openInVsCode).toHaveBeenCalledWith('/usr/bin/code', dir)
     } finally {

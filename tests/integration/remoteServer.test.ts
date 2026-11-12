@@ -199,7 +199,7 @@ describe('RemoteServer', () => {
 
     async function bootResolving(): Promise<Client> {
       const pty = { getCwd: () => dir } as unknown as PtyManager
-      await boot(5000, { vscode: new VsCodeService({ resolver: new SessionResolver({ store: {} as SessionStore, pty }), vsCodePath: null }) })
+      await boot(5000, { vscode: new VsCodeService({ resolver: new SessionResolver({ store: {} as SessionStore, pty }), vsCodePath: null, homeDir: dir }) })
       const c = await greeted()
       c.send({ t: 'open', w: 1 })
       return c
@@ -216,10 +216,10 @@ describe('RemoteServer', () => {
 
     it('refuses a mention outside the session folder and bad arguments', async () => {
       const c = await bootResolving()
-      c.send({ t: 'resolve', id: 1, w: 1, what: 'mentioned-file', terminal, mention: '../../etc/hosts' })
+      c.send({ t: 'resolve', id: 1, w: 1, what: 'mentioned-file', terminal, mention: '/etc/hosts' })
       c.send({ t: 'resolve', id: 2, w: 1, what: 'mentioned-file', terminal, mention: 7 as never })
       c.send({ t: 'resolve', id: 3, w: 1, what: 'session-folder', terminal: 42 as never })
-      expect(await answer(c, 1)).toMatchObject({ ok: false, message: expect.stringContaining('not a file') as string })
+      expect(await answer(c, 1)).toMatchObject({ ok: false, message: expect.stringContaining('only files in') as string })
       expect(await answer(c, 2)).toEqual({ t: 'resolved', id: 2, ok: false, message: 'Invalid request.' })
       expect(await answer(c, 3)).toEqual({ t: 'resolved', id: 3, ok: false, message: 'Invalid request.' })
     })

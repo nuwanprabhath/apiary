@@ -4,6 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.61.6] - 2026-11-12
+
+### Fixed
+
+- Clicking a file name in a transcript opens it in VS Code in more cases:
+  - in a worktree session, a gitignored file such as a local token that exists only in the
+    repository's main checkout;
+  - a full path, or one starting `~/`, anywhere in your home folder.
+- A file that cannot be opened now says why: it does not exist yet (an agent often names a file
+  before it writes it), or it is outside the places Apiary opens files from. Before, every refusal
+  said "That is not a file in this session's folder".
+
 ## [1.61.5] - 2026-11-12
 
 ### Fixed
