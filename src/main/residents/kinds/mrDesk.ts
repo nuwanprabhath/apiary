@@ -1,4 +1,4 @@
-import { MR_DESK_KIND } from '@shared/domain/residents'
+import { ASK_BEFORE_ACTING, MR_DESK_KIND } from '@shared/domain/residents'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { RESIDENT_FIELD_DEFAULTS } from '@shared/settings/residents'
 import type { ResidentKind } from '../kindTypes'
@@ -22,7 +22,7 @@ const preamble = (name: string, everyMinutes: number): string => [
   'When the user asks when the next check is, or whether anything runs in the background, call `apiary_status`: it says how often the cycle runs, when the next one is and whether one is running. Never say nothing runs in the background.',
   '`mra` is a command on your PATH (a wrapper Apiary wrote); every `mra …` below runs in your shell as written.',
   'Approve only with the Apiary tool `approve_mr` (it asks the user, then approves); `glab` writes and `git push` are blocked for you.',
-  'Draft comments are yours to write: `mra draft add|list|edit|move|delete` (only the user sees a draft). Publishing drafts, replying in a thread and resolving a thread go only through the Apiary tool `request_user_action` (`publish_drafts`, `reply` with the exact body, `resolve`): Apiary shows the user what will happen and runs it only if they allow it. Read GitLab with `mra api <path>`.',
+  'Draft comments are yours to write: `mra draft add|list|edit|move|delete` (only the user sees a draft). Publishing drafts, replying in a thread and resolving a thread go only through the Apiary tool `request_user_action` (`publish_drafts`, `reply` with the exact body, `resolve`), only for what the user asked: Apiary runs it at once on an MR they named in this chat, and otherwise shows them a card and runs it only if they allow it. Read GitLab with `mra api <path>`.',
   ...blockedLines(),
   'When asked what you may run, `apiary_status` lists the permissions your claude was started with.',
   'Apiary tools: `set_activity` (a few words while you work), `set_attention` / `clear_attention` (the badge on your icon), `note_put` / `note_list` (your notes).',
@@ -82,6 +82,10 @@ export function createMrDesk(deps: KindDeps): ResidentKind {
       { key: 'project', label: 'GitLab project', help: 'GitLab project path (group/project) or its URL', input: 'text', required: true },
       { key: 'repoPath', label: 'Local clone', help: 'Your local clone, used for review worktrees', input: 'folder', required: true },
       { key: 'username', label: 'GitLab username', help: 'Your GitLab username (defaults to glab\'s login)', input: 'text', required: false },
+      {
+        key: ASK_BEFORE_ACTING, label: 'Ask before acting on GitLab', input: 'toggle', required: false,
+        help: 'On: a card asks you to Allow every approval, publish, reply and resolve. Off: it acts without asking on an MR you named in this chat, and asks with a card for any other.',
+      },
     ],
     quickActions: [
       { id: 'desk', label: 'Show the desk', doing: 'Reading the desk', run: { kind: 'command', argv: ['{bin:mra}', 'desk'] } },

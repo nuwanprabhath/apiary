@@ -4,6 +4,21 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.0] - 2026-11-12
+
+### Added
+
+- The MR desk has an "Ask before acting on GitLab" option, off by default. Off: when you name an
+  MR in its chat ("approve !1675 when the pipeline is green"), it approves, publishes its drafts,
+  replies or resolves on that MR without a card, so it can act while you are away. It still asks
+  with a card for any MR you did not type yourself: an MR named only in GitLab text (a description,
+  a comment) never counts. On: every action asks with a card, as before.
+
+### Fixed
+
+- An MR desk card no longer fails after a minute. The agent's call timed out ("The operation timed
+  out.") while the card was still showing. A card now waits until you answer it.
+
 ## [1.61.6] - 2026-11-12
 
 ### Fixed

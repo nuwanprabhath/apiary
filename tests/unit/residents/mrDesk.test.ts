@@ -37,7 +37,7 @@ beforeEach(() => { space = mkdtempSync(join(tmpdir(), 'apiary-mrdesk-')) })
 afterEach(() => { rmSync(space, { recursive: true, force: true }) })
 
 describe('the MR desk kind', () => {
-  it('is Opus on auto, Monday to Friday, with no digest, and offers its three options', () => {
+  it('is Opus on auto, Monday to Friday, with no digest, and offers its four options', () => {
     const kind = desk()
     expect(kind.defaults).toMatchObject({
       name: 'MR Desk', model: 'opus', permissionMode: 'auto', schedule: { days: [1, 2, 3, 4, 5], start: '09:00', end: '18:00' },
@@ -46,7 +46,7 @@ describe('the MR desk kind', () => {
     expect(kind.appearance).toEqual({ glyph: 'honeypot', palette: 'amber', animation: 'stir' })
     expect(kind.capabilities).toEqual(['space.notes', 'apiary.status', 'resident.attention', 'sessions.read', 'workspace.open', 'gitlab.approve'])
     expect(kind.optionFields.map((f) => [f.key, f.input, f.required])).toEqual([
-      ['project', 'text', true], ['repoPath', 'folder', true], ['username', 'text', false],
+      ['project', 'text', true], ['repoPath', 'folder', true], ['username', 'text', false], ['askBeforeActing', 'toggle', false],
     ])
     expect(kind.cycle).toEqual({ everyMinutes: 15, prompt: 'Run one MR desk cycle.', doing: 'Checking your MRs' })
   })

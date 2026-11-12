@@ -45,6 +45,9 @@ export interface ApprovalControl {
   approvalOf(residentId: string): ResidentApproval | null
   /** Its kind's user actions, or null for a kind without them. */
   userActionsOf(residentId: string): ResidentUserActions | null
+  /** Whether it may act on MR `iid` without a card: its "Ask before acting" option is off and the
+   *  user named that MR in its chat. */
+  actsUnasked(residentId: string, iid: number): boolean
   /** Shows the user a permission card with main's summary; resolves with their answer. */
   askUser(residentId: string, tool: string, summary: string): Promise<boolean>
   /** Runs a kind argv (`{bin:<name>}` expanded) in its space with its env plus `extraEnv`; resolves with stdout. */

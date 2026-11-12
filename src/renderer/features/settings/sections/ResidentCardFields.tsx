@@ -216,11 +216,29 @@ function FolderOption({ config, field }: { config: ResidentConfig; field: Reside
   )
 }
 
+/** A toggle option, saved as `'on'` or `''` as it changes; its label and help sit beside the box. */
+function ToggleOption({ config, field, save }: { config: ResidentConfig; field: ResidentOptionField; save: Save }): JSX.Element {
+  return (
+    <label className="settings-row">
+      <input
+        type="checkbox"
+        data-testid={`resident-option-${config.id}-${field.key}`}
+        checked={config.options[field.key] === 'on'}
+        onChange={(e) => { save({ options: { ...config.options, [field.key]: e.target.checked ? 'on' : '' } }) }}
+      />
+      <span>
+        <strong>{field.label}</strong>
+        {field.help !== '' && <span className="settings-help">{field.help}</span>}
+      </span>
+    </label>
+  )
+}
+
 /** The kind's own settings, drawn from its `optionFields`. */
 export function OptionFields({ config, fields, save }: { config: ResidentConfig; fields: readonly ResidentOptionField[]; save: Save }): JSX.Element {
   return (
     <>
-      {fields.map((f) => (
+      {fields.map((f) => f.input === 'toggle' ? <ToggleOption key={f.key} config={config} field={f} save={save} /> : (
         <div key={f.key} className="resident-field">
           <strong>
             {f.label}

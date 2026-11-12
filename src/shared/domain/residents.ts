@@ -174,12 +174,17 @@ export interface SessionHit {
 /** The link form an answer uses to cite a session; the renderer draws it as a chip that opens it. */
 export const SESSION_LINK_PREFIX = 'apiary://session/'
 
+/** The option (a toggle) that makes a resident ask with a card before every GitLab action, even on an
+ *  MR the user named in its chat. */
+export const ASK_BEFORE_ACTING = 'askBeforeActing'
+
 /** One of a kind's own settings, as the Settings section draws it. A folder is picked in main, never typed. */
 export interface ResidentOptionField {
   key: string
   label: string
   help: string
-  input: 'text' | 'folder'
+  /** A toggle is stored as `'on'` or `''` (off). */
+  input: 'text' | 'folder' | 'toggle'
   required: boolean
 }
 

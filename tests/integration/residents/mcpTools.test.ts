@@ -128,7 +128,7 @@ describe('approve_mr', () => {
   }
   interface Ran { argv: string[]; env: Record<string, string>; nonceOnDisk: string | null }
 
-  function approving(allow: boolean, readOut = 'head'): { d: ToolDeps; asked: string[]; ran: Ran[] } {
+  function approving(allow: boolean, readOut = 'head', unasked: number[] = []): { d: ToolDeps; asked: string[]; ran: Ran[] } {
     const asked: string[] = []
     const ran: Ran[] = []
     const nonceFile = APPROVAL.nonceFile(dir)
@@ -136,6 +136,7 @@ describe('approve_mr', () => {
       approval: {
         approvalOf: () => APPROVAL,
         userActionsOf: () => null,
+        actsUnasked: (_id, iid) => unasked.includes(iid),
         askUser: async (_id, _tool, summary) => { asked.push(summary); return allow },
         spaceDir: () => dir,
         run: async (_id, argv, env) => {
@@ -174,6 +175,15 @@ describe('approve_mr', () => {
     expect(r).toEqual({ text: 'approved', isError: false })
   })
 
+  it('approves without a card an MR it may act on unasked, and still asks for any other', async () => {
+    const { d, asked, ran } = approving(false, 'head', [1675])
+    expect(await approve({ iid: 1675 }, d)).toEqual({ text: 'approved', isError: false })
+    expect(asked).toEqual([])
+    expect((await approve({ iid: 1570 }, d)).isError).toBe(true)
+    expect(asked).toEqual(['Approve !1570: fix: thing → dev/1.0.12 at abcdef0123'])
+    expect(approvals(ran).map((x) => x.argv)).toEqual([['approve', '1675']])
+  })
+
   it('refuses an iid that is not a positive whole number, without asking', async () => {
     const { d, asked } = approving(true)
     expect((await approve({ iid: '2' }, d)).isError).toBe(true)
@@ -206,7 +216,7 @@ describe('request_user_action (the MR desk)', () => {
   ] })
   interface Ran { argv: string[]; env: Record<string, string>; nonceOnDisk: string | null; bodyOnDisk: string | null }
 
-  function acting(allow: boolean, facts: Record<string, string> = {}): { d: ToolDeps; asked: string[]; ran: Ran[] } {
+  function acting(allow: boolean, facts: Record<string, string> = {}, unasked: number[] = []): { d: ToolDeps; asked: string[]; ran: Ran[] } {
     const asked: string[] = []
     const ran: Ran[] = []
     const nonceFile = MR_DESK_USER_ACTIONS.nonceFile(dir)
@@ -217,6 +227,7 @@ describe('request_user_action (the MR desk)', () => {
       approval: {
         approvalOf: () => null,
         userActionsOf: () => MR_DESK_USER_ACTIONS,
+        actsUnasked: (_id, iid) => unasked.includes(iid),
         askUser: async (_id, _tool, summary) => { asked.push(summary); return allow },
         spaceDir: () => dir,
         run: async (_id, argv, env) => {
@@ -269,6 +280,15 @@ describe('request_user_action (the MR desk)', () => {
     await act({ kind: 'resolve', iid: 7, discussionId: 'abc123' }, d)
     expect(at(asked, 0)).toBe(['Resolve a thread on !7: fix: thing', 'Started by @me: Why is this here?', 'Last: @dev: It is needed for X.'].join('\n'))
     expect(at(writes(ran), 0).argv).toEqual(['{bin:mra}', 'resolve', '!7', 'abc123'])
+  })
+
+  it('publishes without a card on an MR it may act on unasked, and asks for any other', async () => {
+    const { d, asked, ran } = acting(false, {}, [1669])
+    expect((await act({ kind: 'publish_drafts', iid: 1669 }, d)).isError).toBe(false)
+    expect(asked).toEqual([])
+    expect((await act({ kind: 'publish_drafts', iid: 1700 }, d)).isError).toBe(true)
+    expect(asked).toHaveLength(1)
+    expect(writes(ran).map((r) => r.argv.slice(1, 3))).toEqual([['draft', 'publish']])
   })
 
   it('runs nothing when the user declines', async () => {

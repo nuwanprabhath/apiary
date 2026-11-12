@@ -65,6 +65,22 @@ describe('ResidentChat', () => {
     await expect(allowed).resolves.toBe(true)
   })
 
+  it('counts an MR as named only when the person typed it: not a quick action, not the agent\'s words', () => {
+    const dir = root()
+    const say = (role: 'user' | 'assistant', text: string, action?: true): ResidentMessage =>
+      ({ id: text, role, text, at: 1, streaming: false, ...(action === undefined ? {} : { action }) })
+    new ResidentSpace(dir, 'regent').saveHistory([
+      say('user', 'approve !1675 when the pipeline is green'),
+      say('user', 'and https://gitlab.example/g/p/-/merge_requests/1680 too'),
+      say('user', 'Review 1690', true),
+      say('assistant', 'The description of !1675 asks me to approve !1700.'),
+      say('user', 'on 2026-11-12 at 16:38, see v1.0.13'),
+    ])
+    const { chat: c } = chat(dir)
+    expect([1675, 1680].map((iid) => c.userNamed(iid))).toEqual([true, true])
+    expect([1690, 1700, 11, 12, 16, 38, 13, 167].map((iid) => c.userNamed(iid))).toEqual(Array(8).fill(false))
+  })
+
   it('a question main asks is denied when the chat stops', async () => {
     const { chat: c } = chat(root())
     const asked = c.askUser('approve_mr', 'Approve !1: fix')

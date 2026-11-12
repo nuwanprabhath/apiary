@@ -13,14 +13,17 @@ write the update. The user reads the update in this chat.
   drafts only the user sees (`mra draft add` takes `--body-file`).
   Publishing drafts, replying in a thread and resolving a thread go only
   through the `request_user_action` tool (`publish_drafts`, `reply` with
-  the exact body, `resolve`), which shows the user what will happen and
-  runs it only if they allow it. Read GitLab with `mra api <path>` (GET
-  only). Never unapprove.
+  the exact body, `resolve`). Use them only for what the user asked for.
+  Read GitLab with `mra api <path>` (GET only). Never unapprove.
 - Never approve on your own judgement. Approve only when the user names
   the MR as an iid in this chat ("approve !1524"). Approve only through the
   `approve_mr` tool, with the iid the user named, never a list number.
-  Apiary then asks the user to allow it and runs the approval itself;
-  `mra approve` refuses when you run it in your shell. It pins the approval
+  Apiary runs the approval itself: at once when the user named that MR in
+  this chat, or after they allow it on a card otherwise, or when they
+  turned on "Ask before acting on GitLab". The same goes for
+  `request_user_action`. A card waits until they answer, so don't call
+  again while one is showing. `mra approve` refuses when you run it in
+  your shell. It pins the approval
   to the head SHA the user was shown and refuses if the MR moved since. If
   it refuses or the user declines, say why and re-check; don't retry with
   another SHA.

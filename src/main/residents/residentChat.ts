@@ -65,6 +65,10 @@ function newTurn(ownStartAttentionWrites: number | null): Turn {
   return { message: { id: randomUUID(), role: 'assistant', text: '', at: Date.now(), streaming: true }, streamed: false, ownStartAttentionWrites }
 }
 
+/** How long claude waits on an Apiary tool call. A card (`askUser`) stays until the person answers it,
+ *  and claude's own limit for an MCP call (60 s) ended `approve_mr` while its card was still showing. */
+export const CARD_WAIT_MS = 12 * 60 * 60 * 1000
+
 /** A tool use claude waits on (answered over stdin), or a question main asked itself (`askUser`, answered by `settle`). */
 type Waiting =
   | { request: ResidentPermissionRequest; pending: PendingPermission; settle?: undefined }
@@ -150,6 +154,16 @@ export class ResidentChat {
       this.waiting.set(requestId, { request: { requestId, tool, summary }, settle })
       this.deps.onActivity()
     })
+  }
+
+  /**
+   * Whether a message the person typed in this chat names MR `iid` (`!1675`, `1675`, or its URL).
+   * Only typed messages count: a quick action's label, the agent's words and what it read from GitLab
+   * never do, so text planted in an MR cannot name another one for it.
+   */
+  userNamed(iid: number): boolean {
+    const mention = new RegExp(`(?<![\\w.:-])!?${String(iid)}(?![\\w:-]|\\.\\d)`)
+    return this.messages.some((m) => m.role === 'user' && m.action !== true && mention.test(m.text))
   }
 
   /** Denies every question main asked: nobody is left to answer them. */
@@ -247,7 +261,7 @@ export class ResidentChat {
     const proc = spawnLoginShell({
       command: { bin: this.deps.claudeBin() ?? 'claude', flags: residentFlags(launch, resume) },
       cwd: this.deps.space.dir,
-      extraEnv: this.deps.env(),
+      extraEnv: { ...this.deps.env(), MCP_TOOL_TIMEOUT: String(CARD_WAIT_MS) },
     }, this.deps.spawn)
     this.proc = proc
     this.stopping = false

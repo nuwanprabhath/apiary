@@ -11,9 +11,10 @@ import { log } from '../log/logger'
 import { clipActivity, STARTING, WORKING } from './activity'
 import { cycleMinutesOf, cycleStatus } from './cycle'
 import { instantHits, instantMatchPolicy } from './instantMatches'
+import { approvalControlFor } from './approvalControl'
 import { kindInfos, kindOf, newResident, unknownKindFilter, type ResidentKind } from './kinds'
 import { McpServer } from './mcp/server'
-import type { ApprovalControl, ResidentControl, ToolDeps } from './mcp/toolKit'
+import type { ResidentControl, ToolDeps } from './mcp/toolKit'
 import { cycleSkip, expandArgv } from './quickActions'
 import { ResidentChat } from './residentChat'
 import { ResidentSpace } from './residentSpace'
@@ -132,7 +133,7 @@ export class ResidentService {
     this.runnable = unknownKindFilter(this.kindOf, (c) => { log.warn('residents', 'unknown resident kind, not running it', { resident: c.id, kind: c.kind }) })
     this.server = new McpServer({
       version: deps.version,
-      tools: { ...deps.tools, knowledge: deps.knowledge, residents: this.control(), approval: this.approvalControl() },
+      tools: { ...deps.tools, knowledge: deps.knowledge, residents: this.control(), approval: approvalControlFor((id) => this.require(id), (r, argv, extraEnv) => this.runIn(r, argv, extraEnv)) },
       capabilitiesOf: (id) => this.residents.get(id)?.kind.capabilities ?? null,
       spaceOf: (id) => this.require(id).space,
       onToolCall: (id, tool, args) => { this.residents.get(id)?.chat.toolCalled(tool, args) },
@@ -283,11 +284,6 @@ export class ResidentService {
       setAttention: (id, attention) => { this.require(id).space.setAttention(attention); this.statusChanged() },
       setActivity: (id, text) => { this.require(id).chat.setOwnActivity(text) },
     }
-  }
-
-  /** `approve_mr`'s reach: the kind's approval, the user's answer, and a command run as a quick action's is. */
-  private approvalControl(): ApprovalControl {
-    return { approvalOf: (id) => this.require(id).kind.approval ?? null, userActionsOf: (id) => this.require(id).kind.userActions ?? null, askUser: (id, tool, summary) => this.require(id).chat.askUser(tool, summary), run: (id, argv, extraEnv) => this.runIn(this.require(id), argv, extraEnv), spaceDir: (id) => this.require(id).space.dir }
   }
 
   /** Runs a kind's argv in the resident's space, with its env and `extraEnv`. */

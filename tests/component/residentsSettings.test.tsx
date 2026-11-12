@@ -219,6 +219,17 @@ describe('Settings → Residents', () => {
     await until(() => el('resident-required-mr-desk-project') === null)
   })
 
+  it('"Ask before acting on GitLab" (the MR desk\'s own toggle) starts off and saves on and off at once', async () => {
+    const fake = await openResidents([deskConfig()])
+    await until(() => el('resident-option-mr-desk-askBeforeActing') !== null)
+    const box = page.getByRole('checkbox', { name: /Ask before acting on GitLab/ })
+    await expect.element(box).not.toBeChecked()
+    await userEvent.click(box)
+    await until(() => must(fake.state.settings.residents[0]).options.askBeforeActing === 'on')
+    await userEvent.click(box)
+    await until(() => must(fake.state.settings.residents[0]).options.askBeforeActing === '')
+  })
+
   it('a folder option is chosen with Choose… only, never typed', async () => {
     const folder = '/Users/me/src/very/deep/folder/app'
     const fake = await openResidents([deskConfig()], (f) => {

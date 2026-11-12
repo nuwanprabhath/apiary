@@ -31,6 +31,12 @@ async function runWithNonce(control: ApprovalControl, nonce: ResidentNonce, resi
   }
 }
 
+/** Whether the user lets this go ahead: without a card when the resident may act unasked on that MR
+ *  (`ApprovalControl.actsUnasked`), otherwise their answer on a card showing main's summary. */
+async function userAllows(control: ApprovalControl, residentId: string, tool: string, iid: number, summary: string): Promise<boolean> {
+  return control.actsUnasked(residentId, iid) || control.askUser(residentId, tool, summary)
+}
+
 function parseUserAction(a: Record<string, unknown>): UserAction | string {
   const iid = intIn(a.iid, 1, IID_MAX)
   if (iid === null) return IID_HELP
@@ -49,7 +55,7 @@ export const GITLAB_TOOLS: Tool[] = [
   tool<{ iid: number }>({
     name: 'approve_mr',
     capability: 'gitlab.approve',
-    description: 'Approve a merge request the user named by its iid. Apiary shows the user the MR and approves only if they allow it; the answer says which.',
+    description: 'Approve a merge request the user named by its iid. Apiary approves at once when the user named that MR in this chat; otherwise it shows them the MR and approves only if they allow it. The answer says which.',
     inputSchema: { type: 'object', properties: { iid: { type: 'integer', minimum: 1 } }, required: ['iid'] },
     parse: (a) => {
       const iid = intIn(a.iid, 1, IID_MAX)
@@ -62,7 +68,7 @@ export const GITLAB_TOOLS: Tool[] = [
       const head = await readHead(control, approval, residentId, iid)
       if (typeof head === 'string') return fail(`Could not read !${String(iid)}: ${head}`)
       const summary = `Approve !${String(iid)}: ${head.title} → ${head.targetBranch} at ${head.sha.slice(0, 10)}`
-      if (!await control.askUser(residentId, 'approve_mr', summary)) return fail(`The user did not allow approving !${String(iid)}. Nothing was approved.`)
+      if (!await userAllows(control, residentId, 'approve_mr', iid, summary)) return fail(`The user did not allow approving !${String(iid)}. Nothing was approved.`)
       try {
         return ok(await runWithNonce(control, approval, residentId, approval.approveArgv(iid)))
       } catch (e) {
@@ -73,7 +79,7 @@ export const GITLAB_TOOLS: Tool[] = [
   tool<UserAction>({
     name: 'request_user_action',
     capability: 'gitlab.approve',
-    description: 'Ask the user to let Apiary publish your draft comments on an MR (publish_drafts), post a reply in a thread (reply, with the exact body), or resolve a thread (resolve). Apiary reads the MR and thread from GitLab, shows the user what will happen and runs it only if they allow it; the answer says which.',
+    description: 'Ask the user to let Apiary publish your draft comments on an MR (publish_drafts), post a reply in a thread (reply, with the exact body), or resolve a thread (resolve). Apiary reads the MR and thread from GitLab and runs it at once when the user named that MR in this chat; otherwise it shows them what will happen and runs it only if they allow it. The answer says which.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -99,7 +105,7 @@ export const GITLAB_TOOLS: Tool[] = [
         return fail(`Could not read ${iid}: ${cut(e)}`)
       }
       if ('problem' in card) return fail(`Nothing to ask the user: ${card.problem}.`)
-      if (!await control.askUser(residentId, 'request_user_action', card.summary)) {
+      if (!await userAllows(control, residentId, 'request_user_action', action.iid, card.summary)) {
         return fail(`The user declined ${DONE[action.kind]} on ${iid}. Nothing was done.`)
       }
       const bodyFile = actions.bodyFile(control.spaceDir(residentId))
