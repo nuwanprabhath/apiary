@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   mkdtempSync, rmSync, readFileSync, readdirSync, existsSync, writeFileSync, utimesSync,
 } from 'node:fs'
@@ -15,7 +15,10 @@ beforeEach(() => {
   rmSync(dir, { recursive: true, force: true })
   logger = new Logger()
 })
-afterEach(() => { rmSync(dir, { recursive: true, force: true }) })
+afterEach(() => {
+  vi.useRealTimers()
+  rmSync(dir, { recursive: true, force: true })
+})
 
 const on = (over: Partial<Parameters<Logger['configure']>[0]> = {}): void =>
   logger.configure({ enabled: true, dir, retentionDays: 7, maxSizeMb: 20, ...over })
@@ -109,7 +112,20 @@ describe('a logger that is switched on', () => {
 })
 
 describe('keeping the logs inside their limits', () => {
-  it('rolls the active file aside once it is too big, and keeps writing', () => {
+  // The clock is fixed, and the files are stamped with it. Age is `Date.now()` against a file's
+  // mtime, and mtime comes from the kernel: a test that moves only `Date` (the nightly clock run's
+  // `faketime` sets the year-end instant before the disk's real date) rolls a file whose mtime is
+  // weeks old, which retention then deletes the moment it is rolled. Each instant is one where a
+  // rolled file's name or age could go wrong: the minute before a new year, the new year itself,
+  // and an ordinary afternoon.
+  it.each([
+    ['an ordinary afternoon', '2026-06-15T14:30:00.000Z'],
+    ['the last minutes of a year', '2026-12-31T23:57:00.000Z'],
+    ['the first instant of a year', '2027-01-01T00:00:00.000Z'],
+  ])('rolls the active file aside once it is too big, and keeps writing (%s)', (_when, instant) => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(instant))
+    const stamped = new Date(instant)
     // A 20MB budget rotates at 4MB and has room to keep what it rolls aside. (A budget so small
     // that the rotated file does not fit is the *other* rule, and it wins — see the pruning
     // tests, where the size budget beats retention.)
@@ -118,17 +134,19 @@ describe('keeping the logs inside their limits', () => {
     // Grown directly rather than by logging megabytes a line at a time: what is being tested is
     // the decision to rotate, and writing them takes longer than every other test here together.
     writeFileSync(join(dir, 'apiary.log'), 'x'.repeat(5 * 1024 * 1024))
+    utimesSync(join(dir, 'apiary.log'), stamped, stamped)
     on({ maxSizeMb: 20 })
 
     logger.info('pty', 'after rotation')
 
     const files = readdirSync(dir)
-    expect(files.length).toBeGreaterThan(1)
     expect(files).toContain('apiary.log')
     // The newest line is in the *active* file, which is the point of rotating rather than
     // stopping: logging continues, and the history is beside it.
     expect(lines().at(-1)?.msg).toBe('after rotation')
-    expect(files.filter((f) => f !== 'apiary.log')).toHaveLength(1)
+    expect(files.filter((f) => f !== 'apiary.log')).toEqual([
+      `apiary-${instant.replace(/[:.]/g, '-')}.log`,
+    ])
   })
 
   it('deletes archived files older than the retention period on startup', () => {

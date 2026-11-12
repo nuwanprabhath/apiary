@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.2] - 2026-11-12
+
+### Fixed
+
+- The log-roll test pins the clock and the file times, so it holds when the nightly run fakes the
+  date to New Year's Eve (#32).
+
 ## [1.62.1] - 2026-11-12
 
 ### Fixed
