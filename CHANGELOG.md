@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.6] - 2026-11-14
+
+### Fixed
+
+- A remote terminal no longer shows a terminal's answers at the prompt (`11;rgb:0a0a/0e0e/1e1e;2c`
+  after `cswap --switch`). A program asked for the background colour, the answer crossed the
+  network after the program had exited, and the shell read it as typing. Such an answer is now
+  dropped once the program that asked is no longer in front.
+
 ## [1.62.5] - 2026-11-14
 
 ### Fixed

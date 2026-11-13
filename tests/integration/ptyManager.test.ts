@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, afterAll, beforeAll, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { PtyManager } from '../../src/main/pty/ptyManager'
@@ -364,4 +364,58 @@ describe('PtyManager', () => {
     m.resize('g', 100, 30)
     expect(await winched).toMatch(/APIARY_WINCH/)
   }, 10000)
+
+  describe('a reply to a terminal query', () => {
+    const REPLY = '\u001b]11;rgb:0a0a/0e0e/1e1e\u001b\\'
+    // A program that asks for the background colour, as cswap and Claude Code do at start.
+    const asker = (dir: string, waits: boolean): string => {
+      const file = join(dir, waits ? 'waits.mjs' : 'quits.mjs')
+      writeFileSync(file, waits
+        ? "process.stdin.setRawMode(true); process.stdout.write('\\u001b]11;?\\u0007ASKED\\n'); process.stdin.once('data', (d) => { process.stdout.write('GOT ' + JSON.stringify(String(d)) + '\\n'); process.exit(0) })"
+        : "process.stdout.write('\\u001b]11;?\\u0007ASKED\\n'); setTimeout(() => process.exit(0), 200)")
+      return file
+    }
+
+    it('reaches the program that asked while it is still waiting', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
+      try {
+        manager = new PtyManager()
+        const m = manager
+        const ready = collect(m, 'ask', /\$ $/m)
+        m.spawn({ id: 'ask', cwd: dir, command: 'exec sh -i' })
+        await ready
+        const asked = collect(m, 'ask', /ASKED\r?\n/)
+        m.write('ask', `"${process.execPath}" "${asker(dir, true)}"\r`)
+        await asked
+        const got = collect(m, 'ask', /GOT [^\n]*\n/)
+        expect(m.write('ask', REPLY)).toBe(true)
+        expect(await got).toContain('rgb:0a0a/0e0e/1e1e')
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
+    it('is dropped once the program that asked has exited, so the shell never reads it as typing', async () => {
+      // `cswap --switch` in a remote window: the answer crossed the network after cswap gave up, and
+      // the prompt showed `11;rgb:0a0a/0e0e/1e1e;2c`.
+      const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
+      try {
+        manager = new PtyManager()
+        const m = manager
+        const ready = collect(m, 'late', /\$ $/m)
+        m.spawn({ id: 'late', cwd: dir, command: 'exec sh -i' })
+        await ready
+        // At a line's start: the shell's echo of the typed line also says `echo GONE`.
+        const gone = collect(m, 'late', /\nGONE\r?\n/)
+        m.write('late', `"${process.execPath}" "${asker(dir, false)}"; echo GONE\r`)
+        await gone
+        const after = collect(m, 'late', /AFTER\r?\n[\s\S]*\$ $/m)
+        expect(m.write('late', REPLY)).toBe(true)
+        m.write('late', 'echo AFTER\r')
+        expect(await after).not.toContain('rgb:')
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
 })

@@ -6,6 +6,7 @@ import { log } from '../log/logger'
 import type { AccountId } from '@shared/domain/ids'
 import { ScreenBuffers, type ScreenSnapshot } from './screen'
 import { strippedMarkers } from '../exec/childEnv'
+import { REPLY_WINDOW_MS, asksTerminal, isTerminalReply } from './terminalReplies'
 
 export interface SpawnOptions {
   id: string
@@ -91,6 +92,8 @@ interface PtyEntry {
   outputCount: number
   /** The account the process was started under; null for a plain shell. */
   accountId: AccountId | null
+  /** The program in front when output last asked the terminal something (`terminalReplies.ts`), and when. */
+  asked: { by: string; at: number } | null
 }
 
 export class PtyManager {
@@ -159,6 +162,7 @@ export class PtyManager {
       lastDataAt: Date.now(),
       outputCount: 0,
       accountId: opts.account ?? null,
+      asked: null,
     }
     // Registered before the first byte is rendered, so the first screen is at the right width.
     this.entries.set(opts.id, entry)
@@ -170,6 +174,7 @@ export class PtyManager {
       entry.lastDataAt = Date.now()
       entry.outputCount += 1
       if (data.includes(ALT_SCREEN)) entry.tuiStarted = true
+      if (asksTerminal(data)) entry.asked = { by: child.process, at: Date.now() }
       for (const h of this.dataHandlers) h(opts.id, data)
     })
     child.onExit(({ exitCode, signal }) => {
@@ -254,14 +259,26 @@ export class PtyManager {
 
   /** False when there is no live child or the write threw: the pty can exit before the keystroke lands. */
   write(id: string, data: string): boolean {
-    const child = this.entries.get(id)?.child
+    const entry = this.entries.get(id)
+    const child = entry?.child
     if (!child) return false
+    if (this.answersGoneAsker(entry.asked, child, data)) {
+      log.debug('pty', 'dropped a late terminal reply', { id, asker: entry.asked?.by ?? null })
+      return true
+    }
     try {
       child.write(data)
       return true
     } catch {
       return false
     }
+  }
+
+  /** A reply to a terminal query that arrives once the program that asked has left the front (it
+   *  gave up waiting): written on, the shell would read it as typing. */
+  private answersGoneAsker(asked: PtyEntry['asked'], child: pty.IPty, data: string): boolean {
+    if (asked === null || Date.now() - asked.at > REPLY_WINDOW_MS || !isTerminalReply(data)) return false
+    return ignoreErrors(() => child.process, 'a pty that is exiting has no foreground program') !== asked.by
   }
 
   /** Forgets the oldest entries with no child once more than `MAX_DEAD_ENTRIES` remain. */
