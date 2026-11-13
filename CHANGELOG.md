@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.8] - 2026-11-14
+
+### Fixed
+
+- A running background task in a chat shows the working animation you chose, rather than a still
+  icon that only looked like a spinner. Its tooltip still says Agent or Shell.
+
 ## [1.62.7] - 2026-11-14
 
 ### Fixed

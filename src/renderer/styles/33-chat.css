@@ -480,6 +480,9 @@
 .chat-menu-option[aria-checked="true"] { background: var(--selected); }
 .chat-menu-option > svg { flex: none; width: var(--icon-size); height: var(--icon-size); }
 .chat-menu-icon { display: inline-flex; flex: none; color: var(--muted); }
+/* A running background task's working animation, in the icon's place and size. */
+.chat-task-glyph { width: var(--icon-size); justify-content: center; color: var(--accent); }
+.chat-task-glyph .busy-glyph { width: 100%; }
 .chat-menu-option-text { display: flex; flex: 1; flex-direction: column; min-width: 0; }
 .chat-menu-option-desc { color: var(--muted); font-size: 12px; }
 

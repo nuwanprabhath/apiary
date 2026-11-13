@@ -3,7 +3,8 @@ import type { BackgroundTask } from '@shared/chatTimeline'
 import type { SessionId } from '@shared/domain/ids'
 import { formatDuration } from '@shared/time'
 import { useSecondsClock, useTaskOutput } from '../../state/secondsClock'
-import { AgentTaskIcon, ShellTaskIcon } from '../../ui/icons'
+import { BusyGlyph } from '../../ui/BusyGlyph'
+import { useAppSettings } from '../../state/settingsStore'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
 import { Listbox, optionId, useListboxNav } from '../../ui/Listbox'
 import { Popover } from '../../ui/Popover'
@@ -111,7 +112,8 @@ interface RowProps {
 }
 
 function TaskRow({ id, sessionId, task, now, current, expanded, onToggle }: RowProps): JSX.Element {
-  const Icon = task.kind === 'agent' ? AgentTaskIcon : ShellTaskIcon
+  // Every task listed is running, so each shows the working animation; the title says which kind.
+  const { busyAnimation, busyAnimationColor } = useAppSettings()
   return (
     <li
       id={id}
@@ -123,7 +125,7 @@ function TaskRow({ id, sessionId, task, now, current, expanded, onToggle }: RowP
       data-task-id={task.taskId}
     >
       <div className="chat-task-head" onClick={onToggle}>
-        <span className="chat-menu-icon" title={task.kind === 'agent' ? 'Agent' : 'Shell'}><Icon /></span>
+        <span className="chat-menu-icon chat-task-glyph" title={task.kind === 'agent' ? 'Agent' : 'Shell'}><BusyGlyph animation={busyAnimation} color={busyAnimationColor} /></span>
         <span className="chat-task-text">
           <span className="chat-task-desc" title={task.description}>{task.description || task.taskId}</span>
           {task.command !== null && task.command !== task.description && (
