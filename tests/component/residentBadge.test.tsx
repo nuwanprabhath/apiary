@@ -24,7 +24,11 @@ describe('the resident badge', () => {
     expect(badge()!.getBoundingClientRect().left).toBeGreaterThanOrEqual(spacer.getBoundingClientRect().right)
   })
 
-  it('shades on hover like the other status bar items, idle and working alike', async () => {
+  // Four waits of up to 8 s and two settles: more than the 15 s default for a browser test leaves
+  // under load, which is how it failed in a full run while passing alone. The hovers are forced:
+  // what is checked is the shade, and under load the badge's own motion kept Playwright waiting for
+  // it to be still.
+  it('shades on hover like the other status bar items, idle and working alike', { timeout: 60_000 }, async () => {
     const { fake } = await renderApp({ statusBar: [USAGE] }, (f) => { withRegent(f) })
     await until(() => badge()?.dataset.state === 'idle')
     const bg = (): string => getComputedStyle(badge()!).backgroundColor
@@ -33,18 +37,19 @@ describe('the resident badge', () => {
     const box = (): string => JSON.stringify(badge()!.getBoundingClientRect())
     await settled(() => bg() + box(), 5, 8000)
     const idle = bg()
-    await userEvent.hover(badge()!)
+    await userEvent.hover(badge()!, { force: true })
     await until(() => bg() !== idle, 8000)
     const usage = document.querySelector<HTMLElement>('[data-testid="status-item-claude-usage-usage"]')!
-    await userEvent.hover(usage)
+    await userEvent.hover(usage, { force: true })
     await until(() => bg() === idle, 8000)
-    expect(getComputedStyle(usage).backgroundColor).not.toBe(idle)
+    // Its shade fades in too: waited for, as the badge's is.
+    await expect.poll(() => getComputedStyle(usage).backgroundColor, { timeout: 8000 }).not.toBe(idle)
 
     fake.emit('residentsChanged', [regentStatus('working', 'Searching sessions')])
     await until(() => badge()?.dataset.state === 'working')
     await settled(() => bg() + box(), 5, 8000)
     const working = bg()
-    await userEvent.hover(badge()!)
+    await userEvent.hover(badge()!, { force: true })
     await until(() => bg() !== working, 8000)
   })
 

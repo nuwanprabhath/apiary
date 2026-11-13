@@ -13,7 +13,7 @@ describe('a remote window\'s layout and tabs', () => {
     const report = vi.fn()
     const flush = vi.fn()
     const deps = {
-      service: { pty: { onData: () => {}, onExit: () => {} } },
+      service: { pty: { onData: () => {}, onExit: () => {}, onLink: () => {} } },
       state: {
         tabMover: {}, activity: { notify: () => {}, dispose: () => {} },
         ptyAttachments: {}, ptyCoalescer: { push: () => {}, dispose: () => {} },

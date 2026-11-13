@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.63.1] - 2026-11-14
+
+### Fixed
+
+- The resident badge's hover test no longer fails in a loaded full run. It gets a time limit that
+  fits its waits, its hovers do not wait for a moving badge to be still, and it waits for the
+  other item's hover shade to fade in rather than reading it at once. It failed on its 15 s limit
+  under a CPU limit before and passes nine runs of nine after.
+- The IPC channel list pins the two new channels, and a tabs test's pty stands in for `onLink`.
+
 ## [1.63.0] - 2026-11-14
 
 ### Added
