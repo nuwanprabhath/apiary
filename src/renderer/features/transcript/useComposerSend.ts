@@ -3,7 +3,8 @@ import { isMcpCommand, openMcp } from '../../state/chatMcp'
 import { ptyIdOfSession, type PtyId } from '@shared/domain/ids'
 import { useCallback, useState } from 'react'
 import type { ChatState } from '@shared/domain/chat'
-import type { SessionNode } from '@shared/types'
+import type { NewSessionInfo, SessionNode } from '@shared/types'
+import { isLoginCommand, startSessionLogin } from '../../state/accountsStore'
 import { useNotifications } from '../../ui/notifications'
 import { sendChat, startChat, terminalBusy } from '../../state/chatStore'
 import { sendPrompt } from '../../state/terminals'
@@ -24,6 +25,8 @@ interface SendDeps {
   attachments: Attachment[]
   /** The message went: empty the box and the attachments. */
   onSent: () => void
+  /** Opens the terminal `/login` starts as a tab; without it, `/login` goes to Claude as any message. */
+  onSessionStarted?: (info: NewSessionInfo) => void
 }
 
 const TERMINAL_KEEPS_IT = 'Claude is working in this session’s terminal, so the servers are the terminal’s until it finishes. Type /mcp in the terminal, or open this again once Claude is idle.'
@@ -42,7 +45,7 @@ function startOptions({ startModel, startMode, startEffort }: ChatChoices): Para
 export function useComposerSend(d: SendDeps): { sending: boolean, send: (command?: string) => Promise<void> } {
   const { notifyError } = useNotifications()
   const [sending, setSending] = useState(false)
-  const { session, ptyId, running, onResume, onShowSession, chatMode, chat, chatRunning, choices, text, attachments, onSent } = d
+  const { session, ptyId, running, onResume, onShowSession, chatMode, chat, chatRunning, choices, text, attachments, onSent, onSessionStarted } = d
 
   const send = useCallback(async (command?: string): Promise<void> => {
     const body = command ?? text.trim()
@@ -62,6 +65,15 @@ export function useComposerSend(d: SendDeps): { sending: boolean, send: (command
           const asideSession = chat?.sessionId ?? session.sessionId
           if (aside === '') openAside(asideSession)
           else askAside(asideSession, aside)
+          if (command === undefined) onSent()
+          return
+        }
+        // `/login`: Claude Code's own is not available in stream-json mode ("isn't available in this
+        // environment"), so it opens a terminal under the session's account that runs it there. The
+        // sign-in link in it opens in this machine's browser, a remote window's too.
+        if (isLoginCommand(body) && onSessionStarted !== undefined) {
+          const info = await startSessionLogin(chat?.sessionId ?? session.sessionId)
+          onSessionStarted(info)
           if (command === undefined) onSent()
           return
         }
@@ -117,7 +129,7 @@ export function useComposerSend(d: SendDeps): { sending: boolean, send: (command
     } finally {
       setSending(false)
     }
-  }, [text, attachments, ptyId, running, onResume, onShowSession, session.sessionId, notifyError, chatMode, chatRunning, chat?.sessionId, choices, onSent])
+  }, [text, attachments, ptyId, running, onResume, onShowSession, session.sessionId, notifyError, chatMode, chatRunning, chat?.sessionId, choices, onSent, onSessionStarted])
 
   return { sending, send }
 }

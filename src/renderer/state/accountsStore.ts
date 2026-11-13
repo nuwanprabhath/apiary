@@ -2,6 +2,7 @@ import { MAIN_ACCOUNT_ID, type AccountInfo, type AccountsState } from '@shared/d
 import { asSessionId, UUID_RE, type AccountId, type SessionId } from '@shared/domain/ids'
 import type { NewSessionInfo } from '@shared/types'
 import { createIpcStore, createKeyedIpcStore } from './createIpcStore'
+import { background } from './policy'
 
 /**
  * The Claude accounts (`shared/domain/accounts.ts`) and the account each session runs under. Main
@@ -71,6 +72,21 @@ export const setDefaultAccount = (id: AccountId): Promise<void> => window.apiary
 
 /** Starts a terminal session under `id` for the user to type `/login` in; the caller opens its tab. */
 export const startAccountLogin = (id: AccountId): Promise<NewSessionInfo> => window.apiary.accountsLogin(id)
+
+/** Whether a chat message is `/login`, which Apiary runs in a terminal (`startSessionLogin`). */
+export function isLoginCommand(text: string): boolean {
+  return text.trim() === '/login'
+}
+
+/**
+ * Starts a terminal under `sessionId`'s account and types `/login` into it once Claude is listening:
+ * a chat cannot sign in itself. Returned, for the caller to open its tab and show a failure.
+ */
+export async function startSessionLogin(sessionId: SessionId): Promise<NewSessionInfo> {
+  const info = await window.apiary.accountsLogin(await window.apiary.sessionAccountGet(sessionId))
+  background(window.apiary.sendPrompt(info.ptyId, '/login'), 'accounts')
+  return info
+}
 
 /** Runs `sessionId` under `id` from now on, restarting its `claude` if one is running. */
 export const switchSessionAccount = (sessionId: SessionId, id: AccountId): Promise<void> =>

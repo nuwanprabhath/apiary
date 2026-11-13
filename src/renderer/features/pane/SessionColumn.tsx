@@ -176,7 +176,7 @@ function SessionColumnView(props: Props): JSX.Element {
             running={activeSession !== null && resumed.has(activeSession.sessionId)}
             onResumeAsync={onResumeAsync}
             onSetView={onSetView}
-            onOpenImage={setLightbox}
+            onOpenImage={setLightbox} onSessionStarted={onSessionStarted}
           />
         </>
       )}

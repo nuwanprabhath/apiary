@@ -46,12 +46,13 @@ interface RegistryItem {
 
 type Action = ActionItem | SettingItem | RegistryItem
 
-/** Commands Apiary answers itself, in place of Claude's own: Claude Code's `/btw` and `/mcp` are
- *  not available in a chat's stream-json mode, so the message box answers them
- *  (`state/chatAside.ts`, `state/chatMcp.ts`). */
+/** Commands Apiary answers itself, in place of Claude's own: Claude Code's `/btw`, `/mcp` and
+ *  `/login` are not available in a chat's stream-json mode, so the message box answers them
+ *  (`state/chatAside.ts`, `state/chatMcp.ts`, `startSessionLogin` in `state/accountsStore.ts`). */
 const APIARY_COMMANDS: readonly ChatCommand[] = [
   { name: 'btw', description: 'Ask a side question without interrupting Claude', argumentHint: '<question>' },
   { name: 'mcp', description: 'See the MCP servers: sign in, reconnect, turn one off', argumentHint: '' },
+  { name: 'login', description: 'Sign in again, in a terminal under this session\'s account', argumentHint: '' },
 ]
 const answeredHere = new Set(APIARY_COMMANDS.map((c) => c.name))
 /** Chosen from the menu, these run as they are rather than waiting for their argument: `/btw` opens

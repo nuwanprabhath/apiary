@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.7] - 2026-11-14
+
+### Fixed
+
+- `/login` in a chat signs in again: Claude answered it with "/login isn't available in this
+  environment". It now opens a terminal under the session's account with `/login` typed in,
+  where the sign-in link opens in your browser. The "/" menu offers it.
+
 ## [1.62.6] - 2026-11-14
 
 ### Fixed

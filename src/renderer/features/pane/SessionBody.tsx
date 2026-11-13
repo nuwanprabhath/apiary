@@ -2,7 +2,7 @@ import type { PtyId } from '@shared/domain/ids'
 import { type JSX, useCallback } from 'react'
 import type { ChatDecision } from '@shared/domain/chat'
 import { useChat, useChatMode, answerChatRequest } from '../../state/chatStore'
-import type { SessionNode } from '@shared/types'
+import type { NewSessionInfo, SessionNode } from '@shared/types'
 import type { Column, OpenTab } from '../../state/columns'
 import { Transcript, Composer } from '../transcript'
 import { TerminalView } from '../terminal'
@@ -13,7 +13,7 @@ import type { PendingTabInfo } from './paneTypes'
 /** The session's centre pane: its transcript with the composer, and every tab's claude terminal. */
 export function SessionBody({
   column, activeKey, activeSession, isPending, activePending, activeView, viewOf, showTerminalFor, keyFor, running,
-  onResumeAsync, onSetView, onOpenImage,
+  onResumeAsync, onSetView, onOpenImage, onSessionStarted,
 }: {
   column: Column
   activeKey: string
@@ -31,6 +31,8 @@ export function SessionBody({
   onResumeAsync: (session: SessionNode) => Promise<void>
   onSetView: (key: string, view: OpenTab['view']) => void
   onOpenImage: (src: string) => void
+  /** Opens a terminal main started (the login `/login` starts) as a tab. */
+  onSessionStarted: (info: NewSessionInfo) => void
 }): JSX.Element {
   const chatMode = useChatMode()
   const chat = useChat(activeSession?.sessionId ?? '')
@@ -77,6 +79,7 @@ export function SessionBody({
             onOpenImage={onOpenImage}
             chatMode={chatMode}
             chat={chat}
+            onSessionStarted={onSessionStarted}
           />
         </div>
       )}
