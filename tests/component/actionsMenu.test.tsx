@@ -62,8 +62,8 @@ describe('the "/" actions menu', () => {
     await until(() => count('composer-command-menu') === 1)
     expect(document.activeElement).toBe(page.getByTestId('composer-command-search').element())
     expect(count('composer-setting-option')).toBe(1)
-    // Claude's three commands, then Apiary's own /btw and /mcp.
-    expect(count('composer-command-option')).toBe(5)
+    // Claude's three commands, then Apiary's own /btw, /mcp and /login.
+    expect(count('composer-command-option')).toBe(6)
     expect(text('composer-command-footer')).toContain('Show tool calls')
 
     // Apiary's actions come next: Reload session is always there.

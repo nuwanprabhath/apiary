@@ -1,3 +1,5 @@
+import { ESC } from '@shared/pasteSafe'
+
 /**
  * Queries a program sends its terminal, and the terminal's replies, as bytes on a pty.
  *
@@ -9,11 +11,10 @@
  * one that asked.
  */
 
-const ESC = '\u001b'
 const ST = `(?:\u0007|${ESC}\\\\)`
 
 /** A query a terminal answers: device attributes, status and cursor reports, a colour query, a mode query, a size query. */
-const QUERY = new RegExp([
+const TERMINAL_QUERY = new RegExp([
   `${ESC}\\[[>=]?0?c`,
   `${ESC}\\[\\??[56]n`,
   `${ESC}\\](?:1[0-9]|4;\\d+);\\?${ST}`,
@@ -36,7 +37,7 @@ export const REPLY_WINDOW_MS = 10_000
 
 /** Whether pty output asks the terminal something it answers. */
 export function asksTerminal(output: string): boolean {
-  return output.includes(ESC) && QUERY.test(output)
+  return output.includes(ESC) && TERMINAL_QUERY.test(output)
 }
 
 /** Whether input written to a pty is nothing but replies to terminal queries (never typed text). */

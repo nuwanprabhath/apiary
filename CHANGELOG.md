@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.9] - 2026-11-14
+
+### Fixed
+
+- The terminal-reply filter uses the shared escape constant and its own name for its query pattern,
+  and the "/" menu tests count `/login` among Apiary's own commands.
+
 ## [1.62.8] - 2026-11-14
 
 ### Fixed
