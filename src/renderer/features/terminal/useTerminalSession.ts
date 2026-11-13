@@ -6,6 +6,7 @@ import { THEME_CHANGE_EVENT } from '../../theme/applyTheme'
 import { ptyBus } from '../../state/ptyBus'
 import { attachPty, detachPty, writePty } from '../../state/terminals'
 import { routeNativePaste } from './terminalPaste'
+import { TERMINAL_LINKS, copyOnClipboardWrites } from './terminalLinks'
 import { createCatchUp } from './terminalCatchUp'
 import { createTerminalKeyHandler, watchForSuspension, type TerminalKeyContext } from './terminalKeys'
 import { fontFromTokens, themeFromTokens } from './terminalTheme'
@@ -42,12 +43,14 @@ export function useTerminalSession(s: Session): void {
       // A glass theme's terminal background is see-through; xterm needs telling before open().
       allowTransparency: true,
       convertEol: true,
+      linkHandler: TERMINAL_LINKS,
     })
     termRef.current = term
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(host.current)
     const disposeNativePaste = routeNativePaste(host.current, term)
+    const clipboardWrites = copyOnClipboardWrites(term)
 
     const watchdog = createStallWatchdog(
       term,
@@ -110,6 +113,7 @@ export function useTerminalSession(s: Session): void {
       catchUp.dispose()
       watchdog.dispose()
       disposeNativePaste()
+      clipboardWrites.dispose()
       window.removeEventListener(THEME_CHANGE_EVENT, onTheme)
       observer.disconnect()
       if (rafId !== null) cancelAnimationFrame(rafId)

@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.5] - 2026-11-14
+
+### Fixed
+
+- A link a program prints in a terminal (Claude's sign-in URL) opens in the browser when clicked,
+  on the machine you are at: a remote window opens it on the home machine. Before, a click did
+  nothing.
+- Claude's "c to copy" in a terminal (an OSC 52 clipboard write) puts the text on that machine's
+  clipboard. A program can never read the clipboard this way.
+
 ## [1.62.4] - 2026-11-12
 
 ### Fixed
