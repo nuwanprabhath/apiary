@@ -64,7 +64,7 @@ describe('createContainer', () => {
     const env = parseRuntimeEnv({ APIARY_HEADLESS: '1' }, [], false)
     const paths = containerPaths(env, dir, () => join(dir!, '.claude'))
     const c = createContainer(env, paths, {
-      vsCodePath: null, zshPromptShim: join(dir, 'zsh'), dirname: dir,
+      vsCodePath: null, zshPromptShim: join(dir, 'zsh'), linkHelper: { browser: join(dir, 'apiary-browser'), token: 'test' }, dirname: dir,
       statusBarKeychain: false, macSigned: false, isQuitting: () => false,
       homeDir: dir, host: 'test-host', appVersion: '0.0.0', resourcesDir: join(dir, 'resources'),
     })

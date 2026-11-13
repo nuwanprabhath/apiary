@@ -79,6 +79,7 @@ export const CHANNEL_SCOPES = {
   ptySessions: 'remote',
   ptySnapshot: 'remote',
   ptyData: 'remote',
+  ptyLink: 'remote',
   ptyExit: 'remote',
   ptySessionsChanged: 'remote',
   terminalBusy: 'remote',
@@ -159,6 +160,7 @@ export const CHANNEL_SCOPES = {
   vsCodeAvailable: 'local',
   openInVsCode: 'bridged',
   openMentionedFile: 'bridged',
+  openTerminalLink: 'bridged',
 
   // The home machine's own look, app and devices.
   themeInitial: 'local',

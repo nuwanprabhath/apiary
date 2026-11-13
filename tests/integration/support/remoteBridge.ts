@@ -11,7 +11,8 @@ import { fakeContents } from './electronLoopback'
 import { RemoteConnection } from '../../../src/main/remote/remoteConnection'
 import { createRemoteServing } from '../../../src/main/app/remoteContainer'
 import { RemoteWindows } from '../../../src/main/remote/remoteWindows'
-import { createVsCodeBridge } from '../../../src/main/remote/vscodeBridge'
+import { shell } from 'electron'
+import { createBridges } from '../../../src/main/remote/bridges'
 import { scopeOf } from '../../../src/main/remote/scopes'
 import { registerBroadcastSkip, registerBroadcastTargets } from '../../../src/main/windows/broadcast'
 
@@ -44,9 +45,11 @@ export async function makeRemoteBridge(options: BridgeOptions): Promise<Bridge> 
   })
   const { remoteServer: server, virtualContents: registry } = serving
   const homeVsCode = { path: null as string | null, launched: [] as { command: string; args: string[] }[] }
-  const bridge = createVsCodeBridge({
+  // The app's own factory: the home machine's `shell` is the mocked electron's, which records what opened.
+  const bridge = createBridges({
     vsCodePath: () => homeVsCode.path,
     spawn: (command, args) => { homeVsCode.launched.push({ command, args }); return {} as ChildProcess },
+    openExternal: (url) => shell.openExternal(url),
   })
   const windows = new RemoteWindows((id) => (id === fakeContents.id ? fakeContents : null), bridge)
   const world = await buildLoopbackWorld(options, { virtualContents: registry, router: windows })

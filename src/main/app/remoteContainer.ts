@@ -1,4 +1,4 @@
-import { BrowserWindow, webContents } from 'electron'
+import { BrowserWindow, shell, webContents } from 'electron'
 import { IPC } from '@shared/api'
 import type { RemoteStatus } from '@shared/domain/remote'
 import { fireAndForget } from '../log/fireAndForget'
@@ -15,7 +15,8 @@ import { safeStorageCipher } from '../remote/safeStorageCipher'
 import { SavedPairingCodes, type CodeCipher } from '../remote/savedPairingCodes'
 import { sshExec, startSshTunnel } from '../remote/sshTunnel'
 import { VirtualContentsRegistry } from '../remote/virtualContents'
-import { createVsCodeBridge } from '../remote/vscodeBridge'
+import { createBridges } from '../remote/bridges'
+import { CallbackPorts } from '../remote/signInCallback'
 import type { VsCodeService } from '../vscode/vscodeService'
 import type { WindowManager } from '../windows/windowManager'
 import type { WindowLayoutRecord } from '../windows/sessionLayoutStore'
@@ -64,19 +65,22 @@ export function createRemoteServing(inputs: ServingInputs): {
   remoteServer: RemoteServer
   /** The session services' VS Code resolver, once they exist (the server answers `resolve` with it). */
   /** And the ptys, whose screens resync a connection that dropped terminal output. */
-  useVsCode: (vscode: Pick<VsCodeService, 'resolveFolder' | 'resolveMentionedFile'>, pty?: Pick<PtyManager, 'snapshot'>) => void
+  useVsCode: (vscode: Pick<VsCodeService, 'resolveFolder' | 'resolveMentionedFile'>, pty?: Pick<PtyManager, 'snapshot' | 'onLink'>) => void
 } {
   const virtualContents = new VirtualContentsRegistry()
   const remotePairing = new PairingStore(inputs.pairingFile, () => inputs.settings.get().remoteAccessPairing)
   let vscode: Pick<VsCodeService, 'resolveFolder' | 'resolveMentionedFile'> | null = null
   let pty: Pick<PtyManager, 'snapshot'> | null = null
   const notReady = (): never => { throw new Error('Not ready yet.') }
+  // The sign-in callbacks a home machine may relay here: those of links this machine's terminals opened.
+  const callbacks = new CallbackPorts()
   const remoteServer = new RemoteServer({
     homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion,
     registry: virtualContents, layouts: inputs.layouts, pairing: remotePairing,
     // Home machines reconnect by themselves, so "Disconnect all" also stops new connections.
     turnOff: () => { inputs.settings.patch({ remoteAccess: false }) },
     resyncPty: (ptyId, window) => { if (pty !== null) resyncPtyTo(pty, ptyId, window) },
+    callbacks,
     vscode: {
       resolveFolder: (terminal) => (vscode ?? notReady()).resolveFolder(terminal),
       resolveMentionedFile: (terminal, mention) => (vscode ?? notReady()).resolveMentionedFile(terminal, mention),
@@ -84,7 +88,7 @@ export function createRemoteServing(inputs: ServingInputs): {
   })
   remoteServer.subscribe((clients) => { broadcast(IPC.remoteClientsChanged, clients) })
   remoteServer.subscribeState((state) => { broadcast(IPC.remoteServerStateChanged, state) })
-  return { virtualContents, remotePairing, remoteServer, useVsCode: (v, p) => { vscode = v; pty = p ?? null } }
+  return { virtualContents, remotePairing, remoteServer, useVsCode: (v, p) => { vscode = v; pty = p ?? null; p?.onLink((_id, url) => { callbacks.note(url) }) } }
 }
 
 export interface ConnectingInputs {
@@ -143,7 +147,8 @@ export function createRemoteConnecting(inputs: ConnectingInputs, outside: Connec
   hostDirectory: HostDirectory
   remoteClient: RemoteClientService
 } {
-  const remoteWindows = new RemoteWindows((id) => webContents.fromId(id) ?? null, createVsCodeBridge({ vsCodePath: () => inputs.vsCodePath }))
+  const bridge = createBridges({ vsCodePath: () => inputs.vsCodePath, openExternal: (url) => shell.openExternal(url) })
+  const remoteWindows = new RemoteWindows((id) => webContents.fromId(id) ?? null, bridge)
   const hostDirectory = new HostDirectory({
     file: inputs.hostsFile, homeDir: inputs.homeDir, readText: readSshConfigFile, sshConfig: inputs.sshConfig,
     exec: outside.tailscaleExec, probeExec: outside.probeExec, now: () => Date.now(),

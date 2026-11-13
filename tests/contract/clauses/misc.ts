@@ -30,6 +30,16 @@ export function defineMiscClauses(ctx: Ctx): void {
     })
   })
 
+  describe('a link a terminal\'s program opens', () => {
+    it('opens in this machine\'s browser when it is a web page, and is ignored otherwise', async () => {
+      await ctx.api.openTerminalLink('https://example.invalid/sign-in?redirect_uri=http%3A%2F%2Flocalhost%3A1%2Fcallback')
+      await ctx.api.openTerminalLink('file:///etc/passwd')
+      await ctx.api.openTerminalLink('not a link')
+      expect(ctx.bridge.openedUrls()).toEqual(['https://example.invalid/sign-in?redirect_uri=http%3A%2F%2Flocalhost%3A1%2Fcallback'])
+      await expect(ctx.api.openTerminalLink(7 as never)).rejects.toThrow()
+    })
+  })
+
   describe('VS Code', () => {
     it('is not there on this machine, so it is not on offer and opening a folder in it is an error', async () => {
       expect(await ctx.api.vsCodeAvailable()).toBe(false)

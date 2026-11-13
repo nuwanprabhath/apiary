@@ -179,6 +179,9 @@ export const IPC = {
   /** Opens a file a transcript mentions, named as written; main resolves it inside the session's folder. */
   openMentionedFile: invoke<[terminal: TerminalRef, mention: string], void>('apiary:open-mentioned-file', tuple(terminalRefArg, str)),
   copyToClipboard: invoke<[text: string], void>('apiary:copy-to-clipboard', tuple(str)),
+  /** Opens a link a terminal's program asked to open (`ptyLink`) in this machine's browser; only http and https
+   *  are opened. In a remote window the home machine opens it, and relays its sign-in callback (`main/remote/linkBridge.ts`). */
+  openTerminalLink: invoke<[url: string], void>('apiary:open-terminal-link', tuple(str)),
 
   // Themes.
   themeInitial: sync<ThemeState>('apiary:theme-initial'),
@@ -242,6 +245,8 @@ export const IPC = {
    *  a pty whose attached windows fall too far behind, and resumes it as they catch up. */
   ptyAck: send<[id: PtyId, bytes: number]>('apiary:pty-ack', tuple(ptyIdArg, byteCountArg)),
   ptyData: event<[id: PtyId, data: string]>('apiary:pty-data'),
+  /** A link a program in the pty asked to open (`$BROWSER`, `main/pty/linkHelper.ts`), to the windows showing it. */
+  ptyLink: event<[id: PtyId, url: string]>('apiary:pty-link'),
   ptySnapshot: invoke<[id: PtyId], PtySnapshot | null>('apiary:pty-snapshot', tuple(ptyIdArg)),
   ptySessions: invoke<[], Record<string, PtySessionInfo>>('apiary:pty-sessions', tuple()),
   ptySessionsChanged: event<[sessions: Record<string, PtySessionInfo>]>('apiary:pty-sessions-changed'),

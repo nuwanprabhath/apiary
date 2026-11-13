@@ -14,7 +14,7 @@ import type { RefusalReason } from '@shared/domain/remote'
  */
 
 /** Bumped when these messages change shape; part of the handshake beside the contract's hash. */
-export const PROTOCOL_VERSION = 2
+export const PROTOCOL_VERSION = 3
 
 export type ClientMessage =
   | {
@@ -33,6 +33,8 @@ export type ClientMessage =
   | { t: 'layouts'; id: number }
   /** Where a session's folder, or a file a transcript mentions, is on the server. Launches nothing. */
   | ({ t: 'resolve'; id: number; w: number } & ResolveRequest)
+  /** A sign-in page's callback for `localhost:<port>` (`signInCallback.ts`), made on the server; answered as a `result`. */
+  | { t: 'callback'; id: number; w: number; port: number; path: string }
 
 /** What the client wants resolved; the server checks `terminal` and `mention` with the contract's own guards. */
 export type ResolveRequest =

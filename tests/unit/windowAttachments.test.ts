@@ -165,3 +165,36 @@ describe('windowLifetimeWatcher', () => {
     expect(wc.listenerCount('did-navigate')).toBe(1)
   })
 })
+
+describe('WindowAttachments: what is meant for the person typing', () => {
+  const LINK: EventSpec<[id: string, url: string]> = { kind: 'event', channel: 'link' }
+
+  it('sends a link only to the window that last typed into the pty, while it shows it', () => {
+    const { at, open } = harness()
+    const a = open(1)
+    const b = open(2)
+    at.attach(1, 'p')
+    at.attach(2, 'p')
+    at.noteInput(2, 'p')
+    at.sendToInputWindow('p', LINK, 'p', 'https://x')
+    expect(a.got).toEqual([])
+    expect(b.got).toEqual([['link', 'p', 'https://x']])
+  })
+
+  it('sends it to every window showing the pty when the one that typed has gone or detached', () => {
+    const { at, open } = harness()
+    const a = open(1)
+    const b = open(2)
+    at.attach(1, 'p')
+    at.attach(2, 'p')
+    at.noteInput(2, 'p')
+    at.detach(2, 'p')
+    at.sendToInputWindow('p', LINK, 'p', 'https://one')
+    at.attach(2, 'p')
+    at.noteInput(2, 'p')
+    at.detachWindow(2)
+    at.sendToInputWindow('p', LINK, 'p', 'https://two')
+    expect(a.got).toEqual([['link', 'p', 'https://one'], ['link', 'p', 'https://two']])
+    expect(b.got).toEqual([])
+  })
+})

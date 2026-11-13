@@ -33,6 +33,7 @@ export function loopbackConnectingOutside(home: string): ConnectingOutside {
     host: REMOTE_WORLD.up, isClosed: false, layouts: () => Promise.resolve([]), close: () => {},
     openWindow: () => {}, closeWindow: () => {}, invoke: () => Promise.resolve(undefined), send: () => {},
     onEvent: () => () => {}, onClosed: () => () => {}, resolve: () => Promise.resolve({ path: home }),
+    callback: () => Promise.reject(new Error('no sign-in callback in the loopback')),
   }
   return {
     tailscaleExec: () => Promise.reject(new Error('no tailscale')),

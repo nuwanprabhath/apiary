@@ -40,6 +40,8 @@ export class WindowAttachments {
   /** Keys flow control has paused. */
   private readonly paused = new Set<string>()
   private flow: FlowControl | null = null
+  /** The window each key last had input from (`noteInput`), for what is meant for the person typing (`sendToInputWindow`). */
+  private readonly lastInput = new Map<string, number>()
 
   constructor(private readonly resolve: (webContentsId: number) => SendTarget | null) {}
 
@@ -66,6 +68,7 @@ export class WindowAttachments {
     this.byWindow.delete(webContentsId)
     const held = keys === undefined ? [] : [...keys.keys()]
     for (const key of held) this.settle(key)
+    for (const [key, wc] of this.lastInput) if (wc === webContentsId) this.lastInput.delete(key)
     return held
   }
 
@@ -118,6 +121,21 @@ export class WindowAttachments {
   isAttached(key: string): boolean {
     for (const keys of this.byWindow.values()) if (keys.has(key)) return true
     return false
+  }
+
+  /** Window `webContentsId` typed into `key` (a keystroke, a paste, a prompt it sent). */
+  noteInput(webContentsId: number, key: string): void { this.lastInput.set(key, webContentsId) }
+
+  /**
+   * Sends `event` to the window that last typed into `key`, while it still shows it: a link a
+   * program opens (Claude's sign-in page) is for the person at that window, and opens once. With
+   * no such window, every window attached to `key` gets it.
+   */
+  sendToInputWindow<P extends unknown[]>(key: string, event: EventSpec<P>, ...payload: P): void {
+    const wc = this.lastInput.get(key)
+    const target = wc !== undefined && this.windowsFor(key).includes(wc) ? this.resolve(wc) : null
+    if (target !== null && !target.isDestroyed()) sendEvent(target, event, ...payload)
+    else this.sendTo(key, event, ...payload)
   }
 
   /**

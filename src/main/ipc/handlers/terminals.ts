@@ -60,14 +60,15 @@ export function terminalsHandlers(deps: TerminalsDeps): {
       // Not awaited: delivery waits for the program to be ready (up to ~20s while Claude starts),
       // and the composer clears as soon as the message is handed over. A failure is logged, not
       // dropped.
-      sendPrompt: (_e, ptyId, text) => {
+      sendPrompt: (e, ptyId, text) => {
+        ptyAttachments.noteInput(e.sender.id, ptyId)
         service.sendPrompt(ptyId, text).catch((e: unknown) => {
           log.warn('ipc', 'prompt delivery failed', { error: errorMessage(e) })
         })
       },
     },
     listeners: {
-      ptyWrite: (_e, id, data) => service.pty.write(id, data),
+      ptyWrite: (e, id, data) => { ptyAttachments.noteInput(e.sender.id, id); service.pty.write(id, data) },
       ptyResize: (_e, id, cols, rows) => service.pty.resize(id, cols, rows),
       ptyKill: (_e, id) => service.pty.kill(id),
       ptyResume: (_e, id) => { service.pty.resume(id) },

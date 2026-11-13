@@ -65,6 +65,16 @@ describe('a link or a copy a program makes in the terminal (Claude\'s sign-in UR
     expect(fake.state.copied).toEqual([URL_TEXT])
   })
 
+  it('a link a terminal\'s program opens with $BROWSER opens from the window main sends it to', async () => {
+    // Claude's `/login` runs `$BROWSER <sign-in page>`; main hands the link to the windows showing
+    // the terminal the person typed in last, and that window opens it on its own machine.
+    const { fake } = await renderApp()
+    const ptyId = await openClaudeTerminal(fake)
+    fake.emit('ptyLink', asPtyId(ptyId), URL_TEXT)
+    await until(() => fake.state.opened.length > 0)
+    expect(fake.state.opened).toEqual([URL_TEXT])
+  })
+
   it('reads an OSC 52 write, refuses a read and data that is not base64 text', () => {
     expect(clipboardWriteText(`c;${b64('héllo')}`)).toBe('héllo')
     expect(clipboardWriteText(`;${b64('x')}`)).toBe('x')

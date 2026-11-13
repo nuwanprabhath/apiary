@@ -1,6 +1,6 @@
 import type { PtyId, TerminalRef } from '@shared/domain/ids'
 import type { PtySnapshot } from '@shared/domain/pty'
-import { bestEffort } from './policy'
+import { bestEffort, surface } from './policy'
 import { onRemoteReconnected } from './remote'
 
 /**
@@ -50,6 +50,15 @@ export const sendPrompt = (ptyId: PtyId, text: string): Promise<void> => window.
 export function renameTerminalTitle(ptyId: PtyId, title: string): void { window.apiary.renameTerminalInClaude(ptyId, title) }
 
 /** Any pty in main exited. */
+/**
+ * Opens the links programs in this window's terminals ask to open (`$BROWSER`: Claude's sign-in
+ * page) in this machine's browser. Main sends a link only to the window that last typed into its
+ * terminal, so it opens once, where the person is.
+ */
+export function openTerminalLinks(): () => void {
+  return window.apiary.onPtyLink((_id, url) => { surface(window.apiary.openTerminalLink(url), 'Could not open that link') })
+}
+
 export const onAnyPtyExit = (cb: (id: PtyId) => void): (() => void) => window.apiary.onPtyExit(cb)
 
 

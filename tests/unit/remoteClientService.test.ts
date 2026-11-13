@@ -18,6 +18,7 @@ class FakeConnection {
   closeWindow = vi.fn()
   invoke = vi.fn()
   resolve = vi.fn()
+  callback = vi.fn()
   send = vi.fn()
   onEvent = (): (() => void) => () => {}
   onClosed(l: (reason: string) => void): () => void { this.closedListeners.push(l); return () => {} }

@@ -4,6 +4,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { PtyManager } from '../../src/main/pty/ptyManager'
+import { writeLinkHelper } from '../../src/main/pty/linkHelper'
+import { writeExecutableText } from '../../src/main/fs/atomicWrite'
 import { log } from '../../src/main/log/logger'
 import { stays } from '../fixtures/stays'
 
@@ -417,5 +419,25 @@ describe('PtyManager', () => {
         rmSync(dir, { recursive: true, force: true })
       }
     })
+  })
+
+  it('hands on a link a program opens with $BROWSER, and none of its sequence reaches the screen', async () => {
+    // Claude Code runs `$BROWSER <url>` for its sign-in page; the helper writes it to the terminal,
+    // where main takes it out and gives it to the window showing the pty.
+    const dir = mkdtempSync(join(tmpdir(), 'apiary-pty-'))
+    try {
+      manager = new PtyManager(undefined, { browser: writeLinkHelper(join(dir, 'bin'), writeExecutableText), token: 'run-token' })
+      const m = manager
+      const links: string[] = []
+      m.onLink((id, url) => { if (id === 'link') links.push(url) })
+      const done = collect(m, 'link', /APIARY_DONE/)
+      m.spawn({ id: 'link', cwd: dir, command: '"$BROWSER" "https://claude.com/x?a=1&b=2"; printf "\\033]7701;forged;https://evil.example\\007"; echo APIARY_DONE' })
+      const out = await done
+      expect(links).toEqual(['https://claude.com/x?a=1&b=2'])
+      expect(out).not.toContain('7701')
+      expect(out).not.toContain('evil')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

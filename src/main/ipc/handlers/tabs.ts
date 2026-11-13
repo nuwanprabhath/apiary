@@ -1,5 +1,6 @@
 import { app, BrowserWindow, type Event } from 'electron'
 import { IPC } from '@shared/api'
+import { asPtyId } from '@shared/domain/ids'
 import type { AppService } from '../../appService'
 import { log } from '../../log/logger'
 import { broadcast } from '../../windows/broadcast'
@@ -52,6 +53,8 @@ export function tabsHandlers(deps: TabsDeps): {
    *  as its views mount). Registered once per webContents, on its first attach. */
   const watchLifetime = windowLifetimeWatcher((id) => { attachments.detachWindow(id) })
   service.pty.onData((id, data) => ptyCoalescer.push(id, data))
+  // A link a program opens is for the person typing in its terminal: that window opens it.
+  service.pty.onLink((id, url) => { attachments.sendToInputWindow(id, IPC.ptyLink, asPtyId(id), url) })
   service.pty.onExit((id, code) => broadcast(IPC.ptyExit, id, code))
   // Activity observes every raw chunk, not the coalesced flush: it only cares that output
   // happened, and its 500ms broadcast interval is coarser than `PtyDataCoalescer`'s delay.

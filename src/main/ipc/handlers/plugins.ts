@@ -3,6 +3,7 @@ import type { PluginService } from '../../plugins/pluginService'
 import { IPC } from '@shared/api'
 import { broadcast } from '../../windows/broadcast'
 import type { Handlers } from '../registrar'
+import { webUrl } from '@shared/webUrl'
 
 export interface PluginsDeps {
   plugins: PluginService
@@ -29,22 +30,9 @@ export function pluginsHandlers(deps: PluginsDeps): Pick<Handlers, HandledKeys> 
     },
     pluginRunAction: async (_e, item) => {
       if (item.action.kind !== 'open-url') return
-      /*
-       * Checked here rather than trusted from the renderer.
-       *
-       * The URL originates in a plugin, but it arrives back over IPC, and `shell.openExternal`
-       * will happily hand the OS anything — `file:`, and on some platforms schemes that run
-       * things. Only http(s) is ever opened, so the worst a compromised renderer can do with this
-       * channel is open a web page.
-       */
-      let url: URL
-      try {
-        url = new URL(item.action.url)
-      } catch {
-        return
-      }
-      if (url.protocol !== 'https:' && url.protocol !== 'http:') return
-      await shell.openExternal(url.toString())
+      // Checked here rather than trusted: the URL comes from a plugin, and arrives back over IPC.
+      const url = webUrl(item.action.url)
+      if (url !== null) await shell.openExternal(url)
     },
   }
 }

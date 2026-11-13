@@ -1,4 +1,4 @@
-import { clipboard, type WebContents } from 'electron'
+import { clipboard, shell, type WebContents } from 'electron'
 import { IPC } from '@shared/api'
 import { UNTITLED_SESSION } from '@shared/types'
 import type { AppService } from '../../appService'
@@ -7,6 +7,7 @@ import { fireAndForget } from '../../log/fireAndForget'
 import { log } from '../../log/logger'
 import { broadcast } from '../../windows/broadcast'
 import type { Handlers } from '../registrar'
+import { webUrl } from '@shared/webUrl'
 
 export interface SessionsDeps {
   service: AppService
@@ -20,7 +21,7 @@ type HandledKeys =
   | 'refresh' | 'tree' | 'searchContent' | 'discovered' | 'importSessions' | 'transcript' | 'transcriptAfter' | 'transcriptFind' | 'backgroundTaskOutput' | 'checkConflict'
   | 'resume' | 'renameSession' | 'removeSession' | 'moveSession' | 'setSessionNote' | 'sessionNote'
   | 'searchRebuild' | 'searchStatus' | 'saveImage' | 'readImage' | 'newSessionInProject' | 'forkSession'
-  | 'copyToClipboard' | 'newSessionInPickedFolder'
+  | 'copyToClipboard' | 'openTerminalLink' | 'newSessionInPickedFolder'
 
 /** The project tree, sessions and search — everything that is not a terminal, a git action or a
  *  tab move. */
@@ -99,5 +100,10 @@ export function sessionsHandlers(deps: SessionsDeps): Pick<Handlers, HandledKeys
     // shape); returning it here lets the registrar await and log a rejection instead of the
     // promise going unhandled.
     copyToClipboard: (_e, text) => clipboard.writeText(text),
+    // A link a terminal's program asked to open, in a local window: this machine's browser.
+    openTerminalLink: async (_e, text) => {
+      const url = webUrl(text)
+      if (url !== null) await shell.openExternal(url)
+    },
   }
 }

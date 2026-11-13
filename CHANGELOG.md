@@ -4,6 +4,25 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.63.0] - 2026-11-14
+
+### Added
+
+- Signing in to Claude on a remote machine takes one click. A link a program in an Apiary terminal
+  opens (Claude Code's `/login` page) now opens in the browser of the machine you are at: for a
+  remote window, your home machine. When the page sends the browser back to `localhost` on the
+  work machine, Apiary relays that one request over the connection, so Authorize finishes the
+  sign-in there with nothing to copy or paste. If the port is already taken at home, the page's own
+  fallback (a code to paste) still works.
+
+### Security
+
+- A link reaches Apiary only through its own `$BROWSER` helper, which carries a secret this run of
+  Apiary puts in its terminals. Text that merely prints the same sequence opens nothing.
+- The work machine relays a callback only to a port that a link from one of its own terminals
+  named in the last 10 minutes, and only GET requests. The home machine listens only on
+  `127.0.0.1`, only for that sign-in, and stops after the first answer.
+
 ## [1.62.9] - 2026-11-14
 
 ### Fixed

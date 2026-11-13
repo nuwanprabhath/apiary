@@ -198,6 +198,35 @@ describe.skipIf(!enabled)('remote access over real SSH', () => {
       }, { timeout: 30_000 })
     })
 
+    it('a sign-in link a remote terminal opens comes up at home, and its callback signs in on the work machine', async () => {
+      // A stand-in for `claude auth login`, which is what claude does: a callback server on the work
+      // machine's localhost, then `$BROWSER <sign-in page>` whose redirect_uri is that server.
+      await home!.app.evaluate(({ shell }) => {
+        const opened: string[] = []
+        ;(globalThis as unknown as { __opened: string[] }).__opened = opened
+        shell.openExternal = async (url: string) => { opened.push(url) }
+      })
+      const term = remote.getByTestId('terminal-shell')
+      await term.click()
+      const signIn = "node -e \"const h=require('http');const s=h.createServer((q,r)=>{const c=new URL(q.url,'http://x').searchParams.get('code');r.writeHead(302,{location:'https://claude.example/success'});r.end();console.log('SIGNED_IN_'+c);s.close()});s.listen(0,'127.0.0.1',()=>{require('child_process').execFileSync(process.env.BROWSER,['https://claude.example/authorize?redirect_uri='+encodeURIComponent('http://localhost:'+s.address().port+'/callback')],{stdio:'inherit'})})\""
+      await remote.keyboard.type(`${signIn}\n`)
+      // The home machine's browser was asked to open the page (here: recorded instead of opened).
+      let link = ''
+      await vi.waitFor(async () => {
+        const opened = await home!.app.evaluate(() => (globalThis as unknown as { __opened: string[] }).__opened)
+        expect(opened).toHaveLength(1)
+        link = opened[0]!
+      }, { timeout: 30_000 })
+      const port = new URL(new URL(link).searchParams.get('redirect_uri')!).port
+      // Authorize sends the browser to localhost on the home machine; the relay carries it over.
+      const answer = await fetch(`http://127.0.0.1:${port}/callback?code=abc123&state=s`, { redirect: 'manual' })
+      expect(answer.status).toBe(302)
+      expect(answer.headers.get('location')).toBe('https://claude.example/success')
+      await vi.waitFor(async () => { expect(await term.innerText()).toContain('SIGNED_IN_abc123') }, { timeout: 30_000 })
+      // The helper's sequence never reached the screen.
+      expect(await term.innerText()).not.toContain('7701')
+    })
+
     const statuses = (): Promise<Array<{ state: string }>> =>
       remote.evaluate(() => (window as unknown as { __remoteStatus: Array<{ state: string }> }).__remoteStatus)
 

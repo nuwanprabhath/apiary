@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, dialog, session, webContents, type WebContents } from 'electron'
 import { errorMessage } from '@shared/errors'
+import { randomBytes } from 'node:crypto'
 import { homedir, hostname } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,6 +16,7 @@ import { containerPaths } from './app/containerPaths'
 import { resolveResourcesDir } from './app/resourcesDir'
 import { buildMenu } from './app/menu'
 import { writeZshShim } from './pty/promptPath'
+import { writeLinkHelper } from './pty/linkHelper'
 import type { ThemeGenerator } from './theme/themeGenerator'
 import type { PetService } from './pets/petService'
 import type { SessionWatcher } from './sessions/sessionWatcher'
@@ -27,6 +29,7 @@ import { detectVsCode } from './vscode/detectVsCode'
 import { hasDeveloperIdSignature } from './update/macSignature'
 import { isTestBuild, parseRuntimeEnv, type RuntimeEnv } from './app/env'
 import { readTextFile } from './fs/textFile'
+import { writeExecutableText } from './fs/atomicWrite'
 import { ignoreErrors } from '@shared/ignoreErrors'
 import { installPermissionGuards } from './app/permissions'
 import { broadcast, registerBroadcastSkip, registerBroadcastTargets } from './windows/broadcast'
@@ -283,10 +286,10 @@ async function start(): Promise<void> {
     macSigned,
     // Rewritten every launch, so a new Apiary's shim replaces an old one's.
     zshPromptShim: writeZshShim(join(userData, 'prompt-shim', 'zsh')),
+    linkHelper: { browser: writeLinkHelper(join(userData, 'bin'), writeExecutableText), token: randomBytes(16).toString('hex') },
     dirname,
     statusBarKeychain: readsClaudeKeychain(process.platform, env.configRoot),
-    isQuitting,
-    homeDir: homedir(),
+    isQuitting, homeDir: homedir(),
     host: hostname(),
     appVersion: app.getVersion(),
     resourcesDir: resolveResourcesDir({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, appPath: app.getAppPath() }),

@@ -3,7 +3,7 @@ import { BrowserWindow, webContents } from 'electron'
 import { AppService, DisposedFlag } from '../appService'
 import { ClaudeProjectsSource, type SessionSource } from '../sources/claudeProjects'
 import { SessionStore } from '../store/sessionStore'
-import { PtyManager } from '../pty/ptyManager'
+import { PtyManager, type LinkHelper } from '../pty/ptyManager'
 import type { PromptPathOptions } from '../pty/promptPath'
 import { SessionResolver } from '../sessions/sessionResolver'
 import { SessionCatalog } from '../sessions/sessionCatalog'
@@ -91,6 +91,8 @@ export interface ContainerInputs {
   vsCodePath: string | null
   /** `writeZshShim(...)`'s result — a file write, so done by the caller. */
   zshPromptShim: string
+  /** `writeLinkHelper(...)`'s script and this run's token (`$BROWSER` in every pty): a file write, so done by the caller. */
+  linkHelper: LinkHelper
   /** The directory `index.ts` resolves its own files from, handed to `WindowManager`. */
   dirname: string
   /** `process.platform === 'darwin'`-style gate for reading the Keychain — never for a test fixture. */
@@ -413,7 +415,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     autoImportAll: settings.autoImportAll,
     searchChatContent: settings.searchChatContent, searchSessionNotes: settings.searchSessionNotes,
     promptPath: { enabled: settings.terminalShortenPath, segments: settings.terminalPathSegments, minimal: settings.terminalMinimalPrompt },
-    zshPromptShim: inputs.zshPromptShim,
+    zshPromptShim: inputs.zshPromptShim, deps: { pty: new PtyManager(undefined, inputs.linkHelper) },
     plugins: settings.plugins,
     pluginSettings: settings.pluginSettings,
     // Test-only, like APIARY_FAKE_LIVE: points the merge-request plugin at a stand-in `glab`.

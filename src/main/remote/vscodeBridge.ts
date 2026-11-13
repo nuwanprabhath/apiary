@@ -1,16 +1,24 @@
 import type { TerminalRef } from '@shared/domain/ids'
 import { launchDetached, type LaunchSpawn } from '../exec/launchDetached'
 import type { Resolved, ResolveRequest } from './protocol'
+import type { CallbackResponse } from './signInCallback'
 
 /** What the router hands a bridged call: the call, the window's connection and the host it was made with. */
 interface BridgedCall {
-  key: 'openInVsCode' | 'openMentionedFile'
+  key: BridgedKey
   args: unknown[]
   /** The ssh alias the user connected with, so VS Code reads the same `~/.ssh/config` entry. */
   sshHost: string
   w: number
-  connection: { resolve(w: number, request: ResolveRequest): Promise<Resolved> }
+  connection: {
+    resolve(w: number, request: ResolveRequest): Promise<Resolved>
+    callback(w: number, port: number, path: string): Promise<CallbackResponse>
+  }
 }
+
+/** The `bridged` keys (`scopes.ts`): home handles them with what it asks the work machine. */
+export const BRIDGED_KEYS = ['openInVsCode', 'openMentionedFile', 'openTerminalLink'] as const
+export type BridgedKey = typeof BRIDGED_KEYS[number]
 
 export type BridgeHandler = (call: BridgedCall) => Promise<void>
 
@@ -27,6 +35,7 @@ export interface VsCodeBridgeDeps {
  */
 export function createVsCodeBridge(deps: VsCodeBridgeDeps): BridgeHandler {
   return async ({ key, args, sshHost, w, connection }) => {
+    if (key === 'openTerminalLink') throw new Error('Links are opened by the link bridge')
     const codePath = deps.vsCodePath()
     if (codePath === null) throw new Error('VS Code was not found on this machine')
     const terminal = args[0] as TerminalRef

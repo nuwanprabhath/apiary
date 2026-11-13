@@ -7,6 +7,9 @@ import type { AccountId } from '@shared/domain/ids'
 import { ScreenBuffers, type ScreenSnapshot } from './screen'
 import { strippedMarkers } from '../exec/childEnv'
 import { REPLY_WINDOW_MS, asksTerminal, isTerminalReply } from './terminalReplies'
+import { linkHelperEnv, takeLinks, type LinkHelper } from './linkHelper'
+
+export type { LinkHelper }
 
 export interface SpawnOptions {
   id: string
@@ -94,20 +97,29 @@ interface PtyEntry {
   accountId: AccountId | null
   /** The program in front when output last asked the terminal something (`terminalReplies.ts`), and when. */
   asked: { by: string; at: number } | null
+  /** The start of a link sequence (`linkHelper.ts`) the last chunk ended in. */
+  linkHeld: string
 }
 
 export class PtyManager {
   /** The one place per-pty state lives: never add a second map keyed by pty id. */
   private entries = new Map<string, PtyEntry>()
 
-  constructor(private readonly maxDeadEntries = MAX_DEAD_ENTRIES) {}
+  /**
+   * `links`: the `$BROWSER` helper every pty gets, so a link a program opens reaches its window
+   * (`onLink`); null leaves `BROWSER` as the user's environment has it.
+   */
+  constructor(private readonly maxDeadEntries = MAX_DEAD_ENTRIES, private readonly links: LinkHelper | null = null) {}
 
   /** A headless terminal per pty: what is on screen differs from what was sent (see `screen.ts`). */
   private screens = new ScreenBuffers()
   private dataHandlers: DataHandler[] = []
+  private linkHandlers: DataHandler[] = []
   private exitHandlers: ExitHandler[] = []
 
   onData(handler: DataHandler): void { this.dataHandlers.push(handler) }
+  /** A link a program in the pty asked to open (`$BROWSER`, `linkHelper.ts`). */
+  onLink(handler: DataHandler): void { this.linkHandlers.push(handler) }
   onExit(handler: ExitHandler): void { this.exitHandlers.push(handler) }
   has(id: string): boolean { return this.liveChild(id) !== undefined }
   private liveChild(id: string): pty.IPty | undefined { return this.entries.get(id)?.child ?? undefined }
@@ -144,7 +156,8 @@ export class PtyManager {
     }
     this.kill(opts.id)
 
-    const shell = loginShellInvocation(opts.command, { extraEnv: opts.env })
+    const extraEnv = this.links === null ? opts.env : { ...linkHelperEnv(this.links), ...opts.env }
+    const shell = loginShellInvocation(opts.command, { extraEnv })
     const child = pty.spawn(shell.file, shell.args, {
       name: 'xterm-256color',
       cwd: opts.cwd,
@@ -163,13 +176,16 @@ export class PtyManager {
       outputCount: 0,
       accountId: opts.account ?? null,
       asked: null,
+      linkHeld: '',
     }
     // Registered before the first byte is rendered, so the first screen is at the right width.
     this.entries.set(opts.id, entry)
     this.screens.resize(opts.id, entry.size.cols, entry.size.rows)
 
-    child.onData((data) => {
+    child.onData((raw) => {
       if (this.entries.get(opts.id)?.child !== child) return
+      const data = this.withoutLinks(opts.id, entry, raw)
+      if (data === '') return
       this.screens.write(opts.id, data)
       entry.lastDataAt = Date.now()
       entry.outputCount += 1
@@ -272,6 +288,15 @@ export class PtyManager {
     } catch {
       return false
     }
+  }
+
+  /** `raw` with its link sequences taken out; each link with this run's token goes to `onLink`. */
+  private withoutLinks(id: string, entry: PtyEntry, raw: string): string {
+    if (this.links === null) return raw
+    const { out, links, held } = takeLinks(entry.linkHeld, raw, this.links.token)
+    entry.linkHeld = held
+    for (const url of links) for (const h of this.linkHandlers) h(id, url)
+    return out
   }
 
   /** A reply to a terminal query that arrives once the program that asked has left the front (it

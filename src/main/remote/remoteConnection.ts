@@ -1,4 +1,5 @@
 import { connect, type Socket } from 'node:net'
+import type { CallbackResponse } from './signInCallback'
 import type { IpcKey } from '@shared/ipc/contract'
 import { errorMessage } from '@shared/errors'
 import { pairingErrorMessage } from '@shared/domain/remote'
@@ -127,6 +128,11 @@ export class RemoteConnection {
   /** Asks the work machine where a session's folder, or a mentioned file, is. Rejects with its reason. */
   async resolve(w: number, request: ResolveRequest): Promise<Resolved> {
     return (await this.invokeFrame((id) => ({ t: 'resolve', id, w, ...request }))) as Resolved
+  }
+
+  /** Makes a sign-in page's callback on the work machine (`signInCallback.ts`). Rejects with its reason. */
+  async callback(w: number, port: number, path: string): Promise<CallbackResponse> {
+    return (await this.invokeFrame((id) => ({ t: 'callback', id, w, port, path }))) as CallbackResponse
   }
 
   /** The work machine's windows and their layouts, to seed this machine's copies. */

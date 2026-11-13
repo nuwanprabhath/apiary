@@ -4,8 +4,8 @@ import type { EventTarget } from '../windows/sendEvent'
 import type { RemoteConnection } from './remoteConnection'
 
 /** The part of a connection the router uses; a test stands in for the rest. */
-export type RemoteLink = Pick<RemoteConnection, 'host' | 'isClosed' | 'openWindow' | 'closeWindow' | 'invoke' | 'send' | 'onEvent' | 'onClosed' | 'resolve'>
-import type { BridgeHandler } from './vscodeBridge'
+export type RemoteLink = Pick<RemoteConnection, 'host' | 'isClosed' | 'openWindow' | 'closeWindow' | 'invoke' | 'send' | 'onEvent' | 'onClosed' | 'resolve' | 'callback'>
+import { BRIDGED_KEYS, type BridgeHandler, type BridgedKey } from './vscodeBridge'
 import { scopeOf, type ChannelScope, UNAVAILABLE_ANSWERS, UNAVAILABLE_MESSAGE } from './scopes'
 
 /** The sends a reconnect must repeat while the window still shows what they attached; a detach cancels its attach. */
@@ -14,6 +14,8 @@ const ATTACHES: ReadonlySet<IpcKey> = new Set<IpcKey>(['ptyAttach', 'chatAttach'
 
 interface Attachment { key: IpcKey; raw: unknown[] }
 interface Binding { connection: RemoteLink; w: number; sshHost: string; attachments: Map<string, Attachment> }
+
+const isBridgedKey = (key: IpcKey): key is BridgedKey => (BRIDGED_KEYS as readonly IpcKey[]).includes(key)
 
 export type DisconnectedListener = (webContentsIds: number[], host: string, reason: string) => void
 
@@ -75,7 +77,7 @@ export class RemoteWindows {
     const scope = scopeOf(key)
     if (scope === 'local') return undefined
     if (scope === 'bridged') {
-      if (this.bridge === null || (key !== 'openInVsCode' && key !== 'openMentionedFile')) return Promise.reject(new Error(UNAVAILABLE_MESSAGE))
+      if (this.bridge === null || !isBridgedKey(key)) return Promise.reject(new Error(UNAVAILABLE_MESSAGE))
       return this.bridge({ key, args: raw, sshHost: binding.sshHost, w: binding.w, connection: binding.connection })
     }
     if (scope === 'unavailable') {

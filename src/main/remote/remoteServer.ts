@@ -15,6 +15,7 @@ import {
   contractHash, PROTOCOL_VERSION, type ClientMessage, type RemoteWindowLayout, type ServerMessage,
 } from './protocol'
 import { scopeOf } from './scopes'
+import { fetchCallback, type CallbackPorts } from './signInCallback'
 import type { VsCodeService } from '../vscode/vscodeService'
 import type { VirtualContents, VirtualContentsRegistry } from './virtualContents'
 
@@ -33,6 +34,8 @@ export interface RemoteServerDeps {
   layouts: () => readonly WindowLayoutRecord[]
   /** Resolves the paths `resolve` asks for (`VsCodeService`); without it every `resolve` is refused. */
   vscode?: Pick<VsCodeService, 'resolveFolder' | 'resolveMentionedFile'>
+  /** The ports of sign-in links this machine's terminals opened; a `callback` to any other is refused. Without it, every one is. */
+  callbacks?: Pick<CallbackPorts, 'allows'>
   helloTimeoutMs?: number
   /** Sends a pty's snapshot to a window whose `ptyData` was dropped while its socket was full; not wired in the container yet. */
   resyncPty?: (ptyId: string, window: VirtualContents) => void
@@ -298,6 +301,7 @@ export class RemoteServer {
         case 'invoke': void this.invoke(message, windows.get(message.w) ?? null, write); return
         case 'send': this.send(message, windows.get(message.w) ?? null); return
         case 'resolve': void this.resolve(message, write); return
+        case 'callback': void this.callback(message, write); return
         case 'layouts': write({ t: 'layouts', id: message.id, windows: this.layouts() }); return
       }
     }
@@ -416,6 +420,16 @@ export class RemoteServer {
     }
   }
 
+  /** Makes a sign-in callback on this machine, only for a port one of its own terminals' links named. */
+  private async callback(message: Extract<ClientMessage, { t: 'callback' }>, write: (m: ServerMessage) => void): Promise<void> {
+    try {
+      if (this.deps.callbacks?.allows(message.port) !== true) throw new Error('That is not the callback of a link this machine opened.')
+      write({ t: 'result', id: message.id, ok: true, value: await fetchCallback(message.port, message.path) })
+    } catch (error) {
+      write({ t: 'result', id: message.id, ok: false, message: errorMessage(error) })
+    }
+  }
+
   private send(message: Extract<ClientMessage, { t: 'send' }>, win: VirtualContents | null): void {
     const key = this.allowed(message.key, 'send')
     if (key === null || win === null || this.dispatcher === null) return
@@ -434,6 +448,7 @@ function isClientMessage(value: unknown): value is ClientMessage {
     case 'send': return typeof value.w === 'number' && typeof value.key === 'string' && Array.isArray(value.args)
     case 'layouts': return typeof value.id === 'number'
     case 'resolve': return typeof value.id === 'number' && typeof value.w === 'number' && (value.what === 'session-folder' || value.what === 'mentioned-file')
+    case 'callback': return typeof value.id === 'number' && typeof value.w === 'number' && Number.isInteger(value.port) && typeof value.path === 'string' && value.path.length <= 8192
     default: return false
   }
 }

@@ -28,6 +28,7 @@ class FakeLink implements RemoteLink {
   private closers: ((reason: string) => void)[] = []
 
   resolve: RemoteLink['resolve'] = () => Promise.reject(new Error('not resolved'))
+  callback: RemoteLink['callback'] = () => Promise.reject(new Error('no callback'))
   openWindow(w: number): void { this.opened.push(w) }
   closeWindow(w: number): void { this.closedWindows.push(w) }
   invoke(w: number, key: IpcKey, args: unknown[]): Promise<unknown> {

@@ -66,6 +66,7 @@ carry it: `tests/unit/architecture/noTestBuildMarker.test.ts` fails if `package.
 | `accounts/<id>/` | `main/accounts/accountFolder.ts` — an added account's `CLAUDE_CONFIG_DIR`: its own login, `.claude.json` and `sessions/`, with symlinks back to the main config root for transcripts, history, settings and extensions ([ADR-0020](adr/0020-per-session-accounts-are-linked-config-folders.md)) |
 | `residents/<id>/` | `main/residents/residentSpace.ts` — a resident agent's space (mode 0700, the cwd of its `claude`): `history.json` (its visible chat, the last 500 messages), `state.json` (the claude session id for `--resume`), `notes.json` (its `note_*` tool), `mcp.json` (mode 0600: the MCP server's URL and the resident's token) |
 | `prompt-shim/zsh` | `main/pty/promptPath.ts` (written at startup) |
+| `bin/apiary-browser` | `main/pty/linkHelper.ts` (written at startup; every pty's `$BROWSER`) |
 | `pasted-images/` | `main/` `ImageStore` (chat image attachments) |
 | `logs/` | `main/log/` — only exists once Diagnostics is switched on |
 | `<file>.v<N>.bak` | `main/fs/jsonStore.ts` — a copy of a settings, layout, theme or pets file written by a newer Apiary, made once before an older build first rewrites it |

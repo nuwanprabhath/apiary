@@ -235,6 +235,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     onPtySessionsChanged: on('ptySessionsChanged'),
     onMrStatusesInvalidated: on('mrStatusesInvalidated'),
     onPtyData: on('ptyData'),
+    onPtyLink: on('ptyLink'),
     onPtyExit: on('ptyExit'),
     onTreeChanged: on('treeChanged'),
     onOpenImportDialog: on('openImportDialog'),

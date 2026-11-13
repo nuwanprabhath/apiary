@@ -61,6 +61,18 @@ written at startup (`<userData>/prompt-shim/zsh`) that sources the user's own fo
 `APIARY_USER_ZDOTDIR` and appends a `precmd` hook. Verified with real bash 3.2/5.3/zsh on macOS and
 bash 5.2/zsh 5.9 on Ubuntu 24.04 (Docker). It overrides the path trim above.
 
+## Links a program opens (`$BROWSER`)
+
+Every pty gets `BROWSER` = `<userData>/bin/apiary-browser` and `APIARY_LINK_TOKEN`
+(`linkHelper.ts`). The script writes the link to its own terminal as `ESC ] 7701 ; <token> ; <url>
+BEL`; `PtyManager` takes every such sequence out of the output (split across chunks too) and hands
+the ones with this run's token to `onLink`, so a `cat` of the sequence opens nothing. The link goes
+to the window that last typed into the pty (`WindowAttachments.sendToInputWindow`), which opens it
+on its own machine (`openTerminalLink`): for a remote window that is the home machine, which also
+relays a `localhost:<port>` sign-in callback back to the work machine (`src/main/remote/linkBridge.ts`,
+`src/main/remote/signInCallback.ts`). Claude Code's `/login` then finishes with one click.
+`tests/remote/remote.test.ts` runs the whole path over real SSH in Docker.
+
 ## Snapshots, not raw replay
 
 A view that attaches late to a running pty (a second window, a tab switched back to) is caught up

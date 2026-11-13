@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs'
-import { connect, Server, type Socket } from 'node:net'
+import { connect, Server, type AddressInfo, type Socket } from 'node:net'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { IPC, type IpcKey } from '@shared/ipc/contract'
@@ -230,6 +231,26 @@ describe('RemoteServer', () => {
       c.send({ t: 'invoke', id: 2, w: 1, key: 'openMentionedFile', args: [terminal, 'notes.md'] })
       expect(await c.result(1)).toEqual({ t: 'result', id: 1, ok: false, message: 'Not allowed remotely' })
       expect(await c.result(2)).toEqual({ t: 'result', id: 2, ok: false, message: 'Not allowed remotely' })
+    })
+  })
+
+  describe('a sign-in callback a home machine relays', () => {
+    it('is made on this machine for a port its terminals\' link named, and refused for any other', async () => {
+      // Claude's callback server, on this machine's localhost.
+      const claude = createServer((req, res) => { res.writeHead(302, { location: `https://done.example${req.url ?? ''}` }).end() })
+      await new Promise<void>((r) => { claude.listen(0, '127.0.0.1', r) })
+      const port = (claude.address() as AddressInfo).port
+      try {
+        await boot(5000, { callbacks: { allows: (p) => p === port } })
+        const c = await greeted()
+        c.send({ t: 'open', w: 1 })
+        c.send({ t: 'callback', id: 1, w: 1, port, path: '/callback?code=abc' })
+        c.send({ t: 'callback', id: 2, w: 1, port: 22, path: '/' })
+        expect(await c.result(1)).toEqual({ t: 'result', id: 1, ok: true, value: { status: 302, location: 'https://done.example/callback?code=abc', contentType: null, body: '' } })
+        expect(await c.result(2)).toMatchObject({ t: 'result', id: 2, ok: false, message: 'That is not the callback of a link this machine opened.' })
+      } finally {
+        claude.close()
+      }
     })
   })
 

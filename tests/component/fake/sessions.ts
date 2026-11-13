@@ -19,7 +19,7 @@ type SessionsApi = Pick<ApiaryApi,
   | 'renameTerminalInClaude' | 'removeSession' | 'moveSession' | 'newSessionInProject' | 'newSessionInPickedFolder'
   | 'forkSession' | 'setSessionNote' | 'sessionNote' | 'openShell' | 'openShellForPty' | 'ptyWrite' | 'ptyResize'
   | 'ptyKill' | 'ptyResume' | 'ptyAttach' | 'ptyDetach' | 'ptyAck' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
-  | 'saveImage' | 'readImage' | 'vsCodeAvailable' | 'openInVsCode' | 'openMentionedFile' | 'copyToClipboard'
+  | 'saveImage' | 'readImage' | 'vsCodeAvailable' | 'openInVsCode' | 'openMentionedFile' | 'copyToClipboard' | 'openTerminalLink'
   | 'logStatus' | 'logReveal' | 'logClear' | 'logWrite' | 'appMenu' | 'appMenuInvoke' | 'setTitleBarColors' | 'requireWindowWidth'>
 
 const DAY = 24 * 60 * 60 * 1000
@@ -185,6 +185,11 @@ export function sessionsApi(env: Env): SessionsApi {
     openInVsCode: async () => { if (!state.vsCode) throw new Error('VS Code was not found on this machine.') },
     openMentionedFile: async () => { if (!state.vsCode) throw new Error('VS Code was not found on this machine.') },
     copyToClipboard: async (text) => { state.copied.push(text) },
+    // As main: only a web address is opened; anything else is ignored.
+    openTerminalLink: async (text) => {
+      const url = URL.canParse(text) ? new URL(text) : null
+      if (url !== null && (url.protocol === 'https:' || url.protocol === 'http:')) state.opened.push(url.toString())
+    },
 
     logStatus: async () => state.log,
     logReveal: async () => state.log.dir,

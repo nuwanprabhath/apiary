@@ -20,6 +20,7 @@ export function defineTerminalClauses(ctx: Ctx): void {
       // The renderer sends these from views that outlive their process; none may fail or conjure a terminal.
       ctx.api.ptyAttach(NOBODY)
       ctx.api.ptyWrite(NOBODY, 'ls\r')
+      ctx.api.ptyWrite(NOBODY, '"$BROWSER" https://example.invalid/sign-in\r')
       ctx.api.ptyResize(NOBODY, 100, 30)
       ctx.api.ptyResume(NOBODY)
       ctx.api.ptyAck(NOBODY, 4096)
@@ -30,6 +31,8 @@ export function defineTerminalClauses(ctx: Ctx): void {
       expect(await ctx.api.ptyRunning([NOBODY])).toEqual([])
       expect(ctx.heard.count('ptyExit')).toBe(0)
       expect(ctx.heard.count('ptyData')).toBe(0)
+      // A link comes only from a program a running terminal starts (`$BROWSER`, tests/integration/ptyManager.test.ts).
+      expect(ctx.heard.count('ptyLink')).toBe(0)
     })
 
     it('refuses to resume, or open a shell for, a session or terminal the app does not know', async () => {
