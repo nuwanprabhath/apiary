@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.68.1] - 2026-11-16
+
+### Fixed
+
+- The scheduled-messages file's reader has tests of its own: every field read back, absent optional
+  fields left out, damaged entries dropped while good ones are kept, and a file that is not an
+  object or not there read as nothing scheduled. Branch coverage on Linux CI had fallen to 78.98%,
+  under the 79% floor, with this file untested.
+
 ## [1.68.0] - 2026-11-16
 
 ### Added
