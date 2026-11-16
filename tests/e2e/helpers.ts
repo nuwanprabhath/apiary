@@ -683,6 +683,24 @@ export async function clickRowAction(row: Locator, testId: string): Promise<void
   }).toPass({ timeout: 20000 })
 }
 
+/**
+ * Pins a session row from its hover button, once. The pin button toggles, and `clickRowAction`
+ * retries hover and click together: a click that took effect but threw afterwards (the row moves
+ * into the pinned section and the node is replaced while a loaded machine is still finishing the
+ * click) was clicked again by the retry, which unpinned the session. Each attempt first checks
+ * whether the row is already pinned.
+ */
+export async function pinRow(row: Locator): Promise<void> {
+  const wrap = row.locator('xpath=ancestor-or-self::div[contains(@class,"session-row-wrap")]')
+  const button = wrap.getByTestId('pin-session-button')
+  await expect(async () => {
+    if ((await button.getAttribute('data-pinned', { timeout: 2000 })) === 'true') return
+    await wrap.hover({ timeout: 2000 })
+    await button.click({ timeout: 2000 })
+    await expect(button).toHaveAttribute('data-pinned', 'true', { timeout: 2000 })
+  }).toPass({ timeout: 20000 })
+}
+
 /** Asserts `check` holds for the whole of `ms`, for tests whose point is that something does *not*
  *  happen; the one implementation is `fixtures/stays.ts`. */
 export { stays as expectStays } from '../fixtures/stays'

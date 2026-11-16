@@ -4,6 +4,34 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.63.4] - 2026-11-16
+
+### Fixed
+
+- The pinning e2e test no longer needs a retry on a loaded machine (issue #37). The pin button
+  toggles, and the e2e helper retried hover and click together: a click that took effect but threw
+  afterwards, as the row moved into the pinned section, was clicked again and unpinned the session,
+  so only one row was ever pinned. `pinRow` checks the row's `data-pinned` before each attempt, and
+  the pinning and multi-window specs use it.
+
+## [1.63.3] - 2026-11-16
+
+### Changed
+
+- **Stylelint 18.** stylelint 18.0.0 and stylelint-config-standard 41.0.0. The removed
+  `declaration-block-single-line-max-declarations` override is gone from `.stylelintrc.json`, and the
+  glass pet-bubble rule lists the bubble's tail and thought circles as their own selectors, since
+  `:is()` cannot hold pseudo-elements.
+
+## [1.63.2] - 2026-11-16
+
+### Changed
+
+- **Dependencies.** @playwright/test 1.65.0, @vitest/browser 5.1.0, @vitest/browser-playwright
+  5.1.0, @vitest/coverage-v8 5.1.0, electron 45.2.3, eslint-plugin-playwright 2.12.2, knip 6.44.2,
+  marked 18.1.3, minimatch 11.0.5, playwright 1.65.0 and vitest 5.1.0.
+- **GitHub actions.** actions/upload-artifact 7 and softprops/action-gh-release 3.0.4.
+
 ## [1.63.1] - 2026-11-14
 
 ### Fixed

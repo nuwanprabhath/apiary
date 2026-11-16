@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { launchApiary, importAll, sidebarSession, clickRowAction, type Harness } from './helpers'
+import { launchApiary, importAll, sidebarSession, pinRow, type Harness } from './helpers'
 
 let h: Harness
 
@@ -45,7 +45,7 @@ test('a session opened in both windows shows live terminal output in each', asyn
 // and no groups — because the whole of the UI state was keyed per window. Tabs and column widths
 // belong to a window; how the user has organised their sessions does not.
 test('a second window has the same pinned sessions and groups as the first', async () => {
-  await clickRowAction(sidebarSession(h.page, 'Fix CSV export bug'), 'pin-session-button')
+  await pinRow(sidebarSession(h.page, 'Fix CSV export bug'))
   await expect(h.page.getByTestId('pinned-section')).toBeVisible()
 
   const second = await h.newWindow()
@@ -59,7 +59,7 @@ test('pinning in one window shows up in the other without either being restarted
   const second = await h.newWindow()
   await expect(second.getByTestId('pinned-section')).toHaveCount(0)
 
-  await clickRowAction(sidebarSession(h.page, 'Fix CSV export bug'), 'pin-session-button')
+  await pinRow(sidebarSession(h.page, 'Fix CSV export bug'))
 
   // Windows share an origin, so the second one hears the change rather than waiting for a relaunch.
   await expect(second.getByTestId('pinned-section')).toBeVisible()

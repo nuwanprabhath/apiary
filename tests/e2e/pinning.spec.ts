@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { launchApiary, importAll, relaunchApiary, clickRowAction, type Harness } from './helpers'
+import { launchApiary, importAll, relaunchApiary, pinRow, type Harness } from './helpers'
 
 let h: Harness
 
@@ -18,8 +18,8 @@ function row(h: Harness, title: string) {
 }
 
 test('the pinned section collapses, and both the pins and the collapse survive a relaunch', async () => {
-  await clickRowAction(row(h, 'Worktree session'), 'pin-session-button')
-  await clickRowAction(row(h, 'Fix CSV export bug'), 'pin-session-button')
+  await pinRow(row(h, 'Worktree session'))
+  await pinRow(row(h, 'Fix CSV export bug'))
 
   const section = h.page.getByTestId('pinned-section')
   await expect(section.getByTestId('session-item')).toHaveCount(2)
@@ -40,8 +40,8 @@ test('the pinned section collapses, and both the pins and the collapse survive a
 })
 
 test('pinned sessions can be dragged into the order you want them in, and stay there', async () => {
-  await clickRowAction(row(h, 'Fix CSV export bug'), 'pin-session-button')
-  await clickRowAction(row(h, 'Add worktree switcher'), 'pin-session-button')
+  await pinRow(row(h, 'Fix CSV export bug'))
+  await pinRow(row(h, 'Add worktree switcher'))
 
   const section = h.page.getByTestId('pinned-section')
   const titles = section.locator('[data-testid="session-item"] .session-title')
