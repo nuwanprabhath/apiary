@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.65.1] - 2026-11-16
+
+### Fixed
+
+- A long link with no place to break (a pipeline URL pasted into a message) wraps inside its
+  message bubble, and inside Claude's reply, instead of running past the edge of the bubble. Both
+  in chat and in the plain transcript; table columns still keep their words whole.
+
 ## [1.65.0] - 2026-11-16
 
 ### Added
