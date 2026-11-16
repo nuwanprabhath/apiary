@@ -15,7 +15,7 @@ import type { Env, FakeSession } from './state'
 import { must } from '../must'
 
 type SessionsApi = Pick<ApiaryApi,
-  | 'refresh' | 'tree' | 'discovered' | 'importSessions' | 'transcript' | 'transcriptAfter' | 'transcriptFind' | 'backgroundTaskOutput' | 'checkConflict' | 'resume' | 'renameSession'
+  | 'refresh' | 'tree' | 'discovered' | 'importSessions' | 'transcript' | 'transcriptAfter' | 'transcriptFind' | 'backgroundTaskOutput' | 'backgroundTaskModel' | 'checkConflict' | 'resume' | 'renameSession'
   | 'renameTerminalInClaude' | 'removeSession' | 'moveSession' | 'newSessionInProject' | 'newSessionInPickedFolder'
   | 'forkSession' | 'setSessionNote' | 'sessionNote' | 'openShell' | 'openShellForPty' | 'ptyWrite' | 'ptyResize'
   | 'ptyKill' | 'ptyResume' | 'ptyAttach' | 'ptyDetach' | 'ptyAck' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
@@ -120,6 +120,8 @@ export function sessionsApi(env: Env): SessionsApi {
     },
     // As in main, a task nobody wrote output for (or an unknown session) is "not available", not an error.
     backgroundTaskOutput: async (id, taskId) => state.taskOutputs.get(`${id}:${taskId}`) ?? { available: false, lines: [] },
+    // As in main, an agent that says nothing is unknown, not guessed.
+    backgroundTaskModel: async (id, taskId) => state.taskModels.get(`${id}:${taskId}`) ?? { model: null, effort: null },
     // Someone else's process is running the session: the conflict names it.
     checkConflict: async (id) => (find(id)?.isLive === true ? { sessionId: id, pid: 4242 } : null),
     // As in main, a change to what the tree shows is followed by a tree-changed event.

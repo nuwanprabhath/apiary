@@ -37,10 +37,11 @@ const AGENT_LINES = [
   '→ Edit  cameraTrap.ts',
 ]
 
-async function open(tasks: BackgroundTask[], outputs: Record<string, { available: boolean; lines: string[] }> = {}): Promise<void> {
+async function open(tasks: BackgroundTask[], outputs: Record<string, { available: boolean; lines: string[] }> = {}, models: Record<string, { model: string | null; effort: string | null }> = {}): Promise<void> {
   const { fake } = await renderApp({ settings: { transcriptChat: true } })
   const sessionId = fake.state.sessions.find((s) => s.title === TITLE)!.sessionId
   for (const [taskId, out] of Object.entries(outputs)) fake.state.taskOutputs.set(`${sessionId}:${taskId}`, out)
+  for (const [taskId, m] of Object.entries(models)) fake.state.taskModels.set(`${sessionId}:${taskId}`, m)
   await userEvent.click(sidebarSession(TITLE))
   await expect.element(page.getByTestId('chat-timeline')).toBeVisible()
   const next = { ...emptyChatState(asSessionId(sessionId)), status: 'idle' as const, backgroundTasks: tasks }
@@ -89,6 +90,15 @@ describe('UI background tasks', () => {
   it('popup open, empty output', async () => {
     await open(ONE, { bluctp9gs: { available: true, lines: [] } })
     await reviewUi('background tasks empty output', { open: () => expandRow('bluctp9gs', 'No output yet.') })
+  })
+
+  it('popup open, agent rows showing their model and effort', async () => {
+    await open(FOUR, {}, {
+      a1c9f0e2d: { model: 'claude-sonnet-5-5', effort: 'high' },
+      a7b2e4c81: { model: 'claude-opus-5-5', effort: 'xhigh' },
+      a3d5f6b90: { model: 'haiku', effort: null },
+    })
+    await reviewUi('background tasks model and effort', { widths: [620, 1000], open: async () => { await openPopup(); await until(() => document.querySelectorAll('[data-testid="chat-task-model"]').length === 3) } })
   })
 
   it('popup in a narrow pane', async () => {

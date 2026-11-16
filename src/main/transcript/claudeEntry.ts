@@ -33,6 +33,9 @@ interface Common {
   content: MessageContent
   /** `message`, read on every kind: an entry without a recognised `type` can still carry one. */
   message: Message | undefined
+  /** The model that wrote an assistant entry (`message.model`) and the effort it ran at (top-level `effort`). */
+  model: string | undefined
+  effort: string | undefined
 }
 
 export interface Message { content: MessageContent }
@@ -100,6 +103,8 @@ export function entryOf(value: unknown): ClaudeEntry | null {
     title: stringField(e.title),
     content: content(e.content),
     message: message(e.message),
+    model: isRecord(e.message) ? stringField(e.message.model) : undefined,
+    effort: stringField(e.effort),
   }
   switch (e.type) {
     case 'user':

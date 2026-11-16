@@ -37,6 +37,7 @@ export const CHANNEL_SCOPES = {
   transcriptAfter: 'remote',
   transcriptFind: 'remote',
   backgroundTaskOutput: 'remote',
+  backgroundTaskModel: 'remote',
   checkConflict: 'remote',
   resume: 'remote',
   renameSession: 'remote',

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { SessionId } from '@shared/domain/ids'
-import type { BackgroundTaskOutput } from '@shared/chatTimeline'
+import type { BackgroundTaskModel, BackgroundTaskOutput } from '@shared/chatTimeline'
 import { createLocalStore } from './createLocalStore'
-import { loadTaskOutput } from './transcript'
+import { loadTaskModel, loadTaskOutput } from './transcript'
 
 /** The time, to the second, for every elapsed counter on screen. */
 const clock = createLocalStore(Date.now())
@@ -52,4 +52,33 @@ export function useTaskOutput(sessionId: SessionId, taskId: string | null): Back
     }
   }, [sessionId, taskId])
   return output !== null && output.taskId === taskId ? output.value : null
+}
+
+/** How often an agent's model is asked for again; main reads its file no more often than that. */
+const TASK_MODEL_REFRESH_MS = 4000
+
+/**
+ * The model and effort of one background agent while its row is shown, asked again every 4 s (the
+ * model it runs on is known only once it has written a reply); null until the first answer, or when
+ * no task is given.
+ */
+export function useTaskModel(sessionId: SessionId, taskId: string | null): BackgroundTaskModel | null {
+  const [found, setFound] = useState<{ taskId: string; value: BackgroundTaskModel } | null>(null)
+  useEffect(() => {
+    if (taskId === null) return
+    let stopped = false
+    let next: ReturnType<typeof setTimeout> | null = null
+    const read = async (): Promise<void> => {
+      const value = await loadTaskModel(sessionId, taskId)
+      if (stopped) return
+      setFound({ taskId, value })
+      next = setTimeout(() => { void read() }, TASK_MODEL_REFRESH_MS)
+    }
+    void read()
+    return () => {
+      stopped = true
+      if (next !== null) clearTimeout(next)
+    }
+  }, [sessionId, taskId])
+  return found !== null && found.taskId === taskId ? found.value : null
 }

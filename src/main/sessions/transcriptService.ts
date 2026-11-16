@@ -1,12 +1,14 @@
 import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { stat } from 'node:fs/promises'
-import { BackgroundTaskTally, type BackgroundTaskOutput } from '@shared/chatTimeline'
+import { BackgroundTaskTally, type BackgroundTaskModel, type BackgroundTaskOutput } from '@shared/chatTimeline'
 import { latestAction } from '@shared/pets/actions'
 import type { TranscriptPage } from '@shared/types'
 import type { TranscriptFindResult } from '@shared/ipc/contract'
 import type { SessionStore, StoredSession } from '../store/sessionStore'
 import type { forEachMessageFrom } from '../transcript/transcriptLines'
 import type { TranscriptReader } from '../transcript/transcriptReader'
+import { SubagentModelReader } from './subagentModel'
 import { readTaskOutput, type TaskOutputRoots } from './backgroundTaskOutput'
 
 type TranscriptSession = Pick<StoredSession, 'filePath' | 'messageCount'>
@@ -43,6 +45,8 @@ const ACTION_TAIL = 12
 export class TranscriptService {
   /** Invalidated by a read that fails, and by the file shrinking below the offset already read. */
   private readonly taskRecords = new Map<string, TaskRecord>()
+
+  private readonly subagents = new SubagentModelReader()
 
   constructor(private readonly deps: TranscriptServiceDeps) {}
 
@@ -129,6 +133,22 @@ export class TranscriptService {
     const output = tally.outputFile(taskId)
     if (output === null) return { available: false, lines: [] }
     return readTaskOutput(output.path, sessionId, taskId, output.kind, this.deps.taskOutputRoots)
+  }
+
+  /**
+   * The model and effort of one background agent, for the task popup: its own transcript's latest
+   * entry, else what the call asked for. A shell task, an unknown task or session, or an agent that
+   * says nothing yet is all-null, never a guess.
+   */
+  async backgroundTaskModel(sessionId: string, taskId: string): Promise<BackgroundTaskModel> {
+    const none = { model: null, effort: null }
+    const session = this.deps.resolver.findSession(sessionId)
+    if (session === null) return none
+    const { tally } = await this.caughtUp(sessionId, session.filePath)
+    const requested = tally.requestedModel(taskId)
+    if (requested === null) return none
+    // Claude Code keeps a session's agents in a folder named for the session beside its file.
+    return this.subagents.read(join(dirname(session.filePath), sessionId), taskId, requested)
   }
 
   /**

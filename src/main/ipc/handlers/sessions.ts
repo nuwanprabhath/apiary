@@ -18,7 +18,7 @@ export interface SessionsDeps {
 }
 
 type HandledKeys =
-  | 'refresh' | 'tree' | 'searchContent' | 'discovered' | 'importSessions' | 'transcript' | 'transcriptAfter' | 'transcriptFind' | 'backgroundTaskOutput' | 'checkConflict'
+  | 'refresh' | 'tree' | 'searchContent' | 'discovered' | 'importSessions' | 'transcript' | 'transcriptAfter' | 'transcriptFind' | 'backgroundTaskOutput' | 'backgroundTaskModel' | 'checkConflict'
   | 'resume' | 'renameSession' | 'removeSession' | 'moveSession' | 'setSessionNote' | 'sessionNote'
   | 'searchRebuild' | 'searchStatus' | 'saveImage' | 'readImage' | 'newSessionInProject' | 'forkSession'
   | 'copyToClipboard' | 'openTerminalLink' | 'newSessionInPickedFolder'
@@ -58,6 +58,7 @@ export function sessionsHandlers(deps: SessionsDeps): Pick<Handlers, HandledKeys
     transcriptAfter: (_e, id, afterIndex, limit) => service.transcriptAfter(id, afterIndex, limit),
     transcriptFind: (_e, id, query, before) => service.transcriptFind(id, query, before),
     backgroundTaskOutput: (_e, id, taskId) => service.backgroundTaskOutput(id, taskId),
+    backgroundTaskModel: (_e, id, taskId) => service.backgroundTaskModel(id, taskId),
     checkConflict: (_e, id) => service.checkConflict(id),
     resume: (_e, id, ptyId) => service.resume(id, ptyId),
     renameSession: async (_e, id, title) => {
