@@ -254,9 +254,10 @@ export function reduce(state: ChatState, event: Line, now: number = Date.now()):
       const live = [...state.live, message].slice(-MAX_LIVE)
       if (event.type === 'user') {
         // A message we sent, now read: claude replays it (`isReplay`) at the point it took it in.
-        if (event.isReplay !== true) return { ...state, live }
+        // One that comes back without the flag is still ours when its text is a queued one's.
         const text = message.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim()
-        const at = state.queued.findIndex((q) => q.text.trim() === text)
+        const at = text === '' ? -1 : state.queued.findIndex((q) => q.text.trim() === text)
+        if (event.isReplay !== true && at < 0) return { ...state, live }
         return { ...working(state, now), live, queued: at < 0 ? state.queued : state.queued.filter((_, i) => i !== at) }
       }
       // A whole block has arrived, so what was being streamed for it is now in `live`. A thinking

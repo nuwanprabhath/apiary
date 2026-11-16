@@ -69,7 +69,7 @@ export function useTranscriptView({ sessionId, messages, showSidechain, chatMode
     const live = (chat?.live ?? []).filter((m) => showSidechain || !m.isSidechain)
     return chatItems(mergeLive(visibleMessages, hideToolCalls ? withoutToolCalls(live) : live))
   }, [chatMode, chat?.live, visibleMessages, showSidechain, hideToolCalls])
-  const queued = useMemo(() => stillQueued(chat?.queued ?? [], messages), [chat?.queued, messages])
+  const queued = useMemo(() => stillQueued(chat?.queued ?? [], mergeLive(messages, chat?.live ?? [])), [chat?.queued, chat?.live, messages])
   const status = useMemo(
     () => chatStatusInfo(chatMode, chat, messages, { running: terminalRunning, busy: terminalBusy }),
     [chatMode, chat, messages, terminalRunning, terminalBusy],

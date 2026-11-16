@@ -67,12 +67,51 @@ export function mergeLive(persisted: TranscriptMessage[], live: TranscriptMessag
   let anchor = -1
   for (let i = live.length - 1; i >= 0; i--) if (seen.has(live[i]?.uuid ?? '')) { anchor = i; break }
   const newest = persisted.reduce<number | null>((t, m) => (m.timestampMs !== null && (t === null || m.timestampMs > t) ? m.timestampMs : t), null)
-  const fresh = anchor >= 0
+  const copies = unmatchedSayings(persisted, live)
+  const fresh = (anchor >= 0
     ? live.slice(anchor + 1).filter((m) => !seen.has(m.uuid))
-    : live.filter((m) => !seen.has(m.uuid) && (newest === null || m.timestampMs === null || m.timestampMs >= newest))
+    : live.filter((m) => !seen.has(m.uuid) && (newest === null || m.timestampMs === null || m.timestampMs >= newest)))
+    .filter((m) => !takeSaying(copies, m))
   if (fresh.length === 0) return persisted
   const after = anchor >= 0 ? persisted.findIndex((m) => m.uuid === live[anchor]?.uuid) + 1 : persisted.length
   return [...persisted.slice(0, after), ...byTime(persisted.slice(after), fresh)]
+}
+
+/** The text of a message's text blocks, as one string. */
+function textOf(m: TranscriptMessage): string {
+  return m.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim()
+}
+
+/**
+ * What makes two copies of one sent message the same message whatever uuid each carries: its text
+ * and its timestamp. Claude stamps a message once, when it takes it from stdin, and both its replay
+ * and the file's `queued_command` carry that stamp (measured on 2.1.325).
+ */
+function sayingOf(m: TranscriptMessage): string | null {
+  if (m.role !== 'user' || m.timestampMs === null) return null
+  const text = textOf(m)
+  return text === '' ? null : `${String(m.timestampMs)}\n${text}`
+}
+
+/** The file's messages of yours that no live message carries by uuid, counted by `sayingOf`. */
+function unmatchedSayings(persisted: TranscriptMessage[], live: TranscriptMessage[]): Map<string, number> {
+  const streamed = new Set(live.map((m) => m.uuid))
+  const copies = new Map<string, number>()
+  for (const m of persisted) {
+    const saying = streamed.has(m.uuid) ? null : sayingOf(m)
+    if (saying !== null) copies.set(saying, (copies.get(saying) ?? 0) + 1)
+  }
+  return copies
+}
+
+/** Whether `m` is a file message's copy under another uuid; each file message is taken once, so
+ *  the same text sent twice in one millisecond still shows twice. */
+function takeSaying(copies: Map<string, number>, m: TranscriptMessage): boolean {
+  const saying = sayingOf(m)
+  const left = saying === null ? 0 : copies.get(saying) ?? 0
+  if (saying === null || left === 0) return false
+  copies.set(saying, left - 1)
+  return true
 }
 
 /**
@@ -101,12 +140,12 @@ const SAME_MACHINE_SLACK_MS = 1000
  * the session file before it replays it on stdout (0.5–0.9 s before, measured on 2.1.291), so the
  * file's copy can reach the transcript while the message is still queued, and it showed twice.
  * A queued message is matched by its text to a message of yours written since it was sent, each
- * one matching at most one.
+ * one matching at most one. `messages` is what the conversation shows (the file's and the live
+ * ones, `mergeLive`), so a copy the stream brought first hides it as well.
  */
 export function stillQueued<Q extends { text: string; sentAt: number }>(queued: Q[], messages: TranscriptMessage[]): Q[] {
   if (queued.length === 0) return queued
   const used = new Set<TranscriptMessage>()
-  const textOf = (m: TranscriptMessage): string => m.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim()
   const left = queued.filter((q) => {
     const match = messages.find((m) => m.role === 'user' && !used.has(m) && m.timestampMs !== null
       && m.timestampMs >= q.sentAt - SAME_MACHINE_SLACK_MS && textOf(m) === q.text.trim())

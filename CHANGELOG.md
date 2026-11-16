@@ -4,6 +4,17 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.63.5] - 2026-11-16
+
+### Fixed
+
+- A message sent while Claude works shows once in the chat, however its copies arrive. The
+  conversation now takes a streamed message of yours with the same text and time as one in the
+  session file as that message even under another id, a streamed copy takes the message off the
+  queue even when Claude does not mark it as a replay, and the "Queued" row goes once the stream
+  has the message, not only once the file does. Measured against Claude Code 2.1.325, whose
+  stream and session file still agree; tests use its real output.
+
 ## [1.63.4] - 2026-11-16
 
 ### Fixed
