@@ -135,7 +135,7 @@ function ActionsList({ shown, active, listId, onMouseEnter, onChoose }: {
           >
             {[
               <span key="n" className="chat-command-name" title={a.label}>{a.label}</span>,
-              <span key="d" className="chat-command-desc">{a.description}</span>,
+              <span key="d" className="chat-command-desc" title={a.description}>{a.description}</span>,
             ]}
           </Row>
         )
@@ -159,7 +159,7 @@ function ActionsList({ shown, active, listId, onMouseEnter, onChoose }: {
           >
             {[
               <span key="n" className="chat-command-name" title={'/' + c.name}>/{c.name}</span>,
-              <span key="d" className="chat-command-desc">{c.description}</span>,
+              <span key="d" className="chat-command-desc" title={c.description}>{c.description}</span>,
             ]}
           </Row>
         )

@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.67.1] - 2026-11-16
+
+### Fixed
+
+- A description in the "/" menu that is cut short (the menu's label column grew with "Schedule a
+  message…") shows in full on hover, in actions, commands and account rows alike.
+
 ## [1.67.0] - 2026-11-16
 
 ### Changed
