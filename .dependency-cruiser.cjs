@@ -6,7 +6,7 @@
 
 /** Main-process folders by layer. An arrow only points down: app → ipc → services → infra. */
 const MAIN_INFRA = '^src/main/(exec|fs|log|util|pty|store|scanner|tree|transcript|search|windows)/'
-const MAIN_SERVICES = '^src/main/(claude|git|plugins|chat|pets|theme|terminals|sessions|statusBar|update|vscode|media|sources|settings)/|^src/main/(settings|appService)\\.ts$'
+const MAIN_SERVICES = '^src/main/(claude|git|plugins|chat|pets|theme|terminals|sessions|statusBar|update|vscode|media|sources|settings|schedule)/|^src/main/(settings|appService)\\.ts$'
 const MAIN_IPC = '^src/main/ipc/'
 const MAIN_APP = '^src/main/app/|^src/main/index\\.ts$'
 
@@ -17,14 +17,14 @@ const MAIN_APP = '^src/main/app/|^src/main/index\\.ts$'
  */
 const MAIN_EDGES = {
   accounts: ['exec', 'fs', 'log'],
-  app: ['accounts', 'chat', 'claude', 'exec', 'folders', 'git', 'ipc', 'knowledge', 'library', 'log', 'media', 'pets', 'plugins', 'pty', 'remote', 'residents', 'search', 'sessions', 'settings', 'sources', 'spelling', 'statusBar', 'store', 'terminals', 'theme', 'transcript', 'update', 'vscode', 'windows'],
+  app: ['accounts', 'chat', 'claude', 'exec', 'folders', 'git', 'ipc', 'knowledge', 'library', 'log', 'media', 'pets', 'plugins', 'pty', 'remote', 'residents', 'schedule', 'search', 'sessions', 'settings', 'sources', 'spelling', 'statusBar', 'store', 'terminals', 'theme', 'transcript', 'update', 'vscode', 'windows'],
   chat: ['accounts', 'claude', 'exec', 'log', 'pty', 'sessions', 'store', 'terminals', 'transcript', 'windows'],
   claude: ['accounts', 'exec', 'log', 'pty'],
   exec: ['log'],
   folders: ['fs'],
   fs: [],
   git: ['exec', 'log', 'plugins', 'sessions'],
-  ipc: ['accounts', 'chat', 'claude', 'folders', 'library', 'log', 'pets', 'plugins', 'remote', 'residents', 'settings', 'spelling', 'terminals', 'theme', 'update', 'windows'],
+  ipc: ['accounts', 'chat', 'claude', 'folders', 'library', 'log', 'pets', 'plugins', 'remote', 'residents', 'schedule', 'settings', 'spelling', 'terminals', 'theme', 'update', 'windows'],
   knowledge: ['accounts', 'claude', 'fs', 'log', 'search', 'store', 'transcript', 'util'],
   library: ['fs', 'log'],
   log: [],
@@ -35,6 +35,7 @@ const MAIN_EDGES = {
   remote: ['exec', 'fs', 'ipc', 'log', 'vscode', 'windows'],
   residents: ['chat', 'exec', 'fs', 'knowledge', 'log', 'search'],
   scanner: ['transcript'],
+  schedule: ['exec', 'fs', 'log', 'transcript'],
   search: ['log', 'store', 'transcript', 'util'],
   sessions: ['claude', 'fs', 'git', 'log', 'pty', 'scanner', 'search', 'sources', 'store', 'transcript', 'tree', 'util'],
   settings: ['fs'],

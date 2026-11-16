@@ -25,6 +25,7 @@ const OWNERS: Record<string, string> = {
   'remote-pairing-codes.json': 'src/main/remote/savedPairingCodes.ts',
   'library-state.json': 'src/main/library/libraryStateService.ts',
   'accounts.json': 'src/main/accounts/accountService.ts',
+  'scheduled-messages.json': 'src/main/schedule/scheduleStore.ts',
 }
 
 const root = resolve(__dirname, '../../..')

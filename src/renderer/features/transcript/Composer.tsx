@@ -3,6 +3,7 @@ import { type JSX, type KeyboardEvent, type RefObject, useCallback, useRef, useS
 import type { ChatState } from '@shared/domain/chat'
 import type { NewSessionInfo, SessionNode } from '@shared/types'
 import { AccountPill, ContextRing, ModelPicker, ModeMenu, CommandPalette } from '../chat'
+import { ScheduleBar } from '../schedule'
 import { interruptChat } from '../../state/chatStore'
 import { readDraft, writeDraft } from '../../state/uiState'
 import { AttachmentStrip, imagesFrom, useImageAttachments } from './composerAttachments'
@@ -130,6 +131,7 @@ export function Composer({
 
   return (
     <div className="composer" data-testid="composer">
+      <ScheduleBar sessionId={session.sessionId} />
       {!collapsed && (
         <div
           className="composer-resize"

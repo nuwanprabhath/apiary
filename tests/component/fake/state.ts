@@ -16,6 +16,7 @@ import type { BackgroundTaskOutput } from '@shared/chatTimeline'
 import type { EventKey, PayloadOf } from '@shared/ipc/contract'
 import type { LibraryPatch, LibrarySnapshot } from '@shared/libraryState'
 import type { AccountsState } from '@shared/domain/accounts'
+import type { ScheduleDefault, SchedulesState } from '@shared/domain/schedule'
 import type { ResidentAttention, ResidentMessage, ResidentPermissionRequest } from '@shared/domain/residents'
 import type { PetSpec } from '@shared/pets/spec'
 import type { PetsState } from '@shared/pets/state'
@@ -86,6 +87,10 @@ export interface FakeOptions {
   statusBarPanel?: StatusBarPanel | null
   /** The folder the native picker answers with; null when it is dismissed. Default `/fixture/picked`. */
   pickedFolder?: string | null
+  /** Main's scheduled messages and notices. Default: none, with OS jobs available. */
+  schedules?: Partial<SchedulesState>
+  /** What `scheduleDefault` answers for a known session. Default: an hour from now. */
+  scheduleDefault?: ScheduleDefault | null
 }
 
 export interface FakeCall { name: string; args: unknown[] }
@@ -155,6 +160,10 @@ export interface FakeState {
   /** Main's Claude accounts (`accounts.json`) and which account each session was recorded under. */
   accounts: AccountsState
   sessionAccounts: Map<string, string>
+  schedules: SchedulesState
+  scheduleDefault: ScheduleDefault | null
+  /** The schedules "Send now" sent, in order. */
+  scheduleSent: string[]
   /** Each resident's chat (`residentHistory`), and the residents answering now. */
   residentHistory: Map<string, ResidentMessage[]>
   residentBusy: Set<string>

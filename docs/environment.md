@@ -26,6 +26,8 @@ carry it: `tests/unit/architecture/noTestBuildMarker.test.ts` fails if `package.
 | `APIARY_WINDOW_CHROME` | test harness | forces a window's title bar: `custom` (Windows/Linux themed bar and menus), `mac` or `system` |
 | `APIARY_CLOSE_GRACE_MS` | test harness | how long a window closed while others stay open keeps its layout, in ms (default a minute; 3 s on a Mac) |
 | `APIARY_SSH_CONFIG` | test harness | A file passed to ssh as `-F` for every remote connection (`src/main/remote/sshCommand.ts`): the Docker SSH test bed's host aliases and keys. Unset when packaged. Host-key checking stays strict |
+| `APIARY_OS_SCHEDULER` | test harness | `on` or `off`: whether a scheduled message also gets an OS job to send it while Apiary is closed (`main/app/scheduleContainer.ts`). Unset: on, except under `APIARY_HEADLESS=1`, so a test run leaves no job on the machine. Unset when packaged |
+| `APIARY_SCHEDULE_MODEL` | test harness | The model a scheduled message's OS job and headless chat use (the Haiku acceptance test); production uses the session's own. Unset when packaged |
 | `APIARY_TAILSCALE_PATH` | test harness | The `tailscale` CLI for the remote host list (`src/main/remote/hostDirectory.ts`); empty means none, which every e2e launch sets so a test never starts the real Tailscale (under the fake `HOME` the macOS app's binary hangs with a Dock icon). Unset when packaged |
 | `APIARY_RENDERER_SEAMS` | test harness | JSON for the renderer's test seams (`src/renderer/state/testSeams.ts`): `petBrainOptions`, `petsFlat`. Reaches each window as `?seams=`; unset when packaged, so the renderer has no test hook a page script could reach |
 | `APIARY_DEFAULT_THEME=original` | test harness | starts a fresh profile on the pre-Liquid-Glass theme |
@@ -67,6 +69,10 @@ carry it: `tests/unit/architecture/noTestBuildMarker.test.ts` fails if `package.
 | `residents/<id>/` | `main/residents/residentSpace.ts` — a resident agent's space (mode 0700, the cwd of its `claude`): `history.json` (its visible chat, the last 500 messages), `state.json` (the claude session id for `--resume`), `notes.json` (its `note_*` tool), `mcp.json` (mode 0600: the MCP server's URL and the resident's token) |
 | `prompt-shim/zsh` | `main/pty/promptPath.ts` (written at startup) |
 | `bin/apiary-browser` | `main/pty/linkHelper.ts` (written at startup; every pty's `$BROWSER`) |
+| `scheduled-messages.json` | `main/schedule/scheduleStore.ts` (mode 0600) — scheduled messages waiting to be sent (id, session, text, time, account, missed) and the notices of ones sent unseen |
+| `bin/apiary-scheduled` | `main/schedule/scheduledJobs.ts` (written at startup) — the POSIX sh script a scheduled message's OS job (launchd, a systemd user timer or `at`) runs with the schedule id |
+| `scheduled/<id>.vars`, `.running`, `.log`, `.done` | `main/schedule/scheduledJobs.ts` — per schedule: what the script sends (written by Apiary, mode 0600, single-quoted shell variables), and what it records while and after it sends |
+| `apiary.pid` | `main/schedule/scheduledJobs.ts` — this run's pid, written at start and removed at quit; the script sends nothing while it names a live Apiary |
 | `pasted-images/` | `main/` `ImageStore` (chat image attachments) |
 | `logs/` | `main/log/` — only exists once Diagnostics is switched on |
 | `<file>.v<N>.bak` | `main/fs/jsonStore.ts` — a copy of a settings, layout, theme or pets file written by a newer Apiary, made once before an older build first rewrites it |

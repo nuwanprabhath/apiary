@@ -18,6 +18,7 @@ import { registerIpc } from '../../../src/main/ipc'
 import { RemoteConnection } from '../../../src/main/remote/remoteConnection'
 import { createRemoteConnecting, createRemoteServing } from '../../../src/main/app/remoteContainer'
 import { createResidents } from '../../../src/main/app/residentsContainer'
+import { createSchedules } from '../../../src/main/app/scheduleContainer'
 import { resolveResourcesDir } from '../../../src/main/app/resourcesDir'
 import type { CallRouter, Dispatcher } from '../../../src/main/ipc/registrar'
 import { UNCHECKED_SENDERS } from '../../../src/main/ipc/ipcSenderGuard'
@@ -259,6 +260,12 @@ export async function buildLoopbackWorld(
     resourcesDir: resolveResourcesDir({ packaged: false, resourcesPath: '', appPath: process.cwd() }),
   })
   const disposeResidents = residents.start()
+  // The app's own factory, with no OS job: the loopback never touches the machine's scheduler.
+  const schedules = createSchedules({
+    paths: { userData: home, scheduledMessagesFile: join(home, 'scheduled-messages.json'), configRoot: join(home, '.claude') }, os: null, store: built.store, accounts, chat: service.chat, service,
+    model: undefined,
+  })
+  await schedules.service.start()
   const ipc = registerIpc({
     senderPolicy: UNCHECKED_SENDERS,
     remoteServer, remotePairing, remoteClient,
@@ -279,6 +286,7 @@ export async function buildLoopbackWorld(
     accounts,
     state: ipcState,
     residents,
+    schedules: schedules.service,
     settings,
     tabRegistry,
     windowNumberFor: (id) => (id === fakeContents.id ? THIS_WINDOW.number : null),
@@ -354,6 +362,7 @@ export async function buildLoopbackWorld(
     cleanup: async () => {
       ipc.dispose()
       await disposeResidents()
+      schedules.service.dispose()
       await remoteClient.dispose()
       for (const machine of homeMachines) machine.close()
       await remoteServer.stop()

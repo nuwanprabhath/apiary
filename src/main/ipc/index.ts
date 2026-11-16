@@ -35,6 +35,8 @@ import { libraryStateHandlers } from './handlers/libraryState'
 import { accountsHandlers } from './handlers/accounts'
 import { residentsHandlers } from './handlers/residents'
 import { appWindowsHandlers } from './handlers/appWindows'
+import { scheduleHandlers } from './handlers/schedule'
+import type { ScheduleService } from '../schedule/scheduleService'
 import type { ResidentService } from '../residents/residentService'
 import type { AccountService } from '../accounts/accountService'
 import type { LibraryStateService } from '../library/libraryStateService'
@@ -58,6 +60,8 @@ export interface IpcDeps {
   accounts: AccountService
   /** The resident agents (`residents/residentService.ts`), built in the container. */
   residents: ResidentService
+  /** Scheduled messages (`schedule/scheduleService.ts`), built in the container. */
+  schedules: ScheduleService
   spelling: SpellingService
   /** The in-app folder browser a remote window uses instead of the native picker; built in the container. */
   folderBrowser: FolderBrowser
@@ -137,6 +141,7 @@ export function registerIpc(
   const accountsIpc = accountsHandlers(deps.accounts, deps.chat, service)
   const residentsIpc = residentsHandlers(deps.residents, deps.pickFolder, deps.folderBrowser)
   const appWindowsIpc = appWindowsHandlers()
+  const scheduleIpc = scheduleHandlers(deps.schedules)
 
   const handlers: Handlers = {
     ...sessions,
@@ -160,6 +165,7 @@ export function registerIpc(
     ...accountsIpc,
     ...residentsIpc,
     ...appWindowsIpc.handlers,
+    ...scheduleIpc,
   }
   const listeners: Listeners = {
     ...terminals.listeners,

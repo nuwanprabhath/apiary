@@ -1,0 +1,76 @@
+/*
+ * Scheduled messages (features/schedule/): the popup, the chip and notices above the message box,
+ * and the sidebar row's clock.
+ */
+.schedule-dialog { width: 460px; max-width: 90vw; }
+.schedule-field-label { display: block; margin: var(--space-md) 0 var(--space-xs); font-size: 12px; color: var(--muted); }
+.schedule-text,
+.schedule-input {
+  box-sizing: border-box;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--field-bg);
+  color: var(--text);
+  font: inherit;
+}
+.schedule-text {
+  width: 100%;
+  /* A few lines: "continue" is the usual message, a paragraph the long one. */
+  min-height: calc(var(--control-height) * 3);
+  resize: vertical;
+  padding: var(--space-md) var(--control-padding-x);
+  line-height: 1.5;
+}
+.schedule-input {
+  min-height: var(--control-height);
+  padding: 0 var(--space-md);
+}
+.schedule-text:focus,
+.schedule-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.schedule-input::-webkit-calendar-picker-indicator { opacity: 0.7; cursor: pointer; }
+.schedule-when { display: flex; flex-wrap: wrap; gap: var(--control-gap); }
+.schedule-chips { display: flex; flex-wrap: wrap; gap: var(--control-gap); margin-top: var(--space-md); }
+.schedule-hint,
+.schedule-source { margin: var(--space-xs) 0 0; font-size: 12px; color: var(--muted); }
+.schedule-source { margin-top: var(--space-md); }
+.schedule-when-summary { margin: var(--space-md) 0 0; font-size: 13px; color: var(--text); }
+.schedule-error { margin: var(--space-md) 0 0; font-size: 12px; color: var(--danger); }
+.schedule-delete { color: var(--danger); }
+
+/* The sidebar row's clock: like the note mark, it gives way to the row's buttons on hover. */
+.session-schedule-mark { flex: none; display: flex; align-items: center; color: var(--accent); }
+.session-row-wrap:hover .session-schedule-mark,
+.session-row-wrap:focus-within .session-schedule-mark { display: none; }
+.session-schedule-mark svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
+
+/* Above the message box: notices first, then the chip. */
+.schedule-bar { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-xs); padding-bottom: var(--space-sm); }
+.schedule-chip { max-width: 100%; color: var(--text); }
+.schedule-chip svg { color: var(--accent); }
+.schedule-chip[data-missed="true"] svg { color: var(--warning); }
+.schedule-chip-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.schedule-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: 100%;
+  padding: var(--space-xs) 0 var(--space-xs) var(--space-sm);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text);
+}
+.schedule-notice-icon { flex: none; width: var(--icon-size); height: var(--icon-size); color: var(--success); }
+.schedule-notice[data-ok="false"] .schedule-notice-icon { color: var(--danger); }
+.schedule-notice-text {
+  /* Two lines at most: a failure's reason wraps under the headline, the whole of it in the tooltip. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  line-height: 1.4;
+}
+.schedule-notice-dismiss { flex: none; }
+

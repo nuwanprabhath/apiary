@@ -493,6 +493,14 @@ export async function relaunchApiary(h: Harness, extraEnv: Record<string, string
   await launchAgainst(h, extraEnv)
 }
 
+/** `relaunchApiary` with something done while the app is closed (an OS job that sends only then). */
+export async function relaunchApiaryAfter(h: Harness, whileClosed: () => Promise<void>): Promise<void> {
+  await settleUiState(h.page)
+  await closeApp(h.app)
+  await whileClosed()
+  await launchAgainst(h)
+}
+
 /**
  * The same as `relaunchApiary`, except the app is quit the way a user on Linux or Windows quits
  * it: by clicking the last window's close button, rather than by Playwright's `app.close()`.

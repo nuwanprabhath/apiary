@@ -43,6 +43,11 @@ export function writePrivateJson(file: string, data: unknown): void {
   writeTextAtomic(file, JSON.stringify(data), 0o600)
 }
 
+/** Text only its owner may read (0600), replaced whole: a scheduled message's job file carries the message. */
+export function writePrivateText(file: string, text: string): void {
+  writeTextAtomic(file, text, 0o600)
+}
+
 /** A script Apiary writes for the user's shell to run (mode 0700 from the moment it exists), replaced whole. */
 export function writeExecutableText(file: string, text: string): void {
   writeTextAtomic(file, text, 0o700)

@@ -17,6 +17,8 @@ import type { PresetId } from '../../state/layout'
 import type { DialogsApi } from './useDialogs'
 import { moveSession, saveSessionNote } from '../../state/sessions'
 import { surface } from '../../state/policy'
+import { closeScheduleDialog, useScheduleDialog } from '../../state/scheduleStore'
+import { ScheduleDialog } from '../schedule'
 
 /**
  * Renders whichever dialogs `useDialogs` has open. Move and note finish here; the ones that change
@@ -52,6 +54,7 @@ export function DialogHost({
   return (
     <>
       <AccountSwitchHost />
+      <ScheduleDialogHost />
       {requestedPicker !== null && (
         <ArrangePicker
           request={requestedPicker}
@@ -151,6 +154,17 @@ export function DialogHost({
         />
       )}
     </>
+  )
+}
+
+/** "Schedule a message…", opened from any menu with `openScheduleDialog`. */
+function ScheduleDialogHost(): JSX.Element | null {
+  const request = useScheduleDialog()
+  if (request === null) return null
+  return (
+    <DialogBoundary onClose={closeScheduleDialog}>
+      <ScheduleDialog key={`${request.sessionId}:${request.editing?.id ?? 'new'}`} request={request} onClose={closeScheduleDialog} />
+    </DialogBoundary>
   )
 }
 

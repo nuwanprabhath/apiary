@@ -4,6 +4,54 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.66.2] - 2026-11-16
+
+### Added
+
+- Acceptance tests for scheduled messages, each opt-in because it reaches the machine: the real
+  launchd path on a Mac (`APIARY_LAUNCHD_E2E=1`, `tests/integration/scheduledLaunchd.test.ts`), a
+  systemd user timer in an Ubuntu container with systemd as PID 1 (`APIARY_SYSTEMD_E2E=1`,
+  `tests/integration/scheduledSystemd.test.ts`, its image labelled `apiary.test-bed=systemd`), and
+  the whole feature against a real `claude --model claude-haiku-5-5` with Apiary open and closed
+  (`APIARY_LIVE_CLAUDE=1`, `tests/e2e/live/scheduledMessage.spec.ts`).
+
+### Fixed
+
+- The sidebar's menu builders load outside a window again (a unit test failed in 1.66.1): the
+  schedule popup's window store is made on first use.
+
+## [1.66.1] - 2026-11-16
+
+### Added
+
+- "Schedule a message…" in a session's sidebar menu, its tab's menu and the chat's "/" menu opens a
+  small popup: the message (left empty, it sends "continue"), a date and a time, quick picks
+  ("5 min after limit resets" when that is known, "In 1 hour", "Tomorrow 9:00"), where the
+  suggested time came from, and Schedule or Cancel; editing adds "Delete schedule". It says when
+  this machine can only send while Apiary is open.
+- Above the message box, a chip shows the session's scheduled message ("Sends “continue” at
+  3:05 pm today", or "2 scheduled messages"); its menu edits, sends now or cancels. A message sent
+  while Apiary was closed, or one that failed, shows as a row there until dismissed. A sidebar row
+  with a schedule shows a small clock.
+
+## [1.66.0] - 2026-11-16
+
+### Added
+
+- Scheduled messages, main side (`main/schedule/`): a message is kept in `scheduled-messages.json`
+  with its session and time, and goes out whichever way comes first. With Apiary running, a timer
+  sends it through the session's live chat, its terminal's claude, or a chat started for it. With
+  Apiary closed, a one-shot OS job registered when it was saved (a LaunchAgent on macOS, a systemd
+  user timer or `at` on Linux) runs `bin/apiary-scheduled`, which resumes the session with
+  `claude -p` under its account, records the result and removes its own job. The script sends
+  nothing while Apiary's pid is alive, and the timer removes the job before it sends, so a message
+  goes once. On start, what the job sent becomes a notice in that chat; a message overdue by under
+  12 hours goes at once, an older one is shown as missed. New channels `scheduleList`,
+  `scheduleSet`, `scheduleCancel`, `scheduleSendNow`, `scheduleDefault` and `scheduleChanged`.
+- The suggested time is 5 minutes after the usage limit resets: from the usage meter (only with
+  the consent it already has), else from the session's last "You've hit your limit · resets …"
+  line, else an hour from now.
+
 ## [1.65.1] - 2026-11-16
 
 ### Fixed

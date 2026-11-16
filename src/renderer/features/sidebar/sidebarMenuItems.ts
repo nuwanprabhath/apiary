@@ -6,6 +6,7 @@ import { listFolderWorktrees } from '../../state/git'
 import { deleteGroup, moveGroup, type GroupState } from '../../state/groups'
 import { findFolder } from './treeUtils'
 import type { GroupActions } from './useGroupActions'
+import { scheduleMenuItem } from '../../state/scheduleStore'
 
 /** Only a folder git knows: the same test the "+" button's worktree menu uses. */
 export function isGitFolder(node: ProjectNode): boolean {
@@ -48,6 +49,7 @@ export function sessionMenuItems(
       label: 'Fork session',
       run: () => d.onForkSession(menu.id),
     },
+    scheduleMenuItem(menu.id),
     {
       id: 'arrange',
       label: 'Arrange…',

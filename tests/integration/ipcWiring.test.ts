@@ -61,6 +61,7 @@ const subscribed = new Set<string>()
 const { buildServices, buildIpcState } = await import('../fixtures/buildService')
 const { registerIpc } = await import('../../src/main/ipc')
 const { createResidents } = await import('../../src/main/app/residentsContainer')
+const { createSchedules } = await import('../../src/main/app/scheduleContainer')
 const { TabRegistry } = await import('../../src/main/windows/tabRegistry')
 const { UNCHECKED_SENDERS } = await import('../../src/main/ipc/ipcSenderGuard')
 const { ThemeStore } = await import('../../src/main/theme/themeStore')
@@ -116,6 +117,10 @@ beforeEach(async () => {
       settingsService: settings, paths: { residentsDir: join(home, 'residents') }, store: built.store, accounts: built.accounts, knowledge: built.knowledge,
       tabRegistry: new TabRegistry(), service, ipcState: state, windowManager: { windowNumberFor: () => null }, virtualContents: { list: () => [] }, version: '0.0.0', resourcesDir: join(home, 'resources'),
     }),
+    schedules: createSchedules({
+      paths: { userData: home, scheduledMessagesFile: join(home, 'scheduled-messages.json'), configRoot: join(home, '.claude') }, os: null, store: built.store, accounts: built.accounts, chat: service.chat, service,
+      model: undefined,
+    }).service,
     theme: {
       store: new ThemeStore(join(home, 'themes.json')),
       safeMode: false,

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, dialog, session, webContents, type WebContents } from 'electron'
+import { app, BrowserWindow, Menu, dialog, powerMonitor, session, webContents, type WebContents } from 'electron'
 import { errorMessage } from '@shared/errors'
 import { randomBytes } from 'node:crypto'
 import { homedir, hostname } from 'node:os'
@@ -117,6 +117,8 @@ let disposeIpc: (() => void) | null = null
 let disposeRemote: (() => Promise<void>) | null = null
 /** Stops every resident's claude and the MCP server. */
 let disposeResidents: (() => Promise<void>) | null = null
+/** Stops the scheduled-message timer and removes `apiary.pid`, so the OS jobs send from then on. */
+let disposeSchedules: (() => void) | null = null
 /** Quits a background-started app with no window and remote access off; set once remote access starts. */
 let quitIfIdleBackground: () => void = () => {}
 
@@ -312,7 +314,7 @@ async function start(): Promise<void> {
   // Before any window exists: each window asks for its theme synchronously as it loads.
   const safeTheme = env.safeTheme
   const ipc = registerIpc({
-    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, library: container.library, accounts: container.accounts, residents: container.residents, state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
+    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, library: container.library, accounts: container.accounts, residents: container.residents, schedules: container.schedules.service, state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
     pickFolder: (sender) => pickFolderOver(sender, env.pickFolder),
     onAutoImportIntervalChange: setAutoImportInterval,
     updater,
@@ -398,10 +400,24 @@ async function start(): Promise<void> {
   // Started after the window exists, so the first status push has somewhere to land.
   updater?.start()
   if (updater !== null) fireAndForget(updater.restorePreviousInstall(), 'update')
-  disposeResidents = container.residents.start()
+  ;[disposeResidents, disposeSchedules] = [container.residents.start(), startSchedules(container)]
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) { windowManager!.create(); container.petPlacement.rehome() }
   })
+}
+
+/** Scheduled messages: the script and the pid the OS jobs check, then the timer; what came due while the machine slept goes at wake. */
+function startSchedules(container: Container): () => void {
+  const { service, jobs } = container.schedules
+  jobs.install(process.pid)
+  fireAndForget(service.start(), 'schedule')
+  const onResume = (): void => { service.resume() }
+  powerMonitor.on('resume', onResume)
+  return () => {
+    powerMonitor.off('resume', onResume)
+    service.dispose()
+    jobs.uninstall()
+  }
 }
 
 // If `start()` throws (a corrupt database, an unwritable userData, a native ABI mismatch) no window
@@ -462,6 +478,7 @@ async function shutdown(): Promise<void> {
     disposeIpc?.()
     await disposeRemote?.()
     await disposeResidents?.()
+    disposeSchedules?.()
     await service?.dispose()
     knowledge?.store.close()
   }

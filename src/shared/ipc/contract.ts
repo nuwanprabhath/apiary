@@ -65,6 +65,7 @@ import {
 import { RESIDENT_ID_RE } from '../settings/residents'
 import { isRecord } from '../guards'
 import { SCREEN_SETTING_KEYS, type SettingKey } from '../settings/schema'
+import { isScheduleId, isScheduleRequest, type ScheduleDefault, type ScheduledMessage, type ScheduleRequest, type SchedulesState } from '../domain/schedule'
 import { isPairingCode, isRemoteHost, type RemoteClientInfo, type RemoteHost, type RemoteServerState, type RemoteStatus } from '../domain/remote'
 
 // Boundary guards for branded ids: the one place a string arriving over IPC becomes a branded id.
@@ -134,14 +135,10 @@ export const IPC = {
    *  searching back from `before` (the end when null); `cursor` continues the search. Main reads the file. */
   transcriptFind: invoke<[sessionId: SessionId, query: string, before: number | null], TranscriptFindResult>(
     'apiary:transcript-find', tuple(sessionIdArg, str, nullable(num))),
-  transcript: invoke<[sessionId: SessionId, beforeIndex?: number], TranscriptPage>(
-    'apiary:transcript', tuple(sessionIdArg, opt(num)),
-  ),
+  transcript: invoke<[sessionId: SessionId, beforeIndex?: number], TranscriptPage>('apiary:transcript', tuple(sessionIdArg, opt(num))),
   /** The end of one background task's output, for the task popup. Main finds the file from the
    *  session's own transcript and reads it only inside Claude Code's task folder for that session. */
-  backgroundTaskOutput: invoke<[sessionId: SessionId, taskId: string], BackgroundTaskOutput>(
-    'apiary:background-task-output', tuple(sessionIdArg, str),
-  ),
+  backgroundTaskOutput: invoke<[sessionId: SessionId, taskId: string], BackgroundTaskOutput>('apiary:background-task-output', tuple(sessionIdArg, str)),
   checkConflict: invoke<[sessionId: SessionId], ResumeConflict | null>('apiary:check-conflict', tuple(sessionIdArg)),
   resume: invoke<[sessionId: SessionId, ptyId: PtyId | null], void>('apiary:resume', tuple(sessionIdArg, nullable(ptyIdArg))),
   renameSession: invoke<[sessionId: SessionId, title: string], void>('apiary:rename-session', tuple(sessionIdArg, str)),
@@ -549,6 +546,19 @@ export const IPC = {
   /** Move a pet to another of this machine's windows by number (the pet menu's "Move to", the numbers from `appWindows`).
    *  Main refuses a number that is not a live local window: false, nothing changes. True when it moved. */
   petMoveTo: invoke<[id: string, window: number], boolean>('apiary:pet-move-to', tuple(str, num)),
+
+  // Scheduled messages (`main/schedule/`): main owns them and sends them, Apiary open or closed.
+  // `scheduleChanged` follows every change: a set, a cancel, a send, a notice.
+  /** Every schedule and notice, or one session's (null: all). */
+  scheduleList: invoke<[sessionId: SessionId | null], SchedulesState>('apiary:schedule-list', tuple(nullable(sessionIdArg))),
+  /** Creates (`id` null) or replaces a schedule; main checks the text, the time and the session. */
+  scheduleSet: invoke<[request: ScheduleRequest], ScheduledMessage>('apiary:schedule-set', tuple(isScheduleRequest)),
+  /** Cancels a schedule, or dismisses its notice. */
+  scheduleCancel: invoke<[id: string], void>('apiary:schedule-cancel', tuple(isScheduleId)),
+  scheduleSendNow: invoke<[id: string], void>('apiary:schedule-send-now', tuple(isScheduleId)),
+  /** The time the popup suggests for a session, and where it came from. */
+  scheduleDefault: invoke<[sessionId: SessionId], ScheduleDefault>('apiary:schedule-default', tuple(sessionIdArg)),
+  scheduleChanged: event<[state: SchedulesState]>('apiary:schedule-changed'),
 } as const
 
 type Spec = typeof IPC

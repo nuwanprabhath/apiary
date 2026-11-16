@@ -52,6 +52,7 @@ import { defineLibraryStateClauses } from './clauses/libraryState'
 import { defineBackgroundTaskOutputClauses } from './clauses/backgroundTaskOutput'
 import { defineAccountsClauses } from './clauses/accounts'
 import { defineResidentsClauses } from './clauses/residents'
+import { defineScheduleClauses } from './clauses/schedule'
 
 export { LONG_SESSION, STANDARD_TITLES }
 export type { Bridge, BridgeOptions, MakeBridge }
@@ -86,6 +87,7 @@ const AREAS: readonly { clauses: string; define: (ctx: Ctx) => void; part: 1 | 2
   { clauses: 'backgroundTaskOutput', define: defineBackgroundTaskOutputClauses, part: 2 },
   { clauses: 'accounts', define: defineAccountsClauses, part: 2 },
   { clauses: 'residents', define: defineResidentsClauses, part: 2 },
+  { clauses: 'schedule', define: defineScheduleClauses, part: 1 },
 ]
 
 /** The clause areas, by file name in `clauses/`: the remote run checks every file there is one. */
