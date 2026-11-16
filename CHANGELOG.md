@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.63.3] - 2026-11-16
+
+### Changed
+
+- **Stylelint 18.** stylelint 18.0.0 and stylelint-config-standard 41.0.0. The removed
+  `declaration-block-single-line-max-declarations` override is gone from `.stylelintrc.json`, and the
+  glass pet-bubble rule lists the bubble's tail and thought circles as their own selectors, since
+  `:is()` cannot hold pseudo-elements.
+
 ## [1.63.2] - 2026-11-16
 
 ### Changed

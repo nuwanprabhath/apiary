@@ -1,6 +1,6 @@
 {
   "name": "apiary",
-  "version": "1.63.2",
+  "version": "1.63.3",
   "private": true,
   "type": "module",
   "description": "Browse, search and resume Claude Code sessions across folders and worktrees.",
@@ -127,8 +127,8 @@
     "pngjs": "^7.0.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "stylelint": "^17.15.0",
-    "stylelint-config-standard": "^40.0.0",
+    "stylelint": "^18.0.0",
+    "stylelint-config-standard": "^41.0.0",
     "three": "^0.187.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
