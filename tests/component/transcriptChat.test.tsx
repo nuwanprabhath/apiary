@@ -157,6 +157,19 @@ describe('transcript chat', () => {
     expect(document.querySelector('[data-testid="chat-queued"]')).toBeNull()
   })
 
+  it('a sent message shows once when the stream has it and the queue still does', async () => {
+    const { fake, sessionId } = await openChat()
+    const sentAt = Date.now()
+    play(fake, sessionId, {
+      status: 'busy', turnStartedAt: sentAt,
+      queued: [{ id: 'q1', text: 'and lint too', sentAt }],
+      live: [{ ...said('q-live', 'user', [{ type: 'text', text: 'and lint too' }]), timestampMs: sentAt + 50 }],
+    })
+    await textOf('chat-user', 'and lint too', true)
+    expect(document.querySelector('[data-testid="chat-queued"]')).toBeNull()
+    expect([...document.querySelectorAll('[data-testid="chat-user"]')].filter((e) => e.textContent.includes('and lint too'))).toHaveLength(1)
+  })
+
   it('the working animation appears immediately after sending a message', async () => {
     const { fake, sessionId } = await openChat()
     await userEvent.fill(page.getByTestId('composer-input'), 'test message')

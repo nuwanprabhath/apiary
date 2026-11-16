@@ -147,7 +147,14 @@ changing anything. Four rules:
   answers it in the same turn — one `result` for both (measured on 2.1.286). It is replayed
   (`isReplay`) when taken in, which is what moves it out of `ChatState.queued`; the file records it
   as an `attachment` of type `queued_command` whose `source_uuid` is the replayed uuid
-  (`transcriptReader.ts`'s `queuedMessage`). A turn can also start with nothing sent — a
+  (`transcriptReader.ts`'s `queuedMessage`). Still so on 2.1.325 (measured with a real claude,
+  `tests/fixtures/chat/mid-turn-2.1.325.*`): one replay, its uuid the `source_uuid`, and the
+  attachment gains `delivery_id`, `commandMode` and `hostsOwnTurn`; the replay and the attachment
+  carry the same timestamp, the moment claude took the message. The chat shows the message once
+  whichever copy comes first: a live message of yours with the text and timestamp of a file
+  message the stream has not carried is that message (`mergeLive`), a stream message whose text
+  is a queued one's takes it off the queue even without `isReplay`, and `stillQueued` reads the
+  file's and the stream's messages (`tests/unit/chatMidTurn.test.ts`). A turn can also start with nothing sent — a
   background task finishing — so the first streamed message marks the chat busy, not `send`.
   A `result` ends the turn even with a message still queued: a message claude never takes in stays
   in `queued` (its row reads "Queued") without keeping the chat busy. `reduce` drops local commands
