@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { SessionId } from '@shared/domain/ids'
 import type { ScheduleDefault, ScheduledMessage, ScheduleNotice, ScheduleRequest, SchedulesState } from '@shared/domain/schedule'
 import { createIpcStore } from './createIpcStore'
-import { createLocalStore } from './createLocalStore'
+import { createLocalStore, type LocalStore } from './createLocalStore'
 import type { ContextMenuItem } from '../ui/contextMenuItem'
 import { surface } from './policy'
 
@@ -71,19 +71,21 @@ export interface ScheduleDialogRequest {
   editing: ScheduledMessage | null
 }
 
-const dialog = createLocalStore<ScheduleDialogRequest | null>(null)
+/** Made on first use: the sidebar's menu builders import this module in plain Node tests too, where there is no `window`. */
+let dialogStore: LocalStore<ScheduleDialogRequest | null> | null = null
+const dialog = (): LocalStore<ScheduleDialogRequest | null> => (dialogStore ??= createLocalStore<ScheduleDialogRequest | null>(null))
 
 export function useScheduleDialog(): ScheduleDialogRequest | null {
-  return dialog.useStore()
+  return dialog().useStore()
 }
 
 /** Opens the popup: from a menu's "Schedule a message…", or a chip's "Edit…". */
 export function openScheduleDialog(sessionId: SessionId, editing: ScheduledMessage | null = null): void {
-  dialog.set({ sessionId, editing })
+  dialog().set({ sessionId, editing })
 }
 
 export function closeScheduleDialog(): void {
-  dialog.set(null)
+  dialog().set(null)
 }
 
 /** "Schedule a message…" in a session's menus (the sidebar row's, the tab's); null `sessionId` for a session not started yet. */

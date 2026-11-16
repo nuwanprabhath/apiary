@@ -4,6 +4,22 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.66.2] - 2026-11-16
+
+### Added
+
+- Acceptance tests for scheduled messages, each opt-in because it reaches the machine: the real
+  launchd path on a Mac (`APIARY_LAUNCHD_E2E=1`, `tests/integration/scheduledLaunchd.test.ts`), a
+  systemd user timer in an Ubuntu container with systemd as PID 1 (`APIARY_SYSTEMD_E2E=1`,
+  `tests/integration/scheduledSystemd.test.ts`, its image labelled `apiary.test-bed=systemd`), and
+  the whole feature against a real `claude --model claude-haiku-5-5` with Apiary open and closed
+  (`APIARY_LIVE_CLAUDE=1`, `tests/e2e/live/scheduledMessage.spec.ts`).
+
+### Fixed
+
+- The sidebar's menu builders load outside a window again (a unit test failed in 1.66.1): the
+  schedule popup's window store is made on first use.
+
 ## [1.66.1] - 2026-11-16
 
 ### Added
