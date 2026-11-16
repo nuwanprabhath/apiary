@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.68.2] - 2026-11-16
+
+### Changed
+
+- **Dependencies.** @playwright/test 1.65.0, @vitest/browser 5.1.0, @vitest/browser-playwright
+  5.1.0, @vitest/coverage-v8 5.1.0, electron 45.2.3, eslint-plugin-playwright 2.12.2, knip 6.44.2,
+  marked 18.1.3, minimatch 11.0.5, playwright 1.65.0 and vitest 5.1.0.
+
 ## [1.68.1] - 2026-11-16
 
 ### Fixed
