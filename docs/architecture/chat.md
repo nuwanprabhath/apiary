@@ -54,6 +54,12 @@ A chat streams about 8 pushes a second (one per 120 ms, each carrying only the f
   dropped by `windowLifetimeWatcher`; a reloaded renderer re-attaches as its panes mount.
 - `chatChanged` goes to the windows attached to the session, and to those still attached to the
   session a `/clear` left (`previousSessionId`).
+- A window's first push after it attaches is the whole state (`ChatService.owedWhole`), whatever the
+  others get, so a view that opens mid-stream starts from a state it holds.
+- A view whose copy cannot take a delta (it missed one) attaches again and fetches once, dropping
+  deltas until the whole state arrives (`chatStore`'s `behind`). Fetching for every delta never
+  caught up: each fetch was superseded by the next while the stream (a push every ~120 ms) outran
+  the round trip, which a remote window's over SSH does, and the view sat on an old state.
 - `chatLifecycle` is the small event every window hears. A tab in a background pane shows no chat and
   is attached to none, but it must still drop a dead terminal or follow a chat that moved.
 - A background tab fetches `chatState` when it becomes the active tab.

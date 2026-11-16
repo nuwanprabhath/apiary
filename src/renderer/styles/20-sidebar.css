@@ -467,8 +467,3 @@ body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
 .pending-header { cursor: default; }
 .pending-list { list-style: none; margin: 0; padding: 0; }
 
-/* A remote window row for a tab open only in another work-machine window: it cannot be raised. */
-.active-tab-row-inert { cursor: default; }
-.active-tab-row-inert:hover { background: transparent; }
-.active-row-wrap:has(.active-tab-row-inert):hover { background: transparent; }
-

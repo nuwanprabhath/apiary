@@ -2,6 +2,7 @@ import { type Dispatch, type HTMLAttributes, type JSX, useCallback, useEffect, u
 import type { PtyId, SessionId } from '@shared/domain/ids'
 import type { SessionNode } from '@shared/types'
 import { Sidebar } from '../features/sidebar/Sidebar'
+import { useOpenSession } from '../features/workspace'
 import type { PendingSession, WorkspaceAction } from '../features/workspace/workspaceReducer'
 import { useAppSettings } from '../state/settingsStore'
 import { useActiveTabs } from '../state/activeTabsStore'
@@ -9,7 +10,8 @@ import type { UiStateActions } from '../state/useUiState'
 import { focusTabInWindow } from '../state/tabs'
 import { killPty } from '../state/terminals'
 import { onToggleSidebar } from '../state/windowChrome'
-import { windowNumber } from '../state/windowParams'
+import { remoteHost, windowNumber } from '../state/windowParams'
+import { sessionOfTabKey } from '../state/sessionBusy'
 import { isMac } from '../ui/platform'
 import { SidebarIcon } from '../ui/icons'
 
@@ -76,12 +78,16 @@ export function AppSidebar({
   const onSelectPending = useCallback((ptyId: PtyId) => {
     dispatch({ type: 'tab/open', key: ptyId })
   }, [dispatch])
+  const openSession = useOpenSession()
   const onFocusTab = useCallback((w: number, key: string) => {
-    // This window's own tab: select it here. Main would answer with the same `selectTab`, but a
-    // remote window's `focusTab` is refused (it would raise a window on the work machine's screen).
-    if (w === windowNumber()) dispatch({ type: 'tab/focus', key })
-    else focusTabInWindow(w, key)
-  }, [dispatch])
+    const sessionId = sessionOfTabKey(key)
+    // A remote window: `w` is the work machine's number. Home raises its copy that shows the
+    // session, and with none it opens here rather than nowhere.
+    if (remoteHost() !== null && sessionId !== null) openSession(sessionId, w)
+    // This window's own tab: selected here, without the round trip.
+    else if (w === windowNumber()) dispatch({ type: 'tab/focus', key })
+    else void focusTabInWindow(w, key)
+  }, [dispatch, openSession])
 
   return (
     <>

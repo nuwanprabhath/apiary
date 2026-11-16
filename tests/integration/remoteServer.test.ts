@@ -83,7 +83,7 @@ describe('RemoteServer', () => {
     attachments = new WindowAttachments((id) => registry.get(id))
     const handlers: Partial<Handlers> = {
       activeTabs: () => [],
-      focusTab: () => {},
+      focusTab: () => false,
       checkConflict: () => { throw new Error('boom: it broke') },
       settingsSet: () => { throw new Error('a local handler must never run remotely') },
     }

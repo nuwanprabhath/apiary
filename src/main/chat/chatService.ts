@@ -3,7 +3,7 @@ import { IPC } from '@shared/api'
 import type { McpAnswer, McpRequest } from '@shared/domain/mcp'
 import {
   isChatPermissionMode,
-  type AsideTurn, type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatModel, type ChatPermissionMode, type ChatState, type TerminalBusy,
+  type AsideTurn, type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatModel, type ChatPermissionMode, type ChatPush, type ChatState, type TerminalBusy,
 } from '@shared/domain/chat'
 import type { ResumeConflict } from '@shared/types'
 import { chatPush } from '@shared/chatPush'
@@ -102,6 +102,12 @@ export class ChatService {
    * Invalidated by: the chat exiting, or `sweep` forgetting it.
    */
   private readonly pushed = new Map<string, ChatState>()
+  /**
+   * Per window, the sessions whose next push to it goes whole: it attached since the last one (a
+   * new view, or a copy that fell behind and attached again). A delta would apply only onto a state
+   * it may not hold, and refetching it loses to a stream faster than the round trip (a remote copy).
+   */
+  private readonly owedWhole = new Map<number, Set<string>>()
 
   constructor(private readonly deps: ChatServiceDeps) {}
 
@@ -271,17 +277,32 @@ export class ChatService {
   /** A window's pane shows this session: its chat updates go to that window from now on. */
   attach(webContentsId: number, sessionId: SessionId): void {
     this.deps.attachments.attach(webContentsId, sessionId)
+    const owed = this.owedWhole.get(webContentsId) ?? new Set<string>()
+    owed.add(sessionId)
+    this.owedWhole.set(webContentsId, owed)
   }
 
   detach(webContentsId: number, sessionId: SessionId): void {
     this.deps.attachments.detach(webContentsId, sessionId)
+    this.owedWhole.get(webContentsId)?.delete(sessionId)
     this.sweep()
   }
 
   /** A window closed or reloaded. */
   detachWindow(webContentsId: number): void {
     this.deps.attachments.detachWindow(webContentsId)
+    this.owedWhole.delete(webContentsId)
     this.sweep()
+  }
+
+  /** Whether window `webContentsId` is owed a whole state of any of `keys`; settles the debt. */
+  private takeOwedWhole(webContentsId: number, keys: readonly string[]): boolean {
+    const owed = this.owedWhole.get(webContentsId)
+    if (owed === undefined) return false
+    let was = false
+    for (const key of keys) if (owed.delete(key)) was = true
+    if (owed.size === 0) this.owedWhole.delete(webContentsId)
+    return was
   }
 
   /** `ChatManager`'s `onChange`: every state a chat reaches. */
@@ -289,7 +310,10 @@ export class ChatService {
     if (state.previousSessionId !== null && !this.adopted.has(state.sessionId)) this.adoptions.add(state.sessionId)
     // Windows showing the session it is now on, and those still on the one `/clear` left: they
     // follow the chat until their tab does (`useChatTakeover`).
-    this.deps.attachments.sendTo(this.keysOf(state), IPC.chatChanged, chatPush(this.pushed.get(state.sessionId) ?? null, state))
+    const keys = this.keysOf(state)
+    const push = chatPush(this.pushed.get(state.sessionId) ?? null, state)
+    const whole: ChatPush = push.kind === 'full' ? push : { kind: 'full', state }
+    this.deps.attachments.sendEach(keys, IPC.chatChanged, (wc) => [this.takeOwedWhole(wc, keys) ? whole : push])
     if (state.status === 'exited') this.pushed.delete(state.sessionId)
     else this.pushed.set(state.sessionId, state)
     this.observe(state)

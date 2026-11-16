@@ -10,9 +10,10 @@ import { IPC, type IpcKey } from '@shared/ipc/contract'
  *   remote window only from the work machine.
  * - `local`: the home machine's own look, devices and app (theme, pets, menus, clipboard,
  *   spelling, the This-Mac settings, logs). Handled at home as for any window.
- * - `bridged`: the home machine handles the call, using an answer it asks the work machine for
- *   (`resolve`, `protocol.ts`). Opening VS Code is the case: the work machine resolves the path and
- *   home launches its own VS Code over Remote-SSH on it. The work machine never serves these keys.
+ * - `bridged`: the home machine handles the call, with what it knows of the work machine: an answer
+ *   it asks the work machine for (`resolve`, `protocol.ts`; the work machine resolves a path and home
+ *   launches its own VS Code over Remote-SSH on it), or which of its copies here shows a tab
+ *   (`focusTab`, `remoteWindows.ts`). The work machine never serves these keys.
  * - `unavailable`: needs the work machine's screen or a local window it does not have (the native
  *   folder picker, moving tabs between windows). The home machine refuses it in a remote window, or
  *   answers with a fixed value where the renderer only asks whether it can (`UNAVAILABLE_ANSWERS`),
@@ -146,8 +147,9 @@ export const CHANNEL_SCOPES = {
   appWindowsChanged: 'local',
   appWindowRaise: 'local',
   appWindowPreview: 'local',
-  // Raises the work machine's own window holding the tab, on a screen nobody at home sees.
-  focusTab: 'unavailable',
+  // Raises this machine's copy of the work machine's window that shows the tab (`RemoteWindows`),
+  // never the work machine's own window, on a screen nobody at home sees.
+  focusTab: 'bridged',
   selectTab: 'remote',
   tabAdopt: 'remote',
   tabClaimed: 'remote',
@@ -310,10 +312,7 @@ export const CHANNEL_SCOPES = {
 export const UNAVAILABLE_MESSAGE = 'Not available in a remote window yet.'
 
 /** The `unavailable` channels that answer a value instead of refusing: the renderer only asks whether it can. */
-export const UNAVAILABLE_ANSWERS: Partial<Record<IpcKey, unknown>> = {
-  // A click on an Active row of another work-machine window does nothing rather than show an error.
-  focusTab: undefined,
-}
+export const UNAVAILABLE_ANSWERS: Partial<Record<IpcKey, unknown>> = {}
 
 export function scopeOf(key: IpcKey): ChannelScope {
   return CHANNEL_SCOPES[key]

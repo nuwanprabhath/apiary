@@ -71,9 +71,7 @@ export function tabsHandlers(deps: TabsDeps): {
         layoutFlushCoordinator?.onReport(e.sender.id)
       },
       activeTabs: () => activeTabs.list(),
-      focusTab: (_e, windowNumber, key) => {
-        focusTab(BrowserWindow.getAllWindows(), windowNumber, key)
-      },
+      focusTab: (_e, windowNumber, key) => focusTab(BrowserWindow.getAllWindows(), windowNumber, key),
       tabDropped: (e, tab, at) => {
         // The guard has already checked `tab` is a well-formed `TabTransfer` (contract).
         const { key } = tab

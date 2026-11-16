@@ -25,28 +25,47 @@ export function useChatMode(): boolean {
 /** Keys are plain strings; every one reaching `fetch` or `attach` came from `useChat`, which takes a `SessionId`. */
 const sessionOfKey = (key: string): SessionId => asSessionId(key)
 
+/** Sessions this window has attached (a key with readers). */
+const attached = new Set<string>()
+/** Attached sessions whose copy here fell behind main's: re-attached, waiting for a whole push. */
+const behind = new Set<string>()
+
 const chatStore = createKeyedIpcStore<ChatState | null>({
   scope: 'chat',
   initial: null,
   fetch: (sessionId) => (sessionId === '' ? Promise.resolve(null) : window.apiary.chatState(sessionOfKey(sessionId))),
-  // A delta applies onto the snapshot it was computed from, else the keys are fetched again.
+  // A delta applies onto the snapshot it was computed from. A key that cannot take one has fallen
+  // behind: it attaches again, so main's next push to this window is whole, and is fetched once for
+  // a chat that pushes nothing more. Deltas meanwhile are dropped, not fetched for: a fetch per delta
+  // is superseded by the next while the stream outruns the round trip (a remote window), and the
+  // view would show the old state until the stream paused.
   subscribe: (push, invalidate) => window.apiary.onChatChanged((p: ChatPush) => {
     const keys = p.kind === 'full'
       ? [p.state.sessionId]
       : p.previousSessionId === null ? [p.sessionId] : [p.sessionId, p.previousSessionId]
+    if (p.kind === 'full') keys.forEach((k) => { behind.delete(k) })
     const next = applyChatPush(keys.map((k) => chatStore.getSnapshot(k)).find((s) => s !== null) ?? null, p)
-    if (next === 'refetch') keys.forEach((k) => { invalidate(k) })
-    else push(next)
+    if (next !== 'refetch') { push(next); return }
+    for (const key of keys) {
+      if (!attached.has(key) || behind.has(key)) continue
+      behind.add(key)
+      window.apiary.chatAttach(sessionOfKey(key))
+      invalidate(key)
+    }
   }),
   // Attached before the state is asked for: IPC from one renderer is ordered, so no update falls between.
   attach: (sessionId) => {
     if (sessionId === '') return () => {}
     const apiary = window.apiary
     apiary.chatAttach(sessionOfKey(sessionId))
+    attached.add(sessionId)
+    behind.delete(sessionId)
     // A reconnected remote window re-reads every chat it shows: pushes were lost while away.
     const offReconnect = onRemoteReconnected(() => { chatStore.reload(sessionId) })
     return () => {
       offReconnect()
+      attached.delete(sessionId)
+      behind.delete(sessionId)
       apiary.chatDetach(sessionOfKey(sessionId))
     }
   },

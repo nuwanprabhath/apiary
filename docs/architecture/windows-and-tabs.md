@@ -109,7 +109,15 @@ as a taskbar has (`features/statusBar/WindowButtons.tsx`).
 `src/main/windows/tabRegistry.ts`'s `TabRegistry` holds only what each window last reported about
 its own open tabs (`report()` replaces a window's set wholesale; absence means closed) — no derived
 state, so nothing here can go stale on its own. `list()` flattens the registry across every window
-for the Active section, and `focusTab()` raises the owning window and selects the tab in it.
+for the Active section, and `focusTab()` raises the owning window and selects the tab in it,
+answering whether a window took it.
+
+A remote window reports its tabs to the work machine, which files them nowhere (a virtual window has
+no number there), so its Active section lists the work machine's own windows by their numbers. A
+click on a row asks home: `RemoteWindows` keeps each copy's last `reportTabs` and raises the copy
+that shows the session (the copy of that window first), and with none the session opens in the
+window clicked in. A resident's `open_session` reaches every copy from the work machine, and only
+the copy in front answers it (`RemoteWindows.openSessionOnce`), so it opens once.
 
 Activity status is computed fresh at render time, not cached in the registry.
 `src/main/ipc/handlers/tabs.ts`'s `activeTabs` handler asks `PtyManager` for each tab's state as it

@@ -7,6 +7,7 @@ import { sidebarSession, stays, until } from './helpers'
 import type { FakeApiary } from './fakeApiary'
 import { fakePet } from './fake/pets'
 import { must } from './must'
+import { STANDARD_SESSIONS } from '../fixtures/standard'
 
 const dialog = (): Element | null => document.querySelector('[data-testid="remote-dialog"]')
 const field = (): HTMLInputElement => {
@@ -478,19 +479,32 @@ describe('the Active section in a remote window', () => {
   const rowFor = (text: string): HTMLElement | undefined => rows().find((r) => r.textContent?.includes(text) === true)
   const selectedTab = (): string => document.querySelector('[role="tab"][aria-selected="true"]')?.textContent ?? ''
 
-  it('selects a tab open in this window without asking main; another window\'s row is inert and says why', async () => {
+  it('selects a tab open in this window without asking main', async () => {
     const { fake } = await renderRemote('work-box', (f) => { f.state.tabs = [OTHER] })
     await userEvent.click(sidebarSession('Worktree session'))
     await userEvent.click(sidebarSession('Fix CSV export bug'))
     await until(() => rowFor('Worktree session') !== undefined && rowFor('Fix CSV export bug') !== undefined)
-    const other = rowFor('Other window tab')
-    expect(other?.title).toBe('Open on work-box\'s screen')
-    expect(other?.getAttribute('aria-disabled')).toBe('true')
-    expect(rowFor('Worktree session')?.getAttribute('aria-disabled')).toBeNull()
-    other?.click()
     rowFor('Worktree session')?.click()
     await until(() => selectedTab().includes('Worktree session'))
     expect(fake.callsTo('focusTab')).toHaveLength(0)
+  })
+
+  it("a row for a session another work-machine window shows raises home's copy of it, and opens here when no copy shows it", async () => {
+    // The Active section lists "#14 … W12" in the copy of window 15: the click used to do nothing,
+    // so the session was opened from the sidebar instead, a second copy that then fell behind.
+    const csv = STANDARD_SESSIONS.csv.id
+    const IN_12 = { windowNumber: 12, key: csv, view: 'transcript', status: 'running', label: null } as const
+    const { fake } = await renderRemote('work-box', (f) => { f.state.tabs = [IN_12] })
+    fake.override('focusTab', async () => true)
+    await until(() => rowFor('Fix CSV export bug') !== undefined)
+    rowFor('Fix CSV export bug')?.click()
+    await until(() => fake.callsTo('focusTab').length === 1)
+    expect(fake.callsTo('focusTab')[0]).toEqual([12, csv])
+    await stays(() => !selectedTab().includes('Fix CSV export bug'), 150, 'raised elsewhere, not opened here')
+
+    fake.override('focusTab', async () => false)
+    rowFor('Fix CSV export bug')?.click()
+    await until(() => selectedTab().includes('Fix CSV export bug'))
   })
 
   it('a local window selects its own tab directly too', async () => {

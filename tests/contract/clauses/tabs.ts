@@ -61,13 +61,12 @@ export function defineTabClauses(ctx: Ctx): void {
       await expect(ctx.api.reportLayout({ number: 'one' } as never)).rejects.toThrow()
     })
 
-    it('focusing a tab of this window tells it to select that tab; another window\'s number reaches nobody', async (t) => {
-      // A remote window is virtual on the work machine (no BrowserWindow, no number), so focusTab could
-      // only ever raise one of the work machine's own windows there, on a screen nobody at home sees.
-      skipOnRemote(t, ctx.bridge, 'focusTab is not available in a remote window', 'focusTab')
-      await ctx.api.focusTab(THIS_WINDOW.number, STD.csv.id)
+    it('focusing a tab of this window tells it to select that tab; another window\'s number reaches nobody', async () => {
+      // In a remote window the number is the work machine's, and home raises its own copy of that
+      // window (`RemoteWindows`), never one on the work machine's screen.
+      expect(await ctx.api.focusTab(THIS_WINDOW.number, STD.csv.id)).toBe(true)
       expect(ctx.heard.payloads('selectTab')).toEqual([[STD.csv.id]])
-      await ctx.api.focusTab(41, STD.csv.id)
+      expect(await ctx.api.focusTab(41, STD.csv.id)).toBe(false)
       expect(ctx.heard.count('selectTab')).toBe(1)
     })
 

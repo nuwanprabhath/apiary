@@ -56,10 +56,11 @@ export class TabRegistry {
  *
  * Not a method on `TabRegistry`: that class stays unit-testable without Electron.
  */
-export function focusTab(windows: BrowserWindow[], windowNumber: number, key: string): void {
+export function focusTab(windows: BrowserWindow[], windowNumber: number, key: string): boolean {
   const target = windows.find((w) => !w.isDestroyed() && windowNumberInUrl(w) === windowNumber)
-  if (target === undefined) return
+  if (target === undefined) return false
   if (target.isMinimized()) target.restore()
   target.focus()
   sendEvent(target.webContents, IPC.selectTab, key)
+  return true
 }

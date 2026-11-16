@@ -268,7 +268,7 @@ describe('UI: a remote window', () => {
     })
   })
 
-  it('remote window Active section with an own row and another window\'s inert row', async () => {
+  it('remote window Active section with an own row and another work-machine window\'s row', async () => {
     const { fake } = await renderRemote('work-box')
     await userEvent.click(sidebarSession('Worktree session'))
     await reviewUi('remote window active rows', {

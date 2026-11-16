@@ -44,7 +44,12 @@ export function tabsApi(env: Env): TabsApi {
       const chat = state.chats.get(t.key)
       return chat === undefined ? t : { ...t, status: chatActivity(chat) }
     }),
-    focusTab: async (windowNumber, key) => { if (windowNumber === THIS_WINDOW.number) emit('selectTab', key) },
+    // As main: true when a window has that number. Another window exists here only as the tabs it lists.
+    focusTab: async (windowNumber, key) => {
+      if (windowNumber !== THIS_WINDOW.number) return state.tabs.some((t) => t.windowNumber === windowNumber)
+      emit('selectTab', key)
+      return true
+    },
     tabDropped: async (tab, at) => { if (!inThisWindow(at)) tearOff(tab) },
     tabDetach: async (tab) => { tearOff(tab) },
     // This machine's windows, as a test arranges them in `fake.state.appWindows` (this one alone by
