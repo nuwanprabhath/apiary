@@ -211,6 +211,15 @@ describe('UI: a remote window', () => {
     })
   })
 
+  it('remote window copied from a record with no panes', async () => {
+    const restore = encodeURIComponent(JSON.stringify({ number: 19, layout: { preset: 'single', panes: [] }, live: [] }))
+    history.replaceState(null, '', `${location.pathname}?chrome=custom&remote=work-box&restore=${restore}`)
+    await renderApp()
+    await reviewUi('remote window record with no panes', {
+      open: async () => { await until(() => document.querySelector('[data-testid="content-empty"]') !== null) },
+    })
+  })
+
   it('remote window badge long host', async () => {
     await renderRemote('build-server-with-a-very-long-name.corp.example.com')
     await reviewUi('remote window badge long host', {

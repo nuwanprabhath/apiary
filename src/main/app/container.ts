@@ -405,7 +405,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   const fakeLive = env.fakeLive
   const { virtualContents, remotePairing, remoteServer, useVsCode } = createRemoteServing({
     homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion, pairingFile: paths.remotePairingFile,
-    settings: settingsService, layouts: () => sessionLayoutStore.snapshot().windows,
+    settings: settingsService, layouts: () => sessionLayoutStore.snapshot().windows, openWindows: () => windowManager.openNumbers(),
   })
   const { service, source, activeTabs, vscode, accounts, knowledge, store } = createServices({
     remoteClients: remoteServer, configRoot: paths.configRoot, dbPath: paths.dbPath, claudeBin: settings.claudeBin ?? undefined,

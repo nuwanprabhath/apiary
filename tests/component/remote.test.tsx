@@ -353,6 +353,15 @@ describe('a remote window', () => {
     expect(document.title).toBe('work-box — Apiary')
   })
 
+  it('a work machine window whose record has no panes shows the empty pane, never a blank workspace', async () => {
+    // The record the work machine keeps for a window that never reported a layout (`hasLayout: false`).
+    const restore = encodeURIComponent(JSON.stringify({ number: 19, layout: { preset: 'single', panes: [] }, live: [] }))
+    history.replaceState(null, '', `${location.pathname}?chrome=custom&remote=work-box&restore=${restore}`)
+    await renderApp()
+    await expect.element(page.getByTestId('remote-badge')).toBeVisible()
+    await expect.element(page.getByTestId('content-empty')).toBeVisible()
+  })
+
   it('has no badge in an ordinary window', async () => {
     history.replaceState(null, '', `${location.pathname}?chrome=custom`)
     await renderApp()

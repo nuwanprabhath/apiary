@@ -236,7 +236,7 @@ export async function buildLoopbackWorld(
   // The work machine's side, built by the app's own factory: nothing connects to it unless a clause asks,
   // it answers "nobody", and "Disconnect all" turns the setting off, as in the app.
   const { remoteServer, remotePairing } = createRemoteServing({
-    homeDir: home, host: 'loopback', appVersion: '0.0.0', pairingFile: join(home, 'remote-pairing.json'), settings, layouts: () => [],
+    homeDir: home, host: 'loopback', appVersion: '0.0.0', pairingFile: join(home, 'remote-pairing.json'), settings, layouts: () => [], openWindows: () => new Set(),
   })
   // The home side, built by the app's own factory over a stubbed outside world (no ssh, no tailscale).
   const { hostDirectory, remoteClient } = createRemoteConnecting({
