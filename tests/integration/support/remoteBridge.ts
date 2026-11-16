@@ -40,7 +40,7 @@ export async function makeRemoteBridge(options: BridgeOptions): Promise<Bridge> 
   const workHome = mkdtempSync(join(tmpdir(), 'apiary-remote-contract-'))
   // The app's own factory builds the work machine's server; its remote windows are the registry the world sees.
   const serving = createRemoteServing({
-    homeDir: workHome, host: 'work-box', appVersion: VERSION, pairingFile: join(workHome, 'remote-pairing.json'), layouts: () => [],
+    homeDir: workHome, host: 'work-box', appVersion: VERSION, pairingFile: join(workHome, 'remote-pairing.json'), layouts: () => [], openWindows: () => new Set(),
     settings: { get: () => ({ remoteAccessPairing: false }), patch: () => {} },
   })
   const { remoteServer: server, virtualContents: registry } = serving

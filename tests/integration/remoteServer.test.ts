@@ -14,6 +14,8 @@ import { VsCodeService } from '../../src/main/vscode/vscodeService'
 import type { SessionStore } from '../../src/main/store/sessionStore'
 import type { PtyManager } from '../../src/main/pty/ptyManager'
 import type { ThemeState } from '@shared/api'
+import type { PersistedPane } from '@shared/domain/tabs'
+import type { WindowLayoutRecord } from '../../src/main/windows/sessionLayoutStore'
 import { encodeFrame, encodeHandshakeFrame, FrameDecoder } from '../../src/main/remote/frames'
 import { contractHash, PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from '../../src/main/remote/protocol'
 import { RemoteServer, type RemoteServerDeps } from '../../src/main/remote/remoteServer'
@@ -148,6 +150,22 @@ describe('RemoteServer', () => {
     c.send({ t: 'layouts', id: 1 })
     await c.next((m) => m.t === 'layouts')
     await vi.waitFor(() => { expect(server.clients()[0]?.windows).toBe(32) })
+  })
+
+  it('sends the windows the work machine shows or would restore, never a stale record of one that never reported a layout', async () => {
+    // The work machine's file when the bug was seen: windows 10, 12 and 15 open with tabs, and a
+    // leftover record for 19, which never reported a layout (`hasLayout: false`, no panes).
+    const tab = (key: string): PersistedPane => ({ id: 'col-1', activeTab: key, tabs: [{ key, view: 'transcript', shells: [], activeShell: null }] })
+    const record = (number: number, panes: PersistedPane[], hasLayout = true): WindowLayoutRecord => ({
+      number, layout: { preset: panes.length > 1 ? 'halves-h' : 'single', panes }, live: [], bounds: { x: 0, y: 0, width: 1400, height: 900 }, hasLayout,
+    })
+    const emptiedOpen = record(21, [{ id: 'col-1', activeTab: null, tabs: [] }])
+    const records = [record(10, [tab('a'), tab('b')]), record(12, [tab('c')]), record(15, [tab('d'), tab('e')]), record(19, [], false), emptiedOpen]
+    await boot(5000, { layouts: () => records, openWindows: () => new Set([10, 12, 15, 21]) })
+    const c = await greeted()
+    c.send({ t: 'layouts', id: 3 })
+    const reply = await c.next((m) => m.t === 'layouts' && m.id === 3)
+    expect(reply.t === 'layouts' && reply.windows.map((w) => w.windowNumber)).toEqual([10, 12, 15, 21])
   })
 
   it('welcomes a matching hello with the host name and version', async () => {

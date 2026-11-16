@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.63.6] - 2026-11-16
+
+### Fixed
+
+- Connecting to a work machine no longer opens an empty window for one that is not there. The work
+  machine sent its leftover record of a window that closed before it reported a layout; it now sends
+  only the windows open there, or that its next launch would reopen. A window copied from a record
+  with no panes shows the empty pane instead of a blank area.
+
 ## [1.63.1] - 2026-11-14
 
 ### Fixed

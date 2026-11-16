@@ -36,7 +36,9 @@ function initWorkspaceState(
     openSessions: new Map(), resumed: new Set<string>(), ptyOverrides, pending: new Map(),
     shellTabs, activeTerminal,
   }
-  if (restored === null) return { layout: initialLayout(), activeColumnId: null, ...base }
+  // A record with no panes (a window that never reported its layout) would draw no pane at all,
+  // not even the empty one.
+  if (restored === null || restored.layout.panes.length === 0) return { layout: initialLayout(), activeColumnId: null, ...base }
   // Panes get fresh ids from `newColumn`, not the persisted ones: reusing "col-1"/"col-2" would
   // leave its `nextColumnId` counter at 0, so the next split would mint "col-1" and collide.
   const panes = restored.layout.panes.map((pane) => ({

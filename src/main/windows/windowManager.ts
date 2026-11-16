@@ -133,6 +133,11 @@ export class WindowManager {
     if (next !== null) win.setBounds(next)
   }
 
+  /** The numbers of this machine's own windows now open; a window showing a work machine is not one. */
+  openNumbers(): Set<number> {
+    return new Set([...this.windowNumberByWebContentsId.values()].filter((w) => !w.remote).map((w) => w.number))
+  }
+
   /** Whether the window shows another machine (`NewWindowOptions.remote`). */
   isRemote(webContentsId: number): boolean {
     return this.windowNumberByWebContentsId.get(webContentsId)?.remote === true

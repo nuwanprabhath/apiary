@@ -56,6 +56,7 @@ export interface ServingInputs {
   pairingFile: string
   settings: RemoteSettings
   layouts: () => readonly WindowLayoutRecord[]
+  openWindows: () => ReadonlySet<number>
 }
 
 /** The work machine's side: what other machines connect to. */
@@ -76,7 +77,7 @@ export function createRemoteServing(inputs: ServingInputs): {
   const callbacks = new CallbackPorts()
   const remoteServer = new RemoteServer({
     homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion,
-    registry: virtualContents, layouts: inputs.layouts, pairing: remotePairing,
+    registry: virtualContents, layouts: inputs.layouts, openWindows: inputs.openWindows, pairing: remotePairing,
     // Home machines reconnect by themselves, so "Disconnect all" also stops new connections.
     turnOff: () => { inputs.settings.patch({ remoteAccess: false }) },
     resyncPty: (ptyId, window) => { if (pty !== null) resyncPtyTo(pty, ptyId, window) },

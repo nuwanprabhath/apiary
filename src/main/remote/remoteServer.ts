@@ -10,6 +10,7 @@ import { ignoreErrorsAsync } from '@shared/ignoreErrors'
 import { log } from '../log/logger'
 import type { Dispatcher } from '../ipc/registrar'
 import type { WindowLayoutRecord } from '../windows/sessionLayoutStore'
+import { windowsToMirror } from '../windows/sessionLayoutRestore'
 import { encodeFrame, encodeHandshakeFrame, FrameDecoder } from './frames'
 import {
   contractHash, PROTOCOL_VERSION, type ClientMessage, type RemoteWindowLayout, type ServerMessage,
@@ -32,6 +33,8 @@ export interface RemoteServerDeps {
   registry: VirtualContentsRegistry
   /** The `SessionLayoutStore` records the client seeds its copies from. */
   layouts: () => readonly WindowLayoutRecord[]
+  /** The numbers of this machine's own windows open now; absent, none are (a background launch). */
+  openWindows?: () => ReadonlySet<number>
   /** Resolves the paths `resolve` asks for (`VsCodeService`); without it every `resolve` is refused. */
   vscode?: Pick<VsCodeService, 'resolveFolder' | 'resolveMentionedFile'>
   /** The ports of sign-in links this machine's terminals opened; a `callback` to any other is refused. Without it, every one is. */
@@ -375,7 +378,8 @@ export class RemoteServer {
   }
 
   private layouts(): RemoteWindowLayout[] {
-    return this.deps.layouts().map(({ bounds: _bounds, ...layout }) => ({ windowNumber: layout.number, layout }))
+    const open = this.deps.openWindows?.() ?? new Set<number>()
+    return windowsToMirror(this.deps.layouts(), open).map(({ bounds: _bounds, ...layout }) => ({ windowNumber: layout.number, layout }))
   }
 
   /** The key if a remote window may call it as `kind`, else null (and a warning). */

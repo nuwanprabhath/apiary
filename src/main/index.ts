@@ -9,7 +9,7 @@ import { registerIpc } from './ipc'
 import type { SessionLayoutStore } from './windows/sessionLayoutStore'
 import { type LayoutFlushCoordinator } from './windows/layoutFlushCoordinator'
 import type { TabRegistry } from './windows/tabRegistry'
-import { pruneStaleLive } from './windows/sessionLayoutRestore'
+import { isRestorable, pruneStaleLive } from './windows/sessionLayoutRestore'
 import { readsClaudeKeychain, resolveConfigRoot } from './app/config'
 import { createContainer } from './app/container'
 import { containerPaths } from './app/containerPaths'
@@ -379,7 +379,7 @@ async function start(): Promise<void> {
   const stored = container.sessionLayoutStore.snapshot()
   const records = stored.windows
     .map((r) => pruneStaleLive(r, (id) => service!.sessionIsResumable(id)))
-    .filter((r) => r.layout.panes.some((p) => p.tabs.length > 0))
+    .filter(isRestorable)
   log.info('window', 'restoring', {
     saved: stored.windows.map((r) => r.number), restoring: records.map((r) => r.number),
   })
