@@ -13,5 +13,12 @@ export function defineBackgroundTaskOutputClauses(ctx: Ctx): void {
     it('refuses a task id that is not text', async () => {
       await expect(ctx.api.backgroundTaskOutput(STD.csv.id, 7 as never)).rejects.toThrow()
     })
+
+    it('says an agent that is not known has no model or effort, and refuses a task id that is not text', async () => {
+      const none = { model: null, effort: null }
+      expect(await ctx.api.backgroundTaskModel(STD.csv.id, 'a-not-an-agent')).toEqual(none)
+      expect(await ctx.api.backgroundTaskModel(asSessionId('00000000-0000-4000-8000-000000000000'), 'a1')).toEqual(none)
+      await expect(ctx.api.backgroundTaskModel(STD.csv.id, 7 as never)).rejects.toThrow()
+    })
   })
 }

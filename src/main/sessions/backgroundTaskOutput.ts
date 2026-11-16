@@ -61,7 +61,7 @@ async function firstInside(roots: string[], path: string): Promise<string | null
 }
 
 /** The last `bytes` of the file, starting at a whole line when it had to cut. */
-async function readTail(path: string, bytes: number): Promise<string> {
+export async function readTail(path: string, bytes: number): Promise<string> {
   const handle = await open(path, 'r')
   try {
     const { size } = await handle.stat()

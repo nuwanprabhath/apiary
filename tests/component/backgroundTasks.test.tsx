@@ -89,6 +89,25 @@ describe('background tasks', () => {
     await expect.poll(output).toBe('Running 212 tests\n  ✓ sidebar (4s)')
   })
 
+  it('shows the model and effort an agent runs on, and nothing on a shell task', async () => {
+    await openWithTasks(TASKS, (fake, id) => {
+      fake.state.taskModels.set(`${id}:a4f9c2e1b`, { model: 'claude-sonnet-5-5', effort: 'high' })
+      fake.state.taskModels.set(`${id}:bq1`, { model: 'claude-sonnet-5-5', effort: 'high' })
+    })
+    await userEvent.click(page.getByTestId('chat-status-tasks'))
+    await until(() => document.querySelector('[data-testid="chat-task-model"]') !== null)
+    const rows = document.querySelectorAll('[data-testid="chat-task"]')
+    expect(must(rows[1]).querySelector('[data-testid="chat-task-model"]')?.textContent).toBe('Sonnet 5.5 · high')
+    expect(must(rows[0]).querySelector('[data-testid="chat-task-model"]')).toBeNull()
+  })
+
+  it('shows no model line for an agent whose model is not known yet', async () => {
+    await openWithTasks(TASKS)
+    await userEvent.click(page.getByTestId('chat-status-tasks'))
+    await expect.element(page.getByTestId('chat-tasks-popup')).toBeVisible()
+    expect(document.querySelector('[data-testid="chat-task-model"]')).toBeNull()
+  })
+
   it("says a task's output is not available when main cannot read it", async () => {
     await openWithTasks(TASKS)
     await userEvent.click(page.getByTestId('chat-status-tasks'))

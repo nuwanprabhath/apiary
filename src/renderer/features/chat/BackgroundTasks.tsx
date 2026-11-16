@@ -1,8 +1,9 @@
 import { type JSX, type KeyboardEvent, useLayoutEffect, useRef, useState } from 'react'
 import type { BackgroundTask } from '@shared/chatTimeline'
 import type { SessionId } from '@shared/domain/ids'
+import { modelLabel } from '@shared/domain/chat'
 import { formatDuration } from '@shared/time'
-import { useSecondsClock, useTaskOutput } from '../../state/secondsClock'
+import { useSecondsClock, useTaskModel, useTaskOutput } from '../../state/secondsClock'
 import { BusyGlyph } from '../../ui/BusyGlyph'
 import { useAppSettings } from '../../state/settingsStore'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
@@ -114,6 +115,9 @@ interface RowProps {
 function TaskRow({ id, sessionId, task, now, current, expanded, onToggle }: RowProps): JSX.Element {
   // Every task listed is running, so each shows the working animation; the title says which kind.
   const { busyAnimation, busyAnimationColor } = useAppSettings()
+  const running = useTaskModel(sessionId, task.kind === 'agent' ? task.taskId : null)
+  const named = running?.model ?? null
+  const runs = named === null ? null : [modelLabel(named, null), running?.effort ?? null].filter((p) => p !== null).join(' · ')
   return (
     <li
       id={id}
@@ -128,6 +132,7 @@ function TaskRow({ id, sessionId, task, now, current, expanded, onToggle }: RowP
         <span className="chat-menu-icon chat-task-glyph" title={task.kind === 'agent' ? 'Agent' : 'Shell'}><BusyGlyph animation={busyAnimation} color={busyAnimationColor} /></span>
         <span className="chat-task-text">
           <span className="chat-task-desc" title={task.description}>{task.description || task.taskId}</span>
+          {runs !== null && <span className="chat-task-model" data-testid="chat-task-model" title={runs}>{runs}</span>}
           {task.command !== null && task.command !== task.description && (
             <span className="chat-task-command" title={task.command}>{task.command}</span>
           )}

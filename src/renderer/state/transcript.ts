@@ -1,6 +1,6 @@
 import type { SessionId } from '@shared/domain/ids'
 import type { TranscriptPage } from '@shared/domain/transcript'
-import type { BackgroundTaskOutput } from '@shared/chatTimeline'
+import type { BackgroundTaskModel, BackgroundTaskOutput } from '@shared/chatTimeline'
 import type { TranscriptFindResult } from '@shared/ipc/contract'
 import { bestEffort } from './policy'
 
@@ -20,6 +20,10 @@ export const findInTranscript = (sessionId: SessionId, query: string, before: nu
  *  there, never a toast. */
 export const loadTaskOutput = async (sessionId: SessionId, taskId: string): Promise<BackgroundTaskOutput> =>
   (await bestEffort(window.apiary.backgroundTaskOutput(sessionId, taskId), 'app')) ?? { available: false, lines: [] }
+
+/** The model and effort of a background agent, for its row in the task popup; unknown on a failed read. */
+export const loadTaskModel = async (sessionId: SessionId, taskId: string): Promise<BackgroundTaskModel> =>
+  (await bestEffort(window.apiary.backgroundTaskModel(sessionId, taskId), 'app')) ?? { model: null, effort: null }
 
 /** Stores a pasted image and answers its path; the composer says "Could not attach that image". */
 export const saveImage = (base64: string, mediaType: string): Promise<string> => window.apiary.saveImage(base64, mediaType)

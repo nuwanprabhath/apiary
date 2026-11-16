@@ -615,9 +615,10 @@
   cursor: pointer;
 }
 .chat-task-text { display: flex; flex: 1; flex-direction: column; min-width: 0; }
-.chat-task-desc, .chat-task-command { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-task-desc, .chat-task-command, .chat-task-model { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-task-desc { color: var(--text); }
 .chat-task-command { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+.chat-task-model { color: var(--muted); font-size: 11px; }
 .chat-task-meta { display: flex; flex: none; flex-direction: column; align-items: flex-end; color: var(--muted); font-size: 11px; }
 .chat-task-elapsed { font-variant-numeric: tabular-nums; }
 .chat-task-id { opacity: 0.8; font-family: var(--font-mono); font-size: 10px; }

@@ -36,7 +36,7 @@ export interface TranscriptFindResult {
   indexes: number[]
   cursor: number | null
 }
-import type { BackgroundTaskOutput } from '../chatTimeline'
+import type { BackgroundTaskModel, BackgroundTaskOutput } from '../chatTimeline'
 import type { BrowseView } from '../domain/folders'
 import type { AppSettingsPayload } from '../domain/settings'
 import { isLibraryPatch, type LibraryPatch, type LibrarySnapshot } from '../libraryState'
@@ -139,6 +139,9 @@ export const IPC = {
   /** The end of one background task's output, for the task popup. Main finds the file from the
    *  session's own transcript and reads it only inside Claude Code's task folder for that session. */
   backgroundTaskOutput: invoke<[sessionId: SessionId, taskId: string], BackgroundTaskOutput>('apiary:background-task-output', tuple(sessionIdArg, str)),
+  /** The model and effort a background agent runs on, for the task popup. Main reads the agent's own
+   *  transcript beside the session's file; the renderer names only the session and the task. */
+  backgroundTaskModel: invoke<[sessionId: SessionId, taskId: string], BackgroundTaskModel>('apiary:background-task-model', tuple(sessionIdArg, str)),
   checkConflict: invoke<[sessionId: SessionId], ResumeConflict | null>('apiary:check-conflict', tuple(sessionIdArg)),
   resume: invoke<[sessionId: SessionId, ptyId: PtyId | null], void>('apiary:resume', tuple(sessionIdArg, nullable(ptyIdArg))),
   renameSession: invoke<[sessionId: SessionId, title: string], void>('apiary:rename-session', tuple(sessionIdArg, str)),

@@ -166,6 +166,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
       { name: 'tracker', status: 'needs-auth', scope: 'project', transport: 'http', error: null, tools: [], version: null },
     ],
     taskOutputs: new Map(),
+    taskModels: new Map(),
     requiredWindowWidth: null,
     chatAttached: new Set(),
     terminalBusy: new Map(),

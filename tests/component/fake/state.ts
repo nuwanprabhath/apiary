@@ -12,7 +12,7 @@ import type {
 import type { GitTarget } from '@shared/domain/git'
 import type { RemoteClientInfo, RemoteHost, RemoteServerState, RemoteStatus } from '@shared/domain/remote'
 import type { ChatState, TerminalBusy } from '@shared/domain/chat'
-import type { BackgroundTaskOutput } from '@shared/chatTimeline'
+import type { BackgroundTaskModel, BackgroundTaskOutput } from '@shared/chatTimeline'
 import type { EventKey, PayloadOf } from '@shared/ipc/contract'
 import type { LibraryPatch, LibrarySnapshot } from '@shared/libraryState'
 import type { AccountsState } from '@shared/domain/accounts'
@@ -205,6 +205,8 @@ export interface FakeState {
   mcpServers: McpServer[]
   /** What `backgroundTaskOutput` answers, by `<sessionId>:<taskId>`; not available when absent. */
   taskOutputs: Map<string, BackgroundTaskOutput>
+  /** What `backgroundTaskModel` answers, by `<sessionId>:<taskId>`; all null when absent. */
+  taskModels: Map<string, BackgroundTaskModel>
   /** The width this window last said its panes need (`requireWindowWidth`); null before it said. A
    *  real window is widened to it, so the UI scenarios widen the viewport the same way. */
   requiredWindowWidth: number | null

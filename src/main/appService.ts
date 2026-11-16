@@ -4,7 +4,7 @@ import type { SessionCatalog } from './sessions/sessionCatalog'
 import type { SessionActions } from './sessions/sessionActions'
 import type { TranscriptService } from './sessions/transcriptService'
 import type { TranscriptFindResult } from '@shared/ipc/contract'
-import type { BackgroundTaskOutput } from '@shared/chatTimeline'
+import type { BackgroundTaskModel, BackgroundTaskOutput } from '@shared/chatTimeline'
 import type { GitService } from './git/gitService'
 import type { SearchService } from './search/searchService'
 import type { TerminalService } from './terminals/terminalService'
@@ -138,6 +138,11 @@ export class AppService {
 
   async transcriptFind(sessionId: string, query: string, before: number | null): Promise<TranscriptFindResult> {
     return this.transcripts.find(sessionId, query, before)
+  }
+
+  /** The model and effort of a background agent; see `TranscriptService.backgroundTaskModel`. */
+  async backgroundTaskModel(sessionId: string, taskId: string): Promise<BackgroundTaskModel> {
+    return this.transcripts.backgroundTaskModel(sessionId, taskId)
   }
 
   /** The end of a background task's output; see `TranscriptService.backgroundTaskOutput`. */

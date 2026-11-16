@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.68.0] - 2026-11-16
+
+### Added
+
+- A background agent's row in the chat's background-tasks popup now shows the model and effort it
+  runs on ("Sonnet 5.5 · high") under its description, read from the agent's own transcript, so it is
+  clear which model is doing the work. Before the agent has replied it shows the model that was asked
+  for, and nothing when that is unknown; shell tasks show none. It works in a remote window too.
+
 ## [1.67.2] - 2026-11-16
 
 ### Fixed

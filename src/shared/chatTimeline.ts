@@ -232,6 +232,13 @@ export interface BackgroundTask {
   startedAtMs: number | null
 }
 
+/** The model and effort a background agent runs on, as main read them from the agent's own
+ *  transcript; each null when not known (never a guess). */
+export interface BackgroundTaskModel {
+  model: string | null
+  effort: string | null
+}
+
 /** The end of a background task's output, as main read it: its last lines (a shell's output, an
  *  agent's latest steps), or not available (no file the session names, or one main will not read). */
 export interface BackgroundTaskOutput {
@@ -249,7 +256,7 @@ const OUTPUT_FILE = /(?:Output is being written to|output_file): (\S+?\.output)\
  *  stopped task gets no `<task-notification>`, so its successful result is what ends it. */
 const STOP_TOOLS: Partial<Record<string, string>> = { TaskStop: 'task_id', KillShell: 'shell_id' }
 
-type PendingCall = { kind: 'start'; task: Omit<BackgroundTask, 'taskId'> } | { kind: 'stop'; taskId: string }
+type PendingCall = { kind: 'start'; task: Omit<BackgroundTask, 'taskId'>; requested: BackgroundTaskModel } | { kind: 'stop'; taskId: string }
 
 /**
  * Folds messages into the background tasks still running, a batch at a time. A call and its
@@ -266,6 +273,8 @@ export class BackgroundTaskTally {
   private readonly started = new Map<string, BackgroundTask>()
   /** Each task's output file as its start result named it, kept after the task ends. */
   private readonly outputs = new Map<string, { path: string; kind: BackgroundTask['kind'] }>()
+  /** The model and effort the call that started each agent asked for (null when it set none). */
+  private readonly requests = new Map<string, BackgroundTaskModel>()
 
   add(messages: TranscriptMessage[]): void {
     for (const m of messages) {
@@ -290,7 +299,11 @@ export class BackgroundTaskTally {
     if (input === null || typeof input !== 'object' || (input as Record<string, unknown>).run_in_background !== true) return
     const command = field(input, 'command')
     const kind = name === 'Agent' || name === 'Task' ? 'agent' : 'shell'
-    this.calls.set(id, { kind: 'start', task: { description: field(input, 'description') ?? command ?? name, kind, command, startedAtMs: timestampMs } })
+    this.calls.set(id, {
+      kind: 'start',
+      task: { description: field(input, 'description') ?? command ?? name, kind, command, startedAtMs: timestampMs },
+      requested: { model: field(input, 'model'), effort: field(input, 'effort') },
+    })
   }
 
   private result(toolUseId: string, content: string, isError: boolean): void {
@@ -304,12 +317,18 @@ export class BackgroundTaskTally {
     const id = STARTED_IN_BACKGROUND.exec(content)?.[1]
     if (id === undefined) return
     this.started.set(id, { taskId: id, ...call.task })
+    if (call.task.kind === 'agent') this.requests.set(id, call.requested)
     const output = OUTPUT_FILE.exec(content)?.[1]
     if (output !== undefined) this.outputs.set(id, { path: output, kind: call.task.kind })
   }
 
   tasks(): BackgroundTask[] {
     return [...this.started.values()]
+  }
+
+  /** What the call that started this agent asked for; null for a shell task or an unknown one. */
+  requestedModel(taskId: string): BackgroundTaskModel | null {
+    return this.requests.get(taskId) ?? null
   }
 
   /** The output file the task's start result named, as written there; main confines it before reading. */
