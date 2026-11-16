@@ -4,6 +4,7 @@ import { fuzzyScore } from '@shared/fuzzy'
 import { hasSeveralAccounts } from '../../state/accountsStore'
 import { openSessionInVsCode, reloadSession } from '../../state/sessions'
 import { surface } from '../../state/policy'
+import { openScheduleDialog } from '../../state/scheduleStore'
 
 /** What decides whether an action is offered for this chat. */
 export interface PaletteContext {
@@ -56,7 +57,16 @@ const RELOAD: PaletteAction = {
   run: (ctx) => { surface(reloadSession(ctx.sessionId, null), 'Could not reload this session') },
 }
 
-export const PALETTE_ACTIONS: readonly PaletteAction[] = [ACCOUNT, RELOAD, OPEN_IN_VS_CODE]
+/** Opens the schedule popup for this chat: a message sent at a set time, Apiary open or closed. */
+const SCHEDULE: PaletteAction = {
+  id: 'schedule-message',
+  label: () => 'Schedule a message…',
+  description: () => 'Sends it at a time you pick, Apiary open or closed',
+  available: (ctx) => ctx.folderExists,
+  run: (ctx) => { openScheduleDialog(ctx.sessionId) },
+}
+
+export const PALETTE_ACTIONS: readonly PaletteAction[] = [ACCOUNT, RELOAD, SCHEDULE, OPEN_IN_VS_CODE]
 
 /** The actions on offer for this chat that match what was typed, in registry order. */
 export function paletteActionRows(registry: readonly PaletteAction[], query: string, ctx: PaletteContext): PaletteAction[] {

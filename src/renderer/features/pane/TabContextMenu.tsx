@@ -6,6 +6,7 @@ import type { ContextMenuItem } from '../../ui/contextMenuItem'
 import { useNotifications } from '../../ui/notifications'
 import { reloadSession } from '../../state/sessions'
 import { useWorkspaceSelector } from '../workspace'
+import { scheduleMenuItem } from '../../state/scheduleStore'
 
 interface Props {
   /** The tab the menu was opened on and where; null: closed. */
@@ -79,6 +80,7 @@ export function TabContextMenu(
           },
         },
         ...accountItem,
+        scheduleMenuItem(sessionId),
         {
           id: 'detach',
           label: 'Move into New Window',

@@ -4,6 +4,20 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.66.1] - 2026-11-16
+
+### Added
+
+- "Schedule a message…" in a session's sidebar menu, its tab's menu and the chat's "/" menu opens a
+  small popup: the message (left empty, it sends "continue"), a date and a time, quick picks
+  ("5 min after limit resets" when that is known, "In 1 hour", "Tomorrow 9:00"), where the
+  suggested time came from, and Schedule or Cancel; editing adds "Delete schedule". It says when
+  this machine can only send while Apiary is open.
+- Above the message box, a chip shows the session's scheduled message ("Sends “continue” at
+  3:05 pm today", or "2 scheduled messages"); its menu edits, sends now or cancels. A message sent
+  while Apiary was closed, or one that failed, shows as a row there until dismissed. A sidebar row
+  with a schedule shows a small clock.
+
 ## [1.66.0] - 2026-11-16
 
 ### Added

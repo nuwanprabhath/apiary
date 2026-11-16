@@ -66,9 +66,11 @@ describe('the "/" actions menu', () => {
     expect(count('composer-command-option')).toBe(6)
     expect(text('composer-command-footer')).toContain('Show tool calls')
 
-    // Apiary's actions come next: Reload session is always there.
+    // Apiary's actions come next: Reload session and Schedule a message are always there.
     await userEvent.keyboard('{ArrowDown}')
     await until(() => text('composer-command-footer').includes('Start Claude again here'))
+    await userEvent.keyboard('{ArrowDown}')
+    await until(() => text('composer-command-footer').includes('Sends it at a time you pick'))
     await userEvent.keyboard('{ArrowDown}')
     await until(() => text('composer-command-footer').includes('/compact [instructions] — Clear history but keep a summary'))
     expect(document.querySelector('[data-name="compact"]')?.textContent).not.toContain('[instructions]')

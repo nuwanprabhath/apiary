@@ -34,7 +34,7 @@ describe('the "/" menu Actions group', () => {
   it('lists Open in VS Code under Actions and opens the session folder on click', async () => {
     const fake = await openMenu({ vsCode: true })
     await expect.poll(headings).toContain('Actions')
-    expect(items().map((e) => e.textContent)).toEqual([expect.stringContaining('Reload session'), expect.stringContaining('Open in VS Code')])
+    expect(items().map((e) => e.textContent)).toEqual([expect.stringContaining('Reload session'), expect.stringContaining('Schedule a message…'), expect.stringContaining('Open in VS Code')])
     await userEvent.click(page.getByTestId('composer-action-option').filter({ hasText: 'Open in VS Code' }))
     await until(() => fake.callsTo('openInVsCode').length === 1)
     expect(fake.callsTo('openInVsCode')).toEqual([[{ kind: 'session', id: SESSION.sessionId }]])
@@ -53,7 +53,7 @@ describe('the "/" menu Actions group', () => {
 
   it('is absent without VS Code', async () => {
     await openMenu({ vsCode: false })
-    await expect.poll(() => items().map((e) => e.textContent)).toEqual([expect.stringContaining('Reload session')])
+    await expect.poll(() => items().map((e) => e.textContent)).toEqual([expect.stringContaining('Reload session'), expect.stringContaining('Schedule a message…')])
     await stays(() => !items().some((e) => e.textContent?.includes('VS Code') === true), 300, 'no VS Code action without VS Code')
   })
 

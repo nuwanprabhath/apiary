@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { ignoreErrorsAsync } from '@shared/ignoreErrors'
 import type { ExecFn } from '../exec/run'
 import { shellQuote } from '../exec/shellQuote'
+import { twoDigits } from '@shared/domain/schedule'
 import { removeFileForProgram, writeFileForProgram } from '../fs/textFile'
 import { jobName, launchdLabel, type OsJobKind } from './scheduledJobs'
 
@@ -18,7 +19,6 @@ export interface OsScheduler {
   remove(id: string): Promise<void>
 }
 
-const pad = (n: number): string => String(n).padStart(2, '0')
 
 /** Nothing can send while Apiary is closed: the UI says "Sends only while Apiary is open". */
 export const NO_OS_SCHEDULER: OsScheduler = {
@@ -74,7 +74,7 @@ export function launchdScheduler(o: { exec: ExecFn; script: string; homeDir: str
 /** `systemd-run`'s calendar form of `at`, in local time (the user manager's zone). */
 export function onCalendar(at: number): string {
   const d = new Date(at)
-  return `${String(d.getFullYear())}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  return `${String(d.getFullYear())}-${twoDigits(d.getMonth() + 1)}-${twoDigits(d.getDate())} ${twoDigits(d.getHours())}:${twoDigits(d.getMinutes())}:${twoDigits(d.getSeconds())}`
 }
 
 /** A transient systemd user timer: it runs once and is unloaded after, so nothing is left to clean. */
@@ -101,7 +101,7 @@ export function systemdScheduler(o: { exec: ExecFn; script: string; homeDir: str
 /** `at -t`'s time: `[[CC]YY]MMDDhhmm[.SS]`, local. */
 export function atTime(at: number): string {
   const d = new Date(at)
-  return `${String(d.getFullYear())}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}.${pad(d.getSeconds())}`
+  return `${String(d.getFullYear())}${twoDigits(d.getMonth() + 1)}${twoDigits(d.getDate())}${twoDigits(d.getHours())}${twoDigits(d.getMinutes())}.${twoDigits(d.getSeconds())}`
 }
 
 /** `at`, where there is no systemd user manager. A job is found again by the id in its command. */

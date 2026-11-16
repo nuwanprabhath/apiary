@@ -77,3 +77,6 @@ export function anHourFromNow(now: number): number {
   const step = 5 * 60_000
   return Math.ceil((now + 60 * 60_000) / step) * step
 }
+
+/** A number as two digits, for clock and calendar fields. */
+export const twoDigits = (n: number): string => String(n).padStart(2, '0')

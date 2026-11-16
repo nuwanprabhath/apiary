@@ -10,6 +10,7 @@ import { useVsCodeAvailable } from '../../state/vsCodeStore'
 import { useMrStatuses } from './useMrStatuses'
 import { relativeTime, fullTime } from '../../ui/format'
 import { openSessionInVsCode } from '../../state/sessions'
+import { ScheduleBadge } from '../schedule'
 interface Props {
   session: SessionNode
   selected: boolean
@@ -150,6 +151,7 @@ function SessionRowView({
             <NoteIcon filled />
           </span>
         )}
+        <ScheduleBadge sessionId={session.sessionId} />
         {!session.cwdExists && <span className="missing">folder gone</span>}
         <span className="session-time" data-testid="session-time">{relativeTime(session.lastActiveAtMs)}</span>
       </button>
