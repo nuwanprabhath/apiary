@@ -63,6 +63,9 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--field-bg);
+  /* A pasted link has no place to break, and ran out past the bubble's edge. `break-word`, not
+   * `anywhere`, so a table's columns keep their words whole. */
+  overflow-wrap: break-word;
 }
 .chat-user .markdown > :first-child,
 .chat-user .markdown > :last-child,
@@ -102,7 +105,7 @@
 
 @keyframes chat-pulse { 50% { opacity: 0.3; } }
 
-.chat-row-body { min-width: 0; }
+.chat-row-body { min-width: 0; overflow-wrap: break-word; }
 .chat-row-body .markdown > :first-child { margin-top: 0; }
 
 .chat-thought-label, .chat-thought-toggle { color: var(--muted); }
