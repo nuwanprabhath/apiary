@@ -4,6 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.64.0] - 2026-11-16
+
+### Added
+
+- Settings has a search field above the sections (Cmd/Ctrl+F focuses it while the dialog is open).
+  It matches every setting's label, help text, section name and keywords, all words in any order;
+  the section list narrows to the sections with matches, counted, and the matches show under their
+  section headings with the words marked. Clicking a result (or Enter for the first) opens its
+  section scrolled to the setting and marks it for a moment. Escape clears the search first, and
+  clearing it returns to the section you were on. Plugins' own settings are searchable from what
+  each plugin declares. A test fails for a control, or a `SETTINGS` key, with no search entry.
+
 ## [1.63.6] - 2026-11-16
 
 ### Fixed
