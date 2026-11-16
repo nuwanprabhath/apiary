@@ -163,6 +163,13 @@
 .remote-badge-icon { flex: none; width: 1em; height: 1em; color: var(--accent); }
 .remote-badge-host { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
+/* A remote window: the whole bar in the accent, readable at a glance in the OS's window overview. */
+.title-bar[data-remote="true"] { background: var(--accent); color: var(--accent-contrast); }
+.title-bar[data-remote="true"] .title-bar-title { color: var(--accent-contrast); }
+.title-bar[data-remote="true"] .remote-badge { border-color: var(--accent-contrast); color: var(--accent-contrast); }
+.title-bar[data-remote="true"] .remote-badge-icon { color: var(--accent-contrast); }
+.title-bar[data-remote="true"] .menu-bar-item { color: var(--accent-contrast); }
+
 /* The disconnected strip, in the layout's flow under the title bar so it pushes content down. */
 .remote-banner {
   flex: none;

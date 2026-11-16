@@ -28,13 +28,16 @@ function resolved(token: string): string | null {
  * The window's title bar, in the theme's colours (Windows and Linux: with the application menu;
  * macOS: a strip beside the traffic lights). On a custom bar the OS still draws minimise, maximise
  * and close, over the bar's right end, in the colours sent here — re-sent on every theme change.
+ * A remote window's bar is filled with the accent, so it stands out from this machine's windows in
+ * the OS's window overview, where the host chip is too small to read.
  */
 export function TitleBar({ chrome, title }: { chrome: WindowChrome; title: string }): JSX.Element | null {
   useEffect(() => {
     if (chrome !== 'custom') return
+    const remote = remoteHost() !== null
     const send = (): void => {
-      const background = resolved('--bg-window')
-      const symbol = resolved('--text')
+      const background = resolved(remote ? '--accent' : '--bg-window')
+      const symbol = resolved(remote ? '--accent-contrast' : '--text')
       if (background !== null && symbol !== null) setTitleBarColors(background, symbol)
     }
     send()
@@ -45,7 +48,7 @@ export function TitleBar({ chrome, title }: { chrome: WindowChrome; title: strin
   const host = remoteHost()
   if (chrome === 'system') return null
   return (
-    <header className="title-bar" data-chrome={chrome} data-testid="title-bar">
+    <header className="title-bar" data-chrome={chrome} data-remote={host !== null ? 'true' : undefined} data-testid="title-bar">
       {chrome === 'custom' && <MenuBar />}
       <div className="title-bar-title" data-testid="title-bar-title">
         {host !== null && <RemoteBadge host={host} />}

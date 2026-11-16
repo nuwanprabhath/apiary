@@ -11,6 +11,16 @@ async function renderCustomChrome(): ReturnType<typeof renderApp> {
 }
 afterEach(() => { history.replaceState(null, '', location.pathname) })
 
+/** The colour a token paints, as the browser computes it. */
+function probeColor(token: string): string {
+  const probe = document.createElement('span')
+  probe.style.color = `var(${token})`
+  document.body.appendChild(probe)
+  const value = getComputedStyle(probe).color
+  probe.remove()
+  return value
+}
+
 describe('the themed title bar', () => {
   it('is not drawn when the window has the system title bar', async () => {
     await renderApp()
@@ -27,6 +37,26 @@ describe('the themed title bar', () => {
     const [background, symbol] = fake.callsTo('setTitleBarColors')[0] as [string, string]
     expect(background).toMatch(/^#[0-9a-f]{6}$/)
     expect(symbol).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  it('fills a remote window\'s bar with the accent, so it stands out in the OS window overview', async () => {
+    history.replaceState(null, '', `${location.pathname}?chrome=custom&remote=work-box`)
+    const { fake } = await renderApp()
+    const bar = page.getByTestId('title-bar')
+    await expect.element(bar).toHaveAttribute('data-remote', 'true')
+    const accent = cssColorToHex(probeColor('--accent'))
+    const ink = cssColorToHex(probeColor('--accent-contrast'))
+    expect(cssColorToHex(getComputedStyle(bar.element()).backgroundColor)).toBe(accent)
+    expect(cssColorToHex(getComputedStyle(page.getByTestId('title-bar-title').element()).color)).toBe(ink)
+    await expect.poll(() => fake.callsTo('setTitleBarColors').at(-1)).toEqual([accent, ink])
+  })
+
+  it('keeps this machine\'s window bar in the window colour', async () => {
+    await renderCustomChrome()
+    const bar = page.getByTestId('title-bar')
+    await expect.element(bar).toBeVisible()
+    expect(bar.element().hasAttribute('data-remote')).toBe(false)
+    expect(cssColorToHex(getComputedStyle(bar.element()).backgroundColor)).toBe(cssColorToHex(probeColor('--bg-window')))
   })
 
   it('draws main\'s menu with its shortcuts, and runs the item that was picked', async () => {

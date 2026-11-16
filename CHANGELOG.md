@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.67.0] - 2026-11-16
+
+### Changed
+
+- A remote window's title bar is now filled with the theme's accent colour, the host chip and title
+  in the colour that reads on it, so remote windows stand out from this machine's in the OS's window
+  overview (Mission Control, the app switcher's previews), where the chip is too small to read. On
+  Windows and Linux the OS window buttons take the same colours.
+
 ## [1.66.2] - 2026-11-16
 
 ### Added
