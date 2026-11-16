@@ -143,12 +143,17 @@ export class WindowAttachments {
    * window attached to any of them, once. Drops windows that are gone.
    */
   sendTo<P extends unknown[]>(key: string | readonly string[], event: EventSpec<P>, ...payload: P): void {
+    this.sendEach(key, event, () => payload)
+  }
+
+  /** `sendTo`, with each window's payload chosen for it (by webContents id). */
+  sendEach<P extends unknown[]>(key: string | readonly string[], event: EventSpec<P>, payloadFor: (webContentsId: number) => P): void {
     const targets = new Set<number>()
     for (const k of typeof key === 'string' ? [key] : key) for (const wc of this.windowsFor(k)) targets.add(wc)
     for (const wc of targets) {
       const target = this.resolve(wc)
       if (target === null || target.isDestroyed()) this.detachWindow(wc)
-      else sendEvent(target, event, ...payload)
+      else sendEvent(target, event, ...payloadFor(wc))
     }
   }
 }

@@ -30,6 +30,8 @@ export function chatApi(env: Env): ChatApi {
   const activities = new Map<string, ActivityStatus>()
   /** The last state pushed per session, which the next push is diffed against, as main's `ChatService` does. */
   const pushed = new Map<string, ChatState>()
+  /** Sessions this window attached since their last push: the next one goes whole, as main's `owedWhole`. */
+  const owedWhole = new Set<string>()
   let taskCount = 0
   const keysOf = (c: ChatState): string[] => (c.previousSessionId === null ? [c.sessionId] : [c.sessionId, c.previousSessionId])
 
@@ -50,7 +52,10 @@ export function chatApi(env: Env): ChatApi {
     const stamped = { ...next, seq: (state.chats.get(next.sessionId)?.seq ?? 0) + 1 }
     next = stamped
     state.chats.set(next.sessionId, next)
-    if (keysOf(next).some((k) => state.chatAttached.has(k))) emit('chatChanged', chatPush(pushed.get(next.sessionId) ?? null, next))
+    if (keysOf(next).some((k) => state.chatAttached.has(k))) {
+      const owed = keysOf(next).filter((k) => owedWhole.delete(k)).length > 0
+      emit('chatChanged', owed ? { kind: 'full', state: next } : chatPush(pushed.get(next.sessionId) ?? null, next))
+    }
     if (next.status === 'exited') pushed.delete(next.sessionId)
     else pushed.set(next.sessionId, next)
     const key = `${next.status === 'exited' ? 'exited' : 'running'}|${next.previousSessionId ?? ''}`
@@ -163,7 +168,7 @@ export function chatApi(env: Env): ChatApi {
       return 'chat'
     },
     terminalBusy: async (id) => state.terminalBusy.get(id) ?? { busy: false, backgroundTasks: 0 },
-    chatAttach: (id) => { state.chatAttached.add(id) },
-    chatDetach: (id) => { state.chatAttached.delete(id); sweep() },
+    chatAttach: (id) => { state.chatAttached.add(id); owedWhole.add(id) },
+    chatDetach: (id) => { state.chatAttached.delete(id); owedWhole.delete(id); sweep() },
   }
 }

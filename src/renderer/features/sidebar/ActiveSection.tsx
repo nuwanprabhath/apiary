@@ -11,7 +11,7 @@ import type { SessionId } from '@shared/domain/ids'
 import { sessionIdOfTabKey } from '../workspace'
 import { useMrStatuses } from './useMrStatuses'
 import { SectionHeader } from './SectionHeader'
-import { remoteHost, windowNumber } from '../../state/windowParams'
+import { windowNumber } from '../../state/windowParams'
 
 /** Its own component because the lookup is a hook and the rows are produced in a `map`. */
 function ActiveTabTitle({ sessionId, title }: { sessionId: SessionId; title: string }): JSX.Element {
@@ -36,8 +36,8 @@ function groupActiveTabs(tabs: ActiveTabPayload[]): ActiveRow[] {
 const activeKeyOf = (t: ActiveTabPayload): string => t.key
 
 /** The window a click goes to: this one when the tab is open here, so it is selected without a
- *  round trip (and in a remote window, where main refuses to raise a window on the work machine's
- *  screen, at all). */
+ *  round trip. In a remote window the numbers are the work machine's, and home raises its own copy
+ *  of that window (`onFocusTab`). */
 const targetWindow = (row: ActiveRow, own: number): number => (row.windows.includes(own) ? own : row.windowNumber)
 
 export function ActiveSection({ activeTabs, sessionsById, collapsed, onCollapsedChange, onFocusTab, onEditNote }: {
@@ -55,15 +55,11 @@ export function ActiveSection({ activeTabs, sessionsById, collapsed, onCollapsed
   const rows = useMemo(() => groupActiveTabs(activeTabs), [activeTabs])
   const working = rows.filter((r) => r.status === 'running').length
   const own = windowNumber()
-  const host = remoteHost()
-  /** In a remote window, a row for a tab open only in another work-machine window cannot be
-   *  raised: that window is on a screen nobody here sees. */
-  const isInert = (row: ActiveRow): boolean => host !== null && !row.windows.includes(own)
   const activeByKey = useMemo(() => new Map(rows.map((t) => [activeKeyOf(t), t])), [rows])
   const activeTree = useFlatTreeNav(rows.map(activeKeyOf), {
     onEnter: (current) => {
       const t = current.dataset.treeKey === undefined ? undefined : activeByKey.get(current.dataset.treeKey)
-      if (t !== undefined && !isInert(t)) onFocusTab(targetWindow(t, own), t.key)
+      if (t !== undefined) onFocusTab(targetWindow(t, own), t.key)
     },
   })
   return (
@@ -120,13 +116,10 @@ export function ActiveSection({ activeTabs, sessionsById, collapsed, onCollapsed
             tabIndex={activeTree.tabIndexFor(key)}
           >
             <button
-              className={isInert(t) ? 'session-row active-tab-row active-tab-row-inert' : 'session-row active-tab-row'}
+              className="session-row active-tab-row"
               data-testid="active-tab-row"
-              aria-disabled={isInert(t) || undefined}
-              onClick={() => { if (!isInert(t)) onFocusTab(targetWindow(t, own), t.key) }}
-              title={isInert(t)
-                ? `Open on ${host ?? 'the work machine'}'s screen`
-                : t.windows.length === 1 ? `Window ${String(t.windowNumber)}` : `Windows ${t.windows.join(', ')}`}
+              onClick={() => { onFocusTab(targetWindow(t, own), t.key) }}
+              title={t.windows.length === 1 ? `Window ${String(t.windowNumber)}` : `Windows ${t.windows.join(', ')}`}
               // The wrap above is the treeitem; Enter on it already raises this tab's
               // window, so this stays clickable but is not a second Tab stop.
               tabIndex={-1}

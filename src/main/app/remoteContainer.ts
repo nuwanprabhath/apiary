@@ -149,7 +149,16 @@ export function createRemoteConnecting(inputs: ConnectingInputs, outside: Connec
   remoteClient: RemoteClientService
 } {
   const bridge = createBridges({ vsCodePath: () => inputs.vsCodePath, openExternal: (url) => shell.openExternal(url) })
-  const remoteWindows = new RemoteWindows((id) => webContents.fromId(id) ?? null, bridge)
+  const windowOf = (id: number): BrowserWindow | undefined => BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.id === id)
+  const remoteWindows = new RemoteWindows((id) => webContents.fromId(id) ?? null, bridge, {
+    raise: (id) => {
+      const win = windowOf(id)
+      if (win === undefined) return
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    },
+    isFocused: (id) => windowOf(id)?.isFocused() === true,
+  })
   const hostDirectory = new HostDirectory({
     file: inputs.hostsFile, homeDir: inputs.homeDir, readText: readSshConfigFile, sshConfig: inputs.sshConfig,
     exec: outside.tailscaleExec, probeExec: outside.probeExec, now: () => Date.now(),
@@ -162,7 +171,7 @@ export function createRemoteConnecting(inputs: ConnectingInputs, outside: Connec
     pairingCodes: new SavedPairingCodes(inputs.pairingCodesFile, outside.cipher),
     makeTempDir: outside.makeTempDir, removeDir: outside.removeDir, socketExists: outside.socketExists,
     openWindow: (host, layout) => inputs.windowManager.open({ remote: { host, layout } }),
-    focusWindow: (id) => { BrowserWindow.getAllWindows().find((w) => w.webContents.id === id)?.focus() },
+    focusWindow: (id) => { windowOf(id)?.focus() },
     windows: remoteWindows,
     sendStatus: (id, status: RemoteStatus) => { sendEvent(webContents.fromId(id), IPC.remoteStatus, status) },
     onConnected: (host) => { hostDirectory.connected(host) },

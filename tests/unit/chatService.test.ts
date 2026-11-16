@@ -204,6 +204,41 @@ describe('ChatService pushes', () => {
     ])
   })
 
+  it('sends a window that attaches mid-stream the whole state as its first push, while the window already there gets the delta', async () => {
+    // A second view of one chat (another window, or a remote copy over a slow link) used to get only
+    // deltas onto a state it never had, and refetched it so long as the stream outran the round trip.
+    const { service, open, chats } = setup()
+    const first = open(1)
+    const second = open(2)
+    service.attach(1, A)
+    await service.start(A, { takeOver: false })
+    const state = chats.state(A)!
+    service.onChanged({ ...state, seq: 50 })
+    first.got.length = 0
+    service.attach(2, A)
+    service.onChanged({ ...state, seq: 51, permissionMode: 'plan' })
+    service.onChanged({ ...state, seq: 52, permissionMode: 'plan', model: 'opus' })
+    expect(first.got.map((g) => g.push.kind)).toEqual(['delta', 'delta'])
+    expect(second.got.map((g) => g.push)).toEqual([
+      { kind: 'full', state: { ...state, seq: 51, permissionMode: 'plan' } },
+      { kind: 'delta', sessionId: A, previousSessionId: null, base: 51, seq: 52, changes: { model: 'opus' } },
+    ])
+  })
+
+  it('sends the whole state next to a window that attaches again because its copy fell behind', async () => {
+    const { service, open, chats } = setup()
+    const shown = open(1)
+    service.attach(1, A)
+    await service.start(A, { takeOver: false })
+    const state = chats.state(A)!
+    service.onChanged({ ...state, seq: 50 })
+    shown.got.length = 0
+    service.attach(1, A)
+    service.onChanged({ ...state, seq: 51, model: 'opus' })
+    service.onChanged({ ...state, seq: 52, model: 'sonnet' })
+    expect(shown.got.map((g) => g.push.kind)).toEqual(['full', 'delta'])
+  })
+
   it('answers chatState with the state last pushed, so a window that fetches mid-stream can apply the next delta', async () => {
     const { service, chats } = setup()
     await service.start(A, { takeOver: false })

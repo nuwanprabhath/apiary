@@ -1,6 +1,6 @@
 import type { ReportedTab, TabTransfer, WindowLayoutReport } from '@shared/domain/tabs'
 import type { SessionId } from '@shared/domain/ids'
-import { background, surface } from './policy'
+import { attempt, background, surface } from './policy'
 
 /** Tabs across windows: handing one to another window, and telling main what this one has open. */
 
@@ -16,9 +16,11 @@ export function detachTab(tab: TabTransfer, at: Point): void {
 export function adoptTabHere(tab: TabTransfer): void {
   surface(window.apiary.tabAdoptHere(tab), 'Could not move this tab')
 }
-/** Brings another window's tab to the front. */
-export function focusTabInWindow(windowNumber: number, key: string): void {
-  surface(window.apiary.focusTab(windowNumber, key), 'Could not switch to that window')
+/** Brings another window's tab to the front; resolves to whether a window took it (a failure is surfaced, and is a no). */
+export async function focusTabInWindow(windowNumber: number, key: string): Promise<boolean> {
+  let raised = false
+  const ok = await attempt(window.apiary.focusTab(windowNumber, key).then((answer) => { raised = answer }), 'Could not switch to that window')
+  return ok && raised
 }
 
 /** The layout main persists for the next launch. A dropped report is retried by the next change. */

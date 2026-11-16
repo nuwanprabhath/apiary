@@ -367,8 +367,9 @@ export const IPC = {
    *  when it is, the chat sends into that terminal rather than stopping it to take over. */
   terminalBusy: invoke<[sessionId: SessionId], TerminalBusy>('apiary:terminal-busy', tuple(sessionIdArg)),
   /** The sending window shows this session's chat: `chatChanged` for it (and for the session it
-   *  was moved from by `/clear`) goes to attached windows only. Sent before `chatState`, so no
-   *  update falls between the two. */
+   *  was moved from by `/clear`) goes to attached windows only, the first one to it whole. Sent
+   *  before `chatState`, so no update falls between the two; sent again by a window whose copy fell
+   *  behind, for the whole state next. */
   chatAttach: send<[sessionId: SessionId]>('apiary:chat-attach', tuple(sessionIdArg)),
   chatDetach: send<[sessionId: SessionId]>('apiary:chat-detach', tuple(sessionIdArg)),
   chatChanged: event<[push: ChatPush]>('apiary:chat-changed'),
@@ -463,7 +464,7 @@ export const IPC = {
   appWindowRaise: invoke<[windowNumber: number], void>('apiary:app-window-raise', tuple(num)),
   /** A small picture of what a window shows (a data URL), or null when there is none to take. */
   appWindowPreview: invoke<[windowNumber: number], string | null>('apiary:app-window-preview', tuple(num)),
-  focusTab: invoke<[windowNumber: number, key: string], void>('apiary:focus-tab', tuple(num, str)),
+  focusTab: invoke<[windowNumber: number, key: string], boolean>('apiary:focus-tab', tuple(num, str)),
   selectTab: event<[key: string]>('apiary:select-tab'),
 
   // Remote access (docs/proposals/2026-10-10-remote-access.md). All three run on this machine

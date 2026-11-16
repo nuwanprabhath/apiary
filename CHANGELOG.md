@@ -4,6 +4,24 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.67.2] - 2026-11-16
+
+### Fixed
+
+- **A second view of a chat no longer stops updating.** A view that opened (or missed a push) while
+  Claude was writing got only the changes since the state before, onto a state it did not hold, and
+  fetched the whole state again for every one. Over a remote connection a fetch takes longer than
+  the ~120 ms between pushes, so each was overtaken by the next and the view sat on an old reply,
+  its clock still ticking, until Claude paused. A window now gets the whole state as its first push
+  after it attaches, and a view that falls behind attaches again for the whole state instead of
+  fetching for every change.
+- **The Active section in a remote window raises the window that shows a session.** Its rows (other
+  work-machine windows, "W12") were inert, so the way to a running session was the sidebar, which
+  opened a second copy in the window you were in. A click now brings this machine's copy of that
+  window to the front with the session selected, and opens it where you are only when no copy
+  shows it. A resident's `open_session`, which the work machine sends to every remote window, now
+  opens the session once, in the window in front, instead of once per window.
+
 ## [1.67.1] - 2026-11-16
 
 ### Fixed

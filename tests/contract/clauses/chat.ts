@@ -84,6 +84,20 @@ export function defineChatClauses(ctx: Ctx): void {
       expect(sent?.queued.map((q) => q.text)).toEqual(['hello there'])
     })
 
+    it('a window that attaches a chat already running gets it whole next, then only what changed; attaching again does the same', async () => {
+      await start()
+      ctx.api.chatAttach(SESSION)
+      await ctx.api.chatSetPermissionMode(SESSION, 'plan')
+      await ctx.api.chatSetPermissionMode(SESSION, 'acceptEdits')
+      const kinds = (): string[] => ctx.heard.payloads('chatChanged').map(([p]) => p.kind)
+      expect(kinds()).toEqual(['full', 'delta'])
+      expect(at(ctx.heard.payloads('chatChanged'), 0)[0]).toMatchObject({ kind: 'full', state: { sessionId: SESSION, permissionMode: 'plan' } })
+      // A copy that fell behind attaches again (`chatStore`): the next push carries the whole state.
+      ctx.api.chatAttach(SESSION)
+      await ctx.api.chatSetPermissionMode(SESSION, 'plan')
+      expect(kinds()).toEqual(['full', 'delta', 'full'])
+    })
+
     it('a permission mode chosen shows at once, in the state and to a window that attached the chat', async () => {
       ctx.api.chatAttach(SESSION)
       await start()

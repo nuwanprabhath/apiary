@@ -78,9 +78,50 @@ describe('RemoteWindows', () => {
     const { windows, link } = setup()
     windows.bind(7, link, 1)
     await expect(windows.routeInvoke(7, 'newSessionInPickedFolder', [])).rejects.toThrow(UNAVAILABLE_MESSAGE)
-    // Raising another work-machine window happens on a screen nobody at home sees: nothing, no error.
-    await expect(windows.routeInvoke(7, 'focusTab', [2, 'tab'])).resolves.toBeUndefined()
     expect(link.invoked).toEqual([])
+  })
+
+  describe('a session open in another copy of the same work machine', () => {
+    /** Home windows 7, 8 and 9 show the work machine's windows 10, 12 and 15. */
+    function copies(focused = 0): ReturnType<typeof setup> & { raised: number[] } {
+      const raised: number[] = []
+      const heard = new Map<number, unknown[][]>()
+      const windows = new RemoteWindows((id) => ({
+        isDestroyed: () => false,
+        send: (channel: string, ...args: unknown[]) => { heard.set(id, [...(heard.get(id) ?? []), [channel, ...args]]) },
+      }), null, { raise: (id) => { raised.push(id) }, isFocused: (id) => id === focused })
+      const link = new FakeLink()
+      windows.bind(7, link, 10)
+      windows.bind(8, link, 12)
+      windows.bind(9, link, 15)
+      return { windows, link, heard, raised }
+    }
+    const tabs = (...keys: string[]): unknown[] => [keys.map((key) => ({ key, view: 'transcript', ptyId: null, label: null }))]
+
+    it('raises the copy showing it and selects the tab, instead of answering nothing', async () => {
+      // The Active row in the copy of window 15 says "#14 W12": the copy of window 12 shows it.
+      const { windows, heard, raised } = copies()
+      windows.routeSend(8, 'reportTabs', tabs('s14'))
+      await expect(windows.routeInvoke(9, 'focusTab', [12, 's14'])).resolves.toBe(true)
+      expect(raised).toEqual([8])
+      expect(heard.get(8)).toEqual([[IPC.selectTab.channel, 's14']])
+    })
+
+    it('finds the copy that shows it even when another opened it since, and says no when none does', async () => {
+      const { windows, raised } = copies()
+      windows.routeSend(7, 'reportTabs', tabs('s14'))
+      await expect(windows.routeInvoke(9, 'focusTab', [0, 's14'])).resolves.toBe(true)
+      expect(raised).toEqual([7])
+      await expect(windows.routeInvoke(9, 'focusTab', [0, 'nowhere'])).resolves.toBe(false)
+      expect(raised).toEqual([7])
+    })
+
+    it("opens a work machine's open-session request in the copy in front only, not once per copy", () => {
+      const { link, heard } = copies(9)
+      for (const w of [10, 12, 15]) link.emit(w, IPC.openSessionRequested.channel, ['s14'])
+      expect([...heard.keys()]).toEqual([9])
+      expect(heard.get(9)).toEqual([[IPC.openSessionRequested.channel, 's14']])
+    })
   })
 
   it("opens a plugin's link at home, not on the work machine", () => {
