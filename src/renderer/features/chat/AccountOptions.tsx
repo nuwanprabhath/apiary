@@ -33,7 +33,7 @@ export function AccountOptions({ accounts, currentId, active, listId, onMouseEnt
                 {a.label}
                 {a.id === currentId && <CheckIcon className="chat-account-check" />}
               </span>,
-              <span key="d" className="chat-command-desc">{a.email ?? 'Not logged in'}</span>,
+              <span key="d" className="chat-command-desc" title={a.email ?? 'Not logged in'}>{a.email ?? 'Not logged in'}</span>,
             ]}
           </Row>
         ))}

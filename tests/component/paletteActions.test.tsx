@@ -66,6 +66,14 @@ describe('the "/" menu Actions group', () => {
     expect(fake.callsTo('sessionReload')).toEqual([[SESSION.sessionId, null]])
   })
 
+  it('shows each description in full on hover, since a narrow menu cuts it short', async () => {
+    await openMenu({ vsCode: false })
+    await expect.poll(() => items().length).toBeGreaterThan(0)
+    const descs = [...document.querySelectorAll<HTMLElement>('.chat-command-desc')]
+    expect(descs.length).toBeGreaterThan(0)
+    expect(descs.map((d) => d.title)).toEqual(descs.map((d) => d.textContent))
+  })
+
   it('is absent when the session folder is gone', async () => {
     await openMenu({ vsCode: true, cwdExists: false })
     await stays(() => items().length === 0 && !headings().includes('Actions'), 300, 'no Actions without the folder')
