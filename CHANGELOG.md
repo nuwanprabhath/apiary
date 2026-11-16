@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.63.4] - 2026-11-16
+
+### Fixed
+
+- The pinning e2e test no longer needs a retry on a loaded machine (issue #37). The pin button
+  toggles, and the e2e helper retried hover and click together: a click that took effect but threw
+  afterwards, as the row moved into the pinned section, was clicked again and unpinned the session,
+  so only one row was ever pinned. `pinRow` checks the row's `data-pinned` before each attempt, and
+  the pinning and multi-window specs use it.
+
 ## [1.63.3] - 2026-11-16
 
 ### Changed
