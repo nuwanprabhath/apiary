@@ -47,6 +47,8 @@ interface Props {
   pinned: string[]
   onTogglePin: (session: SessionNode) => void
   onForkSession: (sessionId: SessionId) => void
+  activeCollapsed: boolean
+  onActiveCollapsedChange: (next: boolean) => void
   pinnedCollapsed: boolean
   onPinnedCollapsedChange: (next: boolean) => void
   /** New-session ptys not yet resolved into a real SessionNode, excluding whichever one (if any)
@@ -108,7 +110,7 @@ export const Sidebar = memo(SidebarShell)
 function SidebarInner({
   hidden = false, onHide, hideTitle = 'Hide sidebar',
   selectedId, onSelect, collapsed, onCollapsedChange, onNewSession, onNewSessionInPickedFolder,
-  onSplitSession, pinned, onTogglePin, onForkSession, pinnedCollapsed,
+  onSplitSession, pinned, onTogglePin, onForkSession, activeCollapsed, onActiveCollapsedChange, pinnedCollapsed,
   onPinnedCollapsedChange,
   pending, onSelectPending, onStopPending, revealId, groupState, onGroupStateChange, onReorderPinned,
   recentSectionEnabled, recentSectionHours, hideOldSessionsEnabled, hideOldSessionsDays, dismissedRecent, recentCollapsed,
@@ -191,6 +193,8 @@ function SidebarInner({
         <ActiveSection
           activeTabs={activeTabs}
           sessionsById={activeSessionsById}
+          collapsed={activeCollapsed}
+          onCollapsedChange={onActiveCollapsedChange}
           onFocusTab={onFocusTab}
           onEditNote={onEditNote}
         />

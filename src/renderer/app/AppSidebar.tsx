@@ -124,6 +124,8 @@ export function AppSidebar({
         onNewSessionInPickedFolder={onNewSessionInPickedFolder}
         pinned={ui.pinned}
         onTogglePin={uiState.togglePin}
+        activeCollapsed={ui.activeCollapsed}
+        onActiveCollapsedChange={uiState.setActiveCollapsed}
         pinnedCollapsed={ui.pinnedCollapsed}
         onPinnedCollapsedChange={uiState.setPinnedCollapsed}
         recentSectionEnabled={recentSectionEnabled}

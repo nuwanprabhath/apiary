@@ -359,8 +359,8 @@
 .active-row-wrap:focus-within .active-window-number { display: none; }
 .active-row-wrap .note-session-button { margin-right: var(--space-sm); }
 /* The header is hoverable and focusable rather than decorative, because it carries the legend. */
-.active-header { cursor: help; }
 .active-header:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.active-collapsed-working { flex: none; }
 /*
  * A row waiting on an answer is marked on the row, not only on its dot. An 8px dot is easy to miss
  * in a sidebar that is often on a second screen, and this is the one status with a cost to missing
