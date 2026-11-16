@@ -7,6 +7,9 @@ import { useNotifications } from '../../ui/notifications'
 import { ErrorBoundary } from '../../ui/ErrorBoundary'
 import { Modal } from '../../ui/Modal'
 import { useSearchIndexStatus } from './useSearchIndexStatus'
+import { SettingsResults } from './SettingsSearch'
+import { SettingsNav } from './SettingsNav'
+import { useSettingsSearch } from './useSettingsSearch'
 import {
   listSettingsPlugins, readSettings, saveSettingsDraft, setSettingsTarget, thisComputerName, useSettingsTarget,
   type SettingsDraft,
@@ -86,32 +89,29 @@ export function SettingsDialog(
     }
   }
 
+  const {
+    query, setQuery, words, searching, groups, searchRef, paneRef, open,
+  } = useSettingsSearch({ plugins, sections, machineHost, ready: draft !== null, setSection })
+
   const active = sections.find((s) => s.id === section) ?? sections[0]
   const title = host === null ? 'Settings' : `Settings — ${machineHost ?? thisComputerName()}`
 
   return (
     <ErrorBoundary label="This dialog">
-      <Modal testId="settings-dialog" titleId="settings-dialog-title" onClose={onClose} className="settings-dialog">
+      <Modal testId="settings-dialog" titleId="settings-dialog-title" onClose={onClose} className="settings-dialog" initialFocusSelector=".settings-nav-item">
         <h2 id="settings-dialog-title">{title}</h2>
         {host !== null && <MachineSwitch host={host} target={target} onChange={setSettingsTarget} />}
 
         <div className="settings-body">
-          <nav className="settings-nav" aria-label="Settings sections">
-            {sections.map((s) => (
-              <button
-                key={s.id}
-                className="settings-nav-item"
-                data-testid={`settings-nav-${s.id}`}
-                data-active={active?.id === s.id}
-                onClick={() => { setSection(s.id) }}
-              >
-                {s.label}
-              </button>
-            ))}
-          </nav>
+          <SettingsNav
+            sections={sections} activeId={active?.id} searching={searching} groups={groups} words={words}
+            query={query} onQuery={setQuery} onOpen={open} onSection={setSection} inputRef={searchRef}
+          />
 
-          <div className="settings-pane" data-testid="settings-pane">
-            {draft === null || active === undefined ? (
+          <div className="settings-pane" data-testid="settings-pane" ref={paneRef}>
+            {searching ? (
+              <SettingsResults groups={groups} words={words} query={query} onOpen={open} />
+            ) : draft === null || active === undefined ? (
               <p className="empty">Loading settings…</p>
             ) : (
               <>

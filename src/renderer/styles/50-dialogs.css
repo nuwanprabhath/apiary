@@ -20,8 +20,13 @@
   gap: 2px;
   border-right: 1px solid var(--border);
   padding-right: var(--space-md);
+  overflow-y: auto;
 }
 .settings-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
   text-align: left;
   border: 0;
   background: transparent;
@@ -31,6 +36,29 @@
   cursor: pointer;
   font: inherit;
 }
+/* The search field sits above the sections and the sections scroll under it when they are many. */
+.settings-search { flex: none; display: flex; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-sm); }
+.settings-search .search { min-width: 0; width: auto; margin-bottom: 0; }
+.settings-search-clear {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: var(--icon-button-size-sm); height: var(--icon-button-size-sm); padding: 0;
+  border: 0; border-radius: var(--radius-sm); background: none; color: var(--muted); cursor: pointer;
+}
+.settings-search-clear:hover, .settings-search-clear:focus-visible { background: var(--hover); color: var(--text); }
+.settings-search-clear svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
+.settings-nav-count { color: var(--muted); font-weight: 400; font-size: 12px; }
+.settings-mark { background: var(--selected); color: var(--text); border-radius: var(--radius-sm); box-shadow: 0 0 0 1px var(--accent); }
+.settings-result-group { display: flex; flex-direction: column; gap: var(--space-xs); margin-bottom: var(--space-lg); }
+.settings-result-heading { margin: 0 0 var(--space-xs); font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.settings-result {
+  display: flex; flex-direction: column; gap: var(--space-xs); align-items: flex-start; text-align: left;
+  padding: var(--row-padding-y-lg) var(--control-padding-x); border: 0; border-radius: var(--radius-control);
+  background: transparent; color: var(--text); font: inherit; cursor: pointer;
+}
+.settings-result:hover, .settings-result:focus-visible { background: var(--selected); }
+.settings-no-results { margin: var(--space-xl) 0; }
+.settings-pane [data-found] { border-radius: var(--radius-control); }
+.settings-pane [data-found="true"] { background: var(--selected); }
 .settings-nav-item:hover { background: var(--selected); color: var(--text); }
 .settings-nav-item[data-active="true"] { background: var(--selected); color: var(--text); font-weight: 600; }
 
@@ -796,3 +824,4 @@ button.folder-crumb:hover:not(:disabled) { background: var(--selected); color: v
 /* A path is cut at its start: its end (the folder itself) is what matters. */
 .resident-folder-path { flex: 1; min-width: 0; overflow: hidden; color: var(--muted); direction: rtl; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .resident-required { color: var(--danger); font-size: 11px; font-weight: 400; }
+.settings-results { display: flex; flex-direction: column; }
