@@ -10,6 +10,7 @@ import { MrRefText } from '../../ui/mrRefText'
 import type { SessionId } from '@shared/domain/ids'
 import { sessionIdOfTabKey } from '../workspace'
 import { useMrStatuses } from './useMrStatuses'
+import { SectionHeader } from './SectionHeader'
 import { remoteHost, windowNumber } from '../../state/windowParams'
 
 /** Its own component because the lookup is a hook and the rows are produced in a `map`. */
@@ -39,17 +40,20 @@ const activeKeyOf = (t: ActiveTabPayload): string => t.key
  *  screen, at all). */
 const targetWindow = (row: ActiveRow, own: number): number => (row.windows.includes(own) ? own : row.windowNumber)
 
-export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote }: {
+export function ActiveSection({ activeTabs, sessionsById, collapsed, onCollapsedChange, onFocusTab, onEditNote }: {
   activeTabs: ActiveTabPayload[]
   /** Every session known anywhere, unfiltered — what titles are resolved against. The
    *  search-filtered tree would leave a tab open in another window as a bare session id. */
   sessionsById: Map<string, SessionNode>
+  collapsed: boolean
+  onCollapsedChange: (next: boolean) => void
   onFocusTab: (windowNumber: number, key: string) => void
   onEditNote: (session: SessionNode) => void
 }): JSX.Element {
   const [legendAnchor, setLegendAnchor] = useState<DOMRect | null>(null)
   // Its own flat WAI-ARIA tree: no expand/collapse, and Enter raises the tab's window like a click.
   const rows = useMemo(() => groupActiveTabs(activeTabs), [activeTabs])
+  const working = rows.filter((r) => r.status === 'running').length
   const own = windowNumber()
   const host = remoteHost()
   /** In a remote window, a row for a tab open only in another work-machine window cannot be
@@ -64,20 +68,33 @@ export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote
   })
   return (
     <section className="active-section" data-testid="active-section" aria-label="Active sessions">
-      {/* Focusable: the legend is the only place the four dots are explained. */}
-      <div
-        className="pinned-header active-header"
-        data-testid="active-header"
-        tabIndex={0}
-        onPointerEnter={(e) => { setLegendAnchor(e.currentTarget.getBoundingClientRect()) }}
-        onPointerLeave={() => { setLegendAnchor(null) }}
-        onFocus={(e) => { setLegendAnchor(e.currentTarget.getBoundingClientRect()) }}
-        onBlur={() => { setLegendAnchor(null) }}
-      >
-        <span className="pinned-label">Active</span>
-        <span className="pinned-count">{rows.length}</span>
-      </div>
+      <SectionHeader
+        testId="active-header"
+        className="active-header"
+        label="Active"
+        count={rows.length}
+        expanded={!collapsed}
+        onToggle={() => { onCollapsedChange(!collapsed) }}
+        // The legend is the only place the four dots are explained: hover or focus opens it.
+        hover={{
+          onPointerEnter: (e) => { setLegendAnchor(e.currentTarget.getBoundingClientRect()) },
+          onPointerLeave: () => { setLegendAnchor(null) },
+          onFocus: (e) => { setLegendAnchor(e.currentTarget.getBoundingClientRect()) },
+          onBlur: () => { setLegendAnchor(null) },
+        }}
+        // Collapsed hides the dots, so a working session still shows as one still-cue dot.
+        badge={collapsed && working > 0 ? (
+          <span
+            className="status-dot active-collapsed-working"
+            data-testid="active-collapsed-working"
+            data-status="running"
+            role="img"
+            aria-label={`${String(working)} running`}
+          />
+        ) : undefined}
+      />
       {legendAnchor !== null && <ActivityLegend anchor={legendAnchor} />}
+      {!collapsed && (
       <div
         role="tree"
         aria-label="Active sessions"
@@ -141,6 +158,7 @@ export function ActiveSection({ activeTabs, sessionsById, onFocusTab, onEditNote
         )
       })}
       </div>
+      )}
     </section>
   )
 }

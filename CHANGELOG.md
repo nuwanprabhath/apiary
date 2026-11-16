@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.65.0] - 2026-11-16
+
+### Added
+
+- The Active section collapses like Pinned: its header has the same chevron, is a button with
+  `aria-expanded`, and the choice is saved in library state (`activeCollapsed`, expanded by default),
+  so a remote window follows the work machine's. Collapsed, the header keeps the session count and
+  shows one running dot while any active session is working.
+
 ## [1.64.0] - 2026-11-16
 
 ### Added

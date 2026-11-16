@@ -101,4 +101,44 @@ describe('the Active section', () => {
     await expect.poll(() => activeStatus('Fix CSV export bug'), { timeout: 5000 }).toBe('running')
     await expect.poll(() => activeStatus('Fix CSV export bug'), { timeout: 5000 }).toBe('idle')
   })
+
+  it('the header collapses and expands the rows, with aria-expanded, and the choice is saved in library state', async () => {
+    const { fake } = await renderApp()
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await activeRowWrap('Fix CSV export bug')
+    const header = page.getByTestId('active-header')
+    await expect.element(header).toHaveAttribute('aria-expanded', 'true')
+
+    await userEvent.click(header)
+    await until(() => document.querySelector('.active-row-wrap') === null)
+    await expect.element(header).toHaveAttribute('aria-expanded', 'false')
+    expect(fake.state.library.state.activeCollapsed).toBe(true)
+    // The count stays, so a collapsed section still says how many sessions are open.
+    await expect.element(header).toMatchTextContent('1')
+
+    // Keyboard: the header is a button, so Space toggles it back.
+    header.element().focus()
+    await userEvent.keyboard(' ')
+    await activeRowWrap('Fix CSV export bug')
+    expect(fake.state.library.state.activeCollapsed).toBe(false)
+  })
+
+  it('starts collapsed when library state says so, and shows the count', async () => {
+    await renderApp({ library: { activeCollapsed: true } })
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await until(() => document.querySelector('[data-testid="active-header"]') !== null)
+    await expect.element(page.getByTestId('active-header')).toHaveAttribute('aria-expanded', 'false')
+    await expect.element(page.getByTestId('active-header')).toMatchTextContent('1')
+    expect(document.querySelector('.active-row-wrap')).toBeNull()
+    expect(document.querySelector('[data-testid="active-collapsed-working"]')).toBeNull()
+  })
+
+  it('collapsed, a running session still shows as one dot on the header', async () => {
+    await renderApp({ library: { activeCollapsed: true } }, (f) => {
+      f.override('activeTabs', async () => f.state.tabs.map((t) => ({ ...t, status: 'running' as const })))
+    })
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await until(() => document.querySelector('[data-testid="active-collapsed-working"]') !== null)
+    await expect.element(page.getByTestId('active-collapsed-working')).toHaveAttribute('data-status', 'running')
+  })
 })

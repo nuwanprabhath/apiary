@@ -11,7 +11,7 @@ const keys = Object.keys(LIBRARY_STATE) as LibraryKey[]
 describe('library state registry', () => {
   it('declares the sidebar arrangement, the per-chat settings and the tool-call default', () => {
     expect(keys).toEqual(expect.arrayContaining([
-      'pinned', 'pinnedCollapsed', 'groups', 'groupAssignments', 'groupsCollapsed', 'folderOrder',
+      'pinned', 'activeCollapsed', 'pinnedCollapsed', 'groups', 'groupAssignments', 'groupsCollapsed', 'folderOrder',
       'dismissedRecent', 'recentCollapsed', 'showAllWorktrees', 'createdWorktrees', 'chatSettings', 'hideToolCallIo',
     ]))
   })

@@ -43,6 +43,7 @@ const isCreatedWorktree: Guard<CreatedWorktree> = (v): v is CreatedWorktree =>
   isRecord(v) && typeof v.folder === 'string' && typeof v.path === 'string'
 
 export const LIBRARY_STATE = {
+  activeCollapsed: libraryField(bool, false),
   /** Pinned session ids, newest first. */
   pinned: libraryField(arr(str), [] as string[]),
   pinnedCollapsed: libraryField(bool, false),

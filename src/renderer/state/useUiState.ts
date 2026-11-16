@@ -22,6 +22,7 @@ export interface UiStateActions {
   reorderPinned: (id: string, beforeId: string) => void
   toggleAllWorktrees: (path: string) => void
   rememberCreatedWorktree: (folder: string, path: string) => void
+  setActiveCollapsed: (next: boolean) => void
   setPinnedCollapsed: (next: boolean) => void
   setRecentCollapsed: (next: boolean) => void
   dismissRecent: (session: SessionNode) => void
@@ -37,7 +38,7 @@ const MAX_CREATED_WORKTREES = 50
 /** The library's actions: each works out its patch from the latest state main sent, and sends it. */
 function libraryActions(): Pick<UiStateActions,
   'togglePin' | 'unpin' | 'setGroupState' | 'reorderPinned' | 'toggleAllWorktrees' | 'rememberCreatedWorktree'
-  | 'setPinnedCollapsed' | 'setRecentCollapsed' | 'dismissRecent'> {
+  | 'setActiveCollapsed' | 'setPinnedCollapsed' | 'setRecentCollapsed' | 'dismissRecent'> {
   return {
     /**
      * Pins (or unpins) a session. Newly pinned ids go to the front, so the pinned section reads
@@ -70,6 +71,7 @@ function libraryActions(): Pick<UiStateActions,
         createdWorktrees: [{ folder, path }, ...createdWorktrees.filter((w) => w.path !== path)].slice(0, MAX_CREATED_WORKTREES),
       }))
     },
+    setActiveCollapsed: (next) => { updateLibraryState(() => ({ activeCollapsed: next })) },
     setPinnedCollapsed: (next) => { updateLibraryState(() => ({ pinnedCollapsed: next })) },
     setRecentCollapsed: (next) => { updateLibraryState(() => ({ recentCollapsed: next })) },
     dismissRecent: (session) => {
