@@ -20,6 +20,9 @@ export interface ContainerPaths {
   knowledgeDbPath: string
   /** One private folder per resident agent (`main/residents/residentSpace.ts`); the digester skips sessions run in it. */
   residentsDir: string
+  /** Where the scheduled-message script, its job files and `apiary.pid` live (`main/schedule/scheduledJobs.ts`). */
+  userData: string
+  scheduledMessagesFile: string
 }
 
 export function containerPaths(
@@ -40,5 +43,7 @@ export function containerPaths(
     accountsDir: join(userData, 'accounts'),
     knowledgeDbPath: join(userData, 'knowledge.db'),
     residentsDir: join(userData, 'residents'),
+    userData,
+    scheduledMessagesFile: join(userData, 'scheduled-messages.json'),
   }
 }

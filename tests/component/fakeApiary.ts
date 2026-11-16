@@ -35,6 +35,7 @@ import { foldersApi } from './fake/folders'
 import { initialLibrary, libraryApi } from './fake/library'
 import { accountsApi, initialAccounts } from './fake/accounts'
 import { residentsApi } from './fake/residents'
+import { scheduleApi } from './fake/schedule'
 import { remoteApi } from './fake/remote'
 import type { Env, FakeApiary, FakeCall, FakeEvent, FakeOptions, FakeProject, FakeSession, FakeState } from './fake/state'
 import { initialThemeState, themesApi } from './fake/themes'
@@ -135,6 +136,9 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     residentPermissions: new Map(),
     residentFolder: null,
     sessionAccounts: new Map(),
+    schedules: { messages: [], notices: [], osJobs: true, ...opts.schedules },
+    scheduleDefault: opts.scheduleDefault ?? null,
+    scheduleSent: [],
     theme: initialThemeState(),
     refs: {
       current: 'main',
@@ -265,6 +269,8 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     onResidentsChanged: on('residentsChanged'),
     onResidentMessage: on('residentMessage'),
     onOpenSessionRequested: on('openSessionRequested'),
+    ...scheduleApi(env),
+    onScheduleChanged: on('scheduleChanged'),
   }
 
   // Every method goes through here, so calls are recorded and a test can swap one out. The theme

@@ -74,6 +74,10 @@ export interface RuntimeEnv {
   sshConfig: string | undefined
   /** The `tailscale` CLI for the remote host list; empty means none — test-only, so a test never starts the real Tailscale; never set when packaged. */
   tailscalePath: string | undefined
+  /** `APIARY_OS_SCHEDULER=on|off`: whether a scheduled message also gets an OS job (launchd, systemd, `at`). Unset: on, except in a headless (test) run, which must not leave jobs on the machine. */
+  osScheduler: 'on' | 'off' | undefined
+  /** The model a scheduled message's OS job and headless chat use — test-only (the Haiku acceptance test); production uses the session's own. */
+  scheduleModel: string | undefined
   /** `--background`: services and remote server with no window (`app/launchMode.ts`). A launch flag, honoured when packaged. */
   background: boolean
   /** `--update`: the command-line update (`app/launchMode.ts`). A launch flag, honoured when packaged. */
@@ -85,6 +89,10 @@ export interface RuntimeEnv {
 function positiveInt(raw: string | undefined): number | undefined {
   const n = raw === undefined ? NaN : Number(raw)
   return Number.isInteger(n) && n > 0 ? n : undefined
+}
+
+function onOff(raw: string | undefined): 'on' | 'off' | undefined {
+  return raw === 'on' || raw === 'off' ? raw : undefined
 }
 
 /** Pure: `argv`, `env` and `isPackaged` are passed in so a unit test needs no `electron`. */
@@ -112,6 +120,8 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackag
     sshConfig: test('APIARY_SSH_CONFIG'),
     tailscalePath: test('APIARY_TAILSCALE_PATH'),
     closeGraceMs: positiveInt(test('APIARY_CLOSE_GRACE_MS')),
+    osScheduler: onOff(test('APIARY_OS_SCHEDULER')),
+    scheduleModel: test('APIARY_SCHEDULE_MODEL'),
     background: parseLaunchMode(argv).background,
     update: parseLaunchMode(argv).update,
     service: parseLaunchMode(argv).service,

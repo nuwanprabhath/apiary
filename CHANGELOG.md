@@ -4,6 +4,24 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.66.0] - 2026-11-16
+
+### Added
+
+- Scheduled messages, main side (`main/schedule/`): a message is kept in `scheduled-messages.json`
+  with its session and time, and goes out whichever way comes first. With Apiary running, a timer
+  sends it through the session's live chat, its terminal's claude, or a chat started for it. With
+  Apiary closed, a one-shot OS job registered when it was saved (a LaunchAgent on macOS, a systemd
+  user timer or `at` on Linux) runs `bin/apiary-scheduled`, which resumes the session with
+  `claude -p` under its account, records the result and removes its own job. The script sends
+  nothing while Apiary's pid is alive, and the timer removes the job before it sends, so a message
+  goes once. On start, what the job sent becomes a notice in that chat; a message overdue by under
+  12 hours goes at once, an older one is shown as missed. New channels `scheduleList`,
+  `scheduleSet`, `scheduleCancel`, `scheduleSendNow`, `scheduleDefault` and `scheduleChanged`.
+- The suggested time is 5 minutes after the usage limit resets: from the usage meter (only with
+  the consent it already has), else from the session's last "You've hit your limit · resets …"
+  line, else an hour from now.
+
 ## [1.63.1] - 2026-11-14
 
 ### Fixed

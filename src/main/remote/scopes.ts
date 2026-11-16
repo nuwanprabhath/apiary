@@ -278,6 +278,13 @@ export const CHANNEL_SCOPES = {
   statusBarPanel: 'remote',
   statusBarConsent: 'remote',
   statusBarChanged: 'remote',
+  // A schedule sends into the work machine's session, so a remote window schedules there.
+  scheduleList: 'remote',
+  scheduleSet: 'remote',
+  scheduleCancel: 'remote',
+  scheduleSendNow: 'remote',
+  scheduleDefault: 'remote',
+  scheduleChanged: 'remote',
   residentsList: 'remote',
   residentsChanged: 'remote',
   residentsAdd: 'remote',

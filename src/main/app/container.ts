@@ -67,6 +67,7 @@ import type { RemoteClientService } from '../remote/remoteClientService'
 import type { HostDirectory } from '../remote/hostDirectory'
 import { createRemoteConnecting, createRemoteServing, realConnectingOutside } from './remoteContainer'
 import { createResidents } from './residentsContainer'
+import { createSchedules, osJobsWanted, type ScheduleParts } from './scheduleContainer'
 import type { VirtualContentsRegistry } from '../remote/virtualContents'
 import { IPC } from '@shared/api'
 import type { RuntimeEnv } from './env'
@@ -195,7 +196,7 @@ export interface Container {
   knowledge: KnowledgeParts
   accounts: AccountService
   /** The resident agents; `index.ts` starts them once windows can hear them, and disposes of them on quit. */
-  residents: ReturnType<typeof createResidents>
+  residents: ReturnType<typeof createResidents>; schedules: ScheduleParts // `index.ts` starts both once windows can hear them
 }
 
 /** What the session-side services are built from; optional fields default to the app's, so a test names only what it needs. */
@@ -436,9 +437,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     },
     persistPluginEnabled: (pluginId, enabled) => { settingsService.patch({ plugins: { ...settingsService.get().plugins, [pluginId]: enabled } }) },
     onIndexUpdated: () => { broadcast(IPC.treeChanged, { sessions: null }) }, onLiveChanged: () => { broadcast(IPC.treeChanged, { sessions: null }) },
-    detectLive: fakeLive !== undefined && fakeLive !== ''
-      ? async () => new Map([[fakeLive, 4242]])
-      : undefined,
+    detectLive: fakeLive !== undefined && fakeLive !== '' ? async () => new Map([[fakeLive, 4242]]) : undefined,
   })
   const sessionWatcher = new SessionWatcher({
     dir: source.watchDir,
@@ -478,5 +477,6 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   return {
     paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry, windowManager, service, chat: service.chat, plugins: service.plugins, spelling, folderBrowser, ipcState, sessionWatcher, updater,
     themeStore, themeGenerator, petStore, petService, petPlacement, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory, library, accounts, knowledge, residents: createResidents({ settingsService, paths, store, accounts, knowledge, tabRegistry, service, ipcState, windowManager, virtualContents, version: inputs.appVersion, resourcesDir: inputs.resourcesDir }),
+    schedules: createSchedules({ paths, os: osJobsWanted(env) ? { homeDir: inputs.homeDir } : null, store, accounts, chat: service.chat, service, model: env.scheduleModel }),
   }
 }
