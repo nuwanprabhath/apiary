@@ -174,9 +174,11 @@ export class ScheduleService {
     const waiting = this.file.messages.filter((m) => m.missed !== true)
     if (waiting.length === 0) return
     const now = this.now()
-    const inFlight = waiting.some((m) => this.deps.jobs.runningSince(m.id) !== null)
-    const soonest = Math.min(...waiting.map((m) => m.at))
-    const delay = Math.min(Math.max(0, soonest - now), inFlight ? IN_FLIGHT_RECHECK_MS : MAX_TIMER_MS)
+    // One the OS job is sending is looked at again on the in-flight beat, not at its (past) time.
+    const ours = waiting.filter((m) => this.deps.jobs.runningSince(m.id) === null)
+    const soonest = ours.length === 0 ? Infinity : Math.min(...ours.map((m) => m.at))
+    const cap = ours.length < waiting.length ? IN_FLIGHT_RECHECK_MS : MAX_TIMER_MS
+    const delay = Math.min(Math.max(0, soonest - now), cap)
     this.timer = setTimeout(() => { this.timer = null; fireAndForget(this.fireDue(), 'schedule') }, delay)
   }
 

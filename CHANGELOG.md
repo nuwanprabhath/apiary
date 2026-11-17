@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.68.5] - 2026-11-17
+
+### Fixed
+
+- While the system job was sending a scheduled message whose time had passed, Apiary checked on it in
+  a tight loop instead of every 30 seconds, keeping a core busy until the job finished. It now checks
+  every 30 seconds, and the test that timed out under load because of the loop is fast again.
+
 ## [1.68.1] - 2026-11-16
 
 ### Fixed

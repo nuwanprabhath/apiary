@@ -178,6 +178,20 @@ describe('ScheduleService', () => {
     expect(w.saved().notices.map((n) => n.id)).toEqual([message.id])
   })
 
+  it('while the OS job is sending a due one, Apiary looks again every 30 seconds, not in a loop', async () => {
+    const message = { id: 'abababab-abab-4bab-8bab-abababababab', sessionId: SESSION, text: 'continue', at: START - MINUTE, createdAt: START - 60 * MINUTE }
+    const w = world({ file: { messages: [message], notices: [] } })
+    w.files.running.set(message.id, START - 30_000)
+    let looks = 0
+    const runningSince = w.files.running.get.bind(w.files.running)
+    w.files.running.get = (id) => { looks += 1; return runningSince(id) }
+    await w.service.start()
+    looks = 0
+    await vi.advanceTimersByTimeAsync(MINUTE)
+    expect(looks).toBeLessThanOrEqual(6)
+    expect(w.sent).toEqual([])
+  })
+
   it('a cancel dismisses a notice', async () => {
     const notice = { id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', sessionId: SESSION, text: 'continue', at: START, ok: true, whileClosed: true, detail: null }
     const w = world({ file: { messages: [], notices: [notice] } })
