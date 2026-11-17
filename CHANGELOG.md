@@ -4,6 +4,19 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.71.6] - 2026-11-18
+
+### Fixed
+
+- Two tests that failed on slow machines, each for a reason the nightly runs showed:
+  - `appPropStability`: the pane tests now wait for the window's tab report (sent 500 ms after
+    the last change) before counting renders. On a CPU-starved runner, main's answer to it landed
+    inside the count and rendered pane A (#44). Pane A is also clicked by its place among the
+    panes, not by its text, which the Active section shares.
+  - `newWorktree.spec.ts` waits until git can read the new worktree's branch, not only until its
+    folder exists: `git worktree add` makes the folder before it finishes writing the worktree's
+    record (#43).
+
 ## [1.71.5] - 2026-11-18
 
 ### Fixed

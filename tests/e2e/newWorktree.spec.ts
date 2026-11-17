@@ -41,9 +41,17 @@ test('creates a worktree on a new branch and starts Claude in it', async () => {
   await h.page.getByTestId('new-worktree-create').click()
 
   const target = `${h.repoRoot}.worktrees/species-list`
-  await expect.poll(() => existsSync(target)).toBe(true)
-  const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: target }).toString().trim()
-  expect(branch).toBe('species-list')
+  // `git worktree add` makes the folder and its `.git` file before it has finished writing the
+  // worktree's record, so the folder existing is not enough: wait until git can read its branch.
+  const branchOf = (): string | null => {
+    if (!existsSync(target)) return null
+    try {
+      return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: target, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+    } catch {
+      return null
+    }
+  }
+  await expect.poll(branchOf).toBe('species-list')
   await expect(h.page.getByTestId('terminal-session')).toBeVisible()
   // In the sidebar under its folder at once — no message sent, so no transcript names it yet —
   // and still there after a relaunch.

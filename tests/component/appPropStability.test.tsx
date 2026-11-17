@@ -131,11 +131,18 @@ describe('a change in one pane does not render another (§7.2)', () => {
     await clickRowAction('Add worktree switcher', 'split-session-button')
     await until(() => document.querySelectorAll('[data-testid="session-column"]').length === 2)
     const ids = panes()
-    // The next click opens in the focused pane, giving it a second tab.
-    const focused = document.querySelector<HTMLElement>(`[data-column-id="${ids.a}"]`)!
-    await userEvent.click(focused)
+    // The next click opens in the focused pane, giving it a second tab. The pane is clicked by its
+    // place among the panes: a locator built from the element's text also matched the Active
+    // section, which lists the same session titles.
+    const columns = [...document.querySelectorAll<HTMLElement>('[data-testid="session-column"]')]
+    const focused = must(columns.find((c) => c.dataset.columnId === ids.a), 'pane A')
+    await userEvent.click(page.getByTestId('session-column').nth(columns.indexOf(focused)))
     await userEvent.click(sidebarSession('Repo root session'))
     await until(() => focused.querySelectorAll('[data-testid="session-tab"]').length === 2)
+    // The window reports its tabs 500 ms after the last change, and main's answer
+    // (`activeTabsChanged`) renders every pane: wait for the report of all three tabs, or on a slow
+    // machine it lands inside the next test's count.
+    await until(() => (fake.callsTo('reportTabs').at(-1)?.[0] as unknown[] | undefined)?.length === 3)
     await panesQuiet()
     return { ...panes(), fake }
   }
