@@ -1,9 +1,54 @@
 {
   "skills": {
-    "trim-comments": { "every": { "commits": 30, "days": 14 }, "last": { "commit": "6e3a400be2bfd75bcdd0d09ce1e9941d19cc0cff", "date": "2026-11-07" } },
-    "correct": { "every": { "commits": 40, "days": 14 }, "last": { "commit": "6e3a400be2bfd75bcdd0d09ce1e9941d19cc0cff", "date": "2026-11-07" } },
-    "maintain-verify-apiary": { "every": { "commits": 60, "days": 30 }, "last": { "commit": "76bb921b302d8647e69c1da1dc87efd0014faf3f", "date": "2026-10-12" } },
-    "architecture-drift": { "every": { "commits": 80, "days": 30 }, "last": { "commit": "3a844b1fb31c467ab66776e1d7060e8c7abab357", "date": "2026-10-08" } },
-    "prune-tests": { "every": { "commits": 120, "days": 45 }, "last": { "commit": "6e3a400be2bfd75bcdd0d09ce1e9941d19cc0cff", "date": "2026-11-07" } }
+    "trim-comments": {
+      "every": {
+        "commits": 30,
+        "days": 14
+      },
+      "last": {
+        "commit": "6e3a400be2bfd75bcdd0d09ce1e9941d19cc0cff",
+        "date": "2026-11-07"
+      }
+    },
+    "correct": {
+      "every": {
+        "commits": 40,
+        "days": 14
+      },
+      "last": {
+        "commit": "6e3a400be2bfd75bcdd0d09ce1e9941d19cc0cff",
+        "date": "2026-11-07"
+      }
+    },
+    "maintain-verify-apiary": {
+      "every": {
+        "commits": 60,
+        "days": 30
+      },
+      "last": {
+        "commit": "994c90f94b7ac65e6c3629bf81adfaaa0dbd60d0",
+        "date": "2026-11-17"
+      }
+    },
+    "architecture-drift": {
+      "every": {
+        "commits": 80,
+        "days": 30
+      },
+      "last": {
+        "commit": "3a844b1fb31c467ab66776e1d7060e8c7abab357",
+        "date": "2026-10-08"
+      }
+    },
+    "prune-tests": {
+      "every": {
+        "commits": 120,
+        "days": 45
+      },
+      "last": {
+        "commit": "6e3a400be2bfd75bcdd0d09ce1e9941d19cc0cff",
+        "date": "2026-11-07"
+      }
+    }
   }
 }

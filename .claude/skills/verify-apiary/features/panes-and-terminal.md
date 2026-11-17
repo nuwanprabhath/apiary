@@ -47,5 +47,8 @@ move (the pty belongs to main, so output must survive a remount).
 
 ## Gotchas
 
+- Each pane is a `session-column`; the shell panel's height is `bottom-resizer`. After a tab moves,
+  `shell-toggle` may need clicking again to show its shell.
+
 - Resume runs the stand-in `claude` (a login shell) unless `claudeBin` says otherwise.
 - Typing into a terminal needs a click on it first to focus xterm.

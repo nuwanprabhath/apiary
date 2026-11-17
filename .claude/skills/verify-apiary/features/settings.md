@@ -1,7 +1,9 @@
 # Settings
 
-A dialog with a section nav (`settings-nav-<section>`: `search`, `themes`, `pets`, and others).
-Most sections save with `settings-save`; some (themes, pets) apply at once.
+A dialog with a section nav (`settings-nav-<section>`: `sessions`, `search`, `sidebar`, `themes`,
+`terminal`, `pets`, `plugins`, `residents`, `updates`, `general`, `accounts`, `diagnostics`; the ids
+are built at runtime, so grep finds `settings-nav-${id}`). Most sections save with `settings-save`;
+themes, pets, accounts and residents apply at once.
 
 ## Sub-features
 
@@ -11,6 +13,9 @@ Most sections save with `settings-save`; some (themes, pets) apply at once.
 - Themes and pets have their own feature files; plugins, updates and diagnostics have none yet.
 - General's "Hide tool calls" (`setting-hide-tool-call-io`) saves to library state
   (`library-state.json`), never `settings.json`; in a remote window it edits the work machine's.
+- Settings search (`settings-search`): matching settings listed under their section headings
+  (`settings-results`, a count per section in `settings-nav-count-<section>`); Enter jumps to the
+  first match's section and highlights it.
 
 ## How to get to it (user POV)
 
