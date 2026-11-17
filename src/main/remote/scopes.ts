@@ -5,9 +5,8 @@ import { IPC, type IpcKey } from '@shared/ipc/contract'
  * machine's windows, opened at home over SSH: docs/proposals/2026-10-10-remote-access.md).
  *
  * - `remote`: the work machine's data or processes (sessions, transcripts, chat, terminals, git,
- *   search, the updater). The home machine forwards the call over the connection; the work machine runs it
- *   through the same guarded handler a local window would reach. Events of this scope reach a
- *   remote window only from the work machine.
+ *   search, the updater). Home forwards the call; the work machine runs it through the same guarded
+ *   handler a local window would reach. Events of this scope come only from the work machine.
  * - `local`: the home machine's own look, devices and app (theme, pets, menus, clipboard,
  *   spelling, the This-Mac settings, logs). Handled at home as for any window.
  * - `bridged`: the home machine handles the call, with what it knows of the work machine: an answer

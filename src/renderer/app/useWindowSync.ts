@@ -10,7 +10,7 @@ import { openTerminalLinks } from '../state/terminals'
 /**
  * What keeps this window and main in step after the launch restore: the layout report main
  * persists, the open-session rows, tab transfers between windows and chat take-over, and the
- * links its terminals ask to open. In this order, as App always called them.
+ * links its terminals ask to open.
  */
 export function useWindowSync(detached: string | null): { transferFor: (key: string) => TabTransfer } {
   useLayoutReporting(detached)

@@ -429,12 +429,8 @@ export class TranscriptReader {
   }
 
   /**
-   * Backward paging over the offset index.
-   *
-   * Reads lines from `end - 1` backwards (`collectBackward`) until it holds more messages than
-   * `limit` (so a real earlier boundary exists), reaches line 0, or has read 16 MB.
-   *
-   * `earlierCursor` comes from the line index of the earliest message kept on the page.
+   * Backward paging over the offset index: `collectBackward` from `end - 1` until it holds more
+   * messages than `limit` (so a real earlier boundary exists), reaches line 0, or has read 16 MB.
    */
   async readTranscriptPage(
     filePath: string,

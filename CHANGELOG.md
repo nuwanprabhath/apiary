@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.71.1] - 2026-11-17
+
+### Changed
+
+- Trimmed 35 comment lines (13 net) from multi-line blocks in six files: story-telling in headers
+  (a commit count, an incident tally) and restatements of the function beside them. Comments only.
+
 ## [1.71.0] - 2026-11-17
 
 ### Added
