@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.68.2] - 2026-11-17
+
+### Fixed
+
+- Selecting part of a chat bullet, numbered item or quoted line copies just the selected text, with
+  no bullet dash, list number or quote mark in front, so a URL or command pastes cleanly. A selection that crosses from
+  one block into another (two bullets, a list and the paragraph before it) still copies with its
+  bullets, numbers and indent, and "Copy with formatting" always keeps them. This applies to
+  copy-on-select, Ctrl/Cmd+C and the right-click "Copy".
+
 ## [1.68.1] - 2026-11-16
 
 ### Fixed

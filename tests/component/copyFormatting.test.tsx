@@ -16,7 +16,9 @@ const HTML = `
 <h2 id="head">Heading</h2>
 <pre id="code">a  b
   c</pre>
-<p id="last">The end</p>`
+<p id="last">The end</p>
+<ul id="two"><li id="b1">Fetch <code id="url">host/a.json</code> now</li><li id="b2">Second bullet</li></ul>
+<blockquote id="quote"><p id="q1">Quoted line one</p></blockquote>`
 
 function Probe(): React.JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null)
@@ -55,7 +57,20 @@ function selectNodes(from: Node, to: Node | null = null): void {
 
 const el = (id: string): HTMLElement => document.getElementById(id)!
 const region = (): HTMLElement => document.querySelector<HTMLElement>('[data-testid="region"]')!
-const textOf = (): string => selectionText(selectionFragmentWithin(region())!)
+function copied(): { text: string; html: string } {
+  const data = new DataTransfer()
+  region().dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true, clipboardData: data }))
+  return { text: data.getData('text/plain'), html: data.getData('text/html') }
+}
+function selectBetween(a: Node, aOffset: number, b: Node, bOffset: number): void {
+  const range = document.createRange()
+  range.setStart(a, aOffset)
+  range.setEnd(b, bOffset)
+  const sel = window.getSelection()!
+  sel.removeAllRanges()
+  sel.addRange(range)
+}
+const textOf =(): string => selectionText(selectionFragmentWithin(region())!)
 
 describe('selectionText', () => {
   it('numbers an ordered list and indents a nested bullet list', async () => {
@@ -107,5 +122,45 @@ describe('copying in the region', () => {
     const data = new DataTransfer()
     region().dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true, clipboardData: data }))
     expect(data.getData('text/plain')).toBe('The end')
+  })
+})
+
+describe('a selection inside one block copies as plain text', () => {
+  it('1: part of a bullet has no marker', async () => {
+    await mount()
+    selectNodes(el('url'))
+    expect(copied()).toEqual({ text: 'host/a.json', html: '' })
+  })
+
+  it('2: a word inside an ordered item has no number', async () => {
+    await mount()
+    selectBetween(el('s3').firstChild!, 0, el('s3').firstChild!, 4)
+    expect(copied()).toEqual({ text: 'Done', html: '' })
+  })
+
+  it('3: bullet 1 into bullet 2 keeps the markers', async () => {
+    await mount()
+    selectBetween(el('b1').firstChild!, 2, el('b2').firstChild!, 6)
+    const { text, html } = copied()
+    expect(text).toBe('- tch host/a.json now\n- Second')
+    expect(html).toContain('<ul')
+  })
+
+  it('4: a paragraph and the list after it keep their structure', async () => {
+    await mount()
+    selectNodes(el('intro'), el('steps'))
+    expect(copied().text.startsWith('Steps to take:\n\n1. Open it')).toBe(true)
+  })
+
+  it('5: triple-click on a bullet copies its text alone', async () => {
+    await mount()
+    selectBetween(el('b1'), 0, el('b2'), 0)
+    expect(copied().text).toBe('Fetch host/a.json now')
+  })
+
+  it('6: part of a quoted line has no >', async () => {
+    await mount()
+    selectBetween(el('q1').firstChild!, 0, el('q1').firstChild!, 6)
+    expect(copied().text).toBe('Quoted')
   })
 })

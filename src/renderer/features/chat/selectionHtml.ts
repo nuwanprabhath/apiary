@@ -46,6 +46,29 @@ export function selectionFragmentWithin(root: HTMLElement | null): HTMLElement |
   return holder
 }
 
+/** Elements whose text is a line or cell of its own, so a selection reaching two of them crosses a block. */
+const TEXT_BLOCKS = 'li, p, h1, h2, h3, h4, h5, h6, pre, blockquote, td, th, div'
+
+/**
+ * True when the selection stays inside one block (one paragraph, list item, heading, cell or code
+ * block). The range's own contents are counted before any re-wrapping: a triple-click that ends at
+ * the start of the next block clones it empty, which has no text and does not count.
+ */
+export function selectionInOneBlock(root: HTMLElement | null): boolean {
+  const sel = window.getSelection()
+  if (root === null || sel === null || sel.isCollapsed || sel.rangeCount === 0) return false
+  const range = sel.getRangeAt(0)
+  if (!root.contains(range.commonAncestorContainer)) return false
+  const owners = new Set<Element>()
+  const walker = document.createTreeWalker(range.cloneContents(), NodeFilter.SHOW_TEXT)
+  for (let n = walker.nextNode(); n !== null; n = walker.nextNode()) {
+    if ((n.textContent ?? '').trim() === '') continue
+    const owner = n.parentElement?.closest(TEXT_BLOCKS)
+    if (owner !== null && owner !== undefined) owners.add(owner)
+  }
+  return owners.size <= 1
+}
+
 /** The elements markdown produces, which a pasted document keeps. */
 const PASTED_TAGS = new Set([
   'P', 'BR', 'HR', 'STRONG', 'B', 'EM', 'I', 'DEL', 'S', 'CODE', 'PRE', 'BLOCKQUOTE', 'UL', 'OL', 'LI', 'A',
