@@ -46,6 +46,8 @@ export type ClaudeEntry = Common & (
     origin: Origin | undefined
     isMeta: boolean
     sourceToolUseID: string | undefined
+    /** `scheduled` on a prompt Claude Code fired itself (a `CronCreate` job). */
+    turnOrigin: string | undefined
   }
   | { type: 'assistant' }
   | {
@@ -111,6 +113,7 @@ export function entryOf(value: unknown): ClaudeEntry | null {
       return {
         ...common, type: 'user', origin: origin(e.origin),
         isMeta: e.isMeta === true, sourceToolUseID: stringField(e.sourceToolUseID),
+        turnOrigin: stringField(e.turnOrigin),
       }
     case 'assistant': return { ...common, type: 'assistant' }
     case 'attachment': {

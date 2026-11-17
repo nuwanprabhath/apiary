@@ -6,6 +6,7 @@ import { TRANSCRIPT_PAGE_SIZE } from '@shared/types'
 import { taskNotificationIds } from '@shared/chatTimeline'
 import type { TranscriptFindResult } from '@shared/ipc/contract'
 import { forEachLine, MAX_LINE_CHARS, readExact } from './jsonlLines'
+import { loadedContext, scheduledPrompt } from './metaEntries'
 import { decodeEntry, entryOf, type ClaudeEntry, type MessageContent, type Origin } from './claudeEntry'
 
 /** A line longer than this is skipped by its length alone (4 bytes covers any character in `MAX_LINE_CHARS`). */
@@ -159,6 +160,7 @@ export function entryMessage(entry: ClaudeEntry): TranscriptMessage | null {
       if (!entry.message) return null
       const blocks = mapBlocks(entry.message.content)
       const folded = peerMessage(entry.origin, blocks) ?? loadedContext(entry.isMeta, entry.sourceToolUseID, blocks)
+        ?? scheduledPrompt(entry.isMeta, entry.turnOrigin, blocks)
       return { ...base, role: 'user', blocks: folded === null ? blocks : [folded] }
     }
     case 'custom-title':
@@ -166,22 +168,6 @@ export function entryMessage(entry: ClaudeEntry): TranscriptMessage | null {
     case 'other':
       return null
   }
-}
-
-/** How a skill's instructions begin when Claude Code loads them (measured on 2.1.302). */
-const SKILL_BASE = /^Base directory for this skill: (\S+)/
-
-/**
- * Text Claude Code put in the conversation for a tool, not from you: a `user` entry with `isMeta`
- * and the `sourceToolUseID` of the call that loaded it, a skill's instructions above all (pages of
- * them, which the chat drew as if you had written them).
- */
-function loadedContext(isMeta: boolean, sourceToolUseID: string | undefined, blocks: TranscriptBlock[]): TranscriptBlock | null {
-  if (!isMeta || sourceToolUseID === undefined) return null
-  const text = blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n')
-  if (text.trim() === '') return null
-  const dir = SKILL_BASE.exec(text)?.[1] ?? null
-  return { type: 'loaded_context', name: dir === null ? null : dir.replace(/\/+$/, '').split('/').pop() ?? null, text }
 }
 
 /** The preamble Claude Code puts before a subagent's report ("[Subagent hand-back] The text below is

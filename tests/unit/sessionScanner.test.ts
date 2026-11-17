@@ -27,6 +27,18 @@ describe('extractMeta', () => {
     expect(meta.messageCount).toBeNull()
   })
 
+  it('never takes a scheduled prompt as the first prompt', async () => {
+    const dir = join(root, '-home-nuwan-app')
+    mkdirSync(dir, { recursive: true })
+    const file = join(dir, '22222222-2222-2222-2222-222222222222.jsonl')
+    const line = (o: Record<string, unknown>): string => JSON.stringify({ type: 'user', cwd: '/home/nuwan/app', sessionId: '22222222-2222-2222-2222-222222222222', ...o })
+    writeFileSync(file, [
+      line({ isMeta: true, turnOrigin: 'scheduled', message: { role: 'user', content: 'Post-push watch of !1674' } }),
+      line({ message: { role: 'user', content: 'what did the watch find' } }),
+    ].join('\n') + '\n')
+    expect((await extractMeta(file)).firstPrompt).toBe('what did the watch find')
+  })
+
   it('NEVER derives cwd from the lossy directory slug', async () => {
     // Both "/" and "." collapse to "-", so the slug is not invertible.
     const slug = '-Users-nuwan-projects-paratoo-fdcp-worktrees-1-0-11'

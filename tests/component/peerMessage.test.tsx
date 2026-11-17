@@ -69,6 +69,18 @@ describe('a message from another Claude session', () => {
     await expect.poll(shown).toContain('step 29')
   })
 
+  it('a scheduled prompt is one collapsed row with its first line, and opens to all of it', async () => {
+    const text = ['Post-push watch of !1674 (253-refs).', '1. glab mr view 1674', 'Nothing new: one short line.'].join('\n')
+    await chatWith([{ uuid: 'k1', role: 'user', timestampMs: null, isSidechain: false, blocks: [{ type: 'scheduled_prompt', text }] }])
+    await expect.element(page.getByTestId('scheduled-message')).toBeVisible()
+    const shown = (): string => document.querySelector('[data-testid="scheduled-message"]')?.textContent ?? ''
+    await expect.poll(shown).toMatch(/Scheduled prompt\s*Post-push watch of !1674/)
+    expect(shown()).not.toContain('Nothing new')
+    expect(document.querySelector('[data-testid="chat-user"][data-key="k1"]')).toBeNull()
+    await userEvent.click(page.getByTestId('scheduled-message-toggle'))
+    await expect.poll(shown).toContain('Nothing new')
+  })
+
   it('a long command output, such as /compact with a plugin\'s hooks, shows its first line and opens', async () => {
     const out = ['Compacted PreCompact [bash "${CLAUDE_PLUGIN_ROOT}/hooks/run.py"] completed successfully: COMPACTION GUIDANCE', '', 'PRESERVE - High-value tool outputs:', ...Array.from({ length: 10 }, (_, i) => `  - /tmp/output-${String(i)}.png (3000 tokens)`)].join('\n')
     await chatWith([{ uuid: 'c1', role: 'user', timestampMs: null, isSidechain: false, blocks: [{ type: 'text', text: `<local-command-stdout>${out}</local-command-stdout>` }] }])

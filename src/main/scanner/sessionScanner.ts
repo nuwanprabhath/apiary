@@ -32,7 +32,7 @@ function promptText(content: MessageContent): string | null {
 
 function firstUserPrompt(entries: ClaudeEntry[]): string | null {
   for (const e of entries) {
-    if (e.type !== 'user' || e.isSidechain || !e.message) continue
+    if (e.type !== 'user' || e.isSidechain || !e.message || e.turnOrigin === 'scheduled') continue
     const text = promptText(e.message.content)
     // Session-start hooks and command wrappers arrive as XML-ish blobs; skip them.
     if (text && !text.trimStart().startsWith('<')) return text.trim()

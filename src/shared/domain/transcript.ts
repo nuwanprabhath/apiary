@@ -19,6 +19,9 @@ export type TranscriptBlock =
    *  instructions when it loads: a `user` entry with `isMeta` and the `sourceToolUseID` of the call.
    *  `name` is the skill's, when the text says which. */
   | { type: 'loaded_context'; name: string | null; text: string }
+  /** A recurring job's prompt that Claude Code fired itself (`CronCreate`): a `user` entry with
+   *  `isMeta` and `turnOrigin: 'scheduled'`, not something you typed. */
+  | { type: 'scheduled_prompt'; text: string }
   /** Background tasks that ended, as far as Claude Code queued their notification (`queue-operation`
    *  `enqueue`). Drawn as nothing: when the notification is delivered it shows as a message. */
   | { type: 'task_ended'; taskIds: string[] }

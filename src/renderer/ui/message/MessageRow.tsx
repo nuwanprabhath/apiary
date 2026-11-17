@@ -3,7 +3,7 @@ import type { TranscriptMessage } from '@shared/types'
 import { MessageTime } from '../MessageTime'
 import { ToolBlock } from './ToolBlock'
 import { MarkdownText } from './MarkdownText'
-import { LoadedMessage, PeerMessage } from './FoldedMessage'
+import { LoadedMessage, PeerMessage, ScheduledMessage } from './FoldedMessage'
 import { ImageThumbnail, TranscriptImageFile, IMAGE_PATH_LINE } from './TranscriptImage'
 
 /**
@@ -112,6 +112,8 @@ export const MessageRow = memo(function MessageRow(
             case 'loaded_context':
               // Likewise one block, the message's only one.
               return <LoadedMessage key="loaded" name={block.name} text={block.text} />
+            case 'scheduled_prompt':
+              return <ScheduledMessage key="scheduled" text={block.text} />
             case 'turn_end':
             case 'recap':
             case 'task_ended':

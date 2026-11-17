@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.68.4] - 2026-11-17
+
+### Fixed
+
+- A recurring job's prompt that Claude Code fires itself (a `CronCreate` job, `turnOrigin: "scheduled"`)
+  is one collapsed "Scheduled prompt" row with its first line, in the transcript and in chat mode,
+  opening to the whole text. It filled the screen every firing, and is never a session's title.
+
 ## [1.68.3] - 2026-11-17
 
 ### Fixed

@@ -24,13 +24,14 @@ function isLong(text: string): boolean {
  * to its first line when long, its header opening it. `skip` leaves a line out of that first line
  * (a skill's "Base directory" line says nothing about it).
  */
-function FoldedMessage({ label, text, skip = null, testId }: {
+function FoldedMessage({ label, text, skip = null, testId, foldAlways = false }: {
   label: string
   text: string
   skip?: RegExp | null
   testId: string
+  foldAlways?: boolean
 }): JSX.Element {
-  const long = isLong(text)
+  const long = foldAlways || isLong(text)
   const [open, setOpen] = useState(!long)
   const first = firstLine(text, skip)
   return (
@@ -58,6 +59,12 @@ function FoldedMessage({ label, text, skip = null, testId }: {
 /** Another Claude session's message to this one, a subagent's report back among them. */
 export function PeerMessage({ from, text }: { from: string | null; text: string }): JSX.Element {
   return <FoldedMessage label={from === null ? 'Another Claude session' : `${from} agent`} text={text} testId="peer-message" />
+}
+
+/** A recurring job's prompt Claude Code fired itself: always folded to its first line, since it
+ *  comes back on every firing. */
+export function ScheduledMessage({ text }: { text: string }): JSX.Element {
+  return <FoldedMessage label="Scheduled prompt" text={text} testId="scheduled-message" foldAlways />
 }
 
 /** Text a tool loaded into the conversation, a skill's instructions above all. */
