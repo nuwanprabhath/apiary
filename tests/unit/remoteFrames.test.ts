@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { encodeFrame, encodeHandshakeFrame, FrameDecoder, MAX_FRAME_BYTES } from '../../src/main/remote/frames'
 import { CHANNEL_SCOPES, scopeOf } from '../../src/main/remote/scopes'
 import { contractHash } from '../../src/main/remote/protocol'
@@ -59,24 +59,34 @@ describe('FrameDecoder at scale', () => {
     const bytes = encodeFrame({ t: 'x', data: new Uint8Array(32 * 1024 * 1024) })
     const chunks: Buffer[] = []
     for (let i = 0; i < bytes.length; i += 65536) chunks.push(bytes.subarray(i, i + 65536))
-    const time = (decoder: FrameDecoder, pieces: Buffer[]): number => {
-      const start = performance.now()
-      let n = 0
-      for (const piece of pieces) n += decoder.push(piece).length
-      expect(n).toBe(1)
-      return performance.now() - start
+    // Bytes moved, counted rather than timed: a copy per chunk moves the growing frame each time
+    // (gigabytes here), assembling it once moves it once.
+    let copied = 0
+    // Node's typings give `Buffer.prototype` as `any`; this is the one method the test wraps.
+    const proto = Buffer.prototype as { copy: Buffer['copy'] }
+    const original = proto.copy
+    proto.copy = function (this: Buffer, ...args: Parameters<Buffer['copy']>): number {
+      const moved = original.apply(this, args)
+      copied += moved
+      return moved
     }
+    const concat = vi.spyOn(Buffer, 'concat')
     const sizes: number[] = []
-    const counting = new FrameDecoder((size) => {
+    const decoder = new FrameDecoder((size) => {
       sizes.push(size)
       return Buffer.allocUnsafe(size)
     })
-    const chunked = time(counting, chunks)
-    // Two pushes force the same one copy a chunked frame costs, so the ratio isolates per-chunk work.
-    const half = Math.floor(bytes.length / 2)
-    const single = time(new FrameDecoder(), [bytes.subarray(0, half), bytes.subarray(half)])
+    let n = 0
+    try {
+      for (const piece of chunks) n += decoder.push(piece).length
+    } finally {
+      proto.copy = original
+    }
+    const concatenated = concat.mock.results.reduce((sum, r) => sum + (r.value as Buffer).length, 0)
+    concat.mockRestore()
+    expect(n).toBe(1)
     expect(sizes.filter((s) => s > 1024 * 1024).length).toBeLessThan(5)
-    expect(chunked).toBeLessThan(Math.max(single, 1) * 5)
+    expect(copied + concatenated).toBeLessThan(bytes.length * 2)
   })
 })
 

@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.70.2] - 2026-11-17
+
+### Fixed
+
+- The remote frame decoder's "no copy per chunk" test counts the bytes copied instead of comparing
+  two timings, which failed on a busy machine. It still fails on a decoder that copies per chunk
+  (8.6 GB moved for a 32 MB frame, against a limit of twice the frame).
+
 ## [1.70.1] - 2026-11-17
 
 ### Changed
