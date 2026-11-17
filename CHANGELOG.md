@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.70.7] - 2026-11-17
+
+### Fixed
+
+- The test launcher (`launchApiary`) passes Electron the app's own path instead of `.`. Run from the
+  verify skill's folder, `.` was that folder, so Electron could not find the app and put an "Error
+  launching app" dialog on the maintainer's screen. `verify.sh doctor` passes again.
+
 ## [1.70.6] - 2026-11-17
 
 ### Changed
