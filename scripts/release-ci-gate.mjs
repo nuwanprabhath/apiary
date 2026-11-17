@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Refuses to push a release tag until CI has passed on the commit it tags. Run by .husky/pre-push.
+// Refuses to push a release tag until CI has passed on the commit it tags and no nightly failure is
+// left open. Run by .husky/pre-push.
 //
 // The release workflow runs the same checks as CI, on Linux, before it builds anything. A tag
 // pushed while CI on its commit was still running or had failed stops at those checks, publishes
@@ -20,6 +21,21 @@ export function ciVerdict(runs, sha) {
   return null
 }
 
+/** The labels the scheduled runs file their failures under (nightly-e2e, nightly-slow, nightly-clock). */
+const NIGHTLY = /^nightly-/
+
+/**
+ * What to do about a release while `issues` (open issues, as `gh issue list --json` gives them) are
+ * open: null to go ahead, or which nightly failures are still unanswered. A nightly run files an
+ * issue when it fails and closes it when it passes; a fix closes it from its commit ("Closes #43").
+ */
+export function nightlyVerdict(issues) {
+  const open = issues.filter((i) => i.labels.some((l) => NIGHTLY.test(l.name)))
+  if (open.length === 0) return null
+  const list = open.map((i) => `#${String(i.number)} ${i.title}`).join('; ')
+  return `nightly failures are still open: ${list}. Read each run, fix what it found (a flake is fixed, not rerun), close the issue from the fix's commit ("Closes #N"), then push the tag again.`
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const sha = process.argv[2]
   if (!sha) {
@@ -31,6 +47,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     runs = JSON.parse(execFileSync('gh', ['run', 'list', '--workflow', 'ci.yml', '--commit', sha, '--limit', '5', '--json', 'databaseId,status,conclusion'], { encoding: 'utf8' }))
   } catch (error) {
     console.error(`pre-push: could not ask GitHub about CI on ${sha.slice(0, 8)} (${error.message.split('\n')[0]}). Install and sign in to gh, then push the tag again.`)
+    process.exit(1)
+  }
+  let issues
+  try {
+    issues = JSON.parse(execFileSync('gh', ['issue', 'list', '--state', 'open', '--json', 'number,title,labels', '--limit', '50'], { encoding: 'utf8' }))
+  } catch (error) {
+    console.error(`pre-push: could not ask GitHub for open nightly issues (${error.message.split('\n')[0]}). Install and sign in to gh, then push the tag again.`)
+    process.exit(1)
+  }
+  const nightly = nightlyVerdict(issues)
+  if (nightly !== null) {
+    console.error(`pre-push: the release tag is not pushed: ${nightly}`)
     process.exit(1)
   }
   const why = ciVerdict(runs, sha)

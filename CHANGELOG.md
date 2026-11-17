@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.72.0] - 2026-11-18
+
+### Added
+
+- A release waits for the nightly failures to be answered: pushing a `v*` tag is refused while an
+  issue the nightly runs filed (`nightly-e2e`, `nightly-slow`, `nightly-clock`) is still open
+  (`scripts/release-ci-gate.mjs`). A fix closes its issue from its commit. Two such issues (#43,
+  #44) were open while 1.71.3 and 1.71.4 were prepared, and one closed earlier (#42) had only
+  passed on a rerun.
+
 ## [1.71.6] - 2026-11-18
 
 ### Fixed
