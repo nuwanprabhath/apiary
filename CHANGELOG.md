@@ -4,6 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.71.3] - 2026-11-17
+
+### Changed
+
+- The verify skill's feature map is true again (its first audit since 1.39). Every feature was
+  read from source and driven in the real app off-screen; no product bugs were found. New files
+  for resident agents, scheduled messages, accounts, the status bar and usage, and remote
+  windows. The sidebar, chat, settings, panes and pets files now cover pinning, the Active section,
+  the "/" actions, background tasks, settings search and the full settings sections.
+  `drives/features.verify.ts` drives all of it in four launches. What a plain drive cannot reach
+  is named with its prerequisite: a connected remote window, a real account sign-in, real GitLab.
+
 ## [1.71.2] - 2026-11-17
 
 ### Added

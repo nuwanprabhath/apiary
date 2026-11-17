@@ -16,6 +16,13 @@ under their repo. The search box filters by title and, through the FTS5 index, b
   dismissals are main's library state, `library-state.json` in userData (a remote window shows the
   work machine's). Folder collapse (`project-toggle`) and the sidebar width are this window's own.
 
+- Pinning: the row menu's `context-menu-pin`/`-unpin` (ids built at runtime in
+  `sidebarMenuItems.ts` and `ContextMenu.tsx`), the hover `pin-session-button`, the Pinned section
+  (`pinned-section`, collapsed with `pinned-toggle`).
+- The row menu also has Fork session, Schedule a message… and Arrange.
+- The Active section (`active-section`, one `active-tab-row` per open tab, its status dot from the
+  tab's activity); it collapses like Pinned and filters with the search box.
+
 ## How to get to it (user POV)
 
 It is the left column on launch. A new profile shows sessions only after they are imported.

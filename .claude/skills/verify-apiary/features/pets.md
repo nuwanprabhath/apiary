@@ -44,6 +44,9 @@ rule in `src/shared/pets/brain.ts`.
 
 ## Gotchas
 
+- Each pet has its own model (`pet-card-model`). The `petsFlat` test seam draws them without the 3D
+  layer.
+
 - A pet always breathes, so Playwright never sees it as stable: click with
   `page.mouse.click` at the centre of its `boundingBox()`, never `locator.click()`.
 - The first 3D render takes about a second on a real GPU and longer in software; wait up to 60 s.

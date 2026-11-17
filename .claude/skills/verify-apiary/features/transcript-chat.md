@@ -31,6 +31,13 @@ streams in with tool calls and permission prompts, without starting a terminal.
 - Hide tool calls: library state's `hideToolCallIo` (and each chat's `showToolCalls` in
   `chatSettings`), in `library-state.json`, not `settings.json`.
 
+- The "/" menu's Actions group (`composer-action-option`, select one by `data-action`): account,
+  reload-session, schedule-message, open in VS Code (`PALETTE_ACTIONS`, `paletteActions.ts`), next
+  to Claude's own commands.
+- `composer-mode`; permission prompts (`chat-permission-allow`/`-deny`); tool calls
+  (`chat-tool-in`/`-out`); background tasks (`chat-status-tasks`, "1 background task running", with
+  each agent's model and effort in its popup).
+
 ## How to get to it (user POV)
 
 Settings → General → "Run sessions as a chat, like the VS Code extension"
