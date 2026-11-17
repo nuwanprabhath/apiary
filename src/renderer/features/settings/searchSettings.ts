@@ -58,7 +58,6 @@ export function searchSettings(
   })
 }
 
-/** `text` cut into runs, each marked when it is one of the query's words. */
 export function highlightRuns(text: string, words: readonly string[]): Array<{ at: number; text: string; hit: boolean }> {
   const lower = text.toLowerCase()
   const marked = new Array<boolean>(text.length).fill(false)

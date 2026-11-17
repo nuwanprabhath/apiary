@@ -25,7 +25,6 @@ export function useChatMode(): boolean {
 /** Keys are plain strings; every one reaching `fetch` or `attach` came from `useChat`, which takes a `SessionId`. */
 const sessionOfKey = (key: string): SessionId => asSessionId(key)
 
-/** Sessions this window has attached (a key with readers). */
 const attached = new Set<string>()
 /** Attached sessions whose copy here fell behind main's: re-attached, waiting for a whole push. */
 const behind = new Set<string>()

@@ -43,7 +43,6 @@ export interface IndexWrite {
   reset: boolean
 }
 
-/** Splits text into rows of at most `CHUNK_CHARS`. */
 function splitChunks(text: string): string[] {
   const out: string[] = []
   for (let i = 0; i < text.length; i += CHUNK_CHARS) out.push(text.slice(i, i + CHUNK_CHARS))
@@ -159,7 +158,6 @@ export class SearchIndex {
       { size: number; upto: number } | undefined
   }
 
-  /** Replaces a session with `text`, whole. */
   put(sessionId: string, text: string, size: number, mtimeMs: number, refs: Ref[] = []): void {
     this.write(sessionId, { chunks: splitChunks(text), refs, size, mtimeMs, upto: size, reset: true })
   }

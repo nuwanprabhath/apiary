@@ -110,7 +110,6 @@ export class ScheduleService {
     return message
   }
 
-  /** Cancels a schedule, or dismisses a notice; an unknown id is already gone. */
   async cancel(id: string): Promise<void> {
     const had = this.file.messages.some((m) => m.id === id) || this.file.notices.some((n) => n.id === id)
     if (!had) return
@@ -121,7 +120,6 @@ export class ScheduleService {
     this.changed()
   }
 
-  /** Sends a schedule at once, missed or not. */
   async sendNow(id: string): Promise<void> {
     const message = this.file.messages.find((m) => m.id === id)
     if (message === undefined) throw new Error('That schedule is gone')

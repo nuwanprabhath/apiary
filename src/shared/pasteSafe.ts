@@ -6,7 +6,6 @@
  * otherwise the bracket closes early and what follows runs as keystrokes (a bare `\r` submits, a
  * leading `!` enters bash mode). Every ESC is stripped, since other sequences act mid-paste too.
  */
-/** The escape character that starts a terminal control sequence. */
 export const ESC = String.fromCharCode(0x1b)
 
 export function stripPasteControls(text: string): string {

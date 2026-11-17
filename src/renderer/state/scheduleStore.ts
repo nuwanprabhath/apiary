@@ -18,7 +18,6 @@ const schedulesStore = createIpcStore<SchedulesState>({
   subscribe: (push) => window.apiary.onScheduleChanged(push),
 })
 
-/** Every schedule and notice. */
 export function useSchedules(): SchedulesState {
   return schedulesStore.useStore()
 }
@@ -55,7 +54,6 @@ export const saveSchedule = (request: ScheduleRequest): Promise<ScheduledMessage
 /** The suggested time for a session and where it came from. Returned: the popup waits on it. */
 export const suggestScheduleTime = (sessionId: SessionId): Promise<ScheduleDefault> => window.apiary.scheduleDefault(sessionId)
 
-/** Cancels a schedule, or dismisses a notice. */
 export function cancelSchedule(id: string): void {
   surface(window.apiary.scheduleCancel(id), 'Could not cancel the scheduled message')
 }

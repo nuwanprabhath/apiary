@@ -48,7 +48,6 @@ export function builtinKinds(deps: KindDeps): readonly ResidentKind[] {
   return [regent, createMrDesk(deps)]
 }
 
-/** The kinds this build can run, in registration order. */
 export class KindRegistry {
   private readonly kinds = new Map<ResidentKindId, ResidentKind>()
 
@@ -66,7 +65,6 @@ export class KindRegistry {
   all(): readonly ResidentKind[] { return [...this.kinds.values()] }
 }
 
-/** A registry holding every built-in kind built with `deps`. */
 function builtinRegistry(deps: KindDeps): KindRegistry {
   const registry = new KindRegistry()
   for (const kind of builtinKinds(deps)) registry.register(kind)

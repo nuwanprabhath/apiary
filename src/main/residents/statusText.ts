@@ -15,7 +15,6 @@ export interface StatusReport {
   permissions: ResidentPermissions | null
 }
 
-/** The permission flags a resident's claude was started with, as passed. */
 export interface ResidentPermissions {
   mode: string
   allowedTools: readonly string[]

@@ -141,7 +141,6 @@ export class ScheduledJobs {
     writeFileForProgram(this.pidFile, `${String(pid)}\n`)
   }
 
-  /** At quit: from now on the OS jobs send. */
   uninstall(): void { removeFileForProgram(this.pidFile) }
 
   write(id: string, launch: JobLaunch): void {
@@ -149,7 +148,6 @@ export class ScheduledJobs {
     writePrivateText(join(this.dir, `${id}.vars`), jobVars(launch))
   }
 
-  /** Forgets everything about one schedule, the script's leftovers included. */
   remove(id: string): void {
     for (const ext of ['vars', 'running', 'log', 'done', 'done.tmp']) removeFileForProgram(join(this.dir, `${id}.${ext}`))
   }

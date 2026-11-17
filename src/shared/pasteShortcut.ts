@@ -1,4 +1,3 @@
-/** The keys of a keydown, as far as telling a paste shortcut goes. */
 export interface PasteKeyEvent {
   key: string
   ctrlKey: boolean

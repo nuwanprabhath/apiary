@@ -157,7 +157,6 @@ export function DialogHost({
   )
 }
 
-/** "Schedule a message…", opened from any menu with `openScheduleDialog`. */
 function ScheduleDialogHost(): JSX.Element | null {
   const request = useScheduleDialog()
   if (request === null) return null

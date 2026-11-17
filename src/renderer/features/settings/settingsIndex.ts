@@ -9,11 +9,8 @@ import { SETTINGS, type SettingKey } from '@shared/settings/schema'
  */
 export interface SettingEntry {
   id: string
-  /** A `Section.id` in `registry.tsx`. */
   section: string
-  /** The label as the section shows it, in plain text. */
   label: string
-  /** The help sentence, in plain text. */
   description: string
   /** Other words for it that neither label nor description use. */
   keywords?: readonly string[]
