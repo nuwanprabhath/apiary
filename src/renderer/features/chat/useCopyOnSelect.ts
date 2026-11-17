@@ -3,7 +3,7 @@ import { ContextMenu } from '../../ui/ContextMenu'
 import type { ContextMenuItem } from '../../ui/contextMenuItem'
 import { useNotifications } from '../../ui/notifications'
 import { copyRich, copyText } from '../../state/clipboard'
-import { selectionFragmentWithin, selectionHtmlWithin } from './selectionHtml'
+import { selectionFragmentWithin, selectionHtmlWithin, selectionInOneBlock } from './selectionHtml'
 import { hasStructure, selectionText } from './selectionText'
 
 /** The selected text when it is non-empty and lies wholly inside `root`, else ''. */
@@ -12,8 +12,11 @@ function selectionWithin(root: HTMLElement | null): string {
   if (root === null || sel === null || sel.isCollapsed || sel.rangeCount === 0) return ''
   const range = sel.getRangeAt(0)
   if (!root.contains(range.commonAncestorContainer)) return ''
-  // List numbers and bullets are CSS markers, so they are not in `toString()`: a selection with
-  // structure is written out as text that has them. Running text inside one block copies as it is.
+  // List numbers and bullets are CSS markers, so they are not in `toString()`: a selection that
+  // crosses blocks is written out as text that has them. Inside one block it copies as selected,
+  // since a fragment of a sentence is for a terminal or a browser, not a list.
+  // A triple-click's range ends in the next block, which adds a newline the person did not select.
+  if (selectionInOneBlock(root)) return sel.toString().replace(/\n+$/, '')
   const fragment = selectionFragmentWithin(root)
   return fragment !== null && hasStructure(fragment) ? selectionText(fragment) : sel.toString()
 }
@@ -60,7 +63,7 @@ export function useCopyOnSelect(ref: RefObject<HTMLElement | null>): {
       if (text === '') return
       e.preventDefault()
       e.clipboardData.setData('text/plain', text)
-      const html = selectionHtmlWithin(el)
+      const html = selectionInOneBlock(el) ? '' : selectionHtmlWithin(el)
       if (html !== '') e.clipboardData.setData('text/html', html)
     }
     el.addEventListener('mouseup', onMouseUp)
