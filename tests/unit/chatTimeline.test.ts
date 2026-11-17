@@ -216,6 +216,13 @@ describe('a peer message', () => {
   })
 })
 
+describe('a scheduled prompt', () => {
+  it('is one scheduled item, never a user prompt', () => {
+    const m: TranscriptMessage = { uuid: 'c1', role: 'user', timestampMs: 5, isSidechain: false, blocks: [{ type: 'scheduled_prompt', text: 'Watch !1674' }] }
+    expect(chatItems([m])).toEqual([{ kind: 'scheduled', key: 'c1', text: 'Watch !1674' }])
+  })
+})
+
 describe('text a tool loaded', () => {
   it('is its own item, never a prompt you wrote', () => {
     const loaded: TranscriptMessage = { uuid: 's1', role: 'user', timestampMs: 5, isSidechain: false, blocks: [{ type: 'loaded_context', name: 'gitlab-pipeline-analysis', text: 'Base directory…' }] }

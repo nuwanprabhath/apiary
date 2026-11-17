@@ -19,6 +19,8 @@ export type ChatItem =
   | { kind: 'peer'; key: string; from: string | null; text: string; timestampMs: number | null }
   /** Text a tool loaded into the conversation (a skill's instructions), not something you wrote. */
   | { kind: 'loaded'; key: string; name: string | null; text: string }
+  /** A recurring job's prompt Claude Code fired itself. */
+  | { kind: 'scheduled'; key: string; text: string }
 
 const INTERRUPTED = /^\[Request interrupted by user[^\]]*\]$/
 
@@ -168,6 +170,8 @@ export function chatItems(messages: TranscriptMessage[]): ChatItem[] {
       if (peer !== undefined) { items.push({ kind: 'peer', key: m.uuid, from: peer.from, text: peer.text, timestampMs: m.timestampMs }); continue }
       const loaded = m.blocks.find((b) => b.type === 'loaded_context')
       if (loaded !== undefined) { items.push({ kind: 'loaded', key: m.uuid, name: loaded.name, text: loaded.text }); continue }
+      const scheduled = m.blocks.find((b) => b.type === 'scheduled_prompt')
+      if (scheduled !== undefined) { items.push({ kind: 'scheduled', key: m.uuid, text: scheduled.text }); continue }
       const text = m.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim()
       const images = m.blocks.flatMap((b) => (b.type === 'image' ? [b.dataUrl] : []))
       const made = synthetic(text)

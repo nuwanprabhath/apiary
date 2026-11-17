@@ -412,6 +412,27 @@ describe('text a tool loaded into the conversation', () => {
   })
 })
 
+describe('a recurring job\'s prompt Claude Code fired itself', () => {
+  // As Claude Code 2.1.326 writes a CronCreate firing (paths redacted).
+  const prompt = 'Post-push watch of !1674 (253-refs).\n1. `glab mr view 1674`\n5. Nothing new: one short line.'
+  const fired: Record<string, unknown> = {
+    parentUuid: 'p1', isSidechain: false, promptId: 'x', type: 'user', isMeta: true, uuid: 'u1',
+    timestamp: '2026-11-17T04:40:46.578Z', permissionMode: 'auto', promptSource: 'system',
+    queueSkipSlashCommands: true, wakeupSource: 'schedule_wakeup', turnOrigin: 'scheduled',
+    turnPosition: { promptIndex: 2, turnIndex: 75 }, userType: 'external', entrypoint: 'sdk-cli',
+    cwd: '/work/repo', sessionId: 's', version: '2.1.326', message: { role: 'user', content: prompt },
+  }
+
+  it('reads back as one scheduled_prompt block with the whole text', () => {
+    expect(toMessage(fired)?.blocks).toEqual([{ type: 'scheduled_prompt', text: prompt }])
+  })
+
+  it('is left as text without isMeta or without the scheduled origin', () => {
+    expect(toMessage({ ...fired, isMeta: false })?.blocks[0]?.type).toBe('text')
+    expect(toMessage({ ...fired, turnOrigin: undefined })?.blocks[0]?.type).toBe('text')
+  })
+})
+
 describe('a background task whose end was only queued', () => {
   // As Claude Code writes it (measured on 2.1.302): the start, then the task's notification queued
   // (`queue-operation` `enqueue`) and never delivered as a message, because the session moved on or ended.
