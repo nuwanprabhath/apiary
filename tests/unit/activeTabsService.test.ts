@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { ActiveTabsService, type ActiveTabsDeps } from '../../src/main/terminals/activeTabsService'
+import { log } from '../../src/main/log/logger'
 import { emptyChatState, type ChatState } from '@shared/domain/chat'
 import { asPtyId, asSessionId } from '@shared/domain/ids'
 import type { OpenTab } from '@shared/domain/tabs'
@@ -17,7 +18,6 @@ interface World {
   lastOutputAt?: number
   chats?: ChatState[]
   tasks?: number
-  terminals?: string[]
 }
 
 function activeTabs(world: World) {
@@ -29,14 +29,12 @@ function activeTabs(world: World) {
       screen: () => world.screen ?? '',
       lastOutputAt: () => world.lastOutputAt ?? 0,
     },
-    chats: {
-      state: (id) => world.chats?.find((c) => c.sessionId === id) ?? null,
-      terminalsOf: () => world.terminals ?? [],
-    },
+    chats: { state: (id) => world.chats?.find((c) => c.sessionId === id) ?? null },
     transcripts: { runningBackgroundTasks },
     now: () => NOW,
   }
-  const list = () => new ActiveTabsService(deps).list()
+  const service = new ActiveTabsService(deps)
+  const list = () => service.list()
   return { list, runningBackgroundTasks }
 }
 
@@ -94,22 +92,20 @@ describe('ActiveTabsService', () => {
     expect((await list()).map((t) => t.status)).toEqual(['stopped'])
   })
 
-  it('a chat-view tab whose claude still runs in its terminal is running, from that terminal', async () => {
-    const { list } = activeTabs({
-      tabs: [transcriptTab(A)], terminals: [A], lastOutputAt: NOW - 100, chats: [{ ...emptyChatState(A), status: 'exited' }],
-    })
-    expect((await list()).map((t) => t.status)).toEqual(['running'])
-  })
-
-  it('a chat-view tab whose terminal claude went idle is idle', async () => {
-    const { list } = activeTabs({ tabs: [transcriptTab(A)], terminals: [A], lastOutputAt: 0 })
-    expect((await list()).map((t) => t.status)).toEqual(['idle'])
-  })
-
-  it('a running chat owns the session over a terminal still listed for it', async () => {
-    const { list } = activeTabs({
-      tabs: [transcriptTab(A)], terminals: [A], lastOutputAt: NOW - 100, chats: [{ ...emptyChatState(A), status: 'idle' }],
-    })
-    expect((await list()).map((t) => t.status)).toEqual(['idle'])
+  it('logs once why a terminal tab turned running, by rule and line, with none of the screen', async () => {
+    const info = vi.spyOn(log, 'info').mockImplementation(() => {})
+    const world: World = { tabs: [terminalTab('s1')], screen: 'a private reply\n· Forging… (2s · thinking)\n❯ ', lastOutputAt: NOW - 9000 }
+    const { list } = activeTabs(world)
+    await list()
+    await list()
+    const running = info.mock.calls.filter(([scope]) => scope === 'activity')
+    expect(running).toEqual([['activity', 'terminal tab is running', { ptyId: 's1', rule: 'spinner', line: 2, tasks: 0, msSinceOutput: 9000 }]])
+    expect(JSON.stringify(running)).not.toContain('private')
+    world.screen = '❯ '
+    await list()
+    world.lastOutputAt = NOW - 100
+    await list()
+    expect(info.mock.calls.filter(([scope]) => scope === 'activity').at(-1)?.[2]).toMatchObject({ rule: 'output', msSinceOutput: 100 })
+    info.mockRestore()
   })
 })

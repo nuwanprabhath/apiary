@@ -1,7 +1,8 @@
-import { chatActivity, classifyActivity, withBackgroundTasks, type ActivityStatus } from '@shared/activity'
+import { chatActivity, explainActivity, withBackgroundTasks, type ActivityStatus } from '@shared/activity'
 import { asSessionId } from '@shared/domain/ids'
 import type { ActiveTabPayload, OpenTab } from '@shared/domain/tabs'
 import type { ChatService } from '../chat/chatService'
+import { log } from '../log/logger'
 import type { PtyManager } from '../pty/ptyManager'
 import type { TranscriptService } from '../sessions/transcriptService'
 import type { TabRegistry } from '../windows/tabRegistry'
@@ -9,7 +10,7 @@ import type { TabRegistry } from '../windows/tabRegistry'
 export interface ActiveTabsDeps {
   tabs: Pick<TabRegistry, 'list'>
   pty: Pick<PtyManager, 'has' | 'screen' | 'lastOutputAt'>
-  chats: Pick<ChatService, 'state' | 'terminalsOf'>
+  chats: Pick<ChatService, 'state'>
   transcripts: Pick<TranscriptService, 'runningBackgroundTasks'>
   now: () => number
 }
@@ -20,10 +21,17 @@ export interface ActiveTabsDeps {
  * on the screen, so an idle terminal asks its session file and an idle chat already knows.
  */
 export class ActiveTabsService {
+  /** Each terminal tab's last status, so the log says once why it turned running. Invalidated by
+   *  `list`: a tab no longer listed is dropped. */
+  private readonly lastStatus = new Map<string, ActivityStatus>()
+
   constructor(private readonly deps: ActiveTabsDeps) {}
 
   async list(): Promise<ActiveTabPayload[]> {
-    return Promise.all(this.deps.tabs.list().map(async (tab) => ({
+    const tabs = this.deps.tabs.list()
+    const listed = new Set(tabs.map((tab) => tab.key))
+    for (const key of this.lastStatus.keys()) if (!listed.has(key)) this.lastStatus.delete(key)
+    return Promise.all(tabs.map(async (tab) => ({
       windowNumber: tab.windowNumber,
       key: tab.key,
       view: tab.view,
@@ -34,23 +42,20 @@ export class ActiveTabsService {
 
   private async statusOf(tab: OpenTab): Promise<ActivityStatus> {
     const { pty, chats, transcripts, now } = this.deps
-    const ptyId = tab.ptyId ?? this.liveTerminalOf(tab.key)
-    if (ptyId === null) return chatActivity(chats.state(asSessionId(tab.key)))
-    const alive = pty.has(ptyId)
-    const status = classifyActivity(pty.screen(ptyId), pty.lastOutputAt(ptyId), now(), alive)
-    if (status !== 'idle') return status
-    return withBackgroundTasks(status, await transcripts.runningBackgroundTasks(tab.key))
-  }
-
-  /**
-   * A tab whose window reports no pty (shown as a chat, or resumed from another window) still has
-   * its claude in a terminal until a chat takes the session over: that terminal speaks for it, as it
-   * does for `ChatService.terminalBusy`. A running chat owns the session.
-   */
-  private liveTerminalOf(key: string): string | null {
-    const { chats, pty } = this.deps
-    const chat = chats.state(asSessionId(key))
-    if (chat !== null && chat.status !== 'exited') return null
-    return chats.terminalsOf(asSessionId(key)).find((id) => pty.has(id)) ?? null
+    if (tab.ptyId === null) return chatActivity(chats.state(asSessionId(tab.key)))
+    const alive = pty.has(tab.ptyId)
+    const at = now()
+    const lastOutputAt = pty.lastOutputAt(tab.ptyId)
+    const why = explainActivity(pty.screen(tab.ptyId), lastOutputAt, at, alive)
+    const tasks = why.status === 'idle' ? await transcripts.runningBackgroundTasks(tab.key) : 0
+    const status = withBackgroundTasks(why.status, tasks)
+    if (status === 'running' && this.lastStatus.get(tab.key) !== 'running') {
+      // Which rule said running, never what the screen says: the log carries no conversation.
+      log.info('activity', 'terminal tab is running', {
+        ptyId: tab.ptyId, rule: tasks > 0 ? 'background-tasks' : why.rule, line: why.line, tasks, msSinceOutput: at - lastOutputAt,
+      })
+    }
+    this.lastStatus.set(tab.key, status)
+    return status
   }
 }

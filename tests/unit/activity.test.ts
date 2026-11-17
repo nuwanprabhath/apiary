@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { chatActivity, classifyActivity, describeActivityStatus, strongestActivity, withBackgroundTasks } from '@shared/activity'
+import { chatActivity, classifyActivity, describeActivityStatus, explainActivity, strongestActivity, withBackgroundTasks } from '@shared/activity'
 import { emptyChatState, type ChatPermissionRequest, type ChatState } from '@shared/domain/chat'
 import { asSessionId } from '@shared/domain/ids'
 
@@ -187,5 +187,17 @@ describe('strongestActivity', () => {
     expect(strongestActivity(['stopped', 'waiting'])).toBe('waiting')
     expect(strongestActivity(['stopped', 'idle'])).toBe('stopped')
     expect(strongestActivity([])).toBeNull()
+  })
+})
+
+describe('explainActivity', () => {
+  const NOW = 50_000
+  it('names the rule that decided, and where on the screen its text is, counted from the bottom', () => {
+    const spinning = ['earlier reply', '· Forging… (2s · thinking)', '❯ ', 'footer'].join('\n')
+    expect(explainActivity(spinning, 0, NOW, true)).toEqual({ status: 'running', rule: 'spinner', line: 3 })
+    expect(explainActivity('❯ 1. Yes\n  2. No', 0, NOW, true)).toEqual({ status: 'waiting', rule: 'prompt', line: 2 })
+    expect(explainActivity('❯ ', NOW - 500, NOW, true)).toEqual({ status: 'running', rule: 'output', line: null })
+    expect(explainActivity('❯ ', NOW - 5000, NOW, true)).toEqual({ status: 'idle', rule: 'quiet', line: null })
+    expect(explainActivity('❯ ', NOW, NOW, false)).toEqual({ status: 'stopped', rule: 'gone', line: null })
   })
 })

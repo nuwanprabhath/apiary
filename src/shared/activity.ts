@@ -67,12 +67,34 @@ export function classifyActivity(
   now: number,
   ptyAlive: boolean,
 ): ActivityStatus {
-  if (!ptyAlive) return 'stopped'
-  const visible = tail(screen)
-  if (PROMPT_PATTERN.test(visible)) return 'waiting'
-  if (WORKING_PATTERN.test(visible)) return 'running'
-  if (now - lastOutputAtMs <= RUNNING_WINDOW_MS) return 'running'
-  return 'idle'
+  return explainActivity(screen, lastOutputAtMs, now, ptyAlive).status
+}
+
+/** Which rule of `classifyActivity` decided a status. */
+export type ActivityRule = 'gone' | 'prompt' | 'spinner' | 'output' | 'quiet'
+
+/**
+ * `classifyActivity` with the rule that decided it, for the diagnostic log. `line` is where the
+ * matching text sits, counted from the bottom of the screen's non-blank lines (1 is the last),
+ * so a log can tell Claude's own footer from conversation without carrying any of its text.
+ */
+export function explainActivity(
+  screen: string,
+  lastOutputAtMs: number,
+  now: number,
+  ptyAlive: boolean,
+): { status: ActivityStatus; rule: ActivityRule; line: number | null } {
+  if (!ptyAlive) return { status: 'stopped', rule: 'gone', line: null }
+  const lines = tail(screen).split('\n')
+  const fromBottom = (pattern: RegExp): number | null => {
+    for (let at = lines.length - 1; at >= 0; at -= 1) if (pattern.test(lines[at] ?? '')) return lines.length - at
+    return null
+  }
+  const prompt = PROMPT_PATTERN.test(lines.join('\n'))
+  if (prompt) return { status: 'waiting', rule: 'prompt', line: fromBottom(PROMPT_PATTERN) }
+  if (WORKING_PATTERN.test(lines.join('\n'))) return { status: 'running', rule: 'spinner', line: fromBottom(WORKING_PATTERN) }
+  if (now - lastOutputAtMs <= RUNNING_WINDOW_MS) return { status: 'running', rule: 'output', line: null }
+  return { status: 'idle', rule: 'quiet', line: null }
 }
 
 /**

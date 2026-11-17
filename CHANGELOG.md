@@ -4,6 +4,21 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.70.3] - 2026-11-17
+
+### Fixed
+
+- A tab whose terminal Claude was idle could show the running ring, and 1.68.3 made that worse: it
+  kept the terminal's status on the tab in the Chat view too, so a false "running" no longer cleared
+  on a click. 1.68.3 is undone.
+
+### Added
+
+- The diagnostic log says why a terminal tab turned running: which rule decided (a spinner timer on
+  the screen, output in the last 2 seconds, or background tasks), how far up the screen the matching
+  line is, and how long since the terminal last printed. It never logs the screen's text. The real
+  cause of the false ring is not yet found, and this is what will show it.
+
 ## [1.70.2] - 2026-11-17
 
 ### Fixed
