@@ -4,6 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.70.0] - 2026-11-17
+
+### Added
+
+- Switching a tab from Terminal to Chat carries what was typed, not yet sent, in Claude Code's
+  input box into the chat composer: into an empty composer as it is, or on a new line after a
+  draft that does not already end with it. Nothing is typed into the terminal, which keeps its
+  text. Read from the terminal's rendered screen (`terminalTypedInput`), so it works in a remote
+  window too; Claude's dim placeholder hint, a permission prompt or a plain shell carry nothing.
+  The parser is tested on screens recorded from a real Claude Code
+  (`scripts/capture-typed-input-fixtures.mjs`).
+
 ## [1.68.1] - 2026-11-16
 
 ### Fixed

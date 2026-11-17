@@ -1,6 +1,7 @@
 import { Terminal } from '@xterm/headless'
 import { SerializeAddon } from '@xterm/addon-serialize'
 import type { PtySnapshot } from '@shared/api'
+import { readTypedInput, type ScreenLine } from '@shared/typedInput'
 
 /**
  * A headless terminal per pty, so the app can read what is *on the screen* rather than what was
@@ -41,6 +42,38 @@ function readScreen(term: Terminal): string {
     lines.push(buf.getLine(buf.viewportY + i)?.translateToString(true) ?? '')
   }
   return lines.join('\n')
+}
+
+/** The viewport as runs of dim and not-dim text: what `readTypedInput` needs to tell Claude Code's
+ *  dim placeholder hint from typed text. */
+function readStyledScreen(term: Terminal): ScreenLine[] {
+  const buf = term.buffer.active
+  const lines: ScreenLine[] = []
+  for (let i = 0; i < term.rows; i += 1) {
+    const line = buf.getLine(buf.viewportY + i)
+    const runs: ScreenLine = []
+    for (let x = 0; line !== undefined && x < line.length; x += 1) {
+      const cell = line.getCell(x)
+      // A wide character's second cell has width 0 and no text of its own.
+      if (cell === undefined || cell.getWidth() === 0) continue
+      const text = cell.getChars() || ' '
+      const dim = cell.isDim() !== 0
+      const last = runs.at(-1)
+      if (last?.dim === dim) last.text += text
+      else runs.push({ text, dim })
+    }
+    lines.push(runs)
+  }
+  return lines
+}
+
+/** `renderScreen`, keeping which text is dim: for the typed-input fixtures. */
+export async function renderStyledScreen(raw: string, cols = DEFAULT_COLS, rows = DEFAULT_ROWS): Promise<ScreenLine[]> {
+  const term = createTerminal(cols, rows)
+  await new Promise<void>((resolve) => { term.write(raw, resolve) })
+  const lines = readStyledScreen(term)
+  term.dispose()
+  return lines
 }
 
 /**
@@ -124,6 +157,12 @@ export class ScreenBuffers {
   read(id: string): string {
     const live = this.screens.get(id)?.live
     return live ? readScreen(live.term) : ''
+  }
+
+  /** What is typed in Claude Code's input box on `id`'s screen, or null (see `readTypedInput`). */
+  typedInput(id: string): string | null {
+    const live = this.screens.get(id)?.live
+    return live ? readTypedInput(readStyledScreen(live.term), live.term.cols) : null
   }
 
   dispose(id: string): void {

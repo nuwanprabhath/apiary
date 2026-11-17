@@ -17,6 +17,7 @@ export function defineTerminalClauses(ctx: Ctx): void {
 
     it('has no screen for a terminal that was never started, and ignores what is sent to one', async () => {
       expect(await ctx.api.ptySnapshot(NOBODY)).toBeNull()
+      expect(await ctx.api.terminalTypedInput(NOBODY)).toBeNull()
       // The renderer sends these from views that outlive their process; none may fail or conjure a terminal.
       ctx.api.ptyAttach(NOBODY)
       ctx.api.ptyWrite(NOBODY, 'ls\r')

@@ -230,6 +230,11 @@ export class PtyManager {
     return this.screens.read(id)
   }
 
+  /** What is typed, not yet sent, in Claude Code's input box on the screen; null when there is none. */
+  typedInput(id: string): string | null {
+    return this.screens.typedInput(id)
+  }
+
   /** Chunks of output so far; pass it to `whenQuiet` as `after` so the quiet before your write is not mistaken for the quiet after. */
   outputCount(id: string): number {
     const entry = this.entries.get(id)

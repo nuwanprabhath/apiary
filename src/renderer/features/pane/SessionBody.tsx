@@ -8,6 +8,7 @@ import { Transcript, Composer } from '../transcript'
 import { TerminalView } from '../terminal'
 import { AsideCard, McpCard } from '../chat'
 import { PendingChat } from './PendingChat'
+import { useCarryTypedInput } from './useCarryTypedInput'
 import type { PendingTabInfo } from './paneTypes'
 
 /** The session's centre pane: its transcript with the composer, and every tab's claude terminal. */
@@ -42,6 +43,8 @@ export function SessionBody({
     if (sessionId === null) return
     answerChatRequest(sessionId, requestId, decision)
   }, [sessionId])
+  const activeId = isPending ? null : activeSession?.sessionId ?? null
+  useCarryTypedInput(activeId, activeView, activeId === null ? null : keyFor(activeId), running)
   return (
     <div
       className="centre-pane"
