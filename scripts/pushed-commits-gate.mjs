@@ -2,11 +2,9 @@
 // Refuses to push commits made under a test fixture's identity or carrying AI attribution. Run by
 // .husky/pre-push with the hook's stdin, and by CI over the pushed range.
 //
-// commit-msg rejects AI attribution, but only where the hooks ran: three agent commits in a
-// worktree reached main with a Co-Authored-By: Claude trailer. And a `git bisect run` of the e2e
-// suite wrote the fixtures' `Test <test@example.com>` into the repo's own config, so 27 commits went
-// out under it. A push is the last point both are still cheap to fix (amend or rebase, not a
-// rewrite of main).
+// commit-msg rejects AI attribution only where the hooks ran, and a test run can write the
+// fixtures' `Test <test@example.com>` into the repo's own config. A push is the last point both are
+// still cheap to fix (amend or rebase, not a rewrite of main).
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 

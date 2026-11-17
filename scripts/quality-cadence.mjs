@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // When the quality skills are due: trim-comments, correct, maintain-verify-apiary,
-// architecture-drift and prune-tests. Each was meant to run "every few releases" and none ran for
-// 158 commits, so a skill now owes a run after a number of commits or days, and
-// a release tag is refused while one is owed (.husky/pre-push). The ledger is
+// architecture-drift and prune-tests. A skill owes a run after a number of commits or days, and a
+// release tag is refused while one is owed (.husky/pre-push). The ledger is
 // docs/quality-cadence.json; a skill's last step records its run with `done <skill>`.
 //
 //   node scripts/quality-cadence.mjs            what is due (exit 0)

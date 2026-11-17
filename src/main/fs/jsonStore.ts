@@ -10,25 +10,20 @@ import { writeJsonAtomic } from './atomicWrite'
  * nothing usable.
  *
  * **Reading (`load`).** Never throws. A missing file gives `fallback('missing')`; one that cannot
- * be read, is not JSON, or makes `parse` throw gives `fallback('unreadable')` — the reason lets a
- * store treat "first run" differently from "damaged" (themes do). Otherwise `parse(raw, fromVersion)`
- * is called with the decoded JSON (anything: a hand-edited file can hold any value) and the
- * version recorded in it (`undefined` for a file written before versions existed, or one that has
- * no number there). `parse` is where migration and validation live; it should be total and return
- * a `T` whatever it is given. A damaged file is left alone on disk until the next `save`.
+ * be read, is not JSON, or makes `parse` throw gives `fallback('unreadable')`, so a store can treat
+ * "first run" differently from "damaged" (themes do). Otherwise `parse(raw, fromVersion)` gets the
+ * decoded JSON (anything: a hand-edited file can hold any value) and the version recorded in it
+ * (`undefined` when there is none). `parse` is where migration and validation live; it must be
+ * total. A damaged file is left alone on disk until the next `save`.
  *
- * **Writing (`save`).** Creates the parent directory, stamps the current `version` into the object
- * under `versionKey` (default `version`; settings keep their historical `schemaVersion`), and
- * writes atomically with an fsync (`writeJsonAtomic`). It throws on I/O failure; a store whose
- * callers cannot afford that (settings, layout) catches and logs at its own call site.
+ * **Writing (`save`).** Creates the parent directory, stamps `version` under `versionKey` (default
+ * `version`; settings keep `schemaVersion`) and writes atomically with an fsync (`writeJsonAtomic`).
+ * It throws on I/O failure; a store whose callers cannot afford that catches and logs at its call site.
  *
- * **A file from a newer Apiary.** If the file on disk records a version greater than the code's,
- * an older build is about to rewrite it with whatever subset of fields it understands. The policy
- * is deliberately the simplest one that loses nothing: before this store's *first* write it copies
- * the file to `<file>.v<N>.bak` (never overwriting an existing backup), then carries on as normal,
- * so the user keeps working and a later upgrade can recover what the older build dropped. If the
- * copy fails, `save` throws and the file is left untouched. `load` still reads such a file on a
- * best-effort basis through `parse`, which is why `parse` must ignore keys it does not know.
+ * **A file from a newer Apiary.** An older build would rewrite it with only the fields it
+ * understands, so before this store's *first* write it copies the file to `<file>.v<N>.bak` (never
+ * overwriting a backup). If the copy fails, `save` throws and the file is untouched. `load` still
+ * reads such a file through `parse`, which must therefore ignore keys it does not know.
  *
  * **A damaged file.** When `load` found the file unreadable (not missing), the first `save` copies
  * it to `<file>.corrupt-<time>` before replacing it, keeping the newest 3 such copies.
