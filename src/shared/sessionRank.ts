@@ -1,5 +1,5 @@
 import type { ProjectNode, SessionNode } from './types'
-import { fuzzyScore } from './fuzzy'
+import { searchScore } from './fuzzy'
 
 export type MatchTier = 0 | 1 | 2 | 3 | 4
 
@@ -22,13 +22,13 @@ function tierFor(
   const title = session.title.toLowerCase()
   if (title === q) return 0
   if (title.startsWith(q)) return 1
-  if (fuzzyScore(query, session.title) !== null) return 2
+  if (searchScore(query, session.title) !== null) return 2
   // Not the folder's path: every session under a project shares it, so one path match would put
   // every sibling in tier 3. `session.cwd` is per session.
   if (
-    fuzzyScore(query, session.cwd) !== null ||
-    fuzzyScore(query, folderLabel) !== null ||
-    (folderBranch !== null && fuzzyScore(query, folderBranch) !== null)
+    searchScore(query, session.cwd) !== null ||
+    searchScore(query, folderLabel) !== null ||
+    (folderBranch !== null && searchScore(query, folderBranch) !== null)
   ) return 3
   if (matchedByContent.has(session.sessionId)) return 4
   return null

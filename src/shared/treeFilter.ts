@@ -1,5 +1,5 @@
 import type { ProjectNode } from './types'
-import { fuzzyScore } from './fuzzy'
+import { searchScore } from './fuzzy'
 import { countSessions } from './treeWalk'
 
 /** Results shown before "showing first 200" replaces the rest. The caller applies it after ranking
@@ -9,16 +9,16 @@ export const SEARCH_RESULT_CAP = 200
 
 function projectMatches(node: ProjectNode, query: string): boolean {
   return (
-    fuzzyScore(query, node.label) !== null ||
-    fuzzyScore(query, node.path) !== null ||
-    (node.branch !== null && fuzzyScore(query, node.branch) !== null)
+    searchScore(query, node.label) !== null ||
+    searchScore(query, node.path) !== null ||
+    (node.branch !== null && searchScore(query, node.branch) !== null)
   )
 }
 
 function filterNode(node: ProjectNode, query: string, alsoMatched: Set<string>): ProjectNode | null {
   if (projectMatches(node, query)) return node
   const sessions = node.sessions.filter(
-    (s) => fuzzyScore(query, s.title) !== null || alsoMatched.has(s.sessionId),
+    (s) => searchScore(query, s.title) !== null || alsoMatched.has(s.sessionId),
   )
   const children = node.children
     .map((c) => filterNode(c, query, alsoMatched))

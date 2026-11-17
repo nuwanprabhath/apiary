@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.71.5] - 2026-11-18
+
+### Fixed
+
+- Searching for a number (an MR or issue number such as `1257`) no longer matches every session
+  whose folder path happens to contain those digits in that order. A number now matches a title,
+  path or branch only where it appears whole; notes and conversation content match as before, and
+  letters stay fuzzy. On CI a temp folder's random name matched, which pushed the session whose
+  note held the number below three others and made the note-search test flaky (#42).
+
 ## [1.71.4] - 2026-11-18
 
 ### Security

@@ -24,3 +24,14 @@ export function fuzzyScore(query: string, target: string): number | null {
 
   return qi === q.length ? score : null
 }
+
+/**
+ * The session search's match: `fuzzyScore`, except that a query of digits alone (an MR or issue
+ * number) matches only where the number appears whole. As a subsequence, "1257" matched any long
+ * path with a 1, 2, 5 and 7 in that order, such as a temp folder's random name.
+ */
+export function searchScore(query: string, target: string): number | null {
+  const q = query.trim()
+  if (/^\d+$/.test(q)) return target.includes(q) ? fuzzyScore(q, target) : null
+  return fuzzyScore(query, target)
+}

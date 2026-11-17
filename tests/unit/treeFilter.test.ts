@@ -3,6 +3,7 @@ import { asSessionId } from '@shared/domain/ids'
 import { describe, it, expect } from 'vitest'
 import { fuzzyScore } from '@shared/fuzzy'
 import { filterTreeLocal } from '@shared/treeFilter'
+import { rankSessions } from '@shared/sessionRank'
 import type { ProjectNode } from '@shared/types'
 
 describe('fuzzyScore', () => {
@@ -83,5 +84,31 @@ describe('filterTreeLocal', () => {
     const { tree, totalMatches } = filterTreeLocal([proj('/p/app', sessions)], 'csv', new Set())
     expect(totalMatches).toBe(250)
     expect(must(tree[0]).sessions).toHaveLength(250)
+  })
+})
+
+describe('a number in the search box (an MR or issue number)', () => {
+  const session = (id: string, title: string, cwd: string): ProjectNode['sessions'][number] => ({
+    kind: 'session', sessionId: asSessionId(id), title, cwd, gitBranch: null, lastActiveAtMs: 1,
+    messageCount: null, isLive: false, cwdExists: true, note: null,
+  })
+
+  it('does not match a path whose digits merely appear in that order, as a temp folder\'s did on CI', () => {
+    const tree = [proj('/var/folders/q2/p1t6rg2xj5fj7/T/repo-c', [session('s1', 'Repo root session', '/var/folders/q2/p1t6rg2xj5fj7/T/repo-c')])]
+    expect(filterTreeLocal(tree, '1257', new Set()).tree).toEqual([])
+    expect(rankSessions(tree, '1257', new Set())).toEqual([])
+  })
+
+  it('matches a title, path or branch that holds the number whole, and a note match still shows', () => {
+    const tree = [
+      proj('/work/mr-1257', [session('s1', 'Review !1257', '/work/mr-1257')]),
+      proj('/work/other', [session('s2', 'Fix CSV export bug', '/work/other')]),
+    ]
+    expect(rankSessions(tree, '1257', new Set(['s2'])).map((r) => r.session.title)).toEqual(['Review !1257', 'Fix CSV export bug'])
+  })
+
+  it('leaves letters fuzzy, as before', () => {
+    const tree = [proj('/p/app', [session('s1', 'Fix CSV export', '/p/app')])]
+    expect(filterTreeLocal(tree, 'fcsv', new Set()).tree).toHaveLength(1)
   })
 })
