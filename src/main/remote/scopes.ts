@@ -80,6 +80,7 @@ export const CHANNEL_SCOPES = {
   ptyRunning: 'remote',
   ptySessions: 'remote',
   ptySnapshot: 'remote',
+  terminalTypedInput: 'remote',
   ptyData: 'remote',
   ptyLink: 'remote',
   ptyExit: 'remote',

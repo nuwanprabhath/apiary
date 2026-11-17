@@ -96,6 +96,7 @@ describe('the IPC contract', () => {
       ptyData: 'apiary:pty-data',
       ptyLink: 'apiary:pty-link',
       ptySnapshot: 'apiary:pty-snapshot',
+      terminalTypedInput: 'apiary:terminal-typed-input',
       ptySessions: 'apiary:pty-sessions',
       ptySessionsChanged: 'apiary:pty-sessions-changed',
       ptyRunning: 'apiary:pty-running',

@@ -206,6 +206,10 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
 - `APIARY_HEADED=1 npm run test:e2e` — runs e2e with visible windows instead of off-screen, for
   watching a spec run.
 
+- `scripts/capture-typed-input-fixtures.mjs` — records Claude Code screens with text typed in its
+  input box (`tests/fixtures/typed-input/`) for `tests/unit/typedInput.test.ts`. Real
+  `claude --model haiku`; never run in CI.
+
 ## Troubleshooting
 
 If a Playwright launch dies with `Process failed to launch` and `electron does not provide an

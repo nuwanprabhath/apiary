@@ -251,6 +251,9 @@ export const IPC = {
   ptySessions: invoke<[], Record<string, PtySessionInfo>>('apiary:pty-sessions', tuple()),
   ptySessionsChanged: event<[sessions: Record<string, PtySessionInfo>]>('apiary:pty-sessions-changed'),
   ptyRunning: invoke<[ids: PtyId[]], PtyId[]>('apiary:pty-running', tuple(arr(ptyIdArg))),
+  /** What is typed, not yet sent, in Claude Code's input box on the pty's screen; null when the
+   *  screen shows no input box or it is empty. Carried into the chat composer on Terminal → Chat. */
+  terminalTypedInput: invoke<[id: PtyId], string | null>('apiary:terminal-typed-input', tuple(ptyIdArg)),
   ptyExit: event<[id: PtyId, exitCode: number]>('apiary:pty-exit'),
   sendPrompt: invoke<[ptyId: PtyId, text: string], void>('apiary:send-prompt', tuple(ptyIdArg, str)),
 

@@ -11,7 +11,7 @@ export interface TerminalsDeps {
   state: Pick<IpcState, 'sessionTracker' | 'ptyAttachments' | 'ptyCoalescer'>
 }
 
-type HandledKeys = 'openShell' | 'openShellForPty' | 'ptySnapshot' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
+type HandledKeys = 'openShell' | 'openShellForPty' | 'ptySnapshot' | 'terminalTypedInput' | 'ptySessions' | 'ptyRunning' | 'sendPrompt'
 type ListenedKeys = 'ptyWrite' | 'ptyResize' | 'ptyKill' | 'ptyResume' | 'ptyAck' | 'renameTerminalInClaude'
 
 /**
@@ -55,6 +55,7 @@ export function terminalsHandlers(deps: TerminalsDeps): {
       openShell: (_e, id, tabId) => service.openShell(id, tabId),
       openShellForPty: (_e, id, tabId) => service.openShellForPty(id, tabId),
       ptySnapshot: (_e, id) => service.pty.snapshot(id),
+      terminalTypedInput: (_e, id) => service.pty.typedInput(id),
       ptySessions: () => sessionTracker.current(),
       ptyRunning: (_e, ids) => ids.filter((id) => service.pty.has(id)),
       // Not awaited: delivery waits for the program to be ready (up to ~20s while Claude starts),

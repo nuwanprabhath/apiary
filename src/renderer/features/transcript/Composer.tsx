@@ -13,6 +13,7 @@ import { useChatChoices, type ChatChoices } from './useChatChoices'
 import { useComposerHeight } from './useComposerHeight'
 import { useComposerSend } from './useComposerSend'
 import { useSentHistory } from './useSentHistory'
+import { useTakeCarriedDraft } from './useTakeCarriedDraft'
 
 interface Props {
   /** The pane this composer sits in; its message box folds per pane. */
@@ -104,6 +105,7 @@ export function Composer({
   const chatRunning = chat !== null && chat.status !== 'exited'
   const busy = chat?.status === 'busy'
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  useTakeCarriedDraft(session.sessionId, setText, textareaRef)
   const fold = useComposerFold(textareaRef, columnId)
   const { collapsed, inputId } = fold
   // Sees Up/Down/Enter/Escape first.
