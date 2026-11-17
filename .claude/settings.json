@@ -4,14 +4,47 @@
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
-        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/lint-edited.mjs\"", "timeout": 60 }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/lint-edited.mjs\"",
+            "timeout": 60
+          }
+        ]
       }
     ],
     "Stop": [
-      { "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/definition-of-done.mjs\"", "timeout": 180 }] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/definition-of-done.mjs\"",
+            "timeout": 180
+          }
+        ]
+      }
     ],
     "SubagentStop": [
-      { "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/definition-of-done.mjs\"", "timeout": 180 }] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/definition-of-done.mjs\"",
+            "timeout": 180
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$APIARY_HEADLESS_AGENT\" ] || node \"$CLAUDE_PROJECT_DIR/scripts/quality-cadence.mjs\" hook",
+            "timeout": 15
+          }
+        ]
+      }
     ]
   }
 }

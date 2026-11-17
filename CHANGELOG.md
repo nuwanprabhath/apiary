@@ -4,6 +4,20 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.71.0] - 2026-11-17
+
+### Added
+
+- The quality skills run on a cadence instead of when someone remembers. `docs/quality-cadence.json`
+  says, for `trim-comments`, `correct`, `maintain-verify-apiary`, `architecture-drift` and
+  `prune-tests`, when each last ran and after how many commits or days it is due again
+  (`scripts/quality-cadence.mjs`). None had run for 158 commits.
+  - A release tag is refused while one is due (`.husky/pre-push`), naming the skill and how to run
+    it. `APIARY_CADENCE_DEFER="<reason>"` lets an urgent hotfix through; only the maintainer sets it.
+  - A push to main and every Claude session in the repo (a SessionStart hook) say which are due.
+    Headless agents (`run-agent.sh` sets `APIARY_HEADLESS_AGENT`) are not told, so they stay on task.
+  - Each skill ends by recording its run: `node scripts/quality-cadence.mjs done <skill>`.
+
 ## [1.70.8] - 2026-11-17
 
 ### Changed

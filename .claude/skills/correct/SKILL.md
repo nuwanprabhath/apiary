@@ -62,3 +62,9 @@ in the same change. Drop a rule once its mistake can no longer happen.
 
 **Reply:** each class with its evidence (commits, corrections), the level you picked, why a higher
 level did not work, and the proof that the check fails on the real mistake.
+
+## Record the run
+
+Its last step, in the same commit as its work (or a commit of its own when the run changed
+nothing): `node scripts/quality-cadence.mjs done correct`. That resets its count in
+`docs/quality-cadence.json`; a release tag is refused while a skill is due (`.husky/pre-push`).

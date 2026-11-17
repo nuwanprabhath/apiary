@@ -45,3 +45,9 @@ skill repeats that measurement, so drift is caught one release after it starts, 
    priority order, and run `correct` on each if the maintainer asks.
 
 Read-only until step 7. Do not fix code while measuring.
+
+## Record the run
+
+Its last step, in the same commit as its work (or a commit of its own when the run changed
+nothing): `node scripts/quality-cadence.mjs done architecture-drift`. That resets its count in
+`docs/quality-cadence.json`; a release tag is refused while a skill is due (`.husky/pre-push`).

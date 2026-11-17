@@ -21,12 +21,21 @@ npm run typecheck && npm run lint || exit 1
 # Linux CI skips the macOS-only tests and reads about 0.12 lower, so 79.10 here was 78.98 there (1.68.1).
 if echo "$refs" | awk '$3 == "refs/heads/main" { found = 1 } END { exit !found }'; then
   echo "pre-push: main — running the coverage run CI runs (npm run test:coverage)."
+  node scripts/quality-cadence.mjs
   APIARY_COVERAGE_MARGIN=0.25 npm run test:coverage || { echo "pre-push: tests failed or coverage is under vitest.config.ts's thresholds plus the 0.25 margin Linux CI needs; add the missing tests, then push again."; exit 1; }
 else
   npm run test:unit || exit 1
 fi
+# The quality skills owe a run every so many commits or days (docs/quality-cadence.json): a push to
+# main says which are due; a release tag is refused until they have run (scripts/quality-cadence.mjs).
+# APIARY_CADENCE_DEFER="<reason>" lets an urgent hotfix through; only the maintainer sets it.
 case "$refs" in
   *refs/tags/v*)
+    if [ -n "${APIARY_CADENCE_DEFER:-}" ]; then
+      echo "pre-push: quality skills deferred for this release: $APIARY_CADENCE_DEFER"
+    else
+      node scripts/quality-cadence.mjs check || { echo "pre-push: the release tag is not pushed until the skills above have run."; exit 1; }
+    fi
     echo "pre-push: a release tag — running the whole e2e suite (npm run test:e2e) first."
     npm run test:e2e || { echo "pre-push: e2e failed; the tag is not pushed. Fix it, then push the tag again."; exit 1; }
     ;;

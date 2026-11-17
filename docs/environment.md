@@ -40,6 +40,8 @@ carry it: `tests/unit/architecture/noTestBuildMarker.test.ts` fails if `package.
 | `APIARY_FAKE_CODE_LOG` | e2e harness, read by `tests/fixtures/bin/fake-code.sh` (not by the app) | file the stand-in `code` appends its arguments to, so a spec can assert what Open in VS Code launched |
 | `APIARY_E2E_EXECUTABLE` | `tests/packaged/` | makes the e2e harness (`launchApiary`) launch a packaged binary instead of `out/`, and isolate its `HOME` and `CLAUDE_CONFIG_DIR` |
 | `APIARY_COVERAGE_MARGIN` | `.husky/pre-push`, read by `vitest.config.ts` (not by the app) | raises every coverage threshold by this much; the pre-push run sets 0.25 because Linux CI reads about 0.12 lower than a Mac |
+| `APIARY_CADENCE_DEFER` | the maintainer, for `.husky/pre-push` | lets a release tag through while quality skills are due (`scripts/quality-cadence.mjs`); its value is the reason, printed in the push |
+| `APIARY_HEADLESS_AGENT` | `scripts/agents/run-agent.sh` | marks a headless agent session, so the repo's SessionStart hook does not hand it the due quality skills |
 | `APIARY_PACKAGED_APP` | `scripts/test-packaged.mjs` | path of the packaged app that `tests/packaged/packagedApp.spec.ts` drives; the spec skips when it is unset, so use `npm run test:packaged` |
 | `ELECTRON_RENDERER_URL` | dev / test harness | points at the Vite dev server instead of `out/` |
 | `APIARY_SAFE_THEME` / `--safe-theme` | user | resets to the built-in theme; **always honoured**, not gated by `isPackaged` — a recovery path, not a test hook |

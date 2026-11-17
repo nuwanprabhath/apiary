@@ -66,6 +66,7 @@ No command rebuilds a native module ([`docs/testing.md`](docs/testing.md)), so a
 - Add AI attribution to a commit or PR; `.husky/commit-msg`, `.husky/pre-push` and CI reject it.
 - Let the renderer supply a filesystem path that main acts on.
 - Grow a baseline or an allowlist to make a check pass (see "Guard layer").
+- Set `APIARY_CADENCE_DEFER` to release with quality skills due, unless the maintainer asks for it.
 
 ## Definition of done
 
@@ -164,6 +165,7 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | A push to `main` meets CI's coverage thresholds (`vitest.config.ts`) with a 0.25 margin before it leaves: new code went under the floor and only CI saw it, four times (Linux CI reads about 0.12 lower) | `.husky/pre-push` runs `APIARY_COVERAGE_MARGIN=0.25 npm run test:coverage` instead of `test:unit` when the push updates `main` | add tests for the new code, then push again |
 | The e2e suite does not grow: its test count is a budget | `tests/unit/architecture/e2eBudget.test.ts` against `tests/e2e/budget.json` | move a renderer-only test to `tests/component`, or merge or remove one (`.claude/skills/prune-tests/SKILL.md`); the maintainer raises the budget |
 | A release passes the whole e2e suite, `@serial` included, not only the specs a change seemed to touch | `.husky/pre-push`: pushing a `v*` tag runs `npm run test:e2e` and refuses the push if it fails | fix the spec or the code, then push the tag again |
+| The quality skills run on a cadence: `trim-comments`, `correct`, `maintain-verify-apiary`, `architecture-drift`, `prune-tests`, each after so many commits or days (`docs/quality-cadence.json`) | `scripts/quality-cadence.mjs`: a release tag is refused while one is due (`.husky/pre-push`), a push to main and every session start say which are due; `tests/unit/qualityCadence.test.ts` | run the skill; its last step is `node scripts/quality-cadence.mjs done <skill>` |
 | A release tag goes only on a commit CI has passed (the release repeats CI's checks on Linux; five tags stopped there and published nothing) | `.husky/pre-push` runs `scripts/release-ci-gate.mjs` for a `v*` tag; `tests/unit/releaseCiGate.test.ts` | push `main`, wait for CI on it (`gh run watch`), then push the tag; a failed CI means a fix and a new version |
 
 ## Judgment calls
