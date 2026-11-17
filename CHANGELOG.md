@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.70.6] - 2026-11-17
+
+### Changed
+
+- A unit, integration or component test may no longer time a single run with `performance.now()`
+  (lint rule `apiary/timing-via-fastest-run`). It counts the work instead, or uses `fastestMs` from
+  `tests/fixtures/timing.ts`, the fastest of several runs. One timed run fails whenever the machine
+  is busy: the frame-decoder timing failed under load twice (1.60.5, 1.70.2). The search-speed
+  budgets in `searchLoad.test.ts` now use `fastestMs`.
+
 ## [1.70.3] - 2026-11-17
 
 ### Fixed

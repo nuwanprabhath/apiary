@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { filterTreeLocal, SEARCH_RESULT_CAP } from '@shared/treeFilter'
 import { rankSessions } from '@shared/sessionRank'
 import type { ProjectNode, SessionNode } from '@shared/types'
+import { fastestMs } from '../fixtures/timing'
 
 /**
  * 5,000 sessions across 200 synthetic projects — the shape the spec's load test asks for. Built
@@ -40,9 +41,8 @@ function buildSyntheticTree(): ProjectNode[] {
 describe('local search performance', () => {
   it('filters 5,000 sessions across 200 projects within budget', () => {
     const tree = buildSyntheticTree()
-    const started = performance.now()
     const { tree: filtered } = filterTreeLocal(tree, 'csv', new Set())
-    const elapsedMs = performance.now() - started
+    const elapsedMs = fastestMs(() => filterTreeLocal(tree, 'csv', new Set()))
 
     expect(filtered.length).toBeGreaterThan(0)
     // The budget the spec asks for: a 3-character query must stay well inside what anyone would
@@ -59,9 +59,7 @@ describe('local search performance', () => {
     // per settled query, not per render. An e2e budget on the real DOM belongs in Task 9's
     // `search.spec.ts`, not here.
     const tree = buildSyntheticTree()
-    const started = performance.now()
-    filterTreeLocal(tree, 'fix', new Set())
-    const elapsedMs = performance.now() - started
+    const elapsedMs = fastestMs(() => filterTreeLocal(tree, 'fix', new Set()))
     expect(elapsedMs).toBeLessThan(50)
   })
 
@@ -73,10 +71,9 @@ describe('local search performance', () => {
     // to sort all of them before the cap ever applies. This is the case that would have caught it
     // quietly getting slow again.
     const tree = buildSyntheticTree()
-    const started = performance.now()
     const { tree: filtered, totalMatches } = filterTreeLocal(tree, 's', new Set())
     const ranked = rankSessions(filtered, 's', new Set()).slice(0, SEARCH_RESULT_CAP)
-    const elapsedMs = performance.now() - started
+    const elapsedMs = fastestMs(() => rankSessions(filterTreeLocal(tree, 's', new Set()).tree, 's', new Set()).slice(0, SEARCH_RESULT_CAP))
 
     expect(totalMatches).toBeGreaterThan(4900) // confirms this is actually the near-everything case
     expect(ranked).toHaveLength(SEARCH_RESULT_CAP)

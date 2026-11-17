@@ -484,6 +484,17 @@ export const SANCTIONED = [
       'To prove something does NOT happen, use `stays(check, ms, what)` (tests/fixtures/stays.ts; `expectStays` in e2e helpers). A sleep is slow when the machine is idle and flaky when it is loaded.',
   },
   {
+    name: 'timing-via-fastest-run',
+    kind: 'syntax',
+    files: ['tests/{unit,integration,component}/**/*.{ts,tsx}', 'tests/fixtures/timing.ts'],
+    selectors: ["MemberExpression[object.name='performance'][property.name='now']"],
+    allow: ['tests/fixtures/timing.ts', 'tests/component/ui/review.ts'],
+    description: 'A test measures time only as the fastest of several runs.',
+    message:
+      'Count the work instead (calls, bytes copied, allocations; see tests/unit/remoteFrames.test.ts), or time it with `fastestMs(work)` from tests/fixtures/timing.ts. ' +
+      'One timed run fails whenever the machine is busy: the frame-decoder timing failed under load twice before it counted bytes.',
+  },
+  {
     name: 'shared-alias-in-tests',
     kind: 'import',
     files: TESTS,
