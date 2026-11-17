@@ -37,7 +37,7 @@ export function residentStatuses(state: FakeState): ResidentStatus[] {
       onDuty, appearance: kind.appearance, digest: null,
       attention: permissions.length > 0 ? { count: permissions.length, summary: WAITING_FOR_OK } : state.residentAttention.get(c.id) ?? null,
       permissions,
-      quickActions: kind.quickActions.map(({ id, label }) => ({ id, label })),
+      quickActions: kind.quickActions.map(({ id, label, opensPopup }) => ({ id, label, opensPopup })),
       setupNeeded: kind.setup(c),
       cycle: cycleStatus(kind, c, { nextCycleAt: state.residentNextCycle.get(c.id) ?? null, running: busy && lastAsked === kind.cycle?.prompt, now }),
     }

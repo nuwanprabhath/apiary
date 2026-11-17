@@ -6,7 +6,7 @@ import type { ContextMenuItem } from '../../ui/contextMenuItem'
 
 /**
  * The badge's right-click menu: open the chat, the kind's own quick actions (each opens the popup
- * too, so its output is seen), then turning it on or off and its Settings card.
+ * too so its output is seen, unless it says `opensPopup: false` and the badge shows it working), then turning it on or off and its Settings card.
  */
 export function residentMenuItems(resident: ResidentStatus, onOpenSettings: (section: string) => void): ContextMenuItem[] {
   const { id } = resident
@@ -15,7 +15,10 @@ export function residentMenuItems(resident: ResidentStatus, onOpenSettings: (sec
     ...resident.quickActions.map((a): ContextMenuItem => ({
       id: `action-${a.id}`,
       label: a.label,
-      run: () => { openResidentPopup(id); runQuickAction(id, a.id) },
+      run: () => {
+        if (a.opensPopup) openResidentPopup(id)
+        runQuickAction(id, a.id)
+      },
     })),
     {
       id: 'toggle',

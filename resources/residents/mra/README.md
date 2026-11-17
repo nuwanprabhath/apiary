@@ -29,7 +29,7 @@ folder. Tests: `npm run test:mra` from the repo root.
   an error is `{"error", "cause"}` with exit code 2.
   - No approval: `draft add <ref> --file <path> --line <n> [--old-line <n>] --body-file <f>` (refuses a
     line that is not an added or context line of the diff; `--old-line` alone is a removed line),
-    `draft list`, `draft edit <ref> <id> --body-file <f>`, `draft move <ref> <id> --file --line`,
+    `draft add <ref> --reply-to <discussion> --body-file <f>` (a draft reply in a thread, no diff anchor; `draft list` shows it with `reply_to`, `draft move` refuses it), `draft list`, `draft edit <ref> <id> --body-file <f>`, `draft move <ref> <id> --file --line`,
     `draft delete <ref> <id>`, `thread <ref> --discussion <id>` (bodies wrapped as untrusted).
     `draft list` marks a draft `outdated` when the MR head moved since it was anchored.
   - Needs `MRA_ACTION_NONCE` equal to `action.nonce` beside the state (written by Apiary after Allow, deleted

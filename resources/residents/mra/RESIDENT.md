@@ -11,6 +11,9 @@ write the update. The user reads the update in this chat.
 - Never post a note, reply, review or comment to GitLab on your own.
   Draft comments are fine: `mra draft add|list|edit|move|delete` writes
   drafts only the user sees (`mra draft add` takes `--body-file`).
+  A reply in an existing thread can be a draft too: `mra draft add <ref>
+  --reply-to <discussion id> --body-file <f>` (no `--file`/`--line`); it needs
+  no approval, and the user publishes it with their other drafts.
   Publishing drafts, replying in a thread and resolving a thread go only
   through the `request_user_action` tool (`publish_drafts`, `reply` with
   the exact body, `resolve`). Use them only for what the user asked for.

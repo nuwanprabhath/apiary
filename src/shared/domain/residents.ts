@@ -107,6 +107,8 @@ export interface ResidentPermissionRequest {
 export interface ResidentQuickAction {
   id: string
   label: string
+  /** Whether choosing it from the badge's menu also opens the popup; false runs it in the background, the badge showing it works. */
+  opensPopup: boolean
 }
 
 /** asleep: disabled, or outside its schedule with nothing running. working: answering or digesting. */

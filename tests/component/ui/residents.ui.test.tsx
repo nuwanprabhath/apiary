@@ -49,7 +49,7 @@ describe('the resident in the status bar', () => {
 })
 
 const deskBadge = (): HTMLElement => document.querySelector<HTMLElement>('[data-testid="resident-badge-mr-desk"]')!
-const DESK_ACTIONS = { quickActions: [{ id: 'desk', label: 'Show the desk' }, { id: 'stats', label: 'Show stats' }] }
+const DESK_ACTIONS = { quickActions: [{ id: 'desk', label: 'Show the desk', opensPopup: true }, { id: 'stats', label: 'Show stats', opensPopup: true }] }
 
 describe('the MR desk in the status bar', () => {
   it('honey pot idle', async () => {

@@ -62,6 +62,8 @@ export interface ResidentKindQuickAction {
   label: string
   /** What the pill says from the click until a prompt's model says more, or while a command runs; at most 40 characters. */
   doing: string
+  /** Whether the badge's menu opens the popup when it runs it; false for a slow check whose result is the badge's attention. */
+  opensPopup: boolean
   run: ResidentQuickActionRun
 }
 

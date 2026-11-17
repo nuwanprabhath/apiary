@@ -4,6 +4,24 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.69.1] - 2026-11-17
+
+### Changed
+
+- Choosing "Check my MRs now" from the MR Desk badge's menu no longer opens the popup. The badge shows
+  it is working while the check runs, and raises its attention mark if something needs you. A quick
+  action now says whether it opens the popup (`opensPopup`); the others still do.
+
+## [1.69.0] - 2026-11-17
+
+### Added
+
+- MR Desk can save a reply inside an existing GitLab thread as a draft: `mra draft add REF --reply-to
+  DISCUSSION_ID --body-file F`. Only you see it until you publish your drafts. `mra draft list` shows
+  which thread each reply draft belongs to, `mra draft move` refuses a reply draft, and the publish card
+  lists a reply draft as "reply in thread <id>: <first line>". The desk's instructions now offer a draft
+  reply instead of saying GitLab cannot hold one.
+
 ## [1.68.5] - 2026-11-17
 
 ### Fixed

@@ -165,7 +165,7 @@ packaged, `<repo>/resources` in dev; `electron-builder.yml` `extraResources`).
   `tests/unit/residents/mrDeskActions.test.ts` checks the prompt against the vendored parser.
 - **Blocks explain themselves.** `MR_DESK_BLOCKED` (`kinds/mrDeskMra.ts`) is one table: the
   disallowed tools and the preamble's "blocked → use instead" lines are both made from it.
-- **Publish, reply, resolve need a click.** Drafts (`mra draft add|list|edit|move|delete`) are free.
+- **Publish, reply, resolve need a click.** Drafts (`mra draft add|list|edit|move|delete`, a reply too with `add --reply-to`) are free.
   `request_user_action({ kind: publish_drafts | reply | resolve, iid, discussionId?, body? })`
   (`mcp/gitlabTools.ts`, kind side `kinds/mrDeskActions.ts`) has main run `mra ready` plus
   `mra draft list` or `mra thread`, build the card from their output (the reply body, shown verbatim,

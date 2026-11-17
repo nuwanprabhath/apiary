@@ -42,7 +42,7 @@ describe('resident status in the store', () => {
     await addResident(REGENT_KIND)
     await until(() => text() === '|none||Regent,MR Desk')
     fake.state.residentPermissions.set('regent', [{ requestId: 'r1', tool: 'Bash', summary: 'Run: glab mr list' }])
-    const pushed = residentStatuses(fake.state).map((s) => ({ ...s, quickActions: [{ id: 'desk', label: 'Get the desk' }] }))
+    const pushed = residentStatuses(fake.state).map((s) => ({ ...s, quickActions: [{ id: 'desk', label: 'Get the desk', opensPopup: true }] }))
     fake.emit('residentsChanged', pushed)
     await until(() => text() === 'r1=Run: glab mr list|1:Waiting for your OK|Get the desk|Regent,MR Desk')
 

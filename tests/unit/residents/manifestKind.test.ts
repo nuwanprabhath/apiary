@@ -99,7 +99,7 @@ describe('manifestKind', () => {
 
   it('turns quick actions into prompt runs', () => {
     const kind = manifestKind(valid({ id: 'scribe', quickActions: [{ id: 'a', label: 'A', doing: 'D', run: { kind: 'prompt', text: 'T' } }] }), '')
-    expect(kind.quickActions).toEqual([{ id: 'a', label: 'A', doing: 'D', run: { kind: 'prompt', text: 'T' } }])
+    expect(kind.quickActions).toEqual([{ id: 'a', label: 'A', doing: 'D', opensPopup: true, run: { kind: 'prompt', text: 'T' } }])
   })
 })
 
