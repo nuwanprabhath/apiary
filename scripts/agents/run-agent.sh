@@ -43,8 +43,8 @@ esac
 # Headless: --permission-mode auto refuses file writes, so edits are auto-accepted (acceptEdits) and
 # Bash is an explicit allowlist. Publishing, hook-skipping, stashing and installs are denied outright,
 # so those rules hold mechanically, not only because the brief says so.
-ALLOW=("Bash(npm run:*)" "Bash(npm test:*)" "Bash(npx:*)" "Bash(git:*)" "Bash(node:*)" "Bash(ls:*)" "Bash(cat:*)" "Bash(grep:*)" "Bash(rg:*)" "Bash(find:*)" "Bash(head:*)" "Bash(tail:*)" "Bash(wc:*)" "Bash(sed -n:*)" "Bash(mkdir:*)" "Bash(pgrep:*)" "Bash(pkill:*)" "Bash(ps:*)" "Bash(diff:*)" "Bash(sort:*)")
-DENY=("Bash(git push:*)" "Bash(git tag:*)" "Bash(git stash:*)" "Bash(git commit --no-verify:*)" "Bash(git commit -n:*)" "Bash(npm install:*)" "Bash(npm ci:*)" "Bash(npm i:*)" "Bash(npm version:*)" "Bash(gh:*)")
+ALLOW=("Bash(npm run:*)" "Bash(npm test:*)" "Bash(npx:*)" "Bash(git:*)" "Bash(node:*)" "Bash(ls:*)" "Bash(cat:*)" "Bash(grep:*)" "Bash(rg:*)" "Bash(find:*)" "Bash(head:*)" "Bash(tail:*)" "Bash(wc:*)" "Bash(sed -n:*)" "Bash(mkdir:*)" "Bash(pgrep:*)" "Bash(pkill:*)" "Bash(ps:*)" "Bash(diff:*)" "Bash(sort:*)" "Bash(npm version * --no-git-tag-version)")
+DENY=("Bash(git push:*)" "Bash(git tag:*)" "Bash(git stash:*)" "Bash(git commit --no-verify:*)" "Bash(git commit -n:*)" "Bash(npm install:*)" "Bash(npm ci:*)" "Bash(npm i:*)" "Bash(gh:*)")
 COMMON=("${MODEL[@]}" --permission-mode acceptEdits --add-dir "$RUN_DIR" --allowedTools "${ALLOW[@]}" --disallowedTools "${DENY[@]}" --output-format stream-json --verbose)
 
 cd "$WT" || { echo "no worktree $WT" >&2; exit 2; }

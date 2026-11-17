@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.70.1] - 2026-11-17
+
+### Changed
+
+- Agents started by `scripts/agents/run-agent.sh` may run `npm version <x.y.z> --no-git-tag-version`,
+  the bump the repo's rules ask for; any other form of `npm version` is still refused. Until now
+  every form was denied, so agents either edited the version files by hand or stopped with their
+  work uncommitted (three of five in one round).
+
 ## [1.70.0] - 2026-11-17
 
 ### Added
