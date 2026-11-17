@@ -117,7 +117,7 @@ async function clickMenuItem(label: string): Promise<void> {
   await userEvent.click(item)
 }
 
-const DESK_ACTIONS = { quickActions: [{ id: 'desk', label: 'Show the desk' }, { id: 'stats', label: 'Show stats' }] }
+const DESK_ACTIONS = { quickActions: [{ id: 'desk', label: 'Show the desk', opensPopup: true }, { id: 'stats', label: 'Show stats', opensPopup: true }] }
 const tint = (el: Element): string => getComputedStyle(el).getPropertyValue('--resident-tint').trim()
 
 describe('the badge draws its kind and says when it needs you', () => {
@@ -219,6 +219,25 @@ describe("the badge's right-click menu", () => {
     await until(() => fake.callsTo('residentQuickAction').length === 1)
     expect(fake.callsTo('residentQuickAction')[0]).toEqual(['mr-desk', 'stats'])
     await until(() => popup() !== null)
+  })
+
+  it('a quick action that does not open the popup runs, leaves the popup shut and shows the badge working', async () => {
+    const { fake } = await renderApp({}, (f) => { withMrDesk(f) })
+    const actions = [{ id: 'check-now', label: 'Check my MRs now', opensPopup: false }, ...DESK_ACTIONS.quickActions]
+    fake.override('residentQuickAction', async () => {
+      fake.emit('residentsChanged', [mrDeskStatus('working', { quickActions: actions, activity: 'Checking my MRs' })])
+    })
+    await until(() => mrBadge() !== null)
+    fake.emit('residentsChanged', [mrDeskStatus('idle', { quickActions: actions })])
+    await until(() => mrBadge()!.dataset.state === 'idle')
+    rightClick(mrBadge()!)
+    await until(() => menu() !== null)
+    await clickMenuItem('Check my MRs now')
+    await until(() => fake.callsTo('residentQuickAction').length === 1)
+    expect(fake.callsTo('residentQuickAction')[0]).toEqual(['mr-desk', 'check-now'])
+    await until(() => mrBadge()!.dataset.state === 'working')
+    expect(mrBadge()!.textContent).toContain('Checking my MRs')
+    await stays(() => popup() === null, 300, 'the popup stays shut')
   })
 
   it('Turn off switches the resident off', async () => {

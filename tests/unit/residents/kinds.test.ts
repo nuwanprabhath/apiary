@@ -50,6 +50,7 @@ describe('every kind', () => {
         expect(doing.length).toBeLessThanOrEqual(40)
       }
     }
+    expect(kindOf(MR_DESK_KIND).quickActions.filter((a) => !a.opensPopup).map((a) => a.id)).toEqual(['check-now'])
     expect(kindOf(MR_DESK_KIND).quickActions.map((a) => [a.id, a.doing])).toEqual([
       ['desk', 'Reading the desk'], ['stats-week', "Counting last week's MRs"], ['stats-month', "Counting last month's MRs"],
       ['check-now', 'Checking your MRs'], ['baseline', 'Marking the backlog as seen'],

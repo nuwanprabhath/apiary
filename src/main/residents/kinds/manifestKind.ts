@@ -36,7 +36,7 @@ export function manifestKind(m: ResidentKindManifest, promptText: string): Resid
     capabilities: m.capabilities satisfies readonly ResidentCapability[],
     digests: false,
     optionFields: m.optionFields.map((f) => ({ ...f, input: 'text' as const })),
-    quickActions: m.quickActions.map((a) => ({ id: a.id, label: a.label, doing: a.doing, run: { kind: 'prompt' as const, text: a.text } })),
+    quickActions: m.quickActions.map((a) => ({ id: a.id, label: a.label, doing: a.doing, opensPopup: true, run: { kind: 'prompt' as const, text: a.text } })),
     bins: {},
     instantMatches: false,
     setup: () => null,

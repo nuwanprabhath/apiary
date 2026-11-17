@@ -88,12 +88,12 @@ export function createMrDesk(deps: KindDeps): ResidentKind {
       },
     ],
     quickActions: [
-      { id: 'desk', label: 'Show the desk', doing: 'Reading the desk', run: { kind: 'command', argv: ['{bin:mra}', 'desk'] } },
-      { id: 'stats-week', label: 'Stats: last week', doing: "Counting last week's MRs", run: { kind: 'command', argv: ['{bin:mra}', 'stats', 'week'] } },
-      { id: 'stats-month', label: 'Stats: last month', doing: "Counting last month's MRs", run: { kind: 'command', argv: ['{bin:mra}', 'stats', 'month'] } },
-      { id: 'check-now', label: 'Check my MRs now', doing: CYCLE_DOING, run: { kind: 'prompt', text: CYCLE_PROMPT } },
+      { id: 'desk', label: 'Show the desk', doing: 'Reading the desk', opensPopup: true, run: { kind: 'command', argv: ['{bin:mra}', 'desk'] } },
+      { id: 'stats-week', label: 'Stats: last week', doing: "Counting last week's MRs", opensPopup: true, run: { kind: 'command', argv: ['{bin:mra}', 'stats', 'week'] } },
+      { id: 'stats-month', label: 'Stats: last month', doing: "Counting last month's MRs", opensPopup: true, run: { kind: 'command', argv: ['{bin:mra}', 'stats', 'month'] } },
+      { id: 'check-now', label: 'Check my MRs now', doing: CYCLE_DOING, opensPopup: false, run: { kind: 'prompt', text: CYCLE_PROMPT } },
       {
-        id: 'baseline', label: 'Mark the backlog as seen', doing: 'Marking the backlog as seen',
+        id: 'baseline', label: 'Mark the backlog as seen', doing: 'Marking the backlog as seen', opensPopup: true,
         run: { kind: 'prompt', text: 'Run `mra baseline` and tell me what it marked.' },
       },
     ],

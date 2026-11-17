@@ -114,8 +114,8 @@ describe('ResidentService', () => {
     const { service } = build([regent({ options: { project: 'grp/app' } })], {
       kinds: {
         quickActions: [
-          { id: 'desk', label: 'Get the desk', doing: 'Reading the desk', run: { kind: 'command', argv: ['{bin:mra}', 'desk', '{option:project}'] } },
-          { id: 'broken', label: 'Broken', doing: 'Breaking', run: { kind: 'command', argv: ['{bin:nope}'] } },
+          { id: 'desk', label: 'Get the desk', doing: 'Reading the desk', opensPopup: true, run: { kind: 'command', argv: ['{bin:mra}', 'desk', '{option:project}'] } },
+          { id: 'broken', label: 'Broken', doing: 'Breaking', opensPopup: false, run: { kind: 'command', argv: ['{bin:nope}'] } },
         ],
         bins: { mra: () => ['python3', '/res/mra'] },
         env: (_c, space) => ({ MRA_CONFIG: join(space, 'mra.toml') }),
@@ -123,7 +123,7 @@ describe('ResidentService', () => {
       run: async (argv, cwd, env) => { runs.push({ argv, cwd, env }); return '| MR | state |\n' },
     })
     service.start()
-    expect(at(service.list(), 0).quickActions).toEqual([{ id: 'desk', label: 'Get the desk' }, { id: 'broken', label: 'Broken' }])
+    expect(at(service.list(), 0).quickActions).toEqual([{ id: 'desk', label: 'Get the desk', opensPopup: true }, { id: 'broken', label: 'Broken', opensPopup: false }])
     await service.quickAction('regent', 'desk')
     expect(runs).toEqual([{ argv: ['python3', '/res/mra', 'desk', 'grp/app'], cwd: join(dir, 'regent'), env: { MRA_CONFIG: join(dir, 'regent', 'mra.toml') } }])
     await service.quickAction('regent', 'broken')

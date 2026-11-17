@@ -472,7 +472,7 @@ export class ResidentService {
       digest: r.kind.digests && this.deps.digest !== null ? this.deps.digest.progress() : null,
       attention: this.attentionOf(r),
       permissions: r.chat.permissions(),
-      quickActions: r.kind.quickActions.map(({ id, label }) => ({ id, label })),
+      quickActions: r.kind.quickActions.map(({ id, label, opensPopup }) => ({ id, label, opensPopup })),
       setupNeeded: r.kind.setup(r.config),
       cycle: cycleStatus(r.kind, r.config, { nextCycleAt: r.nextCycleAt, running, now }),
     }
