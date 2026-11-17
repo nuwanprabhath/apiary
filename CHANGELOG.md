@@ -4,6 +4,19 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.71.2] - 2026-11-17
+
+### Added
+
+- An architecture drift report for 1.59.9 to 1.71.0 (`docs/reviews/2026-11-17-drift.md`). The
+  checked rules held: lint debt 0, allowlists and `eslint-disable`s unchanged, `as` casts flat while
+  `src/` grew 9.6 %. One rule written only in prose broke: scheduled messages shipped with no
+  `CLAUDE.md` and no map row for `src/main/schedule/`. Both now exist, describing how the
+  open-Apiary timer and the closed-Apiary OS job never both send.
+- The cadence ledger records this drift run and the `correct` run (1.70.6 to 1.71.0). The
+  `prune-tests` count restarts here: the maintainer skipped it this round, and the suite's time is
+  flat since its last run (unit plus integration 110 s, against 112 s).
+
 ## [1.71.0] - 2026-11-17
 
 ### Added
