@@ -23,7 +23,6 @@ export interface ToolDeps {
   /** Every open tab, as the windows last reported them, and the window in front. */
   openTabs(): { windowNumber: number; key: string; view: string; label: string | null }[]
   focusedWindow(): number | null
-  /** The residents themselves, for the one the token names. */
   residents: ResidentControl
   /** Absent where nothing approves (a test of other tools): `approve_mr` and `request_user_action` then say so. */
   approval?: ApprovalControl
@@ -31,11 +30,9 @@ export interface ToolDeps {
 
 /** What the status and attention tools do to the calling resident. */
 export interface ResidentControl {
-  /** The `apiary_status` answer for this resident. */
   statusText(residentId: string): string
   /** Sets (or, with null, clears) what it needs the user for; it persists until the user opens its popup. */
   setAttention(residentId: string, attention: ResidentAttention | null): void
-  /** Its own words for the pill, until the next tool call or the turn's end. */
   setActivity(residentId: string, text: string): void
 }
 

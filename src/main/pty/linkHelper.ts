@@ -12,9 +12,7 @@ import { ESC } from '@shared/pasteSafe'
  * prints the sequence (a `cat` of a file) has no token, so it opens nothing.
  */
 export interface LinkHelper {
-  /** The script `BROWSER` names. */
   browser: string
-  /** This run's secret, in every pty's environment. */
   token: string
 }
 
@@ -43,9 +41,7 @@ export function linkHelperEnv(helper: LinkHelper): Record<string, string> {
 }
 
 export interface TakenLinks {
-  /** The output with every link sequence taken out. */
   out: string
-  /** The links that carried the token, in order. */
   links: string[]
   /** The start of a sequence the chunk ended in, held for the next chunk. */
   held: string

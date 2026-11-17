@@ -29,13 +29,11 @@ export function whenWords(at: number, now: number): string {
   return `${spokenClock(at)} ${dayWords(at, now)}`
 }
 
-/** The value of a `type="date"` field for `at`, local. */
 export function dateField(at: number): string {
   const d = new Date(at)
   return `${String(d.getFullYear())}-${twoDigits(d.getMonth() + 1)}-${twoDigits(d.getDate())}`
 }
 
-/** The value of a `type="time"` field for `at`, local. */
 export function timeField(at: number): string {
   const d = new Date(at)
   return `${twoDigits(d.getHours())}:${twoDigits(d.getMinutes())}`
@@ -50,7 +48,6 @@ export function fromFields(date: string, time: string): number | null {
   return Number.isFinite(at) ? at : null
 }
 
-/** Tomorrow at 9:00, local. */
 export function tomorrowNine(now: number): number {
   const d = new Date(now)
   d.setDate(d.getDate() + 1)

@@ -8,7 +8,6 @@ import { cancelSchedule, openScheduleDialog, sendScheduleNow, useSessionSchedule
 import { useSecondsClock } from '../../state/secondsClock'
 import { quoted, whenWords } from './scheduleTime'
 
-/** Edit, send now and cancel, for one schedule. */
 function actionsFor(sessionId: SessionId, m: ScheduledMessage, prefix = ''): ContextMenuItem[] {
   return [
     { id: `${prefix}schedule-edit`, label: 'Edit…', run: () => { openScheduleDialog(sessionId, m) } },

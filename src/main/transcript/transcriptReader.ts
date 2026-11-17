@@ -11,7 +11,6 @@ import { decodeEntry, entryOf, type ClaudeEntry, type MessageContent, type Origi
 
 /** A line longer than this is skipped by its length alone (4 bytes covers any character in `MAX_LINE_CHARS`). */
 const SKIP_LINE_BYTES = MAX_LINE_CHARS * 4
-/** The most one read asks for. */
 const MAX_READ_BYTES = 4 * 1024 * 1024
 /** The most lines one page reads; past it the page is what is held, with a cursor to the rest. */
 const MAX_PAGE_BYTES = 16 * 1024 * 1024

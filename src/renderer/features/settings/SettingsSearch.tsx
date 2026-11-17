@@ -46,7 +46,6 @@ export function SettingsSearchField(
   )
 }
 
-/** `text` with the query's words marked. */
 export function Highlighted({ text, words }: { text: string; words: readonly string[] }): JSX.Element {
   return (
     <>
@@ -57,7 +56,6 @@ export function Highlighted({ text, words }: { text: string; words: readonly str
   )
 }
 
-/** The settings matching the query, under their section headings. */
 export function SettingsResults(
   { groups, words, query, onOpen }: {
     groups: SectionHits[]

@@ -1,7 +1,6 @@
 import { type RefObject, useEffect } from 'react'
 import type { SettingEntry } from './settingsIndex'
 
-/** How long the setting a search result opened stays marked. */
 const FOUND_MS = 1800
 /** Frames to wait for a section that draws its controls after it loads (pets). */
 const MAX_FRAMES = 40

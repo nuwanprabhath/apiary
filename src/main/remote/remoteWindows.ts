@@ -22,7 +22,6 @@ interface Binding {
 
 /** What a remote window's copy of a work machine's window may do on this machine's screen. */
 export interface HomeScreen {
-  /** Brings window `webContentsId` to the front. */
   raise(webContentsId: number): void
   isFocused(webContentsId: number): boolean
 }

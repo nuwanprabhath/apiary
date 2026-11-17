@@ -286,7 +286,6 @@ export class ResidentService {
     }
   }
 
-  /** Runs a kind's argv in the resident's space, with its env and `extraEnv`. */
   private runIn(r: Resident, argv: string[], extraEnv: Record<string, string> = {}): Promise<string> {
     return this.run(expandArgv(argv, { options: r.config.options, bins: r.kind.bins }), r.space.dir, { ...this.deps.launchEnv(), ...(r.kind.env?.(r.config, r.space.dir) ?? {}), ...extraEnv })
   }

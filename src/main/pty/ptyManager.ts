@@ -35,7 +35,6 @@ export type KillResult = 'exited' | 'killed' | 'alive'
 /** Entries without a live child are kept for `cwd`; the oldest beyond this many are forgotten. */
 const MAX_DEAD_ENTRIES = 500
 
-/** How long `killAndWait` waits for the exit after SIGKILL. */
 const PTY_SIGKILL_WAIT_MS = 1000
 
 /**
@@ -398,7 +397,6 @@ export class PtyManager {
     else handle.readStop()
   }
 
-  /** Reads the child's output again after `pauseOutput`. */
   resumeOutput(id: string): void {
     if (!PAUSES_READS) return
     const child = this.liveChild(id)

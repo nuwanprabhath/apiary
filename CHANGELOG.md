@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.70.4] - 2026-11-17
+
+### Changed
+
+- Comments that only restated a name were removed from source added since 1.59.9 (41 lines in 25
+  files). No code changed.
+
 ## [1.70.3] - 2026-11-17
 
 ### Fixed
