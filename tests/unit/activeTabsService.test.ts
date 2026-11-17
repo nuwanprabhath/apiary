@@ -17,6 +17,7 @@ interface World {
   lastOutputAt?: number
   chats?: ChatState[]
   tasks?: number
+  terminals?: string[]
 }
 
 function activeTabs(world: World) {
@@ -28,7 +29,10 @@ function activeTabs(world: World) {
       screen: () => world.screen ?? '',
       lastOutputAt: () => world.lastOutputAt ?? 0,
     },
-    chats: { state: (id) => world.chats?.find((c) => c.sessionId === id) ?? null },
+    chats: {
+      state: (id) => world.chats?.find((c) => c.sessionId === id) ?? null,
+      terminalsOf: () => world.terminals ?? [],
+    },
     transcripts: { runningBackgroundTasks },
     now: () => NOW,
   }
@@ -88,5 +92,24 @@ describe('ActiveTabsService', () => {
   it('a transcript tab with no chat and no terminal is stopped', async () => {
     const { list } = activeTabs({ tabs: [transcriptTab('s1')] })
     expect((await list()).map((t) => t.status)).toEqual(['stopped'])
+  })
+
+  it('a chat-view tab whose claude still runs in its terminal is running, from that terminal', async () => {
+    const { list } = activeTabs({
+      tabs: [transcriptTab(A)], terminals: [A], lastOutputAt: NOW - 100, chats: [{ ...emptyChatState(A), status: 'exited' }],
+    })
+    expect((await list()).map((t) => t.status)).toEqual(['running'])
+  })
+
+  it('a chat-view tab whose terminal claude went idle is idle', async () => {
+    const { list } = activeTabs({ tabs: [transcriptTab(A)], terminals: [A], lastOutputAt: 0 })
+    expect((await list()).map((t) => t.status)).toEqual(['idle'])
+  })
+
+  it('a running chat owns the session over a terminal still listed for it', async () => {
+    const { list } = activeTabs({
+      tabs: [transcriptTab(A)], terminals: [A], lastOutputAt: NOW - 100, chats: [{ ...emptyChatState(A), status: 'idle' }],
+    })
+    expect((await list()).map((t) => t.status)).toEqual(['idle'])
   })
 })

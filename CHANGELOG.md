@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.68.3] - 2026-11-17
+
+### Fixed
+
+- A tab showing the Chat view while its Claude still works in its terminal keeps its running ring,
+  and its Active row stays Active, in every window: its activity is read from that terminal until a
+  chat takes the session over, instead of from the chat, which was idle.
+
 ## [1.68.1] - 2026-11-16
 
 ### Fixed

@@ -258,7 +258,7 @@ export class ChatService {
   }
 
   /** Every terminal on the session: the one keyed by its id, and a new session's terminal, keyed `new:…`. */
-  private terminalsOf(sessionId: SessionId): string[] {
+  terminalsOf(sessionId: SessionId): string[] {
     const ids = new Set(this.deps.terminalsOn(sessionId))
     if (this.deps.pty.has(sessionId)) ids.add(sessionId)
     return [...ids]

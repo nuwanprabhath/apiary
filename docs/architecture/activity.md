@@ -55,7 +55,9 @@ but which still has one in flight is `running`, not `idle`: `withBackgroundTasks
   `stopped` and its transcript is never read, because a claude that died with tasks open never writes
   their notifications, so any count would be stale.
 - **A chat tab** uses `chatActivity` alone, from the chat's own `backgroundTasks`. The transcript is
-  not read.
+  not read. A tab whose window reports no pty but whose session's claude still runs in a live
+  terminal (no chat running yet: the Chat view before the hand-off) is a terminal tab, read from
+  that terminal (`ActiveTabsService.liveTerminalOf`, the same terminals `ChatService.terminalBusy` checks).
 - **The count for a terminal tab** is `TranscriptService.runningBackgroundTasks`
   (`src/main/sessions/transcriptService.ts`). It reads the session file from the offset already read
   and feeds each line to a `BackgroundTaskTally` (`src/shared/chatTimeline.ts`): a `run_in_background`
