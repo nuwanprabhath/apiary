@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.70.8] - 2026-11-17
+
+### Changed
+
+- The pre-push coverage run asks for 0.25 points above CI's floor (`APIARY_COVERAGE_MARGIN`, read by
+  `vitest.config.ts`). Linux CI skips the macOS-only tests and reads about 0.12 lower than a Mac, so
+  a push at 79.10 % branch coverage passed here and failed CI at 78.98 % (1.68.1). Run on that
+  commit, the new check refuses it (79.11 % against 79.25 %).
+
 ## [1.70.7] - 2026-11-17
 
 ### Fixed
