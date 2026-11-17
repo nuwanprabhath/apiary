@@ -4,7 +4,17 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.71.3] - 2026-11-17
+## [1.71.4] - 2026-11-18
+
+### Security
+
+- The audit allows GHSA-fc5q-39xc-vjpf (picomatch ReDoS, published 2026-11-17) until 2026-12-16,
+  as a development-only finding. No fixed picomatch exists yet. It reaches Apiary only through
+  build, lint and test tools, which match our own repository globs; the shipped app has no copy
+  (`npm ls picomatch --omit=dev` is empty), and the audit fails if one ever ships. v1.71.3's
+  release stopped at this audit and published nothing.
+
+## [1.71.3] - 2026-11-17 (not released: the audit stopped it)
 
 ### Changed
 
