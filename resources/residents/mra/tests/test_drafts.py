@@ -59,6 +59,8 @@ class FakeGL:
         self.calls.append(('publish',))
 
     def discussion(self, iid, did):
+        if self.discussion_data is None:
+            raise gitlab.GitLabError('404 Not Found')
         return self.discussion_data
 
     def reply(self, iid, did, body):
@@ -196,6 +198,54 @@ class DraftListEditMove(unittest.TestCase):
         self.assertEqual(run(['draft', 'delete', '!1', '7'], gl, state)[0], 0)
         self.assertEqual(gl.calls[-1], ('delete', 7))
         self.assertNotIn('7', state['drafts'].get('1', {}))
+
+
+class DraftReply(unittest.TestCase):
+    def test_reply_draft_has_no_position_and_names_the_discussion(self):
+        gl = FakeGL()
+        with body_file('agreed') as f:
+            code, res, _ = run(['draft', 'add', '!1', '--reply-to', 'd1', '--body-file', f], gl)
+        self.assertEqual(code, 0)
+        self.assertEqual(gl.calls, [('create', {'note': 'agreed', 'in_reply_to_discussion_id': 'd1'})])
+        self.assertEqual(res, {'id': 77, 'url': 'https://gl/mr/1', 'reply_to': 'd1'})
+
+    def test_reply_to_excludes_a_diff_anchor_and_an_anchor_is_still_required(self):
+        gl = FakeGL()
+        with body_file() as f:
+            for extra in (['--file', 'src/a.js'], ['--line', '4'], ['--old-line', '2']):
+                code, res, _ = run(['draft', 'add', '!1', '--reply-to', 'd1', '--body-file', f, *extra], gl)
+                self.assertEqual(code, 2)
+                self.assertIn('error', res)
+            self.assertEqual(run(['draft', 'add', '!1', '--body-file', f], gl)[0], 2)
+        self.assertEqual(gl.calls, [])
+
+    def test_unknown_discussion_creates_nothing(self):
+        gl = FakeGL()
+        gl.discussion_data = None
+        with body_file() as f:
+            code, res, _ = run(['draft', 'add', '!1', '--reply-to', 'nope', '--body-file', f], gl)
+        self.assertEqual(code, 2)
+        self.assertIn('error', res)
+        self.assertEqual(gl.calls, [])
+
+    def test_list_shows_a_reply_draft_as_current_with_no_anchor(self):
+        gl = FakeGL(sha='d' * 40)
+        gl.drafts_list = [{'id': 9, 'note': 'ok', 'discussion_id': 'd1', 'position': None},
+                          {'id': 10, 'note': 'x', 'in_reply_to_discussion_id': 'd2'},
+                          {'id': 11, 'note': 'y', 'position': {'new_path': 'f', 'new_line': 3}}]
+        code, res, _ = run(['draft', 'list', '!1'], gl)
+        d9, d10, d11 = res['drafts']
+        self.assertEqual((d9['reply_to'], d9['file'], d9['line'], d9['outdated']), ('d1', None, None, False))
+        self.assertEqual(d10['reply_to'], 'd2')
+        self.assertIsNone(d11['reply_to'])
+
+    def test_move_refuses_a_reply_draft(self):
+        gl = FakeGL()
+        gl.drafts_list = [{'id': 9, 'note': 'ok', 'discussion_id': 'd1'}]
+        code, res, _ = run(['draft', 'move', '!1', '9', '--file', 'src/a.js', '--line', '3'], gl)
+        self.assertEqual(code, 2)
+        self.assertIn('reply', res['error'])
+        self.assertNotIn('update', [c[0] for c in gl.calls])
 
 
 class NonceGated(unittest.TestCase):

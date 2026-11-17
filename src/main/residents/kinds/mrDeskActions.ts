@@ -34,6 +34,8 @@ function draftsCard(iid: number, title: string, stdout: string): { summary: stri
   const drafts = records(parsed.drafts)
   if (drafts.length === 0) return { problem: `!${String(iid)} has no draft comments to publish` }
   const lines = drafts.map((d) => {
+    const replyTo = asText(d.reply_to)
+    if (replyTo !== '') return `- reply in thread ${replyTo.slice(0, 8)}: ${noteLine(asText(d.body))}`
     const where = asText(d.file) !== '' ? `${asText(d.file)}${asText(d.line) !== '' ? `:${asText(d.line)}` : ''}` : 'on the MR'
     return `- ${where}${d.outdated === true ? ' (outdated)' : ''}: ${noteLine(asText(d.body))}`
   })

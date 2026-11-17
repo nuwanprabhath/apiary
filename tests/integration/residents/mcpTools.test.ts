@@ -263,6 +263,15 @@ describe('request_user_action (the MR desk)', () => {
     expect(r).toEqual({ text: '{"published":2}', isError: false })
   })
 
+  it('lists a reply draft as a reply in its thread, not as a place in the diff', async () => {
+    const replies = JSON.stringify({ drafts: [
+      { id: 3, reply_to: 'abcdef1234567890', file: null, line: null, body: 'Agreed.\nMore.', outdated: false },
+    ] })
+    const { d, asked } = acting(true, { draft: replies })
+    await act({ kind: 'publish_drafts', iid: 5 }, d)
+    expect(asked).toEqual([['Publish 1 draft comment on !5: fix: thing', '- reply in thread abcdef12: Agreed.'].join('\n')])
+  })
+
   it('a reply shows the thread\'s last note and the body verbatim, posts it through a body file, and deletes both files', async () => {
     const { d, asked, ran } = acting(true)
     const body = 'Thanks — makes sense.\nResolving.'

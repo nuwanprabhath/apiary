@@ -846,6 +846,11 @@ def _draft_head(draft, recorded):
     return recorded.get(str(draft['id'])) or (draft.get('position') or {}).get('head_sha')
 
 
+def _draft_reply_to(draft):
+    """The discussion a draft replies in, or None for a comment on a diff line."""
+    return draft.get('in_reply_to_discussion_id') or draft.get('discussion_id') or None
+
+
 def _record_draft(state, iid, did, head):
     state.setdefault('drafts', {}).setdefault(str(iid), {})[str(did)] = head
 
@@ -869,6 +874,17 @@ def _need_line(args):
 @json_errors
 def cmd_draft_add(args):
     cfg, gl, state = ctx(args)
+    if args.reply_to:
+        if args.file or args.line is not None or args.old_line is not None:
+            raise MraError('--reply-to cannot be combined with --file, --line or --old-line',
+                           'a reply draft sits in an existing thread and has no diff anchor')
+        body = _read_body(args.body_file)
+        gl.discussion(args.iid, args.reply_to)  # an unknown thread is an error before anything is created
+        made = gl.create_draft(args.iid, {'note': body, 'in_reply_to_discussion_id': args.reply_to})
+        out({'id': made['id'], 'url': gl.mr(args.iid)['web_url'], 'reply_to': args.reply_to})
+        return
+    if not args.file:
+        raise MraError('give --file and --line for a diff comment, or --reply-to DISCUSSION_ID for a reply')
     _need_line(args)
     body = _read_body(args.body_file)
     mr, pos = _anchor(gl, args.iid, args.file, args.line, args.old_line)
@@ -887,8 +903,9 @@ def cmd_draft_list(args):
     items = []
     for d in gl.drafts(args.iid):
         pos = d.get('position') or {}
-        head = _draft_head(d, recorded)
-        items.append({'id': d['id'], 'file': pos.get('new_path') or pos.get('old_path'),
+        reply_to = _draft_reply_to(d)
+        head = None if reply_to else _draft_head(d, recorded)
+        items.append({'id': d['id'], 'reply_to': reply_to, 'file': pos.get('new_path') or pos.get('old_path'),
                       'line': pos.get('new_line') or pos.get('old_line'), 'body': d.get('note'),
                       'head_sha': head, 'outdated': bool(head) and head != current})
     out({'drafts': items, 'head_sha': current})
@@ -905,6 +922,9 @@ def cmd_draft_edit(args):
 def cmd_draft_move(args):
     cfg, gl, state = ctx(args)
     _need_line(args)
+    if any(_draft_reply_to(d) for d in gl.drafts(args.iid) if d['id'] == args.draft_id):
+        raise MraError(f'draft {args.draft_id} is a reply in a thread, it has no line to move',
+                       'edit or delete it instead')
     mr, pos = _anchor(gl, args.iid, args.file, args.line, args.old_line)
     gl.update_draft(args.iid, args.draft_id, {'position': pos})
     _record_draft(state, args.iid, args.draft_id, pos['head_sha'])
@@ -1156,9 +1176,10 @@ def main(argv=None):
 
     p = sub.add_parser('draft', help='draft notes on an MR: add, list, edit, move, delete (no approval), publish (user approval)')
     dsub = p.add_subparsers(dest='draft_cmd', required=True)
-    d = dsub.add_parser('add', help='a draft note anchored to a line of the current diff')
+    d = dsub.add_parser('add', help='a draft note anchored to a line of the current diff, or a draft reply (--reply-to)')
     d.add_argument('iid', metavar='REF', help='!iid')
-    d.add_argument('--file', required=True)
+    d.add_argument('--reply-to', metavar='DISCUSSION_ID', help='reply inside this thread instead of anchoring to a line')
+    d.add_argument('--file')
     d.add_argument('--line', type=int, help='new-side line number (an added or context line)')
     d.add_argument('--old-line', type=int, help='old-side line number, alone: a removed line')
     d.add_argument('--body-file', required=True)
