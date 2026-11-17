@@ -200,6 +200,11 @@ const CASES: Record<string, Case> = {
     allowed: { file: 'tests/fixtures/stays.ts', code: 'await new Promise((resolve) => setTimeout(resolve, 50))' },
     outside: { file: 'src/main/x.ts', code: 'await new Promise((r) => setTimeout(r, 5))' },
   },
+  'timing-via-fastest-run': {
+    bad: { file: 'tests/unit/searchLoad.test.ts', code: 'const started = performance.now()\nwork()\nexpect(performance.now() - started).toBeLessThan(40)' },
+    allowed: { file: 'tests/fixtures/timing.ts', code: 'const started = performance.now()' },
+    outside: { file: 'tests/e2e/bench/loadPerf.spec.ts', code: 'const started = performance.now()' },
+  },
   'shared-alias-in-tests': {
     bad: { file: 'tests/unit/chatProtocol.test.ts', code: "import { x } from '../../src/shared/chatTimeline'\nx()" },
     outside: { file: 'tests/unit/chatProtocol.test.ts', code: "import { x } from '@shared/chatTimeline'\nx()" },

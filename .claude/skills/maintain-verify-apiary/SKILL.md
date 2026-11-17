@@ -80,3 +80,9 @@ During the pass, change only `.claude/skills/verify-apiary/` (its `SKILL.md`, `f
    features driven, features unreachable and why.
 
 Keep run notes (coverage, prerequisites, drift found) in the scratchpad, not in the repo.
+
+## Record the run
+
+Its last step, in the same commit as its work (or a commit of its own when the run changed
+nothing): `node scripts/quality-cadence.mjs done maintain-verify-apiary`. That resets its count in
+`docs/quality-cadence.json`; a release tag is refused while a skill is due (`.husky/pre-push`).

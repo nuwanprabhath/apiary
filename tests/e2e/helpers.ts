@@ -2,7 +2,8 @@ import { _electron as electron, expect, test, type ElectronApplication, type Loc
 import type { ChildProcess } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { makeSession, type FixtureOptions } from '../fixtures/makeSession'
 import { git, makeRepoWithWorktree } from '../fixtures/gitRepo'
 import { STANDARD_SESSIONS as STD } from '../fixtures/standard'
@@ -93,6 +94,9 @@ function launchEnv(home: string, extra: Record<string, string>): Record<string, 
   return { ...env, APIARY_DEFAULT_THEME: 'original', ...isolatedGitEnv(home), ...extra, ...headlessEnv() }
 }
 
+/** The repository root, which holds the built app's `package.json` and `out/`. */
+const APP_DIR = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..')
+
 /**
  * What to launch: the built app in `out/` through Electron, or — when `APIARY_E2E_EXECUTABLE` is
  * set (only by the opt-in packaged smoke, `npm run test:packaged`, TEST-7) — that packaged binary,
@@ -101,7 +105,9 @@ function launchEnv(home: string, extra: Record<string, string>): Record<string, 
 function launchTarget(userDataDir: string, electronArgs: string[]): { args: string[]; executablePath?: string } {
   const executablePath = process.env.APIARY_E2E_EXECUTABLE
   const args = [`--user-data-dir=${userDataDir}`, ...electronArgs]
-  if (executablePath === undefined || executablePath === '') return { args: [...args, '.'] }
+  // The app by its own path, not `.`: a runner started from another folder (the verify skill's
+  // config) made Electron look for the app there and raise a native "Error launching app" dialog.
+  if (executablePath === undefined || executablePath === '') return { args: [...args, APP_DIR] }
   return { args, executablePath }
 }
 

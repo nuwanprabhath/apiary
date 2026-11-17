@@ -54,6 +54,8 @@ cd "$WT" || { echo "no worktree $WT" >&2; exit 2; }
 # attribution). Generate it before the agent starts.
 [ -f .husky/_/h ] || npx husky >/dev/null || { echo "could not install the git hooks in $WT" >&2; exit 2; }
 # The Stop hook judges the agent's own commits: everything since it left the release branch.
+# Tells the repo's SessionStart hook this session has no human to offer the due quality skills to.
+export APIARY_HEADLESS_AGENT=1
 export APIARY_BASE_REF="${APIARY_BASE_REF:-$(git -C "$ROOT" branch --show-current)}"
 
 # Runs claude in the background and returns once it exits or the watchdog stops it.

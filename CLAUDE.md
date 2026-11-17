@@ -66,6 +66,7 @@ No command rebuilds a native module ([`docs/testing.md`](docs/testing.md)), so a
 - Add AI attribution to a commit or PR; `.husky/commit-msg`, `.husky/pre-push` and CI reject it.
 - Let the renderer supply a filesystem path that main acts on.
 - Grow a baseline or an allowlist to make a check pass (see "Guard layer").
+- Set `APIARY_CADENCE_DEFER` to release with quality skills due, unless the maintainer asks for it.
 
 ## Definition of done
 
@@ -152,6 +153,7 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | Colour, radius, height, padding, gap come from tokens | stylelint `declaration-property-value-disallowed-list` | spacing `--space-*`, icons `--icon-size-*` / `--icon-button-size-*` / `--dot-size-*`, `--radius-*`, `--control-*`, the `.btn` layer (`styles/00-tokens.css`, [`src/renderer/CLAUDE.md`](src/renderer/CLAUDE.md)) |
 | File and function size (400 / 120 lines) | ESLint `max-lines`, `max-lines-per-function` | split by responsibility |
 | Tests wait on conditions and import `@shared/` | `no-test-sleep`, `shared-alias-in-tests` | `vi.waitFor`, `expect.poll`, `stays` for "nothing happens"; the alias |
+| A test never checks one timed run (a busy machine stretches it): it counts the work, or times the fastest of several runs | `timing-via-fastest-run` | count calls, bytes or allocations; `fastestMs` in `tests/fixtures/timing.ts` |
 | No dead code; docs name real paths, symbols and links; a disable comment says why and is needed | knip ratchet (`npm run lint:dead`); `scripts/check-doc-refs.mjs` (`npm run lint:md`); ESLint `reportUnusedDisableDirectives`, stylelint `reportNeedlessDisables` | delete it; fix the doc; add `-- <reason>`; drop a disable nothing needs |
 | Lint on each edit; no stop with a red typecheck or lint; the Stop hook runs every step of `npm run lint` | `.claude/hooks/lint-edited.mjs`, `.claude/hooks/definition-of-done.mjs`, `tests/unit/architecture/stopHookCoversLint.test.ts` | fix what it prints; a new lint step gets its counterpart in the hook |
 | A behaviour change has a test that fails without it: the branch's changed unit, integration and component tests run against the base's `src/`, and at least one must fail | `.claude/hooks/testsFailOnBase.mjs` (Stop hook) | write the test from the requirement, see it fail on the old code, then fix; a pure refactor says why in `No-Red-Test-Reason:` |
@@ -160,9 +162,10 @@ When a check fires, its message names the replacement. The `apiary/*` rules are 
 | Commit hygiene | `.husky/pre-commit` (lint-staged), `.husky/commit-msg` (commitlint, no AI attribution), `.husky/pre-push` (typecheck, lint, `test:unit`) | fix, never `--no-verify` |
 | No commit leaves under a test fixture's identity (`@example.com`) or with AI attribution, even one whose hooks did not run (an agent's worktree, a rebase) | `scripts/pushed-commits-gate.mjs` in `.husky/pre-push` and CI's lint job; `tests/unit/pushedCommitsGate.test.ts`; for Claude sessions, the maintainer's user-level `attribution` setting and a PreToolUse hook that blocks the trailer | unset `git config --local user.*`, then reword or `--reset-author` the commits |
 | A test never touches the repository it is run from: every test config drops `GIT_DIR` and its kin first, which `git bisect run` and worktree hooks export | `tests/unit/architecture/testConfigsDropGitEnv.test.ts` | make the config's first line import `tests/fixtures/outerGitEnv.ts` |
-| A push to `main` meets CI's coverage thresholds (`vitest.config.ts`) before it leaves: three times new code went under the floor and only CI saw it | `.husky/pre-push` runs `npm run test:coverage` instead of `test:unit` when the push updates `main` | add tests for the new code, then push again |
+| A push to `main` meets CI's coverage thresholds (`vitest.config.ts`) with a 0.25 margin before it leaves: new code went under the floor and only CI saw it, four times (Linux CI reads about 0.12 lower) | `.husky/pre-push` runs `APIARY_COVERAGE_MARGIN=0.25 npm run test:coverage` instead of `test:unit` when the push updates `main` | add tests for the new code, then push again |
 | The e2e suite does not grow: its test count is a budget | `tests/unit/architecture/e2eBudget.test.ts` against `tests/e2e/budget.json` | move a renderer-only test to `tests/component`, or merge or remove one (`.claude/skills/prune-tests/SKILL.md`); the maintainer raises the budget |
 | A release passes the whole e2e suite, `@serial` included, not only the specs a change seemed to touch | `.husky/pre-push`: pushing a `v*` tag runs `npm run test:e2e` and refuses the push if it fails | fix the spec or the code, then push the tag again |
+| The quality skills run on a cadence: `trim-comments`, `correct`, `maintain-verify-apiary`, `architecture-drift`, `prune-tests`, each after so many commits or days (`docs/quality-cadence.json`) | `scripts/quality-cadence.mjs`: a release tag is refused while one is due (`.husky/pre-push`), a push to main and every session start say which are due; `tests/unit/qualityCadence.test.ts` | run the skill; its last step is `node scripts/quality-cadence.mjs done <skill>` |
 | A release tag goes only on a commit CI has passed (the release repeats CI's checks on Linux; five tags stopped there and published nothing) | `.husky/pre-push` runs `scripts/release-ci-gate.mjs` for a `v*` tag; `tests/unit/releaseCiGate.test.ts` | push `main`, wait for CI on it (`gh run watch`), then push the tag; a failed CI means a fix and a new version |
 
 ## Judgment calls

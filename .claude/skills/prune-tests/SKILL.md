@@ -125,3 +125,9 @@ Same machine, nothing else running, and every layer must pass in both runs. Repo
 each change with its kind (sped up, moved, merged, deleted), the seconds it saved, and for each
 deletion its proof. Commit one change kind per commit, following the version and changelog rules
 (root `CLAUDE.md`); test-only commits carry `No-Red-Test-Reason:`.
+
+## Record the run
+
+Its last step, in the same commit as its work (or a commit of its own when the run changed
+nothing): `node scripts/quality-cadence.mjs done prune-tests`. That resets its count in
+`docs/quality-cadence.json`; a release tag is refused while a skill is due (`.husky/pre-push`).

@@ -4,6 +4,47 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.71.0] - 2026-11-17
+
+### Added
+
+- The quality skills run on a cadence instead of when someone remembers. `docs/quality-cadence.json`
+  says, for `trim-comments`, `correct`, `maintain-verify-apiary`, `architecture-drift` and
+  `prune-tests`, when each last ran and after how many commits or days it is due again
+  (`scripts/quality-cadence.mjs`). None had run for 158 commits.
+  - A release tag is refused while one is due (`.husky/pre-push`), naming the skill and how to run
+    it. `APIARY_CADENCE_DEFER="<reason>"` lets an urgent hotfix through; only the maintainer sets it.
+  - A push to main and every Claude session in the repo (a SessionStart hook) say which are due.
+    Headless agents (`run-agent.sh` sets `APIARY_HEADLESS_AGENT`) are not told, so they stay on task.
+  - Each skill ends by recording its run: `node scripts/quality-cadence.mjs done <skill>`.
+
+## [1.70.8] - 2026-11-17
+
+### Changed
+
+- The pre-push coverage run asks for 0.25 points above CI's floor (`APIARY_COVERAGE_MARGIN`, read by
+  `vitest.config.ts`). Linux CI skips the macOS-only tests and reads about 0.12 lower than a Mac, so
+  a push at 79.10 % branch coverage passed here and failed CI at 78.98 % (1.68.1). Run on that
+  commit, the new check refuses it (79.11 % against 79.25 %).
+
+## [1.70.7] - 2026-11-17
+
+### Fixed
+
+- The test launcher (`launchApiary`) passes Electron the app's own path instead of `.`. Run from the
+  verify skill's folder, `.` was that folder, so Electron could not find the app and put an "Error
+  launching app" dialog on the maintainer's screen. `verify.sh doctor` passes again.
+
+## [1.70.6] - 2026-11-17
+
+### Changed
+
+- A unit, integration or component test may no longer time a single run with `performance.now()`
+  (lint rule `apiary/timing-via-fastest-run`). It counts the work instead, or uses `fastestMs` from
+  `tests/fixtures/timing.ts`, the fastest of several runs. One timed run fails whenever the machine
+  is busy: the frame-decoder timing failed under load twice (1.60.5, 1.70.2). The search-speed
+  budgets in `searchLoad.test.ts` now use `fastestMs`.
+
 ## [1.70.4] - 2026-11-17
 
 ### Changed

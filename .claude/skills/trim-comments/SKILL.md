@@ -49,3 +49,9 @@ statements about behaviour and are out of scope unless the caller names them.
    doc references `check-doc-refs` reads), and the tests of any file whose code changed.
 6. **Report**: comment lines removed, restorations, reshapes done, reshapes open, constraints
    enforced or left in prose.
+
+## Record the run
+
+Its last step, in the same commit as its work (or a commit of its own when the run changed
+nothing): `node scripts/quality-cadence.mjs done trim-comments`. That resets its count in
+`docs/quality-cadence.json`; a release tag is refused while a skill is due (`.husky/pre-push`).

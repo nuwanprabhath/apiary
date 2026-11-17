@@ -2,6 +2,11 @@ import './tests/fixtures/outerGitEnv'
 import { defineConfig } from 'vitest/config'
 import { resolve } from 'node:path'
 
+/** CI's coverage floor. The pre-push run adds `APIARY_COVERAGE_MARGIN` (see .husky/pre-push): Linux
+ *  CI skips the macOS-only tests and reads about 0.12 lower than a Mac. */
+const FLOOR = { lines: 85, statements: 82, functions: 77, branches: 79 }
+const margin = Number(process.env.APIARY_COVERAGE_MARGIN ?? '0') || 0
+
 export default defineConfig({
   resolve: { alias: { '@shared': resolve('src/shared') } },
   test: {
@@ -17,7 +22,10 @@ export default defineConfig({
       reporter: ['text-summary', 'json-summary', 'html', 'lcov'],
       // A ratchet, not a target: each is one point under the 1.33.0 measurement, so a change that
       // drops coverage fails `npm run test:coverage` in CI. Raise them when the numbers rise; never lower.
-      thresholds: { lines: 85, statements: 82, functions: 77, branches: 79 },
+      thresholds: {
+        lines: FLOOR.lines + margin, statements: FLOOR.statements + margin,
+        functions: FLOOR.functions + margin, branches: FLOOR.branches + margin,
+      },
     },
     // unit = pure logic, filesystem-only or fully-mocked; integration = drives a real git or pty
     // subprocess, or loads a native module (better-sqlite3, node-pty). See tests/unit/purity.test.ts
