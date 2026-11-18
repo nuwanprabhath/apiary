@@ -16,14 +16,6 @@ All notable changes to Apiary are documented here. Format follows
   configured project. File mentions now come from the same registry of mention kinds
   (`src/shared/mentions/`), which a future user-defined kind (a Jira key) can join.
 
-## [1.72.2] - 2026-11-18
-
-### Fixed
-
-- Install and Download take the newest release, not the one the last scheduled check offered: the
-  updater asks the feed again first, moves the offer to a newer version and drops an installer
-  downloaded for an older one, so a day with several releases means one update, not several.
-
 ## [1.72.3] - 2026-11-18
 
 ### Changed
@@ -35,6 +27,14 @@ All notable changes to Apiary are documented here. Format follows
   (the AppImage needs `libfuse2`), quits a running Apiary before replacing it, builds with
   `npm ci`, and says the prebuilt app needs no Node.js. It and the README say Apiary updates
   itself once installed.
+
+## [1.72.2] - 2026-11-18
+
+### Fixed
+
+- Install and Download take the newest release, not the one the last scheduled check offered: the
+  updater asks the feed again first, moves the offer to a newer version and drops an installer
+  downloaded for an older one, so a day with several releases means one update, not several.
 
 ## [1.72.1] - 2026-11-18
 
