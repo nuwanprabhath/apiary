@@ -89,9 +89,10 @@ file view's own copy button, then paste the whole thing into your agent.
 It's kept as a file of its own, containing nothing but the prompt, precisely so
 that copying it is one button rather than a careful drag across part of a page.
 
-The prompt is written to be idempotent — running it again later checks the
-installed version against the latest release and does nothing if you're
-already up to date, or updates in place if you're not. If a GitHub release
+Once installed, Apiary updates itself: it checks for new releases and offers
+them in the app. The prompt is still idempotent — running it again later
+checks the installed version against the latest release and does nothing if
+you're already up to date, or updates in place if you're not. If a GitHub release
 exists for your platform it downloads the prebuilt artifact; otherwise (or if
 none has been published yet) it builds from source instead, which always works
 as long as the build requirements below are met.

@@ -4,6 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.72.3] - 2026-11-18
+
+### Changed
+
+- The install prompt (`docs/install-prompt.md`) is current again. It no longer runs
+  `apiary --version`, which opened the app instead of printing a version; it reads the version from
+  the app bundle or `dpkg-query`. It names the downloads a release actually has (macOS Apple
+  silicon, Linux x64), builds from source on an Intel Mac, prefers the `.deb` on Debian and Ubuntu
+  (the AppImage needs `libfuse2`), quits a running Apiary before replacing it, builds with
+  `npm ci`, and says the prebuilt app needs no Node.js. It and the README say Apiary updates
+  itself once installed.
+
 ## [1.72.1] - 2026-11-18
 
 ### Fixed
