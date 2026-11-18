@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.72.1] - 2026-11-18
+
+### Fixed
+
+- A background agent shows its model and effort again when Claude Code put it in the background on
+  its own. Claude Code 2.1.326 backgrounds an agent with no `run_in_background` on the call ("Async
+  agent launched"), and Apiary counted only calls that asked for it, so the row had no
+  "Opus 5.5 · high" line. The same agent now also keeps a terminal tab's status "running" while it
+  works.
+
 ## [1.72.0] - 2026-11-18
 
 ### Added
