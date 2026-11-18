@@ -1,8 +1,9 @@
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { errorMessage } from '@shared/errors'
 import { basename, join } from 'node:path'
 import { isWorktreeConflict, type BranchOps } from './branchOps'
-import { resolveRemote } from '../plugins/remote'
+import { defaultExec, originUrl, resolveRemote, type RemoteExec } from '../plugins/remote'
+import { parseRepoWebLocation, type RepoWebLocation } from '@shared/mentions/repoWebLocation'
 import { parseGitLabRemote } from '../plugins/gitlabRemote'
 import type { MrState, MrStatusCache } from './mrStatusCache'
 import { log } from '../log/logger'
@@ -23,6 +24,8 @@ export interface GitServiceDeps {
   refreshProject: (cwd: string) => Promise<void>
   /** Starts a Claude session in a folder this service derived itself (`TerminalService.newSessionInFolder`). */
   startSessionIn: (folder: string) => Promise<NewSessionInfo>
+  /** How `git` is run to read a folder's remote; tests count the calls. */
+  remoteExec?: RemoteExec
   /** Path to the `glab` executable, for anyone whose install is not on PATH (and for tests). */
   glabPath?: string
 }
@@ -40,6 +43,12 @@ export class GitService {
   private readonly startSessionIn: (folder: string) => Promise<NewSessionInfo>
   /** Each folder's branch as last seen by `status()`, so plugins need no `git` call of their own. */
   private readonly lastBranch = new Map<string, string | null>()
+  private readonly remoteExec: RemoteExec
+  /**
+   * Each folder's repository web page. Invalidated by the mtime of the repository's `config` (where
+   * `origin` is written), which each entry carries; a folder that was no repository is asked again.
+   */
+  private readonly webLocationCache = new Map<string, { config: string; mtimeMs: number; location: RepoWebLocation | null }>()
 
   constructor(deps: GitServiceDeps) {
     this.resolver = deps.resolver
@@ -48,6 +57,34 @@ export class GitService {
     this.glabPath = deps.glabPath
     this.refreshProject = deps.refreshProject
     this.startSessionIn = deps.startSessionIn
+    this.remoteExec = deps.remoteExec ?? defaultExec
+  }
+
+  /**
+   * The web page of a session's repository on GitHub or GitLab, from its `origin` remote, for
+   * linking `#12` and `!34` in its messages. Null with no remote, no git, or a host that is neither.
+   */
+  async repoWebLocation(terminal: TerminalRef): Promise<RepoWebLocation | null> {
+    const cwd = this.resolver.resolveShellCwd(terminal)
+    const cached = this.webLocationCache.get(cwd)
+    if (cached !== undefined && mtimeOf(cached.config) === cached.mtimeMs) return cached.location
+    const config = await this.configPathOf(cwd)
+    if (config === null) return null
+    const mtimeMs = mtimeOf(config)
+    const url = await originUrl(cwd, this.remoteExec)
+    const location = url === null ? null : parseRepoWebLocation(url)
+    if (mtimeMs !== null) this.webLocationCache.set(cwd, { config, mtimeMs, location })
+    return location
+  }
+
+  /** The repository's shared `config` file (a worktree's is the main checkout's), or null outside one. */
+  private async configPathOf(cwd: string): Promise<string | null> {
+    try {
+      const dir = (await this.remoteExec('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], cwd)).trim()
+      return dir === '' ? null : join(dir, 'config')
+    } catch {
+      return null // not a repository, or no git: no web page
+    }
   }
 
   /** Forgets every cached merge-request state: the Refresh button asks GitLab again. */
@@ -295,5 +332,13 @@ export class GitService {
 
   async fetch(terminal: TerminalRef): Promise<void> {
     await this.branchOps.fetch(this.resolver.resolveShellCwd(terminal))
+  }
+}
+
+function mtimeOf(path: string): number | null {
+  try {
+    return statSync(path).mtimeMs
+  } catch {
+    return null // gone since it was cached: ask git again
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseGitlabProject } from '../../../src/main/residents/kinds/mrDeskProject'
+import { parseGitlabProject } from '@shared/mentions/gitlabProject'
 
 describe('parseGitlabProject', () => {
   it('reads the maintainer\'s URL as its path on gitlab.com', () => {

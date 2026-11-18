@@ -1,7 +1,9 @@
 import { lastPathSegment } from '@shared/text'
 import { type JSX, useLayoutEffect, useMemo, useRef } from 'react'
 import type { SessionId } from '@shared/domain/ids'
-import { SESSION_LINK_PREFIX, type ResidentMessage, type ResidentStatus, type SessionHit } from '@shared/domain/residents'
+import { gitlabProjectWebLocation } from '@shared/mentions/gitlabProject'
+import { RepoMentionsProvider } from '../../ui/message/FileMentions'
+import { MR_DESK_KIND, SESSION_LINK_PREFIX, type ResidentMessage, type ResidentStatus, type SessionHit } from '@shared/domain/residents'
 import { useAppSettings } from '../../state/settingsStore'
 import { treeStore } from '../../state/treeStore'
 import { BusyGlyph } from '../../ui/BusyGlyph'
@@ -112,7 +114,12 @@ export function ResidentConversation({ resident, messages, hits, onOpen, onExamp
     labelOf: (id) => treeStore.findSessionById(id)?.title ?? null,
     onOpen: (id) => { onOpen(id as SessionId) },
   }), [onOpen])
+  const settings = useAppSettings()
+  const config = settings.residents.find((c) => c.id === resident.id)
+  const project = config?.kind === MR_DESK_KIND ? (config.options.project ?? '') : ''
+  const repo = useMemo(() => gitlabProjectWebLocation(project), [project])
   return (
+    <RepoMentionsProvider repo={repo}>
     <div
       ref={body}
       className="resident-popup-body"
@@ -135,5 +142,6 @@ export function ResidentConversation({ resident, messages, hits, onOpen, onExamp
       {working && <WorkingLine resident={resident} />}
       {copyMenu}
     </div>
+    </RepoMentionsProvider>
   )
 }

@@ -1,3 +1,5 @@
+import type { RepoWebLocation } from './repoWebLocation'
+
 /** The GitLab project mra reads: its path, and the host when the user gave a URL to one. */
 export interface GitlabProject {
   project: string
@@ -23,4 +25,10 @@ export function parseGitlabProject(value: string): GitlabProject | null {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
   const path = (url.pathname.split('/-/')[0] ?? '').replace(/\/+$/, '').replace(/\.git$/, '').replace(/^\/+/, '')
   return PROJECT_PATH_RE.test(path) ? { project: path, host: url.host } : null
+}
+
+/** The project's page, for linking `#12` and `!34` in what a resident about it writes; gitlab.com when no host was given. */
+export function gitlabProjectWebLocation(value: string): RepoWebLocation | null {
+  const parsed = parseGitlabProject(value)
+  return parsed === null ? null : { forge: 'gitlab', webUrl: `https://${parsed.host ?? 'gitlab.com'}/${parsed.project}` }
 }

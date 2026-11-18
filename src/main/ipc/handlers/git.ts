@@ -9,7 +9,7 @@ export interface GitDeps {
 }
 
 type HandledKeys =
-  | 'gitStatus' | 'gitListRefs' | 'gitlabMrRefStatus' | 'gitCheckoutBranch' | 'gitCheckoutBranchMovingOther' | 'gitPullWorktree'
+  | 'gitStatus' | 'gitListRefs' | 'gitlabMrRefStatus' | 'repoWebLocation' | 'gitCheckoutBranch' | 'gitCheckoutBranchMovingOther' | 'gitPullWorktree'
   | 'newSessionInWorktree' | 'gitCheckoutRemote' | 'gitCheckoutDetached' | 'gitCreateBranch' | 'gitPull'
   | 'gitUpdateBranch' | 'gitPullFolder' | 'listWorktrees' | 'gitPush' | 'gitMerge' | 'gitFetch'
   | 'worktreeCreateOptions' | 'worktreeCreate'
@@ -38,6 +38,7 @@ export function gitHandlers(deps: GitDeps): Pick<Handlers, HandledKeys> {
       // non-integer would be a nonsense lookup rather than a dangerous one, but there is no reason
       // to pass one through, and the cap keeps one call from asking `glab` about an unbounded list.
       service.gitlabMrRefStatus(terminal, iids.filter((iid) => Number.isSafeInteger(iid)).slice(0, 50)),
+    repoWebLocation: (_e, terminal) => service.repoWebLocation(terminal),
     gitCheckoutBranch: async (_e, terminal, name) => {
       const outcome = await service.gitCheckoutBranch(terminal, name)
       // Skipped when nothing was actually checked out (the worktree-conflict outcome).

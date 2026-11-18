@@ -12,7 +12,7 @@ import type { Env, FakeProject } from './state'
 export const fakeRef = (name: string): GitRefEntry => ({ name, relativeDate: '2 days ago', author: 'Test', shortSha: 'abc1234', subject: `tip of ${name}` })
 
 type GitApi = Pick<ApiaryApi,
-  | 'gitStatus' | 'gitListRefs' | 'gitlabMrRefStatus' | 'gitCheckoutBranch' | 'gitCheckoutBranchMovingOther' | 'gitPullWorktree'
+  | 'gitStatus' | 'gitListRefs' | 'gitlabMrRefStatus' | 'repoWebLocation' | 'gitCheckoutBranch' | 'gitCheckoutBranchMovingOther' | 'gitPullWorktree'
   | 'newSessionInWorktree' | 'gitCheckoutRemote' | 'gitCheckoutDetached' | 'gitCreateBranch' | 'gitPull' | 'gitUpdateBranch'
   | 'gitPullFolder' | 'listWorktrees' | 'worktreeCreateOptions' | 'worktreeCreate' | 'gitPush' | 'gitMerge' | 'gitFetch'>
 
@@ -105,6 +105,8 @@ export function gitApi(env: Env): GitApi {
     gitListRefs: async (target) => ({ ...state.refs, current: currentOf(repo(target)) }),
     // No GitLab remote in the fixture: every reference stays unresolved, as in main.
     gitlabMrRefStatus: async (target, iids) => { project(target); return Object.fromEntries(iids.map((iid) => [iid, null])) },
+    // The fixture's `origin` is a local folder, as in main: no web page unless a test sets `webLocation`.
+    repoWebLocation: async (target) => { const p = project(target); return p.notRepo === true ? null : p.webLocation ?? null },
 
     gitCheckoutBranch: async (target, name) => {
       const p = repo(target)

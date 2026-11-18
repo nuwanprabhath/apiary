@@ -121,6 +121,7 @@ export const CHANNEL_SCOPES = {
   gitPullFolder: 'remote',
   gitPullWorktree: 'remote',
   gitlabMrRefStatus: 'remote',
+  repoWebLocation: 'remote',
   mrStatusesInvalidated: 'remote',
 
   // The session bar's plugins act on the work machine's sessions, so a remote window's bar shows what

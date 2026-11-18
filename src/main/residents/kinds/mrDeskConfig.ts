@@ -1,5 +1,5 @@
 import { shellQuote } from '../../exec/shellQuote'
-import { parseGitlabProject } from './mrDeskProject'
+import { parseGitlabProject } from '@shared/mentions/gitlabProject'
 
 /** A trimmed option of the resident, '' when unset. */
 export const optionOf = (options: Readonly<Record<string, string>>, key: string): string =>

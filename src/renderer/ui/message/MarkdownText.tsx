@@ -2,7 +2,7 @@ import { type JSX, type MouseEvent, useMemo } from 'react'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { mentionHandlers, useFileMentions } from './FileMentions'
-import { markFileMentions } from './mentionMarkup'
+import { markMentions } from './mentionMarkup'
 import { copyText } from '../../state/clipboard'
 
 // A single newline inside a paragraph becomes <br>: Claude's messages are written like chat, where
@@ -125,9 +125,10 @@ function chipLinks(html: string, chips: LinkChips): string {
  * `<img onerror=...>` in a session's JSONL would execute in the renderer.
  */
 export function MarkdownText({ text, chips }: { text: string; chips?: LinkChips }): JSX.Element {
-  // Set only when VS Code is available; without it the text stays exactly as markdown made it.
+  // Null when nothing can be linked; the text then stays exactly as markdown made it.
   const mentions = useFileMentions()
-  const linkFiles = mentions !== null
+  const files = mentions?.files ?? false
+  const repo = mentions?.repo ?? null
   const html = useMemo(() => {
     installSanitizeHooks()
     const rendered = marked.parse(text, { async: false })
@@ -136,8 +137,8 @@ export function MarkdownText({ text, chips }: { text: string; chips?: LinkChips 
       : DOMPurify.sanitize(chipLinks(rendered, chips), {
         ALLOWED_TAGS: [...ALLOWED_TAGS, 'button'], ALLOWED_ATTR: [...ALLOWED_ATTR, 'data-testid', CHIP_ID_ATTR], ALLOWED_URI_REGEXP, ADD_URI_SAFE_ATTR,
       })
-    return withCodeCopyButtons(linkFiles ? markFileMentions(clean) : clean)
-  }, [text, linkFiles, chips])
+    return withCodeCopyButtons(files || repo !== null ? markMentions(clean, { files, repo }) : clean)
+  }, [text, files, repo, chips])
 
   const handlers = mentionHandlers(mentions)
   const onClick = (e: MouseEvent<HTMLElement>): void => {

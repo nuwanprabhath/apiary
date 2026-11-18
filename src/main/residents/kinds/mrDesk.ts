@@ -7,7 +7,7 @@ import { CLAUDE_SETTINGS_FILE, pathFirstSettings } from '../claudeSettings'
 import type { KindDeps } from './kindDeps'
 import { mraConfigFor, mraConfigured, mraWrapper, optionOf } from './mrDeskConfig'
 import { ToolProbe } from './mrDeskTools'
-import { parseGitlabProject } from './mrDeskProject'
+import { parseGitlabProject } from '@shared/mentions/gitlabProject'
 import { MR_DESK_DISALLOWED, blockedLines, mraSubcommandsIn, subcommandsFromHelp } from './mrDeskMra'
 import { MR_DESK_USER_ACTIONS, mrHeadOf } from './mrDeskActions'
 

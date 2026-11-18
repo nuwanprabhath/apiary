@@ -141,7 +141,7 @@ packaged, `<repo>/resources` in dev; `electron-builder.yml` `extraResources`).
 - **The wrapper.** `<space>/bin/mra` (mode 0700, `writeExecutableText`) is `exec python3 '<mra dir>/bin/mra' "$@"`,
   so the prompt's `mra …` commands run as written in the resident's Bash tool. `bins.mra` is the same
   argv for quick actions.
-- **The project may be a URL.** `parseGitlabProject` (`kinds/mrDeskProject.ts`) reads a GitLab
+- **The project may be a URL.** `parseGitlabProject` (`src/shared/mentions/gitlabProject.ts`) reads a GitLab
   project URL (with `.git`, a trailing slash or a `/-/…` page) as its path plus mra's
   `gitlab_host`, when `<space>/mra/config.json` is written; the setting stays as the user typed
   it. What it cannot read, `setup` reports.

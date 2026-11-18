@@ -7,6 +7,8 @@
  * MR keeps working even where looking one up does not — no `glab`, no token, no network.
  */
 
+import { GITHUB_HOST } from '@shared/mentions/repoWebLocation'
+
 export interface GitLabRemote {
   /** `https://gitlab.com` or a self-hosted origin. */
   host: string
@@ -51,7 +53,7 @@ function build(hostname: string, rawProject: string): GitLabRemote | null {
   const project = rawProject.replace(/^\/+/, '').replace(/\.git$/, '').replace(/\/+$/, '')
   if (hostname === '' || project === '' || !project.includes('/')) return null
   // GitHub is not this plugin's business, and a GitLab URL built from a GitHub remote would 404.
-  if (/(^|\.)github\.com$/i.test(hostname)) return null
+  if (GITHUB_HOST.test(hostname)) return null
   const host = `https://${hostname}`
   return { host, project, webUrl: `${host}/${project}` }
 }
