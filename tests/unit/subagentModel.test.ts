@@ -74,4 +74,16 @@ describe('reading a subagent model', () => {
     expect(tally.requestedModel('a1b2c3')).toEqual({ model: 'sonnet', effort: 'high' })
     expect(tally.requestedModel('b9')).toBeNull()
   })
+
+  it('counts an agent Claude Code put in the background on its own, with no run_in_background (2.1.326)', () => {
+    const tally = new BackgroundTaskTally()
+    tally.add([
+      { blocks: [{ type: 'tool_use', id: 't1', name: 'Agent', input: { description: 'Draft 1.0.13-RC1 changelog', subagent_type: 'general-purpose', prompt: 'x' } }], timestampMs: 1 },
+      { blocks: [{ type: 'tool_result', toolUseId: 't1', content: 'Async agent launched successfully. (This tool result is internal metadata.)\nagentId: afdfe039898ba7b31 (internal ID)', isError: false }], timestampMs: 2 },
+      { blocks: [{ type: 'tool_use', id: 't2', name: 'Agent', input: { description: 'inline', prompt: 'y' } }], timestampMs: 3 },
+      { blocks: [{ type: 'tool_result', toolUseId: 't2', content: 'The agent finished: all done.', isError: false }], timestampMs: 4 },
+    ] as never)
+    expect(tally.requestedModel('afdfe039898ba7b31')).toEqual({ model: null, effort: null })
+    expect(tally.tasks().map((t) => [t.taskId, t.kind, t.description])).toEqual([['afdfe039898ba7b31', 'agent', 'Draft 1.0.13-RC1 changelog']])
+  })
 })

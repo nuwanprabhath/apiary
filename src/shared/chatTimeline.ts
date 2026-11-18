@@ -300,9 +300,12 @@ export class BackgroundTaskTally {
       if (taskId !== null) this.calls.set(id, { kind: 'stop', taskId })
       return
     }
-    if (input === null || typeof input !== 'object' || (input as Record<string, unknown>).run_in_background !== true) return
-    const command = field(input, 'command')
+    if (input === null || typeof input !== 'object') return
     const kind = name === 'Agent' || name === 'Task' ? 'agent' : 'shell'
+    // Claude Code puts an agent in the background on its own, with no `run_in_background` (2.1.326):
+    // an agent call waits for its result, which says "Async agent launched" when it went there.
+    if (kind === 'shell' && (input as Record<string, unknown>).run_in_background !== true) return
+    const command = field(input, 'command')
     this.calls.set(id, {
       kind: 'start',
       task: { description: field(input, 'description') ?? command ?? name, kind, command, startedAtMs: timestampMs },
