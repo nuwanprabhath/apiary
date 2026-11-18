@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.73.3] - 2026-11-18
+
+### Added
+
+- `npm run diagrams` redraws the README's architecture pictures from
+  `scripts/diagrams/architecture.mjs`, so a change to one is an edit to its layout, not to the SVG.
+
 ## [1.73.2] - 2026-11-18
 
 ### Changed

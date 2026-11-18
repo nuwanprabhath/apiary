@@ -1,0 +1,191 @@
+// The README's architecture diagrams (docs/architecture/img/*.svg). Edit a picture here, then run `npm run diagrams`.
+import { writeFileSync, mkdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { Svg } from './svg.mjs'
+
+const OUT = fileURLToPath(new URL('../../docs/architecture/img', import.meta.url))
+mkdirSync(OUT, { recursive: true })
+const save = (name, svg) => writeFileSync(`${OUT}/${name}.svg`, svg.toString())
+
+// 1. Overview
+{
+  const s = new Svg(880, 660, 'Apiary overview: the renderer, preload, the main process and what it drives')
+  s.group(20, 20, 840, 124, 'RENDERER · ONE REACT PAGE PER WINDOW', 'ui')
+  s.box(40, 52, 253, 72, 'Sidebar', ['projects · sessions · search'])
+  s.box(313, 52, 254, 72, 'Panes', ['terminal · transcript · chat'])
+  s.box(587, 52, 253, 72, 'Status bar', ['usage · residents · pets'])
+  s.arrow([[440, 146], [440, 180]], { both: true })
+  s.text(452, 168, 'calls down, pushes back up')
+  s.box(290, 180, 300, 60, 'preload: window.apiary', ['only the calls in the IPC contract'])
+  s.arrow([[440, 242], [440, 276]], { both: true })
+  s.text(452, 264, 'every argument checked against the contract')
+  s.group(20, 276, 840, 222, 'MAIN PROCESS (NODE) · OWNS EVERY FILE, PROCESS AND SOCKET', 'main')
+  s.group(36, 306, 300, 176, 'Runs claude, as the session’s account', 'sub')
+  s.box(48, 336, 133, 58, 'Terminals', ['node-pty'])
+  s.box(191, 336, 133, 58, 'Chat', ['streamed JSON'])
+  s.box(48, 408, 133, 58, 'Residents', ['local MCP server'])
+  s.box(191, 408, 133, 58, 'Pets', ['claude -p'])
+  s.group(352, 306, 220, 176, 'Reads sessions', 'sub')
+  s.box(364, 336, 196, 58, 'Sessions', ['scan · watch · catalog'])
+  s.box(364, 408, 196, 58, 'Search index', ['worker thread'])
+  s.group(588, 306, 256, 176, 'Other tools', 'sub')
+  s.box(600, 336, 232, 58, 'Git and MRs', ['branch · pull · push · MRs'])
+  s.box(600, 408, 111, 58, 'Remote', ['over ssh'])
+  s.box(721, 408, 111, 58, 'Updater', ['signed feeds'])
+  s.arrow([[186, 482], [186, 552]])
+  s.text(194, 524, 'starts')
+  s.arrow([[462, 482], [462, 552]])
+  s.text(470, 524, 'reads and watches')
+  s.arrow([[716, 482], [716, 552]])
+  s.text(724, 524, 'runs')
+  s.box(76, 552, 220, 62, 'claude CLI', ['Claude Code'], 'box out')
+  s.store(352, 552, 220, 62, '~/.claude/projects', ['session .jsonl files'])
+  s.box(588, 552, 256, 62, 'git · glab · ssh', ['GitHub releases'], 'box out')
+  s.arrow([[296, 583], [350, 583]])
+  s.text(323, 575, 'writes', 'middle')
+  s.text(440, 642, 'OUTSIDE APIARY · PROGRAMS AND FILES IT DOES NOT OWN', 'middle', 'g')
+  save('overview', s)
+}
+
+// 2. Windows and tabs
+{
+  const s = new Svg(880, 360, 'Main owns every terminal and chat; windows only show them')
+  s.group(20, 20, 840, 112, 'MAIN PROCESS · OWNS EVERY TERMINAL AND CHAT', 'main')
+  s.box(40, 50, 300, 62, 'Terminal · session A', ['pty + headless screen'])
+  s.box(360, 50, 240, 62, 'Layout store', ['session-layout.json'])
+  s.box(620, 50, 220, 62, 'Chat · session B', ['claude, streamed JSON'])
+  s.group(20, 196, 840, 96, '', 'ui')
+  s.arrow([[150, 132], [150, 212]])
+  s.text(158, 170, 'live output')
+  s.arrow([[300, 132], [440, 212]])
+  s.text(392, 170, 'a snapshot first, then live output')
+  s.arrow([[730, 132], [730, 212]])
+  s.text(738, 170, 'chat state')
+  s.box(40, 212, 220, 64, 'Window 1', ['tab A'])
+  s.box(330, 212, 220, 64, 'Window 2', ['tab A, opened later'])
+  s.box(620, 212, 220, 64, 'Detached window', ['tab B, dragged out of window 1'])
+  s.arrow([[150, 292], [150, 312], [730, 312], [730, 294]], { dashed: true })
+  s.text(440, 334, 'drag a tab to another window: main moves it, and its process keeps running', 'middle')
+  s.text(440, 352, 'every window reports its panes and tabs to the layout store, and a restart brings them back', 'middle')
+  save('windows', s)
+}
+
+// 3. Terminals
+{
+  const s = new Svg(880, 330, 'A terminal: xterm, the pty in main, claude, and the activity it shows')
+  s.box(40, 40, 200, 64, 'xterm in the pane', ['renderer'], 'box ui')
+  s.box(340, 40, 200, 64, 'PtyManager', ['node-pty, in main'], 'box main')
+  s.box(640, 40, 200, 64, 'claude --resume <id>', ['in your login shell'], 'box out')
+  s.arrow([[240, 62], [338, 62]]); s.text(289, 55, 'keys', 'middle')
+  s.arrow([[340, 84], [242, 84]]); s.text(289, 101, 'output, batched', 'middle')
+  s.arrow([[540, 62], [638, 62]]); s.text(589, 55, 'starts, types', 'middle')
+  s.arrow([[640, 84], [542, 84]]); s.text(589, 101, 'output', 'middle')
+  s.arrow([[440, 104], [440, 168]]); s.text(448, 140, 'every byte, also')
+  s.box(340, 168, 200, 64, 'Headless screen', ['the screen as plain text'], 'box main')
+  s.arrow([[540, 200], [618, 200]])
+  s.box(620, 168, 220, 64, 'classifyActivity', ['running · waiting · idle · stopped'], 'box main')
+  s.arrow([[730, 232], [730, 256]])
+  s.box(620, 256, 220, 56, 'Tab dots · sidebar · pets', [], 'box ui')
+  s.text(40, 192, 'A window that falls behind', 'start')
+  s.text(40, 209, 'pauses the pty, so a slow pane', 'start')
+  s.text(40, 226, 'never floods the app.', 'start')
+  save('terminals', s)
+}
+
+// 4. Chat
+{
+  const s = new Svg(880, 390, 'One chat message from the composer to claude and back')
+  const xs = [120, 340, 560, 780]
+  const names = [['Composer', 'renderer', 'box ui'], ['ChatService', 'main', 'box main'], ['claude', 'streamed JSON', 'box out'], ['session .jsonl', 'the record', 'box out']]
+  names.forEach(([t, sub, cls], i) => { s.box(xs[i] - 90, 20, 180, 56, t, [sub], cls); s.raw(`<path class="life" d="M${xs[i]} 76 V372"/>`) })
+  const msg = (y, a, b, label, dashed = false) => {
+    const dir = Math.sign(xs[b] - xs[a])
+    s.arrow([[xs[a], y], [xs[b] - dir * 2, y]], { dashed })
+    s.text((xs[a] + xs[b]) / 2, y - 7, label, 'middle')
+  }
+  msg(112, 0, 1, 'startChat, sendChat')
+  s.box(230, 128, 220, 30, 'a terminal on it stops first', [], 'note')
+  msg(190, 1, 2, 'your message, on stdin')
+  msg(232, 2, 1, 'streamed events, on stdout', true)
+  msg(274, 1, 0, 'chatChanged: only what changed', true)
+  msg(316, 2, 3, 'appends the turn')
+  msg(358, 3, 0, 'the transcript re-reads the file', true)
+  save('chat', s)
+}
+
+// 5. Remote
+{
+  const s = new Svg(880, 440, 'Remote access: a home window, an ssh socket forward, the work machine')
+  s.group(20, 20, 330, 316, 'HOME MACHINE', 'ui')
+  s.box(40, 60, 290, 58, 'Remote window', ['the same React UI'])
+  s.arrow([[185, 118], [185, 160]])
+  s.box(40, 160, 290, 58, 'Main: RemoteWindows', ['decides where each call runs'])
+  s.arrow([[185, 218], [185, 258]]); s.text(193, 243, 'local calls')
+  s.box(40, 258, 290, 58, 'Home handlers', ['open a file here · clipboard'])
+  s.box(370, 160, 140, 58, 'ssh -N -L', ['socket forward'], 'box out')
+  s.arrow([[330, 189], [368, 189]])
+  s.arrow([[510, 189], [548, 189]])
+  s.text(440, 240, 'remote calls,', 'middle'); s.text(440, 256, 'in frames', 'middle')
+  s.group(530, 20, 330, 400, 'WORK MACHINE', 'work')
+  s.box(550, 160, 290, 58, '~/.apiary/remote.sock', ['RemoteServer · handshake · pairing code'])
+  s.arrow([[695, 218], [695, 258]]); s.text(703, 243, 'only calls safe for remote')
+  s.box(550, 258, 290, 58, 'The same handlers', ['as a local window’s'])
+  s.arrow([[695, 316], [695, 346]])
+  s.box(550, 346, 290, 56, 'claude · git', ['and its own .jsonl files'], 'box out')
+  s.arrow([[695, 160], [695, 89], [332, 89]], { dashed: true })
+  s.text(512, 81, 'events back: ptyData, chatChanged', 'middle')
+  s.text(185, 370, 'Nothing listens on the network:', 'middle')
+  s.text(185, 387, 'the socket is reached through ssh,', 'middle')
+  s.text(185, 404, 'so ~/.ssh/config and Tailscale work.', 'middle')
+  save('remote', s)
+}
+
+// 6. Residents
+{
+  const s = new Svg(880, 530, 'A resident agent, its MCP tools, and the search index and digests it answers from')
+  s.box(40, 30, 220, 62, 'Badge + chat panel', ['status bar'], 'box ui')
+  s.box(330, 30, 220, 62, 'ResidentService', ['hours · cycles · usage pause'], 'box main')
+  s.box(620, 30, 220, 62, 'claude (resident)', ['its own folder and history'], 'box out')
+  s.arrow([[260, 61], [328, 61]], { both: true })
+  s.arrow([[550, 61], [618, 61]]); s.text(584, 53, 'starts', 'middle')
+  s.arrow([[730, 92], [730, 150]]); s.text(738, 126, 'token-scoped')
+  s.box(620, 150, 220, 62, 'Apiary MCP server', ['127.0.0.1 · one token each'], 'box main')
+  s.arrow([[660, 92], [500, 150]]); s.text(540, 116, 'its own tools', 'end')
+  s.box(330, 150, 220, 62, 'GitLab, the web…', ['through glab and the rest'], 'box out')
+  s.arrow([[730, 212], [730, 270]]); s.text(738, 246, 'only its kind’s tools')
+  s.box(620, 270, 220, 74, 'Apiary tools', ['find and read sessions · open a tab', 'notes · approve an MR'], 'box main')
+  s.arrow([[730, 344], [730, 400]])
+  s.arrow([[650, 344], [480, 400]])
+  s.box(330, 400, 220, 62, 'Search index + refs', ['!1234 · #56 · ticket keys'], 'box main')
+  s.box(620, 400, 220, 62, 'Topic digests', ['knowledge.db'], 'box main')
+  s.store(40, 400, 220, 62, 'Session .jsonl files', ['every transcript'])
+  s.arrow([[260, 431], [328, 431]]); s.text(294, 423, 'indexed', 'middle')
+  s.arrow([[150, 462], [150, 494], [730, 494], [730, 464]])
+  s.text(440, 516, 'summarised during its hours by a cheap model, pausing when 5-hour usage runs high', 'middle')
+  s.text(40, 250, 'A kind is data: its prompt, tools,', 'start')
+  s.text(40, 267, 'quick actions and cycle are one entry.', 'start')
+  s.text(40, 284, 'No tool takes a file path.', 'start')
+  save('residents', s)
+}
+
+// 7. Pets
+{
+  const s = new Svg(880, 340, 'Pets: designed by claude, validated, stored, and run in the renderer')
+  s.box(40, 30, 200, 62, 'PetService', ['main'], 'box main')
+  s.box(340, 30, 200, 62, 'claude -p', ['design · hourly lines · chat'], 'box out')
+  s.box(640, 30, 200, 62, 'validatePet', ['the only way in'], 'box main')
+  s.arrow([[240, 61], [338, 61]]); s.text(289, 53, 'asks', 'middle')
+  s.arrow([[540, 61], [638, 61]]); s.text(589, 53, 'reply', 'middle')
+  s.arrow([[740, 92], [740, 150]])
+  s.store(640, 150, 200, 62, 'pets.json', ['PetStore'])
+  s.arrow([[640, 181], [542, 181]])
+  s.box(340, 150, 200, 62, 'Brain worker', ['wander · nap · react'], 'box ui')
+  s.arrow([[340, 181], [242, 181]])
+  s.box(40, 150, 200, 62, '3D drawing', ['three.js, on the status bar'], 'box ui')
+  s.arrow([[440, 270], [440, 214]])
+  s.box(340, 270, 200, 56, 'Session activity', ['and Claude’s latest actions'], 'box main')
+  s.text(640, 290, 'A pet is data, never code:', 'start')
+  s.text(640, 307, 'parts from closed sets, colours', 'start')
+  s.text(640, 324, 'and lines. One local window each.', 'start')
+  save('pets', s)
+}

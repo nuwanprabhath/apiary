@@ -268,7 +268,8 @@ The security rules, in one place. Each is enforced by a check in the repo, liste
   it trusts any hash in it.
 - **The diagnostic log never records your conversations.**
 
-The details behind each picture are in [docs/architecture/](docs/architecture/), in the
+The pictures are drawn by `scripts/diagrams/architecture.mjs`: edit one there and run
+`npm run diagrams` to rewrite `docs/architecture/img/`. The details behind each picture are in [docs/architecture/](docs/architecture/), in the
 `CLAUDE.md` file beside each subsystem in `src/`, and in the decision records in
 [docs/adr/](docs/adr/).
 
