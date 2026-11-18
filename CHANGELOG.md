@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.73.1] - 2026-11-18
+
+### Changed
+
+- The README has an Architecture section: an overview diagram of the renderer, preload, main and
+  the programs Apiary drives, then one picture each for windows and tabs, terminals, chat, remote
+  access, resident agents (with search and digests) and pets, the account rule every `claude`
+  follows, and the list of things Apiary refuses to do. The Development section's command list is
+  a fenced block now, so the file keeps one code block style.
+
 ## [1.73.0] - 2026-11-18
 
 ### Added

@@ -112,17 +112,19 @@ To build from source, additionally:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the contributor workflow. Quick reference:
 
-    npm install
-    npm start             # run the app
-    npm test               # unit and integration tests
-    npm run test:component # renderer tests in headless Chromium
-    npm run test:e2e       # Playwright tests against the built renderer (off-screen; APIARY_HEADED=1 to watch)
-    npm run test:e2e:smoke # the ~1 minute subset that also runs in CI
-    npm run typecheck
-    npm run lint            # eslint, stylelint, markdownlint, shellcheck, dependency-cruiser
-    npm run screenshot         # regenerate docs/screenshot.png (the first README image)
-    npm run screenshot:regent  # regenerate docs/screenshot-regent.png (Regent and the MR desk, with stand-in claude and glab)
-    npm run screenshot:remote  # regenerate docs/screenshot-remote.png (needs Docker)
+```sh
+npm install
+npm start             # run the app
+npm test               # unit and integration tests
+npm run test:component # renderer tests in headless Chromium
+npm run test:e2e       # Playwright tests against the built renderer (off-screen; APIARY_HEADED=1 to watch)
+npm run test:e2e:smoke # the ~1 minute subset that also runs in CI
+npm run typecheck
+npm run lint            # eslint, stylelint, markdownlint, shellcheck, dependency-cruiser
+npm run screenshot         # regenerate docs/screenshot.png (the first README image)
+npm run screenshot:regent  # regenerate docs/screenshot-regent.png (Regent and the MR desk, with stand-in claude and glab)
+npm run screenshot:remote  # regenerate docs/screenshot-remote.png (needs Docker)
+```
 
 `npm run screenshot` launches the real app against a representative fixture (project
 folders, a git worktree, sessions with human-sounding titles), opens three sessions in a
@@ -150,6 +152,235 @@ that it execs before exec'ing your shell; npm's tarball extraction doesn't
 reliably preserve its executable bit, and without it every terminal spawn
 fails with `posix_spawnp failed`. The script restores the bit, unconditionally
 and harmlessly, every time dependencies are installed.
+
+## Architecture
+
+Apiary is an Electron app, so it has two halves:
+
+- **The renderer** is the UI: one React page per window.
+- **The main process** is Node: it owns every file, process and socket.
+
+The renderer never touches the disk or starts a program. It can only make the calls listed in one
+contract (`src/shared/ipc/contract.ts`), which preload exposes as `window.apiary`. Main checks
+every argument against that contract before a handler runs. Everything Apiary shows comes from
+things it does not own: Claude Code's session files, the `claude` CLI, `git`, `glab` and `ssh`.
+
+```mermaid
+flowchart TB
+  subgraph R["Renderer · one React page per window"]
+    direction LR
+    SB["Sidebar<br/>projects · sessions · search"]
+    PANE["Panes<br/>terminal · transcript · chat"]
+    BAR["Status bar<br/>usage · residents · pets"]
+  end
+
+  PRE["preload: window.apiary<br/>only the calls in the IPC contract"]
+
+  subgraph M["Main process (Node) · checks every argument, then hands it to a service"]
+    direction TB
+    subgraph RUN["Runs claude · under the session's account"]
+      direction LR
+      TERM["Terminals<br/>node-pty"]
+      CHAT["Chat<br/>streamed JSON"]
+      RES["Residents<br/>+ local MCP server"]
+      PET["Pets<br/>claude -p"]
+    end
+    subgraph READ["Reads sessions"]
+      direction LR
+      SES["Sessions<br/>scan · watch · catalog"]
+      SRCH["Search index<br/>worker thread"]
+    end
+    subgraph OTHER["Other tools"]
+      direction LR
+      GIT["Git and MRs"]
+      REM["Remote access"]
+      UPD["Updater"]
+    end
+    RUN ~~~ READ ~~~ OTHER
+  end
+
+  CLI["claude CLI"]
+  JSONL[("~/.claude/projects<br/>session .jsonl files")]
+  EXT["git · glab · ssh · GitHub releases"]
+
+  R <-- "calls · pushes back" --> PRE <--> M
+  RUN --> CLI
+  CLI -- writes --> JSONL
+  READ -- "reads and watches" --> JSONL
+  OTHER --> EXT
+```
+
+**Three rules hold everywhere.**
+
+- **A session's `.jsonl` file is the record.** Claude Code writes it, and Apiary only reads it:
+  titles, working folder and transcript all come from there. Apiary keeps its own state (layouts,
+  settings, pets, residents) in versioned JSON files under its userData folder.
+- **Main pushes, the renderer listens.** A renderer subscribes to a push (`ptyData`, `chatChanged`,
+  `activityChanged` and others), and main sends each one only to the windows that show that
+  session.
+- **Every `claude` Apiary starts runs under its session's account.** An added Claude account is a
+  config folder that Apiary passes as `CLAUDE_CONFIG_DIR`. It links back to the main one for the
+  transcripts, settings, skills and plugins, and keeps only its own login. Terminals, chat,
+  residents, pets and digests all start `claude` the same way. So moving a session to another
+  account changes only who it signs in as, and every transcript stays in one place for the sidebar
+  and search.
+
+### Windows and tabs
+
+Main owns every terminal and chat; a window only shows them. Two windows can show the same session,
+both attached to the one process. A window that attaches late (a second window, a tab switched
+back to) is caught up from a rendered snapshot of the screen, not by replaying old output. Dragging
+a tab to another window, or out into a window of its own, moves the tab and leaves its process
+running. Each window reports its panes and tabs, and main saves them, so a restart brings back the
+windows, the layout and the sessions that were running.
+
+```mermaid
+flowchart TB
+  subgraph MAIN["Main process: owns every process"]
+    direction LR
+    PA["terminal: session A<br/>(pty + headless screen)"]
+    CB["chat: session B<br/>(claude, streamed JSON)"]
+  end
+  W1["Window 1<br/>tabs A · B"]
+  W2["Window 2<br/>tab A"]
+  DW["Detached window<br/>tab B, dragged out"]
+  LS[("session-layout.json<br/>windows · panes · tabs")]
+  PA -- "live output" --> W1
+  PA -- "snapshot first, then live output" --> W2
+  CB -- "chatChanged" --> W1 & DW
+  W1 -- "drag a tab out: main moves it,<br/>the process keeps running" --> DW
+  W1 & W2 & DW -- "report their layout" --> LS
+  LS -. "restored at launch" .-> W1
+```
+
+### Terminals
+
+A terminal pane is a real pty running `claude --resume <id>` through your login shell. Main keeps a
+second, headless copy of each screen. It reads that screen to tell whether the session is running,
+waiting for you or idle. That status drives the tab's dot, the sidebar and the pets.
+
+```mermaid
+flowchart LR
+  XT["xterm in the pane"] -- "keys: writePty" --> PM["PtyManager<br/>(node-pty)"]
+  PM -- "$SHELL -l -c 'exec claude --resume id'" --> C["claude"]
+  C -- output --> PM
+  PM -- "ptyData, batched;<br/>paused when a window falls behind" --> XT
+  PM --> HS["headless xterm<br/>(the screen as text)"]
+  HS --> CL["classifyActivity<br/>running · waiting · idle · stopped"]
+  CL -- activityChanged --> DOTS["tab dots · sidebar · pets"]
+```
+
+### Chat
+
+Chat drives the same session without a terminal. Main runs `claude` with streamed JSON in and out,
+and turns its output into one `ChatState`. Main sends only the fields that changed, to the windows
+showing that chat. The transcript still reads the `.jsonl`; the streamed state only fills the gap
+until the file catches up. A permission request from Claude shows up in the chat as a question.
+
+```mermaid
+sequenceDiagram
+  participant UI as Composer (renderer)
+  participant CS as ChatService (main)
+  participant CL as claude (stream-json)
+  participant F as session .jsonl
+  UI->>CS: startChat, sendChat
+  Note over CS: a terminal on this session is stopped first
+  CS->>CL: user message on stdin
+  CL-->>CS: streamed events on stdout
+  CS-->>UI: chatChanged (only what changed, ~8 a second)
+  CL->>F: appends the turn
+  F-->>UI: transcript re-reads the file
+```
+
+### Remote access
+
+The work machine runs its own Apiary, listening on a Unix socket in `~/.apiary` (nothing listens
+on the network). The home machine reaches that socket through `ssh`'s socket forwarding, so
+anything ssh can reach works: `~/.ssh/config` hosts and Tailscale. A remote window is an ordinary
+renderer. Main forwards its remote calls over the socket, and they run through the same handlers
+as a local window's. The work machine answers only calls marked safe for remote use.
+
+```mermaid
+flowchart LR
+  subgraph HOME["Home machine"]
+    RW["Remote window<br/>(same React UI)"] --> HM["Main: RemoteWindows<br/>routes each call"]
+    HM -- "local calls<br/>(open a file here, clipboard)" --> HH["Home handlers"]
+  end
+  HM -- "remote calls,<br/>framed" --> TUN["ssh -N -L<br/>socket forward"]
+  subgraph WORK["Work machine"]
+    SOCK["~/.apiary/remote.sock<br/>RemoteServer<br/>handshake · pairing code"] --> WH["Same handlers as a local window<br/>sessions · terminals · chat · git"]
+    WH --> WC["claude · git · its own .jsonl files"]
+  end
+  TUN --> SOCK
+  WH -. "events (ptyData, chatChanged)" .-> RW
+```
+
+### Resident agents
+
+A resident (Regent, the MR desk) is a long-running `claude` with its own folder, hours and chat
+panel. It acts in Apiary through tools served by Apiary's own MCP server on `127.0.0.1`. Its token
+names the resident, and the resident's kind decides which tools it may call. No tool takes a file
+path. A kind is data: its prompt, tools, quick actions and cycle are one entry, so a new kind needs
+no changes to the service or the UI.
+
+Regent answers from two things built from your transcripts. The search index holds every
+session's text plus its refs: the merge requests, issues and ticket keys it mentions, so a pasted
+link finds its session by an exact match. The topic digests are short summaries that a cheap model
+writes during Regent's hours, pausing when your 5-hour usage passes the level you set. A search
+rebuild never touches the digests, because they cost your quota to make.
+
+```mermaid
+flowchart LR
+  BADGE["Status bar badge<br/>+ resident chat panel"] <--> RS["ResidentService<br/>hours · cycles · usage pause"]
+  RS -- "starts, with --mcp-config" --> RC["claude (resident)"]
+  RC -- "token-scoped tools" --> MCP["Apiary MCP server<br/>127.0.0.1"]
+  MCP --> TOOLS["find and read sessions · open a tab<br/>notes · status · approve an MR"]
+  TOOLS --> SRCH["Search index + refs<br/>(!1234, #56, ticket keys)"] & DIG["Topic digests<br/>knowledge.db"] & SES["Sessions"]
+  JSONL[("session .jsonl files")] -- "indexed in a worker thread" --> SRCH
+  JSONL -- "during its hours, by a cheap model" --> DIG
+  RC -- "its own tools, e.g. glab" --> GL["GitLab"]
+```
+
+### Pets
+
+A pet is data, never code: parts from closed sets, plus colours and lines. Claude designs one
+through `claude -p`, and every pet goes through `validatePet` before it is kept or drawn. A worker
+in the renderer runs its behaviour, and three.js draws it. A pet reacts to the activity of your
+sessions. Each pet lives in one local window, never a remote one.
+
+```mermaid
+flowchart LR
+  PS["PetService (main)"] -- "design · hourly lines · chat" --> CP["claude -p"]
+  CP -- "reply" --> V["validatePet"] --> STORE[("pets.json<br/>PetStore")]
+  STORE --> W["Renderer: brain worker<br/>wander · nap · react"]
+  ACT["activity + latest Claude actions"] --> W
+  W --> D["3D draw (three.js)<br/>on the status bar"]
+```
+
+### What Apiary refuses to do
+
+The security rules, in one place. Each is enforced by a check in the repo, listed in
+[CLAUDE.md](CLAUDE.md).
+
+- **The renderer never hands main a file path.** It sends an id, and main looks up the path
+  itself, confined to the folder it belongs in.
+- **No call skips the contract.** Every IPC argument is checked by the contract's guard before a
+  handler runs, and only Apiary's own pages may call at all.
+- **A remote window cannot reach the work machine's screen.** The work machine serves only calls
+  marked safe for remote use. Anything that would open a dialog, a browser or the clipboard there
+  is refused or answered at home.
+- **A resident gets only its kind's tools.** Its token names it, the token is never on a command
+  line, and no tool takes a path.
+- **Pets and themes are data, never code.** `validatePet` and `validateTheme` are the only way in.
+- **Claude's login token is read only after you agree**, for the usage meter, and is sent only to
+  Anthropic.
+- **An update is installed only from a signed feed.** The app checks the release's signature before
+  it trusts any hash in it.
+- **The diagnostic log never records your conversations.**
+
+The details behind each picture are in [docs/architecture/](docs/architecture/), in the
+`CLAUDE.md` file beside each subsystem in `src/`, and in the decision records in
+[docs/adr/](docs/adr/).
 
 ## Packaging
 
