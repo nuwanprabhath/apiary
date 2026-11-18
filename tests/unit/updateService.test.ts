@@ -22,6 +22,9 @@ class StubBackend implements UpdateBackend {
   downloadError: Error | null = null
   checks = 0
   downloads = 0
+  downloadedVersions: string[] = []
+  installedVersions: string[] = []
+  needsPasswordNow = false
   installs = 0
   opened: string[] = []
   lastAllowPrerelease = false
@@ -35,6 +38,7 @@ class StubBackend implements UpdateBackend {
 
   async downloadForInstall(onProgress: (p: number) => void): Promise<void> {
     this.downloads += 1
+    this.downloadedVersions.push(this.feed?.version ?? '')
     if (this.downloadError !== null) throw this.downloadError
     onProgress(50)
     onProgress(100)
@@ -47,6 +51,7 @@ class StubBackend implements UpdateBackend {
 
   async downloadInstaller(onProgress: (p: number) => void): Promise<string> {
     this.downloads += 1
+    this.downloadedVersions.push(this.feed?.version ?? '')
     if (this.downloadError !== null) throw this.downloadError
     onProgress(100)
     return this.installerPath
@@ -62,9 +67,12 @@ class StubBackend implements UpdateBackend {
 
   readonly openActions: ('open' | 'reveal')[] = []
 
-  async needsPassword(): Promise<boolean> { return false }
+  async needsPassword(): Promise<boolean> { return this.needsPasswordNow }
   async stillVerified(): Promise<boolean> { return true }
-  async installDownloaded(): Promise<InstallOutcome> { return { ok: true } }
+  async installDownloaded(_path: string, opts: { version: string }): Promise<InstallOutcome> {
+    this.installedVersions.push(opts.version)
+    return { ok: true }
+  }
   restart(): void { /* Not exercised here: tests/unit/updateInstall.test.ts covers installing. */ }
   relaunch(): void { /* Not exercised here: tests/unit/installedVersion.test.ts covers it. */ }
   async takePreviousInstall(): Promise<null> { return null }
@@ -413,5 +421,68 @@ describe('a downloaded .deb, which nothing on the desktop can open', () => {
     await mac.service.check({ manual: false })
     const status = await mac.service.download()
     expect(status.openResult).toEqual({ ok: 'revealed' })
+  })
+})
+
+describe('install always takes the newest release', () => {
+  const newer: FeedResult = { version: '1.12.0', releaseNotes: 'newer', releaseUrl: 'url2' }
+
+  it('installs the release out now, not the one the last check offered', async () => {
+    const d = harness(debPackage)
+    await d.service.check({ manual: false })
+    expect(d.service.current().availableVersion).toBe('1.9.0')
+    d.backend.feed = newer
+    await d.service.prepareInstall()
+    expect(d.backend.downloadedVersions).toEqual(['1.12.0'])
+    expect(d.backend.installedVersions).toEqual(['1.12.0'])
+    expect(d.statuses.some((s) => s.availableVersion === '1.12.0')).toBe(true)
+  })
+
+  it('stages the newest on a platform that installs itself', async () => {
+    await h.service.check({ manual: false })
+    h.backend.feed = newer
+    const status = await h.service.download()
+    expect(h.backend.downloadedVersions).toEqual(['1.12.0'])
+    expect(status.availableVersion).toBe('1.12.0')
+  })
+
+  it('does not install an installer downloaded for an older release', async () => {
+    const d = harness(debPackage)
+    await d.service.check({ manual: false })
+    await d.service.download()
+    expect(d.service.current().downloadedPath).not.toBeNull()
+    d.backend.feed = newer
+    await d.service.prepareInstall()
+    expect(d.backend.downloadedVersions).toEqual(['1.9.0', '1.12.0'])
+    expect(d.backend.installedVersions).toEqual(['1.12.0'])
+  })
+
+  it('goes on with the offered version when the feed cannot be reached', async () => {
+    const d = harness(debPackage)
+    await d.service.check({ manual: false })
+    d.backend.checkError = new Error('offline')
+    await d.service.prepareInstall()
+    expect(d.backend.installedVersions).toEqual(['1.9.0'])
+  })
+
+  it('asks the feed exactly once more when nothing is newer', async () => {
+    const d = harness(debPackage)
+    await d.service.check({ manual: false })
+    await d.service.prepareInstall()
+    expect(d.backend.checks).toBe(2)
+    expect(d.backend.installedVersions).toEqual(['1.9.0'])
+  })
+
+  it('does not look again for the password step', async () => {
+    const d = harness(debPackage)
+    d.backend.needsPasswordNow = true
+    await d.service.check({ manual: false })
+    await d.service.prepareInstall()
+    expect(d.service.current().phase).toBe('needs-password')
+    const before = d.backend.checks
+    d.backend.feed = newer
+    await d.service.installAndRestart('pw')
+    expect(d.backend.checks).toBe(before)
+    expect(d.backend.installedVersions).toEqual(['1.9.0'])
   })
 })

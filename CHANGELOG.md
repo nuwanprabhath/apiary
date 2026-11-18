@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.72.2] - 2026-11-18
+
+### Fixed
+
+- Install and Download take the newest release, not the one the last scheduled check offered: the
+  updater asks the feed again first, moves the offer to a newer version and drops an installer
+  downloaded for an older one, so a day with several releases means one update, not several.
+
 ## [1.72.3] - 2026-11-18
 
 ### Changed

@@ -311,10 +311,43 @@ export class UpdateService {
     return this.fetch({ forInstall: false })
   }
 
-  private async fetch({ forInstall }: { forInstall: boolean }): Promise<UpdateStatus> {
+  /**
+   * Looks at the feed again before anything is fetched and moves the offer to a newer release, so
+   * Install never takes a version that has been superseded since the last scheduled check. An
+   * installer already downloaded for the older one is dropped. A failed look leaves the offer as it is.
+   */
+  private async moveToNewest(): Promise<void> {
+    const offered = this.status.availableVersion
+    if (offered === null) return
+    try {
+      const settings = this.opts.settings()
+      const found = await this.opts.backend.check({ allowPrerelease: settings.allowPrerelease })
+      if (found === null || !isNewer(offered, found.version) || !shouldOffer({
+        current: this.status.currentVersion,
+        candidate: found.version,
+        skipped: settings.skippedVersion,
+        allowPrerelease: settings.allowPrerelease,
+      })) return
+      log.info('update', 'a newer release is out than the one offered', { offered, newest: found.version })
+      this.patch({
+        availableVersion: found.version,
+        releaseNotes: found.releaseNotes,
+        releaseUrl: found.releaseUrl,
+        downloadedPath: null,
+        install: null,
+        openResult: null,
+        ...(this.status.phase === 'downloaded' ? { phase: 'available' as const } : {}),
+      })
+    } catch (e) {
+      log.warn('update', 'could not look for a newer release before installing', { error: errorMessage(e) })
+    }
+  }
+
+  private async fetch({ forInstall, recheck = true }: { forInstall: boolean; recheck?: boolean }): Promise<UpdateStatus> {
     if (this.status.availableVersion === null) return this.status
     if (this.status.phase === 'downloading') return this.status
     this.patch({ phase: 'downloading', progressPercent: 0, error: null, installRequested: forInstall, installError: null })
+    if (recheck) await this.moveToNewest()
 
     const onProgress = (percent: number): void => {
       this.patch({ progressPercent: Math.max(0, Math.min(100, Math.round(percent))) })
@@ -371,8 +404,10 @@ export class UpdateService {
     if (this.capability.kind !== 'assisted' || (phase !== 'available' && phase !== 'downloaded')) {
       return { needsPassword: false }
     }
+    const looked = this.status.downloadedPath !== null
+    if (looked) await this.moveToNewest()
     if (this.status.downloadedPath === null) {
-      await this.fetch({ forInstall: true })
+      await this.fetch({ forInstall: true, recheck: !looked })
       if (this.status.phase !== 'downloaded') return { needsPassword: false }
     }
     const path = this.status.downloadedPath
