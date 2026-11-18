@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 330" width="880" height="330" role="img" aria-label="A terminal: xterm, the pty in main, claude, and the activity it shows">
+<title>A terminal: xterm, the pty in main, claude, and the activity it shows</title>
+<style>
+  .bg { fill: #ffffff; }
+  .t { fill: #1f2328; font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .s { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .g { fill: #59636e; font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; letter-spacing: .02em; }
+  .l { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .box { fill: #ffffff; stroke: #d0d7de; stroke-width: 1; }
+  .ui { fill: #ddf4ff; stroke: #54aeff; }
+  .main { fill: #fff8c5; stroke: #d4a72c; }
+  .work { fill: #dafbe1; stroke: #4ac26b; }
+  .out { fill: #f6f8fa; stroke: #d0d7de; }
+  .grp { stroke-width: 1; }
+  .sub { fill: #ffffff; fill-opacity: .55; stroke-dasharray: 4 3; }
+  .a { stroke: #6e7781; stroke-width: 1.5; fill: none; }
+  .d { stroke-dasharray: 5 4; }
+  .ah { fill: #6e7781; }
+  .life { stroke: #d0d7de; stroke-width: 1; stroke-dasharray: 4 4; }
+  .note { fill: #fff8c5; stroke: #d4a72c; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #0d1117; }
+    .t { fill: #e6edf3; }
+    .s, .g, .l { fill: #9198a1; }
+    .box { fill: #161b22; stroke: #3d444d; }
+    .ui { fill: #0c2d6b; fill-opacity: .55; stroke: #1f6feb; }
+    .main { fill: #3b2e00; fill-opacity: .7; stroke: #9e6a03; }
+    .work { fill: #033a16; fill-opacity: .7; stroke: #238636; }
+    .out { fill: #161b22; stroke: #3d444d; }
+    .sub { fill: #0d1117; fill-opacity: .45; }
+    .a { stroke: #8b949e; }
+    .ah { fill: #8b949e; }
+    .life { stroke: #3d444d; }
+    .note { fill: #3b2e00; stroke: #9e6a03; }
+  }
+</style>
+<rect class="bg" x="0" y="0" width="880" height="330" rx="12"/>
+<rect class="box ui" x="40" y="40" width="200" height="64" rx="8"/>
+<text class="t" x="140" y="69" text-anchor="middle">xterm in the pane</text>
+<text class="s" x="140" y="86" text-anchor="middle">renderer</text>
+<rect class="box main" x="340" y="40" width="200" height="64" rx="8"/>
+<text class="t" x="440" y="69" text-anchor="middle">PtyManager</text>
+<text class="s" x="440" y="86" text-anchor="middle">node-pty, in main</text>
+<rect class="box out" x="640" y="40" width="200" height="64" rx="8"/>
+<text class="t" x="740" y="69" text-anchor="middle">claude --resume &lt;id&gt;</text>
+<text class="s" x="740" y="86" text-anchor="middle">in your login shell</text>
+<path class="a" d="M240 62 L338 62"/>
+<path class="ah" d="M338.0 62.0 L329.0 57.5 L329.0 66.5 Z"/>
+<text class="l" x="289" y="55" text-anchor="middle">keys</text>
+<path class="a" d="M340 84 L242 84"/>
+<path class="ah" d="M242.0 84.0 L251.0 88.5 L251.0 79.5 Z"/>
+<text class="l" x="289" y="101" text-anchor="middle">output, batched</text>
+<path class="a" d="M540 62 L638 62"/>
+<path class="ah" d="M638.0 62.0 L629.0 57.5 L629.0 66.5 Z"/>
+<text class="l" x="589" y="55" text-anchor="middle">starts, types</text>
+<path class="a" d="M640 84 L542 84"/>
+<path class="ah" d="M542.0 84.0 L551.0 88.5 L551.0 79.5 Z"/>
+<text class="l" x="589" y="101" text-anchor="middle">output</text>
+<path class="a" d="M440 104 L440 168"/>
+<path class="ah" d="M440.0 168.0 L444.5 159.0 L435.5 159.0 Z"/>
+<text class="l" x="448" y="140" text-anchor="start">every byte, also</text>
+<rect class="box main" x="340" y="168" width="200" height="64" rx="8"/>
+<text class="t" x="440" y="197" text-anchor="middle">Headless screen</text>
+<text class="s" x="440" y="214" text-anchor="middle">the screen as plain text</text>
+<path class="a" d="M540 200 L618 200"/>
+<path class="ah" d="M618.0 200.0 L609.0 195.5 L609.0 204.5 Z"/>
+<rect class="box main" x="620" y="168" width="220" height="64" rx="8"/>
+<text class="t" x="730" y="197" text-anchor="middle">classifyActivity</text>
+<text class="s" x="730" y="214" text-anchor="middle">running · waiting · idle · stopped</text>
+<path class="a" d="M730 232 L730 256"/>
+<path class="ah" d="M730.0 256.0 L734.5 247.0 L725.5 247.0 Z"/>
+<rect class="box ui" x="620" y="256" width="220" height="56" rx="8"/>
+<text class="t" x="730" y="289" text-anchor="middle">Tab dots · sidebar · pets</text>
+<text class="l" x="40" y="192" text-anchor="start">A window that falls behind</text>
+<text class="l" x="40" y="209" text-anchor="start">pauses the pty, so a slow pane</text>
+<text class="l" x="40" y="226" text-anchor="start">never floods the app.</text>
+</svg>

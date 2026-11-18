@@ -165,50 +165,9 @@ contract (`src/shared/ipc/contract.ts`), which preload exposes as `window.apiary
 every argument against that contract before a handler runs. Everything Apiary shows comes from
 things it does not own: Claude Code's session files, the `claude` CLI, `git`, `glab` and `ssh`.
 
-```mermaid
-flowchart TB
-  subgraph R["Renderer · one React page per window"]
-    direction LR
-    SB["Sidebar<br/>projects · sessions · search"]
-    PANE["Panes<br/>terminal · transcript · chat"]
-    BAR["Status bar<br/>usage · residents · pets"]
-  end
+In every picture, blue is the renderer, amber is the main process, and grey is outside Apiary.
 
-  PRE["preload: window.apiary<br/>only the calls in the IPC contract"]
-
-  subgraph M["Main process (Node) · checks every argument, then hands it to a service"]
-    direction TB
-    subgraph RUN["Runs claude · under the session's account"]
-      direction LR
-      TERM["Terminals<br/>node-pty"]
-      CHAT["Chat<br/>streamed JSON"]
-      RES["Residents<br/>+ local MCP server"]
-      PET["Pets<br/>claude -p"]
-    end
-    subgraph READ["Reads sessions"]
-      direction LR
-      SES["Sessions<br/>scan · watch · catalog"]
-      SRCH["Search index<br/>worker thread"]
-    end
-    subgraph OTHER["Other tools"]
-      direction LR
-      GIT["Git and MRs"]
-      REM["Remote access"]
-      UPD["Updater"]
-    end
-    RUN ~~~ READ ~~~ OTHER
-  end
-
-  CLI["claude CLI"]
-  JSONL[("~/.claude/projects<br/>session .jsonl files")]
-  EXT["git · glab · ssh · GitHub releases"]
-
-  R <-- "calls · pushes back" --> PRE <--> M
-  RUN --> CLI
-  CLI -- writes --> JSONL
-  READ -- "reads and watches" --> JSONL
-  OTHER --> EXT
-```
+![Overview: the renderer, preload, the main process and the programs it drives](docs/architecture/img/overview.svg)
 
 **Three rules hold everywhere.**
 
@@ -234,24 +193,7 @@ a tab to another window, or out into a window of its own, moves the tab and leav
 running. Each window reports its panes and tabs, and main saves them, so a restart brings back the
 windows, the layout and the sessions that were running.
 
-```mermaid
-flowchart TB
-  subgraph MAIN["Main process: owns every process"]
-    direction LR
-    PA["terminal: session A<br/>(pty + headless screen)"]
-    CB["chat: session B<br/>(claude, streamed JSON)"]
-  end
-  W1["Window 1<br/>tabs A · B"]
-  W2["Window 2<br/>tab A"]
-  DW["Detached window<br/>tab B, dragged out"]
-  LS[("session-layout.json<br/>windows · panes · tabs")]
-  PA -- "live output" --> W1
-  PA -- "snapshot first, then live output" --> W2
-  CB -- "chatChanged" --> W1 & DW
-  W1 -- "drag a tab out: main moves it,<br/>the process keeps running" --> DW
-  W1 & W2 & DW -- "report their layout" --> LS
-  LS -. "restored at launch" .-> W1
-```
+![Windows and tabs: main owns every terminal and chat, windows only show them](docs/architecture/img/windows.svg)
 
 ### Terminals
 
@@ -259,16 +201,7 @@ A terminal pane is a real pty running `claude --resume <id>` through your login 
 second, headless copy of each screen. It reads that screen to tell whether the session is running,
 waiting for you or idle. That status drives the tab's dot, the sidebar and the pets.
 
-```mermaid
-flowchart LR
-  XT["xterm in the pane"] -- "keys: writePty" --> PM["PtyManager<br/>(node-pty)"]
-  PM -- "$SHELL -l -c 'exec claude --resume id'" --> C["claude"]
-  C -- output --> PM
-  PM -- "ptyData, batched;<br/>paused when a window falls behind" --> XT
-  PM --> HS["headless xterm<br/>(the screen as text)"]
-  HS --> CL["classifyActivity<br/>running · waiting · idle · stopped"]
-  CL -- activityChanged --> DOTS["tab dots · sidebar · pets"]
-```
+![Terminals: xterm, the pty in main, claude, and the activity read from the screen](docs/architecture/img/terminals.svg)
 
 ### Chat
 
@@ -277,20 +210,7 @@ and turns its output into one `ChatState`. Main sends only the fields that chang
 showing that chat. The transcript still reads the `.jsonl`; the streamed state only fills the gap
 until the file catches up. A permission request from Claude shows up in the chat as a question.
 
-```mermaid
-sequenceDiagram
-  participant UI as Composer (renderer)
-  participant CS as ChatService (main)
-  participant CL as claude (stream-json)
-  participant F as session .jsonl
-  UI->>CS: startChat, sendChat
-  Note over CS: a terminal on this session is stopped first
-  CS->>CL: user message on stdin
-  CL-->>CS: streamed events on stdout
-  CS-->>UI: chatChanged (only what changed, ~8 a second)
-  CL->>F: appends the turn
-  F-->>UI: transcript re-reads the file
-```
+![Chat: one message from the composer to claude and back](docs/architecture/img/chat.svg)
 
 ### Remote access
 
@@ -300,20 +220,7 @@ anything ssh can reach works: `~/.ssh/config` hosts and Tailscale. A remote wind
 renderer. Main forwards its remote calls over the socket, and they run through the same handlers
 as a local window's. The work machine answers only calls marked safe for remote use.
 
-```mermaid
-flowchart LR
-  subgraph HOME["Home machine"]
-    RW["Remote window<br/>(same React UI)"] --> HM["Main: RemoteWindows<br/>routes each call"]
-    HM -- "local calls<br/>(open a file here, clipboard)" --> HH["Home handlers"]
-  end
-  HM -- "remote calls,<br/>framed" --> TUN["ssh -N -L<br/>socket forward"]
-  subgraph WORK["Work machine"]
-    SOCK["~/.apiary/remote.sock<br/>RemoteServer<br/>handshake · pairing code"] --> WH["Same handlers as a local window<br/>sessions · terminals · chat · git"]
-    WH --> WC["claude · git · its own .jsonl files"]
-  end
-  TUN --> SOCK
-  WH -. "events (ptyData, chatChanged)" .-> RW
-```
+![Remote access: a home window, an ssh socket forward, the work machine](docs/architecture/img/remote.svg)
 
 ### Resident agents
 
@@ -329,17 +236,7 @@ link finds its session by an exact match. The topic digests are short summaries 
 writes during Regent's hours, pausing when your 5-hour usage passes the level you set. A search
 rebuild never touches the digests, because they cost your quota to make.
 
-```mermaid
-flowchart LR
-  BADGE["Status bar badge<br/>+ resident chat panel"] <--> RS["ResidentService<br/>hours · cycles · usage pause"]
-  RS -- "starts, with --mcp-config" --> RC["claude (resident)"]
-  RC -- "token-scoped tools" --> MCP["Apiary MCP server<br/>127.0.0.1"]
-  MCP --> TOOLS["find and read sessions · open a tab<br/>notes · status · approve an MR"]
-  TOOLS --> SRCH["Search index + refs<br/>(!1234, #56, ticket keys)"] & DIG["Topic digests<br/>knowledge.db"] & SES["Sessions"]
-  JSONL[("session .jsonl files")] -- "indexed in a worker thread" --> SRCH
-  JSONL -- "during its hours, by a cheap model" --> DIG
-  RC -- "its own tools, e.g. glab" --> GL["GitLab"]
-```
+![Resident agents: the MCP tools and the search index and digests they answer from](docs/architecture/img/residents.svg)
 
 ### Pets
 
@@ -348,14 +245,7 @@ through `claude -p`, and every pet goes through `validatePet` before it is kept 
 in the renderer runs its behaviour, and three.js draws it. A pet reacts to the activity of your
 sessions. Each pet lives in one local window, never a remote one.
 
-```mermaid
-flowchart LR
-  PS["PetService (main)"] -- "design · hourly lines · chat" --> CP["claude -p"]
-  CP -- "reply" --> V["validatePet"] --> STORE[("pets.json<br/>PetStore")]
-  STORE --> W["Renderer: brain worker<br/>wander · nap · react"]
-  ACT["activity + latest Claude actions"] --> W
-  W --> D["3D draw (three.js)<br/>on the status bar"]
-```
+![Pets: designed by claude, validated, stored, and run in the renderer](docs/architecture/img/pets.svg)
 
 ### What Apiary refuses to do
 

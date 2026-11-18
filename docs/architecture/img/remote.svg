@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 440" width="880" height="440" role="img" aria-label="Remote access: a home window, an ssh socket forward, the work machine">
+<title>Remote access: a home window, an ssh socket forward, the work machine</title>
+<style>
+  .bg { fill: #ffffff; }
+  .t { fill: #1f2328; font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .s { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .g { fill: #59636e; font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; letter-spacing: .02em; }
+  .l { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .box { fill: #ffffff; stroke: #d0d7de; stroke-width: 1; }
+  .ui { fill: #ddf4ff; stroke: #54aeff; }
+  .main { fill: #fff8c5; stroke: #d4a72c; }
+  .work { fill: #dafbe1; stroke: #4ac26b; }
+  .out { fill: #f6f8fa; stroke: #d0d7de; }
+  .grp { stroke-width: 1; }
+  .sub { fill: #ffffff; fill-opacity: .55; stroke-dasharray: 4 3; }
+  .a { stroke: #6e7781; stroke-width: 1.5; fill: none; }
+  .d { stroke-dasharray: 5 4; }
+  .ah { fill: #6e7781; }
+  .life { stroke: #d0d7de; stroke-width: 1; stroke-dasharray: 4 4; }
+  .note { fill: #fff8c5; stroke: #d4a72c; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #0d1117; }
+    .t { fill: #e6edf3; }
+    .s, .g, .l { fill: #9198a1; }
+    .box { fill: #161b22; stroke: #3d444d; }
+    .ui { fill: #0c2d6b; fill-opacity: .55; stroke: #1f6feb; }
+    .main { fill: #3b2e00; fill-opacity: .7; stroke: #9e6a03; }
+    .work { fill: #033a16; fill-opacity: .7; stroke: #238636; }
+    .out { fill: #161b22; stroke: #3d444d; }
+    .sub { fill: #0d1117; fill-opacity: .45; }
+    .a { stroke: #8b949e; }
+    .ah { fill: #8b949e; }
+    .life { stroke: #3d444d; }
+    .note { fill: #3b2e00; stroke: #9e6a03; }
+  }
+</style>
+<rect class="bg" x="0" y="0" width="880" height="440" rx="12"/>
+<rect class="grp ui" x="20" y="20" width="330" height="316" rx="12"/>
+<text class="g" x="34" y="40">HOME MACHINE</text>
+<rect class="box" x="40" y="60" width="290" height="58" rx="8"/>
+<text class="t" x="185" y="86" text-anchor="middle">Remote window</text>
+<text class="s" x="185" y="103" text-anchor="middle">the same React UI</text>
+<path class="a" d="M185 118 L185 160"/>
+<path class="ah" d="M185.0 160.0 L189.5 151.0 L180.5 151.0 Z"/>
+<rect class="box" x="40" y="160" width="290" height="58" rx="8"/>
+<text class="t" x="185" y="186" text-anchor="middle">Main: RemoteWindows</text>
+<text class="s" x="185" y="203" text-anchor="middle">decides where each call runs</text>
+<path class="a" d="M185 218 L185 258"/>
+<path class="ah" d="M185.0 258.0 L189.5 249.0 L180.5 249.0 Z"/>
+<text class="l" x="193" y="243" text-anchor="start">local calls</text>
+<rect class="box" x="40" y="258" width="290" height="58" rx="8"/>
+<text class="t" x="185" y="284" text-anchor="middle">Home handlers</text>
+<text class="s" x="185" y="301" text-anchor="middle">open a file here · clipboard</text>
+<rect class="box out" x="370" y="160" width="140" height="58" rx="8"/>
+<text class="t" x="440" y="186" text-anchor="middle">ssh -N -L</text>
+<text class="s" x="440" y="203" text-anchor="middle">socket forward</text>
+<path class="a" d="M330 189 L368 189"/>
+<path class="ah" d="M368.0 189.0 L359.0 184.5 L359.0 193.5 Z"/>
+<path class="a" d="M510 189 L548 189"/>
+<path class="ah" d="M548.0 189.0 L539.0 184.5 L539.0 193.5 Z"/>
+<text class="l" x="440" y="240" text-anchor="middle">remote calls,</text>
+<text class="l" x="440" y="256" text-anchor="middle">in frames</text>
+<rect class="grp work" x="530" y="20" width="330" height="400" rx="12"/>
+<text class="g" x="544" y="40">WORK MACHINE</text>
+<rect class="box" x="550" y="160" width="290" height="58" rx="8"/>
+<text class="t" x="695" y="186" text-anchor="middle">~/.apiary/remote.sock</text>
+<text class="s" x="695" y="203" text-anchor="middle">RemoteServer · handshake · pairing code</text>
+<path class="a" d="M695 218 L695 258"/>
+<path class="ah" d="M695.0 258.0 L699.5 249.0 L690.5 249.0 Z"/>
+<text class="l" x="703" y="243" text-anchor="start">only calls safe for remote</text>
+<rect class="box" x="550" y="258" width="290" height="58" rx="8"/>
+<text class="t" x="695" y="284" text-anchor="middle">The same handlers</text>
+<text class="s" x="695" y="301" text-anchor="middle">as a local window’s</text>
+<path class="a" d="M695 316 L695 346"/>
+<path class="ah" d="M695.0 346.0 L699.5 337.0 L690.5 337.0 Z"/>
+<rect class="box out" x="550" y="346" width="290" height="56" rx="8"/>
+<text class="t" x="695" y="371" text-anchor="middle">claude · git</text>
+<text class="s" x="695" y="388" text-anchor="middle">and its own .jsonl files</text>
+<path class="a d" d="M695 160 L695 89 L332 89"/>
+<path class="ah" d="M332.0 89.0 L341.0 93.5 L341.0 84.5 Z"/>
+<text class="l" x="512" y="81" text-anchor="middle">events back: ptyData, chatChanged</text>
+<text class="l" x="185" y="370" text-anchor="middle">Nothing listens on the network:</text>
+<text class="l" x="185" y="387" text-anchor="middle">the socket is reached through ssh,</text>
+<text class="l" x="185" y="404" text-anchor="middle">so ~/.ssh/config and Tailscale work.</text>
+</svg>

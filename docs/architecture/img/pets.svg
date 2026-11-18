@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 340" width="880" height="340" role="img" aria-label="Pets: designed by claude, validated, stored, and run in the renderer">
+<title>Pets: designed by claude, validated, stored, and run in the renderer</title>
+<style>
+  .bg { fill: #ffffff; }
+  .t { fill: #1f2328; font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .s { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .g { fill: #59636e; font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; letter-spacing: .02em; }
+  .l { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .box { fill: #ffffff; stroke: #d0d7de; stroke-width: 1; }
+  .ui { fill: #ddf4ff; stroke: #54aeff; }
+  .main { fill: #fff8c5; stroke: #d4a72c; }
+  .work { fill: #dafbe1; stroke: #4ac26b; }
+  .out { fill: #f6f8fa; stroke: #d0d7de; }
+  .grp { stroke-width: 1; }
+  .sub { fill: #ffffff; fill-opacity: .55; stroke-dasharray: 4 3; }
+  .a { stroke: #6e7781; stroke-width: 1.5; fill: none; }
+  .d { stroke-dasharray: 5 4; }
+  .ah { fill: #6e7781; }
+  .life { stroke: #d0d7de; stroke-width: 1; stroke-dasharray: 4 4; }
+  .note { fill: #fff8c5; stroke: #d4a72c; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #0d1117; }
+    .t { fill: #e6edf3; }
+    .s, .g, .l { fill: #9198a1; }
+    .box { fill: #161b22; stroke: #3d444d; }
+    .ui { fill: #0c2d6b; fill-opacity: .55; stroke: #1f6feb; }
+    .main { fill: #3b2e00; fill-opacity: .7; stroke: #9e6a03; }
+    .work { fill: #033a16; fill-opacity: .7; stroke: #238636; }
+    .out { fill: #161b22; stroke: #3d444d; }
+    .sub { fill: #0d1117; fill-opacity: .45; }
+    .a { stroke: #8b949e; }
+    .ah { fill: #8b949e; }
+    .life { stroke: #3d444d; }
+    .note { fill: #3b2e00; stroke: #9e6a03; }
+  }
+</style>
+<rect class="bg" x="0" y="0" width="880" height="340" rx="12"/>
+<rect class="box main" x="40" y="30" width="200" height="62" rx="8"/>
+<text class="t" x="140" y="58" text-anchor="middle">PetService</text>
+<text class="s" x="140" y="75" text-anchor="middle">main</text>
+<rect class="box out" x="340" y="30" width="200" height="62" rx="8"/>
+<text class="t" x="440" y="58" text-anchor="middle">claude -p</text>
+<text class="s" x="440" y="75" text-anchor="middle">design · hourly lines · chat</text>
+<rect class="box main" x="640" y="30" width="200" height="62" rx="8"/>
+<text class="t" x="740" y="58" text-anchor="middle">validatePet</text>
+<text class="s" x="740" y="75" text-anchor="middle">the only way in</text>
+<path class="a" d="M240 61 L338 61"/>
+<path class="ah" d="M338.0 61.0 L329.0 56.5 L329.0 65.5 Z"/>
+<text class="l" x="289" y="53" text-anchor="middle">asks</text>
+<path class="a" d="M540 61 L638 61"/>
+<path class="ah" d="M638.0 61.0 L629.0 56.5 L629.0 65.5 Z"/>
+<text class="l" x="589" y="53" text-anchor="middle">reply</text>
+<path class="a" d="M740 92 L740 150"/>
+<path class="ah" d="M740.0 150.0 L744.5 141.0 L735.5 141.0 Z"/>
+<path class="box" d="M640 157 A100 7 0 0 1 840 157 V205 A100 7 0 0 1 640 205 Z"/>
+<path class="box" style="fill:none" d="M640 157 A100 7 0 0 0 840 157"/>
+<text class="t" x="740" y="180.5" text-anchor="middle">pets.json</text>
+<text class="s" x="740" y="197.5" text-anchor="middle">PetStore</text>
+<path class="a" d="M640 181 L542 181"/>
+<path class="ah" d="M542.0 181.0 L551.0 185.5 L551.0 176.5 Z"/>
+<rect class="box ui" x="340" y="150" width="200" height="62" rx="8"/>
+<text class="t" x="440" y="178" text-anchor="middle">Brain worker</text>
+<text class="s" x="440" y="195" text-anchor="middle">wander · nap · react</text>
+<path class="a" d="M340 181 L242 181"/>
+<path class="ah" d="M242.0 181.0 L251.0 185.5 L251.0 176.5 Z"/>
+<rect class="box ui" x="40" y="150" width="200" height="62" rx="8"/>
+<text class="t" x="140" y="178" text-anchor="middle">3D drawing</text>
+<text class="s" x="140" y="195" text-anchor="middle">three.js, on the status bar</text>
+<path class="a" d="M440 270 L440 214"/>
+<path class="ah" d="M440.0 214.0 L435.5 223.0 L444.5 223.0 Z"/>
+<rect class="box main" x="340" y="270" width="200" height="56" rx="8"/>
+<text class="t" x="440" y="295" text-anchor="middle">Session activity</text>
+<text class="s" x="440" y="312" text-anchor="middle">and Claude’s latest actions</text>
+<text class="l" x="640" y="290" text-anchor="start">A pet is data, never code:</text>
+<text class="l" x="640" y="307" text-anchor="start">parts from closed sets, colours</text>
+<text class="l" x="640" y="324" text-anchor="start">and lines. One local window each.</text>
+</svg>

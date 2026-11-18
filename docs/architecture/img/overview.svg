@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 660" width="880" height="660" role="img" aria-label="Apiary overview: the renderer, preload, the main process and what it drives">
+<title>Apiary overview: the renderer, preload, the main process and what it drives</title>
+<style>
+  .bg { fill: #ffffff; }
+  .t { fill: #1f2328; font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .s { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .g { fill: #59636e; font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; letter-spacing: .02em; }
+  .l { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .box { fill: #ffffff; stroke: #d0d7de; stroke-width: 1; }
+  .ui { fill: #ddf4ff; stroke: #54aeff; }
+  .main { fill: #fff8c5; stroke: #d4a72c; }
+  .work { fill: #dafbe1; stroke: #4ac26b; }
+  .out { fill: #f6f8fa; stroke: #d0d7de; }
+  .grp { stroke-width: 1; }
+  .sub { fill: #ffffff; fill-opacity: .55; stroke-dasharray: 4 3; }
+  .a { stroke: #6e7781; stroke-width: 1.5; fill: none; }
+  .d { stroke-dasharray: 5 4; }
+  .ah { fill: #6e7781; }
+  .life { stroke: #d0d7de; stroke-width: 1; stroke-dasharray: 4 4; }
+  .note { fill: #fff8c5; stroke: #d4a72c; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #0d1117; }
+    .t { fill: #e6edf3; }
+    .s, .g, .l { fill: #9198a1; }
+    .box { fill: #161b22; stroke: #3d444d; }
+    .ui { fill: #0c2d6b; fill-opacity: .55; stroke: #1f6feb; }
+    .main { fill: #3b2e00; fill-opacity: .7; stroke: #9e6a03; }
+    .work { fill: #033a16; fill-opacity: .7; stroke: #238636; }
+    .out { fill: #161b22; stroke: #3d444d; }
+    .sub { fill: #0d1117; fill-opacity: .45; }
+    .a { stroke: #8b949e; }
+    .ah { fill: #8b949e; }
+    .life { stroke: #3d444d; }
+    .note { fill: #3b2e00; stroke: #9e6a03; }
+  }
+</style>
+<rect class="bg" x="0" y="0" width="880" height="660" rx="12"/>
+<rect class="grp ui" x="20" y="20" width="840" height="124" rx="12"/>
+<text class="g" x="34" y="40">RENDERER · ONE REACT PAGE PER WINDOW</text>
+<rect class="box" x="40" y="52" width="253" height="72" rx="8"/>
+<text class="t" x="166.5" y="85" text-anchor="middle">Sidebar</text>
+<text class="s" x="166.5" y="102" text-anchor="middle">projects · sessions · search</text>
+<rect class="box" x="313" y="52" width="254" height="72" rx="8"/>
+<text class="t" x="440" y="85" text-anchor="middle">Panes</text>
+<text class="s" x="440" y="102" text-anchor="middle">terminal · transcript · chat</text>
+<rect class="box" x="587" y="52" width="253" height="72" rx="8"/>
+<text class="t" x="713.5" y="85" text-anchor="middle">Status bar</text>
+<text class="s" x="713.5" y="102" text-anchor="middle">usage · residents · pets</text>
+<path class="a" d="M440 146 L440 180"/>
+<path class="ah" d="M440.0 180.0 L444.5 171.0 L435.5 171.0 Z"/>
+<path class="ah" d="M440.0 146.0 L435.5 155.0 L444.5 155.0 Z"/>
+<text class="l" x="452" y="168" text-anchor="start">calls down, pushes back up</text>
+<rect class="box" x="290" y="180" width="300" height="60" rx="8"/>
+<text class="t" x="440" y="207" text-anchor="middle">preload: window.apiary</text>
+<text class="s" x="440" y="224" text-anchor="middle">only the calls in the IPC contract</text>
+<path class="a" d="M440 242 L440 276"/>
+<path class="ah" d="M440.0 276.0 L444.5 267.0 L435.5 267.0 Z"/>
+<path class="ah" d="M440.0 242.0 L435.5 251.0 L444.5 251.0 Z"/>
+<text class="l" x="452" y="264" text-anchor="start">every argument checked against the contract</text>
+<rect class="grp main" x="20" y="276" width="840" height="222" rx="12"/>
+<text class="g" x="34" y="296">MAIN PROCESS (NODE) · OWNS EVERY FILE, PROCESS AND SOCKET</text>
+<rect class="grp sub" x="36" y="306" width="300" height="176" rx="12"/>
+<text class="g" x="50" y="326">Runs claude, as the session’s account</text>
+<rect class="box" x="48" y="336" width="133" height="58" rx="8"/>
+<text class="t" x="114.5" y="362" text-anchor="middle">Terminals</text>
+<text class="s" x="114.5" y="379" text-anchor="middle">node-pty</text>
+<rect class="box" x="191" y="336" width="133" height="58" rx="8"/>
+<text class="t" x="257.5" y="362" text-anchor="middle">Chat</text>
+<text class="s" x="257.5" y="379" text-anchor="middle">streamed JSON</text>
+<rect class="box" x="48" y="408" width="133" height="58" rx="8"/>
+<text class="t" x="114.5" y="434" text-anchor="middle">Residents</text>
+<text class="s" x="114.5" y="451" text-anchor="middle">local MCP server</text>
+<rect class="box" x="191" y="408" width="133" height="58" rx="8"/>
+<text class="t" x="257.5" y="434" text-anchor="middle">Pets</text>
+<text class="s" x="257.5" y="451" text-anchor="middle">claude -p</text>
+<rect class="grp sub" x="352" y="306" width="220" height="176" rx="12"/>
+<text class="g" x="366" y="326">Reads sessions</text>
+<rect class="box" x="364" y="336" width="196" height="58" rx="8"/>
+<text class="t" x="462" y="362" text-anchor="middle">Sessions</text>
+<text class="s" x="462" y="379" text-anchor="middle">scan · watch · catalog</text>
+<rect class="box" x="364" y="408" width="196" height="58" rx="8"/>
+<text class="t" x="462" y="434" text-anchor="middle">Search index</text>
+<text class="s" x="462" y="451" text-anchor="middle">worker thread</text>
+<rect class="grp sub" x="588" y="306" width="256" height="176" rx="12"/>
+<text class="g" x="602" y="326">Other tools</text>
+<rect class="box" x="600" y="336" width="232" height="58" rx="8"/>
+<text class="t" x="716" y="362" text-anchor="middle">Git and MRs</text>
+<text class="s" x="716" y="379" text-anchor="middle">branch · pull · push · MRs</text>
+<rect class="box" x="600" y="408" width="111" height="58" rx="8"/>
+<text class="t" x="655.5" y="434" text-anchor="middle">Remote</text>
+<text class="s" x="655.5" y="451" text-anchor="middle">over ssh</text>
+<rect class="box" x="721" y="408" width="111" height="58" rx="8"/>
+<text class="t" x="776.5" y="434" text-anchor="middle">Updater</text>
+<text class="s" x="776.5" y="451" text-anchor="middle">signed feeds</text>
+<path class="a" d="M186 482 L186 552"/>
+<path class="ah" d="M186.0 552.0 L190.5 543.0 L181.5 543.0 Z"/>
+<text class="l" x="194" y="524" text-anchor="start">starts</text>
+<path class="a" d="M462 482 L462 552"/>
+<path class="ah" d="M462.0 552.0 L466.5 543.0 L457.5 543.0 Z"/>
+<text class="l" x="470" y="524" text-anchor="start">reads and watches</text>
+<path class="a" d="M716 482 L716 552"/>
+<path class="ah" d="M716.0 552.0 L720.5 543.0 L711.5 543.0 Z"/>
+<text class="l" x="724" y="524" text-anchor="start">runs</text>
+<rect class="box out" x="76" y="552" width="220" height="62" rx="8"/>
+<text class="t" x="186" y="580" text-anchor="middle">claude CLI</text>
+<text class="s" x="186" y="597" text-anchor="middle">Claude Code</text>
+<path class="box" d="M352 559 A110 7 0 0 1 572 559 V607 A110 7 0 0 1 352 607 Z"/>
+<path class="box" style="fill:none" d="M352 559 A110 7 0 0 0 572 559"/>
+<text class="t" x="462" y="582.5" text-anchor="middle">~/.claude/projects</text>
+<text class="s" x="462" y="599.5" text-anchor="middle">session .jsonl files</text>
+<rect class="box out" x="588" y="552" width="256" height="62" rx="8"/>
+<text class="t" x="716" y="580" text-anchor="middle">git · glab · ssh</text>
+<text class="s" x="716" y="597" text-anchor="middle">GitHub releases</text>
+<path class="a" d="M296 583 L350 583"/>
+<path class="ah" d="M350.0 583.0 L341.0 578.5 L341.0 587.5 Z"/>
+<text class="l" x="323" y="575" text-anchor="middle">writes</text>
+<text class="g" x="440" y="642" text-anchor="middle">OUTSIDE APIARY · PROGRAMS AND FILES IT DOES NOT OWN</text>
+</svg>

@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 390" width="880" height="390" role="img" aria-label="One chat message from the composer to claude and back">
+<title>One chat message from the composer to claude and back</title>
+<style>
+  .bg { fill: #ffffff; }
+  .t { fill: #1f2328; font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .s { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .g { fill: #59636e; font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; letter-spacing: .02em; }
+  .l { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .box { fill: #ffffff; stroke: #d0d7de; stroke-width: 1; }
+  .ui { fill: #ddf4ff; stroke: #54aeff; }
+  .main { fill: #fff8c5; stroke: #d4a72c; }
+  .work { fill: #dafbe1; stroke: #4ac26b; }
+  .out { fill: #f6f8fa; stroke: #d0d7de; }
+  .grp { stroke-width: 1; }
+  .sub { fill: #ffffff; fill-opacity: .55; stroke-dasharray: 4 3; }
+  .a { stroke: #6e7781; stroke-width: 1.5; fill: none; }
+  .d { stroke-dasharray: 5 4; }
+  .ah { fill: #6e7781; }
+  .life { stroke: #d0d7de; stroke-width: 1; stroke-dasharray: 4 4; }
+  .note { fill: #fff8c5; stroke: #d4a72c; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #0d1117; }
+    .t { fill: #e6edf3; }
+    .s, .g, .l { fill: #9198a1; }
+    .box { fill: #161b22; stroke: #3d444d; }
+    .ui { fill: #0c2d6b; fill-opacity: .55; stroke: #1f6feb; }
+    .main { fill: #3b2e00; fill-opacity: .7; stroke: #9e6a03; }
+    .work { fill: #033a16; fill-opacity: .7; stroke: #238636; }
+    .out { fill: #161b22; stroke: #3d444d; }
+    .sub { fill: #0d1117; fill-opacity: .45; }
+    .a { stroke: #8b949e; }
+    .ah { fill: #8b949e; }
+    .life { stroke: #3d444d; }
+    .note { fill: #3b2e00; stroke: #9e6a03; }
+  }
+</style>
+<rect class="bg" x="0" y="0" width="880" height="390" rx="12"/>
+<rect class="box ui" x="30" y="20" width="180" height="56" rx="8"/>
+<text class="t" x="120" y="45" text-anchor="middle">Composer</text>
+<text class="s" x="120" y="62" text-anchor="middle">renderer</text>
+<path class="life" d="M120 76 V372"/>
+<rect class="box main" x="250" y="20" width="180" height="56" rx="8"/>
+<text class="t" x="340" y="45" text-anchor="middle">ChatService</text>
+<text class="s" x="340" y="62" text-anchor="middle">main</text>
+<path class="life" d="M340 76 V372"/>
+<rect class="box out" x="470" y="20" width="180" height="56" rx="8"/>
+<text class="t" x="560" y="45" text-anchor="middle">claude</text>
+<text class="s" x="560" y="62" text-anchor="middle">streamed JSON</text>
+<path class="life" d="M560 76 V372"/>
+<rect class="box out" x="690" y="20" width="180" height="56" rx="8"/>
+<text class="t" x="780" y="45" text-anchor="middle">session .jsonl</text>
+<text class="s" x="780" y="62" text-anchor="middle">the record</text>
+<path class="life" d="M780 76 V372"/>
+<path class="a" d="M120 112 L338 112"/>
+<path class="ah" d="M338.0 112.0 L329.0 107.5 L329.0 116.5 Z"/>
+<text class="l" x="230" y="105" text-anchor="middle">startChat, sendChat</text>
+<rect class="note" x="230" y="128" width="220" height="30" rx="8"/>
+<text class="t" x="340" y="148" text-anchor="middle">a terminal on it stops first</text>
+<path class="a" d="M340 190 L558 190"/>
+<path class="ah" d="M558.0 190.0 L549.0 185.5 L549.0 194.5 Z"/>
+<text class="l" x="450" y="183" text-anchor="middle">your message, on stdin</text>
+<path class="a d" d="M560 232 L342 232"/>
+<path class="ah" d="M342.0 232.0 L351.0 236.5 L351.0 227.5 Z"/>
+<text class="l" x="450" y="225" text-anchor="middle">streamed events, on stdout</text>
+<path class="a d" d="M340 274 L122 274"/>
+<path class="ah" d="M122.0 274.0 L131.0 278.5 L131.0 269.5 Z"/>
+<text class="l" x="230" y="267" text-anchor="middle">chatChanged: only what changed</text>
+<path class="a" d="M560 316 L778 316"/>
+<path class="ah" d="M778.0 316.0 L769.0 311.5 L769.0 320.5 Z"/>
+<text class="l" x="670" y="309" text-anchor="middle">appends the turn</text>
+<path class="a d" d="M780 358 L122 358"/>
+<path class="ah" d="M122.0 358.0 L131.0 362.5 L131.0 353.5 Z"/>
+<text class="l" x="450" y="351" text-anchor="middle">the transcript re-reads the file</text>
+</svg>

@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 530" width="880" height="530" role="img" aria-label="A resident agent, its MCP tools, and the search index and digests it answers from">
+<title>A resident agent, its MCP tools, and the search index and digests it answers from</title>
+<style>
+  .bg { fill: #ffffff; }
+  .t { fill: #1f2328; font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .s { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .g { fill: #59636e; font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; letter-spacing: .02em; }
+  .l { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .box { fill: #ffffff; stroke: #d0d7de; stroke-width: 1; }
+  .ui { fill: #ddf4ff; stroke: #54aeff; }
+  .main { fill: #fff8c5; stroke: #d4a72c; }
+  .work { fill: #dafbe1; stroke: #4ac26b; }
+  .out { fill: #f6f8fa; stroke: #d0d7de; }
+  .grp { stroke-width: 1; }
+  .sub { fill: #ffffff; fill-opacity: .55; stroke-dasharray: 4 3; }
+  .a { stroke: #6e7781; stroke-width: 1.5; fill: none; }
+  .d { stroke-dasharray: 5 4; }
+  .ah { fill: #6e7781; }
+  .life { stroke: #d0d7de; stroke-width: 1; stroke-dasharray: 4 4; }
+  .note { fill: #fff8c5; stroke: #d4a72c; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #0d1117; }
+    .t { fill: #e6edf3; }
+    .s, .g, .l { fill: #9198a1; }
+    .box { fill: #161b22; stroke: #3d444d; }
+    .ui { fill: #0c2d6b; fill-opacity: .55; stroke: #1f6feb; }
+    .main { fill: #3b2e00; fill-opacity: .7; stroke: #9e6a03; }
+    .work { fill: #033a16; fill-opacity: .7; stroke: #238636; }
+    .out { fill: #161b22; stroke: #3d444d; }
+    .sub { fill: #0d1117; fill-opacity: .45; }
+    .a { stroke: #8b949e; }
+    .ah { fill: #8b949e; }
+    .life { stroke: #3d444d; }
+    .note { fill: #3b2e00; stroke: #9e6a03; }
+  }
+</style>
+<rect class="bg" x="0" y="0" width="880" height="530" rx="12"/>
+<rect class="box ui" x="40" y="30" width="220" height="62" rx="8"/>
+<text class="t" x="150" y="58" text-anchor="middle">Badge + chat panel</text>
+<text class="s" x="150" y="75" text-anchor="middle">status bar</text>
+<rect class="box main" x="330" y="30" width="220" height="62" rx="8"/>
+<text class="t" x="440" y="58" text-anchor="middle">ResidentService</text>
+<text class="s" x="440" y="75" text-anchor="middle">hours · cycles · usage pause</text>
+<rect class="box out" x="620" y="30" width="220" height="62" rx="8"/>
+<text class="t" x="730" y="58" text-anchor="middle">claude (resident)</text>
+<text class="s" x="730" y="75" text-anchor="middle">its own folder and history</text>
+<path class="a" d="M260 61 L328 61"/>
+<path class="ah" d="M328.0 61.0 L319.0 56.5 L319.0 65.5 Z"/>
+<path class="ah" d="M260.0 61.0 L269.0 65.5 L269.0 56.5 Z"/>
+<path class="a" d="M550 61 L618 61"/>
+<path class="ah" d="M618.0 61.0 L609.0 56.5 L609.0 65.5 Z"/>
+<text class="l" x="584" y="53" text-anchor="middle">starts</text>
+<path class="a" d="M730 92 L730 150"/>
+<path class="ah" d="M730.0 150.0 L734.5 141.0 L725.5 141.0 Z"/>
+<text class="l" x="738" y="126" text-anchor="start">token-scoped</text>
+<rect class="box main" x="620" y="150" width="220" height="62" rx="8"/>
+<text class="t" x="730" y="178" text-anchor="middle">Apiary MCP server</text>
+<text class="s" x="730" y="195" text-anchor="middle">127.0.0.1 · one token each</text>
+<path class="a" d="M660 92 L500 150"/>
+<path class="ah" d="M500.0 150.0 L510.0 151.2 L506.9 142.7 Z"/>
+<text class="l" x="540" y="116" text-anchor="end">its own tools</text>
+<rect class="box out" x="330" y="150" width="220" height="62" rx="8"/>
+<text class="t" x="440" y="178" text-anchor="middle">GitLab, the web…</text>
+<text class="s" x="440" y="195" text-anchor="middle">through glab and the rest</text>
+<path class="a" d="M730 212 L730 270"/>
+<path class="ah" d="M730.0 270.0 L734.5 261.0 L725.5 261.0 Z"/>
+<text class="l" x="738" y="246" text-anchor="start">only its kind’s tools</text>
+<rect class="box main" x="620" y="270" width="220" height="74" rx="8"/>
+<text class="t" x="730" y="296" text-anchor="middle">Apiary tools</text>
+<text class="s" x="730" y="313" text-anchor="middle">find and read sessions · open a tab</text>
+<text class="s" x="730" y="330" text-anchor="middle">notes · approve an MR</text>
+<path class="a" d="M730 344 L730 400"/>
+<path class="ah" d="M730.0 400.0 L734.5 391.0 L725.5 391.0 Z"/>
+<path class="a" d="M650 344 L480 400"/>
+<path class="ah" d="M480.0 400.0 L490.0 401.5 L487.1 392.9 Z"/>
+<rect class="box main" x="330" y="400" width="220" height="62" rx="8"/>
+<text class="t" x="440" y="428" text-anchor="middle">Search index + refs</text>
+<text class="s" x="440" y="445" text-anchor="middle">!1234 · #56 · ticket keys</text>
+<rect class="box main" x="620" y="400" width="220" height="62" rx="8"/>
+<text class="t" x="730" y="428" text-anchor="middle">Topic digests</text>
+<text class="s" x="730" y="445" text-anchor="middle">knowledge.db</text>
+<path class="box" d="M40 407 A110 7 0 0 1 260 407 V455 A110 7 0 0 1 40 455 Z"/>
+<path class="box" style="fill:none" d="M40 407 A110 7 0 0 0 260 407"/>
+<text class="t" x="150" y="430.5" text-anchor="middle">Session .jsonl files</text>
+<text class="s" x="150" y="447.5" text-anchor="middle">every transcript</text>
+<path class="a" d="M260 431 L328 431"/>
+<path class="ah" d="M328.0 431.0 L319.0 426.5 L319.0 435.5 Z"/>
+<text class="l" x="294" y="423" text-anchor="middle">indexed</text>
+<path class="a" d="M150 462 L150 494 L730 494 L730 464"/>
+<path class="ah" d="M730.0 464.0 L725.5 473.0 L734.5 473.0 Z"/>
+<text class="l" x="440" y="516" text-anchor="middle">summarised during its hours by a cheap model, pausing when 5-hour usage runs high</text>
+<text class="l" x="40" y="250" text-anchor="start">A kind is data: its prompt, tools,</text>
+<text class="l" x="40" y="267" text-anchor="start">quick actions and cycle are one entry.</text>
+<text class="l" x="40" y="284" text-anchor="start">No tool takes a file path.</text>
+</svg>

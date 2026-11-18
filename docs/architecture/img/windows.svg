@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 360" width="880" height="360" role="img" aria-label="Main owns every terminal and chat; windows only show them">
+<title>Main owns every terminal and chat; windows only show them</title>
+<style>
+  .bg { fill: #ffffff; }
+  .t { fill: #1f2328; font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .s { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .g { fill: #59636e; font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; letter-spacing: .02em; }
+  .l { fill: #59636e; font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .box { fill: #ffffff; stroke: #d0d7de; stroke-width: 1; }
+  .ui { fill: #ddf4ff; stroke: #54aeff; }
+  .main { fill: #fff8c5; stroke: #d4a72c; }
+  .work { fill: #dafbe1; stroke: #4ac26b; }
+  .out { fill: #f6f8fa; stroke: #d0d7de; }
+  .grp { stroke-width: 1; }
+  .sub { fill: #ffffff; fill-opacity: .55; stroke-dasharray: 4 3; }
+  .a { stroke: #6e7781; stroke-width: 1.5; fill: none; }
+  .d { stroke-dasharray: 5 4; }
+  .ah { fill: #6e7781; }
+  .life { stroke: #d0d7de; stroke-width: 1; stroke-dasharray: 4 4; }
+  .note { fill: #fff8c5; stroke: #d4a72c; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #0d1117; }
+    .t { fill: #e6edf3; }
+    .s, .g, .l { fill: #9198a1; }
+    .box { fill: #161b22; stroke: #3d444d; }
+    .ui { fill: #0c2d6b; fill-opacity: .55; stroke: #1f6feb; }
+    .main { fill: #3b2e00; fill-opacity: .7; stroke: #9e6a03; }
+    .work { fill: #033a16; fill-opacity: .7; stroke: #238636; }
+    .out { fill: #161b22; stroke: #3d444d; }
+    .sub { fill: #0d1117; fill-opacity: .45; }
+    .a { stroke: #8b949e; }
+    .ah { fill: #8b949e; }
+    .life { stroke: #3d444d; }
+    .note { fill: #3b2e00; stroke: #9e6a03; }
+  }
+</style>
+<rect class="bg" x="0" y="0" width="880" height="360" rx="12"/>
+<rect class="grp main" x="20" y="20" width="840" height="112" rx="12"/>
+<text class="g" x="34" y="40">MAIN PROCESS · OWNS EVERY TERMINAL AND CHAT</text>
+<rect class="box" x="40" y="50" width="300" height="62" rx="8"/>
+<text class="t" x="190" y="78" text-anchor="middle">Terminal · session A</text>
+<text class="s" x="190" y="95" text-anchor="middle">pty + headless screen</text>
+<rect class="box" x="360" y="50" width="240" height="62" rx="8"/>
+<text class="t" x="480" y="78" text-anchor="middle">Layout store</text>
+<text class="s" x="480" y="95" text-anchor="middle">session-layout.json</text>
+<rect class="box" x="620" y="50" width="220" height="62" rx="8"/>
+<text class="t" x="730" y="78" text-anchor="middle">Chat · session B</text>
+<text class="s" x="730" y="95" text-anchor="middle">claude, streamed JSON</text>
+<rect class="grp ui" x="20" y="196" width="840" height="96" rx="12"/>
+<path class="a" d="M150 132 L150 212"/>
+<path class="ah" d="M150.0 212.0 L154.5 203.0 L145.5 203.0 Z"/>
+<text class="l" x="158" y="170" text-anchor="start">live output</text>
+<path class="a" d="M300 132 L440 212"/>
+<path class="ah" d="M440.0 212.0 L434.4 203.6 L430.0 211.4 Z"/>
+<text class="l" x="392" y="170" text-anchor="start">a snapshot first, then live output</text>
+<path class="a" d="M730 132 L730 212"/>
+<path class="ah" d="M730.0 212.0 L734.5 203.0 L725.5 203.0 Z"/>
+<text class="l" x="738" y="170" text-anchor="start">chat state</text>
+<rect class="box" x="40" y="212" width="220" height="64" rx="8"/>
+<text class="t" x="150" y="241" text-anchor="middle">Window 1</text>
+<text class="s" x="150" y="258" text-anchor="middle">tab A</text>
+<rect class="box" x="330" y="212" width="220" height="64" rx="8"/>
+<text class="t" x="440" y="241" text-anchor="middle">Window 2</text>
+<text class="s" x="440" y="258" text-anchor="middle">tab A, opened later</text>
+<rect class="box" x="620" y="212" width="220" height="64" rx="8"/>
+<text class="t" x="730" y="241" text-anchor="middle">Detached window</text>
+<text class="s" x="730" y="258" text-anchor="middle">tab B, dragged out of window 1</text>
+<path class="a d" d="M150 292 L150 312 L730 312 L730 294"/>
+<path class="ah" d="M730.0 294.0 L725.5 303.0 L734.5 303.0 Z"/>
+<text class="l" x="440" y="334" text-anchor="middle">drag a tab to another window: main moves it, and its process keeps running</text>
+<text class="l" x="440" y="352" text-anchor="middle">every window reports its panes and tabs to the layout store, and a restart brings them back</text>
+</svg>

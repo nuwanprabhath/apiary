@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.73.2] - 2026-11-18
+
+### Changed
+
+- The README's architecture diagrams are drawn SVG images (`docs/architecture/img/`) instead of
+  Mermaid, which GitHub laid out with wrapped labels and large empty panels. Each one follows the
+  reader's light or dark theme and keeps the same colours throughout: blue for the renderer, amber
+  for the main process, grey for what Apiary does not own.
+
 ## [1.73.1] - 2026-11-18
 
 ### Changed
