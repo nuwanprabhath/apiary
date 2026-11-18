@@ -35,6 +35,15 @@ the whole state machine with a stub and a fake clock. That matters more here tha
 real path cannot be exercised without publishing a release, so whatever is not tested there is not
 tested at all. `APIARY_FAKE_UPDATE` / `APIARY_FAKE_UPDATE_MODE` do the same job for the E2E suite.
 
+## Install always takes the newest release
+
+The scheduled check can be hours old, and on a day with several releases it is out of date. So
+before any fetch (`download`, `prepareInstall`, the `auto` staged download) the service asks the feed
+again (`moveToNewest`): a newer release moves the offer (`availableVersion`) and an installer already
+downloaded for the older one is dropped, so the person installs once, whatever is latest. A failed
+look goes on with the offered version. `installAndRestart` does not look again: its password prompt
+is for the file just verified.
+
 ## Install and restart (the assisted path can install)
 
 On an `assisted` installation the banner's primary button is Install and restart:
