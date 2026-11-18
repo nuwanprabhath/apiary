@@ -22,10 +22,11 @@ import { type Guard, str, num, bool, any, obj, opaque, record, anyStr, opt, null
 import { isTerminalRef, type PtyId, type SessionId, type TerminalRef } from '../domain/ids'
 import { isTabTransfer, isWindowLayoutReport, type TabTransfer, type ReportedTab, type WindowLayoutReport, type ActiveTabPayload } from '../domain/tabs'
 import { isEditCommand, type ContextMenuRequest, type EditCommand } from '../domain/contextMenu'
-import type {
-  CheckoutOutcome, FolderWorktree, GitStatus, GitRefs, MrState, WorktreeCreateOptions, WorktreeCreateRequest,
+import {
+  isGitTarget, isWorktreeCreateRequest, type GitTarget, type CheckoutOutcome, type FolderWorktree, type GitStatus,
+  type GitRefs, type MrState, type WorktreeCreateOptions, type WorktreeCreateRequest,
 } from '../domain/git'
-import { isGitTarget, isWorktreeCreateRequest, type GitTarget } from '../domain/git'
+import type { RepoWebLocation } from '../mentions/repoWebLocation'
 import type {
   ProjectNode, DiscoveredSession, ResumeConflict, NewSessionInfo, TreeChange,
 } from '../domain/session'
@@ -301,9 +302,8 @@ export const IPC = {
   // Git.
   gitStatus: invoke<[terminal: TerminalRef], GitStatus | null>('apiary:git-status', tuple(terminalRefArg)),
   gitListRefs: invoke<[target: GitTarget], GitRefs>('apiary:git-list-refs', tuple(gitTargetArg)),
-  gitlabMrRefStatus: invoke<[terminal: TerminalRef, iids: number[]], Record<number, MrState | null>>(
-    'apiary:gitlab-mr-ref-status', tuple(terminalRefArg, arr(num)),
-  ),
+  gitlabMrRefStatus: invoke<[terminal: TerminalRef, iids: number[]], Record<number, MrState | null>>('apiary:gitlab-mr-ref-status', tuple(terminalRefArg, arr(num))),
+  repoWebLocation: invoke<[terminal: TerminalRef], RepoWebLocation | null>('apiary:repo-web-location', tuple(terminalRefArg)),
   gitCheckoutBranch: invoke<[target: GitTarget, name: string], CheckoutOutcome>(
     'apiary:git-checkout-branch', tuple(gitTargetArg, str),
   ),

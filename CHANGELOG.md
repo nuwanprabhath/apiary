@@ -4,6 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.73.0] - 2026-11-18
+
+### Added
+
+- Issue and merge-request references in a message are links: `#3202` and `!1713` in a session whose
+  `origin` is on GitLab open that project's issue and merge request, `#42` on GitHub opens the issue
+  or pull request, and `group/project!12` or `owner/repo#7` open another project on the same host.
+  Apiary reads the repository from the remote, so no prompt asks the model for anything. Code,
+  links, headings (`#install`) and colours are left alone. The MR Desk popup links them against its
+  configured project. File mentions now come from the same registry of mention kinds
+  (`src/shared/mentions/`), which a future user-defined kind (a Jira key) can join.
+
 ## [1.72.2] - 2026-11-18
 
 ### Fixed

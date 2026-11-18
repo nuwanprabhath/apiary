@@ -10,6 +10,7 @@ import type {
   UpdateStatusPayload,
 } from '@shared/api'
 import type { GitTarget } from '@shared/domain/git'
+import type { RepoWebLocation } from '@shared/mentions/repoWebLocation'
 import type { RemoteClientInfo, RemoteHost, RemoteServerState, RemoteStatus } from '@shared/domain/remote'
 import type { ChatState, TerminalBusy } from '@shared/domain/chat'
 import type { BackgroundTaskModel, BackgroundTaskOutput } from '@shared/chatTimeline'
@@ -46,6 +47,8 @@ export interface FakeProject {
   parent?: string
   /** Not a git repository: every git call on it fails or answers nothing, as in main. */
   notRepo?: boolean
+  /** The repository's page on GitHub or GitLab, as main would read it from `origin`; none by default. */
+  webLocation?: RepoWebLocation
   /** Bookkeeping of the fake itself: it started with a branch to show, so the tree keeps showing one. */
   tracked?: boolean
   /** Bookkeeping of the fake itself: a ref is checked out rather than a branch. */

@@ -11,6 +11,8 @@ vi.mock('../../src/main/git/branchOps', async (original) => ({
 }))
 vi.mock('../../src/main/plugins/remote', () => ({
   resolveRemote: vi.fn(async () => null),
+  originUrl: vi.fn(async () => null),
+  defaultExec: vi.fn(async () => ''),
 }))
 
 import { isWorktreeConflict, type BranchOps } from '../../src/main/git/branchOps'

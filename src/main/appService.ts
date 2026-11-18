@@ -15,6 +15,7 @@ import type { PluginService } from './plugins/pluginService'
 import type { PromptPathOptions } from './pty/promptPath'
 import type { MrState } from './git/mrStatusCache'
 import type { AccountId, PtyId, SessionId, TerminalRef } from '@shared/domain/ids'
+import type { RepoWebLocation } from '@shared/mentions/repoWebLocation'
 import type {
   ProjectNode, ResumeConflict, TranscriptPage, NewSessionInfo, CheckoutOutcome, GitStatus, GitRefs, FolderWorktree,
 } from '@shared/types'
@@ -305,6 +306,10 @@ export class AppService {
 
   async gitListRefs(target: GitTarget): Promise<GitRefs> {
     return this.git.listRefs(target)
+  }
+
+  async repoWebLocation(terminal: TerminalRef): Promise<RepoWebLocation | null> {
+    return this.git.repoWebLocation(terminal)
   }
 
   async gitlabMrRefStatus(

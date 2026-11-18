@@ -35,6 +35,12 @@ export function defineGitClauses(ctx: Ctx): void {
     it('resolves no merge request for a repository with no GitLab remote', async () => {
       expect(await ctx.api.gitlabMrRefStatus(REPO, [12, 34])).toEqual({ 12: null, 34: null })
     })
+
+    it('knows no web page for a repository whose origin is a local folder, nor for a folder that is no repository', async () => {
+      expect(await ctx.api.repoWebLocation(REPO)).toBeNull()
+      expect(await ctx.api.repoWebLocation(PLAIN)).toBeNull()
+      await expect(ctx.api.repoWebLocation({ kind: 'session', id: 7 } as never)).rejects.toThrow()
+    })
   })
 
   describe('git: changing branch', () => {
