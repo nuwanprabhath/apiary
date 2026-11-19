@@ -9,6 +9,7 @@ loaded; these and the nested `CLAUDE.md` files below load only when relevant.
 | Multi-window ownership, relaunch persistence, tab registry | [windows-and-tabs.md](windows-and-tabs.md) |
 | Activity status (running/waiting/idle/stopped) classification | [activity.md](activity.md) |
 | Which Claude session a terminal is on | [session-following.md](session-following.md) |
+| Slack desk: a message in the channel to Regent, the sessions it drives and back | [slack-desk.md](slack-desk.md) |
 | Chat mode: `ChatService`, protocol, per-window delivery, take-over, `/clear` | [chat.md](chat.md) |
 | Slack connection: setup, polling, one channel per machine | [../slack.md](../slack.md) |
 | The three trust-boundary rules, in full | [boundaries.md](boundaries.md) |
