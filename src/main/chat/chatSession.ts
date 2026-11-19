@@ -29,7 +29,7 @@ const SETTLED_BY_STOP = { type: 'result', subtype: 'error_during_execution', is_
 /** What a chat was started with, kept so it can be started again under another account. */
 export interface ChatLaunch {
   cwd: string
-  opts: { model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort }
+  opts: { model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort; fresh?: true }
   account: AccountId
 }
 

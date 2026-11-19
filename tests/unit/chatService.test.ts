@@ -9,7 +9,7 @@ import { ChatManager } from '../../src/main/chat/chatManager'
 import { ChatService, type ChatServiceDeps } from '../../src/main/chat/chatService'
 import { WindowAttachments, type SendTarget } from '../../src/main/windows/windowAttachments'
 import type { ChatLifecycle, ChatPush, ChatState } from '@shared/domain/chat'
-import { asPtyId, asSessionId } from '@shared/domain/ids'
+import { asAccountId, asPtyId, asSessionId } from '@shared/domain/ids'
 import { stubAccounts, WORK } from '../fixtures/launchAccounts'
 import type { ClaudeOneShot, OneShotRequest } from '../../src/main/claude/claudeOneShot'
 
@@ -17,11 +17,13 @@ const A = asSessionId('11111111-1111-4111-8111-111111111111')
 const B = asSessionId('22222222-2222-4222-8222-222222222222')
 
 /** A `claude` that starts and stays up until the test ends it with `exit()`. */
-function liveChild(): { spawn: (file: string, args: string[], options: { env?: NodeJS.ProcessEnv }) => never; exit: (code?: number) => void; envs: NodeJS.ProcessEnv[] } {
+function liveChild(): { spawn: (file: string, args: string[], options: { env?: NodeJS.ProcessEnv }) => never; exit: (code?: number) => void; envs: NodeJS.ProcessEnv[]; argv: string[][] } {
   const emitters: EventEmitter[] = []
   const envs: NodeJS.ProcessEnv[] = []
-  const spawn = (_file: string, _args: string[], options: { env?: NodeJS.ProcessEnv }): never => {
+  const argv: string[][] = []
+  const spawn = (_file: string, args: string[], options: { env?: NodeJS.ProcessEnv }): never => {
     envs.push(options.env ?? {})
+    argv.push(args)
     const child = Object.assign(new EventEmitter(), {
       stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
       pid: 4242, kill: vi.fn(() => true),
@@ -29,7 +31,7 @@ function liveChild(): { spawn: (file: string, args: string[], options: { env?: N
     emitters.push(child)
     return child as never
   }
-  return { spawn, envs, exit: (code = 0) => { for (const c of emitters) c.emit('exit', code, null) } }
+  return { spawn, envs, argv, exit: (code = 0) => { for (const c of emitters) c.emit('exit', code, null) } }
 }
 
 interface Window extends SendTarget { got: { channel: string; push: ChatPush; state: Partial<ChatState> & Pick<ChatState, 'sessionId'> }[] }
@@ -64,7 +66,11 @@ function setup(overrides: Partial<ChatServiceDeps> = {}) {
   }
   const sessionAccountsChanged = vi.fn()
   const store = { getSession: vi.fn(() => null), setImported: vi.fn() }
-  const resolver = { requireSession: vi.fn(() => ({ cwd: dir, filePath: join(dir, 'x.jsonl') })) }
+  const resolver = {
+    requireSession: vi.fn(() => ({ cwd: dir, filePath: join(dir, 'x.jsonl') })),
+    requireFolder: vi.fn((path: string) => { if (path !== dir) throw new Error(`Unknown project: ${path}`); return path }),
+    isKnownWorktree: vi.fn(() => false),
+  }
   const resume = vi.fn(async () => {})
   const respawn = vi.fn(async () => {})
   const checkConflict = vi.fn(async () => null)
@@ -520,5 +526,40 @@ describe('ChatService side questions (/btw)', () => {
     await expect(service.askAside(A, 'x'.repeat(4001))).rejects.toThrow(/at most/)
     expect(run).not.toHaveBeenCalled()
     await expect(service.askAside(A, 'q')).rejects.toThrow(/did not answer/)
+  })
+})
+
+describe('ChatService.startNew and onState', () => {
+  it('startNew refuses a folder main does not know', async () => {
+    const { service, child } = setup()
+    await expect(service.startNew('/not/a/project')).rejects.toThrow('Unknown project')
+    expect(child.argv).toEqual([])
+  })
+
+  it('startNew starts under the default account with --session-id, and a restart resumes it', async () => {
+    const { service, child } = setup({ accounts: stubAccounts(WORK) })
+    const state = await service.startNew(dir)
+    expect(child.argv[0]?.join(' ')).toContain(`--session-id ${state.sessionId}`)
+    expect(child.envs[0]).toMatchObject({ CLAUDE_CONFIG_DIR: '/accounts/work' })
+    const switching = service.switchAccount(state.sessionId, asAccountId('other'))
+    await new Promise<void>((resolve) => { setImmediate(resolve) })
+    child.exit(143)
+    await switching
+    expect(child.argv[1]?.join(' ')).toContain(`--resume ${state.sessionId}`)
+    expect(child.argv[1]?.join(' ')).not.toContain('--session-id')
+  })
+
+  it('onState hears every state onChanged pushes', async () => {
+    const { service, chats } = setup()
+    const heard: ChatState[] = []
+    const off = service.onState((s) => { heard.push(s) })
+    await service.start(A, { takeOver: false })
+    const before = heard.length
+    expect(before).toBeGreaterThan(0)
+    service.onChanged({ ...must(chats.state(A)), status: 'busy' })
+    expect(heard).toHaveLength(before + 1)
+    off()
+    service.onChanged({ ...must(chats.state(A)), status: 'idle' })
+    expect(heard).toHaveLength(before + 1)
   })
 })

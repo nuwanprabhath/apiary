@@ -4,6 +4,17 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.78.0] - 2026-11-19
+
+### Added
+
+- Apiary's main process can now drive sessions for something that is not at the keyboard (Regent,
+  in a later release): send a message to a session, start a new session in a folder or a new
+  worktree with a first message, interrupt it, answer its permission requests, and hear when a
+  watched session's turn ends, asks permission or stops. A session open in a terminal is taken
+  over as a chat once its current turn ends. Nothing in the app shows this yet.
+- A chat can start a brand-new session (`claude --session-id`), not only resume one.
+
 ## [1.76.1] - 2026-11-19
 
 ### Fixed

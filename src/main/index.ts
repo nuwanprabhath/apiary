@@ -118,8 +118,7 @@ let disposeRemote: (() => Promise<void>) | null = null
 /** Stops every resident's claude and the MCP server. */
 let disposeResidents: (() => Promise<void>) | null = null
 /** Stops the scheduled-message timer and removes `apiary.pid`, so the OS jobs send from then on. */
-let disposeSchedules: (() => void) | null = null
-/** Quits a background-started app with no window and remote access off; set once remote access starts. */
+let disposeSchedules: (() => void) | null = null/** Quits a background-started app with no window and remote access off; set once remote access starts. */
 let quitIfIdleBackground: () => void = () => {}
 
 /** Runs the remote-access server while "Allow remote access over SSH" is on, following the setting. Returns the disposer for quit. */
@@ -416,6 +415,7 @@ function startSchedules(container: Container): () => void {
   return () => {
     powerMonitor.off('resume', onResume)
     service.dispose()
+    container.driving.dispose()
     jobs.uninstall()
   }
 }

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { IPC } from '@shared/api'
 import type { McpAnswer, McpRequest } from '@shared/domain/mcp'
@@ -109,6 +110,8 @@ export class ChatService {
    */
   private readonly owedWhole = new Map<number, Set<string>>()
 
+  private readonly stateListeners = new Set<(state: ChatState) => void>()
+
   constructor(private readonly deps: ChatServiceDeps) {}
 
   /** The state last pushed to windows, not a newer one still coalescing: a window that fetches
@@ -143,6 +146,31 @@ export class ChatService {
     }
     const permissionMode = opts.permissionMode ?? chatStartMode(configRoot, cwd)
     return chats.start(sessionId, cwd, { model: opts.model, permissionMode, effort: opts.effort })
+  }
+
+  /**
+   * A brand-new session in `folder` (a project, or a worktree main listed), started as a chat under
+   * the default account. Its file exists once claude has written its first message; a restart of
+   * the chat resumes it.
+   */
+  async startNew(
+    folder: string,
+    opts: { model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort } = {},
+  ): Promise<ChatState> {
+    const { chats, resolver, accounts, configRoot } = this.deps
+    const cwd = resolver.isKnownWorktree(folder) ? folder : resolver.requireFolder(folder)
+    if (!existsSync(cwd)) throw new Error(`The folder no longer exists: ${cwd}`)
+    const sessionId = asSessionId(randomUUID())
+    const account = accounts.defaultId()
+    accounts.setAccountOf(sessionId, account)
+    const permissionMode = opts.permissionMode ?? chatStartMode(configRoot, cwd)
+    return chats.start(sessionId, cwd, { model: opts.model, permissionMode, effort: opts.effort, fresh: true }, account)
+  }
+
+  /** Hears every state `onChanged` is given (observation only); returns how to stop. */
+  onState(listener: (state: ChatState) => void): () => void {
+    this.stateListeners.add(listener)
+    return () => { this.stateListeners.delete(listener) }
   }
 
   send(sessionId: SessionId, text: string): void { this.deps.chats.send(sessionId, text) }
@@ -318,6 +346,7 @@ export class ChatService {
     if (state.status === 'exited') this.pushed.delete(state.sessionId)
     else this.pushed.set(state.sessionId, state)
     this.observe(state)
+    for (const listener of [...this.stateListeners]) listener(state)
     if (state.status === 'exited') this.sweep()
   }
 

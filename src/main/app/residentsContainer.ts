@@ -21,6 +21,13 @@ import type { TabRegistry } from '../windows/tabRegistry'
 import type { ContainerPaths } from './containerPaths'
 import type { KnowledgeParts } from './knowledgeContainer'
 
+/** The window last in front (or the first, before any was focused): where "open this session" goes. */
+export function frontWindow(tabMover: { recentFirst(): readonly number[] }): WebContents | null {
+  const id = tabMover.recentFirst().find((n) => (webContents.fromId(n) ?? null) !== null)
+  if (id !== undefined) return webContents.fromId(id) ?? null
+  return BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())?.webContents ?? null
+}
+
 /** A tool check (`python3 --version`, `glab auth status`) that takes longer than this counts as missing. */
 const PROBE_TIMEOUT_MS = 15_000
 
@@ -59,11 +66,7 @@ export function createResidents(o: {
     warn: (message, fields) => { log.warn('residents', message, fields) },
   }, dataKinds)
   // The window last in front (or the first, before any was focused): where a resident's "open this session" goes.
-  const front = (): WebContents | null => {
-    const id = o.ipcState.tabMover.recentFirst().find((n) => (webContents.fromId(n) ?? null) !== null)
-    if (id !== undefined) return webContents.fromId(id) ?? null
-    return BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())?.webContents ?? null
-  }
+  const front = (): WebContents | null => frontWindow(o.ipcState.tabMover)
   // Residents run under the default account, so they see only its sessions.
   const scoped = scopeToAccount({
     session: (id) => {
