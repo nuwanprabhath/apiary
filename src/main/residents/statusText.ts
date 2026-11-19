@@ -11,6 +11,8 @@ export interface StatusReport {
   others: ResidentStatus[]
   now: Date
   background: string[]
+  /** Why it is kept awake off duty (`keepAwake`), one per hold. */
+  keptAwake: string[]
   /** What its claude was last started with, or null before the first start. */
   permissions: ResidentPermissions | null
 }
@@ -54,6 +56,7 @@ export function apiaryStatusText(r: StatusReport): string {
     `Duty: ${dutyStatusText(config.schedule, r.now)}. Schedule: ${days}, ${config.schedule.start}–${config.schedule.end}.`,
   ]
   lines.push(backgroundText(r.background), permissionsText(r.permissions))
+  if (r.keptAwake.length > 0) lines.push(`Kept awake: ${r.keptAwake.join(', ')}.`)
   if (self.digest !== null) {
     lines.push(`Digest: ${String(self.digest.done)}/${String(self.digest.total)} sessions this pass, looking back ${lookbackText(r.lookback)}.`)
   }

@@ -114,6 +114,16 @@ waiting permission retries a minute later; `setupNeeded` skips a whole cycle. Ea
   background tasks"; `apiary_status` lists them. `busy` stays a running turn only, so a cycle that
   comes due alongside background tasks still goes: claude takes a message then.
 
+## Driven from outside
+
+`ResidentService` offers what a bridge (Slack) needs, built in `residentDelegation.ts`
+(`ResidentOutside`): `sendFrom` (claude gets `text`, the history shows `shown` with `via`), `note`
+(history shows a `label` with `note: true`), `keepAwake` (holds stop the 20-minute off-duty idle stop;
+in memory; shown by `apiary_status`), `names`, `ask` and `check`. They are refused only when the resident
+is disabled or its `setup` reports something, never for duty, usage or a running turn.
+`onTurnEnded` carries a turn's `origin` (`user`, `slack`, `note`, `cycle`, or `own` for claude's own turn);
+`onPermissions` hears each change of the waiting requests.
+
 ## Attention and quick actions
 
 - `attention` is what a resident needs the user for: `set_attention`/`clear_attention` write it to

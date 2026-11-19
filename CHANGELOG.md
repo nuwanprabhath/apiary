@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.79.0] - 2026-11-19
+
+### Added
+
+- Residents can be driven from outside the popup, groundwork for talking to Regent from Slack. A
+  message from elsewhere wakes a resident that is off duty and is not held back by the usage pause;
+  Apiary can keep a resident awake while something needs it; and one resident can ask another, or
+  run its check, by name. Nothing in the app shows this yet.
+
 ## [1.76.1] - 2026-11-19
 
 ### Fixed

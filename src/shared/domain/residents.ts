@@ -164,6 +164,20 @@ export interface ResidentMessage {
   streaming: boolean
   /** A quick action the person chose (its label), drawn as a chip rather than a bubble. */
   action?: true
+  /** A user message that came from Slack rather than the popup. */
+  via?: 'slack'
+  /** A message main gave the resident itself (a session's turn ended), drawn like an `action` chip. */
+  note?: true
+}
+
+/** What started a resident's turn: the popup, Slack, a note main gave it, its cycle or a quick action, or claude itself (a background task ended). */
+export type ResidentTurnOrigin = 'user' | 'slack' | 'note' | 'cycle' | 'own'
+
+/** A finished turn of a resident, with its final assistant text ('' for none). */
+export interface ResidentTurn {
+  residentId: string
+  text: string
+  origin: ResidentTurnOrigin
 }
 
 /** A message added or updated (matched by `message.id`). */

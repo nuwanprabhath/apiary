@@ -3,7 +3,7 @@ import { UUID_RE } from '@shared/domain/ids'
 import { isRecord } from '@shared/guards'
 import { errorMessage } from '@shared/errors'
 import { ignoreErrorsAsync } from '@shared/ignoreErrors'
-import { NEW_UPDATE, type ResidentMessage, type ResidentPermissionRequest } from '@shared/domain/residents'
+import { NEW_UPDATE, type ResidentMessage, type ResidentPermissionRequest, type ResidentTurnOrigin } from '@shared/domain/residents'
 import type { ChatPermissionMode } from '@shared/domain/chat'
 import type { BackgroundTask } from '@shared/chatTimeline'
 import { spawnLoginShell, type LoginShellSpawn, type PipedLoginShell } from '../exec/spawnLoginShell'
@@ -40,6 +40,8 @@ export interface ResidentChatDeps {
   onMessage: (message: ResidentMessage) => void
   /** The turn started or ended, or what it is doing changed. */
   onActivity: () => void
+  /** A turn ended: what started it and its final assistant text ('' for none). */
+  onTurnEnded?: (origin: ResidentTurnOrigin, text: string) => void
   spawn?: LoginShellSpawn
 }
 
@@ -61,8 +63,17 @@ export function residentFlags(launch: ResidentLaunch, resume: string | null): st
   ]
 }
 
-function newTurn(ownStartAttentionWrites: number | null): Turn {
-  return { message: { id: randomUUID(), role: 'assistant', text: '', at: Date.now(), streaming: true }, streamed: false, ownStartAttentionWrites }
+function newTurn(ownStartAttentionWrites: number | null, origin: ResidentTurnOrigin): Turn {
+  return { message: { id: randomUUID(), role: 'assistant', text: '', at: Date.now(), streaming: true }, streamed: false, ownStartAttentionWrites, origin }
+}
+
+/** How a send differs from the person typing in the popup: what the history shows, and what started the turn. */
+export interface SendShape {
+  /** The history shows this instead of what claude is sent. */
+  shown?: string
+  via?: 'slack'
+  note?: true
+  origin?: ResidentTurnOrigin
 }
 
 /** How long claude waits on an Apiary tool call. A card (`askUser`) stays until the person answers it,
@@ -80,6 +91,8 @@ interface Turn {
   streamed: boolean
   /** Set for a turn claude started with nothing sent (a background task ended): the space's attention write count when it opened. */
   ownStartAttentionWrites: number | null
+  /** What started it; a message that joins the turn does not change it. */
+  origin: ResidentTurnOrigin
 }
 
 /**
@@ -163,7 +176,7 @@ export class ResidentChat {
    */
   userNamed(iid: number): boolean {
     const mention = new RegExp(`(?<![\\w.:-])!?${String(iid)}(?![\\w:-]|\\.\\d)`)
-    return this.messages.some((m) => m.role === 'user' && m.action !== true && mention.test(m.text))
+    return this.messages.some((m) => m.role === 'user' && m.action !== true && m.note !== true && mention.test(m.text))
   }
 
   /** Denies every question main asked: nobody is left to answer them. */
@@ -194,9 +207,12 @@ export class ResidentChat {
   async start(): Promise<void> { await this.ensureRunning() }
 
   /** `doing` is what the turn says until claude's first tool use or text (a quick action's words). */
-  async send(text: string, doing: string | null = null): Promise<void> {
-    this.add({ id: randomUUID(), role: 'user', text, at: Date.now(), streaming: false })
-    this.turn ??= newTurn(null)
+  async send(text: string, doing: string | null = null, shape: SendShape = {}): Promise<void> {
+    this.add({
+      id: randomUUID(), role: 'user', text: shape.shown ?? text, at: Date.now(), streaming: false,
+      ...(shape.via !== undefined ? { via: shape.via } : {}), ...(shape.note === true ? { note: true as const } : {}),
+    })
+    this.turn ??= newTurn(null, shape.origin ?? 'user')
     this.activityText = doing === null ? null : clipActivity(doing)
     this.deps.onActivity()
     try {
@@ -330,7 +346,7 @@ export class ResidentChat {
   /** Output with no turn open is a turn claude started on its own (a background task ended): it opens one, as `send` does. */
   private openOwnTurn(): void {
     if (this.turn !== null) return
-    this.turn = newTurn(this.deps.space.attentionWrites)
+    this.turn = newTurn(this.deps.space.attentionWrites, 'own')
     this.activityText = null
     this.deps.onActivity()
   }
@@ -417,5 +433,6 @@ export class ResidentChat {
       if (turn.ownStartAttentionWrites === this.deps.space.attentionWrites) this.deps.space.setAttention(NEW_UPDATE)
     }
     this.deps.onActivity()
+    this.deps.onTurnEnded?.(turn.origin, text)
   }
 }
