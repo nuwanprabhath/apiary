@@ -51,6 +51,11 @@ function commitsSince(commit) {
   return Number(git('rev-list', '--count', '--no-merges', `${commit}..HEAD`))
 }
 
+/** Why each skill in the ledger is due now (empty when none is). */
+export function dueNow(now = Date.now()) {
+  return reasonsNow(JSON.parse(readFileSync(LEDGER, 'utf8')), now)
+}
+
 function reasonsNow(ledger, now) {
   return Object.entries(ledger.skills).flatMap(([name, skill]) => {
     const why = dueReason(name, skill, commitsSince(skill.last.commit), (now - Date.parse(skill.last.date)) / DAY_MS)

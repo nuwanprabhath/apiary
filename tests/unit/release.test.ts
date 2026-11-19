@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { versionsToAnnotate, isTransientDownloadFailure, tagsWithoutRelease, missingAssets } from '../../scripts/release.mjs'
+import { versionsToAnnotate, isTransientDownloadFailure, tagsWithoutRelease, missingAssets, outstanding } from '../../scripts/release.mjs'
 
 const CHANGELOG = `# Changelog
 
@@ -34,5 +34,25 @@ describe('release script', () => {
     expect(tagsWithoutRelease(['v2', 'v1'], ['v1'])).toEqual(['v2'])
     expect(missingAssets(['a.dmg', 'a.zip', 'latest-mac.yml', 'a.AppImage', 'a.deb'])).toHaveLength(3)
     expect(missingAssets(['a.dmg', 'a.zip', 'latest-mac.yml', 'latest-mac.yml.sig', 'a.AppImage', 'a.deb', 'latest-linux.yml', 'latest-linux.yml.sig'])).toEqual([])
+  })
+})
+
+describe('what a release still has to fold in', () => {
+  it('lists every open issue and pull request, and the due quality skills', () => {
+    const lines = outstanding({
+      issues: [{ number: 46, title: 'Nightly e2e: failing or flaky tests' }, { number: 50, title: 'A bug report' }],
+      prs: [{ number: 51, title: 'chore(deps): bump vite' }],
+      due: ['correct: 42 commits since its last run (due every 40)'],
+    })
+    expect(lines).toEqual([
+      'issue #46 Nightly e2e: failing or flaky tests',
+      'issue #50 A bug report',
+      'pull request #51 chore(deps): bump vite',
+      'quality skill due: correct: 42 commits since its last run (due every 40)',
+    ])
+  })
+
+  it('is empty when nothing is open or due', () => {
+    expect(outstanding({ issues: [], prs: [], due: [] })).toEqual([])
   })
 })

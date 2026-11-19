@@ -2,11 +2,16 @@
 // One command for a release: checks, push main, wait for CI, tag, watch the release run, retry
 // transient download failures, check the published release. `--dry-run` prints the plan only.
 //
-//   node scripts/release.mjs [--dry-run] [--yes] [--allow-gap]
+//   node scripts/release.mjs [--check] [--dry-run] [--yes] [--allow-gap] [--allow-open]
+//
+// `--check` lists what the release still has to fold in (open issues and pull requests, due quality
+// skills) and fails while anything is listed; a release refuses in the same state unless
+// `--allow-open` says the maintainer chose to leave those open.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { ciVerdict } from './release-ci-gate.mjs'
+import { dueNow } from './quality-cadence.mjs'
 
 const EXPECTED_ASSETS = [/\.dmg$/, /\.zip$/, /^latest-mac\.yml$/, /\.AppImage$/, /\.deb$/, /^latest-linux\.yml$/, /^latest-mac\.yml\.sig$/, /^latest-linux\.yml\.sig$/]
 const MAX_RERUNS = 2
@@ -87,6 +92,25 @@ const PLAN = [
   'check the release is published with its eight assets',
 ]
 
+/**
+ * What a release still has to fold in: every open issue and pull request (a release fixes or answers
+ * them, Dependabot's included) and every quality skill that is due. One line each; empty when none.
+ * @param {{ issues: { number: number, title: string }[], prs: { number: number, title: string }[], due: string[] }} o
+ * @returns {string[]}
+ */
+export function outstanding(o) {
+  return [
+    ...o.issues.map((i) => `issue #${String(i.number)} ${i.title}`),
+    ...o.prs.map((p) => `pull request #${String(p.number)} ${p.title}`),
+    ...o.due.map((d) => `quality skill due: ${d}`),
+  ]
+}
+
+function outstandingNow() {
+  const list = (kind) => JSON.parse(gh(kind, 'list', '--state', 'open', '--limit', '50', '--json', 'number,title'))
+  return outstanding({ issues: list('issue'), prs: list('pr'), due: dueNow() })
+}
+
 async function confirm(question) {
   const rl = createInterface({ input: process.stdin, output: process.stdout })
   const answer = await rl.question(`${question} [y/N] `)
@@ -129,6 +153,12 @@ function watchRelease(tag) {
 
 async function main() {
   const flags = new Set(process.argv.slice(2))
+  if (flags.has('--check')) {
+    const open = outstandingNow()
+    if (open.length === 0) { console.log('release: nothing left to fold in.'); return }
+    console.log(`release: fold these in, or tell the maintainer why they stay open:\n${open.map((l) => `- ${l}`).join('\n')}`)
+    process.exit(1)
+  }
   if (flags.has('--dry-run')) {
     PLAN.forEach((text, i) => console.log(`${i + 1}. ${text}`))
     console.log('dry run: nothing performed.')
@@ -140,6 +170,8 @@ async function main() {
   const version = JSON.parse(readFileSync('package.json', 'utf8')).version
   const newest = changelogHeadings(readFileSync('CHANGELOG.md', 'utf8'))[0]?.version
   if (newest !== version) fail(`package.json is ${version} but the newest changelog heading is ${newest}`)
+  const open = outstandingNow()
+  if (open.length > 0 && !flags.has('--allow-open')) fail(`still to fold in: ${open.join('; ')}. Fix them, or pass --allow-open once the maintainer chose to leave them.`)
   const tag = `v${version}`
 
   step(2, PLAN[1])

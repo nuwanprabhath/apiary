@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.84.0] - 2026-11-19
+
+### Added
+
+- `npm run release -- --check` lists what a release still has to fold in (open issues and pull
+  requests, and quality skills that are due) and fails while anything is listed. `npm run release`
+  refuses in that state unless `--allow-open` records that the maintainer chose to leave them.
+
 ## [1.83.3] - 2026-11-19
 
 ### Changed
