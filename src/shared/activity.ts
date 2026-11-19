@@ -22,13 +22,24 @@ function tail(screen: string): string {
  * - `Do you want to proceed?` — the permission box's question line.
  * - `Enter to confirm · Esc to cancel` — the footer under any selection list, including the
  *   folder-trust prompt at startup, whose options are words rather than numbers.
- * - `❯ 1.` — the option cursor on a numbered choice.
+ * - `❯ 1.` — the option cursor on a numbered choice, counted only with the menu's own footer
+ *   (`OPTION_CURSOR`, `MENU_FOOTER`).
  *
  * These are contiguous strings only because the classifier is handed a *rendered screen*. In the
  * raw pty stream they are not: Claude positions each word with its own cursor-move escape, so
  * `Do you want to proceed?` never appears as those bytes in that order anywhere.
  */
-const PROMPT_PATTERN = /Do you want to proceed\?|Enter to confirm|❯\s*\d+\./
+const PROMPT_PATTERN = /Do you want to proceed\?|Enter to confirm/
+
+/**
+ * Claude Code shows each message you sent with `❯ ` before it, so a message that starts a numbered
+ * list reads `❯ 1. …`, the same as a choice's cursor. On a terminal no pane has resized (80×24) it
+ * sits in the lines read here, and the tab showed a question that was not there. Every choice
+ * Claude draws ends with `Esc to cancel` (the permission box, a question's picker; recorded in
+ * `tests/fixtures/activity/`), and a sent message never does.
+ */
+const OPTION_CURSOR = /❯\s*\d+\./
+const MENU_FOOTER = /Esc to cancel/
 
 /**
  * Claude actively working: the spinner line carries a live elapsed timer in parentheses
@@ -90,9 +101,10 @@ export function explainActivity(
     for (let at = lines.length - 1; at >= 0; at -= 1) if (pattern.test(lines[at] ?? '')) return lines.length - at
     return null
   }
-  const prompt = PROMPT_PATTERN.test(lines.join('\n'))
-  if (prompt) return { status: 'waiting', rule: 'prompt', line: fromBottom(PROMPT_PATTERN) }
-  if (WORKING_PATTERN.test(lines.join('\n'))) return { status: 'running', rule: 'spinner', line: fromBottom(WORKING_PATTERN) }
+  const text = lines.join('\n')
+  const prompt = PROMPT_PATTERN.test(text) || (OPTION_CURSOR.test(text) && MENU_FOOTER.test(text))
+  if (prompt) return { status: 'waiting', rule: 'prompt', line: fromBottom(PROMPT_PATTERN) ?? fromBottom(OPTION_CURSOR) }
+  if (WORKING_PATTERN.test(text)) return { status: 'running', rule: 'spinner', line: fromBottom(WORKING_PATTERN) }
   if (now - lastOutputAtMs <= RUNNING_WINDOW_MS) return { status: 'running', rule: 'output', line: null }
   return { status: 'idle', rule: 'quiet', line: null }
 }

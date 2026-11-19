@@ -92,7 +92,7 @@ describe('ActiveTabsService', () => {
     expect((await list()).map((t) => t.status)).toEqual(['stopped'])
   })
 
-  it('logs once why a terminal tab turned running, by rule and line, with none of the screen', async () => {
+  it('logs once why a terminal tab turned running or waiting, by rule and line, with none of the screen', async () => {
     const info = vi.spyOn(log, 'info').mockImplementation(() => {})
     const world: World = { tabs: [terminalTab('s1')], screen: 'a private reply\n· Forging… (2s · thinking)\n❯ ', lastOutputAt: NOW - 9000 }
     const { list } = activeTabs(world)
@@ -106,6 +106,12 @@ describe('ActiveTabsService', () => {
     world.lastOutputAt = NOW - 100
     await list()
     expect(info.mock.calls.filter(([scope]) => scope === 'activity').at(-1)?.[2]).toMatchObject({ rule: 'output', msSinceOutput: 100 })
+    // A question is logged the same way, so a tab showing one that is not there can be traced.
+    world.screen = 'Do you want to proceed?\n❯ 1. Yes\n  2. No\nEsc to cancel'
+    await list()
+    await list()
+    const waiting = info.mock.calls.filter(([scope, msg]) => scope === 'activity' && msg === 'terminal tab is waiting')
+    expect(waiting).toEqual([['activity', 'terminal tab is waiting', { ptyId: 's1', rule: 'prompt', line: 4, tasks: 0, msSinceOutput: 100 }]])
     info.mockRestore()
   })
 })

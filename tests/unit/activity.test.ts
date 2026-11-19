@@ -195,9 +195,33 @@ describe('explainActivity', () => {
   it('names the rule that decided, and where on the screen its text is, counted from the bottom', () => {
     const spinning = ['earlier reply', '· Forging… (2s · thinking)', '❯ ', 'footer'].join('\n')
     expect(explainActivity(spinning, 0, NOW, true)).toEqual({ status: 'running', rule: 'spinner', line: 3 })
-    expect(explainActivity('❯ 1. Yes\n  2. No', 0, NOW, true)).toEqual({ status: 'waiting', rule: 'prompt', line: 2 })
+    expect(explainActivity('❯ 1. Yes\n  2. No\nEsc to cancel', 0, NOW, true)).toEqual({ status: 'waiting', rule: 'prompt', line: 3 })
     expect(explainActivity('❯ ', NOW - 500, NOW, true)).toEqual({ status: 'running', rule: 'output', line: null })
     expect(explainActivity('❯ ', NOW - 5000, NOW, true)).toEqual({ status: 'idle', rule: 'quiet', line: null })
     expect(explainActivity('❯ ', NOW, NOW, false)).toEqual({ status: 'stopped', rule: 'gone', line: null })
+  })
+})
+
+describe('a message you sent that starts a numbered list', () => {
+  // Claude Code shows a sent message as "❯ <text>". On an 80×24 terminal that nobody has resized
+  // it is among the bottom lines, above the idle composer.
+  const IDLE_AFTER_LIST = [
+    '❯ 1. Felt today, I updated the app multiple times',
+    '  2. When model give me tickets and MRs make them links',
+    '',
+    '● Both are done.',
+    '',
+    RULE,
+    '❯ ',
+    RULE,
+    '  ⏸ manual mode on',
+  ].join('\n')
+
+  it('is idle, not waiting: only a choice with its own footer is a question', () => {
+    expect(explainActivity(IDLE_AFTER_LIST, 0, 50_000, true)).toEqual({ status: 'idle', rule: 'quiet', line: null })
+  })
+
+  it('is still waiting at a real numbered choice drawn below it', () => {
+    expect(classifyActivity(`${IDLE_AFTER_LIST}\n${PERMISSION_PROMPT}`, 0, 50_000, true)).toBe('waiting')
   })
 })

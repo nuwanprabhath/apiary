@@ -21,7 +21,7 @@ export interface ActiveTabsDeps {
  * on the screen, so an idle terminal asks its session file and an idle chat already knows.
  */
 export class ActiveTabsService {
-  /** Each terminal tab's last status, so the log says once why it turned running. Invalidated by
+  /** Each terminal tab's last status, so the log says once why it turned running or waiting. Invalidated by
    *  `list`: a tab no longer listed is dropped. */
   private readonly lastStatus = new Map<string, ActivityStatus>()
 
@@ -49,9 +49,9 @@ export class ActiveTabsService {
     const why = explainActivity(pty.screen(tab.ptyId), lastOutputAt, at, alive)
     const tasks = why.status === 'idle' ? await transcripts.runningBackgroundTasks(tab.key) : 0
     const status = withBackgroundTasks(why.status, tasks)
-    if (status === 'running' && this.lastStatus.get(tab.key) !== 'running') {
-      // Which rule said running, never what the screen says: the log carries no conversation.
-      log.info('activity', 'terminal tab is running', {
+    if ((status === 'running' || status === 'waiting') && this.lastStatus.get(tab.key) !== status) {
+      // Which rule said so, never what the screen says: the log carries no conversation.
+      log.info('activity', `terminal tab is ${status}`, {
         ptyId: tab.ptyId, rule: tasks > 0 ? 'background-tasks' : why.rule, line: why.line, tasks, msSinceOutput: at - lastOutputAt,
       })
     }

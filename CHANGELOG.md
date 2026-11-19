@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.73.5] - 2026-11-19
+
+### Fixed
+
+- A terminal tab no longer shows a question that is not there. Claude Code draws each message you
+  sent with `❯` before it, so a message that starts a numbered list (`❯ 1. …`) looked like the
+  cursor of a numbered choice, and on a terminal no pane had resized it sat in the lines the tab
+  reads. A numbered choice now counts only with its own `Esc to cancel` footer, which every choice
+  Claude draws has. The diagnostic log now says why a tab turned waiting as well as running.
+
 ## [1.73.4] - 2026-11-19
 
 ### Fixed
