@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.76.1] - 2026-11-19
+
+### Fixed
+
+- The UI audit waits for colour transitions to end, not only for the layout to stop moving. On the
+  nightly's slowed machine it read the remote dialog's Connect button halfway through its fade
+  from primary to plain and reported low contrast (1.93:1) that no one ever sees.
+
 ## [1.76.0] - 2026-11-19
 
 ### Added

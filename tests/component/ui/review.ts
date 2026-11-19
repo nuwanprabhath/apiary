@@ -101,6 +101,18 @@ async function settledLayout(): Promise<void> {
     still = now === last ? still + 1 : 0
     last = now
   }
+  await finiteAnimationsDone(deadline)
+}
+
+/**
+ * Waits for every transition and finite animation to end (an infinite one never does, and is left
+ * running). Boxes stop moving before colours do: a button turning from primary to plain fades for
+ * 0.1 s, and on the nightly's 60% CPU the audit read its contrast halfway (1.93:1, #45).
+ */
+async function finiteAnimationsDone(deadline: number): Promise<void> {
+  const finite = (a: Animation): boolean => a.playState === 'running'
+    && Number.isFinite(a.effect?.getComputedTiming().endTime ?? Infinity)
+  while (document.getAnimations().some(finite) && performance.now() < deadline) await nextFrames(1)
 }
 
 function themeSpec(theme: ReviewTheme): ThemeSpec | null {
