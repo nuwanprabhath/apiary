@@ -66,7 +66,7 @@ describe('messages from outside the popup', () => {
     vi_time(FRIDAY(12))
     const { service } = build([desk()], { kinds: { setup: () => 'Set the GitLab project' } })
     service.start()
-    expect(() => { service.sendFrom('desk', { text: 'a', shown: 'a', via: 'slack' }) }).toThrow('The MR desk is not set up: Set the GitLab project')
+    expect(() => { service.sendFrom('desk', { text: 'a', shown: 'a', via: 'slack' }) }).toThrow('MR desk is not set up: Set the GitLab project')
   })
 })
 

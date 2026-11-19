@@ -20,7 +20,7 @@ const TEXT_MAX = 8000
 function requireWorking(r: Resident): void {
   if (!r.config.enabled) throw new Error(`${r.config.name} is not enabled`)
   const missing = r.kind.setup(r.config)
-  if (missing !== null) throw new Error(`The ${r.config.name} is not set up: ${missing}`)
+  if (missing !== null) throw new Error(`${r.config.name} is not set up: ${missing}`)
 }
 
 /** The enabled resident `toName` names (ignoring case), never `from` itself; an unknown or ambiguous name throws and lists the names. */
