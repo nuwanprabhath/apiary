@@ -1,5 +1,6 @@
 import type { TranscriptMessage } from './domain/transcript'
 import { ASK_USER_QUESTION, summarizeQuestions } from './askQuestion'
+import { teammateMessage } from './teammateMessage'
 
 /**
  * The transcript as the chat view draws it. In the session file a tool call and its result are two
@@ -173,6 +174,9 @@ export function chatItems(messages: TranscriptMessage[]): ChatItem[] {
       const scheduled = m.blocks.find((b) => b.type === 'scheduled_prompt')
       if (scheduled !== undefined) { items.push({ kind: 'scheduled', key: m.uuid, text: scheduled.text }); continue }
       const text = m.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim()
+      // A chat's live copy of a peer message is plain text until the session file is read.
+      const teammate = teammateMessage(text)
+      if (teammate !== null) { items.push({ kind: 'peer', key: m.uuid, ...teammate, timestampMs: m.timestampMs }); continue }
       const images = m.blocks.flatMap((b) => (b.type === 'image' ? [b.dataUrl] : []))
       const made = synthetic(text)
       if (INTERRUPTED.test(text)) items.push({ kind: 'interrupted', key: m.uuid })

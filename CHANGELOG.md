@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.73.6] - 2026-11-19
+
+### Fixed
+
+- A message from another Claude session is folded again, under the sender's name, instead of
+  filling the chat as if you had typed it. Claude Code 2.1.328 writes it as plain text
+  (`Another Claude session sent a message:` and a `<teammate-message>` tag) rather than with the
+  `origin` field earlier builds used; both forms are read now, in the transcript and in a chat's
+  live copy, and only the sender's own words are shown.
+
 ## [1.73.5] - 2026-11-19
 
 ### Fixed

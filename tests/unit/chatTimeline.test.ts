@@ -214,6 +214,12 @@ describe('a peer message', () => {
     expect(items).toEqual([{ kind: 'peer', key: 'p1', from: 'general-purpose', text: 'Report', timestampMs: 5 }])
     expect(lastPrompt(items)).toBeNull()
   })
+
+  it('folds a chat\'s live copy, plain framed text, the same way', () => {
+    const text = 'Another Claude session sent a message:\n<teammate-message teammate_id="reviewer" summary="s">\nLooks good.\n</teammate-message>\n\nThis came from another Claude session.'
+    const live: TranscriptMessage = { uuid: 'p2', role: 'user', timestampMs: 6, isSidechain: false, blocks: [{ type: 'text', text }] }
+    expect(chatItems([live])).toEqual([{ kind: 'peer', key: 'p2', from: 'reviewer', text: 'Looks good.', timestampMs: 6 }])
+  })
 })
 
 describe('a scheduled prompt', () => {

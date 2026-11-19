@@ -8,6 +8,7 @@ import type { TranscriptFindResult } from '@shared/ipc/contract'
 import { forEachLine, MAX_LINE_CHARS, readExact } from './jsonlLines'
 import { loadedContext, scheduledPrompt } from './metaEntries'
 import { decodeEntry, entryOf, type ClaudeEntry, type MessageContent, type Origin } from './claudeEntry'
+import { teammateMessage } from '@shared/teammateMessage'
 
 /** A line longer than this is skipped by its length alone (4 bytes covers any character in `MAX_LINE_CHARS`). */
 const SKIP_LINE_BYTES = MAX_LINE_CHARS * 4
@@ -181,10 +182,14 @@ function withoutHandbackFrame(body: string): string {
 /**
  * Another Claude session's message (a subagent reporting back), which Claude Code writes as a
  * `user` entry with `origin: { kind: 'peer', name, body }` (measured on 2.1.302). `body` is the
- * sender's own words, without the framing around them in the entry's text.
+ * sender's own words, without the framing around them in the entry's text. 2.1.328 writes no
+ * origin, only the framed text, which `teammateMessage` reads.
  */
 function peerMessage(origin: Origin | undefined, blocks: TranscriptBlock[]): TranscriptBlock | null {
-  if (origin?.kind !== 'peer') return null
+  if (origin?.kind !== 'peer') {
+    const teammate = teammateMessage(blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n'))
+    return teammate === null ? null : { type: 'peer_message', ...teammate }
+  }
   const body = origin.body !== undefined && origin.body.trim() !== '' ? withoutHandbackFrame(origin.body) : null
   const text = body ?? blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n')
   return { type: 'peer_message', from: origin.name !== undefined && origin.name !== '' ? origin.name : null, text }
