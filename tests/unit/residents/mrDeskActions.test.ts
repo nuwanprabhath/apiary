@@ -101,7 +101,7 @@ describe('apiary_status says what the claude was started with', () => {
       id: config.id, kind: kind.id, name: 'Desk', enabled: true, state: 'idle' as const, activity: null, onDuty: true, appearance: kind.appearance,
       digest: null, attention: null, pending: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
     }
-    const report = { self, config, lookback: null, index: null, others: [], now: new Date(0), background: [] }
+    const report = { self, config, lookback: null, index: null, others: [], now: new Date(0), background: [], keptAwake: [] }
     expect(apiaryStatusText({ ...report, permissions: null })).toContain('Permissions: your claude has not been started yet.')
     const text = apiaryStatusText({ ...report, permissions: { mode: 'auto', allowedTools: ['mcp__apiary__*'], disallowedTools: ['Bash(git push:*)'], settingsLoadedAt: '2026-11-11T00:00:00.000Z' } })
     expect(text).toContain('Permissions (as your claude was started at 2026-11-11T00:00:00.000Z): mode auto; allowed: mcp__apiary__*; disallowed: Bash(git push:*).')

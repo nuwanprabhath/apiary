@@ -13,6 +13,7 @@ const NOTES_MAX = 500
 const isMessage = (v: unknown): v is ResidentMessage =>
   isRecord(v) && typeof v.id === 'string' && (v.role === 'user' || v.role === 'assistant')
   && typeof v.text === 'string' && typeof v.at === 'number'
+  && (v.via === undefined || v.via === 'slack') && (v.note === undefined || v.note === true)
 
 interface History { messages: ResidentMessage[] }
 interface ChatState { claudeSessionId: string | null; attention: ResidentAttention | null }

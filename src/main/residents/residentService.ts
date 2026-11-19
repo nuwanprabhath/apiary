@@ -1,5 +1,5 @@
 import type {
-  ResidentConfig, ResidentKindId, ResidentKindInfo, ResidentMessage, ResidentMessagePush, ResidentStatus, SessionHit,
+  ResidentConfig, ResidentKindId, ResidentKindInfo, ResidentMessage, ResidentMessagePush, ResidentPermissionRequest, ResidentStatus, ResidentTurn, ResidentTurnOrigin, SessionHit,
 } from '@shared/domain/residents'
 import { CYCLE_ACTION_ID } from '@shared/domain/residents'
 import { errorMessage } from '@shared/errors'
@@ -17,6 +17,8 @@ import { McpServer } from './mcp/server'
 import type { ResidentControl, ToolDeps } from './mcp/toolKit'
 import { cycleSkip, expandArgv } from './quickActions'
 import { ResidentChat } from './residentChat'
+import { ResidentOutside, type ResidentName } from './residentDelegation'
+import { Listeners } from './residentListeners'
 import { ResidentSpace } from './residentSpace'
 import { apiaryStatusText } from './statusText'
 import { residentLaunch } from './residentLaunch'
@@ -104,6 +106,14 @@ export class ResidentService {
   /** Orders actions and turns, so the most recently started one's words win. */
   private seq = 0
   private readonly offs: (() => void)[] = []
+  private readonly outside = new ResidentOutside({
+    require: (id) => this.require(id), all: () => [...this.residents.values()], nextSeq: () => ++this.seq,
+    stateOf: (r) => this.statusOf(r, this.now()).state, now: () => this.now().getTime(),
+    reconcile: () => { this.reconcile() }, statusChanged: () => { this.statusChanged() },
+    cycle: (r, origin) => { const c = r.kind.cycle; if (c !== undefined) fireAndForget(this.sendTurn(r.config.id, c.prompt, c.doing, origin), 'residents') },
+  })
+  private readonly turnEnded = new Listeners<[ResidentTurn]>()
+  private readonly permissionsHeard = new Listeners<[string, ResidentPermissionRequest[]]>()
   private readonly pending = new PendingChecks({ now: () => this.now().getTime(), onChange: () => { this.statusChanged() } })
 
   constructor(private readonly deps: ResidentServiceDeps) {
@@ -159,16 +169,42 @@ export class ResidentService {
   history(id: string): ResidentMessage[] { return this.require(id).chat.history() }
 
   /** Sends to the resident's claude (starting it if needed) and answers at once with the index's best matches. */
-  async send(id: string, text: string, doing: string | null = null): Promise<SessionHit[]> {
+  send(id: string, text: string, doing: string | null = null): Promise<SessionHit[]> { return this.sendTurn(id, text, doing, 'user') }
+
+  private async sendTurn(id: string, text: string, doing: string | null, origin: ResidentTurnOrigin): Promise<SessionHit[]> {
     const resident = this.require(id)
     if (!resident.config.enabled) throw new Error(`${resident.config.name} is not enabled`)
     if (text.trim() === '' || text.length > SEND_MAX) throw new Error(`A message is 1 to ${String(SEND_MAX)} characters`)
     resident.turnSeq = ++this.seq
-    fireAndForget(resident.chat.send(text, doing), 'residents')
+    fireAndForget(resident.chat.send(text, doing, { origin }), 'residents')
     const policy = resident.kind.instantMatches ? instantMatchPolicy(text) : { kind: 'none' as const }
     if (this.deps.knowledge === null || policy.kind === 'none') return []
     return instantHits(policy, await this.deps.knowledge.find(text, INSTANT_CANDIDATES))
   }
+
+  /** A message from outside the popup (see `ResidentOutside`): claude is sent `text`, the chat shows `shown` marked `via`. */
+  sendFrom(id: string, o: { text: string; shown: string; via: 'slack' }): void { this.outside.sendFrom(id, o) }
+
+  /** Tells the resident something main knows: claude is sent `text`, the chat shows `label` as a chip. */
+  note(id: string, o: { text: string; label: string }): void { this.outside.note(id, o) }
+
+  /** Keeps the resident running off duty until the returned function is called. */
+  keepAwake(id: string, reason: string): () => void { return this.outside.keepAwake(id, reason) }
+
+  /** Every finished turn of every resident. Returns how to remove the listener. */
+  onTurnEnded(listener: (e: ResidentTurn) => void): () => void { return this.turnEnded.add(listener) }
+
+  /** The waiting permission requests of a resident, each time its list changes. Returns how to remove the listener. */
+  onPermissions(listener: (residentId: string, requests: ResidentPermissionRequest[]) => void): () => void { return this.permissionsHeard.add(listener) }
+
+  /** The enabled residents, as one asks another for them. */
+  names(): ResidentName[] { return this.outside.names() }
+
+  /** Sends `text` to the resident called `toName` as a note; the answer is its next turn end. */
+  ask(fromId: string, toName: string, text: string): { id: string; name: string } { return this.outside.ask(fromId, toName, text) }
+
+  /** Runs the other resident's cycle now, on duty or not. */
+  check(fromId: string, toName: string): { id: string; name: string } { return this.outside.check(fromId, toName) }
 
   stop(id: string): void { this.require(id).chat.interrupt() }
 
@@ -190,10 +226,10 @@ export class ResidentService {
   /** Runs one of the kind's quick actions: a prompt goes to the chat, a command's output is added to it. */
   async quickAction(id: string, actionId: string): Promise<void> {
     const r = this.require(id)
-    if (actionId === CYCLE_ACTION_ID && r.kind.cycle !== undefined) { await this.send(id, r.kind.cycle.prompt, r.kind.cycle.doing); return }
+    if (actionId === CYCLE_ACTION_ID && r.kind.cycle !== undefined) { await this.sendTurn(id, r.kind.cycle.prompt, r.kind.cycle.doing, 'cycle'); return }
     const action = r.kind.quickActions.find((a) => a.id === actionId)
     if (action === undefined) throw new Error(`${r.config.name} has no action ${actionId}`)
-    if (action.run.kind === 'prompt') { await this.send(id, action.run.text, action.doing); return }
+    if (action.run.kind === 'prompt') { await this.sendTurn(id, action.run.text, action.doing, 'cycle'); return }
     const { argv } = action.run
     r.space.ensure()
     r.chat.appendAction(action.label)
@@ -258,7 +294,7 @@ export class ResidentService {
         const others = [...this.residents.values()].filter((o) => o !== r).map((o) => this.statusOf(o, now))
         return apiaryStatusText({
           self: this.statusOf(r, now), config: r.config, lookback: r.config.digestLookback,
-          index: r.kind.digests ? this.deps.digest?.indexSize() ?? null : null, others, now, background: r.chat.backgroundTasks(), permissions: r.permissions,
+          index: r.kind.digests ? this.deps.digest?.indexSize() ?? null : null, others, now, background: r.chat.backgroundTasks(), keptAwake: r.holds.map((h) => h.reason), permissions: r.permissions,
         })
       },
       setAttention: (id, attention) => { this.require(id).space.setAttention(attention); this.statusChanged() },
@@ -303,7 +339,7 @@ export class ResidentService {
     r.config = config
     this.prepare(r)
     const onDuty = isOnDuty(config.schedule, now)
-    const idleTooLong = now.getTime() - r.chat.lastActive >= IDLE_STOP_MS
+    const idleTooLong = r.holds.length === 0 && now.getTime() - r.chat.lastActive >= IDLE_STOP_MS
     const stale = r.launchedAs !== null && r.launchedAs !== launchKey(config)
     if (r.chat.running && !r.chat.busy && (!config.enabled || stale || (!onDuty && idleTooLong))) {
       r.launchedAs = null
@@ -358,7 +394,7 @@ export class ResidentService {
       return
     }
     r.nextCycleAt = now.getTime() + every
-    fireAndForget(this.send(r.config.id, cycle.prompt, cycle.doing), 'residents')
+    fireAndForget(this.sendTurn(r.config.id, cycle.prompt, cycle.doing, 'cycle'), 'residents')
   }
 
   private create(config: ResidentConfig): Resident {
@@ -366,7 +402,7 @@ export class ResidentService {
     const space = new ResidentSpace(this.deps.root, config.id)
     // The chat's callbacks read the live config through this object, which becomes the resident.
     const resident: Omit<Resident, 'chat'> = {
-      config, kind, space, launchedAs: null, permissions: null, nextCycleAt: null, cycleEvery: null, ready: Promise.resolve(), preparedFor: null, preparing: false, actions: [], turnSeq: 0,
+      config, kind, space, launchedAs: null, permissions: null, nextCycleAt: null, cycleEvery: null, ready: Promise.resolve(), preparedFor: null, preparing: false, actions: [], turnSeq: 0, holds: [], permissionsKey: '',
     }
     const chat = new ResidentChat({
       space,
@@ -387,12 +423,21 @@ export class ResidentService {
         // An answer may have added, moved or published something the user still has to finish.
         if (message.role === 'assistant' && !message.streaming) this.checkPending(created)
       },
-      onActivity: () => { this.statusChanged() },
+      onActivity: () => { this.statusChanged(); this.hearPermissions(created) },
+      onTurnEnded: (origin, text) => { this.turnEnded.emit({ residentId: config.id, text, origin }) },
       ...(this.deps.spawn !== undefined ? { spawn: this.deps.spawn } : {}),
     })
     const created: Resident = Object.assign(resident, { chat })
     this.residents.set(config.id, created)
     return created
+  }
+
+  private hearPermissions(r: Resident): void {
+    const requests = r.chat.permissions()
+    const key = requests.map((q) => q.requestId).join('\n')
+    if (key === r.permissionsKey) return
+    r.permissionsKey = key
+    this.permissionsHeard.emit(r.config.id, requests)
   }
 
   /** The digest runs while any enabled resident of a digesting kind is on duty, with the first one's model and lookback. */
@@ -426,7 +471,7 @@ export class ResidentService {
       if (!r.config.enabled) continue
       const change = nextChange(r.config.schedule, now)
       if (change !== null) due.push(change.getTime())
-      if (r.chat.running && !isOnDuty(r.config.schedule, now)) due.push(r.chat.lastActive + IDLE_STOP_MS)
+      if (r.chat.running && r.holds.length === 0 && !isOnDuty(r.config.schedule, now)) due.push(r.chat.lastActive + IDLE_STOP_MS)
       if (r.nextCycleAt !== null) due.push(r.nextCycleAt)
     }
     if (due.length === 0) return

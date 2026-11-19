@@ -32,6 +32,10 @@ export interface Resident {
   actions: { doing: string; seq: number }[]
   /** When its latest turn was asked for, on the service's `seq`. */
   turnSeq: number
+  /** Why something wants it awake off duty (`keepAwake`); in memory, one entry per hold. */
+  holds: { reason: string }[]
+  /** The waiting permission request ids last reported to `onPermissions`. */
+  permissionsKey: string
 }
 
 function attentionOf(r: Resident): ResidentAttention | null {
@@ -49,10 +53,10 @@ export function residentStatus(
   let state: ResidentState = 'idle'
   if (!r.config.enabled) state = 'asleep'
   else if (r.chat.working || action !== undefined || digestActivity !== null) state = 'working'
-  else if (!onDuty) state = 'asleep'
+  else if (!onDuty && r.holds.length === 0) state = 'asleep'
   const actionWords = action !== undefined && (!r.chat.busy || action.seq > r.turnSeq) ? action.doing : null
   const activity = actionWords ?? r.chat.activity() ?? digestActivity ?? (state === 'working' ? WORKING : null)
-  const lastAsked = r.chat.history().filter((m) => m.role === 'user' && m.action !== true).at(-1)
+  const lastAsked = r.chat.history().filter((m) => m.role === 'user' && m.action !== true && m.note !== true).at(-1)
   const running = r.chat.busy && lastAsked !== undefined && lastAsked.text === r.kind.cycle?.prompt
   return {
     id: r.config.id,
