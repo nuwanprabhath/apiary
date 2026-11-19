@@ -17,9 +17,10 @@ const MAIN_APP = '^src/main/app/|^src/main/index\\.ts$'
  */
 const MAIN_EDGES = {
   accounts: ['exec', 'fs', 'log'],
-  app: ['accounts', 'chat', 'claude', 'driving', 'exec', 'folders', 'git', 'ipc', 'knowledge', 'library', 'log', 'media', 'pets', 'plugins', 'pty', 'remote', 'residents', 'schedule', 'search', 'sessions', 'settings', 'slack', 'sources', 'spelling', 'statusBar', 'store', 'terminals', 'theme', 'transcript', 'update', 'vscode', 'windows'],
+  app: ['accounts', 'chat', 'claude', 'desk', 'driving', 'exec', 'folders', 'git', 'ipc', 'knowledge', 'library', 'log', 'media', 'pets', 'plugins', 'pty', 'remote', 'residents', 'schedule', 'search', 'sessions', 'settings', 'slack', 'sources', 'spelling', 'statusBar', 'store', 'terminals', 'theme', 'transcript', 'update', 'vscode', 'windows'],
   chat: ['accounts', 'claude', 'exec', 'log', 'pty', 'sessions', 'store', 'terminals', 'transcript', 'windows'],
   claude: ['accounts', 'exec', 'log', 'pty'],
+  desk: ['driving', 'log', 'residents', 'slack'],
   driving: ['chat', 'log'],
   exec: ['log'],
   folders: ['fs'],

@@ -12,6 +12,7 @@ import type { TabRegistry } from './windows/tabRegistry'
 import { isRestorable, pruneStaleLive } from './windows/sessionLayoutRestore'
 import { readsClaudeKeychain, resolveConfigRoot } from './app/config'
 import { createContainer } from './app/container'
+import { startDesk } from './desk/desk'
 import { containerPaths } from './app/containerPaths'
 import { resolveResourcesDir } from './app/resourcesDir'
 import { buildMenu } from './app/menu'
@@ -402,7 +403,7 @@ async function start(): Promise<void> {
   // Started after the window exists, so the first status push has somewhere to land.
   updater?.start()
   if (updater !== null) fireAndForget(updater.restorePreviousInstall(), 'update')
-  ;[disposeResidents, disposeSchedules, disposeSlack] = [container.residents.start(), startSchedules(container), container.slack.start()]
+  ;[disposeResidents, disposeSchedules, disposeSlack] = [container.residents.start(), startSchedules(container), startDesk({ bridge: container.slack, driver: container.driving, residents: container.residents })]
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) { windowManager!.create(); container.petPlacement.rehome() }
   })

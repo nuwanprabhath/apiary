@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.79.1] - 2026-11-19
+
+### Changed
+
+- Groundwork for Regent over Slack: the Slack connection starts together with the desk that will
+  route its messages to Regent. Nothing in the app shows this yet.
+
 ## [1.79.0] - 2026-11-19
 
 ### Added
