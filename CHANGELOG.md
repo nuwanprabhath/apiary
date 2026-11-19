@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.84.2] - 2026-11-20
+
+### Fixed
+
+- `npm run release` waits up to three minutes for GitHub to list the release run a tag push
+  started, instead of stopping at once with "no release run started" (seen on v1.84.1).
+
 ## [1.84.1] - 2026-11-20
 
 ### Changed

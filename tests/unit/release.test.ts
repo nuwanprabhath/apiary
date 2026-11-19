@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { versionsToAnnotate, isTransientDownloadFailure, tagsWithoutRelease, missingAssets, outstanding } from '../../scripts/release.mjs'
+import { versionsToAnnotate, isTransientDownloadFailure, tagsWithoutRelease, missingAssets, outstanding, awaitRun } from '../../scripts/release.mjs'
 
 const CHANGELOG = `# Changelog
 
@@ -54,5 +54,21 @@ describe('what a release still has to fold in', () => {
 
   it('is empty when nothing is open or due', () => {
     expect(outstanding({ issues: [], prs: [], due: [] })).toEqual([])
+  })
+})
+
+describe('finding the release run a tag push started', () => {
+  it('asks again while GitHub lists no run yet, then takes the first', async () => {
+    const answers: { databaseId: number }[][] = [[], [], [{ databaseId: 7 }]]
+    let waits = 0
+    const run = await awaitRun(() => answers.shift() ?? [], async () => { waits++ }, 5)
+    expect(run).toEqual({ databaseId: 7 })
+    expect(waits).toBe(2)
+  })
+
+  it('gives up after its tries, without a wait after the last', async () => {
+    let waits = 0
+    await expect(awaitRun(() => [], async () => { waits++ }, 3)).resolves.toBeNull()
+    expect(waits).toBe(2)
   })
 })

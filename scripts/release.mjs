@@ -136,11 +136,30 @@ async function waitForCi(sha) {
   }
 }
 
-function watchRelease(tag) {
+/**
+ * The first run `list` returns, asking again after `wait()` while it returns none: GitHub lists the
+ * run a tag push starts some seconds after the push, so one look straight after it found nothing.
+ * @template T
+ * @param {() => T[]} list
+ * @param {() => Promise<void>} wait
+ * @param {number} tries
+ * @returns {Promise<T | null>}
+ */
+export async function awaitRun(list, wait, tries) {
+  for (let i = 0; i < tries; i++) {
+    const first = list()[0]
+    if (first !== undefined) return first
+    if (i < tries - 1) await wait()
+  }
+  return null
+}
+
+async function watchRelease(tag) {
+  const listRuns = () => JSON.parse(gh('run', 'list', '--workflow', 'release.yml', '--branch', tag, '--limit', '1', '--json', 'databaseId'))
   for (let attempt = 0; ; attempt++) {
-    const runs = JSON.parse(gh('run', 'list', '--workflow', 'release.yml', '--branch', tag, '--limit', '1', '--json', 'databaseId'))
-    if (runs[0] === undefined) fail(`no release run started for ${tag}`)
-    const id = String(runs[0].databaseId)
+    const run = await awaitRun(listRuns, () => new Promise((resolve) => setTimeout(resolve, 5000)), 36)
+    if (run === null) fail(`no release run started for ${tag} within 3 minutes`)
+    const id = String(run.databaseId)
     const watched = spawnSync('gh', ['run', 'watch', id, '--exit-status'], { stdio: 'inherit' })
     if (watched.status === 0) return
     const log = spawnSync('gh', ['run', 'view', id, '--log-failed'], { encoding: 'utf8' }).stdout ?? ''
@@ -193,7 +212,7 @@ async function main() {
   sh('git', ['push', 'origin', tag])
 
   step(6, PLAN[5])
-  watchRelease(tag)
+  await watchRelease(tag)
 
   step(7, PLAN[6])
   const info = JSON.parse(gh('release', 'view', tag, '--json', 'isDraft,assets'))
