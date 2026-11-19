@@ -4,6 +4,12 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.83.1] - 2026-11-19
+
+### Fixed
+
+- Tests that failed on a busy machine now wait for the right thing: the resident-attention test no longer polls for a 100 ms turn it can miss, and the chat, worktree-conflict and remote contract tests give a real process start or real git work the time it takes under load.
+
 ## [1.83.0] - 2026-11-19
 
 ### Added

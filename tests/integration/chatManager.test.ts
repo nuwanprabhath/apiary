@@ -157,7 +157,7 @@ describe('ChatManager', () => {
     manager!.send(SESSION, 'second linger')
     const done = await until((s) => s.status === 'idle' && textOf(s).includes('You said: second linger'))
     expect(done.queued).toEqual([])
-  }, 5000)
+  }, 20000)
 
   it('Send now interrupts the reply a queued message waits on, then sends that message, which is answered', async () => {
     const { until } = start()
