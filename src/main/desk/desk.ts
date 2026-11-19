@@ -1,11 +1,12 @@
 import { approvals } from './approvals'
 import { commands } from './commands'
 import type { DeskParts, DeskPiece } from './deskPiece'
+import { slackDesk } from './slackDesk'
 
 export type { DeskParts }
 
 /** Every piece, started in this order. */
-const DESK_PIECES: readonly DeskPiece[] = [commands, approvals]
+const DESK_PIECES: readonly DeskPiece[] = [commands, approvals, slackDesk]
 
 /**
  * Starts every desk piece, then the Slack poller, so no message arrives before something can take

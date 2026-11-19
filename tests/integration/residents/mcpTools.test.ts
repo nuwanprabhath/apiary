@@ -38,7 +38,7 @@ function deps(over: Partial<ToolDeps> = {}): ToolDeps {
     openSession: () => {},
     openTabs: () => [],
     focusedWindow: () => null,
-    residents: { statusText: () => '', setAttention: () => {}, setActivity: () => {} },
+    residents: { statusText: () => '', setAttention: () => {}, setActivity: () => {}, names: () => [], ask: () => ({ id: '', name: '' }), check: () => ({ id: '', name: '' }) },
     ...over,
   }
 }

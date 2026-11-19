@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { startDesk, type DeskParts } from '../../../src/main/desk/desk'
 
+vi.mock('../../../src/main/desk/slackDesk', () => ({ slackDesk: () => () => {} }))
+
 describe('the desk', () => {
   it('starts the Slack poller, and its disposer stops it', async () => {
     const stopBridge = vi.fn(async () => {})

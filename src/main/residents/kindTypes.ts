@@ -3,7 +3,7 @@ import type { ResidentAppearance, ResidentConfig, ResidentKindId, ResidentOption
 /** A group of Apiary tools (`mcp/tools.ts`). A kind's token sees only the groups it declares. */
 export type ResidentCapability =
   | 'sessions.read' | 'workspace.read' | 'workspace.open' | 'space.notes' | 'apiary.status' | 'resident.attention'
-  | 'gitlab.approve'
+  | 'gitlab.approve' | 'sessions.drive' | 'residents.delegate' | 'slack.post'
 
 /**
  * What a quick action does. A prompt is sent to the resident's chat as if typed; a command runs

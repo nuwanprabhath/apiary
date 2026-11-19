@@ -65,6 +65,7 @@ beforeEach(async () => {
         statusText: (id) => `status of ${id}`,
         setAttention: (id, attention) => { controlCalls.push(['attention', id, attention]) },
         setActivity: (id, text) => { controlCalls.push(['activity', id, text]) },
+        names: () => [], ask: () => ({ id: '', name: '' }), check: () => ({ id: '', name: '' }),
       },
     },
   })

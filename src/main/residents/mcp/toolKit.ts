@@ -5,6 +5,7 @@ import type { SessionKnowledge } from '../../knowledge/types'
 import type { ResidentCapability } from '../kinds'
 import type { ResidentApproval, ResidentUserActions } from '../kindTypes'
 import type { ResidentSpace } from '../residentSpace'
+import type { DeskControls } from './deskControl'
 
 /** What a tool answers: text for the model, and whether it is an error the model should see as one. */
 export interface ToolResult {
@@ -26,6 +27,8 @@ export interface ToolDeps {
   residents: ResidentControl
   /** Absent where nothing approves (a test of other tools): `approve_mr` and `request_user_action` then say so. */
   approval?: ApprovalControl
+  /** The session driver and Slack, once the desk has started; null (or absent) before and after. */
+  desk?: () => DeskControls | null
 }
 
 /** What the status and attention tools do to the calling resident. */
@@ -34,6 +37,12 @@ export interface ResidentControl {
   /** Sets (or, with null, clears) what it needs the user for; it persists until the user opens its popup. */
   setAttention(residentId: string, attention: ResidentAttention | null): void
   setActivity(residentId: string, text: string): void
+  /** The enabled residents. */
+  names(): { id: string; name: string; kindId: string; state: string; setupNeeded: string | null }[]
+  /** Sends the other resident a note; throws, in words, when it cannot. */
+  ask(fromId: string, toName: string, text: string): { id: string; name: string }
+  /** Runs the other resident's cycle now; throws, in words, when it cannot. */
+  check(fromId: string, toName: string): { id: string; name: string }
 }
 
 /** What `approve_mr` and `request_user_action` reach for the resident the token names. */
