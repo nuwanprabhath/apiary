@@ -23,4 +23,18 @@ describe('slackText', () => {
     expect(pieces.some((p) => p === fence)).toBe(true)
     expect(splitForSlack('short')).toEqual(['short'])
   })
+
+  it('reads channel mentions by name, an empty link label as the bare link, and a user label as the id', () => {
+    expect(slackToPlain('<#C1|work> <#C2> <@U1|nuwan> <https://z.test|>')).toBe('#work #C2 @U1 https://z.test')
+  })
+
+  it('leaves inline code alone', () => {
+    expect(markdownToSlack('use `**x**` then **y**')).toBe('use `**x**` then *y*')
+  })
+
+  it('splits a block over the limit on line breaks, and one over-long line by length', () => {
+    const lines = `${'x'.repeat(40)}\n${'y'.repeat(40)}\n${'z'.repeat(25)}`
+    expect(splitForSlack(lines, 50)).toEqual(['x'.repeat(40), 'y'.repeat(40), 'z'.repeat(25)])
+    expect(splitForSlack(`ab\n${'q'.repeat(120)}\ncd`, 50)).toEqual(['ab', 'q'.repeat(50), 'q'.repeat(50), 'q'.repeat(20), 'cd'])
+  })
 })

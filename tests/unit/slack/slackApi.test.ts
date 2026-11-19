@@ -55,4 +55,57 @@ describe('slackApi', () => {
     expect(describeSlackError(new SlackApiError('missing_scope', null, 'chat:write'))).toContain('chat:write')
     expect(describeSlackError(new SlackApiError('network'))).toBe('Could not reach Slack.')
   })
+
+  it('every other failure still gets a sentence', () => {
+    expect(describeSlackError(new Error('boom'))).toBe('Slack did not answer as expected.')
+    expect(describeSlackError(new SlackApiError('channel_not_found'), { channel: null })).toBe('The bot is not in the channel. Invite it with /invite @regent.')
+    expect(describeSlackError(new SlackApiError('missing_scope'))).toBe('The Slack app is missing a permission (scope).')
+    expect(describeSlackError(new SlackApiError('ratelimited'))).toBe('Slack is rate limiting this app; waiting.')
+    expect(describeSlackError(new SlackApiError('weird_thing'))).toBe('Slack answered with an error (weird_thing).')
+  })
+
+  it('fails with a code for no token, no network, a body that is not JSON and an error with no name', async () => {
+    const noToken = createSlackApi({ fetch: stub(() => json({ ok: true })).fetch, baseUrl: 'https://slack.test/api', token: async () => null })
+    await expect(noToken.authTest()).rejects.toMatchObject({ code: 'not_authed' })
+    const offline = (() => Promise.reject(new TypeError('fetch failed'))) as unknown as typeof fetch
+    await expect(api(offline).authTest()).rejects.toMatchObject({ code: 'network' })
+    await expect(api(stub(() => new Response('<html>', { status: 502 })).fetch).authTest()).rejects.toMatchObject({ code: 'http_502' })
+    await expect(api(stub(() => json([1, 2])).fetch).authTest()).rejects.toMatchObject({ code: 'http_200' })
+    await expect(api(stub(() => json({ ok: false })).fetch).authTest()).rejects.toMatchObject({ code: 'unknown', needed: null })
+  })
+
+  it('a 429 without Retry-After waits 30 s', async () => {
+    const { fetch } = stub(() => json({ ok: false }, { status: 429 }))
+    await expect(api(fetch).react('C1', '1.0', 'eyes')).rejects.toMatchObject({ code: 'ratelimited', retryAfterMs: 30_000 })
+  })
+
+  it('reads replies without their parent, from oldest on, and marks which are in a thread', async () => {
+    const { fetch, calls } = stub(() => json({ ok: true, messages: [
+      { ts: '1.0', thread_ts: '1.0', user: 'U1', text: 'parent', latest_reply: '3.0' },
+      { ts: '2.0', thread_ts: '1.0', user: 'U1', text: 'reply' },
+      { ts: '3.0', thread_ts: '1.0', bot_id: 'B1', subtype: 'bot_message' },
+      'not a message',
+    ] }))
+    const replies = await api(fetch).replies('C1', '1.0', '1.5')
+    expect(bodyOf(calls[0]?.init)).toContain('oldest=1.5')
+    expect(replies).toEqual([
+      { ts: '2.0', thread: '1.0', user: 'U1', botId: null, subtype: null, text: 'reply', latestReply: null },
+      { ts: '3.0', thread: '1.0', user: null, botId: 'B1', subtype: 'bot_message', text: '', latestReply: null },
+    ])
+    const top = await api(fetch).history('C1', 5)
+    expect(top[0]).toMatchObject({ ts: '1.0', thread: null, latestReply: '3.0' })
+  })
+
+  it('posts into a thread and fails when Slack gives no ts back', async () => {
+    const { fetch, calls } = stub((c) => json(bodyOf(c.init).includes('thread_ts=1.0') ? { ok: true, ts: '9.0' } : { ok: true }))
+    await expect(api(fetch).post('C1', 'hi', '1.0')).resolves.toBe('9.0')
+    expect(bodyOf(calls[0]?.init)).toContain('thread_ts=1.0')
+    await expect(api(fetch).post('C1', 'hi', null)).rejects.toMatchObject({ code: 'no_ts' })
+  })
+
+  it('finds no channel when the last page has no match', async () => {
+    const { fetch } = stub(() => json({ ok: true, channels: [{ id: 'C1', name: 'mac' }, { id: 7 }] }))
+    await expect(api(fetch).findChannel('work')).resolves.toBeNull()
+    await expect(api(fetch).findChannel('C1')).resolves.toEqual({ id: 'C1', name: 'mac' })
+  })
 })

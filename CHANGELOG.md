@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.84.1] - 2026-11-20
+
+### Changed
+
+- The Slack connection's tests now cover how it fails: no token, no network, a reply that is not
+  JSON, rate limiting without a wait time, a post with no timestamp, and the sentence shown for
+  each Slack error; and how long text is split for Slack.
+
 ## [1.84.0] - 2026-11-19
 
 ### Added
