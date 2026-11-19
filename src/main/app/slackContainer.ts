@@ -1,15 +1,14 @@
 import { powerMonitor } from 'electron'
 import { IPC } from '@shared/api'
 import { safeStorageCipher } from '../remote/safeStorageCipher'
-import type { CodeCipher } from '../fs/codeCipher'
 import { SlackBridge } from '../slack/slackBridge'
 import { createSlackApi, type SlackApi } from '../slack/slackApi'
-import { SlackStore } from '../slack/slackStore'
+import { SlackStore, type CodeCipher } from '../slack/slackStore'
 import { broadcast } from '../windows/broadcast'
 import type { ContainerPaths } from './containerPaths'
 import type { RuntimeEnv } from './env'
 
-export const SLACK_API_URL = 'https://slack.com/api'
+const SLACK_API_URL = 'https://slack.com/api'
 
 /**
  * The Slack connection: its store (`slack.json`, the token encrypted by the keychain `cipher`),

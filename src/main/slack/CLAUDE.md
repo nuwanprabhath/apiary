@@ -6,7 +6,7 @@ Read with root CLAUDE.md. Apiary's main process talks to Slack's Web API over an
 
 - `slackApi.ts`: `SlackApi` and `createSlackApi`; `SlackApiError` and `describeSlackError` (one sentence a person can act on).
 - `slackText.ts`: Slack text to plain, Markdown to mrkdwn, long text split (never inside a code fence). Pure.
-- `slackStore.ts`: `slack.json` (a `JsonStore`): the token **encrypted** by a `CodeCipher` (`fs/codeCipher.ts`), channel, owner id, cursor, tasks, awaiting.
+- `slackStore.ts`: the state file slack.json in userData (a `JsonStore`): the token **encrypted** by a `CodeCipher` (`fs/codeCipher.ts`), channel, owner id, cursor, tasks, awaiting.
 - `slackTasks.ts`: `SlackTasks`, one task per thread; every change is saved.
 - `slackPoller.ts`: pure rules (who counts, stale, yes/no, poll delay). `slackBridge.ts`: the timer and the cycle.
 

@@ -2,10 +2,10 @@ import type { SlackMessage } from './slackApi'
 
 export const STALE_MS = 15 * 60_000
 export const AWAITING_MS = 24 * 60 * 60_000
-export const BUSY_POLL_MS = 3_000
-export const IDLE_POLL_MS = 10_000
+const BUSY_POLL_MS = 3_000
+const IDLE_POLL_MS = 10_000
 export const FAILURE_POLL_MS = 60_000
-export const RECENT_MS = 5 * 60_000
+const RECENT_MS = 5 * 60_000
 export const DEEP_POLL_MS = 30_000
 
 /** A Slack `ts` ("1763540000.000100") compared as a number; negative when `a` is older. */

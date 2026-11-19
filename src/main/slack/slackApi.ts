@@ -56,19 +56,19 @@ export function describeSlackError(error: unknown, about: { channel?: string | n
 
 interface ApiOptions { fetch: typeof fetch; baseUrl: string; token: () => Promise<string | null> }
 
-const str = (v: unknown): string | null => (typeof v === 'string' ? v : null)
+const stringOrNull = (v: unknown): string | null => (typeof v === 'string' ? v : null)
 
-function toMessage(raw: unknown): SlackMessage | null {
+function parseSlackMessage(raw: unknown): SlackMessage | null {
   if (!isRecord(raw) || typeof raw.ts !== 'string') return null
-  const parent = str(raw.thread_ts)
+  const parent = stringOrNull(raw.thread_ts)
   return {
     ts: raw.ts,
     thread: parent !== null && parent !== raw.ts ? parent : null,
-    user: str(raw.user),
-    botId: str(raw.bot_id),
-    subtype: str(raw.subtype),
-    text: str(raw.text) ?? '',
-    latestReply: str(raw.latest_reply),
+    user: stringOrNull(raw.user),
+    botId: stringOrNull(raw.bot_id),
+    subtype: stringOrNull(raw.subtype),
+    text: stringOrNull(raw.text) ?? '',
+    latestReply: stringOrNull(raw.latest_reply),
   }
 }
 
@@ -97,17 +97,17 @@ export function createSlackApi(o: ApiOptions): SlackApi {
       throw new SlackApiError(`http_${String(response.status)}`)
     }
     if (!isRecord(body)) throw new SlackApiError(`http_${String(response.status)}`)
-    if (body.ok !== true) throw new SlackApiError(str(body.error) ?? 'unknown', null, str(body.needed))
+    if (body.ok !== true) throw new SlackApiError(stringOrNull(body.error) ?? 'unknown', null, stringOrNull(body.needed))
     return body
   }
 
   const messages = (body: Record<string, unknown>): SlackMessage[] =>
-    (Array.isArray(body.messages) ? body.messages : []).flatMap((m: unknown) => { const x = toMessage(m); return x === null ? [] : [x] })
+    (Array.isArray(body.messages) ? body.messages : []).flatMap((m: unknown) => { const x = parseSlackMessage(m); return x === null ? [] : [x] })
 
   return {
     async authTest() {
       const body = await call('auth.test', {})
-      return { userId: str(body.user_id) ?? '', name: str(body.user) ?? '' }
+      return { userId: stringOrNull(body.user_id) ?? '', name: stringOrNull(body.user) ?? '' }
     },
     async findChannel(nameOrId) {
       const wanted = nameOrId.replace(/^#/, '')
@@ -119,7 +119,7 @@ export function createSlackApi(o: ApiOptions): SlackApi {
         for (const c of Array.isArray(body.channels) ? body.channels : []) {
           if (isRecord(c) && typeof c.id === 'string' && typeof c.name === 'string' && (c.id === wanted || c.name === wanted)) return { id: c.id, name: c.name }
         }
-        cursor = isRecord(body.response_metadata) ? str(body.response_metadata.next_cursor) ?? '' : ''
+        cursor = isRecord(body.response_metadata) ? stringOrNull(body.response_metadata.next_cursor) ?? '' : ''
         if (cursor === '') return null
       }
       return null
@@ -133,7 +133,7 @@ export function createSlackApi(o: ApiOptions): SlackApi {
     },
     async post(channel, text, thread) {
       const body = await call('chat.postMessage', { channel, text, ...(thread === null ? {} : { thread_ts: thread }) })
-      const ts = str(body.ts)
+      const ts = stringOrNull(body.ts)
       if (ts === null) throw new SlackApiError('no_ts')
       return ts
     },

@@ -3,6 +3,9 @@ import type { CodeCipher } from '../fs/codeCipher'
 import { JsonStore } from '../fs/jsonStore'
 import { parseTask, type SlackTask } from './slackTasks'
 
+/** The keychain's shape lives in `fs/codeCipher.ts`; the container imports it from here. */
+export type { CodeCipher }
+
 export const NO_KEYCHAIN = 'This machine has no keychain to keep the Slack token in.'
 
 /** A top-level message waiting for the owner's "still want it?" answer. */
@@ -20,9 +23,9 @@ export interface SlackFile {
   awaiting: AwaitingMessage[]
 }
 
-const EMPTY: SlackFile = { enabled: false, token: null, channel: null, ownerId: null, cursor: null, tasks: [], awaiting: [] }
+const EMPTY_SLACK_FILE: SlackFile = { enabled: false, token: null, channel: null, ownerId: null, cursor: null, tasks: [], awaiting: [] }
 
-const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
+const nonEmptyString = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
 
 function parseAwaiting(raw: unknown): AwaitingMessage | null {
   if (!isRecord(raw) || typeof raw.ts !== 'string' || typeof raw.text !== 'string' || typeof raw.askedAt !== 'number' || !Number.isFinite(raw.askedAt)) return null
@@ -32,12 +35,12 @@ function parseAwaiting(raw: unknown): AwaitingMessage | null {
 const keep = <T>(raw: unknown, parse: (r: unknown) => T | null): T[] =>
   (Array.isArray(raw) ? raw : []).flatMap((r: unknown) => { const x = parse(r); return x === null ? [] : [x] })
 
-export function parseSlackFile(raw: unknown): SlackFile {
-  if (!isRecord(raw)) return { ...EMPTY }
+function parseSlackFile(raw: unknown): SlackFile {
+  if (!isRecord(raw)) return { ...EMPTY_SLACK_FILE }
   const c = raw.channel
   const channel = isRecord(c) && typeof c.id === 'string' && typeof c.name === 'string' && c.id !== '' ? { id: c.id, name: c.name } : null
   return {
-    enabled: raw.enabled === true, token: str(raw.token), channel, ownerId: str(raw.ownerId), cursor: str(raw.cursor),
+    enabled: raw.enabled === true, token: nonEmptyString(raw.token), channel, ownerId: nonEmptyString(raw.ownerId), cursor: nonEmptyString(raw.cursor),
     tasks: keep(raw.tasks, parseTask), awaiting: keep(raw.awaiting, parseAwaiting),
   }
 }
@@ -48,7 +51,7 @@ export class SlackStore {
   private data: SlackFile
 
   constructor(file: string, private readonly cipher: CodeCipher | null) {
-    this.store = new JsonStore<SlackFile>({ file, version: 1, private: true, parse: parseSlackFile, fallback: () => ({ ...EMPTY }) })
+    this.store = new JsonStore<SlackFile>({ file, version: 1, private: true, parse: parseSlackFile, fallback: () => ({ ...EMPTY_SLACK_FILE }) })
     this.data = this.store.load()
   }
 

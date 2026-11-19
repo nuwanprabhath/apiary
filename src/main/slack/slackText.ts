@@ -42,7 +42,7 @@ function convertInline(text: string): string {
     .replace(/\*\*([^*]+)\*\*/g, '*$1*')
 }
 
-export const SLACK_POST_LIMIT = 3500
+const SLACK_POST_LIMIT = 3500
 
 /** Splits `text` into pieces of at most `limit` characters on blank lines, else line breaks, never inside a code fence unless the fence alone is too long. */
 export function splitForSlack(text: string, limit = SLACK_POST_LIMIT): string[] {

@@ -6,7 +6,7 @@ export interface SlackTask {
   text: string
   startedAt: number
   state: 'open' | 'done'
-  /** Session ids (as strings) being watched for it. */
+  /** Session ids (as stringList) being watched for it. */
   sessions: string[]
   /** Resident ids working for it. */
   residents: string[]
@@ -17,10 +17,10 @@ export interface SlackTask {
 }
 
 const DAY = 24 * 60 * 60 * 1000
-export const DONE_KEPT_MS = 7 * DAY
-export const DONE_KEPT_MAX = 200
+const DONE_KEPT_MS = 7 * DAY
+const DONE_KEPT_MAX = 200
 
-const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+const stringList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
 
 /** One saved task, or null when it is damaged. */
 export function parseTask(raw: unknown): SlackTask | null {
@@ -29,7 +29,7 @@ export function parseTask(raw: unknown): SlackTask | null {
   if (raw.state !== 'open' && raw.state !== 'done') return null
   return {
     thread: raw.thread, text: raw.text, startedAt: raw.startedAt, state: raw.state,
-    sessions: strings(raw.sessions), residents: strings(raw.residents), autoAllow: strings(raw.autoAllow),
+    sessions: stringList(raw.sessions), residents: stringList(raw.residents), autoAllow: stringList(raw.autoAllow),
     lastReplyTs: typeof raw.lastReplyTs === 'string' ? raw.lastReplyTs : null,
   }
 }

@@ -2,6 +2,9 @@ import { isRecord } from '@shared/guards'
 import type { CodeCipher } from '../fs/codeCipher'
 import { JsonStore } from '../fs/jsonStore'
 
+/** The keychain's shape lives in `fs/codeCipher.ts`; the pairing codes' callers import it from here. */
+export type { CodeCipher }
+
 interface CodesFile { codes: Record<string, string> }
 
 /**
