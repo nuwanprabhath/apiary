@@ -10,7 +10,6 @@ import { SlackTasks } from './slackTasks'
 import { markdownToSlack, slackToPlain, splitForSlack } from './slackText'
 
 export interface SlackInbound {
-  /** The task it belongs to. */
   thread: string
   ts: string
   /** Plain text (`slackToPlain`). */

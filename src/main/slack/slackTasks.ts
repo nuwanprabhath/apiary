@@ -36,7 +36,7 @@ export function parseTask(raw: unknown): SlackTask | null {
 
 const add = (list: string[], id: string): string[] => (list.includes(id) ? list : [...list, id])
 
-/** The tasks by thread. Every change is handed to `persist` at once. */
+/** Every change is handed to `persist` at once. */
 export class SlackTasks {
   private readonly tasks = new Map<string, SlackTask>()
   private readonly listeners = new Set<() => void>()
@@ -77,7 +77,6 @@ export class SlackTasks {
   setAutoAllow(thread: string, sessionId: string): void { this.edit(thread, (t) => { t.autoAllow = add(t.autoAllow, sessionId) }) }
   setLastReply(thread: string, ts: string): void { this.edit(thread, (t) => { t.lastReplyTs = ts }) }
 
-  /** The open task watching `sessionId`. */
   taskOfSession(sessionId: string): SlackTask | null {
     return this.list().find((t) => t.state === 'open' && t.sessions.includes(sessionId)) ?? null
   }

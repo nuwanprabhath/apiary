@@ -62,7 +62,6 @@ export class SlackStore {
     this.store.save(this.data)
   }
 
-  /** Whether a token can be kept on this machine at all. */
   async canStoreToken(): Promise<boolean> { return this.cipher !== null && await this.cipher.available() }
 
   /** Encrypts and keeps `token`; throws `NO_KEYCHAIN` (writing nothing) where this machine cannot encrypt. */

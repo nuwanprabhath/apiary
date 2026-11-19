@@ -4,6 +4,12 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.83.3] - 2026-11-19
+
+### Changed
+
+- Comments in the Slack, driving and desk code trimmed to the facts the code cannot say.
+
 ## [1.83.2] - 2026-11-19
 
 ### Fixed
