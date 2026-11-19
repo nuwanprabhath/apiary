@@ -3,7 +3,7 @@ import type { ChatState } from './domain/chat'
 export type ActivityStatus = 'running' | 'waiting' | 'idle' | 'stopped'
 
 /** Output within this long is still "in progress" rather than "gone quiet". */
-const RUNNING_WINDOW_MS = 2000
+export const RUNNING_WINDOW_MS = 2000
 
 /**
  * How much of the screen the patterns below look at. Claude Code's state lives at the bottom (the

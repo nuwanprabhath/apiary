@@ -4,6 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.73.4] - 2026-11-19
+
+### Fixed
+
+- A terminal tab no longer shows the running ring while its claude sits idle. A tab counts as
+  running for two seconds after it prints, and the tabs were only read again when more output or
+  some other change arrived, so one repaint followed by silence left the ring on until something
+  unrelated asked again: on a Linux machine an idle claude that repaints every 30 minutes showed as
+  busy for half an hour at a time, and clicking the tab cleared it. The tabs are now read once more
+  just after those two seconds pass. Found from the diagnostic log's activity lines, every one of
+  which was written within half a second of output.
+
 ## [1.73.3] - 2026-11-18
 
 ### Added
