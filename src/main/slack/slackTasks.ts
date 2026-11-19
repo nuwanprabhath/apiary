@@ -36,6 +36,7 @@ export function parseTask(raw: unknown): SlackTask | null {
 
 const add = (list: string[], id: string): string[] => (list.includes(id) ? list : [...list, id])
 
+/** Every change is handed to `persist` at once. */
 export class SlackTasks {
   private readonly tasks = new Map<string, SlackTask>()
   private readonly listeners = new Set<() => void>()
