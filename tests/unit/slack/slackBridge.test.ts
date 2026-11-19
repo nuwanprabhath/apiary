@@ -253,4 +253,13 @@ describe('SlackBridge', () => {
     expect(w.slack.calls().history ?? 0).toBe(before)
     expect(await w.store.token()).toBe('xoxb-test-token')
   })
+
+  it('react adds a reaction and a failure is ignored', async () => {
+    const w = await world()
+    const { bridge } = await w.boot()
+    await bridge.react('1.000001', 'white_check_mark')
+    expect(w.slack.reactions()).toEqual([{ ts: '1.000001', name: 'white_check_mark' }])
+    w.slack.failNext('react', 'already_reacted')
+    await expect(bridge.react('1.000002', 'white_check_mark')).resolves.toBeUndefined()
+  })
 })
