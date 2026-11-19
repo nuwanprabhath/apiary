@@ -30,7 +30,7 @@ afterEach(async () => {
 
 interface Seen { busy: boolean; working: boolean; activity: string | null }
 
-function chat(): { chat: ResidentChat; pushed: ResidentMessage[]; seen: Seen[]; space: ResidentSpace } {
+function chat(whenActive?: (space: ResidentSpace, c: ResidentChat) => void): { chat: ResidentChat; pushed: ResidentMessage[]; seen: Seen[]; space: ResidentSpace } {
   const dir = mkdtempSync(join(tmpdir(), 'apiary-resident-bg-'))
   dirs.push(dir)
   const space = new ResidentSpace(dir, 'regent')
@@ -48,7 +48,10 @@ function chat(): { chat: ResidentChat; pushed: ResidentMessage[]; seen: Seen[]; 
       const push: ResidentMessagePush = { residentId: 'r1', message: m }
       broadcast(IPC.residentMessage, push)
     },
-    onActivity: () => { seen.push({ busy: c.busy, working: c.working, activity: c.activity() }) },
+    onActivity: () => {
+      seen.push({ busy: c.busy, working: c.working, activity: c.activity() })
+      whenActive?.(space, c)
+    },
   })
   chats.push(c)
   return { chat: c, pushed, seen, space }
@@ -78,11 +81,16 @@ describe('a turn claude starts on its own', () => {
   })
 
   it('leaves attention alone when the resident set it itself during that turn', async () => {
-    const { chat: c, pushed, space } = chat()
+    // The unsolicited turn is busy for ~100 ms, so a poll on `busy` can miss it on a stalled machine:
+    // the resident sets attention from inside the first activity event of that turn instead.
+    let set = false
+    const { chat: c, pushed, space } = chat((sp, ch) => {
+      if (set || !ch.busy || done(pushed).length < 1) return
+      set = true
+      sp.setAttention(null)
+    })
     await c.send('run it in the background')
     await vi.waitFor(() => { expect(done(pushed)).toHaveLength(1) }, 5000)
-    await vi.waitFor(() => { expect(c.busy).toBe(true) }, 5000)
-    space.setAttention(null)
     await vi.waitFor(() => { expect(done(pushed)).toHaveLength(2) }, 5000)
     await vi.waitFor(() => { expect(c.busy).toBe(false) })
     expect(space.attention()).toBeNull()
