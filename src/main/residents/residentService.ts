@@ -14,6 +14,7 @@ import { instantHits, instantMatchPolicy } from './instantMatches'
 import { approvalControlFor } from './approvalControl'
 import { kindInfos, kindOf, newResident, unknownKindFilter, type ResidentKind } from './kinds'
 import { McpServer } from './mcp/server'
+import type { DeskControls } from './mcp/deskControl'
 import type { ResidentControl, ToolDeps } from './mcp/toolKit'
 import { cycleSkip, expandArgv } from './quickActions'
 import { ResidentChat } from './residentChat'
@@ -112,6 +113,7 @@ export class ResidentService {
     reconcile: () => { this.reconcile() }, statusChanged: () => { this.statusChanged() },
     cycle: (r, origin) => { const c = r.kind.cycle; if (c !== undefined) fireAndForget(this.sendTurn(r.config.id, c.prompt, c.doing, origin), 'residents') },
   })
+  private desk: DeskControls | null = null
   private readonly turnEnded = new Listeners<[ResidentTurn]>()
   private readonly permissionsHeard = new Listeners<[string, ResidentPermissionRequest[]]>()
   private readonly pending = new PendingChecks({ now: () => this.now().getTime(), onChange: () => { this.statusChanged() } })
@@ -123,7 +125,7 @@ export class ResidentService {
     this.runnable = unknownKindFilter(this.kindOf, (c) => { log.warn('residents', 'unknown resident kind, not running it', { resident: c.id, kind: c.kind }) })
     this.server = new McpServer({
       version: deps.version,
-      tools: { ...deps.tools, knowledge: deps.knowledge, residents: this.control(), approval: approvalControlFor((id) => this.require(id), (r, argv, extraEnv) => this.runIn(r, argv, extraEnv)) },
+      tools: { ...deps.tools, knowledge: deps.knowledge, residents: this.control(), desk: () => this.desk, approval: approvalControlFor((id) => this.require(id), (r, argv, extraEnv) => this.runIn(r, argv, extraEnv)) },
       capabilitiesOf: (id) => this.residents.get(id)?.kind.capabilities ?? null,
       spaceOf: (id) => this.require(id).space,
       onToolCall: (id, tool, args) => { this.residents.get(id)?.chat.toolCalled(tool, args) },
@@ -196,6 +198,9 @@ export class ResidentService {
 
   /** The waiting permission requests of a resident, each time its list changes. Returns how to remove the listener. */
   onPermissions(listener: (residentId: string, requests: ResidentPermissionRequest[]) => void): () => void { return this.permissionsHeard.add(listener) }
+
+  /** The session driver and Slack the desk tools reach; the desk piece sets them on start and null on stop. */
+  setDesk(desk: DeskControls | null): void { this.desk = desk }
 
   /** The enabled residents, as one asks another for them. */
   names(): ResidentName[] { return this.outside.names() }
@@ -299,6 +304,9 @@ export class ResidentService {
       },
       setAttention: (id, attention) => { this.require(id).space.setAttention(attention); this.statusChanged() },
       setActivity: (id, text) => { this.require(id).chat.setOwnActivity(text) },
+      names: () => this.names(),
+      ask: (fromId, toName, text) => this.ask(fromId, toName, text),
+      check: (fromId, toName) => this.check(fromId, toName),
     }
   }
 

@@ -59,6 +59,14 @@ describe('validateResidentKindManifest', () => {
     expect(Object.keys(m).sort()).toEqual(['appearance', 'blurb', 'capabilities', 'id', 'name', 'optionFields', 'prompt', 'quickActions'])
   })
 
+  it('a user\'s kind may not drive sessions or post to Slack', () => {
+    const m = valid({
+      id: 'scribe', name: 'S',
+      capabilities: ['sessions.drive', 'slack.post', 'residents.delegate', 'sessions.read'],
+    })
+    expect(m.capabilities).toEqual(['sessions.read'])
+  })
+
   it('keeps known capabilities, text option fields and prompt quick actions only', () => {
     const m = valid({
       id: 'scribe', name: 'S',

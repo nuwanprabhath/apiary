@@ -22,7 +22,7 @@ const regent: ResidentKind = {
   },
   blurb: 'A chief of staff over every Claude session: finds, opens and answers from them.',
   appearance: { glyph: 'bee', palette: 'gold', animation: 'halo' },
-  capabilities: ['sessions.read', 'workspace.read', 'workspace.open', 'space.notes', 'apiary.status', 'resident.attention'],
+  capabilities: ['sessions.read', 'workspace.read', 'workspace.open', 'space.notes', 'apiary.status', 'resident.attention', 'sessions.drive', 'residents.delegate', 'slack.post'],
   digests: true,
   optionFields: [],
   quickActions: [],

@@ -3,6 +3,7 @@ import { asSessionId, type SessionId } from '@shared/domain/ids'
 import type { ResidentAttention, SessionHit } from '@shared/domain/residents'
 import type { ResidentCapability } from '../kinds'
 import { ATTENTION_COUNT_MAX, ATTENTION_SUMMARY_MAX, NOTE_KEY_MAX, NOTE_TEXT_MAX } from '../residentSpace'
+import { DESK_TOOLS } from './deskTools'
 import { GITLAB_TOOLS } from './gitlabTools'
 import { fail, intIn, ok, text, tool, type Tool, type ToolDeps } from './toolKit'
 
@@ -251,7 +252,7 @@ const SELF_TOOLS: Tool[] = [
 ]
 
 /** Every Apiary tool. A new capability's tools are added here; a kind opts in by listing the capability. */
-const APIARY_TOOLS: readonly Tool[] = [...SESSION_TOOLS, ...WORKSPACE_TOOLS, ...NOTE_TOOLS, ...SELF_TOOLS, ...GITLAB_TOOLS]
+const APIARY_TOOLS: readonly Tool[] = [...SESSION_TOOLS, ...WORKSPACE_TOOLS, ...NOTE_TOOLS, ...SELF_TOOLS, ...GITLAB_TOOLS, ...DESK_TOOLS]
 
 /** The tools a kind with `capabilities` may see and call. */
 export function toolsFor(capabilities: readonly ResidentCapability[]): Tool[] {
