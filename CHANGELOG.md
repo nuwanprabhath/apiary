@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.75.0] - 2026-11-19
+
+### Added
+
+- Right-clicking a link in a chat, a transcript or a resident's conversation offers "Copy link
+  address" first, which copies the link itself rather than its text: the merge request behind
+  `!1732`, the issue behind `#3225`, or any web link in a reply.
+
 ## [1.74.0] - 2026-11-19
 
 ### Added

@@ -16,6 +16,7 @@ function Probe(): React.JSX.Element {
     <div>
       <div ref={ref} data-testid="region" onContextMenu={onContextMenu}>
         <p id="para">hello transcript world</p>
+        <p>See <a id="mr" href="https://gitlab.com/group/project/-/merge_requests/1732" data-ref="mr">!1732</a> and <a id="bad" href="javascript:void(0)">this</a>.</p>
         <div className="markdown text-block" style={{ color: 'white' }}>
           <p>Hi Sam,</p>
           <ul id="list">
@@ -93,6 +94,27 @@ describe('useCopyOnSelect', () => {
     expect(item.disabled).toBe(false)
     item.click()
     await expect.poll(() => fake.callsTo('copyToClipboard')).toEqual([['hello transcript world']])
+  })
+
+  it('right-click on a link offers its address first, and copies it', async () => {
+    const fake = await mount()
+    document.getElementById('mr')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }))
+    await expect.poll(() => document.querySelector('[data-testid="context-menu-copy-link"]')).not.toBeNull()
+    const labels = [...document.querySelectorAll('[data-testid="copy-menu"] [role="menuitem"]')].map((e) => e.textContent)
+    expect(labels[0]).toBe('Copy link address')
+    document.querySelector<HTMLButtonElement>('[data-testid="context-menu-copy-link"]')!.click()
+    await expect.poll(() => fake.callsTo('copyToClipboard')).toEqual([['https://gitlab.com/group/project/-/merge_requests/1732']])
+  })
+
+  it('right-click off a link, or on one that is not a web address, offers no link address', async () => {
+    await mount()
+    for (const id of ['para', 'bad']) {
+      document.getElementById(id)!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }))
+      await expect.poll(() => document.querySelector('[data-testid="context-menu-copy"]')).not.toBeNull()
+      expect(document.querySelector('[data-testid="context-menu-copy-link"]')).toBeNull()
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await expect.poll(() => document.querySelector('[data-testid="copy-menu"]')).toBeNull()
+    }
   })
 
   it('right-click menu: Copy is disabled with no selection', async () => {

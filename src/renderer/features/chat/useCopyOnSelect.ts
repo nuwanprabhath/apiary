@@ -21,6 +21,12 @@ function selectionWithin(root: HTMLElement | null): string {
   return fragment !== null && hasStructure(fragment) ? selectionText(fragment) : sel.toString()
 }
 
+/** The address of the link under the pointer (a web or mail link, as the markdown allows), or ''. */
+function linkAt(target: EventTarget | null): string {
+  const href = target instanceof Element ? target.closest('a[href]')?.getAttribute('href') ?? '' : ''
+  return /^(https?:|mailto:)/i.test(href) ? href : ''
+}
+
 function inTextField(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest('input, textarea') !== null
 }
@@ -28,7 +34,8 @@ function inTextField(target: EventTarget | null): boolean {
 /**
  * Copy-on-select for a read-only region (the chat transcript), like the terminal: releasing the
  * mouse over a non-empty selection inside `ref` copies it and says how much was copied. Also a
- * right-click menu with "Copy", enabled only while something is selected.
+ * right-click menu with "Copy", enabled only while something is selected, and "Copy link address"
+ * when the click was on a link.
  *
  * Wire up: `const { onContextMenu, menu } = useCopyOnSelect(ref)`; put `ref` and `onContextMenu`
  * on the element and render `{menu}` anywhere. Needs a NotificationProvider above it.
@@ -41,6 +48,7 @@ export function useCopyOnSelect(ref: RefObject<HTMLElement | null>): {
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
   const [selected, setSelected] = useState('')
   const [selectedHtml, setSelectedHtml] = useState('')
+  const [link, setLink] = useState('')
 
   const copy = useCallback((text: string): void => {
     void copyText(text).then((ok) => {
@@ -80,10 +88,19 @@ export function useCopyOnSelect(ref: RefObject<HTMLElement | null>): {
     // Read at open, so "Copy" reflects the selection as it is at that moment.
     setSelected(selectionWithin(ref.current))
     setSelectedHtml(selectionHtmlWithin(ref.current))
+    setLink(linkAt(e.target))
     setPosition({ x: e.clientX, y: e.clientY })
   }, [ref])
 
+  const linkItems: ContextMenuItem[] = link === '' ? [] : [{
+    id: 'copy-link',
+    label: 'Copy link address',
+    run: () => {
+      void copyText(link).then((ok) => { if (ok) notify({ kind: 'success', message: 'Copied link address', timeoutMs: 2000 }) })
+    },
+  }]
   const items: ContextMenuItem[] = [
+    ...linkItems,
     { id: 'copy', label: 'Copy', disabled: selected === '', run: () => { copy(selected) } },
     {
       id: 'copy-formatted',
