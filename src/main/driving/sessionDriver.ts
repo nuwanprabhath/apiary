@@ -8,7 +8,6 @@ import { log } from '../log/logger'
 
 export interface DriveFolder {
   id: string
-  /** The folder's name as the sidebar shows it. */
   name: string
   branch: string | null
   isRepo: boolean

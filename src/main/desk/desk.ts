@@ -5,7 +5,6 @@ import { slackDesk } from './slackDesk'
 
 export type { DeskParts }
 
-/** Every piece, started in this order. */
 const DESK_PIECES: readonly DeskPiece[] = [commands, approvals, slackDesk]
 
 /**

@@ -20,10 +20,8 @@ export function compareTs(a: string, b: string): number {
   return x === y ? 0 : x < y ? -1 : 1
 }
 
-/** A `ts` as epoch milliseconds. */
 export const tsToMs = (ts: string): number => Math.floor(Number(ts) * 1000)
 
-/** The `ts` for a moment, in Slack's form. */
 export function msToTs(ms: number): string {
   const seconds = Math.floor(ms / 1000)
   return `${String(seconds)}.${String(Math.floor(ms % 1000) * 1000).padStart(6, '0')}`

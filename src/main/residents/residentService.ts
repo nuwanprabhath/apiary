@@ -202,13 +202,10 @@ export class ResidentService {
   /** The session driver and Slack the desk tools reach; the desk piece sets them on start and null on stop. */
   setDesk(desk: DeskControls | null): void { this.desk = desk }
 
-  /** The enabled residents, as one asks another for them. */
   names(): ResidentName[] { return this.outside.names() }
 
-  /** Sends `text` to the resident called `toName` as a note; the answer is its next turn end. */
   ask(fromId: string, toName: string, text: string): { id: string; name: string } { return this.outside.ask(fromId, toName, text) }
 
-  /** Runs the other resident's cycle now, on duty or not. */
   check(fromId: string, toName: string): { id: string; name: string } { return this.outside.check(fromId, toName) }
 
   stop(id: string): void { this.require(id).chat.interrupt() }
