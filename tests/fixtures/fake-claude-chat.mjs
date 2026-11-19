@@ -17,10 +17,12 @@ import { appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 const args = process.argv.slice(2)
-let sessionId = args.includes('--resume') ? args[args.indexOf('--resume') + 1] : randomUUID()
+// `--session-id <id>` starts a new session under that id and writes its file from the first message, as claude does.
+const fresh = args.includes('--session-id')
+let sessionId = args.includes('--resume') ? args[args.indexOf('--resume') + 1] : fresh ? args[args.indexOf('--session-id') + 1] : randomUUID()
 // After /clear the new session is written to its own JSONL, as claude writes it, so Apiary can
 // index it and a tab can follow the chat there (sessions before it are the fixture's, not ours).
-let cleared = false
+let cleared = fresh
 const ROOT = process.env.APIARY_CONFIG_ROOT || process.env.CLAUDE_CONFIG_DIR || ''
 function persist(o) {
   if (!cleared || ROOT === '' || (o.type !== 'user' && o.type !== 'assistant')) return

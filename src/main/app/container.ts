@@ -66,6 +66,7 @@ import type { RemoteWindows } from '../remote/remoteWindows'
 import type { RemoteClientService } from '../remote/remoteClientService'
 import type { HostDirectory } from '../remote/hostDirectory'
 import { createRemoteConnecting, createRemoteServing, realConnectingOutside } from './remoteContainer'
+import { createDriving } from './drivingContainer'
 import { createResidents } from './residentsContainer'
 import { createSchedules, osJobsWanted, type ScheduleParts } from './scheduleContainer'
 import type { VirtualContentsRegistry } from '../remote/virtualContents'
@@ -196,7 +197,7 @@ export interface Container {
   knowledge: KnowledgeParts
   accounts: AccountService
   /** The resident agents; `index.ts` starts them once windows can hear them, and disposes of them on quit. */
-  residents: ReturnType<typeof createResidents>; schedules: ScheduleParts // `index.ts` starts both once windows can hear them
+  residents: ReturnType<typeof createResidents>; schedules: ScheduleParts; driving: ReturnType<typeof createDriving> // `index.ts` starts both once windows can hear them
 }
 
 /** What the session-side services are built from; optional fields default to the app's, so a test names only what it needs. */
@@ -282,6 +283,8 @@ export interface Services {
   /** The Claude accounts; the terminals, the chats and the one-shot calls launch under them. */
   accounts: AccountService
   knowledge: KnowledgeParts
+  /** What the session driver creates worktrees and asks for scans through. */
+  git: GitService; catalog: SessionCatalog
 }
 
 /**
@@ -387,7 +390,7 @@ export function createServices(options: ServicesOptions): Services {
     pty, store, git, vscode, images, search, terminals, catalog, actions, transcripts, chat, plugins, disposed,
   })
   const knowledge = createKnowledge({ ...options.knowledge, dataDir, store, search, accounts, claudeBin: () => terminals.getClaudeBin() })
-  return { service, source, activeTabs, vscode, store, accounts, knowledge }
+  return { service, source, activeTabs, vscode, store, accounts, knowledge, git, catalog }
 }
 
 export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: ContainerInputs): Container {
@@ -408,7 +411,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion, pairingFile: paths.remotePairingFile,
     settings: settingsService, layouts: () => sessionLayoutStore.snapshot().windows, openWindows: () => windowManager.openNumbers(),
   })
-  const { service, source, activeTabs, vscode, accounts, knowledge, store } = createServices({
+  const { service, source, activeTabs, vscode, accounts, knowledge, store, git, catalog } = createServices({
     remoteClients: remoteServer, configRoot: paths.configRoot, dbPath: paths.dbPath, claudeBin: settings.claudeBin ?? undefined,
     accountsFile: paths.accountsFile, accountsDir: paths.accountsDir, homeDir: inputs.homeDir, knowledge: paths,
     onAccountsChanged: () => { broadcast(IPC.accountsChanged, accounts.list()) },
@@ -421,14 +424,11 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     pluginSettings: settings.pluginSettings,
     // Test-only, like APIARY_FAKE_LIVE: points the merge-request plugin at a stand-in `glab`.
     glabPath: env.glabPath === '' ? undefined : env.glabPath,
-    vsCodePath: inputs.vsCodePath,
-    onPluginsChanged: () => { broadcast(IPC.pluginsChanged) },
-    onStatusBarChanged: () => { broadcast(IPC.statusBarChanged) },
+    vsCodePath: inputs.vsCodePath, onPluginsChanged: () => { broadcast(IPC.pluginsChanged) }, onStatusBarChanged: () => { broadcast(IPC.statusBarChanged) },
     tabs: tabRegistry,
     chat: {
       attachments: new WindowAttachments((id) => webContents.fromId(id) ?? virtualContents.get(id)),
-      announce: (change) => { broadcast(IPC.chatLifecycle, change) },
-      activityChanged: () => { broadcast(IPC.activeTabsChanged) },
+      announce: (change) => { broadcast(IPC.chatLifecycle, change) }, activityChanged: () => { broadcast(IPC.activeTabsChanged) },
     },
     statusBarKeychain: inputs.statusBarKeychain, fakeUsage: env.fakeUsage,
     claudeUsageConsent: {
@@ -477,6 +477,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   return {
     paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry, windowManager, service, chat: service.chat, plugins: service.plugins, spelling, folderBrowser, ipcState, sessionWatcher, updater,
     themeStore, themeGenerator, petStore, petService, petPlacement, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory, library, accounts, knowledge, residents: createResidents({ settingsService, paths, store, accounts, knowledge, tabRegistry, service, ipcState, windowManager, virtualContents, version: inputs.appVersion, resourcesDir: inputs.resourcesDir }),
+    driving: createDriving({ store, chat: service.chat, git, catalog, tabMover: ipcState.tabMover, virtualContents }),
     schedules: createSchedules({ paths, os: osJobsWanted(env) ? { homeDir: inputs.homeDir } : null, store, accounts, chat: service.chat, service, model: env.scheduleModel }),
   }
 }

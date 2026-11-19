@@ -34,7 +34,7 @@ export function buildNewSessionCommand(opts: { claudeBin?: string } = {}): strin
  */
 export function buildChatCommand(
   sessionId: string,
-  opts: { claudeBin?: string; model?: string; permissionMode?: string; effort?: string } = {},
+  opts: { claudeBin?: string; model?: string; permissionMode?: string; effort?: string; fresh?: true } = {},
 ): string {
   if (!UUID_RE.test(sessionId)) throw new Error(`Invalid session id: ${sessionId}`)
   const SAFE = /^[a-zA-Z][a-zA-Z0-9.-]{0,63}$/
@@ -57,5 +57,6 @@ export function buildChatCommand(
     if (!SAFE.test(opts.permissionMode)) throw new Error(`Invalid permission mode: ${opts.permissionMode}`)
     flags.push(`--permission-mode ${opts.permissionMode}`)
   }
-  return `exec ${bin} ${flags.join(' ')} --resume ${sessionId}`
+  // `fresh` starts a session that does not exist yet under this id.
+  return `exec ${bin} ${flags.join(' ')} ${opts.fresh === true ? '--session-id' : '--resume'} ${sessionId}`
 }
