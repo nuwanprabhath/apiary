@@ -9,7 +9,10 @@ import { mraConfigFor, mraConfigured, mraWrapper, optionOf } from './mrDeskConfi
 import { ToolProbe } from './mrDeskTools'
 import { parseGitlabProject } from '@shared/mentions/gitlabProject'
 import { MR_DESK_DISALLOWED, blockedLines, mraSubcommandsIn, subcommandsFromHelp } from './mrDeskMra'
-import { MR_DESK_USER_ACTIONS, mrHeadOf } from './mrDeskActions'
+import { MR_DESK_USER_ACTIONS, draftsPending, mrHeadOf } from './mrDeskActions'
+
+/** How often the badge re-reads the drafts from GitLab between answers (one call per MR with drafts). */
+const DRAFTS_CHECK_MINUTES = 10
 
 const CYCLE_PROMPT = 'Run one MR desk cycle.'
 const CYCLE_DOING = 'Checking your MRs'
@@ -99,6 +102,7 @@ export function createMrDesk(deps: KindDeps): ResidentKind {
     ],
     bins: { mra: () => ['python3', script()] },
     cycle: { everyMinutes: CYCLE_DEFAULT_MINUTES, prompt: CYCLE_PROMPT, doing: CYCLE_DOING },
+    pending: { argv: ['{bin:mra}', 'drafts'], everyMinutes: DRAFTS_CHECK_MINUTES, read: draftsPending },
     instantMatches: false,
     setup: (config: ResidentConfig) => {
       if (optionOf(config.options, 'project') === '') return 'Set the GitLab project in Settings'

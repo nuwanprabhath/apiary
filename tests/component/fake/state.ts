@@ -18,7 +18,7 @@ import type { EventKey, PayloadOf } from '@shared/ipc/contract'
 import type { LibraryPatch, LibrarySnapshot } from '@shared/libraryState'
 import type { AccountsState } from '@shared/domain/accounts'
 import type { ScheduleDefault, SchedulesState } from '@shared/domain/schedule'
-import type { ResidentAttention, ResidentMessage, ResidentPermissionRequest } from '@shared/domain/residents'
+import type { ResidentAttention, ResidentMessage, ResidentPending, ResidentPermissionRequest } from '@shared/domain/residents'
 import type { PetSpec } from '@shared/pets/spec'
 import type { PetsState } from '@shared/pets/state'
 import type { TerminalRef } from '@shared/domain/ids'
@@ -178,6 +178,8 @@ export interface FakeState {
   residentNextCycle: Map<string, number>
   /** What a resident flagged for the user (`set_attention`), until `residentSeen`. */
   residentAttention: Map<string, ResidentAttention>
+  /** What waits on the user to finish (the MR desk's unpublished drafts), as main's check found it. */
+  residentPending: Map<string, ResidentPending>
   /** Tool uses each resident waits on, oldest first; a test puts them here, an answer removes one. */
   residentPermissions: Map<string, ResidentPermissionRequest[]>
   /** What main's folder dialog answers for `residentPickFolder` (null: cancelled). */

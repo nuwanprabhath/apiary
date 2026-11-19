@@ -7,10 +7,15 @@ import { FRIDAY, build, regent } from './support'
 
 const desk = (over: Partial<ResidentConfig> = {}): ResidentConfig => regent({ id: 'desk', kind: MR_DESK_KIND, name: 'MR Desk', ...over })
 
+/** The desk's own drafts check (`mra drafts`, run on start and after answers), answered at once: none. */
+const isDraftsCheck = (argv: string[]): boolean => argv.at(-1) === 'drafts'
+
 /** A command runner whose runs wait until the test settles them, in the order they started. */
 function heldRunner(): { run: RunCommand; held: { argv: string[]; release: (out: string) => void; fail: (e: Error) => void }[] } {
   const held: { argv: string[]; release: (out: string) => void; fail: (e: Error) => void }[] = []
-  const run: RunCommand = (argv) => new Promise<string>((resolve, reject) => { held.push({ argv, release: resolve, fail: reject }) })
+  const run: RunCommand = (argv) => (isDraftsCheck(argv)
+    ? Promise.resolve('{"drafts": [], "total": 0}')
+    : new Promise<string>((resolve, reject) => { held.push({ argv, release: resolve, fail: reject }) }))
   return { run, held }
 }
 
@@ -89,5 +94,30 @@ describe('a quick action shows that it is happening', () => {
     settings.change([desk()])
     expect(at(service.list(), 0)).toMatchObject({ state: 'working', activity: 'Starting' })
     await vi.waitFor(() => { expect(at(service.list(), 0)).toMatchObject({ state: 'idle', activity: null }) })
+  })
+})
+
+describe('what waits on the user to finish', () => {
+  it('shows the desk\'s unpublished drafts from `mra drafts`, reads them again after an answer, and drops them once published', async () => {
+    vi.setSystemTime(FRIDAY(12))
+    let answer = '{"drafts": [{"iid": 1735, "count": 1}, {"iid": 1730, "count": 2}], "total": 3}'
+    const calls: string[][] = []
+    const run: RunCommand = async (argv) => { calls.push(argv); return isDraftsCheck(argv) ? answer : '' }
+    const { service } = deskService(run)
+    service.start()
+    await vi.waitFor(() => { expect(at(service.list(), 0).pending).toEqual({ count: 3, summary: '3 unpublished drafts', items: ['!1735', '!1730 (2)'] }) })
+    answer = '{"drafts": [], "total": 0}'
+    await service.quickAction('desk', 'desk')
+    await vi.waitFor(() => { expect(at(service.list(), 0).pending).toBeNull() })
+    expect(calls.filter(isDraftsCheck)).toHaveLength(2)
+  })
+
+  it('shows nothing for a resident that is turned off, and runs no check for it', async () => {
+    vi.setSystemTime(FRIDAY(12))
+    const run = vi.fn<RunCommand>(async () => '{"drafts": [{"iid": 1, "count": 1}], "total": 1}')
+    const { service } = deskService(run, desk({ enabled: false }))
+    service.start()
+    expect(at(service.list(), 0).pending).toBeNull()
+    expect(run).not.toHaveBeenCalled()
   })
 })

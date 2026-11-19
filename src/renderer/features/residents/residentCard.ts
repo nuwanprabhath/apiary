@@ -3,7 +3,7 @@ import { clockText, dayClock, nextChange } from '@shared/residentSchedule'
 
 /** One labelled line of the badge's hover card. */
 export interface CardLine {
-  label: 'Now' | 'Needs you' | 'Checks' | 'Digest' | 'Setup'
+  label: 'Now' | 'Needs you' | 'To finish' | 'Checks' | 'Digest' | 'Setup'
   text: string
 }
 
@@ -31,6 +31,7 @@ export function residentCardLines(resident: ResidentStatus, schedule: ResidentSc
   const waiting = resident.permissions.length
   if (resident.attention !== null) lines.push({ label: 'Needs you', text: resident.attention.summary })
   else if (waiting > 0) lines.push({ label: 'Needs you', text: `${String(waiting)} · ${WAITING_FOR_OK}` })
+  if (resident.pending !== null) lines.push({ label: 'To finish', text: `${resident.pending.summary}: ${resident.pending.items.join(', ')}` })
   if (resident.cycle !== null) lines.push({ label: 'Checks', text: checksText(resident.cycle, now) })
   if (resident.digest !== null) lines.push({ label: 'Digest', text: `${String(resident.digest.done)} of ${String(resident.digest.total)}` })
   if (resident.setupNeeded !== null) lines.push({ label: 'Setup', text: resident.setupNeeded })

@@ -36,6 +36,7 @@ export function residentStatuses(state: FakeState): ResidentStatus[] {
       activity: c.enabled && busy ? state.residentActivity.get(c.id) ?? 'Writing' : null,
       onDuty, appearance: kind.appearance, digest: null,
       attention: permissions.length > 0 ? { count: permissions.length, summary: WAITING_FOR_OK } : state.residentAttention.get(c.id) ?? null,
+      pending: c.enabled ? state.residentPending.get(c.id) ?? null : null,
       permissions,
       quickActions: kind.quickActions.map(({ id, label, opensPopup }) => ({ id, label, opensPopup })),
       setupNeeded: kind.setup(c),

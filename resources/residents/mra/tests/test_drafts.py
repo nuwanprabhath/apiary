@@ -190,14 +190,45 @@ class DraftListEditMove(unittest.TestCase):
         with body_file('new text') as f:
             self.assertEqual(run(['draft', 'edit', '!1', '7', '--body-file', f], gl, state)[0], 0)
         self.assertEqual(gl.calls[-1], ('update', 7, {'note': 'new text'}))
+        # GitLab refuses a new position on a draft, so a move is a new draft with the same text and
+        # the old one deleted.
+        gl.drafts_list = [{'id': 7, 'note': 'new text'}]
         code, res, state = run(['draft', 'move', '!1', '7', '--file', 'src/a.js', '--line', '3'], gl, state)
         self.assertEqual(code, 0)
-        self.assertEqual(gl.calls[-1][2]['position']['new_line'], 3)
-        self.assertEqual(state['drafts']['1']['7'], SHA)
-        self.assertEqual(run(['draft', 'move', '!1', '7', '--file', 'src/a.js', '--line', '99'], gl, state)[0], 2)
-        self.assertEqual(run(['draft', 'delete', '!1', '7'], gl, state)[0], 0)
+        self.assertEqual(gl.calls[-2][0], 'create')
+        self.assertEqual(gl.calls[-2][1]['note'], 'new text')
+        self.assertEqual(gl.calls[-2][1]['position']['new_line'], 3)
         self.assertEqual(gl.calls[-1], ('delete', 7))
-        self.assertNotIn('7', state['drafts'].get('1', {}))
+        self.assertNotIn('update', [c[0] for c in gl.calls[1:]])
+        self.assertEqual((res['id'], res['moved_from']), (77, 7))
+        self.assertEqual(state['drafts']['1'], {'77': SHA})
+        gl.drafts_list = [{'id': 77, 'note': 'new text'}]
+        self.assertEqual(run(['draft', 'move', '!1', '77', '--file', 'src/a.js', '--line', '99'], gl, state)[0], 2)
+        self.assertEqual(run(['draft', 'move', '!1', '5', '--file', 'src/a.js', '--line', '3'], gl, state)[0], 2)
+        self.assertEqual(run(['draft', 'delete', '!1', '77'], gl, state)[0], 0)
+        self.assertEqual(gl.calls[-1], ('delete', 77))
+        self.assertNotIn('77', state['drafts'].get('1', {}))
+
+    def test_drafts_counts_each_recorded_mr_from_gitlab_and_forgets_the_empty_and_the_gone(self):
+        class PerMr(FakeGL):
+            def drafts(self, iid):
+                if iid == 3:
+                    raise gitlab.GitLabError('404 Not Found')
+                return {1: [{'id': 7}, {'id': 8}], 2: []}.get(iid, [{'id': 9}])
+        state = {'me': ME, 'mrs': {}, 'drafts': {'1': {'7': SHA}, '2': {'5': SHA}, '3': {'6': SHA}, '10': {'9': None}}}
+        code, res, state = run(['drafts'], PerMr(), state)
+        self.assertEqual(code, 0)
+        self.assertEqual(res, {'drafts': [{'iid': 1, 'count': 2}, {'iid': 10, 'count': 1}], 'total': 3})
+        self.assertEqual(sorted(state['drafts']), ['1', '10'])
+
+    def test_drafts_keeps_its_record_when_gitlab_fails_for_another_reason(self):
+        class Down(FakeGL):
+            def drafts(self, iid):
+                raise gitlab.GitLabError('502 Bad Gateway')
+        state = {'me': ME, 'mrs': {}, 'drafts': {'1': {'7': SHA}}}
+        code, _, state = run(['drafts'], Down(), state)
+        self.assertEqual(code, 2)
+        self.assertEqual(state['drafts'], {'1': {'7': SHA}})
 
 
 class DraftReply(unittest.TestCase):
@@ -208,6 +239,13 @@ class DraftReply(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(gl.calls, [('create', {'note': 'agreed', 'in_reply_to_discussion_id': 'd1'})])
         self.assertEqual(res, {'id': 77, 'url': 'https://gl/mr/1', 'reply_to': 'd1'})
+
+    def test_a_reply_draft_is_recorded_so_drafts_counts_it(self):
+        gl = FakeGL()
+        state = {'me': ME, 'mrs': {}}
+        with body_file('agreed') as f:
+            run(['draft', 'add', '!1', '--reply-to', 'd1', '--body-file', f], gl, state)
+        self.assertEqual(state['drafts'], {'1': {'77': None}})
 
     def test_reply_to_excludes_a_diff_anchor_and_an_anchor_is_still_required(self):
         gl = FakeGL()
@@ -417,7 +455,7 @@ class Help(unittest.TestCase):
     def test_every_new_subcommand_has_help(self):
         for argv in (['--help'], ['draft', '--help'], ['draft', 'add', '--help'], ['draft', 'list', '--help'],
                      ['draft', 'edit', '--help'], ['draft', 'move', '--help'], ['draft', 'delete', '--help'],
-                     ['draft', 'publish', '--help'], ['reply', '--help'], ['thread', '--help'], ['api', '--help'],
+                     ['draft', 'publish', '--help'], ['drafts', '--help'], ['reply', '--help'], ['thread', '--help'], ['api', '--help'],
                      ['resolve', '--help']):
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf), self.assertRaises(SystemExit) as cm:

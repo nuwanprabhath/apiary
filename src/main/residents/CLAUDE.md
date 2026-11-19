@@ -19,6 +19,10 @@ kind's own `options`). Regent is the first kind; the MR desk is the second.
     15, 30 or 60; null is the kind's). The quick action id `cycle` (`CYCLE_ACTION_ID`, Settings'
     Check now) sends it at once. `status.cycle` (`cycle.ts`) says the interval, the next one and
     whether the running turn is one; `apiary_status` says the same;
+  - `pending?`: what waits on the user to finish (`ResidentPending`; the MR desk's unpublished
+    drafts, from `mra drafts`): a command main runs after each finished answer and every
+    `everyMinutes` while the resident is enabled and set up (`pendingChecks.ts`, one run at a time,
+    the last answer kept when a run fails). Unlike `attention`, opening the popup does not clear it;
   - `instantMatches`: whether a send answers with the index's matches. Even then
     `instantMatchPolicy` (`instantMatches.ts`) shows them only for a lookup: `ref` hits for a
     message naming a ref, the top three for one asking to find or open a session, none otherwise;

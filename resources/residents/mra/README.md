@@ -32,6 +32,10 @@ folder. Tests: `npm run test:mra` from the repo root.
     `draft add <ref> --reply-to <discussion> --body-file <f>` (a draft reply in a thread, no diff anchor; `draft list` shows it with `reply_to`, `draft move` refuses it), `draft list`, `draft edit <ref> <id> --body-file <f>`, `draft move <ref> <id> --file --line`,
     `draft delete <ref> <id>`, `thread <ref> --discussion <id>` (bodies wrapped as untrusted).
     `draft list` marks a draft `outdated` when the MR head moved since it was anchored.
+    `drafts` lists your unpublished drafts on every MR mra made one on, read from GitLab (`{ drafts:
+    [{ iid, count }], total }`), and forgets an MR with none left; Apiary's badge shows the total.
+    `draft move` makes a new draft at the line with the same text and deletes the old one: GitLab
+    refuses a new position on an existing draft ("400 Missing params to modify").
   - Needs `MRA_ACTION_NONCE` equal to `action.nonce` beside the state (written by Apiary after Allow, deleted
     on use): `draft publish <ref>`, `reply <ref> --discussion <id> --body-file <f>`, `resolve`.
   - `api <path> [--paginate] [-F key=value]` is `glab api -X GET` only; any method, input, header or raw-field

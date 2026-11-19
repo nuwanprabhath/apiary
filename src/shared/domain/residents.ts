@@ -89,6 +89,19 @@ export interface ResidentAttention {
   summary: string
 }
 
+/**
+ * Something only the user can finish (the MR desk's unpublished drafts, which nobody else sees
+ * until they publish them). Shown on the badge until it is done, apart from `attention`, which the
+ * popup opening clears.
+ */
+export interface ResidentPending {
+  count: number
+  /** "2 unpublished drafts". */
+  summary: string
+  /** Where they are ("!1735", "!1730 (2)"). */
+  items: string[]
+}
+
 /** The attention a resident shows while a tool use waits for Allow or Deny. */
 export const WAITING_FOR_OK = 'Waiting for your OK'
 
@@ -129,6 +142,8 @@ export interface ResidentStatus {
   digest: { done: number; total: number } | null
   /** What it needs the user for, or null. */
   attention: ResidentAttention | null
+  /** What waits on the user to finish, or null. */
+  pending: ResidentPending | null
   /** Tool uses waiting for Allow or Deny, oldest first. */
   permissions: ResidentPermissionRequest[]
   /** The kind's own right-click actions, after the common ones (open chat, settings, pause). */

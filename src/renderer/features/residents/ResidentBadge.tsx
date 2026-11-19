@@ -67,7 +67,9 @@ function residentNeeds(resident: ResidentStatus): { count: string; summary: stri
  * A resident in the status bar: its glyph sleeps, glows or works. Working, it grows into a pill
  * that says what it is doing; the bar grows a little with it (pure CSS on `data-state`). Needing
  * the person, a ring pulses out of it, a count replaces the unread dot and, unless it is working,
- * the pill says what is wanted. A click opens or closes its chat popup; a right-click, the
+ * the pill says what is wanted. Something only the person can finish (unpublished drafts) keeps a
+ * tinted count at the orb's foot that nudges now and then, and the pill says it when nothing else
+ * does. A click opens or closes its chat popup; a right-click, the
  * context-menu key or Shift+F10 opens its quick actions; hovering, or focus from the keyboard,
  * shows `ResidentHoverCard`.
  */
@@ -76,7 +78,8 @@ function ResidentBadge({ resident, onOpenSettings }: { resident: ResidentStatus;
   const unread = useUnread(resident.id, open)
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const needs = residentNeeds(resident)
-  const pill = resident.state === 'working' ? resident.activity ?? 'Working…' : needs?.summary ?? null
+  const pending = resident.pending
+  const pill = resident.state === 'working' ? resident.activity ?? 'Working…' : needs?.summary ?? pending?.summary ?? null
   const hover = useHoverCard<HTMLButtonElement>()
   const tall = useStatusBarSize().tier === 'tall'
   return (
@@ -94,7 +97,8 @@ function ResidentBadge({ resident, onOpenSettings }: { resident: ResidentStatus;
         data-state={resident.state}
         data-palette={resident.appearance.palette}
         data-needs={needs !== null ? 'true' : undefined}
-        aria-label={`${resident.name}: ${resident.state}${pill === null ? '' : `, ${pill}`}`}
+        data-pending={pending !== null ? 'true' : undefined}
+        aria-label={`${resident.name}: ${resident.state}${pill === null ? '' : `, ${pill}`}${pending !== null && pill !== pending.summary ? `, ${pending.summary}` : ''}`}
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => { hover.hideNow(); toggleResidentPopup(resident.id) }}
@@ -110,6 +114,7 @@ function ResidentBadge({ resident, onOpenSettings }: { resident: ResidentStatus;
           <ResidentOrb state={resident.state} appearance={resident.appearance} />
           {needs !== null && <span className="resident-count" data-testid="resident-count">{needs.count}</span>}
           {needs === null && unread && <span className="resident-unread" data-testid="resident-unread" />}
+          {pending !== null && <span className="resident-pending" data-testid="resident-pending">{pending.count}</span>}
         </span>
         {tall && pill !== null ? (
           <span className="resident-lines">

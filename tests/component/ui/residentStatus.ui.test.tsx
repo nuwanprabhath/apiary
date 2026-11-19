@@ -58,6 +58,25 @@ describe('UI: what a resident is doing', () => {
     await reviewUi(`resident count ${String(count)} bar ${String(px)}`, { widths: [620, 1000] })
   })
 
+  it.each([22, 52])('MR desk with unpublished drafts in a %i px bar, hover card open', async (px) => {
+    localStorage.setItem('apiary.statusBarHeight', String(px))
+    const { fake } = await renderApp({}, (f) => { withMrDesk(f) })
+    await until(() => badge('mr-desk') !== null)
+    fake.emit('residentsChanged', [mrDeskStatus('idle', { pending: { count: 3, summary: '3 unpublished drafts', items: ['!1735', '!1730 (2)'] } })])
+    await until(() => document.querySelector('[data-testid="resident-pending"]') !== null)
+    await reviewUi(`resident drafts bar ${String(px)}`, { widths: [620, 1000], open: hoverOpen('mr-desk') })
+  })
+
+  it('MR desk with drafts and a needs-you count at once', async () => {
+    const { fake } = await renderApp({}, (f) => { withMrDesk(f) })
+    await until(() => badge('mr-desk') !== null)
+    fake.emit('residentsChanged', [mrDeskStatus('idle', {
+      attention: { count: 2, summary: '2 MRs ready' }, pending: { count: 1, summary: '1 unpublished draft', items: ['!1735'] },
+    })])
+    await until(() => document.querySelector('[data-testid="resident-pending"]') !== null)
+    await reviewUi('resident drafts and needs', { widths: [620, 1000] })
+  })
+
   it('the unread dot sits inside the badge', async () => {
     const { fake } = await renderApp({}, (f) => { withRegent(f) })
     await until(() => badge('regent') !== null)

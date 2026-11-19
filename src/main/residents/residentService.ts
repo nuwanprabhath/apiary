@@ -1,15 +1,15 @@
 import type {
-  ResidentAttention, ResidentConfig, ResidentKindId, ResidentKindInfo, ResidentMessage, ResidentMessagePush, ResidentState, ResidentStatus, SessionHit,
+  ResidentConfig, ResidentKindId, ResidentKindInfo, ResidentMessage, ResidentMessagePush, ResidentStatus, SessionHit,
 } from '@shared/domain/residents'
-import { CYCLE_ACTION_ID, WAITING_FOR_OK } from '@shared/domain/residents'
+import { CYCLE_ACTION_ID } from '@shared/domain/residents'
 import { errorMessage } from '@shared/errors'
 import type { DigestJob, SessionKnowledge } from '../knowledge/types'
 import type { LoginShellSpawn } from '../exec/spawnLoginShell'
 import { createExec } from '../exec/run'
 import { fireAndForget } from '../log/fireAndForget'
 import { log } from '../log/logger'
-import { clipActivity, STARTING, WORKING } from './activity'
-import { cycleMinutesOf, cycleStatus } from './cycle'
+import { STARTING } from './activity'
+import { cycleMinutesOf } from './cycle'
 import { instantHits, instantMatchPolicy } from './instantMatches'
 import { approvalControlFor } from './approvalControl'
 import { kindInfos, kindOf, newResident, unknownKindFilter, type ResidentKind } from './kinds'
@@ -18,9 +18,11 @@ import type { ResidentControl, ToolDeps } from './mcp/toolKit'
 import { cycleSkip, expandArgv } from './quickActions'
 import { ResidentChat } from './residentChat'
 import { ResidentSpace } from './residentSpace'
-import { apiaryStatusText, type ResidentPermissions } from './statusText'
+import { apiaryStatusText } from './statusText'
 import { residentLaunch } from './residentLaunch'
 import { isOnDuty, nextChange } from '@shared/residentSchedule'
+import { PendingChecks } from './pendingChecks'
+import { residentStatus, type Resident } from './residentStatus'
 
 /** Off duty, a resident's idle claude is stopped after this long. */
 const IDLE_STOP_MS = 20 * 60 * 1000
@@ -76,29 +78,6 @@ export interface ResidentServiceDeps {
   kindOf?: (id: ResidentKindId) => ResidentKind
 }
 
-interface Resident {
-  config: ResidentConfig
-  kind: ResidentKind
-  space: ResidentSpace
-  chat: ResidentChat
-  /** What its running claude was started with; a change restarts it once it is idle. */
-  launchedAs: string | null
-  /** The permission flags its claude was last started with, for `apiary_status`. */
-  permissions: ResidentPermissions | null
-  /** When its kind's cycle prompt is next due (epoch ms), or null while it is off duty. Invalidated by a change of `cycleEvery`. */
-  nextCycleAt: number | null
-  /** The interval `nextCycleAt` was counted with. */
-  cycleEvery: number | null
-  /** Settles when the kind's `prepare` last finished; claude and commands wait for it. */
-  ready: Promise<void>
-  /** The options `prepare` last ran for. */
-  preparedFor: string | null
-  preparing: boolean
-  /** Quick actions and starts running outside a turn, oldest first; `seq` orders them against `turnSeq`. */
-  actions: { doing: string; seq: number }[]
-  /** When its latest turn was asked for, on the service's `seq`. */
-  turnSeq: number
-}
 
 const launchKey = (c: ResidentConfig): string =>
   `${c.model}\n${c.name}\n${c.permissionMode}\n${String(c.cycleEveryMinutes)}\n${JSON.stringify(c.options)}`
@@ -125,6 +104,7 @@ export class ResidentService {
   /** Orders actions and turns, so the most recently started one's words win. */
   private seq = 0
   private readonly offs: (() => void)[] = []
+  private readonly pending = new PendingChecks({ now: () => this.now().getTime(), onChange: () => { this.statusChanged() } })
 
   constructor(private readonly deps: ResidentServiceDeps) {
     this.now = deps.now ?? (() => new Date())
@@ -286,6 +266,13 @@ export class ResidentService {
     }
   }
 
+  /** Runs the kind's `pending` command for an enabled resident that is set up; the badge shows its answer. */
+  private checkPending(r: Resident): void {
+    const check = r.kind.pending
+    if (check === undefined || !r.config.enabled || r.kind.setup(r.config) !== null) return
+    this.pending.refresh(r.config.id, async () => { await r.ready; return check.read(await this.runIn(r, [...check.argv])) })
+  }
+
   private runIn(r: Resident, argv: string[], extraEnv: Record<string, string> = {}): Promise<string> {
     return this.run(expandArgv(argv, { options: r.config.options, bins: r.kind.bins }), r.space.dir, { ...this.deps.launchEnv(), ...(r.kind.env?.(r.config, r.space.dir) ?? {}), ...extraEnv })
   }
@@ -297,6 +284,7 @@ export class ResidentService {
     for (const [id, r] of this.residents) {
       if (!configs.some((c) => c.id === id)) {
         this.residents.delete(id)
+        this.pending.forget(id)
         this.server.revokeToken(id)
         fireAndForget(r.chat.stop(), 'residents')
       }
@@ -304,6 +292,7 @@ export class ResidentService {
     for (const config of configs) this.reconcileOne(config, now)
     this.reconcileDigest(now)
     for (const r of this.residents.values()) this.reconcileCycle(r, now)
+    for (const r of this.residents.values()) if (r.kind.pending !== undefined && this.pending.due(r.config.id, r.kind.pending.everyMinutes)) this.checkPending(r)
     this.arm(now)
     this.statusChanged()
   }
@@ -393,7 +382,11 @@ export class ResidentService {
         resident.permissions = started.permissions
         return started.launch
       },
-      onMessage: (message) => { this.deps.onMessage({ residentId: config.id, message }) },
+      onMessage: (message) => {
+        this.deps.onMessage({ residentId: config.id, message })
+        // An answer may have added, moved or published something the user still has to finish.
+        if (message.role === 'assistant' && !message.streaming) this.checkPending(created)
+      },
       onActivity: () => { this.statusChanged() },
       ...(this.deps.spawn !== undefined ? { spawn: this.deps.spawn } : {}),
     })
@@ -441,40 +434,8 @@ export class ResidentService {
     this.timer = setTimeout(() => { this.reconcile() }, Math.min(wait, RECHECK_MS))
   }
 
-  private attentionOf(r: Resident): ResidentAttention | null {
-    const waiting = r.chat.permissions().length
-    return waiting > 0 ? { count: waiting, summary: WAITING_FOR_OK } : r.space.attention()
-  }
-
   private statusOf(r: Resident, now: Date): ResidentStatus {
-    const onDuty = isOnDuty(r.config.schedule, now)
-    const digestActivity = r.kind.digests && r.config.enabled && onDuty ? this.digestActivity : null
-    const action = r.actions.at(-1)
-    let state: ResidentState = 'idle'
-    if (!r.config.enabled) state = 'asleep'
-    else if (r.chat.working || action !== undefined || digestActivity !== null) state = 'working'
-    else if (!onDuty) state = 'asleep'
-    const actionWords = action !== undefined && (!r.chat.busy || action.seq > r.turnSeq) ? action.doing : null
-    // The one place the rule holds: a working resident always says what it is doing.
-    const activity = actionWords ?? r.chat.activity() ?? digestActivity ?? (state === 'working' ? WORKING : null)
-    const lastAsked = r.chat.history().filter((m) => m.role === 'user' && m.action !== true).at(-1)
-    const running = r.chat.busy && lastAsked !== undefined && lastAsked.text === r.kind.cycle?.prompt
-    return {
-      id: r.config.id,
-      kind: r.config.kind,
-      name: r.config.name,
-      enabled: r.config.enabled,
-      state,
-      activity: r.config.enabled && activity !== null ? clipActivity(activity) : null,
-      onDuty,
-      appearance: r.kind.appearance,
-      digest: r.kind.digests && this.deps.digest !== null ? this.deps.digest.progress() : null,
-      attention: this.attentionOf(r),
-      permissions: r.chat.permissions(),
-      quickActions: r.kind.quickActions.map(({ id, label, opensPopup }) => ({ id, label, opensPopup })),
-      setupNeeded: r.kind.setup(r.config),
-      cycle: cycleStatus(r.kind, r.config, { nextCycleAt: r.nextCycleAt, running, now }),
-    }
+    return residentStatus(r, now, { digestActivity: this.digestActivity, digest: this.deps.digest, pending: this.pending.of(r.config.id) })
   }
 
   /** Sends `residentsChanged` once things settle, and only when a status really changed. */

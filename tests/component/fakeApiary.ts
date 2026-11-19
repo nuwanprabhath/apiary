@@ -133,6 +133,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     residentHeld: new Map(),
     residentNextCycle: new Map(),
     residentAttention: new Map(),
+    residentPending: new Map(),
     residentPermissions: new Map(),
     residentFolder: null,
     sessionAccounts: new Map(),

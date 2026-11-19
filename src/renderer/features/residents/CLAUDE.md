@@ -21,6 +21,9 @@ Read with root CLAUDE.md and [`src/main/residents/CLAUDE.md`](../../../main/resi
   and hops the orb, `.resident-count` replaces the unread dot, and the pill says the summary unless
   it is working. The popup opening calls `markResidentSeen`; permission cards
   (`ResidentRequests.tsx`) leave only when answered.
+- **To finish** (`pending`, the MR desk's unpublished drafts): `data-pending` widens the pill to say
+  it when nothing else does, a count in the resident's tint sits at the orb's foot and nudges, and a
+  slower tinted ring pulses while no needs-you ring does. It stays until main's check finds it done.
 - **Always say what it is doing.** Working, the pill shows `activity` ("Working…" if main ever
   sent none) and the popup's last row is `WorkingLine` (`BusyGlyph` plus the activity), apart
   from any streaming answer, so a cycle or a long shell command shows too. Hover, or keyboard

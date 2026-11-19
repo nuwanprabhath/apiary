@@ -17,7 +17,7 @@ export function withRegent(fake: FakeApiary, opts: { enabled?: boolean; history?
 export function regentStatus(state: ResidentStatus['state'], activity: string | null = null): ResidentStatus {
   return {
     id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: state !== 'asleep', state, activity, onDuty: true,
-    appearance: { glyph: 'bee', palette: 'gold', animation: 'halo' }, digest: null, attention: null, permissions: [], quickActions: [], setupNeeded: null,
+    appearance: { glyph: 'bee', palette: 'gold', animation: 'halo' }, digest: null, attention: null, pending: null, permissions: [], quickActions: [], setupNeeded: null,
     cycle: null,
   }
 }
@@ -33,7 +33,7 @@ export function withMrDesk(fake: FakeApiary): void {
 export function mrDeskStatus(state: ResidentStatus['state'], extra: Partial<ResidentStatus> = {}): ResidentStatus {
   return {
     id: 'mr-desk', kind: MR_DESK_KIND, name: 'MR desk', enabled: state !== 'asleep', state, activity: null, onDuty: true,
-    appearance: { glyph: 'honeypot', palette: 'amber', animation: 'stir' }, digest: null, attention: null, permissions: [], quickActions: [], setupNeeded: null,
+    appearance: { glyph: 'honeypot', palette: 'amber', animation: 'stir' }, digest: null, attention: null, pending: null, permissions: [], quickActions: [], setupNeeded: null,
     cycle: { everyMinutes: 15, nextAt: null, running: false },
     ...extra,
   }

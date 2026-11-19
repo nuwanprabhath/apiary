@@ -881,6 +881,8 @@ def cmd_draft_add(args):
         body = _read_body(args.body_file)
         gl.discussion(args.iid, args.reply_to)  # an unknown thread is an error before anything is created
         made = gl.create_draft(args.iid, {'note': body, 'in_reply_to_discussion_id': args.reply_to})
+        _record_draft(state, args.iid, made['id'], None)  # no anchor; recorded so `mra drafts` counts it
+        save_state(cfg, state)
         out({'id': made['id'], 'url': gl.mr(args.iid)['web_url'], 'reply_to': args.reply_to})
         return
     if not args.file:
@@ -922,15 +924,22 @@ def cmd_draft_edit(args):
 def cmd_draft_move(args):
     cfg, gl, state = ctx(args)
     _need_line(args)
-    if any(_draft_reply_to(d) for d in gl.drafts(args.iid) if d['id'] == args.draft_id):
+    old = next((d for d in gl.drafts(args.iid) if d['id'] == args.draft_id), None)
+    if old is None:
+        raise MraError(f'!{args.iid} has no draft {args.draft_id}', '`mra draft list` shows its drafts')
+    if _draft_reply_to(old):
         raise MraError(f'draft {args.draft_id} is a reply in a thread, it has no line to move',
                        'edit or delete it instead')
     mr, pos = _anchor(gl, args.iid, args.file, args.line, args.old_line)
-    gl.update_draft(args.iid, args.draft_id, {'position': pos})
-    _record_draft(state, args.iid, args.draft_id, pos['head_sha'])
+    # GitLab refuses a new position on an existing draft ("400 Missing params to modify"), so a move
+    # is a new draft at the line with the same text, then the old one deleted.
+    made = gl.create_draft(args.iid, {'note': old.get('note') or '', 'position': pos})
+    gl.delete_draft(args.iid, args.draft_id)
+    (state.get('drafts') or {}).get(str(args.iid), {}).pop(str(args.draft_id), None)
+    _record_draft(state, args.iid, made['id'], pos['head_sha'])
     save_state(cfg, state)
-    out({'id': args.draft_id, 'url': mr['web_url'], 'head_sha': pos['head_sha'], 'file': args.file,
-         'line': args.line if args.line is not None else args.old_line})
+    out({'id': made['id'], 'moved_from': args.draft_id, 'url': mr['web_url'], 'head_sha': pos['head_sha'],
+         'file': args.file, 'line': args.line if args.line is not None else args.old_line})
 
 
 @json_errors
@@ -940,6 +949,29 @@ def cmd_draft_delete(args):
     (state.get('drafts') or {}).get(str(args.iid), {}).pop(str(args.draft_id), None)
     save_state(cfg, state)
     out({'id': args.draft_id, 'deleted': True})
+
+
+@json_errors
+def cmd_drafts(args):
+    """The user's unpublished drafts on every MR mra made one on, read from GitLab, so a draft
+    published or deleted on GitLab's own page drops out. An MR that is gone, or has none left, is
+    forgotten."""
+    cfg, gl, state = ctx(args)
+    recorded = state.get('drafts') or {}
+    found = []
+    for key in sorted(recorded, key=int):
+        try:
+            count = len(gl.drafts(int(key)))
+        except GitLabError as e:
+            if '404' not in str(e):
+                raise
+            count = 0
+        if count == 0:
+            recorded.pop(key, None)
+        else:
+            found.append({'iid': int(key), 'count': count})
+    save_state(cfg, state)
+    out({'drafts': found, 'total': sum(f['count'] for f in found)})
 
 
 @json_errors
@@ -1206,6 +1238,8 @@ def main(argv=None):
     d = dsub.add_parser('publish', help="publish all the user's drafts on an MR (needs the user's approval)")
     d.add_argument('iid', metavar='REF')
     d.set_defaults(fn=cmd_draft_publish)
+
+    sub.add_parser('drafts', help='your unpublished drafts on every MR mra made one on, from GitLab').set_defaults(fn=cmd_drafts)
 
     p = sub.add_parser('reply', help='reply in a discussion (needs the user\'s approval)')
     p.add_argument('iid', metavar='REF')

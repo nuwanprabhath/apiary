@@ -142,6 +142,25 @@ describe('the badge draws its kind and says when it needs you', () => {
     expect(getComputedStyle(badge()!.querySelector('.resident-badge-orb')!, '::after').animationName).toBe('resident-needs-pulse')
   })
 
+  it('unpublished drafts keep a nudging count in its own tint, say so in the pill, and stay after the popup opens', async () => {
+    const drafts = { count: 2, summary: '2 unpublished drafts', items: ['!1735', '!1730'] }
+    const { fake } = await renderApp({}, (f) => { withMrDesk(f); f.state.residentPending.set('mr-desk', drafts) })
+    const desk = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-testid="resident-badge-mr-desk"]')
+    await until(() => desk()?.dataset.pending === 'true')
+    const count = desk()!.querySelector<HTMLElement>('[data-testid="resident-pending"]')!
+    expect(count.textContent).toBe('2')
+    expect(getComputedStyle(count).animationName).toBe('resident-pending-nudge')
+    expect(desk()!.querySelector('.resident-activity')!.textContent).toBe('2 unpublished drafts')
+    expect(getComputedStyle(desk()!.querySelector('.resident-activity')!).display).not.toBe('none')
+    expect(desk()!.dataset.needs).toBeUndefined()
+    expect(desk()!.getAttribute('aria-label')).toContain('2 unpublished drafts')
+    // Unlike attention, seeing the popup does not clear them: only publishing does.
+    await userEvent.click(desk()!)
+    await until(() => document.querySelector('[data-testid="resident-popup"]') !== null)
+    await stays(() => desk()?.dataset.pending === 'true', 200, 'the drafts stay until published')
+    expect(fake.callsTo('residentSeen')).toEqual([])
+  })
+
   it('a count of 0 shows "!", and the count replaces the unread dot', async () => {
     const { fake } = await renderApp({}, (f) => { withRegent(f); f.state.residentAttention.set('regent', { count: 0, summary: 'A question for you' }) })
     await until(() => badge()?.dataset.needs === 'true')

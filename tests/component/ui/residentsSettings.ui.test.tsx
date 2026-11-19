@@ -45,7 +45,7 @@ describe('UI: Settings → Residents', () => {
     const { fake } = await openResidents([regent])
     fake.emit('residentsChanged', [{
       id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: true, state: 'working', activity: 'Reading', onDuty: true,
-      appearance: { glyph: 'bee', palette: 'gold', animation: 'halo' }, digest: { done: 612, total: 840 }, attention: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
+      appearance: { glyph: 'bee', palette: 'gold', animation: 'halo' }, digest: { done: 612, total: 840 }, attention: null, pending: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
     }])
     await until(() => (document.body.textContent ?? '').includes('Digested 612 of 840 sessions'))
     await reviewUi('residents mid-digest', { widths: WIDTHS })

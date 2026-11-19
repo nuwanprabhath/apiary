@@ -4,6 +4,23 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.76.0] - 2026-11-19
+
+### Added
+
+- The MR desk's honey pot shows unpublished drafts until you publish them: a count in its own colour
+  at the pot's foot that nudges every few seconds, a slow ring, the pill saying "3 unpublished
+  drafts" when it has nothing else to say, and a "To finish" line in the hover card naming the MRs.
+  Opening the popup does not clear it; publishing does. Main reads them with mra's new `mra drafts`
+  after every answer and every 10 minutes, from GitLab, so drafts published or deleted on GitLab's
+  own page drop out too. Draft replies inside threads are counted as well.
+
+### Fixed
+
+- `mra draft move` works again. GitLab refuses a new position on an existing draft ("400 Missing
+  params to modify"), so a move now makes a new draft at the line with the same text and deletes
+  the old one.
+
 ## [1.75.0] - 2026-11-19
 
 ### Added

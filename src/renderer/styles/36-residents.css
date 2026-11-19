@@ -30,6 +30,11 @@
   0% { transform: scale(1); opacity: 0.9; }
   100% { transform: scale(1.6); opacity: 0; }
 }
+@keyframes resident-pending-nudge {
+  0%, 70%, 100% { transform: none; }
+  78% { transform: translateY(-2px) scale(1.15); }
+  86% { transform: translateY(0) scale(0.95); }
+}
 @keyframes resident-hop {
   0%, 21%, 100% { transform: translateY(0); }
   10.5% { transform: translateY(-2px); }
@@ -82,7 +87,7 @@
 }
 
 .status-bar { transition: height 160ms ease-out; }
-.status-bar:has(.resident-badge:is([data-state="working"], [data-needs])) {
+.status-bar:has(.resident-badge:is([data-state="working"], [data-needs], [data-pending])) {
   height: max(var(--status-bar-height, var(--control-height-sm)), var(--status-bar-height-working));
 }
 
@@ -113,7 +118,7 @@
   transition: max-width 220ms ease-out, background-color 220ms ease-out, border-color 220ms ease-out;
 }
 .resident-badge:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.resident-badge:is([data-state="working"], [data-needs]) {
+.resident-badge:is([data-state="working"], [data-needs], [data-pending]) {
   max-width: round(down, calc(var(--orb) + var(--resident-words) + var(--space-sm) + var(--space-xs) * 2 + 2px), 1px);
   padding-right: var(--space-sm);
   border-color: color-mix(in sRGB, var(--resident-tint) 45%, transparent);
@@ -125,7 +130,7 @@
 }
 /* Shaded on hover like every status item, so it reads as something to click; a tinted pill deepens its tint. */
 .resident-badge:hover { background: var(--hover); }
-.resident-badge:is([data-state="working"], [data-needs]):hover { background: color-mix(in sRGB, var(--resident-tint) 26%, transparent); }
+.resident-badge:is([data-state="working"], [data-needs], [data-pending]):hover { background: color-mix(in sRGB, var(--resident-tint) 26%, transparent); }
 .resident-badge[data-needs]:not([data-state="working"]):hover { background: color-mix(in sRGB, var(--danger) 22%, transparent); }
 
 .resident-badge-orb { position: relative; display: inline-flex; flex: none; }
@@ -155,7 +160,28 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.resident-badge:not([data-state="working"], [data-needs]) .resident-activity { display: none; }
+.resident-badge:not([data-state="working"], [data-needs], [data-pending]) .resident-activity { display: none; }
+
+/* To finish (unpublished drafts): a count in the resident's own tint at the orb's foot, nudging every few seconds. */
+.resident-pending {
+  position: absolute;
+  bottom: 0;
+  left: calc(var(--space-xs) * -1);
+  z-index: var(--z-glass-rim);
+  min-width: var(--resident-count-min);
+  height: var(--resident-count-min);
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-pill);
+  background: var(--resident-tint);
+  box-shadow: 0 0 0 1px var(--bg-window);
+  color: var(--resident-night);
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--resident-count-min);
+  text-align: center;
+  animation: resident-pending-nudge 3.2s ease-in-out infinite;
+}
 
 /* The orb is drawn at each tier's size (width and height, never a scale), so the glyph stays crisp. */
 .status-bar:is([data-size="comfortable"], [data-size="tall"]) .resident-badge {
@@ -285,7 +311,18 @@
   animation: resident-needs-pulse 1.8s ease-out infinite;
 }
 .resident-badge[data-needs] .resident-orb { animation: resident-hop 1.8s ease-out infinite; }
+/* To finish, with nothing needed now: a slower ring in its own tint. */
+.resident-badge[data-pending]:not([data-needs]) .resident-badge-orb::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border: 2px solid var(--resident-tint);
+  border-radius: var(--radius-pill);
+  pointer-events: none;
+  animation: resident-needs-pulse 3.2s ease-out infinite;
+}
 
+:root[data-motion="reduced"] .resident-pending { transform: none; animation: none; }
 :root[data-motion="reduced"] .resident-orb[data-state="idle"]::before,
 :root[data-motion="reduced"] .resident-orb[data-state="working"]::before { --resident-halo-angle: 40deg; animation: none; }
 :root[data-motion="reduced"] .resident-orb[data-state="idle"]::after { opacity: 0.5; animation: none; }
@@ -537,3 +574,4 @@
   background: color-mix(in sRGB, var(--warning) 14%, var(--bg-popover, var(--bg-panel)));
 }
 .resident-setup-text { flex: 1; min-width: 0; }
+:root[data-motion="reduced"] .resident-badge[data-pending]:not([data-needs]) .resident-badge-orb::after { opacity: 0.6; animation: none; }

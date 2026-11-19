@@ -1,4 +1,5 @@
 import { isRecord } from '@shared/guards'
+import type { ResidentPending } from '@shared/domain/residents'
 import type { MrHead, ResidentUserActions, UserAction } from '../kindTypes'
 
 const LINE_MAX = 160
@@ -83,4 +84,21 @@ export const MR_DESK_USER_ACTIONS: ResidentUserActions = {
   bodyFile: (space) => `${space}/mra/state/reply.md`,
   nonceFile: (space) => `${space}/mra/state/action.nonce`,
   nonceEnv: 'MRA_ACTION_NONCE',
+}
+
+/**
+ * The user's unpublished drafts, from `mra drafts` (`{ drafts: [{ iid, count }], total }`): nobody
+ * else sees them until the user publishes, so the badge keeps them in view. Null for none, and for
+ * output it cannot read.
+ */
+export function draftsPending(stdout: string): ResidentPending | null {
+  const parsed = parseJson(stdout)
+  const mrs = records(parsed?.drafts).filter((d) => typeof d.iid === 'number' && typeof d.count === 'number' && d.count > 0)
+  const count = mrs.reduce((n, d) => n + (d.count as number), 0)
+  if (count === 0) return null
+  return {
+    count,
+    summary: count === 1 ? '1 unpublished draft' : `${String(count)} unpublished drafts`,
+    items: mrs.map((d) => (d.count === 1 ? `!${asText(d.iid)}` : `!${asText(d.iid)} (${asText(d.count)})`)),
+  }
 }

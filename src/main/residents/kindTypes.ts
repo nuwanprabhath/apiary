@@ -1,4 +1,4 @@
-import type { ResidentAppearance, ResidentConfig, ResidentKindId, ResidentOptionField } from '@shared/domain/residents'
+import type { ResidentAppearance, ResidentConfig, ResidentKindId, ResidentOptionField, ResidentPending } from '@shared/domain/residents'
 
 /** A group of Apiary tools (`mcp/tools.ts`). A kind's token sees only the groups it declares. */
 export type ResidentCapability =
@@ -92,6 +92,12 @@ export interface ResidentKind {
   bins: Readonly<Record<string, () => string[]>>
   /** A prompt sent to its chat every `everyMinutes` (or the resident's `cycleEveryMinutes`) while on duty, enabled, idle and set up. */
   cycle?: { everyMinutes: number; prompt: string; doing: string }
+  /**
+   * What waits on the user to finish (`ResidentPending`): a command main runs after each answer and
+   * every `everyMinutes` while the resident is enabled and set up; `read` turns its stdout into the
+   * count, or null for nothing.
+   */
+  pending?: { argv: readonly string[]; everyMinutes: number; read: (stdout: string) => ResidentPending | null }
   /** Whether a message that looks up a session gets the index's matches at once (`instantMatches.ts`). */
   instantMatches: boolean
   /** What is missing before it can work ("Set the GitLab project in Settings"), or null. Synchronous: it reads what `prepare` last found. */
