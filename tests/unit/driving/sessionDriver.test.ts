@@ -188,6 +188,25 @@ describe('SessionDriver', () => {
     expect(deps.openSession).toHaveBeenCalledWith(NEW)
   })
 
+  it('a new session is watched from its first message, so a first turn that ends before the store knows it is still reported', async () => {
+    const { driver, chat, events, push, known, advance } = setup()
+    chat.startNew.mockImplementationOnce(async () => {
+      const state = { ...emptyChatState(NEW), status: 'idle' as const }
+      push(NEW, state)
+      return state
+    })
+    const [folder] = driver.folders()
+    const started = driver.startSession(folder!.id, 'quick one')
+    await advance(0)
+    push(NEW, { status: 'busy' })
+    push(NEW, { status: 'idle', live: [assistantSaying('done already')] })
+    known.add(NEW)
+    await advance(1000)
+    await started
+    expect(events.find((e) => e.kind === 'turn-ended')).toMatchObject({ sessionId: NEW, text: 'done already' })
+    expect(driver.watched()).toContain(NEW)
+  })
+
   it('an unknown folder id is an error', async () => {
     const { driver } = setup()
     await expect(driver.startSession('deadbeef0000', 'x')).rejects.toThrow('deadbeef0000')

@@ -130,6 +130,8 @@ export class SessionDriver {
     const base = this.findFolder(folderId_)
     const target = worktree === undefined ? base : this.deps.describeFolder(await this.deps.createWorktree(base.path, worktree), base.name)
     const { sessionId } = await this.deps.chat.startNew(target.path)
+    // Watched before the first message goes, so a first turn that ends before the store knows the session is still heard.
+    this.track(sessionId)
     this.deps.chat.send(sessionId, text)
     await this.untilKnown(sessionId)
     this.open(sessionId)
@@ -150,6 +152,11 @@ export class SessionDriver {
 
   watch(sessionId: SessionId): void {
     this.requireSession(sessionId)
+    this.track(sessionId)
+  }
+
+  /** Starts watching without asking the store: a new session is unknown to it until its file is scanned. */
+  private track(sessionId: SessionId): void {
     if (this.watches.has(sessionId)) return
     const state = this.deps.chat.state(sessionId)
     this.watches.set(sessionId, {

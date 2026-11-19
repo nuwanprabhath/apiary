@@ -22,6 +22,8 @@ interrupt, answer a permission request, and report what watched sessions do (`Se
 - **Watching is observation only**: the driver diffs the states `ChatService.onState` hands it. A
   `/clear` moves a watch to the new id (`moved`). `answer` marks a request as the driver's own, so
   its disappearance is not `permission-gone`.
+  `startSession` watches the new session itself, before its first message goes: its first turn
+  can end before the store knows the session, when `watch` would refuse the id.
 - **Event text is data.** `turn-ended.text` is a session's words cut to 6000 characters; whoever
   forwards it treats it as untrusted. The log gets ids and counts, never text.
 
