@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.82.0] - 2026-11-19
+
+### Added
+
+- Answer from Slack: a session's permission prompt, a question it asks, and the MR desk's approve and
+  publish cards are posted in the task's thread. Reply `allow`, `deny` or `allow all` (this session,
+  until the task is done); `stop` in a thread interrupts the task's sessions, `status` in the channel
+  lists what is running and waiting.
+
 ## [1.79.1] - 2026-11-19
 
 ### Changed

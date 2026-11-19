@@ -1,19 +1,11 @@
-import type { SessionDriver } from '../driving/sessionDriver'
-import type { ResidentService } from '../residents/residentService'
-import type { SlackBridge } from '../slack/slackBridge'
+import { approvals } from './approvals'
+import { commands } from './commands'
+import type { DeskParts, DeskPiece } from './deskPiece'
 
-/** What every desk piece works over: the Slack connection, the session driver and the residents. */
-export interface DeskParts {
-  bridge: SlackBridge
-  driver: SessionDriver
-  residents: ResidentService
-}
-
-/** One piece of the desk: it hangs its handlers and listeners on the parts and returns how to remove them. */
-export type DeskPiece = (parts: DeskParts) => () => void
+export type { DeskParts }
 
 /** Every piece, started in this order. */
-const DESK_PIECES: readonly DeskPiece[] = []
+const DESK_PIECES: readonly DeskPiece[] = [commands, approvals]
 
 /**
  * Starts every desk piece, then the Slack poller, so no message arrives before something can take

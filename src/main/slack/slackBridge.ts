@@ -155,6 +155,13 @@ export class SlackBridge {
     return first
   }
 
+  /** Adds a reaction (an emoji name) to a message of the channel; a failure is ignored, a reaction being a courtesy. */
+  async react(ts: string, name: string): Promise<void> {
+    const channel = this.store.state.channel
+    if (channel === null) return
+    await ignoreErrorsAsync(() => this.api.react(channel.id, ts, name), 'a reaction is a courtesy; the answer was already taken')
+  }
+
   private restart(): void {
     this.clearTimer()
     const s = this.store.state
