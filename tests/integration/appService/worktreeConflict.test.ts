@@ -20,7 +20,8 @@ afterEach(async () => {
 })
 
 const projects = (): string => join(home, '.claude', 'projects')
-describe('checking out a branch another worktree already has', () => {
+// Each test runs several real git subprocesses (0.3-0.7 s alone); the default 5 s is ten times that.
+describe('checking out a branch another worktree already has', { timeout: 30_000 }, () => {
   /** A repo with a session in it, plus a worktree holding `branch`. */
   async function repoWithWorktree(branch: string, sessionId: string) {
     const dir = makeGitWorkdir()

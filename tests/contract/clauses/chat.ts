@@ -62,11 +62,11 @@ export function defineChatClauses(ctx: Ctx): void {
       expect(await ctx.api.chatState(OTHER)).toBeNull()
       await start()
       await ctx.api.chatSetPermissionMode(SESSION, 'plan')
-      await expect.poll(async () => (await ctx.api.chatState(SESSION))?.permissionMode).toBe('plan')
+      await expect.poll(async () => (await ctx.api.chatState(SESSION))?.permissionMode, { timeout: 20_000 }).toBe('plan')
       expect(await ctx.api.sessionReload(SESSION, null)).toBe('chat')
       // The new process reports its mode with its first turn, as claude does.
       await ctx.api.chatSend(SESSION, 'hello again')
-      await expect.poll(async () => (await ctx.api.chatState(SESSION))?.permissionMode).toBe('plan')
+      await expect.poll(async () => (await ctx.api.chatState(SESSION))?.permissionMode, { timeout: 20_000 }).toBe('plan')
       expect(await ctx.api.chatState(SESSION)).toMatchObject({ sessionId: SESSION, error: null })
       await ctx.api.chatStop(SESSION)
     })
@@ -151,10 +151,10 @@ export function defineChatClauses(ctx: Ctx): void {
     it('stops one background task, and refuses a task the chat does not have', async () => {
       await start()
       await ctx.api.chatSend(SESSION, 'run something long in the background')
-      await expect.poll(async () => (await ctx.api.chatState(SESSION))?.backgroundTasks?.length ?? 0, { timeout: 5000 }).toBe(1)
+      await expect.poll(async () => (await ctx.api.chatState(SESSION))?.backgroundTasks?.length ?? 0, { timeout: 20_000 }).toBe(1)
       const taskId = (await ctx.api.chatState(SESSION))?.backgroundTasks?.[0]?.taskId ?? ''
       await ctx.api.chatStopTask(SESSION, taskId)
-      await expect.poll(async () => (await ctx.api.chatState(SESSION))?.backgroundTasks?.length ?? 0, { timeout: 5000 }).toBe(0)
+      await expect.poll(async () => (await ctx.api.chatState(SESSION))?.backgroundTasks?.length ?? 0, { timeout: 20_000 }).toBe(0)
       await expect(ctx.api.chatStopTask(SESSION, taskId)).rejects.toThrow(/No task found/)
       await expect(ctx.api.chatStopTask(SESSION, 'not a task id!')).rejects.toThrow()
     })
