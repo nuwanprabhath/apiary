@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.83.2] - 2026-11-19
+
+### Fixed
+
+- A pet whose 3D render failed for a moment (the GPU busy) stayed flat until Apiary restarted. A
+  failed render is now tried again at once, and a failure is never kept, so the next time the pet
+  is shown it is rendered again.
+
 ## [1.83.1] - 2026-11-19
 
 ### Fixed

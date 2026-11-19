@@ -3,6 +3,7 @@ import type { PetSpec } from '@shared/pets/spec'
 import type { PetImages, PropImages } from './render'
 import type { FromRenderer, ToRenderer } from './petRender.worker'
 import { testSeams } from '../../../state/testSeams'
+import { rememberRenders } from './rememberRenders'
 
 /**
  * Bump when the renderer's output changes (a part redrawn, the lighting), so saved renders from
@@ -80,7 +81,6 @@ let worker: Worker | null = null
 let broken = false
 let next = 1
 const waiting = new Map<number, (r: FromRenderer) => void>()
-const cache = new Map<string, Promise<PetImages | null>>()
 
 function renderer(): Worker | null {
   if (broken) return null
@@ -149,20 +149,26 @@ export function useProps(): PropImages | null {
  * renderer switch it back on.
  */
 
+/** The specs being rendered, by look, for `rendered` to read back. */
+const specs = new Map<string, PetSpec>()
+
+/** A look's images, from the saved renders or the worker; a failed render is retried and not kept. */
+const rendered = rememberRenders<PetImages>(async (key) => {
+  const saved = await loadSaved<PetImages>(key)
+  if (saved !== null) return saved
+  const spec = specs.get(key)
+  if (spec === undefined) return null
+  const images = await renderInWorker(spec)
+  if (images !== null) void save(key, images)
+  return images
+})
+
 /** Renders a pet once per look (saved across launches); null when 3D is not available here. */
 function renderPet(spec: PetSpec): Promise<PetImages | null> {
   if (testSeams().petsFlat === true) return Promise.resolve(null)
   const key = lookKey(spec)
-  const known = cache.get(key)
-  if (known !== undefined) return known
-  const result = loadSaved<PetImages>(key).then(async (saved) => {
-    if (saved !== null) return saved
-    const images = await renderInWorker(spec)
-    if (images !== null) void save(key, images)
-    return images
-  })
-  cache.set(key, result)
-  return result
+  specs.set(key, spec)
+  return rendered(key)
 }
 
 export type PetLook = { state: 'pending' } | { state: 'ready'; images: PetImages } | { state: 'flat' }

@@ -57,6 +57,8 @@ side is organised.
 - **Only HTML layers animate.** A transform animation on an element inside an SVG repaints the whole
   SVG every frame. Keep breathing, blinking and walking on HTML layers.
 - **Hide a pet until its render is ready**, so it never flips from flat to 3D in front of the user.
+- **A failed render is not kept.** `rememberRenders` (`render3d/rememberRenders.ts`) tries it again at
+  once and then forgets it, so a moment's GPU trouble does not leave a pet flat until a restart.
 - **Saved renders may be absent.** Every IndexedDB access is allowed to fail (private profile,
   cleared storage); the pet is then rendered again. Each silent catch there carries a reason.
 - **The drag in `usePetInteraction.ts` is a deliberate exception** to `drag-via-use-resize-drag`: it moves a
