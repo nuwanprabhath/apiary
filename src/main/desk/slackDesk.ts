@@ -4,7 +4,7 @@ import { errorMessage } from '@shared/errors'
 import type { SessionEvent } from '../driving/sessionDriver'
 import { log } from '../log/logger'
 import { createDeskControls } from './deskControls'
-import type { DeskParts } from './desk'
+import type { DeskParts } from './deskParts'
 
 /** Where the desk's handler sits: after commands (10) and approvals (20). */
 const HANDLER_ORDER = 100

@@ -4,6 +4,19 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.81.0] - 2026-11-19
+
+### Added
+
+- Regent now acts as your chief of staff over Slack. Write to it in the channel and it finds the
+  session that fits (or starts one, in a new worktree when the work is a change to a repository),
+  passes your request on, and tells you in the thread what it chose.
+- Regent watches the sessions it hands work to and posts only the milestones: a question, a
+  blocker, a merge request it created, or that the work is done. It can also run the MR desk
+  when you ask, and starts it if it is not running.
+- Regent can list your folders, send to, start, interrupt, watch and unwatch sessions, ask other
+  residents, and post to Slack, each through a capability that a custom resident kind cannot claim.
+
 ## [1.79.1] - 2026-11-19
 
 ### Changed

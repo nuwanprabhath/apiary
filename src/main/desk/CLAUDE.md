@@ -10,6 +10,11 @@ back to the task's thread.
   `DeskPiece` in `DESK_PIECES`, then starts the bridge's poller (so no message arrives before a
   handler exists), and returns one disposer. `index.ts` calls it where it used to start the bridge.
 
+- `slackDesk.ts`: Regent's piece. Handler at order 100 sends every message to Regent as `[Slack task <thread>]`;
+  session events and other residents' answers reach Regent as notes with their words fenced `<<<UNTRUSTED`;
+  a Slack turn that ended without `slack_post` has its text posted. Hands `residents.setDesk` the controls.
+- `deskControls.ts`: the `DriveControl` / `SlackControl` adapters over the driver and the bridge.
+
 The folder imports `driving`, `log`, `residents` and `slack`; nothing imports it but `app`.
 
 ## Add a piece

@@ -6,7 +6,7 @@ import { fail, ok, text, tool, type Tool, type ToolDeps, type ToolResult } from 
 
 const NOT_CONNECTED = 'Slack is not connected on this machine.'
 const TASK_ID = /^\d{9,12}\.\d{1,8}$/
-const SEND_MAX = 20000
+const DESK_TEXT_MAX = 20000
 const NAME_MAX = 200
 const TASK_HELP = 'taskId is the Slack task id from the "[Slack task <id>]" message, like 1700000000.123456.'
 
@@ -88,9 +88,9 @@ export const DESK_TOOLS: Tool[] = [
     inputSchema: { type: 'object', properties: { ...sessionIdSchema, text: { type: 'string' }, ...taskIdSchema }, required: ['sessionId', 'text'] },
     parse: (a) => {
       const base = parseSessionTask(a)
-      const body = text(a.text, SEND_MAX)
+      const body = text(a.text, DESK_TEXT_MAX)
       if (typeof base === 'string') return base
-      return body === null ? `text is 1 to ${String(SEND_MAX)} characters.` : { ...base, text: body }
+      return body === null ? `text is 1 to ${String(DESK_TEXT_MAX)} characters.` : { ...base, text: body }
     },
     run: (a, _c, deps) => withDesk(deps, async (d) => {
       const s = known(a.sessionId, deps)
@@ -116,11 +116,11 @@ export const DESK_TOOLS: Tool[] = [
     },
     parse: (a) => {
       const folderId = text(a.folderId, NAME_MAX)
-      const body = text(a.text, SEND_MAX)
+      const body = text(a.text, DESK_TEXT_MAX)
       const worktree = parseWorktree(a.worktree)
       const task = optionalTask(a.taskId)
       if (folderId === null) return 'folderId is required (from list_folders).'
-      if (body === null) return `text is 1 to ${String(SEND_MAX)} characters.`
+      if (body === null) return `text is 1 to ${String(DESK_TEXT_MAX)} characters.`
       if (typeof worktree === 'string') return worktree
       if (typeof task === 'object' && task !== null) return task.problem
       return { folderId, text: body, worktree, taskId: task }
@@ -183,9 +183,9 @@ export const DESK_TOOLS: Tool[] = [
     inputSchema: { type: 'object', properties: { name: { type: 'string' }, text: { type: 'string' }, ...taskIdSchema }, required: ['name', 'text'] },
     parse: (a) => {
       const name = text(a.name, NAME_MAX)
-      const body = text(a.text, SEND_MAX)
+      const body = text(a.text, DESK_TEXT_MAX)
       const task = optionalTask(a.taskId)
-      if (name === null || body === null) return `name and text (1 to ${String(SEND_MAX)} characters) are required.`
+      if (name === null || body === null) return `name and text (1 to ${String(DESK_TEXT_MAX)} characters) are required.`
       return typeof task === 'object' && task !== null ? task.problem : { name, text: body, taskId: task }
     },
     run: (a, call, deps) => delegate(deps, a.taskId, () => deps.residents.ask(call.residentId, a.name, a.text), (n) => `Asked ${n}.`),
@@ -208,9 +208,9 @@ export const DESK_TOOLS: Tool[] = [
     inputSchema: { type: 'object', properties: { ...taskIdSchema, text: { type: 'string' } }, required: ['taskId', 'text'] },
     parse: (a) => {
       const task = optionalTask(a.taskId)
-      const body = text(a.text, SEND_MAX)
+      const body = text(a.text, DESK_TEXT_MAX)
       if (typeof task !== 'string') return TASK_HELP
-      return body === null ? `text is 1 to ${String(SEND_MAX)} characters.` : { taskId: task, text: body }
+      return body === null ? `text is 1 to ${String(DESK_TEXT_MAX)} characters.` : { taskId: task, text: body }
     },
     run: (a, _c, deps) => withDesk(deps, async (d) => { await d.slack.post(a.taskId, a.text); return ok('Posted.') }),
   }),
@@ -220,9 +220,9 @@ export const DESK_TOOLS: Tool[] = [
     inputSchema: { type: 'object', properties: { ...taskIdSchema, summary: { type: 'string' } }, required: ['taskId', 'summary'] },
     parse: (a) => {
       const task = optionalTask(a.taskId)
-      const body = text(a.summary, SEND_MAX)
+      const body = text(a.summary, DESK_TEXT_MAX)
       if (typeof task !== 'string') return TASK_HELP
-      return body === null ? `summary is 1 to ${String(SEND_MAX)} characters.` : { taskId: task, summary: body }
+      return body === null ? `summary is 1 to ${String(DESK_TEXT_MAX)} characters.` : { taskId: task, summary: body }
     },
     run: (a, _c, deps) => withDesk(deps, async (d) => { await d.slack.finish(a.taskId, a.summary); return ok('Task finished.') }),
   }),
