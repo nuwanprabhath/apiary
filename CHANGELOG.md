@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.80.0] - 2026-11-19
+
+### Added
+
+- Settings → Slack: switch on taking instructions from Slack, save the bot token (kept in the
+  keychain, never shown again), and set this machine's channel and your member id. Each saves at
+  once; a status line says whether Apiary is connected, and "Test connection" tries it now.
+- Regent's chat marks messages that came from Slack with "via Slack", and shows the notes Apiary
+  gives Regent (a session finished a turn) as small event chips instead of your own messages.
+
 ## [1.79.1] - 2026-11-19
 
 ### Changed

@@ -11,6 +11,7 @@ import { TerminalSection } from './sections/TerminalSection'
 import { PluginsSection } from './sections/PluginsSection'
 import { PetsSection } from './sections/PetsSection'
 import { ResidentsSection } from './sections/ResidentsSection'
+import { SlackSection } from './sections/SlackSection'
 import { UpdatesSection } from './sections/UpdatesSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { DiagnosticsSection } from './sections/DiagnosticsSection'
@@ -106,6 +107,14 @@ export const SECTIONS: Section[] = [
     label: 'Residents',
     blurb: 'Always-on helpers that live in Apiary. Each has its own name, hours and model.',
     Component: () => <ResidentsSection />,
+  },
+  {
+    id: 'slack',
+    // Main's four Slack channels are `remote`: a remote window shows and edits the work machine's.
+    machineOnly: true,
+    label: 'Slack',
+    blurb: 'Talk to Regent from a Slack channel. Each machine has its own channel.',
+    Component: () => <SlackSection />,
   },
   {
     id: 'updates',

@@ -128,6 +128,11 @@ export const SEARCH_ENTRIES: readonly SettingEntry[] = [
     testIds: ['resident-*'], keys: ['residents'],
   },
   {
+    id: 'slack', section: 'slack', label: 'Slack',
+    description: 'Talk to Regent from a Slack channel. Bot token, channel and member id for this machine, and a connection test.',
+    keywords: ['token', 'channel', 'bot', 'member', 'instructions', 'connection'], testIds: ['slack-*'],
+  },
+  {
     id: 'read-other-accounts', section: 'residents', label: 'Let residents read sessions from your other Claude accounts',
     description: 'Off: a resident sees only sessions of the account it runs under. On: residents can search and read sessions you ran under any account.',
     keywords: ['account', 'privacy'], testIds: ['resident-read-other-accounts'], keys: ['readOtherAccounts'],
