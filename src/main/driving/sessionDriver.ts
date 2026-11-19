@@ -57,10 +57,10 @@ export interface SessionDriverDeps {
   sleep: (ms: number) => Promise<void>
 }
 
-export const MAX_MESSAGE_CHARS = 20_000
-export const MAX_EVENT_TEXT = 6000
-export const TERMINAL_CHECK_MS = 5000
-export const TERMINAL_GIVE_UP_MS = 30 * 60_000
+const MAX_DRIVEN_MESSAGE_CHARS = 20_000
+const MAX_EVENT_TEXT = 6000
+const TERMINAL_CHECK_MS = 5000
+const TERMINAL_GIVE_UP_MS = 30 * 60_000
 const KNOWN_WAIT_MS = 60_000
 
 interface Watch {
@@ -87,7 +87,7 @@ function finalText(state: ChatState): string {
   return ''
 }
 
-const cut = (text: string): string => (text.length > MAX_EVENT_TEXT ? `${text.slice(0, MAX_EVENT_TEXT - 1)}…` : text)
+const cutEventText = (text: string): string => (text.length > MAX_EVENT_TEXT ? `${text.slice(0, MAX_EVENT_TEXT - 1)}…` : text)
 
 /**
  * Acts on sessions for something that is not at the keyboard (Regent): sends a message, starts a
@@ -281,7 +281,7 @@ export class SessionDriver {
       const interrupted = w.interrupting
       w.interrupting = false
       this.emit({
-        kind: 'turn-ended', sessionId: state.sessionId, title, text: cut(finalText(state)),
+        kind: 'turn-ended', sessionId: state.sessionId, title, text: cutEventText(finalText(state)),
         backgroundTasks: state.backgroundTasks?.length ?? 0, interrupted,
       })
     }
@@ -290,5 +290,5 @@ export class SessionDriver {
 }
 
 function checkText(text: string): void {
-  if (text.length < 1 || text.length > MAX_MESSAGE_CHARS) throw new Error(`A message is 1 to ${String(MAX_MESSAGE_CHARS)} characters.`)
+  if (text.length < 1 || text.length > MAX_DRIVEN_MESSAGE_CHARS) throw new Error(`A message is 1 to ${String(MAX_DRIVEN_MESSAGE_CHARS)} characters.`)
 }
