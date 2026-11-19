@@ -106,6 +106,10 @@ export function setChatPermissionMode(sessionId: SessionId, mode: ChatPermission
 export function setChatModel(sessionId: SessionId, model: ChatModel): void {
   surface(window.apiary.chatSetModel(sessionId, model), 'Could not switch model')
 }
+/** Stops one background task; it leaves the list when claude says it stopped. */
+export function stopChatTask(sessionId: SessionId, taskId: string): void {
+  surface(window.apiary.chatStopTask(sessionId, taskId), 'Could not stop that task')
+}
 export function setChatEffort(sessionId: SessionId, effort: ChatEffort): void {
   surface(window.apiary.chatSetEffort(sessionId, effort), 'Could not change the effort')
 }

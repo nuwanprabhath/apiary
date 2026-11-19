@@ -148,6 +148,19 @@ describe('chat timeline', () => {
     expect(withFileDetails(chat, file)).toEqual([{ taskId: 'b2', description: 'Task b2', kind: 'shell', command: 'sleep 9', startedAtMs: 9000 }])
   })
 
+  it("drops a task from a chat's own list once the file records it as over", () => {
+    // A resumed claude (2.1.328) still listed two tasks whose notifications the file held.
+    const chat = [
+      { taskId: 'b1', description: 'Wait for the cypress job', kind: 'shell' as const, command: null, startedAtMs: 9000 },
+      { taskId: 'b2', description: 'Wait for CodeRabbit', kind: 'shell' as const, command: null, startedAtMs: 9000 },
+    ]
+    const tally = new BackgroundTaskTally()
+    tally.add([...startedInBackground('t1', 'b1'), ...startedInBackground('t2', 'b2'), finishedInBackground('b1')])
+    expect(withFileDetails(chat, tally.tasks(), tally.ended()).map((t) => t.taskId)).toEqual(['b2'])
+    tally.add([finishedInBackground('b2')])
+    expect(withFileDetails(chat, tally.tasks(), tally.ended())).toEqual([])
+  })
+
   it('says how the latest turn ended, and the recap after it, until you send something', () => {
     const turnEnd = (uuid: string, ms: number, at: number): TranscriptMessage =>
       ({ ...msg(uuid, 'assistant', [{ type: 'turn_end', durationMs: ms }]), timestampMs: at })

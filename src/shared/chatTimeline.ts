@@ -283,18 +283,25 @@ export class BackgroundTaskTally {
   private readonly outputs = new Map<string, { path: string; kind: BackgroundTask['kind'] }>()
   /** The model and effort the call that started each agent asked for (null when it set none). */
   private readonly requests = new Map<string, BackgroundTaskModel>()
+  /** Every task the file records as over: its notification, or a stop that worked. */
+  private readonly over = new Set<string>()
 
   add(messages: TranscriptMessage[]): void {
     for (const m of messages) {
       for (const b of m.blocks) {
         if (b.type === 'tool_use') this.call(b.id, b.name, b.input, m.timestampMs)
         else if (b.type === 'tool_result') this.result(b.toolUseId, b.content, b.isError)
-        else if (b.type === 'task_ended') for (const id of b.taskIds) this.started.delete(id)
+        else if (b.type === 'task_ended') for (const id of b.taskIds) this.end(id)
         else if (b.type === 'text' && b.text.startsWith('<task-notification>')) {
-          for (const id of taskNotificationIds(b.text)) this.started.delete(id)
+          for (const id of taskNotificationIds(b.text)) this.end(id)
         }
       }
     }
+  }
+
+  private end(taskId: string): void {
+    this.started.delete(taskId)
+    this.over.add(taskId)
   }
 
   private call(id: string, name: string, input: unknown, timestampMs: number | null): void {
@@ -322,7 +329,7 @@ export class BackgroundTaskTally {
     if (call === undefined) return
     this.calls.delete(toolUseId)
     if (call.kind === 'stop') {
-      if (!isError) this.started.delete(call.taskId)
+      if (!isError) this.end(call.taskId)
       return
     }
     const id = STARTED_IN_BACKGROUND.exec(content)?.[1]
@@ -335,6 +342,11 @@ export class BackgroundTaskTally {
 
   tasks(): BackgroundTask[] {
     return [...this.started.values()]
+  }
+
+  /** The tasks the file records as over, whether or not their start was read. */
+  ended(): ReadonlySet<string> {
+    return this.over
   }
 
   /** What the call that started this agent asked for; null for a shell task or an unknown one. */
@@ -363,12 +375,15 @@ export function runningBackgroundTasks(messages: TranscriptMessage[]): Backgroun
 }
 
 /**
- * claude's own list of running tasks (a chat's `background_tasks_changed`), which decides what is
- * running, with what the session file knows about each (the command, when its call was made).
+ * claude's own list of running tasks (a chat's `background_tasks_changed`), with what the session
+ * file knows about each (the command, when its call was made), less any task the file records as
+ * over. A resumed claude (2.1.328) listed two tasks whose notifications the file already held, and
+ * answered its own TaskStop for them with "No task found", so its list alone kept them running.
  */
-export function withFileDetails(running: BackgroundTask[], fromFile: BackgroundTask[]): BackgroundTask[] {
-  if (fromFile.length === 0) return running
-  return running.map((t) => {
+export function withFileDetails(running: BackgroundTask[], fromFile: BackgroundTask[], ended: ReadonlySet<string> = new Set()): BackgroundTask[] {
+  const live = running.filter((t) => !ended.has(t.taskId))
+  if (fromFile.length === 0) return live
+  return live.map((t) => {
     const f = fromFile.find((x) => x.taskId === t.taskId)
     return f === undefined ? t : { ...t, command: f.command ?? t.command, startedAtMs: f.startedAtMs ?? t.startedAtMs }
   })

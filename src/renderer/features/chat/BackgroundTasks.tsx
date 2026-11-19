@@ -6,7 +6,9 @@ import { formatDuration } from '@shared/time'
 import { useSecondsClock, useTaskModel, useTaskOutput } from '../../state/secondsClock'
 import { BusyGlyph } from '../../ui/BusyGlyph'
 import { useAppSettings } from '../../state/settingsStore'
+import { stopChatTask } from '../../state/chatStore'
 import { ChevronIcon } from '../../ui/icons/ChevronIcon'
+import { StopIcon } from '../../ui/icons/StopIcon'
 import { Listbox, optionId, useListboxNav } from '../../ui/Listbox'
 import { Popover } from '../../ui/Popover'
 import { focusUnlessTyping } from '../../ui/focusUnlessTyping'
@@ -68,6 +70,7 @@ function BackgroundTasksPopup({ sessionId, tasks }: { sessionId: SessionId; task
   })
   const onKeyDown = (e: KeyboardEvent): void => {
     if (e.key === ' ') { e.preventDefault(); const t = tasks[current]; if (t !== undefined) toggle(t.taskId); return }
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); const t = tasks[current]; if (t !== undefined) stopChatTask(sessionId, t.taskId); return }
     nav.onKeyDown(e)
   }
   return (
@@ -141,6 +144,19 @@ function TaskRow({ id, sessionId, task, now, current, expanded, onToggle }: RowP
           {task.startedAtMs !== null && <span className="chat-task-elapsed" data-testid="chat-task-elapsed">{formatDuration(now - task.startedAtMs)}</span>}
           <span className="chat-task-id">{task.taskId}</span>
         </span>
+        <button
+          type="button"
+          className="icon-button chat-task-stop"
+          data-testid="chat-task-stop"
+          tabIndex={-1}
+          title="Stop this task (Delete)"
+          aria-label={`Stop ${task.description || task.taskId}`}
+          // The list keeps the keys: a click here must not move focus onto a row about to go.
+          onMouseDown={(e) => { e.preventDefault() }}
+          onClick={(e) => { e.stopPropagation(); stopChatTask(sessionId, task.taskId) }}
+        >
+          <StopIcon />
+        </button>
       </div>
       {expanded && <TaskOutput sessionId={sessionId} taskId={task.taskId} />}
     </li>

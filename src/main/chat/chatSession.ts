@@ -222,6 +222,12 @@ export class ChatSession {
     void this.request({ subtype: 'set_model', model }).then(() => { this.refreshApplied() })
   }
 
+  /** Stops one background task; claude's list follows with `background_tasks_changed`. */
+  async stopTask(taskId: string): Promise<void> {
+    const answer = await this.request({ subtype: 'stop_task', task_id: taskId })
+    if (answer.subtype !== 'success') throw new Error(errorOf(answer))
+  }
+
   setEffort(effort: ChatEffort): void {
     void this.request({ subtype: 'apply_flag_settings', settings: { effortLevel: effort } }).then(() => { this.refreshApplied() })
   }

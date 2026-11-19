@@ -7,7 +7,7 @@ export interface ChatDeps {
 }
 
 type HandledKeys = 'chatState' | 'chatStart' | 'chatSend' | 'chatAside' | 'chatSendNow' | 'chatInterrupt' | 'chatRespond'
-  | 'chatSetPermissionMode' | 'chatSetModel' | 'chatSetEffort' | 'chatStop' | 'sessionReload' | 'terminalBusy' | 'chatMcp'
+  | 'chatSetPermissionMode' | 'chatSetModel' | 'chatSetEffort' | 'chatStop' | 'chatStopTask' | 'sessionReload' | 'terminalBusy' | 'chatMcp'
 type ListenedKeys = 'chatAttach' | 'chatDetach'
 
 /** Chat mode (`main/chat/`). Every argument has already passed the contract's guards. */
@@ -31,6 +31,7 @@ export function chatHandlers(deps: ChatDeps): {
       chatSetModel: (_e, sessionId, model) => { chat.setModel(sessionId, model) },
       chatSetEffort: (_e, sessionId, effort) => { chat.setEffort(sessionId, effort) },
       chatStop: (_e, sessionId) => chat.stop(sessionId),
+      chatStopTask: (_e, sessionId, taskId) => chat.stopTask(sessionId, taskId),
       sessionReload: (_e, sessionId, ptyId) => chat.reload(sessionId, ptyId),
       terminalBusy: (_e, sessionId) => chat.terminalBusy(sessionId),
       chatMcp: (_e, sessionId, request) => chat.mcp(sessionId, request),

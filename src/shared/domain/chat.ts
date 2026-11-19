@@ -58,6 +58,11 @@ export function isChatEffort(value: unknown): value is ChatEffort {
   return typeof value === 'string' && (CHAT_EFFORTS as readonly string[]).includes(value)
 }
 
+/** A background task's id as claude names it (`b9x2k`, an agent's hex id). */
+export function isBackgroundTaskId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value)
+}
+
 /** One entry of claude's own model list (its `initialize` answer). */
 export interface ChatModelInfo {
   value: string

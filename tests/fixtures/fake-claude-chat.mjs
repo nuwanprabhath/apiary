@@ -147,7 +147,8 @@ async function turn(text) {
     const taskId = `bfake${String(Date.now() % 100000)}`
     const description = 'Sleep, then say done'
     assistant([{ type: 'tool_use', id: toolUseId, name: 'Bash', input: { command: 'sleep 1; echo done', description, run_in_background: true } }])
-    out({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: taskId, task_type: 'local_bash', description }] })
+    running.set(taskId, { task_id: taskId, task_type: 'local_bash', description })
+    out({ type: 'system', subtype: 'background_tasks_changed', tasks: [...running.values()] })
     out({
       type: 'user', uuid: randomUUID(), session_id: sessionId,
       message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content: `Command running in background with ID: ${taskId}. Output is being written to: /tmp/${taskId}.output`, is_error: false }] },
@@ -155,13 +156,15 @@ async function turn(text) {
     await stream('Started it in the background.')
     setTimeout(() => {
       queue = queue.then(async () => {
-        out({ type: 'system', subtype: 'background_tasks_changed', tasks: [] })
+        // Stopped already (`stop_task`): nothing more comes of it.
+        if (!running.delete(taskId)) return
+        out({ type: 'system', subtype: 'background_tasks_changed', tasks: [...running.values()] })
         out({ type: 'system', subtype: 'task_notification', task_id: taskId, tool_use_id: toolUseId, status: 'completed', summary: `Background command "${description}" completed (exit code 0)` })
         out({ type: 'system', subtype: 'init', session_id: sessionId, model, permissionMode: mode })
         await stream('The background task finished.')
         result()
       })
-    }, 1500)
+    }, text.includes('long') ? 600_000 : 1500)
   } else if (text.includes('permission')) {
     const toolUseId = `toolu_${randomUUID()}`
     const input = { command: 'echo fake-ran', description: 'Print a marker' }
@@ -209,6 +212,8 @@ function result() {
 process.on('SIGTERM', () => { process.exit(143) })
 
 let queue = Promise.resolve()
+/** The background tasks running now, as claude lists them in `background_tasks_changed`. */
+const running = new Map()
 createInterface({ input: process.stdin }).on('line', (line) => {
   let msg
   try { msg = JSON.parse(line) } catch { return }
@@ -236,6 +241,14 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       }
     }
     if (req.subtype === 'get_settings') response = { effective: { effortLevel: effort }, applied: { model, effort: null } }
+    if (req.subtype === 'stop_task') {
+      if (!running.has(req.task_id)) {
+        out({ type: 'control_response', response: { subtype: 'error', request_id: msg.request_id, error: `No task found with ID: ${req.task_id}` } })
+        return
+      }
+      running.delete(req.task_id)
+      out({ type: 'system', subtype: 'background_tasks_changed', tasks: [...running.values()] })
+    }
     if (req.subtype === 'get_context_usage') response = { totalTokens: 4010, maxTokens: 200000, rawMaxTokens: 200000, percentage: 2, categories: [] }
     if (req.subtype.startsWith('mcp_')) {
       const answer = mcpAnswer(req)

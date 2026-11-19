@@ -153,6 +153,7 @@ export class ChatService {
   }
   setPermissionMode(sessionId: SessionId, mode: ChatPermissionMode): void { this.deps.chats.setPermissionMode(sessionId, mode) }
   setModel(sessionId: SessionId, model: ChatModel): void { this.deps.chats.setModel(sessionId, model) }
+  stopTask(sessionId: SessionId, taskId: string): Promise<void> { return this.deps.chats.stopTask(sessionId, taskId) }
   setEffort(sessionId: SessionId, effort: ChatEffort): void { this.deps.chats.setEffort(sessionId, effort) }
   /** The MCP card (`/mcp`): the chat's servers, after doing what it asked. The chat must be running. */
   mcp(sessionId: SessionId, request: McpRequest): Promise<McpAnswer> { return this.deps.chats.mcp(sessionId, request) }

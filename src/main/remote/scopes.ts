@@ -98,6 +98,7 @@ export const CHANNEL_SCOPES = {
   chatInterrupt: 'remote',
   chatRespond: 'remote',
   chatSetModel: 'remote',
+  chatStopTask: 'remote',
   chatSetEffort: 'remote',
   chatMcp: 'remote',
   chatSetPermissionMode: 'remote',

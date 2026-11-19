@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { TranscriptMessage } from '@shared/types'
 import type { ChatState } from '@shared/domain/chat'
 import type { SessionId } from '@shared/domain/ids'
-import { chatItems, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withFileDetails, withoutToolCalls } from '@shared/chatTimeline'
+import { BackgroundTaskTally, chatItems, latestTurn, mergeLive, runningBackgroundTasks, stillQueued, withFileDetails, withoutToolCalls } from '@shared/chatTimeline'
 import { useLibraryState } from '../../state/libraryStateStore'
 import { useChatSettings } from '../../state/chatSettingsStore'
 import { SHOW_TOOL_CALLS, chatSettingValue } from '../../state/chatSettings'
@@ -15,7 +15,7 @@ function chatStatusInfo(
   if (!chatMode) return { tasks: [], turn: null, recap: null }
   const chatRunning = chat !== null && chat.status !== 'exited'
   const tasks = chatRunning && chat.backgroundTasks !== null
-    ? withFileDetails(chat.backgroundTasks, runningBackgroundTasks(messages))
+    ? chatTasks(chat.backgroundTasks, messages)
     : chatRunning || terminal.running ? runningBackgroundTasks(messages) : []
   // The working line says it instead, for a chat turn and for one in the session's terminal.
   if (chat?.status === 'busy' || (!chatRunning && terminal.busy)) return { tasks, turn: null, recap: null }
@@ -25,6 +25,13 @@ function chatStatusInfo(
     ? { durationMs: live.durationMs, endedAtMs: live.endedAt }
     : fromFile.durationMs !== null ? { durationMs: fromFile.durationMs, endedAtMs: fromFile.endedAtMs } : null
   return { tasks, turn, recap: fromFile.recap }
+}
+
+/** claude's own list, with what the file knows, less the tasks the file says are over. */
+function chatTasks(running: NonNullable<ChatState['backgroundTasks']>, messages: TranscriptMessage[]) {
+  const file = new BackgroundTaskTally()
+  file.add(messages)
+  return withFileDetails(running, file.tasks(), file.ended())
 }
 
 /**

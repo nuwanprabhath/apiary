@@ -148,6 +148,17 @@ export function defineChatClauses(ctx: Ctx): void {
       await expect(ctx.api.chatMcp(SESSION, { kind: 'callback', server: 'files', url: 'javascript:alert(1)' })).rejects.toThrow()
     })
 
+    it('stops one background task, and refuses a task the chat does not have', async () => {
+      await start()
+      await ctx.api.chatSend(SESSION, 'run something long in the background')
+      await expect.poll(async () => (await ctx.api.chatState(SESSION))?.backgroundTasks?.length ?? 0, { timeout: 5000 }).toBe(1)
+      const taskId = (await ctx.api.chatState(SESSION))?.backgroundTasks?.[0]?.taskId ?? ''
+      await ctx.api.chatStopTask(SESSION, taskId)
+      await expect.poll(async () => (await ctx.api.chatState(SESSION))?.backgroundTasks?.length ?? 0, { timeout: 5000 }).toBe(0)
+      await expect(ctx.api.chatStopTask(SESSION, taskId)).rejects.toThrow(/No task found/)
+      await expect(ctx.api.chatStopTask(SESSION, 'not a task id!')).rejects.toThrow()
+    })
+
     it('Send now for a message that is not queued changes nothing', async () => {
       await start()
       await ctx.api.chatSendNow(SESSION, 'no-such-message')
@@ -162,6 +173,7 @@ export function defineChatClauses(ctx: Ctx): void {
       await expect(ctx.api.chatSetPermissionMode(SESSION, 'plan')).rejects.toThrow()
       await expect(ctx.api.chatSetModel(SESSION, 'haiku')).rejects.toThrow()
       await expect(ctx.api.chatSetEffort(SESSION, 'low')).rejects.toThrow()
+      await expect(ctx.api.chatStopTask(SESSION, 'b1')).rejects.toThrow()
       await expect(ctx.api.chatMcp(SESSION, { kind: 'status' })).rejects.toThrow()
     })
 

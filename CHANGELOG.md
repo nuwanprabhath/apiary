@@ -4,6 +4,20 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.74.0] - 2026-11-19
+
+### Added
+
+- A chat's background tasks can be stopped from their list: each row has a stop button, and Delete
+  stops the task the cursor is on. Apiary asks claude to stop it (`stop_task`), the row goes when
+  claude drops it from its list, and claude's own reason shows if it refuses.
+
+### Fixed
+
+- A chat no longer lists background tasks that ended long ago. A resumed claude (2.1.328) kept
+  reporting two tasks whose end the session file already recorded, and answered its own stop for
+  them with "No task found"; a task the file records as over is now left out of claude's list.
+
 ## [1.73.6] - 2026-11-19
 
 ### Fixed

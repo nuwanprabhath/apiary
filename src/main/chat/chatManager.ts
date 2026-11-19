@@ -97,6 +97,7 @@ export class ChatManager {
   respond(sessionId: SessionId, requestId: string, decision: ChatDecision): void { this.require(sessionId).respond(requestId, decision) }
   setPermissionMode(sessionId: SessionId, mode: ChatPermissionMode): void { this.require(sessionId).setPermissionMode(mode) }
   setModel(sessionId: SessionId, model: ChatModel): void { this.require(sessionId).setModel(model) }
+  stopTask(sessionId: SessionId, taskId: string): Promise<void> { return this.require(sessionId).stopTask(taskId) }
   setEffort(sessionId: SessionId, effort: ChatEffort): void { this.require(sessionId).setEffort(effort) }
   mcp(sessionId: SessionId, request: McpRequest): Promise<McpAnswer> { return this.require(sessionId).mcp(request) }
 

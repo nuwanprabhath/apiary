@@ -50,7 +50,7 @@ import type { PluginInfoPayload, PluginBarItem as PluginBarItemPayload } from '.
 import type { PtySessionInfo, PtySnapshot } from '../domain/pty'
 import type { StatusBarItem, StatusBarPanel } from '../domain/statusBar'
 import {
-  isChatDecision, isChatEffort, isChatModel, isChatPermissionMode,
+  isBackgroundTaskId, isChatDecision, isChatEffort, isChatModel, isChatPermissionMode,
   type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatPush, type ChatModel, type ChatPermissionMode, type ChatState,
   type TerminalBusy, type AsideTurn,
 } from '../domain/chat'
@@ -357,12 +357,12 @@ export const IPC = {
   chatRespond: invoke<[sessionId: SessionId, requestId: string, decision: ChatDecision], void>(
     'apiary:chat-respond', tuple(sessionIdArg, str, chatDecisionArg),
   ),
-  chatSetPermissionMode: invoke<[sessionId: SessionId, mode: ChatPermissionMode], void>(
-    'apiary:chat-set-permission-mode', tuple(sessionIdArg, chatModeArg),
-  ),
+  chatSetPermissionMode: invoke<[sessionId: SessionId, mode: ChatPermissionMode], void>('apiary:chat-set-permission-mode', tuple(sessionIdArg, chatModeArg)),
   chatSetModel: invoke<[sessionId: SessionId, model: ChatModel], void>('apiary:chat-set-model', tuple(sessionIdArg, chatModelArg)),
   chatSetEffort: invoke<[sessionId: SessionId, effort: ChatEffort], void>('apiary:chat-set-effort', tuple(sessionIdArg, chatEffortArg)),
   chatStop: invoke<[sessionId: SessionId], void>('apiary:chat-stop', tuple(sessionIdArg)),
+  /** Stops one of the running chat's background tasks (claude's `stop_task`); rejects with claude's reason. */
+  chatStopTask: invoke<[sessionId: SessionId, taskId: string], void>('apiary:chat-stop-task', tuple(sessionIdArg, isBackgroundTaskId)),
   /** The MCP card (`/mcp`): does what it asks of the running chat, and answers with the servers after it. */
   chatMcp: invoke<[sessionId: SessionId, request: McpRequest], McpAnswer>('apiary:chat-mcp', tuple(sessionIdArg, isMcpRequest)),
   /** Starts the session's claude again (chat or terminal) so it loads new settings and MCP servers; what was reloaded. */

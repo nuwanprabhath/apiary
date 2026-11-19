@@ -35,6 +35,23 @@ async function openWithTasks(tasks: BackgroundTask[], arrange?: (fake: FakeApiar
 const output = (): string => [...document.querySelectorAll('[data-testid="chat-task-output"]')].map((e) => e.textContent).join('|')
 
 describe('background tasks', () => {
+  it('stops a task from its row or with Delete, without expanding it, and the row goes when claude drops it', async () => {
+    const { fake, sessionId } = await openWithTasks(TASKS)
+    await userEvent.click(page.getByTestId('chat-status-tasks'))
+    const stops = document.querySelectorAll<HTMLButtonElement>('[data-testid="chat-task-stop"]')
+    expect([...stops].map((b) => b.getAttribute('aria-label'))).toEqual(['Stop Run the e2e suite', 'Stop Camera trap migration'])
+    await userEvent.click(must(stops[0]))
+    await until(() => fake.callsTo('chatStopTask').length === 1)
+    expect(fake.callsTo('chatStopTask')[0]).toEqual([sessionId, 'bq1'])
+    await until(() => document.querySelectorAll('[data-testid="chat-task"]').length === 1)
+    expect(output()).toBe('')
+    // The list has the keys: Delete stops the task the cursor is on.
+    await until(() => document.activeElement?.classList.contains('chat-tasks-list') === true)
+    await userEvent.keyboard('{Delete}')
+    await until(() => fake.callsTo('chatStopTask').length === 2)
+    expect(fake.callsTo('chatStopTask')[1]).toEqual([sessionId, 'a4f9c2e1b'])
+  })
+
   it('centres its text and chevron on the line, not along the top', async () => {
     await openWithTasks(TASKS)
     const line = document.querySelector<HTMLElement>('[data-testid="chat-status-tasks"]')!

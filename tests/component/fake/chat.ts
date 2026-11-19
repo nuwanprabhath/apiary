@@ -17,7 +17,7 @@ import type { Env } from './state'
 
 type ChatApi = Pick<ApiaryApi,
   | 'chatState' | 'chatStart' | 'chatSend' | 'chatAside' | 'chatSendNow' | 'chatInterrupt' | 'chatRespond' | 'chatSetPermissionMode' | 'chatSetModel'
-  | 'chatSetEffort' | 'chatStop' | 'sessionReload' | 'terminalBusy' | 'chatAttach' | 'chatDetach' | 'chatMcp'>
+  | 'chatSetEffort' | 'chatStop' | 'chatStopTask' | 'sessionReload' | 'terminalBusy' | 'chatAttach' | 'chatDetach' | 'chatMcp'>
 
 /** How long the background task runs: as long as the fixture's `sleep 1`. */
 const BACKGROUND_TASK_MS = 1000
@@ -76,8 +76,8 @@ export function chatApi(env: Env): ChatApi {
     return c
   }
   /** The turn a background-task message ends with: idle, the task still in flight, the task gone a
-   *  moment later. */
-  const endTurnWithBackgroundTask = (id: string): void => {
+   *  moment later (a "long" one only when stopped). */
+  const endTurnWithBackgroundTask = (id: string, long: boolean): void => {
     taskCount += 1
     const taskId = `bash-${String(taskCount)}`
     const c = running(id)
@@ -85,6 +85,8 @@ export function chatApi(env: Env): ChatApi {
       ...c, status: 'idle', turnStartedAt: null, queued: [],
       backgroundTasks: [...(c.backgroundTasks ?? []), { taskId, description: 'sleep 1; echo done', kind: 'shell', command: 'sleep 1; echo done', startedAtMs: Date.now() }],
     })
+    // A "long" one runs until it is stopped, as the fixture's does.
+    if (long) return
     setTimeout(() => {
       const now = state.chats.get(id)
       if (now === undefined || now.status === 'exited') return
@@ -110,7 +112,7 @@ export function chatApi(env: Env): ChatApi {
         ...c, status: 'busy', error: null, turnStartedAt: c.turnStartedAt ?? Date.now(),
         queued: [...c.queued, { id: `queued-${String(c.queued.length + 1)}`, text, sentAt: Date.now() }],
       })
-      if (text.includes('background')) endTurnWithBackgroundTask(id)
+      if (text.includes('background')) endTurnWithBackgroundTask(id, text.includes('long'))
     },
     // As main does: refused when empty, otherwise answered apart from the chat, which is left as it was.
     chatAside: async (_id, question, earlier) => {
@@ -153,6 +155,12 @@ export function chatApi(env: Env): ChatApi {
       }
       if (request.kind === 'clear-auth') set('needs-auth')
       return { servers: state.mcpServers, signIn }
+    },
+    // As claude answers `stop_task`: the task leaves its list, and one it does not have is refused.
+    chatStopTask: async (id, taskId) => {
+      const c = running(id)
+      if (!(c.backgroundTasks ?? []).some((t) => t.taskId === taskId)) throw new Error(`No task found with ID: ${taskId}`)
+      setChat({ ...c, backgroundTasks: (c.backgroundTasks ?? []).filter((t) => t.taskId !== taskId) })
     },
     chatStop: async (id) => {
       const c = state.chats.get(id)
