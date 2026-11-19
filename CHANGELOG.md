@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.83.0] - 2026-11-19
+
+### Added
+
+- A guide to using Regent over Slack (`docs/slack.md`, "Using it"): tasks and threads, what Regent posts, `allow` / `deny` / `allow all`, `stop`, `status`, and what Apiary needs to be open for.
+- The whole Slack flow is now tested end to end, from a message in the channel through Regent to a session and back to the thread.
+
 ## [1.82.0] - 2026-11-19
 
 ### Added

@@ -238,6 +238,15 @@ rebuild never touches the digests, because they cost your quota to make.
 
 ![Resident agents: the MCP tools and the search index and digests they answer from](docs/architecture/img/residents.svg)
 
+### Slack
+
+Apiary can read your messages in one Slack channel per machine and act on them through Regent. It polls
+Slack's Web API (no Socket Mode, so two machines never steal each other's messages). A top-level
+message is a task: Regent finds or starts a session, passes your request on and reports milestones in
+the thread. Permission prompts reach the thread as cards you answer by typing `allow`, `deny` or
+`allow all`. Only your own member id is obeyed. See [docs/slack.md](docs/slack.md) and
+[docs/architecture/slack-desk.md](docs/architecture/slack-desk.md).
+
 ### Pets
 
 A pet is data, never code: parts from closed sets, plus colours and lines. Claude designs one
