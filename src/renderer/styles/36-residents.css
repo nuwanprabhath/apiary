@@ -434,6 +434,9 @@
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+.resident-note { align-self: flex-start; }
+/* Sits on the bubble's edge, right above it: the negative margin closes the list's gap. */
+.resident-via { align-self: flex-end; margin-bottom: calc(-1 * var(--space-sm)); color: var(--muted); font-size: 11px; }
 .resident-check-now { gap: var(--space-xs); }
 
 /* The badge's hover card: a muted blurb under the name, then labelled lines. The blurb wraps

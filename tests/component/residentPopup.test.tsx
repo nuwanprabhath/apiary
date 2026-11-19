@@ -207,4 +207,22 @@ describe('the resident popup', () => {
     fake.emit('residentsChanged', [regentStatus('idle')])
     await until(() => stop() === null)
   })
+
+  it('a message from Slack is labelled via Slack', async () => {
+    await openPopup((f) => {
+      withRegent(f, { history: [{ ...message('user', 'Open the CSV session'), via: 'slack' }, message('user', 'typed here')] })
+    })
+    await until(() => popup()!.textContent.includes('typed here'))
+    expect(popup()!.querySelectorAll('[data-testid="resident-via"]')).toHaveLength(1)
+    expect(popup()!.querySelector('[data-testid="resident-via"]')!.nextElementSibling!.textContent).toBe('Open the CSV session')
+  })
+
+  it("a note is drawn as an event chip, not as the person's bubble", async () => {
+    await openPopup((f) => {
+      withRegent(f, { history: [{ ...message('user', "Session 'x' finished a turn"), note: true }] })
+    })
+    await until(() => popup()!.querySelector('.resident-note') !== null)
+    expect(popup()!.querySelector('.resident-note')!.classList.contains('resident-action')).toBe(true)
+    expect(popup()!.querySelector('.resident-msg-user')).toBeNull()
+  })
 })

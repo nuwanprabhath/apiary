@@ -54,9 +54,11 @@ function Message({ message, hits, chips, onOpen }: {
   onOpen: (id: SessionId) => void
 }): JSX.Element | null {
   if (message.action === true) return <div className="resident-action" data-testid="resident-action">{message.text}</div>
+  if (message.note === true) return <div className="resident-action resident-note" data-testid="resident-note">{message.text}</div>
   if (message.role === 'user') {
     return (
       <>
+        {message.via === 'slack' && <span className="resident-via" data-testid="resident-via">via Slack</span>}
         <div className="resident-msg resident-msg-user">{message.text}</div>
         {hits !== undefined && hits.length > 0 && <HitCards hits={hits} onOpen={onOpen} />}
       </>
