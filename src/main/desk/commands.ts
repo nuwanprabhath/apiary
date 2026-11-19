@@ -5,7 +5,7 @@ import type { DeskParts, DeskPiece } from './deskPiece'
 
 const STATUS = /^[/!]?status$/i
 const TITLE_MAX = 80
-const STATUS_WORDS = { working: 'working', waiting: 'waiting for you', idle: 'idle', stopped: 'stopped', unknown: 'not watched' } as const
+const SESSION_STATUS_TEXT = { working: 'working', waiting: 'waiting for you', idle: 'idle', stopped: 'stopped', unknown: 'not watched' } as const
 
 function howLong(ms: number): string {
   const minutes = Math.floor(ms / 60_000)
@@ -25,7 +25,7 @@ export const commands: DeskPiece = ({ bridge, driver, residents }: DeskParts) =>
       for (const id of t.sessions) {
         const s = driver.stateOf(asSessionId(id))
         const since = s.since === null ? '' : `, ${howLong(Date.now() - s.since)}`
-        lines.push(`    ${s.title}: ${STATUS_WORDS[s.status]}${since}`)
+        lines.push(`    ${s.title}: ${SESSION_STATUS_TEXT[s.status]}${since}`)
       }
     }
     for (const r of residents.names()) lines.push(`${r.name}: ${r.state}`)

@@ -16,9 +16,9 @@ interface Card {
 }
 
 const DENY_SESSION: ChatDecision = { behavior: 'deny', message: 'The user said no from Slack.' }
-const YES = new Set(['allow', 'yes', 'ok', 'y'])
+const ALLOW_WORDS = new Set(['allow', 'yes', 'ok', 'y'])
 const NO = new Set(['deny', 'no', 'n'])
-const ALL = 'allow all'
+const ALLOW_ALL = 'allow all'
 const GONE = 'That request was answered at the desk.'
 
 /** The cards waiting, by bridge, so the status command can count them. In memory only. */
@@ -29,7 +29,7 @@ export function cardsWaiting(bridge: SlackBridge): number {
   return waitingByBridge.get(bridge)?.length ?? 0
 }
 
-const normalise = (text: string): string => text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim()
+const normaliseReply = (text: string): string => text.toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, '').replace(/\s+/g, ' ').trim()
 
 function sessionCard(title: string, request: ChatPermissionRequest, questions: AskQuestion[] | null): string {
   if (questions !== null) {
@@ -129,9 +129,9 @@ export const approvals: DeskPiece = ({ bridge, driver, residents }: DeskParts) =
     if (m.kind !== 'reply') return false
     const card = waiting.find((c) => c.thread === m.thread)
     if (card === undefined) return false
-    const said = normalise(m.text)
+    const said = normaliseReply(m.text)
     const wantsNo = NO.has(said)
-    const wantsYes = YES.has(said) || said === ALL
+    const wantsYes = ALLOW_WORDS.has(said) || said === ALLOW_ALL
     if (card.questions === null ? !wantsNo && !wantsYes : said === '') return false
 
     if (card.who.kind === 'resident') answerResident(card, wantsYes)
@@ -139,7 +139,7 @@ export const approvals: DeskPiece = ({ bridge, driver, residents }: DeskParts) =
     else if (card.questions !== null) answerSession(card, { behavior: 'allow', answers: answersOf(card.questions, m.text) })
     else {
       answerSession(card, { behavior: 'allow' })
-      if (said === ALL) {
+      if (said === ALLOW_ALL) {
         bridge.tasks.setAutoAllow(card.thread, card.who.id)
         const same = waiting.filter((c) => c.thread === card.thread && c.who.kind === 'session' && c.who.id === card.who.id && c.questions === null)
         for (const other of same) answerSession(other, { behavior: 'allow' })
