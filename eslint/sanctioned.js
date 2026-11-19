@@ -133,7 +133,7 @@ export const SANCTIONED = [
     name: 'construct-in-container',
     kind: 'syntax',
     files: MAIN,
-    selectors: ["NewExpression[callee.name=/^(PtyManager|SessionStore|SearchIndex|SearchService|ChatManager|PetService|PetStore|PetPlacement|ThemeStore|ClaudeOneShot|SessionWatcher|ClaudeProjectsSource|SettingsService|GitService|TerminalService|ImageStore|ChatService|PluginService|WorktreeResolver|BranchOps|MrStatusCache|TranscriptReader|SearchClient|ActiveTabsService|RemoteServer|VirtualContentsRegistry|RemoteWindows|RemoteClientService|HostDirectory|FolderBrowser|LibraryStateService|AccountService|KnowledgeStore|KnowledgeService|Digester|ResidentService)$/]"],
+    selectors: ["NewExpression[callee.name=/^(PtyManager|SessionStore|SearchIndex|SearchService|ChatManager|PetService|PetStore|PetPlacement|ThemeStore|ClaudeOneShot|SessionWatcher|ClaudeProjectsSource|SettingsService|GitService|TerminalService|ImageStore|ChatService|PluginService|WorktreeResolver|BranchOps|MrStatusCache|TranscriptReader|SearchClient|ActiveTabsService|RemoteServer|VirtualContentsRegistry|RemoteWindows|RemoteClientService|HostDirectory|FolderBrowser|LibraryStateService|AccountService|KnowledgeStore|KnowledgeService|Digester|ResidentService|SlackBridge)$/]"],
     // A subsystem's part of the composition root is its own `app/<name>Container.ts` (remote, knowledge,
     // residents), called by createContainer: a home by its name, so a new one needs no edit here.
     // The search worker is its own thread with its own composition root: it opens its own SearchIndex.

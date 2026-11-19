@@ -290,6 +290,11 @@ export const CHANNEL_SCOPES = {
   scheduleSendNow: 'remote',
   scheduleDefault: 'remote',
   scheduleChanged: 'remote',
+  // A remote window sets the work machine's Slack connection.
+  slackStatus: 'remote',
+  slackConfigure: 'remote',
+  slackTest: 'remote',
+  slackChanged: 'remote',
   residentsList: 'remote',
   residentsChanged: 'remote',
   residentsAdd: 'remote',

@@ -121,6 +121,7 @@ beforeEach(async () => {
       paths: { userData: home, scheduledMessagesFile: join(home, 'scheduled-messages.json'), configRoot: join(home, '.claude') }, os: null, store: built.store, accounts: built.accounts, chat: service.chat, service,
       model: undefined,
     }).service,
+    slack: null,
     theme: {
       store: new ThemeStore(join(home, 'themes.json')),
       safeMode: false,

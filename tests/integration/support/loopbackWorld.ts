@@ -19,6 +19,9 @@ import { RemoteConnection } from '../../../src/main/remote/remoteConnection'
 import { createRemoteConnecting, createRemoteServing } from '../../../src/main/app/remoteContainer'
 import { createResidents } from '../../../src/main/app/residentsContainer'
 import { createSchedules } from '../../../src/main/app/scheduleContainer'
+import { createSlack } from '../../../src/main/app/slackContainer'
+import { fakeSlack } from '../../fixtures/fakeSlack'
+import { memoryCipher } from '../../fixtures/memoryCipher'
 import { resolveResourcesDir } from '../../../src/main/app/resourcesDir'
 import type { CallRouter, Dispatcher } from '../../../src/main/ipc/registrar'
 import { UNCHECKED_SENDERS } from '../../../src/main/ipc/ipcSenderGuard'
@@ -266,6 +269,8 @@ export async function buildLoopbackWorld(
     model: undefined,
   })
   await schedules.service.start()
+  // The fake Slack and an in-memory keychain: never the network. Not started, so nothing polls.
+  const slack = createSlack({ paths: { slackFile: join(home, 'slack.json') }, env: { slackApi: undefined }, cipher: memoryCipher(), onResume: () => () => undefined, api: fakeSlack() })
   const ipc = registerIpc({
     senderPolicy: UNCHECKED_SENDERS,
     remoteServer, remotePairing, remoteClient,
@@ -287,6 +292,7 @@ export async function buildLoopbackWorld(
     state: ipcState,
     residents,
     schedules: schedules.service,
+    slack,
     settings,
     tabRegistry,
     windowNumberFor: (id) => (id === fakeContents.id ? THIS_WINDOW.number : null),

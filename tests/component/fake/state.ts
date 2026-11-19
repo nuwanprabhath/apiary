@@ -17,6 +17,7 @@ import type { BackgroundTaskModel, BackgroundTaskOutput } from '@shared/chatTime
 import type { EventKey, PayloadOf } from '@shared/ipc/contract'
 import type { LibraryPatch, LibrarySnapshot } from '@shared/libraryState'
 import type { AccountsState } from '@shared/domain/accounts'
+import type { SlackStatus } from '@shared/domain/slack'
 import type { ScheduleDefault, SchedulesState } from '@shared/domain/schedule'
 import type { ResidentAttention, ResidentMessage, ResidentPending, ResidentPermissionRequest } from '@shared/domain/residents'
 import type { PetSpec } from '@shared/pets/spec'
@@ -94,6 +95,8 @@ export interface FakeOptions {
   schedules?: Partial<SchedulesState>
   /** What `scheduleDefault` answers for a known session. Default: an hour from now. */
   scheduleDefault?: ScheduleDefault | null
+  /** Main's Slack connection. Default: not set up, on a machine with a keychain. */
+  slack?: Partial<SlackStatus>
 }
 
 export interface FakeCall { name: string; args: unknown[] }
@@ -165,6 +168,7 @@ export interface FakeState {
   sessionAccounts: Map<string, string>
   schedules: SchedulesState
   scheduleDefault: ScheduleDefault | null
+  slack: SlackStatus
   /** The schedules "Send now" sent, in order. */
   scheduleSent: string[]
   /** Each resident's chat (`residentHistory`), and the residents answering now. */

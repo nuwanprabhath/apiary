@@ -67,6 +67,7 @@ import type { RemoteClientService } from '../remote/remoteClientService'
 import type { HostDirectory } from '../remote/hostDirectory'
 import { createRemoteConnecting, createRemoteServing, realConnectingOutside } from './remoteContainer'
 import { createResidents } from './residentsContainer'
+import { createAppSlack } from './slackContainer'
 import { createSchedules, osJobsWanted, type ScheduleParts } from './scheduleContainer'
 import type { VirtualContentsRegistry } from '../remote/virtualContents'
 import { IPC } from '@shared/api'
@@ -196,7 +197,7 @@ export interface Container {
   knowledge: KnowledgeParts
   accounts: AccountService
   /** The resident agents; `index.ts` starts them once windows can hear them, and disposes of them on quit. */
-  residents: ReturnType<typeof createResidents>; schedules: ScheduleParts // `index.ts` starts both once windows can hear them
+  residents: ReturnType<typeof createResidents>; schedules: ScheduleParts; slack: ReturnType<typeof createAppSlack> // `index.ts` starts all three once windows can hear them
 }
 
 /** What the session-side services are built from; optional fields default to the app's, so a test names only what it needs. */
@@ -471,12 +472,11 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   const spelling = new SpellingService()
   const folderBrowser = new FolderBrowser({ home: inputs.homeDir })
   const library = new LibraryStateService({
-    file: paths.libraryStateFile,
-    moved: settingsService.movedToLibrary(), onChanged: (snapshot) => { broadcast(IPC.libraryStateChanged, snapshot) },
+    file: paths.libraryStateFile, moved: settingsService.movedToLibrary(), onChanged: (snapshot) => { broadcast(IPC.libraryStateChanged, snapshot) },
   })
   return {
     paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry, windowManager, service, chat: service.chat, plugins: service.plugins, spelling, folderBrowser, ipcState, sessionWatcher, updater,
     themeStore, themeGenerator, petStore, petService, petPlacement, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory, library, accounts, knowledge, residents: createResidents({ settingsService, paths, store, accounts, knowledge, tabRegistry, service, ipcState, windowManager, virtualContents, version: inputs.appVersion, resourcesDir: inputs.resourcesDir }),
-    schedules: createSchedules({ paths, os: osJobsWanted(env) ? { homeDir: inputs.homeDir } : null, store, accounts, chat: service.chat, service, model: env.scheduleModel }),
+    schedules: createSchedules({ paths, os: osJobsWanted(env) ? { homeDir: inputs.homeDir } : null, store, accounts, chat: service.chat, service, model: env.scheduleModel }), slack: createAppSlack(paths, env),
   }
 }

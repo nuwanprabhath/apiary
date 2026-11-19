@@ -119,6 +119,8 @@ let disposeRemote: (() => Promise<void>) | null = null
 let disposeResidents: (() => Promise<void>) | null = null
 /** Stops the scheduled-message timer and removes `apiary.pid`, so the OS jobs send from then on. */
 let disposeSchedules: (() => void) | null = null
+/** Stops the Slack poller. */
+let disposeSlack: (() => Promise<void>) | null = null
 /** Quits a background-started app with no window and remote access off; set once remote access starts. */
 let quitIfIdleBackground: () => void = () => {}
 
@@ -314,7 +316,7 @@ async function start(): Promise<void> {
   // Before any window exists: each window asks for its theme synchronously as it loads.
   const safeTheme = env.safeTheme
   const ipc = registerIpc({
-    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, library: container.library, accounts: container.accounts, residents: container.residents, schedules: container.schedules.service, state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
+    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, library: container.library, accounts: container.accounts, residents: container.residents, schedules: container.schedules.service, slack: container.slack, state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
     pickFolder: (sender) => pickFolderOver(sender, env.pickFolder),
     onAutoImportIntervalChange: setAutoImportInterval,
     updater,
@@ -400,7 +402,7 @@ async function start(): Promise<void> {
   // Started after the window exists, so the first status push has somewhere to land.
   updater?.start()
   if (updater !== null) fireAndForget(updater.restorePreviousInstall(), 'update')
-  ;[disposeResidents, disposeSchedules] = [container.residents.start(), startSchedules(container)]
+  ;[disposeResidents, disposeSchedules, disposeSlack] = [container.residents.start(), startSchedules(container), container.slack.start()]
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) { windowManager!.create(); container.petPlacement.rehome() }
   })
@@ -479,6 +481,7 @@ async function shutdown(): Promise<void> {
     await disposeRemote?.()
     await disposeResidents?.()
     disposeSchedules?.()
+    await disposeSlack?.()
     await service?.dispose()
     knowledge?.store.close()
   }

@@ -36,6 +36,8 @@ import { accountsHandlers } from './handlers/accounts'
 import { residentsHandlers } from './handlers/residents'
 import { appWindowsHandlers } from './handlers/appWindows'
 import { scheduleHandlers } from './handlers/schedule'
+import { slackHandlers } from './handlers/slack'
+import type { SlackBridge } from '../slack/slackBridge'
 import type { ScheduleService } from '../schedule/scheduleService'
 import type { ResidentService } from '../residents/residentService'
 import type { AccountService } from '../accounts/accountService'
@@ -62,6 +64,7 @@ export interface IpcDeps {
   residents: ResidentService
   /** Scheduled messages (`schedule/scheduleService.ts`), built in the container. */
   schedules: ScheduleService
+  slack: SlackBridge | null
   spelling: SpellingService
   /** The in-app folder browser a remote window uses instead of the native picker; built in the container. */
   folderBrowser: FolderBrowser
@@ -142,6 +145,7 @@ export function registerIpc(
   const residentsIpc = residentsHandlers(deps.residents, deps.pickFolder, deps.folderBrowser)
   const appWindowsIpc = appWindowsHandlers()
   const scheduleIpc = scheduleHandlers(deps.schedules)
+  const slackIpc = slackHandlers(deps.slack)
 
   const handlers: Handlers = {
     ...sessions,
@@ -166,6 +170,7 @@ export function registerIpc(
     ...residentsIpc,
     ...appWindowsIpc.handlers,
     ...scheduleIpc,
+    ...slackIpc,
   }
   const listeners: Listeners = {
     ...terminals.listeners,

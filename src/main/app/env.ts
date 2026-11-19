@@ -78,6 +78,8 @@ export interface RuntimeEnv {
   osScheduler: 'on' | 'off' | undefined
   /** The model a scheduled message's OS job and headless chat use — test-only (the Haiku acceptance test); production uses the session's own. */
   scheduleModel: string | undefined
+  /** `APIARY_SLACK_API`: the base URL of Slack's Web API — test-only (a stand-in server); never set when packaged. Default `https://slack.com/api`. */
+  slackApi: string | undefined
   /** `--background`: services and remote server with no window (`app/launchMode.ts`). A launch flag, honoured when packaged. */
   background: boolean
   /** `--update`: the command-line update (`app/launchMode.ts`). A launch flag, honoured when packaged. */
@@ -122,6 +124,7 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv, argv: string[], isPackag
     closeGraceMs: positiveInt(test('APIARY_CLOSE_GRACE_MS')),
     osScheduler: onOff(test('APIARY_OS_SCHEDULER')),
     scheduleModel: test('APIARY_SCHEDULE_MODEL'),
+    slackApi: test('APIARY_SLACK_API'),
     background: parseLaunchMode(argv).background,
     update: parseLaunchMode(argv).update,
     service: parseLaunchMode(argv).service,

@@ -1,13 +1,6 @@
 import { isRecord } from '@shared/guards'
+import type { CodeCipher } from '../fs/codeCipher'
 import { JsonStore } from '../fs/jsonStore'
-
-/** Electron's `safeStorage`, as much of it as this needs. */
-export interface CodeCipher {
-  available(): Promise<boolean>
-  encrypt(text: string): Promise<string>
-  /** `stale` when the keychain key has rotated: the text is right, and should be encrypted again. */
-  decrypt(encrypted: string): Promise<{ text: string; stale: boolean }>
-}
 
 interface CodesFile { codes: Record<string, string> }
 

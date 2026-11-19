@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { SavedPairingCodes, type CodeCipher } from '../../src/main/remote/savedPairingCodes'
+import type { CodeCipher } from '../../src/main/fs/codeCipher'
+import { SavedPairingCodes } from '../../src/main/remote/savedPairingCodes'
 
 /** Reverses the text: not encryption, but a stored value that is not the code itself. */
 const cipher = (available = true, prefix = 'enc:', stalePrefix?: string): CodeCipher => ({

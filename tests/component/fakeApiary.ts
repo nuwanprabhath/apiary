@@ -36,6 +36,7 @@ import { initialLibrary, libraryApi } from './fake/library'
 import { accountsApi, initialAccounts } from './fake/accounts'
 import { residentsApi } from './fake/residents'
 import { scheduleApi } from './fake/schedule'
+import { slackApi } from './fake/slack'
 import { remoteApi } from './fake/remote'
 import type { Env, FakeApiary, FakeCall, FakeEvent, FakeOptions, FakeProject, FakeSession, FakeState } from './fake/state'
 import { initialThemeState, themesApi } from './fake/themes'
@@ -140,6 +141,7 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     schedules: { messages: [], notices: [], osJobs: true, ...opts.schedules },
     scheduleDefault: opts.scheduleDefault ?? null,
     scheduleSent: [],
+    slack: { enabled: false, hasToken: false, canStoreToken: true, channel: null, ownerId: null, bot: null, connection: 'off', error: null, ...opts.slack },
     theme: initialThemeState(),
     refs: {
       current: 'main',
@@ -273,6 +275,8 @@ export function createFakeApiary(opts: FakeOptions = {}): FakeApiary {
     onOpenSessionRequested: on('openSessionRequested'),
     ...scheduleApi(env),
     onScheduleChanged: on('scheduleChanged'),
+    ...slackApi(env),
+    onSlackChanged: on('slackChanged'),
   }
 
   // Every method goes through here, so calls are recorded and a test can swap one out. The theme
