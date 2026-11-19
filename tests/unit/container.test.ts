@@ -54,6 +54,7 @@ describe('containerPaths', () => {
       residentsDir: '/u/residents',
       userData: '/u',
       scheduledMessagesFile: '/u/scheduled-messages.json',
+      slackFile: '/u/slack.json',
     })
     const real = containerPaths(parseRuntimeEnv({}, [], false), '/u', () => '/real/.claude')
     expect(real.configRoot).toBe('/real/.claude')

@@ -24,6 +24,16 @@ All notable changes to Apiary are documented here. Format follows
   over as a chat once its current turn ends. Nothing in the app shows this yet.
 - A chat can start a brand-new session (`claude --session-id`), not only resume one.
 
+## [1.77.0] - 2026-11-19
+
+### Added
+
+- Apiary can now connect to Slack: it reads your messages in this machine's channel (one channel per
+  machine, the same bot token everywhere) and can post there. Setup is in `docs/slack.md`; the Slack
+  app's manifest is `resources/slack/regent-manifest.yaml`. The token is kept encrypted in the
+  operating system's keychain and is refused on a machine that has none. Settings, Slack, and Regent's
+  use of the connection come in later versions.
+
 ## [1.76.1] - 2026-11-19
 
 ### Fixed

@@ -10,6 +10,7 @@ loaded; these and the nested `CLAUDE.md` files below load only when relevant.
 | Activity status (running/waiting/idle/stopped) classification | [activity.md](activity.md) |
 | Which Claude session a terminal is on | [session-following.md](session-following.md) |
 | Chat mode: `ChatService`, protocol, per-window delivery, take-over, `/clear` | [chat.md](chat.md) |
+| Slack connection: setup, polling, one channel per machine | [../slack.md](../slack.md) |
 | The three trust-boundary rules, in full | [boundaries.md](boundaries.md) |
 | Viewer state vs library state, and what a remote window mirrors | [library-state.md](library-state.md) |
 

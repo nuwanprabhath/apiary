@@ -9,7 +9,7 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 export type LogScope =
   | 'accounts' | 'activity' | 'app' | 'auto-import' | 'chat' | 'claude-usage' | 'driving' | 'exec' | 'git' | 'gitlab-mr' | 'ipc' | 'knowledge' | 'layout'
   | 'library' | 'live-sessions' | 'mr-status' | 'navigation' | 'pets' | 'process' | 'prompt' | 'pty' | 'refresh' | 'remote' | 'rename'
-  | 'rescan' | 'residents' | 'resume' | 'schedule' | 'search' | 'session-tracker' | 'settings' | 'shell' | 'status-bar' | 'tabs' | 'theme'
+  | 'rescan' | 'residents' | 'resume' | 'schedule' | 'search' | 'session-tracker' | 'settings' | 'shell' | 'slack' | 'status-bar' | 'tabs' | 'theme'
   | 'update' | 'usage' | 'vscode' | 'vscode-detect' | 'watcher' | 'window' | 'worktree-resolve'
 
 export interface LogStatusPayload {

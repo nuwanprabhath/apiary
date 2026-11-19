@@ -27,9 +27,7 @@ import {
   type GitRefs, type MrState, type WorktreeCreateOptions, type WorktreeCreateRequest,
 } from '../domain/git'
 import type { RepoWebLocation } from '../mentions/repoWebLocation'
-import type {
-  ProjectNode, DiscoveredSession, ResumeConflict, NewSessionInfo, TreeChange,
-} from '../domain/session'
+import type { ProjectNode, DiscoveredSession, ResumeConflict, NewSessionInfo, TreeChange } from '../domain/session'
 import type { TranscriptPage } from '../domain/transcript'
 
 /** One step of a find in a transcript: line indexes of matching messages, newest first, and where the next step starts (null at line 0). */
@@ -43,9 +41,7 @@ import type { AppSettingsPayload } from '../domain/settings'
 import { isLibraryPatch, type LibraryPatch, type LibrarySnapshot } from '../libraryState'
 import { isAccountId, isAccountLabel, type AccountId, type AccountsState } from '../domain/accounts'
 import type { LogLevel, LogScope, LogStatusPayload } from '../domain/log'
-import {
-  isInstallRequest, type InstallOutcome, type InstallRequest, type PrepareInstallResult, type UpdateStatusPayload,
-} from '../domain/update'
+import { isInstallRequest, type InstallOutcome, type InstallRequest, type PrepareInstallResult, type UpdateStatusPayload } from '../domain/update'
 import type { PluginInfoPayload, PluginBarItem as PluginBarItemPayload } from '../domain/plugins'
 import type { PtySessionInfo, PtySnapshot } from '../domain/pty'
 import type { StatusBarItem, StatusBarPanel } from '../domain/statusBar'
@@ -66,6 +62,7 @@ import {
 import { RESIDENT_ID_RE } from '../settings/residents'
 import { isRecord } from '../guards'
 import { SCREEN_SETTING_KEYS, type SettingKey } from '../settings/schema'
+import { isSlackConfigChange, type SlackConfigChange, type SlackStatus } from '../domain/slack'
 import { isScheduleId, isScheduleRequest, type ScheduleDefault, type ScheduledMessage, type ScheduleRequest, type SchedulesState } from '../domain/schedule'
 import { isPairingCode, isRemoteHost, type RemoteClientInfo, type RemoteHost, type RemoteServerState, type RemoteStatus } from '../domain/remote'
 
@@ -566,6 +563,10 @@ export const IPC = {
   /** The time the popup suggests for a session, and where it came from. */
   scheduleDefault: invoke<[sessionId: SessionId], ScheduleDefault>('apiary:schedule-default', tuple(sessionIdArg)),
   scheduleChanged: event<[state: SchedulesState]>('apiary:schedule-changed'),
+  slackStatus: invoke<[], SlackStatus>('apiary:slack-status', tuple()),
+  slackConfigure: invoke<[change: SlackConfigChange], SlackStatus>('apiary:slack-configure', tuple(isSlackConfigChange)),
+  slackTest: invoke<[], SlackStatus>('apiary:slack-test', tuple()),
+  slackChanged: event<[status: SlackStatus]>('apiary:slack-changed'),
 } as const
 
 type Spec = typeof IPC

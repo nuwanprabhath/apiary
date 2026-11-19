@@ -17,7 +17,7 @@ const MAIN_APP = '^src/main/app/|^src/main/index\\.ts$'
  */
 const MAIN_EDGES = {
   accounts: ['exec', 'fs', 'log'],
-  app: ['accounts', 'chat', 'claude', 'driving', 'exec', 'folders', 'git', 'ipc', 'knowledge', 'library', 'log', 'media', 'pets', 'plugins', 'pty', 'remote', 'residents', 'schedule', 'search', 'sessions', 'settings', 'sources', 'spelling', 'statusBar', 'store', 'terminals', 'theme', 'transcript', 'update', 'vscode', 'windows'],
+  app: ['accounts', 'chat', 'claude', 'driving', 'exec', 'folders', 'git', 'ipc', 'knowledge', 'library', 'log', 'media', 'pets', 'plugins', 'pty', 'remote', 'residents', 'schedule', 'search', 'sessions', 'settings', 'slack', 'sources', 'spelling', 'statusBar', 'store', 'terminals', 'theme', 'transcript', 'update', 'vscode', 'windows'],
   chat: ['accounts', 'claude', 'exec', 'log', 'pty', 'sessions', 'store', 'terminals', 'transcript', 'windows'],
   claude: ['accounts', 'exec', 'log', 'pty'],
   driving: ['chat', 'log'],
@@ -25,7 +25,7 @@ const MAIN_EDGES = {
   folders: ['fs'],
   fs: [],
   git: ['exec', 'log', 'plugins', 'sessions'],
-  ipc: ['accounts', 'chat', 'claude', 'folders', 'library', 'log', 'pets', 'plugins', 'remote', 'residents', 'schedule', 'settings', 'spelling', 'terminals', 'theme', 'update', 'windows'],
+  ipc: ['accounts', 'chat', 'claude', 'folders', 'library', 'log', 'pets', 'plugins', 'remote', 'residents', 'schedule', 'settings', 'slack', 'spelling', 'terminals', 'theme', 'update', 'windows'],
   knowledge: ['accounts', 'claude', 'fs', 'log', 'search', 'store', 'transcript', 'util'],
   library: ['fs', 'log'],
   log: [],
@@ -37,6 +37,7 @@ const MAIN_EDGES = {
   residents: ['chat', 'exec', 'fs', 'knowledge', 'log', 'search'],
   scanner: ['transcript'],
   schedule: ['exec', 'fs', 'log', 'transcript'],
+  slack: ['fs', 'log'],
   search: ['log', 'store', 'transcript', 'util'],
   sessions: ['claude', 'fs', 'git', 'log', 'pty', 'scanner', 'search', 'sources', 'store', 'transcript', 'tree', 'util'],
   settings: ['fs'],

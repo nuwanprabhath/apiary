@@ -23,6 +23,7 @@ export interface ContainerPaths {
   /** Where the scheduled-message script, its job files and `apiary.pid` live (`main/schedule/scheduledJobs.ts`). */
   userData: string
   scheduledMessagesFile: string
+  slackFile: string
 }
 
 export function containerPaths(
@@ -45,5 +46,6 @@ export function containerPaths(
     residentsDir: join(userData, 'residents'),
     userData,
     scheduledMessagesFile: join(userData, 'scheduled-messages.json'),
+    slackFile: join(userData, 'slack.json'),
   }
 }

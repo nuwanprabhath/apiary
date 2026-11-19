@@ -1,5 +1,5 @@
 import { safeStorage } from 'electron'
-import type { CodeCipher } from './savedPairingCodes'
+import type { CodeCipher } from '../fs/codeCipher'
 
 /** Electron's `safeStorage` (the OS keychain) as a `CodeCipher`; `available()` is false on a Linux session with no keyring. */
 export function safeStorageCipher(): CodeCipher {
