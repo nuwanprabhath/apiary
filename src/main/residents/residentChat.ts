@@ -3,7 +3,7 @@ import { UUID_RE } from '@shared/domain/ids'
 import { isRecord } from '@shared/guards'
 import { errorMessage } from '@shared/errors'
 import { ignoreErrorsAsync } from '@shared/ignoreErrors'
-import { NEW_UPDATE, type ResidentMessage, type ResidentPermissionRequest, type ResidentTurnOrigin } from '@shared/domain/residents'
+import { NEW_UPDATE, type CardAnswer, type ResidentMessage, type ResidentPermissionRequest, type ResidentTurnOrigin } from '@shared/domain/residents'
 import type { ChatPermissionMode } from '@shared/domain/chat'
 import type { BackgroundTask } from '@shared/chatTimeline'
 import { spawnLoginShell, type LoginShellSpawn, type PipedLoginShell } from '../exec/spawnLoginShell'
@@ -11,7 +11,7 @@ import { backgroundTasksOf, controlLine, parseLine, permissionReply, permissionR
 import { EMIT_EVERY_MS, INTERRUPT_SETTLE_MS, STDERR_TAIL, STOP_GRACE_MS } from '../chat/chatSession'
 import { log } from '../log/logger'
 import { activityForTool, backgroundActivity, clipActivity, permissionSummary, THINKING, WRITING } from './activity'
-import type { ResidentSpace } from './residentSpace'
+import { TOOL_WAIT_MS, type ResidentSpace } from './residentSpace'
 
 /** What a start needs that the service decides: the MCP config file, the model, the kind's prompt and how it asks. */
 export interface ResidentLaunch {
@@ -76,14 +76,11 @@ export interface SendShape {
   origin?: ResidentTurnOrigin
 }
 
-/** How long claude waits on an Apiary tool call. A card (`askUser`) stays until the person answers it,
- *  and claude's own limit for an MCP call (60 s) ended `approve_mr` while its card was still showing. */
-const CARD_WAIT_MS = 12 * 60 * 60 * 1000
 
 /** A tool use claude waits on (answered over stdin), or a question main asked itself (`askUser`, answered by `settle`). */
 type Waiting =
   | { request: ResidentPermissionRequest; pending: PendingPermission; settle?: undefined }
-  | { request: ResidentPermissionRequest; pending?: undefined; settle: (allow: boolean) => void }
+  | { request: ResidentPermissionRequest; pending?: undefined; settle: (answer: CardAnswer) => void }
 
 interface Turn {
   message: ResidentMessage
@@ -146,7 +143,7 @@ export class ResidentChat {
     const waiting = this.waiting.get(requestId)
     if (waiting?.settle !== undefined) {
       this.waiting.delete(requestId)
-      waiting.settle(allow)
+      waiting.settle(allow ? 'allow' : 'deny')
       this.deps.onActivity()
       return
     }
@@ -159,12 +156,25 @@ export class ResidentChat {
 
   /**
    * Shows the user a permission card that main itself asks (an `approve_mr` call) and resolves with
-   * their answer; false when the chat stops first. The summary is main's own words, never the agent's.
+   * their answer; unanswered when `waitMs` passes first (the card is taken down) or the chat stops.
+   * The summary is main's own words, never the agent's.
    */
-  askUser(tool: string, summary: string): Promise<boolean> {
+  askUser(tool: string, summary: string, waitMs: number | null): Promise<CardAnswer> {
     const requestId = randomUUID()
-    return new Promise((settle) => {
+    return new Promise((resolve) => {
+      let timer: NodeJS.Timeout | null = null
+      const settle = (answer: CardAnswer): void => {
+        if (timer !== null) clearTimeout(timer)
+        resolve(answer)
+      }
       this.waiting.set(requestId, { request: { requestId, tool, summary }, settle })
+      if (waitMs !== null) {
+        timer = setTimeout(() => {
+          if (!this.waiting.delete(requestId)) return
+          resolve('unanswered')
+          this.deps.onActivity()
+        }, waitMs)
+      }
       this.deps.onActivity()
     })
   }
@@ -184,7 +194,7 @@ export class ResidentChat {
     for (const [id, w] of this.waiting) {
       if (w.settle === undefined) continue
       this.waiting.delete(id)
-      w.settle(false)
+      w.settle('unanswered')
     }
   }
 
@@ -277,7 +287,7 @@ export class ResidentChat {
     const proc = spawnLoginShell({
       command: { bin: this.deps.claudeBin() ?? 'claude', flags: residentFlags(launch, resume) },
       cwd: this.deps.space.dir,
-      extraEnv: { ...this.deps.env(), MCP_TOOL_TIMEOUT: String(CARD_WAIT_MS) },
+      extraEnv: { ...this.deps.env(), MCP_TOOL_TIMEOUT: String(TOOL_WAIT_MS) },
     }, this.deps.spawn)
     this.proc = proc
     this.stopping = false

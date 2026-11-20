@@ -777,7 +777,7 @@ def _take_nonce(cfg, filename, env_var, what):
     except OSError:
         expected = ''
     if not given or not expected or not hmac.compare_digest(given, expected):
-        raise MraError(f'Refusing to {what}: this goes through Apiary, which asks the user first.',
+        raise MraError(f'Refusing to {what} from the shell: use Apiary\'s request_user_action tool, which runs it.',
                        f'{env_var} does not match {filename}')
     path.unlink(missing_ok=True)
 
@@ -786,7 +786,7 @@ def _take_approve_nonce(cfg):
     try:
         _take_nonce(cfg, 'approve.nonce', 'MRA_APPROVE_NONCE', 'approve')
     except MraError:
-        raise SystemExit('Refusing to approve: approvals go through Apiary\'s approve_mr tool, which asks the user first.')
+        raise SystemExit('Refusing to approve from the shell: use Apiary\'s approve_mr tool, which approves an MR the user named.')
 
 
 def cmd_approve(args):

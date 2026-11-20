@@ -3,7 +3,7 @@
  * prompt's "blocked" lines are both made from this one table, so a block always explains itself.
  */
 export const MR_DESK_BLOCKED: readonly { tool: string; command: string; instead: string }[] = [
-  { tool: 'Bash(glab mr approve:*)', command: 'glab mr approve', instead: 'the `approve_mr` tool (it asks the user)' },
+  { tool: 'Bash(glab mr approve:*)', command: 'glab mr approve', instead: 'the `approve_mr` tool' },
   {
     tool: 'Bash(glab mr note:*)', command: 'glab mr note',
     instead: '`mra draft add` for a draft only the user sees, or the `request_user_action` tool for a reply',

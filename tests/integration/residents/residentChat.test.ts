@@ -54,15 +54,47 @@ const answered = (pushed: ResidentMessage[]): ResidentMessage | undefined => pus
 describe('ResidentChat', () => {
   it('a question main asks shows as a permission and settles with the user\'s answer', async () => {
     const { chat: c } = chat(root())
-    const denied = c.askUser('approve_mr', 'Approve !1: fix')
+    const denied = c.askUser('approve_mr', 'Approve !1: fix', null)
     expect(c.permissions().map((p) => [p.tool, p.summary])).toEqual([['approve_mr', 'Approve !1: fix']])
     c.answerPermission(at(c.permissions(), 0).requestId, false)
-    await expect(denied).resolves.toBe(false)
+    await expect(denied).resolves.toBe('deny')
     expect(c.permissions()).toEqual([])
 
-    const allowed = c.askUser('approve_mr', 'Approve !2: feat')
+    const allowed = c.askUser('approve_mr', 'Approve !2: feat', null)
     c.answerPermission(at(c.permissions(), 0).requestId, true)
-    await expect(allowed).resolves.toBe(true)
+    await expect(allowed).resolves.toBe('allow')
+  })
+
+  it('a card with a time limit is taken down unanswered when it runs out, and a later click does nothing', async () => {
+    vi.useFakeTimers()
+    try {
+      const { chat: c } = chat(root())
+      const asked = c.askUser('approve_mr', 'Approve !1: fix', 5 * 60_000)
+      const { requestId } = at(c.permissions(), 0)
+      vi.advanceTimersByTime(5 * 60_000 - 1)
+      expect(c.permissions()).toHaveLength(1)
+      vi.advanceTimersByTime(1)
+      await expect(asked).resolves.toBe('unanswered')
+      expect(c.permissions()).toEqual([])
+      c.answerPermission(requestId, true)
+      expect(c.permissions()).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a card with no time limit waits however long the person takes', async () => {
+    vi.useFakeTimers()
+    try {
+      const { chat: c } = chat(root())
+      const asked = c.askUser('approve_mr', 'Approve !1: fix', null)
+      vi.advanceTimersByTime(24 * 60 * 60_000)
+      expect(c.permissions()).toHaveLength(1)
+      c.answerPermission(at(c.permissions(), 0).requestId, true)
+      await expect(asked).resolves.toBe('allow')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('counts an MR as named only when the person typed it: not a quick action, not the agent\'s words', () => {
@@ -83,9 +115,9 @@ describe('ResidentChat', () => {
 
   it('a question main asks is denied when the chat stops', async () => {
     const { chat: c } = chat(root())
-    const asked = c.askUser('approve_mr', 'Approve !1: fix')
+    const asked = c.askUser('approve_mr', 'Approve !1: fix', null)
     await c.stop()
-    await expect(asked).resolves.toBe(false)
+    await expect(asked).resolves.toBe('unanswered')
     expect(c.permissions()).toEqual([])
   })
 
@@ -114,6 +146,9 @@ describe('ResidentChat', () => {
     expect(statSync(join(space.dir, 'mcp.json')).mode & 0o777).toBe(0o600)
     expect(statSync(space.dir).mode & 0o777).toBe(0o700)
     expect(readFileSync(join(space.dir, 'mcp.json'), 'utf8')).toContain('Bearer token')
+    // claude's own idle limit for an MCP call is 300 s unless the server entry says otherwise.
+    expect((JSON.parse(readFileSync(join(space.dir, 'mcp.json'), 'utf8')) as { mcpServers: { apiary: { timeout: number } } }).mcpServers.apiary.timeout)
+      .toBeGreaterThanOrEqual(12 * 60 * 60 * 1000)
   })
 
   it('activity follows tool use', async () => {

@@ -1,6 +1,6 @@
 import { isRecord } from '@shared/guards'
 import type { SessionId } from '@shared/domain/ids'
-import type { ResidentAttention } from '@shared/domain/residents'
+import type { CardAnswer, CardPolicy, ResidentAttention } from '@shared/domain/residents'
 import type { SessionKnowledge } from '../../knowledge/types'
 import type { ResidentCapability } from '../kinds'
 import type { ResidentApproval, ResidentUserActions } from '../kindTypes'
@@ -51,11 +51,12 @@ export interface ApprovalControl {
   approvalOf(residentId: string): ResidentApproval | null
   /** Its kind's user actions, or null for a kind without them. */
   userActionsOf(residentId: string): ResidentUserActions | null
-  /** Whether it may act on MR `iid` without a card: its "Ask before acting" option is off and the
-   *  user named that MR in its chat. */
-  actsUnasked(residentId: string, iid: number): boolean
+  /** Its "Ask before acting on GitLab" option: whether it asks with a card, and how long one waits. */
+  cardPolicy(residentId: string): CardPolicy
+  /** Whether the person typed MR `iid` in its chat. */
+  userNamed(residentId: string, iid: number): boolean
   /** Shows the user a permission card with main's summary; resolves with their answer. */
-  askUser(residentId: string, tool: string, summary: string): Promise<boolean>
+  askUser(residentId: string, tool: string, summary: string, waitMs: number | null): Promise<CardAnswer>
   /** Runs a kind argv (`{bin:<name>}` expanded) in its space with its env plus `extraEnv`; resolves with stdout. */
   run(residentId: string, argv: string[], extraEnv: Record<string, string>): Promise<string>
   /** Its space folder, where the kind's nonce file goes. */

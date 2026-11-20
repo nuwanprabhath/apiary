@@ -4,6 +4,21 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.86.0] - 2026-11-20
+
+### Changed
+
+- "Ask before acting on GitLab" (the MR desk) is a choice: no cards (the default), a card that
+  waits until you answer, or a card that gives up after 5, 15 or 60 minutes. With no cards the desk
+  resolves your own threads on any MR at once, and approves, publishes and replies at once on an MR
+  you named in its chat, even hours later ("approve !1751 when Luke pushes"); it does nothing on an
+  MR you have not named. It no longer tells you a card cannot be avoided.
+
+### Fixed
+
+- A card the MR desk raised no longer fails after five minutes: Claude Code drops an MCP call that
+  is silent for 300 seconds, so Apiary now gives its server a 12-hour limit.
+
 ## [1.85.0] - 2026-11-20
 
 ### Added

@@ -10,7 +10,7 @@ import { at } from '../../contract/must'
 import type { ResidentApproval } from '../../../src/main/residents/kindTypes'
 import { MR_DESK_USER_ACTIONS } from '../../../src/main/residents/kinds/mrDeskActions'
 import type { SessionKnowledge, SessionTopic } from '../../../src/main/knowledge/types'
-import type { SessionHit } from '@shared/domain/residents'
+import type { CardAnswer, CardPolicy, SessionHit } from '@shared/domain/residents'
 import { residentSees, scopeToAccount } from '../../../src/main/app/residentsContainer'
 
 vi.mock('electron', () => ({ BrowserWindow: { getAllWindows: () => [] }, webContents: { fromId: () => undefined } }))
@@ -117,6 +117,10 @@ describe('note_list', () => {
   })
 })
 
+/** Cards on, waiting until answered: what most of these tests check the card's contents under. */
+const CARDS: CardPolicy = { cards: true, waitMs: null }
+const answerOf = (allow: boolean | CardAnswer): CardAnswer => (typeof allow === 'string' ? allow : allow ? 'allow' : 'deny')
+
 describe('approve_mr', () => {
   const HEAD = { title: 'fix: thing', targetBranch: 'dev/1.0.12', sha: 'abcdef0123456789' }
   const APPROVAL: ResidentApproval = {
@@ -128,7 +132,7 @@ describe('approve_mr', () => {
   }
   interface Ran { argv: string[]; env: Record<string, string>; nonceOnDisk: string | null }
 
-  function approving(allow: boolean, readOut = 'head', unasked: number[] = []): { d: ToolDeps; asked: string[]; ran: Ran[] } {
+  function approving(allow: boolean | CardAnswer, readOut = 'head', named: number[] = [], cards: CardPolicy = CARDS): { d: ToolDeps; asked: string[]; ran: Ran[] } {
     const asked: string[] = []
     const ran: Ran[] = []
     const nonceFile = APPROVAL.nonceFile(dir)
@@ -136,8 +140,9 @@ describe('approve_mr', () => {
       approval: {
         approvalOf: () => APPROVAL,
         userActionsOf: () => null,
-        actsUnasked: (_id, iid) => unasked.includes(iid),
-        askUser: async (_id, _tool, summary) => { asked.push(summary); return allow },
+        cardPolicy: () => cards,
+        userNamed: (_id, iid) => named.includes(iid),
+        askUser: async (_id, _tool, summary) => { asked.push(summary); return answerOf(allow) },
         spaceDir: () => dir,
         run: async (_id, argv, env) => {
           ran.push({ argv, env, nonceOnDisk: existsSync(nonceFile) ? readFileSync(nonceFile, 'utf8') : null })
@@ -175,13 +180,34 @@ describe('approve_mr', () => {
     expect(r).toEqual({ text: 'approved', isError: false })
   })
 
-  it('approves without a card an MR it may act on unasked, and still asks for any other', async () => {
-    const { d, asked, ran } = approving(false, 'head', [1675])
+  it('with cards off, approves an MR the user named without a card, and refuses any other without one', async () => {
+    const { d, asked, ran } = approving(false, 'head', [1675], { cards: false })
     expect(await approve({ iid: 1675 }, d)).toEqual({ text: 'approved', isError: false })
+    const other = await approve({ iid: 1570 }, d)
+    expect(other.isError).toBe(true)
+    expect(other.text).toContain('have not named !1570')
     expect(asked).toEqual([])
-    expect((await approve({ iid: 1570 }, d)).isError).toBe(true)
-    expect(asked).toEqual(['Approve !1570: fix: thing → dev/1.0.12 at abcdef0123'])
     expect(approvals(ran).map((x) => x.argv)).toEqual([['approve', '1675']])
+  })
+
+  it('with cards on, asks even for an MR the user named', async () => {
+    const { d, asked, ran } = approving(true, 'head', [1675])
+    await approve({ iid: 1675 }, d)
+    expect(asked).toHaveLength(1)
+    expect(approvals(ran)).toHaveLength(1)
+  })
+
+  it('passes the card its time limit, and approves nothing when it runs out', async () => {
+    const waits: (number | null)[] = []
+    const { d, ran } = approving('unanswered', 'head', [], { cards: true, waitMs: 300_000 })
+    const control = d.approval
+    if (control === undefined) throw new Error('no approval control')
+    const ask = control.askUser.bind(control)
+    control.askUser = async (id, tool, summary, waitMs) => { waits.push(waitMs); return ask(id, tool, summary, waitMs) }
+    const r = await approve({ iid: 1570 }, d)
+    expect(waits).toEqual([300_000])
+    expect(r.text).toContain('did not answer the card for approving on !1570 in time')
+    expect(approvals(ran)).toEqual([])
   })
 
   it('refuses an iid that is not a positive whole number, without asking', async () => {
@@ -216,7 +242,7 @@ describe('request_user_action (the MR desk)', () => {
   ] })
   interface Ran { argv: string[]; env: Record<string, string>; nonceOnDisk: string | null; bodyOnDisk: string | null }
 
-  function acting(allow: boolean, facts: Record<string, string> = {}, unasked: number[] = []): { d: ToolDeps; asked: string[]; ran: Ran[] } {
+  function acting(allow: boolean, facts: Record<string, string> = {}, named: number[] = [], cards: CardPolicy = CARDS): { d: ToolDeps; asked: string[]; ran: Ran[] } {
     const asked: string[] = []
     const ran: Ran[] = []
     const nonceFile = MR_DESK_USER_ACTIONS.nonceFile(dir)
@@ -227,8 +253,9 @@ describe('request_user_action (the MR desk)', () => {
       approval: {
         approvalOf: () => null,
         userActionsOf: () => MR_DESK_USER_ACTIONS,
-        actsUnasked: (_id, iid) => unasked.includes(iid),
-        askUser: async (_id, _tool, summary) => { asked.push(summary); return allow },
+        cardPolicy: () => cards,
+        userNamed: (_id, iid) => named.includes(iid),
+        askUser: async (_id, _tool, summary) => { asked.push(summary); return answerOf(allow) },
         spaceDir: () => dir,
         run: async (_id, argv, env) => {
           ran.push({ argv, env, nonceOnDisk: read(nonceFile), bodyOnDisk: read(bodyFile) })
@@ -291,13 +318,19 @@ describe('request_user_action (the MR desk)', () => {
     expect(at(writes(ran), 0).argv).toEqual(['{bin:mra}', 'resolve', '!7', 'abc123'])
   })
 
-  it('publishes without a card on an MR it may act on unasked, and asks for any other', async () => {
-    const { d, asked, ran } = acting(false, {}, [1669])
+  it('with cards off, publishes without a card on an MR the user named, and refuses any other without one', async () => {
+    const { d, asked, ran } = acting(false, {}, [1669], { cards: false })
     expect((await act({ kind: 'publish_drafts', iid: 1669 }, d)).isError).toBe(false)
-    expect(asked).toEqual([])
     expect((await act({ kind: 'publish_drafts', iid: 1700 }, d)).isError).toBe(true)
-    expect(asked).toHaveLength(1)
+    expect(asked).toEqual([])
     expect(writes(ran).map((r) => r.argv.slice(1, 3))).toEqual([['draft', 'publish']])
+  })
+
+  it('with cards off, resolves one of the user\'s threads on any MR without a card', async () => {
+    const { d, asked, ran } = acting(false, {}, [], { cards: false })
+    expect((await act({ kind: 'resolve', iid: 1635, discussionId: 'abc123' }, d)).isError).toBe(false)
+    expect(asked).toEqual([])
+    expect(at(writes(ran), 0).argv).toEqual(['{bin:mra}', 'resolve', '!1635', 'abc123'])
   })
 
   it('runs nothing when the user declines', async () => {

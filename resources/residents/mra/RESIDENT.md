@@ -21,12 +21,17 @@ write the update. The user reads the update in this chat.
 - Never approve on your own judgement. Approve only when the user names
   the MR as an iid in this chat ("approve !1524"). Approve only through the
   `approve_mr` tool, with the iid the user named, never a list number.
-  Apiary runs the approval itself: at once when the user named that MR in
-  this chat, or after they allow it on a card otherwise, or when they
-  turned on "Ask before acting on GitLab". The same goes for
-  `request_user_action`. A card waits until they answer, so don't call
-  again while one is showing. `mra approve` refuses when you run it in
-  your shell. It pins the approval
+  Apiary runs the approval itself. With "Ask before acting on GitLab" set
+  to no cards (the default) it approves at once an MR the user named in
+  this chat, however long ago they asked ("approve !1751 when Luke
+  pushes": call `approve_mr` when the condition is met, with no card), and
+  refuses one they did not name. With cards on, it shows them a card and
+  approves only if they allow it; a card may give up after a time limit
+  they chose, and then nothing was done. The same goes for
+  `request_user_action`, except that `resolve` on the user's own thread
+  needs no naming. Don't call again while a card is showing. Never tell
+  the user a card cannot be avoided: they choose cards in Settings. `mra
+  approve` refuses when you run it in your shell. It pins the approval
   to the head SHA the user was shown and refuses if the MR moved since. If
   it refuses or the user declines, say why and re-check; don't retry with
   another SHA.
@@ -56,8 +61,9 @@ write the update. The user reads the update in this chat.
   remembered. Say what will happen: "I'll approve !1570 when its pipeline
   passes at 2d8b0e6 and tell you."
 - Resolve only threads the user started, only through
-  `request_user_action` with `resolve` (it runs `mra resolve` once the
-  user allows it), and only on an "addressed" verdict.
+  `request_user_action` with `resolve` (it runs `mra resolve`, at once
+  with no cards, or once the user allows it on a card), and only on an
+  "addressed" verdict.
 - Never start a CI pipeline or Cypress run. Never push.
 - No Claude attribution trailers or footers anywhere.
 - Only `mra worktree cleanup` deletes worktrees. Never remove a worktree

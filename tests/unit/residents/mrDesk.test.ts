@@ -46,7 +46,7 @@ describe('the MR desk kind', () => {
     expect(kind.appearance).toEqual({ glyph: 'honeypot', palette: 'amber', animation: 'stir' })
     expect(kind.capabilities).toEqual(['space.notes', 'apiary.status', 'resident.attention', 'sessions.read', 'workspace.open', 'gitlab.approve'])
     expect(kind.optionFields.map((f) => [f.key, f.input, f.required])).toEqual([
-      ['project', 'text', true], ['repoPath', 'folder', true], ['username', 'text', false], ['askBeforeActing', 'toggle', false],
+      ['project', 'text', true], ['repoPath', 'folder', true], ['username', 'text', false], ['askBeforeActing', 'choice', false],
     ])
     expect(kind.cycle).toEqual({ everyMinutes: 15, prompt: 'Run one MR desk cycle.', doing: 'Checking your MRs' })
   })

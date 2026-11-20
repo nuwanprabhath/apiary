@@ -1,4 +1,4 @@
-import { ASK_BEFORE_ACTING, MR_DESK_KIND } from '@shared/domain/residents'
+import { ASK_BEFORE_ACTING, CARD_LIMIT_MINUTES, MR_DESK_KIND } from '@shared/domain/residents'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { RESIDENT_FIELD_DEFAULTS } from '@shared/settings/residents'
 import type { ResidentKind } from '../kindTypes'
@@ -24,8 +24,8 @@ const preamble = (name: string, everyMinutes: number): string => [
   `Apiary runs your cycle in the background: every ${String(everyMinutes)} minutes during your hours it sends "${CYCLE_PROMPT}" in this chat itself, so you never need to start one.`,
   'When the user asks when the next check is, or whether anything runs in the background, call `apiary_status`: it says how often the cycle runs, when the next one is and whether one is running. Never say nothing runs in the background.',
   '`mra` is a command on your PATH (a wrapper Apiary wrote); every `mra …` below runs in your shell as written.',
-  'Approve only with the Apiary tool `approve_mr` (it asks the user, then approves); `glab` writes and `git push` are blocked for you.',
-  'Draft comments are yours to write: `mra draft add|list|edit|move|delete` (only the user sees a draft). A reply inside an existing thread is a draft too: `mra draft add <ref> --reply-to <discussion id> --body-file <f>`, no approval needed; offer that when the user wants to review a reply before it goes out. Publishing drafts, posting a reply at once and resolving a thread go only through the Apiary tool `request_user_action` (`publish_drafts`, `reply` with the exact body, `resolve`), only for what the user asked: Apiary runs it at once on an MR they named in this chat, and otherwise shows them a card and runs it only if they allow it. Read GitLab with `mra api <path>`.',
+  'Approve only with the Apiary tool `approve_mr`: it approves an MR the user named in this chat, at once unless they turned cards on in Settings (then it asks on a card first). `glab` writes and `git push` are blocked for you.',
+  'Draft comments are yours to write: `mra draft add|list|edit|move|delete` (only the user sees a draft). A reply inside an existing thread is a draft too: `mra draft add <ref> --reply-to <discussion id> --body-file <f>`, no approval needed; offer that when the user wants to review a reply before it goes out. Publishing drafts, posting a reply at once and resolving a thread go only through the Apiary tool `request_user_action` (`publish_drafts`, `reply` with the exact body, `resolve`), only for what the user asked. With no cards (the default) Apiary resolves their own threads at once, and publishes or replies at once on an MR they named in this chat, refusing any other; with cards on it shows them a card and runs it only if they allow it. Read GitLab with `mra api <path>`.',
   ...blockedLines(),
   'When asked what you may run, `apiary_status` lists the permissions your claude was started with.',
   'Apiary tools: `set_activity` (a few words while you work), `set_attention` / `clear_attention` (the badge on your icon), `note_put` / `note_list` (your notes).',
@@ -86,8 +86,13 @@ export function createMrDesk(deps: KindDeps): ResidentKind {
       { key: 'repoPath', label: 'Local clone', help: 'Your local clone, used for review worktrees', input: 'folder', required: true },
       { key: 'username', label: 'GitLab username', help: 'Your GitLab username (defaults to glab\'s login)', input: 'text', required: false },
       {
-        key: ASK_BEFORE_ACTING, label: 'Ask before acting on GitLab', input: 'toggle', required: false,
-        help: 'On: a card asks you to Allow every approval, publish, reply and resolve. Off: it acts without asking on an MR you named in this chat, and asks with a card for any other.',
+        key: ASK_BEFORE_ACTING, label: 'Ask before acting on GitLab', input: 'choice', required: false,
+        choices: [
+          { value: '', label: 'No cards' },
+          { value: 'on', label: 'Card, wait until I answer' },
+          ...CARD_LIMIT_MINUTES.map((m) => ({ value: String(m), label: `Card, give up after ${String(m)} minutes` })),
+        ],
+        help: 'No cards: it resolves your own threads, and approves, publishes and replies only on MRs you named in this chat, even hours later. A card asks you to Allow each; one that gives up does nothing.',
       },
     ],
     quickActions: [

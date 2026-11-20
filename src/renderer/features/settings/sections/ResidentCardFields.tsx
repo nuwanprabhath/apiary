@@ -234,6 +234,30 @@ function ToggleOption({ config, field, save }: { config: ResidentConfig; field: 
   )
 }
 
+/** A choice option, saved as the chosen value as it changes. */
+function ChoiceOption({ config, field, save }: { config: ResidentConfig; field: ResidentOptionField; save: Save }): JSX.Element {
+  const choices = field.choices ?? []
+  const stored = config.options[field.key] ?? ''
+  return (
+    <select
+      className="theme-model"
+      data-testid={`resident-option-${config.id}-${field.key}`}
+      aria-label={field.label}
+      value={choices.some((c) => c.value === stored) ? stored : (choices[0]?.value ?? '')}
+      onChange={(e) => { save({ options: { ...config.options, [field.key]: e.target.value } }) }}
+    >
+      {choices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+    </select>
+  )
+}
+
+/** The input for a text, folder or choice option. */
+function OptionInput({ config, field, save }: { config: ResidentConfig; field: ResidentOptionField; save: Save }): JSX.Element {
+  if (field.input === 'folder') return <FolderOption config={config} field={field} />
+  if (field.input === 'choice') return <ChoiceOption config={config} field={field} save={save} />
+  return <TextOption config={config} field={field} save={save} />
+}
+
 /** The kind's own settings, drawn from its `optionFields`. */
 export function OptionFields({ config, fields, save }: { config: ResidentConfig; fields: readonly ResidentOptionField[]; save: Save }): JSX.Element {
   return (
@@ -244,7 +268,7 @@ export function OptionFields({ config, fields, save }: { config: ResidentConfig;
             {f.label}
             {f.required && (config.options[f.key] ?? '') === '' && <span className="resident-required" data-testid={`resident-required-${config.id}-${f.key}`}> Required</span>}
           </strong>
-          {f.input === 'folder' ? <FolderOption config={config} field={f} /> : <TextOption config={config} field={f} save={save} />}
+          <OptionInput config={config} field={f} save={save} />
           {f.help !== '' && <span className="settings-help">{f.help}</span>}
         </div>
       ))}

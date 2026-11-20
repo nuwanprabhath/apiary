@@ -205,18 +205,38 @@ export interface SessionHit {
 /** The link form an answer uses to cite a session; the renderer draws it as a chip that opens it. */
 export const SESSION_LINK_PREFIX = 'apiary://session/'
 
-/** The option (a toggle) that makes a resident ask with a card before every GitLab action, even on an
- *  MR the user named in its chat. */
+/**
+ * The option that decides whether a resident asks with a card before a GitLab action. `''` (the
+ * default): no cards. `'on'`: a card for every action, waiting until answered. A number of minutes:
+ * a card that is taken down unanswered after that long.
+ */
 export const ASK_BEFORE_ACTING = 'askBeforeActing'
+/** The time limits a card may have, in minutes. */
+export const CARD_LIMIT_MINUTES = [5, 15, 60] as const
+
+/** Whether a resident asks with a card, and how long a card waits (null: until answered). */
+export type CardPolicy = { cards: false } | { cards: true; waitMs: number | null }
+
+/** The `ASK_BEFORE_ACTING` option read as a policy; anything it does not know means no cards. */
+export function cardPolicy(option: string | undefined): CardPolicy {
+  if (option === 'on') return { cards: true, waitMs: null }
+  const minutes = CARD_LIMIT_MINUTES.find((m) => String(m) === option)
+  return minutes === undefined ? { cards: false } : { cards: true, waitMs: minutes * 60_000 }
+}
+
+/** The person's answer on a card: unanswered when it ran out of time or the chat stopped. */
+export type CardAnswer = 'allow' | 'deny' | 'unanswered'
 
 /** One of a kind's own settings, as the Settings section draws it. A folder is picked in main, never typed. */
 export interface ResidentOptionField {
   key: string
   label: string
   help: string
-  /** A toggle is stored as `'on'` or `''` (off). */
-  input: 'text' | 'folder' | 'toggle'
+  /** A toggle is stored as `'on'` or `''` (off); a choice as one of its `choices`' values. */
+  input: 'text' | 'folder' | 'toggle' | 'choice'
   required: boolean
+  /** A choice's options, the first being what an unset option means. */
+  choices?: readonly { value: string; label: string }[]
 }
 
 /** What the renderer knows of a kind: enough to offer "Add …" and draw its option fields. */

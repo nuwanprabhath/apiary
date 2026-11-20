@@ -5,6 +5,9 @@ import { JsonStore } from '../fs/jsonStore'
 import { ensurePrivateDir, writePrivateJson } from '../fs/atomicWrite'
 
 /** The visible chat keeps this many messages; claude's own session (`--resume`) keeps the rest. */
+/** How long claude waits on an Apiary tool call: a card stays until the person answers it. */
+export const TOOL_WAIT_MS = 12 * 60 * 60 * 1000
+
 const MAX_HISTORY = 500
 export const NOTE_KEY_MAX = 80
 export const NOTE_TEXT_MAX = 4000
@@ -107,11 +110,15 @@ export class ResidentSpace {
     this.notesStore.save({ notes: { ...notes, [key]: text } })
   }
 
-  /** The `--mcp-config` file claude reads: the server's address and this resident's token (0600). */
+  /**
+   * The `--mcp-config` file claude reads: the server's address, this resident's token (0600), and
+   * how long claude lets a call sit silent (`timeout`). Without it claude drops a call after 300 s
+   * of "no response or progress", which ended a card the person had not answered yet.
+   */
   writeMcpConfig(url: string, token: string): string {
     this.ensure()
     const file = join(this.dir, 'mcp.json')
-    writePrivateJson(file, { mcpServers: { apiary: { type: 'http', url, headers: { Authorization: `Bearer ${token}` } } } })
+    writePrivateJson(file, { mcpServers: { apiary: { type: 'http', url, headers: { Authorization: `Bearer ${token}` }, timeout: TOOL_WAIT_MS } } })
     return file
   }
 }
