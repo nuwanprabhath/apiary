@@ -123,16 +123,27 @@ function fail(message) {
   process.exit(1)
 }
 
-async function waitForCi(sha) {
+const fiveSeconds = () => new Promise((resolve) => setTimeout(resolve, 5000))
+
+/**
+ * Waits for CI on `sha` to finish, and resolves with why it cannot release, or null once it passed.
+ * GitHub lists the run a push started only some seconds later, so it first waits up to three minutes
+ * for one to appear: looking once straight after the push stopped the v1.87.0 release.
+ * @param {string} sha
+ * @param {() => { databaseId: number, status: string, conclusion: string }[]} list
+ * @param {(id: number) => void} watch
+ * @param {() => Promise<void>} wait
+ * @returns {Promise<string | null>}
+ */
+export async function waitForCi(sha, list, watch, wait = fiveSeconds) {
   for (;;) {
-    const runs = JSON.parse(gh('run', 'list', '--workflow', 'ci.yml', '--commit', sha, '--limit', '5', '--json', 'databaseId,status,conclusion'))
+    await awaitRun(list, wait, 36)
+    const runs = list()
     if (runs[0] !== undefined && runs[0].status !== 'completed') {
-      spawnSync('gh', ['run', 'watch', String(runs[0].databaseId), '--exit-status'], { stdio: 'inherit' })
+      watch(runs[0].databaseId)
       continue
     }
-    const why = ciVerdict(runs, sha)
-    if (why !== null) fail(why)
-    return
+    return ciVerdict(runs, sha)
   }
 }
 
@@ -205,7 +216,10 @@ async function main() {
   const sha = sh('git', ['rev-parse', 'HEAD'])
 
   step(4, PLAN[3])
-  await waitForCi(sha)
+  const ciRuns = () => JSON.parse(gh('run', 'list', '--workflow', 'ci.yml', '--commit', sha, '--limit', '5', '--json', 'databaseId,status,conclusion'))
+  const watchRun = (id) => { spawnSync('gh', ['run', 'watch', String(id), '--exit-status'], { stdio: 'inherit' }) }
+  const why = await waitForCi(sha, ciRuns, watchRun)
+  if (why !== null) fail(why)
 
   step(5, PLAN[4])
   sh('git', ['tag', tag])

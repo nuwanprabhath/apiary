@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.87.1] - 2026-11-20
+
+### Fixed
+
+- `npm run release` waits up to three minutes for GitHub to list the CI run a push to main
+  started, instead of stopping at once with "CI has not run" (seen on v1.87.0).
+
 ## [1.87.0] - 2026-11-20
 
 ### Added

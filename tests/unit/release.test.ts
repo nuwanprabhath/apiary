@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { versionsToAnnotate, isTransientDownloadFailure, tagsWithoutRelease, missingAssets, outstanding, awaitRun } from '../../scripts/release.mjs'
+import { versionsToAnnotate, isTransientDownloadFailure, tagsWithoutRelease, missingAssets, outstanding, awaitRun, waitForCi } from '../../scripts/release.mjs'
 
 const CHANGELOG = `# Changelog
 
@@ -70,5 +70,25 @@ describe('finding the release run a tag push started', () => {
     let waits = 0
     await expect(awaitRun(() => [], async () => { waits++ }, 3)).resolves.toBeNull()
     expect(waits).toBe(2)
+  })
+})
+
+describe('waiting for CI on the pushed commit', () => {
+  const SHA = '82f80d820972ec94b5335477dc758a42cd5cdd09'
+  type Run = { databaseId: number; status: string; conclusion: string }
+
+  it('waits for GitHub to list the run, watches it, and passes once it succeeds', async () => {
+    const seen: Run[][] = [[], [], [{ databaseId: 7, status: 'in_progress', conclusion: '' }], [{ databaseId: 7, status: 'in_progress', conclusion: '' }]]
+    const done: Run[] = [{ databaseId: 7, status: 'completed', conclusion: 'success' }]
+    const watched: number[] = []
+    const list = (): Run[] => seen.shift() ?? done
+    expect(await waitForCi(SHA, list, (id) => { watched.push(id) }, async () => {})).toBeNull()
+    expect(watched).toEqual([7])
+  })
+
+  it('says why when the run fails, and when none ever starts', async () => {
+    const failed = [{ databaseId: 8, status: 'completed', conclusion: 'failure' }]
+    expect(await waitForCi(SHA, () => failed, () => {}, async () => {})).toContain('ended "failure"')
+    expect(await waitForCi(SHA, () => [], () => {}, async () => {})).toContain('CI has not run on 82f80d82')
   })
 })
