@@ -1,9 +1,11 @@
-import { type JSX, useEffect, useState } from 'react'
+import { type JSX, type ReactNode, useEffect, useState } from 'react'
 import { RenameIcon } from '../../ui/icons'
 import { focusAskedFor } from '../../ui/focusUnlessTyping'
 
 interface Props {
   title: string
+  /** How the title reads when not being edited (an MR reference with its state); the title itself by default. */
+  shown?: ReactNode
   onRename: (title: string) => void
 }
 
@@ -13,7 +15,7 @@ interface Props {
  * rather than clearing the title; `onRename('')` still means "back to the auto-derived title" for
  * a caller that wants it.
  */
-export function EditableSessionTitle({ title, onRename }: Props): JSX.Element {
+export function EditableSessionTitle({ title, shown, onRename }: Props): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(title)
 
@@ -46,7 +48,7 @@ export function EditableSessionTitle({ title, onRename }: Props): JSX.Element {
 
   return (
     <>
-      {title}
+      {shown ?? title}
       <button
         className="title-edit-button"
         data-testid="session-title-edit"

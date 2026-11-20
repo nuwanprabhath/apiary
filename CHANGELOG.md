@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.85.0] - 2026-11-20
+
+### Added
+
+- A session's tab and its heading show the state of an MR its title names, as the sidebar row
+  does: "!1713 (merged) #2779 ResizeObserver loop posthog".
+
 ## [1.84.3] - 2026-11-20
 
 ### Fixed

@@ -6,7 +6,7 @@
   "src/renderer/features/pets/PetChat.tsx": 1,
   "src/renderer/features/pets/usePetInteraction.ts": 1,
   "src/renderer/features/pets/render3d/usePetImages.ts": 2,
-  "src/renderer/features/sidebar/useMrStatuses.ts": 1,
+  "src/renderer/state/useMrStatuses.ts": 1,
   "src/renderer/features/statusBar/StatusSections.tsx": 1,
   "src/renderer/features/terminal/TerminalListPanel.tsx": 1,
   "src/renderer/ui/message/MarkdownText.tsx": 1,

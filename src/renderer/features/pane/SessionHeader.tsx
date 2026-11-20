@@ -4,6 +4,8 @@ import type { SessionNode } from '@shared/types'
 import { EditableSessionTitle } from './EditableSessionTitle'
 import type { Handoff } from './useTerminalHandoff'
 import type { PendingTabInfo } from './paneTypes'
+import { MrRefText } from '../../ui/mrRefText'
+import { useMrStatuses } from '../../state/useMrStatuses'
 
 /** The title (editable), with the folder in its tooltip, and the wait-for-Claude line while a handoff is pending. */
 export function SessionHeader({
@@ -17,6 +19,7 @@ export function SessionHeader({
 }): JSX.Element {
   const cwd = activePending !== null ? activePending.cwd : activeSession?.cwd
   const title = activePending !== null ? activePending.label : activeSession?.title
+  const mrStatuses = useMrStatuses(activeSession?.sessionId ?? null, activeSession?.title ?? '')
   return (
     <header className="session-header">
       <h1
@@ -36,6 +39,7 @@ export function SessionHeader({
           <EditableSessionTitle
             key={activeSession.sessionId}
             title={activeSession.title}
+            shown={<MrRefText text={activeSession.title} statuses={mrStatuses} />}
             onRename={(t) => onRenameSession(activeSession, t)}
           />
         ) : null}

@@ -9,7 +9,7 @@ import { ActivityLegend } from './ActivityLegend'
 import { MrRefText } from '../../ui/mrRefText'
 import type { SessionId } from '@shared/domain/ids'
 import { sessionIdOfTabKey } from '../workspace'
-import { useMrStatuses } from './useMrStatuses'
+import { useMrStatuses } from '../../state/useMrStatuses'
 import { SectionHeader } from './SectionHeader'
 import { windowNumber } from '../../state/windowParams'
 

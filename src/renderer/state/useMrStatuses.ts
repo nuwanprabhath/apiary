@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { SessionId } from '@shared/domain/ids'
 import { parseMrRefs } from '@shared/mrRefs'
-import type { MrState } from '../../ui/mrRefText'
-import { currentMrStatuses, subscribeMrStatuses } from '../../state/mrStatusStore'
+import type { MrState } from '@shared/domain/git'
+import { currentMrStatuses, subscribeMrStatuses } from './mrStatusStore'
 
 /**
  * An unresolved reference stays plain text: the lookup crosses IPC to `glab`, and a row must not
@@ -11,16 +11,17 @@ import { currentMrStatuses, subscribeMrStatuses } from '../../state/mrStatusStor
  * The timer, the invalidation listener and the request live in `mrStatusStore`, shared across
  * every mounted call (`SessionRow` alone calls this twice, for title and note).
  */
-export function useMrStatuses(sessionId: SessionId, text: string): Record<number, MrState | null> {
-  const refs = useMemo(() => parseMrRefs(text), [text])
+export function useMrStatuses(sessionId: SessionId | null, text: string): Record<number, MrState | null> {
+  // A pending tab has no session yet, so no project to ask GitLab about.
+  const refs = useMemo(() => (sessionId === null ? [] : parseMrRefs(text)), [sessionId, text])
   // A primitive dependency: `refs.map(...)` would be a new array on every render.
   const iidsKey = refs.map((r) => r.iid).join(',')
   const [statuses, setStatuses] = useState<Record<number, MrState | null>>(
-    () => (refs.length === 0 ? {} : currentMrStatuses(sessionId)),
+    () => (sessionId === null || refs.length === 0 ? {} : currentMrStatuses(sessionId)),
   )
 
   useEffect(() => {
-    if (refs.length === 0) { setStatuses({}); return }
+    if (sessionId === null || refs.length === 0) { setStatuses({}); return }
     setStatuses(currentMrStatuses(sessionId))
     return subscribeMrStatuses(sessionId, refs.map((r) => r.iid), setStatuses)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- iidsKey stands in for refs, see above

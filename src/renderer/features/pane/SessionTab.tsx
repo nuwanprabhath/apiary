@@ -2,6 +2,8 @@ import type { JSX, ReactNode } from 'react'
 import { accountById, hasSeveralAccounts, useAccounts, useSessionAccount } from '../../state/accountsStore'
 import { sessionOfTabKey } from '../../state/sessionBusy'
 import { CloseIcon } from '../../ui/icons'
+import { MrRefText } from '../../ui/mrRefText'
+import { useMrStatuses } from '../../state/useMrStatuses'
 import type { TabTransfer } from '@shared/types'
 import type { SessionTabView } from './paneTypes'
 import { TAB_MIME, TRANSFER_MIME, readTransfer } from './tabDrag'
@@ -35,7 +37,9 @@ interface Props {
 export function SessionTab(p: Props): JSX.Element {
   const { tab, columnId, isActive } = p
   const accounts = useAccounts()
-  const account = accountById(accounts, useSessionAccount(sessionOfTabKey(tab.key)))
+  const sessionId = sessionOfTabKey(tab.key)
+  const account = accountById(accounts, useSessionAccount(sessionId))
+  const mrStatuses = useMrStatuses(sessionId, tab.label)
   const tooltip = hasSeveralAccounts(accounts) && account !== null ? `${tab.label}\nAccount: ${account.label}` : tab.label
   return (
     <div
@@ -110,7 +114,7 @@ export function SessionTab(p: Props): JSX.Element {
         {tab.activity === 'running' && <span className="session-tab-ring" role="img" aria-label="running" />}
         {tab.activity === 'waiting' && <span className="status-dot" data-status="waiting" role="img" aria-label="waiting for you" />}
         {tab.isPending && tab.activity !== 'running' && <span className="live-dot" aria-label="running" />}
-        <span className="session-tab-text">{tab.label}</span>
+        <span className="session-tab-text"><MrRefText text={tab.label} statuses={mrStatuses} /></span>
       </button>
       {p.arrangeButton}
       <button
