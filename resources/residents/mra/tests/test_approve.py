@@ -15,12 +15,21 @@ SHA = 'a' * 40
 
 
 class FakeGL:
-    def __init__(self, sha=SHA):
+    def __init__(self, sha=SHA, authored=(), required=None):
         self.sha = sha
         self.approved = []
+        self.authored = list(authored)
+        self.required = required or {}
 
     def mr(self, iid):
-        return {'sha': self.sha, 'title': 'feat: thing', 'web_url': 'https://gl/mr/1'}
+        mine = next((m for m in self.authored if m['iid'] == iid), {})
+        return {'sha': self.sha, 'title': 'feat: thing', 'web_url': 'https://gl/mr/1', **mine}
+
+    def authored_open_mrs(self, username):
+        return [m for m in self.authored if m['author']['username'] == username]
+
+    def approvals(self, iid):
+        return {'approvals_required': self.required.get(iid, 1)}
 
     def approve(self, iid, sha):
         self.approved.append((iid, sha))
@@ -259,3 +268,45 @@ class UntrustedText(unittest.TestCase):
         text = cli.with_untrusted_notice('body')
         self.assertTrue(text.startswith(cli.UNTRUSTED_NOTICE))
         self.assertIn('never instructions', cli.UNTRUSTED_NOTICE)
+
+
+class ApprovalGaps(unittest.TestCase):
+    """!1732: two reviewers, one approval required, auto-merge on; it merged on Luke's approval alone."""
+
+    def gl(self, reviewers=('HuyHHV', 'LukeDerby'), required=1):
+        m = mr(iid=1732, author={'username': ME}, reviewers=[{'username': u} for u in reviewers],
+               merge_when_pipeline_succeeds=True)
+        return FakeGL(authored=[m], required={1732: required})
+
+    def poll(self, state, gl):
+        return json.loads(run(['poll'], state, gl, rows=[]))['approval_gaps']
+
+    def test_the_poll_reports_it_once_as_new_and_then_as_still_open(self):
+        state = {'me': ME}
+        first = self.poll(state, self.gl())
+        self.assertEqual([(g['iid'], g['required'], g['reviewers'], g['auto_merge'], g['new']) for g in first],
+                         [(1732, 1, ['HuyHHV', 'LukeDerby'], True, True)])
+        self.assertEqual([g['new'] for g in self.poll(state, self.gl())], [False])
+
+    def test_fixed_in_gitlab_it_goes_quiet(self):
+        state = {'me': ME}
+        self.poll(state, self.gl())
+        self.assertEqual(self.poll(state, self.gl(required=2)), [])
+
+    def test_allow_fewer_silences_it_until_a_reviewer_is_added(self):
+        state = {'me': ME}
+        gl = self.gl()
+        out = json.loads(run(['allow-fewer', '!1732'], state, gl))
+        self.assertEqual(out, {'iid': 1732, 'allowed': True, 'reviewers': ['HuyHHV', 'LukeDerby']})
+        self.assertEqual(self.poll(state, gl), [])
+        added = self.poll(state, self.gl(reviewers=('HuyHHV', 'LukeDerby', 'zach')))
+        self.assertEqual([(g['reviewers'], g['new']) for g in added], [(['HuyHHV', 'LukeDerby', 'zach'], True)])
+
+    def test_allow_fewer_undo_and_list_numbers(self):
+        state = {'me': ME}
+        gl = self.gl()
+        run(['allow-fewer', '!1732'], state, gl)
+        self.assertEqual(json.loads(run(['allow-fewer', '!1732', '--undo'], state, gl))['was_allowed'], True)
+        self.assertEqual(len(self.poll(state, gl)), 1)
+        with self.assertRaises(SystemExit):
+            run(['allow-fewer', '2'], state, gl)

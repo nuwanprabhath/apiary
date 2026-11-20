@@ -398,6 +398,7 @@ def _poll(args, holder):
              and t['action_name'] != 'review_requested']
     state['noise_todo_ids'] = noise
 
+    gaps = approval_gaps(gl, state)
     local_now = datetime.now().astimezone()
     digest_due = local_now.hour >= cfg['digest_hour'] and state.get('last_digest_date') != local_now.date().isoformat()
     first_run = state.pop('first_run', False)
@@ -412,10 +413,60 @@ def _poll(args, holder):
         'actions': actions, 'deferred': deferred, 'in_flight': in_flight, 'mentions': mentions,
         'unjudged': unjudged,
         'waiting_on_you': waiting,
+        'approval_gaps': gaps,
         'noise_todo_count': len(noise), 'digest_due': digest_due,
         'skipped': {s: [r['iid'] for r in rows if logic.waiting_on(r['snap'], r['kind'], r['st'], r['scope']) == s]
                     for s in ('approved', 'parked', 'assignee', 'own', 'draft')},
     })
+
+
+def approval_gaps(gl, state):
+    """The user's own open MRs that need fewer approvals than they have reviewers (`logic.approval_gap`),
+    each marked `new` when it was not reported in this shape before. Forgets MRs no longer open."""
+    me = state['me']
+    allowed = state.setdefault('allow_fewer', {})
+    reported = state.setdefault('gaps_reported', {})
+    try:
+        authored = [m for m in gl.authored_open_mrs(me) if not m.get('draft')]
+    except GitLabError:
+        return []
+    open_iids = {str(m['iid']) for m in authored}
+    for book in (allowed, reported):
+        for key in [k for k in book if k not in open_iids]:
+            book.pop(key)
+    gaps = []
+    for m in authored:
+        key = str(m['iid'])
+        try:
+            gap = logic.approval_gap(m, gl.approvals(m['iid']), allowed.get(key), me)
+        except GitLabError:
+            continue
+        if gap is None:
+            reported.pop(key, None)
+            continue
+        shape = [gap['required'], gap['reviewers'], gap['auto_merge']]
+        gap['new'] = reported.get(key) != shape
+        reported[key] = shape
+        gaps.append(gap)
+    return gaps
+
+
+def cmd_allow_fewer(args):
+    """The user's say-so that one of their MRs may merge with fewer approvals than reviewers."""
+    if not args.iid.strip().startswith('!'):
+        raise SystemExit(f'Name the MR as !iid, not "{args.iid}": numbers change between updates.')
+    cfg, gl, state = ctx(args)
+    book = state.setdefault('allow_fewer', {})
+    if args.undo:
+        was = book.pop(str(args.iid), None)
+        save_state(cfg, state)
+        out({'iid': args.iid, 'allowed': False, 'was_allowed': bool(was)})
+        return
+    mr = gl.mr(args.iid)
+    reviewers = sorted({r['username'] for r in mr.get('reviewers') or []} - {state['me']})
+    book[str(args.iid)] = {'reviewers': reviewers, 'at': logic.iso(now_utc())}
+    save_state(cfg, state)
+    out({'iid': args.iid, 'allowed': True, 'reviewers': reviewers})
 
 
 # --------------------------------------------------------------------------
@@ -1306,6 +1357,11 @@ def main(argv=None):
     p.add_argument('--when-green', action='store_true', help='record a pending approval for when the pipeline passes')
     p.add_argument('--cancel-when-green', action='store_true', help='remove a pending approve-when-green')
     p.set_defaults(fn=cmd_approve)
+
+    p = sub.add_parser('allow-fewer', help="the user says their MR may merge with fewer approvals than reviewers")
+    p.add_argument('iid', metavar='!IID')
+    p.add_argument('--undo', action='store_true', help='warn about it again')
+    p.set_defaults(fn=cmd_allow_fewer)
 
     p = sub.add_parser('park', help='ignore an MR until its head commit changes')
     p.add_argument('iid', metavar='REF', help='list number from the last desk/update, or !iid')

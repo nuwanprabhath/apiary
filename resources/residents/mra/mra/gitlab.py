@@ -102,6 +102,12 @@ class GitLab:
     def mr(self, iid):
         return self.api(f'projects/{self.pid}/merge_requests/{iid}')
 
+    def authored_open_mrs(self, username):
+        return self.paged(f'projects/{self.pid}/merge_requests?state=opened&author_username={urllib.parse.quote(username)}')
+
+    def approvals(self, iid):
+        return self.api(f'projects/{self.pid}/merge_requests/{iid}/approvals')
+
     def mr_detail(self, iid):
         base = f'projects/{self.pid}/merge_requests/{iid}'
         return {

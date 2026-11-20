@@ -454,3 +454,25 @@ def when_green_decision(pending, snap):
     if status in ('failed', 'canceled'):
         return 'drop', f'the pipeline {status} at {pinned[:10]}'
     return 'wait', 'pipeline not finished'
+
+
+def approval_gap(mr, approvals, allowed, me):
+    """The user's own MR set to merge with fewer approvals than it has reviewers, or None.
+
+    GitLab's default rule asks for one approval, so an MR with two reviewers and auto-merge on merges
+    on the first. `allowed` is what `mra allow-fewer` recorded: the reviewers the user said fewer
+    approvals were fine for; adding a reviewer outside that set brings the warning back.
+    """
+    if (mr.get('author') or {}).get('username') != me:
+        return None
+    required = (approvals or {}).get('approvals_required')
+    if not isinstance(required, int):
+        return None
+    reviewers = sorted({r['username'] for r in mr.get('reviewers') or []} - {me})
+    if required >= len(reviewers):
+        return None
+    if allowed and set(reviewers) <= set(allowed.get('reviewers') or []):
+        return None
+    return {'iid': mr['iid'], 'title': mr['title'], 'url': mr.get('web_url'), 'required': required,
+            'reviewers': reviewers,
+            'auto_merge': bool(mr.get('merge_when_pipeline_succeeds') or mr.get('auto_merge_enabled'))}

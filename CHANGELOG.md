@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.87.0] - 2026-11-20
+
+### Added
+
+- The MR desk warns about your own open MRs that need fewer approvals than they have reviewers,
+  and says whether auto-merge is on: GitLab's default is one approval, so !1732 merged on one of
+  its two reviewers. Tell the desk "one approval is fine on !1732" and it stops warning about that
+  MR (`mra allow-fewer`), until a reviewer is added.
+
 ## [1.86.0] - 2026-11-20
 
 ### Changed

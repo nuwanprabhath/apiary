@@ -38,6 +38,9 @@ class FakeGL:
         return {'iid': iid, 'sha': self.sha, 'web_url': 'https://gl/mr/1',
                 'diff_refs': dict(REFS, head_sha=self.sha)}
 
+    def authored_open_mrs(self, username):
+        return []
+
     def diffs(self, iid):
         return [ENTRY]
 

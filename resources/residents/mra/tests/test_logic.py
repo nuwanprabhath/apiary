@@ -226,3 +226,39 @@ class Hours(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ApprovalGap(unittest.TestCase):
+    """Your own MR, set to merge with fewer approvals than it has reviewers (!1732 merged on one of two)."""
+
+    def mine(self, reviewers, **kw):
+        return mr(author={'username': ME}, reviewers=[{'username': u} for u in reviewers], **kw)
+
+    def test_fewer_approvals_required_than_reviewers(self):
+        gap = logic.approval_gap(self.mine(['huy', 'luke'], merge_when_pipeline_succeeds=True),
+                                 {'approvals_required': 1}, None, ME)
+        self.assertEqual(gap['required'], 1)
+        self.assertEqual(gap['reviewers'], ['huy', 'luke'])
+        self.assertTrue(gap['auto_merge'])
+
+    def test_as_many_required_as_reviewers_is_fine(self):
+        self.assertIsNone(logic.approval_gap(self.mine(['huy', 'luke']), {'approvals_required': 2}, None, ME))
+        self.assertIsNone(logic.approval_gap(self.mine(['luke']), {'approvals_required': 1}, None, ME))
+
+    def test_the_author_listed_as_reviewer_does_not_count(self):
+        self.assertIsNone(logic.approval_gap(self.mine([ME, 'luke']), {'approvals_required': 1}, None, ME))
+
+    def test_an_unknown_requirement_says_nothing(self):
+        self.assertIsNone(logic.approval_gap(self.mine(['huy', 'luke']), {}, None, ME))
+        self.assertIsNone(logic.approval_gap(self.mine(['huy', 'luke']), None, None, ME))
+
+    def test_allowed_for_these_reviewers_until_one_is_added(self):
+        allowed = {'reviewers': ['huy', 'luke']}
+        self.assertIsNone(logic.approval_gap(self.mine(['huy', 'luke']), {'approvals_required': 1}, allowed, ME))
+        self.assertIsNone(logic.approval_gap(self.mine(['luke']), {'approvals_required': 0}, allowed, ME))
+        gap = logic.approval_gap(self.mine(['huy', 'luke', 'zach']), {'approvals_required': 1}, allowed, ME)
+        self.assertEqual(gap['reviewers'], ['huy', 'luke', 'zach'])
+
+    def test_someone_elses_mr_is_not_checked(self):
+        self.assertIsNone(logic.approval_gap(mr(reviewers=[{'username': ME}, {'username': 'x'}]),
+                                             {'approvals_required': 0}, None, ME))

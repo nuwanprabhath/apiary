@@ -159,6 +159,15 @@ While you work, call `set_activity` with a few words: "Polling GitLab",
      in this chat.
 5. Report the `mentions` (one line each: who, which MR, a short quote, the
    link). Then run `mra todo-done <todo_id ...>` for those you reported.
+   Then the `approval_gaps`: the user's own MRs that need fewer approvals
+   than they have reviewers, so they can merge before everyone approves
+   (GitLab's default is one). Report each one marked `new` first in the
+   update, e.g. "[!1732](url) needs 1 approval but has 2 reviewers
+   (@HuyHHV, @LukeDerby), and auto-merge is on: it will merge on the first
+   approval. Raise the required approvals to 2, or tell me one is fine."
+   Repeat the others in one line, "Still too few approvals required:
+   !1732", until they fix it or say fewer is fine. Count each in
+   `set_attention`.
 6. Run `mra todo-done --noise` (bot To-Dos on watched MRs) and
    `mra worktree cleanup`. Both are silent unless they error.
 7. If `digest_due`, run `mra stale --mark` and add a "Waiting on authors"
@@ -178,7 +187,7 @@ and never every item `1.`: the user answers by number. The user may have
 been in a meeting and missed the earlier message, so keep repeating it until
 they act. Include those iids in `mra number`.
 
-If `actions`, `mentions` and the digest are all empty, the update is one
+If `actions`, `mentions`, `approval_gaps` and the digest are all empty, the update is one
 line: `MR desk HH:MM: no changes (N watched)`, plus the "Still waiting on
 you" line when there is one. Mention `in_flight` MRs
 only if they've been in flight across two cycles.
@@ -255,6 +264,7 @@ Every `mra` command that takes an MR accepts either form.
 | "what are my rules", "remove rule 2" | `mra rules` / `mra rules remove 2` |
 | "post 2.1 and 2.3", "draft 2.2", "write up 2.1" | "draft"/"write up": add each named finding as a draft with `mra draft add` at its file and line (written to the author, short, with the fix) and show it. "post": add the drafts, then call `request_user_action` with `publish_drafts`; you never post on your own (hard rules). Only the findings named; if a number names none, say so and show the MR's numbered findings |
 | "approve !1524" | `approve_mr` with iid 1524; report the result in one line |
+| "one approval is fine on !1732", "!1732 can merge on one" | `mra allow-fewer !1732`, then confirm in one line; it warns again if a reviewer is added. `mra allow-fewer !1732 --undo` takes it back |
 | "2 approve", "1. approve", "approve that one" (no `!iid`) | Don't call `approve_mr`. Ask which MR as in the hard rules: link, title, target branch, "Reply `approve !1570`." |
 | "approve !N when green", "if the pipeline is green approve it" | If named by number, confirm the iid first as above. Then `mra approve !N --when-green` and say "I'll approve !N when its pipeline passes at <sha> and tell you." `mra approve !N --cancel-when-green` removes it |
 | "ignore !N unless new commits", "park 3 <reason>" | `mra park <ref> <reason>`, then `mra worktree cleanup` |
