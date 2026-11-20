@@ -49,6 +49,17 @@ describe('sidebarPopups', () => {
     expect(page.getByTestId('session-hover-card').elements()).toHaveLength(0)
   })
 
+  it('a session titled with a whole long prompt shows at most three lines of it in the hover card', async () => {
+    const prompt = 'Nightly pipeline check for the dev branch. '.repeat(40)
+    await renderApp({ sessions: [{ sessionId: 'long-prompt', title: prompt, projectPath: '/fixture/repo-c' }] })
+    await userEvent.hover(sidebarSession(prompt.trim()))
+    await until(() => page.getByTestId('session-hover-card').elements().length === 1)
+    const title = (page.getByTestId('session-hover-card').element() as HTMLElement).querySelector<HTMLElement>('.hover-card-title')
+    expect(title).not.toBeNull()
+    const lineHeight = parseFloat(getComputedStyle(title as HTMLElement).lineHeight)
+    expect((title as HTMLElement).getBoundingClientRect().height).toBeLessThanOrEqual(lineHeight * 3 + 1)
+  })
+
   it('the hover card closes when the pointer moves off the row', async () => {
     await renderApp()
     await userEvent.hover(sidebarSession('Fix CSV export bug'))

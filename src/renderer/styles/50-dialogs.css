@@ -486,7 +486,16 @@
   flex-direction: column;
   gap: 2px;
 }
-.hover-card-title { font-weight: 600; font-size: 13px; }
+/* A session with no title of its own is named by its first prompt, which can be a page long. */
+.hover-card-title {
+  font-weight: 600;
+  font-size: 13px;
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
 /* The path wraps rather than ellipsizing: which worktree a session ran in is often the last
    segment, and that is precisely the end a single truncated line would drop. */
 .hover-card-path { color: var(--muted); word-break: break-all; flex: 1; min-width: 0; }

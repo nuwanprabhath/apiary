@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.84.3] - 2026-11-20
+
+### Fixed
+
+- A session's hover card shows at most three lines of its title. A session named by a long first
+  prompt (a scheduled pipeline check, say) filled the window with it.
+
 ## [1.84.2] - 2026-11-20
 
 ### Fixed
