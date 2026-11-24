@@ -3,6 +3,7 @@ import { userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { until } from './helpers'
 import { mrDeskStatus, regentStatus, withMrDesk, withRegent } from './residentFixtures'
+import { kindInfos } from '../../src/main/residents/kinds'
 
 const badge = (id: string): HTMLElement | null => document.querySelector(`[data-testid="resident-badge-${id}"]`)
 const card = (id: string): HTMLElement | null => document.querySelector(`[data-testid="resident-hover-${id}"]`)
@@ -22,6 +23,22 @@ describe('the resident badge pill', () => {
 })
 
 describe('the resident hover card', () => {
+  it('stays above its badge when the blurb arrives after it opened', async () => {
+    let arrive = (): void => {}
+    const late = new Promise<void>((resolve) => { arrive = resolve })
+    await renderApp({}, (f) => {
+      withRegent(f)
+      f.override('residentKinds', async () => { await late; return kindInfos() })
+    })
+    await until(() => badge('regent')?.dataset.state === 'idle')
+    await userEvent.hover(badge('regent')!)
+    await until(() => card('regent')?.style.visibility === '')
+    expect(card('regent')!.querySelector('.resident-hover-blurb')).toBeNull()
+    arrive()
+    await until(() => card('regent')!.querySelector('.resident-hover-blurb') !== null)
+    await expect.poll(() => card('regent')!.getBoundingClientRect().bottom).toBeLessThanOrEqual(badge('regent')!.getBoundingClientRect().top)
+  })
+
   it('says what Regent is and what it is doing, with the digest', async () => {
     const { fake } = await renderApp({}, (f) => { withRegent(f) })
     await until(() => badge('regent') !== null)

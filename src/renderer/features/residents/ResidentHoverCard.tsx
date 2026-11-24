@@ -24,13 +24,21 @@ export function ResidentHoverCard({ resident, anchor, onPointerEnter, onPointerL
   // The card mounts each time it opens, so the clock it reads is the moment it opened.
   const [now] = useState(() => new Date())
   const lines = residentCardLines(resident, schedule, now)
+  // Placed again whenever the card changes size: the kind's blurb can arrive after it opens, and a
+  // card placed for its first height then grew down over the badge and the items beside it.
   useLayoutEffect(() => {
     const el = ref.current
     if (el === null) return
-    const box = el.getBoundingClientRect()
-    const above = anchor.top - POPOVER_GAP - box.height
-    setPos({ left: clampLeft(anchor.left, box.width), top: Math.max(POPOVER_MARGIN, above) })
-  }, [anchor, lines.length])
+    const place = (): void => {
+      const box = el.getBoundingClientRect()
+      const above = anchor.top - POPOVER_GAP - box.height
+      setPos({ left: clampLeft(anchor.left, box.width), top: Math.max(POPOVER_MARGIN, above) })
+    }
+    place()
+    const observer = new ResizeObserver(place)
+    observer.observe(el)
+    return () => { observer.disconnect() }
+  }, [anchor])
   return createPortal(
     <div
       ref={ref}

@@ -58,28 +58,34 @@ function useCopiedTick(): { copied: 'branch' | 'path' | null; setCopied: (v: 'br
   return { copied, setCopied }
 }
 
+/** Beside the row when it fits, else below it, flipping above only when the window's bottom leaves no room. */
+function placeCard(anchor: DOMRect, box: DOMRect): { left: number; top: number } {
+  // Beside the row: below it the card would cover the sessions someone compares against, and
+  // reaching it beside crosses no other row.
+  const beside = anchor.right + CARD_GAP
+  if (fitsHorizontally(beside, box.width)) return { left: beside, top: clampTop(anchor.top, box.height) }
+  const below = anchor.bottom + CARD_GAP
+  const top = below + box.height + POPOVER_MARGIN <= window.innerHeight
+    ? below
+    : Math.max(POPOVER_MARGIN, anchor.top - CARD_GAP - box.height)
+  return { left: clampLeft(anchor.left, box.width), top }
+}
+
 function useCardPlacement(anchor: Props['anchor']): { ref: React.RefObject<HTMLDivElement | null>; pos: { left: number; top: number } | null } {
   const ref = useRef<HTMLDivElement | null>(null)
   // Null until the card's own size is measured; it renders hidden meanwhile.
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
 
+  // Placed again whenever the card changes size (an MR's state in the note arrives after it opens),
+  // so a card flipped above its row never grows down over it.
   useLayoutEffect(() => {
     const el = ref.current
     if (el === null) return
-    const box = el.getBoundingClientRect()
-    // Beside the row: below it the card would cover the sessions someone compares against, and
-    // reaching it beside crosses no other row.
-    const beside = anchor.right + CARD_GAP
-    if (fitsHorizontally(beside, box.width)) {
-      setPos({ left: beside, top: clampTop(anchor.top, box.height) })
-      return
-    }
-    // Too narrow to fit beside: below the row, flipping above only when the window's bottom leaves no room.
-    const below = anchor.bottom + CARD_GAP
-    const top = below + box.height + POPOVER_MARGIN <= window.innerHeight
-      ? below
-      : Math.max(POPOVER_MARGIN, anchor.top - CARD_GAP - box.height)
-    setPos({ left: clampLeft(anchor.left, box.width), top })
+    const place = (): void => { setPos(placeCard(anchor, el.getBoundingClientRect())) }
+    place()
+    const observer = new ResizeObserver(place)
+    observer.observe(el)
+    return () => { observer.disconnect() }
   }, [anchor])
   return { ref, pos }
 }

@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.88.3] - 2026-11-24
+
+### Fixed
+
+- A resident's hover card stays above its badge. It was placed for the height it had when it
+  opened, and when the kind's description arrived a moment later it grew down over the badge, the
+  status bar items beside it and the bottom of the window. The session hover card is placed again
+  on a size change too, so one flipped above its row never grows over it. This is also what failed
+  the nightly slow run (#49): the card covered the item the test hovered next.
+
 ## [1.88.2] - 2026-11-24
 
 ### Fixed
