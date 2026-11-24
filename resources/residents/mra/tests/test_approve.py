@@ -203,10 +203,6 @@ class WhenGreen(unittest.TestCase):
         self.assertIn('approve_when_green', state['mrs']['1'])
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-
 class WhichVerdictRules(unittest.TestCase):
     def test_poll_lists_waiting_mrs_with_no_verdict_at_the_head(self):
         row, state = watched(head_pipeline={'id': 9, 'status': 'success', 'web_url': 'u'})
@@ -310,3 +306,30 @@ class ApprovalGaps(unittest.TestCase):
         self.assertEqual(len(self.poll(state, gl)), 1)
         with self.assertRaises(SystemExit):
             run(['allow-fewer', '2'], state, gl)
+
+
+class WaitingCountsOnlyYours(unittest.TestCase):
+    """"0 blockers, 3 comments" left the user unsure whose comments: a waiting MR carries only the
+    user's own open threads and the review's unraised blockers, never other people's comments."""
+
+    def test_waiting_entry_counts_your_threads_not_others_comments(self):
+        from tests.test_logic import my_thread, note
+        others = {'id': 'd9', 'notes': [note(20, 'luke', 'nit', at='2026-11-20T00:00:00Z')]}
+        s = snap(mr(), discussions=[my_thread(), others])
+        st = {'snapshot': s, 'okay_reported': {'sha': SHA, 'at': '2026-11-20T00:00:00Z'}}
+        row = {'iid': 1, 'snap': s, 'st': st, 'kind': None, 'extra': {'rerequest': False, 'unparked': False},
+               'scope': None, 'sort': (0,), 'tier': 0, 'reasons': [], 'todos': []}
+        out = json.loads(run(['poll'], {'me': ME, 'mrs': {'1': st}}, FakeGL(), rows=[row]))
+        w = out['waiting_on_you'][0]
+        self.assertEqual((w['your_open_threads'], w['unraised_review_blockers']), (1, 0))
+        self.assertNotIn('comments', ' '.join(w))
+
+    def test_unraised_review_blockers_count_until_threads_exist(self):
+        s = snap(mr())
+        self.assertEqual(logic.your_part(s, {'review_blockers': 2}),
+                         {'your_open_threads': 0, 'unraised_review_blockers': 2})
+
+
+
+if __name__ == '__main__':
+    unittest.main()

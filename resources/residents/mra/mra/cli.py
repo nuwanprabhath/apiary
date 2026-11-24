@@ -386,7 +386,8 @@ def _poll(args, holder):
             continue
         if r['iid'] not in acted:
             waiting.append({'iid': r['iid'], 'title': r['snap']['title'], 'url': r['snap']['url'],
-                            'author': r['snap']['author'], 'okay_since': ok['at']})
+                            'author': r['snap']['author'], 'okay_since': ok['at'],
+                            **logic.your_part(r['snap'], r['st'])})
     # Waiting on the user with nothing new to review, and no verdict of the manager's at this head:
     # the desk can only say "not judged yet" until one is recorded.
     unjudged = [{'iid': r['iid'], 'title': r['snap']['title'], 'url': r['snap']['url']} for r in rows

@@ -180,7 +180,14 @@ While you work, call `set_activity` with a few words: "Polling GitLab",
 
 Every update ends with a "Still waiting on you" line when `waiting_on_you`
 is non-empty, numbered after the update's own items, e.g. `Still waiting
-on you: 3. [!1349](url) okay to approve since 12:11`. With more than one, write
+on you: 3. [!1349](url) okay to approve since 12:11`. After the time, add
+only what is the user's own, from the entry: "1 of your threads open"
+(`your_open_threads`) and "2 review blockers not raised"
+(`unraised_review_blockers`), leaving out zeros. Never count other people's
+comments there, and never write a bare "N comments": the user reads it as
+their own. If a colleague's comment matters, it belongs in the MR's own
+item, quoted and linked, not in this line. Review findings you have not
+posted are "review notes 1.1, 1.2 (not posted)". With more than one, write
 `Still waiting on you:`, a blank line, then a numbered list going on from the
 update's last number (`3.`, `4.`, `5.`), never bullets in front of the numbers
 and never every item `1.`: the user answers by number. The user may have

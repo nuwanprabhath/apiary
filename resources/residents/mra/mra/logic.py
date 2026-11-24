@@ -281,6 +281,15 @@ def scope_of(snap, me):
     return None
 
 
+def your_part(snap, st):
+    """What on an MR is the user's own: their threads still open, and the blockers the desk's review
+    found that they have not raised yet. Other people's comments are not counted here."""
+    return {
+        'your_open_threads': sum(1 for t in snap['my_threads'] if not t['resolved']),
+        'unraised_review_blockers': 0 if snap['my_threads'] else (st.get('review_blockers') or 0),
+    }
+
+
 def ready_info(snap, st, me):
     unresolved = [t for t in snap['my_threads'] if not t['resolved']]
     pipe = snap.get('pipeline') or {}

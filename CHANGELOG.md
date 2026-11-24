@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.87.2] - 2026-11-24
+
+### Fixed
+
+- The MR desk's "Still waiting on you" list no longer says "3 comments" without saying whose. It
+  counts only what is yours: your threads still open and the review's blockers you have not raised.
+  Other people's comments that matter go in the MR's own item, quoted and linked, and the review's
+  unposted findings read "review notes 1.1, 1.2 (not posted)".
+
 ## [1.87.1] - 2026-11-20
 
 ### Fixed
