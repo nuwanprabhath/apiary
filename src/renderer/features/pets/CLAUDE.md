@@ -59,6 +59,9 @@ side is organised.
 - **Hide a pet until its render is ready**, so it never flips from flat to 3D in front of the user.
 - **A failed render is not kept.** `rememberRenders` (`render3d/rememberRenders.ts`) tries it again at
   once and then forgets it, so a moment's GPU trouble does not leave a pet flat until a restart.
+  The worker drops a renderer whose render failed (its WebGL context may be lost) and makes a new
+  one for the next (`render3d/renderLoop.ts`), and the page replaces a crashed worker, giving up on
+  3D only after three crashes (`usePetImages.ts`).
 - **Saved renders may be absent.** Every IndexedDB access is allowed to fail (private profile,
   cleared storage); the pet is then rendered again. Each silent catch there carries a reason.
 - **The drag in `usePetInteraction.ts` is a deliberate exception** to `drag-via-use-resize-drag`: it moves a

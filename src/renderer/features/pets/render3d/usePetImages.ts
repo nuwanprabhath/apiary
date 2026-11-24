@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PetSpec } from '@shared/pets/spec'
 import type { PetImages, PropImages } from './render'
-import type { FromRenderer, ToRenderer } from './petRender.worker'
+import type { FromRenderer, ToRenderer } from './renderLoop'
 import { testSeams } from '../../../state/testSeams'
 import { rememberRenders } from './rememberRenders'
 
@@ -78,6 +78,9 @@ async function save(key: string, images: PetImages | PropImages): Promise<void> 
 }
 
 let worker: Worker | null = null
+/** Worker crashes so far; at `MAX_CRASHES`, 3D is given up on until Apiary restarts. */
+let crashes = 0
+const MAX_CRASHES = 3
 let broken = false
 let next = 1
 const waiting = new Map<number, (r: FromRenderer) => void>()
@@ -91,8 +94,14 @@ function renderer(): Worker | null {
       waiting.get(e.data.id)?.(e.data)
       waiting.delete(e.data.id)
     })
-    worker.addEventListener('error', () => {
-      broken = true
+    const own = worker
+    // A crashed worker is replaced on the next ask, as a failed render is retried: only one that
+    // keeps crashing means 3D cannot work here.
+    own.addEventListener('error', () => {
+      own.terminate()
+      if (worker === own) worker = null
+      crashes += 1
+      if (crashes >= MAX_CRASHES) broken = true
       for (const [id, done] of waiting) done({ id, error: 'The renderer stopped.' })
       waiting.clear()
     })

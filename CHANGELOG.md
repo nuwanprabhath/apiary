@@ -4,6 +4,16 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.88.4] - 2026-11-24
+
+### Fixed
+
+- A pet no longer stays flat for the rest of the session after a moment's GPU trouble. The 3D
+  renderer kept a WebGL renderer whose render had failed, so its retry hit the same lost context and
+  failed too; it now starts a new one. A crashed render worker is replaced instead of turning 3D off
+  until a restart (it gives up after three crashes). This is what failed the nightly e2e run of
+  21 November on macOS.
+
 ## [1.88.3] - 2026-11-24
 
 ### Fixed
