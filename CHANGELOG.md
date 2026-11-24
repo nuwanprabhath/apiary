@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.88.2] - 2026-11-24
+
+### Fixed
+
+- The MR desk's integration tests that start python3 have a 60-second limit instead of Vitest's
+  five seconds: each starts the interpreter up to three times, and on a loaded machine that took
+  longer than five seconds and failed a full run.
+
 ## [1.88.1] - 2026-11-24
 
 ### Changed

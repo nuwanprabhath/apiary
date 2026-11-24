@@ -61,7 +61,10 @@ describe('the bundled mra', () => {
 })
 
 // The suites below run python3; without it they are listed as skipped, and their names say why.
-describe.runIf(hasPython)('the bundled mra, run (needs python3)', () => {
+// Each test starts python3 up to three times, and a cold interpreter on a loaded machine can take
+// seconds, so they get more than Vitest's 5 s default.
+const PYTHON_TESTS = { timeout: 60_000 }
+describe.runIf(hasPython)('the bundled mra, run (needs python3)', PYTHON_TESTS, () => {
   it('passes its own Python tests', async () => {
     await expect(exec('python3', ['-m', 'unittest', 'discover', '-s', 'tests', '-t', '.'], mraDir)).resolves.toBeDefined()
   })
@@ -75,7 +78,7 @@ describe.runIf(hasPython)('the bundled mra, run (needs python3)', () => {
   })
 })
 
-describe.runIf(hasPython)('"Show the desk" against a fake glab (needs python3)', () => {
+describe.runIf(hasPython)('"Show the desk" against a fake glab (needs python3)', PYTHON_TESTS, () => {
   it('appends the desk markdown to the resident\'s history', async () => {
     const bin = join(dir, 'fake-bin')
     mkdirSync(bin)
