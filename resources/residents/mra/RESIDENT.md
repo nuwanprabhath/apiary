@@ -168,6 +168,20 @@ While you work, call `set_activity` with a few words: "Polling GitLab",
    Repeat the others in one line, "Still too few approvals required:
    !1732", until they fix it or say fewer is fine. Count each in
    `set_attention`.
+   Then `own_mrs`: the user's own MRs (they no longer read GitLab's emails
+   about them, so this is how they hear). Each has `problems`:
+   - `pipeline_failed`: "[!1801](url): pipeline failed ([cypress-run
+     3/8](job url))". Link each of `failed_jobs`, or the `pipeline_url`
+     when it is empty.
+   - `conflicts`: "[!1802](url) has merge conflicts with its target
+     branch." `needs_rebase`: "[!1802](url) needs a rebase before it can
+     merge."
+   - `mergeable_no_auto_merge`: "[!1803](url) is approved by @luke and
+     can merge now, but auto-merge is off: merge it or set auto-merge."
+   Report each one marked `new` in full, near the top of the update. Repeat
+   the others in one line, "Your MRs still stuck: [!1801](url) pipeline
+   failed, [!1803](url) approved, not merging", until they change. Count
+   each in `set_attention`.
 6. Run `mra todo-done --noise` (bot To-Dos on watched MRs) and
    `mra worktree cleanup`. Both are silent unless they error.
 7. If `digest_due`, run `mra stale --mark` and add a "Waiting on authors"
@@ -194,7 +208,7 @@ and never every item `1.`: the user answers by number. The user may have
 been in a meeting and missed the earlier message, so keep repeating it until
 they act. Include those iids in `mra number`.
 
-If `actions`, `mentions`, `approval_gaps` and the digest are all empty, the update is one
+If `actions`, `mentions`, `approval_gaps`, `own_mrs` and the digest are all empty, the update is one
 line: `MR desk HH:MM: no changes (N watched)`, plus the "Still waiting on
 you" line when there is one. Mention `in_flight` MRs
 only if they've been in flight across two cycles.

@@ -484,4 +484,30 @@ def approval_gap(mr, approvals, allowed, me):
         return None
     return {'iid': mr['iid'], 'title': mr['title'], 'url': mr.get('web_url'), 'required': required,
             'reviewers': reviewers,
-            'auto_merge': bool(mr.get('merge_when_pipeline_succeeds') or mr.get('auto_merge_enabled'))}
+            'auto_merge': auto_merge_on(mr)}
+
+
+def auto_merge_on(mr):
+    return bool(mr.get('merge_when_pipeline_succeeds') or mr.get('auto_merge_enabled'))
+
+
+def own_mr_problems(mr, approvals):
+    """Why one of the user's own open MRs needs them: it cannot merge, or it could and nothing will merge it.
+
+    `mr` is the single-MR response (it carries `head_pipeline`), `approvals` its approvals response.
+    Drafts are left alone: they are not meant to merge yet.
+    """
+    if mr.get('draft'):
+        return []
+    status = mr.get('detailed_merge_status')
+    problems = []
+    if (mr.get('head_pipeline') or {}).get('status') == 'failed':
+        problems.append('pipeline_failed')
+    if mr.get('has_conflicts') or status == 'conflict':
+        problems.append('conflicts')
+    elif status == 'need_rebase':
+        problems.append('needs_rebase')
+    approved = (approvals or {}).get('approved') or (approvals or {}).get('approvals_left') == 0
+    if approved and status == 'mergeable' and not auto_merge_on(mr):
+        problems.append('mergeable_no_auto_merge')
+    return problems

@@ -399,7 +399,7 @@ def _poll(args, holder):
              and t['action_name'] != 'review_requested']
     state['noise_todo_ids'] = noise
 
-    gaps = approval_gaps(gl, state)
+    gaps, own_mrs = own_mr_checks(gl, state)
     local_now = datetime.now().astimezone()
     digest_due = local_now.hour >= cfg['digest_hour'] and state.get('last_digest_date') != local_now.date().isoformat()
     first_run = state.pop('first_run', False)
@@ -415,41 +415,72 @@ def _poll(args, holder):
         'unjudged': unjudged,
         'waiting_on_you': waiting,
         'approval_gaps': gaps,
+        'own_mrs': own_mrs,
         'noise_todo_count': len(noise), 'digest_due': digest_due,
         'skipped': {s: [r['iid'] for r in rows if logic.waiting_on(r['snap'], r['kind'], r['st'], r['scope']) == s]
                     for s in ('approved', 'parked', 'assignee', 'own', 'draft')},
     })
 
 
-def approval_gaps(gl, state):
-    """The user's own open MRs that need fewer approvals than they have reviewers (`logic.approval_gap`),
-    each marked `new` when it was not reported in this shape before. Forgets MRs no longer open."""
+def own_mr_checks(gl, state):
+    """The user's own open MRs that need them: `approval_gaps` (fewer approvals required than reviewers,
+    `logic.approval_gap`) and `own_mrs` (a failed pipeline, conflicts, or approved and mergeable with
+    no auto-merge, `logic.own_mr_problems`). Each is marked `new` when it was not reported in this shape
+    before. Forgets MRs no longer open."""
     me = state['me']
     allowed = state.setdefault('allow_fewer', {})
     reported = state.setdefault('gaps_reported', {})
+    own_reported = state.setdefault('own_reported', {})
     try:
         authored = [m for m in gl.authored_open_mrs(me) if not m.get('draft')]
     except GitLabError:
-        return []
+        return [], []
     open_iids = {str(m['iid']) for m in authored}
-    for book in (allowed, reported):
+    for book in (allowed, reported, own_reported):
         for key in [k for k in book if k not in open_iids]:
             book.pop(key)
-    gaps = []
+    gaps, alerts = [], []
     for m in authored:
         key = str(m['iid'])
         try:
-            gap = logic.approval_gap(m, gl.approvals(m['iid']), allowed.get(key), me)
+            approvals = gl.approvals(m['iid'])
+            detail = {**m, **gl.mr(m['iid'])}
         except GitLabError:
             continue
+        gap = logic.approval_gap(m, approvals, allowed.get(key), me)
         if gap is None:
             reported.pop(key, None)
-            continue
-        shape = [gap['required'], gap['reviewers'], gap['auto_merge']]
-        gap['new'] = reported.get(key) != shape
-        reported[key] = shape
-        gaps.append(gap)
-    return gaps
+        else:
+            shape = [gap['required'], gap['reviewers'], gap['auto_merge']]
+            gap['new'] = reported.get(key) != shape
+            reported[key] = shape
+            gaps.append(gap)
+        alert = _own_alert(gl, detail, approvals, own_reported)
+        if alert:
+            alerts.append(alert)
+    return gaps, alerts
+
+
+def _own_alert(gl, mr, approvals, own_reported):
+    key = str(mr['iid'])
+    problems = logic.own_mr_problems(mr, approvals)
+    if not problems:
+        own_reported.pop(key, None)
+        return None
+    shape = [mr.get('sha'), problems]
+    alert = {'iid': mr['iid'], 'title': mr['title'], 'url': mr.get('web_url'), 'problems': problems,
+             'new': own_reported.get(key) != shape}
+    own_reported[key] = shape
+    pipe = mr.get('head_pipeline') or {}
+    if 'pipeline_failed' in problems:
+        alert['pipeline_url'] = pipe.get('web_url')
+        try:
+            alert['failed_jobs'] = [j for j in gl.failed_jobs(pipe['id']) if not j['allow_failure']][:5]
+        except (GitLabError, KeyError):
+            alert['failed_jobs'] = []
+    if 'mergeable_no_auto_merge' in problems:
+        alert['approved_by'] = [a['user']['username'] for a in (approvals or {}).get('approved_by') or []]
+    return alert
 
 
 def cmd_allow_fewer(args):

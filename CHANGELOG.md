@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.88.0] - 2026-11-24
+
+### Added
+
+- The MR desk watches your own open MRs too, for when GitLab's emails about them go unread: it
+  reports one whose pipeline failed (linking the failed jobs), one with merge conflicts or needing a
+  rebase, and one that is approved and could merge now but has no auto-merge set. Each is reported
+  in full once, then repeated in one line every update until it changes.
+
 ## [1.87.2] - 2026-11-24
 
 ### Fixed

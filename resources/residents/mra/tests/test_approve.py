@@ -15,11 +15,13 @@ SHA = 'a' * 40
 
 
 class FakeGL:
-    def __init__(self, sha=SHA, authored=(), required=None):
+    def __init__(self, sha=SHA, authored=(), required=None, approved_by=None, failed=()):
         self.sha = sha
         self.approved = []
         self.authored = list(authored)
         self.required = required or {}
+        self.approved_by = approved_by or {}
+        self.failed = list(failed)
 
     def mr(self, iid):
         mine = next((m for m in self.authored if m['iid'] == iid), {})
@@ -29,13 +31,16 @@ class FakeGL:
         return [m for m in self.authored if m['author']['username'] == username]
 
     def approvals(self, iid):
-        return {'approvals_required': self.required.get(iid, 1)}
+        by = self.approved_by.get(iid, [])
+        required = self.required.get(iid, 1)
+        return {'approvals_required': required, 'approvals_left': max(required - len(by), 0),
+                'approved': len(by) >= required, 'approved_by': [{'user': {'username': u}} for u in by]}
 
     def approve(self, iid, sha):
         self.approved.append((iid, sha))
 
     def failed_jobs(self, pipeline_id):
-        return []
+        return self.failed
 
 
 def run(argv, state, gl, rows=None):
@@ -308,6 +313,53 @@ class ApprovalGaps(unittest.TestCase):
             run(['allow-fewer', '2'], state, gl)
 
 
+class OwnMrs(unittest.TestCase):
+    """The user's own MRs, whose GitLab emails they no longer see: report what stops them merging,
+    or that one could merge now and nothing will merge it."""
+
+    def poll(self, state, *mrs, **gl_kw):
+        mine = [mr(author={'username': ME}, reviewers=[{'username': 'luke'}], **m) for m in mrs]
+        return json.loads(run(['poll'], state, FakeGL(authored=mine, **gl_kw), rows=[]))['own_mrs']
+
+    def test_a_failed_pipeline_with_its_failed_jobs(self):
+        job = {'name': 'cypress-run 3/8', 'url': 'j', 'allow_failure': False}
+        flaky = {'name': 'lint-advisory', 'url': 'k', 'allow_failure': True}
+        got = self.poll({'me': ME}, {'iid': 1801, 'head_pipeline': {'id': 5, 'status': 'failed', 'web_url': 'p'}},
+                        failed=[job, flaky])
+        self.assertEqual([(a['iid'], a['problems'], a['pipeline_url'], a['failed_jobs'], a['new']) for a in got],
+                         [(1801, ['pipeline_failed'], 'p', [job], True)])
+
+    def test_merge_conflicts(self):
+        got = self.poll({'me': ME}, {'iid': 1802, 'has_conflicts': True, 'detailed_merge_status': 'conflict'})
+        self.assertEqual([a['problems'] for a in got], [['conflicts']])
+
+    def test_approved_and_mergeable_with_no_auto_merge(self):
+        got = self.poll({'me': ME}, {'iid': 1803}, approved_by={1803: ['luke']})
+        self.assertEqual([(a['problems'], a['approved_by']) for a in got], [(['mergeable_no_auto_merge'], ['luke'])])
+
+    def test_quiet_when_auto_merge_will_merge_it_or_nobody_approved(self):
+        state = {'me': ME}
+        self.assertEqual(self.poll(state, {'iid': 1804, 'merge_when_pipeline_succeeds': True},
+                                   approved_by={1804: ['luke']}), [])
+        self.assertEqual(self.poll(state, {'iid': 1805, 'detailed_merge_status': 'not_approved'}), [])
+
+    def test_drafts_and_other_peoples_mrs_are_left_alone(self):
+        failed = {'head_pipeline': {'id': 5, 'status': 'failed', 'web_url': 'p'}}
+        self.assertEqual(self.poll({'me': ME}, {'iid': 1806, 'draft': True, **failed}), [])
+        other = mr(iid=1807, author={'username': 'alice'}, **failed)
+        out = json.loads(run(['poll'], {'me': ME}, FakeGL(authored=[other]), rows=[]))
+        self.assertEqual(out['own_mrs'], [])
+
+    def test_new_once_then_repeated_until_fixed_and_new_again_after_a_push(self):
+        state = {'me': ME}
+        failed = {'iid': 1801, 'head_pipeline': {'id': 5, 'status': 'failed', 'web_url': 'p'}}
+        self.assertEqual([a['new'] for a in self.poll(state, failed)], [True])
+        self.assertEqual([a['new'] for a in self.poll(state, failed)], [False])
+        self.assertEqual([a['new'] for a in self.poll(state, dict(failed, sha='b' * 40))], [True])
+        self.assertEqual(self.poll(state, {'iid': 1801}), [])
+        self.assertNotIn('1801', state['own_reported'])
+
+
 class WaitingCountsOnlyYours(unittest.TestCase):
     """"0 blockers, 3 comments" left the user unsure whose comments: a waiting MR carries only the
     user's own open threads and the review's unraised blockers, never other people's comments."""
@@ -328,7 +380,6 @@ class WaitingCountsOnlyYours(unittest.TestCase):
         s = snap(mr())
         self.assertEqual(logic.your_part(s, {'review_blockers': 2}),
                          {'your_open_threads': 0, 'unraised_review_blockers': 2})
-
 
 
 if __name__ == '__main__':
