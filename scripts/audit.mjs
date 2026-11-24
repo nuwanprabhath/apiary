@@ -19,13 +19,6 @@ const ALLOWED = {
       + 'electron-builder 26.18 still pins @electron/asar 3, glob 7, dir-compare and jake, whose minimatch '
       + '3/5/9 have no fix and match only our own packaging globs at build time.',
   },
-  'GHSA-fc5q-39xc-vjpf': {
-    review: '2026-12-16',
-    devOnly: true,
-    why: 'picomatch <=4.0.7 (ReDoS on repeated extglobs). No fixed release exists; it comes only through '
-      + 'build, lint and test tools (vite, vitest, stylelint, knip, dependency-cruiser, electron-builder), '
-      + 'which match our own repository globs, never input from outside.',
-  },
 }
 
 /** Advisory id → its one-line description, from `npm audit` with the given extra arguments. */

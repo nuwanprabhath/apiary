@@ -128,7 +128,7 @@ const fiveSeconds = () => new Promise((resolve) => setTimeout(resolve, 5000))
 /**
  * Waits for CI on `sha` to finish, and resolves with why it cannot release, or null once it passed.
  * GitHub lists the run a push started only some seconds later, so it first waits up to three minutes
- * for one to appear: looking once straight after the push stopped the v1.87.0 release.
+ * for one to appear: looking once straight after the push finds none and stops the release.
  * @param {string} sha
  * @param {() => { databaseId: number, status: string, conclusion: string }[]} list
  * @param {(id: number) => void} watch

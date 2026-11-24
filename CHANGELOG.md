@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.88.1] - 2026-11-24
+
+### Changed
+
+- Dependencies: better-sqlite3 13.2.0, Electron 45.3.2, dompurify 3.4.18, marked 18.2.0, and the
+  build and test tools (Playwright 1.65.1, Vite 7.3.8, ESLint 10.15.0, typescript-eslint 8.72.2,
+  @eslint-react 5.30.3, knip 6.45.1, lint-staged 17.6.1, markdownlint-cli2 0.24.1, minimatch
+  11.0.8) (#48). The audit gate no longer allows the picomatch advisory, which is no longer reported.
+
 ## [1.88.0] - 2026-11-24
 
 ### Added
