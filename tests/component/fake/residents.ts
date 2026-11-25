@@ -34,7 +34,7 @@ export function residentStatuses(state: FakeState): ResidentStatus[] {
       id: c.id, kind: c.kind, name: c.name, enabled: c.enabled,
       state: !c.enabled ? 'asleep' : busy ? 'working' : onDuty ? 'idle' : 'asleep',
       activity: c.enabled && busy ? state.residentActivity.get(c.id) ?? 'Writing' : null,
-      onDuty, appearance: kind.appearance, digest: null,
+      onDuty, appearance: kind.appearance, digest: null, digestPaused: null,
       attention: permissions.length > 0 ? { count: permissions.length, summary: WAITING_FOR_OK } : state.residentAttention.get(c.id) ?? null,
       pending: c.enabled ? state.residentPending.get(c.id) ?? null : null,
       permissions,

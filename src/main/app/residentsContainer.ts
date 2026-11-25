@@ -20,6 +20,7 @@ import { sendEvent, type EventTarget } from '../windows/sendEvent'
 import type { TabRegistry } from '../windows/tabRegistry'
 import type { ContainerPaths } from './containerPaths'
 import type { KnowledgeParts } from './knowledgeContainer'
+import type { PrivacyGate } from '../privacy/privacyGate'
 
 /** The window last in front (or the first, before any was focused): where "open this session" goes. */
 export function frontWindow(tabMover: { recentFirst(): readonly number[] }): WebContents | null {
@@ -51,6 +52,8 @@ export function createResidents(o: {
   version: string
   /** Where the bundled programs are (`resolveResourcesDir`). */
   resourcesDir: string
+  /** What a resident's digest and cycles ask before they send anything. */
+  privacyGate?: PrivacyGate
 }): ResidentService {
   const searchPath = (): string => searchPathFrom(process.env.PATH)
   // Kinds the user dropped in as folders: read once at start, never watched (ADR-0022).
@@ -104,6 +107,7 @@ export function createResidents(o: {
     onChanged: (statuses) => { broadcast(IPC.residentsChanged, statuses) },
     onMessage: (push) => { broadcast(IPC.residentMessage, push) },
     version: o.version,
+    ...(o.privacyGate !== undefined ? { privacyGate: o.privacyGate } : {}),
   })
 }
 

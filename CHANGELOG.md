@@ -4,6 +4,57 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.90.0] - 2026-11-26
+
+### Added
+
+- **Privacy mode**, on by default: nothing Apiary does on its own sends data off this computer until
+  you allow it in the new **Settings → Privacy** section. Each automatic feature asks separately:
+  - Regent's background topic summaries, which send session text to Anthropic;
+  - a resident's scheduled checks (MR Desk's reviews), which send merge-request text to Anthropic;
+  - the Slack connection, which reads your messages and posts session progress to the channel;
+  - the GitLab merge-request status, which asks your GitLab server about each branch;
+  - spelling dictionaries on Linux, downloaded from Google.
+
+  The section lists who receives what, and when. Anything you start yourself (a message, "Check
+  now", a quick action) still runs. Turning privacy mode off shows everything that will then run in
+  the background, and asks first.
+- What Apiary keeps of its own is limited to 30 days by default (Settings → Privacy):
+  - topic digests;
+  - pasted images;
+  - scheduled-message logs;
+  - resident chat history.
+
+  The folder of a resident you deleted is removed a week after it was last used.
+- **Purge Apiary indexes, digests and logs** (Settings → Privacy): delete the search index, topic
+  digests, diagnostic logs, resident chats and notes, Slack messages, pasted images and
+  scheduled-message logs, item by item. Your Claude Code transcripts in `~/.claude` are never
+  touched.
+- **Export my Apiary data**: writes the topic digests, resident chats and notes, and settings to a
+  folder you pick.
+
+### Changed
+
+- Updating keeps running what you already use. An enabled Regent or MR Desk, a Slack connection,
+  and the GitLab merge-request status (unless you had switched that plugin off) keep running, and
+  the Privacy section says they were allowed before privacy mode existed. You can withdraw any of
+  them there. A new install starts with all of them held.
+- A new Regent summarises the last month of sessions instead of all of them. An existing Regent
+  keeps its setting.
+- Removing a session from Apiary also deletes its search index entries and its topic digests.
+  Digests of sessions whose transcript no longer exists are dropped.
+- A resident card shows "Digest paused: needs your OK" when privacy mode is holding its digest, and
+  its schedule says when checks are paused.
+
+### Security
+
+- The diagnostic log hides email addresses, remote user names, and home folders under `/root`,
+  `/var/home` and `C:\Users`. In privacy mode it also:
+  - drops any field that could hold message text;
+  - replaces host names with a per-install pseudonym;
+  - keeps logs at most 7 days.
+- Slack messages waiting for your answer are stored encrypted, like the bot token.
+
 ## [1.89.2] - 2026-11-25
 
 ### Fixed

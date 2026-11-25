@@ -48,6 +48,8 @@ export interface DigesterDeps {
   accounts: Pick<AccountService, 'launchEnv'>
   /** `userData/residents`: the residents' own sessions live under it and are never digested. */
   residentsDir: string
+  /** Asked before every window: false while the person has not agreed to the background digest. A throw counts as false. */
+  gateAllows?: () => boolean
   now?: () => number
   /** Waits between pause re-checks; tests make it instant. */
   wait?: (ms: number) => Promise<void>
@@ -280,8 +282,16 @@ export class Digester implements DigestJob {
 
   /** Whether the queue may go on; false when paused for good, true after waiting out a usage pause. */
   private async mayProceed(): Promise<boolean> {
-    while (!this.stopRequested && this.shouldPause()) await this.wait(PAUSE_RECHECK_MS)
+    while (!this.stopRequested && (this.shouldPause() || !this.gateOpen())) await this.wait(PAUSE_RECHECK_MS)
     return !this.stopRequested
+  }
+
+  private gateOpen(): boolean {
+    try {
+      return this.deps.gateAllows?.() ?? true
+    } catch {
+      return false // fail closed
+    }
   }
 
   private async digestSession(session: DigestableSession): Promise<void> {

@@ -241,7 +241,7 @@ describe('a resident status push does not render the window', () => {
     const renders = trackRenders('AppWindow', 'one')
     const status = (activity: string) => ({
       id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: true, state: 'working' as const, activity, onDuty: true,
-      appearance: { glyph: 'bee' as const, palette: 'gold' as const, animation: 'halo' as const }, digest: null, attention: null, pending: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
+      appearance: { glyph: 'bee' as const, palette: 'gold' as const, animation: 'halo' as const }, digest: null, digestPaused: null, attention: null, pending: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
     })
     for (const activity of ['Searching sessions', 'Reading CSV export', 'Opening CSV export', 'Writing']) {
       fake.emit('residentsChanged', [status(activity)])

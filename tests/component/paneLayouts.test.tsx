@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { renderApp } from './renderApp'
 import { sidebarSession, box, mouse, until, hoverWhenStill, clickRowAction } from './helpers'
@@ -34,27 +34,36 @@ function row(title: string): HTMLElement {
  * export bug" (the row clicked just before) instead of the session being placed. */
 async function openPickerOn(button: Element, hoverFirst: Element, session: string): Promise<HTMLElement> {
   const ours = (): HTMLElement | undefined => all('layout-picker').find((p) => p.textContent?.includes(`“${session}”`))
-  // Up to three rests on the button: anything that moves the page under a still pointer (a late
-  // reflow on a slow machine) restarts the picker's hover delay, and a pointer that stays put never
-  // gets another mouseenter to start it again. A picker that never opens still fails.
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await hoverWhenStill(hoverFirst)
-      // The row's buttons show only while it is hovered; a row that moved since hides them again.
-      await until(() => (button as HTMLElement).checkVisibility({ visibilityProperty: true, opacityProperty: true }), 1000)
-      await userEvent.hover(button, { timeout: 2000 })
-      await until(() => ours() !== undefined && all('layout-picker').length === 1, 2000)
-      return ours()!
-    } catch (e) {
-      if (attempt === 3) throw e
-    }
+  await hoverWhenStill(hoverFirst)
+  // The row's buttons show only while it is hovered.
+  await until(() => (button as HTMLElement).checkVisibility({ visibilityProperty: true, opacityProperty: true }))
+  // The picker's hover delay runs on a fake clock: on a loaded machine a real one let a late reflow
+  // restart it under a still pointer, and the picker never opened.
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  try {
+    await hoverWhenStill(button)
+    await until(() => button.matches(':hover'))
+    vi.advanceTimersByTime(1000)
+    await until(() => ours() !== undefined && all('layout-picker').length === 1)
+  } finally {
+    vi.useRealTimers()
   }
+  return ours()!
+}
+
+/** Opens a session from the sidebar and waits until the sidebar has taken it in: the Active section
+ * appears above the folders a moment after the click and pushes every row down, so a row hovered
+ * before that slides out from under the still pointer, loses `:hover`, and its `display: none`
+ * buttons can never be hovered. */
+async function openFromSidebar(title: string): Promise<void> {
+  await userEvent.click(sidebarSession(title))
+  await until(() => all('active-tab-row').some((r) => r.textContent?.includes(title) === true))
 }
 
 describe('pane layouts', () => {
   it('resting on a sidebar row\'s split button offers the layouts, and a zone places the session there', async () => {
     await renderApp()
-    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await openFromSidebar('Fix CSV export bug')
     const target = row('Add worktree switcher')
     const picker = await openPickerOn(must(within(target, 'split-session-button')[0]), target, 'Add worktree switcher')
 
@@ -95,7 +104,7 @@ describe('pane layouts', () => {
 
   it('placing a sidebar session via the picker focuses the new pane even in a non-first zone', async () => {
     await renderApp()
-    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await openFromSidebar('Fix CSV export bug')
     const target = row('Add worktree switcher')
     const picker = await openPickerOn(must(within(target, 'split-session-button')[0]), target, 'Add worktree switcher')
     // thirds-h zone 3 (0-indexed 2, testid suffix z+1) is the last zone: "Fix CSV export bug" fills
@@ -250,7 +259,7 @@ describe('pane layouts', () => {
 
   it('closing the last tab in a pane steps the layout down', async () => {
     await renderApp()
-    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await openFromSidebar('Fix CSV export bug')
     const target = row('Add worktree switcher')
     const picker = await openPickerOn(must(within(target, 'split-session-button')[0]), target, 'Add worktree switcher')
     await userEvent.click(must(within(picker, 'layout-zone-halves-h-2')[0]))

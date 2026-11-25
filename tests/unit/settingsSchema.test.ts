@@ -27,6 +27,7 @@ function alternate(key: SettingKey): unknown {
   if (key === 'busyAnimationColor') return 'claude'
   if (key === 'plugins') return { known: false }
   if (key === 'pluginSettings') return { known: { port: 8080 } }
+  if (key === 'privacyConsents') return { backgroundDigest: { grantedAt: 1_700_000_000_000, source: 'user' } }
   if (key === 'residents') {
     return [{
       id: 'regent', kind: 'regent', name: 'Regent', enabled: true, model: 'sonnet', digestModel: 'haiku',

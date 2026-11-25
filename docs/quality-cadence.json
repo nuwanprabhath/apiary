@@ -6,8 +6,8 @@
         "days": 14
       },
       "last": {
-        "commit": "06f23d3da9525eec5ee80ae7374b1c1cd128164f",
-        "date": "2026-11-19"
+        "commit": "97bc5a34a725d80ccfda1da64ce36acdf692898a",
+        "date": "2026-11-25"
       }
     },
     "correct": {
@@ -16,8 +16,8 @@
         "days": 14
       },
       "last": {
-        "commit": "62dad1e3739972af208e0e2122eaf83c4040c881",
-        "date": "2026-11-19"
+        "commit": "c96488013cc5eef13cc5c5cc96de09002e961086",
+        "date": "2026-11-25"
       }
     },
     "maintain-verify-apiary": {
@@ -36,8 +36,8 @@
         "days": 30
       },
       "last": {
-        "commit": "994c90f94b7ac65e6c3629bf81adfaaa0dbd60d0",
-        "date": "2026-11-17"
+        "commit": "b5cd59aa9c619a0e9d6f3edf0957a9bdc41604d5",
+        "date": "2026-11-25"
       }
     },
     "prune-tests": {

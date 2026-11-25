@@ -56,7 +56,11 @@ describe('quick-action argv placeholders', () => {
 })
 
 describe('the cycle gate', () => {
-  const ready = { enabled: true, onDuty: true, busy: false, permissionsWaiting: 0, setupNeeded: null }
+  const ready = { enabled: true, onDuty: true, busy: false, permissionsWaiting: 0, setupNeeded: null, consent: true }
+
+  it('skips with reason consent when Settings → Privacy has not allowed cycles', () => {
+    expect(cycleSkip({ ...ready, consent: false })).toBe('consent')
+  })
 
   it('goes when on duty, idle, with nothing waiting and set up', () => {
     expect(cycleSkip(ready)).toBeNull()

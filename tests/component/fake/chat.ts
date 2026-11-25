@@ -77,7 +77,7 @@ export function chatApi(env: Env): ChatApi {
   }
   /** The turn a background-task message ends with: idle, the task still in flight, the task gone a
    *  moment later (a "long" one only when stopped). */
-  const endTurnWithBackgroundTask = (id: string, long: boolean): void => {
+  const endTurnWithBackgroundTask = (id: string, hold: 'long' | 'held' | null): void => {
     taskCount += 1
     const taskId = `bash-${String(taskCount)}`
     const c = running(id)
@@ -85,14 +85,17 @@ export function chatApi(env: Env): ChatApi {
       ...c, status: 'idle', turnStartedAt: null, queued: [],
       backgroundTasks: [...(c.backgroundTasks ?? []), { taskId, description: 'sleep 1; echo done', kind: 'shell', command: 'sleep 1; echo done', startedAtMs: Date.now() }],
     })
-    // A "long" one runs until it is stopped, as the fixture's does.
-    if (long) return
-    setTimeout(() => {
+    const finish = (): void => {
       const now = state.chats.get(id)
       if (now === undefined || now.status === 'exited') return
       setChat({ ...now, backgroundTasks: (now.backgroundTasks ?? []).filter((t) => t.taskId !== taskId) })
-    }, BACKGROUND_TASK_MS)
+    }
+    // A "long" one runs until it is stopped, a "held" one until `/report-back`, as the fixture's do.
+    if (hold === 'long') return
+    if (hold === 'held') { held.push(finish); return }
+    setTimeout(finish, BACKGROUND_TASK_MS)
   }
+  const held: (() => void)[] = []
 
   return {
     chatState: async (id) => state.chats.get(id) ?? null,
@@ -107,12 +110,14 @@ export function chatApi(env: Env): ChatApi {
       return started
     },
     chatSend: async (id, text) => {
+      // The fixture's control message: the held tasks' own turns end idle, so the chat ends idle.
+      if (text === '/report-back') { for (const finish of held.splice(0)) finish(); return }
       const c = running(id)
       setChat({
         ...c, status: 'busy', error: null, turnStartedAt: c.turnStartedAt ?? Date.now(),
         queued: [...c.queued, { id: `queued-${String(c.queued.length + 1)}`, text, sentAt: Date.now() }],
       })
-      if (text.includes('background')) endTurnWithBackgroundTask(id, text.includes('long'))
+      if (text.includes('background')) endTurnWithBackgroundTask(id, text.includes('long') ? 'long' : text.includes('held') ? 'held' : null)
     },
     // As main does: refused when empty, otherwise answered apart from the chat, which is left as it was.
     chatAside: async (_id, question, earlier) => {

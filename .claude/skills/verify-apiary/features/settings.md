@@ -1,7 +1,8 @@
 # Settings
 
 A dialog with a section nav (`settings-nav-<section>`: `sessions`, `search`, `sidebar`, `themes`,
-`terminal`, `pets`, `plugins`, `residents`, `slack`, `updates`, `general`, `accounts`, `diagnostics`;
+`terminal`, `pets`, `plugins`, `residents`, `slack`, `updates`, `general`, `privacy`, `accounts`,
+`diagnostics`;
 the ids are built at runtime, so grep finds `settings-nav-${id}`). Most sections save with
 `settings-save`; themes (and their working-animation rows), pets, accounts, residents and Slack
 apply at once (Slack's fields on Enter or blur). In a remote window, residents and Slack edit the
@@ -13,7 +14,7 @@ says which.
 - Auto-import, in the Sessions section (`settings-nav-sessions`; `setting-auto-import-all`, `setting-auto-import-interval-enabled`,
   `setting-interval-preset-15`).
 - Search (`setting-search-chat-content`, `search-index-status`, `search-rebuild`).
-- Themes, pets, accounts, residents and Slack have their own feature files; plugins, updates and
+- Themes, pets, accounts, residents, Slack and Privacy have their own feature files; plugins, updates and
   diagnostics have none yet.
 - General also holds remote access (`setting-remote-access`, `setting-remote-pairing`, see
   [remote.md](remote.md)), the claude path, the proofing language, the system title bar, chat mode

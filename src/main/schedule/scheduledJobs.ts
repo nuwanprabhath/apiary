@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { isRecord } from '@shared/guards'
 import { ignoreErrors } from '@shared/ignoreErrors'
@@ -165,6 +165,34 @@ export class ScheduledJobs {
     const file = join(this.dir, `${id}.running`)
     if (!existsSync(file)) return null
     return ignoreErrors(() => statSync(file).mtimeMs, 'the script finished between the two calls') ?? null
+  }
+
+  /**
+   * Removes the `.log` and `.done` of finished schedules last written before `cutoffMs` (epoch);
+   * returns how many files went. A schedule whose `.vars` is still there is pending and kept whole.
+   */
+  pruneFinished(cutoffMs: number): number {
+    return this.removeFinished((file) => (ignoreErrors(() => statSync(file).mtimeMs, 'gone already') ?? Infinity) < cutoffMs)
+  }
+
+  /** Every finished schedule's `.log` and `.done`; a pending schedule's files are kept. Returns how many went. */
+  clearLogs(): number {
+    return this.removeFinished(() => true)
+  }
+
+  private removeFinished(doomed: (file: string) => boolean): number {
+    const names = ignoreErrors(() => readdirSync(this.dir), 'no folder: nothing was ever scheduled') ?? []
+    const pending = new Set(names.filter((n) => n.endsWith('.vars')).map((n) => n.slice(0, -'.vars'.length)))
+    let removed = 0
+    for (const name of names) {
+      const match = /^(.+)\.(log|done)$/.exec(name)
+      if (match === null || pending.has(match[1] ?? '')) continue
+      const file = join(this.dir, name)
+      if (!doomed(file)) continue
+      removeFileForProgram(file)
+      removed += 1
+    }
+    return removed
   }
 
   logTail(id: string): string {

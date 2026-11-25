@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -18,13 +19,33 @@ vi.mock('electron', () => ({
   },
 }))
 
-/** tests/fixtures/fake-claude-chat.mjs: "background" starts a task, ends the turn, and answers again on its own when the task ends. */
+/** tests/fixtures/fake-claude-chat.mjs: "background" starts a task, ends the turn, and answers again on its own when the task ends;
+ *  a "held" task ends only at `/report-back`, so no test races the fixture's real-time timer. */
 const FAKE = resolve(__dirname, '../../fixtures/fake-claude-chat.mjs')
+
+/** Runs the fake directly instead of through `$SHELL -l -c 'exec "$0" "$@"' bin …`: a login shell
+ *  sources the user's profile, which a busy machine stretches past the test's 5 s. */
+function direct(_file: string, args: string[], options: SpawnOptions): ChildProcess {
+  const [, , , bin, ...rest] = args
+  if (bin === undefined) throw new Error(`not a login-shell exec: ${args.join(' ')}`)
+  const child = nodeSpawn(process.execPath, [bin, ...rest], options)
+  started.push(child)
+  return child
+}
+const started: ChildProcess[] = []
+
+/** Ends the fake's "held" background task without a message, as a real task ends on its own. */
+function finishHeldTask(): void {
+  const child = started.at(-1)
+  if (child === undefined) throw new Error('no fake claude started')
+  child.kill('SIGUSR2')
+}
 
 const dirs: string[] = []
 const chats: ResidentChat[] = []
 afterEach(async () => {
   await Promise.all(chats.splice(0).map((c) => c.stop()))
+  started.length = 0
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
 })
 
@@ -41,6 +62,7 @@ function chat(whenActive?: (space: ResidentSpace, c: ResidentChat) => void): { c
     name: () => 'Regent',
     claudeBin: () => FAKE,
     env: () => ({}),
+    spawn: direct,
     launch: async () => ({ mcpConfig: space.writeMcpConfig('http://127.0.0.1:1/mcp', 'token'), model: 'sonnet', systemPrompt: 'x', permissionMode: 'manual' }),
     titleOf: () => null,
     onMessage: (m) => {
@@ -62,8 +84,10 @@ const done = (pushed: ResidentMessage[]): string[] => pushed.filter((m) => m.rol
 describe('a turn claude starts on its own', () => {
   it('is saved, pushed to every window, says what it waits on between turns, and asks for attention', async () => {
     const { chat: c, pushed, seen, space } = chat()
-    await c.send('run it in the background')
-    await vi.waitFor(() => { expect(done(pushed)).toEqual(['Started it in the background.', 'The background task finished.']) }, 8000)
+    await c.send('run it held in the background')
+    await vi.waitFor(() => { expect(seen).toContainEqual({ busy: false, working: true, activity: 'Sleep, then say done' }) }, 4000)
+    finishHeldTask()
+    await vi.waitFor(() => { expect(done(pushed)).toEqual(['Started it in the background.', 'The background task finished.']) }, 4000)
     // Between the turns no turn runs, but the task does: working, in the task's own words.
     expect(seen).toContainEqual({ busy: false, working: true, activity: 'Sleep, then say done' })
     // The unsolicited turn is a turn: busy, with an activity.
@@ -89,9 +113,11 @@ describe('a turn claude starts on its own', () => {
       set = true
       sp.setAttention(null)
     })
-    await c.send('run it in the background')
-    await vi.waitFor(() => { expect(done(pushed)).toHaveLength(1) }, 5000)
-    await vi.waitFor(() => { expect(done(pushed)).toHaveLength(2) }, 5000)
+    await c.send('run it held in the background')
+    await vi.waitFor(() => { expect(done(pushed)).toHaveLength(1) }, 4000)
+    await vi.waitFor(() => { expect(c.busy).toBe(false) }, 4000)
+    finishHeldTask()
+    await vi.waitFor(() => { expect(done(pushed)).toHaveLength(2) }, 4000)
     await vi.waitFor(() => { expect(c.busy).toBe(false) })
     expect(space.attention()).toBeNull()
   })

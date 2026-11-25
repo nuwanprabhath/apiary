@@ -1,49 +1,16 @@
-import { dirname, join } from 'node:path'
-import { BrowserWindow, webContents } from 'electron'
-import { AppService, DisposedFlag } from '../appService'
-import { ClaudeProjectsSource, type SessionSource } from '../sources/claudeProjects'
-import { SessionStore } from '../store/sessionStore'
+import { webContents } from 'electron'
+import { type AppService } from '../appService'
 import { PtyManager, type LinkHelper } from '../pty/ptyManager'
-import type { PromptPathOptions } from '../pty/promptPath'
-import { SessionResolver } from '../sessions/sessionResolver'
-import { SessionCatalog } from '../sessions/sessionCatalog'
-import { SessionActions } from '../sessions/sessionActions'
 import { SessionWatcher } from '../sessions/sessionWatcher'
-import { TranscriptService } from '../sessions/transcriptService'
-import { forEachMessageFrom } from '../transcript/transcriptLines'
-import { claudeTaskRoots } from '../sessions/backgroundTaskOutput'
-import { TranscriptReader } from '../transcript/transcriptReader'
-import { WorktreeResolver, createResolverExec } from '../git/worktreeResolver'
-import { BranchOps, createBranchExec } from '../git/branchOps'
-import { MrStatusCache, createMrExec } from '../git/mrStatusCache'
-import { GitService } from '../git/gitService'
-import { SearchIndex } from '../search/searchIndex'
-import { SearchClient } from '../search/searchClient'
-import { SearchService } from '../search/searchService'
-import { TerminalService } from '../terminals/terminalService'
-import { ActiveTabsService } from '../terminals/activeTabsService'
-import { VsCodeService } from '../vscode/vscodeService'
-import { ImageStore } from '../media/imageStore'
-import { ChatManager, type SpawnChat } from '../chat/chatManager'
-import { ChatService } from '../chat/chatService'
+import { type ActiveTabsService } from '../terminals/activeTabsService'
+import { type ChatService } from '../chat/chatService'
 import { ClaudeOneShot } from '../claude/claudeOneShot'
-import { createKnowledge, type KnowledgeParts, type KnowledgePaths } from './knowledgeContainer'
-import { PluginRegistry } from '../plugins/registry'
-import { PluginService } from '../plugins/pluginService'
-import { StatusBarRegistry } from '../statusBar/registry'
-import type { ConsentStorage } from '../statusBar/claudeUsage/consent'
-import type { ChatLifecycle } from '@shared/domain/chat'
+import { type KnowledgeParts } from './knowledgeContainer'
+import { type PluginService } from '../plugins/pluginService'
 import { treeChangeOfPaths } from '@shared/domain/session'
-import type { PluginSettingValues } from '@shared/domain/plugins'
 import { fireAndForget } from '../log/fireAndForget'
-import { ClaudeSessionTracker } from '../claude/claudeSessionTracker'
-import { ptysOnSession, rememberAccounts, trackedProcesses, type TrackerAccounts } from '../claude/trackerAccounts'
-import { PtyDataCoalescer } from '../terminals/ptyDataCoalescer'
-import { ActivityBroadcaster } from '../terminals/activityBroadcaster'
-import { TabMover } from '../windows/tabMover'
 import { closeGraceMs } from '../windows/closeGrace'
 import type { IpcState } from '../ipc/ipcState'
-import type { TabTransfer } from '@shared/types'
 import { SettingsService } from '../settings/settingsService'
 import { createSessionLayoutStore, type SessionLayoutStore } from '../windows/sessionLayoutStore'
 import { createLayoutFlushCoordinator, type LayoutFlushCoordinator } from '../windows/layoutFlushCoordinator'
@@ -61,13 +28,14 @@ import { broadcast } from '../windows/broadcast'
 import { WindowAttachments } from '../windows/windowAttachments'
 import type { PairingStore } from '../remote/pairingStore'
 import type { RemoteServer } from '../remote/remoteServer'
-import type { RemoteClientsFeed } from '../statusBar/remoteClients'
 import type { RemoteWindows } from '../remote/remoteWindows'
 import type { RemoteClientService } from '../remote/remoteClientService'
 import type { HostDirectory } from '../remote/hostDirectory'
 import { createRemoteConnecting, createRemoteServing, realConnectingOutside } from './remoteContainer'
 import { createDriving } from './drivingContainer'
 import { createResidents } from './residentsContainer'
+import { createAppPrivacy,  type PrivacyParts } from './privacyContainer'
+import { withPrivacyTargets } from './privacyTargetsContainer'
 import { createAppSlack } from './slackContainer'
 import { createSchedules, osJobsWanted, type ScheduleParts } from './scheduleContainer'
 import type { VirtualContentsRegistry } from '../remote/virtualContents'
@@ -76,9 +44,10 @@ import type { RuntimeEnv } from './env'
 import { SpellingService } from '../spelling/spellingService'
 import { FolderBrowser } from '../folders/folderBrowser'
 import { LibraryStateService } from '../library/libraryStateService'
-import { AccountService, createAccountsStore } from '../accounts/accountService'
-import { createExec, type ExecFn } from '../exec/run'
+import { type AccountService } from '../accounts/accountService'
 import type { ContainerPaths } from './containerPaths'
+import { createServices } from './servicesContainer'
+import { createIpcState } from './ipcStateContainer'
 
 /**
  * The composition root: every long-lived main-process object and what it is built from.
@@ -109,51 +78,6 @@ export interface ContainerInputs {
   host: string
   appVersion: string
   resourcesDir: string
-}
-
-const ACTIVITY_BROADCAST_MS = 500
-
-export interface IpcStateInputs {
-  pty: PtyManager
-  configRoot: string
-  tabRegistry: TabRegistry | null
-  /** Opens a tab in a window of its own, resolving the new window's number. */
-  openDetachedWindow: (tab: TabTransfer, at: { x: number; y: number }) => number
-  windowNumberFor: (webContentsId: number) => number | null
-  /** Remote windows, which `ptyData` reaches once they attach; none when omitted. */
-  virtualContents?: VirtualContentsRegistry
-  /** Where each account's pid files are, and where a resolved session's account is recorded. */
-  accounts: TrackerAccounts
-}
-
-export function createIpcState(inputs: IpcStateInputs): IpcState {
-  const ptyAttachments = new WindowAttachments((wcId) => webContents.fromId(wcId) ?? inputs.virtualContents?.get(wcId) ?? null)
-  return {
-    sessionTracker: new ClaudeSessionTracker({
-      // Each `claude` writes its pid file under its own account's config folder.
-      processes: () => trackedProcesses(inputs.pty, inputs.configRoot, inputs.accounts),
-      onChange: (sessions) => {
-        rememberAccounts(sessions, inputs.pty, inputs.accounts)
-        broadcast(IPC.ptySessionsChanged, sessions)
-        broadcast(IPC.activeTabsChanged)
-      },
-    }),
-    ptyAttachments,
-    ptyCoalescer: new PtyDataCoalescer({
-      onFlush: (id, data) => { ptyAttachments.sendTo(id, IPC.ptyData, id, data) },
-    }),
-    activity: new ActivityBroadcaster({
-      onBroadcast: () => { broadcast(IPC.activeTabsChanged) },
-      intervalMs: ACTIVITY_BROADCAST_MS,
-    }),
-    tabMover: new TabMover({
-      getWindows: () => BrowserWindow.getAllWindows(),
-      tabRegistry: inputs.tabRegistry,
-      pty: inputs.pty,
-      openDetachedWindow: inputs.openDetachedWindow,
-      windowNumberFor: inputs.windowNumberFor,
-    }),
-  }
 }
 
 export interface Container {
@@ -197,201 +121,14 @@ export interface Container {
   library: LibraryStateService
   knowledge: KnowledgeParts
   accounts: AccountService
+  /** The privacy gate and the service behind the privacy IPC. */
+  privacy: PrivacyParts
   /** The resident agents; `index.ts` starts them once windows can hear them, and disposes of them on quit. */
-  residents: ReturnType<typeof createResidents>; schedules: ScheduleParts; driving: ReturnType<typeof createDriving>; slack: ReturnType<typeof createAppSlack> // `index.ts` starts them once windows can hear them
-}
-
-/** What the session-side services are built from; optional fields default to the app's, so a test names only what it needs. */
-export interface ServicesOptions {
-  configRoot: string
-  dbPath: string
-  /** Where the Claude accounts live: the list file and the folders. Default: beside the database. */
-  accountsFile?: string
-  accountsDir?: string
-  /** The user's home folder: where the main account's Claude JSON sits, and where a login session runs. */
-  homeDir: string
-  /** Test-only: the command runner and platform removing an account's Keychain item goes through. */
-  accountsOutside?: { exec: ExecFn; platform: NodeJS.Platform }
-  /** An account was added, removed or made the default. */
-  onAccountsChanged?: () => void
-  /** A live session's account changed (`sessionAccountsChanged`). */
-  onSessionAccountsChanged?: () => void
-  detectLive?: () => Promise<Map<string, number>>
-  /** A scan outside a refresh pass changed who is live (the throttled follow-up): re-send the tree. */
-  onLiveChanged?: () => void
-  claudeBin?: string
-  autoImportAll?: boolean
-  /** Where images pasted into the composer are written. Defaults beside the database. */
-  imagesDir?: string
-  /** Where the full-text search index lives. Defaults beside the database. */
-  searchDbPath?: string
-  knowledge?: KnowledgePaths
-  /** Whether search also looks inside conversations. */
-  searchChatContent?: boolean
-  searchSessionNotes?: boolean
-  promptPath?: PromptPathOptions
-  /** The zsh startup shim the minimal prompt needs (see pty/promptPath.ts), or none. */
-  zshPromptShim?: string
-  /** Which session-bar plugins are switched on, by plugin id. */
-  plugins?: Record<string, boolean>
-  /** Each plugin's own settings, namespaced by plugin id. */
-  pluginSettings?: Record<string, PluginSettingValues>
-  /** Path to the `glab` executable, for anyone whose install is not on PATH (and for tests). */
-  glabPath?: string
-  /** Path to the `code` CLI, resolved once at startup by `detectVsCode`. Null when none was found. */
-  vsCodePath?: string | null
-  /** Called when a plugin's contribution to a bar changed, so windows can re-read it. */
-  onPluginsChanged?: () => void
-  /** The status bar's items changed (a usage poll landed, a plugin was switched off). */
-  onStatusBarChanged?: () => void
-  /** Which windows show which chat, how every window hears a chat start, move, end or change activity (see `ChatService`). Defaults to no windows. */
-  chat?: { attachments: WindowAttachments; announce: (change: ChatLifecycle) => void; activityChanged: () => void }
-  /** The open tabs the Active section reads. Defaults to none, so a test that shows no tabs needs no registry. */
-  tabs?: Pick<TabRegistry, 'list'>
-  /** Test-only: starts chat processes instead of a login shell running `claude`. */
-  chatSpawn?: SpawnChat
-  /** Let the Claude usage plugin read the macOS Keychain: only against the real `~/.claude`,
-   *  never a test fixture's, since a Keychain read can put a permission prompt on screen. */
-  statusBarKeychain?: boolean; fakeUsage?: string // fakeUsage, test-only (`APIARY_FAKE_USAGE`): the JSON the usage plugin shows in place of the sign-in and the usage endpoint
-  /** Where the usage plugin's consent answer is kept. Omitted: in memory only, so a test is asked, and reads nothing, until it answers. */
-  claudeUsageConsent?: ConsentStorage
-  /** Who is connected to this machine over remote access, for the status bar; omitted where remote access does not exist. */
-  remoteClients?: RemoteClientsFeed
-  /** Remembers a plugin the user's own answer switched off (a declined consent). */
-  persistPluginEnabled?: (pluginId: string, enabled: boolean) => void
-  /** After an index pass that changed something, so a search typed mid-pass can re-query. */
-  onIndexUpdated?: (sessionIds: string[]) => void
-  /** Defaults to `ClaudeProjectsSource` built from `configRoot`. */
-  source?: SessionSource
-  /** Injectable collaborators, defaulting to the real ones. Supplied `plugins` and `statusBar` are used as-is: the built-in plugins are not registered into them. */
-  deps?: {
-    pty?: PtyManager
-    store?: SessionStore
-    plugins?: PluginRegistry
-    statusBar?: StatusBarRegistry
-  }
-}
-
-export interface Services {
-  service: AppService
-  source: SessionSource
-  /** What each open tab is doing, for the Active section. */
-  activeTabs: ActiveTabsService
-  /** The remote server asks it where a session's folder or a mentioned file is. */
-  vscode: VsCodeService
-  /** The session database, shared with the account service for `session_account`. */
-  store: SessionStore
-  /** The Claude accounts; the terminals, the chats and the one-shot calls launch under them. */
-  accounts: AccountService
-  knowledge: KnowledgeParts
-  /** What the session driver creates worktrees and asks for scans through. */
-  git: GitService; catalog: SessionCatalog
-}
-
-/**
- * Builds the session-side services and wires them together. Nothing starts here, so a test builds
- * the graph around a temp directory with `createServices({ configRoot, dbPath })`.
- */
-export function createServices(options: ServicesOptions): Services {
-  const source = options.source ?? new ClaudeProjectsSource(options.configRoot)
-  const pty = options.deps?.pty ?? new PtyManager()
-  const store = options.deps?.store ?? new SessionStore(options.dbPath)
-  const disposed = new DisposedFlag()
-  const dataDir = dirname(options.dbPath)
-  const resolver = new SessionResolver({ store, pty })
-  const worktrees = new WorktreeResolver({ exec: createResolverExec() })
-  const vscode = new VsCodeService({ resolver, vsCodePath: options.vsCodePath ?? null, homeDir: options.homeDir })
-  const images = new ImageStore({ dir: options.imagesDir ?? join(dataDir, 'pasted-images') })
-  const searchDbPath = options.searchDbPath ?? join(dataDir, 'search.db')
-  const search = new SearchService({
-    store,
-    createIndex: () => new SearchIndex(searchDbPath),
-    createClient: () => new SearchClient(searchDbPath),
-    searchChatContent: options.searchChatContent,
-    searchSessionNotes: options.searchSessionNotes,
-    onIndexUpdated: options.onIndexUpdated,
-    isDisposed: () => disposed.disposed,
-  })
-  const homeDir = options.homeDir
-  const accounts = new AccountService({
-    mainRoot: options.configRoot, accountsDir: options.accountsDir ?? join(dataDir, 'accounts'), homeDir,
-    store: createAccountsStore(options.accountsFile ?? join(dataDir, 'accounts.json')),
-    sessions: { get: (id) => store.getSessionAccount(id), set: (id, accountId) => { store.setSessionAccount(id, accountId) } },
-    ...(options.accountsOutside ?? { exec: createExec({ scope: 'accounts' }), platform: process.platform }),
-  })
-  accounts.onChanged(() => { options.onAccountsChanged?.() })
-  const terminals = new TerminalService({
-    pty, resolver, store, worktrees, accounts, homeDir,
-    claudeBin: options.claudeBin,
-    promptPath: options.promptPath,
-    zshPromptShim: options.zshPromptShim,
-  })
-  const catalog = new SessionCatalog({
-    store, source, worktrees,
-    detectLive: options.detectLive,
-    onLiveChanged: options.onLiveChanged,
-    autoImportAll: options.autoImportAll,
-    isDisposed: () => disposed.disposed,
-    updateSearchIndex: (scope) => search.update(scope),
-    afterRefresh: () => { chat.adoptSessions() },
-  })
-  const git = new GitService({
-    resolver,
-    glabPath: options.glabPath,
-    branchOps: new BranchOps({ exec: createBranchExec() }),
-    mrStatus: new MrStatusCache({ exec: createMrExec() }),
-    refreshProject: (cwd) => catalog.refreshProject(cwd),
-    startSessionIn: (folder) => terminals.newSessionInFolder(folder),
-  })
-  const actions = new SessionActions({ store, source, resolver, catalog, search, pty, worktrees })
-  const transcripts = new TranscriptService({
-    resolver, store, reader: new TranscriptReader(), readFrom: forEachMessageFrom, taskOutputRoots: claudeTaskRoots(source.watchDir),
-  })
-  const chats: ChatManager = new ChatManager({
-    claudeBin: () => terminals.getClaudeBin() ?? undefined,
-    accounts,
-    onChange: (state) => { chat.onChanged(state) },
-    spawn: options.chatSpawn,
-  })
-  const chat: ChatService = new ChatService({
-    chats, pty, resolver, store, terminals, catalog, transcripts, accounts, aside: () => new ClaudeOneShot({ claudeBin: () => terminals.getClaudeBin() }),
-    sessionAccountsChanged: () => { options.onSessionAccountsChanged?.() },
-    configRoot: options.configRoot, terminalsOn: (sessionId) => ptysOnSession(pty, options.configRoot, accounts, sessionId),
-    attachments: options.chat?.attachments ?? new WindowAttachments(() => null),
-    announce: options.chat?.announce ?? (() => {}),
-    activityChanged: options.chat?.activityChanged ?? (() => {}),
-  })
-  const plugins = new PluginService({
-    plugins: options.deps?.plugins ?? new PluginRegistry({ onChanged: () => options.onPluginsChanged?.() }),
-    statusBar: options.deps?.statusBar ?? new StatusBarRegistry({ onChanged: () => options.onStatusBarChanged?.() }),
-    resolver,
-    git,
-    ...(options.deps?.plugins === undefined && options.deps?.statusBar === undefined
-      ? {
-        builtins: {
-          enabled: options.plugins,
-          settings: options.pluginSettings,
-          glabPath: options.glabPath,
-          configRoot: options.configRoot,
-          useKeychain: options.statusBarKeychain ?? false, accounts, fakeUsage: options.fakeUsage,
-          consent: options.claudeUsageConsent,          remoteClients: options.remoteClients,
-          persistEnabled: options.persistPluginEnabled,
-        },
-      }
-      : {}),
-  })
-  const activeTabs = new ActiveTabsService({
-    tabs: options.tabs ?? { list: () => [] },
-    pty,
-    chats: chat,
-    transcripts,
-    now: () => Date.now(),
-  })
-  const service = new AppService({
-    pty, store, git, vscode, images, search, terminals, catalog, actions, transcripts, chat, plugins, disposed,
-  })
-  const knowledge = createKnowledge({ ...options.knowledge, dataDir, store, search, accounts, claudeBin: () => terminals.getClaudeBin() })
-  return { service, source, activeTabs, vscode, store, accounts, knowledge, git, catalog }
+  residents: ReturnType<typeof createResidents>
+  /** Scheduled messages, session driving and Slack: `index.ts` starts them once windows can hear them. */
+  schedules: ScheduleParts
+  driving: ReturnType<typeof createDriving>
+  slack: ReturnType<typeof createAppSlack>
 }
 
 export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: ContainerInputs): Container {
@@ -407,6 +144,8 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     ...(env.closeGraceMs !== undefined ? { closeGraceMs: env.closeGraceMs } : {}),
   })
   const settings = settingsService.get()
+  const { privacy, usageConsent } = createAppPrivacy(settingsService)
+  const privacyGate = privacy.gate
   const fakeLive = env.fakeLive
   const { virtualContents, remotePairing, remoteServer, useVsCode } = createRemoteServing({
     homeDir: inputs.homeDir, host: inputs.host, appVersion: inputs.appVersion, pairingFile: paths.remotePairingFile,
@@ -417,8 +156,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
     accountsFile: paths.accountsFile, accountsDir: paths.accountsDir, homeDir: inputs.homeDir, knowledge: paths,
     onAccountsChanged: () => { broadcast(IPC.accountsChanged, accounts.list()) },
     onSessionAccountsChanged: () => { broadcast(IPC.sessionAccountsChanged, service.chat.liveSessionAccounts()) },
-    autoImportAll: settings.autoImportAll,
-    searchChatContent: settings.searchChatContent, searchSessionNotes: settings.searchSessionNotes,
+    autoImportAll: settings.autoImportAll, searchChatContent: settings.searchChatContent, searchSessionNotes: settings.searchSessionNotes,
     promptPath: { enabled: settings.terminalShortenPath, segments: settings.terminalPathSegments, minimal: settings.terminalMinimalPrompt },
     zshPromptShim: inputs.zshPromptShim, deps: { pty: new PtyManager(undefined, inputs.linkHelper) },
     plugins: settings.plugins,
@@ -432,10 +170,7 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
       announce: (change) => { broadcast(IPC.chatLifecycle, change) }, activityChanged: () => { broadcast(IPC.activeTabsChanged) },
     },
     statusBarKeychain: inputs.statusBarKeychain, fakeUsage: env.fakeUsage,
-    claudeUsageConsent: {
-      load: () => settingsService.get().claudeUsageConsent,
-      save: (state) => { settingsService.patch({ claudeUsageConsent: state }) },
-    },
+    claudeUsageConsent: usageConsent, privacyGate,
     persistPluginEnabled: (pluginId, enabled) => { settingsService.patch({ plugins: { ...settingsService.get().plugins, [pluginId]: enabled } }) },
     onIndexUpdated: () => { broadcast(IPC.treeChanged, { sessions: null }) }, onLiveChanged: () => { broadcast(IPC.treeChanged, { sessions: null }) },
     detectLive: fakeLive !== undefined && fakeLive !== '' ? async () => new Map([[fakeLive, 4242]]) : undefined,
@@ -467,17 +202,34 @@ export function createContainer(env: RuntimeEnv, paths: ContainerPaths, inputs: 
   const petStore = new PetStore(paths.petsFile)
   const petsChanged = (): void => { broadcast(IPC.petsChanged, petService.state()) }
   const petService: PetService = new PetService({ store: petStore, makeRunner, onChanged: petsChanged })
-  const petPlacement = new PetPlacement({ store: petStore, ...petWindowing(windowManager, ipcState.tabMover), arrive: (arrival) => { petService.arrive(arrival) }, changed: petsChanged, graceMs: env.closeGraceMs ?? closeGraceMs(process.platform) })
+  const petPlacement = new PetPlacement({
+    store: petStore,
+    ...petWindowing(windowManager, ipcState.tabMover),
+    arrive: (arrival) => { petService.arrive(arrival) },
+    changed: petsChanged,
+    graceMs: env.closeGraceMs ?? closeGraceMs(process.platform),
+  })
   windowManager.onWindowClosed((number, quitting) => { petPlacement.windowClosed(number, { quitting }) })
-  const spelling = new SpellingService()
+  const spelling = new SpellingService({ privacyGate })
   const folderBrowser = new FolderBrowser({ home: inputs.homeDir })
   const library = new LibraryStateService({
     file: paths.libraryStateFile, moved: settingsService.movedToLibrary(), onChanged: (snapshot) => { broadcast(IPC.libraryStateChanged, snapshot) },
   })
-  return {
-    paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry, windowManager, service, chat: service.chat, plugins: service.plugins, spelling, folderBrowser, ipcState, sessionWatcher, updater,
-    themeStore, themeGenerator, petStore, petService, petPlacement, activeTabs, remoteServer, remotePairing, virtualContents, remoteWindows, remoteClient, hostDirectory, library, accounts, knowledge, residents: createResidents({ settingsService, paths, store, accounts, knowledge, tabRegistry, service, ipcState, windowManager, virtualContents, version: inputs.appVersion, resourcesDir: inputs.resourcesDir }),
-    driving: createDriving({ store, chat: service.chat, git, catalog, tabMover: ipcState.tabMover, virtualContents }),
-    schedules: createSchedules({ paths, os: osJobsWanted(env) ? { homeDir: inputs.homeDir } : null, store, accounts, chat: service.chat, service, model: env.scheduleModel }), slack: createAppSlack(paths, env),
-  }
+  const residents = createResidents({
+    settingsService, paths, store, accounts, knowledge, tabRegistry, service, ipcState, windowManager, virtualContents,
+    version: inputs.appVersion, resourcesDir: inputs.resourcesDir, privacyGate,
+  })
+  const driving = createDriving({ store, chat: service.chat, git, catalog, tabMover: ipcState.tabMover, virtualContents })
+  const schedules = createSchedules({
+    paths, os: osJobsWanted(env) ? { homeDir: inputs.homeDir } : null, store, accounts, chat: service.chat, service,
+    model: env.scheduleModel,
+  })
+  const slack = createAppSlack(paths, env, privacyGate)
+  return withPrivacyTargets({
+    paths, settingsService, sessionLayoutStore, layoutFlushCoordinator, tabRegistry, windowManager, service,
+    chat: service.chat, plugins: service.plugins, spelling, folderBrowser, ipcState, sessionWatcher, updater,
+    themeStore, themeGenerator, petStore, petService, petPlacement, activeTabs, remoteServer, remotePairing,
+    virtualContents, remoteWindows, remoteClient, hostDirectory, library, accounts, knowledge, privacy,
+    residents, driving, schedules, slack,
+  }, store)
 }

@@ -54,11 +54,12 @@ export function PermissionModeSelect({ config, save }: { config: ResidentConfig;
  * How often a kind with a cycle runs it (5 to 60 minutes; the kind's own interval until chosen),
  * when the next one is, and Check now, which runs one through the quick-action path.
  */
-export function CycleField({ config, defaultMinutes, cycle, save }: {
+export function CycleField({ config, defaultMinutes, cycle, save, onOpenSection }: {
   config: ResidentConfig
   defaultMinutes: number
   cycle: ResidentCycle | null
   save: Save
+  onOpenSection: (id: string) => void
 }): JSX.Element {
   // Read when the next time changes, not on every render.
   const nextAt = cycle?.nextAt ?? null
@@ -94,6 +95,27 @@ export function CycleField({ config, defaultMinutes, cycle, save }: {
       {cycle?.running === true
         ? <span className="muted" data-testid={`resident-next-check-${config.id}`}>Checking now</span>
         : next !== null && <span className="muted" data-testid={`resident-next-check-${config.id}`}>{next}</span>}
+      {cycle?.paused === 'consent' && (
+        <span className="muted" data-testid={`resident-cycle-paused-${config.id}`}>
+          Paused: needs your OK in Settings → Privacy{' '}
+          <button className="btn quiet small" onClick={() => { onOpenSection('privacy') }}>Open Privacy</button>
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** The digest waits for the person's OK: say so, with the way to give it. */
+export function DigestPausedLine({ config, paused, onOpenSection }: {
+  config: ResidentConfig
+  paused: 'consent' | 'usage' | null
+  onOpenSection: (id: string) => void
+}): JSX.Element | null {
+  if (paused !== 'consent') return null
+  return (
+    <div className="resident-cycle-row" data-testid={`resident-digest-paused-${config.id}`}>
+      <span className="muted">Digest paused: needs your OK</span>
+      <button className="btn small" data-testid={`resident-digest-paused-open-${config.id}`} onClick={() => { onOpenSection('privacy') }}>Open Privacy</button>
     </div>
   )
 }

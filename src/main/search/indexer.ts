@@ -29,6 +29,8 @@ export interface IndexableSession {
   sessionId: string
   /** Absolute path to the session's JSONL. */
   file: string
+  /** A session the person removed: never indexed, and forgotten if the index still holds it. */
+  archived?: boolean
 }
 
 export interface IndexRunResult {
@@ -111,6 +113,10 @@ export async function runIndexPass(
 
   for (const session of sessions) {
     if (shouldStop()) break
+    if (session.archived === true) {
+      if (index.indexState(session.sessionId) !== undefined) index.forget(session.sessionId)
+      continue
+    }
     let size: number
     let mtimeMs: number
     try {

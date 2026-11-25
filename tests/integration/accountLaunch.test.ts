@@ -6,7 +6,7 @@ import { asSessionId, type AccountId } from '@shared/domain/ids'
 import { ClaudeOneShot } from '../../src/main/claude/claudeOneShot'
 import { buildServices } from '../fixtures/buildService'
 import { makeSession } from '../fixtures/makeSession'
-import type { Services } from '../../src/main/app/container'
+import type { Services } from '../../src/main/app/servicesContainer'
 
 /**
  * Every `claude` Apiary starts runs under an account's environment. The stand-in `claude` writes the

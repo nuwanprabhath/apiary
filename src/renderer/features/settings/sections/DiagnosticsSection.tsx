@@ -5,6 +5,7 @@ import { CheckboxSetting } from '../fields/CheckboxSetting'
 import { clampInt } from '../fields/NumberSetting'
 import { copyText } from '../../../state/clipboard'
 import { readLogStatus } from '../../../state/log'
+import { usePrivacy } from '../../../state/privacyStore'
 import { clearLogs, revealLogFolder } from '../../../state/diagnostics'
 import { logBackgroundFailure } from '../../../ui/fireAndForget'
 
@@ -13,6 +14,14 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${String(bytes)} bytes`
   if (bytes < 1024 * 1024) return `${String(Math.round(bytes / 1024))} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function StrictHint(): JSX.Element {
+  return (
+    <div className="settings-row settings-row-indent">
+      <span className="settings-help" data-testid="diagnostics-strict-hint">Privacy mode keeps logs at most 7 days.</span>
+    </div>
+  )
 }
 
 /**
@@ -24,6 +33,7 @@ export function DiagnosticsSection(
   { draft, patch }: { draft: AppSettingsPayload; patch: (fields: Partial<AppSettingsPayload>) => void },
 ): JSX.Element {
   const [logStatus, setLogStatus] = useState<LogStatusPayload | null>(null)
+  const privacy = usePrivacy()
 
   // Re-read whenever the switch is flipped: the folder does not exist until logging is on, so
   // "where the logs are" changes with the checkbox.
@@ -62,6 +72,8 @@ export function DiagnosticsSection(
           stripped before it is written.
         </span>
       </div>
+
+      {privacy.strict && <StrictHint />}
 
       {draft.diagnosticsEnabled && (
         <div className="settings-row settings-row-indent">

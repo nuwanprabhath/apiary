@@ -30,3 +30,4 @@ topic doc doesn't have to repeat it.
 | [0020](0020-per-session-accounts-are-linked-config-folders.md) | A session's Claude account is a config folder linked back to the main one |
 | [0021](0021-resident-agents-get-tools-over-a-token-scoped-local-mcp-server.md) | Resident agents get Apiary's tools over a token-scoped local MCP server |
 | [0023](0023-update-feeds-are-signed.md) | Update feeds are signed with our own key |
+| [0024](0024-gdpr-strict-mode-and-per-feature-consent.md) | Privacy mode is on by default, and each background feature needs its own consent |

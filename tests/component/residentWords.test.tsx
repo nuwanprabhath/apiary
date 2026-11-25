@@ -59,12 +59,12 @@ const ROWS: { name: string; status: Partial<ResidentStatus> & Pick<ResidentStatu
   },
   {
     name: 'setup needed, with a cycle',
-    status: { state: 'idle', setupNeeded: 'Set the GitLab project', cycle: { everyMinutes: 15, nextAt: null, running: false } },
+    status: { state: 'idle', setupNeeded: 'Set the GitLab project', cycle: { everyMinutes: 15, nextAt: null, running: false, paused: null } },
     words: { pill: '', header: 'idle', working: null, card: { now: 'Idle', checks: 'Every 15 min', setup: 'Set the GitLab project' } },
   },
   {
     name: 'running a check',
-    status: { state: 'working', activity: 'Running mra poll', cycle: { everyMinutes: 5, nextAt: null, running: true } },
+    status: { state: 'working', activity: 'Running mra poll', cycle: { everyMinutes: 5, nextAt: null, running: true, paused: null } },
     words: { pill: 'Running mra poll', header: 'Running mra poll', working: 'Running mra poll', card: { now: 'Running mra poll', checks: 'Running a check now' } },
   },
   {

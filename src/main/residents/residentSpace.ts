@@ -1,8 +1,21 @@
+import type { Dirent } from 'node:fs'
+import { lstat, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isRecord } from '@shared/guards'
+import { RESIDENT_ID_RE } from '@shared/settings/residents'
+import { realPathInside } from '../fs/confine'
 import type { ResidentAttention, ResidentMessage } from '@shared/domain/residents'
 import { JsonStore } from '../fs/jsonStore'
 import { ensurePrivateDir, writePrivateJson } from '../fs/atomicWrite'
+
+/** The newest mtime of `path` and everything under it, read with `lstat` so a symlink is never followed. */
+async function newestMtimeMs(path: string): Promise<number> {
+  const info = await lstat(path)
+  if (!info.isDirectory()) return info.mtimeMs
+  let newest = info.mtimeMs
+  for (const name of await readdir(path)) newest = Math.max(newest, await newestMtimeMs(join(path, name)))
+  return newest
+}
 
 /** The visible chat keeps this many messages; claude's own session (`--resume`) keeps the rest. */
 /** How long claude waits on an Apiary tool call: a card stays until the person answers it. */
@@ -115,6 +128,42 @@ export class ResidentSpace {
    * how long claude lets a call sit silent (`timeout`). Without it claude drops a call after 300 s
    * of "no response or progress", which ended a card the person had not answered yet.
    */
+  /** Drops history entries written before `cutoffMs` (epoch); returns how many went. */
+  pruneHistoryOlderThan(cutoffMs: number): number {
+    const messages = this.loadHistory()
+    const kept = messages.filter((m) => m.at >= cutoffMs)
+    if (kept.length !== messages.length) this.saveHistory(kept)
+    return messages.length - kept.length
+  }
+
+  /** Empties the notes and the MR desk's working state (`mra/state`); history goes through the chat's own clear. */
+  async clearNotesAndState(): Promise<void> {
+    this.notesStore.save({ notes: {} })
+    const state = await realPathInside(this.dir, join(this.dir, 'mra', 'state'))
+    if (state !== null) await rm(state, { recursive: true, force: true })
+  }
+
+  /**
+   * Removes every `<id>/` folder under `root` that no live resident owns. Only a resident-shaped
+   * name, only a real directory (a symlink is never followed), only inside `root` by real path, and
+   * only when nothing in it was modified at or after `untouchedSinceMs` (epoch): a misread of the
+   * settings, or a resident removed and added back, must not cost a live chat. Returns the ids removed.
+   */
+  static async removeOrphans(root: string, liveIds: Set<string>, untouchedSinceMs: number): Promise<string[]> {
+    let entries: Dirent[]
+    try { entries = await readdir(root, { withFileTypes: true }) } catch { return [] }
+    const removed: string[] = []
+    for (const entry of entries) {
+      if (liveIds.has(entry.name) || !RESIDENT_ID_RE.test(entry.name) || !entry.isDirectory()) continue
+      const full = await realPathInside(root, join(root, entry.name))
+      if (full === null || full === (await realPathInside(root, root))) continue
+      if (await newestMtimeMs(full) >= untouchedSinceMs) continue
+      await rm(full, { recursive: true, force: true })
+      removed.push(entry.name)
+    }
+    return removed
+  }
+
   writeMcpConfig(url: string, token: string): string {
     this.ensure()
     const file = join(this.dir, 'mcp.json')

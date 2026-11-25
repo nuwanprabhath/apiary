@@ -7,7 +7,7 @@ import { createDriving } from '../../../src/main/app/drivingContainer'
 import type { SessionEvent } from '../../../src/main/driving/sessionDriver'
 import { buildServices } from '../../fixtures/buildService'
 import { makeSession } from '../../fixtures/makeSession'
-import type { Services } from '../../../src/main/app/container'
+import type { Services } from '../../../src/main/app/servicesContainer'
 
 /** The real services around a temp folder, `claude` being the chat fixture. */
 const FAKE = resolve(__dirname, '../../fixtures/fake-claude-chat.mjs')

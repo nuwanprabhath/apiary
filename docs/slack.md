@@ -17,6 +17,14 @@ Web API (no Socket Mode, no public address), so every machine can use the same S
 Use the same token on every machine and a different channel on each. The token is kept in the operating system's keychain
 (`safeStorage`); a machine with no keychain refuses to save it. It is never shown again, written to `settings.json` or logged.
 
+## What leaves your computer
+
+Apiary sends Slack your session progress, questions and results (what Regent posts with `slack_post`), and reads your
+messages in the channel. Privacy mode (Settings → Privacy, on by default) keeps this off until you allow it: the Slack
+section says "Waiting for your OK in Settings → Privacy" and Apiary does not poll. Allow "Slack" there after reading its
+disclosure; withdrawing stops the polling and keeps the setup. A Slack that was already on keeps working: the first start
+records that as a `migrated` consent, once. Messages waiting for your `yes` are kept encrypted and for at most 24 hours.
+
 ## What Apiary does
 
 - It checks the channel every 3 s while a task is open or you wrote in the last 5 minutes, otherwise every 10 s, and at

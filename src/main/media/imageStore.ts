@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { realPathInside } from '../fs/confine'
@@ -59,6 +59,39 @@ export class ImageStore {
    * renderer would be a way to exfiltrate any file the app can see. The check is on real paths, so
    * neither `..` nor a symlink placed in the directory can lead out of it (`realPathInside`).
    */
+  /**
+   * Removes images last written before `cutoffMs` (epoch) that `referenced` does not name; returns how
+   * many went. `referenced` is asked only when such an image exists, with the oldest one's mtime: no
+   * file last written before an image existed can name it.
+   */
+  async pruneOlderThan(cutoffMs: number, referenced: (sinceMs: number) => Promise<Set<string>>): Promise<number> {
+    const old: number[] = []
+    await this.remove((_, mtimeMs) => { if (mtimeMs < cutoffMs) old.push(mtimeMs); return false })
+    if (old.length === 0) return 0
+    const keep = await referenced(Math.min(...old))
+    return this.remove((name, mtimeMs) => mtimeMs < cutoffMs && !keep.has(name))
+  }
+
+  /** Removes every pasted image; returns how many went. */
+  async clear(): Promise<number> {
+    return this.remove(() => true)
+  }
+
+  private async remove(doomed: (name: string, mtimeMs: number) => boolean): Promise<number> {
+    let names: string[]
+    try { names = await readdir(this.dir) } catch { return 0 }
+    let removed = 0
+    for (const name of names) {
+      const full = await realPathInside(this.dir, join(this.dir, name))
+      if (full === null) continue
+      const info = await lstat(full)
+      if (!info.isFile() || !doomed(name, info.mtimeMs)) continue
+      await rm(full, { force: true })
+      removed += 1
+    }
+    return removed
+  }
+
   async read(path: string): Promise<{ dataUrl: string } | null> {
     const full = await realPathInside(this.dir, path)
     if (full === null) return null

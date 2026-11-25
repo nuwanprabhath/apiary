@@ -35,12 +35,15 @@ export function expandArgv(argv: readonly string[], ctx: ArgvContext): string[] 
 }
 
 /** Why a cycle prompt is not sent now, or null when it is due to go. */
-export type CycleSkip = 'off duty' | 'busy' | 'permission waiting' | 'setup needed' | null
+export type CycleSkip = 'off duty' | 'busy' | 'permission waiting' | 'setup needed' | 'consent' | null
 
 export function cycleSkip(state: {
   enabled: boolean; onDuty: boolean; busy: boolean; permissionsWaiting: number; setupNeeded: string | null
+  /** Whether Settings → Privacy allows scheduled cycles. */
+  consent: boolean
 }): CycleSkip {
   if (!state.enabled || !state.onDuty) return 'off duty'
+  if (!state.consent) return 'consent'
   if (state.busy) return 'busy'
   if (state.permissionsWaiting > 0) return 'permission waiting'
   if (state.setupNeeded !== null) return 'setup needed'

@@ -48,3 +48,9 @@ export interface TranscriptPage {
  * page identically.
  */
 export const TRANSCRIPT_PAGE_SIZE = 200
+
+/** One step of a find in a transcript: line indexes of matching messages, newest first, and where the next step starts (null at line 0). */
+export interface TranscriptFindResult {
+  indexes: number[]
+  cursor: number | null
+}

@@ -50,7 +50,13 @@ describe('settings', () => {
     // Stated against the defaults themselves rather than a copy of them: a list of every field
     // has to be edited every time a setting is added, which makes an unrelated change look like
     // a failure and teaches whoever sees it to update the expectation without reading it.
-    expect(createSettingsStore(file()).load()).toEqual({ ...DEFAULT_SETTINGS, claudeBin: '/opt/claude' })
+    // A file with no version is an older install, so the v4 migration keeps its default-on GitLab
+    // lookups as a migrated consent.
+    expect(createSettingsStore(file()).load()).toEqual({
+      ...DEFAULT_SETTINGS,
+      claudeBin: '/opt/claude',
+      privacyConsents: { gitlabLookups: { grantedAt: expect.any(Number) as number, source: 'migrated' } },
+    })
   })
 
   it('includes new session-related fields in defaults', () => {

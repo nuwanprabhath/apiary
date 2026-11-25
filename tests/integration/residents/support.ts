@@ -6,9 +6,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { REGENT_KIND } from '@shared/domain/residents'
 import type { DigestLookback, ResidentConfig, ResidentStatus } from '@shared/domain/residents'
-import { ResidentService, type ResidentSettings, type RunCommand } from '../../../src/main/residents/residentService'
+import { ResidentService, type ResidentSettings } from '../../../src/main/residents/residentService'
+import type { RunCommand } from '../../../src/main/residents/quickActionCommand'
 import type { DigestJob, SessionKnowledge } from '../../../src/main/knowledge/types'
 import { kindOf, type ResidentKind } from '../../../src/main/residents/kinds'
+import type { ResidentGate } from '../../../src/main/residents/residentPrivacy'
 
 // Friday 2026-10-30, local time.
 export const FRIDAY = (hh: number, mm = 0): Date => new Date(2026, 9, 30, hh, mm)
@@ -85,7 +87,7 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-export function build(configs: ResidentConfig[], opts: { usage?: number | null; kinds?: Partial<ResidentKind>; run?: RunCommand; knowledge?: SessionKnowledge } = {}) {
+export function build(configs: ResidentConfig[], opts: { usage?: number | null; kinds?: Partial<ResidentKind>; run?: RunCommand; knowledge?: SessionKnowledge; privacyGate?: ResidentGate } = {}) {
   const settings = memorySettings(configs)
   const digest = fakeDigest()
   const changes: ResidentStatus[][] = []
@@ -101,6 +103,7 @@ export function build(configs: ResidentConfig[], opts: { usage?: number | null; 
     spawn: quietChild,
     kindOf: (id) => ({ ...kindOf(id), ...opts.kinds }),
     ...(opts.run !== undefined ? { run: opts.run } : {}),
+    ...(opts.privacyGate !== undefined ? { privacyGate: opts.privacyGate } : {}),
   })
   services.push(service)
   return { service, settings, digest, changes }

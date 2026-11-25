@@ -99,7 +99,7 @@ describe('apiary_status says what the claude was started with', () => {
     const config = configured(kind)
     const self = {
       id: config.id, kind: kind.id, name: 'Desk', enabled: true, state: 'idle' as const, activity: null, onDuty: true, appearance: kind.appearance,
-      digest: null, attention: null, pending: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
+      digest: null, digestPaused: null, attention: null, pending: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
     }
     const report = { self, config, lookback: null, index: null, others: [], now: new Date(0), background: [], keptAwake: [] }
     expect(apiaryStatusText({ ...report, permissions: null })).toContain('Permissions: your claude has not been started yet.')

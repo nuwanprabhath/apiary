@@ -105,7 +105,10 @@ describe('the status bar height', () => {
     await until(() => handle() !== null)
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     try {
+      const before = handle()!.getBoundingClientRect().y
       await drag(handle()!, 0, -10)
+      // The handle rides the bar's top edge: press where it is once the bar has grown, not where it was.
+      await until(() => handle()!.getBoundingClientRect().y <= before - 9)
       const r = handle()!.getBoundingClientRect()
       await mouse.move(r.x + r.width / 2, r.y + 1)
       await mouse.down()

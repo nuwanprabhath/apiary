@@ -133,6 +133,12 @@ export const SEARCH_ENTRIES: readonly SettingEntry[] = [
     keywords: ['token', 'channel', 'bot', 'member', 'instructions', 'connection'], testIds: ['slack-*'],
   },
   {
+    id: 'privacy', section: 'privacy', label: 'Privacy',
+    description: 'Strict privacy mode holds each feature that sends your data off this machine until you agree to it. What each one sends and to whom, and how many days derived data is kept.',
+    keywords: ['privacy', 'gdpr', 'consent', 'strict', 'retention', 'data', 'delete', 'purge', 'export', 'anthropic', 'slack', 'gitlab'],
+    testIds: ['privacy-strict', 'privacy-retention', 'privacy-allow-*', 'privacy-withdraw-*', 'privacy-purge', 'privacy-export', 'privacy-open-plugins', 'privacy-open-updates', 'privacy-consent-*'], keys: ['gdprStrictMode', 'privacyConsents', 'dataRetentionDays'],
+  },
+  {
     id: 'read-other-accounts', section: 'residents', label: 'Let residents read sessions from your other Claude accounts',
     description: 'Off: a resident sees only sessions of the account it runs under. On: residents can search and read sessions you ran under any account.',
     keywords: ['account', 'privacy'], testIds: ['resident-read-other-accounts'], keys: ['readOtherAccounts'],

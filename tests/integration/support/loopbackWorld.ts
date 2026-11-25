@@ -13,13 +13,14 @@ import { addBareRemote, cloneInto, commitFile, git, makeRepoWithWorktree } from 
 import { makeSession } from '../../fixtures/makeSession'
 import { STANDARD_SESSIONS as STD } from '../../fixtures/standard'
 import { buildServices, buildIpcState } from '../../fixtures/buildService'
-import type { Services } from '../../../src/main/app/container'
+import type { Services } from '../../../src/main/app/servicesContainer'
 import { registerIpc } from '../../../src/main/ipc'
 import { RemoteConnection } from '../../../src/main/remote/remoteConnection'
 import { createRemoteConnecting, createRemoteServing } from '../../../src/main/app/remoteContainer'
 import { createResidents } from '../../../src/main/app/residentsContainer'
 import { createSchedules } from '../../../src/main/app/scheduleContainer'
 import { createSlack } from '../../../src/main/app/slackContainer'
+import { createAppPrivacy } from '../../../src/main/app/privacyContainer'
 import { fakeSlack } from '../../fixtures/fakeSlack'
 import { memoryCipher } from '../../fixtures/memoryCipher'
 import { resolveResourcesDir } from '../../../src/main/app/resourcesDir'
@@ -293,6 +294,7 @@ export async function buildLoopbackWorld(
     residents,
     schedules: schedules.service,
     slack,
+    privacy: createAppPrivacy(settings).privacy,
     settings,
     tabRegistry,
     windowNumberFor: (id) => (id === fakeContents.id ? THIS_WINDOW.number : null),

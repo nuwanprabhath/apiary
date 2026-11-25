@@ -155,14 +155,16 @@ export function defineGitClauses(ctx: Ctx): void {
       expect((await names(REPO)).remote).toContain('origin/feature/wt')
     })
 
-    it('brings another branch up to date from where it is checked out, and a folder\'s own branch from its hover card', async () => {
+    it('brings another branch up to date from where it is checked out', async () => {
       await ctx.bridge.outside.advanceRemote()
       await ctx.api.gitFetch(WORKTREE)
       // `main` lives in the other checkout; asking from the worktree still updates it.
       expect(await ctx.api.gitUpdateBranch(WORKTREE, 'main')).toEqual({ commits: 1 })
       expect(await ctx.api.gitStatus(REPO)).toMatchObject({ behind: 0 })
       expect(await ctx.api.gitUpdateBranch(WORKTREE, 'main')).toEqual({ commits: 0 })
+    })
 
+    it('brings a folder\'s own branch up to date from its hover card', async () => {
       await ctx.bridge.outside.advanceRemote()
       ctx.heard.reset()
       expect(await ctx.api.gitPullFolder(ctx.bridge.folders.repo)).toEqual({ commits: 1 })

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
-  mkdtempSync, rmSync, readFileSync, readdirSync, existsSync, writeFileSync, utimesSync,
+  mkdtempSync, rmSync, readFileSync, readdirSync, existsSync, writeFileSync, utimesSync, statSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -181,5 +181,47 @@ describe('a logger that cannot write', () => {
     } finally {
       rmSync(blocked, { force: true })
     }
+  })
+})
+
+describe('a logger in strict privacy mode', () => {
+  const strict = (): void => { on({ strict: () => true }) }
+
+  it('drops content-like fields, whatever their case, but keeps msg', () => {
+    strict()
+    logger.info('app', 'sent', { Text: 'hi', message: 'm', BODY: 'b', prompt: 'p', content: 'c', reply: 'r', query: 'q', count: 3 })
+    const entry = at(lines(), 0)
+    expect(entry).toMatchObject({ count: 3, msg: 'sent' })
+    for (const k of ['Text', 'message', 'BODY', 'prompt', 'content', 'reply', 'query']) expect(entry).not.toHaveProperty(k)
+  })
+
+  it('truncates strings at 200 characters', () => {
+    strict()
+    logger.info('app', 'x', { detail: 'a'.repeat(300) })
+    expect(at(lines(), 0).detail).toBe(`${'a'.repeat(200)}…[+100 chars]`)
+  })
+
+  it('pseudonymises host fields with a salt kept in logs/.salt', () => {
+    strict()
+    logger.info('app', 'x', { host: 'box.example.org', hostname: 'box.example.org', remote: 'other' })
+    const entry = at(lines(), 0)
+    expect(entry.host).toMatch(/^host-[0-9a-f]{8}$/)
+    expect(entry.hostname).toBe(entry.host)
+    expect(entry.remote).not.toBe(entry.host)
+    expect(statSync(join(dir, '.salt')).mode & 0o777).toBe(0o600)
+    expect(readFileSync(join(dir, '.salt')).length).toBe(32)
+  })
+
+  it('removes the salt when the logs are cleared', () => {
+    strict()
+    logger.info('app', 'x', { host: 'h' })
+    logger.clear()
+    expect(existsSync(join(dir, '.salt'))).toBe(false)
+  })
+
+  it('leaves fields alone when strict mode is off', () => {
+    on({ strict: () => false })
+    logger.info('app', 'x', { text: 't', host: 'h' })
+    expect(at(lines(), 0)).toMatchObject({ text: 't', host: 'h' })
   })
 })

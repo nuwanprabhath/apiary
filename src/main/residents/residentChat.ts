@@ -263,6 +263,17 @@ export class ResidentChat {
     this.deps.onActivity()
   }
 
+  /** Drops history written before `cutoffMs` (epoch) from memory and disk alike, so the next write cannot bring it back; returns how many went. */
+  pruneOlderThan(cutoffMs: number): number {
+    const kept = this.messages.filter((m) => m.at >= cutoffMs)
+    const dropped = this.messages.length - kept.length
+    if (dropped > 0) {
+      this.messages = kept
+      this.deps.space.saveHistory(kept)
+    }
+    return dropped
+  }
+
   /** Forgets the conversation: the process, the visible history and claude's session id. */
   async clear(): Promise<void> {
     await this.stop()

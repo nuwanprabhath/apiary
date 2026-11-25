@@ -1,6 +1,7 @@
 import { dirname } from 'node:path'
 import type { AppService } from '../../src/main/appService'
-import { createIpcState, createServices, type IpcStateInputs, type Services, type ServicesOptions } from '../../src/main/app/container'
+import { createServices, type Services, type ServicesOptions } from '../../src/main/app/servicesContainer'
+import { createIpcState, type IpcStateInputs } from '../../src/main/app/ipcStateContainer'
 
 /**
  * The session-side services around a temp directory, wired exactly as the app wires them

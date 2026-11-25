@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ResidentConfig } from '@shared/domain/residents'
 import { CYCLE_ACTION_ID, MR_DESK_KIND } from '@shared/domain/residents'
-import type { RunCommand } from '../../../src/main/residents/residentService'
+import type { RunCommand } from '../../../src/main/residents/quickActionCommand'
 import { at } from '../../contract/must'
 import { FRIDAY, build, regent } from './support'
 

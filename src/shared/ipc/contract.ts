@@ -12,29 +12,27 @@
  * imports, so nothing in this file (or `guards.ts`) may import `electron` or `node:*`.
  */
 import {
-  invoke, send, invokeLoose, sendLoose, event, sync, local, type Invoke, type Send, type EventSpec, type Local,
+  invoke, send, invokeLoose, sendLoose, event, sync, local, type Invoke, type Send, type EventSpec,
+  type Local,
 } from './define'
 
-export type { EventSpec }
+export type { EventSpec, TranscriptFindResult }
 import { isMcpRequest, type McpAnswer, type McpRequest } from '../domain/mcp'
 import type { AppWindowInfo } from '../domain/appWindows'
-import { type Guard, str, num, bool, any, obj, opaque, record, anyStr, opt, nullable, arr, tuple } from './guards'
-import { isTerminalRef, type PtyId, type SessionId, type TerminalRef } from '../domain/ids'
-import { isTabTransfer, isWindowLayoutReport, type TabTransfer, type ReportedTab, type WindowLayoutReport, type ActiveTabPayload } from '../domain/tabs'
+import { str, num, bool, any, obj, opaque, record, anyStr, opt, nullable, arr, tuple } from './guards'
+import type { PtyId, SessionId, TerminalRef } from '../domain/ids'
+import {
+  isTabTransfer, isWindowLayoutReport, type TabTransfer, type ReportedTab, type WindowLayoutReport,
+  type ActiveTabPayload,
+} from '../domain/tabs'
 import { isEditCommand, type ContextMenuRequest, type EditCommand } from '../domain/contextMenu'
 import {
-  isGitTarget, isWorktreeCreateRequest, type GitTarget, type CheckoutOutcome, type FolderWorktree, type GitStatus,
-  type GitRefs, type MrState, type WorktreeCreateOptions, type WorktreeCreateRequest,
+  isWorktreeCreateRequest, type GitTarget, type CheckoutOutcome, type FolderWorktree,
+  type GitStatus, type GitRefs, type MrState, type WorktreeCreateOptions, type WorktreeCreateRequest,
 } from '../domain/git'
 import type { RepoWebLocation } from '../mentions/repoWebLocation'
 import type { ProjectNode, DiscoveredSession, ResumeConflict, NewSessionInfo, TreeChange } from '../domain/session'
-import type { TranscriptPage } from '../domain/transcript'
-
-/** One step of a find in a transcript: line indexes of matching messages, newest first, and where the next step starts (null at line 0). */
-export interface TranscriptFindResult {
-  indexes: number[]
-  cursor: number | null
-}
+import type { TranscriptFindResult, TranscriptPage } from '../domain/transcript'
 import type { BackgroundTaskModel, BackgroundTaskOutput } from '../chatTimeline'
 import type { BrowseView } from '../domain/folders'
 import type { AppSettingsPayload } from '../domain/settings'
@@ -46,8 +44,8 @@ import type { PluginInfoPayload, PluginBarItem as PluginBarItemPayload } from '.
 import type { PtySessionInfo, PtySnapshot } from '../domain/pty'
 import type { StatusBarItem, StatusBarPanel } from '../domain/statusBar'
 import {
-  isBackgroundTaskId, isChatDecision, isChatEffort, isChatModel, isChatPermissionMode,
-  type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatPush, type ChatModel, type ChatPermissionMode, type ChatState,
+  isBackgroundTaskId, type ChatDecision, type ChatEffort, type ChatLifecycle, type ChatPush, type ChatModel,
+  type ChatPermissionMode, type ChatState,
   type TerminalBusy, type AsideTurn,
 } from '../domain/chat'
 import type { AppMenuNode } from '../domain/windowChrome'
@@ -56,65 +54,18 @@ import type { SavedTheme, ThemeOptions, ThemeGenerateResult, ThemeState } from '
 import type { PetPatch, PetRecord, PetsState } from '../pets/state'
 import type { VoiceContext } from '../pets/prompt'
 import { isPetPatch, isVoiceContext } from '../pets/ipcGuards'
-import {
-  isResidentKindId, type ResidentConfig, type ResidentKindId, type ResidentKindInfo, type ResidentMessage, type ResidentMessagePush, type ResidentStatus, type SessionHit,
+import type {
+  ResidentConfig, ResidentKindId, ResidentKindInfo, ResidentMessage, ResidentMessagePush, ResidentStatus, SessionHit,
 } from '../domain/residents'
-import { RESIDENT_ID_RE } from '../settings/residents'
-import { isRecord } from '../guards'
-import { SCREEN_SETTING_KEYS, type SettingKey } from '../settings/schema'
 import { isSlackConfigChange, type SlackConfigChange, type SlackStatus } from '../domain/slack'
+import { isPrivacyFeature, isPurgeRequest, type PrivacyFeature, type PrivacyStatus, type PurgeRequest, type PurgeResult } from '../domain/privacy'
 import { isScheduleId, isScheduleRequest, type ScheduleDefault, type ScheduledMessage, type ScheduleRequest, type SchedulesState } from '../domain/schedule'
 import { isPairingCode, isRemoteHost, type RemoteClientInfo, type RemoteHost, type RemoteServerState, type RemoteStatus } from '../domain/remote'
-
-// Boundary guards for branded ids: the one place a string arriving over IPC becomes a branded id.
-// On the wire the ids are plain strings; only `TerminalRef` is an object.
-const sessionIdArg: Guard<SessionId> = (v): v is SessionId => typeof v === 'string'
-const ptyIdArg: Guard<PtyId> = (v): v is PtyId => typeof v === 'string'
-const byteCountArg: Guard<number> = (v): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
-const terminalRefArg: Guard<TerminalRef> = isTerminalRef
-const gitTargetArg: Guard<GitTarget> = isGitTarget
-const residentIdArg: Guard<string> = (v): v is string => typeof v === 'string' && RESIDENT_ID_RE.test(v)
-const residentKindArg: Guard<ResidentKindId> = isResidentKindId
-const residentTextArg: Guard<string> = (v): v is string => typeof v === 'string' && v.length <= 8000
-/** A permission request id (claude's), a quick action's id or an option key: short, printable, no path. */
-const residentTokenArg: Guard<string> = (v): v is string => typeof v === 'string' && /^[\w.:-]{1,200}$/.test(v)
-
-type ChatStartOptions = { takeOver: boolean; model?: ChatModel; permissionMode?: ChatPermissionMode; effort?: ChatEffort }
-const chatStartOptions: Guard<ChatStartOptions> = (v): v is ChatStartOptions => {
-  if (v === null || typeof v !== 'object') return false
-  const o = v as Record<string, unknown>
-  return typeof o.takeOver === 'boolean'
-    && (o.model === undefined || isChatModel(o.model))
-    && (o.permissionMode === undefined || isChatPermissionMode(o.permissionMode))
-    && (o.effort === undefined || isChatEffort(o.effort))
-}
-const chatDecisionArg: Guard<ChatDecision> = isChatDecision
-const chatModelArg: Guard<ChatModel> = isChatModel
-const chatModeArg: Guard<ChatPermissionMode> = isChatPermissionMode
-const chatEffortArg: Guard<ChatEffort> = isChatEffort
-
-const point: Guard<{ x: number; y: number }> = (v): v is { x: number; y: number } =>
-  typeof v === 'object' && v !== null
-  && typeof (v as { x?: unknown }).x === 'number' && typeof (v as { y?: unknown }).y === 'number'
-
-/** A side question's earlier exchange (`chatAside`): two strings, checked element by element. */
-const isAsideTurn: Guard<AsideTurn> = (v): v is AsideTurn =>
-  typeof v === 'object' && v !== null && typeof (v as Record<string, unknown>).question === 'string'
-  && typeof (v as Record<string, unknown>).answer === 'string'
-
-/** A malformed array from a stale renderer would crash `tabs.map` in main, so every element is checked. */
-const isReportedTab: Guard<ReportedTab> = (v): v is ReportedTab => {
-  if (typeof v !== 'object' || v === null) return false
-  const t = v as Record<string, unknown>
-  return typeof t.key === 'string'
-    && (t.view === 'transcript' || t.view === 'terminal')
-    && (t.ptyId === null || typeof t.ptyId === 'string')
-    && (t.label === null || typeof t.label === 'string')
-}
-
-/** An object naming no `screen` setting: how a window's own screen looks is never another machine's to store. */
-const machineSettingsPatch: Guard<Record<string, unknown>> = (v): v is Record<string, unknown> =>
-  isRecord(v) && Object.keys(v).every((k) => !SCREEN_SETTING_KEYS.has(k as SettingKey))
+import {
+  sessionIdArg, ptyIdArg, byteCountArg, terminalRefArg, gitTargetArg, residentIdArg, residentKindArg,
+  residentTextArg, residentTokenArg, chatStartOptions, chatDecisionArg, chatModelArg, chatModeArg,
+  chatEffortArg, point, isAsideTurn, isReportedTab, machineSettingsPatch, type ChatStartOptions,
+} from './argGuards'
 
 export const IPC = {
   // Sessions and the project tree.
@@ -567,6 +518,13 @@ export const IPC = {
   slackConfigure: invoke<[change: SlackConfigChange], SlackStatus>('apiary:slack-configure', tuple(isSlackConfigChange)),
   slackTest: invoke<[], SlackStatus>('apiary:slack-test', tuple()),
   slackChanged: event<[status: SlackStatus]>('apiary:slack-changed'),
+  privacyStatus: invoke<[], PrivacyStatus>('apiary:privacy-status', tuple()),
+  privacyGrant: invoke<[feature: PrivacyFeature], void>('apiary:privacy-grant', tuple(isPrivacyFeature)),
+  privacyRevoke: invoke<[feature: PrivacyFeature, alsoPurge: boolean], void>('apiary:privacy-revoke', tuple(isPrivacyFeature, bool)),
+  privacySetStrict: invoke<[strict: boolean], void>('apiary:privacy-set-strict', tuple(bool)),
+  privacyPurge: invoke<[req: PurgeRequest], PurgeResult>('apiary:privacy-purge', tuple(isPurgeRequest)),
+  privacyExport: invoke<[], string | null>('apiary:privacy-export', tuple()),
+  privacyChanged: event<[status: PrivacyStatus]>('apiary:privacy-changed'),
 } as const
 
 type Spec = typeof IPC

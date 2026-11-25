@@ -19,6 +19,7 @@ const regent: ResidentKind = {
     schedule: { days: [1, 2, 3, 4, 5], start: '09:00', end: '18:00' },
     pauseAboveUsagePercent: 70,
     ...RESIDENT_FIELD_DEFAULTS,
+    digestLookback: { amount: 1, unit: 'months' },
   },
   blurb: 'A chief of staff over every Claude session: finds, opens and answers from them.',
   appearance: { glyph: 'bee', palette: 'gold', animation: 'halo' },

@@ -163,6 +163,37 @@ export class KnowledgeStore {
     return row.n
   }
 
+  /** Erases one session's topics and progress, in one commit. */
+  forget(sessionId: string): void {
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM topics WHERE session_id = ?').run(sessionId)
+      this.db.prepare('DELETE FROM digested WHERE session_id = ?').run(sessionId)
+    })()
+  }
+
+  /** Erases every session not in `live`; returns how many sessions went. */
+  forgetMissing(live: Set<string>): number {
+    const ids = new Set([
+      ...(this.db.prepare('SELECT DISTINCT session_id AS id FROM topics').all() as { id: string }[]).map((r) => r.id),
+      ...(this.db.prepare('SELECT session_id AS id FROM digested').all() as { id: string }[]).map((r) => r.id),
+    ])
+    const doomed = [...ids].filter((id) => !live.has(id))
+    this.db.transaction(() => { for (const id of doomed) this.forget(id) })()
+    return doomed.length
+  }
+
+  /** Erases every session whose digest was last written before `ms` (epoch); returns how many. */
+  forgetOlderThan(ms: number): number {
+    const doomed = (this.db.prepare('SELECT session_id AS id FROM digested WHERE at < ?').all(ms) as { id: string }[]).map((r) => r.id)
+    this.db.transaction(() => { for (const id of doomed) this.forget(id) })()
+    return doomed.length
+  }
+
+  allTopics(): { sessionId: string; topic: SessionTopic }[] {
+    const rows = this.db.prepare(`SELECT ${TOPIC_COLUMNS} FROM topics`).all() as TopicRow[]
+    return rows.map((r) => ({ sessionId: r.sessionId, topic: toTopic(r) }))
+  }
+
   clear(): void {
     this.db.exec('DELETE FROM topics; DELETE FROM digested;')
   }

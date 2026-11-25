@@ -97,7 +97,7 @@ beforeEach(async () => {
   const settings = new SettingsService(join(home, 'settings.json'))
   const ipc = registerIpc({
     senderPolicy: UNCHECKED_SENDERS,
-    router: null, remoteClient: null, hostDirectory: null, remoteServer: null, remotePairing: null,
+    router: null, remoteClient: null, hostDirectory: null, remoteServer: null, remotePairing: null, privacy: null,
     onAutoImportIntervalChange: null, updater: null, sessionLayoutStore: null, layoutFlushCoordinator: null,
     tabRegistry: null, windowNumberFor: null, requireWindowWidth: null, pickFolder: null,
     service,

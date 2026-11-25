@@ -118,6 +118,11 @@ architecture tests. A test goes in the cheapest one that can prove what it claim
     `settled(read)` (`tests/component/helpers.ts`) to let React commit or a layout settle, and
     `stays(check, ms, what)` (`tests/fixtures/stays.ts`, the one file `no-test-sleep` allows) to
     prove nothing happens; a fake clock where the test measures time itself.
+  - A state a test must observe never ends on a wall-clock timer in a fixture or fake: hold it until
+    the test releases it (the "held" background task in `tests/fixtures/fake-claude-chat.mjs` and
+    `tests/component/fake/chat.ts`, `residentHeld` in `tests/component/fake/residents.ts`). A loaded
+    machine misses a 1.5 s window. Likewise a hover or idle delay in the app runs on a fake clock
+    (`paneLayouts.test.tsx`), and a rect is read only after the layout has moved (`statusBarSize`).
   - Never write test output to a fixed path; `test.info().outputPath()` lands in `test-results/`.
 
 ## Running a single spec

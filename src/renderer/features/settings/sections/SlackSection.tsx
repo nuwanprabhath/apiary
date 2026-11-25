@@ -3,6 +3,7 @@ import type { SlackConfigChange, SlackStatus } from '@shared/domain/slack'
 import { errorMessage } from '@shared/errors'
 import { configureSlack, testSlack, useSlack } from '../../../state/slackStore'
 import { ErrorBoundary } from '../../../ui/ErrorBoundary'
+import { usePrivacy } from '../../../state/privacyStore'
 import { Switch } from '../../../ui/Switch'
 
 const SETUP_DOC = 'https://github.com/nuwanprabhath/apiary/blob/main/docs/slack.md'
@@ -106,8 +107,9 @@ function TokenRow({ status, error, onSave }: { status: SlackStatus; error: strin
  * Settings → Slack. Like Accounts, it is not part of the dialog's draft: each change goes to main
  * at once through `configureSlack`. The token is held only in the field until it is sent.
  */
-export function SlackSection(): JSX.Element {
+export function SlackSection({ onOpenSection }: { onOpenSection: (id: string) => void }): JSX.Element {
   const status = useSlack()
+  const privacy = usePrivacy()
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({})
   if (status === null) return <div data-testid="slack-section" />
 
@@ -121,6 +123,15 @@ export function SlackSection(): JSX.Element {
     <ErrorBoundary compact label="Slack settings">
       <div data-testid="slack-section">
         <StatusLine status={status} />
+        {privacy.strict && privacy.consents.slackBridge === undefined && (
+          <div className="settings-row settings-row-indent" data-testid="slack-needs-consent">
+            <span className="settings-help">Waiting for your OK in Settings → Privacy</span>
+            <button className="btn small" data-testid="slack-open-privacy" onClick={() => { onOpenSection('privacy') }}>Open Privacy</button>
+          </div>
+        )}
+        <div className="settings-row settings-row-indent">
+          <span className="settings-help" data-testid="slack-disclosure">Apiary posts session progress to the channel.</span>
+        </div>
         <div className="settings-row settings-row-stacked">
           <div className="resident-field resident-enabled">
             <strong>Take instructions from Slack</strong>

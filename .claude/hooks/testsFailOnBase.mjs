@@ -14,8 +14,25 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 /**
+ * The changed src files that some commit without a `No-Red-Test-Reason:` trailer touched. A trailer
+ * excuses only its own commit's files: one comment-only commit on a branch exempted every feature
+ * commit beside it (the 1.90 privacy branch had two).
+ */
+export function srcNeedingRedTest(src, base, git) {
+  const out = git(['log', '--format=%x01%(trailers:key=No-Red-Test-Reason,valueonly)%x02', '--name-only', `${base}..HEAD`])
+  const unexcused = new Set()
+  for (const chunk of out.split('\x01').slice(1)) {
+    const [trailer = '', rest = ''] = chunk.split('\x02')
+    if (trailer.trim() !== '') continue
+    for (const line of rest.split('\n')) if (line.trim() !== '') unexcused.add(line.trim())
+  }
+  return src.filter((f) => unexcused.has(f))
+}
+
+/**
  * Returns a problem string, or null when the branch's tests are shown to fail on the base (or the
- * check does not apply: no src/ change, no changed test, or a `No-Red-Test-Reason:` trailer).
+ * check does not apply: no src/ change, no changed test, or every changed src file came only from
+ * commits carrying a `No-Red-Test-Reason:` trailer).
  */
 export function testsFailOnBase({ root, base, changed, git }) {
   if (!base) return null
@@ -23,7 +40,7 @@ export function testsFailOnBase({ root, base, changed, git }) {
   const nodeTests = changed.filter((f) => /^tests\/(unit|integration)\/.*\.test\.ts$/.test(f) && !/^tests\/unit\/architecture\//.test(f))
   const componentTests = changed.filter((f) => /^tests\/component\/(?!ui\/).*\.test\.tsx?$/.test(f))
   if (src.length === 0 || nodeTests.length + componentTests.length === 0) return null
-  if (git(['log', '--format=%(trailers:key=No-Red-Test-Reason,valueonly)', `${base}..HEAD`]).trim() !== '') return null
+  if (srcNeedingRedTest(src, base, git).length === 0) return null
 
   const dir = mkdtempSync(join(tmpdir(), 'apiary-red-on-base-'))
   const tree = join(dir, 'tree')

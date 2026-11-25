@@ -5,8 +5,8 @@
 //
 // Per user message it streams a reply, word by word. A message containing "permission" first asks
 // to run a Bash command and waits for the answer; "slow" streams long enough to be interrupted;
-// "background" starts a background task that finishes a moment after the turn, which (as in the
-// real one) starts a turn of its own; "linger" holds the turn open after its reply until a message
+// "background" starts a background task that finishes a moment after the turn (a "held" one only
+// on a `/report-back` message or a SIGUSR2), which (as in the real one) starts a turn of its own; "linger" holds the turn open after its reply until a message
 // joins it or it is interrupted (an interrupt ends it as an interrupted turn). "find" first calls
 // Apiary's `find_sessions` MCP tool, as a resident does; "crash" dies part-way through its reply. A message sent mid-turn joins that turn: it is replayed
 // before the turn's end and answered in it, with one `result` for both. The session id comes from
@@ -121,6 +121,8 @@ async function turn(text) {
   // so this is the chat left busy with nothing running, which only Stop can end; an interrupt with
   // no turn running is answered and nothing more (measured on claude 2.1.302).
   if (text === '/silent') return
+  // Finishes every "held" background task, each with the turn of its own that ends the chat's busy.
+  if (text === '/report-back') { for (const finish of held.splice(0)) finish(); return }
   if (text === '/context') {
     assistant([{ type: 'text', text: '## Context Usage\n\n**Tokens:** 4k / 200k (2%)' }])
     out({ type: 'result', subtype: 'success', is_error: false, session_id: sessionId, modelUsage: {} })
@@ -156,7 +158,7 @@ async function turn(text) {
       message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content: `Command running in background with ID: ${taskId}. Output is being written to: /tmp/${taskId}.output`, is_error: false }] },
     })
     await stream('Started it in the background.')
-    setTimeout(() => {
+    const finish = () => {
       queue = queue.then(async () => {
         // Stopped already (`stop_task`): nothing more comes of it.
         if (!running.delete(taskId)) return
@@ -166,7 +168,9 @@ async function turn(text) {
         await stream('The background task finished.')
         result()
       })
-    }, text.includes('long') ? 600_000 : 1500)
+    }
+    if (text.includes('held')) held.push(finish)
+    else setTimeout(finish, text.includes('long') ? 600_000 : 1500)
   } else if (text.includes('permission')) {
     const toolUseId = `toolu_${randomUUID()}`
     const input = { command: 'echo fake-ran', description: 'Print a marker' }
@@ -214,6 +218,11 @@ function result() {
 process.on('SIGTERM', () => { process.exit(143) })
 
 let queue = Promise.resolve()
+/** "held" background tasks, finished only by a `/report-back` message or a SIGUSR2 (which sends
+ *  no message, so the turn the task starts stays one claude began on its own): a test sees them in
+ *  flight for as long as it needs. */
+const held = []
+process.on('SIGUSR2', () => { for (const finish of held.splice(0)) finish() })
 /** The background tasks running now, as claude lists them in `background_tasks_changed`. */
 const running = new Map()
 createInterface({ input: process.stdin }).on('line', (line) => {

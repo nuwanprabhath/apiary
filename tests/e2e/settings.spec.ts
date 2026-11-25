@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { test, expect } from '@playwright/test'
 import { launchApiary, relaunchApiary, type Harness } from './helpers'
 
@@ -62,6 +64,20 @@ test('the session settings survive a relaunch', { tag: '@smoke' }, async () => {
   await h.page.getByTestId('setting-auto-import-all').check()
   await h.page.getByTestId('setting-auto-import-interval-enabled').check()
   await h.page.getByTestId('setting-interval-preset-15').click()
+
+  // Privacy mode starts on; turning it off asks first, and Cancel keeps it on.
+  await h.page.getByTestId('settings-nav-privacy').click()
+  await expect(h.page.getByTestId('privacy-section')).toBeVisible()
+  await expect(h.page.getByTestId('privacy-strict')).toBeChecked()
+  await h.page.getByTestId('privacy-strict').click()
+  await expect(h.page.getByTestId('privacy-consent-dialog')).toBeVisible()
+  await expect(h.page.getByTestId('privacy-disclosure-backgroundDigest')).toBeVisible()
+  await h.page.getByTestId('privacy-consent-cancel').click()
+  await expect(h.page.getByTestId('privacy-consent-dialog')).toHaveCount(0)
+  await expect(h.page.getByTestId('privacy-strict')).toBeChecked()
+  const settingsFile = join(h.home, 'userdata', 'settings.json')
+  await expect.poll(() => (JSON.parse(readFileSync(settingsFile, 'utf8')) as { gdprStrictMode?: boolean }).gdprStrictMode).toBe(true)
+
   await h.page.getByTestId('settings-save').click()
   await expect(h.page.getByTestId('settings-dialog')).toHaveCount(0)
 

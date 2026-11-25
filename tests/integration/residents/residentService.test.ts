@@ -212,9 +212,9 @@ describe('ResidentService', () => {
     const desk = (over: Partial<ResidentConfig> = {}): ResidentConfig => regent({ id: 'desk', kind: MR_DESK_KIND, ...over })
     const { service, settings } = build([desk()], { kinds: { setup: () => null, prepare: undefined } })
     service.start()
-    expect(at(service.list(), 0).cycle).toEqual({ everyMinutes: 15, nextAt: FRIDAY(12, 15).getTime(), running: false })
+    expect(at(service.list(), 0).cycle).toEqual({ everyMinutes: 15, nextAt: FRIDAY(12, 15).getTime(), running: false, paused: null })
     settings.change([desk({ cycleEveryMinutes: 30 })])
-    expect(at(service.list(), 0).cycle).toEqual({ everyMinutes: 30, nextAt: FRIDAY(12, 30).getTime(), running: false })
+    expect(at(service.list(), 0).cycle).toEqual({ everyMinutes: 30, nextAt: FRIDAY(12, 30).getTime(), running: false, paused: null })
     vi.setSystemTime(FRIDAY(19))
     settings.change([desk({ cycleEveryMinutes: 30 })])
     // Off duty on Friday evening: the first cycle is 30 minutes after Monday 09:00.

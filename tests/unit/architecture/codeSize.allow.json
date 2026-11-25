@@ -1,0 +1,6 @@
+[
+  {
+    "key": "src/shared/ipc/contract.ts",
+    "reason": "The IPC declaration table: one channel per line (name, wire string, argument tuple, guards), long by nature and parsed as one map by scripts/new.mjs, contractCoverage, pathArgs and preloadIsGenerated. Held to the table ceiling instead; max-lines still applies."
+  }
+]

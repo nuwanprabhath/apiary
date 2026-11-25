@@ -91,6 +91,14 @@ export class SlackTasks {
     this.edit(thread, (t) => { t.state = 'done'; t.sessions = []; t.residents = []; t.autoAllow = [] })
   }
 
+  /** Forgets every task and the message text it holds; the connection itself (token, channel, owner) is not here. */
+  clearMessages(): number {
+    const removed = this.tasks.size
+    this.tasks.clear()
+    this.changed()
+    return removed
+  }
+
   onChanged(listener: () => void): () => void {
     this.listeners.add(listener)
     return () => { this.listeners.delete(listener) }

@@ -10,6 +10,7 @@ import type { UsageAccounts } from '../statusBar/claudeUsage/plugin'
 import { usageStandIn } from '../statusBar/claudeUsage/standIn'
 import { UsageFeed } from '../statusBar/claudeUsage/usageFeed'
 import { BUILTIN_PLUGINS } from './builtin'
+import type { PrivacyGate } from '../privacy/privacyGate'
 import type { PluginRegistry } from './registry'
 import type { PluginBarItem, PluginSettingValues } from './types'
 
@@ -35,6 +36,8 @@ interface BuiltinPluginConfig {
   persistEnabled?: (pluginId: string, enabled: boolean) => void
   /** Who is connected over remote access, for the status bar. */
   remoteClients?: RemoteClientsFeed
+  /** What the GitLab plugin asks before it looks a branch up. Omitted in a test without settings. */
+  privacyGate?: PrivacyGate
 }
 
 export interface PluginServiceDeps {
@@ -74,7 +77,7 @@ export class PluginService {
     if (config === undefined) return
     // What the user has set wins over the plugin's own `defaultEnabled`.
     for (const factory of BUILTIN_PLUGINS) {
-      const plugin = factory({ glabPath: config.glabPath })
+      const plugin = factory({ glabPath: config.glabPath, allowed: () => config.privacyGate?.allows('gitlabLookups') ?? true })
       this.plugins.register(plugin, config.enabled?.[plugin.id] ?? plugin.defaultEnabled ?? true)
     }
     for (const factory of BUILTIN_STATUS_BAR_PLUGINS) {

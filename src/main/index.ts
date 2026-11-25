@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, dialog, powerMonitor, session, webContents, type WebContents } from 'electron'
+import { app, BrowserWindow, Menu, dialog, session, webContents, type WebContents } from 'electron'
 import { errorMessage } from '@shared/errors'
 import { randomBytes } from 'node:crypto'
 import { homedir, hostname } from 'node:os'
@@ -9,10 +9,11 @@ import { registerIpc } from './ipc'
 import type { SessionLayoutStore } from './windows/sessionLayoutStore'
 import { type LayoutFlushCoordinator } from './windows/layoutFlushCoordinator'
 import type { TabRegistry } from './windows/tabRegistry'
-import { isRestorable, pruneStaleLive } from './windows/sessionLayoutRestore'
+import { restoreWindows } from './app/restoreWindows'
+import { createAutoImport } from './app/autoImport'
 import { readsClaudeKeychain, resolveConfigRoot } from './app/config'
 import { createContainer } from './app/container'
-import { startDesk } from './desk/desk'
+import { startBackgroundWork } from './app/backgroundWork'
 import { containerPaths } from './app/containerPaths'
 import { resolveResourcesDir } from './app/resourcesDir'
 import { buildMenu } from './app/menu'
@@ -116,12 +117,8 @@ let service: AppService | null = null
 let knowledge: KnowledgeParts | null = null
 let disposeIpc: (() => void) | null = null
 let disposeRemote: (() => Promise<void>) | null = null
-/** Stops every resident's claude and the MCP server. */
-let disposeResidents: (() => Promise<void>) | null = null
-/** Stops the scheduled-message timer and removes `apiary.pid`, so the OS jobs send from then on. */
-let disposeSchedules: (() => void) | null = null
-/** Stops the Slack poller. */
-let disposeSlack: (() => Promise<void>) | null = null
+/** Stops the residents, scheduled messages, the Slack desk and the retention sweeper. */
+let disposeBackground: (() => Promise<void>) | null = null
 /** Quits a background-started app with no window and remote access off; set once remote access starts. */
 let quitIfIdleBackground: () => void = () => {}
 
@@ -201,31 +198,11 @@ let updater: UpdateService | null = null
 let themeGenerator: ThemeGenerator | null = null
 let petService: PetService | null = null
 let resetTheme: (route: string) => void = () => {}
-let autoImportTimer: NodeJS.Timeout | null = null
-
-/**
- * Starts, stops or re-times the periodic rescan, for sessions that appear without a watched file
- * changing (one started in a terminal outside Apiary). Off by default (null interval): every pass
- * shells out to git once per project directory.
- *
- * Re-armed after each run rather than a `setInterval`, so a slow scan is not stacked behind itself.
- */
-function setAutoImportInterval(intervalMinutes: number | null): void {
-  if (autoImportTimer) {
-    clearTimeout(autoImportTimer)
-    autoImportTimer = null
-  }
-  if (intervalMinutes === null || intervalMinutes <= 0) return
-  const scheduleNextRefresh = (): void => {
-    autoImportTimer = setTimeout(() => {
-      // Every window, so a background window's sidebar is not stale.
-      const refresh = service?.refresh().then(() => broadcast(IPC.treeChanged, { sessions: null }))
-      if (refresh) fireAndForget(refresh, 'auto-import')
-      scheduleNextRefresh()
-    }, intervalMinutes * 60 * 1000)
-  }
-  scheduleNextRefresh()
-}
+// Every window, so a background window's sidebar is not stale.
+const setAutoImportInterval = createAutoImport(() => {
+  const refresh = service?.refresh().then(() => broadcast(IPC.treeChanged, { sessions: null }))
+  if (refresh) fireAndForget(refresh, 'auto-import')
+})
 
 /**
  * `npm start` runs the bare Electron binary with no .app bundle, so the Dock shows Electron's
@@ -317,7 +294,12 @@ async function start(): Promise<void> {
   // Before any window exists: each window asks for its theme synchronously as it loads.
   const safeTheme = env.safeTheme
   const ipc = registerIpc({
-    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling, folderBrowser: container.folderBrowser, library: container.library, accounts: container.accounts, residents: container.residents, schedules: container.schedules.service, slack: container.slack, state: container.ipcState, settings: settingsService, router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory, remoteServer: container.remoteServer, remotePairing: container.remotePairing,
+    service, chat: container.chat, plugins: container.plugins, spelling: container.spelling,
+    folderBrowser: container.folderBrowser, library: container.library, accounts: container.accounts,
+    residents: container.residents, schedules: container.schedules.service, slack: container.slack,
+    privacy: container.privacy, state: container.ipcState, settings: settingsService,
+    router: container.remoteWindows, remoteClient: container.remoteClient, hostDirectory: container.hostDirectory,
+    remoteServer: container.remoteServer, remotePairing: container.remotePairing,
     pickFolder: (sender) => pickFolderOver(sender, env.pickFolder),
     onAutoImportIntervalChange: setAutoImportInterval,
     updater,
@@ -380,21 +362,8 @@ async function start(): Promise<void> {
   ) }
   installMenu(container.hostDirectory.snapshot())
   container.hostDirectory.subscribe(installMenu) // rebuilt as the host cache changes
-  // What the file held at launch: no window exists yet to have reported anything since.
-  const stored = container.sessionLayoutStore.snapshot()
-  const records = stored.windows
-    .map((r) => pruneStaleLive(r, (id) => service!.sessionIsResumable(id)))
-    .filter(isRestorable)
-  log.info('window', 'restoring', {
-    saved: stored.windows.map((r) => r.number), restoring: records.map((r) => r.number),
-  })
   if (joining) joinBackground(container.remoteClient)
-  else if (!shouldOpenFirstWindow(launchMode, false)) { /* background: no window until a normal launch */ } else if (records.length === 0) {
-    windowManager.create()
-  } else {
-    windowManager.advanceOpenedTo(Math.max(0, ...records.map((r) => r.number)))
-    for (const record of records) windowManager.create({ restore: record })
-  }
+  else restoreWindows(container, shouldOpenFirstWindow(launchMode, false))
   // Every window the restore will open is open: a pet whose window did not come back goes to one that did.
   container.petPlacement.start()
   container.plugins.startStatusBar()
@@ -403,25 +372,12 @@ async function start(): Promise<void> {
   // Started after the window exists, so the first status push has somewhere to land.
   updater?.start()
   if (updater !== null) fireAndForget(updater.restorePreviousInstall(), 'update')
-  ;[disposeResidents, disposeSchedules, disposeSlack] = [container.residents.start(), startSchedules(container), startDesk({ bridge: container.slack, driver: container.driving, residents: container.residents })]
+  disposeBackground = startBackgroundWork(container)
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) { windowManager!.create(); container.petPlacement.rehome() }
+    if (BrowserWindow.getAllWindows().length > 0) return
+    windowManager!.create()
+    container.petPlacement.rehome()
   })
-}
-
-/** Scheduled messages: the script and the pid the OS jobs check, then the timer; what came due while the machine slept goes at wake. */
-function startSchedules(container: Container): () => void {
-  const { service, jobs } = container.schedules
-  jobs.install(process.pid)
-  fireAndForget(service.start(), 'schedule')
-  const onResume = (): void => { service.resume() }
-  powerMonitor.on('resume', onResume)
-  return () => {
-    powerMonitor.off('resume', onResume)
-    service.dispose()
-    container.driving.dispose()
-    jobs.uninstall()
-  }
 }
 
 // If `start()` throws (a corrupt database, an unwritable userData, a native ABI mismatch) no window
@@ -481,9 +437,7 @@ async function shutdown(): Promise<void> {
     sessionWatcher?.dispose()
     disposeIpc?.()
     await disposeRemote?.()
-    await disposeResidents?.()
-    disposeSchedules?.()
-    await disposeSlack?.()
+    await disposeBackground?.()
     await service?.dispose()
     knowledge?.store.close()
   }

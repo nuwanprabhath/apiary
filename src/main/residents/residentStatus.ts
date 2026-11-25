@@ -36,6 +36,8 @@ export interface Resident {
   holds: { reason: string }[]
   /** The waiting permission request ids last reported to `onPermissions`. */
   permissionsKey: string
+  /** The skip reason last logged for its cycle, so a standing skip is logged once per change. */
+  cycleSkipLogged: string | null
 }
 
 function attentionOf(r: Resident): ResidentAttention | null {
@@ -45,7 +47,7 @@ function attentionOf(r: Resident): ResidentAttention | null {
 
 /** What the renderer sees of a resident now; the one place a `working` status is made to say what it does. */
 export function residentStatus(
-  r: Resident, now: Date, ctx: { digestActivity: string | null; digest: DigestJob | null; pending: ResidentPending | null },
+  r: Resident, now: Date, ctx: { digestActivity: string | null; digest: DigestJob | null; pending: ResidentPending | null; digestPaused: ResidentStatus['digestPaused']; cycleConsent: boolean },
 ): ResidentStatus {
   const onDuty = isOnDuty(r.config.schedule, now)
   const digestActivity = r.kind.digests && r.config.enabled && onDuty ? ctx.digestActivity : null
@@ -68,11 +70,12 @@ export function residentStatus(
     onDuty,
     appearance: r.kind.appearance,
     digest: r.kind.digests && ctx.digest !== null ? ctx.digest.progress() : null,
+    digestPaused: r.kind.digests && r.config.enabled ? ctx.digestPaused : null,
     attention: attentionOf(r),
     pending: r.config.enabled ? ctx.pending : null,
     permissions: r.chat.permissions(),
     quickActions: r.kind.quickActions.map(({ id, label, opensPopup }) => ({ id, label, opensPopup })),
     setupNeeded: r.kind.setup(r.config),
-    cycle: cycleStatus(r.kind, r.config, { nextCycleAt: r.nextCycleAt, running, now }),
+    cycle: cycleStatus(r.kind, r.config, { nextCycleAt: r.nextCycleAt, running, now, consent: ctx.cycleConsent }),
   }
 }

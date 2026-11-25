@@ -29,12 +29,19 @@ export function defineTabClauses(ctx: Ctx): void {
       skipOnRemote(t, ctx.bridge, "the remote window has no window number on the work machine")
       await ctx.api.chatStart(STD.csv.id, { takeOver: false })
       ctx.api.reportTabs([tab(STD.csv.id)])
-      await ctx.api.chatSend(STD.csv.id, 'run a background task')
+      // A held task stays in flight until `/report-back`: one that finished on its own after a
+      // second and a half could be gone before a loaded machine's first poll saw it.
+      await ctx.api.chatSend(STD.csv.id, 'run a held background task')
       await expect.poll(async () => {
         const chat = await ctx.api.chatState(STD.csv.id)
         return chat?.status === 'idle' && (chat.backgroundTasks?.length ?? 0) === 1
       }, { timeout: 5000 }).toBe(true)
       expect((await ctx.api.activeTabs()).find((t) => t.key === STD.csv.id)?.status).toBe('running')
+      await ctx.api.chatSend(STD.csv.id, '/report-back')
+      await expect.poll(async () => {
+        const chat = await ctx.api.chatState(STD.csv.id)
+        return chat?.status === 'idle' && (chat.backgroundTasks?.length ?? 0) === 0
+      }, { timeout: 5000 }).toBe(true)
       await expect.poll(async () => (await ctx.api.activeTabs()).find((t) => t.key === STD.csv.id)?.status, { timeout: 5000 }).toBe('idle')
     })
 

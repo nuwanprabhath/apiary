@@ -15,6 +15,7 @@ export const CARD_LINE_ID: Record<CardLine['label'], string> = {
 /** "Every 15 min · next at 14:45", "Every 15 min · next on Mon 09:15", or "Running a check now". */
 function checksText(cycle: NonNullable<ResidentStatus['cycle']>, now: Date): string {
   if (cycle.running) return 'Running a check now'
+  if (cycle.paused === 'consent') return 'Paused: needs your OK in Settings → Privacy'
   const every = `Every ${String(cycle.everyMinutes)} min`
   if (cycle.nextAt === null) return every
   const at = new Date(cycle.nextAt)

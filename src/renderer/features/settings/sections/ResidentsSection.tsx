@@ -7,7 +7,7 @@ import { useResidents } from '../../../state/residentsStore'
 import {
   addResident, clearRevealedResidentCard, updateResident, useResidentKinds, useRevealedResidentCard,
 } from '../../../state/residentSettings'
-import { CycleField, LookbackField, OptionFields, PermissionModeSelect } from './ResidentCardFields'
+import { CycleField, DigestPausedLine, LookbackField, OptionFields, PermissionModeSelect } from './ResidentCardFields'
 import { clearResident, redigestResident } from '../../../state/residentChat'
 import { openResidentPopup } from '../../../state/residentPopup'
 import { describeError } from '../../../ui/errors'
@@ -151,7 +151,10 @@ function useReveal(id: string): { ref: React.RefObject<HTMLElement | null>; reve
 }
 
 function ResidentCard(
-  { config, kind, status, onConfirm }: { config: ResidentConfig; kind: ResidentKindInfo | undefined; status: ResidentStatus | undefined; onConfirm: (c: Confirming) => void },
+  { config, kind, status, onConfirm, onOpenSection }: {
+    config: ResidentConfig; kind: ResidentKindInfo | undefined; status: ResidentStatus | undefined
+    onConfirm: (c: Confirming) => void; onOpenSection: (id: string) => void
+  },
 ): JSX.Element {
   const { ref, revealed } = useReveal(config.id)
   // Until the kinds arrive, a card is drawn as one that digests, as Regent (the only one before kinds) does.
@@ -188,10 +191,11 @@ function ResidentCard(
       ))}
       {kind !== undefined && kind.cycleMinutes !== null && field(
         'Check every',
-        <CycleField config={config} defaultMinutes={kind.cycleMinutes} cycle={status?.cycle ?? null} save={save} />,
+        <CycleField config={config} defaultMinutes={kind.cycleMinutes} cycle={status?.cycle ?? null} save={save} onOpenSection={onOpenSection} />,
         'Apiary runs a check this often during its hours.',
       )}
       {field('Permissions', <PermissionModeSelect config={config} save={save} />, 'What it may do without asking. Anything else asks in its chat.')}
+      {digests && <DigestPausedLine config={config} paused={status?.digestPaused ?? null} onOpenSection={onOpenSection} />}
       {digests && field('Digest lookback', <LookbackField config={config} save={save} />, 'Older sessions are not digested. Changing this applies on the next pass.')}
       {digests && field('Digest model', (
         <select className="theme-model" data-testid={`resident-digest-model-${config.id}`} value={config.digestModel} onChange={(e) => { save({ digestModel: e.target.value }) }}>
@@ -246,7 +250,7 @@ function ResidentCard(
  * than on the dialog's Save. A list of cards: a kind with no instance offers an Add button, and
  * nothing here assumes there is only one resident.
  */
-export function ResidentsSection(): JSX.Element {
+export function ResidentsSection({ onOpenSection }: { onOpenSection: (id: string) => void }): JSX.Element {
   const configs = useAppSettings().residents
   const statuses = useResidents()
   const [confirming, setConfirming] = useState<Confirming | null>(null)
@@ -296,7 +300,7 @@ export function ResidentsSection(): JSX.Element {
         </div>
       )}
       {configs.map((c) => (
-        <ResidentCard key={c.id} config={c} kind={kinds.find((k) => k.id === c.kind)} status={statuses.find((s) => s.id === c.id)} onConfirm={setConfirming} />
+        <ResidentCard key={c.id} config={c} kind={kinds.find((k) => k.id === c.kind)} status={statuses.find((s) => s.id === c.id)} onConfirm={setConfirming} onOpenSection={onOpenSection} />
       ))}
       {error !== null && <span className="settings-help remote-pairing-error" role="alert">{error}</span>}
       {confirming !== null && <ConfirmDialog confirming={confirming} onCancel={() => { setConfirming(null) }} onOk={confirmed} />}

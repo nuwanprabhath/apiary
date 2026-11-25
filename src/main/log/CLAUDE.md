@@ -21,6 +21,18 @@ Four rules, and they are the feature rather than decoration:
 - **It must never break the app.** Every entry point swallows its own errors. A full disk stops
   logging; it does not stop the thing being logged.
 
+**Redaction rules** (`redactString`): credentials; emails become `[email]`; a `user@host:` or
+`ssh://user@host` remote becomes `[user]@…` (the shared `git@` account is kept); home roots
+(`/Users/<u>`, `/home/<u>`, `/var/home/<u>`, `/root`, `C:\Users\<u>`) become `~`. Keep each rule
+narrow and test its false positive (`tests/unit/redactPrivacy.test.ts`).
+
+**Privacy (strict) mode** (`LoggerOptions.strict`, set by `configureLogging` from `gdprStrictMode`
+on every settings save): fields named `text`, `message`, `body`, `prompt`, `content`, `reply` or
+`query` (any case) are dropped, never the fixed `msg`; strings are cut at 200 characters, not 512;
+`host`, `hostname` and `remote` become `host-<8 hex of sha256(salt + value)>`, the salt 32 random
+bytes in a `.salt` file in the log folder (0600), made with the folder and removed by `clear`. Retention is
+`min(logRetentionDays, 7)` (`effectiveLogRetentionDays`); the stored setting is unchanged.
+
 When adding a log line, ask what a stranger reading this file would need to tell two
 explanations apart — that is the bar the "Open installer" bug set, and failed. The existing lines
 are placed at exactly the points where earlier bugs were invisible: pty spawn/exit and the

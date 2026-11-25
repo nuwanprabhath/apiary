@@ -7,7 +7,10 @@
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { asSessionId, type SessionId } from '@shared/domain/ids'
+import { errorMessage } from '@shared/errors'
 import { moveFile } from '../fs/moveFile'
+import { log } from '../log/logger'
 import type { WorktreeResolver } from '../git/worktreeResolver'
 import type { SessionStore } from '../store/sessionStore'
 import type { SessionSource } from '../sources/claudeProjects'
@@ -24,6 +27,8 @@ export interface SessionActionsDeps {
   search: SearchService
   pty: PtyManager
   worktrees: WorktreeResolver
+  /** Erases what Apiary derived from a removed session (its search chunks, its digests). */
+  forgetDerived: (id: SessionId) => Promise<void>
 }
 
 export class SessionActions {
@@ -70,6 +75,12 @@ export class SessionActions {
       throw new Error('This session is still running — close it before removing it.')
     }
     this.deps.store.setArchived(sessionId, true)
+    // The session stays removed even when erasing its derived data fails; the sweeper retries.
+    try {
+      await this.deps.forgetDerived(asSessionId(sessionId))
+    } catch (e) {
+      log.warn('privacy','could not erase a removed session\'s derived data', { error: errorMessage(e) })
+    }
   }
 
   /**

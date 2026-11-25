@@ -27,7 +27,11 @@ export interface SlackBridgeOptions {
   now?: () => number
   /** Calls `poll` when the machine wakes from sleep; returns how to stop. */
   onResume?: (poll: () => void) => () => void
+  /** Settings → Privacy: the bridge polls only while it allows `slackBridge`. Absent: always. */
+  gate?: { allows(feature: 'slackBridge'): boolean; onChange(listener: () => void): () => void }
 }
+
+export const WAITING_FOR_CONSENT = 'Waiting for your OK in Settings → Privacy.'
 
 const NOTHING_HERE = "Nothing on this machine is set up to act on Slack messages. Turn on Regent in Apiary's settings."
 const ASK_AGAIN = 'I was offline when you sent this. Still want it? Reply yes.'
@@ -38,12 +42,14 @@ export class SlackBridge {
   private readonly api: SlackApi
   private readonly now: () => number
   private readonly onResume: ((poll: () => void) => () => void) | null
+  private readonly gate: SlackBridgeOptions['gate'] | null
   private readonly handlers: { order: number; handler: SlackHandler }[] = []
   private readonly listeners = new Set<(status: SlackStatus) => void>()
   private timer: ReturnType<typeof setTimeout> | null = null
   private running: Promise<void> | null = null
   private started = false
   private stopResume: (() => void) | null = null
+  private stopGate: (() => void) | null = null
   private connection: SlackStatus['connection'] = 'off'
   private error: string | null = null
   private bot: SlackStatus['bot'] = null
@@ -59,6 +65,7 @@ export class SlackBridge {
     this.api = o.api
     this.now = o.now ?? Date.now
     this.onResume = o.onResume ?? null
+    this.gate = o.gate ?? null
     this.tasks = new SlackTasks(o.store.state.tasks, (tasks) => { o.store.update({ tasks }) }, this.now)
     this.tasks.onChanged(() => { this.emit() })
   }
@@ -67,9 +74,12 @@ export class SlackBridge {
     this.started = true
     this.stopResume = this.onResume?.(() => { if (this.started) this.schedule(0) }) ?? null
     void this.store.canStoreToken().then((can) => { this.canStore = can; this.emit() })
+    this.stopGate = this.gate?.onChange(() => { if (this.started) this.restart() }) ?? null
     this.restart()
     return async () => {
       this.started = false
+      this.stopGate?.()
+      this.stopGate = null
       this.stopResume?.()
       this.stopResume = null
       this.clearTimer()
@@ -168,9 +178,18 @@ export class SlackBridge {
     if (!s.enabled) { this.connection = 'off'; this.error = null } else if (!ready) {
       this.connection = 'error'
       this.error = s.token === null ? 'Add the bot token to connect.' : s.channel === null ? 'Choose the channel for this machine.' : 'Enter your Slack member id.'
-    } else { this.connection = 'connecting'; this.error = null }
+    } else if (!this.allowed()) { this.connection = 'off'; this.error = WAITING_FOR_CONSENT } else { this.connection = 'connecting'; this.error = null }
     this.emit()
     if (ready && this.started) this.schedule(0)
+  }
+
+  /** A gate that throws counts as not allowed. */
+  private allowed(): boolean {
+    try {
+      return this.gate?.allows('slackBridge') ?? true
+    } catch {
+      return false
+    }
   }
 
   private clearTimer(): void {
@@ -180,6 +199,7 @@ export class SlackBridge {
 
   private schedule(ms: number): void {
     this.clearTimer()
+    if (!this.allowed()) return
     this.timer = setTimeout(() => {
       this.timer = null
       if (this.running !== null) { this.schedule(1000); return }
@@ -200,6 +220,7 @@ export class SlackBridge {
       this.fail(e)
       delay = e instanceof SlackApiError && e.retryAfterMs !== null ? e.retryAfterMs : FAILURE_POLL_MS
     }
+    if (!this.allowed()) { this.connection = 'off'; this.error = WAITING_FOR_CONSENT }
     this.emit()
     const s = this.store.state
     if (this.started && s.enabled && s.channel !== null) this.schedule(delay)
@@ -212,6 +233,7 @@ export class SlackBridge {
   }
 
   private async poll(): Promise<void> {
+    await this.store.ready()
     const { channel, ownerId } = this.store.state
     if (channel === null) return
     this.bot ??= await this.api.authTest()

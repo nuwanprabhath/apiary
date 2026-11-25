@@ -104,7 +104,7 @@ describe('Settings → Residents', () => {
     expect(el('resident-digest-regent')?.textContent).toContain('Not started yet')
     fake.emit('residentsChanged', [{
       id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: true, state: 'working', activity: null, onDuty: true,
-      appearance: { glyph: 'bee', palette: 'gold', animation: 'halo' }, digest: { done: 612, total: 840 }, attention: null, pending: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
+      appearance: { glyph: 'bee', palette: 'gold', animation: 'halo' }, digest: { done: 612, total: 840 }, digestPaused: null, attention: null, pending: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
     }])
     await until(() => (el('resident-digest-regent')?.textContent ?? '').includes('Digested 612 of 840 sessions'))
   })

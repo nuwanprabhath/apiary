@@ -63,7 +63,7 @@ carry it: `tests/unit/architecture/noTestBuildMarker.test.ts` fails if `package.
 | `apiary.db` (+ `-wal`/`-shm`) | `main/store/` — the session store |
 | `search.db` (+ `-wal`/`-shm`) | `main/search/` — the FTS5 index (derived, rebuildable) |
 | `knowledge.db` (+ `-wal`/`-shm`) | `main/knowledge/` — topic digests; costly to make, so not rebuilt with the search index |
-| `settings.json` | `main/settings.ts` |
+| `settings.json` | `main/settings.ts`. Privacy: `gdprStrictMode` (default true), `privacyConsents` (per feature: when and `user`/`migrated`) and `dataRetentionDays` (default 30, 1 to 3650), all machine settings. The retention sweeper (`main/privacy/retentionSweeper.ts`) enforces the days 60 s after start and every 24 h, in or out of privacy mode |
 | `session-layout.json` | `main/windows/sessionLayoutStore.ts` |
 | `themes.json` | `main/theme/` (`ThemeStore`) |
 | `pets.json` | `main/pets/` (`PetStore`) — whether pets are on, every installed pet, where it stands and the number of the window it is out in (`window`; absent before 1.41, read as unassigned) |
@@ -78,7 +78,8 @@ carry it: `tests/unit/architecture/noTestBuildMarker.test.ts` fails if `package.
 | `scheduled/<id>.vars`, `.running`, `.log`, `.done` | `main/schedule/scheduledJobs.ts` — per schedule: what the script sends (written by Apiary, mode 0600, single-quoted shell variables), and what it records while and after it sends |
 | `apiary.pid` | `main/schedule/scheduledJobs.ts` — this run's pid, written at start and removed at quit; the script sends nothing while it names a live Apiary |
 | `pasted-images/` | `main/` `ImageStore` (chat image attachments) |
-| `logs/` | `main/log/` — only exists once Diagnostics is switched on |
+| `logs/` | `main/log/` — only exists once Diagnostics is switched on. In privacy mode it keeps content keys out, cuts values at 200 characters and holds at most 7 days |
+| the salt file in `logs/` (`.salt`) | `main/log/logger.ts` — mode 0600, the salt of the host pseudonyms in a strict-mode log; removed when the logs are cleared |
 | `<file>.v<N>.bak` | `main/fs/jsonStore.ts` — a copy of a settings, layout, theme or pets file written by a newer Apiary, made once before an older build first rewrites it |
 
 This is the method behind ["Measure before fixing"](debugging.md): read the actual state

@@ -168,6 +168,12 @@ export class SearchService {
     await this.runSearchIndexPass(null)
   }
 
+  /** Erases one session's chunks, refs and note from the index; a removed session's text is not kept. */
+  async forget(sessionId: string): Promise<void> {
+    if (this.indexPass) await this.indexPass
+    this.index().forget(sessionId)
+  }
+
   /** How many sessions are indexed. */
   indexCount(): number {
     return this.searchChatContent ? this.index().count() : 0
@@ -242,10 +248,10 @@ export class SearchService {
     const pass = (async () => {
       try {
         const sessions: IndexableSession[] = ids === null
-          ? this.store.visibleSessions().map((s) => ({ sessionId: s.sessionId, file: s.filePath }))
+          ? this.store.visibleSessions().map((s) => ({ sessionId: s.sessionId, file: s.filePath, archived: s.archived }))
           : ids.flatMap((id) => {
             const s = this.store.getSession(id)
-            return s ? [{ sessionId: s.sessionId, file: s.filePath }] : []
+            return s ? [{ sessionId: s.sessionId, file: s.filePath, archived: s.archived }] : []
           })
         const result = await runIndexPass(
           this.index(), sessions, () => this.isDisposed() || !this.searchChatContent,

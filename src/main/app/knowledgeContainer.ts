@@ -6,6 +6,7 @@ import { KnowledgeService } from '../knowledge/knowledgeService'
 import { KnowledgeStore } from '../knowledge/knowledgeStore'
 import type { SearchService } from '../search/searchService'
 import type { SessionStore } from '../store/sessionStore'
+import type { PrivacyGate } from '../privacy/privacyGate'
 
 export interface KnowledgeParts {
   store: KnowledgeStore
@@ -25,6 +26,8 @@ export interface KnowledgeInputs extends KnowledgePaths {
   search: SearchService
   accounts: AccountService
   claudeBin: () => string | null
+  /** What the digester asks before it sends a transcript. Omitted in a test without settings. */
+  privacyGate?: PrivacyGate
 }
 
 /**
@@ -44,6 +47,7 @@ export function createKnowledge(inputs: KnowledgeInputs): KnowledgeParts {
       })),
       runner: new ClaudeOneShot({ claudeBin: inputs.claudeBin }),
       accounts: inputs.accounts,
+      gateAllows: () => inputs.privacyGate?.allows('backgroundDigest') ?? true,
       residentsDir: inputs.residentsDir ?? join(inputs.dataDir, 'residents'),
     }),
   }

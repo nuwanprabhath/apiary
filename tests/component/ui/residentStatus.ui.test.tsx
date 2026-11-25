@@ -34,7 +34,7 @@ describe('UI: what a resident is doing', () => {
     const { fake } = await renderApp({}, (f) => { withMrDesk(f) })
     await until(() => badge('mr-desk') !== null)
     fake.emit('residentsChanged', [mrDeskStatus('idle', {
-      cycle: { everyMinutes: 15, nextAt: todayAt(14, 45), running: false }, setupNeeded: 'Run `glab auth login` in a terminal',
+      cycle: { everyMinutes: 15, nextAt: todayAt(14, 45), running: false, paused: null }, setupNeeded: 'Run `glab auth login` in a terminal',
     })])
     await reviewUi('resident hover mr desk cycle', { widths: [620, 1000], open: hoverOpen('mr-desk') })
   })
@@ -108,7 +108,7 @@ describe('UI: what a resident is doing', () => {
     await until(() => popup() !== null)
     fake.emit('residentMessage', { residentId: 'mr-desk', message: message('user', 'Run one MR desk cycle.') })
     fake.emit('residentsChanged', [mrDeskStatus('working', {
-      activity: 'Running mra prompt 1559', cycle: { everyMinutes: 15, nextAt: todayAt(14, 45), running: true },
+      activity: 'Running mra prompt 1559', cycle: { everyMinutes: 15, nextAt: todayAt(14, 45), running: true, paused: null },
     })])
     await until(() => popup()!.querySelector('[data-testid="resident-working"]') !== null)
     await reviewUi('resident popup mid-cycle', { widths: [620, 1000], within: popup })

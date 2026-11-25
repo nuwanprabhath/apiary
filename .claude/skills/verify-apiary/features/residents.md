@@ -14,6 +14,11 @@ the user's GitLab merge requests through the bundled `mra`.
   drafts as `resident-pending` at the orb's foot.
 - Hover or focus a badge for its card, `resident-hover-<id>`, with rows `resident-hover-now`,
   `-needs`, `-to-finish` (MR Desk's drafts), `-checks`, `-digest`, `-setup`.
+- In privacy mode (on by default) the digest and the scheduled cycle wait for a grant in Settings
+  → Privacy ([privacy.md](privacy.md)). The card then shows `resident-digest-paused-<id>` ("Digest
+  paused: needs your OK", with `resident-digest-paused-open-<id>` opening Privacy) and the cycle line
+  "Paused: needs your OK in Settings → Privacy"; "Check now" still runs. Seed
+  `gdprStrictMode: false` to see the digest run.
 - Popup: ask in the textbox; Regent answers with session chips (`resident-session-chip`) that open
   the session, and instant matches under your message (`resident-hit`). Permission prompts
   (`resident-permission-allow`/`-deny`); stop, restart (asks while working), clear, close and resize

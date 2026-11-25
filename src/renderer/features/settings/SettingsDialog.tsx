@@ -119,7 +119,7 @@ export function SettingsDialog(
                 <active.Component
                   draft={draft} patch={patch} update={update} plugins={plugins}
                   indexed={indexed} notesIndexed={notesIndexed} rebuilding={rebuilding}
-                  onRebuild={onRebuild} machineHost={machineHost}
+                  onRebuild={onRebuild} machineHost={machineHost} onOpenSection={setSection}
                   // Closed so the login tab is what the person sees; accounts apply at once, not on Save.
                   onLoginStarted={(info) => { onSessionStarted(info); onClose() }}
                 />

@@ -7,7 +7,7 @@ import { asAccountId } from '@shared/domain/ids'
 import { renderApp } from '../renderApp'
 import { until } from '../helpers'
 import type { FakeApiary } from '../fakeApiary'
-import { deskConfig, withDeskFields } from '../residentFixtures'
+import { deskConfig, mrDeskStatus, withDeskFields } from '../residentFixtures'
 import { reviewUi, type UiWidth } from './review'
 
 const regent: ResidentConfig = {
@@ -27,6 +27,18 @@ async function openResidents(residents: ResidentConfig[], arrange?: (fake: FakeA
 
 /** Settings → Residents: the empty section, a card mid-digest, and a long name on an overnight range. */
 describe('UI: Settings → Residents', () => {
+  it('residents: digest and cycle paused for consent', async () => {
+    const { fake } = await openResidents([regent, deskConfig({ project: 'a/b', repoPath: '/x' })])
+    fake.emit('residentsChanged', [
+      { id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: true, state: 'idle', activity: null, onDuty: true,
+        appearance: { glyph: 'bee', palette: 'gold', animation: 'halo' }, digest: null, digestPaused: 'consent', attention: null, pending: null,
+        permissions: [], quickActions: [], setupNeeded: null, cycle: null },
+      mrDeskStatus('idle', { cycle: { everyMinutes: 15, nextAt: null, running: false, paused: 'consent' } }),
+    ])
+    await until(() => document.querySelector('[data-testid="resident-digest-paused-regent"]') !== null)
+    await reviewUi('residents paused for consent', { widths: WIDTHS })
+  })
+
   it('residents: empty with Add Regent', async () => {
     await openResidents([])
     await reviewUi('residents empty', { widths: WIDTHS })
@@ -45,7 +57,7 @@ describe('UI: Settings → Residents', () => {
     const { fake } = await openResidents([regent])
     fake.emit('residentsChanged', [{
       id: 'regent', kind: REGENT_KIND, name: 'Regent', enabled: true, state: 'working', activity: 'Reading', onDuty: true,
-      appearance: { glyph: 'bee', palette: 'gold', animation: 'halo' }, digest: { done: 612, total: 840 }, attention: null, pending: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
+      appearance: { glyph: 'bee', palette: 'gold', animation: 'halo' }, digest: { done: 612, total: 840 }, digestPaused: null, attention: null, pending: null, permissions: [], quickActions: [], setupNeeded: null, cycle: null,
     }])
     await until(() => (document.body.textContent ?? '').includes('Digested 612 of 840 sessions'))
     await reviewUi('residents mid-digest', { widths: WIDTHS })

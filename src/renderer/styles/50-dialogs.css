@@ -840,3 +840,13 @@ button.folder-crumb:hover:not(:disabled) { background: var(--selected); color: v
 .slack-dot { flex: none; width: var(--dot-size); height: var(--dot-size); margin-top: var(--space-xs); border-radius: 50%; background: var(--muted); }
 .slack-dot[data-connection="connected"] { background: var(--accent); }
 .slack-dot[data-connection="error"] { background: var(--danger); }
+
+.privacy-heading { margin: var(--space-xl) 0 var(--space-sm); font-size: 13px; }
+.privacy-row { justify-content: space-between; align-items: center; cursor: default; }
+.privacy-state { color: var(--text); }
+.privacy-check { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-xs) 0; }
+.privacy-disclosures { display: flex; flex-direction: column; gap: var(--space-ml); max-height: 50vh; overflow-y: auto; }
+.privacy-disclosure { display: flex; flex-direction: column; gap: var(--space-xs); overflow-wrap: anywhere; }
+.privacy-purge-items { display: flex; flex-direction: column; }
+.privacy-failures { list-style: none; margin: var(--space-sm) 0 0; padding: 0; overflow-wrap: anywhere; color: var(--danger); }
+.privacy-error { color: var(--danger); }

@@ -14,6 +14,7 @@ import { ResidentsSection } from './sections/ResidentsSection'
 import { SlackSection } from './sections/SlackSection'
 import { UpdatesSection } from './sections/UpdatesSection'
 import { GeneralSection } from './sections/GeneralSection'
+import { PrivacySection } from './sections/PrivacySection'
 import { DiagnosticsSection } from './sections/DiagnosticsSection'
 
 /**
@@ -34,6 +35,7 @@ interface SectionProps {
   onLoginStarted: (info: NewSessionInfo) => void
   /** The work machine's name while the dialog edits its settings from a remote window; null on this machine's. */
   machineHost: string | null
+  onOpenSection: (id: string) => void
 }
 
 export interface Section {
@@ -106,7 +108,7 @@ export const SECTIONS: Section[] = [
     machineOnly: true,
     label: 'Residents',
     blurb: 'Always-on helpers that live in Apiary. Each has its own name, hours and model.',
-    Component: () => <ResidentsSection />,
+    Component: ({ onOpenSection }) => <ResidentsSection onOpenSection={onOpenSection} />,
   },
   {
     id: 'slack',
@@ -114,7 +116,7 @@ export const SECTIONS: Section[] = [
     machineOnly: true,
     label: 'Slack',
     blurb: 'Talk to Regent from a Slack channel. Each machine has its own channel.',
-    Component: () => <SlackSection />,
+    Component: ({ onOpenSection }) => <SlackSection onOpenSection={onOpenSection} />,
   },
   {
     id: 'updates',
@@ -127,6 +129,12 @@ export const SECTIONS: Section[] = [
     label: 'General',
     blurb: 'Where Apiary finds the tools it runs.',
     Component: ({ draft, patch, machineHost }) => <GeneralSection draft={draft} patch={patch} machineHost={machineHost} />,
+  },
+  {
+    id: 'privacy',
+    label: 'Privacy',
+    blurb: 'What Apiary sends off this machine, what it keeps, and how to delete it.',
+    Component: ({ draft, machineHost, onOpenSection }) => <PrivacySection draft={draft} machineHost={machineHost} onOpenSection={onOpenSection} />,
   },
   {
     id: 'accounts',

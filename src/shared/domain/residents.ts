@@ -75,6 +75,8 @@ export interface ResidentCycle {
   nextAt: number | null
   /** Whether the turn running now is a cycle Apiary started. */
   running: boolean
+  /** Set while the scheduled cycle waits for the person's OK in Settings → Privacy; "Check now" still runs. */
+  paused: 'consent' | null
 }
 
 export interface DigestLookback {
@@ -140,6 +142,8 @@ export interface ResidentStatus {
   appearance: ResidentAppearance
   /** Background digest progress, or null for a kind that does not digest. */
   digest: { done: number; total: number } | null
+  /** Why the background digest is held ('consent': waiting for the OK in Settings → Privacy; 'usage': over the usage limit), else null. */
+  digestPaused: 'consent' | 'usage' | null
   /** What it needs the user for, or null. */
   attention: ResidentAttention | null
   /** What waits on the user to finish, or null. */

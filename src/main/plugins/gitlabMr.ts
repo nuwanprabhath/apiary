@@ -26,6 +26,8 @@ export interface GitLabMrOptions {
   exec?: (file: string, args: string[], cwd: string) => Promise<string>
   /** Milliseconds before a lookup is abandoned; a hung CLI must not hold a bar item forever. */
   timeoutMs?: number
+  /** Settings → Privacy: while false, `glab` is never run and only the offline "open the MR form" item shows. A throw counts as false. */
+  allowed?: () => boolean
 }
 
 /** The fields used from `glab mr list --output json`; everything else in the payload is ignored. */
@@ -105,6 +107,14 @@ function itemForNewMergeRequest(
   }
 }
 
+function lookupsAllowed(allowed: (() => boolean) | undefined): boolean {
+  try {
+    return allowed?.() ?? true
+  } catch {
+    return false
+  }
+}
+
 export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarPlugin {
   const glab = options.glabPath ?? 'glab'
   const exec = options.exec ?? defaultExec
@@ -142,6 +152,8 @@ export function createGitLabMrPlugin(options: GitLabMrOptions = {}): SessionBarP
       if (remoteUrl === null) return null
       const remote = parseGitLabRemote(remoteUrl)
       if (remote === null) return null
+
+      if (!lookupsAllowed(options.allowed)) return itemForNewMergeRequest(remote, ctx.branch, targetBranch)
 
       let list: GlabMr[] = []
       try {

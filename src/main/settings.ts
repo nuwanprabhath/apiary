@@ -10,6 +10,8 @@ import { loadResidents } from '@shared/settings/residents'
 import type { ConsentState } from './statusBar/claudeUsage/consent'
 import { DEFAULT_SETTINGS_PAYLOAD } from '@shared/settingsDefaults'
 import type { LibraryPatch } from '@shared/libraryState'
+import { cleanPrivacyConsents, type PrivacyConsents, type PrivacyFeature } from '@shared/domain/privacy'
+import { MR_DESK_KIND, REGENT_KIND } from '@shared/domain/residents'
 
 /**
  * The shape of the stored file, bumped when an existing one needs adjusting as it is read.
@@ -17,7 +19,7 @@ import type { LibraryPatch } from '@shared/libraryState'
  * A changed default reaches nobody otherwise: `saveSettings` writes the whole object, so every
  * settings.json pins every field to its default on the day it was first written.
  */
-export const SETTINGS_VERSION = 3
+export const SETTINGS_VERSION = 4
 
 /**
  * The full stored shape: `AppSettingsPayload` (shared/domain/settings.ts) plus what only main
@@ -66,11 +68,29 @@ export function clampRecentHours(value: unknown): number {
  * Version 1 turns the prompt trim on at one folder; a migration, because `terminalShortenPath:
  * false` is already written down everywhere. It only touches values still exactly the old defaults.
  */
-export function migrateSettings(raw: Partial<AppSettings>): Partial<AppSettings> {
+export function migrateSettings(raw: Partial<AppSettings>, now: number = Date.now()): Partial<AppSettings> {
   const from = raw.schemaVersion ?? 0
   if (from >= SETTINGS_VERSION) return raw
   const moved = withoutMoved(from < 1 ? migrateToV1(raw) : raw)
-  return { ...(from < 3 ? { ...moved, linuxXWayland: false } : moved), schemaVersion: SETTINGS_VERSION }
+  const v3 = from < 3 ? { ...moved, linuxXWayland: false } : moved
+  return { ...migrateToV4(v3, now), schemaVersion: SETTINGS_VERSION }
+}
+
+/**
+ * Version 4 turns strict privacy mode on for everyone. A feature the person had already switched
+ * on themselves keeps running, recorded as a `migrated` consent: an enabled Regent digests and runs
+ * cycles, an enabled MR desk runs cycles, and the GitLab plugin (on by default) keeps looking up
+ * merge requests unless it was switched off. Slack's consent is converted by the Slack container, since `slack.json` is its own file.
+ */
+export function migrateToV4(raw: Partial<AppSettings>, now: number): Partial<AppSettings> {
+  const enabledKinds = new Set(Array.isArray(raw.residents) ? raw.residents.filter((r) => isRecord(r) && r.enabled === true).map((r) => r.kind) : [])
+  const wanted: PrivacyFeature[] = []
+  if (enabledKinds.has(REGENT_KIND)) wanted.push('backgroundDigest', 'residentCycles')
+  if (enabledKinds.has(MR_DESK_KIND)) wanted.push('residentCycles')
+  if (!(isRecord(raw.plugins) && raw.plugins['gitlab-mr'] === false)) wanted.push('gitlabLookups')
+  const consents: PrivacyConsents = cleanPrivacyConsents(raw.privacyConsents)
+  for (const feature of wanted) consents[feature] ??= { source: 'migrated', grantedAt: now }
+  return { ...raw, gdprStrictMode: raw.gdprStrictMode ?? true, privacyConsents: consents }
 }
 
 function migrateToV1(raw: Partial<AppSettings>): Partial<AppSettings> {

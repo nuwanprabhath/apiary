@@ -171,6 +171,8 @@ export interface FakeState {
   slack: SlackStatus
   /** The schedules "Send now" sent, in order. */
   scheduleSent: string[]
+  /** The usage meter's consent answer `privacyStatus` reports; a test sets it. */
+  usageConsent: 'allowed' | 'denied' | 'unasked'
   /** Each resident's chat (`residentHistory`), and the residents answering now. */
   residentHistory: Map<string, ResidentMessage[]>
   residentBusy: Set<string>

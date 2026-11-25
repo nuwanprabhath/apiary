@@ -1,4 +1,5 @@
-import { appendFileSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
+import { createHash, randomBytes } from 'node:crypto'
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ignoreErrors } from '@shared/ignoreErrors'
 import { redact, redactString } from '@shared/redact'
@@ -26,7 +27,15 @@ export interface LoggerOptions {
   maxSizeMb: number
   /** The running user's home, rewritten to `~` in every field. */
   home?: string
+  /** Privacy mode: drops content-like fields, truncates harder and pseudonymises host names. */
+  strict?: () => boolean
 }
+
+/** Field names that could carry what someone wrote; strict mode drops them. `msg` is fixed, never one. */
+const CONTENT_KEY = /^(text|message|body|prompt|content|reply|query)$/i
+const HOST_KEY = /^(host|hostname|remote)$/
+const STRICT_MAX = 200
+const SALT = '.salt'
 
 /** An alias: `LogStatusPayload` is the canonical (shared) name. */
 export type LogStatus = LogStatusPayload
@@ -68,6 +77,34 @@ export class Logger {
     mkdirSync(this.opts.dir, { recursive: true })
     this.activeBytes = this.sizeOf(ACTIVE)
     this.ready = true
+  }
+
+  private saltCache: { dir: string; salt: Buffer } | null = null
+
+  /** The per-installation salt for host pseudonyms, made with the folder; `clear` removes it. */
+  private salt(): Buffer {
+    if (this.saltCache?.dir === this.opts.dir) return this.saltCache.salt
+    const path = join(this.opts.dir, SALT)
+    let salt: Buffer
+    try {
+      salt = readFileSync(path)
+    } catch {
+      salt = randomBytes(32)
+      writeFileSync(path, salt, { mode: 0o600 })
+    }
+    this.saltCache = { dir: this.opts.dir, salt }
+    return salt
+  }
+
+  private strictFields(fields: LogFields): LogFields {
+    const out: LogFields = {}
+    for (const [key, value] of Object.entries(fields)) {
+      if (CONTENT_KEY.test(key)) continue
+      out[key] = HOST_KEY.test(key) && typeof value === 'string'
+        ? `host-${createHash('sha256').update(this.salt()).update(value).digest('hex').slice(0, 8)}`
+        : value
+    }
+    return out
   }
 
   private sizeOf(name: string): number {
@@ -116,12 +153,14 @@ export class Logger {
       this.prepare()
       // `fields` is spread before the fixed keys so a field named "msg" or "scope" (renderer
       // messages carry caller-chosen ones) cannot override the redacted values.
+      const strict = this.opts.strict?.() === true
+      const options = { home: this.opts.home, ...(strict ? { max: STRICT_MAX } : {}) }
       const entry = {
-        ...(redact(fields, { home: this.opts.home }) as LogFields),
+        ...(redact(strict ? this.strictFields(fields) : fields, options) as LogFields),
         ts: new Date().toISOString(),
         level,
-        scope: redactString(scope, { home: this.opts.home }),
-        msg: redactString(message, { home: this.opts.home }),
+        scope: redactString(scope, options),
+        msg: redactString(message, options),
       }
       const line = `${JSON.stringify(entry)}\n`
       const bytes = Buffer.byteLength(line)
@@ -152,6 +191,8 @@ export class Logger {
     for (const file of this.listFiles()) {
       ignoreErrors(() => { rmSync(join(this.opts.dir, file.name), { force: true }) }, 'it can go next time')
     }
+    ignoreErrors(() => { rmSync(join(this.opts.dir, SALT), { force: true }) }, 'it can go next time')
+    this.saltCache = null
     this.activeBytes = 0
   }
 }

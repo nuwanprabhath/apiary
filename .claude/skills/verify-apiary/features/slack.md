@@ -17,6 +17,10 @@ starts sessions, watches them and posts the milestones back to the message's thr
   - the channel (`slack-channel`, `slack-channel-error`) and the owner's member id (`slack-owner`,
     `slack-owner-error`), each saved on Enter or blur; `slack-test` (Test connection) and
     `slack-setup-link` (the guide).
+- Privacy mode holds the poll until Settings → Privacy allows Slack ([privacy.md](privacy.md)):
+  `slack-status` reads `off` with "Waiting for your OK in Settings → Privacy." and the section shows
+  a button to Privacy. A grant starts polling within one reconcile; a revoke stops it and keeps the
+  setup; an already enabled Slack is migrated to a consent once.
 - In Slack: a top-level message from the owner starts a task (an :eyes: reaction), replies in its
   thread belong to it; one older than 15 minutes is asked about first; `stop`, `status`, and
   `allow` / `deny` / `allow all` for a session's permission prompt.

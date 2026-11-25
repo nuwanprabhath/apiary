@@ -182,6 +182,18 @@ describe('ResidentChat', () => {
     expect(ids.size).toBe(1)
   })
 
+  it('a prune while the chat runs is not undone by its next write', async () => {
+    const dir = root()
+    const now = Date.now()
+    new ResidentSpace(dir, 'regent').saveHistory([{ id: 'old', role: 'user', text: 'old', at: now - 40 * 86_400_000, streaming: false }])
+    const { chat: c, space } = chat(dir)
+    await c.send('hello')
+    expect(c.pruneOlderThan(now - 30 * 86_400_000)).toBe(1)
+    await c.send('again')
+    expect(space.loadHistory().map((m) => m.id)).not.toContain('old')
+    expect(c.history().map((m) => m.id)).not.toContain('old')
+  })
+
   it('clear forgets history and sid', async () => {
     const dir = root()
     const { chat: c, pushed, space } = chat(dir)

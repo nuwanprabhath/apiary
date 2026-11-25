@@ -47,12 +47,26 @@ const SECRETS: { pattern: RegExp; as: string }[] = [
   { pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, as: '[redacted-private-key]' },
 ]
 
-/** `/Users/someone/...` and `/home/someone/...`, whoever they are. */
-const HOME_LIKE = /(^|[\s"'(=])(\/(?:Users|home)\/[^/\s"')]+)/g
+/**
+ * Who someone is, in the shapes a log line carries it. A `user@host:` or `ssh://user@host` remote
+ * loses its user, except the shared `git` account every forge uses, which names nobody. Users go
+ * before emails so a remote is not mistaken for an address.
+ */
+const PEOPLE: { pattern: RegExp; as: string }[] = [
+  { pattern: /\b([a-z][a-z0-9+.-]*:\/\/)?(?!git@)\b[A-Za-z0-9._-]+@(?=[A-Za-z0-9.-]+[:/])/g, as: '$1[user]@' },
+  { pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b(?![:/\w.-])/g, as: '[email]' },
+]
+
+/** `/Users/someone/...`, `/home/someone/...`, `/var/home/someone/...` and `/root`, whoever they are. */
+const HOME_LIKE = /(^|[\s"'(=])(\/(?:Users|home|var\/home)\/[^/\s"')]+|\/root\b)/g
+/** `C:\Users\someone`. */
+const WINDOWS_HOME = /(^|[\s"'(=])[A-Za-z]:\\Users\\[^\\\s"']+/g
 
 export interface RedactOptions {
   /** The running user's home directory, rewritten to `~` wherever it appears. */
   home?: string
+  /** Longest string kept; `MAX_STRING` unless a stricter caller asks for less. */
+  max?: number
 }
 
 function escapeRe(value: string): string {
@@ -60,16 +74,17 @@ function escapeRe(value: string): string {
 }
 
 /** Redacts one string: secrets first, then home directories, then length. */
-export function redactString(value: string, { home }: RedactOptions = {}): string {
+export function redactString(value: string, { home, max = MAX_STRING }: RedactOptions = {}): string {
   let out = value
   for (const { pattern, as } of SECRETS) out = out.replace(pattern, as)
+  for (const { pattern, as } of PEOPLE) out = out.replace(pattern, as)
   if (home !== undefined && home !== '') {
     out = out.replace(new RegExp(escapeRe(home), 'g'), '~')
   }
   // Any other account's home directory too: a worktree path from a session recorded on another
   // machine is still somebody's name.
-  out = out.replace(HOME_LIKE, '$1~')
-  return out.length > MAX_STRING ? `${out.slice(0, MAX_STRING)}…[+${String(out.length - MAX_STRING)} chars]` : out
+  out = out.replace(HOME_LIKE, '$1~').replace(WINDOWS_HOME, '$1~')
+  return out.length > max ? `${out.slice(0, max)}…[+${String(out.length - max)} chars]` : out
 }
 
 /**

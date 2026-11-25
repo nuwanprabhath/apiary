@@ -111,14 +111,15 @@ export function defineResidentsClauses(ctx: Ctx): void {
       expect(at(kinds, 0).blurb).not.toBe('')
     })
 
-    it('a new resident has nothing waiting, no attention and no kind actions; a kind not ready says why', async () => {
+    it('a new resident has nothing waiting, no attention and no kind actions, a one-month digest lookback; a kind not ready says why', async () => {
       await ctx.api.residentsAdd(REGENT_KIND)
       await ctx.api.residentsAdd(MR_DESK_KIND)
       const [regent, desk] = await ctx.api.residentsList()
       expect(regent).toMatchObject({ permissions: [], attention: null, quickActions: [], setupNeeded: null })
       expect(desk).toMatchObject({ id: 'mr-desk', setupNeeded: 'Set the GitLab project in Settings', appearance: { glyph: 'honeypot' } })
       const saved = (await ctx.api.settingsGet()).residents[0]
-      expect(saved).toMatchObject({ permissionMode: 'auto', digestLookback: null, options: {} })
+      expect(saved).toMatchObject({ permissionMode: 'auto', digestLookback: { amount: 1, unit: 'months' }, options: {} })
+      expect(at((await ctx.api.settingsGet()).residents, 1).digestLookback).toBeNull()
     })
 
     it('seen, a permission answer for an id not waiting, and a lookback change are accepted; an unknown resident is refused', async () => {

@@ -16,6 +16,7 @@ import { bool, nullable, num, str, type Guard } from '../ipc/guards'
 import { MAX_SEGMENTS } from '../promptPreview'
 import { isBusyAnimationId, isBusyColorId, type BusyAnimationId, type BusyColorId } from '../domain/busyAnimation'
 import type { ResidentConfig } from '../domain/residents'
+import { cleanPrivacyConsents, isPrivacyConsents, type PrivacyConsents } from '../domain/privacy'
 import { constrainResidents, isResidentList } from './residents'
 
 /** What a constraint may need that a pure shared module cannot look up for itself. */
@@ -202,13 +203,19 @@ export const SETTINGS = {
   residents: machine(setting<ResidentConfig[]>({ guard: isResidentList, default: [], constrain: constrainResidents })),
   /** Residents may search and read sessions recorded under any account, not only the account they run under. */
   readOtherAccounts: machine(flag(false)),
+  /** Privacy by default: each automatic processing in `PRIVACY_FEATURES` waits for its own consent. */
+  gdprStrictMode: machine(flag(true)),
+  /** The consents strict mode reads, by feature; an unknown or malformed entry is dropped, never the whole record. */
+  privacyConsents: machine(setting<PrivacyConsents>({ guard: isPrivacyConsents, default: {}, constrain: cleanPrivacyConsents })),
+  /** How long derived data (digests, pasted images, scheduled logs, resident history) is kept. */
+  dataRetentionDays: machine(int(30, 1, 3650)),
 } satisfies Record<string, { scope: SettingScope }>
 
 /** Settings whose control saves them at once, outside the dialog's Save (Themes: Animations, the
  *  working animation, and every Residents card). The dialog's draft still holds what they were when
  *  it opened, so its Save sends these as saved. A control that saves at once writes through
  *  `saveInstantSetting`, which takes only these keys. */
-export const INSTANT_SETTINGS = ['motion', 'busyAnimation', 'busyAnimationColor', 'residents', 'readOtherAccounts'] as const satisfies readonly SettingKey[]
+export const INSTANT_SETTINGS = ['motion', 'busyAnimation', 'busyAnimationColor', 'residents', 'readOtherAccounts', 'gdprStrictMode', 'privacyConsents', 'dataRetentionDays'] as const satisfies readonly SettingKey[]
 export type InstantSettingKey = (typeof INSTANT_SETTINGS)[number]
 
 export type SettingKey = keyof typeof SETTINGS

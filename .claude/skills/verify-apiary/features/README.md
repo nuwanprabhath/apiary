@@ -17,4 +17,5 @@ named in each file; when one stops matching, that spec is the place to look firs
 | Claude accounts | [accounts.md](accounts.md) | `accounts.spec.ts` | `features` (add an account) |
 | Status bar and usage | [status-bar.md](status-bar.md) | `statusBar.spec.ts` | `features` (usage consent), `features-1-89` (a limit hit turning the meter to 100%, the dashboard, size presets, resize mode) |
 | Remote windows | [remote.md](remote.md) | `tests/remote/` (Docker) | `features` (the dialog, on a throwaway ssh config) |
+| Privacy (Settings → Privacy) | [privacy.md](privacy.md) | `settings.spec.ts` (privacy steps in the relaunch test) | none (`tests/component/ui/privacy.ui.test.tsx`) |
 | Slack connection | [slack.md](slack.md) | none (`tests/integration/desk/`) | `features-1-89` (the section and its status, no token) |
