@@ -19,7 +19,11 @@ const RESIDENT = `${R}/tests/fixtures/fake-claude-resident.mjs`
 const send = (c: string) => [({ BrowserWindow }: typeof import('electron'), ch: string) => { BrowserWindow.getAllWindows()[0].webContents.send(ch) }, c] as const
 
 test('sidebar, active, pin, schedule menu, panes, remote dialog', async () => {
-  const h = await launchApiary({ realDefaultTheme: true })
+  // Its own ssh config with one unreachable host: without it the remote dialog lists the
+  // maintainer's real ~/.ssh/config hosts and probes them over ssh.
+  const sshConfig = join(realpathSync(mkdtempSync(join(tmpdir(), 'apiary-verify-ssh-'))), 'config')
+  writeFileSync(sshConfig, 'Host work-box\n  HostName work-box.invalid\n')
+  const h = await launchApiary({ realDefaultTheme: true, sshConfig })
   const p = h.page
   try {
     await importAll(p)
@@ -61,8 +65,9 @@ test('sidebar, active, pin, schedule menu, panes, remote dialog', async () => {
     await shot(p, '3-panes')
 
     await h.app.evaluate(...send('apiary:open-remote-dialog'))
-    await expect(p.getByTestId('remote-hosts')).toBeVisible()
-    note('remote', { pairing: await p.getByTestId('remote-pairing').count(), offer: await p.getByTestId('remote-offer').count() })
+    await expect(p.getByTestId('remote-host-row')).toContainText('work-box')
+    await expect(p.getByTestId('remote-host-status')).toContainText('unreachable', { timeout: 20_000 })
+    note('remote', { hosts: await p.getByTestId('remote-host-row').allTextContents() })
     await shot(p, '4-remote-dialog')
   } finally { await h.close() }
 })

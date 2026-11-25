@@ -10,8 +10,11 @@ under their repo. The search box filters by title and, through the FTS5 index, b
 - Search by title or conversation content (`search-input`); no results shows `sidebar-no-matches`.
 - Hide and show the sidebar (`sidebar-hide`, `sidebar-show`); hidden leaves a rail (`sidebar-rail`).
 - Pinned (`pinned-section`), Recent, Active, folder groups and drag-to-reorder.
-- A row's right-click menu (`sidebar-menu`): Fork, Arrange…, Pin or Unpin (`context-menu-pin` /
-  `context-menu-unpin`), and Move up/down in Pinned for a pinned row.
+- A row's right-click menu (`sidebar-menu`): Fork session, Schedule a message…, Arrange…, Pin or
+  Unpin (`context-menu-pin` / `context-menu-unpin`), and Move up/down in Pinned for a pinned row.
+- A row (and an Active row, a tab and the pane heading) shows the state of an MR its title or note
+  names: `!1267 (merged)` in a status colour (`span.mr-ref[data-state]`, from `glab`; Refresh drops
+  the cached states). `mrStatus.spec.ts` drives it with `tests/fixtures/bin/fake-glab-api.sh`.
 - Where it is kept: pins, groups, folder order, the Pinned/Recent/group collapse and Recent
   dismissals are main's library state, `library-state.json` in userData (a remote window shows the
   work machine's). Folder collapse (`project-toggle`) and the sidebar width are this window's own.
@@ -19,9 +22,8 @@ under their repo. The search box filters by title and, through the FTS5 index, b
 - Pinning: the row menu's `context-menu-pin`/`-unpin` (ids built at runtime in
   `sidebarMenuItems.ts` and `ContextMenu.tsx`), the hover `pin-session-button`, the Pinned section
   (`pinned-section`, collapsed with `pinned-toggle`).
-- The row menu also has Fork session, Schedule a message… and Arrange.
 - The Active section (`active-section`, one `active-tab-row` per open tab, its status dot from the
-  tab's activity); it collapses like Pinned and filters with the search box.
+  tab's activity); it collapses like Pinned and is not filtered by the search box (`activeSection.spec.ts`).
 
 ## How to get to it (user POV)
 
@@ -35,7 +37,7 @@ await importAll(h.page)                       // the import dialog, bypassed
 await h.page.getByTestId('sidebar-refresh').click()
 await expect(h.page.getByTestId('session-item')).toHaveCount(4)
 await h.page.getByTestId('search-input').fill('empty')   // only in a first message, no title
-await expect(h.page.getByTestId('session-item')).toHaveCount(1)
+await expect(h.page.getByTestId('session-item')).toHaveCount(1) // Pinned and Recent rows count too
 await sidebarSession(h.page, 'Fix CSV export bug').click() // opens it in a tab
 ```
 

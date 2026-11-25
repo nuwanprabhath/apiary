@@ -3,8 +3,9 @@
 Opening a session puts it in a tab. Tabs move between pane layouts (halves, thirds and so on)
 through a layout picker. A session gets a terminal (`terminal-session`, its `claude --resume`)
 once it is resumed, and a shell (`terminal-shell`) on demand; main owns both, so they survive moves
-between panes. The pane header is the title alone: its tooltip (and `data-cwd` on `session-title`)
-holds the folder path.
+between panes. The pane header is the title (editable: `session-title-edit`, `session-title-input`,
+with the state of an MR it names): its tooltip (and `data-cwd` on `session-title`) holds the folder
+path.
 
 ## Sub-features
 
@@ -16,8 +17,15 @@ holds the folder path.
   `data-cwd-exists="false"` when the folder is gone) and `view-terminal` with `session-live-dot`
   once it has one. Only one of the two is in the page at a time.
 - Folding a stacked pane: `pane-collapse` at the start of its tab bar (`aria-expanded`); the folded
-  column has `data-folded="true"`, and `data-pane-activity` plus `data-glow` on its `session-card`
-  while a tab inside runs or waits. Only panes with a vertical neighbour have the control.
+  column has `data-folded="true"`, with `data-pane-activity` on the `session-column` and `data-glow`
+  on its `session-card` while a tab inside runs or waits (a pane collapsed sideways to a rail,
+  `pane-rail`, gets them too). Only panes with a vertical neighbour have the fold control.
+- Tabs share the strip: each stops at 200px and shrinks to six letters of title (ellipsized, the
+  whole title in the label's `title`) before the strip scrolls. Then the arrows show
+  (`session-tab-scroll-left` / `-right`, the strip's `data-more-left` / `data-more-right`), and with
+  two or more tabs the all-tabs menu (`session-tab-list` → `tab-list-menu`, a `tab-list-filter`
+  above eight tabs). A tab's right-click menu (`tab-menu`): Account, Fork, Reload, Move into New
+  Window, Arrange…, Pin, Close; a middle click closes it.
 - A working tab: `data-activity` on `session-tab`, and `data-glow="running|waiting"` (the travelling
   border glow, `[data-glow]` in `styles/05-ui.css`).
 - The shell bar is the card's footer (`.shell-card` inside `session-card`); copy-branch
@@ -39,8 +47,9 @@ await h.page.keyboard.type('echo HELLO_$((6*7))\n')       // arithmetic, so the 
 await expect(h.page.getByTestId('terminal-shell')).toContainText('HELLO_42') // typed line can't match
 ```
 
-The picker opens on hover, which can miss while the layout settles; retry it the way
-`openPickerOn` in `paneLayouts.spec.ts` does (`expect(async () => { hover; visible }).toPass()`).
+The picker opens on hover (and on a click of `session-tab-layout`), which can miss while the layout
+settles; retry it the way `openPickerOn` in `paneLayouts.spec.ts` does
+(`expect(async () => { hover; visible }).toPass()`).
 
 Proof: `content`'s `data-preset`, which pane holds which tab, and text still in the shell after a
 move (the pty belongs to main, so output must survive a remount).
@@ -50,5 +59,8 @@ move (the pty belongs to main, so output must survive a remount).
 - Each pane is a `session-column`; the shell panel's height is `bottom-resizer`. After a tab moves,
   `shell-toggle` may need clicking again to show its shell.
 
-- Resume runs the stand-in `claude` (a login shell) unless `claudeBin` says otherwise.
+- Resume runs the stand-in `claude` (it switches to the alternate screen, then runs a login shell)
+  unless `claudeBin` says otherwise.
+- Extra sessions for a drive (`extraSessions`) each need their own `sessionId` and a `firstPrompt`,
+  or the import shows none of them; `drives/features-1-89.verify.ts` opens three long-titled ones.
 - Typing into a terminal needs a click on it first to focus xterm.

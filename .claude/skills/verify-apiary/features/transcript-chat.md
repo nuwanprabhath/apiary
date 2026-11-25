@@ -14,8 +14,8 @@ streams in with tool calls and permission prompts, without starting a terminal.
   `composer-effort` with `composer-effort-<level>`).
 - Folding the box (`composer-collapse`, `aria-expanded`; while folded the textarea is gone and
   `composer-peek` shows "Message Claude…" or the draft's first line, and unfolds with focus in it).
-- The "/" menu's Actions group: "Open in VS Code" (`composer-action-option`), shown only when VS
-  Code is available and the folder exists; it calls `openInVsCode` for the session.
+- "Open in VS Code" in the "/" menu's Actions group (below), shown only when VS Code is available
+  and the folder exists; it calls `openInVsCode` for the session.
 - History: Up on the box's first line recalls the previous message sent to the session (from its
   file, `sentPrompts`), Down on the last line comes forward, past the newest the draft returns
   (`useSentHistory`). The "/" menu takes the arrows first while it is open.
@@ -36,7 +36,14 @@ streams in with tool calls and permission prompts, without starting a terminal.
   to Claude's own commands.
 - `composer-mode`; permission prompts (`chat-permission-allow`/`-deny`); tool calls
   (`chat-tool-in`/`-out`); background tasks (`chat-status-tasks`, "1 background task running", with
-  each agent's model and effort in its popup).
+  each agent's model and effort in its popup; `chat-task-stop`, or Delete, stops one).
+- A message sent while the session works in its terminal is typed into that terminal, and shows as
+  a `chat-queued` row reading "Queued in the terminal" (no Send now) until the file has it.
+- Right-click in the chat: Copy, and "Copy link address" on a link (`context-menu-copy-link`).
+- `/btw <question>`: a side question in its own card (`chat-aside*`); `/mcp`: the servers card
+  (`chat-mcp*`); `/login`: a terminal under the session's account. A session on another account than
+  the default shows `chat-account-pill`.
+- A brand-new session can start in the chat (`pending-chat`, setting `setting-new-sessions-in-chat`).
 
 ## How to get to it (user POV)
 

@@ -51,3 +51,5 @@ rule in `src/shared/pets/brain.ts`.
   `page.mouse.click` at the centre of its `boundingBox()`, never `locator.click()`.
 - The first 3D render takes about a second on a real GPU and longer in software; wait up to 60 s.
 - A pending pet is hidden until its render lands, so `pet` can exist with nothing on screen yet.
+- A failed render gets a new WebGL renderer, and a crashed render worker is replaced; after three
+  crashes 3D is given up until a restart and pets are drawn flat (`render3d/usePetImages.ts`).

@@ -1,16 +1,23 @@
 # Settings
 
 A dialog with a section nav (`settings-nav-<section>`: `sessions`, `search`, `sidebar`, `themes`,
-`terminal`, `pets`, `plugins`, `residents`, `updates`, `general`, `accounts`, `diagnostics`; the ids
-are built at runtime, so grep finds `settings-nav-${id}`). Most sections save with `settings-save`;
-themes, pets, accounts and residents apply at once.
+`terminal`, `pets`, `plugins`, `residents`, `slack`, `updates`, `general`, `accounts`, `diagnostics`;
+the ids are built at runtime, so grep finds `settings-nav-${id}`). Most sections save with
+`settings-save`; themes (and their working-animation rows), pets, accounts, residents and Slack
+apply at once (Slack's fields on Enter or blur). In a remote window, residents and Slack edit the
+work machine's, themes and pets are this screen's, and a machine switch (`settings-machine-switch`)
+says which.
 
 ## Sub-features
 
 - Auto-import, in the Sessions section (`settings-nav-sessions`; `setting-auto-import-all`, `setting-auto-import-interval-enabled`,
   `setting-interval-preset-15`).
 - Search (`setting-search-chat-content`, `search-index-status`, `search-rebuild`).
-- Themes and pets have their own feature files; plugins, updates and diagnostics have none yet.
+- Themes, pets, accounts, residents and Slack have their own feature files; plugins, updates and
+  diagnostics have none yet.
+- General also holds remote access (`setting-remote-access`, `setting-remote-pairing`, see
+  [remote.md](remote.md)), the claude path, the proofing language, the system title bar, chat mode
+  (`setting-transcript-chat`, `setting-new-sessions-in-chat`) and XWayland on Linux.
 - General's "Hide tool calls" (`setting-hide-tool-call-io`) saves to library state
   (`library-state.json`), never `settings.json`; in a remote window it edits the work machine's.
 - Settings search (`settings-search`): matching settings listed under their section headings
@@ -36,7 +43,7 @@ await h.page.getByTestId('settings-save').click()
 ```
 
 Proof: the behaviour the setting changes (search falls back to titles), and `settings.json` in
-`app.getPath('userData')` holding the new value (`schemaVersion` 2). For "Hide tool calls", the
+`app.getPath('userData')` holding the new value (`schemaVersion` 3). For "Hide tool calls", the
 proof is `hideToolCallIo` in `library-state.json`.
 
 ## Gotchas
@@ -44,3 +51,4 @@ proof is `hideToolCallIo` in `library-state.json`.
 - A missing field over IPC means "unchanged" (CLAUDE.md hard rules), so check the file, not only
   the checkbox.
 - `settings-cancel` closes without saving.
+- `setting-interval-preset-15` renders only once `setting-auto-import-interval-enabled` is on.

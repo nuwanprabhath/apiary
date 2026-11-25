@@ -8,10 +8,13 @@ while it is closed (`src/main/schedule/CLAUDE.md`).
 - Dialog (`schedule-text`, `schedule-date`, `schedule-time`, quick picks `schedule-pick-limit`,
   `schedule-pick-hour`, `schedule-pick-tomorrow`; `schedule-save`, `schedule-cancel`,
   `schedule-delete`). Empty text sends "continue"; the default time is five minutes after the usage
-  limit resets (`schedule-source` says where the time came from).
+  limit resets when a reset time is known, else an hour from now (`schedule-source` says where the
+  time came from; `schedule-summary` in the dialog reads "Sends …").
 - `schedule-open-only` shows when no OS scheduler exists: it sends only while Apiary is open.
-- The bar above the message box (`schedule-bar`, `schedule-chip`, `schedule-summary`) with Edit,
-  Send now and Cancel, and notices for messages sent while closed or failed (`schedule-notice`,
+- The bar above the message box (`schedule-bar`, `schedule-chip`; several read "N scheduled
+  messages", a missed one has `data-missed`). Clicking the chip opens `schedule-menu` with Edit, Send
+  now and Cancel (`context-menu-schedule-edit`, `-send-now`, `-cancel`). The sidebar row shows a
+  clock (`session-schedule-mark`). Notices for messages sent while closed or failed (`schedule-notice`,
   `schedule-notice-dismiss`).
 
 ## How to get to it (user POV)

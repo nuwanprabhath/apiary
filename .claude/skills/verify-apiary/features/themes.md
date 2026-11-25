@@ -9,6 +9,11 @@ a new install, "original" the pre-glass look the test suite uses.
 - Reset (`theme-reset`), safe mode (`theme-safe-mode`), View → Reset Theme (menu id `reset-theme`).
 - Effects with a back layer (`theme-effects-back`).
 - All windows switch together.
+- The working animation and its colour (`busy-animation-<id>`, `busy-color-<id>`, `data-active`),
+  saved at once to `settings.json` (`busyAnimation`, `busyAnimationColor`).
+- Describe a theme for Claude to make (`theme-describe`, `theme-generate`), then refine, keep or
+  discard it in the preview bar (`theme-preview-bar`); save, rename and delete themes.
+- A remote window's Settings hides Themes: they belong to the screen.
 
 ## How to get to it (user POV)
 
