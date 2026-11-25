@@ -2,7 +2,7 @@ import type { JSX, ReactNode } from 'react'
 import { accountById, hasSeveralAccounts, useAccounts, useSessionAccount } from '../../state/accountsStore'
 import { sessionOfTabKey } from '../../state/sessionBusy'
 import { CloseIcon } from '../../ui/icons'
-import { MrRefText } from '../../ui/mrRefText'
+import { MrRefText, mrRefPlainText } from '../../ui/mrRefText'
 import { useMrStatuses } from '../../state/useMrStatuses'
 import type { TabTransfer } from '@shared/types'
 import type { SessionTabView } from './paneTypes'
@@ -40,7 +40,9 @@ export function SessionTab(p: Props): JSX.Element {
   const sessionId = sessionOfTabKey(tab.key)
   const account = accountById(accounts, useSessionAccount(sessionId))
   const mrStatuses = useMrStatuses(sessionId, tab.label)
-  const tooltip = hasSeveralAccounts(accounts) && account !== null ? `${tab.label}\nAccount: ${account.label}` : tab.label
+  // What the tab shows, MR states and all, since a tab too narrow for its title ellipsizes it.
+  const shown = mrRefPlainText(tab.label, mrStatuses)
+  const tooltip = hasSeveralAccounts(accounts) && account !== null ? `${shown}\nAccount: ${account.label}` : shown
   return (
     <div
       ref={isActive ? p.activeRef : null}

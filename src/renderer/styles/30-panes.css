@@ -205,12 +205,14 @@
    * read from what is left of it.
    */
   flex: 0 1 auto;
-  /* Its own content at the least: six letters of title (below), its ring, arrange and close.
+  /* Its parts at the least: six letters of title, its ring, the label's padding, arrange and close.
    * Below that a tab says nothing useful ("Fl…"), so the strip scrolls after all — the case of a
    * dozen tabs in a narrow column, where the active tab is kept scrolled into view and the
-   * scrollbar below makes the rest reachable. A fixed 64px left a title two letters long. */
-  min-width: min-content;
-  max-width: 220px;
+   * scrollbar below makes the rest reachable. A fixed 64px left a title two letters long, and
+   * `min-content` was the whole title (a no-wrap title's narrowest is all of it), which beat
+   * `max-width`, so long titles neither shrank nor stopped at the cap. */
+  min-width: calc(6em + var(--control-padding-x) + var(--status-spinner-size) + 2 * var(--space-sm) + var(--space-xs) + 2 * var(--icon-button-size-sm) + 2px);
+  max-width: 200px;
   margin: 3px 0 var(--space-xs);
   position: relative;
   background: transparent;
@@ -267,10 +269,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  /* Shrinks to its ring and the title's six letters (.session-tab-text), no further: 0 here let a
-   * squeezed tab keep two letters of its title. Past that the strip scrolls, and the close button
-   * stays inside its tab. */
-  min-width: auto;
+  /* Shrinks with its tab; the title's own floor (.session-tab-text) keeps six letters of it. */
+  min-width: 0;
   border: 0;
   background: none;
   color: var(--muted);
@@ -296,7 +296,7 @@
   animation: status-spin var(--status-spinner-duration) linear infinite;
 }
 :root[data-motion="reduced"] .session-tab-ring { animation: none; border-color: var(--status-running); border-top-color: color-mix(in sRGB, var(--status-running) var(--status-spinner-track), transparent); }
-/* Six letters of title at the least: the tab's floor (`min-width: min-content` above) is built on it. */
+/* Six letters of title at the least: the tab's floor (`.session-tab` above) is built on it. */
 .session-tab-text { min-width: 6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-tab[data-activity="running"] .session-tab-text { color: var(--status-running); }
 

@@ -511,6 +511,42 @@ describe('session tabs', () => {
     }
   })
 
+  // The maintainer's report: long titles made every tab wide, so the strip scrolled with only two
+  // tabs in view. A no-wrap title's min-content is the whole title, which beat the 220px cap.
+  it('tabs with long titles stop at their cap and shrink to six letters before the strip scrolls', async () => {
+    const { fake } = await renderApp()
+    const long = ['Staging failed to update error', '#2523 generic Org feedback round two', 'Investigate the nightly pets 3D flake', 'MR desk own merge requests']
+    long.forEach((t, i) => { must(fake.state.sessions[i]).title = t })
+    fake.emit('treeChanged')
+    for (const t of long) {
+      await until(() => document.body.textContent?.includes(t) === true)
+      await userEvent.click(sidebarSession(t))
+    }
+    await until(() => all('session-tab').length === 4)
+    const widths = (): number[] => all('session-tab').map((t) => t.getBoundingClientRect().width)
+    // Room for all four at their cap: each stops there.
+    for (const w of widths()) expect(w).toBeLessThanOrEqual(200.5)
+
+    await userEvent.click(page.getByTestId('session-tab-split'))
+    await until(() => all('session-column').length === 2)
+    await userEvent.click(must(all('session-tab-split')[0]))
+    await until(() => all('session-column').length === 3)
+    const column = must(all('session-column').find((c) => within(c, 'session-tab').length >= 3))
+    const strip = column.querySelector<HTMLElement>('.session-tab-strip')!
+    const tabs = within(column, 'session-tab')
+    const floor = Math.min(...tabs.map((t) => t.getBoundingClientRect().width))
+    // Scrolling only once every tab is down to its floor.
+    const scrolls = strip.scrollWidth > strip.clientWidth + 1
+    expect(tabs.filter((t) => scrolls && t.getBoundingClientRect().width >= floor + 1)).toEqual([])
+    for (const tab of tabs) {
+      const text = tab.querySelector<HTMLElement>('.session-tab-text')!
+      expect(text.clientWidth).toBeGreaterThanOrEqual(5 * parseFloat(getComputedStyle(text).fontSize))
+      const box = tab.getBoundingClientRect()
+      const close = must(within(tab, 'session-tab-close')[0]).getBoundingClientRect()
+      expect(close.x + close.width).toBeLessThanOrEqual(box.x + box.width + 0.5)
+    }
+  })
+
   // Past the point where shrinking can help, the strip scrolls — and then the tab being worked in
   // has to be the one on screen, or switching to a tab leaves you looking at a sliver of it.
   it('the active tab is scrolled into view when there are more tabs than fit', async () => {

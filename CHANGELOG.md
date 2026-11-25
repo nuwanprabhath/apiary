@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.88.7] - 2026-11-25
+
+### Fixed
+
+- Tabs with long titles no longer take the whole strip. A tab was as wide as its whole title, past
+  its own cap, and never shrank, so two long ones filled the strip and the others were scrolled out
+  of sight. Tabs now stop at 200px and share the strip down to six letters of title each before it
+  scrolls; the hover shows the whole title, MR states included.
+
 ## [1.88.6] - 2026-11-25
 
 ### Fixed

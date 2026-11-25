@@ -35,3 +35,16 @@ export function MrRefText(
   parts.push(<Fragment key="tail">{text.slice(cursor)}</Fragment>)
   return <>{parts}</>
 }
+
+/** The same text as `MrRefText` draws, as a string: a tooltip that reads as the clipped label does. */
+export function mrRefPlainText(text: string, statuses: Record<number, MrState | null>): string {
+  let out = ''
+  let cursor = 0
+  for (const ref of parseMrRefs(text)) {
+    const raw = `!${String(ref.iid)}`
+    const state = statuses[ref.iid] ?? null
+    out += text.slice(cursor, ref.index) + (state === null ? raw : `${raw} (${state})`)
+    cursor = ref.index + raw.length
+  }
+  return out + text.slice(cursor)
+}
