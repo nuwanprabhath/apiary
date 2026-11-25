@@ -119,6 +119,23 @@ describe('the resident chat popup', () => {
     await reviewUi('resident popup permissions', { widths: [620, 1000], within: popup })
   })
 
+  it('message times on every kind of message', async () => {
+    const at = (h: number, m: number): number => new Date(2026, 10, 25, h, m).getTime()
+    await renderApp({}, (f) => {
+      withRegent(f, {
+        history: [
+          { ...message('user', 'Show the desk'), action: true, at: at(9, 2) },
+          { ...message('assistant', '**Waiting on you** (1)\n\n1. !1175 Fix CSV export · @alice · review'), at: at(9, 3) },
+          { ...message('user', 'Which MRs need me?'), via: 'slack', at: at(13, 58) },
+          { ...message('assistant', 'Two: !1175 and !1180. The second has a failed pipeline, so it cannot merge until that is fixed.'), at: at(14, 1) },
+        ],
+      })
+    })
+    await openPopup()
+    await until(() => popup()?.querySelectorAll('[data-testid="message-time"]').length === 4)
+    await reviewUi('resident popup message times', { widths: [620, 1000], within: popup })
+  })
+
   it('the setup banner', async () => {
     const { fake } = await renderApp({}, (f) => { withRegent(f) })
     await openPopup()

@@ -7,6 +7,7 @@ import { MR_DESK_KIND, SESSION_LINK_PREFIX, type ResidentMessage, type ResidentS
 import { useAppSettings } from '../../state/settingsStore'
 import { treeStore } from '../../state/treeStore'
 import { BusyGlyph } from '../../ui/BusyGlyph'
+import { MessageTime } from '../../ui/MessageTime'
 import { useCopyOnSelect } from '../chat'
 import { type LinkChips, MarkdownText } from '../../ui/message/MarkdownText'
 
@@ -53,11 +54,21 @@ function Message({ message, hits, chips, onOpen }: {
   chips: LinkChips
   onOpen: (id: SessionId) => void
 }): JSX.Element | null {
-  if (message.action === true) return <div className="resident-action" data-testid="resident-action">{message.text}</div>
+  // When it was said, as the session chat shows it: a line above what the person sent, and floated
+  // on the first line of a reply.
+  if (message.action === true) {
+    return (
+      <>
+        <MessageTime ms={message.at} />
+        <div className="resident-action" data-testid="resident-action">{message.text}</div>
+      </>
+    )
+  }
   if (message.note === true) return <div className="resident-action resident-note" data-testid="resident-note">{message.text}</div>
   if (message.role === 'user') {
     return (
       <>
+        <MessageTime ms={message.at} />
         {message.via === 'slack' && <span className="resident-via" data-testid="resident-via">via Slack</span>}
         <div className="resident-msg resident-msg-user">{message.text}</div>
         {hits !== undefined && hits.length > 0 && <HitCards hits={hits} onOpen={onOpen} />}
@@ -67,6 +78,7 @@ function Message({ message, hits, chips, onOpen }: {
   if (message.text === '') return null
   return (
     <div className="resident-msg resident-msg-assistant">
+      <MessageTime ms={message.at} inline />
       <MarkdownText text={message.text} chips={chips} />
     </div>
   )

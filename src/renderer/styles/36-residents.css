@@ -411,6 +411,8 @@
   overflow-y: auto;
 }
 .resident-msg { min-width: 0; }
+/* A message's time sits in the gap above it, as in the session chat. */
+.resident-popup-body > .message-time { margin-bottom: calc(-1 * var(--space-sm)); }
 .resident-msg-user {
   align-self: flex-end;
   max-width: 85%;

@@ -7,6 +7,7 @@ import { drag, stays, until } from './helpers'
 import { message, regentStatus, withRegent } from './residentFixtures'
 import type { FakeApiary } from './fakeApiary'
 import { must } from './must'
+import { formatMessageTime } from '@shared/time'
 
 const popup = (): HTMLElement | null => document.querySelector('[data-testid="resident-popup"]')
 const input = (): HTMLTextAreaElement => document.querySelector<HTMLTextAreaElement>('.resident-popup-input')!
@@ -215,6 +216,26 @@ describe('the resident popup', () => {
     await until(() => popup()!.textContent.includes('typed here'))
     expect(popup()!.querySelectorAll('[data-testid="resident-via"]')).toHaveLength(1)
     expect(popup()!.querySelector('[data-testid="resident-via"]')!.nextElementSibling!.textContent).toBe('Open the CSV session')
+  })
+
+  it('each message says when it was sent, as the session chat does: above yours, on the first line of a reply', async () => {
+    const asked = { ...message('user', 'Where did we discuss auth?'), at: new Date(2026, 10, 25, 9, 5).getTime() }
+    const answered = { ...message('assistant', 'In the core and wildobs session.'), at: new Date(2026, 10, 25, 9, 7).getTime() }
+    await openPopup((f) => { withRegent(f, { history: [asked, answered] }) })
+    await until(() => popup()!.textContent.includes('core and wildobs'))
+    const times = [...popup()!.querySelectorAll<HTMLElement>('[data-testid="message-time"]')]
+    expect(times.map((t) => t.textContent)).toEqual([formatMessageTime(asked.at), formatMessageTime(answered.at)])
+    // Yours: its own line right above your bubble. A reply's: inside it, beside the first line.
+    const user = popup()!.querySelector<HTMLElement>('.resident-msg-user')!
+    expect(must(times[0]).nextElementSibling).toBe(user)
+    expect(must(times[0]).getBoundingClientRect().bottom).toBeLessThanOrEqual(user.getBoundingClientRect().top + 1)
+    const reply = popup()!.querySelector<HTMLElement>('.resident-msg-assistant')!
+    expect(reply.contains(must(times[1]))).toBe(true)
+    const firstLine = reply.querySelector<HTMLElement>('p')!.getBoundingClientRect()
+    const replyTime = must(times[1]).getBoundingClientRect()
+    expect(replyTime.top).toBeLessThan(firstLine.bottom)
+    expect(replyTime.left).toBeGreaterThan(firstLine.left)
+    for (const t of times) expect(t.getBoundingClientRect().width).toBeGreaterThan(0)
   })
 
   it("a note is drawn as an event chip, not as the person's bubble", async () => {

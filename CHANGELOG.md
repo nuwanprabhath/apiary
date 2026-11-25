@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.89.0] - 2026-11-25
+
+### Added
+
+- The Regent's and the MR desk's chats show when each message was sent, as a session chat does: the
+  time above your message (and a quick action you chose), and on the first line of the resident's
+  reply. Hover it for the full date.
+
 ## [1.88.7] - 2026-11-25
 
 ### Fixed
