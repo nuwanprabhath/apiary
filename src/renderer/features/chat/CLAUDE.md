@@ -77,5 +77,7 @@ persisted messages is `src/shared/chatTimeline.ts`.
 - **Thinking text is often absent.** Claude Code keeps only a signature, so a thinking row may say
   only that Claude thought, and for how long.
 - **The message box takes a terminal over only when it is idle.** A busy terminal (mid-turn, or with
-  background tasks) gets the message typed into it.
+  background tasks) gets the message typed into it. Claude Code takes it in only at its next tool
+  result, so until the file has it the view shows it as "Queued in the terminal"
+  (`state/terminalQueue.ts`, matched off by `stillQueued` like the chat's own queue).
 - **A mode or model chosen before the chat runs is the start option**, not a command.

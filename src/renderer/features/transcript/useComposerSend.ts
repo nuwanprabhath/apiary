@@ -8,6 +8,7 @@ import { isLoginCommand, startSessionLogin } from '../../state/accountsStore'
 import { useNotifications } from '../../ui/notifications'
 import { sendChat, startChat, terminalBusy } from '../../state/chatStore'
 import { sendPrompt } from '../../state/terminals'
+import { queueInTerminal } from '../../state/terminalQueue'
 import type { Attachment } from './composerAttachments'
 import type { ChatChoices } from './useChatChoices'
 
@@ -104,6 +105,7 @@ export function useComposerSend(d: SendDeps): { sending: boolean, send: (command
           const terminal = await terminalBusy(session.sessionId)
           if (terminal.busy || terminal.backgroundTasks > 0) {
             await sendPrompt(ptyId, lines.join('\n'))
+            queueInTerminal(session.sessionId, lines.join('\n'))
             if (command === undefined) onSent()
             return
           }

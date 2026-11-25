@@ -307,6 +307,13 @@ describe('transcript chat', () => {
     expect(must(fake.callsTo('sendPrompt')[0])[1]).toBe('how is it going?')
     expect(fake.callsTo('chatStart')).toEqual([])
     await expect.element(page.getByTestId('chat-timeline')).toBeVisible()
+    // Claude takes it in at its next tool result; until then it waits in the view, not lost.
+    await textOf('chat-queued', /how is it going\?\s*Queued in the terminal/)
+    expect(page.getByTestId('chat-queued').getByTestId('chat-queued-send-btn').elements()).toHaveLength(0)
+    const s = must(fake.state.sessions.find((x) => x.sessionId === sessionId))
+    s.messages = [...(s.messages ?? []), { ...said('typed-1', 'user', [{ type: 'text', text: 'how is it going?' }]), timestampMs: Date.now() }]
+    fake.emit('treeChanged')
+    await expect.poll(() => document.querySelectorAll('[data-testid="chat-queued"]').length).toBe(0)
     // Nothing running there any more: now the chat takes it over.
     fake.state.terminalBusy.set(sessionId, { busy: false, backgroundTasks: 0 })
     await userEvent.fill(page.getByTestId('composer-input'), 'carry on')

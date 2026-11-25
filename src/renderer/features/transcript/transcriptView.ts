@@ -6,6 +6,7 @@ import { BackgroundTaskTally, chatItems, latestTurn, mergeLive, runningBackgroun
 import { useLibraryState } from '../../state/libraryStateStore'
 import { useChatSettings } from '../../state/chatSettingsStore'
 import { SHOW_TOOL_CALLS, chatSettingValue } from '../../state/chatSettings'
+import { useTerminalQueued } from '../../state/terminalQueue'
 
 /** The line above the message box: background tasks still running (claude's own list while it
  *  runs as a chat, else the file's, while its terminal runs), and how the latest turn ended. */
@@ -76,7 +77,12 @@ export function useTranscriptView({ sessionId, messages, showSidechain, chatMode
     const live = (chat?.live ?? []).filter((m) => showSidechain || !m.isSidechain)
     return chatItems(mergeLive(visibleMessages, hideToolCalls ? withoutToolCalls(live) : live))
   }, [chatMode, chat?.live, visibleMessages, showSidechain, hideToolCalls])
-  const queued = useMemo(() => stillQueued(chat?.queued ?? [], mergeLive(messages, chat?.live ?? [])), [chat?.queued, chat?.live, messages])
+  // What was typed into the busy terminal waits beside the chat's own, while that terminal runs.
+  const typedInTerminal = useTerminalQueued(sessionId)
+  const queued = useMemo(() => stillQueued(
+    [...(chat?.queued ?? []), ...(terminalRunning ? typedInTerminal : [])],
+    mergeLive(messages, chat?.live ?? []),
+  ), [chat?.queued, chat?.live, messages, terminalRunning, typedInTerminal])
   const status = useMemo(
     () => chatStatusInfo(chatMode, chat, messages, { running: terminalRunning, busy: terminalBusy }),
     [chatMode, chat, messages, terminalRunning, terminalBusy],

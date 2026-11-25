@@ -97,45 +97,7 @@ export function useTranscriptPages(
     return () => { cancelled = true }
   }, [sessionId, reloadNonce, stickToBottomRef, forceScrollRef, commit])
 
-  // A tree change that may concern this session (debounced ~1s in main) re-fetches its latest
-  // page and merges it; one naming only other sessions is ignored.
-  useEffect(() => {
-    const unsubscribe = treeStore.onChanged((change) => {
-      if (!treeChangeConcerns(change, sessionId)) return
-      // The initial load's own response already has the freshest tail.
-      if (loadingRef.current || refreshingRef.current || laterRef.current !== null) return
-      // Captured per firing, not at setup, so it reflects the current visit.
-      const requestedGeneration = generationRef.current
-      refreshingRef.current = true
-      // Only what follows the last held message, when it has a line index to ask after.
-      const lastIndex = messagesRef.current.at(-1)?.index
-      ;(lastIndex === undefined ? loadTranscript(sessionId) : loadTranscriptAfter(sessionId, lastIndex))
-        .then((page) => {
-          if (generationRef.current !== requestedGeneration) return
-          if (page.messages.length === 0) return
-          // Decided before merging: appending does not move the scroll position, so this still
-          // reflects whether they were reading history or watching the tail.
-          const following = stickToBottomRef.current
-          if (following) forceScrollRef.current = true
-          const trimmable = following && !findOpenRef.current
-          // A burst of more than a page: the newest page does not join what is held, so while
-          // following it replaces it, and the held messages load back through the new cursor.
-          if (trimmable && page.earlierCursor !== null) {
-            commit(page.messages, page.earlierCursor)
-            return
-          }
-          const merged = mergeLatestPage(messagesRef.current, page.messages)
-          if (merged === messagesRef.current) return
-          const held = trimmable ? windowHeld(merged, cursorRef.current) : { messages: merged, cursor: cursorRef.current }
-          commit(held.messages, held.cursor)
-          // `skipped` stays: a tail-only refresh does not know the earlier boundary.
-        })
-        // A transient read error mid-write is logged, not shown: the next tree change retries.
-        .catch((e: unknown) => { logBackgroundFailure(e, 'refresh') })
-        .finally(() => { refreshingRef.current = false })
-    })
-    return unsubscribe
-  }, [sessionId, stickToBottomRef, forceScrollRef, findOpenRef, commit])
+  useTailOnTreeChange({ sessionId, stickToBottomRef, forceScrollRef, findOpenRef, commit, loadingRef, refreshingRef, laterRef, generationRef, messagesRef, cursorRef })
 
   const loadEarlier = useCallback(() => {
     // The ref, not the render's `cursor`: a second call before the re-render would ask for the same
@@ -183,6 +145,75 @@ export function useTranscriptPages(
 
   const retry = useCallback(() => { setReloadNonce((n) => n + 1) }, [])
   return { messages, cursor, skipped, error, loading, loadingEarlier, loadEarlier, retry, jumpTo }
+}
+
+interface TailDeps {
+  sessionId: SessionId
+  stickToBottomRef: RefObject<boolean>
+  forceScrollRef: RefObject<boolean>
+  findOpenRef: RefObject<boolean>
+  commit: (next: TranscriptMessage[], nextCursor: number | null, later?: number | null) => void
+  loadingRef: RefObject<boolean>
+  refreshingRef: RefObject<boolean>
+  laterRef: RefObject<number | null>
+  generationRef: RefObject<number>
+  messagesRef: RefObject<TranscriptMessage[]>
+  cursorRef: RefObject<number | null>
+}
+
+/** Follows the file: what was written after the last held message, each time the tree says it changed. */
+function useTailOnTreeChange(d: TailDeps): void {
+  const { sessionId, stickToBottomRef, forceScrollRef, findOpenRef, commit, loadingRef, refreshingRef, laterRef, generationRef, messagesRef, cursorRef } = d
+  // A tree change that may concern this session (debounced ~1s in main) re-fetches its latest
+  // page and merges it; one naming only other sessions is ignored.
+  useEffect(() => {
+    // A change that lands while the tail is being read may be what that read missed; it is read
+    // again once the read lands, or a session that then goes quiet stays a write behind.
+    let again = false
+    let subscribed = true
+    const readTail = (): void => {
+      // Captured per firing, not at setup, so it reflects the current visit.
+      const requestedGeneration = generationRef.current
+      refreshingRef.current = true
+      // Only what follows the last held message, when it has a line index to ask after.
+      const lastIndex = messagesRef.current.at(-1)?.index
+      ;(lastIndex === undefined ? loadTranscript(sessionId) : loadTranscriptAfter(sessionId, lastIndex))
+        .then((page) => {
+          if (generationRef.current !== requestedGeneration) return
+          if (page.messages.length === 0) return
+          // Decided before merging: appending does not move the scroll position, so this still
+          // reflects whether they were reading history or watching the tail.
+          const following = stickToBottomRef.current
+          if (following) forceScrollRef.current = true
+          const trimmable = following && !findOpenRef.current
+          // A burst of more than a page: the newest page does not join what is held, so while
+          // following it replaces it, and the held messages load back through the new cursor.
+          if (trimmable && page.earlierCursor !== null) {
+            commit(page.messages, page.earlierCursor)
+            return
+          }
+          const merged = mergeLatestPage(messagesRef.current, page.messages)
+          if (merged === messagesRef.current) return
+          const held = trimmable ? windowHeld(merged, cursorRef.current) : { messages: merged, cursor: cursorRef.current }
+          commit(held.messages, held.cursor)
+          // `skipped` stays: a tail-only refresh does not know the earlier boundary.
+        })
+        // A transient read error mid-write is logged, not shown: the next tree change retries.
+        .catch((e: unknown) => { logBackgroundFailure(e, 'refresh') })
+        .finally(() => {
+          refreshingRef.current = false
+          if (again && subscribed && generationRef.current === requestedGeneration) { again = false; readTail() }
+        })
+    }
+    const unsubscribe = treeStore.onChanged((change) => {
+      if (!treeChangeConcerns(change, sessionId)) return
+      // The initial load's own response already has the freshest tail.
+      if (loadingRef.current || laterRef.current !== null) return
+      if (refreshingRef.current) { again = true; return }
+      readTail()
+    })
+    return () => { subscribed = false; unsubscribe() }
+  }, [sessionId, stickToBottomRef, forceScrollRef, findOpenRef, commit, loadingRef, refreshingRef, laterRef, generationRef, messagesRef, cursorRef])
 }
 
 /** A find hit outside the held messages: hold the page around its line instead, reading history

@@ -1,5 +1,5 @@
 import { describe, it } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { renderApp } from '../renderApp'
 import { message } from '../fakeApiary'
 import { sidebarSession, until } from '../helpers'
@@ -48,5 +48,18 @@ describe('message times', () => {
       // The composer's clipped hint at this width is a known defect of another package.
       within: () => document.querySelector('[data-testid="transcript"]'),
     })
+  })
+
+  it('a message typed into the busy terminal, waiting there', async () => {
+    const { fake } = await renderApp({ settings: { transcriptChat: true } })
+    await userEvent.click(sidebarSession('Fix CSV export bug'))
+    await userEvent.click(page.getByTestId('resume-button'))
+    await userEvent.click(page.getByTestId('view-transcript'))
+    const id = fake.state.sessions.find((x) => x.title === 'Fix CSV export bug')?.sessionId ?? ''
+    fake.state.terminalBusy.set(id, { busy: true, backgroundTasks: 0 })
+    await userEvent.fill(page.getByTestId('composer-input'), 'FYI just logged in to the app for you')
+    await userEvent.keyboard('{Enter}')
+    await until(() => document.querySelector('[data-testid="chat-queued"]') !== null)
+    await reviewUi('chat queued in the terminal')
   })
 })

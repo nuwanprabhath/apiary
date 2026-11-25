@@ -4,6 +4,18 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.88.6] - 2026-11-25
+
+### Fixed
+
+- A message sent from the chat view to a session working in its terminal shows up in the chat. It
+  went to the terminal, but the chat view showed it only after switching to the terminal and back:
+  a change to the session's file that landed while the view was still reading the previous one was
+  dropped, so once the session went quiet the view stayed a write behind. It now reads again once
+  that read lands.
+- Until Claude takes such a message in (at its next tool result, which can be minutes), the chat
+  shows it as "Queued in the terminal" rather than nothing, so it no longer looks lost.
+
 ## [1.88.5] - 2026-11-25
 
 ### Fixed

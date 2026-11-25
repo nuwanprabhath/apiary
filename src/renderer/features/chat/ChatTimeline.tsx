@@ -236,8 +236,10 @@ export function ChatTimeline({ items, chat, queued, onOpenImage, onDecide, termi
             <MarkdownText text={q.text} />
           </div>
           <div className="chat-queued-actions">
-            <span className="chat-queued-label">Queued</span>
-            {chat !== null && <QueuedSendButton sessionId={chat.sessionId} queuedId={q.id} />}
+            {'inTerminal' in q
+              ? <span className="chat-queued-label">Queued in the terminal</span>
+              : <span className="chat-queued-label">Queued</span>}
+            {chat !== null && !('inTerminal' in q) && <QueuedSendButton sessionId={chat.sessionId} queuedId={q.id} />}
           </div>
         </div>
         </Fragment>
