@@ -13,8 +13,7 @@ the user's GitLab merge requests through the bundled `mra`.
   or permission requests), and replaces the unread dot. MR Desk's honey pot shows unpublished
   drafts as `resident-pending` at the orb's foot.
 - Hover or focus a badge for its card, `resident-hover-<id>`, with rows `resident-hover-now`,
-  `-needs`, `-checks`, `-digest`, `-setup` (the "To finish" row's id has a space in it:
-  `resident-hover-to finish`).
+  `-needs`, `-to-finish` (MR Desk's drafts), `-checks`, `-digest`, `-setup`.
 - Popup: ask in the textbox; Regent answers with session chips (`resident-session-chip`) that open
   the session, and instant matches under your message (`resident-hit`). Permission prompts
   (`resident-permission-allow`/`-deny`); stop, restart (asks while working), clear, close and resize

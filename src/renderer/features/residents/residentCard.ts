@@ -7,6 +7,11 @@ export interface CardLine {
   text: string
 }
 
+/** Each line's test id after `resident-hover-`: one word, so a selector can name it. */
+export const CARD_LINE_ID: Record<CardLine['label'], string> = {
+  Now: 'now', 'Needs you': 'needs', 'To finish': 'to-finish', Checks: 'checks', Digest: 'digest', Setup: 'setup',
+}
+
 /** "Every 15 min · next at 14:45", "Every 15 min · next on Mon 09:15", or "Running a check now". */
 function checksText(cycle: NonNullable<ResidentStatus['cycle']>, now: Date): string {
   if (cycle.running) return 'Running a check now'

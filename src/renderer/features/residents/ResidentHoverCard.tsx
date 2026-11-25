@@ -4,7 +4,7 @@ import type { ResidentStatus } from '@shared/domain/residents'
 import { useAppSettings } from '../../state/settingsStore'
 import { useResidentKinds } from '../../state/residentSettings'
 import { clampLeft, POPOVER_GAP, POPOVER_MARGIN } from '../../ui/popoverPlacement'
-import { residentCardLines } from './residentCard'
+import { CARD_LINE_ID, residentCardLines } from './residentCard'
 
 /**
  * What a resident is and what it is doing, over its badge in the status bar: the name and its
@@ -53,7 +53,7 @@ export function ResidentHoverCard({ resident, anchor, onPointerEnter, onPointerL
       <div className="hover-card-title">{resident.name}</div>
       {blurb !== null && <div className="resident-hover-blurb">{blurb}</div>}
       {lines.map((line) => (
-        <div key={line.label} className="hover-card-row" data-testid={`resident-hover-${line.label === 'Needs you' ? 'needs' : line.label.toLowerCase()}`}>
+        <div key={line.label} className="hover-card-row" data-testid={`resident-hover-${CARD_LINE_ID[line.label]}`}>
           <span className="hover-card-label">{line.label}</span>
           <span className="resident-hover-text">{line.text}</span>
         </div>

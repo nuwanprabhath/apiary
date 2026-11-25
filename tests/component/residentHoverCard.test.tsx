@@ -70,6 +70,15 @@ describe('the resident hover card', () => {
     await until(() => line('mr-desk', 'checks') === 'Running a check now')
   })
 
+  it('the MR desk lists the drafts still to publish, in a row a selector can name', async () => {
+    const { fake } = await renderApp({}, (f) => { withMrDesk(f) })
+    await until(() => badge('mr-desk') !== null)
+    fake.emit('residentsChanged', [mrDeskStatus('idle', { pending: { count: 2, summary: '2 drafts to publish', items: ['!1175', '!1180'] } })])
+    await userEvent.hover(badge('mr-desk')!)
+    await until(() => line('mr-desk', 'to-finish') !== null)
+    expect(line('mr-desk', 'to-finish')).toBe('2 drafts to publish: !1175, !1180')
+  })
+
   it('asleep says until when, and focus from the keyboard shows it', async () => {
     const { fake } = await renderApp({}, (f) => { withRegent(f) })
     await until(() => badge('regent') !== null)

@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.89.1] - 2026-11-25
+
+### Fixed
+
+- The "To finish" row of the MR desk's hover card has a test id a selector can name,
+  `resident-hover-to-finish`; it had a space in it (`resident-hover-to finish`). Each row's id is now
+  declared beside its label, so a new row cannot get one by accident.
+
 ## [1.89.0] - 2026-11-25
 
 ### Added
