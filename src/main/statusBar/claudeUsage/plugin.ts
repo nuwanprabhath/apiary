@@ -1,13 +1,14 @@
 import { join } from 'node:path'
 import { errorMessage } from '@shared/errors'
 import { MAIN_ACCOUNT_ID, usageItemId, type AccountInfo, type AccountsState } from '@shared/domain/accounts'
-import type { AccountId } from '@shared/domain/ids'
+import type { AccountId, SessionId } from '@shared/domain/ids'
 import type { StatusBarItem } from '@shared/domain/statusBar'
 import { log } from '../../log/logger'
 import type { StatusBarPlugin, StatusBarPluginContext } from '../types'
 import type { ConsentStore } from './consent'
 import { CONSENT_PROMPT, readAccessToken } from './credentials'
 import { fetchLimits, HttpError, type Limits } from './limits'
+import { withLimitHits, type LimitHit } from './limitHits'
 import type { UsageFeed } from './usageFeed'
 import { TokenAggregator, type TokenStats } from './tokens'
 import { dashboard, detailSections, statusText, statusTone, type Thresholds } from './present'
@@ -16,6 +17,8 @@ import { dashboard, detailSections, statusText, statusTone, type Thresholds } fr
 export interface UsageAccounts {
   list(): AccountsState
   configRootFor(id: AccountId): string
+  /** Whose limit a session's transcript records a hit on. */
+  accountOf(sessionId: SessionId): AccountId
   onChanged(fn: () => void): () => void
 }
 
@@ -136,9 +139,12 @@ async function pollLimits(
     acc.error = undefined
     acc.backoffMs = 0
   } catch (e) {
-    acc.backoffMs = Math.min(Math.max(acc.backoffMs * 2, pollDelayMs(acc.limits, setting)), MAX_BACKOFF_MS)
+    const asked = e instanceof HttpError ? e.retryAfterMs ?? 0 : 0
+    acc.backoffMs = Math.min(Math.max(acc.backoffMs * 2, pollDelayMs(acc.limits, setting), asked), MAX_BACKOFF_MS)
     const detail = e instanceof HttpError ? `HTTP ${String(e.status)}` : errorMessage(e)
-    acc.error = `Could not reach the usage endpoint (${detail}).`
+    acc.error = e instanceof HttpError && e.status === 429
+      ? 'The usage endpoint is turning Apiary away for now (HTTP 429).'
+      : `Could not reach the usage endpoint (${detail}).`
     log.warn('usage', 'limits fetch failed', { detail })
   }
 }
@@ -148,17 +154,32 @@ function mainOnlyAccounts(configRoot: string): UsageAccounts {
   return {
     list: () => ({ accounts: [{ id: MAIN_ACCOUNT_ID, label: 'Main', email: null, isMain: true }], defaultId: MAIN_ACCOUNT_ID }),
     configRootFor: () => configRoot,
+    accountOf: () => MAIN_ACCOUNT_ID,
     onChanged: () => () => {},
   }
 }
 
+/** What an account's item shows: its fetched limits, with the windows Claude Code said it hit since. */
+interface Shown { limits: Limits | undefined; fromTranscript: boolean }
+
+/** The residents' usage pause holds off too when Claude Code says the limit is hit. */
+function feedLimitHits(feed: UsageFeed | undefined, acc: AccountState, shown: Shown): void {
+  if (shown.fromTranscript) feed?.record(acc.info.id, shown.limits)
+}
+
+/** `acc`'s limits with the hits recorded in its own sessions (the transcripts are shared by every account). */
+function shownLimits(acc: AccountState, hits: readonly LimitHit[], accounts: UsageAccounts, nowMs: number): Shown {
+  return withLimitHits(acc.limits, hits.filter((h) => accounts.accountOf(h.sessionId) === acc.info.id), nowMs)
+}
+
 function accountItems(
   accountStates: AccountState[],
-  o: { several: boolean; stats: TokenStats | undefined; nowMs: number; thresholds: Thresholds; busy: boolean },
+  o: { several: boolean; stats: TokenStats | undefined; nowMs: number; thresholds: Thresholds; busy: boolean; shown: (acc: AccountState) => Shown },
 ): Omit<StatusBarItem, 'pluginId'>[] {
   const out = accountStates.map((acc) => {
-    const detail = detailSections({ limits: acc.limits, stats: o.stats, stale: acc.error !== undefined, error: acc.error, now: o.nowMs })
-    const item = usageItem({ id: usageItemId(acc.info.id), limits: acc.limits, signedOut: acc.signedOut, error: acc.error, detail, thresholds: o.thresholds })
+    const { limits, fromTranscript } = o.shown(acc)
+    const detail = detailSections({ limits, stats: o.stats, stale: acc.error !== undefined, error: acc.error, fromTranscript, now: o.nowMs })
+    const item = usageItem({ id: usageItemId(acc.info.id), limits, signedOut: acc.signedOut, error: acc.error, detail, thresholds: o.thresholds })
     return o.several ? labelled(item, acc.info.label) : item
   })
   out.push({ id: 'refresh', icon: 'refresh', text: '', title: 'Refresh Claude usage now', tone: 'normal', busy: o.busy, action: { kind: 'refresh' }, detail: [] })
@@ -222,6 +243,7 @@ export function createClaudeUsagePlugin(deps: ClaudeUsageDeps): StatusBarPlugin 
       const consent = deps.consent.proof()
       if (consent === undefined) return
       await pollLimits(acc, consent, deps, accounts, { now, setting })
+      feedLimitHits(deps.feed, acc, shown(acc))
     } finally {
       busyCount--
       ctx?.changed()
@@ -253,6 +275,8 @@ export function createClaudeUsagePlugin(deps: ClaudeUsageDeps): StatusBarPlugin 
     }
     ctx?.changed()
   }
+
+  const shown = (acc: AccountState): Shown => shownLimits(acc, aggregator.limitHits(), accounts, now().getTime())
 
   const eachState = (fn: (acc: AccountState) => void): void => { for (const acc of states.values()) fn(acc) }
 
@@ -301,12 +325,12 @@ export function createClaudeUsagePlugin(deps: ClaudeUsageDeps): StatusBarPlugin 
         return [CONSENT_ITEM]
       }
       return accountItems([...states.values()], {
-        several: accounts.list().accounts.length > 1, stats, nowMs: now().getTime(), thresholds: thresholds(), busy: busyCount > 0,
+        several: accounts.list().accounts.length > 1, stats, nowMs: now().getTime(), thresholds: thresholds(), busy: busyCount > 0, shown,
       })
     },
     async panel(itemId) {
       const acc = [...states.values()].find((a) => usageItemId(a.info.id) === itemId) ?? states.get(MAIN_ACCOUNT_ID)
-      return dashboard({ limits: acc?.limits, stats: stats ?? (await aggregator.compute()), error: acc?.error, thresholds: thresholds() })
+      return dashboard({ limits: acc === undefined ? undefined : shown(acc).limits, stats: stats ?? (await aggregator.compute()), error: acc?.error, thresholds: thresholds() })
     },
   }
 }

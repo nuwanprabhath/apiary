@@ -63,6 +63,7 @@ function harness(opts: HarnessOptions) {
     accounts: {
       list: () => state,
       configRootFor: (id) => folders.get(id) ?? main,
+      accountOf: () => MAIN_ACCOUNT_ID,
       onChanged: (fn) => { listeners.add(fn); return () => { listeners.delete(fn) } },
     },
     readKeychain: async (service) => {

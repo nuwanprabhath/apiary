@@ -4,6 +4,19 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.88.5] - 2026-11-25
+
+### Fixed
+
+- The Claude usage meter no longer stays on an old figure after you hit a limit. Anthropic's usage
+  endpoint turns Apiary away (HTTP 429) for hours at a time, most of all near a limit, and the bar
+  kept showing the last answer it got, 80%, while Claude Code had already said "You've hit your
+  5-hour limit". Refresh asked again and was turned away again. Apiary now reads those limit
+  messages from Claude Code's transcripts, as it already reads them for the token totals, and shows
+  that window at 100% until its reset, on the bar, the dashboard and the residents' usage pause.
+  Each is counted for the account whose session hit it. The hover says the endpoint is turning
+  Apiary away, and the next try waits as long as the endpoint asks (`Retry-After`).
+
 ## [1.88.4] - 2026-11-24
 
 ### Fixed

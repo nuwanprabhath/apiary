@@ -1,8 +1,9 @@
 import { createReadStream } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { ignoreErrorsAsync } from '@shared/ignoreErrors'
+import { parseLimitHit, type LimitHit } from './limitHits'
 import { costForTokens, hasPricing } from './pricing'
 
 export interface TokenBreakdown {
@@ -61,7 +62,7 @@ const MONTHS = 6
  */
 export class TokenAggregator {
   /** Invalidated by the file's mtime and size: an entry is reused only while both still match. */
-  private readonly fileCache = new Map<string, { mtimeMs: number; size: number; entries: UsageEntry[] }>()
+  private readonly fileCache = new Map<string, { mtimeMs: number; size: number; entries: UsageEntry[]; hits: LimitHit[] }>()
 
   constructor(private readonly projectsDir: string, private readonly now: () => Date = () => new Date()) {}
 
@@ -80,11 +81,16 @@ export class TokenAggregator {
       live.add(file)
       const cached = this.fileCache.get(file)
       if (cached !== undefined && cached.mtimeMs === info.mtimeMs && cached.size === info.size) continue
-      this.fileCache.set(file, { mtimeMs: info.mtimeMs, size: info.size, entries: await parseFile(file, monthStart.getTime()) })
+      this.fileCache.set(file, { mtimeMs: info.mtimeMs, size: info.size, ...(await parseFile(file, monthStart.getTime())) })
       await new Promise((r) => { setImmediate(r) })
     }
     for (const key of this.fileCache.keys()) if (!live.has(key)) this.fileCache.delete(key)
     return this.aggregate(dayStart.getTime(), monthStart.getTime())
+  }
+
+  /** The limit hits Claude Code recorded in the transcripts the last `compute()` read. */
+  limitHits(): LimitHit[] {
+    return [...this.fileCache.values()].flatMap((f) => f.hits)
   }
 
   private aggregate(dayStartMs: number, monthStartMs: number): TokenStats {
@@ -164,8 +170,10 @@ async function listJsonlFiles(projectsDir: string): Promise<string[]> {
 /** A line longer than this is a pasted file or an image, not a usage record — skipped unparsed. */
 const MAX_LINE = 1_000_000
 
-async function parseFile(file: string, windowStartMs: number): Promise<UsageEntry[]> {
+async function parseFile(file: string, windowStartMs: number): Promise<{ entries: UsageEntry[]; hits: LimitHit[] }> {
   const entries: UsageEntry[] = []
+  const hits: LimitHit[] = []
+  const fileSessionId = basename(file, '.jsonl')
   const stream = createReadStream(file, { encoding: 'utf8' })
   const rl = createInterface({ input: stream, crlfDelay: Infinity })
   try {
@@ -173,6 +181,8 @@ async function parseFile(file: string, windowStartMs: number): Promise<UsageEntr
       if (line.length > MAX_LINE || !line.includes('"usage"')) continue
       let obj: Record<string, unknown>
       try { obj = JSON.parse(line) as Record<string, unknown> } catch { continue }
+      const hit = parseLimitHit(obj, fileSessionId)
+      if (hit !== null) hits.push(hit)
       const message = (obj.message ?? {}) as Record<string, unknown>
       const usage = message.usage as Record<string, unknown> | undefined
       if (usage === undefined || typeof obj.timestamp !== 'string') continue
@@ -197,7 +207,7 @@ async function parseFile(file: string, windowStartMs: number): Promise<UsageEntr
     rl.close()
     stream.destroy()
   }
-  return entries
+  return { entries, hits }
 }
 
 function num(v: unknown): number {

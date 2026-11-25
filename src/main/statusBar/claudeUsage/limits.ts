@@ -16,9 +16,19 @@ export interface Limits {
 }
 
 export class HttpError extends Error {
-  constructor(readonly status: number) {
+  /** How long the endpoint asked to be left alone (its `Retry-After`), when it said. */
+  constructor(readonly status: number, readonly retryAfterMs?: number) {
     super(`Usage endpoint returned HTTP ${String(status)}`)
   }
+}
+
+/** `Retry-After` as seconds or an HTTP date, in milliseconds from `nowMs`; undefined when absent or unreadable. */
+export function retryAfterMs(header: string | null, nowMs: number): number | undefined {
+  if (header === null || header.trim() === '') return undefined
+  const seconds = Number(header)
+  if (Number.isFinite(seconds)) return seconds >= 0 ? seconds * 1000 : undefined
+  const at = Date.parse(header)
+  return Number.isFinite(at) ? Math.max(0, at - nowMs) : undefined
 }
 
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage'
@@ -36,7 +46,7 @@ export async function fetchLimits(_consent: Consent, token: string, fetchImpl: t
       'Content-Type': 'application/json',
     },
   })
-  if (!res.ok) throw new HttpError(res.status)
+  if (!res.ok) throw new HttpError(res.status, retryAfterMs(res.headers.get('retry-after'), now()))
   return parseLimits(await res.json(), now())
 }
 

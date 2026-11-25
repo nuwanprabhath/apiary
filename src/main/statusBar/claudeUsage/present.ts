@@ -83,6 +83,8 @@ export function detailSections(input: {
   stats: TokenStats | undefined
   stale: boolean
   error: string | undefined
+  /** A window reads 100% because Claude Code said it hit the limit after the last fetch. */
+  fromTranscript?: boolean
   now: number
 }): StatusSection[] {
   const { limits, stats, stale, error, now } = input
@@ -120,6 +122,7 @@ export function detailSections(input: {
       text: `Rate limits updated ${relativeTime(limits.fetchedAt, now)}${stale && error !== undefined ? ` — ${error}` : ''}`,
       muted: true,
     })
+    if (input.fromTranscript === true) out.push({ kind: 'note', text: 'Claude Code reported hitting the limit since then, so it shows as 100% until it resets.' })
   } else if (error !== undefined) {
     out.push({ kind: 'note', text: error })
   }

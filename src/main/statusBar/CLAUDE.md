@@ -13,9 +13,9 @@ and only built-in is the Claude usage plugin.
   settings changes, answers `items()` and `panel()`.
 - `builtin.ts`: `BUILTIN_STATUS_BAR_PLUGINS`, the factories Apiary ships.
 - `claudeUsage/`: the usage plugin. `plugin.ts` polls, `limits.ts` reads the 5-hour and 7-day
-  limits, `tokens.ts` totals tokens from transcripts, `pricing.ts` estimates cost, `present.ts`
-  turns it all into items and panels, `consent.ts` holds the user's answer, `credentials.ts` finds the
-  token (behind it).
+  limits, `tokens.ts` totals tokens from transcripts (and collects the limit hits `limitHits.ts`
+  reads), `pricing.ts` estimates cost, `present.ts` turns it all into items and panels, `consent.ts`
+  holds the user's answer, `credentials.ts` finds the token (behind it).
 
 ## The sanctioned way
 
@@ -36,6 +36,8 @@ and only built-in is the Claude usage plugin.
 
 - `tests/unit/statusBarRegistry.test.ts`: lifecycle, a throwing plugin, settings routing.
 - `tests/unit/claudeUsage.test.ts`: parsing, pricing, presentation.
+- `tests/unit/claudeUsageLimitHits.test.ts`: limit hits from transcripts, `Retry-After`, and the bar
+  while the endpoint answers 429.
 - `tests/unit/claudeUsageConsent.test.ts`: nothing read before the answer; decline turns the plugin off.
 - `tests/unit/claudeUsageAccounts.test.ts`, `tests/component/ui/statusBarAccounts.ui.test.tsx`: one meter per
   signed-in account (`usage` for main, `usage:<id>` for the rest, each with its own limits, backoff and
@@ -50,7 +52,14 @@ and only built-in is the Claude usage plugin.
   wait on the network. The plugin owns its schedule between `start` and `stop`.
 - **A plugin that throws contributes nothing and disturbs nothing else.**
 - **The usage endpoint is unofficial.** Parse it defensively; a failed fetch keeps the last answer on
-  screen, marked stale, and backs off, never beyond fifteen minutes.
+  screen, marked stale, and backs off, never beyond fifteen minutes, and never sooner than its
+  `Retry-After`. It turns Apiary away (HTTP 429) for hours at a time, most of all near a limit.
+- **Claude Code's own limit messages override a stale answer.** When a request is refused for the
+  plan's limit, Claude Code writes "You've hit your 5-hour limit · resets 2:20pm" into the session's
+  transcript (`isApiErrorMessage`, `error: "rate_limit"`). `TokenAggregator` collects these as it
+  totals tokens (`limitHits.ts`), each credited to its session's account (`UsageAccounts.accountOf`);
+  a hit newer than the last fetch shows that window as 100% until its reset, on the bar, the
+  dashboard and the residents' usage pause.
 - **Polling speeds up at high usage** (`highUsagePollIntervalSeconds` once the 5-hour window reaches
   `highUsageThreshold`); both are settings.
 - **Cost is a list-price estimate**, not an invoice, and understated when a model has no known price.
