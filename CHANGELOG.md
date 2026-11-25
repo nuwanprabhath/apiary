@@ -4,6 +4,15 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.89.2] - 2026-11-25
+
+### Fixed
+
+- `npm run release` shows the pre-push hook's report when it pushes main and the tag, and says
+  which push was refused. It ran the pushes with their output captured, so a refused tag left only
+  "failed to push some refs" and no way to tell which check stopped it. A refused tag now also says
+  the tag exists locally and how to push it once fixed.
+
 ## [1.89.1] - 2026-11-25
 
 ### Fixed

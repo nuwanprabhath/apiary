@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { versionsToAnnotate, isTransientDownloadFailure, tagsWithoutRelease, missingAssets, outstanding, awaitRun, waitForCi } from '../../scripts/release.mjs'
+import { push, versionsToAnnotate, isTransientDownloadFailure, tagsWithoutRelease, missingAssets, outstanding, awaitRun, waitForCi } from '../../scripts/release.mjs'
 
 const CHANGELOG = `# Changelog
 
@@ -90,5 +90,16 @@ describe('waiting for CI on the pushed commit', () => {
     const failed = [{ databaseId: 8, status: 'completed', conclusion: 'failure' }]
     expect(await waitForCi(SHA, () => failed, () => {}, async () => {})).toContain('ended "failure"')
     expect(await waitForCi(SHA, () => [], () => {}, async () => {})).toContain('CI has not run on 82f80d82')
+  })
+})
+
+describe('pushing a ref', () => {
+  // A refused tag push left only "failed to push some refs": the hook's report was captured and dropped.
+  it('shows git and the hook their terminal, and says which push failed', () => {
+    const calls: unknown[][] = []
+    const refused = push('v1.89.0', (...args) => { calls.push(args); return { status: 1 } })
+    expect(calls).toEqual([['git', ['push', 'origin', 'v1.89.0'], { stdio: 'inherit' }]])
+    expect(refused).toBe("git push origin v1.89.0 failed (exit 1); the pre-push hook's report is above")
+    expect(push('main', () => ({ status: 0 }))).toBeNull()
   })
 })

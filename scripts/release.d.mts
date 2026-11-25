@@ -7,3 +7,4 @@ export function changelogHeadings(text: string): { version: string; annotated: b
 export function awaitRun<T>(list: () => T[], wait: () => Promise<void>, tries: number): Promise<T | null>
 export function waitForCi(sha: string, list: () => { databaseId: number; status: string; conclusion: string }[], watch: (id: number) => void, wait?: () => Promise<void>): Promise<string | null>
 export function outstanding(o: { issues: { number: number; title: string }[]; prs: { number: number; title: string }[]; due: string[] }): string[]
+export function push(ref: string, run?: (cmd: string, args: string[], opts: { stdio: 'inherit' }) => { status: number | null }): string | null

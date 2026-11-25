@@ -79,6 +79,19 @@ export function missingAssets(names) {
 }
 
 const sh = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8' }).trim()
+
+/**
+ * Pushes `ref` with git's and the pre-push hook's output on screen, and says why it failed, or null.
+ * Run through `sh`, the hook's report (lint, tests, the CI and nightly gates) was swallowed, and a
+ * refused tag left only "failed to push some refs".
+ * @param {string} ref
+ * @param {(cmd: string, args: string[], opts: { stdio: 'inherit' }) => { status: number | null }} run
+ * @returns {string | null}
+ */
+export function push(ref, run = spawnSync) {
+  const { status } = run('git', ['push', 'origin', ref], { stdio: 'inherit' })
+  return status === 0 ? null : `git push origin ${ref} failed (exit ${String(status)}); the pre-push hook's report is above`
+}
 const gh = (...args) => sh('gh', args)
 const step = (n, text) => console.log(`[${n}] ${text}`)
 
@@ -212,7 +225,8 @@ async function main() {
 
   step(3, PLAN[2])
   if (!flags.has('--yes') && !(await confirm(`Push main and release ${tag}?`))) fail('cancelled')
-  sh('git', ['push', 'origin', 'main'])
+  const mainRefused = push('main')
+  if (mainRefused !== null) fail(mainRefused)
   const sha = sh('git', ['rev-parse', 'HEAD'])
 
   step(4, PLAN[3])
@@ -223,7 +237,8 @@ async function main() {
 
   step(5, PLAN[4])
   sh('git', ['tag', tag])
-  sh('git', ['push', 'origin', tag])
+  const tagRefused = push(tag)
+  if (tagRefused !== null) fail(`${tagRefused}. The tag ${tag} exists locally; once it is fixed, \`git push origin ${tag}\` and watch the release run.`)
 
   step(6, PLAN[5])
   await watchRelease(tag)
