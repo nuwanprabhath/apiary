@@ -4,6 +4,20 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.91.4] - 2026-11-27
+
+### Added
+
+- Slack: a reply you write in a task's thread now gets its own :eyes: when Apiary takes it, like a
+  new message does.
+- Slack: once Apiary has posted the answer to a message, or its task is done, that message's :eyes:
+  turn into a :white_check_mark:, so you can see it was acted on. An approval card is a question,
+  not an answer, and leaves the :eyes: in place; the reply that answers the card gets the tick.
+- Slack: issue and merge request numbers in Apiary's posts (`#3277`, `!1713`, `group/project#12`)
+  are links to GitLab, in sentences as well as in lists. They point at the repository of the
+  task's sessions when there is one, otherwise at the MR desk's project; code and existing links
+  are left alone.
+
 ## [1.91.3] - 2026-11-27
 
 ### Fixed

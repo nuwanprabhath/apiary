@@ -20,6 +20,8 @@ const ALLOW_WORDS = new Set(['allow', 'yes', 'ok', 'y'])
 const NO = new Set(['deny', 'no', 'n'])
 const ALLOW_ALL = 'allow all'
 const GONE = 'That request was answered at the desk.'
+/** A card or a notice is Apiary asking, not the answer to what the owner wrote. */
+const NOT_AN_ANSWER = { answers: false }
 
 /** The cards waiting, by bridge, so the status command can count them. In memory only. */
 const waitingByBridge = new WeakMap<SlackBridge, Card[]>()
@@ -64,7 +66,7 @@ export const approvals: DeskPiece = ({ bridge, driver, residents }: DeskParts) =
   waitingByBridge.set(bridge, waiting)
 
   const tell = (thread: string, text: string): void => {
-    void ignoreErrorsAsync(() => bridge.post(thread, text), 'a notice is a courtesy; the card still stands')
+    void ignoreErrorsAsync(() => bridge.post(thread, text, NOT_AN_ANSWER), 'a notice is a courtesy; the card still stands')
   }
   const remove = (card: Card): void => { waiting.splice(waiting.indexOf(card), 1) }
   const answerSession = (card: Card, decision: ChatDecision): void => {
@@ -77,7 +79,7 @@ export const approvals: DeskPiece = ({ bridge, driver, residents }: DeskParts) =
   }
   const post = (card: Card, text: string): void => {
     waiting.push(card)
-    bridge.post(card.thread, text).catch(() => { const i = waiting.indexOf(card); if (i >= 0) waiting.splice(i, 1) })
+    bridge.post(card.thread, text, NOT_AN_ANSWER).catch(() => { const i = waiting.indexOf(card); if (i >= 0) waiting.splice(i, 1) })
   }
 
   const stopDriver = driver.onEvent((event) => {
@@ -145,7 +147,7 @@ export const approvals: DeskPiece = ({ bridge, driver, residents }: DeskParts) =
         for (const other of same) answerSession(other, { behavior: 'allow' })
       }
     }
-    void bridge.react(m.ts, 'white_check_mark')
+    void bridge.actioned(m.thread, m.ts)
     return true
   }
   const stopHandler = bridge.handle(20, reply)

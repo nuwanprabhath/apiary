@@ -1,5 +1,8 @@
 /** Slack's message text to plain text, Markdown to Slack's mrkdwn, and long text into posts. Pure. */
 
+import { findMentions } from '@shared/mentions/kinds'
+import type { RepoWebLocation } from '@shared/mentions/repoWebLocation'
+
 /** Slack's `<@U1>`, `<https://x|label>`, `<https://x>` and `&amp; &lt; &gt;` as plain text. */
 export function slackToPlain(text: string): string {
   return text
@@ -40,6 +43,34 @@ function convertInline(text: string): string {
   return text
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<$2|$1>')
     .replace(/\*\*([^*]+)\*\*/g, '*$1*')
+}
+
+/** Inline code, a Slack link or mention (`<…>`) and a Markdown link: text that is never linked again. */
+const NOT_PROSE = /(`[^`\n]*`|<[^<>\n]*>|\[[^\]\n]*\]\([^)\n]*\))/
+
+/**
+ * Bare `#12`, `!34`, `group/project#12` and `group/project!34` in mrkdwn's prose as Slack links to
+ * `repo`'s issues and merge requests; code, existing links and URLs are left as written. No repo, no links.
+ */
+export function linkReferences(mrkdwn: string, repo: RepoWebLocation | null): string {
+  if (repo === null) return mrkdwn
+  let inFence = false
+  return mrkdwn.split('\n').map((line) => {
+    if (line.trimStart().startsWith('```')) { inFence = !inFence; return line }
+    if (inFence) return line
+    return line.split(NOT_PROSE).map((part, i) => (i % 2 === 1 ? part : linkProse(part, repo))).join('')
+  }).join('\n')
+}
+
+function linkProse(text: string, repo: RepoWebLocation): string {
+  let out = ''
+  let at = 0
+  for (const m of findMentions(text, { repo, files: false })) {
+    if (m.target.kind !== 'link') continue
+    out += `${text.slice(at, m.index)}<${m.target.href}|${m.text}>`
+    at = m.index + m.text.length
+  }
+  return out + text.slice(at)
 }
 
 const SLACK_POST_LIMIT = 3500

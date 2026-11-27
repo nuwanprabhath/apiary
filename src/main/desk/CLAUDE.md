@@ -18,7 +18,11 @@ back to the task's thread.
 - `approvals.ts` (order 20): a watched session's permission prompts and questions, and a task's
   residents' approval cards, posted to the thread in main's words; `allow`, `deny`, `allow all` and
   question answers typed back. `allow all` never covers a question or a resident's card.
-- `deskPiece.ts`: the `DeskParts` and `DeskPiece` types. `DESK_PIECES` runs commands, approvals,
+- `references.ts`: which repository a post's `#12` and `!34` link to. The one GitLab repository of the task's
+  sessions (`repos.ofSession`, the `origin` remote); with none or several, the MR desk's configured project
+  (`repos.mrDesk`, an enabled desk first); otherwise nothing is linked. Only Regent and Apiary itself post to
+  Slack; the MR desk's answers reach Slack through Regent, so they fall under the same rule.
+- `deskPiece.ts`: the `DeskParts` (with `repos`, wired in `app/backgroundWork.ts`) and `DeskPiece` types. `DESK_PIECES` runs references, commands, approvals,
   then Regent's piece, so the cheaper handlers see a message first.
 
 The folder imports `driving`, `log`, `residents` and `slack`; nothing imports it but `app`.

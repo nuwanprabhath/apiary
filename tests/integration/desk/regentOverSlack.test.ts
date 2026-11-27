@@ -7,6 +7,7 @@ import { MR_DESK_KIND, REGENT_KIND, type ResidentConfig } from '@shared/domain/r
 import { createDriving } from '../../../src/main/app/drivingContainer'
 import { createSlack } from '../../../src/main/app/slackContainer'
 import { startDesk } from '../../../src/main/desk/desk'
+import { mrDeskRepo } from '../../../src/main/desk/references'
 import { kindOf, newResident } from '../../../src/main/residents/kinds'
 import { ResidentService, type ResidentSettings } from '../../../src/main/residents/residentService'
 import type { SlackBridge } from '../../../src/main/slack/slackBridge'
@@ -100,7 +101,10 @@ beforeEach(async () => {
     onResume: (p) => { poll = p; return () => {} }, api: slack,
   })
   await bridge.configure({ token: 'xoxb-test-token', channel: 'work', ownerId: slack.owner, enabled: true })
-  stopDesk = startDesk({ bridge, driver, residents })
+  stopDesk = startDesk({
+    bridge, driver, residents,
+    repos: { ofSession: (id) => built.service.repoWebLocation({ kind: 'session', id }), mrDesk: () => mrDeskRepo(list) },
+  })
   await vi.waitFor(() => { if ((slack.calls().history ?? 0) === 0) throw new Error('Slack has not been polled yet') })
   // The first poll set the cursor; a message must come after it.
   await stays(() => true, 60, 'the first poll has set the cursor')
@@ -130,7 +134,7 @@ describe('Regent over Slack', () => {
     })
     poll()
     await until(() => { expect(posts(thread)).toContain('The session finished.') }, 60_000)
-    expect(slack.reactions()).toContainEqual({ ts: thread, name: 'eyes' })
+    expect(slack.reactions()).toEqual([{ ts: thread, name: 'white_check_mark' }])
     expect(posts(thread)[0]).toContain('Found "Existing work"')
     expect(regentHistory().some((m) => m.note && m.text.includes('finished a turn'))).toBe(true)
     expect(bridge.tasks.get(thread)?.state).not.toBe('open')

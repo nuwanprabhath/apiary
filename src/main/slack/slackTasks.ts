@@ -14,6 +14,8 @@ export interface SlackTask {
   autoAllow: string[]
   /** The ts of the newest reply read in its thread. */
   lastReplyTs: string | null
+  /** The owner's messages in it that show `eyes` and wait for their answer (the task's own ts for the top-level one). */
+  receipts: string[]
 }
 
 const DAY = 24 * 60 * 60 * 1000
@@ -31,6 +33,7 @@ export function parseTask(raw: unknown): SlackTask | null {
     thread: raw.thread, text: raw.text, startedAt: raw.startedAt, state: raw.state,
     sessions: stringList(raw.sessions), residents: stringList(raw.residents), autoAllow: stringList(raw.autoAllow),
     lastReplyTs: typeof raw.lastReplyTs === 'string' ? raw.lastReplyTs : null,
+    receipts: stringList(raw.receipts),
   }
 }
 
@@ -49,7 +52,7 @@ export class SlackTasks {
   open(thread: string, text: string): SlackTask {
     const found = this.tasks.get(thread)
     if (found === undefined) {
-      const task: SlackTask = { thread, text, startedAt: this.now(), state: 'open', sessions: [], residents: [], autoAllow: [], lastReplyTs: null }
+      const task: SlackTask = { thread, text, startedAt: this.now(), state: 'open', sessions: [], residents: [], autoAllow: [], lastReplyTs: null, receipts: [] }
       this.tasks.set(thread, task)
       this.changed()
       return task
@@ -76,6 +79,15 @@ export class SlackTasks {
   addResident(thread: string, residentId: string): void { this.edit(thread, (t) => { t.residents = add(t.residents, residentId) }) }
   setAutoAllow(thread: string, sessionId: string): void { this.edit(thread, (t) => { t.autoAllow = add(t.autoAllow, sessionId) }) }
   setLastReply(thread: string, ts: string): void { this.edit(thread, (t) => { t.lastReplyTs = ts }) }
+  addReceipt(thread: string, ts: string): void { this.edit(thread, (t) => { t.receipts = add(t.receipts, ts) }) }
+
+  /** Removes and returns the thread's waiting receipts: all of them, or only `ts`. */
+  takeReceipts(thread: string, ts: string | null = null): string[] {
+    const waiting = this.tasks.get(thread)?.receipts ?? []
+    const taken = ts === null ? waiting : waiting.filter((r) => r === ts)
+    if (taken.length > 0) this.edit(thread, (t) => { t.receipts = t.receipts.filter((r) => !taken.includes(r)) })
+    return taken
+  }
 
   taskOfSession(sessionId: string): SlackTask | null {
     return this.list().find((t) => t.state === 'open' && t.sessions.includes(sessionId)) ?? null

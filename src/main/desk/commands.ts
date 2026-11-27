@@ -30,7 +30,7 @@ export const commands: DeskPiece = ({ bridge, driver, residents }: DeskParts) =>
     }
     for (const r of residents.names()) lines.push(`${r.name}: ${r.state}`)
     lines.push(`${String(cardsWaiting(bridge))} waiting for you.`)
-    try { await bridge.post(thread, lines.join('\n')) } finally { bridge.tasks.finish(thread) }
+    try { await bridge.post(thread, lines.join('\n')) } finally { await bridge.finish(thread) }
   }
 
   return bridge.handle(10, async (m) => {

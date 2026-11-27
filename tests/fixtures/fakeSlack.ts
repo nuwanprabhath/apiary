@@ -9,7 +9,10 @@ export interface FakeSlack extends SlackApi {
   otherSays(text: string, o?: { thread?: string; user?: string; bot?: boolean }): string
   /** Every post the token made, oldest first. */
   posts(): { ts: string; thread: string | null; text: string }[]
+  /** The reactions on messages now. */
   reactions(): { ts: string; name: string }[]
+  /** Every reaction added (`+`) or removed (`-`), oldest first. */
+  reactionLog(): string[]
   /** How often each method was called. */
   calls(): Record<string, number>
   /** The next call of `method` fails with this Slack error (`ratelimited` takes `retryAfterMs`). */
@@ -27,6 +30,7 @@ export function fakeSlack(o: { now?: () => number } = {}): FakeSlack {
   const calls: Record<string, number> = {}
   const failures = new Map<string, { code: string; retryAfterMs: number | null }[]>()
   const reactions: { ts: string; name: string }[] = []
+  const reactionLog: string[] = []
   let last = 0
 
   const stamp = (agoMs = 0): string => {
@@ -58,6 +62,7 @@ export function fakeSlack(o: { now?: () => number } = {}): FakeSlack {
     }),
     posts: () => messages.filter((m) => m.user === BOT).map((m) => ({ ts: m.ts, thread: m.thread, text: m.text })),
     reactions: () => [...reactions],
+    reactionLog: () => [...reactionLog],
     calls: () => ({ ...calls }),
     failNext: (method, code, retryAfterMs) => {
       failures.set(method, [...(failures.get(method) ?? []), { code, retryAfterMs: retryAfterMs ?? null }])
@@ -83,6 +88,16 @@ export function fakeSlack(o: { now?: () => number } = {}): FakeSlack {
       if (id !== channel.id) throw new SlackApiError('channel_not_found')
       return add({ ts: stamp(), thread, user: BOT, botId: 'B0REGENT1', subtype: null, text })
     },
-    react: async (_id, ts, name) => { enter('react'); reactions.push({ ts, name }) },
+    react: async (_id, ts, name) => {
+      enter('react')
+      reactionLog.push(`+${name} ${ts}`)
+      if (!reactions.some((r) => r.ts === ts && r.name === name)) reactions.push({ ts, name })
+    },
+    unreact: async (_id, ts, name) => {
+      enter('unreact')
+      reactionLog.push(`-${name} ${ts}`)
+      const i = reactions.findIndex((r) => r.ts === ts && r.name === name)
+      if (i >= 0) reactions.splice(i, 1)
+    },
   }
 }

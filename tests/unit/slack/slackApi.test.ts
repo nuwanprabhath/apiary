@@ -79,6 +79,16 @@ describe('slackApi', () => {
     await expect(api(fetch).react('C1', '1.0', 'eyes')).rejects.toMatchObject({ code: 'ratelimited', retryAfterMs: 30_000 })
   })
 
+  it('removes a reaction with reactions.remove; one that is not there, or already there, is no error', async () => {
+    const { fetch, calls } = stub((c) => json(c.url.endsWith('reactions.remove') ? { ok: false, error: 'no_reaction' } : { ok: false, error: 'already_reacted' }))
+    await expect(api(fetch).unreact('C1', '1.0', 'eyes')).resolves.toBeUndefined()
+    expect(calls[0]?.url).toBe('https://slack.test/api/reactions.remove')
+    expect(bodyOf(calls[0]?.init)).toBe('channel=C1&timestamp=1.0&name=eyes')
+    await expect(api(fetch).react('C1', '1.0', 'eyes')).resolves.toBeUndefined()
+    const refused = stub(() => json({ ok: false, error: 'missing_scope', needed: 'reactions:write' }))
+    await expect(api(refused.fetch).unreact('C1', '1.0', 'eyes')).rejects.toMatchObject({ code: 'missing_scope' })
+  })
+
   it('reads replies without their parent, from oldest on, and marks which are in a thread', async () => {
     const { fetch, calls } = stub(() => json({ ok: true, messages: [
       { ts: '1.0', thread_ts: '1.0', user: 'U1', text: 'parent', latest_reply: '3.0' },

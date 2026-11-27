@@ -19,7 +19,10 @@ export interface SlackApi {
   replies(channel: string, thread: string, oldest: string | null): Promise<SlackMessage[]>
   /** Resolves with the new message's ts. */
   post(channel: string, text: string, thread: string | null): Promise<string>
+  /** Already there is not an error. */
   react(channel: string, ts: string, name: string): Promise<void>
+  /** Not there is not an error. */
+  unreact(channel: string, ts: string, name: string): Promise<void>
 }
 
 /** A Slack error: `code` is Slack's own (`not_in_channel`), `network` or `http_<status>`. */
@@ -69,6 +72,15 @@ function parseSlackMessage(raw: unknown): SlackMessage | null {
     subtype: stringOrNull(raw.subtype),
     text: stringOrNull(raw.text) ?? '',
     latestReply: stringOrNull(raw.latest_reply),
+  }
+}
+
+/** A reaction call whose wanted state already holds (`already_reacted`, `no_reaction`) succeeded. */
+async function settled(call: Promise<unknown>, alreadyCode: string): Promise<void> {
+  try {
+    await call
+  } catch (e) {
+    if (!(e instanceof SlackApiError && e.code === alreadyCode)) throw e
   }
 }
 
@@ -138,7 +150,10 @@ export function createSlackApi(o: ApiOptions): SlackApi {
       return ts
     },
     async react(channel, ts, name) {
-      await call('reactions.add', { channel, timestamp: ts, name })
+      await settled(call('reactions.add', { channel, timestamp: ts, name }), 'already_reacted')
+    },
+    async unreact(channel, ts, name) {
+      await settled(call('reactions.remove', { channel, timestamp: ts, name }), 'no_reaction')
     },
   }
 }

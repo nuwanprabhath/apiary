@@ -37,6 +37,22 @@ describe('approvals', () => {
     await expect.poll(() => w.slack.reactions().map((r) => r.name)).toEqual(['white_check_mark'])
   })
 
+  it("a card leaves the owner's eyes alone, and the reply that answers it gets the tick", async () => {
+    const w = await start()
+    w.bridge.tasks.addReceipt('100.1', '100.1')
+    w.emit(permission('s1', 'q1'))
+    await expect.poll(() => w.slack.posts().length).toBe(1)
+    expect(w.bridge.tasks.get('100.1')?.receipts).toEqual(['100.1'])
+    await w.say('100.1', 'allow')
+    await expect.poll(() => w.slack.reactionLog().length).toBe(2)
+    const [off, on] = w.slack.reactionLog()
+    const reply = on?.replace('+white_check_mark ', '')
+    expect([off, on]).toEqual([`-eyes ${reply ?? ''}`, `+white_check_mark ${reply ?? ''}`])
+    expect(reply).not.toBe('100.1')
+    expect(w.bridge.tasks.get('100.1')?.receipts).toEqual(['100.1'])
+    w.stop()
+  })
+
   it('deny answers it with a deny', async () => {
     const w = await start()
     w.emit(permission('s1', 'q1'))

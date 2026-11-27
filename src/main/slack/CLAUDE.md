@@ -5,7 +5,7 @@ Read with root CLAUDE.md. Apiary's main process talks to Slack's Web API over an
 [docs/slack.md](../../../docs/slack.md). Later packages hang handlers on `SlackBridge.handle`.
 
 - `slackApi.ts`: `SlackApi` and `createSlackApi`; `SlackApiError` and `describeSlackError` (one sentence a person can act on).
-- `slackText.ts`: Slack text to plain, Markdown to mrkdwn, long text split (never inside a code fence). Pure.
+- `slackText.ts`: Slack text to plain, Markdown to mrkdwn, `#12`/`!34` linked (`linkReferences`, over `findMentions`), long text split (never inside a code fence). Pure.
 - `slackStore.ts`: the state file slack.json in userData (a `JsonStore`): the token **encrypted** by a `CodeCipher` (`fs/codeCipher.ts`), channel, owner id, cursor, tasks, awaiting.
 - `slackTasks.ts`: `SlackTasks`, one task per thread; every change is saved.
 - `slackPoller.ts`: pure rules (who counts, stale, yes/no, poll delay). `slackBridge.ts`: the timer and the cycle.
@@ -19,6 +19,16 @@ The folder imports only `fs` and `log`: the cipher, the clock, `fetch` and the w
 - Only the owner's plain messages (no `bot_id`, no `subtype`) are instructions. First run: the cursor is now.
 - The cursor and `lastReplyTs` move only after a message was handed over.
 - The token is never in a status, a log line, `settings.json` or a renderer. Log counts and codes, never text.
+- Receipts. Every owner message Apiary takes (a top-level one and a reply in a task's thread, each on its own `ts`)
+  gets `eyes` and goes on its task's `receipts`. It is **actioned**, and its `eyes` become `white_check_mark`, when
+  `bridge.post` to its thread succeeds after it was taken (a reply answering it: Regent's `slack_post`, the
+  summary, the auto-reply, `status` or `stop`), when its task finishes (`bridge.finish`), or when a handler names it
+  (`actioned(thread, ts)`: an approval answered). A card or notice posted with `answers: false` is Apiary asking,
+  not answering, and ticks nothing. A post ticks every message waiting in the thread, so a reply sent while Regent
+  is still answering the one before is ticked with it. Reactions are a courtesy: each failure is ignored, and
+  `already_reacted` / `no_reaction` are not errors (`reactions:write` covers add and remove).
+- Posts link bare `#12` and `!34` to the repository `linkReferences(repo)` names for the thread (the desk's
+  `references` piece); none named, no links. Code, `<…>` links and Markdown links are never linked again.
 
 ## Add a method or a handler
 

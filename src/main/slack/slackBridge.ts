@@ -1,5 +1,6 @@
 import type { SlackConfigChange, SlackStatus } from '@shared/domain/slack'
 import { ignoreErrorsAsync } from '@shared/ignoreErrors'
+import type { RepoWebLocation } from '@shared/mentions/repoWebLocation'
 import { log } from '../log/logger'
 import { SlackApiError, describeSlackError, type SlackApi, type SlackMessage } from './slackApi'
 import {
@@ -7,7 +8,7 @@ import {
 } from './slackPoller'
 import type { SlackStore } from './slackStore'
 import { SlackTasks } from './slackTasks'
-import { markdownToSlack, slackToPlain, splitForSlack } from './slackText'
+import { linkReferences, markdownToSlack, slackToPlain, splitForSlack } from './slackText'
 
 export interface SlackInbound {
   thread: string
@@ -17,6 +18,9 @@ export interface SlackInbound {
   /** `task`: the top-level message that starts a task. `reply`: a reply in a task's thread. */
   kind: 'task' | 'reply'
 }
+
+/** The repository a post to `thread` (null: the channel) links its `#12` and `!34` to; null links none. */
+export type ReferenceRepo = (thread: string | null) => Promise<RepoWebLocation | null>
 
 /** True when it consumed the message; the bridge then asks no later handler. */
 export type SlackHandler = (message: SlackInbound) => boolean | Promise<boolean>
@@ -35,6 +39,8 @@ export const WAITING_FOR_CONSENT = 'Waiting for your OK in Settings → Privacy.
 
 const NOTHING_HERE = "Nothing on this machine is set up to act on Slack messages. Turn on Regent in Apiary's settings."
 const ASK_AGAIN = 'I was offline when you sent this. Still want it? Reply yes.'
+const RECEIVED = 'eyes'
+const ACTIONED = 'white_check_mark'
 
 export class SlackBridge {
   readonly tasks: SlackTasks
@@ -56,6 +62,7 @@ export class SlackBridge {
   private canStore = false
   private lastActivityAt = 0
   private lastShown = ''
+  private referenceRepo: ReferenceRepo | null = null
   /** In memory only: the newest reply seen in a thread awaiting an answer, and when a task's thread was last read without its parent in the window. */
   private readonly awaitingSeen = new Map<string, string>()
   private readonly deepPolled = new Map<string, number>()
@@ -151,17 +158,49 @@ export class SlackBridge {
     this.emit()
   }
 
-  /** Posts Markdown to the channel (thread null) or a thread, split when long; resolves with the first post's `ts`. */
-  async post(thread: string | null, text: string): Promise<string> {
+  /** Where posts link `#12` and `!34` from now on; returns how to stop. */
+  linkReferences(repo: ReferenceRepo): () => void {
+    this.referenceRepo = repo
+    return () => { if (this.referenceRepo === repo) this.referenceRepo = null }
+  }
+
+  /**
+   * Posts Markdown to the channel (thread null) or a thread, split when long; resolves with the first post's `ts`.
+   * A post to a thread answers the owner's messages waiting there (they turn from eyes to a tick) unless `answers` is false.
+   */
+  async post(thread: string | null, text: string, o: { answers?: boolean } = {}): Promise<string> {
     const channel = this.store.state.channel
     if (channel === null) throw new Error('No Slack channel is set.')
+    const repo = await this.repoFor(thread)
     let first: string | null = null
-    for (const piece of splitForSlack(markdownToSlack(text))) {
+    for (const piece of splitForSlack(linkReferences(markdownToSlack(text), repo))) {
       const ts = await this.api.post(channel.id, piece, thread)
       first ??= ts
     }
     if (first === null) throw new Error('Nothing to post.')
+    if (thread !== null && o.answers !== false) await this.actioned(thread)
     return first
+  }
+
+  /** The owner's messages waiting in `thread`, or the message `ts` there, were acted on: eyes off, a tick on. */
+  async actioned(thread: string, ts: string | null = null): Promise<void> {
+    const taken = this.tasks.takeReceipts(thread, ts)
+    for (const done of ts === null ? taken : [ts]) {
+      await this.unreact(done, RECEIVED)
+      await this.react(done, ACTIONED)
+    }
+  }
+
+  /** Ticks what waits in the thread, then marks its task done. */
+  async finish(thread: string): Promise<void> {
+    await this.actioned(thread)
+    this.tasks.finish(thread)
+  }
+
+  private async repoFor(thread: string | null): Promise<RepoWebLocation | null> {
+    const repo = this.referenceRepo
+    if (repo === null) return null
+    return (await ignoreErrorsAsync(() => repo(thread), 'an unknown repository leaves references as plain text')) ?? null
   }
 
   /** Adds a reaction (an emoji name) to a message of the channel; a failure is ignored, a reaction being a courtesy. */
@@ -169,6 +208,18 @@ export class SlackBridge {
     const channel = this.store.state.channel
     if (channel === null) return
     await ignoreErrorsAsync(() => this.api.react(channel.id, ts, name), 'a reaction is a courtesy; the answer was already taken')
+  }
+
+  private async unreact(ts: string, name: string): Promise<void> {
+    const channel = this.store.state.channel
+    if (channel === null) return
+    await ignoreErrorsAsync(() => this.api.unreact(channel.id, ts, name), 'a reaction is a courtesy; the answer was already posted')
+  }
+
+  /** The `eyes` receipt on an owner's message, remembered on its task until it is answered. */
+  private async receive(channel: string, thread: string, ts: string): Promise<void> {
+    await ignoreErrorsAsync(() => this.api.react(channel, ts, RECEIVED), 'the receipt is a courtesy; the message is carried out without it')
+    this.tasks.addReceipt(thread, ts)
   }
 
   private restart(): void {
@@ -270,8 +321,8 @@ export class SlackBridge {
   /** The `eyes` receipt, the task, then the handlers. */
   private async carryOut(channel: string, thread: string, text: string): Promise<void> {
     this.lastActivityAt = this.now()
-    await ignoreErrorsAsync(() => this.api.react(channel, thread, 'eyes'), 'the receipt is a courtesy; the message is carried out without it')
     this.tasks.open(thread, text)
+    await this.receive(channel, thread, thread)
     await this.deliver(channel, { thread, ts: thread, text, kind: 'task' })
   }
 
@@ -313,6 +364,7 @@ export class SlackBridge {
       if (isOwnerMessage(r, this.store.state.ownerId)) {
         this.lastActivityAt = this.now()
         this.tasks.open(thread, this.tasks.get(thread)?.text ?? '')
+        await this.receive(channel, thread, r.ts)
         await this.deliver(channel, { thread, ts: r.ts, text: slackToPlain(r.text), kind: 'reply' })
       }
       this.tasks.setLastReply(thread, r.ts)

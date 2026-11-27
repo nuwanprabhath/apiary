@@ -29,7 +29,13 @@ records that as a `migrated` consent, once. Messages waiting for your `yes` are 
 
 - It checks the channel every 3 s while a task is open or you wrote in the last 5 minutes, otherwise every 10 s, and at
   once when the computer wakes.
-- A top-level message starts a task and gets an :eyes: reaction. Replies in its thread belong to the same task.
+- A top-level message starts a task and gets an :eyes: reaction. Replies in its thread belong to the same task, and
+  each reply gets its own :eyes:. When Apiary has posted the answer to a message (or its task is done), the :eyes:
+  become :white_check_mark:. Approval cards are questions, not answers, so they leave the :eyes: alone. The bot's
+  `reactions:write` scope covers both adding and removing a reaction.
+- Issue and merge request numbers in Apiary's posts (`#3273`, `!1713`, `group/project#12`) link to GitLab: to the
+  repository of the task's sessions when they are all in one, otherwise to the MR desk's project, otherwise they stay
+  plain text.
 - A message that waited more than 15 minutes (Apiary was closed) is not carried out until you reply `yes`; `no` drops it.
 - With nothing on the machine set up to act on messages, it says so in the thread.
 

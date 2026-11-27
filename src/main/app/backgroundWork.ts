@@ -1,5 +1,6 @@
 import { powerMonitor } from 'electron'
 import { startDesk } from '../desk/desk'
+import { mrDeskRepo } from '../desk/references'
 import { fireAndForget } from '../log/fireAndForget'
 import type { Container } from './container'
 
@@ -12,7 +13,13 @@ export function startBackgroundWork(container: Container): () => Promise<void> {
   const disposeResidents = container.residents.start()
   const disposeSchedules = startSchedules(container)
   // Stops the Slack poller.
-  const disposeSlack = startDesk({ bridge: container.slack, driver: container.driving, residents: container.residents })
+  const disposeSlack = startDesk({
+    bridge: container.slack, driver: container.driving, residents: container.residents,
+    repos: {
+      ofSession: (id) => container.service.repoWebLocation({ kind: 'session', id }),
+      mrDesk: () => mrDeskRepo(container.settingsService.get().residents),
+    },
+  })
   const disposeSweeper = container.privacy.startSweeper()
   return async () => {
     await disposeResidents()

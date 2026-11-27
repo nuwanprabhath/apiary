@@ -69,7 +69,7 @@ export function createDeskControls({ bridge, driver }: { bridge: SlackBridge; dr
         await bridge.post(task, summary)
         hooks.posted(task)
         for (const id of t?.sessions ?? []) driver.unwatch(id as SessionId)
-        tasks.finish(task)
+        await bridge.finish(task)
       },
       openTasks: () => tasks.list().filter((t) => t.state === 'open')
         .map((t) => `${t.thread} · ${t.text.slice(0, TASK_TEXT_SHOWN)} · sessions: ${t.sessions.length === 0 ? 'none' : t.sessions.join(', ')}`),
