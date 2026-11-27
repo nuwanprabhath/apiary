@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.91.1] - 2026-11-27
+
+### Fixed
+
+- Claude Code's "Heads up" note now reaches the chat when the terminal's screen is drawn from the
+  top (a short session in a tall pane): the note was looked for only in the screen's bottom rows,
+  which were empty there.
+
 ## [1.91.0] - 2026-11-27
 
 ### Added

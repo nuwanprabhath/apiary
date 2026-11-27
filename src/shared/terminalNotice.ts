@@ -12,7 +12,8 @@ export interface TerminalNotice {
   choices: Array<{ key: string; label: string }>
 }
 
-/** The bottom of the screen: the note sits just above the input box. */
+/** The bottom of what is drawn: the note sits just above the input box. Blank rows do not count, or
+ *  a screen drawn from the top (a short session in a tall pane) has nothing but blanks there. */
 const TAIL_LINES = 20
 const HEAD = /^\s*\S?\s*(Heads up|You should know) · (.+)$/
 const CHOICES_ROW = /^\s*\d: \S/
@@ -20,7 +21,7 @@ const CHOICE = /(\d): (.+?)(?=\s{2,}\d: |\s*$)/g
 
 /** The note on `screen` (plain text lines), or null when none is showing. */
 export function readTerminalNotice(screen: string): TerminalNotice | null {
-  const lines = screen.split('\n').slice(-TAIL_LINES)
+  const lines = screen.split('\n').filter((l) => l.trim() !== '').slice(-TAIL_LINES)
   let head = -1
   lines.forEach((l, i) => { if (HEAD.test(l)) head = i })
   if (head === -1) return null

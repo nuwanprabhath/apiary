@@ -31,6 +31,10 @@ describe('reading the heads-up note off a Claude Code screen', () => {
     })
   })
 
+  it('finds it near the top of a tall screen, under rows of nothing', () => {
+    expect(readTerminalNotice(SCREEN + '\n'.repeat(40))?.tag).toBe('Heads up')
+  })
+
   it('reads the "You should know" form too', () => {
     const notice = readTerminalNotice('✦ You should know · The deploy skips tests.\n  1: Learn more   0: Dismiss\n❯ ')
     expect(notice?.tag).toBe('You should know')
