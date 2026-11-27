@@ -41,6 +41,10 @@ describe('reading the heads-up note off a Claude Code screen', () => {
     expect(notice?.text).toBe('The deploy skips tests.')
   })
 
+  it('is not a reply of Claude\'s that happens to start "Heads up · "', () => {
+    expect(readTerminalNotice('● Heads up · the deploy key expires Friday.\n\n❯ ')).toBeNull()
+  })
+
   it('is null when no note is showing', () => {
     expect(readTerminalNotice(SCREEN.replace(/✦ Heads up · /, ''))).toBeNull()
     expect(readTerminalNotice('')).toBeNull()

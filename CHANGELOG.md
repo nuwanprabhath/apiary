@@ -4,6 +4,13 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.91.3] - 2026-11-27
+
+### Fixed
+
+- A reply of Claude's that starts "Heads up · " no longer shows as a Claude Code note over the
+  chat's message box: only a note drawn with Claude Code's ✦ counts.
+
 ## [1.91.2] - 2026-11-27
 
 ### Changed

@@ -15,7 +15,8 @@ export interface TerminalNotice {
 /** The bottom of what is drawn: the note sits just above the input box. Blank rows do not count, or
  *  a screen drawn from the top (a short session in a tall pane) has nothing but blanks there. */
 const TAIL_LINES = 20
-const HEAD = /^\s*\S?\s*(Heads up|You should know) · (.+)$/
+/** Led by the plugin's ✦: Claude's own replies are led by ●, and one may start "Heads up · ". */
+const HEAD = /^\s*✦\s*(Heads up|You should know) · (.+)$/
 const CHOICES_ROW = /^\s*\d: \S/
 const CHOICE = /(\d): (.+?)(?=\s{2,}\d: |\s*$)/g
 
