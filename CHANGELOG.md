@@ -4,6 +4,30 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.91.0] - 2026-11-27
+
+### Added
+
+- **Merge request and issue numbers in a session's title are links.** `!1776` and `#3258` in the
+  heading open the merge request or issue in the browser, as they already did in messages; an MR
+  keeps its state (`!1776 (merged)`).
+- **Cmd/Ctrl+F in Regent and the MR desk** finds in the popup's conversation, with the same find bar
+  as a session's chat.
+- **Claude Code's "Heads up" notes reach the chat.** A note Claude Code shows only in the terminal
+  ("Heads up · …", "You should know · …") now also shows over the chat's message box, with its
+  answers and an **Answer in the terminal** button.
+
+### Fixed
+
+- A code block's **Copy** button no longer covers the code: the code starts below it, so a long line
+  scrolled sideways never runs under the button.
+- Tables in Regent and the MR desk wrap their cells like the rest of the text when the popup is
+  narrow, instead of scrolling sideways.
+- Tests the nightly runs found failing: the Linux spelling tests now allow the dictionary download
+  that privacy mode holds; the retention sweeper's tests date their files by the test's clock, not
+  the machine's (they failed under a faked clock); copy-on-select's test waits for its listener
+  instead of racing it under a CPU limit. The clock run's issue now lists what failed.
+
 ## [1.90.0] - 2026-11-26
 
 ### Added

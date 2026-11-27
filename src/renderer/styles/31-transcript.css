@@ -61,7 +61,9 @@
   background: var(--bg-panel);
 }
 .markdown .code-block { position: relative; display: flow-root; }  /* a box of its own: it narrows beside a floated message time, as its block does */
-.markdown .code-block > pre { padding-right: calc(var(--space-lg) * 5); }
+/* The copy button sits over the block's top-right corner; the code starts under it, so a long line
+   scrolled sideways never runs beneath the button. */
+.markdown .code-block > pre { padding-top: calc(var(--space-sm) + var(--control-height-sm)); }
 .markdown .code-copy {
   position: absolute;
   top: var(--space-sm);

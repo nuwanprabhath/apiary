@@ -893,3 +893,20 @@ button.folded-message-head:focus-visible { outline: none; box-shadow: var(--focu
 .pending-chat-help { margin: 0; max-width: 46ch; color: var(--muted); }
 .pending-chat-error { margin: 0; color: var(--danger); }
 .pending-chat-actions { display: flex; justify-content: flex-end; padding-top: var(--space-sm); }
+
+/* A note Claude Code shows only in the session's terminal (`TerminalNoticeCard`), over the message box. */
+.chat-terminal-notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0 var(--space-md) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-panel);
+  background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg);
+}
+.chat-terminal-notice-text { margin: 0; overflow-wrap: anywhere; }
+.chat-terminal-notice-tag { font-weight: 600; color: var(--accent); }
+.chat-terminal-notice-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+.chat-terminal-notice-choices { font-size: 12px; white-space: pre-wrap; }

@@ -75,7 +75,7 @@ jobs:
             [ -n "$number" ] && gh issue close "$number" --comment "Clean run for $ENTRY: $run" || true
             exit 0
           fi
-          failed=$(grep -E '^ *(FAIL|×)' test.log | sort -u | head -30 || true)
+          failed=$(sed 's/\x1b\[[0-9;]*m//g' test.log | grep -E '^ *(FAIL|×)' | sort -u | head -30 || true)
           body=$(printf '**%s** failed: %s\n\n```\n%s\n```\n' "$ENTRY" "$run" "$failed")
           if [ -z "$number" ]; then
             gh issue create --title 'Nightly clock: tests fail at awkward times' --label "$label" --body "$body"

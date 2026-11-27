@@ -3,6 +3,7 @@
 export { AccountPill } from './AccountPill'
 export { AccountSwitchHost } from './AccountSwitchPrompt'
 export { AsideCard } from './AsideCard'
+export { TerminalNoticeCard } from './TerminalNoticeCard'
 export { ChatStatus } from './ChatStatus'
 export { McpCard } from './McpCard'
 export { ChatTimeline } from './ChatTimeline'

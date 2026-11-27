@@ -9,6 +9,7 @@ import { treeStore } from '../../state/treeStore'
 import { BusyGlyph } from '../../ui/BusyGlyph'
 import { MessageTime } from '../../ui/MessageTime'
 import { useCopyOnSelect } from '../chat'
+import { FindBar, useTranscriptFind } from '../transcript'
 import { type LinkChips, MarkdownText } from '../../ui/message/MarkdownText'
 
 const EXAMPLES = [
@@ -132,11 +133,16 @@ export function ResidentConversation({ resident, messages, hits, onOpen, onExamp
   const config = settings.residents.find((c) => c.id === resident.id)
   const project = config?.kind === MR_DESK_KIND ? (config.options.project ?? '') : ''
   const repo = useMemo(() => gitlabProjectWebLocation(project), [project])
+  const find = useTranscriptFind({ containerRef: body, visible: true, sessionId: null, contentKey: messages, scope: '.resident-popup' })
   return (
     <RepoMentionsProvider repo={repo}>
+    <div className="resident-conversation">
+    {find.open && <FindBar find={find} />}
     <div
       ref={body}
       className="resident-popup-body"
+      data-testid="resident-conversation"
+      tabIndex={-1}
       onContextMenu={onContextMenu}
       onScroll={(e) => {
         const el = e.currentTarget
@@ -155,6 +161,7 @@ export function ResidentConversation({ resident, messages, hits, onOpen, onExamp
         : messages.map((m) => <Message key={m.id} message={m} hits={hits.get(m.id)} chips={chips} onOpen={onOpen} />)}
       {working && <WorkingLine resident={resident} />}
       {copyMenu}
+    </div>
     </div>
     </RepoMentionsProvider>
   )

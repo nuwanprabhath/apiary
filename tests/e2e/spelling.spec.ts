@@ -4,7 +4,9 @@ import { launchApiary, importAll, sidebarSession, type Harness } from './helpers
 let h: Harness
 
 test.beforeEach(async () => {
-  h = await launchApiary()
+  // On Linux Chromium downloads its dictionaries from Google, which privacy mode holds until the
+  // person allows it (Settings → Privacy); this proof is about spelling, so it has been allowed.
+  h = await launchApiary({ settings: { privacyConsents: { spellDictionaries: { grantedAt: Date.now(), source: 'user' } } } })
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
   await sidebarSession(h.page, 'Fix CSV export bug').click()

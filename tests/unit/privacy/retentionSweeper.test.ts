@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRetentionSweeper, FIRST_SWEEP_MS, SWEEP_EVERY_MS, type RetentionSweeperDeps } from '../../../src/main/privacy/retentionSweeper'
@@ -14,6 +14,16 @@ let root: string
 const aged = (file: string, days: number): void => {
   const t = (NOW - days * DAY) / 1000
   utimesSync(file, t, t)
+}
+
+/**
+ * Dates everything under `dir` at the test's NOW. The kernel stamps a new file with the machine's
+ * time, which is not the process's under `faketime` (the nightly clock job): there a file just
+ * written was over a month old, and was swept.
+ */
+const stampedNow = (dir: string): void => {
+  for (const e of readdirSync(dir, { withFileTypes: true, recursive: true })) aged(join(e.parentPath, e.name), 0)
+  aged(dir, 0)
 }
 
 const world = (over: Partial<RetentionSweeperDeps> = {}): RetentionSweeperDeps & { forgotten: string[] } => {
@@ -58,6 +68,7 @@ describe('the retention sweeper', () => {
     const dir = join(root, 'pasted-images')
     mkdirSync(dir)
     for (const n of ['old.png', 'kept.png', 'new.png']) writeFileSync(join(dir, n), 'x')
+    stampedNow(dir)
     aged(join(dir, 'old.png'), 40)
     aged(join(dir, 'kept.png'), 40)
     expect((await createRetentionSweeper(world()).runOnce()).pastedImages).toBe(1)
@@ -68,6 +79,7 @@ describe('the retention sweeper', () => {
     const dir = join(root, 'pasted-images')
     mkdirSync(dir)
     writeFileSync(join(dir, 'new.png'), 'x')
+    stampedNow(dir)
     const asked: number[] = []
     const w = world({ referencedImages: async (since) => { asked.push(since); return new Set() } })
     await createRetentionSweeper(w).runOnce()
@@ -115,6 +127,7 @@ describe('the retention sweeper', () => {
     for (const d of ['fresh', 'fresh-deep/sub', 'old/sub']) mkdirSync(join(dir, d), { recursive: true })
     writeFileSync(join(dir, 'fresh-deep', 'sub', 'history.json'), '{}')
     writeFileSync(join(dir, 'old', 'sub', 'history.json'), '{}')
+    stampedNow(dir)
     for (const p of ['fresh-deep/sub', 'fresh-deep', 'old/sub/history.json', 'old/sub', 'old']) aged(join(dir, p), 30)
     expect((await createRetentionSweeper(world()).runOnce()).orphanResidents).toBe(1)
     expect(['fresh', 'fresh-deep', 'old'].map((n) => existsSync(join(dir, n)))).toEqual([true, true, false])

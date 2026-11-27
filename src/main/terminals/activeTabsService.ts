@@ -1,5 +1,6 @@
 import { chatActivity, explainActivity, withBackgroundTasks, type ActivityStatus } from '@shared/activity'
 import { asSessionId } from '@shared/domain/ids'
+import { readTerminalNotice } from '@shared/terminalNotice'
 import type { ActiveTabPayload, OpenTab } from '@shared/domain/tabs'
 import type { ChatService } from '../chat/chatService'
 import { log } from '../log/logger'
@@ -31,13 +32,17 @@ export class ActiveTabsService {
     const tabs = this.deps.tabs.list()
     const listed = new Set(tabs.map((tab) => tab.key))
     for (const key of this.lastStatus.keys()) if (!listed.has(key)) this.lastStatus.delete(key)
-    return Promise.all(tabs.map(async (tab) => ({
-      windowNumber: tab.windowNumber,
-      key: tab.key,
-      view: tab.view,
-      label: tab.label,
-      status: await this.statusOf(tab),
-    })))
+    return Promise.all(tabs.map(async (tab) => {
+      const notice = tab.ptyId === null ? null : readTerminalNotice(this.deps.pty.screen(tab.ptyId))
+      return {
+        windowNumber: tab.windowNumber,
+        key: tab.key,
+        view: tab.view,
+        label: tab.label,
+        status: await this.statusOf(tab),
+        ...(notice === null ? {} : { notice }),
+      }
+    }))
   }
 
   private async statusOf(tab: OpenTab): Promise<ActivityStatus> {

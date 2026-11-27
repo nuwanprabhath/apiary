@@ -1,12 +1,13 @@
 import type { ActiveTabPayload } from '@shared/api'
 import { strongestActivity } from '@shared/activity'
+import { sameNotice, type TerminalNotice } from '@shared/terminalNotice'
 import { createIpcStore } from './createIpcStore'
 import { onRemoteReconnected } from './remote'
 
 /**
  * Field-by-field equality: main coalesces `activeTabsChanged` to twice a second while any pty is
  * printing, so without this every tick gave consumers a fresh array. `windowNumber`/`key` identify
- * the tab; `view`/`status`/`label` are the only fields that can change under it.
+ * the tab; `view`/`status`/`label`/`notice` are the only fields that can change under it.
  */
 export function tabsEqual(a: ActiveTabPayload[], b: ActiveTabPayload[]): boolean {
   if (a === b) return true
@@ -17,7 +18,7 @@ export function tabsEqual(a: ActiveTabPayload[], b: ActiveTabPayload[]): boolean
     if (x === undefined || y === undefined) return false
     if (
       x.windowNumber !== y.windowNumber || x.key !== y.key || x.view !== y.view
-      || x.status !== y.status || x.label !== y.label
+      || x.status !== y.status || x.label !== y.label || !sameNotice(x.notice, y.notice)
     ) return false
   }
   return true
@@ -59,6 +60,11 @@ export function usePaneActivity(keys: readonly string[], waitingFirst = false): 
     const strongest = strongestActivity(statuses)
     return strongest === 'running' || strongest === 'waiting' ? strongest : null
   })
+}
+
+/** The note Claude Code shows on the terminal behind the tab `key`, or null. */
+export function useTerminalNotice(key: string): TerminalNotice | null {
+  return activeTabsStore.useStore((tabs) => tabs.find((t) => t.key === key && t.notice !== undefined)?.notice ?? null)
 }
 
 /**

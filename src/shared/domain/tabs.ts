@@ -1,3 +1,4 @@
+import type { TerminalNotice } from '../terminalNotice'
 import type { ActivityStatus } from '../activity'
 import type { PtyId } from './ids'
 
@@ -126,4 +127,6 @@ export interface ActiveTabPayload {
   status: ActivityStatus
   /** The tab's title while it has no session yet (see `reportTabs`); null otherwise. */
   label: string | null
+  /** A note Claude Code shows on the tab's terminal screen and nowhere else; absent when none is. */
+  notice?: TerminalNotice
 }

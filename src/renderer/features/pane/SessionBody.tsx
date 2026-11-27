@@ -6,7 +6,7 @@ import type { NewSessionInfo, SessionNode } from '@shared/types'
 import type { Column, OpenTab } from '../../state/columns'
 import { Transcript, Composer } from '../transcript'
 import { TerminalView } from '../terminal'
-import { AsideCard, McpCard } from '../chat'
+import { AsideCard, McpCard, TerminalNoticeCard } from '../chat'
 import { PendingChat } from './PendingChat'
 import { useCarryTypedInput } from './useCarryTypedInput'
 import type { PendingTabInfo } from './paneTypes'
@@ -71,6 +71,7 @@ export function SessionBody({
             * the whole point. What it types still goes to that terminal. */}
           {chatMode && <AsideCard sessionId={sessionId ?? activeSession.sessionId} />}
           {chatMode && <McpCard sessionId={sessionId ?? activeSession.sessionId} />}
+          {running && <TerminalNoticeCard tabKey={activeSession.sessionId} onShowTerminal={() => { onSetView(activeSession.sessionId, 'terminal') }} />}
           <Composer
             columnId={column.id}
             key={activeSession.sessionId}

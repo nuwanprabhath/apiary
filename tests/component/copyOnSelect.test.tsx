@@ -1,7 +1,7 @@
 /** Copy-on-select for the transcript: mouseup copies a selection; the right-click menu has Copy. */
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { createRoot } from 'react-dom/client'
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { createFakeApiary, type FakeApiary } from './fakeApiary'
 import { stays } from './helpers'
 import { must } from './must'
@@ -12,6 +12,9 @@ import { useCopyOnSelect } from '../../src/renderer/features/chat/useCopyOnSelec
 function Probe(): React.JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null)
   const { onContextMenu, menu } = useCopyOnSelect(ref)
+  // Effects run in order: once this one has, the hook's listeners are on. Under a CPU limit the DOM
+  // was there well before them, and a mouseup sent in between was never heard.
+  useEffect(() => { ref.current?.setAttribute('data-listening', '') }, [])
   return (
     <div>
       <div ref={ref} data-testid="region" onContextMenu={onContextMenu}>
@@ -43,7 +46,7 @@ async function mount(): Promise<FakeApiary> {
   const root = createRoot(host)
   root.render(<NotificationProvider><Probe /><NotificationCenter /></NotificationProvider>)
   cleanup = () => { root.unmount(); host.remove() }
-  await expect.poll(() => document.getElementById('para')).not.toBeNull()
+  await expect.poll(() => document.querySelector('[data-testid="region"][data-listening]')).not.toBeNull()
   return fake
 }
 

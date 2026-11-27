@@ -401,6 +401,10 @@
 .resident-confirm.shrinks { flex: 0 1 auto; min-width: 0; }
 .resident-confirm-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* The chat and its find bar (Cmd/Ctrl+F): a row of its own over the chat, which has no empty top
+   row for it to float in as the transcript's does. */
+.resident-conversation { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.resident-conversation > .find-bar { position: static; flex: none; align-self: flex-end; margin: var(--space-sm) var(--space-lg) 0; }
 .resident-popup-body {
   display: flex;
   flex: 1;
@@ -410,6 +414,7 @@
   padding: var(--space-md) var(--space-lg);
   overflow-y: auto;
 }
+.resident-popup-body:focus { outline: none; }
 .resident-msg { min-width: 0; }
 /* A message's time sits in the gap above it, as in the session chat. */
 .resident-popup-body > .message-time { margin-bottom: calc(-1 * var(--space-sm)); }
@@ -540,9 +545,10 @@
 .resident-msg-assistant .text-block p { margin-bottom: var(--space-sm); white-space: pre-wrap; }
 .resident-msg-assistant .markdown li { margin-bottom: 1px; }
 
-/* Wide command output (`mra desk` prints tables) scrolls inside its bubble instead of widening the popup. */
+/* Wide command output scrolls inside its bubble instead of widening the popup; a table's cells
+   wrap as prose does, so it scrolls only for a word wider than its column can be. */
 .resident-msg-assistant .markdown :is(table, pre) { display: block; max-width: 100%; overflow-x: auto; overflow-wrap: normal; }
-.resident-msg-assistant .markdown :is(th, td) { white-space: nowrap; }
+.resident-msg-assistant .markdown :is(th, td) { overflow-wrap: break-word; }
 
 /* Tool uses waiting for Allow or Deny, pinned above the composer. */
 .resident-permissions {

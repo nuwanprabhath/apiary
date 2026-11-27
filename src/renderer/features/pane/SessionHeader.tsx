@@ -4,7 +4,7 @@ import type { SessionNode } from '@shared/types'
 import { EditableSessionTitle } from './EditableSessionTitle'
 import type { Handoff } from './useTerminalHandoff'
 import type { PendingTabInfo } from './paneTypes'
-import { MrRefText } from '../../ui/mrRefText'
+import { LinkedTitle } from './LinkedTitle'
 import { useMrStatuses } from '../../state/useMrStatuses'
 
 /** The title (editable), with the folder in its tooltip, and the wait-for-Claude line while a handoff is pending. */
@@ -39,7 +39,7 @@ export function SessionHeader({
           <EditableSessionTitle
             key={activeSession.sessionId}
             title={activeSession.title}
-            shown={<MrRefText text={activeSession.title} statuses={mrStatuses} />}
+            shown={<LinkedTitle sessionId={activeSession.sessionId} title={activeSession.title} statuses={mrStatuses} />}
             onRename={(t) => onRenameSession(activeSession, t)}
           />
         ) : null}

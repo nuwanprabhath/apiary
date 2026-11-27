@@ -374,6 +374,8 @@
 }
 .title-edit-button:focus-visible { opacity: 1; }
 .session-title-heading:hover .title-edit-button { opacity: 1; }
+.session-title-heading .ref-link { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+.session-title-heading .ref-link:hover { color: var(--accent); text-decoration-style: solid; }
 
 .title-edit-input {
   font: inherit;
