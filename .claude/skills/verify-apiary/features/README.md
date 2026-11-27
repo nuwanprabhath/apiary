@@ -7,12 +7,12 @@ named in each file; when one stops matching, that spec is the place to look firs
 | Feature | File | e2e spec it mirrors | Shipped drive |
 | --- | --- | --- | --- |
 | Sessions sidebar and search | [sessions-and-search.md](sessions-and-search.md) | `sidebar.spec.ts`, `search.spec.ts`, `pinning.spec.ts` | `doctor` (boot and list only), `release-1-39` (pin from the menu), `features` (search, pin, the Active section, the row menu) |
-| Panes, tabs and terminals | [panes-and-terminal.md](panes-and-terminal.md) | `paneLayouts.spec.ts`, `terminal.spec.ts` | `release-1-39` (the toggle, the one-row header), `features` (a shell, a layout preset), `features-1-89` (long-titled tabs at their cap) |
-| Transcript chat | [transcript-chat.md](transcript-chat.md) | `transcriptChat.spec.ts` | `release-1-39` (message times, folding the box), `features` (a background task, the "/" actions) |
+| Panes, tabs and terminals | [panes-and-terminal.md](panes-and-terminal.md) | `paneLayouts.spec.ts`, `terminal.spec.ts` | `release-1-39` (the toggle, the one-row header), `features` (a shell, a layout preset), `features-1-89` (long-titled tabs at their cap), `features-1-91` (MR and issue links in the title) |
+| Transcript chat | [transcript-chat.md](transcript-chat.md) | `transcriptChat.spec.ts` | `release-1-39` (message times, folding the box), `features` (a background task, the "/" actions), `features-1-91` (a terminal's heads-up note in the chat) |
 | Settings | [settings.md](settings.md) | `settings.spec.ts` | `features` (settings search, themes, accounts), `features-1-89` (the Slack section, the settings version) |
 | Themes | [themes.md](themes.md) | `themes.spec.ts` | none |
 | Pets | [pets.md](pets.md) | `pets.spec.ts` | `pets` |
-| Resident agents | [residents.md](residents.md) | `residents.spec.ts`, `regent.spec.ts` | `features` (the Regent popup), `features-1-89` (added from Settings, the menu, MR Desk's setup banner, message times) |
+| Resident agents | [residents.md](residents.md) | `residents.spec.ts`, `regent.spec.ts` | `features` (the Regent popup), `features-1-89` (added from Settings, the menu, MR Desk's setup banner, message times), `features-1-91` (a wrapped table, Copy clear of code, find in the popup) |
 | Scheduled messages | [schedule.md](schedule.md) | `live/scheduledMessage.spec.ts` (opt-in) | `features` (the dialog from "/") |
 | Claude accounts | [accounts.md](accounts.md) | `accounts.spec.ts` | `features` (add an account) |
 | Status bar and usage | [status-bar.md](status-bar.md) | `statusBar.spec.ts` | `features` (usage consent), `features-1-89` (a limit hit turning the meter to 100%, the dashboard, size presets, resize mode) |

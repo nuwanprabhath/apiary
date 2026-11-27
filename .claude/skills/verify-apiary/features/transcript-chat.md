@@ -44,6 +44,14 @@ streams in with tool calls and permission prompts, without starting a terminal.
   (`chat-mcp*`); `/login`: a terminal under the session's account. A session on another account than
   the default shows `chat-account-pill`.
 - A brand-new session can start in the chat (`pending-chat`, setting `setting-new-sessions-in-chat`).
+- A note Claude Code draws only in its terminal ("✦ Heads up · …", "✦ You should know · …") shows
+  over the message box while the session's claude runs in a terminal: `chat-terminal-notice`, its
+  answers `chat-terminal-notice-choices`, and `chat-terminal-notice-open` (Answer in the terminal)
+  switching the tab to Terminal. Main reads it off the pty's screen (`src/shared/terminalNotice.ts`)
+  and sends it as the tab's `notice` in `activeTabs`. Driven with a stand-in claude that prints the
+  note (`features-1-91`); the default stand-in, a shell, never draws one.
+- A code block's Copy (`code-copy`) sits over its top-right corner and the code starts below it:
+  measure that no line's client rect meets the button at `scrollLeft` 0 and at the far end.
 
 ## How to get to it (user POV)
 

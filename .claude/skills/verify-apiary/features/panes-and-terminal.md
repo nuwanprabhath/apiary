@@ -30,6 +30,11 @@ path.
   border glow, `[data-glow]` in `styles/05-ui.css`).
 - The shell bar is the card's footer (`.shell-card` inside `session-card`); copy-branch
   (`toolbar-copy`) sits right after the branch name.
+- `!N` and `#N` in the session title (`session-title`) are `a.ref-link`s to the merge request and
+  issue on the repository's GitLab (or GitHub) page, an MR keeping its state (`!1776 (merged)`);
+  a click opens it through main (`openTerminalLink`) and starts no rename. Plain where the repo has
+  no web page: drive with `gitlabRemote`, `glabPath` and `sessionTitle`, and stub
+  `shell.openExternal` in main so no browser opens (`features-1-91`).
 - With a chat busy, Terminal waits for it: `resume-handoff` under the title, with
   `resume-handoff-now` and `resume-handoff-cancel`.
 

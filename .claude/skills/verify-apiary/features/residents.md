@@ -31,6 +31,11 @@ the user's GitLab merge requests through the bundled `mra`.
   "Turn on", "Settings…". Its items have no test ids: `getByRole('menuitem', { name })`. An action
   declares `opensPopup`; MR Desk's "Check my MRs now" runs without opening the popup, the badge
   shows it working. MR Desk's own-MR alerts are its cycle raising attention (`resident-count`).
+- Cmd/Ctrl+F with focus in the popup (the conversation, `resident-conversation`, or its box) opens
+  the find bar in a row of its own (`find-bar`, `find-input`, `find-count`, Escape closes); it finds
+  only what is drawn, since the whole conversation is.
+- A markdown table in an answer wraps its cells within the bubble (`table.scrollWidth` ≤
+  `clientWidth`); only a word wider than its column scrolls.
 - Settings: Residents section (`residents-section`), saved at once; add one with
   `resident-add-<kind>`, each then a `resident-card-<id>`.
 
@@ -54,3 +59,6 @@ reads the menu, opens MR Desk's setup banner and reads the message times.
   `residents.spec.ts` drives it with `tests/fixtures/bin/fake-glab*.sh` and python3, and so do its
   count, the desk and the `resident-pending` drafts.
 - e2e specs this mirrors: `residents.spec.ts`, `regent.spec.ts`.
+- To make the Regent answer with chosen markdown (a table, a code block), wrap
+  `tests/fixtures/fake-claude-resident.mjs` with `FAKE_RESIDENT_SCENARIOS` naming a file whose
+  scenario's `text` step is the answer (`features-1-91` does).
