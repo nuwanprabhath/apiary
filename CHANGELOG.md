@@ -4,6 +4,14 @@ All notable changes to Apiary are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.91.2] - 2026-11-27
+
+### Changed
+
+- Apiary now remembers which features privacy mode refused since it started and still refuses
+  (part of the privacy status), so something quiet can say why. A failed end-to-end test uses it to
+  name the feature it was held from and how to allow it, instead of failing on a bare timeout.
+
 ## [1.91.1] - 2026-11-27
 
 ### Fixed

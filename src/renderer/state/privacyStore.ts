@@ -9,7 +9,7 @@ import { surface } from './policy'
  */
 const privacyStore = createIpcStore<PrivacyStatus>({
   scope: 'privacy',
-  initial: { strict: true, consents: {}, disclosures: PRIVACY_DISCLOSURES, retentionDays: 30, usageConsent: 'unasked' },
+  initial: { strict: true, consents: {}, disclosures: PRIVACY_DISCLOSURES, retentionDays: 30, usageConsent: 'unasked', held: [] },
   fetch: () => window.apiary.privacyStatus(),
   subscribe: (push) => window.apiary.onPrivacyChanged(push),
 })

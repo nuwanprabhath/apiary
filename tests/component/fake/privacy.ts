@@ -18,6 +18,8 @@ export function privacyApi(env: Env): PrivacyApiFake {
     disclosures: PRIVACY_DISCLOSURES,
     retentionDays: state.settings.dataRetentionDays,
     usageConsent: state.usageConsent,
+    // Nothing in the fake runs on its own, so nothing is ever held.
+    held: [],
   })
   const changed = (): void => { emit('privacyChanged', status()) }
   return {

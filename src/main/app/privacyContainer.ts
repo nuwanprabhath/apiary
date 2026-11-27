@@ -54,6 +54,7 @@ export function createPrivacy(deps: {
         disclosures: PRIVACY_DISCLOSURES,
         retentionDays: s.dataRetentionDays,
         usageConsent: USAGE_ANSWER[usage.state()],
+        held: gate.held(),
       }
     },
     purge: async (req) => ready().purge(req),

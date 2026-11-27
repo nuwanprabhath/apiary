@@ -11,7 +11,7 @@ export function definePrivacyClauses(ctx: Ctx): void {
   describe('privacy', () => {
     it('privacyStatus answers strict mode on by default, no consents and every disclosure', async () => {
       const status = await ctx.api.privacyStatus()
-      expect(status).toMatchObject({ strict: true, consents: {}, retentionDays: 30 })
+      expect(status).toMatchObject({ strict: true, consents: {}, retentionDays: 30, held: [] })
       expect(status.disclosures).toEqual(PRIVACY_DISCLOSURES)
       expect(['allowed', 'denied', 'unasked']).toContain(status.usageConsent)
     })

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { makeSession, type FixtureOptions } from '../fixtures/makeSession'
 import { git, makeRepoWithWorktree } from '../fixtures/gitRepo'
 import { STANDARD_SESSIONS as STD } from '../fixtures/standard'
+import type { PrivacyConsents, PrivacyFeature } from '@shared/domain/privacy'
 
 export interface Harness {
   app: ElectronApplication
@@ -173,6 +174,27 @@ async function startTracing(app: ElectronApplication): Promise<void> {
  * screenshot need it still running. Not inside a test (a helper called from outside `test()`,
  * or a harness whose test has already torn down) is treated as a pass: nothing to attach it to.
  */
+/**
+ * Settings that allow `features` as if the person had (Settings → Privacy). Privacy mode is on in
+ * every fresh profile, so a spec exercising a feature it holds seeds this:
+ * `launchApiary({ settings: consenting('spellDictionaries') })`.
+ */
+export function consenting(...features: PrivacyFeature[]): { privacyConsents: PrivacyConsents } {
+  return { privacyConsents: Object.fromEntries(features.map((f) => [f, { grantedAt: Date.now(), source: 'user' }])) }
+}
+
+/**
+ * A held feature fails a spec far from its cause: a dictionary that never loads, a plugin that
+ * never answers, a timeout. So a failed spec says what privacy mode held, and how to allow it.
+ */
+async function explainHeld(page: Page): Promise<void> {
+  const held = await page.evaluate(() => window.apiary.privacyStatus().then((s) => s.held)).catch(() => [] as PrivacyFeature[])
+  if (held.length === 0) return
+  const fix = `Privacy mode held ${held.join(', ')} in this run. If the spec exercises it, launch with \`settings: consenting(${held.map((f) => `'${f}'`).join(', ')})\` (tests/e2e/helpers.ts).`
+  test.info().annotations.push({ type: 'privacy-held', description: fix })
+  console.error(fix)
+}
+
 async function stopTracingAndScreenshot(app: ElectronApplication, page: Page): Promise<void> {
   let failed = false
   try { failed = test.info().status !== test.info().expectedStatus } catch { /* not inside a test */ }
@@ -180,6 +202,7 @@ async function stopTracingAndScreenshot(app: ElectronApplication, page: Page): P
     await app.context().tracing.stop().catch(() => {})
     return
   }
+  await explainHeld(page)
   await app.context().tracing.stop({ path: test.info().outputPath('trace.zip') }).catch(() => {})
   await page.screenshot({ path: test.info().outputPath('failure.png') }).catch(() => {})
 }

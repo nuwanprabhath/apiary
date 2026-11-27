@@ -1,12 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { launchApiary, importAll, sidebarSession, type Harness } from './helpers'
+import { consenting, launchApiary, importAll, sidebarSession, type Harness } from './helpers'
 
 let h: Harness
 
 test.beforeEach(async () => {
-  // On Linux Chromium downloads its dictionaries from Google, which privacy mode holds until the
-  // person allows it (Settings → Privacy); this proof is about spelling, so it has been allowed.
-  h = await launchApiary({ settings: { privacyConsents: { spellDictionaries: { grantedAt: Date.now(), source: 'user' } } } })
+  // On Linux Chromium downloads its dictionaries from Google, which privacy mode holds.
+  h = await launchApiary({ settings: consenting('spellDictionaries') })
   await importAll(h.page)
   await h.page.getByTestId('sidebar-refresh').click()
   await sidebarSession(h.page, 'Fix CSV export bug').click()
@@ -24,7 +23,14 @@ test('the machine has a spellchecker dictionary, which flags "recieve" and sugge
     .toMatchObject({ misspelled: true, suggestions: expect.arrayContaining(['receive']) })
 })
 
+/** Chromium loads the dictionary after launch; until then every word is correct and no menu opens. */
+async function dictionaryLoaded(): Promise<void> {
+  await expect.poll(() => h.page.evaluate(() => window.apiary.spellingCheck('recieve')), { timeout: 10_000 })
+    .toMatchObject({ misspelled: true })
+}
+
 test('a left-click on a misspelled word offers the suggestions, and choosing one replaces the word', async () => {
+  await dictionaryLoaded()
   const input = h.page.getByTestId('composer-input')
   await input.fill('recieve')
 

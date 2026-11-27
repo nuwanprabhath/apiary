@@ -61,4 +61,18 @@ describe('PrivacyGate', () => {
     const gate = createPrivacyGate({ ...settings, get: () => { throw new Error('unreadable') } })
     expect(gate.allows('backgroundDigest')).toBe(false)
   })
+
+  it('held lists what it refused since launch and still refuses, so a quiet feature can say why', async () => {
+    const settings = fakeSettings()
+    const gate = createPrivacyGate(settings)
+    expect(gate.held()).toEqual([])
+    gate.allows('spellDictionaries')
+    gate.allows('gitlabLookups')
+    gate.allows('spellDictionaries')
+    expect(gate.held()).toEqual(['gitlabLookups', 'spellDictionaries'])
+    await gate.grant('gitlabLookups')
+    expect(gate.held()).toEqual(['spellDictionaries'])
+    settings.patch({ gdprStrictMode: false })
+    expect(gate.held()).toEqual([])
+  })
 })

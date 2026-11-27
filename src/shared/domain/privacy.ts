@@ -144,5 +144,7 @@ export interface PrivacyStatus {
   disclosures: Record<PrivacyFeature, PrivacyDisclosure>
   retentionDays: number
   usageConsent: UsageConsentAnswer
+  /** What privacy mode has refused since Apiary started and still refuses: why a feature is quiet. */
+  held: PrivacyFeature[]
 }
 

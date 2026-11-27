@@ -18,22 +18,32 @@ export interface PrivacyGate {
   grant(feature: PrivacyFeature, source?: 'user' | 'migrated'): Promise<void>
   revoke(feature: PrivacyFeature): Promise<void>
   strict(): boolean
+  /** The features something asked for since launch and was refused, and that are still not allowed. */
+  held(): PrivacyFeature[]
 }
 
 const sameConsents = (a: PrivacyConsents, b: PrivacyConsents): boolean => JSON.stringify(a) === JSON.stringify(b)
 
 export function createPrivacyGate(settings: PrivacySettings, now: () => number = Date.now): PrivacyGate {
   const consents = (): PrivacyConsents => cleanPrivacyConsents(settings.get().privacyConsents)
+  /** Invalidated by nothing: `held` filters it through `allows` again on every read. */
+  const refused = new Set<PrivacyFeature>()
+  const allowsNow = (feature: PrivacyFeature): boolean => {
+    try {
+      const s = settings.get()
+      return privacyAllows(s.gdprStrictMode, cleanPrivacyConsents(s.privacyConsents), feature)
+    } catch (e) {
+      log.warn('privacy', 'settings unreadable, holding the feature', { feature, error: errorMessage(e) })
+      return false
+    }
+  }
   return {
     allows: (feature) => {
-      try {
-        const s = settings.get()
-        return privacyAllows(s.gdprStrictMode, cleanPrivacyConsents(s.privacyConsents), feature)
-      } catch (e) {
-        log.warn('privacy', 'settings unreadable, holding the feature', { feature, error: errorMessage(e) })
-        return false
-      }
+      const allowed = allowsNow(feature)
+      if (!allowed) refused.add(feature)
+      return allowed
     },
+    held: () => [...refused].filter((f) => !allowsNow(f)).sort(),
     onChange: (listener) => settings.onChange((next, prev) => {
       if (next.gdprStrictMode !== prev.gdprStrictMode || !sameConsents(cleanPrivacyConsents(next.privacyConsents), cleanPrivacyConsents(prev.privacyConsents))) listener()
     }),
